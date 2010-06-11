@@ -1,0 +1,8 @@
+This is the example notes file.
+
+TODO:
+[X] find good unique name for this project
+[ ] write docs about it
+[ ] implement
+
+

@@ -1,0 +1,9 @@
+{"camliVersion":"1",
+ "camliType": "file:1",
+ "name": "some-notes.txt",
+ "contents": "sha1-8ba9e53cbc83c1be3835b94a3690c3b03de0b522",
+ "size": 122,
+ "modtime": "2010-06-10T18:02Z",
+ "ctime": "2008-04-12T04:12:17.194Z",
+ "permissions": "0644"
+}

@@ -1,0 +1,155 @@
+============================================================================
+Camlistore: Content-Addressable Multi-Layer, Indexed Store
+============================================================================
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Design goals:
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* Content storage & indexing & backup system
+* No master node
+* Anything can sync any which way, in any directed graph (cycles or not)
+  (phone -> personal server <-> home machine <-> amazon <-> google, etc)
+* No sync state or races on arguments of latest versions
+* Future-proof
+* Very obvious/intuitive schema (easy to recover in the future, even
+  if all docs/notes about Camlistore are lost, or the recoverer in
+  five decades after I die doesn't even know that Camlistore was being
+  used....) should be easy for future digital archaeologists to grok.
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Design assumptions:
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* disk is cheap and getting cheaper
+* bandwidth is high and getting faste
+* plentiful CPU & compression will fix size & redundancy of metadata
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Layer 1:
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* content-addressable blobs only
+  - no notion of "files", filenames, dates, streams, encryption,
+    permissions, metadata.
+* immutable
+* only operations:
+  - store(digest, bytes)
+  - check(digest) => bool (have it or not)
+  - get(digest) => bytes
+  - list([start_digest]) => [(digest[, size]), ...]+
+* amenable to implementation on ordinary filesystems (e.g. ext3, vfat,
+  ntfs) or on Amazon S3, BigTable, AppEngine Datastore, Azure, Hadoop
+  HDFS, etc.
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+Schema of files/objects in Layer 1:
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* Let's start by describing the storage of files that aren't self-describing,
+  e.g. "some-notes.txt" (as opposed to a jpg file from a camera that might
+  likely contain EXIF data, addressed later...).  This file, for reference,
+  is in doc/example/some-notes.txt
+
+* The bytes of file "some-notes.txt" are stored as-is in one blob,
+  addressed as "sha1-8ba9e53cbc83c1be3835b94a3690c3b03de0b522".
+  (note the explicit naming of the hash function as part of the name,
+  for upgradability later, and so all parties involved know how to
+  verify it...)
+
+* The filename, stat(2) metadata (modtime, ctime, permissions, etc) now
+  also need to be stored.  The key design point here is that file
+  metdata is ALSO just a blob, content-addressed.  The blob is a JSON
+  file (for human readability, compactness).  XML and Protocol Buffers
+  were both also considered, but the former is too redundant, bloaty,
+  tree-ish (overkill) and out of vogue, while Protocol Buffers don't
+  stand up to the human readable future digital archaeologist test,
+  and they're also not self-describing with the proto schema declared
+  in-line.
+
+  This file would thus be represented by a JSON file, as seen in
+  docs/examples/some-notes.txt.camli, and addressed as
+  "sha1-7e7960756b39cd7da614e7edbcf1fa7d696eb660", its sha1sum.
+  This identifier can be used in directory listings, etc.
+  Note that camli files do not have any magical filename, as they're
+  not typically stored with their filename.  (they are in the doc/examples/
+  directory just to separate them out, but that's a rare case.)
+  Instead, a camli JSON object is known as such if the bytes of the file
+  begin exactly with the bytes:
+
+        {"camliVerison"
+
+  ... which lets upper layers know what it is, and how to index it.
+
+  See spec.txt for details on Camli JSON objects and their schema.
+
+* Note that camli files can represent:
+
+  -- files
+  -- directories
+  -- trees/snapshots (git-style)
+  -- tags on other objects
+  -- stars/ratings on other objects
+  -- deletion claims/requests (since everything is immutable, you can
+     only request a deletion, and wait/hope for GC later...)
+  -- signed statements/claims on other objects
+     (think decentralized commenting/starring on the web,
+      verifying claims with webfinger lookups to find
+      public keys to veirfy signatures)
+  -- references to encrypted/split files
+  -- etc... (extensible over time)
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+Syncing
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+-- nodes can push/pull between storage layers without thought.  No
+   chance of overwriting stuff.
+
+-- the assumption is that users control and trust and secure all their
+   storage nodes: e.g. your phone, your home server, your internet
+   server, your Amazon S3 node, your App Engine appid / datastore
+   instance, etc.
+
+-- users configure which nodes push/pull to which other nodes, forming
+   their own sync topology.  For instance, your phone may not need a
+   full copy of all content you've ever saved/produced... its primary
+   goal in life is probably to quickly push out any unique content it
+   produces (e.g. photos) to another machine for backup.  And maybe
+   cache other recently-accessed content locally, but not worry about
+   it being destroyed when you drop and break your phone.
+
+-- no encryption is assumed at the Camli storage layer, though you may
+   run a Camli storage node on an encrypted filesystem or blockdevice.
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+Indexing Layer
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* scans/mapreduces over all blobs, provides higher-level APIs to list
+  objects, list directories, see snapshots of trees at points in time,
+  traverse graphs of objects (reverse indexing e.g. tags/stars/claims
+  object<->object)
+
+* ... TODO: document
+
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+Mid layer
+-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+* It'll often be the case that a client (e.g. your phone) knows about
+  a file (e.g. a photo) and has its metadata, but doesn't have its raw
+  JPEG blob bytes, which might be several MB, and slow to transfer
+  over a wireless connection.  Camli storage nodes may also declare
+  their support for helper APIs for when the client knows/assumes the
+  type of a given blob.
+
+  In addition to the operations in layer 1 above, you could also assume
+  most Camli storage nodes would support any API such as:
+
+     getThumbnail(blobName, [ ... sizeParams .. ]) -> JPEG thumbnail
+
+  .. which would make mobile content browsers lives easier.
+
+
+TODO: finish documenting
