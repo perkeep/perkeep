@@ -19,7 +19,51 @@ var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory 
 
 var sharedSecret string
 
-var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
+var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
+
+type ObjectRef struct {
+	hashName string
+	digest   string
+};
+
+func ParsePath(path string) *ObjectRef {
+	groups := kGetPutPattern.MatchStrings(path)
+	if (len(groups) != 3) {
+		return nil
+	}
+	obj := &ObjectRef{groups[1], groups[2]}
+	if obj.hashName == "sha1" && len(obj.digest) != 40 {
+		return nil
+	}
+	return obj;
+}
+
+func (o *ObjectRef) IsSupported() bool {
+	if o.hashName == "sha1" {
+		return true
+	}
+	return false
+}
+
+func (o *ObjectRef) Hash() hash.Hash {
+	if o.hashName == "sha1" {
+		return sha1.New()
+	}
+	return nil
+}
+
+func (o *ObjectRef) FileBaseName() string {
+	return fmt.Sprintf("%s-%s.dat", o.hashName, o.digest)
+}
+
+func (o *ObjectRef) DirectoryName() string {
+	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.digest[0:3], o.digest[3:6])
+
+}
+
+func (o *ObjectRef) FileName() string {
+	return fmt.Sprintf("%s/%s-%s.dat", o.DirectoryName(), o.hashName, o.digest)
+}
 
 func badRequestError(conn *http.Conn, errorMessage string) {
 	conn.WriteHeader(http.StatusBadRequest)
@@ -37,41 +81,78 @@ func handleCamli(conn *http.Conn, req *http.Request) {
 		return
 	}
 
+	if (req.Method == "GET") {
+		handleGet(conn, req)
+		return
+	}
+
 	badRequestError(conn, "Unsupported method.")
 }
 
+func handleGet(conn *http.Conn, req *http.Request) {
+	objRef := ParsePath(req.URL.Path)
+	if objRef == nil {
+		badRequestError(conn, "Malformed GET URL.")
+                return
+	}
+	fileName := objRef.FileName()
+	stat, err := os.Stat(fileName)
+	if err == os.ENOENT {
+		conn.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(conn, "Object not found.")
+		return
+	}
+	if err != nil {
+		serverError(conn, err); return
+	}
+	file, err := os.Open(fileName, os.O_RDONLY, 0)
+	if err != nil {
+		serverError(conn, err); return
+	}
+	conn.SetHeader("Content-Type", "application/octet-stream")
+	bytesCopied, err := io.Copy(conn, file)
+
+	// If there's an error at this point, it's too late to tell the client,
+	// as they've already been receiving bytes.  But they should be smart enough
+	// to verify the digest doesn't match.  But we close the (chunked) response anyway,
+	// to further signal errors.
+        if err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", objRef, err)
+		closer, _, err := conn.Hijack()
+		if err != nil {	closer.Close() }
+                return
+        }
+	if bytesCopied != stat.Size {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied= %d, not %d%v\n", objRef,
+			bytesCopied, stat.Size)
+		closer, _, err := conn.Hijack()
+		if err != nil {	closer.Close() }
+                return
+	}
+}
+
 func handlePut(conn *http.Conn, req *http.Request) {
-	groups := kPutPattern.MatchStrings(req.URL.Path)
-	if (len(groups) != 3) {
+	objRef := ParsePath(req.URL.Path)
+	if objRef == nil {
 		badRequestError(conn, "Malformed PUT URL.")
-		fmt.Println("PUT URL: ", req.URL.Path)
                 return
 	}
 
-	hashFunc := groups[1]
-	digest := groups[2]
-
-	if (hashFunc == "sha1" && len(digest) != 40) {
-		badRequestError(conn, "invalid length for sha1 hash")
+	if !objRef.IsSupported() {
+		badRequestError(conn, "unsupported object hash function")
 		return
 	}
 
 	// TODO(bradfitz): authn/authz checks here.
 
-	hashedDirectory := fmt.Sprintf("%s/%s/%s",
-		*storageRoot,
-		digest[0:3],
-		digest[3:6])
-
+	hashedDirectory := objRef.DirectoryName()
 	err := os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		serverError(conn, err)
 		return
 	}
 
-	fileBaseName := fmt.Sprintf("%s-%s.dat", hashFunc, digest)
-
-	tempFile, err := ioutil.TempFile(hashedDirectory, fileBaseName + ".tmp")
+	tempFile, err := ioutil.TempFile(hashedDirectory, objRef.FileBaseName() + ".tmp")
 	if err != nil {
                 serverError(conn, err)
                 return
@@ -93,18 +174,10 @@ func handlePut(conn *http.Conn, req *http.Request) {
 		serverError(conn, err); return
 	}
 
-	var hasher hash.Hash;
-	switch (hashFunc) {
-	case "sha1":
-		hasher = sha1.New();
-		break;
-	}
-	if (hasher == nil) {
-		badRequestError(conn, "unsupported hash function.")
-		return;
-	}
+	hasher := objRef.Hash()
+
 	io.Copy(hasher, tempFile)
-	if fmt.Sprintf("%x", hasher.Sum()) != digest {
+	if fmt.Sprintf("%x", hasher.Sum()) != objRef.digest {
 		badRequestError(conn, "digest didn't match as declared.")
 		return;
 	}
@@ -112,7 +185,7 @@ func handlePut(conn *http.Conn, req *http.Request) {
 		serverError(conn, err); return
 	}
 
-	fileName := fmt.Sprintf("%s/%s", hashedDirectory, fileBaseName)
+	fileName := objRef.FileName()
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
 		serverError(conn, err); return
 	}
