@@ -16,6 +16,6 @@ $url =~ s!/$!!;
 $url .= "/camli/sha1-$sha1";
 
 print "PUT'ing to $url ...\n";
-system("curl", "-T", $file, $url) and die "Curl failed.";
+system("curl", "-u", "test:foo", "-T", $file, $url) and die "Curl failed.";
 
 

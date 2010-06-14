@@ -5,6 +5,7 @@
 package main
 
 import "crypto/sha1"
+import "encoding/base64"
 import "flag"
 import "fmt"
 import "hash"
@@ -20,6 +21,7 @@ var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory 
 var sharedSecret string
 
 var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
+var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 type ObjectRef struct {
 	hashName string
@@ -73,6 +75,22 @@ func badRequestError(conn *http.Conn, errorMessage string) {
 func serverError(conn *http.Conn, err os.Error) {
 	conn.WriteHeader(http.StatusInternalServerError)
 	fmt.Fprintf(conn, "Server error: %s\n", err)
+}
+
+func putAllowed(req *http.Request) bool {
+	auth, present := req.Header["Authorization"]
+	if !present {
+		return false
+	}
+	matches := kBasicAuthPattern.MatchStrings(auth)
+	if len(matches) != 2 {
+		return false
+	}
+	var outBuf []byte = make([]byte, base64.StdEncoding.DecodedLen(len(matches[1])))
+	bytes, err := base64.StdEncoding.Decode(outBuf, []uint8(matches[1]))
+	fmt.Println("Decoded bytes:", bytes, " error: ", err)
+	fmt.Println("Got userPass:", string(outBuf))
+	return false
 }
 
 func handleCamli(conn *http.Conn, req *http.Request) {
@@ -140,6 +158,13 @@ func handlePut(conn *http.Conn, req *http.Request) {
 
 	if !objRef.IsSupported() {
 		badRequestError(conn, "unsupported object hash function")
+		return
+	}
+
+	if !putAllowed(req) {
+		conn.SetHeader("WWW-Authenticate", "Basic realm=\"camlistored\"")
+		conn.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintf(conn, "Authentication required.")
 		return
 	}
 
