@@ -53,13 +53,68 @@ in a string!"
 But then you're back to the readable problem, because JSON strings
 can't have embedded newline literals.
 
-Thus, you need to define a JSON serialization format.
+Further, the laptop.org proposal requires the use of a new JSON
+serialization library and parser for each language which wants to
+produce camli documents.  This isn't a huge deal, but considering that
+JSON libraries already exist and people are oddly passionate about
+their favorites and inertia's not to be ignored, I state the next
+goal:
 
-Unfortunately, I'm defining a new one here.  The "Camli JSON
-serialization format" which is just JSON, but with the following
-restrictions / requirements:
+GOAL #3) Don't require a new JSON library for parsing/serialization.
 
--- ....
+With the above goals in mind, Camli uses the following scheme to sign
+and verify JSON documents:
+
+SIGNING
+=======
+
+-- start with a JSON object (not an array) to be encoded and signed.
+   we'll call this data structure 'O'.
+
+-- serialize it with whatever JSON serialization library you have
+   available.  internal or traliing whitespace doesn't matter.  we'll
+   call the JSON serialization of 'O' (defined in earlier step) 'J'
+   (e.g. doc/examples/signing-before.camli)
+
+-- now remove any trailing whitespace and exactly and only one '}'
+   character from the end of string 'J'.  we'll call this truncated,
+   trimmed string 'T'.
+
+-- Create an ASCII-armored detached signature of this document,
+   e.g.:
+
+   gpg --detach-sign --local-user=54F8A914 --armor \
+       -o signing-before.camli.detachsig signing-before.camli
+
+   (The output file is in doc/examples/signing-before.camli.detachsig)
+
+-- take just the base64 part of that ASCII detached signature
+   into a single line, and call that 'S'.
+
+-- append the following to 'T' above:
+
+   ,"camliSig":"<S>"}\n
+
+   ... where <S> is the single-line ASCII base64 detached signature.
+
+-- the resulting string is 'C', the camli-signed JSON document.
+
+In review:
+
+O == the object to be signed
+J == any valid JSON serialization of O
+T == J, with 0+ trailing whitespace removed, and then 1 '}' character
+     removed
+S == ascii-armored detached signature of T
+C == CONCAT(T, ',"camliSig":"', S, '"}', '\n')
+
+(strictly, the trailing newline and the exact JSON serialziation of
+the camlisig element doesn't matter, but it'd be advised to follow
+this recommendation for compatibility with other verification code)
+
+VERIFYING
+=========
+
 
 
 
