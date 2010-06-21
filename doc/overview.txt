@@ -22,7 +22,7 @@ Design assumptions:
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 * disk is cheap and getting cheaper
-* bandwidth is high and getting faste
+* bandwidth is high and getting faster
 * plentiful CPU & compression will fix size & redundancy of metadata
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
