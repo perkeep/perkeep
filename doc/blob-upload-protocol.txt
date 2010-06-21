@@ -1,0 +1,45 @@
+POST /camli/preupload HTTP/1.1
+Host: example.com
+
+camliversion=1&
+blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8&
+blob2=sha1-9242dbadb7827d697fab034a1e73f366b451ce4d
+
+HTTP/1.1 200 OK
+Content-Length: ...
+Content-Type: text/plain
+
+{
+   "maxUploadSize": 1048576,
+   "alreadyHave": [
+      {"blobRef": "sha1-9242dbadb7827d697fab034a1e73f366b451ce4d",
+       "size": 12312}
+   ],
+   "uploadUrl": "http://example.com/SDALKSJDALKSJDKLASJD",
+}
+
+
+
+
+POST /SDALKSJDALKSJDKLASJD HTTP/1.1
+Host: example.com
+Content-Type: multipart/form-data; boundary=----------------------------9782c16cfc60
+
+----------------------------9782c16cfc60
+Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"
+Content-Type: application/octet-stream
+
+(binary blob data)
+----------------------------9782c16cfc60
+Content-Disposition: form-data; name="sha1-9242dbadb7827d697fab034a1e73f366b451ce4d"
+Content-Type: application/octet-stream
+
+(binary blob data)
+----------------------------9782c16cfc60--
+
+
+If connection drops during a POST to an upload URL, you should re-do a
+preupload request to verify which objects were received and which were not.
+Also, the URL you received from preupload might've been bogus.
+
+
