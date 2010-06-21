@@ -22,6 +22,18 @@ var putPassword string
 
 var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
+var kMultiPartContentPattern *regexp.Regexp = regexp.MustCompile(
+	`^multipart/form-data; boundary="?([^" ]+)"?`)
+
+type MultipartReader struct {
+	boundary  string
+	reader    io.Reader
+}
+
+type MultipartBodyPart struct {
+	Header map[string]string
+	Body   io.Reader
+}
 
 type BlobRef struct {
 	HashName string
@@ -30,7 +42,7 @@ type BlobRef struct {
 
 func ParsePath(path string) *BlobRef {
 	groups := kGetPutPattern.MatchStrings(path)
-	if (len(groups) != 3) {
+	if len(groups) != 3 {
 		return nil
 	}
 	obj := &BlobRef{groups[1], groups[2]}
@@ -103,12 +115,17 @@ func getAllowed(req *http.Request) bool {
 }
 
 func handleCamli(conn *http.Conn, req *http.Request) {
-	if (req.Method == "PUT") {
+	if req.Method == "POST" && req.URL.Path == "/camli/upload" {
+		handleMultiPartUpload(conn, req);
+		return
+	}
+
+	if req.Method == "PUT" {
 		handlePut(conn, req)
 		return
 	}
 
-	if (req.Method == "GET") {
+	if req.Method == "GET" {
 		handleGet(conn, req)
 		return
 	}
@@ -163,6 +180,25 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		if err != nil {	closer.Close() }
                 return
 	}
+}
+
+func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
+	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
+		badRequestError(conn, "Inconfigured handler.")
+		return
+	}
+	contentType := req.Header["Content-Type"]
+	groups := kMultiPartContentPattern.MatchStrings(contentType)
+	if len(groups) != 2 {
+		badRequestError(conn, "Expected multipart/form-data Content-Type")
+                return
+	}
+
+	boundary := groups[1]
+	bodyReader := &MultipartReader{boundary, req.Body}
+	fmt.Println("body:", bodyReader)
+	io.Copy(os.Stdout, req.Body)
+	fmt.Fprintf(conn, "test")
 }
 
 func handlePut(conn *http.Conn, req *http.Request) {
