@@ -23,48 +23,48 @@ var sharedSecret string
 var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
-type ObjectRef struct {
-	hashName string
-	digest   string
-};
+type BlobRef struct {
+	HashName string
+	Digest   string
+}
 
-func ParsePath(path string) *ObjectRef {
+func ParsePath(path string) *BlobRef {
 	groups := kGetPutPattern.MatchStrings(path)
 	if (len(groups) != 3) {
 		return nil
 	}
-	obj := &ObjectRef{groups[1], groups[2]}
-	if obj.hashName == "sha1" && len(obj.digest) != 40 {
+	obj := &BlobRef{groups[1], groups[2]}
+	if obj.HashName == "sha1" && len(obj.Digest) != 40 {
 		return nil
 	}
 	return obj;
 }
 
-func (o *ObjectRef) IsSupported() bool {
-	if o.hashName == "sha1" {
+func (o *BlobRef) IsSupported() bool {
+	if o.HashName == "sha1" {
 		return true
 	}
 	return false
 }
 
-func (o *ObjectRef) Hash() hash.Hash {
-	if o.hashName == "sha1" {
+func (o *BlobRef) Hash() hash.Hash {
+	if o.HashName == "sha1" {
 		return sha1.New()
 	}
 	return nil
 }
 
-func (o *ObjectRef) FileBaseName() string {
-	return fmt.Sprintf("%s-%s.dat", o.hashName, o.digest)
+func (o *BlobRef) FileBaseName() string {
+	return fmt.Sprintf("%s-%s.dat", o.HashName, o.Digest)
 }
 
-func (o *ObjectRef) DirectoryName() string {
-	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.digest[0:3], o.digest[3:6])
+func (o *BlobRef) DirectoryName() string {
+	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.Digest[0:3], o.Digest[3:6])
 
 }
 
-func (o *ObjectRef) FileName() string {
-	return fmt.Sprintf("%s/%s-%s.dat", o.DirectoryName(), o.hashName, o.digest)
+func (o *BlobRef) FileName() string {
+	return fmt.Sprintf("%s/%s-%s.dat", o.DirectoryName(), o.HashName, o.Digest)
 }
 
 func badRequestError(conn *http.Conn, errorMessage string) {
@@ -202,7 +202,7 @@ func handlePut(conn *http.Conn, req *http.Request) {
 	hasher := objRef.Hash()
 
 	io.Copy(hasher, tempFile)
-	if fmt.Sprintf("%x", hasher.Sum()) != objRef.digest {
+	if fmt.Sprintf("%x", hasher.Sum()) != objRef.Digest {
 		badRequestError(conn, "digest didn't match as declared.")
 		return;
 	}
