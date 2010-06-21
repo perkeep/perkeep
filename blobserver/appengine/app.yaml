@@ -1,0 +1,19 @@
+application: camlistore-appengine
+version: 1
+api_version: 1
+runtime: python
+
+handlers:
+- url: /remote_api
+  script: $PYTHON_LIB/google/appengine/ext/remote_api/handler.py
+  login: admin
+
+# Upload completion URL must not be accessible by any users. Only by
+# going through Blobstore API upload URL.
+- url: /upload_complete
+  login: admin
+  script: main.py
+
+- url: .*
+  secure: always
+  script: main.py
