@@ -16,6 +16,7 @@ Content-Type: text/plain
        "size": 12312}
    ],
    "uploadUrl": "http://example.com/SDALKSJDALKSJDKLASJD",
+   "uploadUrlExpirationSeconds": 7200,
 }
 
 
@@ -37,9 +38,18 @@ Content-Type: application/octet-stream
 (binary blob data)
 ----------------------------9782c16cfc60--
 
+HTTP/1.1 200 OK
+Content-Type: text/plain
+
+{
+   "maxUploadSize": 1048576,
+   "uploadUrl": "http://example.com/TheNextUploadUrlRandomString",
+   "uploadUrlExpirationSeconds": 7200,
+}
 
 If connection drops during a POST to an upload URL, you should re-do a
-preupload request to verify which objects were received and which were not.
-Also, the URL you received from preupload might've been bogus.
+preupload request to verify which objects were received by the server
+and which were not.  Also, the URL you received from preupload
+might've been bogus.
 
 
