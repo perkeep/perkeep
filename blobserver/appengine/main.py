@@ -28,37 +28,35 @@ To test:
 # Put -- 200 response
 curl -v -L \
   -F file=@./test_data.txt \
-  -F 'blob_ref=sha1-126249fd8c18cbb5312a5705746a2af87fba9538' \
-  http://localhost:8080/put
+  http://localhost:8080/put/sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Put with bad blob_ref parameter -- 400 response
 curl -v -L \
   -F file=@./test_data.txt \
-  -F 'blob_ref=sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f' \
-  http://localhost:8080/put
+  http://localhost:8080/put/sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
 # Get present -- the blob
-curl -v http://localhost:8080/get?\
-blob_ref=sha1-126249fd8c18cbb5312a5705746a2af87fba9538
+curl -v http://localhost:8080/get/\
+sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Get missing -- 404
-curl -v http://localhost:8080/get?\
-blob_ref=sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
+curl -v http://localhost:8080/get/\
+sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
 # Check present -- 200 with blob ref list response
-curl -v http://localhost:8080/check?\
-blob_ref=sha1-126249fd8c18cbb5312a5705746a2af87fba9538
+curl -v http://localhost:8080/check/\
+sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Check missing -- 404 with empty list response
-curl -v http://localhost:8080/check?\
-blob_ref=sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
+curl -v http://localhost:8080/check/\
+sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
 # List -- 200 with list of blobs (just one)
 curl -v http://localhost:8080/list
 
 # List offset -- 200 with list of no blobs
-curl -v http://localhost:8080/list?\
-after_blob_ref=sha1-126249fd8c18cbb5312a5705746a2af87fba9538
+curl -v http://localhost:8080/list/\
+sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 """
 
@@ -122,8 +120,7 @@ def render_blob_refs(blob_ref_list):
 class ListHandler(webapp.RequestHandler):
   """Return chunks that the server has."""
 
-  def get(self):
-    after_blob_ref = self.request.get('after_blob_ref')
+  def get(self, after_blob_ref):
     count = max(1, min(1000, int(self.request.get('count') or 1000)))
     query = Blob.all().order('__key__')
     if after_blob_ref:
@@ -136,8 +133,7 @@ class ListHandler(webapp.RequestHandler):
 class GetHandler(blobstore_handlers.BlobstoreDownloadHandler):
   """Gets a blob with the given ref."""
 
-  def get(self):
-    blob_ref = self.request.get('blob_ref')
+  def get(self, blob_ref):
     blob = Blob.get_by_key_name(blob_ref)
     if not blob:
       self.error(404)
@@ -148,8 +144,7 @@ class GetHandler(blobstore_handlers.BlobstoreDownloadHandler):
 class CheckHandler(webapp.RequestHandler):
   """Checks if a Blob is present on this server."""
 
-  def get(self):
-    blob_ref = self.request.get('blob_ref')
+  def get(self, blob_ref):
     blob = Blob.get_by_key_name(blob_ref)
     if not blob:
       blob_refs = []
@@ -165,9 +160,9 @@ class CheckHandler(webapp.RequestHandler):
 class GetUploadUrlHandler(webapp.RequestHandler):
   """Handler to return a URL for a script to get an upload URL."""
 
-  def post(self):
+  def post(self, blob_ref):
     self.response.headers['Location'] = blobstore.create_upload_url(
-        '/upload_complete')
+        '/upload_complete/%s' % blob_ref)
     self.response.set_status(307)
 
 
@@ -196,7 +191,7 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 
     return '%s-%s' % (hash_func, hasher.hexdigest())
 
-  def store_blob(self, upload_files, error_messages):
+  def store_blob(self, blob_ref, upload_files, error_messages):
     """Store blob information.
 
     Writes a Blob to the datastore for the uploaded file.
@@ -210,11 +205,6 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 
     if len(upload_files) != 1:
       error_messages.append('More than one file.')
-
-    blob_ref = self.request.get('blob_ref').lower()
-    if not blob_ref:
-      error_messages.append('Missing "blob_ref" parameter.')
-      return
 
     if not blob_ref.startswith('sha1-'):
       error_messages.append('Only sha1 supported for now.')
@@ -239,13 +229,13 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
       blob.put()
     db.run_in_transaction(txn)
 
-  def post(self):
+  def post(self, blob_ref):
     """Do upload post."""
     error_messages = []
 
     upload_files = self.get_uploads('file')
 
-    self.store_blob(upload_files, error_messages)
+    self.store_blob(blob_ref, upload_files, error_messages)
 
     if error_messages:
       blobstore.delete(upload_files)
@@ -275,11 +265,11 @@ class ErrorHandler(webapp.RequestHandler):
 
 APP = webapp.WSGIApplication(
   [
-    ('/get', GetHandler),
-    ('/check', CheckHandler),
-    ('/list', ListHandler),
-    ('/put', GetUploadUrlHandler),
-    ('/upload_complete', UploadHandler),  # Admin only.
+    ('/get/([^/]+)', GetHandler),
+    ('/check/([^/]+)', CheckHandler),
+    ('/list/([^/]+)', ListHandler),
+    ('/put/([^/]+)', GetUploadUrlHandler),
+    ('/upload_complete/([^/]+)', UploadHandler),  # Admin only.
     ('/success', SuccessHandler),
     ('/error', ErrorHandler),
   ],
