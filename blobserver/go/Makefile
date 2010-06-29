@@ -1,6 +1,7 @@
-camlistored: camlistored.go
-	8g camlistored.go
-	8l -o camlistored camlistored.8
+include $(GOROOT)/src/Make.$(GOARCH)
 
-clean:
-	rm -f camlistored camlistored.8
+TARG=camlistored
+GOFILES=camlistored.go
+
+include $(GOROOT)/src/Make.cmd
+
