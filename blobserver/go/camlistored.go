@@ -14,6 +14,7 @@ import "io"
 import "io/ioutil"
 import "os"
 import "regexp"
+import multipart "github.com/bradfitz/golang-mime-multipart"
 
 var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
 var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
@@ -24,16 +25,6 @@ var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 var kMultiPartContentPattern *regexp.Regexp = regexp.MustCompile(
 	`^multipart/form-data; boundary="?([^" ]+)"?`)
-
-type MultipartReader struct {
-	boundary  string
-	reader    io.Reader
-}
-
-type MultipartBodyPart struct {
-	Header map[string]string
-	Body   io.Reader
-}
 
 type BlobRef struct {
 	HashName string
@@ -195,10 +186,20 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 	}
 
 	boundary := groups[1]
-	bodyReader := &MultipartReader{boundary, req.Body}
-	fmt.Println("body:", bodyReader)
-	io.Copy(os.Stdout, req.Body)
-	fmt.Fprintf(conn, "test")
+	multiReader := multipart.NewReader(req.Body, boundary)
+	for {
+		part, err := multiReader.Next()
+		if err != nil {
+			fmt.Println("Error reading:", err)
+			break
+		}
+		if part == nil {
+			break
+		}
+		fmt.Println("Read part:", part)
+		io.Copy(os.Stdout, part)
+	}
+	fmt.Println("Done reading multipart body.")
 }
 
 func handlePut(conn *http.Conn, req *http.Request) {
