@@ -14,7 +14,8 @@ import "io"
 import "io/ioutil"
 import "os"
 import "regexp"
-import multipart "github.com/bradfitz/golang-mime-multipart"
+import "mime/multipart"
+// import multipart "github.com/bradfitz/golang-mime-multipart"
 
 var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
 var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
@@ -105,9 +106,31 @@ func getAllowed(req *http.Request) bool {
 	return putAllowed(req)
 }
 
+func handleCamliForm(conn *http.Conn, req *http.Request) {
+	fmt.Fprintf(conn, `
+<html>
+<body>
+<form method='POST' enctype="multipart/form-data" action="/camli/upload">
+<input type="hidden" name="имя" value="брэд" />
+Text unix: <input type="file" name="file-unix"><br>
+Text win: <input type="file" name="file-win"><br>
+Text mac: <input type="file" name="file-mac"><br>
+Image png: <input type="file" name="image-png"><br>
+<input type=submit>
+</form>
+</body>
+</html>
+`)
+}
+
 func handleCamli(conn *http.Conn, req *http.Request) {
 	if req.Method == "POST" && req.URL.Path == "/camli/upload" {
 		handleMultiPartUpload(conn, req);
+		return
+	}
+
+	if req.Method == "GET" && req.URL.Path == "/camli/form" {
+		handleCamliForm(conn, req);
 		return
 	}
 
@@ -188,7 +211,7 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 	boundary := groups[1]
 	multiReader := multipart.NewReader(req.Body, boundary)
 	for {
-		part, err := multiReader.Next()
+		part, err := multiReader.NextPart()
 		if err != nil {
 			fmt.Println("Error reading:", err)
 			break
@@ -197,7 +220,11 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 			break
 		}
 		fmt.Println("Read part:", part)
-		io.Copy(os.Stdout, part)
+
+		sha1 := sha1.New()
+		io.Copy(sha1, part)
+		fmt.Printf("Got part digest: %x\n", sha1.Sum())
+
 	}
 	fmt.Println("Done reading multipart body.")
 }
