@@ -14,7 +14,8 @@ import "io"
 import "io/ioutil"
 import "os"
 import "regexp"
-import "mime/multipart"
+
+// import "mime/multipart"
 // import multipart "github.com/bradfitz/golang-mime-multipart"
 
 var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
@@ -24,8 +25,8 @@ var putPassword string
 
 var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
-var kMultiPartContentPattern *regexp.Regexp = regexp.MustCompile(
-	`^multipart/form-data; boundary="?([^" ]+)"?`)
+
+var kBlobRefPattern *regexp.Regexp = regexp.MustCompile(`^([a-z0-9]+)-([a-f0-9]+)$`)
 
 type BlobRef struct {
 	HashName string
@@ -41,7 +42,7 @@ func ParsePath(path string) *BlobRef {
 	if obj.HashName == "sha1" && len(obj.Digest) != 40 {
 		return nil
 	}
-	return obj;
+	return obj
 }
 
 func (o *BlobRef) IsSupported() bool {
@@ -73,7 +74,7 @@ func (o *BlobRef) FileName() string {
 
 func badRequestError(conn *http.Conn, errorMessage string) {
 	conn.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(conn, "%s\n", errorMessage)
+	fmt.Fprintf(conn, "%s\n", errorMessage)
 }
 
 func serverError(conn *http.Conn, err os.Error) {
@@ -98,7 +99,7 @@ func putAllowed(req *http.Request) bool {
 	password := string(outBuf)
 	fmt.Println("Decoded bytes:", bytes, " error: ", err)
 	fmt.Println("Got userPass:", password)
-	return password != "" && password == putPassword;
+	return password != "" && password == putPassword
 }
 
 func getAllowed(req *http.Request) bool {
@@ -110,7 +111,7 @@ func handleCamliForm(conn *http.Conn, req *http.Request) {
 	fmt.Fprintf(conn, `
 <html>
 <body>
-<form method='POST' enctype="multipart/form-data" action="/camli/upload">
+<form method='POST' enctype="multipart/form-data" action="/camli/testform">
 <input type="hidden" name="имя" value="брэд" />
 Text unix: <input type="file" name="file-unix"><br>
 Text win: <input type="file" name="file-win"><br>
@@ -125,12 +126,17 @@ Image png: <input type="file" name="image-png"><br>
 
 func handleCamli(conn *http.Conn, req *http.Request) {
 	if req.Method == "POST" && req.URL.Path == "/camli/upload" {
-		handleMultiPartUpload(conn, req);
+		handleMultiPartUpload(conn, req)
+		return
+	}
+
+	if req.Method == "POST" && req.URL.Path == "/camli/testform" {
+		handleTestForm(conn, req)
 		return
 	}
 
 	if req.Method == "GET" && req.URL.Path == "/camli/form" {
-		handleCamliForm(conn, req);
+		handleCamliForm(conn, req)
 		return
 	}
 
@@ -155,12 +161,12 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		return
 	}
 
-	objRef := ParsePath(req.URL.Path)
-	if objRef == nil {
+	blobRef := ParsePath(req.URL.Path)
+	if blobRef == nil {
 		badRequestError(conn, "Malformed GET URL.")
-                return
+		return
 	}
-	fileName := objRef.FileName()
+	fileName := blobRef.FileName()
 	stat, err := os.Stat(fileName)
 	if err == os.ENOENT {
 		conn.WriteHeader(http.StatusNotFound)
@@ -168,11 +174,13 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		return
 	}
 	if err != nil {
-		serverError(conn, err); return
+		serverError(conn, err)
+		return
 	}
 	file, err := os.Open(fileName, os.O_RDONLY, 0)
 	if err != nil {
-		serverError(conn, err); return
+		serverError(conn, err)
+		return
 	}
 	conn.SetHeader("Content-Type", "application/octet-stream")
 	bytesCopied, err := io.Copy(conn, file)
@@ -181,37 +189,39 @@ func handleGet(conn *http.Conn, req *http.Request) {
 	// as they've already been receiving bytes.  But they should be smart enough
 	// to verify the digest doesn't match.  But we close the (chunked) response anyway,
 	// to further signal errors.
-        if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", objRef, err)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", blobRef, err)
 		closer, _, err := conn.Hijack()
-		if err != nil {	closer.Close() }
-                return
-        }
+		if err != nil {
+			closer.Close()
+		}
+		return
+	}
 	if bytesCopied != stat.Size {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied= %d, not %d%v\n", objRef,
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied= %d, not %d%v\n", blobRef,
 			bytesCopied, stat.Size)
 		closer, _, err := conn.Hijack()
-		if err != nil {	closer.Close() }
-                return
+		if err != nil {
+			closer.Close()
+		}
+		return
 	}
 }
 
-func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
-	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
+func handleTestForm(conn *http.Conn, req *http.Request) {
+	if !(req.Method == "POST" && req.URL.Path == "/camli/testform") {
 		badRequestError(conn, "Inconfigured handler.")
 		return
 	}
-	contentType := req.Header["Content-Type"]
-	groups := kMultiPartContentPattern.MatchStrings(contentType)
-	if len(groups) != 2 {
-		badRequestError(conn, "Expected multipart/form-data Content-Type")
-                return
+
+	multipart, err := req.MultipartReader()
+	if multipart == nil {
+		badRequestError(conn, fmt.Sprintf("Expected multipart/form-data POST request; %v", err))
+		return
 	}
 
-	boundary := groups[1]
-	multiReader := multipart.NewReader(req.Body, boundary)
 	for {
-		part, err := multiReader.NextPart()
+		part, err := multipart.NextPart()
 		if err != nil {
 			fmt.Println("Error reading:", err)
 			break
@@ -219,7 +229,8 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 		if part == nil {
 			break
 		}
-		fmt.Println("Read part:", part)
+		formName := part.FormName()
+		fmt.Printf("New value [%s], part=%v\n", formName, part)
 
 		sha1 := sha1.New()
 		io.Copy(sha1, part)
@@ -227,16 +238,66 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 
 	}
 	fmt.Println("Done reading multipart body.")
+
 }
 
-func handlePut(conn *http.Conn, req *http.Request) {
-	objRef := ParsePath(req.URL.Path)
-	if objRef == nil {
-		badRequestError(conn, "Malformed PUT URL.")
-                return
+func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
+	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
+		badRequestError(conn, "Inconfigured handler.")
+		return
+	}
+	multipart, err := req.MultipartReader()
+	if multipart == nil {
+		badRequestError(conn, fmt.Sprintf(
+			"Expected multipart/form-data POST request; %v", err))
+		return
 	}
 
-	if !objRef.IsSupported() {
+	for {
+		part, err := multipart.NextPart()
+		if err != nil {
+			fmt.Println("Error reading multipart section:", err)
+			break
+		}
+		if part == nil {
+			break
+		}
+		formName := part.FormName()
+		fmt.Printf("New value [%s], part=%v\n", formName, part)
+
+		matches := kBlobRefPattern.MatchStrings(formName)
+		if len(matches) != 3 {
+			fmt.Printf("Ignoring form key [%s]\n", formName)
+			continue
+		}
+		ref := &BlobRef{matches[1], matches[2]}
+
+		ok, err := receiveBlob(ref, part)
+		if !ok {
+			fmt.Printf("Error receiving blob %v: %v\n", ref, err)
+		} else {
+			fmt.Printf("Received blob %v\n", ref)
+		}
+	}
+	fmt.Println("Done reading multipart body.")
+}
+
+func receiveBlob(blobref *BlobRef, source io.Reader) (bool, os.Error) {
+	sha1 := sha1.New()
+	io.Copy(sha1, source)
+	fmt.Printf("For %v, got part digest: %x\n", blobref, sha1.Sum())
+	return false, os.NewError("receiveBlob not implemented.")
+}
+
+
+func handlePut(conn *http.Conn, req *http.Request) {
+	blobRef := ParsePath(req.URL.Path)
+	if blobRef == nil {
+		badRequestError(conn, "Malformed PUT URL.")
+		return
+	}
+
+	if !blobRef.IsSupported() {
 		badRequestError(conn, "unsupported object hash function")
 		return
 	}
@@ -250,54 +311,59 @@ func handlePut(conn *http.Conn, req *http.Request) {
 
 	// TODO(bradfitz): authn/authz checks here.
 
-	hashedDirectory := objRef.DirectoryName()
+	hashedDirectory := blobRef.DirectoryName()
 	err := os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		serverError(conn, err)
 		return
 	}
 
-	tempFile, err := ioutil.TempFile(hashedDirectory, objRef.FileBaseName() + ".tmp")
+	tempFile, err := ioutil.TempFile(hashedDirectory, blobRef.FileBaseName()+".tmp")
 	if err != nil {
-                serverError(conn, err)
-                return
-        }
+		serverError(conn, err)
+		return
+	}
 
-	success := false  // set true later
+	success := false // set true later
 	defer func() {
 		if !success {
 			fmt.Println("Removing temp file: ", tempFile.Name())
 			os.Remove(tempFile.Name())
 		}
-	}();
+	}()
 
 	written, err := io.Copy(tempFile, req.Body)
 	if err != nil {
-                serverError(conn, err); return
-        }
+		serverError(conn, err)
+		return
+	}
 	if _, err = tempFile.Seek(0, 0); err != nil {
-		serverError(conn, err); return
+		serverError(conn, err)
+		return
 	}
 
-	hasher := objRef.Hash()
+	hasher := blobRef.Hash()
 
 	io.Copy(hasher, tempFile)
-	if fmt.Sprintf("%x", hasher.Sum()) != objRef.Digest {
+	if fmt.Sprintf("%x", hasher.Sum()) != blobRef.Digest {
 		badRequestError(conn, "digest didn't match as declared.")
-		return;
+		return
 	}
 	if err = tempFile.Close(); err != nil {
-		serverError(conn, err); return
+		serverError(conn, err)
+		return
 	}
 
-	fileName := objRef.FileName()
+	fileName := blobRef.FileName()
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
-		serverError(conn, err); return
+		serverError(conn, err)
+		return
 	}
 
 	stat, err := os.Lstat(fileName)
 	if err != nil {
-		serverError(conn, err); return;
+		serverError(conn, err)
+		return
 	}
 	if !stat.IsRegular() || stat.Size != written {
 		serverError(conn, os.NewError("Written size didn't match."))
@@ -313,7 +379,7 @@ func handlePut(conn *http.Conn, req *http.Request) {
 func HandleRoot(conn *http.Conn, req *http.Request) {
 	fmt.Fprintf(conn, `
 This is camlistored, a Camlistore storage daemon.
-`);
+`)
 }
 
 func main() {
