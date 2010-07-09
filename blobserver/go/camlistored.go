@@ -15,6 +15,8 @@ import "io/ioutil"
 import "os"
 import "regexp"
 
+import "./util/_obj/util"
+
 // import "mime/multipart"
 // import multipart "github.com/bradfitz/golang-mime-multipart"
 
@@ -282,13 +284,53 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 	fmt.Println("Done reading multipart body.")
 }
 
-func receiveBlob(blobref *BlobRef, source io.Reader) (bool, os.Error) {
-	sha1 := sha1.New()
-	io.Copy(sha1, source)
-	fmt.Printf("For %v, got part digest: %x\n", blobref, sha1.Sum())
-	return false, os.NewError("receiveBlob not implemented.")
-}
+func receiveBlob(blobRef *BlobRef, source io.Reader) (ok bool, err os.Error) {
+	hashedDirectory := blobRef.DirectoryName()
+	err = os.MkdirAll(hashedDirectory, 0700)
+	if err != nil {
+		return
+	}
 
+	var tempFile *os.File
+	tempFile, err = ioutil.TempFile(hashedDirectory, blobRef.FileBaseName()+".tmp")
+	if err != nil {
+		return
+	}
+
+	success := false // set true later
+	defer func() {
+		if !success {
+			fmt.Println("Removing temp file: ", tempFile.Name())
+			os.Remove(tempFile.Name())
+		}
+	}()
+
+	sha1 := sha1.New()
+	var written int64
+	written, err = io.Copy(util.NewTee(sha1, tempFile), source)
+	if err != nil {
+		return
+	}
+	if err = tempFile.Close(); err != nil {
+		return
+	}
+
+	fileName := blobRef.FileName()
+	if err = os.Rename(tempFile.Name(), fileName); err != nil {
+		return
+	}
+
+	stat, err := os.Lstat(fileName)
+	if err != nil {
+		return
+	}
+	if !stat.IsRegular() || stat.Size != written {
+		return false, os.NewError("Written size didn't match.")
+	}
+
+	success = true
+	return true, nil
+}
 
 func handlePut(conn *http.Conn, req *http.Request) {
 	blobRef := ParsePath(req.URL.Path)
@@ -311,68 +353,12 @@ func handlePut(conn *http.Conn, req *http.Request) {
 
 	// TODO(bradfitz): authn/authz checks here.
 
-	hashedDirectory := blobRef.DirectoryName()
-	err := os.MkdirAll(hashedDirectory, 0700)
+	_, err := receiveBlob(blobRef, req.Body)
 	if err != nil {
 		serverError(conn, err)
 		return
 	}
 
-	tempFile, err := ioutil.TempFile(hashedDirectory, blobRef.FileBaseName()+".tmp")
-	if err != nil {
-		serverError(conn, err)
-		return
-	}
-
-	success := false // set true later
-	defer func() {
-		if !success {
-			fmt.Println("Removing temp file: ", tempFile.Name())
-			os.Remove(tempFile.Name())
-		}
-	}()
-
-	written, err := io.Copy(tempFile, req.Body)
-	if err != nil {
-		serverError(conn, err)
-		return
-	}
-	if _, err = tempFile.Seek(0, 0); err != nil {
-		serverError(conn, err)
-		return
-	}
-
-	hasher := blobRef.Hash()
-
-	io.Copy(hasher, tempFile)
-	if fmt.Sprintf("%x", hasher.Sum()) != blobRef.Digest {
-		badRequestError(conn, "digest didn't match as declared.")
-		return
-	}
-	if err = tempFile.Close(); err != nil {
-		serverError(conn, err)
-		return
-	}
-
-	fileName := blobRef.FileName()
-	if err = os.Rename(tempFile.Name(), fileName); err != nil {
-		serverError(conn, err)
-		return
-	}
-
-	stat, err := os.Lstat(fileName)
-	if err != nil {
-		serverError(conn, err)
-		return
-	}
-	if !stat.IsRegular() || stat.Size != written {
-		serverError(conn, os.NewError("Written size didn't match."))
-		// Unlink it?  Bogus?  Naah, better to not lose data.
-		// We can clean it up later in a GC phase.
-		return
-	}
-
-	success = true
 	fmt.Fprint(conn, "OK")
 }
 
