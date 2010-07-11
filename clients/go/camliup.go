@@ -5,11 +5,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"flag"
 	"fmt"
+	"http"
 	"io"
+	"json"
 	"os"
+	"strings"
 )
 
 var flagFile *string = flag.String("file", "", "file to upload")
@@ -29,9 +33,58 @@ func NewAgent(server string) *Agent {
 	return &Agent{server}
 }
 
-func (a *Agent) Upload(handle *UploadHandle) {
-	// TODO
-	fmt.Println("Need to upload: ", handle)
+func (a *Agent) Upload(h *UploadHandle) {
+	url := fmt.Sprintf("%s/camli/preupload", a.server)
+	fmt.Println("Need to upload: ", h, "to", url)
+
+	error := func(msg string, e os.Error) {
+		fmt.Fprintf(os.Stderr, "%s on %v: %v\n", msg, h.blobref, e)
+		return
+	}
+
+	resp, err := http.Post(
+		url,
+		"application/x-www-form-urlencoded",
+		strings.NewReader("camliversion=1&blob1="+h.blobref))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Upload error for %v: %v\n",
+			h.blobref, err)
+	}
+
+	fmt.Println("Got response:", resp)
+	buf := new(bytes.Buffer)
+	io.Copy(buf, resp.Body)
+	resp.Body.Close()
+
+	pur := make(map[string]interface{})
+	jerr := json.Unmarshal(buf.Bytes(), &pur)
+	if jerr != nil {
+		error("preupload parse error", jerr)
+		return
+	}
+
+	uploadUrl, ok := pur["uploadUrl"].(string)
+	if uploadUrl == "" {
+		error("no uploadUrl in preupload response", nil)
+		return
+	}
+
+	alreadyHave, ok := pur["alreadyHave"].([]interface{})
+	if !ok {
+		error("no alreadyHave array in preupload response", nil)
+		return
+	}
+
+	for _, haveObj := range alreadyHave {
+		haveObj := haveObj.(map[string]interface{})
+		if haveObj["blobRef"].(string) == h.blobref {
+			fmt.Println("already have it!")
+			// TODO: signal success
+			return
+		}
+	}
+
+	fmt.Println("preupload done:", pur, alreadyHave)
 }
 
 func (a *Agent) Wait() int {
@@ -60,11 +113,17 @@ func uploadFile(agent *Agent, filename string) os.Error {
 
 func main() {
 	flag.Parse()
+
+	// Remove trailing slash if provided.
+	if strings.HasSuffix(*flagServer, "/") {
+		*flagServer = (*flagServer)[0 : len(*flagServer)-1]
+	}
+
 	agent := NewAgent(*flagServer)
 	if *flagFile != "" {
 		uploadFile(agent, *flagFile)
 	}
-	
+
 	stats := agent.Wait()
 	fmt.Println("Done uploading; stats:", stats)
 }
