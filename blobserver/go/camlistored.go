@@ -4,16 +4,17 @@
 
 package main
 
-import "crypto/sha1"
-import "encoding/base64"
-import "flag"
-import "fmt"
-import "hash"
-import "http"
-import "io"
-import "io/ioutil"
-import "os"
-import "regexp"
+import (
+	"crypto/sha1"
+	"encoding/base64"
+	"flag"
+	"fmt"
+	"http"
+	"io"
+	"io/ioutil"
+	"os"
+	"regexp"
+)
 
 import "./util/_obj/util"
 
@@ -25,54 +26,7 @@ var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory 
 
 var putPassword string
 
-var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/(sha1)-([a-f0-9]+)$`)
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
-
-var kBlobRefPattern *regexp.Regexp = regexp.MustCompile(`^([a-z0-9]+)-([a-f0-9]+)$`)
-
-type BlobRef struct {
-	HashName string
-	Digest   string
-}
-
-func ParsePath(path string) *BlobRef {
-	groups := kGetPutPattern.MatchStrings(path)
-	if len(groups) != 3 {
-		return nil
-	}
-	obj := &BlobRef{groups[1], groups[2]}
-	if obj.HashName == "sha1" && len(obj.Digest) != 40 {
-		return nil
-	}
-	return obj
-}
-
-func (o *BlobRef) IsSupported() bool {
-	if o.HashName == "sha1" {
-		return true
-	}
-	return false
-}
-
-func (o *BlobRef) Hash() hash.Hash {
-	if o.HashName == "sha1" {
-		return sha1.New()
-	}
-	return nil
-}
-
-func (o *BlobRef) FileBaseName() string {
-	return fmt.Sprintf("%s-%s.dat", o.HashName, o.Digest)
-}
-
-func (o *BlobRef) DirectoryName() string {
-	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.Digest[0:3], o.Digest[3:6])
-
-}
-
-func (o *BlobRef) FileName() string {
-	return fmt.Sprintf("%s/%s-%s.dat", o.DirectoryName(), o.HashName, o.Digest)
-}
 
 func badRequestError(conn *http.Conn, errorMessage string) {
 	conn.WriteHeader(http.StatusBadRequest)
@@ -127,32 +81,27 @@ Image png: <input type="file" name="image-png"><br>
 }
 
 func handleCamli(conn *http.Conn, req *http.Request) {
-	if req.Method == "POST" && req.URL.Path == "/camli/upload" {
-		handleMultiPartUpload(conn, req)
-		return
-	}
-
-	if req.Method == "POST" && req.URL.Path == "/camli/testform" {
-		handleTestForm(conn, req)
-		return
-	}
-
-	if req.Method == "GET" && req.URL.Path == "/camli/form" {
-		handleCamliForm(conn, req)
-		return
-	}
-
-	if req.Method == "PUT" {
-		handlePut(conn, req)
-		return
-	}
-
-	if req.Method == "GET" {
+	switch req.Method {
+	case "GET":
 		handleGet(conn, req)
-		return
+	case "POST":
+		switch req.URL.Path {
+		case "/camli/preupload":
+			handlePreUpload(conn, req)
+		case "/camli/upload":
+			handleMultiPartUpload(conn, req)
+		case "/camli/testform": // debug only
+			handleTestForm(conn, req)
+		case "/camli/form": // debug only
+			handleCamliForm(conn, req)
+		default:
+			badRequestError(conn, "Unsupported POST path.")
+		}
+	case "PUT": // no longer part of spec
+		handlePut(conn, req)
+	default:
+		badRequestError(conn, "Unsupported method.")
 	}
-
-	badRequestError(conn, "Unsupported method.")
 }
 
 func handleGet(conn *http.Conn, req *http.Request) {
@@ -243,6 +192,40 @@ func handleTestForm(conn *http.Conn, req *http.Request) {
 
 }
 
+func handlePreUpload(conn *http.Conn, req *http.Request) {
+	if !(req.Method == "POST" && req.URL.Path == "/camli/preupload") {
+		badRequestError(conn, "Inconfigured handler.")
+		return
+	}
+	req.ParseForm()
+	camliVersion := req.FormValue("camliversion")
+	if camliVersion == "" {
+		badRequestError(conn, "No camliversion")
+		return
+	}
+	n := 0
+	for {
+		n++
+		key := fmt.Sprintf("blob%v", n)
+		value := req.FormValue(key)
+		if value == "" {
+			break
+		}
+		fmt.Println("Request to upload: " + value)
+		ref := ParseBlobRef(value)
+		if ref == nil {
+			badRequestError(conn, "Bogus blobref for key " + key)
+			return
+		}
+		if !ref.IsSupported() {
+			badRequestError(conn, "Unsupported or bogus blobref " + key)
+		}
+	}
+
+	// TODO: implement
+	fmt.Println("Got form: ", req)
+}
+
 func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
 		badRequestError(conn, "Inconfigured handler.")
@@ -267,12 +250,11 @@ func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 		formName := part.FormName()
 		fmt.Printf("New value [%s], part=%v\n", formName, part)
 
-		matches := kBlobRefPattern.MatchStrings(formName)
-		if len(matches) != 3 {
+		ref := ParseBlobRef(formName)
+		if ref == nil {
 			fmt.Printf("Ignoring form key [%s]\n", formName)
 			continue
 		}
-		ref := &BlobRef{matches[1], matches[2]}
 
 		ok, err := receiveBlob(ref, part)
 		if !ok {
