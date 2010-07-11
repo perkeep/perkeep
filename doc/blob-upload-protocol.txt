@@ -53,3 +53,5 @@ and which were not.  Also, the URL you received from preupload
 might've been bogus.
 
 
+TODO: resuming uploading large blobs on slow crappy phone links
+

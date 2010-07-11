@@ -5,6 +5,7 @@
 package main
 
 import (
+	"container/vector"
 	"crypto/sha1"
 	"encoding/base64"
 	"flag"
@@ -12,6 +13,7 @@ import (
 	"http"
 	"io"
 	"io/ioutil"
+	"json"
 	"os"
 	"regexp"
 )
@@ -78,6 +80,17 @@ Image png: <input type="file" name="image-png"><br>
 </body>
 </html>
 `)
+}
+
+func returnJson(conn *http.Conn, data interface{}) {
+	bytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		badRequestError(conn, fmt.Sprintf(
+			"JSON serialization error: %v", err))
+		return
+	}
+	conn.Write(bytes)
+	conn.Write([]byte("\n"))
 }
 
 func handleCamli(conn *http.Conn, req *http.Request) {
@@ -204,26 +217,57 @@ func handlePreUpload(conn *http.Conn, req *http.Request) {
 		return
 	}
 	n := 0
+	haveVector := new(vector.Vector)
+
+	haveChan := make(chan *map[string]interface{})
 	for {
-		n++
-		key := fmt.Sprintf("blob%v", n)
+		key := fmt.Sprintf("blob%v", n+1)
 		value := req.FormValue(key)
 		if value == "" {
 			break
 		}
-		fmt.Println("Request to upload: " + value)
 		ref := ParseBlobRef(value)
 		if ref == nil {
-			badRequestError(conn, "Bogus blobref for key " + key)
+			badRequestError(conn, "Bogus blobref for key "+key)
 			return
 		}
 		if !ref.IsSupported() {
-			badRequestError(conn, "Unsupported or bogus blobref " + key)
+			badRequestError(conn, "Unsupported or bogus blobref "+key)
+		}
+		n++
+
+		// Parallel stat all the files...
+		go func() {
+			fi, err := os.Stat(ref.FileName())
+			if err == nil && fi.IsRegular() {
+				info := make(map[string]interface{})
+				info["blobRef"] = ref.String()
+				info["size"] = fi.Size
+				haveChan <- &info
+			} else {
+				haveChan <- nil
+			}
+		}()
+	}
+
+	if n > 0 {
+		for have := range haveChan {
+			if have != nil {
+				haveVector.Push(have)
+			}
+			n--
+			if n == 0 {
+				break
+			}
 		}
 	}
 
-	// TODO: implement
-	fmt.Println("Got form: ", req)
+	ret := make(map[string]interface{})
+	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
+	ret["alreadyHave"] = haveVector.Data()
+	ret["uploadUrl"] = "http://localhost:3179/camli/upload"
+	ret["uploadUrlExpirationSeconds"] = 86400
+	returnJson(conn, ret)
 }
 
 func handleMultiPartUpload(conn *http.Conn, req *http.Request) {

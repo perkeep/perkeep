@@ -15,8 +15,8 @@ type BlobRef struct {
 	Digest   string
 }
 
-var kExpectedDigestSize = map[string]int {
-	"md5": 32,
+var kExpectedDigestSize = map[string]int{
+	"md5":  32,
 	"sha1": 40,
 }
 
@@ -51,6 +51,10 @@ func (o *BlobRef) IsSupported() bool {
 	return false
 }
 
+func (o *BlobRef) String() string {
+	return fmt.Sprintf("%s-%s", o.HashName, o.Digest)
+}
+
 func (o *BlobRef) Hash() hash.Hash {
 	if o.HashName == "sha1" {
 		return sha1.New()
@@ -64,10 +68,8 @@ func (o *BlobRef) FileBaseName() string {
 
 func (o *BlobRef) DirectoryName() string {
 	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.Digest[0:3], o.Digest[3:6])
-
 }
 
 func (o *BlobRef) FileName() string {
 	return fmt.Sprintf("%s/%s-%s.dat", o.DirectoryName(), o.HashName, o.Digest)
 }
-
