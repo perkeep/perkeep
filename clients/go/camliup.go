@@ -16,6 +16,8 @@ import (
 	"strings"
 )
 
+import "./concat_reader/_obj/concat_reader"
+
 var flagFile *string = flag.String("file", "", "file to upload")
 var flagServer *string = flag.String("server", "http://localhost:3179/", "camlistore server")
 
@@ -85,6 +87,27 @@ func (a *Agent) Upload(h *UploadHandle) {
 	}
 
 	fmt.Println("preupload done:", pur, alreadyHave)
+
+	boundary := "--sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
+	h.contents.Seek(0, 0)
+
+	resp, err = http.Post(uploadUrl,
+		"multipart/form-data; boundary="+boundary,
+		concat_reader.NewConcatReader(
+			strings.NewReader(fmt.Sprintf(
+				"%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n",
+				boundary,
+				h.blobref)),
+			h.contents,
+			strings.NewReader("\r\n"+boundary+"--\r\n")))
+
+	if err != nil {
+		error("camli upload error", err)
+		return
+	}
+	fmt.Println("Uploaded!")
+	fmt.Println("Got response: ", resp)
+	resp.Write(os.Stdout)
 }
 
 func (a *Agent) Wait() int {
