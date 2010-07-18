@@ -2,6 +2,6 @@
 
 mkdir /tmp/camliroot
 export CAMLI_PASSWORD=foo
-make && ./camlistored
+gofr && ./camlistored
 
 

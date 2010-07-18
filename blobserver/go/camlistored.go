@@ -18,7 +18,10 @@ import (
 	"regexp"
 )
 
-import "./util/_obj/util"
+// For `make`:
+//import "./util/_obj/util"
+// For `gofr`:
+import "util/util"
 
 // import "mime/multipart"
 // import multipart "github.com/bradfitz/golang-mime-multipart"
@@ -264,7 +267,7 @@ func handlePreUpload(conn *http.Conn, req *http.Request) {
 
 	ret := make(map[string]interface{})
 	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
-	ret["alreadyHave"] = haveVector.Data()
+	ret["alreadyHave"] = haveVector.Copy()
 	ret["uploadUrl"] = "http://localhost:3179/camli/upload"
 	ret["uploadUrlExpirationSeconds"] = 86400
 	returnJson(conn, ret)
