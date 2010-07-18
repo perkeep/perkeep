@@ -28,6 +28,7 @@ import "util/util"
 
 var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
 var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
+var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 var putPassword string
 
@@ -392,9 +393,13 @@ func handlePut(conn *http.Conn, req *http.Request) {
 }
 
 func HandleRoot(conn *http.Conn, req *http.Request) {
-	fmt.Fprintf(conn, `
+	if *stealthMode {
+		fmt.Fprintf(conn, "Hi.\n")
+	} else {
+		fmt.Fprintf(conn, `
 This is camlistored, a Camlistore storage daemon.
 `)
+	}
 }
 
 func main() {
