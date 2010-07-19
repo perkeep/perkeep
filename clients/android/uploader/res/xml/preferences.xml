@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+  xmlns:android="http://schemas.android.com/apk/res/android"
+   android:key="first_preferencescreen">
+  
+    <EditTextPreference
+     android:key="camli.host"
+     android:title="@string/settings_host_title"
+     android:summary="@string/settings_host_summary"
+     android:persistent="true" />
+
+  <EditTextPreference
+     android:key="camli.password"
+     android:title="@string/settings_password_title"
+     android:persistent="true"
+     android:inputType="textPassword"
+     />  
+  
+</PreferenceScreen>

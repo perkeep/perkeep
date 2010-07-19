@@ -2,4 +2,7 @@
 <resources>
     <string name="hello">Hello World, CamliActivity!</string>
     <string name="app_name">CamliActivity</string>
+	<string name="settings_host_title">Camli Server Host/IP</string>
+	<string name="settings_host_summary">e.g. &quot;example.com:3179&quot;</string>
+	<string name="settings_password_title">Server password</string>
 </resources>
