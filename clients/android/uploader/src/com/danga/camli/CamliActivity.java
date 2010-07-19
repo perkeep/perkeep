@@ -1,8 +1,17 @@
 package com.danga.camli;
 
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -47,13 +56,66 @@ public class CamliActivity extends Activity {
 
     @Override
     protected void onPause() {
-        // TODO Auto-generated method stub
         super.onPause();
     }
 
     @Override
     protected void onResume() {
-        // TODO Auto-generated method stub
         super.onResume();
+
+        Intent intent = getIntent();
+        String action = intent.getAction();
+        Log.d(TAG, "onResume; action=" + action);
+        if (Intent.ACTION_SEND.equals(action)) {
+            handleSend(intent);
+        } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            handleSendMultiple(intent);
+        }
+    }
+
+    private void handleSendMultiple(Intent intent) {
+        // TODO Auto-generated method stub
+
+    }
+
+    private void handleSend(Intent intent) {
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            Log.w(TAG, "expected extras in handleSend");
+            return;
+        }
+
+        extras.keySet(); // unparcel
+        Log.d(TAG, "handleSend; extras=" + extras);
+
+        Object streamValue = extras.get("android.intent.extra.STREAM");
+        if (!(streamValue instanceof Uri)) {
+            Log.w(TAG, "Expected URI for STREAM; got: " + streamValue);
+            return;
+        }
+
+        Uri uri = (Uri) streamValue;
+        startDownloadOfUri(uri);
+    }
+
+    private void startDownloadOfUri(Uri uri) {
+        Log.d(TAG, "startDownloadOf: " + uri);
+        ContentResolver cr = getContentResolver();
+        ParcelFileDescriptor pfd = null;
+        try {
+            pfd = cr.openFileDescriptor(uri, "r");
+        } catch (FileNotFoundException e) {
+            Log.w(TAG, "FileNotFound for " + uri, e);
+            return;
+        }
+        Log.d(TAG, "opened parcel fd = " + pfd);
+        FileDescriptor fd = pfd.getFileDescriptor();
+        FileInputStream fis = new FileInputStream(fd);
+
+        try {
+            pfd.close();
+        } catch (IOException e) {
+            Log.w(TAG, "error closing fd", e);
+        }
     }
 }
