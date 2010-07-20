@@ -9,6 +9,10 @@
 
     <application android:icon="@drawable/icon" android:label="@string/app_name">
 
+        <service android:name=".UploadService"
+                 android:exported="false"
+                 android:label="Camlistore Upload Service" />
+
         <activity android:name=".CamliActivity"
                   android:label="@string/app_name">
             <intent-filter>

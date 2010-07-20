@@ -6,11 +6,16 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -18,6 +23,37 @@ import android.view.MenuItem;
 public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
     private static final int MENU_SETTINGS = 1;
+
+    private IUploadService serviceStub = null;
+
+    private IStatusCallback statusCallback = new IStatusCallback.Stub() {
+        public void logToClient(String stuff) throws RemoteException {
+            Log.d(TAG, "From service: " + stuff);
+        }
+
+        public void onUploadStatusChange(boolean uploading)
+                throws RemoteException {
+            Log.d(TAG, "upload status change: " + uploading);
+        }
+    };
+
+    private final ServiceConnection serviceConnection = new ServiceConnection() {
+
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            serviceStub = IUploadService.Stub.asInterface(service);
+            Log.d(TAG, "Service connected");
+            try {
+                serviceStub.registerCallback(statusCallback);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void onServiceDisconnected(ComponentName name) {
+            Log.d(TAG, "Service disconnected");
+            serviceStub = null;
+        };
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -57,11 +93,23 @@ public class CamliActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        try {
+            if (serviceStub != null)
+                serviceStub.unregisterCallback(statusCallback);
+        } catch (RemoteException e) {
+            // Ignore.
+        }
+        if (serviceConnection != null) {
+            unbindService(serviceConnection);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+
+        bindService(new Intent(this, UploadService.class), serviceConnection,
+                Context.BIND_AUTO_CREATE);
 
         Intent intent = getIntent();
         String action = intent.getAction();
@@ -99,6 +147,11 @@ public class CamliActivity extends Activity {
     }
 
     private void startDownloadOfUri(Uri uri) {
+        if (serviceStub == null) {
+            Log.d(TAG, "serviceStub is null in startDownloadOfUri");
+            return;
+        }
+
         Log.d(TAG, "startDownloadOf: " + uri);
         ContentResolver cr = getContentResolver();
         ParcelFileDescriptor pfd = null;
@@ -109,6 +162,12 @@ public class CamliActivity extends Activity {
             return;
         }
         Log.d(TAG, "opened parcel fd = " + pfd);
+        try {
+            serviceStub.addFile(pfd);
+        } catch (RemoteException e) {
+            Log.d(TAG, "failure to enqueue upload", e);
+        }
+
         FileDescriptor fd = pfd.getFileDescriptor();
         FileInputStream fis = new FileInputStream(fd);
 
