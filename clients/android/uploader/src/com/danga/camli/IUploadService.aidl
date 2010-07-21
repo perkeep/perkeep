@@ -11,5 +11,7 @@ interface IUploadService {
 
     void stop();
     void resume();
-    void addFile(in ParcelFileDescriptor pfd);
+
+    // Returns false if server not configured.
+    boolean addFile(in ParcelFileDescriptor pfd);
 }
