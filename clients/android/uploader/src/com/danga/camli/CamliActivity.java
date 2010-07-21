@@ -4,6 +4,7 @@ import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 
 import android.app.Activity;
 import android.content.ComponentName;
@@ -26,6 +27,8 @@ public class CamliActivity extends Activity {
 
     private IUploadService serviceStub = null;
 
+    private final ArrayList<Uri> pendingUrisToUpload = new ArrayList<Uri>();
+
     private IStatusCallback statusCallback = new IStatusCallback.Stub() {
         public void logToClient(String stuff) throws RemoteException {
             Log.d(TAG, "From service: " + stuff);
@@ -44,6 +47,11 @@ public class CamliActivity extends Activity {
             Log.d(TAG, "Service connected");
             try {
                 serviceStub.registerCallback(statusCallback);
+                // Drain the queue from before the service was connected.
+                for (Uri uri : pendingUrisToUpload) {
+                    startDownloadOfUri(uri);
+                }
+                pendingUrisToUpload.clear();
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -148,7 +156,8 @@ public class CamliActivity extends Activity {
 
     private void startDownloadOfUri(Uri uri) {
         if (serviceStub == null) {
-            Log.d(TAG, "serviceStub is null in startDownloadOfUri");
+            Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
+            pendingUrisToUpload.add(uri);
             return;
         }
 
