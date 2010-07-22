@@ -1,7 +1,0 @@
-# Copy this file to one named 'local.properties' in this directory to
-# build with Ant.
-sdk.dir=/home/YOU/sdk/android/
-#sdk.dir=/home/YOU/sdk/android/or/wherever/you/put/it
-
-
-
