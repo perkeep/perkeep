@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.http.HttpRequestFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -14,7 +13,6 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.DefaultHttpRequestFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
@@ -48,8 +46,6 @@ public class UploadThread extends Thread {
         Log.d(TAG, "Running UploadThread for " + mHostPort);
         
         DefaultHttpClient ua = new DefaultHttpClient();
-        HttpRequestFactory reqFactory = new DefaultHttpRequestFactory();
-
         CredentialsProvider creds = new BasicCredentialsProvider();
         creds.setCredentials(AuthScope.ANY,
                 new UsernamePasswordCredentials("TODO-DUMMY-USER", mPassword));
@@ -77,6 +73,9 @@ public class UploadThread extends Thread {
             Log.d(TAG, "JSON content: " + jsonSlurp);
             JSONObject json = new JSONObject(jsonSlurp);
             Log.d(TAG, "JSON response: " + json);
+            String uploadUrl = json.optString("uploadUrl", "http://"
+                    + mHostPort + "/camli/upload");
+            Log.d(TAG, "uploadURL is: " + uploadUrl);
         } catch (ClientProtocolException e) {
             Log.e(TAG, "preupload error", e);
             return;

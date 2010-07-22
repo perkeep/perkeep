@@ -1,21 +1,16 @@
 package com.danga.camli;
 
-import java.io.FileDescriptor;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.ArrayList;
 
 import android.app.Activity;
 import android.content.ComponentName;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
@@ -154,36 +149,22 @@ public class CamliActivity extends Activity {
         startDownloadOfUri(uri);
     }
 
-    private void startDownloadOfUri(Uri uri) {
+    private void startDownloadOfUri(final Uri uri) {
         if (serviceStub == null) {
             Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
             pendingUrisToUpload.add(uri);
             return;
         }
-
-        Log.d(TAG, "startDownloadOf: " + uri);
-        ContentResolver cr = getContentResolver();
-        ParcelFileDescriptor pfd = null;
-        try {
-            pfd = cr.openFileDescriptor(uri, "r");
-        } catch (FileNotFoundException e) {
-            Log.w(TAG, "FileNotFound for " + uri, e);
-            return;
-        }
-        Log.d(TAG, "opened parcel fd = " + pfd);
-        try {
-            serviceStub.addFile(pfd);
-        } catch (RemoteException e) {
-            Log.d(TAG, "failure to enqueue upload", e);
-        }
-
-        FileDescriptor fd = pfd.getFileDescriptor();
-        FileInputStream fis = new FileInputStream(fd);
-
-        try {
-            pfd.close();
-        } catch (IOException e) {
-            Log.w(TAG, "error closing fd", e);
-        }
+        new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... unused) {
+                try {
+                    serviceStub.enqueueUpload(uri);
+                } catch (RemoteException e) {
+                    Log.d(TAG, "failure to enqueue upload", e);
+                }
+                return null; // void
+            }
+        }.execute();
     }
 }
