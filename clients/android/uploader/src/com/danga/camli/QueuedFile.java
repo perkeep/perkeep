@@ -2,6 +2,9 @@ package com.danga.camli;
 
 import android.net.Uri;
 
+/**
+ * Immutable tuple of content name sha1 & URI to upload.
+ */
 public class QueuedFile {
 
     private final String mContentName;

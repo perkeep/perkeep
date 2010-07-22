@@ -24,14 +24,21 @@ import android.util.Log;
 public class UploadThread extends Thread {
     private static final String TAG = "UploadThread";
     
+    private final UploadService mService;
     private final HostPort mHostPort;
-    private final String mPassword;
 
     private final AtomicBoolean mStopRequested = new AtomicBoolean(false);
 
-    public UploadThread(HostPort hp, String password) {
+    private final DefaultHttpClient mUA = new DefaultHttpClient();
+
+    public UploadThread(UploadService uploadService, HostPort hp, String password) {
+        mService = uploadService;
         mHostPort = hp;
-        mPassword = password;
+
+        CredentialsProvider creds = new BasicCredentialsProvider();
+        creds.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("TODO-DUMMY-USER",
+                password));
+        mUA.setCredentialsProvider(creds);
     }
     
     public void stopPlease() {
@@ -45,17 +52,23 @@ public class UploadThread extends Thread {
         }
         Log.d(TAG, "Running UploadThread for " + mHostPort);
         
-        DefaultHttpClient ua = new DefaultHttpClient();
-        CredentialsProvider creds = new BasicCredentialsProvider();
-        creds.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("TODO-DUMMY-USER", mPassword));
-        ua.setCredentialsProvider(creds);
+        List<QueuedFile> queue = mService.uploadQueue();
+        if (queue.isEmpty()) {
+            Log.d(TAG, "Queue empty; done.");
+            return;
+        }
 
         // Do the pre-upload.
         HttpPost preReq = new HttpPost("http://" + mHostPort
                 + "/camli/preupload");
         List<BasicNameValuePair> uploadKeys = new ArrayList<BasicNameValuePair>();
         uploadKeys.add(new BasicNameValuePair("camliversion", "1"));
+
+        int n = 0;
+        for (QueuedFile qf : queue) {
+            uploadKeys.add(new BasicNameValuePair("blob" + (++n), qf.getContentName()));
+        }
+
         try {
             preReq.setEntity(new UrlEncodedFormEntity(uploadKeys));
         } catch (UnsupportedEncodingException e) {
@@ -63,19 +76,16 @@ public class UploadThread extends Thread {
             return;
         }
 
+        JSONObject preUpload = null;
+        String jsonSlurp = null;
         try {
-            HttpResponse res = ua.execute(preReq);
+            HttpResponse res = mUA.execute(preReq);
             Log.d(TAG, "response: " + res);
             Log.d(TAG, "response code: " + res.getStatusLine());
-            Log.d(TAG, "entity: " + res.getEntity());
+            // TODO: check response code
 
-            String jsonSlurp = Util.slurp(res.getEntity().getContent());
-            Log.d(TAG, "JSON content: " + jsonSlurp);
-            JSONObject json = new JSONObject(jsonSlurp);
-            Log.d(TAG, "JSON response: " + json);
-            String uploadUrl = json.optString("uploadUrl", "http://"
-                    + mHostPort + "/camli/upload");
-            Log.d(TAG, "uploadURL is: " + uploadUrl);
+            jsonSlurp = Util.slurp(res.getEntity().getContent());
+            preUpload = new JSONObject(jsonSlurp);
         } catch (ClientProtocolException e) {
             Log.e(TAG, "preupload error", e);
             return;
@@ -83,7 +93,16 @@ public class UploadThread extends Thread {
             Log.e(TAG, "preupload error", e);
             return;
         } catch (JSONException e) {
-            Log.e(TAG, "JSON parse error", e);
+            Log.e(TAG, "preupload JSON parse error from: " + jsonSlurp, e);
+            return;
         }
+
+        Log.d(TAG, "JSON: " + preUpload);
+        String uploadUrl = preUpload
+                .optString("uploadUrl", "http://" + mHostPort + "/camli/upload");
+        Log.d(TAG, "uploadURL is: " + uploadUrl);
+
+        HttpPost uploadReq = new HttpPost(uploadUrl);
+
     }
 }
