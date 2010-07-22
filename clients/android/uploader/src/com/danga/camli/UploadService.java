@@ -29,8 +29,8 @@ public class UploadService extends Service {
         // Guarded by 'this':
         private boolean mUploading = false;
         private UploadThread mUploadThread = null;
-        private final Set<Uri> mEnqueuedUri = new HashSet<Uri>();
-        private final List<Uri> mUriList = new ArrayList<Uri>();
+        private final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
+        private final List<QueuedFile> mQueueList = new ArrayList<QueuedFile>();
 
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
@@ -51,13 +51,14 @@ public class UploadService extends Service {
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
             Log.d(TAG, "sha1 of file is: " + sha1);
             Log.d(TAG, "size of file is: " + pfd.getStatSize());
+            QueuedFile qf = new QueuedFile(sha1, uri);
 
             synchronized (this) {
-                if (mEnqueuedUri.contains(uri)) {
+                if (mQueueSet.contains(qf)) {
                     return false;
                 }
-                mEnqueuedUri.add(uri);
-                mUriList.add(uri);
+                mQueueSet.add(qf);
+                mQueueList.add(qf);
                 if (!mUploading) {
                     resume();
                 }
@@ -114,7 +115,7 @@ public class UploadService extends Service {
 
         public int queueSize() throws RemoteException {
             synchronized (this) {
-                return mUriList.size();
+                return mQueueList.size();
             }
         }
     };
