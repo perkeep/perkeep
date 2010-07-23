@@ -2,8 +2,8 @@ package com.danga.camli;
 
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -31,15 +31,23 @@ public class UploadService extends Service {
         return service;
 	}
 
-    // Called by UploadThread to get stuff to do. Caller owns returned list.
-    List<QueuedFile> uploadQueue() {
+    // Called by UploadThread to get stuff to do. Caller owns the returned new
+    // LinkedList. Doesn't return null.
+    LinkedList<QueuedFile> uploadQueue() {
         synchronized (this) {
-            if (mQueueList.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<QueuedFile> copy = new ArrayList<QueuedFile>();
+            LinkedList<QueuedFile> copy = new LinkedList<QueuedFile>();
             copy.addAll(mQueueList);
             return copy;
+        }
+    }
+
+    ParcelFileDescriptor getFileDescriptor(Uri uri) {
+        ContentResolver cr = getContentResolver();
+        try {
+            return cr.openFileDescriptor(uri, "r");
+        } catch (FileNotFoundException e) {
+            Log.w(TAG, "FileNotFound for " + uri, e);
+            return null;
         }
     }
 
@@ -52,14 +60,7 @@ public class UploadService extends Service {
                 return false;
             }
 
-            ContentResolver cr = getContentResolver();
-            ParcelFileDescriptor pfd = null;
-            try {
-                pfd = cr.openFileDescriptor(uri, "r");
-            } catch (FileNotFoundException e) {
-                Log.w(TAG, "FileNotFound for " + uri, e);
-                return false;
-            }
+            ParcelFileDescriptor pfd = getFileDescriptor(uri);
 
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
             Log.d(TAG, "sha1 of file is: " + sha1);
