@@ -1,10 +1,8 @@
 package com.danga.camli;
 
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Set;
 
 import android.app.Service;
@@ -24,7 +22,7 @@ public class UploadService extends Service {
     private boolean mUploading = false;
     private UploadThread mUploadThread = null;
     final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
-    final List<QueuedFile> mQueueList = new ArrayList<QueuedFile>();
+    final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
 
 	@Override
     public IBinder onBind(Intent intent) {
@@ -38,6 +36,23 @@ public class UploadService extends Service {
             LinkedList<QueuedFile> copy = new LinkedList<QueuedFile>();
             copy.addAll(mQueueList);
             return copy;
+        }
+    }
+
+    void onUploadThreadEnding() {
+        synchronized (this) {
+            mUploadThread = null;
+            mUploading = false;
+        }
+    }
+
+    void onUploadComplete(QueuedFile qf) {
+        synchronized (this) {
+            boolean removedSet = mQueueSet.remove(qf);
+            boolean removedList = mQueueList.remove(qf); // TODO: ghetto, linear
+                                                         // scan
+            Log.d(TAG, "removing of " + qf + "; removedSet=" + removedSet + "; removedList="
+                    + removedList);
         }
     }
 

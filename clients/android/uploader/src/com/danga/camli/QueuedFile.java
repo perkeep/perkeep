@@ -32,6 +32,11 @@ public class QueuedFile {
         return mUri;
     }
 
+    @Override
+    public String toString() {
+        return "QueuedFile [mContentName=" + mContentName + ", mUri=" + mUri + "]";
+    }
+
     // Auto-generated from Eclipse...
     @Override
     public int hashCode() {

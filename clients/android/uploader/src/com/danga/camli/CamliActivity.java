@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
@@ -125,8 +126,14 @@ public class CamliActivity extends Activity {
     }
 
     private void handleSendMultiple(Intent intent) {
-        // TODO Auto-generated method stub
-
+        ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+        for (Parcelable p : items) {
+            if (!(p instanceof Uri)) {
+                Log.d(TAG, "uh, unknown thing " + p);
+                continue;
+            }
+            startDownloadOfUri((Uri) p);
+        }
     }
 
     private void handleSend(Intent intent) {
@@ -150,6 +157,7 @@ public class CamliActivity extends Activity {
     }
 
     private void startDownloadOfUri(final Uri uri) {
+        Log.d(TAG, "startDownload of " + uri);
         if (serviceStub == null) {
             Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
             pendingUrisToUpload.add(uri);
