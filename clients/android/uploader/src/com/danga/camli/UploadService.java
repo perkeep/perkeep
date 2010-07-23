@@ -7,11 +7,13 @@ import java.util.Set;
 
 import android.app.Service;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -120,8 +122,24 @@ public class UploadService extends Service {
                 }
                 String password = sp.getString(Preferences.PASSWORD, "");
 
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                final PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
+                wl.acquire();
                 mUploadThread = new UploadThread(UploadService.this, hp,
                         password);
+
+                // Start a thread to release the wakelock...
+                final Thread threadToWatch = mUploadThread;
+                new Thread() {
+                    @Override public void run() {
+                        try {
+                            threadToWatch.join();
+                        } catch (InterruptedException e) {
+                        }
+                        Log.d(TAG, "UploadThread done; releasing the wakelock");
+                        wl.release();
+                    }
+                }.start();
                 mUploadThread.start();
                 return true;
             }

@@ -227,6 +227,7 @@ public class UploadThread extends Thread {
         }
 
         public void writeTo(OutputStream out) throws IOException {
+            Log.d(TAG, "writeTo outputstream...");
             BufferedOutputStream bos = new BufferedOutputStream(out, 1024);
             PrintWriter pw = new PrintWriter(bos);
             byte[] buf = new byte[1024];
@@ -235,6 +236,7 @@ public class UploadThread extends Thread {
             long timeStarted = SystemClock.uptimeMillis();
 
             for (QueuedFile qf : mQueue) {
+                Log.d(TAG, "begin writeTo of " + qf);
                 ParcelFileDescriptor pfd = mService.getFileDescriptor(qf.getUri());
                 if (pfd == null) {
                     // TODO: report some error up to user?
@@ -252,6 +254,7 @@ public class UploadThread extends Thread {
                 int n;
                 while ((n = fis.read(buf)) != -1) {
                     bytesWritten += n;
+                    Log.d(TAG, "wrote " + n + " bytes to " + qf + ", total=" + bytesWritten);
                     bos.write(buf, 0, n);
                     if (mStopRequested.get()) {
                         Log.d(TAG, "Stopping upload pre-maturely.");
