@@ -41,8 +41,9 @@ public class UploadService extends Service {
         }
     }
 
-    void onUploadThreadEnding() {
+    private void onUploadThreadEnded() {
         synchronized (this) {
+            Log.d(TAG, "UploadThread ended.");
             mUploadThread = null;
             mUploading = false;
         }
@@ -50,11 +51,8 @@ public class UploadService extends Service {
 
     void onUploadComplete(QueuedFile qf) {
         synchronized (this) {
-            boolean removedSet = mQueueSet.remove(qf);
-            boolean removedList = mQueueList.remove(qf); // TODO: ghetto, linear
-                                                         // scan
-            Log.d(TAG, "removing of " + qf + "; removedSet=" + removedSet + "; removedList="
-                    + removedList);
+            mQueueSet.remove(qf);
+            mQueueList.remove(qf); // TODO: ghetto, linear scan
         }
     }
 
@@ -113,7 +111,6 @@ public class UploadService extends Service {
                 if (mUploadThread != null) {
                     return false;
                 }
-                mUploading = true;
 
                 SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
                 HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
@@ -122,9 +119,12 @@ public class UploadService extends Service {
                 }
                 String password = sp.getString(Preferences.PASSWORD, "");
 
+
                 PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
                 final PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
                 wl.acquire();
+
+                mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
                         password);
 
@@ -138,6 +138,7 @@ public class UploadService extends Service {
                         }
                         Log.d(TAG, "UploadThread done; releasing the wakelock");
                         wl.release();
+                        onUploadThreadEnded();
                     }
                 }.start();
                 mUploadThread.start();

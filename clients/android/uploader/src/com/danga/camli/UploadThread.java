@@ -10,6 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.http.Header;
@@ -26,6 +27,7 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -70,22 +72,17 @@ public class UploadThread extends Thread {
             JSONObject preUpload = doPreUpload();
             if (preUpload == null) {
                 Log.w(TAG, "Preupload failed, ending UploadThread.");
-                mService.onUploadThreadEnding();
                 return;
             }
 
             Log.d(TAG, "Starting upload of " + mQueue.size() + " files.");
             if (!doUpload(preUpload)) {
                 Log.w(TAG, "Upload failed, ending UploadThread.");
-                mService.onUploadThreadEnding();
                 return;
             }
-
-            Log.d(TAG, "Did upload.  Queue size is now " + mQueue.size() + " files.");
         }
 
         Log.d(TAG, "Queue empty; done.");
-        mService.onUploadThreadEnding();
     }
 
     private JSONObject doPreUpload() {
@@ -136,6 +133,12 @@ public class UploadThread extends Thread {
                 .optString("uploadUrl", "http://" + mHostPort + "/camli/upload");
         Log.d(TAG, "uploadURL is: " + uploadUrl);
 
+        // Which ones do we already have, so don't have to upload again?
+        filterOutAlreadyUploadedBlobs(preUpload.optJSONArray("alreadyHave"));
+        if (mQueue.isEmpty()) {
+            return true;
+        }
+
         HttpPost uploadReq = new HttpPost(uploadUrl);
         MultipartEntity entity = new MultipartEntity();
         uploadReq.setEntity(entity);
@@ -166,6 +169,39 @@ public class UploadThread extends Thread {
         }
         Log.d(TAG, "doUpload returning true.");
         return true;
+    }
+
+    private void filterOutAlreadyUploadedBlobs(JSONArray alreadyHave) {
+        if (alreadyHave == null) {
+            return;
+        }
+        for (int i = 0; i < alreadyHave.length(); ++i) {
+            JSONObject o = alreadyHave.optJSONObject(i);
+            if (o == null) {
+                // Malformed response; ignore.
+                continue;
+            }
+            String blobRef = o.optString("blobRef");
+            if (blobRef == null) {
+                // Malformed response; ignore
+                continue;
+            }
+            filterOutBlobRef(blobRef);
+        }
+    }
+
+    private void filterOutBlobRef(String blobRef) {
+        // TODO: kinda lame, iterating over whole list.
+        ListIterator<QueuedFile> iter = mQueue.listIterator();
+        while (iter.hasNext()) {
+            QueuedFile qf = iter.next();
+            if (qf.getContentName().equals(blobRef)) {
+                iter.remove();
+                // TODO: signal back to service that this wasn't _actually_
+                // uploaded, but rather just skipped? Good enough for now...
+                mService.onUploadComplete(qf);
+            }
+        }
     }
 
     private class MultipartEntity implements HttpEntity {
@@ -234,10 +270,13 @@ public class UploadThread extends Thread {
 
             int bytesWritten = 0;
             long timeStarted = SystemClock.uptimeMillis();
+            long lastLogUpdate = 0;
 
             for (QueuedFile qf : mQueue) {
                 Log.d(TAG, "begin writeTo of " + qf);
                 ParcelFileDescriptor pfd = mService.getFileDescriptor(qf.getUri());
+                long totalFileBytes = pfd.getStatSize();
+                long uploadedFileBytes = 0;
                 if (pfd == null) {
                     // TODO: report some error up to user?
                     mQueue.removeFirst();
@@ -254,7 +293,13 @@ public class UploadThread extends Thread {
                 int n;
                 while ((n = fis.read(buf)) != -1) {
                     bytesWritten += n;
-                    Log.d(TAG, "wrote " + n + " bytes to " + qf + ", total=" + bytesWritten);
+                    uploadedFileBytes += n;
+                    long now = SystemClock.uptimeMillis();
+                    if (now - lastLogUpdate > 1000) {
+                        Log.d(TAG, "wrote " + uploadedFileBytes + "/" + totalFileBytes + " of "
+                                + qf);
+                        lastLogUpdate = now;
+                    }
                     bos.write(buf, 0, n);
                     if (mStopRequested.get()) {
                         Log.d(TAG, "Stopping upload pre-maturely.");
