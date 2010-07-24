@@ -3,7 +3,7 @@ package com.danga.camli;
 import android.net.Uri;
 
 /**
- * Immutable tuple of content name sha1 & URI to upload.
+ * Immutable struct for tuple (sha1 blobRef, URI to upload, size of blob).
  */
 public class QueuedFile {
 
