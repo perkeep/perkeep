@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
@@ -25,6 +26,16 @@ public class UploadService extends Service {
     private UploadThread mUploadThread = null;
     final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
     final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
+
+    PowerManager mPowerManager;
+    WifiManager mWifiManager;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+    }
 
 	@Override
     public IBinder onBind(Intent intent) {
@@ -119,10 +130,12 @@ public class UploadService extends Service {
                 }
                 String password = sp.getString(Preferences.PASSWORD, "");
 
-
-                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                final PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
-                wl.acquire();
+                final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
+                final WifiManager.WifiLock wifiLock = mWifiManager.createWifiLock(
+                        WifiManager.WIFI_MODE_FULL, "Camli Upload");
+                wakeLock.acquire();
+                wifiLock.acquire();
 
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
@@ -137,7 +150,8 @@ public class UploadService extends Service {
                         } catch (InterruptedException e) {
                         }
                         Log.d(TAG, "UploadThread done; releasing the wakelock");
-                        wl.release();
+                        wakeLock.release();
+                        wifiLock.release();
                         onUploadThreadEnded();
                     }
                 }.start();
