@@ -43,7 +43,6 @@
   style="?android:attr/progressBarStyleHorizontal"
   android:indeterminate="false" android:indeterminateOnly="false" 
   android:minHeight="20sp"
-  android:max="5" android:progress="2" android:secondaryProgress="4"
   android:layout_width="fill_parent" android:layout_height="20sp"
    />
 
@@ -58,7 +57,6 @@
   style="?android:attr/progressBarStyleHorizontal"
   android:indeterminate="false" android:indeterminateOnly="false" 
   android:minHeight="20sp"
-  android:max="5" android:progress="1" android:secondaryProgress="3"
   android:layout_width="fill_parent" android:layout_height="20sp"
    />
 
