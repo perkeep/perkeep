@@ -5,8 +5,24 @@
     android:layout_height="fill_parent"
     >
 <TextView  
+    android:id="@+id/textStatus"
     android:layout_width="fill_parent" 
     android:layout_height="wrap_content" 
-    android:text="@string/hello"
+    android:text="Camlistore Uploader"
+    />
+<LinearLayout android:orientation="horizontal"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:padding="5px"
+    android:gravity="center_horizontal"
+    >
+  <Button android:id="@+id/buttonToggle" android:padding="15px" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pause/Resume"></Button>
+</LinearLayout>
+
+<TextView  
+    android:id="@+id/textBlobsRemain"
+    android:layout_width="fill_parent" 
+    android:layout_height="wrap_content" 
+    android:text="Blobs Remaining: --"
     />
 </LinearLayout>

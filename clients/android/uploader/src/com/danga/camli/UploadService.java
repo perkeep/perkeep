@@ -21,12 +21,16 @@ import android.util.Log;
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
 
-    // Guarded by 'this':
-    private boolean mUploading = false;
-    private UploadThread mUploadThread = null;
+    // Everything in this block guarded by 'this':
+    private boolean mUploading = false; // user's desired state (notified
+                                        // quickly)
+    private UploadThread mUploadThread = null; // last thread created; null when
+                                               // thread exits
     final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
     final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
+    private IStatusCallback mCallback = DummyNullCallback.instance();
 
+    // Effectively final, initialized in onCreate():
     PowerManager mPowerManager;
     WifiManager mWifiManager;
 
@@ -57,6 +61,10 @@ public class UploadService extends Service {
             Log.d(TAG, "UploadThread ended.");
             mUploadThread = null;
             mUploading = false;
+            try {
+                mCallback.onUploadStatusChange(false);
+            } catch (RemoteException e) {
+            }
         }
     }
 
@@ -64,6 +72,10 @@ public class UploadService extends Service {
         synchronized (this) {
             mQueueSet.remove(qf);
             mQueueList.remove(qf); // TODO: ghetto, linear scan
+            try {
+                mCallback.setBlobsRemain(mQueueSet.size());
+            } catch (RemoteException e) {
+            }
         }
     }
 
@@ -89,19 +101,24 @@ public class UploadService extends Service {
             ParcelFileDescriptor pfd = getFileDescriptor(uri);
 
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
-            Log.d(TAG, "sha1 of file is: " + sha1);
-            Log.d(TAG, "size of file is: " + pfd.getStatSize());
-            QueuedFile qf = new QueuedFile(sha1, uri);
+            QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
 
+            int remain = 0;
+            boolean needResume = false;
             synchronized (UploadService.this) {
                 if (mQueueSet.contains(qf)) {
+                    Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
                     return false;
                 }
+                Log.d(TAG, "Enqueueing blob: " + qf);
                 mQueueSet.add(qf);
                 mQueueList.add(qf);
-                if (!mUploading) {
-                    resume();
-                }
+                remain = mQueueSet.size();
+                needResume = !mUploading;
+            }
+            mCallback.setBlobsRemain(remain);
+            if (needResume) {
+                resume();
             }
             return true;
         }
@@ -113,27 +130,36 @@ public class UploadService extends Service {
         }
 
         public void registerCallback(IStatusCallback cb) throws RemoteException {
-            // TODO Auto-generated method stub
+            // TODO: permit multiple listeners? when need comes.
+            synchronized (UploadService.this) {
+                mCallback = cb != null ? cb : DummyNullCallback.instance();
+            }
+        }
 
+        public void unregisterCallback(IStatusCallback cb) throws RemoteException {
+            synchronized (UploadService.this) {
+                mCallback = DummyNullCallback.instance();
+            }
         }
 
         public boolean resume() throws RemoteException {
+            SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
+            HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
+            if (!hp.isValid()) {
+                return false;
+            }
+            String password = sp.getString(Preferences.PASSWORD, "");
+
+            final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
+            final WifiManager.WifiLock wifiLock = mWifiManager.createWifiLock(
+                    WifiManager.WIFI_MODE_FULL, "Camli Upload");
+
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
                     return false;
                 }
 
-                SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
-                HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
-                if (!hp.isValid()) {
-                    return false;
-                }
-                String password = sp.getString(Preferences.PASSWORD, "");
-
-                final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
-                        PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
-                final WifiManager.WifiLock wifiLock = mWifiManager.createWifiLock(
-                        WifiManager.WIFI_MODE_FULL, "Camli Upload");
                 wakeLock.acquire();
                 wifiLock.acquire();
 
@@ -156,24 +182,21 @@ public class UploadService extends Service {
                     }
                 }.start();
                 mUploadThread.start();
-                return true;
             }
+            mCallback.onUploadStatusChange(true);
+            return true;
         }
 
         public boolean pause() throws RemoteException {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
                     mUploadThread.stopPlease();
+                    mUploading = false;
+                    mCallback.onUploadStatusChange(false);
                     return true;
                 }
                 return false;
             }
-        }
-
-        public void unregisterCallback(IStatusCallback cb)
-                throws RemoteException {
-            // TODO Auto-generated method stub
-
         }
 
         public int queueSize() throws RemoteException {

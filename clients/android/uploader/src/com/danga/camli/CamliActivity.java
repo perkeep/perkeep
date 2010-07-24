@@ -10,44 +10,40 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.widget.TextView;
 
 public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
     private static final int MENU_SETTINGS = 1;
 
-    private IUploadService serviceStub = null;
+    private IUploadService mServiceStub = null;
+    private IStatusCallback mCallback = null;
 
-    private final ArrayList<Uri> pendingUrisToUpload = new ArrayList<Uri>();
+    private final Handler mHandler = new Handler();
+    private final ArrayList<Uri> mPendingUrisToUpload = new ArrayList<Uri>();
 
-    private IStatusCallback statusCallback = new IStatusCallback.Stub() {
-        public void logToClient(String stuff) throws RemoteException {
-            Log.d(TAG, "From service: " + stuff);
-        }
-
-        public void onUploadStatusChange(boolean uploading)
-                throws RemoteException {
-            Log.d(TAG, "upload status change: " + uploading);
-        }
-    };
-
-    private final ServiceConnection serviceConnection = new ServiceConnection() {
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
         public void onServiceConnected(ComponentName name, IBinder service) {
-            serviceStub = IUploadService.Stub.asInterface(service);
+            mServiceStub = IUploadService.Stub.asInterface(service);
             Log.d(TAG, "Service connected");
             try {
-                serviceStub.registerCallback(statusCallback);
+                mServiceStub.registerCallback(mCallback);
                 // Drain the queue from before the service was connected.
-                for (Uri uri : pendingUrisToUpload) {
+                for (Uri uri : mPendingUrisToUpload) {
                     startDownloadOfUri(uri);
                 }
-                pendingUrisToUpload.clear();
+                mPendingUrisToUpload.clear();
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -55,7 +51,7 @@ public class CamliActivity extends Activity {
 
         public void onServiceDisconnected(ComponentName name) {
             Log.d(TAG, "Service disconnected");
-            serviceStub = null;
+            mServiceStub = null;
         };
     };
 
@@ -63,6 +59,73 @@ public class CamliActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+
+        final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
+        final TextView textStatus = (TextView) findViewById(R.id.textStatus);
+        final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
+
+        buttonToggle.setOnClickListener(new OnClickListener() {
+            public void onClick(View btn) {
+                if ("Pause".equals(buttonToggle.getText())) {
+                    try {
+                        mServiceStub.pause();
+                    } catch (RemoteException e) {
+                    }
+                } else if ("Resume".equals(buttonToggle.getText())) {
+                    try {
+                        mServiceStub.resume();
+                    } catch (RemoteException e) {
+                    }
+                }
+            }
+        });
+
+        mCallback = new IStatusCallback.Stub() {
+            private volatile int mLastBlobsRemain = 0;
+
+            public void logToClient(String stuff) throws RemoteException {
+                // TODO Auto-generated method stub
+
+            }
+
+            public void onUploadStatusChange(final boolean uploading) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    public void run() {
+                        if (uploading) {
+                            buttonToggle.setText("Pause");
+                            textStatus.setText("Uploading...");
+                        } else {
+                            buttonToggle.setText("Resume");
+                            textStatus.setText(mLastBlobsRemain > 0 ? "Paused." : "Idle.");
+                        }
+                    }
+                });
+            }
+
+            public void setBlobStatus(final int done, final int total) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    public void run() {
+                        buttonToggle.setEnabled(done != total);
+                    }
+                });
+            }
+
+            public void setByteStatus(long done, long total) throws RemoteException {
+                // TODO Auto-generated method stub
+
+            }
+
+            public void setBlobsRemain(final int num) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    public void run() {
+                        mLastBlobsRemain = num;
+                        buttonToggle.setEnabled(num != 0);
+                        textBlobsRemain.setText("Blobs remain: " + num);
+                    }
+                });
+            }
+        };
+
     }
 
     @Override
@@ -98,13 +161,13 @@ public class CamliActivity extends Activity {
     protected void onPause() {
         super.onPause();
         try {
-            if (serviceStub != null)
-                serviceStub.unregisterCallback(statusCallback);
+            if (mServiceStub != null)
+                mServiceStub.unregisterCallback(mCallback);
         } catch (RemoteException e) {
             // Ignore.
         }
-        if (serviceConnection != null) {
-            unbindService(serviceConnection);
+        if (mServiceConnection != null) {
+            unbindService(mServiceConnection);
         }
     }
 
@@ -112,16 +175,23 @@ public class CamliActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        bindService(new Intent(this, UploadService.class), serviceConnection,
+        bindService(new Intent(this, UploadService.class), mServiceConnection,
                 Context.BIND_AUTO_CREATE);
 
         Intent intent = getIntent();
         String action = intent.getAction();
         Log.d(TAG, "onResume; action=" + action);
+
         if (Intent.ACTION_SEND.equals(action)) {
             handleSend(intent);
+            setIntent(new Intent(this, CamliActivity.class));
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             handleSendMultiple(intent);
+            setIntent(new Intent(this, CamliActivity.class));
+            // startActivity(new Intent(this, CamliActivity.class)
+            // .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        } else {
+            Log.d(TAG, "Normal CamliActivity viewing.");
         }
     }
 
@@ -158,16 +228,16 @@ public class CamliActivity extends Activity {
 
     private void startDownloadOfUri(final Uri uri) {
         Log.d(TAG, "startDownload of " + uri);
-        if (serviceStub == null) {
+        if (mServiceStub == null) {
             Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
-            pendingUrisToUpload.add(uri);
+            mPendingUrisToUpload.add(uri);
             return;
         }
         new AsyncTask<Void, Void, Void>() {
             @Override
             protected Void doInBackground(Void... unused) {
                 try {
-                    serviceStub.enqueueUpload(uri);
+                    mServiceStub.enqueueUpload(uri);
                 } catch (RemoteException e) {
                     Log.d(TAG, "failure to enqueue upload", e);
                 }

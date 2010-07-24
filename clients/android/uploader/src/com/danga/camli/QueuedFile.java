@@ -9,8 +9,9 @@ public class QueuedFile {
 
     private final String mContentName;
     private final Uri mUri;
+    private final long mSize;
 
-    public QueuedFile(String sha1, Uri uri) {
+    public QueuedFile(String sha1, Uri uri, long size) {
         if (sha1 == null) {
             throw new NullPointerException("sha1 == null");
         }
@@ -22,6 +23,7 @@ public class QueuedFile {
         }
         mContentName = "sha1-" + sha1;
         mUri = uri;
+        mSize = size;
     }
 
     public String getContentName() {
@@ -32,23 +34,26 @@ public class QueuedFile {
         return mUri;
     }
 
-    @Override
-    public String toString() {
-        return "QueuedFile [mContentName=" + mContentName + ", mUri=" + mUri + "]";
+    public long getSize() {
+        return mSize;
     }
 
-    // Auto-generated from Eclipse...
+    @Override
+    public String toString() {
+        return "QueuedFile [mContentName=" + mContentName + ", mSize=" + mSize + ", mUri=" + mUri
+                + "]";
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result
-                + ((mContentName == null) ? 0 : mContentName.hashCode());
+        result = prime * result + ((mContentName == null) ? 0 : mContentName.hashCode());
+        result = prime * result + (int) (mSize ^ (mSize >>> 32));
         result = prime * result + ((mUri == null) ? 0 : mUri.hashCode());
         return result;
     }
 
-    // Auto-generated from Eclipse...
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -62,6 +67,8 @@ public class QueuedFile {
             if (other.mContentName != null)
                 return false;
         } else if (!mContentName.equals(other.mContentName))
+            return false;
+        if (mSize != other.mSize)
             return false;
         if (mUri == null) {
             if (other.mUri != null)
