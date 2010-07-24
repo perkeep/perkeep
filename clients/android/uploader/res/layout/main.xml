@@ -25,4 +25,12 @@
     android:layout_height="wrap_content" 
     android:text="Blobs Remaining: --"
     />
+<TextView  
+    android:id="@+id/textUploadStatus"
+    android:layout_width="fill_parent" 
+    android:layout_height="wrap_content" 
+    android:text=""
+    />
+
 </LinearLayout>
+

@@ -29,6 +29,7 @@ public class UploadService extends Service {
     final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
     final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
+    private String mLastUploadStatusText = null;
 
     // Effectively final, initialized in onCreate():
     PowerManager mPowerManager;
@@ -56,19 +57,31 @@ public class UploadService extends Service {
         }
     }
 
+    void setUploadStatusText(String status) {
+        IStatusCallback cb;
+        synchronized (this) {
+            mLastUploadStatusText = status;
+            cb = mCallback;
+        }
+        try {
+            cb.setUploadStatusText(status);
+        } catch (RemoteException e) {
+        }
+    }
+
     private void onUploadThreadEnded() {
         synchronized (this) {
             Log.d(TAG, "UploadThread ended.");
             mUploadThread = null;
             mUploading = false;
             try {
-                mCallback.onUploadStatusChange(false);
+                mCallback.setUploading(false);
             } catch (RemoteException e) {
             }
         }
     }
 
-    void onUploadComplete(QueuedFile qf) {
+    void onUploadComplete(QueuedFile qf, boolean wasAlreadyExisting) {
         synchronized (this) {
             mQueueSet.remove(qf);
             mQueueList.remove(qf); // TODO: ghetto, linear scan
@@ -133,6 +146,11 @@ public class UploadService extends Service {
             // TODO: permit multiple listeners? when need comes.
             synchronized (UploadService.this) {
                 mCallback = cb != null ? cb : DummyNullCallback.instance();
+
+                // Init the new connection.
+                mCallback.setBlobsRemain(mQueueSet.size());
+                mCallback.setUploading(mUploading);
+                mCallback.setUploadStatusText(mLastUploadStatusText);
             }
         }
 
@@ -183,7 +201,7 @@ public class UploadService extends Service {
                 }.start();
                 mUploadThread.start();
             }
-            mCallback.onUploadStatusChange(true);
+            mCallback.setUploading(true);
             return true;
         }
 
@@ -192,7 +210,7 @@ public class UploadService extends Service {
                 if (mUploadThread != null) {
                     mUploadThread.stopPlease();
                     mUploading = false;
-                    mCallback.onUploadStatusChange(false);
+                    mCallback.setUploading(false);
                     return true;
                 }
                 return false;

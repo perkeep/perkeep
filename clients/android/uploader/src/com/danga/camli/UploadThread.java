@@ -57,7 +57,7 @@ public class UploadThread extends Thread {
     }
     
     public void stopPlease() {
-        mStopRequested.set(false);
+        mStopRequested.set(true);
     }
 
     @Override
@@ -65,24 +65,34 @@ public class UploadThread extends Thread {
         if (!mHostPort.isValid()) {
             return;
         }
-        Log.d(TAG, "Running UploadThread for " + mHostPort);
+        status("Running UploadThread for " + mHostPort);
         
         while (!(mQueue = mService.uploadQueue()).isEmpty()) {
-            Log.d(TAG, "Starting pre-upload of " + mQueue.size() + " files.");
+            if (mStopRequested.get()) {
+                status("Upload pause requested; ending upload.");
+                return;
+            }
+
+            status("Starting pre-upload of " + mQueue.size() + " files.");
             JSONObject preUpload = doPreUpload();
             if (preUpload == null) {
                 Log.w(TAG, "Preupload failed, ending UploadThread.");
                 return;
             }
 
-            Log.d(TAG, "Starting upload of " + mQueue.size() + " files.");
+            if (mStopRequested.get()) {
+                status("Upload pause requested; ending upload.");
+                return;
+            }
+
+            status("Uploading...");
             if (!doUpload(preUpload)) {
                 Log.w(TAG, "Upload failed, ending UploadThread.");
                 return;
             }
         }
 
-        Log.d(TAG, "Queue empty; done.");
+        status("Queue empty; done.");
     }
 
     private JSONObject doPreUpload() {
@@ -165,7 +175,7 @@ public class UploadThread extends Thread {
         for (QueuedFile qf : entity.getFilesWritten()) {
             // TODO: only do this if acknowledged in JSON response?
             Log.d(TAG, "Upload complete for: " + qf);
-            mService.onUploadComplete(qf);
+            mService.onUploadComplete(qf, true /* not a dupe, uploaded */);
         }
         Log.d(TAG, "doUpload returning true.");
         return true;
@@ -197,11 +207,14 @@ public class UploadThread extends Thread {
             QueuedFile qf = iter.next();
             if (qf.getContentName().equals(blobRef)) {
                 iter.remove();
-                // TODO: signal back to service that this wasn't _actually_
-                // uploaded, but rather just skipped? Good enough for now...
-                mService.onUploadComplete(qf);
+                mService.onUploadComplete(qf, false /* not uploaded */);
             }
         }
+    }
+
+    private void status(String st) {
+        Log.d(TAG, st);
+        mService.setUploadStatusText(st);
     }
 
     private class MultipartEntity implements HttpEntity {
@@ -230,7 +243,6 @@ public class UploadThread extends Thread {
         }
 
         public InputStream getContent() throws IOException, IllegalStateException {
-            Log.d(TAG, "getContent()");
             throw new RuntimeException("unexpected getContent() call");
         }
 
@@ -247,18 +259,15 @@ public class UploadThread extends Thread {
         }
 
         public boolean isChunked() {
-            Log.d(TAG, "isChunked?");
             return false;
         }
 
         public boolean isRepeatable() {
-            Log.d(TAG, "isRepeatable?");
             // Well, not really, but needs to be for DefaultRequestDirector
             return true;
         }
 
         public boolean isStreaming() {
-            Log.d(TAG, "isStreaming?");
             return !mDone;
         }
 
@@ -302,7 +311,7 @@ public class UploadThread extends Thread {
                     }
                     bos.write(buf, 0, n);
                     if (mStopRequested.get()) {
-                        Log.d(TAG, "Stopping upload pre-maturely.");
+                        status("Upload pause requested; ending write.");
                         pfd.close();
                         return;
                     }
@@ -317,6 +326,13 @@ public class UploadThread extends Thread {
                     Log.d(TAG, "enough bytes written, stopping writing after " + bytesWritten);
                     // Stop after 1MB to get response.
                     // TODO: make this smarter, configurable, time-based.
+                    break;
+                }
+
+                long now = SystemClock.uptimeMillis();
+                if (now - timeStarted > 15 * 1000) {
+                    // TODO: configurable
+                    status("We've been writing this request for 15 seconds, finish it.");
                     break;
                 }
             }

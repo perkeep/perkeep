@@ -36,7 +36,8 @@ public class CamliActivity extends Activity {
 
         public void onServiceConnected(ComponentName name, IBinder service) {
             mServiceStub = IUploadService.Stub.asInterface(service);
-            Log.d(TAG, "Service connected");
+            Log.d(TAG, "Service connected, registering callback " + mCallback);
+
             try {
                 mServiceStub.registerCallback(mCallback);
                 // Drain the queue from before the service was connected.
@@ -63,16 +64,20 @@ public class CamliActivity extends Activity {
         final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
+        final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
 
         buttonToggle.setOnClickListener(new OnClickListener() {
             public void onClick(View btn) {
+                Log.d(TAG, "button click!  text=" + buttonToggle.getText());
                 if ("Pause".equals(buttonToggle.getText())) {
                     try {
+                        Log.d(TAG, "Pausing..");
                         mServiceStub.pause();
                     } catch (RemoteException e) {
                     }
                 } else if ("Resume".equals(buttonToggle.getText())) {
                     try {
+                        Log.d(TAG, "Resuming..");
                         mServiceStub.resume();
                     } catch (RemoteException e) {
                     }
@@ -88,7 +93,7 @@ public class CamliActivity extends Activity {
 
             }
 
-            public void onUploadStatusChange(final boolean uploading) throws RemoteException {
+            public void setUploading(final boolean uploading) throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
                         if (uploading) {
@@ -121,6 +126,14 @@ public class CamliActivity extends Activity {
                         mLastBlobsRemain = num;
                         buttonToggle.setEnabled(num != 0);
                         textBlobsRemain.setText("Blobs remain: " + num);
+                    }
+                });
+            }
+
+            public void setUploadStatusText(final String text) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    public void run() {
+                        textUploadStatus.setText(text);
                     }
                 });
             }
