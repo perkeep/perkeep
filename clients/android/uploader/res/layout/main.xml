@@ -16,7 +16,7 @@
     android:padding="5px"
     android:gravity="center_horizontal"
     >
-  <Button android:id="@+id/buttonToggle" android:padding="15px" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pause/Resume"></Button>
+  <Button android:id="@+id/buttonToggle" android:padding="15px" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@+string/pause_resume"></Button>
 </LinearLayout>
 
 <TextView  

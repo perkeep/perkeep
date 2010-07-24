@@ -4,4 +4,7 @@
 	<string name="settings_host_title">Camli Server Host/IP</string>
 	<string name="settings_host_summary">e.g. &quot;example.com:3179&quot;</string>
 	<string name="settings_password_title">Server password</string>
+<string name="pause_resume">Pause / Resume</string>
+<string name="pause">Pause</string>
+<string name="resume">Resume</string>
 </resources>

@@ -72,13 +72,13 @@ public class CamliActivity extends Activity {
         buttonToggle.setOnClickListener(new OnClickListener() {
             public void onClick(View btn) {
                 Log.d(TAG, "button click!  text=" + buttonToggle.getText());
-                if ("Pause".equals(buttonToggle.getText())) {
+                if (getString(R.string.pause).equals(buttonToggle.getText())) {
                     try {
                         Log.d(TAG, "Pausing..");
                         mServiceStub.pause();
                     } catch (RemoteException e) {
                     }
-                } else if ("Resume".equals(buttonToggle.getText())) {
+                } else if (getString(R.string.resume).equals(buttonToggle.getText())) {
                     try {
                         Log.d(TAG, "Resuming..");
                         mServiceStub.resume();
@@ -100,10 +100,10 @@ public class CamliActivity extends Activity {
                 mHandler.post(new Runnable() {
                     public void run() {
                         if (uploading) {
-                            buttonToggle.setText("Pause");
+                            buttonToggle.setText(R.string.pause);
                             textStatus.setText("Uploading...");
                         } else {
-                            buttonToggle.setText("Resume");
+                            buttonToggle.setText(R.string.resume);
                             textStatus.setText(mLastBlobsRemain > 0 ? "Paused." : "Idle.");
                         }
                     }
@@ -116,6 +116,9 @@ public class CamliActivity extends Activity {
                         buttonToggle.setEnabled(done != total);
                         progressBlob.setMax(total);
                         progressBlob.setProgress(done);
+                        if (done == total) {
+                            buttonToggle.setText(getString(R.string.pause_resume));
+                        }
                     }
                 });
             }
