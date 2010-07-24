@@ -26,10 +26,16 @@ public class UploadService extends Service {
                                         // quickly)
     private UploadThread mUploadThread = null; // last thread created; null when
                                                // thread exits
-    final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
-    final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
+    private final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
+    private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
     private String mLastUploadStatusText = null;
+
+    // Stats, all guarded by 'this', and all reset to 0 on queue size transition from 0 -> 1.
+    private long mBytesTotal = 0;
+    private long mBytesUploaded = 0;
+    private int mBlobsTotal = 0;
+    private int mBlobsUploaded = 0;
 
     // Effectively final, initialized in onCreate():
     PowerManager mPowerManager;
@@ -83,10 +89,17 @@ public class UploadService extends Service {
 
     void onUploadComplete(QueuedFile qf, boolean wasAlreadyExisting) {
         synchronized (this) {
-            mQueueSet.remove(qf);
+            if (!mQueueSet.remove(qf)) {
+                return;
+            }
             mQueueList.remove(qf); // TODO: ghetto, linear scan
+
+            mBytesUploaded += qf.getSize();
+            mBlobsUploaded += 1;
             try {
                 mCallback.setBlobsRemain(mQueueSet.size());
+                mCallback.setBlobStatus(mBlobsUploaded, mBlobsTotal);
+                mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             } catch (RemoteException e) {
             }
         }
@@ -116,7 +129,6 @@ public class UploadService extends Service {
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
             QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
 
-            int remain = 0;
             boolean needResume = false;
             synchronized (UploadService.this) {
                 if (mQueueSet.contains(qf)) {
@@ -126,10 +138,21 @@ public class UploadService extends Service {
                 Log.d(TAG, "Enqueueing blob: " + qf);
                 mQueueSet.add(qf);
                 mQueueList.add(qf);
-                remain = mQueueSet.size();
+
+                if (mQueueSet.size() == 1) {
+                    mBytesTotal = 0;
+                    mBlobsTotal = 0;
+                    mBytesUploaded = 0;
+                    mBlobsUploaded = 0;
+                }
+                mBytesTotal += qf.getSize();
+                mBlobsTotal += 1;
                 needResume = !mUploading;
+
+                mCallback.setBlobsRemain(mQueueSet.size());
+                mCallback.setBlobStatus(mBlobsUploaded, mBlobsTotal);
+                mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             }
-            mCallback.setBlobsRemain(remain);
             if (needResume) {
                 resume();
             }
@@ -145,12 +168,16 @@ public class UploadService extends Service {
         public void registerCallback(IStatusCallback cb) throws RemoteException {
             // TODO: permit multiple listeners? when need comes.
             synchronized (UploadService.this) {
-                mCallback = cb != null ? cb : DummyNullCallback.instance();
-
+                if (cb == null) {
+                    cb = DummyNullCallback.instance();
+                }
+                mCallback = cb;
                 // Init the new connection.
-                mCallback.setBlobsRemain(mQueueSet.size());
-                mCallback.setUploading(mUploading);
-                mCallback.setUploadStatusText(mLastUploadStatusText);
+                cb.setUploading(mUploading);
+                cb.setUploadStatusText(mLastUploadStatusText);
+                cb.setBlobsRemain(mQueueSet.size());
+                cb.setBlobStatus(mBlobsUploaded, mBlobsTotal);
+                cb.setByteStatus(mBytesUploaded, mBytesTotal);
             }
         }
 

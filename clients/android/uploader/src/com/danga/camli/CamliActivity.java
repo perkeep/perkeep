@@ -20,6 +20,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public class CamliActivity extends Activity {
@@ -65,6 +66,8 @@ public class CamliActivity extends Activity {
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
         final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
+        final ProgressBar progressBytes = (ProgressBar) findViewById(R.id.progressByteStatus);
+        final ProgressBar progressBlob = (ProgressBar) findViewById(R.id.progressBlobStatus);
 
         buttonToggle.setOnClickListener(new OnClickListener() {
             public void onClick(View btn) {
@@ -111,13 +114,21 @@ public class CamliActivity extends Activity {
                 mHandler.post(new Runnable() {
                     public void run() {
                         buttonToggle.setEnabled(done != total);
+                        progressBlob.setMax(total);
+                        progressBlob.setProgress(done);
                     }
                 });
             }
 
-            public void setByteStatus(long done, long total) throws RemoteException {
-                // TODO Auto-generated method stub
-
+            public void setByteStatus(final long done, final long total) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    public void run() {
+                        // setMax takes an (signed) int, but 2GB is a totally
+                        // reasonable upload size, so use units of 1KB instead.
+                        progressBytes.setMax((int) (total / 1024L));
+                        progressBytes.setProgress((int) (done / 1024L));
+                    }
+                });
             }
 
             public void setBlobsRemain(final int num) throws RemoteException {
