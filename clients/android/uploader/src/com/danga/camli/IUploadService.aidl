@@ -3,6 +3,7 @@ package com.danga.camli;
 import com.danga.camli.IStatusCallback;
 import android.os.ParcelFileDescriptor;
 import android.net.Uri;
+import java.util.List;
 
 interface IUploadService {
     void registerCallback(IStatusCallback cb);
@@ -22,4 +23,5 @@ interface IUploadService {
     // so should be called from an AsyncTask.
     // Returns false if server not configured.
     boolean enqueueUpload(in Uri uri);
+    int enqueueUploadList(in List<Uri> uri);
 }

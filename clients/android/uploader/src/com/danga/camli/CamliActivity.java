@@ -42,9 +42,7 @@ public class CamliActivity extends Activity {
             try {
                 mServiceStub.registerCallback(mCallback);
                 // Drain the queue from before the service was connected.
-                for (Uri uri : mPendingUrisToUpload) {
-                    startDownloadOfUri(uri);
-                }
+                startDownloadOfUriList(mPendingUrisToUpload);
                 mPendingUrisToUpload.clear();
             } catch (RemoteException e) {
                 e.printStackTrace();
@@ -224,13 +222,15 @@ public class CamliActivity extends Activity {
 
     private void handleSendMultiple(Intent intent) {
         ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+        ArrayList<Uri> uris = new ArrayList<Uri>(items.size());
         for (Parcelable p : items) {
             if (!(p instanceof Uri)) {
                 Log.d(TAG, "uh, unknown thing " + p);
                 continue;
             }
-            startDownloadOfUri((Uri) p);
+            uris.add((Uri) p);
         }
+        startDownloadOfUriList(uris);
     }
 
     private void handleSend(Intent intent) {
@@ -272,4 +272,31 @@ public class CamliActivity extends Activity {
             }
         }.execute();
     }
+
+    private void startDownloadOfUriList(ArrayList<Uri> uriList) {
+        // We need to make a copy of it for our AsyncTask, as our caller may
+        // clear their owned copy of it before our AsyncTask runs.
+        final ArrayList<Uri> uriListCopy = new ArrayList<Uri>(uriList);
+
+        Log.d(TAG, "startDownload of list: " + uriListCopy);
+        if (mServiceStub == null) {
+            Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
+            mPendingUrisToUpload.addAll(uriListCopy);
+            return;
+        }
+        new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... unused) {
+                try {
+                    Log.d(TAG, "From AsyncTask thread, enqueing uriList of size "
+                            + uriListCopy.size());
+                    mServiceStub.enqueueUploadList(uriListCopy);
+                } catch (RemoteException e) {
+                    Log.d(TAG, "failure to enqueue upload", e);
+                }
+                return null; // void
+            }
+        }.execute();
+    }
+
 }

@@ -3,6 +3,7 @@ package com.danga.camli;
 import java.io.FileNotFoundException;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 
 import android.app.Service;
@@ -131,6 +132,16 @@ public class UploadService extends Service {
     }
 
     private final IUploadService.Stub service = new IUploadService.Stub() {
+
+        public int enqueueUploadList(List<Uri> uriList) throws RemoteException {
+            Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
+            int goodCount = 0;
+            for (Uri uri : uriList) {
+                goodCount += enqueueUpload(uri) ? 1 : 0;
+            }
+            Log.d(TAG, "...goodCount = " + goodCount);
+            return goodCount;
+        }
 
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
