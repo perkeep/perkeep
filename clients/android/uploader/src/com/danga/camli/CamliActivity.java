@@ -27,6 +27,7 @@ import android.widget.TextView;
 public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
     private static final int MENU_SETTINGS = 1;
+    private static final int MENU_STOP = 2;
 
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
@@ -90,7 +91,8 @@ public class CamliActivity extends Activity {
         });
 
         mCallback = new IStatusCallback.Stub() {
-            private volatile int mLastBlobsRemain = 0;
+            private volatile int mLastBlobsUploadRemain = 0;
+            private volatile int mLastBlobsDigestRemain = 0;
 
             public void logToClient(String stuff) throws RemoteException {
                 // TODO Auto-generated method stub
@@ -102,24 +104,29 @@ public class CamliActivity extends Activity {
                     public void run() {
                         if (uploading) {
                             buttonToggle.setText(R.string.pause);
-                            textStatus.setText("Uploading...");
+                            textStatus.setText(R.string.uploading);
+                        } else if (mLastBlobsDigestRemain > 0) {
+                            buttonToggle.setText(R.string.pause);
+                            textStatus.setText(R.string.digesting);
                         } else {
                             buttonToggle.setText(R.string.resume);
-                            textStatus.setText(mLastBlobsRemain > 0 ? "Paused." : "Idle.");
+                            int stepsRemain = mLastBlobsUploadRemain + mLastBlobsDigestRemain;
+                            textStatus.setText(stepsRemain > 0 ? "Paused." : "Idle.");
                         }
                     }
                 });
             }
 
-            public void setBlobStatus(final int done, final int inFlight, final int total)
+            public void setBlobStatus(final int blobsDone, final int inFlight, final int total)
                     throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
-                        buttonToggle.setEnabled(done != total);
+                        boolean finished = (blobsDone == total && mLastBlobsDigestRemain == 0);
+                        buttonToggle.setEnabled(!finished);
                         progressBlob.setMax(total);
-                        progressBlob.setProgress(done);
-                        progressBlob.setSecondaryProgress(done + inFlight);
-                        if (done == total) {
+                        progressBlob.setProgress(blobsDone);
+                        progressBlob.setSecondaryProgress(blobsDone + inFlight);
+                        if (finished) {
                             buttonToggle.setText(getString(R.string.pause_resume));
                         }
                     }
@@ -140,12 +147,20 @@ public class CamliActivity extends Activity {
                 });
             }
 
-            public void setBlobsRemain(final int num) throws RemoteException {
+            public void setBlobsRemain(final int toUpload, final int toDigest)
+                    throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
-                        mLastBlobsRemain = num;
-                        buttonToggle.setEnabled(num != 0);
-                        textBlobsRemain.setText("Blobs remain: " + num);
+                        mLastBlobsUploadRemain = toUpload;
+                        mLastBlobsDigestRemain = toDigest;
+
+                        buttonToggle.setEnabled((toUpload + toDigest) != 0);
+                        StringBuilder sb = new StringBuilder(40);
+                        sb.append("Blobs to upload: ").append(toUpload);
+                        if (toDigest > 0) {
+                            sb.append("; to digest: ").append(toDigest);
+                        }
+                        textBlobsRemain.setText(sb.toString());
                     }
                 });
             }
@@ -177,6 +192,7 @@ public class CamliActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_STOP, 0, "Stop");
         menu.add(Menu.NONE, MENU_SETTINGS, 0, "Settings");
         return true;
     }
@@ -184,6 +200,15 @@ public class CamliActivity extends Activity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+        case MENU_STOP:
+            try {
+                if (mServiceStub != null) {
+                    mServiceStub.stopEverything();
+                }
+            } catch (RemoteException e) {
+                // Ignore.
+            }
+            break;
         case MENU_SETTINGS:
             SettingsActivity.show(this);
             break;

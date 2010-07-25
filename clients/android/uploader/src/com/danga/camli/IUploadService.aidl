@@ -24,4 +24,7 @@ interface IUploadService {
     // Returns false if server not configured.
     boolean enqueueUpload(in Uri uri);
     int enqueueUploadList(in List<Uri> uri);
+
+    // Stop digesting, stop uploads, clear queues.
+    void stopEverything();
 }

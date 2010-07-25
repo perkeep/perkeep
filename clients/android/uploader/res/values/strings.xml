@@ -7,4 +7,6 @@
 <string name="pause_resume">Pause / Resume</string>
 <string name="pause">Pause</string>
 <string name="resume">Resume</string>
+<string name="uploading">Uploading...</string>
+<string name="digesting">Digesting...</string>
 </resources>

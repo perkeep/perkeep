@@ -24,7 +24,7 @@ public class DummyNullCallback extends IStatusCallback.Stub {
 
     }
 
-    public void setBlobsRemain(int num) throws RemoteException {
+    public void setBlobsRemain(int toUpload, int toDigest) throws RemoteException {
         // TODO Auto-generated method stub
 
     }

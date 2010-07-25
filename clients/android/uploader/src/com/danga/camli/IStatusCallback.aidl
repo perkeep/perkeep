@@ -5,7 +5,7 @@ oneway interface IStatusCallback {
     void setUploadStatusText(String text);
     void setUploading(boolean uploading);
     
-    void setBlobsRemain(int num);
+    void setBlobsRemain(int toUpload, int toDigest);
 
     // done: acknowledged by server
     // inFlight: written to the server, but no reply yet (i.e. large HTTP POST body)
