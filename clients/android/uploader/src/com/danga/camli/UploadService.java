@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -22,6 +25,8 @@ import android.util.Log;
 
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
+
+    private static int NOTIFY_ID_UPLOADING = 0x001;
 
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
@@ -45,12 +50,14 @@ public class UploadService extends Service {
     // Effectively final, initialized in onCreate():
     PowerManager mPowerManager;
     WifiManager mWifiManager;
+    NotificationManager mNotificationManager;
 
     @Override
     public void onCreate() {
         super.onCreate();
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
     }
 
     @Override
@@ -136,6 +143,9 @@ public class UploadService extends Service {
 
     private void onUploadThreadEnded() {
         synchronized (this) {
+            if (mBlobsToDigest == 0) {
+                mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
+            }
             Log.d(TAG, "UploadThread ended.");
             mUploadThread = null;
             mUploading = false;
@@ -315,13 +325,23 @@ public class UploadService extends Service {
                 wakeLock.acquire();
                 wifiLock.acquire();
 
+                Notification n = new Notification(android.R.drawable.stat_sys_upload,
+                        "Uploading", System.currentTimeMillis());
+                n.flags = Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
+                PendingIntent pIntent = PendingIntent.getActivity(UploadService.this, 0,
+                        new Intent(UploadService.this, CamliActivity.class), 0);
+                n.setLatestEventInfo(UploadService.this, "Uploading",
+                        "Camlistore uploader running",
+                        pIntent);
+                mNotificationManager.notify(NOTIFY_ID_UPLOADING, n);
+
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
                         password);
 
                 // Start a thread to release the wakelock...
                 final Thread threadToWatch = mUploadThread;
-                new Thread() {
+                new Thread("UploadThread-waiter") {
                     @Override public void run() {
                         try {
                             threadToWatch.join();
@@ -342,6 +362,7 @@ public class UploadService extends Service {
         public boolean pause() throws RemoteException {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
+                    mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
                     mUploadThread.stopPlease();
                     mUploading = false;
                     mCallback.setUploading(false);
@@ -359,6 +380,7 @@ public class UploadService extends Service {
 
         public void stopEverything() throws RemoteException {
             synchronized (UploadService.this) {
+                mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
                 mQueueSet.clear();
                 mQueueList.clear();
                 mLastUploadStatusText = "Stopped";
