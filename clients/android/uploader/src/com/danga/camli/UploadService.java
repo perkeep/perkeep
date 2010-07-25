@@ -108,7 +108,12 @@ public class UploadService extends Service {
                 mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             } catch (RemoteException e) {
             }
+        }
+        stopServiceIfEmpty();
+    }
 
+    private void stopServiceIfEmpty() {
+        synchronized (this) {
             if (mQueueSet.isEmpty()) {
                 stopService(new Intent(UploadService.this, UploadService.class));
             }
@@ -132,6 +137,7 @@ public class UploadService extends Service {
             SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
             HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
+                stopServiceIfEmpty();
                 return false;
             }
 
@@ -144,6 +150,7 @@ public class UploadService extends Service {
             synchronized (UploadService.this) {
                 if (mQueueSet.contains(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
+                    stopServiceIfEmpty();
                     return false;
                 }
                 Log.d(TAG, "Enqueueing blob: " + qf);
