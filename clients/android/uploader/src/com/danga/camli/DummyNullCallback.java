@@ -19,7 +19,7 @@ public class DummyNullCallback extends IStatusCallback.Stub {
 
     }
 
-    public void setBlobStatus(int done, int total) throws RemoteException {
+    public void setBlobStatus(int done, int inFlight, int total) throws RemoteException {
         // TODO Auto-generated method stub
 
     }
@@ -29,7 +29,7 @@ public class DummyNullCallback extends IStatusCallback.Stub {
 
     }
 
-    public void setByteStatus(long done, long total) throws RemoteException {
+    public void setByteStatus(long done, int inFlight, long total) throws RemoteException {
         // TODO Auto-generated method stub
 
     }

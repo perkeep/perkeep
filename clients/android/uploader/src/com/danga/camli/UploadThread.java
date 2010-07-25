@@ -66,6 +66,9 @@ public class UploadThread extends Thread {
             return;
         }
         status("Running UploadThread for " + mHostPort);
+
+        mService.setInFlightBytes(0);
+        mService.setInFlightBlobs(0);
         
         while (!(mQueue = mService.uploadQueue()).isEmpty()) {
             if (mStopRequested.get()) {
@@ -90,6 +93,8 @@ public class UploadThread extends Thread {
                 Log.w(TAG, "Upload failed, ending UploadThread.");
                 return;
             }
+            mService.setInFlightBytes(0);
+            mService.setInFlightBlobs(0);
         }
 
         status("Queue empty; done.");
@@ -166,6 +171,8 @@ public class UploadThread extends Thread {
         StatusLine statusLine = uploadRes.getStatusLine();
         Log.d(TAG, "response code: " + statusLine);
         // TODO: check response body, once response body is defined?
+        mService.setInFlightBlobs(0);
+        mService.setInFlightBytes(0);
         if (statusLine == null || statusLine.getStatusCode() < 200
                 || statusLine.getStatusCode() > 299) {
             Log.d(TAG, "upload error.");
@@ -301,15 +308,10 @@ public class UploadThread extends Thread {
                 FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
                 int n;
                 while ((n = fis.read(buf)) != -1) {
+                    bos.write(buf, 0, n);
                     bytesWritten += n;
                     uploadedFileBytes += n;
-                    long now = SystemClock.uptimeMillis();
-                    if (now - lastLogUpdate > 1000) {
-                        Log.d(TAG, "wrote " + uploadedFileBytes + "/" + totalFileBytes + " of "
-                                + qf);
-                        lastLogUpdate = now;
-                    }
-                    bos.write(buf, 0, n);
+                    mService.setInFlightBytes(bytesWritten);
                     if (mStopRequested.get()) {
                         status("Upload pause requested; ending write.");
                         pfd.close();
@@ -319,6 +321,7 @@ public class UploadThread extends Thread {
                 bos.flush();
                 pfd.close();
                 // TODO: notification of update
+
                 Log.d(TAG, "write of " + qf.getContentName() + " complete.");
                 mFilesWritten.add(qf);
 

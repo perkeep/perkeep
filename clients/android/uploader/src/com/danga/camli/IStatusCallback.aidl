@@ -6,6 +6,10 @@ oneway interface IStatusCallback {
     void setUploading(boolean uploading);
     
     void setBlobsRemain(int num);
-    void setBlobStatus(int done, int total);
-    void setByteStatus(long done, long total);
+
+    // done: acknowledged by server
+    // inFlight: written to the server, but no reply yet (i.e. large HTTP POST body)
+    // total: "this batch" size.  reset on transition from 0 -> 1 blobs remain.
+    void setBlobStatus(int done, int inFlight, int total);
+    void setByteStatus(long done, int inFlight, long total);
 }

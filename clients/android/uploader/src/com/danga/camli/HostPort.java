@@ -16,7 +16,7 @@ public class HostPort {
             mHost = null;
             mPort = 0;
         } else {
-            mValid = true;
+            mValid = hostPort.length() > 0;
             mHost = hostPort;
             mPort = 80;
         }

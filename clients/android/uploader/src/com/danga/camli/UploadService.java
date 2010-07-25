@@ -31,6 +31,8 @@ public class UploadService extends Service {
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
     private String mLastUploadStatusText = null;
+    private int mBytesInFlight = 0;
+    private int mBlobsInFlight = 0;
 
     // Stats, all guarded by 'this', and all reset to 0 on queue size transition from 0 -> 1.
     private long mBytesTotal = 0;
@@ -82,6 +84,37 @@ public class UploadService extends Service {
         }
     }
 
+    void setInFlightBytes(int v) {
+        synchronized (this) {
+            mBytesInFlight = v;
+        }
+        broadcastByteStatus();
+    }
+
+    void broadcastByteStatus() {
+        synchronized (this) {
+            try {
+                mCallback.setByteStatus(mBytesUploaded, mBytesInFlight, mBytesTotal);
+            } catch (RemoteException e) {
+            }
+        }
+    }
+
+    void broadcastBlobStatus() {
+        synchronized (this) {
+            try {
+                mCallback.setBlobStatus(mBlobsUploaded, mBlobsInFlight, mBlobsTotal);
+            } catch (RemoteException e) {
+            }
+        }
+    }
+
+    void setInFlightBlobs(int v) {
+        synchronized (this) {
+            mBlobsInFlight = v;
+        }
+    }
+
     private void onUploadThreadEnded() {
         synchronized (this) {
             Log.d(TAG, "UploadThread ended.");
@@ -105,10 +138,10 @@ public class UploadService extends Service {
             mBlobsUploaded += 1;
             try {
                 mCallback.setBlobsRemain(mQueueSet.size());
-                mCallback.setBlobStatus(mBlobsUploaded, mBlobsTotal);
-                mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             } catch (RemoteException e) {
             }
+            broadcastByteStatus();
+            broadcastBlobStatus();
         }
         stopServiceIfEmpty();
     }
@@ -145,15 +178,8 @@ public class UploadService extends Service {
 
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
-            SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
-            HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
-            if (!hp.isValid()) {
-                stopServiceIfEmpty();
-                return false;
-            }
 
             ParcelFileDescriptor pfd = getFileDescriptor(uri);
-
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
             QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
 
@@ -179,9 +205,9 @@ public class UploadService extends Service {
                 needResume = !mUploading;
 
                 mCallback.setBlobsRemain(mQueueSet.size());
-                mCallback.setBlobStatus(mBlobsUploaded, mBlobsTotal);
-                mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             }
+            broadcastBlobStatus();
+            broadcastByteStatus();
             if (needResume) {
                 resume();
             }
@@ -205,9 +231,9 @@ public class UploadService extends Service {
                 cb.setUploading(mUploading);
                 cb.setUploadStatusText(mLastUploadStatusText);
                 cb.setBlobsRemain(mQueueSet.size());
-                cb.setBlobStatus(mBlobsUploaded, mBlobsTotal);
-                cb.setByteStatus(mBytesUploaded, mBytesTotal);
             }
+            broadcastBlobStatus();
+            broadcastByteStatus();
         }
 
         public void unregisterCallback(IStatusCallback cb) throws RemoteException {
@@ -220,6 +246,7 @@ public class UploadService extends Service {
             SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
             HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
+                setUploadStatusText("Upload server not configured.");
                 return false;
             }
             String password = sp.getString(Preferences.PASSWORD, "");

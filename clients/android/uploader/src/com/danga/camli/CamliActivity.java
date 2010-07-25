@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -41,9 +42,11 @@ public class CamliActivity extends Activity {
 
             try {
                 mServiceStub.registerCallback(mCallback);
-                // Drain the queue from before the service was connected.
-                startDownloadOfUriList(mPendingUrisToUpload);
-                mPendingUrisToUpload.clear();
+                if (!mPendingUrisToUpload.isEmpty()) {
+                    // Drain the queue from before the service was connected.
+                    startDownloadOfUriList(mPendingUrisToUpload);
+                    mPendingUrisToUpload.clear();
+                }
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -108,12 +111,14 @@ public class CamliActivity extends Activity {
                 });
             }
 
-            public void setBlobStatus(final int done, final int total) throws RemoteException {
+            public void setBlobStatus(final int done, final int inFlight, final int total)
+                    throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
                         buttonToggle.setEnabled(done != total);
                         progressBlob.setMax(total);
                         progressBlob.setProgress(done);
+                        progressBlob.setSecondaryProgress(done + inFlight);
                         if (done == total) {
                             buttonToggle.setText(getString(R.string.pause_resume));
                         }
@@ -121,13 +126,16 @@ public class CamliActivity extends Activity {
                 });
             }
 
-            public void setByteStatus(final long done, final long total) throws RemoteException {
+            public void setByteStatus(final long done, final int inFlight, final long total)
+                    throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
                         // setMax takes an (signed) int, but 2GB is a totally
                         // reasonable upload size, so use units of 1KB instead.
                         progressBytes.setMax((int) (total / 1024L));
                         progressBytes.setProgress((int) (done / 1024L));
+                        progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight
+                                / 1024);
                     }
                 });
             }
@@ -155,8 +163,9 @@ public class CamliActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        // TODO Auto-generated method stub
         super.onActivityResult(requestCode, resultCode, data);
+
+        // TODO: picking files/photos to upload?
     }
 
     @Override
@@ -200,6 +209,15 @@ public class CamliActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
+        SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
+        HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
+        if (!hp.isValid()) {
+            // Crashes oddly in some Android Instrumentation thing if
+            // uncommented:
+            // SettingsActivity.show(this);
+            // return;
+        }
+
         bindService(new Intent(this, UploadService.class), mServiceConnection,
                 Context.BIND_AUTO_CREATE);
 
@@ -213,8 +231,6 @@ public class CamliActivity extends Activity {
         } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             handleSendMultiple(intent);
             setIntent(new Intent(this, CamliActivity.class));
-            // startActivity(new Intent(this, CamliActivity.class)
-            // .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
         } else {
             Log.d(TAG, "Normal CamliActivity viewing.");
         }
