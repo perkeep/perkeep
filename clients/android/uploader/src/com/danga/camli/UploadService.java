@@ -48,6 +48,12 @@ public class UploadService extends Service {
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "UPLOAD SERVICE onDestroy !!!");
+    }
+
 	@Override
     public IBinder onBind(Intent intent) {
         return service;
@@ -102,6 +108,10 @@ public class UploadService extends Service {
                 mCallback.setByteStatus(mBytesUploaded, mBytesTotal);
             } catch (RemoteException e) {
             }
+
+            if (mQueueSet.isEmpty()) {
+                stopService(new Intent(UploadService.this, UploadService.class));
+            }
         }
     }
 
@@ -118,6 +128,7 @@ public class UploadService extends Service {
     private final IUploadService.Stub service = new IUploadService.Stub() {
 
         public boolean enqueueUpload(Uri uri) throws RemoteException {
+            startService(new Intent(UploadService.this, UploadService.class));
             SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
             HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
