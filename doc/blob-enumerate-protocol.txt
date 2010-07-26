@@ -1,0 +1,45 @@
+The /camli/enumerate-blobs endpoint enumerates all blobs that the
+server knows about.
+
+They're returned in sorted order, sorted by (digest_type,
+digest_value).  That is, md5-acbd18db4cc2f85cedef654fccc4a4d8 sorts
+before sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33 because "m" sorts
+before "s", even though "0" sorts before "a".
+
+GET /camli/enumerate-blobs?after=&limit= HTTP/1.1
+Host: example.com
+
+URL GET parameters:
+
+     after     optional    If provided, only blobs GREATER THAN this
+                           value are returned.
+
+     limit     optional    Limit the number of returned blobrefs.  The
+                           server may have its own lower limit, however,
+                           so be sure to pay attention to the presence
+                           of a "continueAfter" key in the JSON response.
+
+Response:
+
+HTTP/1.1 200 OK
+Content-Type: text/javascript
+
+{
+  "blobs": [
+    {"blobRef": "md5-acbd18db4cc2f85cedef654fccc4a4d8",
+     "size": 3},
+    {"blobRef": "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",
+     "size": 3},
+  ],
+  "continueAfter": "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",
+}
+
+Response keys:
+
+   blobs          required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
+
+   continueAfter  optional   If present, the result is truncated and there are
+                             are more blobs after the provided blobref, which
+                             should be passed to the next request's "after" request
+                             parameter.
+
