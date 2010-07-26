@@ -39,6 +39,29 @@
 
 		<activity android:name=".SettingsActivity">
 		</activity>
+		
+	    <receiver android:name=".OnBootReceiver">
+	      <intent-filter>
+	        <action android:name="android.intent.action.BOOT_COMPLETED" />
+	      </intent-filter>
+	    </receiver>
+
+	    <receiver android:name=".OnAlarmReceiver">
+	    </receiver>
+	    
+        <receiver android:name=".WifiPowerReceiver" 
+                  android:enabled="true" 
+                  android:priority="0"> 
+                    <intent-filter> 
+                        <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                    </intent-filter> 
+                    <intent-filter> 
+                        <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                    </intent-filter> 
+                    <intent-filter> 
+                        <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+                    </intent-filter> 
+        </receiver> 
 
     </application>
 </manifest> 
