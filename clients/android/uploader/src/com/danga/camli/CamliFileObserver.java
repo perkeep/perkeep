@@ -29,6 +29,11 @@ public class CamliFileObserver extends FileObserver {
 
     @Override
     public void onEvent(int event, String path) {
+        if (path == null) {
+            // It's null for certain directory-level events.
+            return;
+        }
+
         // Note from docs:
         // "This method is invoked on a special FileObserver thread."
 

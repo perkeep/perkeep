@@ -68,6 +68,8 @@ public class UploadService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.d(TAG, "onCreate");
+
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -78,6 +80,7 @@ public class UploadService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
+        Log.d(TAG, "onBind intent=" + intent);
         return service;
     }
 
@@ -97,18 +100,18 @@ public class UploadService extends Service {
     }
 
     private void handleCommand(Intent intent) {
-        Log.d(TAG, "handling startService() intent: " + intent);
+        Log.d(TAG, "in handleCommand() for onStart() intent: " + intent);
         if (intent == null) {
             stopServiceIfEmpty();
             return;
         }
         try {
-            if (intent.getAction().equals(INTENT_POWER_CONNECTED)) {
+            if (INTENT_POWER_CONNECTED.equals(intent.getAction())) {
                 service.resume();
                 startBackgroundWatchers();
             }
 
-            if (intent.getAction().equals(INTENT_POWER_DISCONNECTED)
+            if (INTENT_POWER_DISCONNECTED.equals(intent.getAction())
                     && mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
                 service.pause();
                 stopBackgroundWatchers();
@@ -116,7 +119,6 @@ public class UploadService extends Service {
         } catch (RemoteException e) {
             // Ignore.
         }
-        stopServiceIfEmpty();
     }
 
     private void stopBackgroundWatchers() {
@@ -152,6 +154,11 @@ public class UploadService extends Service {
 
     @Override
     public void onDestroy() {
+        synchronized (this) {
+            Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading="
+                    + mUploading + "; mBlobsToDigest=" + mBlobsToDigest + "; queue size="
+                    + mQueueSet.size());
+        }
         super.onDestroy();
         if (mUploadThread != null) {
             Log.e(TAG, "Unexpected onDestroy with active upload thread.  Killing it.");
@@ -283,9 +290,9 @@ public class UploadService extends Service {
 
     private void stopServiceIfEmpty() {
         synchronized (this) {
-            if (mQueueSet.isEmpty() && mBlobsToDigest == 0
+            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null
                     && !mPrefs.getBoolean(Preferences.AUTO, false)) {
-                stopService(new Intent(UploadService.this, UploadService.class));
+                stopSelf();
             }
         }
     }
@@ -321,6 +328,9 @@ public class UploadService extends Service {
             for (Uri uri : uriList) {
                 goodCount += enqueueSingleUri(uri) ? 1 : 0;
                 if (startGen != mStopDigestingCounter.get()) {
+                    synchronized (UploadService.this) {
+                        mBlobsToDigest = 0;
+                    }
                     return goodCount;
                 }
             }
@@ -347,7 +357,18 @@ public class UploadService extends Service {
                 return false;
             }
 
+            Log.d(TAG, "Getting SHA-1 of " + uri + "...");
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
+            if (sha1 == null) {
+                Log.w(TAG, "File is corrupt?" + uri);
+                // null is returned on IO errors (e.g. flaky SD cards?)
+                // TODO: propagate error up. record in service & tell activity?
+                // maybe log to disk too?
+                incrementBlobsToDigest(-1);
+                stopServiceIfEmpty();
+                return false;
+            }
+
             QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
 
             boolean needResume = false;
