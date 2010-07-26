@@ -3,7 +3,8 @@ Host: example.com
 
 camliversion=1&
 blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8&
-blob2=sha1-9242dbadb7827d697fab034a1e73f366b451ce4d
+blob2=sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd&
+blob3=sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 
 HTTP/1.1 200 OK
 Content-Length: ...
@@ -12,36 +13,40 @@ Content-Type: text/plain
 {
    "maxUploadSize": 1048576,
    "alreadyHave": [
-      {"blobRef": "sha1-9242dbadb7827d697fab034a1e73f366b451ce4d",
+      {"blobRef": "sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
        "size": 12312}
    ],
-   "uploadUrl": "http://example.com/SDALKSJDALKSJDKLASJD",
+   "uploadUrl": "http://upload-server.example.com/some/server-chosen/url",
    "uploadUrlExpirationSeconds": 7200,
 }
 
 
+POST /some/server-chosen/url HTTP/1.1
+Host: upload-server.example.com
+Content-Type: multipart/form-data; boundary=randomboundaryXYZ
 
-
-POST /SDALKSJDALKSJDKLASJD HTTP/1.1
-Host: example.com
-Content-Type: multipart/form-data; boundary=----------------------------9782c16cfc60
-
-----------------------------9782c16cfc60
+--randomboundaryXYZ
 Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"
 Content-Type: application/octet-stream
 
 (binary blob data)
-----------------------------9782c16cfc60
-Content-Disposition: form-data; name="sha1-9242dbadb7827d697fab034a1e73f366b451ce4d"
+--randomboundaryXYZ
+Content-Disposition: form-data; name="sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 Content-Type: application/octet-stream
 
 (binary blob data)
-----------------------------9782c16cfc60--
+--randomboundaryXYZ--
 
 HTTP/1.1 200 OK
 Content-Type: text/plain
 
 {
+   "received": [
+      {"blobRef": "sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8",
+       "size": 12312},
+      {"blobRef": "sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+       "size": 29384933}
+   ],
    "maxUploadSize": 1048576,
    "uploadUrl": "http://example.com/TheNextUploadUrlRandomString",
    "uploadUrlExpirationSeconds": 7200,
@@ -49,9 +54,9 @@ Content-Type: text/plain
 
 If connection drops during a POST to an upload URL, you should re-do a
 preupload request to verify which objects were received by the server
-and which were not.  Also, the URL you received from preupload
-might've been bogus.
+and which were not.  Also, the URL you received from preupload before
+might no longer work, so preupload is required to a get a valid upload
+URL.
 
-
-TODO: resuming uploading large blobs on slow crappy phone links
+For information on resuming truncated uploads, read blob-upload-resume.txt
 
