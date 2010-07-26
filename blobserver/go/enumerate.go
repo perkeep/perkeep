@@ -109,7 +109,7 @@ func handleEnumerateBlobs(conn *http.Conn, req *http.Request) {
 			break
 		}
 		blobName := bi.BlobRef.String()
-		fmt.Fprintf(conn, "    {\"blobref\": \"%s\", \"size\": %d},\n",
+		fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d},\n",
 			blobName, bi.FileInfo.Size)
 		after = blobName
 	}
