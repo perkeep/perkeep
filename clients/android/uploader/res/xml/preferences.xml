@@ -14,6 +14,49 @@
      android:title="@string/settings_password_title"
      android:persistent="true"
      android:inputType="textPassword"
-     />  
+     />
+     
+   <CheckBoxPreference
+     android:key="camli.auto"
+     android:title="@string/settings_auto"
+     android:summary="@string/settings_auto_summary"
+     android:persistent="true"
+      />
   
+   <PreferenceScreen
+       android:title="Auto-upload settings"
+       android:key="camli.auto.opts">
+  
+     <CheckBoxPreference
+     android:key="camli.auto.photos"
+     android:title="Photos (DCIM/)"
+     android:persistent="true"
+     android:defaultValue="true"
+      />
+
+     <CheckBoxPreference
+     android:key="camli.auto.mytracks"
+     android:title="MyTracks exports (gpx/)"
+     android:persistent="true"
+     android:defaultValue="true"
+      />
+      
+     <CheckBoxPreference
+     android:key="camli.auto.require_wifi"
+     android:title="Require Wifi"
+     android:summary="Wait for Wifi to auto-upload"
+     android:persistent="true"
+     android:defaultValue="false"
+      />
+
+     <CheckBoxPreference
+     android:key="camli.auto.require_power"
+     android:title="Require Power"
+     android:summary="Wait until charging to auto-upload"
+     android:persistent="true"
+     android:defaultValue="false"
+      />
+    
+    </PreferenceScreen>
+    
 </PreferenceScreen>

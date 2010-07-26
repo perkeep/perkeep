@@ -1,6 +1,8 @@
 package com.danga.camli;
 
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,6 +19,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Environment;
+import android.os.FileObserver;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
@@ -51,6 +55,12 @@ public class UploadService extends Service {
     PowerManager mPowerManager;
     WifiManager mWifiManager;
     NotificationManager mNotificationManager;
+    SharedPreferences mPrefs;
+    
+    // File Observers. Need to keep a reference to them, as there's no JNI
+    // reference and their finalizers would run otherwise, stopping their
+    // inotify.
+    private ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
 
     @Override
     public void onCreate() {
@@ -58,6 +68,40 @@ public class UploadService extends Service {
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        mPrefs = getSharedPreferences(Preferences.NAME, 0);
+
+        updateBackgroundWatchers();
+    }
+
+    private void stopBackgroundWatchers() {
+        synchronized (UploadService.this) {
+            if (mObservers.isEmpty()) {
+                return;
+            }
+            Log.d(TAG, "Stopping background watchers...");
+            for (FileObserver fo : mObservers) {
+                fo.stopWatching();
+            }
+            mObservers.clear();
+        }
+    }
+
+    private void updateBackgroundWatchers() {
+        stopBackgroundWatchers();
+        if (!mPrefs.getBoolean(Preferences.AUTO, false)) {
+            return;
+        }
+        startBackgroundWatchers();
+    }
+
+    private void startBackgroundWatchers() {
+        Log.d(TAG, "Starting background watchers...");
+        synchronized (UploadService.this) {
+            mObservers.add(new CamliFileObserver(service, new File(Environment
+                    .getExternalStorageDirectory(), "DCIM/Camera")));
+            mObservers.add(new CamliFileObserver(service, new File(Environment
+                    .getExternalStorageDirectory(), "gpx")));
+        }
     }
 
     @Override
@@ -122,17 +166,26 @@ public class UploadService extends Service {
         }
     }
 
+    void broadcastBlobsRemain() {
+        synchronized (this) {
+            try {
+                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
+            } catch (RemoteException e) {
+            }
+        }
+    }
+
     void broadcastAllState() {
         synchronized (this) {
             try {
                 mCallback.setUploading(mUploading);
                 mCallback.setUploadStatusText(mLastUploadStatusText);
-                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
             } catch (RemoteException e) {
             }
         }
         broadcastBlobStatus();
         broadcastByteStatus();
+        broadcastBlobsRemain();
     }
 
     void setInFlightBlobs(int v) {
@@ -143,10 +196,10 @@ public class UploadService extends Service {
 
     private void onUploadThreadEnded() {
         synchronized (this) {
+            Log.d(TAG, "UploadThread ended; blobsToDigest=" + mBlobsToDigest);
             if (mBlobsToDigest == 0) {
                 mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
             }
-            Log.d(TAG, "UploadThread ended.");
             mUploadThread = null;
             mUploading = false;
             try {
@@ -180,10 +233,7 @@ public class UploadService extends Service {
                 mBytesTotal -= qf.getSize();
                 mBlobsTotal -= 1;
             }
-            try {
-                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
-            } catch (RemoteException e) {
-            }
+            broadcastBlobsRemain();
             broadcastByteStatus();
             broadcastBlobStatus();
         }
@@ -192,7 +242,8 @@ public class UploadService extends Service {
 
     private void stopServiceIfEmpty() {
         synchronized (this) {
-            if (mQueueSet.isEmpty() && mBlobsToDigest == 0) {
+            if (mQueueSet.isEmpty() && mBlobsToDigest == 0
+                    && !mPrefs.getBoolean(Preferences.AUTO, false)) {
                 stopService(new Intent(UploadService.this, UploadService.class));
             }
         }
@@ -204,9 +255,16 @@ public class UploadService extends Service {
         try {
             return cr.openFileDescriptor(uri, "r");
         } catch (FileNotFoundException e) {
-            Log.w(TAG, "FileNotFound for " + uri, e);
+            Log.w(TAG, "FileNotFound in getFileDescriptor() for " + uri);
             return null;
         }
+    }
+
+    private void incrementBlobsToDigest(int size) throws RemoteException {
+        synchronized (UploadService.this) {
+            mBlobsToDigest += size;
+        }
+        broadcastBlobsRemain();
     }
 
     private final IUploadService.Stub service = new IUploadService.Stub() {
@@ -217,10 +275,7 @@ public class UploadService extends Service {
         public int enqueueUploadList(List<Uri> uriList) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
             Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
-            synchronized (UploadService.this) {
-                mBlobsToDigest += uriList.size();
-                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
-            }
+            incrementBlobsToDigest(uriList.size());
             int goodCount = 0;
             int startGen = mStopDigestingCounter.get();
             for (Uri uri : uriList) {
@@ -240,17 +295,24 @@ public class UploadService extends Service {
          */
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
+            incrementBlobsToDigest(1);
             return enqueueSingleUri(uri);
         }
 
         private boolean enqueueSingleUri(Uri uri) throws RemoteException {
             ParcelFileDescriptor pfd = getFileDescriptor(uri);
+            if (pfd == null) {
+                incrementBlobsToDigest(-1);
+                stopServiceIfEmpty();
+                return false;
+            }
+
             String sha1 = Util.getSha1(pfd.getFileDescriptor());
-            mBlobsToDigest--;
             QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
 
             boolean needResume = false;
             synchronized (UploadService.this) {
+                mBlobsToDigest--;
                 if (mQueueSet.contains(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
                     stopServiceIfEmpty();
@@ -269,11 +331,10 @@ public class UploadService extends Service {
                 mBytesTotal += qf.getSize();
                 mBlobsTotal += 1;
                 needResume = !mUploading;
-
-                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
             }
             broadcastBlobStatus();
             broadcastByteStatus();
+            broadcastBlobsRemain();
             if (needResume) {
                 resume();
             }
@@ -304,13 +365,12 @@ public class UploadService extends Service {
         }
 
         public boolean resume() throws RemoteException {
-            SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
-            HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
+            HostPort hp = new HostPort(mPrefs.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
                 setUploadStatusText("Upload server not configured.");
                 return false;
             }
-            String password = sp.getString(Preferences.PASSWORD, "");
+            String password = mPrefs.getString(Preferences.PASSWORD, "");
 
             final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
                     PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
@@ -399,6 +459,15 @@ public class UploadService extends Service {
                 }
             }
             broadcastAllState();
+        }
+
+        public void setBackgroundWatchersEnabled(boolean enabled) throws RemoteException {
+            if (enabled) {
+                UploadService.this.stopBackgroundWatchers();
+                UploadService.this.startBackgroundWatchers();
+            } else {
+                UploadService.this.stopBackgroundWatchers();
+            }
         }
     };
 }

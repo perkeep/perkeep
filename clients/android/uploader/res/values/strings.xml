@@ -9,4 +9,6 @@
 <string name="resume">Resume</string>
 <string name="uploading">Uploading...</string>
 <string name="digesting">Digesting...</string>
+<string name="settings_auto">Auto-Upload</string>
+<string name="settings_auto_summary">Upload SD card files</string>
 </resources>

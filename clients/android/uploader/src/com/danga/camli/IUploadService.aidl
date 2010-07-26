@@ -27,4 +27,7 @@ interface IUploadService {
 
     // Stop digesting, stop uploads, clear queues.
     void stopEverything();
+    
+    // For the SettingsActivity
+    void setBackgroundWatchersEnabled(boolean enabled);
 }
