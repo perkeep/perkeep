@@ -12,7 +12,7 @@ import (
 )
 
 var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
-var storageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
+var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 func handleCamli(conn *http.Conn, req *http.Request) {
@@ -21,15 +21,18 @@ func handleCamli(conn *http.Conn, req *http.Request) {
 	}
 	switch req.Method {
 	case "GET":
-		handler = requireAuth(handleGet)
+		switch req.URL.Path {
+		case "/camli/enumerate-blobs":
+			handler = requireAuth(handleEnumerateBlobs)
+		default:
+			handler = requireAuth(handleGet)
+		}
 	case "POST":
 		switch req.URL.Path {
 		case "/camli/preupload":
 			handler = requireAuth(handlePreUpload)
 		case "/camli/upload":
 			handler = requireAuth(handleMultiPartUpload)
-		case "/camli/enumerate-blobs":
-			handler = requireAuth(handleEnumerateBlobs)
 		case "/camli/testform": // debug only
 			handler = handleTestForm
 		case "/camli/form": // debug only
@@ -60,11 +63,11 @@ func main() {
 	}
 
 	{
-		fi, err := os.Stat(*storageRoot)
+		fi, err := os.Stat(*flagStorageRoot)
 		if err != nil || !fi.IsDirectory() {
 			fmt.Fprintf(os.Stderr,
 				"Storage root '%s' doesn't exist or is not a directory.\n",
-				*storageRoot)
+				*flagStorageRoot)
 			os.Exit(1)
 		}
 	}
