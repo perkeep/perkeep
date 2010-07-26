@@ -8,6 +8,9 @@ public final class Preferences {
     public static final String AUTO = "camli.auto";
     public static final String AUTO_OPTS = "camli.auto.opts";
 
+    public static final String AUTO_REQUIRE_POWER = "camli.auto.require_power";
+    public static final String AUTO_REQUIRE_WIFI = "camli.auto.require_wifi";
+
     private Preferences() {
     }
 }

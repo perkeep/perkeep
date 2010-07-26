@@ -32,6 +32,9 @@ public class UploadService extends Service {
 
     private static int NOTIFY_ID_UPLOADING = 0x001;
 
+    public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
+    public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
+
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
                                         // quickly)
@@ -71,6 +74,49 @@ public class UploadService extends Service {
         mPrefs = getSharedPreferences(Preferences.NAME, 0);
 
         updateBackgroundWatchers();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return service;
+    }
+
+    @Override
+    public void onStart(Intent intent, int startId) {
+        handleCommand(intent);
+    }
+
+    // This is @Override as of SDK version 5, but we're targetting 4 (Android
+    // 1.6)
+    private static final int START_STICKY = 1; // in SDK 5
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        handleCommand(intent);
+        // We want this service to continue running until it is explicitly
+        // stopped, so return sticky.
+        return START_STICKY;
+    }
+
+    private void handleCommand(Intent intent) {
+        Log.d(TAG, "handling startService() intent: " + intent);
+        if (intent == null) {
+            stopServiceIfEmpty();
+            return;
+        }
+        try {
+            if (intent.getAction().equals(INTENT_POWER_CONNECTED)) {
+                service.resume();
+                startBackgroundWatchers();
+            }
+
+            if (intent.getAction().equals(INTENT_POWER_DISCONNECTED)
+                    && mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
+                service.pause();
+                stopBackgroundWatchers();
+            }
+        } catch (RemoteException e) {
+            // Ignore.
+        }
+        stopServiceIfEmpty();
     }
 
     private void stopBackgroundWatchers() {
@@ -113,11 +159,6 @@ public class UploadService extends Service {
             mUploadThread = null;
         }
     }
-
-	@Override
-    public IBinder onBind(Intent intent) {
-        return service;
-	}
 
     // Called by UploadThread to get stuff to do. Caller owns the returned new
     // LinkedList. Doesn't return null.
@@ -247,7 +288,6 @@ public class UploadService extends Service {
                 stopService(new Intent(UploadService.this, UploadService.class));
             }
         }
-
     }
 
     ParcelFileDescriptor getFileDescriptor(Uri uri) {

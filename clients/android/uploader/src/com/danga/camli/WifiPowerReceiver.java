@@ -15,11 +15,16 @@ public class WifiPowerReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         Log.d(TAG, "intent: " + intent);
         if (Intent.ACTION_POWER_CONNECTED.equals(action)) {
-
+            Intent cmd = new Intent(UploadService.INTENT_POWER_CONNECTED);
+            cmd.setClass(context, UploadService.class);
+            context.startService(cmd);
+            return;
         }
 
         if (Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
-
+            Intent cmd = new Intent(UploadService.INTENT_POWER_DISCONNECTED);
+            cmd.setClass(context, UploadService.class);
+            context.startService(cmd);
         }
 
         if (ConnectivityManager.CONNECTIVITY_ACTION.equals(action)) {
