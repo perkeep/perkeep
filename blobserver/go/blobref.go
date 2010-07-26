@@ -67,7 +67,8 @@ func (o *BlobRef) FileBaseName() string {
 }
 
 func (o *BlobRef) DirectoryName() string {
-	return fmt.Sprintf("%s/%s/%s", *storageRoot, o.Digest[0:3], o.Digest[3:6])
+	return fmt.Sprintf("%s/%s/%s/%s",
+		*storageRoot, o.HashName, o.Digest[0:3], o.Digest[3:6])
 }
 
 func (o *BlobRef) FileName() string {
