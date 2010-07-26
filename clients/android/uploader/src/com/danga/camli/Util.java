@@ -8,7 +8,11 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import android.util.Log;
+
 public class Util {
+    private static final String TAG = "Camli_Util";
+
     public static String slurp(InputStream in) throws IOException {
         StringBuilder sb = new StringBuilder();
         byte[] b = new byte[4096];
@@ -47,7 +51,8 @@ public class Util {
                 md.update(b, 0, n);
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            Log.w(TAG, "IOException while computing SHA-1");
+            return null;
         }
         byte[] sha1hash = new byte[40];
         sha1hash = md.digest();
