@@ -1,19 +1,14 @@
 package com.danga.camli;
 
-import java.util.ArrayList;
-
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
-import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
@@ -33,7 +28,6 @@ public class CamliActivity extends Activity {
     private IStatusCallback mCallback = null;
 
     private final Handler mHandler = new Handler();
-    private final ArrayList<Uri> mPendingUrisToUpload = new ArrayList<Uri>();
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
@@ -43,11 +37,6 @@ public class CamliActivity extends Activity {
 
             try {
                 mServiceStub.registerCallback(mCallback);
-                if (!mPendingUrisToUpload.isEmpty()) {
-                    // Drain the queue from before the service was connected.
-                    startDownloadOfUriList(mPendingUrisToUpload);
-                    mPendingUrisToUpload.clear();
-                }
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -250,94 +239,13 @@ public class CamliActivity extends Activity {
         String action = intent.getAction();
         Log.d(TAG, "onResume; action=" + action);
 
-        if (Intent.ACTION_SEND.equals(action)) {
-            handleSend(intent);
-            setIntent(new Intent(this, CamliActivity.class));
-        } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
-            handleSendMultiple(intent);
+        if (Intent.ACTION_SEND.equals(action) || Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            Intent serviceIntent = new Intent(intent);
+            serviceIntent.setClass(this, UploadService.class);
+            startService(serviceIntent);
             setIntent(new Intent(this, CamliActivity.class));
         } else {
             Log.d(TAG, "Normal CamliActivity viewing.");
         }
     }
-
-    private void handleSendMultiple(Intent intent) {
-        ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-        ArrayList<Uri> uris = new ArrayList<Uri>(items.size());
-        for (Parcelable p : items) {
-            if (!(p instanceof Uri)) {
-                Log.d(TAG, "uh, unknown thing " + p);
-                continue;
-            }
-            uris.add((Uri) p);
-        }
-        startDownloadOfUriList(uris);
-    }
-
-    private void handleSend(Intent intent) {
-        Bundle extras = intent.getExtras();
-        if (extras == null) {
-            Log.w(TAG, "expected extras in handleSend");
-            return;
-        }
-
-        extras.keySet(); // unparcel
-        Log.d(TAG, "handleSend; extras=" + extras);
-
-        Object streamValue = extras.get("android.intent.extra.STREAM");
-        if (!(streamValue instanceof Uri)) {
-            Log.w(TAG, "Expected URI for STREAM; got: " + streamValue);
-            return;
-        }
-
-        Uri uri = (Uri) streamValue;
-        startDownloadOfUri(uri);
-    }
-
-    private void startDownloadOfUri(final Uri uri) {
-        Log.d(TAG, "startDownload of " + uri);
-        if (mServiceStub == null) {
-            Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
-            mPendingUrisToUpload.add(uri);
-            return;
-        }
-        new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... unused) {
-                try {
-                    mServiceStub.enqueueUpload(uri);
-                } catch (RemoteException e) {
-                    Log.d(TAG, "failure to enqueue upload", e);
-                }
-                return null; // void
-            }
-        }.execute();
-    }
-
-    private void startDownloadOfUriList(ArrayList<Uri> uriList) {
-        // We need to make a copy of it for our AsyncTask, as our caller may
-        // clear their owned copy of it before our AsyncTask runs.
-        final ArrayList<Uri> uriListCopy = new ArrayList<Uri>(uriList);
-
-        Log.d(TAG, "startDownload of list: " + uriListCopy);
-        if (mServiceStub == null) {
-            Log.d(TAG, "serviceStub is null in startDownloadOfUri, enqueing");
-            mPendingUrisToUpload.addAll(uriListCopy);
-            return;
-        }
-        new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... unused) {
-                try {
-                    Log.d(TAG, "From AsyncTask thread, enqueing uriList of size "
-                            + uriListCopy.size());
-                    mServiceStub.enqueueUploadList(uriListCopy);
-                } catch (RemoteException e) {
-                    Log.d(TAG, "failure to enqueue upload", e);
-                }
-                return null; // void
-            }
-        }.execute();
-    }
-
 }

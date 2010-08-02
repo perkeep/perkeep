@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import android.os.AsyncTask;
 import android.util.Log;
 
 public class Util {
@@ -20,6 +21,16 @@ public class Util {
             sb.append(new String(b, 0, n));
         }
         return sb.toString();
+    }
+
+    public static void runAsync(final Runnable r) {
+        new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... unused) {
+                r.run();
+                return null;
+            }
+        }.execute();
     }
 
     private static final String HEX = "0123456789abcdef";

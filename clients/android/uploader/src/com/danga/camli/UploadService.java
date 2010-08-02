@@ -19,10 +19,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileObserver;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.Parcelable;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.util.Log;
@@ -105,6 +107,8 @@ public class UploadService extends Service {
             stopServiceIfEmpty();
             return;
         }
+        String action = intent.getAction();
+
         try {
             if (INTENT_POWER_CONNECTED.equals(intent.getAction())) {
                 service.resume();
@@ -116,9 +120,72 @@ public class UploadService extends Service {
                 service.pause();
                 stopBackgroundWatchers();
             }
+
+            if (Intent.ACTION_SEND.equals(action)) {
+                handleSend(intent);
+                return;
+            }
+
+            if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+                handleSendMultiple(intent);
+                return;
+            }
+
         } catch (RemoteException e) {
             // Ignore.
         }
+    }
+
+    private void handleSend(Intent intent) {
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            Log.w(TAG, "expected extras in handleSend");
+            return;
+        }
+
+        extras.keySet(); // unparcel
+        Log.d(TAG, "handleSend; extras=" + extras);
+
+        Object streamValue = extras.get("android.intent.extra.STREAM");
+        if (!(streamValue instanceof Uri)) {
+            Log.w(TAG, "Expected URI for STREAM; got: " + streamValue);
+            return;
+        }
+
+        final Uri uri = (Uri) streamValue;
+        Util.runAsync(new Runnable() {
+            public void run() {
+                try {
+                    service.enqueueUpload(uri);
+                } catch (RemoteException e) {
+                } finally {
+                    stopServiceIfEmpty();
+                }
+            }
+        });
+    }
+
+    private void handleSendMultiple(Intent intent) {
+        ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+        ArrayList<Uri> uris = new ArrayList<Uri>(items.size());
+        for (Parcelable p : items) {
+            if (!(p instanceof Uri)) {
+                Log.d(TAG, "uh, unknown thing " + p);
+                continue;
+            }
+            uris.add((Uri) p);
+        }
+        final ArrayList<Uri> finalUris = uris;
+        Util.runAsync(new Runnable() {
+            public void run() {
+                try {
+                    service.enqueueUploadList(finalUris);
+                } catch (RemoteException e) {
+                } finally {
+                    stopServiceIfEmpty();
+                }
+            }
+        });
     }
 
     private void stopBackgroundWatchers() {
