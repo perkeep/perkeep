@@ -107,30 +107,29 @@ public class UploadService extends Service {
             stopServiceIfEmpty();
             return;
         }
+
         String action = intent.getAction();
+        if (Intent.ACTION_SEND.equals(action)) {
+            handleSend(intent);
+            return;
+        }
+
+        if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            handleSendMultiple(intent);
+            return;
+        }
 
         try {
-            if (INTENT_POWER_CONNECTED.equals(intent.getAction())) {
+            if (INTENT_POWER_CONNECTED.equals(action)) {
                 service.resume();
                 startBackgroundWatchers();
             }
 
-            if (INTENT_POWER_DISCONNECTED.equals(intent.getAction())
+            if (INTENT_POWER_DISCONNECTED.equals(action)
                     && mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
                 service.pause();
                 stopBackgroundWatchers();
             }
-
-            if (Intent.ACTION_SEND.equals(action)) {
-                handleSend(intent);
-                return;
-            }
-
-            if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
-                handleSendMultiple(intent);
-                return;
-            }
-
         } catch (RemoteException e) {
             // Ignore.
         }
