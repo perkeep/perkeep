@@ -34,6 +34,7 @@ public class UploadService extends Service {
 
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
+    public static final String INTENT_UPLOAD_ALL = "UPLOAD_ALL";
 
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified

@@ -28,6 +28,7 @@ public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
     private static final int MENU_SETTINGS = 1;
     private static final int MENU_STOP = 2;
+    private static final int MENU_UPLOAD_ALL = 3;
 
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
@@ -192,6 +193,7 @@ public class CamliActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_UPLOAD_ALL, 0, "Upload All");
         menu.add(Menu.NONE, MENU_STOP, 0, "Stop");
         menu.add(Menu.NONE, MENU_SETTINGS, 0, "Settings");
         return true;
@@ -211,6 +213,13 @@ public class CamliActivity extends Activity {
             break;
         case MENU_SETTINGS:
             SettingsActivity.show(this);
+            break;
+        case MENU_UPLOAD_ALL:
+            Intent uploadAll = new Intent(UploadService.INTENT_UPLOAD_ALL);
+            uploadAll.setClass(this, UploadService.class);
+            Log.d(TAG, "Starting upload all...");
+            startService(uploadAll);
+            Log.d(TAG, "Back from upload all...");
             break;
         }
         return true;
