@@ -121,18 +121,14 @@ public class UploadService extends Service {
         }
 
         if (INTENT_UPLOAD_ALL.equals(action)) {
-            Util.runAsync(new Runnable() {
-                public void run() {
-                    handleUploadAll();
-                }
-            });
+            handleUploadAll();
             return;
         }
 
         try {
             if (INTENT_POWER_CONNECTED.equals(action)) {
                 service.resume();
-                startBackgroundWatchers();
+                handleUploadAll();
             }
 
             if (INTENT_POWER_DISCONNECTED.equals(action)
@@ -174,27 +170,38 @@ public class UploadService extends Service {
         });
     }
 
-    // Blocks; to be run from AsyncTask only.
     private void handleUploadAll() {
-        List<String> dirs = getBackupDirs();
-        List<Uri> filesToQueue = new ArrayList<Uri>();
-        for (String dirName : dirs) {
-            File dir = new File(dirName);
-            File[] files = dir.listFiles();
-            Log.d(TAG, "Contents of " + dirName + ": " + files);
-            if (files != null) {
-                for (int i = 0; i < files.length; ++i) {
-                    Log.d(TAG, "  " + files[i]);
-                    filesToQueue.add(Uri.fromFile(files[i]));
+        startService(new Intent(UploadService.this, UploadService.class));
+        final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload All");
+        wakeLock.acquire();
+        Util.runAsync(new Runnable() {
+            public void run() {
+                try {
+                    List<String> dirs = getBackupDirs();
+                    List<Uri> filesToQueue = new ArrayList<Uri>();
+                    for (String dirName : dirs) {
+                        File dir = new File(dirName);
+                        File[] files = dir.listFiles();
+                        Log.d(TAG, "Contents of " + dirName + ": " + files);
+                        if (files != null) {
+                            for (int i = 0; i < files.length; ++i) {
+                                Log.d(TAG, "  " + files[i]);
+                                filesToQueue.add(Uri.fromFile(files[i]));
+                            }
+                        }
+                    }
+                    try {
+                        service.enqueueUploadList(filesToQueue);
+                    } catch (RemoteException e) {
+                    } finally {
+                        stopServiceIfEmpty();
+                    }
+                } finally {
+                    wakeLock.release();
                 }
             }
-        }
-        try {
-            service.enqueueUploadList(filesToQueue);
-        } catch (RemoteException e) {
-        } finally {
-            stopServiceIfEmpty();
-        }
+        });
     }
 
     private List<String> getBackupDirs() {
@@ -537,6 +544,7 @@ public class UploadService extends Service {
         }
 
         public boolean resume() throws RemoteException {
+            Log.d(TAG, "Resuming upload...");
             HostPort hp = new HostPort(mPrefs.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
                 setUploadStatusText("Upload server not configured.");
@@ -551,6 +559,7 @@ public class UploadService extends Service {
 
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
+                    Log.d(TAG, "Already uploading; aborting resume.");
                     return false;
                 }
 

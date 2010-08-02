@@ -29,14 +29,14 @@
   
      <CheckBoxPreference
      android:key="camli.auto.photos"
-     android:title="Photos (DCIM/)"
+     android:title="Photos (DCIM/Camera/)"
      android:persistent="true"
      android:defaultValue="true"
       />
 
      <CheckBoxPreference
      android:key="camli.auto.mytracks"
-     android:title="MyTracks exports (gpx/)"
+     android:title="MyTracks exports"
      android:persistent="true"
      android:defaultValue="true"
       />
@@ -56,7 +56,7 @@
      android:persistent="true"
      android:defaultValue="false"
       />
-    
+
     </PreferenceScreen>
     
 </PreferenceScreen>
