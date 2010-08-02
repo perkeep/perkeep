@@ -120,6 +120,15 @@ public class UploadService extends Service {
             return;
         }
 
+        if (INTENT_UPLOAD_ALL.equals(action)) {
+            Util.runAsync(new Runnable() {
+                public void run() {
+                    handleUploadAll();
+                }
+            });
+            return;
+        }
+
         try {
             if (INTENT_POWER_CONNECTED.equals(action)) {
                 service.resume();
@@ -163,6 +172,37 @@ public class UploadService extends Service {
                 }
             }
         });
+    }
+
+    // Blocks; to be run from AsyncTask only.
+    private void handleUploadAll() {
+        List<String> dirs = getBackupDirs();
+        List<Uri> filesToQueue = new ArrayList<Uri>();
+        for (String dirName : dirs) {
+            File dir = new File(dirName);
+            File[] files = dir.listFiles();
+            Log.d(TAG, "Contents of " + dirName + ": " + files);
+            if (files != null) {
+                for (int i = 0; i < files.length; ++i) {
+                    Log.d(TAG, "  " + files[i]);
+                    filesToQueue.add(Uri.fromFile(files[i]));
+                }
+            }
+        }
+        try {
+            service.enqueueUploadList(filesToQueue);
+        } catch (RemoteException e) {
+        } finally {
+            stopServiceIfEmpty();
+        }
+    }
+
+    private List<String> getBackupDirs() {
+        ArrayList<String> dirs = new ArrayList<String>();
+        if (mPrefs.getBoolean(Preferences.AUTO_DIR_PHOTOS, true)) {
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
+        }
+        return dirs;
     }
 
     private void handleSendMultiple(Intent intent) {
