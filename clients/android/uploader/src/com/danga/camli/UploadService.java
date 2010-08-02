@@ -14,9 +14,13 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -33,6 +37,8 @@ public class UploadService extends Service {
     private static final String TAG = "UploadService";
 
     private static int NOTIFY_ID_UPLOADING = 0x001;
+
+    private static final int DB_VERSION = 1;
 
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
@@ -62,11 +68,15 @@ public class UploadService extends Service {
     WifiManager mWifiManager;
     NotificationManager mNotificationManager;
     SharedPreferences mPrefs;
+    SQLiteOpenHelper mOpenHelper;
     
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
     // inotify.
     private ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
+
+    // Created lazily by getDb(), guarded by this. Closed when service stops.
+    private SQLiteDatabase mDb;
 
     @Override
     public void onCreate() {
@@ -77,6 +87,18 @@ public class UploadService extends Service {
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mPrefs = getSharedPreferences(Preferences.NAME, 0);
+        mOpenHelper = new SQLiteOpenHelper(this, "camli.db", null, DB_VERSION) {
+
+            @Override
+            public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            }
+
+            @Override
+            public void onCreate(SQLiteDatabase db) {
+                db.execSQL("CREATE TABLE digestcache (file VARCHAR(200) NOT NULL PRIMARY KEY,"
+                        + "size INT, sha1 TEXT)");
+            }
+        };
 
         updateBackgroundWatchers();
     }
@@ -412,6 +434,11 @@ public class UploadService extends Service {
                     && !mPrefs.getBoolean(Preferences.AUTO, false)) {
                 stopSelf();
             }
+
+            if (mDb != null) {
+                mDb.close();
+                mDb = null;
+            }
         }
     }
 
@@ -423,6 +450,46 @@ public class UploadService extends Service {
             Log.w(TAG, "FileNotFound in getFileDescriptor() for " + uri);
             return null;
         }
+    }
+
+    private SQLiteDatabase getDb() {
+        synchronized (UploadService.this) {
+            mDb = mOpenHelper.getWritableDatabase();
+            return mDb;
+        }
+    }
+
+    private synchronized String getSha1OfUri(Uri uri, ParcelFileDescriptor pfd) {
+        SQLiteDatabase db = getDb();
+        long statSize = pfd.getStatSize();
+        Cursor c = db.query("digestcache", new String[] { "sha1" }, "file=? AND size=?",
+                new String[] { uri.toString(), "" + statSize }, null /* groupBy */,
+                null /* having */, null /* orderBy */);
+        if (c != null) {
+            try {
+                if (c.moveToNext()) {
+                    String cachedSha1 = c.getString(0);
+                    Log.d(TAG, "Cached sha1 of " + uri + ": " + cachedSha1);
+                    return cachedSha1;
+                }
+            } finally {
+                c.close();
+            }
+        }
+        String sha1 = Util.getSha1(pfd.getFileDescriptor());
+        Log.d(TAG, "Uncached sha1 for " + uri + ": " + sha1);
+        if (sha1 != null) {
+            ContentValues row = new ContentValues();
+            row.put("file", uri.toString());
+            row.put("size", statSize);
+            row.put("sha1", sha1);
+            try {
+                db.replace("digestcache", null, row);
+            } catch (IllegalStateException e) {
+                Log.d(TAG, "error replacing sha1", e);
+            }
+        }
+        return sha1;
     }
 
     private void incrementBlobsToDigest(int size) throws RemoteException {
@@ -476,7 +543,7 @@ public class UploadService extends Service {
             }
 
             Log.d(TAG, "Getting SHA-1 of " + uri + "...");
-            String sha1 = Util.getSha1(pfd.getFileDescriptor());
+            String sha1 = getSha1OfUri(uri, pfd);
             if (sha1 == null) {
                 Log.w(TAG, "File is corrupt?" + uri);
                 // null is returned on IO errors (e.g. flaky SD cards?)

@@ -47,6 +47,7 @@ public class Util {
         return hex.toString();
     }
 
+    // Requires that the fd be seeked to the beginning.
     public static String getSha1(FileDescriptor fd) {
         MessageDigest md;
         try {
