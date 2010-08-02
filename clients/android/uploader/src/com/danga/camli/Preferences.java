@@ -12,6 +12,7 @@ public final class Preferences {
     public static final String AUTO_REQUIRE_WIFI = "camli.auto.require_wifi";
 
     public static final String AUTO_DIR_PHOTOS = "camli.auto.photos";
+    public static final String AUTO_DIR_MYTRACKS = "camli.auto.mytracks";
 
     private Preferences() {
     }

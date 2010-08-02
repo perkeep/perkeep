@@ -202,6 +202,10 @@ public class UploadService extends Service {
         if (mPrefs.getBoolean(Preferences.AUTO_DIR_PHOTOS, true)) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
         }
+        if (mPrefs.getBoolean(Preferences.AUTO_DIR_MYTRACKS, true)) {
+            dirs.add(Environment.getExternalStorageDirectory() + "/gpx");
+            dirs.add(Environment.getExternalStorageDirectory() + "/kml");
+        }
         return dirs;
     }
 
