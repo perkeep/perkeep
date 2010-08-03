@@ -25,6 +25,7 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 		ch <- &blobInfo{Error: &err}
 		return
 	}
+	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
 	if err != nil {
 		fmt.Println("Error reading dirnames: ", err)
