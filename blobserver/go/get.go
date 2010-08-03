@@ -29,8 +29,36 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		serverError(conn, err)
 		return
 	}
+
+	reqRange := getRequestedRange(req)
+	if reqRange.SkipBytes != 0 {
+		_, err = file.Seek(reqRange.SkipBytes, 0)
+		if err != nil {
+			serverError(conn, err)
+			return
+		}
+	}
+
+	var input io.Reader = file
+	if reqRange.LimitBytes != -1 {
+		input = io.LimitReader(file, reqRange.LimitBytes)
+	}
+
+	remainBytes := stat.Size - reqRange.SkipBytes
+	if reqRange.LimitBytes != -1 &&
+		reqRange.LimitBytes < remainBytes {
+		remainBytes = reqRange.LimitBytes
+	}
+
 	conn.SetHeader("Content-Type", "application/octet-stream")
-	bytesCopied, err := io.Copy(conn, file)
+	if !reqRange.IsWholeFile() {
+		conn.SetHeader("Content-Range",
+			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes,
+			reqRange.SkipBytes + remainBytes,
+			stat.Size))
+		conn.WriteHeader(http.StatusPartialContent)
+	}
+	bytesCopied, err := io.Copy(conn, input)
 
 	// If there's an error at this point, it's too late to tell the client,
 	// as they've already been receiving bytes.  But they should be smart enough
@@ -44,9 +72,9 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		}
 		return
 	}
-	if bytesCopied != stat.Size {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied= %d, not %d%v\n", blobRef,
-			bytesCopied, stat.Size)
+	if bytesCopied != remainBytes {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied=%d, not %d\n", blobRef,
+			bytesCopied, remainBytes)
 		closer, _, err := conn.Hijack()
 		if err != nil {
 			closer.Close()
