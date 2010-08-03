@@ -44,17 +44,19 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		input = io.LimitReader(file, reqRange.LimitBytes)
 	}
 
+	remainBytes := stat.Size - reqRange.SkipBytes
+	if reqRange.LimitBytes != -1 &&
+		reqRange.LimitBytes < remainBytes {
+		remainBytes = reqRange.LimitBytes
+	}
+
 	conn.SetHeader("Content-Type", "application/octet-stream")
 	if !reqRange.IsWholeFile() {
-		remainBytes := stat.Size - reqRange.SkipBytes
-		if reqRange.LimitBytes != -1 &&
-			reqRange.LimitBytes < remainBytes {
-			remainBytes = reqRange.LimitBytes
-		}
 		conn.SetHeader("Content-Range",
-			fmt.Sprintf("%d-%d/%d", reqRange.SkipBytes,
+			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes,
 			reqRange.SkipBytes + remainBytes,
 			stat.Size))
+		conn.WriteHeader(http.StatusPartialContent)
 	}
 	bytesCopied, err := io.Copy(conn, input)
 
@@ -70,9 +72,9 @@ func handleGet(conn *http.Conn, req *http.Request) {
 		}
 		return
 	}
-	if bytesCopied != stat.Size {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied= %d, not %d%v\n", blobRef,
-			bytesCopied, stat.Size)
+	if bytesCopied != remainBytes {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied=%d, not %d\n", blobRef,
+			bytesCopied, remainBytes)
 		closer, _, err := conn.Hijack()
 		if err != nil {
 			closer.Close()

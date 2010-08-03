@@ -33,11 +33,17 @@ func getRequestedRangeFromString(rrange string) *requestedRange {
 	if len(matches) == 0 {
 		return wholeRange;
 	}
-	limitBytes := int64(-1)
-	if len(matches[2]) > 0 {
-		limitBytes, _ = strconv.Atoi64(matches[2])
-	}
 	skipBytes, _ := strconv.Atoi64(matches[1])
-	limitBytes -= skipBytes
+	lastByteInclusive := int64(-1)
+	if len(matches[2]) > 0 {
+		lastByteInclusive, _ = strconv.Atoi64(matches[2])
+	}
+	limitBytes := int64(-1)
+	if lastByteInclusive != -1 {
+		limitBytes = lastByteInclusive - skipBytes + 1
+		if limitBytes < 0 {
+			limitBytes = 0
+		}
+	}
 	return &requestedRange{skipBytes, limitBytes}
 }
