@@ -25,41 +25,46 @@
 
 To test:
 
-# Put -- 200 response
+# Preupload -- 200 response
+curl -v \
+  http://localhost:8080/camli/preupload
+
+# Upload -- 200 response
 curl -v -L \
-  -F file=@./test_data.txt \
-  http://localhost:8080/put/sha1-126249fd8c18cbb5312a5705746a2af87fba9538
+  -F sha1-126249fd8c18cbb5312a5705746a2af87fba9538=@./test_data.txt \
+  <the url returned by preupload>
 
 # Put with bad blob_ref parameter -- 400 response
 curl -v -L \
-  -F file=@./test_data.txt \
-  http://localhost:8080/put/sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
+  -F sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f=@./test_data.txt \
+  <the url returned by preupload>
 
 # Get present -- the blob
-curl -v http://localhost:8080/get/\
+curl -v http://localhost:8080/camli/\
 sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Get missing -- 404
-curl -v http://localhost:8080/get/\
+curl -v http://localhost:8080/camli/\
 sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
-# Check present -- 200 with blob ref list response
-curl -v http://localhost:8080/check/\
+# Check present -- 200 with only headers
+curl -I http://localhost:8080/camli/\
 sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Check missing -- 404 with empty list response
-curl -v http://localhost:8080/check/\
+curl -I http://localhost:8080/camli/\
 sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
 # List -- 200 with list of blobs (just one)
-curl -v http://localhost:8080/list
+curl -v http://localhost:8080/camli/enumerate-blobs&limit=1
 
 # List offset -- 200 with list of no blobs
-curl -v http://localhost:8080/list/\
+curl -v http://localhost:8080/camli/enumerate-blobs?after=\
 sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 """
 
+import cgi
 import hashlib
 import urllib
 import wsgiref.handlers
@@ -82,56 +87,52 @@ class Blob(db.Model):
   # The actual bytes.
   blob = blobstore.BlobReferenceProperty(indexed=False)
 
-  # Size.  (already in the blobinfo, but denormalized for speed,
-  # avoiding extra lookups)
+  # Size.  (already in the blobinfo, but denormalized for speed)
   size = db.IntegerProperty(indexed=False)
-
-
-def render_blob_refs(blob_ref_list):
-  """Renders a bunch of blob_refs as JSON.
-
-  Args:
-    blob_ref_list: List of Blob objects.
-
-  Returns:
-    A string containing the JSON payload.
-  """
-  out = [
-    '{\n'
-    '    "blob_refs": ['
-  ]
-
-  if blob_ref_list:
-    out.extend([
-      '\n        ',
-      ',\n        '.join(
-        '{"blob_ref": "%s", "size": %d}' %
-        (b.key().name(), b.size) for b in blob_ref_list),
-      '\n    ',
-    ])
-
-  out.append(
-    ']\n'
-    '}'
-  )
-  return ''.join(out)
 
 
 class ListHandler(webapp.RequestHandler):
   """Return chunks that the server has."""
 
-  def get(self, after_blob_ref):
-    count = max(1, min(1000, int(self.request.get('count') or 1000)))
+  def get(self):
+    after_blob_ref = self.request.get('after')
+    limit = max(1, min(1000, int(self.request.get('limit') or 1000)))
     query = Blob.all().order('__key__')
     if after_blob_ref:
       query.filter('__key__ >', db.Key.from_path(Blob.kind(), after_blob_ref))
-    blob_refs = query.fetch(count)
-    self.response.headers['Content-Type'] = 'text/plain'
-    self.response.out.write(render_blob_refs(blob_refs))
+    blob_ref_list = query.fetch(limit)
+
+    self.response.headers['Content-Type'] = 'text/javascript'
+    out = [
+      '{\n'
+      '    "blobs": ['
+    ]
+    if blob_ref_list:
+      out.extend([
+        '\n        ',
+        ',\n        '.join(
+          '{"blobRef": "%s", "size": %d}' %
+          (b.key().name(), b.size) for b in blob_ref_list),
+        '\n    ',
+      ])
+    if blob_ref_list and len(blob_ref_list) == limit:
+      out.append(
+        '],'
+        '\n  "after": "%s"\n'
+        '}' % blob_ref_list[-1].key().name())
+    else:
+      out.append(
+        ']\n'
+        '}'
+      )
+    self.response.out.write(''.join(out))
 
 
 class GetHandler(blobstore_handlers.BlobstoreDownloadHandler):
   """Gets a blob with the given ref."""
+
+  def head(self, blob_ref):
+    self.get(blob_ref)
 
   def get(self, blob_ref):
     blob = Blob.get_by_key_name(blob_ref)
@@ -141,29 +142,68 @@ class GetHandler(blobstore_handlers.BlobstoreDownloadHandler):
     self.send_blob(blob.blob, 'application/octet-stream')
 
 
-class CheckHandler(webapp.RequestHandler):
-  """Checks if a Blob is present on this server."""
-
-  def get(self, blob_ref):
-    blob = Blob.get_by_key_name(blob_ref)
-    if not blob:
-      blob_refs = []
-      self.response.set_status(404)
-    else:
-      blob_refs = [blob]
-      self.response.set_status(200)
-
-    self.response.headers['Content-Type'] = 'text/plain'
-    self.response.out.write(render_blob_refs(blob_refs))
-
-
-class GetUploadUrlHandler(webapp.RequestHandler):
+class PreuploadHandler(webapp.RequestHandler):
   """Handler to return a URL for a script to get an upload URL."""
 
-  def post(self, blob_ref):
-    self.response.headers['Location'] = blobstore.create_upload_url(
-        '/upload_complete/%s' % blob_ref)
-    self.response.set_status(307)
+  def get(self):
+    self.handle(continuation=True)
+
+  def post(self):
+    self.handle(continuation=False)
+
+  def handle(self, continuation):
+    if self.request.get('camliversion') != '1':
+      self.response.headers['Content-Type'] = 'text/plain'
+      self.response.out.write('Bad parameter: "camliversion"')
+      self.response.set_status(400)
+      return
+
+    blob_ref_list = []
+    for key, value in self.request.params.items():
+      if not key.startswith('blob'):
+        continue
+      try:
+        int(key[len('blob'):])
+      except ValueError:
+        self.response.headers['Content-Type'] = 'text/plain'
+        self.response.out.write('Bad parameter: "%s"' % key)
+        self.response.set_status(400)
+        return
+      else:
+        blob_ref_list.append(value)
+
+    if continuation:
+      already_have_name = 'received'
+    else:
+      already_have_name = 'alreadyHave'
+
+    self.response.headers['Content-Type'] = 'text/javascript'
+    out = [
+      '{\n'
+      '  "maxUploadSize": %d,\n'
+      '  "uploadUrl": "%s",\n'
+      '  "uploadUrlExpirationSeconds": 600,\n'
+      '  "%s": [\n'
+      % (config.MAX_UPLOAD_SIZE,
+         blobstore.create_upload_url('/upload_complete'),
+         already_have_name)
+    ]
+
+    already_have = db.get([
+        db.Key.from_path(Blob.kind(), b) for b in blob_ref_list])
+    if already_have:
+      out.extend([
+        '\n        ',
+        ',\n        '.join(
+          '{"blobRef": "%s", "size": %d}' %
+          (b.key().name(), b.size) for b in already_have),
+        '\n    ',
+      ])
+    out.append(
+      ']\n'
+      '}'
+    )
+    self.response.out.write(''.join(out))
 
 
 class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
@@ -191,30 +231,23 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
 
     return '%s-%s' % (hash_func, hasher.hexdigest())
 
-  def store_blob(self, blob_ref, upload_files, error_messages):
+  def store_blob(self, blob_ref, blob_info, error_messages):
     """Store blob information.
 
     Writes a Blob to the datastore for the uploaded file.
 
     Args:
-      upload_files: List of BlobInfo records representing the uploads.
+      blob_ref: The file that was uploaded.
+      upload_file: List of BlobInfo records representing the uploads.
       error_messages: Empty list for storing error messages to report to user.
     """
-    if not upload_files:
-      error_messages.append('Missing upload file field')
-
-    if len(upload_files) != 1:
-      error_messages.append('More than one file.')
-
     if not blob_ref.startswith('sha1-'):
       error_messages.append('Only sha1 supported for now.')
       return
 
     if len(blob_ref) != (len('sha1-') + 40):
-      error_messages.append('Bogus length of blob_ref.')
+      error_messages.append('Bogus blobRef.')
       return
-
-    blob_info, = upload_files
 
     found_blob_ref = self.compute_blob_ref('sha1', blob_info.key())
     if blob_ref != found_blob_ref:
@@ -223,35 +256,30 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
       return
 
     def txn():
-      blob = Blob(key_name=blob_ref,
-                  blob=blob_info.key(),
-                  size=blob_info.size)
+      blob = Blob(key_name=blob_ref, blob=blob_info.key(), size=blob_info.size)
       blob.put()
     db.run_in_transaction(txn)
 
-  def post(self, blob_ref):
+  def post(self):
     """Do upload post."""
     error_messages = []
+    blob_info_dict = {}
 
-    upload_files = self.get_uploads('file')
-
-    self.store_blob(blob_ref, upload_files, error_messages)
+    for key, value in self.request.params.items():
+      if isinstance(value, cgi.FieldStorage):
+        if 'blob-key' in value.type_options:
+          blob_info = blobstore.parse_blob_info(value)
+          blob_info_dict[value.name] = blob_info
+          self.store_blob(value.name, blob_info, error_messages)
 
     if error_messages:
-      blobstore.delete(upload_files)
+      blobstore.delete(blob_info_dict.values())
       self.redirect('/error?%s' % '&'.join(
           'error_message=%s' % urllib.quote(m) for m in error_messages))
     else:
-      self.redirect('/success')
-
-
-class SuccessHandler(webapp.RequestHandler):
-  """The blob put was successful."""
-
-  def get(self):
-    self.response.headers['Content-Type'] = 'text/plain'
-    self.response.out.write('{}')
-    self.response.set_status(200)
+      query = '&'.join('blob%d=%s' % (i + 1, k)
+                       for i, k in enumerate(blob_info_dict.iterkeys()))
+      self.redirect('/camli/preupload?camliversion=1&' + query)
 
 
 class ErrorHandler(webapp.RequestHandler):
@@ -265,12 +293,10 @@ class ErrorHandler(webapp.RequestHandler):
 
 APP = webapp.WSGIApplication(
   [
-    ('/get/([^/]+)', GetHandler),
-    ('/check/([^/]+)', CheckHandler),
-    ('/list/([^/]+)', ListHandler),
-    ('/put/([^/]+)', GetUploadUrlHandler),
-    ('/upload_complete/([^/]+)', UploadHandler),  # Admin only.
-    ('/success', SuccessHandler),
+    ('/camli/enumerate-blobs', ListHandler),
+    ('/camli/preupload', PreuploadHandler),
+    ('/camli/([^/]+)', GetHandler),
+    ('/upload_complete', UploadHandler),  # Admin only.
     ('/error', ErrorHandler),
   ],
   debug=True)

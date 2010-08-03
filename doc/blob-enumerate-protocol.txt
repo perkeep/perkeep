@@ -31,15 +31,16 @@ Content-Type: text/javascript
     {"blobRef": "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",
      "size": 3},
   ],
-  "continueAfter": "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",
+  "after": "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",
 }
 
 Response keys:
 
    blobs          required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
+                             will be an empty list if no blobs are present.
 
-   continueAfter  optional   If present, the result is truncated and there are
+   after          optional   If present, the result is truncated and there are
                              are more blobs after the provided blobref, which
-                             should be passed to the next request's "after" request
-                             parameter.
+                             should be passed to the next request's "after"
+                             request parameter.
 

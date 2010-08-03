@@ -1,3 +1,10 @@
+The /camli/preupload endpoint is used to begin uploading a blob.
+
+A request to this endpoint will instruct the client where to actually upload the blob and what blobs are already present in the store.
+
+
+Preupload request:
+
 POST /camli/preupload HTTP/1.1
 Host: example.com
 
@@ -6,20 +13,35 @@ blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8&
 blob2=sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd&
 blob3=sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 
+Response:
+
 HTTP/1.1 200 OK
 Content-Length: ...
-Content-Type: text/plain
+Content-Type: text/javascript
 
 {
-   "maxUploadSize": 1048576,
    "alreadyHave": [
       {"blobRef": "sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
        "size": 12312}
    ],
+   "maxUploadSize": 1048576,
    "uploadUrl": "http://upload-server.example.com/some/server-chosen/url",
    "uploadUrlExpirationSeconds": 7200,
 }
 
+Response keys:
+
+   alreadyHave      required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
+                               for blobs that the system already has. Empty
+                               list if no blobs are already present.
+   maxUploadSize    required   Integer of max byte size for whole request
+                               payload, which may be one or more blobs.
+   uploadUrl        required   Next URL to use to upload any more blobs.
+   uploadUrlExpirationSeconds
+                    required   How long the upload URL will be valid for.
+
+
+Upload request:
 
 POST /some/server-chosen/url HTTP/1.1
 Host: upload-server.example.com
@@ -37,6 +59,8 @@ Content-Type: application/octet-stream
 (binary blob data)
 --randomboundaryXYZ--
 
+Response (may be a 301/302/303 redirect to this data):
+
 HTTP/1.1 200 OK
 Content-Type: text/plain
 
@@ -51,6 +75,18 @@ Content-Type: text/plain
    "uploadUrl": "http://example.com/TheNextUploadUrlRandomString",
    "uploadUrlExpirationSeconds": 7200,
 }
+
+Response keys:
+
+   received         required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
+                               for blobs that were successfully saved. Empty
+                               list in the case nothing was received.
+   maxUploadSize    required   Integer of max byte size for whole request
+                               payload, which may be one or more blobs.
+   uploadUrl        required   Next URL to use to upload any more blobs.
+   uploadUrlExpirationSeconds
+                    required   How long the upload URL will be valid for.
+
 
 If connection drops during a POST to an upload URL, you should re-do a
 preupload request to verify which objects were received by the server
