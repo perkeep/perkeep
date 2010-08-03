@@ -100,6 +100,7 @@ func handleEnumerateBlobs(conn *http.Conn, req *http.Request) {
 
 	var after string
 	go readBlobs(ch, "", "", req.FormValue("after"), &limit);
+	needsComma := false
 	for bi := range ch {
 		if bi == nil {
 			after = ""
@@ -109,11 +110,15 @@ func handleEnumerateBlobs(conn *http.Conn, req *http.Request) {
 			break
 		}
 		blobName := bi.BlobRef.String()
-		fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d},\n",
+		if (needsComma) {
+			fmt.Fprintf(conn, ",\n")
+		}
+		fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d}",
 			blobName, bi.FileInfo.Size)
 		after = blobName
+		needsComma = true
 	}
-	fmt.Fprintf(conn, "  ]")
+	fmt.Fprintf(conn, "\n  ]")
 	if after != "" {
 		fmt.Fprintf(conn, ",\n  \"after\": \"%s\"", after)
 	}
