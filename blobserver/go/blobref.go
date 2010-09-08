@@ -29,7 +29,7 @@ func blobIfValid(hashname, digest string) *BlobRef {
 }
 
 func blobFromPattern(r *regexp.Regexp, s string) *BlobRef {
-	matches := r.MatchStrings(s)
+	matches := r.FindStringSubmatch(s)
 	if len(matches) != 3 {
 		return nil
 	}

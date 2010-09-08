@@ -17,7 +17,7 @@ func isAuthorized(req *http.Request) bool {
 	if !present {
 		return false
 	}
-	matches := kBasicAuthPattern.MatchStrings(auth)
+	matches := kBasicAuthPattern.FindStringSubmatch(auth)
 	if len(matches) != 2 {
 		return false
 	}

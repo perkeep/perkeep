@@ -8,11 +8,6 @@ import (
 	"os"
 	)
 
-// For `make`:
-//import "./util/_obj/util"
-// For `gofr`:
-import "util/util"
-
 func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
 		badRequestError(conn, "Inconfigured handler.")
@@ -77,7 +72,7 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (ok bool, err os.Error) {
 
 	hash := blobRef.Hash()
 	var written int64
-	written, err = io.Copy(util.NewTee(hash, tempFile), source)
+	written, err = io.Copy(io.MultiWriter(hash, tempFile), source)
 	if err != nil {
 		return
 	}

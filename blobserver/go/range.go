@@ -29,7 +29,7 @@ func getRequestedRange(req *http.Request) *requestedRange {
 }
 
 func getRequestedRangeFromString(rrange string) *requestedRange {
-	matches := rangePattern.MatchStrings(rrange)
+	matches := rangePattern.FindStringSubmatch(rrange)
 	if len(matches) == 0 {
 		return wholeRange;
 	}
