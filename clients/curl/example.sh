@@ -7,6 +7,7 @@
 
 # Preupload -- 200 response
 curl -v \
+  -d camliversion=1 \
   http://localhost:8080/camli/preupload
 
 # Upload -- 200 response

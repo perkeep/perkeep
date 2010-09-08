@@ -27,6 +27,7 @@ To test:
 
 # Preupload -- 200 response
 curl -v \
+  -d camliversion=1 \
   http://localhost:8080/camli/preupload
 
 # Upload -- 200 response
@@ -66,6 +67,7 @@ sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 import cgi
 import hashlib
+import logging
 import urllib
 import wsgiref.handlers
 
@@ -165,6 +167,7 @@ class PreuploadHandler(webapp.RequestHandler):
       try:
         int(key[len('blob'):])
       except ValueError:
+        logging.exception('Bad parameter: %s', key)
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('Bad parameter: "%s"' % key)
         self.response.set_status(400)
@@ -196,7 +199,7 @@ class PreuploadHandler(webapp.RequestHandler):
         '\n        ',
         ',\n        '.join(
           '{"blobRef": "%s", "size": %d}' %
-          (b.key().name(), b.size) for b in already_have),
+          (b.key().name(), b.size) for b in already_have if b is not None),
         '\n    ',
       ])
     out.append(
@@ -256,6 +259,7 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
       return
 
     def txn():
+      logging.info('Saving blob "%s" with size %d', blob_ref, blob_info.size)
       blob = Blob(key_name=blob_ref, blob=blob_info.key(), size=blob_info.size)
       blob.put()
     db.run_in_transaction(txn)
@@ -273,13 +277,15 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
           self.store_blob(value.name, blob_info, error_messages)
 
     if error_messages:
+      logging.error('Upload errors: %r', error_messages)
       blobstore.delete(blob_info_dict.values())
       self.redirect('/error?%s' % '&'.join(
           'error_message=%s' % urllib.quote(m) for m in error_messages))
     else:
-      query = '&'.join('blob%d=%s' % (i + 1, k)
-                       for i, k in enumerate(blob_info_dict.iterkeys()))
-      self.redirect('/camli/preupload?camliversion=1&' + query)
+      query = ['/nonstandard/upload_complete?camliversion=1']
+      query.extend('blob%d=%s' % (i + 1, k)
+                   for i, k in enumerate(blob_info_dict.iterkeys()))
+      self.redirect('&'.join(query))
 
 
 class ErrorHandler(webapp.RequestHandler):
@@ -296,6 +302,7 @@ APP = webapp.WSGIApplication(
     ('/camli/enumerate-blobs', ListHandler),
     ('/camli/preupload', PreuploadHandler),
     ('/camli/([^/]+)', GetHandler),
+    ('/nonstandard/upload_complete', PreuploadHandler),
     ('/upload_complete', UploadHandler),  # Admin only.
     ('/error', ErrorHandler),
   ],
