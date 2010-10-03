@@ -226,6 +226,11 @@ public class UploadThread extends Thread {
 
     private class MultipartEntity implements HttpEntity {
 
+        private static final String CONTENT_DISPOSITION_FORM_DATA_NAME = "Content-Disposition: form-data; name=";
+        private static final String CRLFCRLF = "\r\n\r\n";
+
+        private static final int MAX_WRITE_PER_ENTITY = 1024 * 1024;
+
         private boolean mDone = false;
         private final String mBoundary;
         private final List<QueuedFile> mFilesWritten = new ArrayList<QueuedFile>();
@@ -258,7 +263,27 @@ public class UploadThread extends Thread {
         }
 
         public long getContentLength() {
-            return -1; // "unknown"
+            long length = 0;
+            int bytesWritten = 0;
+            for (QueuedFile qf : mQueue) {
+                ParcelFileDescriptor pfd = mService.getFileDescriptor(qf.getUri());
+                long totalFileBytes = pfd.getStatSize();
+
+                length += newBoundarySize();
+                length += CONTENT_DISPOSITION_FORM_DATA_NAME.length();
+                length += qf.getContentName().length();
+                length += CRLFCRLF.length();
+
+                length += totalFileBytes;
+
+                // copied logic from writeTo below. kinda lame.
+                bytesWritten += totalFileBytes;
+                if (bytesWritten > MAX_WRITE_PER_ENTITY) {
+                    break;
+                }
+            }
+            length += endBoundarySize();
+            return length;
         }
 
         public Header getContentType() {
@@ -286,12 +311,10 @@ public class UploadThread extends Thread {
 
             int bytesWritten = 0;
             long timeStarted = SystemClock.uptimeMillis();
-            long lastLogUpdate = 0;
 
             for (QueuedFile qf : mQueue) {
                 Log.d(TAG, "begin writeTo of " + qf);
                 ParcelFileDescriptor pfd = mService.getFileDescriptor(qf.getUri());
-                long totalFileBytes = pfd.getStatSize();
                 long uploadedFileBytes = 0;
                 if (pfd == null) {
                     // TODO: report some error up to user?
@@ -300,9 +323,9 @@ public class UploadThread extends Thread {
                 }
                 startNewBoundary(pw);
                 pw.flush();
-                pw.print("Content-Disposition: form-data; name=");
+                pw.print(CONTENT_DISPOSITION_FORM_DATA_NAME);
                 pw.print(qf.getContentName());
-                pw.print("\r\n\r\n");
+                pw.print(CRLFCRLF);
                 pw.flush();
 
                 FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
@@ -325,7 +348,7 @@ public class UploadThread extends Thread {
                 Log.d(TAG, "write of " + qf.getContentName() + " complete.");
                 mFilesWritten.add(qf);
 
-                if (bytesWritten > 1024 * 1024) {
+                if (bytesWritten > MAX_WRITE_PER_ENTITY) {
                     Log.d(TAG, "enough bytes written, stopping writing after " + bytesWritten);
                     // Stop after 1MB to get response.
                     // TODO: make this smarter, configurable, time-based.
@@ -344,10 +367,18 @@ public class UploadThread extends Thread {
             Log.d(TAG, "finished writing upload MIME body.");
         }
 
+        private int newBoundarySize() {
+            return 6 + mBoundary.length();
+        }
+
         private void startNewBoundary(PrintWriter pw) {
             pw.print("\r\n--");
             pw.print(mBoundary);
             pw.print("\r\n");
+        }
+
+        private int endBoundarySize() {
+            return 8 + mBoundary.length();
         }
 
         private void endBoundary(PrintWriter pw) {
