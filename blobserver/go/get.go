@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-func handleGet(conn *http.Conn, req *http.Request) {
+func handleGet(conn http.ResponseWriter, req *http.Request) {
 	blobRef := ParsePath(req.URL.Path)
 	if blobRef == nil {
 		badRequestError(conn, "Malformed GET URL.")

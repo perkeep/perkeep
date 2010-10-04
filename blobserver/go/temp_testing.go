@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-func handleCamliForm(conn *http.Conn, req *http.Request) {
+func handleCamliForm(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn, `
 <html>
 <body>
@@ -25,7 +25,7 @@ Image png: <input type="file" name="image-png"><br>
 }
 
 
-func handleTestForm(conn *http.Conn, req *http.Request) {
+func handleTestForm(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/testform") {
 		badRequestError(conn, "Inconfigured handler.")
 		return

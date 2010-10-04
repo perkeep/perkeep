@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func handlePreUpload(conn *http.Conn, req *http.Request) {
+func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/preupload") {
 		badRequestError(conn, "Inconfigured handler.")
 		return

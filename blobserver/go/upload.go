@@ -8,7 +8,7 @@ import (
 	"os"
 	)
 
-func handleMultiPartUpload(conn *http.Conn, req *http.Request) {
+func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
 		badRequestError(conn, "Inconfigured handler.")
 		return
@@ -97,7 +97,7 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (ok bool, err os.Error) {
 	return true, nil
 }
 
-func handlePut(conn *http.Conn, req *http.Request) {
+func handlePut(conn http.ResponseWriter, req *http.Request) {
 	blobRef := ParsePath(req.URL.Path)
 	if blobRef == nil {
 		badRequestError(conn, "Malformed PUT URL.")

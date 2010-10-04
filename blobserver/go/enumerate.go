@@ -87,7 +87,7 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 	}
 }
 
-func handleEnumerateBlobs(conn *http.Conn, req *http.Request) {
+func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	ch := make(chan *blobInfo, 100)
 
