@@ -25,15 +25,19 @@ import cStringIO
 import hashlib
 import httplib
 import logging
-logging.getLogger().setLevel(logging.DEBUG)
 import mimetools
+import os
+import re
+import sys
 import urllib
 import urlparse
 
 import simplejson
 
-__all__ = []
+__all__ = ['Error', 'ServerError', 'PayloadError', 'BUFFER_SIZE', 'CamliOp']
 
+################################################################################
+# Library
 
 BUFFER_SIZE = 512 * 1024
 
@@ -64,7 +68,7 @@ def buffered_sha1(data, buffer_size=BUFFER_SIZE):
       if line == '':
         break
       compute.update(line)
-    r.seek(start)
+    data.seek(start)
   return compute.hexdigest()
 
 
@@ -237,22 +241,30 @@ class CamliOp(object):
       already_have_blobrefs.add(blobref_json['blobRef'])
     logging.debug('Already have blobs: %r', already_have_blobrefs)
 
+    missing_blobrefs = set(blobref_dict.iterkeys())
+    missing_blobrefs.difference_update(already_have_blobrefs)
+    if not missing_blobrefs:
+      logging.debug('All blobs already present.')
+      return
+
     # TODO(bslatkin): Figure out the 'Content-Length' header value by looking
     # at the size of the files by seeking; required for multipart POST.
     out = cStringIO.StringIO()
     boundary = mimetools.choose_boundary()
     boundary_start = '--' + boundary
 
+    blob_number = 0
     for blobref in blobref_dict.iterkeys():
       if blobref in already_have_blobrefs:
         logging.debug('Already have blobref=%s', blobref)
         continue
       blob = blobref_dict[blobref]
+      blob_number += 1
 
       out.write(boundary_start)
       out.write('\nContent-Type: application/octet-stream\n')
-      out.write('Content-Disposition: form-data; name="%s"; filename=""\n\n'
-                % blobref)
+      out.write('Content-Disposition: form-data; name="%s"; filename="%d"\n\n'
+                % (blobref, blob_number))
       if isinstance(blob, basestring):
         out.write(blob)
       else:
@@ -316,8 +328,6 @@ class CamliOp(object):
       received_blobrefs.add(blobref_json['blobRef'])
     logging.debug('Received blobs: %r', received_blobrefs)
 
-    missing_blobrefs = set(blobref_dict.iterkeys())
-    missing_blobrefs.difference_update(already_have_blobrefs)
     missing_blobrefs.difference_update(received_blobrefs)
     if missing_blobrefs:
       # TODO: Try to upload the missing ones.
@@ -325,8 +335,46 @@ class CamliOp(object):
 
     logging.debug('Upload of %d blobs successful.', len(blobref_dict))
 
+################################################################################
+# Begin command-line tool
+
+def upload_dir(op, root_path, recursive=True, ignore_patterns=[r'^\..*']):
+  """TODO
+  """
+  def should_ignore(dirname):
+    for pattern in ignore_patterns:
+      if re.match(pattern, dirname):
+        return True
+    return False
+
+  def error(e):
+    raise e
+
+  all_blob_paths = []
+  for dirpath, dirnames, filenames in os.walk(root_path, onerror=error):
+    allowed_dirnames = []
+    for name in dirnames:
+      if not should_ignore(name):
+        allowed_dirnames.append(name)
+    for i in xrange(len(dirnames)):
+      dirnames.pop(0)
+    if recursive:
+      dirnames.extend(allowed_dirnames)
+
+    all_blob_paths.extend(os.path.join(dirpath, name) for name in filenames)
+
+  all_blob_files = [open(path, 'rb') for path in all_blob_paths]
+  logging.debug('Uploading dir=%r with blob paths: %r',
+                root_path, all_blob_paths)
+  op.put_blobs(all_blob_files)
 
 
 
-c = CamliOp('localhost:8080')
-print c.put_blobs(['one', 'two', 'three'])
+def main(argv):
+  logging.getLogger().setLevel(logging.DEBUG)
+  op = CamliOp('localhost:8080')
+  upload_dir(op, sys.argv[1])
+
+
+if __name__ == '__main__':
+  main(sys.argv)
