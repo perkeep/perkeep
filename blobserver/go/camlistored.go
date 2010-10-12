@@ -15,8 +15,8 @@ var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen 
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
-func handleCamli(conn *http.Conn, req *http.Request) {
-	handler := func (conn *http.Conn, req *http.Request) {
+func handleCamli(conn http.ResponseWriter, req *http.Request) {
+	handler := func (conn http.ResponseWriter, req *http.Request) {
 		badRequestError(conn, "Unsupported path or method.")
 	}
 	switch req.Method {
@@ -44,7 +44,7 @@ func handleCamli(conn *http.Conn, req *http.Request) {
 	handler(conn, req)
 }
 
-func handleRoot(conn *http.Conn, req *http.Request) {
+func handleRoot(conn http.ResponseWriter, req *http.Request) {
 	if *stealthMode {
 		fmt.Fprintf(conn, "Hi.\n")
 	} else {

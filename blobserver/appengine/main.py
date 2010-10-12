@@ -93,6 +93,13 @@ class Blob(db.Model):
   size = db.IntegerProperty(indexed=False)
 
 
+class HelloHandler(webapp.RequestHandler):
+  """Present ourselves to the world."""
+
+  def get(self):
+    self.response.out.write('Hello!  This is an AppEngine Camlistore blob server.')
+
+
 class ListHandler(webapp.RequestHandler):
   """Return chunks that the server has."""
 
@@ -299,6 +306,7 @@ class ErrorHandler(webapp.RequestHandler):
 
 APP = webapp.WSGIApplication(
   [
+    ('/', HelloHandler),
     ('/camli/enumerate-blobs', ListHandler),
     ('/camli/preupload', PreuploadHandler),
     ('/camli/([^/]+)', GetHandler),

@@ -17,7 +17,7 @@ func isAuthorized(req *http.Request) bool {
 	if !present {
 		return false
 	}
-	matches := kBasicAuthPattern.MatchStrings(auth)
+	matches := kBasicAuthPattern.FindStringSubmatch(auth)
 	if len(matches) != 2 {
 		return false
 	}
@@ -39,8 +39,8 @@ func isAuthorized(req *http.Request) bool {
 
 // requireAuth wraps a function with another function that enforces
 // HTTP Basic Auth.
-func requireAuth(handler func(conn *http.Conn, req *http.Request)) func (conn *http.Conn, req *http.Request) {
-	return func (conn *http.Conn, req *http.Request) {
+func requireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
+	return func (conn http.ResponseWriter, req *http.Request) {
 		if !isAuthorized(req) {
 			conn.SetHeader("WWW-Authenticate", "Basic realm=\"camlistored\"")
 			conn.WriteHeader(http.StatusUnauthorized)

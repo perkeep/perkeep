@@ -1,8 +1,4 @@
-main:
-	echo "I've using gofr to build this now: http://bitbucket.org/kylelemons/gofr/wiki/Home"
-	exit 999
-
-include $(GOROOT)/src/Make.$(GOARCH)
+include $(GOROOT)/src/Make.inc
 
 TARG=camlistored
 GOFILES=\
@@ -14,6 +10,7 @@ GOFILES=\
 	http_util.go\
 	preupload.go\
 	temp_testing.go\
+	range.go\
 	upload.go\
 
 include $(GOROOT)/src/Make.cmd
