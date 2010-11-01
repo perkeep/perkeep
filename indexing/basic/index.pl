@@ -155,7 +155,7 @@ sub populate_blob_types {
 
 sub get_type_from_magic {
     my $magic = shift;
-    if ($magic =~ /^{.+"camliVersion"/s) {
+    if ($magic =~ /^{.*"camliVersion"/s) {
         return "application/json+camli";
     }
     if ($magic =~ /^\xff\xd8\xff\xe1/) {

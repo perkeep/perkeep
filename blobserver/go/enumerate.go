@@ -14,7 +14,7 @@ const maxEnumerate = 100000
 type blobInfo struct {
 	*BlobRef
 	*os.FileInfo
-	*os.Error
+	os.Error
 }
 
 func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *uint) {
@@ -22,27 +22,27 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 	dir, err := os.Open(dirFullPath, os.O_RDONLY, 0)
 	if err != nil {
 		fmt.Println("Error opening directory: ", err)
-		ch <- &blobInfo{Error: &err}
+		ch <- &blobInfo{Error: err}
 		return
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
 	if err != nil {
 		fmt.Println("Error reading dirnames: ", err)
-		ch <- &blobInfo{Error: &err}
+		ch <- &blobInfo{Error: err}
 		return
 	}
 	sort.SortStrings(names)
 	for _, name := range names {
 		if *remain == 0 {
-			ch <- &blobInfo{Error: &os.ENOSPC}
+			ch <- &blobInfo{Error: os.ENOSPC}
 			return
 		}
 
 		fullPath := dirFullPath + "/" + name
 		fi, err := os.Stat(fullPath)
 		if err != nil {
-			bi := &blobInfo{Error: &err}
+			bi := &blobInfo{Error: err}
 			ch <- bi
 			return
 		}
