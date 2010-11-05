@@ -16,8 +16,6 @@ import (
 	"strings"
 )
 
-import "./concat_reader/_obj/concat_reader"
-
 var flagFile *string = flag.String("file", "", "file to upload")
 var flagServer *string = flag.String("server", "http://localhost:3179/", "camlistore server")
 
@@ -93,7 +91,7 @@ func (a *Agent) Upload(h *UploadHandle) {
 
 	resp, err = http.Post(uploadUrl,
 		"multipart/form-data; boundary="+boundary,
-		concat_reader.NewConcatReader(
+		io.MultiReader(
 			strings.NewReader(fmt.Sprintf(
 				"--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n",
 				boundary,
