@@ -1,0 +1,6 @@
+This is a sketch of a client written in JavaScript.
+
+The idea is twofold:
+1) any working server can drop in this directory to get a blobstore
+   browser UI, while simultaneously testing their API implementation
+2) provide an easy library to plug into node.js if needed

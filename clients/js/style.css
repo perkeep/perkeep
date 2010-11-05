@@ -1,0 +1,27 @@
+body {
+  font-family: sans-serif;
+  font-size: 0.8em;
+}
+#logo {
+  background: url(camel.jpg);
+  width: 320px;
+  height: 302px;
+  color: white;
+  font-size: 400%;
+  text-align: center;
+  vertical-align: bottom;
+  text-shadow: 0 0 10px black;
+}
+#bloblist {
+  border: solid 1px gray;
+}
+#bloblist th {
+  background: #eee;
+  padding: 2px 4px;
+}
+#bloblist td {
+  padding-right: 1ex;
+}
+.blobref {
+  font-family: WebKitWorkaround, monospace;
+}
