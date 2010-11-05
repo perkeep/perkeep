@@ -79,7 +79,7 @@ sub populate_blob_digests_and_sizes {
         my $jres = $json->jsonToObj($res->content);
 
         my $bloblist = $jres->{'blobs'};
-        if (ref($bloblist) eq "ARRAY") {
+        if (ref($bloblist) eq "ARRAY" && scalar(@$bloblist) > 0) {
             my $first = $bloblist->[0]{'blobRef'};
             my $last = $bloblist->[-1]{'blobRef'};
             my $sth = $db->prepare("SELECT blobref, size, mimetype FROM blobs WHERE " .
