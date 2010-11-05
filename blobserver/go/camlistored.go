@@ -49,6 +49,7 @@ func handleRoot(conn http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(conn, "Hi.\n")
 	} else {
 		fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n");
+		fmt.Fprintf(conn, "<p><a href=/js>js interface</a>");
 	}
 }
 
@@ -75,6 +76,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/camli/", handleCamli)
+	mux.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
 
 	fmt.Printf("Starting to listen on http://%v/\n", *listen)
 	err := http.ListenAndServe(*listen, mux)
