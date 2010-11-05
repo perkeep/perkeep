@@ -287,7 +287,6 @@ class CamliOp(object):
     out.write(boundary_start)
     out.write('--\r\n')
     request_body = out.getvalue()
-    print request_body
 
     pieces = list(urlparse.urlparse(response_dict['uploadUrl']))
     # TODO: Support upload servers on another base URL.
