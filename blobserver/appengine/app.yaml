@@ -14,6 +14,9 @@ handlers:
   login: admin
   script: main.py
 
+- url: /js
+  static_dir: ../../clients/js
+
 - url: .*
   secure: always
   script: main.py
