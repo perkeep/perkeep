@@ -65,19 +65,8 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	ret := make(map[string]interface{})
-	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
+	ret := commonUploadResponse(req)
 	ret["alreadyHave"] = haveVector.Copy()
-	ret["uploadUrlExpirationSeconds"] = 86400
-
-	if len(req.Host) > 0 {
-		scheme := "http" // TODO: https
-		ret["uploadUrl"] = fmt.Sprintf("%s://%s/camli/upload",
-			scheme, req.Host)
-	} else {
-		ret["uploadUrl"] = "/camli/upload"
-	}
-
 	returnJson(conn, ret)
 }
 

@@ -8,11 +8,18 @@ import (
 	"os"
 	)
 
+type receivedBlob struct {
+	blobRef  *BlobRef
+	size     int64
+}
+
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
 		badRequestError(conn, "Inconfigured handler.")
 		return
 	}
+
+	receivedBlobs := make([]*receivedBlob, 0, 10)
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
@@ -39,17 +46,40 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		ok, err := receiveBlob(ref, part)
-		if !ok {
+		blobGot, err := receiveBlob(ref, part)
+		if err != nil {
 			fmt.Printf("Error receiving blob %v: %v\n", ref, err)
-		} else {
-			fmt.Printf("Received blob %v\n", ref)
+			break
 		}
+		fmt.Printf("Received blob %v\n", blobGot)
+		receivedBlobs = append(receivedBlobs, blobGot)
 	}
+
 	fmt.Println("Done reading multipart body.")
+	for _, got := range receivedBlobs {
+		fmt.Printf("Got blob: %v\n", got)
+	}
+	// TODO: put the blobs in the JSON here
+
+	ret := commonUploadResponse(req)
+	returnJson(conn, ret)
 }
 
-func receiveBlob(blobRef *BlobRef, source io.Reader) (ok bool, err os.Error) {
+func commonUploadResponse(req *http.Request) map[string]interface{} {
+	ret := make(map[string]interface{})
+	ret["maxUploadSize"] = 2147483647  // 2GB.. *shrug*
+	ret["uploadUrlExpirationSeconds"] = 86400
+	if len(req.Host) > 0 {
+		scheme := "http" // TODO: https
+		ret["uploadUrl"] = fmt.Sprintf("%s://%s/camli/upload",
+			scheme, req.Host)
+	} else {
+		ret["uploadUrl"] = "/camli/upload"
+	}
+	return ret
+}
+
+func receiveBlob(blobRef *BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
 	hashedDirectory := blobRef.DirectoryName()
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
@@ -90,11 +120,13 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (ok bool, err os.Error) {
 		return
 	}
 	if !stat.IsRegular() || stat.Size != written {
-		return false, os.NewError("Written size didn't match.")
+		err = os.NewError("Written size didn't match.")
+		return
 	}
 
+	blobGot = &receivedBlob{blobRef: blobRef, size: stat.Size}
 	success = true
-	return true, nil
+	return
 }
 
 func handlePut(conn http.ResponseWriter, req *http.Request) {
