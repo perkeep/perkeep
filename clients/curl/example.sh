@@ -37,7 +37,7 @@ curl -I http://localhost:8080/camli/\
 sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f
 
 # List -- 200 with list of blobs (just one)
-curl -v http://localhost:8080/camli/enumerate-blobs&limit=1
+curl -v http://localhost:8080/camli/enumerate-blobs?limit=1
 
 # List offset -- 200 with list of no blobs
 curl -v http://localhost:8080/camli/enumerate-blobs?after=\
