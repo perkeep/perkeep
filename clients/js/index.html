@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel=stylesheet href=style.css>
+<script src=client.js></script>
+</head>
+
+<body>
+
+<div id=logo>CAMLI</div>
+
+<table id=bloblist cellspacing=0>
+<tr><th>ref</th><th>size</th></tr>
+</table>
+
+<script>
+var bs = new Camli.BlobStore();
+
+function enumerate() {
+  var list = document.getElementById('bloblist');
+
+  bs.enumerate(function(data) {
+    for (var i = 0, blob; blob = data.blobs[i]; ++i) {
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.className = 'blobref';
+      var a = document.createElement('a');
+      a.href = '#' + blob.blobRef;
+      a.innerText = blob.blobRef;
+      td.appendChild(a);
+      tr.appendChild(td);
+      td = document.createElement('td');
+      td.align = 'right';
+      td.innerText = blob.size;
+      tr.appendChild(td);
+      list.appendChild(tr);
+    }
+  });
+}
+
+function blob(ref) {
+  bs.getBlob(ref, function(content) {
+    console.log('got ' + content);
+  });
+}
+
+function load() {
+  var hash = document.location.hash;
+  if (hash) {
+    blob(hash.substr(1));
+  } else {
+    enumerate();
+  }
+}
+
+window.addEventListener('hashchange', load, false);
+load();
+</script>
+
+</body>
+</html>

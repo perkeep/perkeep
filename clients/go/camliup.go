@@ -16,10 +16,9 @@ import (
 	"strings"
 )
 
-import "./concat_reader/_obj/concat_reader"
-
 var flagFile *string = flag.String("file", "", "file to upload")
-var flagServer *string = flag.String("server", "http://localhost:3179/", "camlistore server")
+var flagServer *string = flag.String("server", "http://localhost:3179/", "camlistore blob server")
+var flagPassword *string = flag.String("password", "", "password for blob server")
 
 type UploadHandle struct {
 	blobref  string
@@ -93,7 +92,7 @@ func (a *Agent) Upload(h *UploadHandle) {
 
 	resp, err = http.Post(uploadUrl,
 		"multipart/form-data; boundary="+boundary,
-		concat_reader.NewConcatReader(
+		io.MultiReader(
 			strings.NewReader(fmt.Sprintf(
 				"--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n",
 				boundary,
@@ -122,7 +121,7 @@ func blobName(contents io.ReadSeeker) string {
 	return fmt.Sprintf("sha1-%x", s1.Sum())
 }
 
-func uploadFile(agent *Agent, filename string) os.Error {
+func (a *Agent) UploadFileName(filename string) os.Error {
 	file, err := os.Open(filename, os.O_RDONLY, 0)
 	if err != nil {
 		return err
@@ -130,7 +129,7 @@ func uploadFile(agent *Agent, filename string) os.Error {
 
 	fmt.Println("blob is:", blobName(file))
 	handle := &UploadHandle{blobName(file), file}
-	agent.Upload(handle)
+	a.Upload(handle)
 	return nil
 }
 
@@ -142,10 +141,14 @@ func main() {
 		*flagServer = (*flagServer)[0 : len(*flagServer)-1]
 	}
 
-	agent := NewAgent(*flagServer)
-	if *flagFile != "" {
-		uploadFile(agent, *flagFile)
+	if *flagFile == "" {
+		fmt.Println("Usage: camliup -file=[filename]")
+		flag.PrintDefaults()
+		return
 	}
+
+	agent := NewAgent(*flagServer)
+	agent.UploadFileName(*flagFile)
 
 	stats := agent.Wait()
 	fmt.Println("Done uploading; stats:", stats)
