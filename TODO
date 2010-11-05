@@ -3,6 +3,18 @@ Blobserver:
 [?] Get App Engine blob server up to parity (brett)
 [ ] range request tests, fleshing out (upstream to Gо?)
 
+Android:
+
+[ ] GPG signing of blobs (brad)
+
+Client libraries:
+
+[ ] Go
+[/] Python (Brett)
+[ ] Perl
+[ ] Ruby
+[ ] PHP
+
 Indexing:
 
 [X] Range requests on Go server (brad)
