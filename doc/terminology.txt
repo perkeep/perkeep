@@ -18,7 +18,7 @@ Object / Camli Object: a data structure consisting of keys/values
   or arrays of values.  In Camli, these are serialized as JSON
   everywhere.
 
-Object Blob / Camli Blob: the JSON serialation of a Camli Object.
+Object Blob / Camli Blob: the JSON serialization of a Camli Object.
   This is just a normal JSON serialization (with any JSON
   serialization library that's available), with the extra requirement
   that the serialization must start with the 16 bytes:
@@ -30,7 +30,8 @@ Object Blob / Camli Blob: the JSON serialation of a Camli Object.
   JSON serialization libraries [sanely] won't let you specify the
   order of keys in a dictionary, the camli serialization libraries
   will wrap the JSON serialization libraries and replace the leading
-  '{' character with the above magic number.
+  '{' character with the above magic number (plus a version number
+  and comma).
 
 Object Origin: for objects intended to be mutated over time
   (e.g. annotating and renaming a photo, commenting on an item,

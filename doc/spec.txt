@@ -5,7 +5,7 @@ Camli Blob Magic
 [Note: not totally happy with this yet...]
 Ideal Camli JSON blobs should begin with the following 15 bytes:
 
-        {"camliVerison"
+        {"camliVersion"
 
 However, it's acknowledged that some JSON serialization libraries will
 format things differently, so additional whitespace should be

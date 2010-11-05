@@ -72,7 +72,7 @@ SIGNING
    we'll call this data structure 'O'.
 
 -- serialize it with whatever JSON serialization library you have
-   available.  internal or traliing whitespace doesn't matter.  we'll
+   available.  internal or trailing whitespace doesn't matter.  we'll
    call the JSON serialization of 'O' (defined in earlier step) 'J'
    (e.g. doc/examples/signing-before.camli)
 

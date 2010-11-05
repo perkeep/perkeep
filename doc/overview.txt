@@ -77,7 +77,7 @@ Schema of files/objects in Layer 1:
   Instead, a camli JSON object is known as such if the bytes of the file
   begin exactly with the bytes:
 
-        {"camliVerison"
+        {"camliVersion"
 
   ... which lets upper layers know what it is, and how to index it.
 
@@ -95,7 +95,7 @@ Schema of files/objects in Layer 1:
   -- signed statements/claims on other objects
      (think decentralized commenting/starring on the web,
       verifying claims with webfinger lookups to find
-      public keys to veirfy signatures)
+      public keys to verify signatures)
   -- references to encrypted/split files
   -- etc... (extensible over time)
 
