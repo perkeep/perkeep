@@ -9,7 +9,7 @@ BSPASS=foo
 curl -u user:$BSPASS -d camliversion=1 http://$BSHOST/camli/preupload
 
 # Upload -- 200 response
-curl -v -L \
+curl -u user:$BSPASS -v -L \
   -F sha1-126249fd8c18cbb5312a5705746a2af87fba9538=@./test_data.txt \
   #<the url returned by preupload>
 
