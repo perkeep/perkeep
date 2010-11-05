@@ -1,0 +1,22 @@
+Blobserver:
+
+[?] Get App Engine blob server up to parity (brett)
+[ ] range request tests, fleshing out (upstream to Gо?)
+
+Indexing:
+
+[X] Range requests on Go server (brad)
+[ ] blob server test suite (unclaimed)
+[X] basic sql-based indexing (brad)
+
+Tools:
+
+[ ] 3rd party program to sync between two blob servers (unclaimed)
+
+Docs:
+
+[ ] move https://docs1.google.com/document/d/1MMlUP4gxFXhkHKtMD_HlAS0DNNWEMjryjR71yB0TMTY/edit?hl=en#
+    to a proper text file here
+
+
+
