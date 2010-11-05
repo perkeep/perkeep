@@ -24,6 +24,8 @@ Indexing:
 Tools:
 
 [ ] 3rd party program to sync between two blob servers (unclaimed)
+[ ] fuse mounting
+[ ] Brackup integration, perhaps sans GPG? (requires Perl client?)
 
 Docs:
 
