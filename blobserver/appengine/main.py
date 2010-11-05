@@ -97,7 +97,9 @@ class HelloHandler(webapp.RequestHandler):
   """Present ourselves to the world."""
 
   def get(self):
-    self.response.out.write('Hello!  This is an AppEngine Camlistore blob server.')
+    self.response.out.write('Hello!  This is an AppEngine Camlistore '
+                            'blob server.<p>')
+    self.response.out.write('<a href=js/index.html>js frontend</a>')
 
 
 class ListHandler(webapp.RequestHandler):
