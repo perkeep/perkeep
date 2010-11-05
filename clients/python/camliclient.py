@@ -21,13 +21,16 @@
 
 __author__ = 'Brett Slatkin (bslatkin@gmail.com)'
 
+import base64
 import cStringIO
 import hashlib
 import httplib
 import logging
 import mimetools
+import optparse
 import os
 import re
+import string
 import sys
 import urllib
 import urlparse
@@ -81,13 +84,19 @@ class CamliOp(object):
   def __init__(self,
                server_address,
                buffer_size=BUFFER_SIZE,
-               create_connection=httplib.HTTPConnection):
-    """TOOD
+               create_connection=httplib.HTTPConnection,
+               auth=''):
+    """TODO
     """
     self.server_address = server_address
     self.buffer_size = buffer_size
     self._create_connection = create_connection
     self._connection = None
+    self._authorization = ''
+    if auth:
+      if len(auth.split(':')) != 2:
+        logging.fatal('Invalid auth string; should be username:password')
+      self._authorization = ('Basic ' + string.strip(base64.encodestring(auth)))
 
   def _setup_connection(self):
     """Sets up the HTTP connection."""
@@ -208,7 +217,8 @@ class CamliOp(object):
     self._setup_connection()
     self.connection.request(
         'POST', '/camli/preupload', urllib.urlencode(preupload),
-        {'Content-Type': 'application/x-www-form-urlencoded'})
+        {'Content-Type': 'application/x-www-form-urlencoded',
+         'Authorization': self._authorization})
     response = self.connection.getresponse()
     logging.debug('Preupload response: %d %s', response.status, response.reason)
     if response.status != 200:
@@ -262,9 +272,9 @@ class CamliOp(object):
       blob_number += 1
 
       out.write(boundary_start)
-      out.write('\nContent-Type: application/octet-stream\n')
-      out.write('Content-Disposition: form-data; name="%s"; filename="%d"\n\n'
-                % (blobref, blob_number))
+      out.write('\r\nContent-Type: application/octet-stream\r\n')
+      out.write('Content-Disposition: form-data; name="%s"; '
+                'filename="%d"\r\n\r\n' % (blobref, blob_number))
       if isinstance(blob, basestring):
         out.write(blob)
       else:
@@ -273,9 +283,9 @@ class CamliOp(object):
           if buf == '':
             break
           out.write(buf)
-      out.write('\n')
+      out.write('\r\n')
     out.write(boundary_start)
-    out.write('--')
+    out.write('--\r\n')
     request_body = out.getvalue()
 
     pieces = list(urlparse.urlparse(response_dict['uploadUrl']))
@@ -285,7 +295,8 @@ class CamliOp(object):
     self.connection.request(
         'POST', relative_url, request_body,
         {'Content-Type': 'multipart/form-data; boundary="%s"' % boundary,
-         'Content-Length': str(len(request_body))})
+         'Content-Length': str(len(request_body)),
+         'Authorization': self._authorization})
 
     response = self.connection.getresponse()
     logging.debug('Upload response: %d %s', response.status, response.reason)
@@ -372,8 +383,23 @@ def upload_dir(op, root_path, recursive=True, ignore_patterns=[r'^\..*']):
 
 def main(argv):
   logging.getLogger().setLevel(logging.DEBUG)
-  op = CamliOp('localhost:8080')
-  upload_dir(op, sys.argv[1])
+
+  usage = 'usage: %prog [options] DIR'
+  parser = optparse.OptionParser(usage=usage)
+  parser.add_option("-a", "--auth", dest="auth",
+                    default="",
+                    help="username:pasword for authentication")
+  parser.add_option("-s", "--server", dest="server",
+                    default="localhost:8080",
+                    help="hostname:port to connect to")
+  (opts, args) = parser.parse_args(argv[1:])
+
+  if not args:
+    parser.print_usage()
+    sys.exit(2)
+
+  op = CamliOp(opts.server, auth=opts.auth)
+  upload_dir(op, args[0])
 
 
 if __name__ == '__main__':
