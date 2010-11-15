@@ -6,3 +6,6 @@ GOFILES=\
 
 include $(GOROOT)/src/Make.cmd
 
+test:
+	prove test
+
