@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"encoding/base64"
@@ -10,9 +10,9 @@ import (
 
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
-var accessPassword string
+var AccessPassword string
 
-func isAuthorized(req *http.Request) bool {
+func IsAuthorized(req *http.Request) bool {
 	auth, present := req.Header["Authorization"]
 	if !present {
 		return false
@@ -34,14 +34,14 @@ func isAuthorized(req *http.Request) bool {
 		return false
 	}
 	password := userpass[1] // username at index 0 is currently unused
-	return password != "" && password == accessPassword
+	return password != "" && password == AccessPassword
 }
 
 // requireAuth wraps a function with another function that enforces
 // HTTP Basic Auth.
-func requireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
+func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
 	return func (conn http.ResponseWriter, req *http.Request) {
-		if !isAuthorized(req) {
+		if !IsAuthorized(req) {
 			conn.SetHeader("WWW-Authenticate", "Basic realm=\"camlistored\"")
 			conn.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprintf(conn, "Authentication required.\n")

@@ -5,9 +5,11 @@
 package main
 
 import (
+	"auth"
 	"flag"
 	"fmt"
 	"http"
+	"http_util"
 	"os"
 )
 
@@ -17,29 +19,29 @@ var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
-		badRequestError(conn, "Unsupported path or method.")
+		http_util.BadRequestError(conn, "Unsupported path or method.")
 	}
 	switch req.Method {
 	case "GET":
 		switch req.URL.Path {
 		case "/camli/enumerate-blobs":
-			handler = requireAuth(handleEnumerateBlobs)
+			handler = auth.RequireAuth(handleEnumerateBlobs)
 		default:
-			handler = requireAuth(handleGet)
+			handler = auth.RequireAuth(handleGet)
 		}
 	case "POST":
 		switch req.URL.Path {
 		case "/camli/preupload":
-			handler = requireAuth(handlePreUpload)
+			handler = auth.RequireAuth(handlePreUpload)
 		case "/camli/upload":
-			handler = requireAuth(handleMultiPartUpload)
+			handler = auth.RequireAuth(handleMultiPartUpload)
 		case "/camli/testform": // debug only
 			handler = handleTestForm
 		case "/camli/form": // debug only
 			handler = handleCamliForm
 		}
 	case "PUT": // no longer part of spec
-		handler = requireAuth(handlePut)
+		handler = auth.RequireAuth(handlePut)
 	}
 	handler(conn, req)
 }
@@ -56,8 +58,8 @@ func handleRoot(conn http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	accessPassword = os.Getenv("CAMLI_PASSWORD")
-	if len(accessPassword) == 0 {
+	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
+	if len(auth.AccessPassword) == 0 {
 		fmt.Fprintf(os.Stderr,
 			"No CAMLI_PASSWORD environment variable set.\n")
 		os.Exit(1)
