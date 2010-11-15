@@ -16,7 +16,8 @@ my $ua = LWP::UserAgent->new;
 my $req = HTTP::Request->new("GET", $server->root . "/");
 my $res = $ua->request($req);
 ok($res, "got an HTTP response") or done_testing();
-ok($res->is_success, "HTTP response is successful") or
-    diag("got status: " . $res->status_line);
+diag("http response: " . $res->status_line);
+ok($res->is_success, "HTTP response is successful");
 
 done_testing(3);
+

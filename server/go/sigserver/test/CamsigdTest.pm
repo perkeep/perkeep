@@ -12,27 +12,28 @@ use HTTP::Request;
 use Fcntl;
 
 our $BINARY = "$FindBin::Bin/../run.sh";
-our $pipe_reader;
-our $pipe_writer;
-BEGIN {
+
+sub start {
+    my $pipe_reader;
+    my $pipe_writer;
     pipe $pipe_reader, $pipe_writer;
     my $flags = fcntl($pipe_writer, F_GETFD, 0);
     fcntl($pipe_writer, F_SETFD, $flags & ~FD_CLOEXEC);
-}
 
-sub start {
     my $up_fd = scalar(fileno($pipe_writer));
     $ENV{TESTING_LISTENER_UP_WRITER_PIPE} = $up_fd;
+
     my $pid = fork;
     die "Failed to fork" unless defined($pid);
-    if ($pid) {
+    if ($pid == 0) {
         # child
         exec $BINARY;
         die "failed to exec: $!\n";
-    } else {
-        print "Waiting for server to start (waiting for byte on fd $up_fd)...\n";
-        getc($pipe_reader);
     }
+    print "Waiting for server to start (waiting for byte on fd $up_fd)...\n";
+    getc($pipe_reader);
+    close($pipe_reader);
+    close($pipe_writer);
     return CamsigdTest::Server->new($pid);
 }
 
@@ -46,7 +47,9 @@ sub new {
 sub DESTROY {
     my $self = shift;
     print "DESTROYING $self; pid=$self->{pid}\n";
-    kill 3, $self->{pid};  # SIGQUIT
+    my $killed = kill 9, $self->{pid};  # SIGQUIT
+    print "Killed = $killed\n";
+    waitpid $self->{pid}, 0;
 }
 
 sub root {
