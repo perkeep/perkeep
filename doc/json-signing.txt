@@ -74,11 +74,12 @@ SIGNING
 -- serialize it with whatever JSON serialization library you have
    available.  internal or trailing whitespace doesn't matter.  we'll
    call the JSON serialization of 'O' (defined in earlier step) 'J'
-   (e.g. doc/example/signing-before.camli)
+   (e.g. doc/example/signing-before-J.camli)
 
 -- now remove any trailing whitespace and exactly and only one '}'
    character from the end of string 'J'.  we'll call this truncated,
    trimmed string 'T'.
+   (e.g. doc/example/signing-before.camli)
 
 -- Create an ASCII-armored detached signature of this document,
    e.g.:
