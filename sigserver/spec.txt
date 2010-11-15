@@ -1,0 +1,12 @@
+(https) POST /camli/sig/sign
+WWW-Authenticate: [user] [b64pass]
+
+  json=[json to sign]
+  keyid=[GnuPG key id / implementation dependent]
+
+On good response:
+  HTTP 200 OK
+  (signed blob)
+
+else: (if verification fails)
+  HTTP 4xx/5xx
