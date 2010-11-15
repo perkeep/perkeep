@@ -1,9 +1,11 @@
 package main
 
 import (
+	"auth"
 	"flag"
 	"fmt"
 	"http"
+	"http_util"
 	"os"
 )
 
@@ -17,17 +19,33 @@ var listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen 
 
 var accessPassword string
 
+func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
+	handler := func (conn http.ResponseWriter, req *http.Request) {
+		http_util.BadRequestError(conn, "Unsupported path or method.")
+	}
+
+	switch req.Method {
+	case "POST":
+		switch req.URL.Path {
+		case "/camli/sig/sign":
+			handler = auth.RequireAuth(handleSign)
+		}
+	}
+	handler(conn, req)
+}
+
 func main() {
 	flag.Parse()
 
-	accessPassword = os.Getenv("CAMLI_PASSWORD")
-	if len(accessPassword) == 0 {
+	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
+	if len(auth.AccessPassword) == 0 {
 		fmt.Fprintf(os.Stderr,
 			"No CAMLI_PASSWORD environment variable set.\n")
 		os.Exit(1)
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/camli/sig/", handleCamliSig)
 	fmt.Printf("Starting to listen on http://%v/\n", *listen)
 	err := http.ListenAndServe(*listen, mux)
 	if err != nil {
