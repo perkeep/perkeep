@@ -74,7 +74,7 @@ SIGNING
 -- serialize it with whatever JSON serialization library you have
    available.  internal or trailing whitespace doesn't matter.  we'll
    call the JSON serialization of 'O' (defined in earlier step) 'J'
-   (e.g. doc/examples/signing-before.camli)
+   (e.g. doc/example/signing-before.camli)
 
 -- now remove any trailing whitespace and exactly and only one '}'
    character from the end of string 'J'.  we'll call this truncated,
@@ -86,7 +86,7 @@ SIGNING
    gpg --detach-sign --local-user=54F8A914 --armor \
        -o signing-before.camli.detachsig signing-before.camli
 
-   (The output file is in doc/examples/signing-before.camli.detachsig)
+   (The output file is in doc/example/signing-before.camli.detachsig)
 
 -- take just the base64 part of that ASCII detached signature
    into a single line, and call that 'S'.
