@@ -11,7 +11,7 @@ use LWP::UserAgent;
 use HTTP::Request;
 use Fcntl;
 
-our $BINARY = "$FindBin::Bin/../run.sh";
+our $BINARY = "$FindBin::Bin/../camsigd";
 
 sub start {
     my $pipe_reader;
@@ -22,6 +22,9 @@ sub start {
 
     my $up_fd = scalar(fileno($pipe_writer));
     $ENV{TESTING_LISTENER_UP_WRITER_PIPE} = $up_fd;
+    $ENV{CAMLI_PASSWORD} = "test";
+
+    die "Binary $BINARY doesn't exist\n" unless -x $BINARY;
 
     my $pid = fork;
     die "Failed to fork" unless defined($pid);
@@ -30,7 +33,7 @@ sub start {
         exec $BINARY;
         die "failed to exec: $!\n";
     }
-    print "Waiting for server to start (waiting for byte on fd $up_fd)...\n";
+    print "Waiting for server to start...\n";
     getc($pipe_reader);
     close($pipe_reader);
     close($pipe_writer);
