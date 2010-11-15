@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"http"
+	"http_util"
 	"os"
 	"io"
 )
@@ -10,7 +11,7 @@ import (
 func handleGet(conn http.ResponseWriter, req *http.Request) {
 	blobRef := ParsePath(req.URL.Path)
 	if blobRef == nil {
-		badRequestError(conn, "Malformed GET URL.")
+		http_util.BadRequestError(conn, "Malformed GET URL.")
 		return
 	}
 	fileName := blobRef.FileName()
@@ -21,12 +22,12 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err != nil {
-		serverError(conn, err)
+		http_util.ServerError(conn, err)
 		return
 	}
 	file, err := os.Open(fileName, os.O_RDONLY, 0)
 	if err != nil {
-		serverError(conn, err)
+		http_util.ServerError(conn, err)
 		return
 	}
 
@@ -34,7 +35,7 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 	if reqRange.SkipBytes != 0 {
 		_, err = file.Seek(reqRange.SkipBytes, 0)
 		if err != nil {
-			serverError(conn, err)
+			http_util.ServerError(conn, err)
 			return
 		}
 	}

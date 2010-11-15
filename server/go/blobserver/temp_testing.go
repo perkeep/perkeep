@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"http"
+	"http_util"
 	"io"
 )
 
@@ -27,13 +28,13 @@ Image png: <input type="file" name="image-png"><br>
 
 func handleTestForm(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/testform") {
-		badRequestError(conn, "Inconfigured handler.")
+		http_util.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
-		badRequestError(conn, fmt.Sprintf("Expected multipart/form-data POST request; %v", err))
+		http_util.BadRequestError(conn, fmt.Sprintf("Expected multipart/form-data POST request; %v", err))
 		return
 	}
 

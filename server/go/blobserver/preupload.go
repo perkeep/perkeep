@@ -1,22 +1,23 @@
 package main
 
 import (
-	"http"
 	"container/vector"
 	"fmt"
+	"http"
+	"http_util"
 	"os"
 )
 
 func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/preupload") {
-		badRequestError(conn, "Inconfigured handler.")
+		http_util.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
 	req.ParseForm()
 	camliVersion := req.FormValue("camliversion")
 	if camliVersion == "" {
-		badRequestError(conn, "No camliversion")
+		http_util.BadRequestError(conn, "No camliversion")
 		return
 	}
 	n := 0
@@ -31,11 +32,11 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 		}
 		ref := ParseBlobRef(value)
 		if ref == nil {
-			badRequestError(conn, "Bogus blobref for key "+key)
+			http_util.BadRequestError(conn, "Bogus blobref for key "+key)
 			return
 		}
 		if !ref.IsSupported() {
-			badRequestError(conn, "Unsupported or bogus blobref "+key)
+			http_util.BadRequestError(conn, "Unsupported or bogus blobref "+key)
 		}
 		n++
 
@@ -67,6 +68,6 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 
 	ret := commonUploadResponse(req)
 	ret["alreadyHave"] = haveVector.Copy()
-	returnJson(conn, ret)
+	http_util.ReturnJson(conn, ret)
 }
 
