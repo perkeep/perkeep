@@ -12,6 +12,8 @@ import (
 	"os"
 )
 
+var gpgPath *string = flag.String("gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
+
 var flagRing *string = flag.String("keyring", "./test/test-keyring.gpg",
 	"GnuPG public keyring file to use.")
 

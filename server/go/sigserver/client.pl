@@ -41,7 +41,7 @@ my $req = POST("$server/camli/sig/sign",
 my $ua = LWP::UserAgent->new;
 my $res = $ua->request($req);
 unless ($res->is_success) {
-    die "Failure: " . $res->status_line;
+    die "Failure: " . $res->status_line . ": " . $res->content;
 }
 
 print $res->content;
