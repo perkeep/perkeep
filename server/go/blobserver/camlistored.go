@@ -19,7 +19,9 @@ var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
-		http_util.BadRequestError(conn, "Unsupported path or method.")
+		http_util.BadRequestError(conn,
+			fmt.Sprintf("Unsupported path (%s) or method (%s).",
+			req.URL.Path, req.Method))
 	}
 	switch req.Method {
 	case "GET":

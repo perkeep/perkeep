@@ -283,6 +283,7 @@ public class UploadThread extends Thread {
                 }
             }
             length += endBoundarySize();
+            Log.d(TAG, "multipart getContentLength(): " + length);
             return length;
         }
 
@@ -291,6 +292,7 @@ public class UploadThread extends Thread {
         }
 
         public boolean isChunked() {
+            Log.d(TAG, "multipart isChunked(): false");
             return false;
         }
 
@@ -300,6 +302,7 @@ public class UploadThread extends Thread {
         }
 
         public boolean isStreaming() {
+            Log.d(TAG, "multipart isStreaming(): " + !mDone);
             return !mDone;
         }
 
@@ -364,10 +367,12 @@ public class UploadThread extends Thread {
             }
             endBoundary(pw);
             pw.flush();
+            bos.flush();
             Log.d(TAG, "finished writing upload MIME body.");
         }
 
         private int newBoundarySize() {
+            // "\r\n--" + boundary + "\r\n"
             return 6 + mBoundary.length();
         }
 
@@ -378,6 +383,7 @@ public class UploadThread extends Thread {
         }
 
         private int endBoundarySize() {
+            // "\r\n--" + boundary + "--\r\n"
             return 8 + mBoundary.length();
         }
 
