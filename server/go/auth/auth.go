@@ -42,6 +42,7 @@ func IsAuthorized(req *http.Request) bool {
 func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
 	return func (conn http.ResponseWriter, req *http.Request) {
 		if !IsAuthorized(req) {
+			req.Body.Close()  // http://code.google.com/p/go/issues/detail?id=1306
 			conn.SetHeader("WWW-Authenticate", "Basic realm=\"camlistored\"")
 			conn.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprintf(conn, "Authentication required.\n")

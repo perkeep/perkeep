@@ -1,10 +1,10 @@
 package main
 
 import (
+	"camli/http_util"
 	"crypto/sha1"
 	"fmt"
 	"http"
-	"http_util"
 	"io"
 )
 
