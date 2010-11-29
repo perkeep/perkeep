@@ -7,6 +7,6 @@ GOFILES=\
 
 include $(GOROOT)/src/Make.cmd
 
-test:
+test: camsigd
 	prove test
 
