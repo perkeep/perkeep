@@ -24,6 +24,10 @@ var listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen 
 
 var accessPassword string
 
+func handleRoot(conn http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(conn, "camsigd")
+}
+
 func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
 		http_util.BadRequestError(conn, "Unsupported path or method.")
@@ -67,6 +71,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/camli/sig/", handleCamliSig)
 	fmt.Printf("Starting to listen on http://%v/\n", *listen)
 
