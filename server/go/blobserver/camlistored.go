@@ -5,11 +5,11 @@
 package main
 
 import (
-	"auth"
+	"camli/auth"
+	"camli/http_util"
 	"flag"
 	"fmt"
 	"http"
-	"http_util"
 	"os"
 )
 
@@ -66,6 +66,7 @@ func main() {
 			"No CAMLI_PASSWORD environment variable set.\n")
 		os.Exit(1)
 	}
+
 
 	{
 		fi, err := os.Stat(*flagStorageRoot)
