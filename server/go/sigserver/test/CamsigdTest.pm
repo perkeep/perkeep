@@ -30,21 +30,28 @@ sub start {
     die "Failed to fork" unless defined($pid);
     if ($pid == 0) {
         # child
-        exec $BINARY;
+        exec $BINARY, "-listen=:0";
         die "failed to exec: $!\n";
     }
     print "Waiting for server to start...\n";
-    getc($pipe_reader);
+    my $line = <$pipe_reader>;
     close($pipe_reader);
     close($pipe_writer);
-    return CamsigdTest::Server->new($pid);
+
+    # Parse the port line out
+    print "Got port line: $line\n";
+    chomp $line;
+    die "Failed to start, no port info." unless $line =~ /:(\d+)$/;
+    my $port = $1;
+
+    return CamsigdTest::Server->new($pid, $port);
 }
 
 package CamsigdTest::Server;
 
 sub new {
-    my ($class, $pid) = @_;
-    return bless { pid => $pid };
+    my ($class, $pid, $port) = @_;
+    return bless { pid => $pid, port => $port };
 }
 
 sub DESTROY {
@@ -56,7 +63,8 @@ sub DESTROY {
 }
 
 sub root {
-    return "http://localhost:2856";
+    my $self = shift;
+    return "http://localhost:$self->{port}";
 }
 
 1;

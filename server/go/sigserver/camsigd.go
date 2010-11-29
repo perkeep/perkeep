@@ -46,7 +46,8 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 // Signals the test harness that we've started listening.
 // TODO: write back the port number that we randomly selected?
 // For now just writes back a single byte.
-func signalTestHarness() {
+func signalTestHarness(listener net.Listener) {
+	log.Printf("Listening on %v", listener.Addr().String())
 	fdStr := os.Getenv("TESTING_LISTENER_UP_WRITER_PIPE")
 	if fdStr == "" {
 		return
@@ -56,9 +57,9 @@ func signalTestHarness() {
 		log.Exitf("Bogus test harness fd '%s': %v", fdStr, err)
 	}
 	file := os.NewFile(fd, "signalpipe")
-	file.Write([]byte{'U'})
+	file.Write([]byte(listener.Addr().String()))
+	file.Write([]byte{'\n'})
 }
-
 
 func main() {
 	flag.Parse()
@@ -79,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Exitf("Failed to listen on %s: %v", *listen, err)
 	}
-	signalTestHarness()
+	signalTestHarness(listener)
 	err = http.Serve(listener, mux)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
