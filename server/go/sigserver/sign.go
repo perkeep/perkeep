@@ -38,7 +38,7 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 		http_util.BadRequestError(conn, "json parameter lacks trailing '}'.")
 		return
 	}
-	trimmedJson = trimmedJson[0:len(trimmedJson)-2]
+	trimmedJson = trimmedJson[0:len(trimmedJson)-1]
 
 	cmd, err := exec.Run(
 		*gpgPath,
