@@ -1,6 +1,6 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=auth
+TARG=camli/auth
 GOFILES=\
 	auth.go
 

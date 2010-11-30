@@ -2,14 +2,14 @@ package main
 
 import (
 	"auth"
+	"camli/http_util"
 	"flag"
 	"fmt"
+	"http"
 	"log"
 	"net"
-	"strconv"
-	"http"
-	"http_util"
 	"os"
+	"strconv"
 )
 
 var gpgPath *string = flag.String("gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
