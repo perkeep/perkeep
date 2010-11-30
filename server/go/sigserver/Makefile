@@ -4,6 +4,7 @@ TARG=camsigd
 GOFILES=\
 	camsigd.go\
 	sign.go\
+	verify.go\
 
 include $(GOROOT)/src/Make.cmd
 

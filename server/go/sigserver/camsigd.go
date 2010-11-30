@@ -38,6 +38,8 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 		switch req.URL.Path {
 		case "/camli/sig/sign":
 			handler = auth.RequireAuth(handleSign)
+		case "/camli/sig/verify":
+			handler = handleVerify
 		}
 	}
 	handler(conn, req)
