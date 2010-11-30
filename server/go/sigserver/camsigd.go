@@ -1,7 +1,7 @@
 package main
 
 import (
-	"auth"
+	"camli/auth"
 	"camli/http_util"
 	"flag"
 	"fmt"
