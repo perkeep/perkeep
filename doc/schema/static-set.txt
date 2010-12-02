@@ -17,3 +17,7 @@ Static set schema
     "digalg-blobref-item8"   // ... be invalid, for instance.
   ]
 }
+
+Note: dynamic sets are structured differently, using a permanode and
+      membership claim nodes.  The above is just for presenting a snapshot
+      of members.
