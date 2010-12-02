@@ -1,0 +1,25 @@
+{
+  "name": "Clip It Good",
+  "version": "0.1",
+  "description": "Save webpage clippings and images to your Picasa Web Albums.",
+  "background_page": "background.html",
+  "options_page": "options.html",
+  "permissions": [
+      "tabs",
+      "http://*/*",
+      "https://*/*",
+      "https://www.google.com/accounts/OAuthGetRequestToken",
+      "https://www.google.com/accounts/OAuthAuthorizeToken",
+      "https://www.google.com/accounts/OAuthGetAccessToken",
+      "https://picasaweb.google.com/data/*",
+      "contextMenus"
+      ],
+  "page_action": {
+    "default_icon": "icon19.png"
+    },
+  "minimum_chrome_version": "9.0",
+  "icons": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+}
