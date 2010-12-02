@@ -61,13 +61,14 @@
       
     }
     .add-album-control {
-      margin-top: 1em;
+      margin-top: 2em;
     }
 
     /* other */
     .security-detail {
       max-width: 400px;
     }
+
   </style>
 
   <script type="text/javascript" charset="utf-8">
@@ -75,6 +76,13 @@
   var BG = chrome.extension.getBackgroundPage();
 
   // Generic album listing
+  function removeAlbum(albumType, albumId) {
+    delete BG.ALBUM_CONFIG[albumType][albumId];
+    if ($.isEmptyObject(BG.ALBUM_CONFIG[albumType])) {
+      delete BG.ALBUM_CONFIG[albumType];
+    }
+  }
+
   function populateAlbumList() {
     var connectedAlbums = $('#connected-list');
     connectedAlbums.contents().remove();
@@ -99,12 +107,7 @@
         album.text(albumDict['name'] + ' ');
         var removeLink = $('<a href="">').text('(Remove)');
         removeLink.click(function(event) {
-          delete BG.ALBUM_CONFIG[albumType][albumDict['id']];
-          if ($.isEmptyObject(BG.ALBUM_CONFIG[albumType])) {
-            delete BG.ALBUM_CONFIG[albumType];
-          }
-          album.remove();
-
+          removeAlbum(albumType, albumDict['id']);
           BG.saveAlbumConfig();
           populateAlbumList();
           BG.setupMenus();
@@ -189,8 +192,39 @@
     });
   }
 
+  function addCamlistoreServer() {
+    var camliServerDiv = $('#camliserver-config');
+
+    camliServerDiv.dialog({
+      modal: true,
+      resizable: false,
+      width: 550,
+      title: 'Connect a Camlistore Server',
+      buttons: {
+        'Add': function() {
+          var urlInput = $('#camliserver-url');
+          var nameInput = $('#camliserver-name');
+
+          if (!BG.ALBUM_CONFIG[BG.CAMLISTORE]) {
+            BG.ALBUM_CONFIG[BG.CAMLISTORE] = {};
+          }
+          BG.ALBUM_CONFIG[BG.CAMLISTORE][urlInput.val()] = nameInput.val();
+
+          BG.saveAlbumConfig();
+          populateAlbumList();
+          BG.setupMenus();
+          $(this).dialog('close');
+        },
+        'Cancel': function() {
+          $(this).dialog('close');
+        }
+      }
+    });
+  }
+
   $(document).ready(function() {
     $('#add-picasa').click(addPicasaAlbum);
+    $('#add-camlistore').click(addCamlistoreServer);
     populateAlbumList();
   });
   </script>
@@ -205,6 +239,7 @@
 
 <div class="add-album-control">
   <button id="add-picasa" type="button">Add Picasa Web Album</button>
+  <button id="add-camlistore" type="button">Add Camlistore Server</button>
 </div>
 
 <h2>Security information</h2>
@@ -236,6 +271,19 @@ Connecting an album to <em>Clip It Good</em> will require giving this extension 
   <div class="album-type"></div>
   <ol class="album-list"></ol>
   <div class="album-controls">Drag to select multiple or click while holding Control/&#x2318; for specific items.</div>
+</div>
+
+<div id="camliserver-config" style="display: none;">
+  <table width="100%" border="0">
+    <tr>
+      <td><label for="camliserver-url">Blobserver URL:</label></td>
+      <td><input type="text" id="camliserver-url" size="35"></td>
+    </tr>
+    <tr>
+      <td><label for="camliserver-name">Pretty name:</label></td>
+      <td><input type="text" id="camliserver-name" size="35"></td>
+    </tr>
+  </table>
 </div>
 
 </body>

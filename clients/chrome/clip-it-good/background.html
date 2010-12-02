@@ -84,16 +84,6 @@
           });
         });
       });
-
-      // XXX a hack for camli short term
-      chrome.contextMenus.create({
-          title: 'Dummy',
-          contexts: ['image'],
-          onclick: function(data, tab) {
-            return handleMenuClick(
-                CAMLISTORE, 'my album', 'http://localhost:8080', data, tab);
-          }
-        });
     });
   }
 
