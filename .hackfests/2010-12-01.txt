@@ -12,3 +12,12 @@ camli support (currently non-existent), and get it to:
 
 I will work on docs & signing server tests & signing verification
 endpoint.
+
+
+--------------
+
+Done:
+
+  * Brad: docs re-organized
+  * Brad: camlistore.{com,org,net,info,us} domains purchased
+
