@@ -195,6 +195,10 @@
   function addCamlistoreServer() {
     var camliServerDiv = $('#camliserver-config');
 
+    function clearInputs() {
+      camliServerDiv.find('input').val('');
+    }
+
     camliServerDiv.dialog({
       modal: true,
       resizable: false,
@@ -204,6 +208,8 @@
         'Add': function() {
           var urlInput = $('#camliserver-url');
           var nameInput = $('#camliserver-name');
+          var usernameInput = $('#camliserver-username');
+          var passwordInput = $('#camliserver-password');
 
           if (!BG.ALBUM_CONFIG[BG.CAMLISTORE]) {
             BG.ALBUM_CONFIG[BG.CAMLISTORE] = {};
@@ -214,16 +220,18 @@
           var albumId = urlInput.val();
           BG.ALBUM_CONFIG[BG.CAMLISTORE][albumId] = nameInput.val();
           BG.ALBUM_OPTIONS[BG.CAMLISTORE][albumId] = {
-            'username': $('#camliserver-username').val(),
-            'password': $('#camliserver-password').val()
+            'username': usernameInput.val(),
+            'password': passwordInput.val()
           };
 
           BG.saveAlbumConfig();
           populateAlbumList();
           BG.setupMenus();
+          clearInputs();
           $(this).dialog('close');
         },
         'Cancel': function() {
+          clearInputs();
           $(this).dialog('close');
         }
       }
