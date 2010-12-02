@@ -125,16 +125,66 @@
     },
 
     camlistore: function(albumId, albumName, dataSrcUrl, dataBuffer, xhrDone) {
-      //var preUploadXhr = new XMLHttpRequest();
-      //preUploadXhr.open('POST', albumId, true);
-      //preUploadXhr.onreadystatechange = function() {
-      //  if (xhr.readyState == XMLHttpRequest.DONE) {
-      //  }
-      //}
-      //preUploadXhr.send();
+      var hash = Crypto.SHA1(new Uint8Array(dataBuffer, 0));
 
-      var dataView = new Uint8Array(dataBuffer, 0);
-      console.log("Sha1 is: ", Crypto.SHA1(dataView));
+      function doUpload(uploadUrl) {
+        // XXX Use real random boundary.
+        var boundary = 'randomboundaryXYZ';
+        var contentType = 'multipart/form-data; boundary=' + boundary;
+
+        var header =
+          '--' + boundary + '\r\n' +
+          'Content-Type: application/octet-stream\r\n' +
+          'Content-Disposition: form-data; name="sha1-' + hash +
+              '"; filename="1"\r\n\r\n'
+        var footer = '\r\n--' + boundary + '--\r\n';
+
+        console.log('header: ' + header);
+
+        var builder = new BlobBuilder();
+        builder.append(header);
+        builder.append(dataBuffer);
+        builder.append(footer);
+        var payload = builder.getBlob(contentType);
+
+        var uploadXhr = new XMLHttpRequest();
+        uploadXhr.open('POST', uploadUrl, true);
+        uploadXhr.onreadystatechange = function() {
+          if (uploadXhr.readyState == XMLHttpRequest.DONE &&
+              uploadXhr.status == 200) {
+            var responseJson = $.parseJSON(uploadXhr.responseText)
+            console.log('upload done');
+            console.log(responseJson);
+          }
+          // XXX: Handle errors
+        }
+        uploadXhr.setRequestHeader('Content-Type', contentType);
+        uploadXhr.send(payload);
+      }
+
+      var preUploadXhr = new XMLHttpRequest();
+      preUploadXhr.open('POST', albumId + '/camli/preupload', true);
+      preUploadXhr.onreadystatechange = function() {
+        if (preUploadXhr.readyState == XMLHttpRequest.DONE &&
+            preUploadXhr.status == 200) {
+          var responseJson = $.parseJSON(preUploadXhr.responseText)
+          console.log('preupload done');
+          console.log(responseJson);
+
+          // XXX: Check if the blob is already present.
+
+          var uploadUrl = responseJson.uploadUrl;
+          if (!uploadUrl) {
+            // XXX: handle error
+          }
+
+          doUpload(uploadUrl);
+        }
+        // XXX: Handle errors
+      }
+      preUploadXhr.setRequestHeader(
+          'Content-Type', 'application/x-www-form-urlencoded');
+      preUploadXhr.send('camliversion=1&blob1=sha1-' + hash);
     }
 
   };

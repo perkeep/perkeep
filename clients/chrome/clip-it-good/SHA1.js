@@ -44,12 +44,6 @@ var SHA1 = C.SHA1 = function (message, options) {
 // The core
 SHA1._sha1 = function (message) {
 
-  console.log(message);
-  console.log("Length is " + message.length);
-  console.log("Byte 0: " + message[0]);
-  console.log("Byte 1: " + message[1]);
-  console.log("Byte 2: " + message[2]);
-
 	// Convert to byte array
 	if (message.constructor == String) message = UTF8.stringToBytes(message);
 	/* else, assume byte array already */
