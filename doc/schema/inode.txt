@@ -1,0 +1,15 @@
+Inode schema.
+
+{"camliVersion": 1,
+ "camliType": "inode",
+ "inodeId": 12345  // st_ino
+ "deviceId": 53,   // st_dev
+ "numLinks": 3,    // st_nlink
+}
+
+This is optional and probably rarely used, but lets two+ files be
+represented as hardlinks with each other.  If both files point to the
+same inode object, they're hardlinks of each other.
+
+Note that unlink "directory", "file", and "schema", this does not
+inherit fields from the "file-common" schema.

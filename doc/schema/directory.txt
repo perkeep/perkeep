@@ -1,0 +1,13 @@
+Directory schema
+
+{"camliVersion": 1,
+ "camliType": "directory",
+
+  //
+  // INCLUDE ALL REQUIRED & ANY OPTIONAL FIELDS FROM file-common.txt
+  //
+
+  // Required:
+  "entries": "digalg-blobref-to-static-set",
+}
+

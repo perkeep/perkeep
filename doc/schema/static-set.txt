@@ -1,0 +1,23 @@
+Static set schema
+
+{"camliVersion": 1,
+ "camliType": "static-set",
+
+ // Required.
+ // May be ordered to unordered, depending on context/needs.  If unordered,
+ // it's recommended but not required to sort the blobrefs.
+ "members": [
+    "digalg-blobref-item1",  // maybe a file?
+    "digalg-blobref-item2",  // maybe a directory?
+    "digalg-blobref-item3",  // maybe a symlink?
+    "digalg-blobref-item4",  // maybe a permanode?
+    "digalg-blobref-item5",  // ... don't know until you fetch it
+    "digalg-blobref-item6",  // ... and what's valid depends on context
+    "digalg-blobref-item7",  // ... a permanode in a directory would
+    "digalg-blobref-item8"   // ... be invalid, for instance.
+  ]
+}
+
+Note: dynamic sets are structured differently, using a permanode and
+      membership claim nodes.  The above is just for presenting a snapshot
+      of members.

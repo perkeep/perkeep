@@ -1,0 +1,16 @@
+A signed "keep" edge for GC/indexing purposes.  Expressed a user's
+intent to keep an object.
+
+This is not the only way to keep an object alive for the purposes of
+GC.  Permanodes (signed by a user) are also part of that user's roots,
+and anything they reference (including blobs via "become" claims on
+those permanodes)
+
+This is just the most explicit way when you're not modeling the data
+with permanodes.
+
+{"camliVersion": 1,
+ "camliType": "keep",
+ "target": "digalg-blobref-of-thing-to-keep",
+<REQUIRED-JSON-SIGNATURE>}
+
