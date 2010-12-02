@@ -4,6 +4,8 @@
 <script type="text/javascript" src="jquery-1.4.2.min.js"></script>
 <script type="text/javascript" src="chrome_ex_oauthsimple.js"></script>
 <script type="text/javascript" src="chrome_ex_oauth.js"></script>
+<script type="text/javascript" src="Crypto.js"></script>
+<script type="text/javascript" src="SHA1.js"></script>
 
 <script type="text/javascript" charset="utf-8">
 
@@ -19,8 +21,10 @@
 
   // Constants for various album types.
   var PICASA = 'picasa';
+  var CAMLISTORE = 'camlistore';
   var ALBUM_TYPE_STRING = {
-    'picasa': 'Picasa Web Albums'
+    picasa: 'Picasa Web Albums',
+    camlistore: 'Camlistore'
   };
 
   // Preferences
@@ -59,8 +63,6 @@
     loadAlbumConfig();
 
     chrome.contextMenus.removeAll(function() {
-      // TODO: Sort the list somehow? Or is it already pre-sorted because
-      // of the way the albums are presented during configuration?
       $.each(ALBUM_CONFIG, function(albumType, albumIdNameDict) {
         chrome.contextMenus.create({
           title: ALBUM_TYPE_STRING[albumType],
@@ -77,18 +79,31 @@
             contexts: ['image'],
             onclick: function(data, tab) {
               return handleMenuClick(
-                  albumType, albumDict.name, albumDict.id, data, tab)
+                  albumType, albumDict.name, albumDict.id, data, tab);
             }
           });
         });
       });
+
+      // XXX a hack for camli short term
+      chrome.contextMenus.create({
+          title: 'Dummy',
+          contexts: ['image'],
+          onclick: function(data, tab) {
+            return handleMenuClick(
+                CAMLISTORE, 'my album', 'http://localhost:8080', data, tab);
+          }
+        });
     });
   }
 
   // Upload actions
   var ALBUM_TYPE_UPLOAD_FUNC = {
 
-    'picasa': function(albumId, albumName, dataSrcUrl, dataBlob, xhrDone) {
+    picasa: function(albumId, albumName, dataSrcUrl, dataBuffer, xhrDone) {
+      var builder = new BlobBuilder();
+      builder.append(dataBuffer);
+
       OAUTH.authorize(function() {
         OAUTH.sendSignedRequest(
           'http://picasaweb.google.com/data/feed/api/' +
@@ -103,10 +118,23 @@
             parameters: {
               alt: 'json'
             },
-            body: dataBlob
+            body: builder.getBlob('image/png')
           }
         );
       });
+    },
+
+    camlistore: function(albumId, albumName, dataSrcUrl, dataBuffer, xhrDone) {
+      //var preUploadXhr = new XMLHttpRequest();
+      //preUploadXhr.open('POST', albumId, true);
+      //preUploadXhr.onreadystatechange = function() {
+      //  if (xhr.readyState == XMLHttpRequest.DONE) {
+      //  }
+      //}
+      //preUploadXhr.send();
+
+      var dataView = new Uint8Array(dataBuffer, 0);
+      console.log("Sha1 is: ", Crypto.SHA1(dataView));
     }
 
   };
@@ -128,8 +156,7 @@
       var dataUrl = canvas.toDataURL();
       var dataUrlAdjusted = dataUrl.replace('data:image/png;base64,', '');
 
-      var builder = new BlobBuilder();
-      builder.append(Base64.decode(dataUrlAdjusted).buffer);
+      var arrayBuffer = Base64.decode(dataUrlAdjusted).buffer;
 
       function complete(resp, xhr) {
         chrome.pageAction.hide(tab.id);
@@ -140,8 +167,7 @@
       }  // end complete
 
       var uploadFunc = ALBUM_TYPE_UPLOAD_FUNC[albumType];
-      uploadFunc(albumId, albumName, data.srcUrl,
-                 builder.getBlob('image/png'), complete);
+      uploadFunc(albumId, albumName, data.srcUrl, arrayBuffer, complete);
     }  // end onload
 
     img.src = data.srcUrl;
