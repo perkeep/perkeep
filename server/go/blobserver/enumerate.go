@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"http"
 	"os"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,14 +22,14 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 	dirFullPath := *flagStorageRoot + "/" + diskRoot
 	dir, err := os.Open(dirFullPath, os.O_RDONLY, 0)
 	if err != nil {
-		fmt.Println("Error opening directory: ", err)
+		log.Println("Error opening directory: ", err)
 		ch <- &blobInfo{Error: err}
 		return
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
 	if err != nil {
-		fmt.Println("Error reading dirnames: ", err)
+		log.Println("Error reading dirnames: ", err)
 		ch <- &blobInfo{Error: err}
 		return
 	}

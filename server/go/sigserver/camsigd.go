@@ -76,7 +76,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/camli/sig/", handleCamliSig)
-	fmt.Printf("Starting to listen on http://%v/\n", *listen)
+	log.Printf("Starting to listen on http://%v/\n", *listen)
 
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {

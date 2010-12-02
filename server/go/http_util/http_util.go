@@ -5,10 +5,12 @@ import (
 	"http"
 	"json"
 	"os"
+	"log"
 )
 
 func BadRequestError(conn http.ResponseWriter, errorMessage string) {
 	conn.WriteHeader(http.StatusBadRequest)
+	log.Printf("Bad request: %s", errorMessage)
 	fmt.Fprintf(conn, "%s\n", errorMessage)
 }
 
@@ -18,6 +20,7 @@ func ServerError(conn http.ResponseWriter, err os.Error) {
 }
 
 func ReturnJson(conn http.ResponseWriter, data interface{}) {
+	conn.SetHeader("Content-Type", "text/javascript")
 	bytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		BadRequestError(conn, fmt.Sprintf(

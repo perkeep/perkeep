@@ -6,6 +6,7 @@ import (
 	"http"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	)
 
@@ -32,37 +33,43 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	for {
 		part, err := multipart.NextPart()
 		if err != nil {
-			fmt.Println("Error reading multipart section:", err)
+			log.Println("Error reading multipart section:", err)
 			break
 		}
 		if part == nil {
 			break
 		}
 		formName := part.FormName()
-		fmt.Printf("New value [%s], part=%v\n", formName, part)
+		log.Printf("New value [%s], part=%v\n", formName, part)
 
 		ref := ParseBlobRef(formName)
 		if ref == nil {
-			fmt.Printf("Ignoring form key [%s]\n", formName)
+			log.Printf("Ignoring form key [%s]\n", formName)
 			continue
 		}
 
 		blobGot, err := receiveBlob(ref, part)
 		if err != nil {
-			fmt.Printf("Error receiving blob %v: %v\n", ref, err)
+			log.Printf("Error receiving blob %v: %v\n", ref, err)
 			break
 		}
-		fmt.Printf("Received blob %v\n", blobGot)
+		log.Printf("Received blob %v\n", blobGot)
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	fmt.Println("Done reading multipart body.")
-	for _, got := range receivedBlobs {
-		fmt.Printf("Got blob: %v\n", got)
-	}
-	// TODO: put the blobs in the JSON here
-
+	log.Println("Done reading multipart body.")
 	ret := commonUploadResponse(req)
+
+	received := make([]map[string]interface{}, 0)
+	for _, got := range receivedBlobs {
+		log.Printf("Got blob: %v\n", got)
+		blob := make(map[string]interface{})
+		blob["blobRef"] = got.blobRef.String()
+		blob["size"] = got.size
+		received = append(received, blob)
+	}
+	ret["received"] = received
+
 	http_util.ReturnJson(conn, ret)
 }
 
@@ -96,7 +103,7 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (blobGot *receivedBlob, err
 	success := false // set true later
 	defer func() {
 		if !success {
-			fmt.Println("Removing temp file: ", tempFile.Name())
+			log.Println("Removing temp file: ", tempFile.Name())
 			os.Remove(tempFile.Name())
 		}
 	}()

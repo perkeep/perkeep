@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"http"
+	"log"
 	"os"
 )
 
@@ -83,7 +84,7 @@ func main() {
 	mux.HandleFunc("/camli/", handleCamli)
 	mux.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
 
-	fmt.Printf("Starting to listen on http://%v/\n", *listen)
+	log.Printf("Starting to listen on http://%v/\n", *listen)
 	err := http.ListenAndServe(*listen, mux)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
