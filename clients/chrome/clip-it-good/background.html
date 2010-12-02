@@ -29,16 +29,23 @@
 
   // Preferences
   var ALBUM_CONFIG = {};  // 'type' -> ('id' -> 'name')
+  var ALBUM_OPTIONS = {};  // 'type' -> ('id' -> optionsDict)
 
   function loadAlbumConfig() {
     var newAlbumConfig = localStorage.getItem('config:albums');
     if (newAlbumConfig) {
       ALBUM_CONFIG = $.parseJSON(newAlbumConfig);
     }
+
+    var newAlbumOptions = localStorage.getItem('config:albumOptions');
+    if (newAlbumOptions) {
+      ALBUM_OPTIONS = $.parseJSON(newAlbumOptions);
+    }
   }
 
   function saveAlbumConfig() {
     localStorage.setItem('config:albums', JSON.stringify(ALBUM_CONFIG));
+    localStorage.setItem('config:albumOptions', JSON.stringify(ALBUM_OPTIONS));
   }
 
   // Sort albums by name.
@@ -127,6 +134,7 @@
                          dataBuffer, uploadDone) {
       var hash = Crypto.SHA1(new Uint8Array(dataBuffer, 0));
       var blobRef = 'sha1-' + hash;
+      var options = ALBUM_OPTIONS[CAMLISTORE][albumId];
 
       function doUpload(uploadUrl) {
         // XXX Use real random boundary.
@@ -147,7 +155,8 @@
         var payload = builder.getBlob(contentType);
 
         var uploadXhr = new XMLHttpRequest();
-        uploadXhr.open('POST', uploadUrl, true);
+        uploadXhr.open('POST', uploadUrl, true,
+                       options.username, options.password);
         uploadXhr.onreadystatechange = function() {
           if (uploadXhr.readyState == XMLHttpRequest.DONE &&
               uploadXhr.status == 200) {
@@ -172,7 +181,8 @@
       }
 
       var preUploadXhr = new XMLHttpRequest();
-      preUploadXhr.open('POST', albumId + '/camli/preupload', true);
+      preUploadXhr.open('POST', albumId + '/camli/preupload', true,
+                        options.username, options.password);
       preUploadXhr.onreadystatechange = function() {
         if (preUploadXhr.readyState == XMLHttpRequest.DONE &&
             preUploadXhr.status == 200) {

@@ -208,7 +208,15 @@
           if (!BG.ALBUM_CONFIG[BG.CAMLISTORE]) {
             BG.ALBUM_CONFIG[BG.CAMLISTORE] = {};
           }
-          BG.ALBUM_CONFIG[BG.CAMLISTORE][urlInput.val()] = nameInput.val();
+          if (!BG.ALBUM_OPTIONS[BG.CAMLISTORE]) {
+            BG.ALBUM_OPTIONS[BG.CAMLISTORE] = {};
+          }
+          var albumId = urlInput.val();
+          BG.ALBUM_CONFIG[BG.CAMLISTORE][albumId] = nameInput.val();
+          BG.ALBUM_OPTIONS[BG.CAMLISTORE][albumId] = {
+            'username': $('#camliserver-username').val(),
+            'password': $('#camliserver-password').val()
+          };
 
           BG.saveAlbumConfig();
           populateAlbumList();
@@ -259,7 +267,7 @@ Connecting an album to <em>Clip It Good</em> will require giving this extension 
     Extension and source licensed under the
     <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License,
     Version 2.0</a>. Uses <a href="http://jqueryui.com/">jQuery UI</a> (MIT/GPL), 
-    <a href="http://www.json.org/js.html">json2 parser</a> (free domain),
+    <a href="http://www.json.org/js.html">json2 parser</a> (public domain),
     <a href="http://code.google.com/p/javascriptbase64/">Fred Palmer's Base64</a>
     (BSD compat), and <a href="http://code.google.com/p/crypto-js/">Jeff
     Mott's SHA1</a> (BSD compat).
@@ -276,12 +284,20 @@ Connecting an album to <em>Clip It Good</em> will require giving this extension 
 <div id="camliserver-config" style="display: none;">
   <table width="100%" border="0">
     <tr>
-      <td><label for="camliserver-url">Blobserver URL:</label></td>
-      <td><input type="text" id="camliserver-url" size="35"></td>
+      <td><label for="camliserver-url">Blobserver&nbsp;URL:</label></td>
+      <td><input type="text" id="camliserver-url" size="30"></td>
     </tr>
     <tr>
-      <td><label for="camliserver-name">Pretty name:</label></td>
-      <td><input type="text" id="camliserver-name" size="35"></td>
+      <td><label for="camliserver-name">Pretty&nbsp;name:</label></td>
+      <td><input type="text" id="camliserver-name" size="30"></td>
+    </tr>
+    <tr>
+      <td><label for="camliserver-username">Username:</label></td>
+      <td><input type="text" id="camliserver-username" size="30"></td>
+    </tr>
+    <tr>
+      <td><label for="camliserver-password">Password:</label></td>
+      <td><input type="text" id="camliserver-password" size="30"></td>
     </tr>
   </table>
 </div>
