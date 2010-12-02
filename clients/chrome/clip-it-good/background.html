@@ -100,15 +100,24 @@
   // Upload actions
   var ALBUM_TYPE_UPLOAD_FUNC = {
 
-    picasa: function(albumId, albumName, dataSrcUrl, dataBuffer, xhrDone) {
+    picasa: function(albumId, albumName, dataSrcUrl, dataBuffer, uploadDone) {
       var builder = new BlobBuilder();
       builder.append(dataBuffer);
+
+      function complete(resp, xhr) {
+        if (!(xhr.status >= 200 && xhr.status <= 299)) {
+          alert('Error: Response status = ' + xhr.status +
+                ', response body = "' + xhr.responseText + '"');
+        } else {
+          uploadDone();
+        }
+      }
 
       OAUTH.authorize(function() {
         OAUTH.sendSignedRequest(
           'http://picasaweb.google.com/data/feed/api/' +
           'user/default/albumid/' + albumId,
-          xhrDone,
+          complete,
           {
             method: 'POST',
             headers: {
@@ -124,8 +133,10 @@
       });
     },
 
-    camlistore: function(albumId, albumName, dataSrcUrl, dataBuffer, xhrDone) {
+    camlistore: function(albumId, albumName, dataSrcUrl,
+                         dataBuffer, uploadDone) {
       var hash = Crypto.SHA1(new Uint8Array(dataBuffer, 0));
+      var blobRef = 'sha1-' + hash;
 
       function doUpload(uploadUrl) {
         // XXX Use real random boundary.
@@ -135,11 +146,9 @@
         var header =
           '--' + boundary + '\r\n' +
           'Content-Type: application/octet-stream\r\n' +
-          'Content-Disposition: form-data; name="sha1-' + hash +
+          'Content-Disposition: form-data; name="' + blobRef +
               '"; filename="1"\r\n\r\n'
         var footer = '\r\n--' + boundary + '--\r\n';
-
-        console.log('header: ' + header);
 
         var builder = new BlobBuilder();
         builder.append(header);
@@ -152,11 +161,21 @@
         uploadXhr.onreadystatechange = function() {
           if (uploadXhr.readyState == XMLHttpRequest.DONE &&
               uploadXhr.status == 200) {
+            // XXX Check for bad response format (not JSON).
             var responseJson = $.parseJSON(uploadXhr.responseText)
-            console.log('upload done');
-            console.log(responseJson);
+
+            if (responseJson.received &&
+                responseJson.received.length == 1 &&
+                responseJson.received[0].blobRef == blobRef) {
+              console.log('Successful upload: ' + blobRef);
+              uploadDone();
+              return;
+            }
+
+            alert('Camlistore upload response did not verify blob "' +
+                  blobRef + '": ' + uploadXhr.responseText);
           }
-          // XXX: Handle errors
+          // XXX: Handle request errors
         }
         uploadXhr.setRequestHeader('Content-Type', contentType);
         uploadXhr.send(payload);
@@ -167,24 +186,31 @@
       preUploadXhr.onreadystatechange = function() {
         if (preUploadXhr.readyState == XMLHttpRequest.DONE &&
             preUploadXhr.status == 200) {
-          var responseJson = $.parseJSON(preUploadXhr.responseText)
-          console.log('preupload done');
-          console.log(responseJson);
+          // XXX Check for bad response format (not JSON).
+          var responseJson = $.parseJSON(preUploadXhr.responseText);
 
-          // XXX: Check if the blob is already present.
+          if (responseJson.alreadyHave &&
+              responseJson.alreadyHave.length == 1 &&
+              responseJson.alreadyHave[0].blobRef == blobRef) {
+            console.log('Blob already present: ' + blobRef);
+            uploadDone();
+            return;
+          }
 
           var uploadUrl = responseJson.uploadUrl;
           if (!uploadUrl) {
-            // XXX: handle error
+            alert('Camlistore preupload response missing "uploadUrl": ' +
+                  preUploadXhr.responseText);
+            return;
           }
 
           doUpload(uploadUrl);
         }
-        // XXX: Handle errors
+        // XXX: Handle request errors
       }
       preUploadXhr.setRequestHeader(
           'Content-Type', 'application/x-www-form-urlencoded');
-      preUploadXhr.send('camliversion=1&blob1=sha1-' + hash);
+      preUploadXhr.send('camliversion=1&blob1=' + blobRef);
     }
 
   };
@@ -208,16 +234,12 @@
 
       var arrayBuffer = Base64.decode(dataUrlAdjusted).buffer;
 
-      function complete(resp, xhr) {
+      function uploadDone() {
         chrome.pageAction.hide(tab.id);
-        if (!(xhr.status >= 200 && xhr.status <= 299)) {
-          alert('Error: Response status = ' + xhr.status +
-                ', response body = "' + xhr.responseText + '"');
-        }
-      }  // end complete
+      }
 
       var uploadFunc = ALBUM_TYPE_UPLOAD_FUNC[albumType];
-      uploadFunc(albumId, albumName, data.srcUrl, arrayBuffer, complete);
+      uploadFunc(albumId, albumName, data.srcUrl, arrayBuffer, uploadDone);
     }  // end onload
 
     img.src = data.srcUrl;
