@@ -1,6 +1,7 @@
 package main
 
 import (
+	"camli/blobref"
 	"camli/http_util"
 	"container/vector"
 	"fmt"
@@ -30,7 +31,7 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 		if value == "" {
 			break
 		}
-		ref := ParseBlobRef(value)
+		ref := blobref.Parse(value)
 		if ref == nil {
 			http_util.BadRequestError(conn, "Bogus blobref for key "+key)
 			return
@@ -42,7 +43,7 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 
 		// Parallel stat all the files...
 		go func() {
-			fi, err := os.Stat(ref.FileName())
+			fi, err := os.Stat(BlobFileName(ref))
 			if err == nil && fi.IsRegular() {
 				info := make(map[string]interface{})
 				info["blobRef"] = ref.String()

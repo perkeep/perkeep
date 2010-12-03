@@ -1,6 +1,7 @@
 package main
 
 import (
+	"camli/blobref"
 	"camli/http_util"
 	"fmt"
 	"http"
@@ -11,7 +12,7 @@ import (
 	)
 
 type receivedBlob struct {
-	blobRef  *BlobRef
+	blobRef  blobref.BlobRef
 	size     int64
 }
 
@@ -42,7 +43,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 		formName := part.FormName()
 		log.Printf("New value [%s], part=%v\n", formName, part)
 
-		ref := ParseBlobRef(formName)
+		ref := blobref.Parse(formName)
 		if ref == nil {
 			log.Printf("Ignoring form key [%s]\n", formName)
 			continue
@@ -87,15 +88,15 @@ func commonUploadResponse(req *http.Request) map[string]interface{} {
 	return ret
 }
 
-func receiveBlob(blobRef *BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
-	hashedDirectory := blobRef.DirectoryName()
+func receiveBlob(blobRef blobref.BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
+	hashedDirectory := BlobDirectoryName(blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		return
 	}
 
 	var tempFile *os.File
-	tempFile, err = ioutil.TempFile(hashedDirectory, blobRef.FileBaseName()+".tmp")
+	tempFile, err = ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
 	if err != nil {
 		return
 	}
@@ -118,7 +119,7 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (blobGot *receivedBlob, err
 		return
 	}
 
-	fileName := blobRef.FileName()
+	fileName := BlobFileName(blobRef)
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
 		return
 	}
@@ -138,7 +139,7 @@ func receiveBlob(blobRef *BlobRef, source io.Reader) (blobGot *receivedBlob, err
 }
 
 func handlePut(conn http.ResponseWriter, req *http.Request) {
-	blobRef := ParsePath(req.URL.Path)
+	blobRef := BlobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		http_util.BadRequestError(conn, "Malformed PUT URL.")
 		return

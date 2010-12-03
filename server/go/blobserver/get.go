@@ -9,12 +9,12 @@ import (
 )
 
 func handleGet(conn http.ResponseWriter, req *http.Request) {
-	blobRef := ParsePath(req.URL.Path)
+	blobRef := BlobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		http_util.BadRequestError(conn, "Malformed GET URL.")
 		return
 	}
-	fileName := blobRef.FileName()
+	fileName := BlobFileName(blobRef)
 	stat, err := os.Stat(fileName)
 	if err == os.ENOENT {
 		conn.WriteHeader(http.StatusNotFound)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"camli/blobref"
 	"fmt"
 	"http"
 	"os"
@@ -13,7 +14,7 @@ import (
 const maxEnumerate = 100000
 
 type blobInfo struct {
-	*BlobRef
+	blobref.BlobRef
 	*os.FileInfo
 	os.Error
 }
@@ -73,7 +74,7 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 			if blobName <= after {
 				continue
 			}
-			blobRef := ParseBlobRef(blobName)
+			blobRef := blobref.Parse(blobName)
 			if blobRef != nil {
 				bi := &blobInfo{BlobRef: blobRef, FileInfo: fi}
 				ch <- bi
