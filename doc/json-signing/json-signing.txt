@@ -97,6 +97,8 @@ SIGNING
    ,"camliSig":"<S>"}\n
 
    ... where <S> is the single-line ASCII base64 detached signature.
+   Note that there are exactly 13 bytes before <S> and exactly
+   3 bytes after <S>.  Those must match exactly.
 
 -- the resulting string is 'C', the camli-signed JSON document.
 
@@ -124,7 +126,7 @@ VERIFYING
                   ,"camliSig":"
 
    Let's call the bytes before that 'BP' ("bytes payload") and the bytes
-   after 'BS' ("bytes signature")
+   starting at that substring 'BS' ("bytes signature")
 
 -- define 'BPJ' ("bytes payload JSON") as 'BP' + the single byte '}'.
 

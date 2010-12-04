@@ -14,7 +14,7 @@ package main
 */
 
 import (
-//	"bytes"
+	"bytes"
 //	"crypto/openpgp/armor"
 //	"crypto/openpgp/packet"
 ///	"crypto/rsa"
@@ -27,6 +27,8 @@ import (
 	"camli/http_util"
 	"http"
 	)
+
+const sigSeparator = `,"camliSig":"`
 
 var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
@@ -52,9 +54,34 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 		http_util.BadRequestError(conn, "Missing sjson parameter.")
 		return
 	}
+
+	// See doc/json-signing/* for background and details
+	// on these variable names.
+
+	BA := []byte(sjson)
+	sigIndex := bytes.LastIndex(BA, []byte(sigSeparator))
+	if sigIndex == -1 {
+		verifyFail("no 13-byte camliSig separator found in sjson")
+		return
+	}
+
+	// "Bytes Payload"
+	BP := BA[0:sigIndex]
+
+	// "Bytes Payload JSON".  Note we re-use the memory (the ",")
+	// from BA in BPJ, so we can't re-use that "," byte for
+	// the opening "{" in "BS".
+	BPJ := BA[0:sigIndex+1]
+	BPJ[sigIndex] = '}'
+
+	BS := []byte("{" + sjson[sigIndex+1:])
+
+	log.Printf("BP = [%s]", string(BP))
+	log.Printf("BPJ = [%s]", string(BPJ))
+	log.Printf("BS = [%s]", string(BS))
 	
 	sjsonKeys := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(sjson), &sjsonKeys); err != nil {
+	if err := json.Unmarshal(BPJ, &sjsonKeys); err != nil {
 		verifyFail("parse error; JSON is invalid")
 		return
 	}
@@ -81,6 +108,11 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 	log.Printf("Signer: %v", signerBlob)
+	
+	sigKey := make(map[string]interface{})
+	if err := json.Unmarshal(BPJ, &sigKey); err != nil {
+	   verifyFail("parse error; signature JSON invalid")
+	}
 	
 	log.Printf("Got json: %v", sjsonKeys)
 	conn.WriteHeader(http.StatusNotImplemented)
