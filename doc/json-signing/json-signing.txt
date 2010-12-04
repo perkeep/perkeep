@@ -116,6 +116,29 @@ this recommendation for compatibility with other verification code)
 VERIFYING
 =========
 
+-- start with a byte array representing the JSON to be verified.
+   call this 'BA' ("bytes all")
 
+-- given the byte array, find the last index in 'BA' of the 13 byte
+   substring:
+                  ,"camliSig":"
 
+   Let's call the bytes before that 'BP' ("bytes payload") and the bytes
+   after 'BS' ("bytes signature")
 
+-- define 'BPJ' ("bytes payload JSON") as 'BP' + the single byte '}'.
+
+-- parse 'BPJ', verifying that it's valid JSON object (dictionary).
+   verify that the object has a 'camliSigner' key with a string key
+   that's a valid blobref (e.g. "sha1-xxxxxxx") note the camliSigner.
+
+-- replace the first byte of 'BS' (the ',') with an open brace ('{')
+   and parse it as JSON. verify that it's a valid JSON object with
+   exactly one key: "camliSig"
+
+-- using 'camliSigner', a camli blobref, find the blob (cached, via
+   camli/web lookup, etc) that represents a GPG public key.
+
+-- use GnuPG or equivalent libraries to verify that the ASCI-armored
+   GPG signature in "camliSig" signs the bytes in 'BP' using the
+   GPG public key found via the 'camliSigner' blobref
