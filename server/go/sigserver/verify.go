@@ -35,25 +35,30 @@ const sigSeparator = `,"camliSig":"`
 var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
 
-func readOpenPGPPacketFromArmoredFileOrDie(fileName string, armorType string) (p packet.Packet) {
+func openArmoredPublicKeyFile(fileName string) (*packet.PublicKeyPacket, os.Error) {
 	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		log.Exit("Cannot open '%s': %s", fileName, err)
+		return nil, os.NewError(fmt.Sprintf("Error reading public key file: %v", err))
 	}
 
 	block, _ := armor.Decode(data)
 	if block == nil {
-		log.Exit("cannot parse armor")
+		return nil, os.NewError("Couldn't find PGP block in public key file")
 	}
-	if block.Type != armorType {
-		log.Exitf("bad type in '%s' (got: %s, want: %s)", fileName, block.Type, armorType)
+	if block.Type != "PGP PUBLIC KEY BLOCK" {
+		return nil, os.NewError("Invalid public key blob.")
 	}
 	buf := bytes.NewBuffer(block.Bytes)
-	p, err = packet.ReadPacket(buf)
+	p, err := packet.ReadPacket(buf)
 	if err != nil {
-		log.Exitf("failed to parse packet from '%s': %s", fileName, err)
+		return nil, os.NewError(fmt.Sprintf("Invalid public key blob: %v", err))
 	}
-	return
+
+	pk, ok := p.(packet.PublicKeyPacket)
+	if !ok {
+		return nil, os.NewError(fmt.Sprintf("Invalid public key blob; not a public key packet"))
+	}
+	return &pk, nil
 }
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {
@@ -153,26 +158,13 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 
 	// verify that we have the public key signature file
 	publicKeyFile := fmt.Sprintf("%s/%s.camli", *flagPubKeyDir, signerBlob.String())
-	pubf, err := os.Open(publicKeyFile, os.O_RDONLY, 0)
-	if err != nil {
-		verifyFail(fmt.Sprintf("couldn't find the public key for camliSigner %s: %v",
-			signerBlob, err))
-	}
-	defer pubf.Close()
 
-	log.Printf("Opened public key file")
-
-	pubKeySlurp, err := ioutil.ReadAll(pubf)
+	pk, err := openArmoredPublicKeyFile(publicKeyFile)
 	if err != nil {
-		verifyFail(fmt.Sprintf("Error reading public key file: %v", err))
+		verifyFail(fmt.Sprintf("Error opening public key file: %v", err))
 		return
 	}
-
-	block, _ := armor.Decode(pubKeySlurp)
-	if block == nil {
-		verifyFail("Couldn't find PGP block in public key file")
-		return
-	}
+	log.Printf("Public key packet: %v", pk)
 
 	log.Printf("TODO: finish implementing")
 	conn.WriteHeader(http.StatusNotImplemented)
