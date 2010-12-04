@@ -14,14 +14,18 @@ use Fcntl;
 our $BINARY = "$FindBin::Bin/../camsigd";
 
 sub start {
-    my $pipe_reader;
-    my $pipe_writer;
-    pipe $pipe_reader, $pipe_writer;
-    my $flags = fcntl($pipe_writer, F_GETFD, 0);
-    fcntl($pipe_writer, F_SETFD, $flags & ~FD_CLOEXEC);
+    my ($port_rd, $port_wr, $exit_rd, $exit_wr);
+    my $flags;
+    pipe $port_rd, $port_wr;
+    pipe $exit_rd, $exit_wr;
 
-    my $up_fd = scalar(fileno($pipe_writer));
-    $ENV{TESTING_LISTENER_UP_WRITER_PIPE} = $up_fd;
+    $flags = fcntl($port_wr, F_GETFD, 0);
+    fcntl($port_wr, F_SETFD, $flags & ~FD_CLOEXEC);
+    $flags = fcntl($exit_rd, F_GETFD, 0);
+    fcntl($exit_rd, F_SETFD, $flags & ~FD_CLOEXEC);
+
+    $ENV{TESTING_PORT_WRITE_FD} = fileno($port_wr);
+    $ENV{TESTING_CONTROL_READ_FD} = fileno($exit_rd);
     $ENV{CAMLI_PASSWORD} = "test";
 
     die "Binary $BINARY doesn't exist\n" unless -x $BINARY;
@@ -33,33 +37,37 @@ sub start {
         exec $BINARY, "-listen=:0";
         die "failed to exec: $!\n";
     }
+    close($exit_rd);  # child owns this side
+    close($port_wr);  # child owns this side
+
     print "Waiting for server to start...\n";
-    my $line = <$pipe_reader>;
-    close($pipe_reader);
-    close($pipe_writer);
+    my $line = <$port_rd>;
+    close($port_rd);
 
     # Parse the port line out
-    print "Got port line: $line\n";
     chomp $line;
+    # print "Got port line: $line\n";
     die "Failed to start, no port info." unless $line =~ /:(\d+)$/;
     my $port = $1;
 
-    return CamsigdTest::Server->new($pid, $port);
+    return CamsigdTest::Server->new($pid, $port, $exit_wr);
 }
 
 package CamsigdTest::Server;
 
 sub new {
-    my ($class, $pid, $port) = @_;
-    return bless { pid => $pid, port => $port };
+    my ($class, $pid, $port, $pipe_writer) = @_;
+    return bless {
+        pid => $pid,
+        port => $port,
+        pipe_writer => $pipe_writer,
+    };
 }
 
 sub DESTROY {
     my $self = shift;
-    print "DESTROYING $self; pid=$self->{pid}\n";
-    my $killed = kill 9, $self->{pid};  # SIGQUIT
-    print "Killed = $killed\n";
-    waitpid $self->{pid}, 0;
+    my $pipe = $self->{pipe_writer};
+    syswrite($pipe, "EXIT\n", 5);
 }
 
 sub root {

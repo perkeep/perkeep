@@ -133,12 +133,12 @@ func Decode(data []byte) (p *Block, rest []byte) {
 
 	i := bytes.Index(rest, armorEnd)
 	if i < 4 {
-		print("1\n")
+		// print("1\n")
 		goto Error
 	}
 	encodedChecksumLength := 5
 	if rest[i-1] == '\r' {
-		print("2\n")
+		// print("2\n")
 		encodedChecksumLength = 6
 	}
 	encodedChecksum := removeWhitespace(rest[i-encodedChecksumLength : i])

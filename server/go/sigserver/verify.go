@@ -15,25 +15,44 @@ package main
 
 import (
 	"bytes"
+	"camli/blobref"
+	"camli/http_util"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
-///	"crypto/rsa"
-//	"crypto/sha1"
-	"camli/blobref"
+	"crypto/rsa"
+	"crypto/sha1"
+	"flag"
 	"fmt"
+	"http"
 	"io/ioutil"
 	"json"
 	"log"
 	"os"
-	"flag"
-	"camli/http_util"
-	"http"
+	"strings"
 	)
+
+var logf = log.Printf
 
 const sigSeparator = `,"camliSig":"`
 
 var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
+
+// reArmor takes a camliSig (single line armor) and turns it back into an PGP-style
+// multi-line armored string
+func reArmor(line string) string {
+	lastEq := strings.LastIndex(line, "=")
+	if lastEq == -1 {
+		return ""
+	}
+	return fmt.Sprintf(`
+-----BEGIN PGP SIGNATURE-----
+
+%s
+%s
+-----END PGP SIGNATURE-----
+`, line[0:lastEq], line[lastEq:])
+}
 
 func openArmoredPublicKeyFile(fileName string) (*packet.PublicKeyPacket, os.Error) {
 	data, err := ioutil.ReadFile(fileName)
@@ -104,7 +123,6 @@ func (vr *VerifyRequest) ParseSigMap() bool {
 		return vr.fail("camliSig not a string")
 	}
 
-	log.Printf("camliSig = [%s]", vr.CamliSig)
 	return true
 }
 
@@ -115,7 +133,6 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 	if err := json.Unmarshal(vr.bpj, &pm); err != nil {
 		return vr.fail("parse error; payload JSON is invalid")
 	}
-	log.Printf("Got json: %v", pm)
 
 	if _, hasVersion := pm["camliVersion"]; !hasVersion {
 		return vr.fail("Missing 'camliVersion' in the JSON payload")
@@ -134,8 +151,6 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 	if vr.CamliSigner == nil {
 		return vr.fail("Malformed 'camliSigner' blobref in the JSON payload")
 	}
-
-	log.Printf("Signer: %v", vr.CamliSigner)
 	return true
 }
 
@@ -146,14 +161,43 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 	if err != nil {
 		return vr.fail(fmt.Sprintf("Error opening public key file: %v", err))
 	}
-	log.Printf("Public key packet: %v", pk)
 	vr.PublicKeyPacket = pk
 	return true;
 }
 
 func (vr *VerifyRequest) VerifySignature() bool {
-	 log.Printf("TODO: implement VerifySignature")
-	return false
+	armorData := reArmor(vr.CamliSig)
+	block, _ := armor.Decode([]byte(armorData))
+	if block == nil {
+		return vr.fail("Can't parse camliSig armor")
+	}
+	buf := bytes.NewBuffer(block.Bytes)
+	p, err := packet.ReadPacket(buf)
+	if err != nil {
+		return vr.fail("Error reading PGP packet from camliSig")
+	}
+	sig, ok := p.(packet.SignaturePacket)
+	if !ok {
+		return vr.fail("PGP packet isn't a signature packet")
+	}
+	if sig.Hash != packet.HashFuncSHA1 {
+		return vr.fail("I can only verify SHA1 signatures")
+	}
+	if sig.SigType != packet.SigTypeBinary {
+		return vr.fail("I can only verify binary signatures")
+	}
+	hash := sha1.New()
+	hash.Write(vr.bp)  // payload bytes
+	hash.Write(sig.HashSuffix)
+	hashBytes := hash.Sum()
+	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
+		return vr.fail("hash tag doesn't match")
+	}
+	err = rsa.VerifyPKCS1v15(&vr.PublicKeyPacket.PublicKey, rsa.HashSHA1, hashBytes, sig.Signature)
+	if err != nil {
+		return vr.fail(fmt.Sprintf("bad signature: %s", err))
+	}
+	return true
 }
 
 func NewVerificationRequest(sjson string) (vr *VerifyRequest) {
@@ -175,26 +219,30 @@ func NewVerificationRequest(sjson string) (vr *VerifyRequest) {
 	vr.bpj = vr.ba[0:sigIndex+1]
 	vr.bpj[sigIndex] = '}'
 	vr.bs = []byte("{" + sjson[sigIndex+1:])
+	return
+}
 
-	log.Printf("BP = [%s]", string(vr.bp))
-	log.Printf("BPJ = [%s]", string(vr.bpj))
-	log.Printf("BS = [%s]", string(vr.bs))
+func (vr *VerifyRequest) Verify() bool {
+	if vr.Err != nil {
+		return false
+	}
 
-	if !(vr.ParseSigMap() &&
+	if vr.ParseSigMap() &&
 		vr.ParsePayloadMap() &&
 		vr.FindAndParsePublicKeyBlob() &&
-		vr.VerifySignature()) {
-		// Don't allow dumbs callers to accidentally check this
-		// if it's not valid.
-		vr.PayloadMap = nil
-		if vr.Err == nil {
-			// The other functions just fill this in already,
-			// but just in case:
-			vr.Err = os.NewError("Verification failed")
-		}
-		return
+		vr.VerifySignature() {
+		return true;
 	}
-	return
+
+	// Don't allow dumbs callers to accidentally check this
+	// if it's not valid.
+	vr.PayloadMap = nil
+	if vr.Err == nil {
+		// The other functions just fill this in already,
+		// but just in case:
+		vr.Err = os.NewError("Verification failed")
+	}
+	return false
 }
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {
@@ -203,30 +251,25 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	verifyFail := func(msg string) {
-		conn.WriteHeader(http.StatusOK)  // no HTTP response code fun, error's in JSON
-		m := make(map[string]interface{})
-		m["signatureValid"] = 0
-		m["errorMessage"] = msg
-		http_util.ReturnJson(conn, m)
-	}
-
 	req.ParseForm()
-
 	sjson := req.FormValue("sjson")
 	if sjson == "" {
 		http_util.BadRequestError(conn, "Missing sjson parameter.")
 		return
 	}
 
+	m := make(map[string]interface{})
+
 	vreq := NewVerificationRequest(sjson)
-	log.Printf("Request is: %q", vreq)
-	if vreq.Err != nil {
-		verifyFail(vreq.Err.String())
-		return
+	if vreq.Verify() {
+		m["signatureValid"] = 1
+		m["verifiedData"] = vreq.PayloadMap
+	} else {
+		errStr := vreq.Err.String()
+		m["signatureValid"] = 0
+		m["errorMessage"] = errStr
 	}
 
-	log.Printf("TODO: finish implementing")
-	conn.WriteHeader(http.StatusNotImplemented)
-	conn.Write([]byte("TODO: implement"))
+	conn.WriteHeader(http.StatusOK)  // no HTTP response code fun, error info in JSON
+	http_util.ReturnJson(conn, m)
 }

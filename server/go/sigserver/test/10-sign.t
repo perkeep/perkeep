@@ -13,15 +13,16 @@ ok($server, "Started the server") or BAIL_OUT("can't start the server");
 
 my $ua = LWP::UserAgent->new;
 
+use constant CAMLI_SIGNER => "sha1-82e6f3494f698aa498d5906349c0aa0a183d89a6";
+
 my $j = JSON::Any->new;
 my $json = $j->objToJson({ "camliVersion" => 1,
-                           "camliSigner" => "sha1-82e6f3494f698aa498d5906349c0aa0a183d89a6",
+                           "camliSigner" => CAMLI_SIGNER,
                            "foo" => "bar",
                          });
 
 print "JSON: [$json]\n";
 my $keyid = "26F5ABDA";  # test key
-
 
 # Sign it.
 my $sjson;
@@ -31,7 +32,7 @@ my $sjson;
     ok($res, "got an HTTP sig response") or done_testing();
     ok($res->is_success, "HTTP sig response is successful") or done_testing();
     $sjson = $res->content;
-    diag("Got signed: $sjson");
+    print "Got signed: $sjson";
     like($sjson, qr/camliSig/, "contains camliSig substring");
     
     my $sobj = $j->jsonToObj($sjson);
@@ -48,10 +49,31 @@ my $sjson;
     my $res = $ua->request($req);
     ok($res, "got an HTTP verify response") or done_testing();
     ok($res->is_success, "HTTP verify response is successful") or done_testing();
-    my $vcontent = $res->content;
+    print "Verify response: " . $res->content;
+    my $vobj = $j->jsonToObj($res->content);
+    ok(defined($vobj->{'signatureValid'}), "has 'signatureValid' key");
+    ok($vobj->{'signatureValid'}, "signature is valid");
+    my $vdat = $vobj->{'verifiedData'};
+    ok(defined($vdat), "has verified data");
+    is($vdat->{'camliSigner'}, CAMLI_SIGNER, "signer matches");
+    is($vdat->{'foo'}, "bar")
 }
 
-done_testing(9);
+# Verification that should fail.
+{
+    my $req = req("verify", { "sjson" => "{}" });
+    my $res = $ua->request($req);
+    ok($res, "got an HTTP verify response") or done_testing();
+    ok($res->is_success, "HTTP verify response is successful") or done_testing();
+    print "Verify response: " . $res->content;
+    my $vobj = $j->jsonToObj($res->content);
+    ok(defined($vobj->{'signatureValid'}), "has 'signatureValid' key");
+    is(0, $vobj->{'signatureValid'}, "signature is properly invalid");
+    ok(!defined($vobj->{'verifiedData'}), "no verified data key");
+    ok(defined($vobj->{'errorMessage'}), "has an error message");
+}
+
+done_testing(22);
 
 sub req {
     my ($method, $post_params) = @_;

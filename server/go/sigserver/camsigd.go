@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"camli/auth"
 	"camli/http_util"
 	"flag"
@@ -45,22 +46,39 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 	handler(conn, req)
 }
 
-// Signals the test harness that we've started listening.
-// TODO: write back the port number that we randomly selected?
-// For now just writes back a single byte.
-func signalTestHarness(listener net.Listener) {
-	log.Printf("Listening on %v", listener.Addr().String())
-	fdStr := os.Getenv("TESTING_LISTENER_UP_WRITER_PIPE")
+func pipeFromEnvFd(env string) *os.File {
+	fdStr := os.Getenv(env)
 	if fdStr == "" {
-		return
+		return nil
 	}
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
 		log.Exitf("Bogus test harness fd '%s': %v", fdStr, err)
 	}
-	file := os.NewFile(fd, "signalpipe")
-	file.Write([]byte(listener.Addr().String()))
-	file.Write([]byte{'\n'})
+	return os.NewFile(fd, "testingpipe-" + env)
+}
+
+// Signals the test harness that we've started listening.
+// TODO: write back the port number that we randomly selected?
+// For now just writes back a single byte.
+func runTestHarnessIntegration(listener net.Listener) {
+	writePipe := pipeFromEnvFd("TESTING_PORT_WRITE_FD")
+	readPipe := pipeFromEnvFd("TESTING_CONTROL_READ_FD")
+
+	if writePipe != nil {
+		writePipe.Write([]byte(listener.Addr().String() + "\n"))
+	}
+
+	if readPipe != nil {
+		bufr := bufio.NewReader(readPipe)
+		for {
+			line, err := bufr.ReadString('\n')
+			if err == os.EOF || line == "EXIT\n" {
+				os.Exit(0)
+			}
+			return
+		}
+	}
 }
 
 func main() {
@@ -76,13 +94,16 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/camli/sig/", handleCamliSig)
-	log.Printf("Starting to listen on http://%v/\n", *listen)
+
+	if *listen != ":0" {  // be quiet for unit tests
+		log.Printf("Starting to listen on http://%v/\n", *listen)
+	}
 
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		log.Exitf("Failed to listen on %s: %v", *listen, err)
 	}
-	signalTestHarness(listener)
+	go runTestHarnessIntegration(listener)
 	err = http.Serve(listener, mux)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
