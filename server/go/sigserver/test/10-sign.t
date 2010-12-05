@@ -73,7 +73,23 @@ my $sjson;
     ok(defined($vobj->{'errorMessage'}), "has an error message");
 }
 
-done_testing(22);
+# Imposter!  Verification should fail.
+{
+    my $eviljson = q{{"camliVersion":1,"camliSigner":"sha1-82e6f3494f698aa498d5906349c0aa0a183d89a6","foo":"evilbar","camliSig":"iQEcBAABAgAGBQJM+tnUAAoJEIUeCLJL7Fq1ruwH/RplOpmrTK51etXUHayRGN0RM0Jxttjwa0pPuiHr7fJifaZo2pvMZOMAttjFEP/HMjvpSVi8P7awBFXXlCTj0CAlexsmCsPEHzITXe3siFzH+XCSmfHNPYYti0apQ2+OcWNnzqWXLiEfP5yRVXxcxoWuxYlnFu+mfw5VdjrJpIa+n3Ys5D4zUPVCSNtF4XV537czqfd9AiSfKCY/aL2NuZykl4WtP3JgYl8btE84EjNLFasQDstcWOvp7rrP6T8hQQotw5/F4SmmFM6ybkWXk/Wkax3XpzW9qL00VqhxHd4JIWaSzSV/WcSQwCoLWc7uXttOWgVtMIhzpjeMlqt1gc0==QYU2"}};
+    my $req = req("verify", { "sjson" => $eviljson });
+    my $res = $ua->request($req);
+    ok($res, "got an HTTP verify response") or done_testing();
+    ok($res->is_success, "HTTP verify response is successful") or done_testing();
+    print "Verify response: " . $res->content;
+    my $vobj = $j->jsonToObj($res->content);
+    ok(defined($vobj->{'signatureValid'}), "has 'signatureValid' key");
+    is(0, $vobj->{'signatureValid'}, "signature is properly invalid");
+    ok(!defined($vobj->{'verifiedData'}), "no verified data key");
+    ok(defined($vobj->{'errorMessage'}), "has an error message");
+    like($vobj->{'errorMessage'}, qr/bad signature: RSA verification error/, "verification error");
+}
+
+done_testing(29);
 
 sub req {
     my ($method, $post_params) = @_;
