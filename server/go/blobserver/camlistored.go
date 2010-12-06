@@ -6,7 +6,7 @@ package main
 
 import (
 	"camli/auth"
-	"camli/http_util"
+	"camli/httputil"
 	"camli/webserver"
 	"flag"
 	"fmt"
@@ -19,7 +19,7 @@ var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
-		http_util.BadRequestError(conn,
+		httputil.BadRequestError(conn,
 			fmt.Sprintf("Unsupported path (%s) or method (%s).",
 			req.URL.Path, req.Method))
 	}

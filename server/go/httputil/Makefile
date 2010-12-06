@@ -1,7 +1,7 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camli/http_util
+TARG=camli/httputil
 GOFILES=\
-	http_util.go
+	httputil.go
 
 include $(GOROOT)/src/Make.pkg

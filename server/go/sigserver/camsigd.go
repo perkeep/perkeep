@@ -2,7 +2,7 @@ package main
 
 import (
 	"camli/auth"
-	"camli/http_util"
+	"camli/httputil"
 	"camli/webserver"
 	"flag"
 	"fmt"
@@ -26,7 +26,7 @@ func handleRoot(conn http.ResponseWriter, req *http.Request) {
 
 func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
-		http_util.BadRequestError(conn, "Unsupported path or method.")
+		httputil.BadRequestError(conn, "Unsupported path or method.")
 	}
 
 	switch req.Method {

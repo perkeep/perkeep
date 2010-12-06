@@ -1,7 +1,7 @@
 package main
 
 import (
-	"camli/http_util"
+	"camli/httputil"
 	"exec"
 	"fmt"
 	"http"
@@ -14,7 +14,7 @@ import (
 
 func handleSign(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/sig/sign") {
-		http_util.BadRequestError(conn, "Inconfigured handler.")
+		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
@@ -22,20 +22,20 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 
 	json := req.FormValue("json")
 	if json == "" {
-		http_util.BadRequestError(conn, "Missing json parameter.")
+		httputil.BadRequestError(conn, "Missing json parameter.")
 		return
 	}
 
 	var keyId int
 	numScanned, err := fmt.Sscanf(req.FormValue("keyid"), "%x", &keyId)
 	if numScanned != 1 {
-		http_util.BadRequestError(conn, "Couldn't parse keyid parameter.")
+		httputil.BadRequestError(conn, "Couldn't parse keyid parameter.")
 		return
 	}
 
 	trimmedJson := strings.TrimRightFunc(json, unicode.IsSpace)
 	if len(trimmedJson) == 0 || trimmedJson[len(trimmedJson)-1] != '}' {
-		http_util.BadRequestError(conn, "json parameter lacks trailing '}'.")
+		httputil.BadRequestError(conn, "json parameter lacks trailing '}'.")
 		return
 	}
 	trimmedJson = trimmedJson[0:len(trimmedJson)-1]
@@ -56,20 +56,20 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 		exec.Pipe,  // stdout
 		exec.Pipe)  // stderr
 	if err != nil {
-		http_util.BadRequestError(conn, "Failed to run gpg.")
+		httputil.BadRequestError(conn, "Failed to run gpg.")
 		return
 	}
 
 	_, err = cmd.Stdin.WriteString(trimmedJson)
 	if err != nil {
-		http_util.BadRequestError(conn, "Failed to write to gpg.")
+		httputil.BadRequestError(conn, "Failed to write to gpg.")
 		return
 	}
 	cmd.Stdin.Close()
 
 	outputBytes, err := ioutil.ReadAll(cmd.Stdout)
 	if err != nil {
-		http_util.BadRequestError(conn, "Failed to read from gpg.")
+		httputil.BadRequestError(conn, "Failed to read from gpg.")
 		return
 	}
 	output := string(outputBytes)
@@ -84,7 +84,7 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 	index1 := strings.Index(output, "\n\n")
 	index2 := strings.Index(output, "\n-----")
 	if (index1 == -1 || index2 == -1) {
-		http_util.BadRequestError(conn, "Failed to parse signature from gpg.")
+		httputil.BadRequestError(conn, "Failed to parse signature from gpg.")
 		return
 	}
 	inner := output[index1+2:index2]

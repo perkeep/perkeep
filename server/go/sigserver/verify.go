@@ -16,7 +16,7 @@ package main
 import (
 	"bytes"
 	"camli/blobref"
-	"camli/http_util"
+	"camli/httputil"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
 	"crypto/rsa"
@@ -247,14 +247,14 @@ func (vr *VerifyRequest) Verify() bool {
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/sig/verify") {
-		http_util.BadRequestError(conn, "Inconfigured handler.")
+		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
 	req.ParseForm()
 	sjson := req.FormValue("sjson")
 	if sjson == "" {
-		http_util.BadRequestError(conn, "Missing sjson parameter.")
+		httputil.BadRequestError(conn, "Missing sjson parameter.")
 		return
 	}
 
@@ -271,5 +271,5 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 	}
 
 	conn.WriteHeader(http.StatusOK)  // no HTTP response code fun, error info in JSON
-	http_util.ReturnJson(conn, m)
+	httputil.ReturnJson(conn, m)
 }

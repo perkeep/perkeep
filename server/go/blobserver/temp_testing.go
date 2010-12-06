@@ -1,7 +1,7 @@
 package main
 
 import (
-	"camli/http_util"
+	"camli/httputil"
 	"crypto/sha1"
 	"fmt"
 	"http"
@@ -28,13 +28,13 @@ Image png: <input type="file" name="image-png"><br>
 
 func handleTestForm(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/testform") {
-		http_util.BadRequestError(conn, "Inconfigured handler.")
+		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
-		http_util.BadRequestError(conn, fmt.Sprintf("Expected multipart/form-data POST request; %v", err))
+		httputil.BadRequestError(conn, fmt.Sprintf("Expected multipart/form-data POST request; %v", err))
 		return
 	}
 

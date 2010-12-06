@@ -1,7 +1,7 @@
 package main
 
 import (
-	"camli/http_util"
+	"camli/httputil"
 	"fmt"
 	"http"
 	"os"
@@ -11,7 +11,7 @@ import (
 func handleGet(conn http.ResponseWriter, req *http.Request) {
 	blobRef := BlobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
-		http_util.BadRequestError(conn, "Malformed GET URL.")
+		httputil.BadRequestError(conn, "Malformed GET URL.")
 		return
 	}
 	fileName := BlobFileName(blobRef)
@@ -22,12 +22,12 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err != nil {
-		http_util.ServerError(conn, err)
+		httputil.ServerError(conn, err)
 		return
 	}
 	file, err := os.Open(fileName, os.O_RDONLY, 0)
 	if err != nil {
-		http_util.ServerError(conn, err)
+		httputil.ServerError(conn, err)
 		return
 	}
 
@@ -35,7 +35,7 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 	if reqRange.SkipBytes != 0 {
 		_, err = file.Seek(reqRange.SkipBytes, 0)
 		if err != nil {
-			http_util.ServerError(conn, err)
+			httputil.ServerError(conn, err)
 			return
 		}
 	}

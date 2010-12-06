@@ -2,7 +2,7 @@ package main
 
 import (
 	"camli/blobref"
-	"camli/http_util"
+	"camli/httputil"
 	"fmt"
 	"http"
 	"io"
@@ -18,7 +18,7 @@ type receivedBlob struct {
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
-		http_util.BadRequestError(conn, "Inconfigured handler.")
+		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
@@ -26,7 +26,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
-		http_util.BadRequestError(conn, fmt.Sprintf(
+		httputil.BadRequestError(conn, fmt.Sprintf(
 			"Expected multipart/form-data POST request; %v", err))
 		return
 	}
@@ -71,7 +71,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	}
 	ret["received"] = received
 
-	http_util.ReturnJson(conn, ret)
+	httputil.ReturnJson(conn, ret)
 }
 
 func commonUploadResponse(req *http.Request) map[string]interface{} {
@@ -141,18 +141,18 @@ func receiveBlob(blobRef blobref.BlobRef, source io.Reader) (blobGot *receivedBl
 func handlePut(conn http.ResponseWriter, req *http.Request) {
 	blobRef := BlobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
-		http_util.BadRequestError(conn, "Malformed PUT URL.")
+		httputil.BadRequestError(conn, "Malformed PUT URL.")
 		return
 	}
 
 	if !blobRef.IsSupported() {
-		http_util.BadRequestError(conn, "unsupported object hash function")
+		httputil.BadRequestError(conn, "unsupported object hash function")
 		return
 	}
 
 	_, err := receiveBlob(blobRef, req.Body)
 	if err != nil {
-		http_util.ServerError(conn, err)
+		httputil.ServerError(conn, err)
 		return
 	}
 

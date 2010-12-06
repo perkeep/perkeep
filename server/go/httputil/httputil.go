@@ -1,4 +1,4 @@
-package http_util
+package httputil
 
 import (
 	"fmt"
