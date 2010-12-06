@@ -7,14 +7,13 @@ package main
 import (
 	"camli/auth"
 	"camli/http_util"
+	"camli/webserver"
 	"flag"
 	"fmt"
 	"http"
-	"log"
 	"os"
 )
 
-var listen *string = flag.String("listen", "0.0.0.0:3179", "host:port to listen on")
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
@@ -79,16 +78,9 @@ func main() {
 		}
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleRoot)
-	mux.HandleFunc("/camli/", handleCamli)
-	mux.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
-
-	log.Printf("Starting to listen on http://%v/\n", *listen)
-	err := http.ListenAndServe(*listen, mux)
-	if err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Error in http server: %v\n", err)
-		os.Exit(1)
-	}
+	ws := webserver.New()
+	ws.HandleFunc("/", handleRoot)
+	ws.HandleFunc("/camli/", handleCamli)
+	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
+	ws.Serve()
 }
