@@ -1,9 +1,11 @@
 package packet
 
 import (
+	"fmt"
 	"big"
 	"crypto/openpgp/error"
 	"crypto/rsa"
+	"crypto/sha1"
 	"io"
 	"os"
 )
@@ -80,7 +82,7 @@ func ReadPacket(r io.Reader) (p Packet, err os.Error) {
 		case 2:
 			p, err = readSignaturePacket(limitReader)
 		case 6:
-			p, err = readPublicKeyPacket(limitReader)
+			p, err = readPublicKeyPacket(limitReader, uint16(length))
 		default:
 			err = error.Unsupported("unknown packet type")
 	}
@@ -195,17 +197,16 @@ func readSignaturePacket(r io.Reader) (sig SignaturePacket, err os.Error) {
 	}
 
 	// We have already checked that the public key algorithm is RSA.
-	sig.Signature, err = readMPI(r)
+	sig.Signature, _, err = readMPI(r)
 	return
 }
 
-func readMPI(r io.Reader) (mpi []byte, err os.Error) {
-	var buf [2]byte
-	_, err = io.ReadFull(r, buf[0:])
+func readMPI(r io.Reader) (mpi []byte, hdr [2]byte, err os.Error) {
+	_, err = io.ReadFull(r, hdr[0:])
 	if err != nil {
 		return
 	}
-	numBits := int(buf[0]) << 8 | int(buf[1])
+	numBits := int(hdr[0]) << 8 | int(hdr[1])
 	numBytes := (numBits + 7) / 8
 	mpi = make([]byte, numBytes)
 	_, err = io.ReadFull(r, mpi)
@@ -291,15 +292,24 @@ func parseSignatureSubpacket(sig *SignaturePacket, subpacket []byte, isHashed bo
 
 type PublicKeyPacket struct {
 	CreationTime uint32
-	PubKeyAlgo PublicKeyAlgorithm
-	PublicKey rsa.PublicKey
+	PubKeyAlgo   PublicKeyAlgorithm
+	PublicKey    rsa.PublicKey
+	Fingerprint  []byte
 }
 
 func (pk PublicKeyPacket) Type() string {
 	return "public key"
 }
 
-func readPublicKeyPacket(r io.Reader) (pk PublicKeyPacket, err os.Error) {
+func (pk PublicKeyPacket) FingerprintString() string {
+	return fmt.Sprintf("%X", pk.Fingerprint)
+}
+
+func (pk PublicKeyPacket) KeyIdString() string {
+	return fmt.Sprintf("%X", pk.Fingerprint[len(pk.Fingerprint)-4:])
+}
+
+func readPublicKeyPacket(r io.Reader, length uint16) (pk PublicKeyPacket, err os.Error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
 	_, err = io.ReadFull(r, buf[0:])
@@ -309,6 +319,13 @@ func readPublicKeyPacket(r io.Reader) (pk PublicKeyPacket, err os.Error) {
 	if buf[0] != 4 {
 		err = error.Unsupported("public key version")
 	}
+
+	// RFC 4880, section 12.2
+	fprint := sha1.New()
+	fprint.Write([]byte{'\x99', uint8(length >> 8),
+		uint8(length & 0xff)})
+	fprint.Write(buf[0:6]) // version, timestamp, algorithm
+
 	pk.CreationTime = uint32(buf[1]) << 24 |
 			  uint32(buf[2]) << 16 |
 			  uint32(buf[3]) << 8 |
@@ -320,14 +337,20 @@ func readPublicKeyPacket(r io.Reader) (pk PublicKeyPacket, err os.Error) {
 			err = error.Unsupported("public key type")
 			return
 	}
-	nBytes, err := readMPI(r)
+
+	nBytes, mpiHdr, err := readMPI(r)
 	if err != nil {
 		return
 	}
-	eBytes, err := readMPI(r)
+	fprint.Write(mpiHdr[:])
+	fprint.Write(nBytes)
+
+	eBytes, mpiHdr, err := readMPI(r)
 	if err != nil {
 		return
 	}
+	fprint.Write(mpiHdr[:])
+	fprint.Write(eBytes)
 
 	if len(eBytes) > 3 {
 		err = error.Unsupported("large public exponent")
@@ -339,5 +362,6 @@ func readPublicKeyPacket(r io.Reader) (pk PublicKeyPacket, err os.Error) {
 		pk.PublicKey.E |= int(eBytes[i])
 	}
 	pk.PublicKey.N = (new(big.Int)).SetBytes(nBytes)
+	pk.Fingerprint = fprint.Sum()
 	return
 }
