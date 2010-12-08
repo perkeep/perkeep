@@ -21,13 +21,10 @@ my $json = $j->objToJson({ "camliVersion" => 1,
                            "foo" => "bar",
                          });
 
-print "JSON: [$json]\n";
-my $keyid = "26F5ABDA";  # test key
-
 # Sign it.
 my $sjson;
 {
-    my $req = req("sign", { "json" => $json, "keyid" => $keyid });
+    my $req = req("sign", { "json" => $json });
     my $res = $ua->request($req);
     ok($res, "got an HTTP sig response") or done_testing();
     ok($res->is_success, "HTTP sig response is successful") or done_testing();

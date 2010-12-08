@@ -1,16 +1,20 @@
 package main
 
 import (
+	"camli/blobref"
 	"camli/httputil"
 	"exec"
 	"fmt"
 	"http"
 	"io/ioutil"
+	"json"
 	"log"
 	"os"
 	"strings"
 	"unicode"
 )
+
+const kMaxJsonLength = 1024 * 1024
 
 func handleSign(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/sig/sign") {
@@ -20,20 +24,46 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 
 	req.ParseForm()
 
-	json := req.FormValue("json")
-	if json == "" {
-		httputil.BadRequestError(conn, "Missing json parameter.")
+	jsonStr := req.FormValue("json")
+	if jsonStr == "" {
+		httputil.BadRequestError(conn, "Missing json parameter")
+		return
+	}
+	if len(jsonStr) > kMaxJsonLength {
+		httputil.BadRequestError(conn, "json parameter too large")
 		return
 	}
 
-	var keyId int
-	numScanned, err := fmt.Sscanf(req.FormValue("keyid"), "%x", &keyId)
-	if numScanned != 1 {
-		httputil.BadRequestError(conn, "Couldn't parse keyid parameter.")
-		return
+	trimmedJson := strings.TrimRightFunc(jsonStr, unicode.IsSpace)
+
+	jmap := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(trimmedJson), &jmap); err != nil {
+		httputil.BadRequestError(conn, "json parameter doesn't parse as JSON.")
+                return
 	}
 
-	trimmedJson := strings.TrimRightFunc(json, unicode.IsSpace)
+	camliSigner, hasSigner := jmap["camliSigner"]
+	if !hasSigner {
+		httputil.BadRequestError(conn, "json lacks \"camliSigner\" key with public key blobref")
+                return
+	}
+
+	signerBlob := blobref.Parse(camliSigner.(string))
+	if signerBlob == nil {
+		httputil.BadRequestError(conn, "json \"camliSigner\" key is malformed or unsupported")
+                return
+	}
+
+	publicKeyFile := fmt.Sprintf("%s/%s.camli", *flagPubKeyDir, signerBlob.String())
+	pk, err := openArmoredPublicKeyFile(publicKeyFile)
+	if err != nil {
+		conn.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintf(conn, "Failed to find public key for %s", signerBlob)
+		return
+		}
+
+	// This check should be redundant if the above JSON parse succeeded, but
+	// for explicitness...
 	if len(trimmedJson) == 0 || trimmedJson[len(trimmedJson)-1] != '}' {
 		httputil.BadRequestError(conn, "json parameter lacks trailing '}'.")
 		return
@@ -46,7 +76,7 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 			"--no-default-keyring",
 			"--keyring", *flagRing,
 			"--secret-keyring", *flagSecretRing,
-			"--local-user", fmt.Sprintf("%x", keyId),
+			"--local-user", pk.KeyIdString(),
 			"--detach-sign",
 			"--armor",
 			"-"},
