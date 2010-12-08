@@ -322,8 +322,7 @@ func readPublicKeyPacket(r io.Reader, length uint16) (pk PublicKeyPacket, err os
 
 	// RFC 4880, section 12.2
 	fprint := sha1.New()
-	fprint.Write([]byte{'\x99', uint8(length >> 8),
-		uint8(length & 0xff)})
+	fprint.Write([]byte{'\x99', uint8(length >> 8), uint8(length)})
 	fprint.Write(buf[0:6]) // version, timestamp, algorithm
 
 	pk.CreationTime = uint32(buf[1]) << 24 |
