@@ -4,6 +4,8 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"hash"
+	"io"
+	"os"
 	"regexp"
 )
 
@@ -21,6 +23,10 @@ type BlobRef interface {
 	Hash()        hash.Hash
 	IsSupported() bool
 	fmt.Stringer
+}
+
+type Fetcher interface {
+	Fetch(BlobRef) (io.ReadCloser, os.Error)
 }
 
 type blobRef struct {

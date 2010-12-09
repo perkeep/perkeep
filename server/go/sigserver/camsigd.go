@@ -10,14 +10,6 @@ import (
 	"os"
 )
 
-var gpgPath *string = flag.String("gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
-
-var flagRing *string = flag.String("keyring", "./test/test-keyring.gpg",
-	"GnuPG public keyring file to use.")
-
-var flagSecretRing *string = flag.String("secret-keyring", "./test/test-secring.gpg",
-	"GnuPG secret keyring file to use.")
-
 var accessPassword string
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
