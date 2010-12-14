@@ -34,7 +34,7 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 
 	m := make(map[string]interface{})
 
-	vreq := jsonsign.NewVerificationRequest(sjson, blobFetcher)
+	vreq := jsonsign.NewVerificationRequest(sjson, pubKeyFetcher)
 	if vreq.Verify() {
 		m["signatureValid"] = 1
 		m["verifiedData"] = vreq.PayloadMap

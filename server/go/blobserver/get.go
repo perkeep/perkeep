@@ -1,6 +1,7 @@
 package main
 
 import (
+	"camli/blobref"
 	"camli/httputil"
 	"fmt"
 	"http"
@@ -8,28 +9,32 @@ import (
 	"io"
 )
 
-func handleGet(conn http.ResponseWriter, req *http.Request) {
+func createGetHandler(fetcher blobref.Fetcher) func (http.ResponseWriter, *http.Request) {
+	return func (conn http.ResponseWriter, req *http.Request) {
+		handleGet(conn, req, fetcher);
+	}
+}
+
+func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetcher) {
 	blobRef := BlobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed GET URL.")
 		return
 	}
-	fileName := BlobFileName(blobRef)
-	stat, err := os.Stat(fileName)
-	if err == os.ENOENT {
+	file, size, err := fetcher.Fetch(blobRef)
+	switch err {
+	case nil:
+		break
+	case os.ENOENT:
 		conn.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(conn, "Object not found.")
 		return
-	}
-	if err != nil {
+	default:
 		httputil.ServerError(conn, err)
 		return
 	}
-	file, err := os.Open(fileName, os.O_RDONLY, 0)
-	if err != nil {
-		httputil.ServerError(conn, err)
-		return
-	}
+
+	defer file.Close()
 
 	reqRange := getRequestedRange(req)
 	if reqRange.SkipBytes != 0 {
@@ -45,7 +50,7 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 		input = io.LimitReader(file, reqRange.LimitBytes)
 	}
 
-	remainBytes := stat.Size - reqRange.SkipBytes
+	remainBytes := size - reqRange.SkipBytes
 	if reqRange.LimitBytes != -1 &&
 		reqRange.LimitBytes < remainBytes {
 		remainBytes = reqRange.LimitBytes
@@ -56,7 +61,7 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 		conn.SetHeader("Content-Range",
 			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes,
 			reqRange.SkipBytes + remainBytes,
-			stat.Size))
+			size))
 		conn.WriteHeader(http.StatusPartialContent)
 	}
 	bytesCopied, err := io.Copy(conn, input)
@@ -65,21 +70,22 @@ func handleGet(conn http.ResponseWriter, req *http.Request) {
 	// as they've already been receiving bytes.  But they should be smart enough
 	// to verify the digest doesn't match.  But we close the (chunked) response anyway,
 	// to further signal errors.
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", blobRef, err)
+	killConnection := func() {
 		closer, _, err := conn.Hijack()
 		if err != nil {
 			closer.Close()
 		}
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", blobRef, err)
+		killConnection()
 		return
 	}
 	if bytesCopied != remainBytes {
 		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied=%d, not %d\n", blobRef,
 			bytesCopied, remainBytes)
-		closer, _, err := conn.Hijack()
-		if err != nil {
-			closer.Close()
-		}
+		killConnection()
 		return
 	}
 }

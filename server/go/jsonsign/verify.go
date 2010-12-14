@@ -111,7 +111,7 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 }
 
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
-	reader, err := vr.fetcher.Fetch(vr.CamliSigner)
+	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("Error fetching public key blob: %v", err))
 	}

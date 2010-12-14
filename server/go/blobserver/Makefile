@@ -3,7 +3,7 @@ include $(GOROOT)/src/Make.inc
 TARG=camlistored
 GOFILES=\
 	camlistored.go\
-	blobref.go\
+	localdisk.go\
 	enumerate.go\
 	get.go\
 	preupload.go\

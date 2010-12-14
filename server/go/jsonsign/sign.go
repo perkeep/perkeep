@@ -53,7 +53,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
 
-	pubkeyReader, err := sr.Fetcher.Fetch(signerBlob)
+	pubkeyReader, _, err := sr.Fetcher.Fetch(signerBlob)
 	if err != nil {
 		// TODO: not really either an inputfail or an execfail.. but going
 		// with exec for now.

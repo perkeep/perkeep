@@ -8,6 +8,7 @@ import (
 	"camli/auth"
 	"camli/httputil"
 	"camli/webserver"
+	"camli/blobref"
 	"flag"
 	"fmt"
 	"http"
@@ -16,6 +17,8 @@ import (
 
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
+
+var blobFetcher blobref.Fetcher
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	handler := func (conn http.ResponseWriter, req *http.Request) {
@@ -29,7 +32,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		case "/camli/enumerate-blobs":
 			handler = auth.RequireAuth(handleEnumerateBlobs)
 		default:
-			handler = auth.RequireAuth(handleGet)
+			handler = auth.RequireAuth(createGetHandler(blobFetcher))
 		}
 	case "POST":
 		switch req.URL.Path {
@@ -77,6 +80,8 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	blobFetcher = newDiskStorage(*flagStorageRoot)
 
 	ws := webserver.New()
 	ws.HandleFunc("/", handleRoot)
