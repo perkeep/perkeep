@@ -28,6 +28,15 @@ if ($implopt eq "go") {
 
 $impl->start;
 
+# enumerate, no items.
+# preupload a blob,
+# put a blob,
+# get a blob, check headers, content.
+# upload a malicious blob (doesn't match sha1), verify it's rejected.
+# test enumerate boundaries
+# ....
+# test auth works on bogus password?  (auth still undefined)
+
 sub usage {
     die "Usage: bs-test.pl [--user= --password=] --impl={go,appengine}\n";
 }
@@ -39,15 +48,28 @@ sub new {
     return bless \%args, $class;
 }
 
+sub path {
+    my $self = shift;
+    my $path = shift || "";
+    my $root = $self->{root} or die "No 'root' for $self";
+    return "$root$path";
+}
+
 package Impl::Go;
 use base 'Impl';
 use FindBin;
 use LWP::UserAgent;
 use HTTP::Request;
 use Fcntl;
+use File::Temp ();
 
 sub start {
     my $self = shift;
+
+    $self->{_tmpdir_obj} = File::Temp->newdir();
+    my $tmpdir = $self->{_tmpdir_obj}->dirname;
+
+    die "Failed to create temporary directory." unless -d $tmpdir;
 
     my $bindir = "$FindBin::Bin/../go/blobserver/";
     my $binary = "$bindir/camlistored";
@@ -75,13 +97,13 @@ sub start {
     die "Failed to fork" unless defined($pid);
     if ($pid == 0) {
         # child
-        exec $binary, "-listen=:0";
+        exec $binary, "-listen=:0", "-root=$tmpdir";
         die "failed to exec: $!\n";
     }
     close($exit_rd);  # child owns this side
     close($port_wr);  # child owns this side
 
-    print "Waiting for server to start...\n";
+    print "Waiting for Go server to start...\n";
     my $line = <$port_rd>;
     close($port_rd);
 
@@ -89,8 +111,10 @@ sub start {
     chomp $line;
     # print "Got port line: $line\n";
     die "Failed to start, no port info." unless $line =~ /:(\d+)$/;
-    my $port = $1;
-    print "On port: $port\n";
+    $self->{port} = $1;
+    $self->{root} = "http://localhost:$self->{port}";
+    print "Running on $self->{root} ...\n";
+    return $self;
 }
 
 package Impl::AppEngine;
