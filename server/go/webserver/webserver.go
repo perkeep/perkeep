@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-var listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
+var Listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
 
 type Server struct {
 	mux  *http.ServeMux
@@ -30,12 +30,12 @@ func (s *Server) Handle(pattern string, handler http.Handler) {
 
 func (s *Server) Serve() {
 	if os.Getenv("TESTING_PORT_WRITE_FD") == "" {  // Don't make noise during unit tests
-		log.Printf("Starting to listen on http://%v/\n", *listen)
+		log.Printf("Starting to listen on http://%v/\n", *Listen)
 	}
 
-	listener, err := net.Listen("tcp", *listen)
+	listener, err := net.Listen("tcp", *Listen)
 	if err != nil {
-		log.Exitf("Failed to listen on %s: %v", *listen, err)
+		log.Exitf("Failed to listen on %s: %v", *Listen, err)
 	}
 	go runTestHarnessIntegration(listener)
 	err = http.Serve(listener, s.mux)
