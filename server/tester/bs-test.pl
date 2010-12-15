@@ -26,9 +26,10 @@ if ($implopt eq "go") {
     die "The --impl flag must be 'go' or 'appengine'.\n";
 }
 
-$impl->start;
+ok($impl->start, "Server started");
 
-# enumerate, no items.
+$impl->verify_no_blobs;  # also tests some of enumerate
+
 # preupload a blob,
 # put a blob,
 # get a blob, check headers, content.
@@ -37,15 +38,68 @@ $impl->start;
 # ....
 # test auth works on bogus password?  (auth still undefined)
 
+done_testing();
+
 sub usage {
     die "Usage: bs-test.pl [--user= --password=] --impl={go,appengine}\n";
 }
 
 package Impl;
+use HTTP::Request::Common;
+use LWP::UserAgent;
+use JSON::Any;
+use Test::More;
 
 sub new {
     my ($class, %args) = @_;
     return bless \%args, $class;
+}
+
+sub post {
+    my ($self, $path, $form) = @_;
+    $path ||= "";
+    $form ||= {};
+    return POST($self->path($path),
+                "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
+                Content => $form);
+}
+
+sub get {
+    my ($self, $path, $form) = @_;
+    $path ||= "";
+    $form ||= {};
+    return GET($self->path($path),
+               "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
+               %$form);
+}
+
+sub ua {
+    my $self = shift;
+    return ($self->{_ua} ||= LWP::UserAgent->new(agent => "camli/blobserver-tester"));
+}
+
+sub get_json {
+    my ($self, $req, $msg) = @_;
+    my $res = $self->ua->request($req);
+    ok(defined($res), "got response for HTTP request '$msg'");
+    ok($res->is_success, "successful response for HTTP request '$msg'")
+        or diag("Status was: " . $res->status_line);
+    my $json = JSON::Any->jsonToObj($res->content);
+    is("HASH", ref($json), "JSON parsed for HTTP request '$msg'")
+        or BAIL_OUT("expected JSON response");
+    return $json;
+}
+
+sub verify_no_blobs {
+    my $self = shift;
+    my $req = $self->get("/camli/enumerate-blobs", {
+        "after" => "",
+        "limit" => 10,
+    });
+    my $json = $self->get_json($req, "enumerate empty blobs");
+    ok(defined($json->{'blobs'}), "enumerate has a 'blobs' key");
+    is("ARRAY", ref($json->{'blobs'}), "enumerate's blobs key is an array");
+    is(0, scalar @{$json->{'blobs'}}, "no blobs on server");
 }
 
 sub path {
@@ -97,7 +151,9 @@ sub start {
     die "Failed to fork" unless defined($pid);
     if ($pid == 0) {
         # child
-        exec $binary, "-listen=:0", "-root=$tmpdir";
+        my @args = ($binary, "-listen=:0", "-root=$tmpdir");
+        print STDERR "# Running: [@args]\n";
+        exec @args;
         die "failed to exec: $!\n";
     }
     close($exit_rd);  # child owns this side
@@ -113,8 +169,18 @@ sub start {
     die "Failed to start, no port info." unless $line =~ /:(\d+)$/;
     $self->{port} = $1;
     $self->{root} = "http://localhost:$self->{port}";
-    print "Running on $self->{root} ...\n";
-    return $self;
+    print STDERR "# Running on $self->{root} ...\n";
+
+    # Keep a reference to this to write "EXIT\n" to in order
+    # to cleanly shutdown the child camlistored process.
+    # If we close it, the child also dies, though.
+    $self->{_exit_wr} = $exit_wr;
+    return 1;
+}
+
+sub DESTROY {
+    my $self = shift;
+    syswrite($self->{_exit_wr}, "EXIT\n");
 }
 
 package Impl::AppEngine;
