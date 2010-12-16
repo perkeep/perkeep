@@ -100,15 +100,37 @@ sub path {
 }
 
 sub get_json {
-    my ($self, $req, $msg) = @_;
+    my ($self, $req, $msg, $opts) = @_;
+    $opts ||= {};
+
     my $res = $self->ua->request($req);
     ok(defined($res), "got response for HTTP request '$msg'");
+
+    if ($res->code =~ m!^30[123]$! && $opts->{follow_redirect}) {
+        my $location = $res->header("Location");
+        if ($res->code == "303") {
+            $req->method("GET");
+        }
+        my $new_uri = URI::URL->new($location, $req->uri)->abs;
+        diag("Old URI was " . $req->uri);
+        diag("New is " . $new_uri);
+        diag("Redirecting HTTP request '$msg' to $location ($new_uri)");
+        $req->uri($new_uri);
+        $res = $self->ua->request($req);
+        ok(defined($res), "got redirected response for HTTP request '$msg'");
+    }
+
     ok($res->is_success, "successful response for HTTP request '$msg'")
         or diag("Status was: " . $res->status_line);
     my $json = JSON::Any->jsonToObj($res->content);
     is("HASH", ref($json), "JSON parsed for HTTP request '$msg'")
         or BAIL_OUT("expected JSON response");
     return $json;
+}
+
+sub get_upload_json {
+    my ($self, $req) = @_;
+    return $self->get_json($req, "upload", { follow_redirect => 1 })
 }
 
 sub verify_no_blobs {
@@ -156,6 +178,7 @@ sub test_preupload_and_upload {
     for my $f (qw(alreadyHave maxUploadSize uploadUrl uploadUrlExpirationSeconds)) {
         ok(defined($jres->{$f}), "required field '$f' present");
     }
+    is(scalar(keys %$jres), 4, "Exactly 4 JSON keys returned");
     my $already = $jres->{alreadyHave};
     is(ref($already), "ARRAY", "alreadyHave is an array");
     is(scalar(@$already), 0, "server doesn't have this blob yet.");
@@ -168,13 +191,15 @@ sub test_preupload_and_upload {
     my $upreq = $self->upload_request($upload_url, {
         $blobref => $blob,
     });
-    my $upres = $self->get_json($upreq, "upload");
+    my $upres = $self->get_upload_json($upreq);
     ok($upres, "Upload was success");
     print STDERR "# upload response: ", Dumper($upres);
 
     for my $f (qw(uploadUrlExpirationSeconds uploadUrl maxUploadSize received)) {
         ok(defined($upres->{$f}), "required upload response field '$f' present");
     }
+    is(scalar(keys %$upres), 4, "Exactly 4 JSON keys returned");
+
     like($upres->{uploadUrlExpirationSeconds}, qr/^\d+$/, "uploadUrlExpirationSeconds is numeric");
     is(ref($upres->{received}), "ARRAY", "'received' is an array")
         or BAIL_OUT();
@@ -276,7 +301,7 @@ sub start {
 
     $self->{_tempdir_blobstore_obj} = File::Temp->newdir();
     $self->{_tempdir_datastore_obj} = File::Temp->newdir();
-    my $datadir = $self->{_tempdir_blobstore_obj}->dirname;
+    my $datapath = $self->{_tempdir_blobstore_obj}->dirname . "/needs-to-be-a-file";
     my $blobdir = $self->{_tempdir_datastore_obj}->dirname;
 
     my $port;
@@ -302,7 +327,7 @@ sub start {
         # child
         my @args = ($dev_appserver,
                     "--clear_datastore",  # kinda redundant as we made a temp dir
-                    "--datastore_path=$datadir",
+                    "--datastore_path=$datapath",
                     "--blobstore_path=$blobdir",
                     "--port=$port",
                     $appdir);
