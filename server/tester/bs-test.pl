@@ -29,11 +29,11 @@ if ($implopt eq "go") {
 ok($impl->start, "Server started");
 
 $impl->verify_no_blobs;  # also tests some of enumerate
+$impl->test_preupload_and_upload;
 
-# preupload a blob,
-# put a blob,
-# get a blob, check headers, content.
 # upload a malicious blob (doesn't match sha1), verify it's rejected.
+# test multiple uploads in a batch
+# test uploads in serial
 # test enumerate boundaries
 # ....
 # test auth works on bogus password?  (auth still undefined)
@@ -49,6 +49,9 @@ use HTTP::Request::Common;
 use LWP::UserAgent;
 use JSON::Any;
 use Test::More;
+use Digest::SHA1 qw(sha1_hex);
+use URI::URL ();
+use Data::Dumper;
 
 sub new {
     my ($class, %args) = @_;
@@ -64,6 +67,16 @@ sub post {
                 Content => $form);
 }
 
+sub upload_request {
+    my ($self, $upload_url, $blobref_to_blob_map) = @_;
+    return POST($upload_url,
+                "Content_Type" => 'form-data',
+                "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
+                Content => [
+                    %$blobref_to_blob_map
+                ]);
+}
+
 sub get {
     my ($self, $path, $form) = @_;
     $path ||= "";
@@ -76,6 +89,13 @@ sub get {
 sub ua {
     my $self = shift;
     return ($self->{_ua} ||= LWP::UserAgent->new(agent => "camli/blobserver-tester"));
+}
+
+sub path {
+    my $self = shift;
+    my $path = shift || "";
+    my $root = $self->{root} or die "No 'root' for $self";
+    return "$root$path";
 }
 
 sub get_json {
@@ -102,11 +122,65 @@ sub verify_no_blobs {
     is(0, scalar @{$json->{'blobs'}}, "no blobs on server");
 }
 
-sub path {
+sub test_preupload_and_upload {
     my $self = shift;
-    my $path = shift || "";
-    my $root = $self->{root} or die "No 'root' for $self";
-    return "$root$path";
+    my ($req, $res);
+
+    my $blob = "This is a line.\r\nWith mixed newlines\rFoo\nAnd binary\0data.\0\n\r.";
+    my $blobref = "sha1-" . sha1_hex($blob);
+
+    # Bogus method.
+    $req = $self->get("/camli/preupload", {
+        "camliversion" => 1,
+        "blob1" => $blobref,
+    });
+    $res = $self->ua->request($req);
+    ok(!$res->is_success, "returns failure for GET on /camli/preupload");
+
+    # Correct method, but missing camliVersion.
+    $req = $self->post("/camli/preupload", {
+        "blob1" => $blobref,
+    });
+    $res = $self->ua->request($req);
+    ok(!$res->is_success, "returns failure for missing camliVersion param on preupload");
+
+    # Valid pre-upload
+    $req = $self->post("/camli/preupload", {
+        "camliversion" => 1,
+        "blob1" => $blobref,
+    });
+    my $jres = $self->get_json($req, "valid preupload");
+    print STDERR "preupload response: ", Dumper($jres);
+    ok($jres, "valid preupload JSON response");
+    for my $f (qw(alreadyHave maxUploadSize uploadUrl uploadUrlExpirationSeconds)) {
+        ok(defined($jres->{$f}), "required field '$f' present");
+    }
+    my $already = $jres->{alreadyHave};
+    is(ref($already), "ARRAY", "alreadyHave is an array");
+    is(scalar(@$already), 0, "server doesn't have this blob yet.");
+    like($jres->{uploadUrlExpirationSeconds}, qr/^\d+$/, "uploadUrlExpirationSeconds is numeric");
+    my $upload_url = URI::URL->new($jres->{uploadUrl});
+    ok($upload_url, "valid uploadUrl");
+    # TODO: are relative URLs allowed in uploadUrl?
+
+    # Do the actual upload
+    my $upreq = $self->upload_request($upload_url, {
+        $blobref => $blob,
+    });
+    my $upres = $self->get_json($upreq, "upload");
+    ok($upres, "Upload was success");
+    print STDERR "# upload response: ", Dumper($upres);
+
+    for my $f (qw(uploadUrlExpirationSeconds uploadUrl maxUploadSize received)) {
+        ok(defined($upres->{$f}), "required upload response field '$f' present");
+    }
+    like($upres->{uploadUrlExpirationSeconds}, qr/^\d+$/, "uploadUrlExpirationSeconds is numeric");
+    is(ref($upres->{received}), "ARRAY", "'received' is an array")
+        or BAIL_OUT();
+    my $got = $upres->{received};
+    is(scalar(@$got), 1, "got one file");
+    is($got->[0]{blobRef}, $blobref, "received[0] 'blobRef' matches");
+    is($got->[0]{size}, length($blob), "received[0] 'size' matches");
 }
 
 package Impl::Go;
