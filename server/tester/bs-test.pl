@@ -35,6 +35,7 @@ $impl->test_preupload_and_upload;
 # test multiple uploads in a batch
 # test uploads in serial
 # test enumerate boundaries
+# interrupt a POST upload in the middle; verify no straggler on disk in subsequent GET
 # ....
 # test auth works on bogus password?  (auth still undefined)
 
@@ -259,6 +260,75 @@ sub DESTROY {
 
 package Impl::AppEngine;
 use base 'Impl';
+use IO::Socket::INET;
+
+sub start {
+    my $self = shift;
+
+    my $dev_appserver = `which dev_appserver.py`;
+    chomp $dev_appserver;
+    unless ($dev_appserver && -x $dev_appserver) {
+        $dev_appserver = "$ENV{HOME}/sdk/google_appengine/dev_appserver.py";
+        unless (-x $dev_appserver) {
+            die "No dev_appserver.py in \$PATH nor in \$HOME/sdk/google_appengine/dev_appserver.py\n";
+        }
+    }
+
+    $self->{_tempdir_blobstore_obj} = File::Temp->newdir();
+    $self->{_tempdir_datastore_obj} = File::Temp->newdir();
+    my $datadir = $self->{_tempdir_blobstore_obj}->dirname;
+    my $blobdir = $self->{_tempdir_datastore_obj}->dirname;
+
+    my $port;
+    while (1) {
+        $port = int(rand(30000) + 1024);
+        my $sock = IO::Socket::INET->new(Listen    => 5,
+                                         LocalAddr => '127.0.0.1',
+                                         LocalPort => $port,
+                                         ReuseAddr => 1,
+                                         Proto     => 'tcp');
+        if ($sock) {
+            last;
+        }
+    }
+    $self->{port} = $port;
+    $self->{root} = "http://localhost:$self->{port}";
+
+    my $pid = fork;
+    die "Failed to fork" unless defined($pid);
+    if ($pid == 0) {
+        my $appdir = "$FindBin::Bin/../appengine";
+
+        # child
+        my @args = ($dev_appserver,
+                    "--clear_datastore",  # kinda redundant as we made a temp dir
+                    "--datastore_path=$datadir",
+                    "--blobstore_path=$blobdir",
+                    "--port=$port",
+                    $appdir);
+        print STDERR "# Running: [@args]\n";
+        exec @args;
+        die "failed to exec: $!\n";
+    }
+    $self->{pid} = $pid;
+
+    for (1..15) {
+        print STDERR "# Waiting for appengine app to start...\n";
+        my $res = $self->ua->request($self->get("/"));
+        if ($res && $res->is_success) {
+            print STDERR "# Up.";
+            last;
+        }
+        sleep(1);
+    }
+    return 1;
+}
+
+sub DESTROY {
+    my $self = shift;
+    print STDERR "# Sending SIGQUIT to $self->{pid}\n";
+    kill 3, $self->{pid} if $self->{pid};
+}
 
 1;
 
