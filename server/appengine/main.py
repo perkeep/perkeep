@@ -294,7 +294,13 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
       query = ['/nonstandard/upload_complete?camliversion=1']
       query.extend('blob%d=%s' % (i + 1, k)
                    for i, k in enumerate(blob_info_dict.iterkeys()))
-      self.redirect('&'.join(query))
+      # Previous, Brett had:
+      #self.redirect('&'.join(query))
+      # But a 302 implies a new POST, and Brett's re-use of PreUploadHandler
+      # implies that he meant for clients to do a GET on subsequent requests,
+      # so 303 is probably what he wanted:
+      self.response.set_status(303)
+      self.response.headers.add_header("Location", '&'.join(query))
 
 
 class ErrorHandler(webapp.RequestHandler):
