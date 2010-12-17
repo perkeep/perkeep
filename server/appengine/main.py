@@ -300,7 +300,7 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
       # implies that he meant for clients to do a GET on subsequent requests,
       # so 303 is probably what he wanted:
       self.response.set_status(303)
-      self.response.headers.add_header("Location", '&'.join(query))
+      self.response.headers.add_header("Location", str('&'.join(query)))
 
 
 class ErrorHandler(webapp.RequestHandler):
