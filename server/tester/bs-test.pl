@@ -372,7 +372,6 @@ sub start {
 
 sub DESTROY {
     my $self = shift;
-    print STDERR "# Sending SIGQUIT to $self->{pid}\n";
     kill 3, $self->{pid} if $self->{pid};
 }
 
