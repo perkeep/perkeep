@@ -70,12 +70,24 @@ sub post {
 
 sub upload_request {
     my ($self, $upload_url, $blobref_to_blob_map) = @_;
+    my @content;
+    my $n = 0;
+    foreach my $key (sort keys %$blobref_to_blob_map) {
+        $n++;
+        # TODO: the App Engine client refused to work unless the Content-Type
+        # is set.  This should be clarified in the docs (MUST?) and update the
+        # test suite and Go server accordingly (to fail if not present).
+        push @content, $key => [
+            undef, "filename$n",
+            "Content-Type" => "application/octet-stream",
+            Content => $blobref_to_blob_map->{$key},
+        ];
+    }
+
     return POST($upload_url,
                 "Content_Type" => 'form-data',
                 "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
-                Content => [
-                    %$blobref_to_blob_map
-                ]);
+                Content => \@content);
 }
 
 sub get {
@@ -173,7 +185,7 @@ sub test_preupload_and_upload {
         "blob1" => $blobref,
     });
     my $jres = $self->get_json($req, "valid preupload");
-    print STDERR "preupload response: ", Dumper($jres);
+    diag("preupload response: " . Dumper($jres));
     ok($jres, "valid preupload JSON response");
     for my $f (qw(alreadyHave maxUploadSize uploadUrl uploadUrlExpirationSeconds)) {
         ok(defined($jres->{$f}), "required field '$f' present");
@@ -191,6 +203,7 @@ sub test_preupload_and_upload {
     my $upreq = $self->upload_request($upload_url, {
         $blobref => $blob,
     });
+    diag("upload request: " . $upreq->as_string);
     my $upres = $self->get_upload_json($upreq);
     ok($upres, "Upload was success");
     print STDERR "# upload response: ", Dumper($upres);
@@ -286,6 +299,7 @@ sub DESTROY {
 package Impl::AppEngine;
 use base 'Impl';
 use IO::Socket::INET;
+use Time::HiRes ();
 
 sub start {
     my $self = shift;
@@ -301,7 +315,7 @@ sub start {
 
     $self->{_tempdir_blobstore_obj} = File::Temp->newdir();
     $self->{_tempdir_datastore_obj} = File::Temp->newdir();
-    my $datapath = $self->{_tempdir_blobstore_obj}->dirname . "/needs-to-be-a-file";
+    my $datapath = $self->{_tempdir_blobstore_obj}->dirname . "/datastore-file";
     my $blobdir = $self->{_tempdir_datastore_obj}->dirname;
 
     my $port;
@@ -337,14 +351,19 @@ sub start {
     }
     $self->{pid} = $pid;
 
+    my $last_print = 0;
     for (1..15) {
-        print STDERR "# Waiting for appengine app to start...\n";
+        my $now = time();
+        if ($now != $last_print) {
+            print STDERR "# Waiting for appengine app to start...\n";
+            $last_print = $now;
+        }
         my $res = $self->ua->request($self->get("/"));
         if ($res && $res->is_success) {
             print STDERR "# Up.";
             last;
         }
-        sleep(1);
+        Time::HiRes::sleep(0.1);
     }
     return 1;
 }
