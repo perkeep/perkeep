@@ -12,9 +12,11 @@ import (
 	)
 
 type receivedBlob struct {
-	blobRef  blobref.BlobRef
+	blobRef  *blobref.BlobRef
 	size     int64
 }
+
+var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
@@ -88,7 +90,7 @@ func commonUploadResponse(req *http.Request) map[string]interface{} {
 	return ret
 }
 
-func receiveBlob(blobRef blobref.BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
+func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
 	hashedDirectory := BlobDirectoryName(blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
@@ -115,7 +117,13 @@ func receiveBlob(blobRef blobref.BlobRef, source io.Reader) (blobGot *receivedBl
 	if err != nil {
 		return
 	}
+	// TODO: fsync before close.
 	if err = tempFile.Close(); err != nil {
+		return
+	}
+
+	if !blobRef.HashMatches(hash) {
+		err = CorruptBlobError
 		return
 	}
 

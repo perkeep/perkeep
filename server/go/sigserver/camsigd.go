@@ -17,7 +17,7 @@ var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
 
 type pubkeyDirFetcher struct{}
-func (_ *pubkeyDirFetcher) Fetch(b blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
+func (_ *pubkeyDirFetcher) Fetch(b *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
 	fileName := fmt.Sprintf("%s/%s.camli", *flagPubKeyDir, b.String())
 	var stat *os.FileInfo
 	stat, err = os.Stat(fileName)

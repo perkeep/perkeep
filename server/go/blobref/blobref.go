@@ -17,12 +17,9 @@ var supportedDigests = map[string]func()hash.Hash{
 	},
 }
 
-type BlobRef interface {
-	HashName()    string
-	Digest()      string
-	Hash()        hash.Hash
-	IsSupported() bool
-	fmt.Stringer
+type BlobRef struct {
+	hashName  string
+	digest    string
 }
 
 type ReadSeekCloser interface {
@@ -32,27 +29,22 @@ type ReadSeekCloser interface {
 }
 
 type Fetcher interface {
-	Fetch(BlobRef) (file ReadSeekCloser, size int64, err os.Error)
+	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
 }
 
-type blobRef struct {
-	hashName  string
-	digest    string
-}
-
-func (b *blobRef) HashName() string {
+func (b *BlobRef) HashName() string {
 	return b.hashName
 }
 
-func (b *blobRef) Digest() string {
+func (b *BlobRef) Digest() string {
 	return b.digest
 }
 
-func (o *blobRef) String() string {
+func (o *BlobRef) String() string {
 	return fmt.Sprintf("%s-%s", o.hashName, o.digest)
 }
 
-func (o *blobRef) Hash() hash.Hash {
+func (o *BlobRef) Hash() hash.Hash {
 	fn, ok := supportedDigests[o.hashName]
 	if !ok {
 		return nil
@@ -60,7 +52,11 @@ func (o *blobRef) Hash() hash.Hash {
 	return fn()
 }
 
-func (o *blobRef) IsSupported() bool {
+func (o *BlobRef) HashMatches(h hash.Hash) bool {
+	return fmt.Sprintf("%x", h.Sum()) == o.digest
+}
+
+func (o *BlobRef) IsSupported() bool {
 	_, ok := supportedDigests[o.hashName]
 	return ok
 }
@@ -70,17 +66,17 @@ var kExpectedDigestSize = map[string]int{
 	"sha1": 40,
 }
 
-func blobIfValid(hashname, digest string) BlobRef {
+func blobIfValid(hashname, digest string) *BlobRef {
 	expectedSize := kExpectedDigestSize[hashname]
 	if expectedSize != 0 && len(digest) != expectedSize {
 		return nil
 	}
-	return &blobRef{hashname, digest}
+	return &BlobRef{hashname, digest}
 }
 
 // FromPattern takes a pattern and if it matches 's' with two exactly two valid
 // submatches, returns a BlobRef, else returns nil.
-func FromPattern(r *regexp.Regexp, s string) BlobRef {
+func FromPattern(r *regexp.Regexp, s string) *BlobRef {
 	matches := r.FindStringSubmatch(s)
 	if len(matches) != 3 {
 		return nil
@@ -88,6 +84,6 @@ func FromPattern(r *regexp.Regexp, s string) BlobRef {
 	return blobIfValid(matches[1], matches[2])
 }
 
-func Parse(ref string) BlobRef {
+func Parse(ref string) *BlobRef {
 	return FromPattern(kBlobRefPattern, ref)
 }

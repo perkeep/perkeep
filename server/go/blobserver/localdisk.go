@@ -11,7 +11,7 @@ type diskStorage struct {
 	Root string
 }
 
-func (ds *diskStorage) Fetch(blob blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
+func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
 	fileName := BlobFileName(blob)
 	stat, err := os.Stat(fileName)
 	if err == os.ENOENT {
@@ -30,20 +30,20 @@ func newDiskStorage(root string) *diskStorage {
 
 var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
-func BlobFileBaseName(b blobref.BlobRef) string {
+func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func BlobDirectoryName(b blobref.BlobRef) string {
+func BlobDirectoryName(b *blobref.BlobRef) string {
 	d := b.Digest()
 	return fmt.Sprintf("%s/%s/%s/%s", *flagStorageRoot, b.HashName(), d[0:3], d[3:6])
 }
 
-func BlobFileName(b blobref.BlobRef) string {
+func BlobFileName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s-%s.dat", BlobDirectoryName(b), b.HashName(), b.Digest())
 }
 
-func BlobFromUrlPath(path string) blobref.BlobRef {
+func BlobFromUrlPath(path string) *blobref.BlobRef {
 	return blobref.FromPattern(kGetPutPattern, path)
 }
 

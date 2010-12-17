@@ -14,7 +14,7 @@ import (
 const maxEnumerate = 100000
 
 type blobInfo struct {
-	blobref.BlobRef
+	*blobref.BlobRef
 	*os.FileInfo
 	os.Error
 }
@@ -127,4 +127,3 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
 	}
 	fmt.Fprintf(conn, "\n}\n")
 }
-

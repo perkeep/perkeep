@@ -44,7 +44,7 @@ type VerifyRequest struct {
 	bpj []byte  // "bytes payload, JSON" (BP + "}")
 	bs  []byte  // "bytes signature", "{" + separator + camliSig, valid JSON
 
-	CamliSigner blobref.BlobRef
+	CamliSigner *blobref.BlobRef
 	PayloadMap  map[string]interface{}  // The JSON values from BPJ
 	CamliSig    string
 

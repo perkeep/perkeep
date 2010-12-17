@@ -30,12 +30,13 @@ ok($impl->start, "Server started");
 
 $impl->verify_no_blobs;  # also tests some of enumerate
 $impl->test_preupload_and_upload;
+$impl->test_upload_corrupt_blob;  # blobref digest doesn't match
 
-# upload a malicious blob (doesn't match sha1), verify it's rejected.
-# test multiple uploads in a batch
-# test uploads in serial
-# test enumerate boundaries
-# interrupt a POST upload in the middle; verify no straggler on disk in subsequent GET
+# TODO: test multiple uploads in a batch
+# TODO: test uploads in serial (using each response's next uploadUrl)
+# TODO: test enumerate boundaries
+# TODO: interrupt a POST upload in the middle; verify no straggler on
+#       disk in subsequent GET
 # ....
 # test auth works on bogus password?  (auth still undefined)
 
@@ -104,11 +105,15 @@ sub ua {
     return ($self->{_ua} ||= LWP::UserAgent->new(agent => "camli/blobserver-tester"));
 }
 
+sub root {
+    my $self= shift;
+    return $self->{root} or die "No 'root' for $self";
+}
+
 sub path {
     my $self = shift;
     my $path = shift || "";
-    my $root = $self->{root} or die "No 'root' for $self";
-    return "$root$path";
+    return $self->root . $path;
 }
 
 sub get_json {
@@ -195,7 +200,7 @@ sub test_preupload_and_upload {
     is(ref($already), "ARRAY", "alreadyHave is an array");
     is(scalar(@$already), 0, "server doesn't have this blob yet.");
     like($jres->{uploadUrlExpirationSeconds}, qr/^\d+$/, "uploadUrlExpirationSeconds is numeric");
-    my $upload_url = URI::URL->new($jres->{uploadUrl});
+    my $upload_url = URI::URL->new($jres->{uploadUrl}, $self->root)->abs;
     ok($upload_url, "valid uploadUrl");
     # TODO: test & clarify in spec: are relative URLs allowed in uploadUrl?
     # App Engine seems to do it already, and makes it easier, so probably
@@ -222,6 +227,37 @@ sub test_preupload_and_upload {
     is(scalar(@$got), 1, "got one file");
     is($got->[0]{blobRef}, $blobref, "received[0] 'blobRef' matches");
     is($got->[0]{size}, length($blob), "received[0] 'size' matches");
+
+    # TODO: do a get request, verify that we get it back.
+}
+
+sub test_upload_corrupt_blob {
+    my $self = shift;
+    my ($req, $res);
+
+    my $blob = "A blob, pre-corruption.";
+    my $blobref = "sha1-" . sha1_hex($blob);
+    $blob .= "OIEWUROIEWURLKJDSLKj CORRUPT";
+
+    $req = $self->post("/camli/preupload", {
+        "camliversion" => 1,
+        "blob1" => $blobref,
+    });
+    my $jres = $self->get_json($req, "valid preupload");
+    my $upload_url = URI::URL->new($jres->{uploadUrl}, $self->root)->abs;
+    # TODO: test & clarify in spec: are relative URLs allowed in uploadUrl?
+    # App Engine seems to do it already, and makes it easier, so probably
+    # best to clarify that they're relative.
+
+    # Do the actual upload
+    my $upreq = $self->upload_request($upload_url, {
+        $blobref => $blob,
+    });
+    diag("corrupt upload request: " . $upreq->as_string);
+    my $upres = $self->get_upload_json($upreq);
+    my $got = $upres->{received};
+    is(ref($got), "ARRAY", "corrupt upload returned a 'received' array");
+    is(scalar(@$got), 0, "didn't get any files (it was corrupt)");
 }
 
 package Impl::Go;
