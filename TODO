@@ -1,6 +1,6 @@
 Blobserver:
 
-[?] Get App Engine blob server up to parity (brett)
+[X] Get App Engine blob server up to parity (brett)
 [ ] range request tests, fleshing out (upstream to Gо?)
 [ ] add CROS support:
     http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
@@ -12,6 +12,11 @@ Android:
     http://www.thialfihar.org/projects/apg/
     (supports signing in code, but not an Intent?)
     http://code.google.com/p/android-privacy-guard/wiki/UsingApgForDevelopment
+    ... mailed the author.
+
+Command-line tools:
+
+[ ] camput (Brad)
 
 Client libraries:
 
@@ -33,6 +38,7 @@ Testing:
 
 Tools:
 
+[ ] json signing/verification server
 [ ] 3rd party program to sync between two blob servers (unclaimed)
 [ ] fuse mounting
 [ ] Brackup integration, perhaps sans GPG? (requires Perl client?)
