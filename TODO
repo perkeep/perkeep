@@ -8,10 +8,14 @@ Blobserver:
 Android:
 
 [ ] GPG signing of blobs (brad)
+    http://code.google.com/p/android-privacy-guard/
+    http://www.thialfihar.org/projects/apg/
+    (supports signing in code, but not an Intent?)
+    http://code.google.com/p/android-privacy-guard/wiki/UsingApgForDevelopment
 
 Client libraries:
 
-[ ] Go
+[ ] Go (Brad)
 [/] Python (Brett)
 [ ] Perl
 [ ] Ruby
@@ -21,8 +25,11 @@ Client libraries:
 Indexing:
 
 [X] Range requests on Go server (brad)
-[ ] blob server test suite (unclaimed)
 [X] basic sql-based indexing (brad)
+
+Testing:
+
+[/] blob server test suite (brad, in progress)
 
 Tools:
 
