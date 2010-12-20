@@ -1,8 +1,8 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camliup
+TARG=camput
 GOFILES=\
-	camliup.go\
+	camput.go\
 
 include $(GOROOT)/src/Make.cmd
 

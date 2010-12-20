@@ -16,9 +16,14 @@ import (
 	"strings"
 )
 
-var flagFile *string = flag.String("file", "", "file to upload")
-var flagServer *string = flag.String("server", "http://localhost:3179/", "camlistore blob server")
+// These override the JSON config file ~/.camlistore's "server" and
+// "password" keys
+var flagServer *string = flag.String("server", "", "camlistore blob server")
 var flagPassword *string = flag.String("password", "", "password for blob server")
+
+// Things that can be uploaded.  (at most one of these)
+var flagBlob *string = flag.String("blob", "", "upload a file's bytes as a single blob")
+var flagFile *string = flag.String("file", "", "upload a file's bytes as a blob, as well as its JSON file record")
 
 type UploadHandle struct {
 	blobref  string
