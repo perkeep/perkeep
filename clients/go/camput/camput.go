@@ -6,24 +6,22 @@ package main
 
 import (
 	"bytes"
+	"camli/clientconfig"
+	"camli/http"
 	"crypto/sha1"
 	"flag"
 	"fmt"
-	"http"
 	"io"
 	"json"
+	"log"
 	"os"
 	"strings"
 )
 
-// These override the JSON config file ~/.camlistore's "server" and
-// "password" keys
-var flagServer *string = flag.String("server", "", "camlistore blob server")
-var flagPassword *string = flag.String("password", "", "password for blob server")
 
 // Things that can be uploaded.  (at most one of these)
-var flagBlob *string = flag.String("blob", "", "upload a file's bytes as a single blob")
-var flagFile *string = flag.String("file", "", "upload a file's bytes as a blob, as well as its JSON file record")
+var flagBlob *bool = flag.Bool("blob", true, "upload a file's bytes as a single blob")
+var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
 
 type UploadHandle struct {
 	blobref  string
@@ -32,11 +30,12 @@ type UploadHandle struct {
 
 // Upload agent
 type Agent struct {
-	server string
+	server   string
+	password string
 }
 
-func NewAgent(server string) *Agent {
-	return &Agent{server}
+func NewAgent(server, password string) *Agent {
+	return &Agent{server, password}
 }
 
 func (a *Agent) Upload(h *UploadHandle) {
@@ -127,33 +126,54 @@ func blobName(contents io.ReadSeeker) string {
 }
 
 func (a *Agent) UploadFileName(filename string) os.Error {
+	log.Printf("Uploading filename: %s", filename)
 	file, err := os.Open(filename, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("blob is:", blobName(file))
+	log.Printf("blob is:", blobName(file))
 	handle := &UploadHandle{blobName(file), file}
 	a.Upload(handle)
 	return nil
 }
 
+func sumSet(flags ...*bool) (count int) {
+	for _, f := range flags {
+		if *f {
+			count++
+		}
+	}
+	return
+}
+
+func usage(msg string) {
+	if msg != "" {
+		fmt.Println("Error:", msg)
+	}
+	fmt.Println(`
+Usage: camliup
+
+  camliup --blob <filename(s) to upload as blobs>
+  camliup --file <filename(s) to upload as blobs + JSON metadata>
+`)
+	flag.PrintDefaults()
+	os.Exit(1)
+}
+
 func main() {
 	flag.Parse()
 
-	// Remove trailing slash if provided.
-	if strings.HasSuffix(*flagServer, "/") {
-		*flagServer = (*flagServer)[0 : len(*flagServer)-1]
+	if sumSet(flagFile, flagBlob) != 1 {
+		usage("Exactly one of --blob and --file may be set")
 	}
 
-	if *flagFile == "" {
-		fmt.Println("Usage: camliup -file=[filename]")
-		flag.PrintDefaults()
-		return
+	agent := NewAgent(clientconfig.BlobServerOrDie(), clientconfig.PasswordOrDie())
+	if *flagFile || *flagBlob {
+		for n := 0; n < flag.NArg(); n++ {
+			agent.UploadFileName(flag.Arg(n))
+		}
 	}
-
-	agent := NewAgent(*flagServer)
-	agent.UploadFileName(*flagFile)
 
 	stats := agent.Wait()
 	fmt.Println("Done uploading; stats:", stats)
