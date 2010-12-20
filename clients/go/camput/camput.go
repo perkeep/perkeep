@@ -9,6 +9,7 @@ import (
 	"camli/clientconfig"
 	"camli/http"
 	"crypto/sha1"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -38,6 +39,12 @@ func NewAgent(server, password string) *Agent {
 	return &Agent{server, password}
 }
 
+func encodeBase64(s string) string {
+	buf := make([]byte, base64.StdEncoding.EncodedLen(len(s)))
+	base64.StdEncoding.Encode(buf, []byte(s))
+	return string(buf)
+}
+
 func (a *Agent) Upload(h *UploadHandle) {
 	url := fmt.Sprintf("%s/camli/preupload", a.server)
 	fmt.Println("Need to upload: ", h, "to", url)
@@ -47,13 +54,18 @@ func (a *Agent) Upload(h *UploadHandle) {
 		return
 	}
 
-	resp, err := http.Post(
+	authHeader := "Basic " + encodeBase64("username:" + a.password)
+
+	req := http.NewPostRequest(
 		url,
 		"application/x-www-form-urlencoded",
 		strings.NewReader("camliversion=1&blob1="+h.blobref))
+	req.Header["Authorization"] = authHeader
+
+	log.Printf("Request is %v", req.Request)
+	resp, err := req.Send()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Upload error for %v: %v\n",
-			h.blobref, err)
+		log.Exitf("Upload error for %v: %v\n", h.blobref, err)
 	}
 
 	fmt.Println("Got response:", resp)
@@ -94,7 +106,7 @@ func (a *Agent) Upload(h *UploadHandle) {
 	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
 	h.contents.Seek(0, 0)
 
-	resp, err = http.Post(uploadUrl,
+	req = http.NewPostRequest(uploadUrl,
 		"multipart/form-data; boundary="+boundary,
 		io.MultiReader(
 			strings.NewReader(fmt.Sprintf(
@@ -103,6 +115,8 @@ func (a *Agent) Upload(h *UploadHandle) {
 				h.blobref)),
 			h.contents,
 			strings.NewReader("\r\n--"+boundary+"--\r\n")))
+	req.Header["Authorization"] = authHeader
+	resp, err = req.Send()
 
 	if err != nil {
 		error("camli upload error", err)
