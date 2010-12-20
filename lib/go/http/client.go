@@ -154,7 +154,25 @@ func Get(url string) (r *Response, finalURL string, err os.Error) {
 //
 // Caller should close r.Body when done reading it.
 func Post(url string, bodyType string, body io.Reader) (r *Response, err os.Error) {
-	var req Request
+	req := NewPostRequest(url, bodyType, body)
+	return req.Send()
+}
+
+type ClientRequest struct {
+	*Request
+	error     os.Error
+}
+
+func (cr *ClientRequest) Send() (r *Response, err os.Error) {
+	if cr.error != nil {
+		return nil, cr.error
+	}
+	return send(cr.Request)
+}
+
+func NewPostRequest(url string, bodyType string, body io.Reader) (*ClientRequest) {
+	req := new(ClientRequest)
+	req.Request = new(Request)
 	req.Method = "POST"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
@@ -164,13 +182,8 @@ func Post(url string, bodyType string, body io.Reader) (r *Response, err os.Erro
 		"Content-Type": bodyType,
 	}
 	req.TransferEncoding = []string{"chunked"}
-
-	req.URL, err = ParseURL(url)
-	if err != nil {
-		return nil, err
-	}
-
-	return send(&req)
+	req.URL, req.error = ParseURL(url)
+	return req
 }
 
 // PostForm issues a POST to the specified URL, 
