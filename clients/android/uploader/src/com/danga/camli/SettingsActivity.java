@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -24,6 +25,9 @@ public class SettingsActivity extends PreferenceActivity {
     private EditTextPreference passwordPref;
     private CheckBoxPreference autoPref;
     private PreferenceScreen autoOpts;
+
+    private SharedPreferences mSharedPrefs;
+    private Preferences mPrefs;
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -47,6 +51,9 @@ public class SettingsActivity extends PreferenceActivity {
         autoPref = (CheckBoxPreference) findPreference(Preferences.AUTO);
         autoOpts = (PreferenceScreen) findPreference(Preferences.AUTO_OPTS);
 
+        mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
+        mPrefs = new Preferences(mSharedPrefs);
+
         OnPreferenceChangeListener onChange = new OnPreferenceChangeListener() {
             public boolean onPreferenceChange(Preference pref, Object newValue) {
                 final String key = pref.getKey();
@@ -67,26 +74,31 @@ public class SettingsActivity extends PreferenceActivity {
         };
         hostPref.setOnPreferenceChangeListener(onChange);
         passwordPref.setOnPreferenceChangeListener(onChange);
-        
-        autoPref.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
-            public boolean onPreferenceChange(Preference preference, Object newObjValue) {
-                Boolean newValue = (Boolean) newObjValue;
-                updateAutoOpts(newValue);
-                if (mServiceStub != null) {
-                    try {
-                        mServiceStub.setBackgroundWatchersEnabled(newValue.booleanValue());
-                    } catch (RemoteException e) {
-                        // Ignore.
+    }
+
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = new
+        SharedPreferences.OnSharedPreferenceChangeListener() {
+            public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+                if (Preferences.AUTO.equals(key)) {
+                    boolean val = mPrefs.autoUpload();
+                    updateAutoOpts(val);
+                    Log.d(TAG, "AUTO changed to " + val);
+                    if (mServiceStub != null) {
+                        try {
+                            mServiceStub.setBackgroundWatchersEnabled(val);
+                        } catch (RemoteException e) {
+                            // Ignore.
+                        }
                     }
                 }
-                return true; // yes, persist it.
+
             }
-        });
-    }
+        };
 
     @Override
     protected void onPause() {
         super.onPause();
+        mSharedPrefs.unregisterOnSharedPreferenceChangeListener(prefChangedHandler);
         if (mServiceConnection != null) {
             unbindService(mServiceConnection);
         }
@@ -96,6 +108,7 @@ public class SettingsActivity extends PreferenceActivity {
     protected void onResume() {
         super.onResume();
         updatePreferenceSummaries();
+        mSharedPrefs.registerOnSharedPreferenceChangeListener(prefChangedHandler);
         bindService(new Intent(this, UploadService.class), mServiceConnection,
                 Context.BIND_AUTO_CREATE);
     }
@@ -111,8 +124,8 @@ public class SettingsActivity extends PreferenceActivity {
             passwordPref.setSummary("*********");
         } else {
             passwordPref.setSummary("<unset>");
-            }
         }
+    }
 
     private void updateHostSummary(String value) {
         if (value != null && value.length() > 0) {

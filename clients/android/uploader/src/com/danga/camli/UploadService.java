@@ -67,7 +67,8 @@ public class UploadService extends Service {
     PowerManager mPowerManager;
     WifiManager mWifiManager;
     NotificationManager mNotificationManager;
-    SharedPreferences mPrefs;
+    SharedPreferences mSharedPrefs;
+    Preferences mPrefs;
     SQLiteOpenHelper mOpenHelper;
     
     // File Observers. Need to keep a reference to them, as there's no JNI
@@ -86,7 +87,8 @@ public class UploadService extends Service {
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        mPrefs = getSharedPreferences(Preferences.NAME, 0);
+        mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
+        mPrefs = new Preferences(mSharedPrefs);
         mOpenHelper = new SQLiteOpenHelper(this, "camli.db", null, DB_VERSION) {
 
             @Override
@@ -112,6 +114,10 @@ public class UploadService extends Service {
     @Override
     public void onStart(Intent intent, int startId) {
         handleCommand(intent);
+    }
+
+    private void startUploadService() {
+        startService(new Intent(UploadService.this, UploadService.class));
     }
 
     // This is @Override as of SDK version 5, but we're targetting 4 (Android
@@ -150,16 +156,15 @@ public class UploadService extends Service {
         }
 
         try {
-            if (INTENT_POWER_CONNECTED.equals(action) &&
-                mPrefs.getBoolean(Preferences.AUTO, false)) {
+            if (INTENT_POWER_CONNECTED.equals(action) && mPrefs.autoUpload()) {
                 service.resume();
                 handleUploadAll();
             }
 
-            if (INTENT_POWER_DISCONNECTED.equals(action) &&
-                mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
+            if (INTENT_POWER_DISCONNECTED.equals(action) && mPrefs.autoRequiresPower()) {
                 service.pause();
                 stopBackgroundWatchers();
+                stopServiceIfEmpty();
             }
         } catch (RemoteException e) {
             // Ignore.
@@ -231,10 +236,10 @@ public class UploadService extends Service {
 
     private List<String> getBackupDirs() {
         ArrayList<String> dirs = new ArrayList<String>();
-        if (mPrefs.getBoolean(Preferences.AUTO_DIR_PHOTOS, true)) {
+        if (mSharedPrefs.getBoolean(Preferences.AUTO_DIR_PHOTOS, true)) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
         }
-        if (mPrefs.getBoolean(Preferences.AUTO_DIR_MYTRACKS, true)) {
+        if (mSharedPrefs.getBoolean(Preferences.AUTO_DIR_MYTRACKS, true)) {
             dirs.add(Environment.getExternalStorageDirectory() + "/gpx");
             dirs.add(Environment.getExternalStorageDirectory() + "/kml");
         }
@@ -279,7 +284,7 @@ public class UploadService extends Service {
 
     private void updateBackgroundWatchers() {
         stopBackgroundWatchers();
-        if (!mPrefs.getBoolean(Preferences.AUTO, false)) {
+        if (!mSharedPrefs.getBoolean(Preferences.AUTO, false)) {
             return;
         }
         startBackgroundWatchers();
@@ -434,7 +439,8 @@ public class UploadService extends Service {
 
     private void stopServiceIfEmpty() {
         synchronized (this) {
-            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null) {
+            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null &&
+                !mPrefs.autoUpload()) {
                 Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
             } else {
@@ -540,7 +546,7 @@ public class UploadService extends Service {
          * via a startService(Intent) to us.
          */
         public boolean enqueueUpload(Uri uri) throws RemoteException {
-            startService(new Intent(UploadService.this, UploadService.class));
+            startUploadService();
             incrementBlobsToDigest(1);
             return enqueueSingleUri(uri);
         }
@@ -623,12 +629,12 @@ public class UploadService extends Service {
 
         public boolean resume() throws RemoteException {
             Log.d(TAG, "Resuming upload...");
-            HostPort hp = new HostPort(mPrefs.getString(Preferences.HOST, ""));
+            HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {
                 setUploadStatusText("Upload server not configured.");
                 return false;
             }
-            String password = mPrefs.getString(Preferences.PASSWORD, "");
+            String password = mSharedPrefs.getString(Preferences.PASSWORD, "");
 
             final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
                     PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
@@ -722,10 +728,12 @@ public class UploadService extends Service {
 
         public void setBackgroundWatchersEnabled(boolean enabled) throws RemoteException {
             if (enabled) {
+                startUploadService();
                 UploadService.this.stopBackgroundWatchers();
                 UploadService.this.startBackgroundWatchers();
             } else {
                 UploadService.this.stopBackgroundWatchers();
+                stopServiceIfEmpty();
             }
         }
     };
