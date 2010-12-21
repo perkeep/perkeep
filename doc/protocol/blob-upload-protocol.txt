@@ -1,11 +1,39 @@
-The /camli/preupload endpoint is used to begin uploading a blob.
+Uploading a blob is done in two parts:
 
-A request to this endpoint will instruct the client where to actually upload the blob and what blobs are already present in the store.
+1) a "preupload" (HTTP POST application/x-www-form-urlencoded) to both
+   check what blobs are necessary to upload in the first place, as
+   well as to get an "upload URL".  This is mostly due to a broken App
+   Engine limitation, which we want to support, but it could also
+   theoretically used for some lame load balancing.  In any case, the
+   first reason (checking which blobs the server already has) is still
+   valid, especially because the alternative (a bunch of
+   HTTP-pipelined HEAD requests) wouldn't be supported well in
+   practice as few HTTP servers support pipelining well enough.
 
+2) the actual "upload" (HTTP POST multipart/form-data) containing one
+   or more blobs to be uploaded.
 
+============================================================================
 Preupload request:
+============================================================================
+
+Request form values:
+
+   camliversion    required  Version of preupload protocol; must be "1" for now.
+
+   blob<n>         required  Must start at 1 and go up, no gaps allowed, not
+                             zero-padded, etc.  Value is a blobref, e.g
+                             "sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"
+                             There's no defined limit on how many you include here,
+                             but servers may ignore your requests at a certain
+                             point and just not include them in the response
+                             "alreadyHave" section.  You're advised to keep this
+                             under ~1000 blobs.
+
+Example:
 
 POST /camli/preupload HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
 Host: example.com
 
 camliversion=1&
@@ -13,7 +41,9 @@ blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8&
 blob2=sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd&
 blob3=sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 
+--------------------------------------------------
 Response:
+--------------------------------------------------
 
 HTTP/1.1 200 OK
 Content-Length: ...
@@ -38,28 +68,58 @@ Response keys:
                                payload, which may be one or more blobs.
    uploadUrl        required   Next URL to use to upload any more blobs.
    uploadUrlExpirationSeconds
-                    required   How long the upload URL will be valid for.
+                    required   How long the upload URL will be valid for,
+                               in seconds.
 
-
+============================================================================
 Upload request:
+============================================================================
+
+Things to note about the request:
+
+   * You MUST provide a "name" parameter in each multipart part's
+     Content-Disposition value.  The part's name matters and is the
+     blobref ("digest-hexhexhexhex") of your blob.  The bytes MUST
+     match the blobref and the server MUST reject it if they don't
+     match.
+
+   * You (currently) MUST provide a Content-Type for each multipart
+     part.  It doesn't matter what it is (it's thrown away), but it's
+     necessary to satisfy various HTTP libraries.  Easiest is to just
+     set it to "application/octet-stream" Server implementions SHOULD
+     fail if you clients forget it, to encourage clients to remember
+     it for compatibility with all blob servers.
+
+   * You (currently) MUST provide a "filename" parameter in each
+     multipart's Content-Disposition value, unique per blob, but it
+     will also be thrown away and exists purely to satisfy various
+     HTTP libraries (mostly App Engine).  It's recommended to either
+     set this to an increasing number (e.g. "blob1", "blob2") or just
+     repeat the blobref value here.
+
+Some of these requirements may be relaxed in the future.
+
+Example:
 
 POST /some/server-chosen/url HTTP/1.1
 Host: upload-server.example.com
 Content-Type: multipart/form-data; boundary=randomboundaryXYZ
 
 --randomboundaryXYZ
-Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"
+Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"; filename="blob1"
 Content-Type: application/octet-stream
 
-(binary blob data)
+(binary or text blob data)
 --randomboundaryXYZ
-Content-Disposition: form-data; name="sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+Content-Disposition: form-data; name="sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"; filename="blob2"
 Content-Type: application/octet-stream
 
-(binary blob data)
+(binary or text blob data)
 --randomboundaryXYZ--
 
-Response (may be a 301/302/303 redirect to this data):
+-----------------------------------------------------
+Response (statis may be a 200 or a 303 to this data)
+-----------------------------------------------------
 
 HTTP/1.1 200 OK
 Content-Type: text/plain
@@ -86,7 +146,9 @@ Response keys:
    uploadUrl        required   Next URL to use to upload any more blobs.
    uploadUrlExpirationSeconds
                     required   How long the upload URL will be valid for.
-
+   errorText        optional   String error message for protocol errors
+                               not relating to a particular blob.
+                               Mostly for debugging clients.  
 
 If connection drops during a POST to an upload URL, you should re-do a
 preupload request to verify which objects were received by the server
