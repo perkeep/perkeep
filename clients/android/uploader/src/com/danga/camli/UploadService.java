@@ -134,11 +134,13 @@ public class UploadService extends Service {
         String action = intent.getAction();
         if (Intent.ACTION_SEND.equals(action)) {
             handleSend(intent);
+            stopServiceIfEmpty();
             return;
         }
 
         if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             handleSendMultiple(intent);
+            stopServiceIfEmpty();
             return;
         }
 
@@ -148,13 +150,14 @@ public class UploadService extends Service {
         }
 
         try {
-            if (INTENT_POWER_CONNECTED.equals(action)) {
+            if (INTENT_POWER_CONNECTED.equals(action) &&
+                mPrefs.getBoolean(Preferences.AUTO, false)) {
                 service.resume();
                 handleUploadAll();
             }
 
-            if (INTENT_POWER_DISCONNECTED.equals(action)
-                    && mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
+            if (INTENT_POWER_DISCONNECTED.equals(action) &&
+                mPrefs.getBoolean(Preferences.AUTO_REQUIRE_POWER, false)) {
                 service.pause();
                 stopBackgroundWatchers();
             }
@@ -395,6 +398,7 @@ public class UploadService extends Service {
             } catch (RemoteException e) {
             }
         }
+        stopServiceIfEmpty();
     }
 
     /**
@@ -430,9 +434,16 @@ public class UploadService extends Service {
 
     private void stopServiceIfEmpty() {
         synchronized (this) {
-            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null
-                    && !mPrefs.getBoolean(Preferences.AUTO, false)) {
+            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null) {
+                Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
+            } else {
+                Log.d(TAG, "stopServiceIfEmpty; NOT stopping; "
+                      + mQueueSet.isEmpty() + "; "
+                      + mBlobsToDigest + "; "
+                      + mUploading + "; "
+                      + (mUploadThread != null));
+                return;
             }
 
             if (mDb != null) {
