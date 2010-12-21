@@ -7,6 +7,9 @@ Blobserver:
 
 Android:
 
+[ ] Fix wake locks in UploadThread.  need to hold CPU + WiFi whenever
+    something's enqueued at all and we're running.  Move out of the Thread
+    that's uploading itself.
 [ ] GPG signing of blobs (brad)
     http://code.google.com/p/android-privacy-guard/
     http://www.thialfihar.org/projects/apg/
