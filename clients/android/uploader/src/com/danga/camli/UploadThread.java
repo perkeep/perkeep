@@ -33,6 +33,7 @@ import org.json.JSONObject;
 
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
+import android.util.Base64;
 import android.util.Log;
 
 public class UploadThread extends Thread {
@@ -40,24 +41,40 @@ public class UploadThread extends Thread {
     
     private final UploadService mService;
     private final HostPort mHostPort;
+    private final String mPassword;
     private LinkedList<QueuedFile> mQueue;
 
     private final AtomicBoolean mStopRequested = new AtomicBoolean(false);
 
     private final DefaultHttpClient mUA = new DefaultHttpClient();
 
+    private static final String USERNAME = "TODO-DUMMY-USER";
+
     public UploadThread(UploadService uploadService, HostPort hp, String password) {
         mService = uploadService;
         mHostPort = hp;
+        mPassword = password;
 
-        CredentialsProvider creds = new BasicCredentialsProvider();
-        creds.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("TODO-DUMMY-USER",
-                password));
-        mUA.setCredentialsProvider(creds);
+        // TODO: this crap results in double HTTP requests on everything.
+        // And the setAuthenticationPreemptive method described at
+        //    http://hc.apache.org/httpclient-3.x/authentication.html
+        // doesn't seem to be available on Android.  So screw it, do it by hand instead
+        // below, manually setting the Authorization header.
+        //
+        //CredentialsProvider creds = new BasicCredentialsProvider();
+        //creds.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(USERNAME,
+        //password));
+        //mUA.setCredentialsProvider(creds);
+        Log.d(TAG, "Authorization: " + getBasicAuthHeaderValue());
     }
     
     public void stopPlease() {
         mStopRequested.set(true);
+    }
+
+    private String getBasicAuthHeaderValue() {
+        return "Basic " + Base64.encodeToString((USERNAME + ":" + mPassword).getBytes(),
+                                                Base64.NO_WRAP | Base64.NO_PADDING);
     }
 
     @Override
@@ -104,6 +121,7 @@ public class UploadThread extends Thread {
         // Do the pre-upload.
         HttpPost preReq = new HttpPost("http://" + mHostPort
                 + "/camli/preupload");
+        preReq.setHeader("Authorization", getBasicAuthHeaderValue());
         List<BasicNameValuePair> uploadKeys = new ArrayList<BasicNameValuePair>();
         uploadKeys.add(new BasicNameValuePair("camliversion", "1"));
 
@@ -155,6 +173,7 @@ public class UploadThread extends Thread {
         }
 
         HttpPost uploadReq = new HttpPost(uploadUrl);
+        uploadReq.setHeader("Authorization", getBasicAuthHeaderValue());
         MultipartEntity entity = new MultipartEntity();
         uploadReq.setEntity(entity);
         HttpResponse uploadRes = null;
