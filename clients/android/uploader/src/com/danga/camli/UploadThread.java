@@ -226,8 +226,9 @@ public class UploadThread extends Thread {
 
     private class MultipartEntity implements HttpEntity {
 
-        private static final String CONTENT_DISPOSITION_FORM_DATA_NAME = "Content-Disposition: form-data; name=";
-        private static final String CRLFCRLF = "\r\n\r\n";
+        private static final String CONTENT_DISPOSITION_LINE_PATTERN = "Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n";
+        private static final String CONTENT_TYPE_LINE = "Content-Type: application/octet-stream\r\n";
+        private static final String CRLF = "\r\n";
 
         private static final int MAX_WRITE_PER_ENTITY = 1024 * 1024;
 
@@ -270,9 +271,9 @@ public class UploadThread extends Thread {
                 long totalFileBytes = pfd.getStatSize();
 
                 length += newBoundarySize();
-                length += CONTENT_DISPOSITION_FORM_DATA_NAME.length();
-                length += qf.getContentName().length();
-                length += CRLFCRLF.length();
+                length += String.format(CONTENT_DISPOSITION_LINE_PATTERN, qf.getContentName(), qf.getContentName()).length();
+                length += CONTENT_TYPE_LINE.length();
+                length += CRLF.length();
 
                 length += totalFileBytes;
 
@@ -326,9 +327,9 @@ public class UploadThread extends Thread {
                 }
                 startNewBoundary(pw);
                 pw.flush();
-                pw.print(CONTENT_DISPOSITION_FORM_DATA_NAME);
-                pw.print(qf.getContentName());
-                pw.print(CRLFCRLF);
+                pw.print(String.format(CONTENT_DISPOSITION_LINE_PATTERN, qf.getContentName(), qf.getContentName()));
+                pw.print(CONTENT_TYPE_LINE);
+                pw.print(CRLF);
                 pw.flush();
 
                 FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
