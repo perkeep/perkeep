@@ -8,6 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.HashMap;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -70,6 +71,10 @@ public class UploadService extends Service {
     SharedPreferences mSharedPrefs;
     Preferences mPrefs;
     SQLiteOpenHelper mOpenHelper;
+
+    // Wake locks for when we have work in-flight
+    private PowerManager.WakeLock mWakeLock;
+    private WifiManager.WifiLock mWifiLock;
     
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
@@ -438,6 +443,11 @@ public class UploadService extends Service {
     }
 
     private void stopServiceIfEmpty() {
+        // Convenient place to drop this cache.
+        synchronized (mDigestRows) {
+            mDigestRows.clear();
+        }
+
         synchronized (this) {
             if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null &&
                 !mPrefs.autoUpload()) {
@@ -476,9 +486,49 @@ public class UploadService extends Service {
         }
     }
 
+    private static class DigestCacheRow {
+        String sha1;
+        long   size;
+    }
+
+    private final HashMap<String, DigestCacheRow> mDigestRows = new HashMap<String, DigestCacheRow>();
+    private void batchDigestLookup(List<Uri> uriList) {
+        synchronized (mDigestRows) {
+            for (Uri uri : uriList) {
+                mDigestRows.put(uri.toString(), new DigestCacheRow());
+            }
+            SQLiteDatabase db = getDb();
+            Cursor c = db.query("digestcache", new String[] { "sha1", "file", "size" },
+                                null, null, null, null, null);
+            try {
+                while (c.moveToNext()) {
+                    String file = c.getString(1);
+                    Log.d(TAG, "batch stat = " + file);
+                    DigestCacheRow row = mDigestRows.get(file);
+                    if (row == null) {
+                        continue;
+                    }
+                    Log.d(TAG, "populating");
+                    row.sha1 = c.getString(0);
+                    row.size = c.getLong(2);
+                }
+            } finally {
+                c.close();
+            }
+        }
+    }
+
     private synchronized String getSha1OfUri(Uri uri, ParcelFileDescriptor pfd) {
-        SQLiteDatabase db = getDb();
         long statSize = pfd.getStatSize();
+        synchronized (mDigestRows) {
+            String uriString = uri.toString();
+            DigestCacheRow row = mDigestRows.get(uriString);
+            mDigestRows.remove(uriString);
+            if (row != null && row.size == statSize) {
+                return row.sha1;
+            }
+        }
+        SQLiteDatabase db = getDb();
         Cursor c = db.query("digestcache", new String[] { "sha1" }, "file=? AND size=?",
                 new String[] { uri.toString(), "" + statSize }, null /* groupBy */,
                 null /* having */, null /* orderBy */);
@@ -525,6 +575,7 @@ public class UploadService extends Service {
             startService(new Intent(UploadService.this, UploadService.class));
             Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
             incrementBlobsToDigest(uriList.size());
+            batchDigestLookup(uriList);
             int goodCount = 0;
             int startGen = mStopDigestingCounter.get();
             for (Uri uri : uriList) {
@@ -535,6 +586,9 @@ public class UploadService extends Service {
                     }
                     return goodCount;
                 }
+            }
+            synchronized (mDigestRows) {
+                mDigestRows.clear();
             }
             Log.d(TAG, "...goodCount = " + goodCount);
             return goodCount;
@@ -663,14 +717,23 @@ public class UploadService extends Service {
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
                         password);
+                mUploadThread.start();
 
                 // Start a thread to release the wakelock...
                 final Thread threadToWatch = mUploadThread;
                 new Thread("UploadThread-waiter") {
                     @Override public void run() {
-                        try {
-                            threadToWatch.join();
-                        } catch (InterruptedException e) {
+                        while (true) {
+                            try {
+                                threadToWatch.join(10000); // 10 seconds
+                            } catch (InterruptedException e) {
+                            }
+                            synchronized (UploadService.this) {
+                                if (threadToWatch == mUploadThread) {
+                                    continue;
+                                }
+                            }
+                            break;
                         }
                         Log.d(TAG, "UploadThread done; releasing the wakelock");
                         wakeLock.release();
@@ -678,7 +741,6 @@ public class UploadService extends Service {
                         onUploadThreadEnded();
                     }
                 }.start();
-                mUploadThread.start();
             }
             mCallback.setUploading(true);
             return true;
