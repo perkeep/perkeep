@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"os"
 	)
 
@@ -33,27 +34,54 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	var errText string
+	addError := func(s string) {
+		log.Printf("Client error: %s", s)
+		if errText == "" {
+			errText = s
+			return
+		}
+		errText = errText + "\n" + s
+	}
+
 	for {
 		part, err := multipart.NextPart()
 		if err != nil {
-			log.Println("Error reading multipart section:", err)
+			addError(fmt.Sprintf("Error reading multipart section: %v", err))
 			break
 		}
 		if part == nil {
 			break
 		}
-		formName := part.FormName()
-		log.Printf("New value [%s], part=%v\n", formName, part)
 
+		contentDisposition, params := mime.ParseMediaType(part.Header["Content-Disposition"])
+		if contentDisposition != "form-data" {
+			addError(fmt.Sprintf("Expected Content-Disposition of \"form-data\"; got %q", contentDisposition))
+			break
+		}
+
+		formName := params["name"]
 		ref := blobref.Parse(formName)
 		if ref == nil {
-			log.Printf("Ignoring form key [%s]\n", formName)
+			addError(fmt.Sprintf("Ignoring form key %q", formName))
+			continue
+		}
+
+		_, hasContentType := part.Header["Content-Type"]
+		if !hasContentType {
+			addError(fmt.Sprintf("Expected Content-Type header for blobref %s; see spec", ref))
+			continue
+		}
+
+		_, hasFileName := params["filename"]
+		if !hasFileName {
+			addError(fmt.Sprintf("Expected filenamed Content-Disposition parameter for blobref %s; see spec", ref))
 			continue
 		}
 
 		blobGot, err := receiveBlob(ref, part)
 		if err != nil {
-			log.Printf("Error receiving blob %v: %v\n", ref, err)
+			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break
 		}
 		log.Printf("Received blob %v\n", blobGot)
@@ -72,6 +100,10 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 		received = append(received, blob)
 	}
 	ret["received"] = received
+
+	if errText != "" {
+		ret["errorText"] = errText
+	}
 
 	httputil.ReturnJson(conn, ret)
 }
