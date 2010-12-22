@@ -727,9 +727,14 @@ public class UploadService extends Service {
                             try {
                                 threadToWatch.join(10000); // 10 seconds
                             } catch (InterruptedException e) {
+                                Log.d(TAG, "Interrupt waiting for uploader thread.", e);
                             }
                             synchronized (UploadService.this) {
+                                if (threadToWatch.getState() == Thread.State.TERMINATED) {
+                                    break;
+                                }
                                 if (threadToWatch == mUploadThread) {
+                                    Log.d(TAG, "UploadThread-waiter still waiting.");                                          
                                     continue;
                                 }
                             }
