@@ -3,6 +3,8 @@ package main
 import (
 	"camli/blobref"
 	"camli/httputil"
+	"exec"
+	"flag"
 	"fmt"
 	"http"
 	"io"
@@ -16,6 +18,8 @@ type receivedBlob struct {
 	blobRef  *blobref.BlobRef
 	size     int64
 }
+
+var flagOpenImages *bool = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
@@ -175,6 +179,17 @@ func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedB
 
 	blobGot = &receivedBlob{blobRef: blobRef, size: stat.Size}
 	success = true
+
+	if *flagOpenImages {
+		exec.Run("/usr/bin/eog",
+			[]string{"/usr/bin/eog", fileName},
+			os.Environ(),
+			"/",
+			exec.DevNull,
+			exec.DevNull,
+			exec.MergeWithStdout)
+	}
+
 	return
 }
 
