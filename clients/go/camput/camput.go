@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"camli/blobref"
 	"camli/clientconfig"
 	"camli/http"
 	"crypto/sha1"
@@ -25,7 +26,7 @@ var flagBlob *bool = flag.Bool("blob", true, "upload a file's bytes as a single 
 var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
 
 type UploadHandle struct {
-	blobref  string
+	blobref  *blobref.BlobRef
 	contents io.ReadSeeker
 }
 
@@ -59,7 +60,7 @@ func (a *Agent) Upload(h *UploadHandle) {
 	req := http.NewPostRequest(
 		url,
 		"application/x-www-form-urlencoded",
-		strings.NewReader("camliversion=1&blob1="+h.blobref))
+		strings.NewReader("camliversion=1&blob1="+h.blobref.String()))
 	req.Header["Authorization"] = authHeader
 
 	log.Printf("Request is %v", req.Request)
@@ -94,7 +95,7 @@ func (a *Agent) Upload(h *UploadHandle) {
 
 	for _, haveObj := range alreadyHave {
 		haveObj := haveObj.(map[string]interface{})
-		if haveObj["blobRef"].(string) == h.blobref {
+		if haveObj["blobRef"].(string) == h.blobref.String() {
 			fmt.Println("already have it!")
 			// TODO: signal success
 			return
@@ -132,24 +133,28 @@ func (a *Agent) Wait() int {
 	return 0
 }
 
-func blobName(contents io.ReadSeeker) string {
+func blobName(contents io.ReadSeeker) *blobref.BlobRef {
 	s1 := sha1.New()
 	contents.Seek(0, 0)
 	io.Copy(s1, contents)
-	return fmt.Sprintf("sha1-%x", s1.Sum())
+	return blobref.Parse(fmt.Sprintf("sha1-%x", s1.Sum()))
 }
 
-func (a *Agent) UploadFileName(filename string) os.Error {
+func (a *Agent) UploadFileBlob(filename string) (*blobref.BlobRef, os.Error) {
 	log.Printf("Uploading filename: %s", filename)
 	file, err := os.Open(filename, os.O_RDONLY, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Printf("blob is:", blobName(file))
 	handle := &UploadHandle{blobName(file), file}
 	a.Upload(handle)
-	return nil
+	return handle.blobref, nil
+}
+
+func (a *Agent) UploadFile(filename string) (*blobref.BlobRef, os.Error) {
+	return nil, nil
 }
 
 func sumSet(flags ...*bool) (count int) {
@@ -185,7 +190,11 @@ func main() {
 	agent := NewAgent(clientconfig.BlobServerOrDie(), clientconfig.PasswordOrDie())
 	if *flagFile || *flagBlob {
 		for n := 0; n < flag.NArg(); n++ {
-			agent.UploadFileName(flag.Arg(n))
+			if *flagBlob {
+				agent.UploadFileBlob(flag.Arg(n))
+			} else {
+				agent.UploadFile(flag.Arg(n))
+			}
 		}
 	}
 
