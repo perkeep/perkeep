@@ -118,7 +118,7 @@ Content-Type: application/octet-stream
 --randomboundaryXYZ--
 
 -----------------------------------------------------
-Response (statis may be a 200 or a 303 to this data)
+Response (status may be a 200 or a 303 to this data)
 -----------------------------------------------------
 
 HTTP/1.1 200 OK
