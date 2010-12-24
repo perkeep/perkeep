@@ -79,7 +79,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 
 		_, hasFileName := params["filename"]
 		if !hasFileName {
-			addError(fmt.Sprintf("Expected filenamed Content-Disposition parameter for blobref %s; see spec", ref))
+			addError(fmt.Sprintf("Expected 'filename' Content-Disposition parameter for blobref %s; see spec", ref))
 			continue
 		}
 

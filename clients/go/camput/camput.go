@@ -18,14 +18,14 @@ import (
 	"log"
 	"os"
 	"strings"
-	"strconv"
 )
-
 
 // Things that can be uploaded.  (at most one of these)
 var flagBlob *bool = flag.Bool("blob", true, "upload a file's bytes as a single blob")
 var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
 var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
+
+var wereErrors = false
 
 type UploadHandle struct {
 	BlobRef  *blobref.BlobRef
@@ -56,12 +56,13 @@ func encodeBase64(s string) string {
 }
 
 func jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
+	if resp.StatusCode != 200 {
+		return nil, os.NewError(fmt.Sprintf("HTTP response code is %d; no JSON to parse.", resp.StatusCode))
+	}
 	// TODO: LimitReader here for paranoia
 	buf := new(bytes.Buffer)
 	io.Copy(buf, resp.Body)
 	resp.Body.Close()
-
-	fmt.Printf("Got HTTP response: [%s]\n", buf)
 	jmap := make(map[string]interface{})
 	if jerr := json.Unmarshal(buf.Bytes(), &jmap); jerr != nil {
 		return nil, jerr
@@ -70,9 +71,6 @@ func jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
 }
 
 func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
-	url := fmt.Sprintf("%s/camli/preupload", a.server)
-	fmt.Println("Need to upload: ", h, "to", url)
-
 	error := func(msg string, e os.Error) (*PutResult, os.Error) {
 		err := os.NewError(fmt.Sprintf("Error uploading blob %s: %s; err=%s",
 			h.BlobRef, msg, e))
@@ -81,15 +79,17 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 
 	authHeader := "Basic " + encodeBase64("username:" + a.password)
-
 	blobRefString := h.BlobRef.String()
+
+	// Pre-upload.  Check whether the blob already exists on the
+	// server and if not, the URL to upload it to.
+	url := fmt.Sprintf("%s/camli/preupload", a.server)
 	req := http.NewPostRequest(
 		url,
 		"application/x-www-form-urlencoded",
 		strings.NewReader("camliversion=1&blob1="+blobRefString))
 	req.Header["Authorization"] = authHeader
 
-	log.Printf("Request is %v", req.Request)
 	resp, err := req.Send()
 	if err != nil {
 		return error("preupload http error", err)
@@ -120,8 +120,6 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		}
 	}
 
-	fmt.Println("preupload done:", pur, alreadyHave)
-
 	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
 	h.Contents.Seek(0, 0)
 
@@ -129,9 +127,10 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		"multipart/form-data; boundary="+boundary,
 		io.MultiReader(
 			strings.NewReader(fmt.Sprintf(
-				"--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n",
+		                "--%s\r\nContent-Type: application/octet-stream\r\n" +
+		                "Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n\r\n",
 				boundary,
-				h.BlobRef)),
+				h.BlobRef, h.BlobRef)),
 			h.Contents,
 			strings.NewReader("\r\n--"+boundary+"--\r\n")))
 	req.Header["Authorization"] = authHeader
@@ -166,19 +165,24 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 
 	for _, rit := range received {
-		it, ok := rit.(map[string]string)
+		it, ok := rit.(map[string]interface{})
 		if !ok {
 			return error("upload json validity error: 'received' is malformed", nil)
 		}
 		if it["blobRef"] == blobRefString {
-			sizeStr, hasSize := it["size"]
-			if !hasSize {
+			switch size := it["size"].(type) {
+			case nil:
 				return error("upload json validity error: 'received' is missing 'size'", nil)
-			}
-			gotSize, _ := strconv.Atoi64(sizeStr) 
-			if gotSize == h.Size {
-				// Success!
-				return pr, nil
+			case float64:
+				if int64(size) == h.Size {
+					// Success!
+					return pr, nil
+				} else {
+					return error(fmt.Sprintf("Server got blob, but reports wrong length (%v; expected %d)",
+						size, h.Size), nil)
+				}
+			default:
+				return error("unsupported type of 'size' in received response", nil)
 			}
 		}
 	}
@@ -197,7 +201,9 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 }
 
 func (a *Agent) UploadFileBlob(filename string) (*PutResult, os.Error) {
-	log.Printf("Uploading filename: %s", filename)
+	if *flagVerbose {
+		log.Printf("Uploading filename: %s", filename)
+	}
 	file, err := os.Open(filename, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -238,8 +244,6 @@ Usage: camliup
 	os.Exit(1)
 }
 
-var wereErrors = false
-
 func handleResult(what string, pr *PutResult, err os.Error) {
 	if err != nil {
 		log.Printf("Error putting %s: %s", what, err)
@@ -273,5 +277,7 @@ func main() {
 		}
 	}
 
-
+	if wereErrors {
+		os.Exit(2)
+	}
 }
