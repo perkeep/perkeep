@@ -21,7 +21,7 @@ import (
 )
 
 // Things that can be uploaded.  (at most one of these)
-var flagBlob *bool = flag.Bool("blob", true, "upload a file's bytes as a single blob")
+var flagBlob *bool = flag.Bool("blob", false, "upload a file's bytes as a single blob")
 var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
 var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
 
@@ -218,6 +218,13 @@ func (a *Agent) UploadFileBlob(filename string) (*PutResult, os.Error) {
 }
 
 func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
+	// Put the blob of the file itself.  (TODO: smart boundary chunking)
+	// For now we just store it as one range.
+	blobpr, err := a.UploadFileBlob(filename)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("Got blobref for file blob: ", blobpr.BlobRef.String())
 	return nil, nil
 }
 
