@@ -9,6 +9,7 @@ import (
 	"camli/blobref"
 	"camli/clientconfig"
 	"camli/http"
+	"camli/schema"
 	"crypto/sha1"
 	"encoding/base64"
 	"flag"
@@ -224,6 +225,13 @@ func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
 	if err != nil {
 		return nil, err
 	}
+
+	fmap, err := schema.NewFileMap(filename)
+	if err != nil {
+                return nil, err
+        }
+
+	fmt.Printf("map: %q\n", fmap)
 	fmt.Println("Got blobref for file blob: ", blobpr.BlobRef.String())
 	return nil, nil
 }
