@@ -1,4 +1,9 @@
 all:
+	make -C armor
+	make -C error
+	make -C packet
+
+install:
 	make -C armor install
 	make -C error install
 	make -C packet install
