@@ -41,6 +41,25 @@ func TestJson(t *testing.T) {
 	
 }
 
+type rfc3339NanoTest struct {
+	nanos int64
+	e     string
+}
+
+func TestRfc3339FromNanos(t *testing.T) {
+	tests := []rfc3339NanoTest{
+		{0, "1970-01-01T00:00:00Z"},
+		{1, "1970-01-01T00:00:00.000000001Z"},
+		{10, "1970-01-01T00:00:00.00000001Z"},
+		{1000, "1970-01-01T00:00:00.000001Z"},
+	}
+	for idx, test := range tests {
+		got := rfc3339FromNanos(test.nanos)
+		if got != test.e {
+			t.Errorf("On test %d got %q; expected %q", idx, got, test.e)
+		}
+	}
+}
 
 func TestRegularFile(t *testing.T) {
 	m, err := NewFileMap("schema_test.go", nil)

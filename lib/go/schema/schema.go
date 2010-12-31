@@ -95,6 +95,19 @@ func populateRegularFileMap(m map[string]interface{}, fileName string, fi *os.Fi
 	return nil
 }
 
+func rfc3339FromNanos(epochnanos int64) string {
+	nanos := epochnanos % 1e9
+	esec := epochnanos / 1e9
+	t := time.SecondsToUTC(esec)
+	timeStr := t.Format(time.RFC3339)
+	if nanos == 0 {
+		return timeStr
+	}
+	nanoStr := fmt.Sprintf("%09d", nanos)
+	nanoStr = strings.TrimRight(nanoStr, "0")
+	return timeStr[:len(timeStr)-1] + "." + nanoStr + "Z"
+}
+
 func NewFileMap(fileName string, sh StatHasher) (map[string]interface{}, os.Error) {
 	if sh == nil {
 		sh = DefaultStatHasher
@@ -114,12 +127,7 @@ func NewFileMap(fileName string, sh StatHasher) (map[string]interface{}, os.Erro
 		m["unixGroupId"] = fi.Gid
 	}
 	if mtime := fi.Mtime_ns; mtime != 0 {
-		nanos := mtime % 1e9
-		mtime /= 1e9 
-		modtime := time.SecondsToUTC(mtime)
-		m["nanos__"] = nanos // TODO
-		timeStr := modtime.Format(time.RFC3339)
-		m["unixMtime"] = timeStr
+		m["unixMtime"] = rfc3339FromNanos(mtime)
 	}
 	
 
