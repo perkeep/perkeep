@@ -74,6 +74,10 @@ func blobIfValid(hashname, digest string) *BlobRef {
 	return &BlobRef{hashname, digest}
 }
 
+func FromHash(name string, h hash.Hash) *BlobRef {
+	return &BlobRef{name, fmt.Sprintf("%x", h.Sum())}
+}
+
 // FromPattern takes a pattern and if it matches 's' with two exactly two valid
 // submatches, returns a BlobRef, else returns nil.
 func FromPattern(r *regexp.Regexp, s string) *BlobRef {

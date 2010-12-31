@@ -8,7 +8,7 @@ Fields common to files, directories, and symlinks:
   "fileNameBytes": [65, 234, 234, 192, 23, 123],   // if unknown charset (not recommended)
 
   // Optional:
-  "unixMode": "0755",  // no octal in JSON, so octal as string
+  "unixPermission": "0755",  // no octal in JSON, so octal as string
   "unixOwnerId": 1000,
   "unixOwner": "bradfitz",
   "unixGroupId": 500,

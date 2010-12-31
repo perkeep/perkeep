@@ -27,7 +27,7 @@ func TestIsUtf8(t *testing.T) {
 const kExpectedHeader = `{"camliVersion"`
 
 func TestJson(t *testing.T) {
-	m := NewMapForFileName("schema_test.go")
+	m := newMapForFileName("schema_test.go")
 	json, err := MapToCamliJson(m)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -38,5 +38,21 @@ func TestJson(t *testing.T) {
 	if !strings.HasPrefix(json, kExpectedHeader) {
 		t.Errorf("JSON does't start with expected header.")
 	}
+	
+}
+
+
+func TestRegularFile(t *testing.T) {
+	m, err := NewFileMap("schema_test.go", nil)
+	if err != nil {
+                t.Fatalf("Unexpected error: %v", err)
+        }
+	json, err := MapToCamliJson(m)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	t.Logf("Got json for regular file: [%s]\n", json)
+	// TODO: test it parses back
+	
 	
 }
