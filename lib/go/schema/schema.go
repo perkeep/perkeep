@@ -94,7 +94,20 @@ func populateRegularFileMap(m map[string]interface{}, fileName string, fi *os.Fi
 	solePart["size"] = fi.Size
 	parts = append(parts, solePart)
 	m["contentParts"] = parts
-	
+	return nil
+}
+
+func populateSymlinkMap(m map[string]interface{}, fileName string, fi *os.FileInfo, sh StatHasher) os.Error {
+	m["camliType"] = "symlink"
+	target, err := os.Readlink(fileName)
+	if err != nil {
+		return err
+	}
+	if isValidUtf8(target) {
+		m["symlinkTarget"] = target
+	} else {
+		m["symlinkTargetBytes"] = []uint8(target)
+	}
 	return nil
 }
 
@@ -189,6 +202,9 @@ func NewFileMap(fileName string, sh StatHasher) (map[string]interface{}, os.Erro
 			return nil, err
 		}
 	case fi.IsSymlink():
+		if err = populateSymlinkMap(m, fileName, fi, sh); err != nil {
+			                        return nil, err
+                }
 	case fi.IsDirectory():
 	case fi.IsBlock():
 		fallthrough

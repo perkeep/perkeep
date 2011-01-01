@@ -71,7 +71,16 @@ func TestRegularFile(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	t.Logf("Got json for regular file: [%s]\n", json)
-	// TODO: test it parses back
-	
-	
+}
+
+func TestSymlink(t *testing.T) {
+	m, err := NewFileMap("testdata/test-symlink", nil)
+	if err != nil {
+                t.Fatalf("Unexpected error: %v", err)
+        }
+	json, err := MapToCamliJson(m)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	t.Logf("Got json for symlink file: [%s]\n", json)
 }
