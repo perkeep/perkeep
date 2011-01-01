@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"bufio"
 	"bytes"
 	"camli/blobref"
 	"crypto/sha1"
@@ -8,7 +9,9 @@ import (
 	"io"
 	"json"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -108,6 +111,49 @@ func rfc3339FromNanos(epochnanos int64) string {
 	return timeStr[:len(timeStr)-1] + "." + nanoStr + "Z"
 }
 
+func populateMap(m map[int]string, file string) {
+	f, err := os.Open(file, os.O_RDONLY, 0)
+	if err != nil {
+		return
+	}
+	bufr := bufio.NewReader(f)
+	for {
+		line, err := bufr.ReadString('\n')
+		if err != nil {
+			return
+		}
+		fmt.Printf("Read line: [%s]\n", line)
+		parts := strings.Split(line, ":", 4)
+		if len(parts) >= 3 {
+			idstr := parts[2]
+			id, err := strconv.Atoi(idstr)
+			if err == nil {
+				m[id] = parts[0]
+			}
+		}
+	}
+}
+
+var uidToUsernameMap map[int]string
+var getUserFromUidOnce sync.Once
+func getUserFromUid(uid int) string {
+	getUserFromUidOnce.Do(func() {
+		uidToUsernameMap = make(map[int]string)
+		populateMap(uidToUsernameMap, "/etc/passwd")
+	})
+	return uidToUsernameMap[uid]
+}
+
+var gidToUsernameMap map[int]string
+var getGroupFromGidOnce sync.Once
+func getGroupFromGid(uid int) string {
+	getGroupFromGidOnce.Do(func() {
+		gidToUsernameMap = make(map[int]string)
+		populateMap(gidToUsernameMap, "/etc/group")
+	})
+	return gidToUsernameMap[uid]
+}
+
 func NewFileMap(fileName string, sh StatHasher) (map[string]interface{}, os.Error) {
 	if sh == nil {
 		sh = DefaultStatHasher
@@ -122,9 +168,15 @@ func NewFileMap(fileName string, sh StatHasher) (map[string]interface{}, os.Erro
 	m["unixPermission"] = fmt.Sprintf("0%o", fi.Permission())
 	if fi.Uid != -1 {
 		m["unixOwnerId"] = fi.Uid
+		if user := getUserFromUid(fi.Uid); user != "" {
+			m["unixOwner"] = user
+		}
 	}
 	if fi.Gid != -1 {
 		m["unixGroupId"] = fi.Gid
+		if group := getGroupFromGid(fi.Gid); group != "" {
+			m["unixGroup"] = group
+		}
 	}
 	if mtime := fi.Mtime_ns; mtime != 0 {
 		m["unixMtime"] = rfc3339FromNanos(mtime)
