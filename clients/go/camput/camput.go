@@ -31,7 +31,7 @@ var wereErrors = false
 type UploadHandle struct {
 	BlobRef  *blobref.BlobRef
 	Size     int64
-	Contents io.ReadSeeker
+	Contents io.Reader
 }
 
 type PutResult struct {
@@ -122,8 +122,6 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 
 	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
-	h.Contents.Seek(0, 0)
-
 	req = http.NewPostRequest(uploadUrl,
 		"multipart/form-data; boundary="+boundary,
 		io.MultiReader(
@@ -195,10 +193,10 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 	s1 := sha1.New()
 	contents.Seek(0, 0)
 	size, err = io.Copy(s1, contents)
-	if err != nil {
-		return
+	if err == nil {
+		bref = blobref.FromHash("sha1", s1)
 	}
-	return blobref.Parse(fmt.Sprintf("sha1-%x", s1.Sum())), size, nil
+	return
 }
 
 func (a *Agent) UploadFileBlob(filename string) (*PutResult, os.Error) {
@@ -214,6 +212,7 @@ func (a *Agent) UploadFileBlob(filename string) (*PutResult, os.Error) {
 	if err != nil {
 		return nil, err
 	}
+	file.Seek(0, 0)
 	handle := &UploadHandle{ref, size, file}
 	return a.Upload(handle)
 }
@@ -247,6 +246,29 @@ func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
 			return nil, err
                 }
 	case fi.IsDirectory():
+		ss := new(schema.StaticSet)
+		dir, err := os.Open(filename, os.O_RDONLY, 0)
+		if err != nil {
+                        return nil, err
+                }
+		dirNames, err := dir.Readdirnames(-1)
+		if err != nil {
+                        return nil, err
+                }
+		dir.Close()
+		// TODO: process dirName entries in parallel
+		for _, dirEntName := range dirNames {
+			pr, err := a.UploadFile(filename + "/" + dirEntName)
+			if err != nil {
+				return nil, err
+			}
+			ss.Add(pr.BlobRef)
+		}
+		sspr, err := a.UploadMap(ss.Map())
+		if err != nil {
+                                return nil, err
+                }
+                schema.PopulateDirectoryMap(m, sspr.BlobRef)
 	case fi.IsBlock():
 		fallthrough
 	case fi.IsChar():
@@ -257,13 +279,22 @@ func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
 		return nil, schema.UnimplementedError
 	}
 
-	fmt.Printf("map: %q\n", m)
+	mappr, err := a.UploadMap(m)
+	return mappr, err
+}
+
+func (a *Agent) UploadMap(m map[string]interface{}) (*PutResult, os.Error) {
 	json, err := schema.MapToCamliJson(m)
 	if err != nil {
                 return nil, err
         }
 	fmt.Printf("json: %s\n", json)
-	return nil, nil
+	s1 := sha1.New()
+	s1.Write([]byte(json))
+	bref := blobref.FromHash("sha1", s1)
+	buf := bytes.NewBufferString(json)
+	h := &UploadHandle{BlobRef: bref, Size: int64(len(json)), Contents: buf}
+	return a.Upload(h)
 }
 
 func sumSet(flags ...*bool) (count int) {

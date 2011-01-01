@@ -45,6 +45,40 @@ func (d *defaultStatHasher) Hash(fileName string) (*blobref.BlobRef, os.Error) {
 	return blobref.FromHash("sha1", s1), nil
 }
 
+type StaticSet struct {
+	l  sync.Mutex
+	refs []*blobref.BlobRef
+}
+
+func (ss *StaticSet) Add(ref *blobref.BlobRef) {
+	ss.l.Lock()
+	defer ss.l.Unlock()
+	ss.refs = append(ss.refs, ref)
+}
+
+func newCamliMap(version int, ctype string) map[string]interface{} {
+	m := make(map[string]interface{})
+        m["camliVersion"] = version
+        m["camliType"] = ctype
+	return m
+}
+
+// Map returns a Camli map of camliType "static-set"
+func (ss *StaticSet) Map() map[string]interface{} {
+	m := newCamliMap(1, "static-set")
+	ss.l.Lock()
+	defer ss.l.Unlock()
+
+	members := make([]string, 0, len(ss.refs))
+	if ss.refs != nil {
+		for _, ref := range ss.refs {
+			members = append(members, ref.String())
+		}
+	}
+	m["members"] = members
+	return m
+}
+
 func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
@@ -63,9 +97,7 @@ func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 }
 
 func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
-	m := make(map[string]interface{})
-	m["camliVersion"] = 1
-	m["camliType"] = "" // undefined at this point
+	m := newCamliMap(1, "" /* no type yet */)
 	
 	lastSlash := strings.LastIndex(fileName, "/")
 	baseName := fileName[lastSlash+1:]
@@ -146,6 +178,11 @@ func PopulateSymlinkMap(m map[string]interface{}, fileName string) os.Error {
 		m["symlinkTargetBytes"] = []uint8(target)
 	}
 	return nil
+}
+
+func PopulateDirectoryMap(m map[string]interface{}, staticSetRef *blobref.BlobRef) {
+	m["camliType"] = "directory"
+	m["entries"] = staticSetRef.String()
 }
 
 func rfc3339FromNanos(epochnanos int64) string {
