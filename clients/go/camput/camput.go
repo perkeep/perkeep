@@ -219,20 +219,50 @@ func (a *Agent) UploadFileBlob(filename string) (*PutResult, os.Error) {
 }
 
 func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
-	// Put the blob of the file itself.  (TODO: smart boundary chunking)
-	// For now we just store it as one range.
-	blobpr, err := a.UploadFileBlob(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	fmap, err := schema.NewFileMap(filename)
-	if err != nil {
+	fi, err := os.Lstat(filename)
+        if err != nil {
                 return nil, err
         }
 
-	fmt.Printf("map: %q\n", fmap)
-	fmt.Println("Got blobref for file blob: ", blobpr.BlobRef.String())
+	m := schema.NewCommonFileMap(filename, fi)
+	
+	switch {
+	case fi.IsRegular():
+		// Put the blob of the file itself.  (TODO: smart boundary chunking)
+		// For now we just store it as one range.
+		blobpr, err := a.UploadFileBlob(filename)
+		if err != nil {
+			return nil, err
+		}
+		parts := []schema.ContentPart{ {BlobRef: blobpr.BlobRef, Size: blobpr.Size }}
+		if blobpr.Size != fi.Size {
+			// TODO: handle races of file changing while reading it
+			// after the stat.
+		}
+		if err = schema.PopulateRegularFileMap(m, fi, parts); err != nil {
+			return nil, err
+		}
+	case fi.IsSymlink():
+		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
+			return nil, err
+                }
+	case fi.IsDirectory():
+	case fi.IsBlock():
+		fallthrough
+	case fi.IsChar():
+		fallthrough
+	case fi.IsSocket():
+		fallthrough
+	case fi.IsFifo():
+		return nil, schema.UnimplementedError
+	}
+
+	fmt.Printf("map: %q\n", m)
+	json, err := schema.MapToCamliJson(m)
+	if err != nil {
+                return nil, err
+        }
+	fmt.Printf("json: %s\n", json)
 	return nil, nil
 }
 

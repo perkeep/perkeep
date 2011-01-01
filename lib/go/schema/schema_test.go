@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -27,7 +28,9 @@ func TestIsUtf8(t *testing.T) {
 const kExpectedHeader = `{"camliVersion"`
 
 func TestJson(t *testing.T) {
-	m := newMapForFileName("schema_test.go")
+	fileName := "schema_test.go"
+	fi, _ := os.Lstat(fileName)
+	m := NewCommonFileMap(fileName, fi)
 	json, err := MapToCamliJson(m)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
