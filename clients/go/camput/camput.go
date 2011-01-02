@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Things that can be uploaded.  (at most one of these)
@@ -40,14 +41,23 @@ type PutResult struct {
 	Skipped  bool    // already present on blobserver
 }
 
+type agentStat struct {
+	blobs int
+	bytes int64
+}
+
 // Upload agent
 type Agent struct {
 	server   string
 	password string
+
+	l              sync.Mutex
+	uploadRequests agentStat
+	uploads        agentStat
 }
 
 func NewAgent(server, password string) *Agent {
-	return &Agent{server, password}
+	return &Agent{server: server, password: password}
 }
 
 func encodeBase64(s string) string {
@@ -78,6 +88,11 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		log.Print(err.String())
 		return nil, err
 	}
+
+	a.l.Lock()
+	a.uploadRequests.blobs++
+	a.uploadRequests.bytes += h.Size
+	a.l.Unlock()
 
 	authHeader := "Basic " + encodeBase64("username:" + a.password)
 	blobRefString := h.BlobRef.String()
@@ -175,6 +190,10 @@ func (a *Agent) Upload(h *UploadHandle) (*PutResult, os.Error) {
 			case float64:
 				if int64(size) == h.Size {
 					// Success!
+					a.l.Lock()
+					a.uploads.blobs++
+					a.uploads.bytes += h.Size
+					a.l.Unlock()
 					return pr, nil
 				} else {
 					return error(fmt.Sprintf("Server got blob, but reports wrong length (%v; expected %d)",
@@ -276,6 +295,8 @@ func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
 	case fi.IsSocket():
 		fallthrough
 	case fi.IsFifo():
+		fallthrough
+	default:
 		return nil, schema.UnimplementedError
 	}
 
@@ -353,6 +374,10 @@ func main() {
 		}
 	}
 
+	if *flagVerbose {
+		log.Printf("Requested upload stats: %v", agent.uploadRequests)
+		log.Printf("   Actual upload stats: %v", agent.uploads)
+	}
 	if wereErrors {
 		os.Exit(2)
 	}
