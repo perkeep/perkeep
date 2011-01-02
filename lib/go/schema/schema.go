@@ -124,6 +124,10 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 	if mtime := fi.Mtime_ns; mtime != 0 {
 		m["unixMtime"] = rfc3339FromNanos(mtime)
 	}
+	// Include the ctime too, if it differs.
+	if ctime := fi.Ctime_ns; ctime != 0 && fi.Mtime_ns != fi.Ctime_ns {
+		m["unixCtime"] = rfc3339FromNanos(ctime)
+	}
 
 	return m
 }
