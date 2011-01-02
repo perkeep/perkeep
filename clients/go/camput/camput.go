@@ -18,6 +18,7 @@ import (
 	"json"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -275,6 +276,7 @@ func (a *Agent) UploadFile(filename string) (*PutResult, os.Error) {
                         return nil, err
                 }
 		dir.Close()
+		sort.SortStrings(dirNames)
 		// TODO: process dirName entries in parallel
 		for _, dirEntName := range dirNames {
 			pr, err := a.UploadFile(filename + "/" + dirEntName)
