@@ -311,7 +311,9 @@ func (a *Agent) UploadMap(m map[string]interface{}) (*PutResult, os.Error) {
 	if err != nil {
                 return nil, err
         }
-	fmt.Printf("json: %s\n", json)
+	if *flagVerbose {
+		fmt.Printf("json: %s\n", json)
+	}
 	s1 := sha1.New()
 	s1.Write([]byte(json))
 	bref := blobref.FromHash("sha1", s1)
