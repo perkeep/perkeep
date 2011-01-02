@@ -1,7 +1,10 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camli/clientconfig
+TARG=camli/client
 GOFILES=\
-	clientconfig.go
+	client.go\
+	config.go\
+	get.go\
+	upload.go\
 
 include $(GOROOT)/src/Make.pkg

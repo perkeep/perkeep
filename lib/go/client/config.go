@@ -1,4 +1,4 @@
-package clientconfig
+package client
 
 import (
 	"flag"
@@ -23,7 +23,7 @@ func cleanServer(server string) string {
 	return server
 }
 
-func BlobServerOrDie() string {
+func blobServerOrDie() string {
 	if *flagServer != "" {
 		return cleanServer(*flagServer)
 	}
@@ -31,7 +31,7 @@ func BlobServerOrDie() string {
 	return ""
 }
 
-func PasswordOrDie() string {
+func passwordOrDie() string {
 	if *flagPassword != "" {
 		return *flagPassword
 	}

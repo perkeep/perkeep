@@ -1,0 +1,6 @@
+#!/bin/sh
+
+make -C lib/go/schema/ install && \
+  make -C lib/go/client install && \
+  make -C clients/go/camget/ && \
+  clients/go/camget/camget --verbose --blobserver=localhost:3179 --password=foo $@

@@ -1,3 +1,6 @@
 #!/bin/sh
 
-make -C lib/go/schema/ install && make -C clients/go/camput/ && clients/go/camput/camput --verbose --blobserver=localhost:3179 --password=foo --file $@
+make -C lib/go/schema/ install && \
+  make -C lib/go/client install && \ 
+  make -C clients/go/camput/ && \
+  clients/go/camput/camput --verbose --blobserver=localhost:3179 --password=foo --file $@
