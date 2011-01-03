@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+{.section Title}
+  <title>{@|html-esc} - Camlistore</title>
+{.or}
+  <title>Camlistore</title>
+{.end}
+<link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/static/all.css" type="text/css" media="all" charset="utf-8">
+<!--[if lt IE 8]>
+<link rel="stylesheet" href="/static/ie.css" type="text/css">
+<![endif]-->
+</head>
+<body>
+<div id="container">
+  <div id="topnav">
+    <h1 id="title">Camlistore</h1>
+    <div id="nav-main">
+      <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/use-cases.html">Use Cases</a></li> 
+      <li><a href="/code.html">Code</a></li> 
+      <li><a href="/terminology.html">Terminology</a></li> 
+      <li><a href="/community.html">Community</a></li> 
+      </ul>
+    </div>
+    <a id="logo-box" href="/"></a>
+  </div>
+  <div id="content">
+  <!-- Menu is HTML-escaped elsewhere -->
+
+  {.section Title}
+    <h1 id="generatedHeader">{@|html-esc}</h1>
+  {.end}
+  {.section Subtitle}
+    <span class="subtitle">{@|html-esc}</span>
+  {.end}
+
+  <p>
+  <!-- The Table of Contents is automatically inserted in this <div>.
+       Do not delete this <div>. -->
+  <div id="nav"></div>
+  </p>
+
+  <!-- Content is HTML-escaped elsewhere -->
+  {Content}
+  </div>
+</div>
+</body>
+</html>
