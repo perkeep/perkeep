@@ -2,10 +2,13 @@
 
 use strict;
 use Getopt::Long;
+use FindBin;
 
 my $opt_list;
 my $opt_eachclean;
 my $opt_verbose;
+
+chdir($FindBin::Bin) or die "Couldn't chdir to $FindBin::Bin: $!";
 
 GetOptions("list" => \$opt_list,
            "eachclean" => \$opt_eachclean,
