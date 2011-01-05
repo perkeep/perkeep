@@ -276,6 +276,9 @@ sub start {
 
     die "Failed to create temporary directory." unless -d $tmpdir;
 
+    system("$FindBin::Bin/../../build.pl", "server/go/blobserver")
+        and die "Failed to build Go blobserver.";
+
     my $bindir = "$FindBin::Bin/../go/blobserver/";
     my $binary = "$bindir/camlistored";
 
