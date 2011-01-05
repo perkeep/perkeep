@@ -33,6 +33,8 @@ func encodeBase64(s string) string {
 
 func jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
 	if resp.StatusCode != 200 {
+		log.Printf("Failed to JSON from response; status code is %d", resp.StatusCode)
+		io.Copy(os.Stderr, resp.Body)
 		return nil, os.NewError(fmt.Sprintf("HTTP response code is %d; no JSON to parse.", resp.StatusCode))
 	}
 	// TODO: LimitReader here for paranoia
@@ -65,11 +67,14 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	// Pre-upload.  Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
 	url := fmt.Sprintf("%s/camli/preupload", c.server)
+	requestBody := "camliversion=1&blob1="+blobRefString
 	req := http.NewPostRequest(
 		url,
 		"application/x-www-form-urlencoded",
-		strings.NewReader("camliversion=1&blob1="+blobRefString))
+		strings.NewReader(requestBody))
 	req.Header["Authorization"] = authHeader
+	req.ContentLength = int64(len(requestBody))
+	req.TransferEncoding = nil
 
 	resp, err := req.Send()
 	if err != nil {
@@ -124,6 +129,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 
 	if resp.StatusCode == 303 {
+		otherLocation, ok := resp.Header["Location"]
+		if !ok {
+			return error("303 without a Location", nil)
+		}
+		log.Printf("other location: %s", otherLocation)
 		// TODO
 		log.Exitf("TODO: handle 303?  or does the Go http client do it already?  how to enforce only 200 and 303 if so?")
 	}
