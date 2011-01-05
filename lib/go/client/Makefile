@@ -1,5 +1,6 @@
 include $(GOROOT)/src/Make.inc
 
+PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/http.a
 TARG=camli/client
 GOFILES=\
 	client.go\
