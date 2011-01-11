@@ -508,6 +508,8 @@ func ReadRequest(b *bufio.Reader) (req *Request, err os.Error) {
 		return nil, err
 	}
 
+	cleanURLForHTTPRequest(req.URL)
+
 	// Subsequent lines: Key: value.
 	nheader := 0
 	req.Header = make(map[string]string)

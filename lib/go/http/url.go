@@ -400,7 +400,7 @@ func ParseURL(rawurl string) (url *URL, err os.Error) {
 		goto Error
 	}
 
-	if url.Scheme != "" && (len(path) == 0 || path[0] != '/') {
+	if url.Scheme != "" && !strings.HasPrefix(path, "/") {
 		// RFC 2396:
 		// Absolute URI (has scheme) with non-rooted path
 		// is uninterpreted.  It doesn't even have a ?query.
@@ -420,7 +420,7 @@ func ParseURL(rawurl string) (url *URL, err os.Error) {
 		}
 
 		// Maybe path is //authority/path
-		if url.Scheme != "" && len(path) > 2 && path[0:2] == "//" {
+		if strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "///") {
 			url.RawAuthority, path = split(path[2:], '/', false)
 			url.RawPath = url.RawPath[2+len(url.RawAuthority):]
 		}
@@ -514,4 +514,20 @@ func (url *URL) String() string {
 		result += "#" + urlEscape(url.Fragment, encodeFragment)
 	}
 	return result
+}
+
+// cleanURLForRequest cleans URLs as parsed from ReadRequest.
+// ReadRequest uses ParseURL which accepts a superset of URL formats
+// which are valid for web requests (scheme-relative URLs, for example)
+// Ideally ReadRequest should use a different parse function for HTTP
+// serving context, but for now we'll just fix it up here.
+func cleanURLForHTTPRequest(url *URL) {
+	if url.Scheme == "" && url.RawAuthority != "" {
+		prefix := "//" + url.RawAuthority
+		url.Host = ""
+		url.RawAuthority = ""
+		url.RawUserinfo = ""
+		url.Path = prefix + url.Path
+		url.RawPath = prefix + url.RawPath
+	}
 }

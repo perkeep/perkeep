@@ -188,14 +188,48 @@ var urltests = []URLTest{
 		},
 		"",
 	},
-	// leading // without scheme shouldn't create an authority
+	// leading // without scheme should create an authority
 	{
 		"//foo",
 		&URL{
-			Raw:     "//foo",
-			Scheme:  "",
-			RawPath: "//foo",
-			Path:    "//foo",
+			RawAuthority: "foo",
+			Raw:          "//foo",
+			Host:         "foo",
+			Scheme:       "",
+			RawPath:      "",
+			Path:         "",
+		},
+		"",
+	},
+	// leading // without scheme, with userinfo, path, and query
+	{
+		"//user@foo/path?a=b",
+		&URL{
+			Raw:          "//user@foo/path?a=b",
+			RawAuthority: "user@foo",
+			RawUserinfo:  "user",
+			Scheme:       "",
+			RawPath:      "/path?a=b",
+			Path:         "/path",
+			RawQuery:     "a=b",
+			Host:         "foo",
+		},
+		"",
+	},
+	// Three leading slashes isn't an authority, but doesn't return an error.
+	// (We can't return an error, as this code is also used via
+	// ServeHTTP -> ReadRequest -> ParseURL, which is arguably a
+	// different URL parsing context, but currently shares the
+	// same codepath)
+	{
+		"///threeslashes",
+		&URL{
+			RawAuthority: "",
+			Raw:          "///threeslashes",
+			Host:         "",
+			Scheme:       "",
+			RawPath:      "///threeslashes",
+			Path:         "///threeslashes",
 		},
 		"",
 	},
@@ -272,7 +306,7 @@ var urlfragtests = []URLTest{
 
 // more useful string for debugging than fmt's struct printer
 func ufmt(u *URL) string {
-	return fmt.Sprintf("%q, %q, %q, %q, %q, %q, %q, %q, %q",
+	return fmt.Sprintf("raw=%q, scheme=%q, rawpath=%q, auth=%q, userinfo=%q, host=%q, path=%q, rawq=%q, frag=%q",
 		u.Raw, u.Scheme, u.RawPath, u.RawAuthority, u.RawUserinfo,
 		u.Host, u.Path, u.RawQuery, u.Fragment)
 }
@@ -505,5 +539,32 @@ func TestUnescapeUserinfo(t *testing.T) {
 		if user, pass, err := UnescapeUserinfo(tt.Raw); user != tt.User || pass != tt.Password || err != nil {
 			t.Errorf("UnescapeUserinfo(%q) = %q, %q, %v, want %q, %q, nil", tt.Raw, user, pass, err, tt.User, tt.Password)
 		}
+	}
+}
+
+func TestCleanURLForHTTPRequest(t *testing.T) {
+	path := "//user@foo/bar/"
+	url, _ := ParseURL(path)
+	if url.RawAuthority != "user@foo" {
+		t.Errorf("Expected authority of 'foo'; got %q", url.RawAuthority)
+	}
+	if url.RawUserinfo != "user" {
+		t.Errorf("Expected userinfo of 'user'; got %q", url.RawUserinfo)
+	}
+	cleanURLForHTTPRequest(url)
+	if url.RawAuthority != "" {
+		t.Errorf("Expected blank authority.")
+	}
+	if url.RawUserinfo != "" {
+		t.Errorf("Expected blank userinfo.")
+	}
+	if url.Host != "" {
+		t.Errorf("Expected blank host.")
+	}
+	if url.RawPath != path {
+		t.Errorf("Expected path %q; got %q", path, url.RawPath)
+	}
+	if url.Path != path {
+		t.Errorf("Expected path %q; got %q", path, url.Path)
 	}
 }
