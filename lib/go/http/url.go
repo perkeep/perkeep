@@ -458,6 +458,9 @@ Error:
 }
 
 // ParseURLReference is like ParseURL but allows a trailing #fragment.
+//
+// Per RFC 2396, 
+//    URI-reference = [ absoluteURI | relativeURI ] [ "#" fragment ]
 func ParseURLReference(rawurlref string) (url *URL, err os.Error) {
 	// Cut off #frag.
 	rawurl, frag := split(rawurlref, '#', false)
@@ -514,6 +517,88 @@ func (url *URL) String() string {
 		result += "#" + urlEscape(url.Fragment, encodeFragment)
 	}
 	return result
+}
+
+func (url *URL) IsAbsolute() bool {
+	return url.Scheme != ""
+}
+
+// Add resolves a URI reference to an absolute URI from an absolute base URI, per
+// RFC 2396 Section 5.2.  The URI reference may be relative or absolute.  Note
+// that Add always returns a new URL instance, even if the returned URL is identical
+// to either the base or reference.
+func (base *URL) Add(ref *URL) *URL {
+	url := new(URL)
+	switch {
+	case ref.IsAbsolute():
+		*url = *ref
+	default:
+		// relativeURI   = ( net_path | abs_path | rel_path ) [ "?" query ]
+		*url = *base
+		if ref.RawAuthority != "" {
+			// The "net_path" case.
+			url.RawAuthority = ref.RawAuthority
+			url.Host = ref.Host
+			url.RawUserinfo = ref.RawUserinfo
+		}
+		switch {
+		case url.OpaquePath:
+			url.Path = ref.Path
+			url.RawPath = ref.RawPath
+			url.RawQuery = ref.RawQuery
+		case strings.HasPrefix(ref.Path, "/"):
+			// The "abs_path" case.
+			url.Path = ref.Path
+			url.RawPath = ref.RawPath
+			url.RawQuery = ref.RawQuery
+		default:
+			// The "rel_path" case.
+			segs := strings.Split(base.Path, "/", -1)
+			refSegs := strings.Split(ref.Path, "/", -1)
+			segs = applyReferenceSegments(segs, refSegs)
+			path := strings.Join(segs, "/")
+			if !strings.HasPrefix(path, "/") {
+				path = "/" + path
+			}
+			url.Path = path
+			url.RawPath = url.Path
+			url.RawQuery = ref.RawQuery
+			if ref.RawQuery != "" {
+				url.RawPath += "?" + url.RawQuery
+			}
+		}
+
+		url.Fragment = ref.Fragment
+	}
+	url.Raw = url.String()
+	return url
+}
+
+// Note: mutates 'base'
+func applyReferenceSegments(base []string, refs []string) []string {
+	if len(base) == 0 {
+		base = []string{""}
+	}
+	for idx, ref := range refs {
+		switch {
+		case ref == ".":
+			base[len(base)-1] = ""
+		case ref == "..":
+			newLen := len(base) - 1
+			if newLen < 1 {
+				newLen = 1
+			}
+			base = base[0:newLen]
+			base[len(base)-1] = ""
+		default:
+			if idx == 0 || base[len(base)-1] == "" {
+				base[len(base)-1] = ref
+			} else {
+				base = append(base, ref)
+			}
+		}
+	}
+	return base
 }
 
 // cleanURLForRequest cleans URLs as parsed from ReadRequest.

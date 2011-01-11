@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -566,5 +567,89 @@ func TestCleanURLForHTTPRequest(t *testing.T) {
 	}
 	if url.Path != path {
 		t.Errorf("Expected path %q; got %q", path, url.Path)
+	}
+}
+
+func mustParseURL(t *testing.T, url string) *URL {
+	u, err := ParseURLReference(url)
+	if err != nil {
+		t.Fatalf("Expected URL to parse: %q, got error: %v", url, err)
+	}
+	return u
+}
+
+func TestApplyReferenceSegments(t *testing.T) {
+	tests := []struct {
+		base, ref, expected string
+	}{
+		{"a/b", ".", "a/"},
+		{"a/b", "c", "a/c"},
+		{"a/b", "..", ""},
+		{"a/", "..", ""},
+		{"a/", "../..", ""},
+		{"a/b/c", "..", "a/"},
+		{"a/b/c", "../d", "a/d"},
+		{"a/b/c", ".././d", "a/d"},
+		{"a/b", "./..", ""},
+	}
+	for _, test := range tests {
+		segs := strings.Split(test.base, "/", -1)
+		refSegs := strings.Split(test.ref, "/", -1)
+		got := strings.Join(applyReferenceSegments(segs, refSegs), "/")
+		if got != test.expected {
+			t.Errorf("For %q + %q got %q; expected %q", test.base, test.ref, got, test.expected)
+		}
+	}
+}
+
+func TestURLAdd(t *testing.T) {
+	tests := []struct {
+		base, rel, expected string
+	}{
+		// Absolute URL references
+		{"http://foo.com?a=b", "https://bar.com/", "https://bar.com/"},
+		{"http://foo.com/", "https://bar.com/?a=b", "https://bar.com/?a=b"},
+		{"http://foo.com/bar", "mailto:foo@example.com", "mailto:foo@example.com"},
+
+		// Path-absolute references
+		{"http://foo.com/bar", "/baz", "http://foo.com/baz"},
+		{"http://foo.com/bar?a=b#f", "/baz", "http://foo.com/baz"},
+		{"http://foo.com/bar?a=b", "/baz?c=d", "http://foo.com/baz?c=d"},
+
+		// Scheme-relative
+		{"https://foo.com/bar?a=b", "//bar.com/quux", "https://bar.com/quux"},
+
+		// Path-relative references:
+
+		// ... current directory
+		{"http://foo.com", ".", "http://foo.com/"},
+		{"http://foo.com/bar", ".", "http://foo.com/"},
+		{"http://foo.com/bar/", ".", "http://foo.com/bar/"},
+
+		// ... going down
+		{"http://foo.com", "bar", "http://foo.com/bar"},
+		{"http://foo.com/", "bar", "http://foo.com/bar"},
+		{"http://foo.com/bar/baz", "quux", "http://foo.com/bar/quux"},
+
+		// ... going up
+		{"http://foo.com/bar/baz", "../quux", "http://foo.com/quux"},
+		{"http://foo.com/bar/baz", "../../../../../quux", "http://foo.com/quux"},
+		{"http://foo.com/bar", "..", "http://foo.com/"},
+		{"http://foo.com/bar/baz", "./..", "http://foo.com/"},
+
+		// Triple dot isn't special
+		{"http://foo.com/bar", "...", "http://foo.com/..."},
+
+		// Fragment
+		{"http://foo.com/bar", ".#frag", "http://foo.com/#frag"},
+	}
+	for _, test := range tests {
+		base := mustParseURL(t, test.base)
+		rel := mustParseURL(t, test.rel)
+		url := base.Add(rel)
+		urlStr := url.String()
+		if urlStr != test.expected {
+			t.Errorf("Adding %q + %q != %q; got %q", test.base, test.rel, test.expected, urlStr)
+		}
 	}
 }
