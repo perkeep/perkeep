@@ -283,22 +283,20 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
         if 'blob-key' in value.type_options:
           blob_info = blobstore.parse_blob_info(value)
           blob_info_dict[value.name] = blob_info
+          logging.info("got blob: %s" % value.name)
           self.store_blob(value.name, blob_info, error_messages)
 
     if error_messages:
       logging.error('Upload errors: %r', error_messages)
       blobstore.delete(blob_info_dict.values())
-      self.redirect('/error?%s' % '&'.join(
+      self.response.set_status(303)
+      # TODO: fix up this format
+      self.response.headers.add_header("Location", '/error?%s' % '&'.join(
           'error_message=%s' % urllib.quote(m) for m in error_messages))
     else:
       query = ['/nonstandard/upload_complete?camliversion=1']
       query.extend('blob%d=%s' % (i + 1, k)
                    for i, k in enumerate(blob_info_dict.iterkeys()))
-      # Previous, Brett had:
-      #self.redirect('&'.join(query))
-      # But a 302 implies a new POST, and Brett's re-use of PreUploadHandler
-      # implies that he meant for clients to do a GET on subsequent requests,
-      # so 303 is probably what he wanted:
       self.response.set_status(303)
       self.response.headers.add_header("Location", str('&'.join(query)))
 
@@ -312,9 +310,19 @@ class ErrorHandler(webapp.RequestHandler):
     self.response.set_status(400)
 
 
+class DebugUploadForm(webapp.RequestHandler):
+  def get(self):
+        self.response.headers['Content-Type'] = 'text/html'
+        uploadurl = blobstore.create_upload_url('/upload_complete')
+        self.response.out.write('<body><form method="post" enctype="multipart/form-data" action="%s">' % uploadurl)
+        self.response.out.write('<input type="file" name="sha1-f628050e63819347a095645ad9ae697415664f0">')
+        self.response.out.write('<input type="submit"></form></body>')
+
+
 APP = webapp.WSGIApplication(
   [
     ('/', HelloHandler),
+    ('/debug/upform', DebugUploadForm),
     ('/camli/enumerate-blobs', ListHandler),
     ('/camli/preupload', PreuploadHandler),
     ('/camli/([^/]+)', GetHandler),
