@@ -133,9 +133,17 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		if !ok {
 			return error("303 without a Location", nil)
 		}
-		log.Printf("other location: %s", otherLocation)
-		// TODO
-		log.Exitf("TODO: handle 303?  or does the Go http client do it already?  how to enforce only 200 and 303 if so?")
+		relUrl, err := http.ParseURL(otherLocation)
+		if err != nil {
+			return error("303 Location URL parse error", err)
+		}
+		baseUrl, _ := http.ParseURL(uploadUrl)
+		absUrl := baseUrl.Add(relUrl)
+		otherLocation = absUrl.String()
+		resp, _, err = http.Get(otherLocation)
+		if err != nil {
+			return error("error following 303 redirect after upload", err)
+		}
 	}
 
 	ures, err := jsonFromResponse(resp)
