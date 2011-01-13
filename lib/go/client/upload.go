@@ -106,18 +106,26 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		}
 	}
 
+	// TODO: use a proper random boundary
 	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
-	req = http.NewPostRequest(uploadUrl,
-		"multipart/form-data; boundary="+boundary,
-		io.MultiReader(
-			strings.NewReader(fmt.Sprintf(
+
+	multiPartHeader := fmt.Sprintf(
 		                "--%s\r\nContent-Type: application/octet-stream\r\n" +
 		                "Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n\r\n",
 				boundary,
-				h.BlobRef, h.BlobRef)),
+				h.BlobRef, h.BlobRef)
+	multiPartFooter := "\r\n--"+boundary+"--\r\n"
+
+	log.Printf("Uploading to URL: %s", uploadUrl)
+	req = http.NewPostRequest(uploadUrl,
+		"multipart/form-data; boundary="+boundary,
+		io.MultiReader(
+		        strings.NewReader(multiPartHeader),
 			h.Contents,
-			strings.NewReader("\r\n--"+boundary+"--\r\n")))
+		        strings.NewReader(multiPartFooter)))
 	req.Header["Authorization"] = authHeader
+	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
+	req.TransferEncoding = nil
 	resp, err = req.Send()
 	if err != nil {
 		return error("upload http error", err)
