@@ -2,8 +2,6 @@
 
 Bin=$(dirname $( readlink -f $0))
 
-echo "BIN is: [$Bin]"
-
 ROOT=/tmp/camliroot
 if [ ! -d $ROOT ]; then
     mkdir $ROOT
