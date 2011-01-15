@@ -61,7 +61,6 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	c.stats.UploadRequests.Bytes += h.Size
 	c.statsMutex.Unlock()
 
-	authHeader := "Basic " + encodeBase64("username:" + c.password)
 	blobRefString := h.BlobRef.String()
 
 	// Pre-upload.  Check whether the blob already exists on the
@@ -72,7 +71,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		url,
 		"application/x-www-form-urlencoded",
 		strings.NewReader(requestBody))
-	req.Header["Authorization"] = authHeader
+	req.Header["Authorization"] = c.authHeader()
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
@@ -123,7 +122,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		        strings.NewReader(multiPartHeader),
 			h.Contents,
 		        strings.NewReader(multiPartFooter)))
-	req.Header["Authorization"] = authHeader
+	req.Header["Authorization"] = c.authHeader()
 	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
 	req.TransferEncoding = nil
 	resp, err = req.Send()

@@ -45,3 +45,7 @@ func (c *Client) Stats() Stats {
 	defer c.statsMutex.Unlock()
 	return c.stats  // copy
 }
+
+func (c *Client) authHeader() string {
+	return "Basic " + encodeBase64("username:" + c.password)
+}
