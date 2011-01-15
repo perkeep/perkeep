@@ -170,6 +170,19 @@ func (cr *ClientRequest) Send() (r *Response, err os.Error) {
 	return send(cr.Request)
 }
 
+func NewGetRequest(url string) (*ClientRequest) {
+	req := new(ClientRequest)
+	req.Request = new(Request)
+	req.Method = "GET"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	req.Close = true
+	req.Header = make(map[string]string)
+	req.TransferEncoding = []string{"chunked"}
+	req.URL, req.error = ParseURL(url)
+	return req
+}
+
 func NewPostRequest(url string, bodyType string, body io.Reader) (*ClientRequest) {
 	req := new(ClientRequest)
 	req.Request = new(Request)
