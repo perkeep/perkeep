@@ -18,7 +18,9 @@ import (
 	"camli/blobref"
 	"camli/client"
 	"flag"
+	"io"
 	"log"
+	"os"
 )
 
 var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
@@ -35,6 +37,8 @@ func main() {
 		return
 	}
 
+	var w io.Writer = os.Stdout
+
 	for n := 0; n < flag.NArg(); n++ {
 		arg := flag.Arg(n)
 		blobref := blobref.Parse(arg)
@@ -44,8 +48,14 @@ func main() {
 		if *flagVerbose {
 			log.Printf("Need to fetch %s", blobref.String())
 		}
+		r, _, err := client.Fetch(blobref)
+		if err != nil {
+			log.Exitf("Failed to fetch %q: %s", blobref, err)
+		}
+		_, err = io.Copy(w, r)
+		if err != nil {
+			log.Exitf("Failed transferring %q: %s", blobref, err)
+		}
 	}
 
-	flagOutput = flagOutput
-	client = client
 }
