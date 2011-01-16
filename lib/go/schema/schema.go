@@ -70,8 +70,9 @@ func NewUnsignedPermanode() string {
 	chars := make([]byte, 20)
 	// Don't need cryptographically secure random here, as this
 	// will be GPG signed anyway.
+	rnd := rand.New(rand.NewSource(time.Nanoseconds()))
 	for idx, _ := range chars {
-		chars[idx] = byte(32 + rand.Intn(126 - 32))
+		chars[idx] = byte(32 + rnd.Intn(126 - 32))
 	}
 	m["random"] = string(chars)
 	unsigned, err := MapToCamliJson(m)
