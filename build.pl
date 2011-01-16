@@ -179,6 +179,7 @@ __DATA__
     - lib/go/client
     - lib/go/blobref
     - lib/go/schema
+    - lib/go/jsonsign
 ./clients/go/camget/Makefile
     - lib/go/client
     - lib/go/blobref

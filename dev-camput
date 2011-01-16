@@ -1,4 +1,4 @@
 #!/bin/sh
 
 ./build.pl camput && \
-  clients/go/camput/camput --verbose --blobserver=localhost:3179 --password=foo --file $@
+  clients/go/camput/camput --verbose --blobserver=localhost:3179 --password=foo $@

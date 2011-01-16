@@ -9,6 +9,7 @@ import (
 	"camli/blobref"
 	"camli/client"
 	"camli/schema"
+//	"camli/jsonsign"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -21,6 +22,8 @@ import (
 // Things that can be uploaded.  (at most one of these)
 var flagBlob *bool = flag.Bool("blob", false, "upload a file's bytes as a single blob")
 var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
+var flagPermanode *bool = flag.Bool("permanode", false, "create a new permanode")
+
 var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
 
 var wereErrors = false
@@ -142,6 +145,12 @@ func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.E
 	return up.Upload(h)
 }
 
+func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
+	unsigned := schema.NewUnsignedPermanode()
+	log.Printf("Got schema: %q", unsigned)
+	return nil, nil
+}
+
 func sumSet(flags ...*bool) (count int) {
 	for _, f := range flags {
 		if *f {
@@ -181,12 +190,20 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	if sumSet(flagFile, flagBlob) != 1 {
+	if sumSet(flagFile, flagBlob, flagPermanode) != 1 {
 		usage("Exactly one of --blob and --file may be set")
 	}
 
 	uploader := &Uploader{client.NewOrFail()}
-	if *flagFile || *flagBlob {
+
+	switch {
+	case *flagPermanode:
+		if flag.NArg() > 0 {
+			log.Exitf("--permanode doesn't take any additional arguments")
+		}
+		pr, err := uploader.UploadNewPermanode()
+		handleResult("permanode", pr, err)
+	case *flagFile || *flagBlob:
 		for n := 0; n < flag.NArg(); n++ {
 			if *flagBlob {
 				pr, err := uploader.UploadFileBlob(flag.Arg(n))
