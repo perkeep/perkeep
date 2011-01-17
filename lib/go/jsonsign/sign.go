@@ -62,7 +62,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 
 	pk, err := openArmoredPublicKeyFile(pubkeyReader)
 	if err != nil {
-		return execfail(fmt.Sprintf("failed to parse public key from blobref %s", signerBlob.String()))
+		return execfail(fmt.Sprintf("failed to parse public key from blobref %s: %v", signerBlob.String(), err))
 	}
 
 	// This check should be redundant if the above JSON parse succeeded, but

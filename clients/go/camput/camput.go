@@ -9,7 +9,7 @@ import (
 	"camli/blobref"
 	"camli/client"
 	"camli/schema"
-//	"camli/jsonsign"
+	"camli/jsonsign"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -145,9 +145,34 @@ func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.E
 	return up.Upload(h)
 }
 
+func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
+	camliSigBlobref := up.Client.SignerPublicKeyBlobref()
+	if camliSigBlobref == nil {
+		// TODO: more helpful error message
+		return "", os.NewError("No public key configured.")
+	}
+
+	m["camliSigner"] = camliSigBlobref.String()
+	unsigned, err := schema.MapToCamliJson(m)
+	if err != nil {
+		return "", err
+	}
+	sr := &jsonsign.SignRequest{
+	      UnsignedJson: unsigned,
+	      Fetcher: up.Client.GetBlobFetcher(),
+	} 
+	return sr.Sign()
+}
+
 func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
 	unsigned := schema.NewUnsignedPermanode()
-	log.Printf("Got schema: %q", unsigned)
+
+	signed, err := up.SignMap(unsigned)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Got signed permanode: %q", signed)
 	return nil, nil
 }
 

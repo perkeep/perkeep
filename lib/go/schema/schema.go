@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"json"
-	"log"
 	"os"
 	"rand"
 	"strconv"
@@ -65,7 +64,7 @@ func newCamliMap(version int, ctype string) map[string]interface{} {
 	return m
 }
 
-func NewUnsignedPermanode() string {
+func NewUnsignedPermanode() map[string]interface{} {
 	m := newCamliMap(1, "permanode")
 	chars := make([]byte, 20)
 	// Don't need cryptographically secure random here, as this
@@ -75,11 +74,7 @@ func NewUnsignedPermanode() string {
 		chars[idx] = byte(32 + rnd.Intn(126 - 32))
 	}
 	m["random"] = string(chars)
-	unsigned, err := MapToCamliJson(m)
-	if err != nil {
-		log.Panicf("Unexpected error: %v", err)
-	}
-	return unsigned
+	return m
 }
 
 // Map returns a Camli map of camliType "static-set"
