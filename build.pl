@@ -204,6 +204,6 @@ __DATA__
     - lib/go/ext/openpgp/armor
     - lib/go/ext/openpgp/error
 ./lib/go/blobref/Makefile
-    # (on deps)
+    # (no deps)
 
 
