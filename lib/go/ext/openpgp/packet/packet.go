@@ -332,8 +332,12 @@ func readPublicKeyPacket(r io.Reader, length uint16) (pk PublicKeyPacket, err os
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
 	switch pk.PubKeyAlgo {
 		case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
+			// good.
+		case PubKeyAlgoDSA:
+			err = error.Unsupported("DSA public key type")
+			return
 		default:
-			err = error.Unsupported("public key type")
+			err = error.Unsupported(fmt.Sprintf("public key type (%d)", pk.PubKeyAlgo))
 			return
 	}
 
