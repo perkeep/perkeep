@@ -16,27 +16,11 @@ var accessPassword string
 var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
 
-type pubkeyDirFetcher struct{}
-func (_ *pubkeyDirFetcher) Fetch(b *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
-	fileName := fmt.Sprintf("%s/%s.camli", *flagPubKeyDir, b.String())
-	var stat *os.FileInfo
-	stat, err = os.Stat(fileName)
-	if err != nil {
-		return
-	}
-	file, err = os.Open(fileName, os.O_RDONLY, 0)
-	if err != nil {
-		return
-	}
-	size = stat.Size
-	return
-}
-
 // TODO: for now, the only implementation of the blobref.Fetcher
 // interface for fetching public keys is the "local, from disk"
 // implementation used for testing.  In reality we'd want to be able
 // to fetch these from blobservers.
-var pubKeyFetcher = &pubkeyDirFetcher{}
+var pubKeyFetcher = blobref.NewSimpleDirectoryFetcher(*flagPubKeyDir)
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn, "camsigd")

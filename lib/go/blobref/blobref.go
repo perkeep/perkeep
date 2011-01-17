@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"os"
 	"regexp"
 )
 
@@ -26,10 +25,6 @@ type ReadSeekCloser interface {
 	io.Reader
 	io.Seeker
 	io.Closer
-}
-
-type Fetcher interface {
-	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
 }
 
 func (b *BlobRef) HashName() string {
