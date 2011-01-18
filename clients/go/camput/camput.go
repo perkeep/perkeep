@@ -20,11 +20,12 @@ import (
 )
 
 // Things that can be uploaded.  (at most one of these)
-var flagBlob *bool = flag.Bool("blob", false, "upload a file's bytes as a single blob")
-var flagFile *bool = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
-var flagPermanode *bool = flag.Bool("permanode", false, "create a new permanode")
+var flagBlob = flag.Bool("blob", false, "upload a file's bytes as a single blob")
+var flagFile = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
+var flagPermanode = flag.Bool("permanode", false, "create a new permanode")
+var flagInit = flag.Bool("init", false, "First-time configuration.")
 
-var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
+var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
 var wereErrors = false
 
@@ -190,10 +191,11 @@ func usage(msg string) {
 		fmt.Println("Error:", msg)
 	}
 	fmt.Println(`
-Usage: camliup
+Usage: camput
 
-  camliup --blob <filename(s) to upload as blobs>
-  camliup --file <filename(s) to upload as blobs + JSON metadata>
+  camput --init       # first time configuration
+  camput --blob <filename(s) to upload as blobs>
+  camput --file <filename(s) to upload as blobs + JSON metadata>
 `)
 	flag.PrintDefaults()
 	os.Exit(1)
@@ -215,13 +217,17 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	if sumSet(flagFile, flagBlob, flagPermanode) != 1 {
-		usage("Exactly one of --blob and --file may be set")
+	if sumSet(flagFile, flagBlob, flagPermanode, flagInit) != 1 {
+		// TODO: say which ones are conflicting
+		usage("Conflicting mode options.")
 	}
 
 	uploader := &Uploader{client.NewOrFail()}
 
 	switch {
+	case *flagInit:
+		doInit()
+		return
 	case *flagPermanode:
 		if flag.NArg() > 0 {
 			log.Exitf("--permanode doesn't take any additional arguments")
