@@ -121,5 +121,5 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 
 func (c *Client) GetBlobFetcher() blobref.Fetcher {
 	// TODO: make a NewSeriesAttemptFetcher(...all configured fetch paths...)
-	return blobref.NewSimpleDirectoryFetcher(path.Join(os.Getenv("HOME"), ".camli", "blobs"))
+	return blobref.NewSimpleDirectoryFetcher(path.Join(os.Getenv("HOME"), ".camli", "keyblobs"))
 }

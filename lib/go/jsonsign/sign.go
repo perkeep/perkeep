@@ -25,6 +25,11 @@ var flagSecretRing *string = flag.String("secret-keyring", "./test/test-secring.
 type SignRequest struct {
 	UnsignedJson  string
 	Fetcher       blobref.Fetcher
+	UseAgent      bool
+
+	// In server-mode, don't use any default (user) keys
+	// TODO: formalize what this means?
+	ServerMode    bool
 }
 
 func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
@@ -72,16 +77,27 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	}
 	trimmedJson = trimmedJson[0:len(trimmedJson)-1]
 
-	cmd, err := exec.Run(
-		*gpgPath,
-		[]string{
-			"--no-default-keyring",
-			"--keyring", *flagRing, // TODO: needed for signing?
-			"--secret-keyring", *flagSecretRing,
+	args := []string{"gpg",
 			"--local-user", pk.KeyIdString(),
 			"--detach-sign",
-			"--armor",
-			"-"},
+			"--armor"}
+
+	if sr.UseAgent {
+		args = append(args, "--use-agent")
+	}
+
+	if sr.ServerMode {
+		args = append(args,
+			"--no-default-keyring",
+			"--keyring", *flagRing, // TODO: needed for signing?
+			"--secret-keyring", *flagSecretRing)
+	}
+
+	args = append(args, "-")
+
+	cmd, err := exec.Run(
+		*gpgPath,
+		args,
 		os.Environ(),
 		".",
 		exec.Pipe,  // stdin

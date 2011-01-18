@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"camli/blobref"
 	"camli/http"
+	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -25,13 +26,22 @@ type PutResult struct {
 	Skipped  bool    // already present on blobserver
 }
 
+// Note: must not touch data after calling this.
+func NewUploadHandleFromString(data string) *UploadHandle {
+	s1 := sha1.New()
+	s1.Write([]byte(data))
+	bref := blobref.FromHash("sha1", s1)
+	buf := bytes.NewBufferString(data)
+	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: buf}
+}
+
 func encodeBase64(s string) string {
 	buf := make([]byte, base64.StdEncoding.EncodedLen(len(s)))
 	base64.StdEncoding.Encode(buf, []byte(s))
 	return string(buf)
 }
 
-func jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
+func (c *Client) jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
 	if resp.StatusCode != 200 {
 		log.Printf("Failed to JSON from response; status code is %d", resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
@@ -52,7 +62,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	error := func(msg string, e os.Error) (*PutResult, os.Error) {
 		err := os.NewError(fmt.Sprintf("Error uploading blob %s: %s; err=%s",
 			h.BlobRef, msg, e))
-		log.Print(err.String())
+		c.log.Print(err.String())
 		return nil, err
 	}
 
@@ -80,7 +90,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return error("preupload http error", err)
 	}
 
-	pur, err := jsonFromResponse(resp)
+	pur, err := c.jsonFromResponse(resp)
 	if err != nil {
 		return error("preupload json parse error", err)
 	}
@@ -115,7 +125,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 				h.BlobRef, h.BlobRef)
 	multiPartFooter := "\r\n--"+boundary+"--\r\n"
 
-	log.Printf("Uploading to URL: %s", uploadUrl)
+	c.log.Printf("Uploading to URL: %s", uploadUrl)
 	req = http.NewPostRequest(uploadUrl,
 		"multipart/form-data; boundary="+boundary,
 		io.MultiReader(
@@ -153,14 +163,14 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		}
 	}
 
-	ures, err := jsonFromResponse(resp)
+	ures, err := c.jsonFromResponse(resp)
 	if err != nil {
 		return error("json parse from upload error", err)
 	}
 
 	errorText, ok := ures["errorText"].(string)
 	if ok {
-		log.Printf("Blob server reports error: %s", errorText)
+		c.log.Printf("Blob server reports error: %s", errorText)
 	}
 
 	received, ok := ures["received"].([]interface{})

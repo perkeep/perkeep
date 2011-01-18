@@ -5,7 +5,6 @@
 package main
 
 import (
-	"bytes"
 	"camli/blobref"
 	"camli/client"
 	"camli/schema"
@@ -138,12 +137,7 @@ func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.E
 	if *flagVerbose {
 		fmt.Printf("json: %s\n", json)
 	}
-	s1 := sha1.New()
-	s1.Write([]byte(json))
-	bref := blobref.FromHash("sha1", s1)
-	buf := bytes.NewBufferString(json)
-	h := &client.UploadHandle{BlobRef: bref, Size: int64(len(json)), Contents: buf}
-	return up.Upload(h)
+	return up.Upload(client.NewUploadHandleFromString(json))
 }
 
 func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
@@ -159,8 +153,9 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 		return "", err
 	}
 	sr := &jsonsign.SignRequest{
-	      UnsignedJson: unsigned,
-	      Fetcher: up.Client.GetBlobFetcher(),
+		UnsignedJson: unsigned,
+		Fetcher: up.Client.GetBlobFetcher(),
+		UseAgent: true,
 	} 
 	return sr.Sign()
 }
@@ -173,8 +168,7 @@ func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
 		return nil, err
 	}
 
-	log.Printf("Got signed permanode: %q", signed)
-	return nil, nil
+	return up.Upload(client.NewUploadHandleFromString(signed))
 }
 
 func sumSet(flags ...*bool) (count int) {
@@ -222,7 +216,11 @@ func main() {
 		usage("Conflicting mode options.")
 	}
 
-	uploader := &Uploader{client.NewOrFail()}
+	client := client.NewOrFail()
+	if !*flagVerbose {
+		client.SetLogger(nil)
+	}
+	uploader := &Uploader{client}
 
 	switch {
 	case *flagInit:

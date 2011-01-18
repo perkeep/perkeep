@@ -17,7 +17,7 @@ import (
 var flagGpgKey = flag.String("gpgkey", "", "(init option only) GPG key to use for signing.")
 
 func doInit() {
-	blobDir := path.Join(client.ConfigDir(), "blobs")
+	blobDir := path.Join(client.ConfigDir(), "keyblobs")
 	os.Mkdir(client.ConfigDir(), 0700)
 	os.Mkdir(blobDir, 0700)
 
@@ -79,9 +79,29 @@ func doInit() {
 	if f, err := os.Open(client.ConfigFilePath(), os.O_CREAT|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
 		m := make(map[string]interface{})
-		m["blobServer"] = "http://localhost:3179/"
-		m["blobServerPassword"] = "test"
 		m["publicKeyBlobref"] = bref.String()
+
+		blobPut := make([]map[string]string, 1)
+		blobPut[0] = map[string]string{
+			"alias": "local",
+			"host": "http://localhost:3179/",
+			"password": "test",
+		}
+		m["blobPut"] = blobPut
+
+		blobGet := make([]map[string]string, 2)
+		blobGet[0] = map[string]string{
+			"alias": "keyblobs",
+			"path": "$HOME/.camli/keyblobs",
+		}
+		blobGet[1] = map[string]string{
+			"alias": "local",
+			"host": "http://localhost:3179/",
+			"password": "test",
+		}
+		m["blobGet"] = blobGet
+
+
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
 			log.Exitf("JSON serialization error: %v", err)
