@@ -49,7 +49,7 @@ Schema of files/objects in Layer 1:
 * Let's start by describing the storage of files that aren't self-describing,
   e.g. "some-notes.txt" (as opposed to a jpg file from a camera that might
   likely contain EXIF data, addressed later...).  This file, for reference,
-  is in doc/example/some-notes.txt
+  is in doc/json-signing/example/some-notes.txt
 
 * The bytes of file "some-notes.txt" are stored as-is in one blob,
   addressed as "sha1-8ba9e53cbc83c1be3835b94a3690c3b03de0b522".
@@ -68,20 +68,20 @@ Schema of files/objects in Layer 1:
   in-line.
 
   This file would thus be represented by a JSON file, as seen in
-  docs/examples/some-notes.txt.camli, and addressed as
-  "sha1-7e7960756b39cd7da614e7edbcf1fa7d696eb660", its sha1sum.
-  This identifier can be used in directory listings, etc.
-  Note that camli files do not have any magical filename, as they're
-  not typically stored with their filename.  (they are in the doc/examples/
-  directory just to separate them out, but that's a rare case.)
-  Instead, a camli JSON object is known as such if the bytes of the file
-  begin exactly with the bytes:
+  docs/json-signing/example/some-notes.txt.camli, and addressed as
+  "sha1-7e7960756b39cd7da614e7edbcf1fa7d696eb660", its sha1sum. This identifier
+  can be used in directory listings, etc. Note that camli files do not have any
+  magical filename, as they're not typically stored with their filename. (they
+  are in the doc/json-signing/examples/ directory just to separate them out, but
+  that's a rare case.) Instead, a camli JSON object is known as such if the
+  bytes of the file begin exactly with the bytes:
 
         {"camliVersion"
 
   ... which lets upper layers know what it is, and how to index it.
 
-  See spec.txt for details on Camli JSON objects and their schema.
+  See the doc/schema/ directory for details on Camli JSON objects and their
+  schema.
 
 * Note that camli files can represent:
 

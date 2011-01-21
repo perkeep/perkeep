@@ -35,7 +35,7 @@ worth the cost.
 Overall, though, the jchris approach's structure of the JSON file is
 good.
 
-Notably, it satisifies on of my other goals:
+Notably, it satisfies on of my other goals:
 
 GOAL #2) The document still be human-readable.
 
@@ -102,6 +102,8 @@ SIGNING
 
 -- the resulting string is 'C', the camli-signed JSON document.
 
+   (The output file is in doc/example/signing-after.camli)
+
 In review:
 
 O == the object to be signed
@@ -141,6 +143,6 @@ VERIFYING
 -- using 'camliSigner', a camli blobref, find the blob (cached, via
    camli/web lookup, etc) that represents a GPG public key.
 
--- use GnuPG or equivalent libraries to verify that the ASCI-armored
+-- use GnuPG or equivalent libraries to verify that the ASCII-armored
    GPG signature in "camliSig" signs the bytes in 'BP' using the
    GPG public key found via the 'camliSigner' blobref
