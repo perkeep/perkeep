@@ -1,0 +1,25 @@
+<html>
+<head>
+  <title>Test /camli/sig/*</title>
+</head>
+<body>
+
+<h1>Verify</h1>
+<form action="/camli/sig/verify" method="post" accept-charset="utf-8">
+
+  <p>
+    <label for="sjson">Camli object (JSON with "camliSig" and "camliSigner"):</label>
+  <p>
+    <textarea id="sjson" name="sjson" rows="10" cols="70"></textarea>
+
+  <p>
+    <label for="keyarmored">Optional armored public key (eg, "-----BEGIN PGP PUBLIC KEY BLOCK"):</label>
+  <p>
+    <textarea id="keyarmored" name="keyarmored" rows="10" cols="70"></textarea>
+
+  <p>
+    <input type="submit" value="Verify">
+</form>
+
+</body>
+</html>
