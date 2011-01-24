@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
@@ -9,45 +8,38 @@
 {.end}
 <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
 <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+<link href='http://fonts.googleapis.com/css?family=Droid+Sans:regular,bold' rel='stylesheet' type='text/css'>
 <link rel="stylesheet" href="/static/all.css" type="text/css" media="all" charset="utf-8">
-<!--[if lt IE 8]>
-<link rel="stylesheet" href="/static/ie.css" type="text/css">
-<![endif]-->
 </head>
 <body>
-<div id="container">
-  <div id="topnav">
-    <h1 id="title">Camlistore</h1>
-    <div id="nav-main">
-      <ul>
-      <li><a href="/">Home</a></li>
-      <li><a href="/use-cases.html">Use Cases</a></li> 
-      <li><a href="/code.html">Code</a></li> 
-      <li><a href="/terminology.html">Terminology</a></li> 
-      <li><a href="/community.html">Community</a></li> 
-      </ul>
-    </div>
-    <a id="logo-box" href="/"></a>
-  </div>
-  <div id="content">
-  <!-- Menu is HTML-escaped elsewhere -->
+
+<div id='header'>
+<a href="/"><img width='788' height='161' src='/static/camli-header.png' title="Camlistore" border='0' /></a>
+</div>
+
+<div class='bar'><div class='hatecss'>
+  <a href='/'>About</a>
+  <a href='/code'>Code</a>
+  <a href='/contributors'>Contributors</a>
+  <a href='http://groups.google.com/group/camlistore/'>Mailing List</a>
+  <a href='http://code.google.com/p/camlistore/w/list'>Wiki</a>
+  <a href='http://code.google.com/p/camlistore/issues/list'>Bugs</a>
+</div></div>
 
   {.section Title}
-    <h1 id="generatedHeader">{@|html-esc}</h1>
+    <h1>{@|html-esc}</h1>
   {.end}
-  {.section Subtitle}
-    <span class="subtitle">{@|html-esc}</span>
-  {.end}
-
-  <p>
-  <!-- The Table of Contents is automatically inserted in this <div>.
-       Do not delete this <div>. -->
-  <div id="nav"></div>
-  </p>
-
-  <!-- Content is HTML-escaped elsewhere -->
+ 
+<div class='content'>
+   <!-- Content is HTML-escaped elsewhere -->
   {Content}
-  </div>
 </div>
+
+<div class='bar'><div class='hatecss'>
+</div></div>
+<div id='props'>
+Website design inspired by <a href="http://git-scm.com/">git</a> and <a href="http://memcached.org/">memcached</a>.
+</div>
+
 </body>
 </html>
