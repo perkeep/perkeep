@@ -159,6 +159,7 @@ func main() {
 	readTemplates()
 
 	mux := http.DefaultServeMux
+	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 	mux.HandleFunc("/", mainHandler)
 
