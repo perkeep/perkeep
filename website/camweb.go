@@ -161,6 +161,7 @@ func main() {
 	mux := http.DefaultServeMux
 	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
+	mux.Handle("/test.cgi", &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi")})
 	mux.HandleFunc("/", mainHandler)
 
 	if err := http.ListenAndServe(*httpAddr, mux); err != nil {

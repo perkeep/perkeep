@@ -174,7 +174,7 @@ __DATA__
     - lib/go/ext/openpgp/error
     - lib/go/ext/openpgp/armor
 ./website/Makefile
-    # (no deps, yet)
+    - lib/go/line
 ./clients/go/camput/Makefile
     - lib/go/client
     - lib/go/blobref
