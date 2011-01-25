@@ -196,6 +196,7 @@ func main() {
 	if *gitwebScript != "" {
 		env := os.Environ()
 		env = append(env, "GITWEB_CONFIG="+path.Join(*root, "gitweb-camli.conf"))
+		env = append(env, "CAMWEB_ROOT="+path.Join(*root))
 		mux.Handle("/code/", &gitwebHandler{
 			Cgi: &CgiHandler{
 				ExecutablePath: *gitwebScript,
