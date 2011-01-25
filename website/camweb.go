@@ -19,6 +19,8 @@ const defaultAddr = ":31798" // default webserver address
 var (
 	httpAddr = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
 	root     = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
+	gitwebScript = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
+	gitwebFiles = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -154,6 +156,20 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 	servePage(rw, "", "", []byte(data))	
 }
 
+type gitwebHandler struct{
+	Cgi      http.Handler
+	Static   http.Handler
+}
+
+func (h *gitwebHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	if r.URL.RawPath == "/code/" ||
+		strings.HasPrefix(r.URL.RawPath, "/code/?") {
+		h.Cgi.ServeHTTP(rw, r)
+	} else {
+		h.Static.ServeHTTP(rw, r)
+	}
+}
+
 func main() {
 	flag.Parse()
 	readTemplates()
@@ -162,6 +178,13 @@ func main() {
 	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 	mux.Handle("/test.cgi", &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi")})
+	mux.Handle("/code", http.RedirectHandler("/code/", http.StatusFound))
+	if *gitwebScript != "" {
+		mux.Handle("/code/", &gitwebHandler{
+		Cgi: &CgiHandler{ExecutablePath: *gitwebScript},
+		Static: http.FileServer(*gitwebFiles, "/code/"),
+		})
+	}
 	mux.HandleFunc("/", mainHandler)
 
 	if err := http.ListenAndServe(*httpAddr, mux); err != nil {

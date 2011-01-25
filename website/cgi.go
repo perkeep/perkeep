@@ -75,8 +75,8 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	linebody := line.NewReader(cmd.Stdout, 1024)
-	unsent := make(map[string]string)
-	sentStatus := false
+	headers := make(map[string]string)
+	statusCode := http.StatusOK
 	for {
 		line, isPrefix, err := linebody.ReadLine()
 		if isPrefix {
@@ -102,32 +102,29 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		h, v := parts[0], parts[1]
 		h = strings.TrimSpace(h)
-		v = strings.TrimSpace(h)
+		v = strings.TrimSpace(v)
 		switch {
 		case h == "Status":
 			if len(v) < 3 {
-				log.Printf("CGI: bogus status (short)")
+				log.Printf("CGI: bogus status (short): %q", v)
 				return
 			}
 			code, err := strconv.Atoi(v[0:3])
 			if err != nil {
-				log.Printf("CGI: bogus status")
+				log.Printf("CGI: bogus status: %q", v)
+				log.Printf("CGI: line was %q", line)
 				return
 			}
-			rw.WriteHeader(code)
-			sentStatus = true
-		case sentStatus:
-			rw.SetHeader(h, v)
-		case !sentStatus:
-			unsent[h] = v
+			statusCode = code
+		default:
+			headers[h] = v
 		}
 	}
-	if !sentStatus {
-		rw.WriteHeader(http.StatusOK)
-	}
-	for h, v := range unsent {
+	for h, v := range headers {
 		rw.SetHeader(h, v)
 	}
+	rw.WriteHeader(statusCode)
+
 	_, err = io.Copy(rw, linebody)
 	if err != nil {
 		log.Printf("CGI: copy error: %v", err)
