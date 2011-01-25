@@ -12,33 +12,62 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
+var trailingPort = regexp.MustCompile(`:([0-9]+)$`)
+
 type CgiHandler struct {
 	ExecutablePath string
+	Root           string // empty is "/"; otherwise must start with "/"
+	Environ        []string
 	// TODO: custom log.Logger
 }
 
 func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	pathInfo := req.URL.RawPath
+	if strings.HasPrefix(pathInfo, h.Root) {
+		pathInfo = pathInfo[len(h.Root):]
+	}
+
+	port := "80"
+	if matches := trailingPort.FindStringSubmatch(req.Host); len(matches) != 0 {
+		port = matches[1]
+	}
+
 	env := []string{
 		"SERVER_SOFTWARE=golang",
 		"SERVER_NAME=" + req.Host,
+		"HTTP_HOST=" + req.Host,
 		"GATEWAY_INTERFACE=CGI/1.1",
 		"REQUEST_METHOD=" + req.Method,
- 		"QUERY_STRING=" + req.URL.RawQuery,
+		"QUERY_STRING=" + req.URL.RawQuery,
+		"REQUEST_URI=" + req.URL.RawPath,
+		"PATH_INFO=" + pathInfo,
+		"SCRIPT_NAME=" + h.Root,
+		"SCRIPT_FILENAME=" + h.ExecutablePath,
+		"REMOTE_ADDR=0.0.0.0", // TODO
+		"REMOTE_HOST=",        // TODO
+		"SERVER_PORT=" + port,
+	}
+
+	for k, v := range req.Header {
+		k = strings.Map(upperCaseAndUnderscore, k)
+		env = append(env, "HTTP_"+k+"="+v)
 	}
 
 	if req.ContentLength > 0 {
 		env = append(env, fmt.Sprintf("CONTENT_LENGTH=%d", req.ContentLength))
 	}
 	if ctype, ok := req.Header["Content-Type"]; ok {
-		env = append(env, "CONTENT_TYPE=" + ctype)
+		env = append(env, "CONTENT_TYPE="+ctype)
 	}
 
-	// TODO: let this be cleared instead at start.
-	env = append(env, os.Environ()...)
+	if h.Environ != nil {
+		env = append(env, h.Environ...)
+	}
 
 	cwd := h.ExecutablePath
 	if slash := strings.LastIndex(cwd, "/"); slash != -1 {
@@ -53,10 +82,10 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		[]string{h.ExecutablePath},
 		env,
 		cwd,
-		exec.Pipe,  // stdin
-		exec.Pipe,  // stdout
-		exec.PassThrough,  // stderr (for now)
-		)
+		exec.Pipe,        // stdin
+		exec.Pipe,        // stdout
+		exec.PassThrough, // stderr (for now)
+	)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		log.Printf("CGI error: %v", err)
@@ -129,4 +158,14 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Printf("CGI: copy error: %v", err)
 	}
+}
+
+func upperCaseAndUnderscore(rune int) int {
+	switch {
+	case rune >= 'a' && rune <= 'z':
+		return rune - ('a' - 'A')
+	case rune == '-':
+		return '_'
+	}
+	return rune
 }
