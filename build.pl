@@ -186,6 +186,8 @@ __DATA__
     - lib/go/schema
 ./lib/go/http/Makefile
     # (no deps, fork of Go's http library)
+./lib/go/line/Makefile
+    # (no deps, fork of Go's encoding/line library)
 ./lib/go/ext/openpgp/error/Makefile
     # (no deps)
 ./lib/go/ext/openpgp/packet/Makefile
