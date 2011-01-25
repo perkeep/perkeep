@@ -184,6 +184,11 @@ func main() {
 		Cgi: &CgiHandler{ExecutablePath: *gitwebScript},
 		Static: http.FileServer(*gitwebFiles, "/code/"),
 		})
+		// For now, also register this alias for convenience.
+		// Some distros' default gitweb config links to resources
+		// in the current directory but Lucid links to /gitweb/ instead.
+		// TODO: specify a gitweb config file.
+		mux.Handle("/gitweb/", http.FileServer(*gitwebFiles, "/gitweb/"))
 	}
 	mux.HandleFunc("/", mainHandler)
 
