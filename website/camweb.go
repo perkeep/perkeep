@@ -17,10 +17,10 @@ import (
 const defaultAddr = ":31798" // default webserver address
 
 var (
-	httpAddr = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
-	root     = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
-	gitwebScript = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
-	gitwebFiles = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
+	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
+	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
+	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
+	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -121,7 +121,7 @@ func readTemplates() {
 func serveError(w http.ResponseWriter, r *http.Request, relpath string, err os.Error) {
 	contents := applyTemplate(errorHtml, "errorHtml", err) // err may contain an absolute path!
 	w.WriteHeader(http.StatusNotFound)
-        servePage(w, "File "+relpath, "", contents)
+	servePage(w, "File "+relpath, "", contents)
 }
 
 func mainHandler(rw http.ResponseWriter, req *http.Request) {
@@ -151,14 +151,14 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 	data, err := ioutil.ReadFile(absPath)
 	if err != nil {
 		serveError(rw, req, absPath, err)
-                return
+		return
 	}
-	servePage(rw, "", "", []byte(data))	
+	servePage(rw, "", "", []byte(data))
 }
 
-type gitwebHandler struct{
-	Cgi      http.Handler
-	Static   http.Handler
+type gitwebHandler struct {
+	Cgi    http.Handler
+	Static http.Handler
 }
 
 func (h *gitwebHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -174,21 +174,36 @@ func main() {
 	flag.Parse()
 	readTemplates()
 
+	if *root == "" {
+		var err os.Error
+		*root, err = os.Getwd()
+		if err != nil {
+			log.Exitf("Failed to getwd: %v", err)
+		}
+	}
+
 	mux := http.DefaultServeMux
 	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
-	mux.Handle("/test.cgi", &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi")})
+
+	testCgi := &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi"),
+		Root: "/test.cgi",
+	}
+	mux.Handle("/test.cgi", testCgi)
+	mux.Handle("/test.cgi/foo", testCgi)
+
 	mux.Handle("/code", http.RedirectHandler("/code/", http.StatusFound))
 	if *gitwebScript != "" {
+		env := os.Environ()
+		env = append(env, "GITWEB_CONFIG="+path.Join(*root, "gitweb-camli.conf"))
 		mux.Handle("/code/", &gitwebHandler{
-		Cgi: &CgiHandler{ExecutablePath: *gitwebScript},
-		Static: http.FileServer(*gitwebFiles, "/code/"),
+			Cgi: &CgiHandler{
+				ExecutablePath: *gitwebScript,
+				Root:           "/code/",
+				Environ:        env,
+			},
+			Static: http.FileServer(*gitwebFiles, "/code/"),
 		})
-		// For now, also register this alias for convenience.
-		// Some distros' default gitweb config links to resources
-		// in the current directory but Lucid links to /gitweb/ instead.
-		// TODO: specify a gitweb config file.
-		mux.Handle("/gitweb/", http.FileServer(*gitwebFiles, "/gitweb/"))
 	}
 	mux.HandleFunc("/", mainHandler)
 
