@@ -18,7 +18,6 @@ import (
 
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
-var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 var blobFetcher blobref.Fetcher
 
@@ -57,12 +56,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 }
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
-	if *stealthMode {
-		fmt.Fprintf(conn, "Hi.\n")
-	} else {
-		fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n");
-		fmt.Fprintf(conn, "<p><a href=/js>js interface</a>");
-	}
+	fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n");
 }
 
 func main() {
