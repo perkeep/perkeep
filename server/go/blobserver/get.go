@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"camli/auth"
 	"camli/blobref"
 	"camli/httputil"
@@ -8,6 +9,7 @@ import (
 	"http"
 	"os"
 	"io"
+	"io/ioutil"
 	"json"
 	"log"
 	"strings"
@@ -21,7 +23,7 @@ func createGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.R
 }
 
 const fetchFailureDelayNs = 200e6 // 200 ms
-const maxJsonSize = 10 * 1024
+const maxJsonSize = 64 * 1024  // should be enough for everyone
 
 func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetcher) {
 	isOwner := auth.IsAuthorized(req)
@@ -48,7 +50,7 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 		}()
 		viaBlobs = make([]*blobref.BlobRef, 0)
 		if via := req.FormValue("via"); via != "" {
-			for _, vs := range strings.Split("via", ",", -1) {
+			for _, vs := range strings.Split(via, ",", -1) {
 				if br := blobref.Parse(vs); br == nil {
 					httputil.BadRequestError(conn, "Malformed blobref in via param")
 					return
@@ -94,8 +96,32 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 					conn.WriteHeader(http.StatusUnauthorized)
 					return
 				}
+			case len(fetchChain) - 1:
+				// Last one is fine (as long as its path up to here has been proven, and it's
+				// not the first thing in the chain)
+				continue
 			default:
-				log.Printf("TODO: FETCH %s", br.String())
+				file, _, err := fetcher.Fetch(br)
+				if err != nil {
+					log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
+					conn.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				defer file.Close()
+				lr := io.LimitReader(file, maxJsonSize)
+				slurpBytes, err := ioutil.ReadAll(lr)
+				if err != nil {
+					log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
+					conn.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				saught := fetchChain[i+1].String()
+				if bytes.IndexAny(slurpBytes, saught) == -1 {
+					log.Printf("Fetch chain %d of %s failed; no reference to %s",
+						i, br.String(), saught)
+                                        conn.WriteHeader(http.StatusUnauthorized)
+                                        return
+				}
 			}
 		}
 		viaPathOkay = true
