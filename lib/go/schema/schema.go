@@ -203,6 +203,18 @@ func PopulateDirectoryMap(m map[string]interface{}, staticSetRef *blobref.BlobRe
 	m["entries"] = staticSetRef.String()
 }
 
+func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) map[string]interface{} {
+	m := newCamliMap(1, "" /* no type yet */)
+	m["camliType"] = "share"
+	m["authType"] = authType
+	m["target"] = target.String()
+	m["transitive"] = transitive
+	return m
+}
+
+// Types of ShareRefs
+const ShareHaveRef = "haveref"
+
 func rfc3339FromNanos(epochnanos int64) string {
 	nanos := epochnanos % 1e9
 	esec := epochnanos / 1e9
