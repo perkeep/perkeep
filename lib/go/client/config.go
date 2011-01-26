@@ -103,7 +103,7 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 	key := "publicKeyBlobref"
 	v, ok := config[key]
 	if !ok {
-		log.Printf("No key %q in JSON configuration file %q", key, ConfigFilePath())
+		log.Printf("No key %q in JSON configuration file %q; have you run \"camput --init\"?", key, ConfigFilePath())
 		return nil
 	}
 	s, ok := v.(string)
