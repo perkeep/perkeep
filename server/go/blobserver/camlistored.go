@@ -32,7 +32,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		case "/camli/enumerate-blobs":
 			handler = auth.RequireAuth(handleEnumerateBlobs)
 		default:
-			handler = auth.RequireAuth(createGetHandler(blobFetcher))
+			handler = createGetHandler(blobFetcher)
 		}
 	case "POST":
 		switch req.URL.Path {
