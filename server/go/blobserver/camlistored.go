@@ -12,10 +12,12 @@ import (
 	"flag"
 	"fmt"
 	"http"
+	"log"
 	"os"
 )
 
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
+var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
 var stealthMode *bool = flag.Bool("stealth", true, "Run in stealth mode.")
 
 var blobFetcher blobref.Fetcher
@@ -25,6 +27,9 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		httputil.BadRequestError(conn,
 			fmt.Sprintf("Unsupported path (%s) or method (%s).",
 			req.URL.Path, req.Method))
+	}
+	if *flagRequestLog {
+		log.Printf("%s %s", req.Method, req.RawURL)
 	}
 	switch req.Method {
 	case "GET":

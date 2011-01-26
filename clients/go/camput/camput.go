@@ -22,7 +22,9 @@ import (
 var flagBlob = flag.Bool("blob", false, "upload a file's bytes as a single blob")
 var flagFile = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
 var flagPermanode = flag.Bool("permanode", false, "create a new permanode")
-var flagInit = flag.Bool("init", false, "First-time configuration.")
+var flagInit = flag.Bool("init", false, "first-time configuration.")
+var flagShare = flag.Bool("share", false, "create a camli share by haveref with the given blobrefs")
+var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
 
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
@@ -171,6 +173,17 @@ func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
 	return up.Upload(client.NewUploadHandleFromString(signed))
 }
 
+func (up *Uploader) UploadShare(target *blobref.BlobRef, transitive bool) (*client.PutResult, os.Error) {
+	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
+
+	signed, err := up.SignMap(unsigned)
+	if err != nil {
+		return nil, err
+	}
+
+	return up.Upload(client.NewUploadHandleFromString(signed))
+}
+
 func sumSet(flags ...*bool) (count int) {
 	for _, f := range flags {
 		if *f {
@@ -190,6 +203,7 @@ Usage: camput
   camput --init       # first time configuration
   camput --blob <filename(s) to upload as blobs>
   camput --file <filename(s) to upload as blobs + JSON metadata>
+  camput --share <blobref to share via haveref> [--transitive]
 `)
 	flag.PrintDefaults()
 	os.Exit(1)
@@ -211,7 +225,7 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	if sumSet(flagFile, flagBlob, flagPermanode, flagInit) != 1 {
+	if sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare) != 1 {
 		// TODO: say which ones are conflicting
 		usage("Conflicting mode options.")
 	}
@@ -242,6 +256,16 @@ func main() {
 				handleResult("file", pr, err)
 			}
 		}
+	case *flagShare:
+		if flag.NArg() != 1 {
+			log.Exitf("--share only supports one blobref")
+		}
+		br := blobref.Parse(flag.Arg(0))
+		if br == nil {
+			log.Exitf("BlobRef is invalid: %q", flag.Arg(0))
+		}
+		pr, err := uploader.UploadShare(br, *flagTransitive)
+		handleResult("share", pr, err)
 	}
 
 	if *flagVerbose {

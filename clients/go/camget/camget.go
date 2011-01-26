@@ -21,12 +21,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
 
 var flagCheck *bool = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all our present")
 var flagOutput *string = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
+var flagVia *string = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
 
 func main() {
 	flag.Parse()
@@ -41,20 +43,40 @@ func main() {
 
 	for n := 0; n < flag.NArg(); n++ {
 		arg := flag.Arg(n)
-		blobref := blobref.Parse(arg)
-		if blobref == nil {
+		br := blobref.Parse(arg)
+		if br == nil {
 			log.Exitf("Failed to parse argument \"%s\" as a blobref.", arg)
 		}
 		if *flagVerbose {
-			log.Printf("Need to fetch %s", blobref.String())
+			log.Printf("Need to fetch %s", br.String())
 		}
-		r, _, err := client.Fetch(blobref)
+		var (
+			r blobref.ReadSeekCloser
+			err os.Error
+		)
+
+		if len(*flagVia) > 0 {
+			vs := strings.Split(*flagVia, ",", -1)
+			abr := make([]*blobref.BlobRef, len(vs))
+			for i, sbr := range vs {
+				abr[i] = blobref.Parse(sbr)
+				if abr[i] == nil {
+					log.Exitf("Invalid -via blobref: %q", sbr)
+				}
+				if *flagVerbose {
+					log.Printf("via: %s", sbr)
+				}
+			}
+			r, _, err = client.FetchVia(br, abr)
+		} else {
+			r, _, err = client.Fetch(br)
+		}
 		if err != nil {
-			log.Exitf("Failed to fetch %q: %s", blobref, err)
+			log.Exitf("Failed to fetch %q: %s", br, err)
 		}
 		_, err = io.Copy(w, r)
 		if err != nil {
-			log.Exitf("Failed transferring %q: %s", blobref, err)
+			log.Exitf("Failed transferring %q: %s", br, err)
 		}
 	}
 
