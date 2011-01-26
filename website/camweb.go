@@ -170,6 +170,15 @@ func (h *gitwebHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type noWwwHandler struct {
+	Handler http.Handler
+}
+
+func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	// TODO: strip www.
+	h.Handler.ServeHTTP(rw, r)
+}
+
 func main() {
 	flag.Parse()
 	readTemplates()
@@ -208,7 +217,7 @@ func main() {
 	}
 	mux.HandleFunc("/", mainHandler)
 
-	if err := http.ListenAndServe(*httpAddr, mux); err != nil {
+	if err := http.ListenAndServe(*httpAddr, &noWwwHandler{Handler: mux}); err != nil {
 		log.Exitf("ListenAndServe %s: %v", *httpAddr, err)
 	}
 }
