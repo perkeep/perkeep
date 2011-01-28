@@ -197,6 +197,7 @@ func main() {
 
 	mux := http.DefaultServeMux
 	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
+	mux.Handle("/robots.txt", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 
 	testCgi := &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi"),
