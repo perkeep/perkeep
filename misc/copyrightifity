@@ -37,7 +37,7 @@ if ($source =~ /Copyright \d\d\d\d/) {
 }
 
 my $newsource = $source;
-if ($file =~ /\.go$/) {
+if ($file =~ /\.(go|java|aidl)$/) {
     $header = "/*\n$header*/\n\n";
     $newsource = $header . $source;
 } elsif ($file =~ /\.py$/) {
