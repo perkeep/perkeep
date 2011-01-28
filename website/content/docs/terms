@@ -48,10 +48,10 @@ if things here are confusing or lacking.</p>
          <li><a
          href="/gw/doc/protocol/blob-enumerate-protocol.txt"><b>enumerate</b></a>
          all your blobs, sorted by their blobrefs.  Enumeration is
-         only really used by your search server and by full syncs
+         only really used by your search server and by a <em>full sync</em>
          between your blob server mirrors.</li>
-
         </ul>
+      <p>(Note: no delete operation)</p>
    </dd>
 
 <!-- ---------------------------------------------------------------------- -->
@@ -107,13 +107,22 @@ header:</p>
 </dd>
 
 
+<!-- ---------------------------------------------------------------------- -->
+<dt>signed schema blob (aka "claim")</dt>
+
+<dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
+  it's now a "signed schema blob" or "claim".  The terms are used pretty
+  interchangably but generally it's called a <em>claim</em> when the target of
+  the schema blob is an object's permanode (see below).
+
+</dd>
 
 
 <!-- ---------------------------------------------------------------------- -->
 <dt>object</dt>
 
 <dd>something that's mutable.  While a <em>blob</em> is a single
-  immutable thing, an <em>object</em> is a collection of schema blobs
+  immutable thing, an <em>object</em> is a collection of claims
   which mutate an object over time.  See <a href="#permanode" class='local'>permanode</a> for fuller discussion.
 </dd>
 
@@ -147,6 +156,23 @@ header:</p>
 ,"camliSig":"iQEcBAABAgAGBQJNQzByAAoJEGjzeDN/6vt85G4IAI9HdygAD8bgz1BnRak6fI+L1dT56MxNsHyAoJaNjYJYKvWR4mrzZonF6l/I7SlvwV4mojofHS21urL8HIGhcMN9dP7Lr9BkCB428kvBtDdazdfN/XVfALVWJOuZEmg165uwTreMOUs377IZom1gjrhnC1bd1VDG7XZ1bP3PPxTxqppM0RuuFWx3/SwixSeWnI+zj9/Qon/wG6M/KDx+cCzuiBwwnpHf8rBmBLNbCs8SVNF3mGwPK0IQq/l4SS6VERVYDPlbBy1hNNdg40MqlJ5jr+Zln3cwF9WzQDznasTs5vK/ylxoXCvVFdOfwBaHkW1NHc3RRpwR0wq2Q8DN3mQ==gR7A"}</pre>
 
   </dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<dt>full sync</dt>
+<dd>synchronizing all your blobs between two or more of your blob servers
+(e.g. mirroring between your house, App Engine, and Amazon).
+
+<p>Generally a full sync will be done with the <em>blob server</em>'s enumerate
+support and no knowledge of the schema.  It's a dumb copy of all blobs that the
+other party doesn't already have.</p>
+</dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<dt>graph sync</dt>
+
+<dd>as opposed to a <em>full sync</em>, a graph sync is synchronizing
+a sub-graph of your blobs between blob servers.  This level of sync will operate
+with knowledge of the schema.</dd>
 
 <!-- ---------------------------------------------------------------------- -->
 <dt>search server</dt>
