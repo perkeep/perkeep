@@ -5,8 +5,7 @@
 # Derived from Brad's Brackup-gae utility:
 #   http://github.com/bradfitz/brackup-gae-server
 #
-# Copyright 2009 Brad Fitzpatrick <brad@danga.com>
-# Copyright 2010 Brett Slatkin <bslatkin@gmail.com>
+# Copyright 2010 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
