@@ -26,11 +26,14 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"template"
 )
 
 const defaultAddr = ":31798" // default webserver address
+
+var h1TitlePattern = regexp.MustCompile(`<h1>(.+)</h1>`)
 
 var (
 	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
@@ -146,6 +149,12 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(relPath, "gw/") {
+		path := relPath[3:]
+		http.Redirect(rw, req, "/code/?p=camlistore.git;f=" + path + ";hb=master", http.StatusFound)
+		return
+	}
+
 	absPath := path.Join(*root, "content", relPath)
 	fi, err := os.Lstat(absPath)
 	if err != nil {
@@ -176,7 +185,13 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 		serveError(rw, req, absPath, err)
 		return
 	}
-	servePage(rw, "", "", []byte(data))
+
+	title := ""
+	if m := h1TitlePattern.FindSubmatch(data); len(m) > 1 {
+		title = string(m[1])
+	}
+
+	servePage(rw, title, "", data)
 }
 
 type gitwebHandler struct {
