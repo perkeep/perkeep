@@ -14,6 +14,10 @@ schema</a> to represent various classes of data.</p>
 
   <li><a href="/docs/json-signing">Signing</a></li>
 
+  <li><a href="/gw/doc/schema/objects/static-set.txt">Static Sets</a></li>
+
+  <li><b>Dynamic Sets</b>, a Camli Object representing a mutable set of items (e.g. blog, photo collection / gallery, mutable filesystem, etc).  TODO: docs sprinkled in various places.  Consolidate.</li>
+
   <li><a href="/gw/doc/schema/objects/keep.txt">Keep claims</a></li>
 
 

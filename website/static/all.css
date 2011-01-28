@@ -78,3 +78,18 @@ dl.terms dt {
 ul.lispaced li {
       margin-top: 0.8em;
 }
+
+tt {
+    color: #e84c00;
+    font-weight: bold;
+}
+
+pre.sty {
+    padding-left: 1em;
+    border-left: 2px solid #e84c00;
+    background: #e8b9a2;
+}
+
+a.local {
+    text-underline: dotted-underline;  /* TODO: i forget. look this up */
+}

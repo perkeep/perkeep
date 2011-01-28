@@ -6,10 +6,14 @@ if things here are confusing or lacking.</p>
 
 <dl class='terms'>
 
+<!-- ---------------------------------------------------------------------- -->
 <dt>blob</dt>
+
   <dd>an immutable sequence of 0 or more bytes, with no extra metadata</dd>
 
+<!-- ---------------------------------------------------------------------- -->
 <dt>blobref</dt>
+
   <dd>a reference to a blob, consisting of a cryptographic hash
   function name and that hash function's digest of the blob's bytes,
   in hex.  Examples of valid blobrefs include:
@@ -21,13 +25,134 @@ if things here are confusing or lacking.</p>
   representation, with both parts in all lower case.
   </dd>
 
+<!-- ---------------------------------------------------------------------- -->
 <dt>blob server</dt>
-  <dd>the simplest and lowest layer of the Camlistore servers.  A blob server,
-     while potentially shared between users, is <em>logically private to a single user</em>
-     and holds that user's blobs (<a href="/docs/schema">whatever they may represent</a>).
+
+  <dd>the simplest and lowest layer of the Camlistore servers (see: <a
+     href="/docs/arch">architecture</a>).  A blob server, while
+     potentially shared between users, is <em>logically private to a
+     single user</em> and holds that user's blobs (<a
+     href="/docs/schema">whatever they may represent</a>).
+
+     <p>The protocol to speak with a blob server is simply:</p>
+       <ul>
+
+         <li><a
+         href="/gw/doc/protocol/blob-get-protocol.txt"><b>get</b></a>
+         a blob by its blobref.</li>
+
+         <li><a
+         href="/gw/doc/protocol/blob-upload-protocol.txt"><b>put</b></a>
+         a blob by its blobref.</li>
+
+         <li><a
+         href="/gw/doc/protocol/blob-enumerate-protocol.txt"><b>enumerate</b></a>
+         all your blobs, sorted by their blobrefs.  Enumeration is
+         only really used by your search server and by full syncs
+         between your blob server mirrors.</li>
+
+        </ul>
+   </dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<dt>schema blob</dt>
+
+<dd>a <a href="/docs/schema">Camlistore-recognized data structure</a>, serialized as a JSON
+object (map).  A schema blob must have top-level keys
+<tt>camliVersion</tt> and <tt>camliType</tt>.  While you may use any valid JSON
+serialization library to generate schema blobs, a Camli schema blob has the further
+restriction that its first 16 bytes must be:
+
+   <pre class='sty'>{"camliVersion":</pre>
+
+Those 16 bytes are the <a
+href="http://en.wikipedia.org/wiki/Magic_number_(programming)">magic</a>
+<a
+href="http://en.wikipedia.org/wiki/File_format#Magic_number">number</a>
+by which a Camli search server can quickly recognize and index schema blobs.
+
+<p>The recommended way to serialize your own Camli schema blobs is to
+use any exiting JSON serialization library to serialize an object
+<em>without</em> the <tt>camliVersion</tt> key, and then manually remove
+the initial byte of the blob (the <tt>{</tt>) and prepend the required
+header:</p>
+
+<table border='1'>
+<tr valign='top'>
+<td><pre>
+{
+  "aKey": "itsValue",
+  "camliType": "foo",
+  "somethingElse": [1, 2, 3]
+}</pre></td>
+
+<td><pre>
+<span style="background: #cd6d6d"><strike>{</strike></span>
+  "aKey": "itsValue",
+  "camliType": "foo",
+  "somethingElse": [1, 2, 3]
+}</pre></td>
+
+<td><pre>
+<span style="background: #87cd6f"><span style="background: #57cd2d; font-weight: bold;">{"camliVersion":</span> 1,</span></span>
+  "aKey": "itsValue",
+  "camliType": "foo",
+  "somethingElse": [1, 2, 3]
+}</pre></td>
+
+</tr>
+</table>
+
+
+</dd>
 
 
 
+
+<!-- ---------------------------------------------------------------------- -->
+<dt>object</dt>
+
+<dd>something that's mutable.  While a <em>blob</em> is a single
+  immutable thing, an <em>object</em> is a collection of schema blobs
+  which mutate an object over time.  See <a href="#permanode" class='local'>permanode</a> for fuller discussion.
+</dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<a name='permanode'><dt>permanode</dt></a>
+        
+<dd>since an object is mutable and Camlistore is primarily content-addressed,
+  the question arises how you could have a stable reference to something that's
+  changing.  Camlistore solves this with the concept of a <em>permanode</em>.
+  Link a permalink on the web, a permanode is a stable link to a Camli object.
+
+  <p>A permanode is simply a <a href="/docs/json-signing">signed</a>
+     schema blob with no data inside that would be interesting to
+     mutate.  See <a href="/gw/doc/schema/objects/permanode.txt">the
+     permanode spec</a>.</p>
+
+  <p>A permanent reference to a mutable object then is simply the blobref of
+     the permanode.</p>
+
+  <p>The signer of a permanode is its owner and search server and
+     indexer will take this into account.  While multiple users may collaborate
+     on mutating an object (by all creating new, signed mutation schema blobs),
+     the owner ultimately decides the policies on how the mutations are respected.</p>
+
+  <p>Example permanode blob:  (as generated with <tt><a href="/cmd/camput">camput</a> --permanode</tt>)</p>
+
+     <pre class='sty' style="overflow: auto;">{"camliVersion": 1,
+  "camliSigner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8",
+  "camliType": "permanode",
+  "random": "HJ#/s#S+Q$rh:lHJ${)v"
+,"camliSig":"iQEcBAABAgAGBQJNQzByAAoJEGjzeDN/6vt85G4IAI9HdygAD8bgz1BnRak6fI+L1dT56MxNsHyAoJaNjYJYKvWR4mrzZonF6l/I7SlvwV4mojofHS21urL8HIGhcMN9dP7Lr9BkCB428kvBtDdazdfN/XVfALVWJOuZEmg165uwTreMOUs377IZom1gjrhnC1bd1VDG7XZ1bP3PPxTxqppM0RuuFWx3/SwixSeWnI+zj9/Qon/wG6M/KDx+cCzuiBwwnpHf8rBmBLNbCs8SVNF3mGwPK0IQq/l4SS6VERVYDPlbBy1hNNdg40MqlJ5jr+Zln3cwF9WzQDznasTs5vK/ylxoXCvVFdOfwBaHkW1NHc3RRpwR0wq2Q8DN3mQ==gR7A"}</pre>
+
+  </dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<dt>search server</dt>
+<dt>indexer</dt>
+
+<dd>TODO: finish documenting</dd>
 
 
 </dl>
