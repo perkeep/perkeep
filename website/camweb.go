@@ -145,16 +145,23 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 	if strings.Contains(relPath, "..") {
 		return
 	}
-	if relPath == "" {
-		relPath = "index.html"
-	}
-	absPath := path.Join(*root, "content", relPath)
 
+	absPath := path.Join(*root, "content", relPath)
 	fi, err := os.Lstat(absPath)
 	if err != nil {
 		log.Print(err)
 		serveError(rw, req, relPath, err)
 		return
+	}
+	if fi.IsDirectory() {
+		relPath += "/index.html"
+		absPath = path.Join(*root, "content", relPath)
+		fi, err = os.Lstat(absPath)
+		if err != nil {
+			log.Print(err)
+			serveError(rw, req, relPath, err)
+			return
+		}
 	}
 
 	switch {

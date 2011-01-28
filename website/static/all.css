@@ -1,6 +1,6 @@
 body {
   margin-top: 0;
-  font-family: 'Droid Sans', arial, serif;
+  font-family: arial, serif;
 }
 
 #header {
@@ -49,7 +49,7 @@ div.content {
 }
 
 #props {
-  margin-top:2em;
+  margin-top:1em;
   text-align: center;
-  font-size: small;
+  font-size: 75%;
 }
