@@ -1,0 +1,33 @@
+<h1>Terminology</h1>
+
+<p>To stay sane and communicate effectively we try hard to use
+consistent terminology throughout the pieces of the project.  Please let us know
+if things here are confusing or lacking.</p>
+
+<dl class='terms'>
+
+<dt>blob</dt>
+  <dd>an immutable sequence of 0 or more bytes, with no extra metadata</dd>
+
+<dt>blobref</dt>
+  <dd>a reference to a blob, consisting of a cryptographic hash
+  function name and that hash function's digest of the blob's bytes,
+  in hex.  Examples of valid blobrefs include:
+  <pre>
+     sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15
+     md5-d3b07384d113edec49eaa6238ad5ff00
+     sha256-b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c</pre>
+  Concatenating the two together with a hyphen is the common
+  representation, with both parts in all lower case.
+  </dd>
+
+<dt>blob server</dt>
+  <dd>the simplest and lowest layer of the Camlistore servers.  A blob server,
+     while potentially shared between users, is <em>logically private to a single user</em>
+     and holds that user's blobs (<a href="/docs/schema">whatever they may represent</a>).
+
+
+
+
+
+</dl>

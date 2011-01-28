@@ -53,3 +53,28 @@ div.content {
   text-align: center;
   font-size: 75%;
 }
+
+table.status {
+  border: 2px solid black;
+  width: 100%;
+}
+
+table.status td {
+  border: 1px solid #999;
+  padding: 0.4em;
+}
+
+table.status th {
+  border: 1px solid black;
+  padding: 0.4em;
+}
+
+dl.terms dt {
+  margin-top: 0.5em;
+  font-weight: bold;
+  font-style: italic;
+}
+
+ul.lispaced li {
+      margin-top: 0.8em;
+}

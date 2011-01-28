@@ -1,0 +1,47 @@
+<h1>Status</h1>
+
+<p>Camlistore has <a href="/docs/arch">many pieces</a> and many <a
+href="/docs/uses">potential use cases</a>.  Here are some of the
+pieces and use cases, and where they're at.</p>
+
+<h2>Specification</h2>
+
+<table class='status'>
+<tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Blob Server</td><td>95%</td><td>See <a href="/gw/doc/protocol">doc/protocol/</a></td></tr>
+<tr><td>Sharing</td><td>50%</td><td>See mailing list thread "Example of sharing"</td></tr>
+</table>
+
+
+<h2>Servers</h2>
+<table class='status'>
+<tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Blob Server (Local, Go)</td><td>95%</td><td>See <a href="/gw/server/go/blobserver">server/go/blobserver</a></td></tr>
+
+<tr><td>Blob Server (Hosted, App Engine)</td><td>95%</td><td>See <a href="/gw/server/appengine/blobserver">server/appengine/blobserver</td></tr>
+
+<tr><td>Blob Server test suite</td><td>80%</td><td>See <a href="/gw/server/tester/bs-test.pl">server/tester/bs-test.pl</a></td></tr>
+
+<tr><td>Search / indexer server</td><td>5%</td><td>Toy prototype started. See <a href="/gw/indexing/basic">indexing/basic</a>.  Upcoming area of focus.</td></tr>
+
+<tr><td>JSON signing / verification server (Go)</td><td>80%</td><td>See <a href="/gw/server/go/sigserver">server/go/sigserver</a>.  Does JSON signing and verification, but doesn't yet permit uploading keys.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript.</td></tr>
+
+<tr><td>JSON signing / verification server (App Engine)</td><td>70%</td><td>See <a href="/gw/server/appengine/sigserver">server/appengine/sigserver</a>.  Does JSON signing and verification, but doesn't yet permit uploading keys.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript.</td></tr>
+
+
+</table>
+
+<h2>Tools</h2>
+
+<table class='status'>
+<tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+
+<tr><td><a href="/cmd/camput">camput</a></td><td>50%</td><td>the kitchen sink tool to inject content into a blobserver.</td></tr>
+
+<tr><td><a href="/cmd/camget">camget</a></td><td>10%</td><td>tool to retrieve content from a blobserver.</td></tr>
+
+</table>
+
+<h2>High-Level Use Cases</h2>
+<p>... TODO: table for the various <a href="/docs/uses">use cases</a>.</p>
+
