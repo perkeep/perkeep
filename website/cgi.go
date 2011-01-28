@@ -92,9 +92,9 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer func() {
-		// TODO: close subprocess somehow? No kill?!
 		cmd.Stdin.Close()
 		cmd.Stdout.Close()
+		cmd.Wait(0)  // no zombies
 	}()
 
 	if req.ContentLength != 0 {
