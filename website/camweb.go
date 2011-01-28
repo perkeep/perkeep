@@ -175,7 +175,11 @@ type noWwwHandler struct {
 }
 
 func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	// TODO: strip www.
+	host := strings.ToLower(r.Host)
+	if host == "www.camlistore.org" {
+		http.Redirect(rw, r, "http://camlistore.org" + r.URL.RawPath, http.StatusFound)
+		return
+	}
 	h.Handler.ServeHTTP(rw, r)
 }
 
