@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"http"
 	"strings"
@@ -23,15 +24,18 @@ type logRecord struct {
 
 type logHandler struct {
 	ch      chan *logRecord
-	dir     string
 	handler http.Handler
+
+	dir    string // or "" to not log
+	stdout bool
 }
 
-func NewLoggingHandler(handler http.Handler, dir string) http.Handler {
+func NewLoggingHandler(handler http.Handler, dir string, writeStdout bool) http.Handler {
 	h := &logHandler{
 		ch:      make(chan *logRecord, 1000),
 		dir:     dir,
 		handler: handler,
+		stdout:  writeStdout,
 	}
 	go h.logFromChannel()
 	return h
@@ -63,9 +67,10 @@ var monthAbbr = [12]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
 func (h *logHandler) logFromChannel() {
+	lastFileName := ""
+	var logFile *os.File
 	for {
 		lr := <-h.ch
-		lr.rw = nil
 
 		// [10/Oct/2000:13:55:36 -0700]
 		dateString := fmt.Sprintf("%02d/%s/%04d:%02d:%02d:%02d -0000",
@@ -73,6 +78,23 @@ func (h *logHandler) logFromChannel() {
 			monthAbbr[lr.time.Month-1],
 			lr.time.Year,
 			lr.time.Hour, lr.time.Minute, lr.time.Second)
+
+		if h.dir != "" {
+			fileName := fmt.Sprintf("%s/%04d-%02d-%02d%s%02d.log", h.dir,
+				lr.time.Year, lr.time.Month, lr.time.Day, "h", lr.time.Hour)
+			if fileName > lastFileName {
+				if logFile != nil {
+					logFile.Close()
+				}
+				var err os.Error
+				logFile, err = os.Open(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREAT, 0644)
+				if err != nil {
+					log.Printf("Error opening %q: %v", fileName, err)
+					continue
+				}
+				lastFileName = fileName
+			}
+		}
 
 		// Combined Log Format
 		// http://httpd.apache.org/docs/1.3/logs.html#combined
@@ -85,8 +107,11 @@ func (h *logHandler) logFromChannel() {
 			lr.referer,
 			lr.userAgent,
 		)
-		if h.dir == "-" {
+		if h.stdout {
 			os.Stdout.WriteString(logLine)
+		}
+		if logFile != nil {
+			logFile.WriteString(logLine)
 		}
 	}
 }

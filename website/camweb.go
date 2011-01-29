@@ -40,7 +40,8 @@ var (
 	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
 	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
 	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
-	logDir              = flag.String("logdir", "-", "Directory to write log files to (one per hour), \"-\" for stdout, or empty to not log.")
+	logDir              = flag.String("logdir", "-", "Directory to write log files to (one per hour), or empty to not log.")
+	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -262,8 +263,8 @@ func main() {
 	mux.HandleFunc("/", mainHandler)
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}
-	if *logDir != "" {
-		handler = NewLoggingHandler(handler, *logDir)
+	if *logDir != "" || *logStdout {
+		handler = NewLoggingHandler(handler, *logDir, *logStdout)
 	}
 	if err := http.ListenAndServe(*httpAddr, handler); err != nil {
 		log.Exitf("ListenAndServe %s: %v", *httpAddr, err)
