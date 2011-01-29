@@ -10,6 +10,7 @@ pieces and use cases, and where they're at.</p>
 <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
 <tr><td>Blob Server</td><td>95%</td><td>See <a href="/gw/doc/protocol">doc/protocol/</a></td></tr>
 <tr><td>Sharing</td><td>50%</td><td>See mailing list thread "Example of sharing"</td></tr>
+<tr><td>Search API</td><td>0%</td><td>initial hand waving only</td></tr>
 </table>
 
 
