@@ -41,6 +41,16 @@ pieces and use cases, and where they're at.</p>
 
 <tr><td><a href="/cmd/camget">camget</a></td><td>10%</td><td>tool to retrieve content from a blobserver.</td></tr>
 
+<tr><td><a href="/gw/clients/android/uploader">Android
+Uploader</a></td><td>75%</td><td>UI is ugly but it works and
+optionally backs up your SD card (photos, etc) to your blob server.
+Can also work in "Share with Camli" mode, one resource at a
+time.</td></tr>
+
+<tr><td><a href="/gw/clients/chrome/clip-it-good">Clip It Good</a></td><td>80%</td>
+
+<td>Camli port of <a href="https://chrome.google.com/extensions/detail/aimbcenmfmipmcllpgajennfdfmmhmjj">Clip It Good</a>.  (currently still forked)</td></tr>
+
 </table>
 
 <h2>High-Level Use Cases</h2>
