@@ -93,3 +93,13 @@ pre.sty {
 a.local {
     text-underline: dotted-underline;  /* TODO: i forget. look this up */
 }
+
+span.termhashlink {
+    font-weight: normal;
+    font-size: small;
+    color: #e84c00;
+}
+
+span.termhashlink a {
+    color: #e84c00;
+}

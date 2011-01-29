@@ -187,3 +187,18 @@ with knowledge of the schema.</dd>
 <dd>TODO: finish documenting</dd>
 
 </dl>
+
+<script>
+var terms = document.getElementsByTagName("dt");
+for (var i = 0; i < terms.length; i++) {
+  var term = terms[i];
+  var id = term.getAttribute("id");
+  if (!id) {
+     continue;
+  }
+  var link = document.createElement("span");
+  link.setAttribute("class", "termhashlink");
+  link.innerHTML = "&nbsp;[<a href='#" + id + "'>#</a>]";
+  term.appendChild(link);
+}
+</script>
