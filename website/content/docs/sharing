@@ -59,7 +59,7 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 
 <p>Here's the first hop to the metadata, in which we discover the blobRef of the bytes of the file (in this case, just one part is the whole file bytes...)  I already told you this earlier in the email, but assume you're just discovering this now.</p>
 
-<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708">http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</a>
+<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708">http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d<b>?via=</b>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</a>
 {"camliVersion": 1,
   "camliType": "file",
   "contentParts": [
@@ -80,7 +80,7 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 
 <p>Now let's get the final bytes of the file:</p>
 
-<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</a>
+<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25<b>?via=</b>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</a>
 Hello, Camli!</pre>
 
 <p>That's it.</p>
