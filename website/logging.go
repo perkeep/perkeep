@@ -6,15 +6,17 @@ import (
 	"io"
 	"os"
 	"http"
+	"strings"
 	"time"
 )
 
 type logRecord struct {
-	timeEpochNs         int64
+	time                *time.Time
 	ip, method, rawpath string
 	responseBytes       int64
 	responseStatus      int
 	userAgent, referer  string
+	proto               string // "HTTP/1.1"
 
 	rw http.ResponseWriter
 }
@@ -27,7 +29,7 @@ type logHandler struct {
 
 func NewLoggingHandler(handler http.Handler, dir string) http.Handler {
 	h := &logHandler{
-		ch:      make(chan *logRecord),
+		ch:      make(chan *logRecord, 1000),
 		dir:     dir,
 		handler: handler,
 	}
@@ -36,25 +38,53 @@ func NewLoggingHandler(handler http.Handler, dir string) http.Handler {
 }
 
 func (h *logHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	// Strip port number from address
+	addr := rw.RemoteAddr()
+	if colon := strings.LastIndex(addr, ":"); colon != -1 {
+		addr = addr[:colon]
+	}
+
 	lr := &logRecord{
-		timeEpochNs:    time.Nanoseconds(),
-		ip:             rw.RemoteAddr(),
+		time:           time.UTC(),
+		ip:             addr,
 		method:         r.Method,
 		rawpath:        r.URL.RawPath,
 		userAgent:      r.UserAgent,
 		referer:        r.Referer,
 		responseStatus: http.StatusOK,
+		proto:          r.Proto,
 		rw:             rw,
 	}
 	h.handler.ServeHTTP(lr, r)
 	h.ch <- lr
 }
 
+var monthAbbr = [12]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+
 func (h *logHandler) logFromChannel() {
 	for {
 		lr := <-h.ch
 		lr.rw = nil
-		logLine := fmt.Sprintf("Request: %#v\n", lr)
+
+		// [10/Oct/2000:13:55:36 -0700]
+		dateString := fmt.Sprintf("%02d/%s/%04d:%02d:%02d:%02d -0000",
+			lr.time.Day,
+			monthAbbr[lr.time.Month-1],
+			lr.time.Year,
+			lr.time.Hour, lr.time.Minute, lr.time.Second)
+
+		// Combined Log Format
+		// http://httpd.apache.org/docs/1.3/logs.html#combined
+		logLine := fmt.Sprintf("%s - - [%s] %q %d %d %q %q\n",
+			lr.ip,
+			dateString,
+			lr.method+" "+lr.rawpath+" "+lr.proto,
+			lr.responseStatus,
+			lr.responseBytes,
+			lr.referer,
+			lr.userAgent,
+		)
 		if h.dir == "-" {
 			os.Stdout.WriteString(logLine)
 		}
