@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"camli/auth"
 	"camli/blobref"
@@ -178,7 +179,29 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 		remainBytes = reqRange.LimitBytes
 	}
 
-	conn.SetHeader("Content-Type", "application/octet-stream")
+	// Assume this generic content type by default.  For better
+	// demos we'll try to sniff and guess the "right" MIME type in
+	// certain cases (no Range requests, etc) but this isn't part
+	// of the Camli spec at all.  We just do it to ease demos.
+	contentType := "application/octet-stream"
+	if reqRange.IsWholeFile() {
+		const peekSize = 1024
+		bufReader, _ := bufio.NewReaderSize(input, peekSize)
+		header, _ := bufReader.Peek(peekSize)
+		if len(header) >= 8 {
+			switch {
+			case isValidUtf8(string(header)):
+				contentType = "text/plain; charset=utf-8"
+			case bytes.HasPrefix(header, []byte{0xff, 0xd8, 0xff, 0xe2}):
+				contentType = "image/jpeg"
+			case bytes.HasPrefix(header, []byte{0x89, 0x50, 0x4e, 0x47, 0xd, 0xa, 0x1a, 0xa}):
+				contentType = "image/png"
+			}
+		}
+		input = bufReader
+	}
+
+	conn.SetHeader("Content-Type", contentType)
 	if !reqRange.IsWholeFile() {
 		conn.SetHeader("Content-Range",
 			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes,
@@ -210,4 +233,16 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 		killConnection()
 		return
 	}
+}
+
+// TODO: copied this from lib/go/schema, but this might not be ideal.
+// unify and speed up?
+func isValidUtf8(s string) bool {
+	for _, rune := range []int(s) {
+		if rune == 0xfffd {
+			return false
+		}
+	}
+	return true
+
 }
