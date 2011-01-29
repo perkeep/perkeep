@@ -40,7 +40,7 @@ func createGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.R
 }
 
 const fetchFailureDelayNs = 200e6 // 200 ms
-const maxJsonSize = 64 * 1024  // should be enough for everyone
+const maxJsonSize = 64 * 1024     // should be enough for everyone
 
 func sendUnauthorized(conn http.ResponseWriter) {
 	conn.WriteHeader(http.StatusUnauthorized)
@@ -134,15 +134,15 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 				slurpBytes, err := ioutil.ReadAll(lr)
 				if err != nil {
 					log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
-                                        sendUnauthorized(conn)
+					sendUnauthorized(conn)
 					return
 				}
 				saught := fetchChain[i+1].String()
 				if bytes.IndexAny(slurpBytes, saught) == -1 {
 					log.Printf("Fetch chain %d of %s failed; no reference to %s",
 						i, br.String(), saught)
-                                        sendUnauthorized(conn)
-                                        return
+					sendUnauthorized(conn)
+					return
 				}
 			}
 		}

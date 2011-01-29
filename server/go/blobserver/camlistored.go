@@ -22,10 +22,10 @@ var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
 var blobFetcher blobref.Fetcher
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
-	handler := func (conn http.ResponseWriter, req *http.Request) {
+	handler := func(conn http.ResponseWriter, req *http.Request) {
 		httputil.BadRequestError(conn,
 			fmt.Sprintf("Unsupported path (%s) or method (%s).",
-			req.URL.Path, req.Method))
+				req.URL.Path, req.Method))
 	}
 	if *flagRequestLog {
 		log.Printf("%s %s", req.Method, req.RawURL)
@@ -56,7 +56,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 }
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n");
+	fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n")
 }
 
 func main() {
@@ -68,7 +68,6 @@ func main() {
 			"No CAMLI_PASSWORD environment variable set.\n")
 		os.Exit(1)
 	}
-
 
 	{
 		fi, err := os.Stat(*flagStorageRoot)

@@ -81,12 +81,12 @@ func readBlobs(ch chan *blobInfo, blobPrefix, diskRoot, after string, remain *ui
 					continue
 				}
 			}
-			readBlobs(ch, newBlobPrefix, diskRoot + "/" + name, after, remain)
+			readBlobs(ch, newBlobPrefix, diskRoot+"/"+name, after, remain)
 			continue
 		}
 
 		if fi.IsRegular() && strings.HasSuffix(name, ".dat") {
-			blobName := name[0:len(name)-4]
+			blobName := name[0 : len(name)-4]
 			if blobName <= after {
 				continue
 			}
@@ -118,7 +118,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
 
 	var after string
-	go readBlobs(ch, "", "", req.FormValue("after"), &limit);
+	go readBlobs(ch, "", "", req.FormValue("after"), &limit)
 	needsComma := false
 	for bi := range ch {
 		if bi == nil {
@@ -129,7 +129,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
 			break
 		}
 		blobName := bi.BlobRef.String()
-		if (needsComma) {
+		if needsComma {
 			fmt.Fprintf(conn, ",\n")
 		}
 		fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d}",

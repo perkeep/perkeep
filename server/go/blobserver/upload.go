@@ -28,11 +28,11 @@ import (
 	"log"
 	"mime"
 	"os"
-	)
+)
 
 type receivedBlob struct {
-	blobRef  *blobref.BlobRef
-	size     int64
+	blobRef *blobref.BlobRef
+	size    int64
 }
 
 var flagOpenImages *bool = flag.Bool("showimages", false, "Show images on receiving them with eog.")
@@ -130,7 +130,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 
 func commonUploadResponse(req *http.Request) map[string]interface{} {
 	ret := make(map[string]interface{})
-	ret["maxUploadSize"] = 2147483647  // 2GB.. *shrug*
+	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
 	ret["uploadUrlExpirationSeconds"] = 86400
 	if len(req.Host) > 0 {
 		scheme := "http" // TODO: https
@@ -229,4 +229,3 @@ func handlePut(conn http.ResponseWriter, req *http.Request) {
 
 	fmt.Fprint(conn, "OK")
 }
-

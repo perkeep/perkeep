@@ -87,4 +87,3 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request) {
 	ret["alreadyHave"] = haveVector.Copy()
 	httputil.ReturnJson(conn, ret)
 }
-

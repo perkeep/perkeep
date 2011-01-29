@@ -24,12 +24,12 @@ import (
 
 // Default is {0, -1} to read all of a file.
 type requestedRange struct {
-	SkipBytes int64
-	LimitBytes int64  // or -1 to read all
+	SkipBytes  int64
+	LimitBytes int64 // or -1 to read all
 }
 
 func (rr *requestedRange) IsWholeFile() bool {
-	return rr.SkipBytes == 0 && rr.LimitBytes == -1;
+	return rr.SkipBytes == 0 && rr.LimitBytes == -1
 }
 
 var wholeRange = &requestedRange{0, -1}
@@ -47,7 +47,7 @@ func getRequestedRange(req *http.Request) *requestedRange {
 func getRequestedRangeFromString(rrange string) *requestedRange {
 	matches := rangePattern.FindStringSubmatch(rrange)
 	if len(matches) == 0 {
-		return wholeRange;
+		return wholeRange
 	}
 	skipBytes, _ := strconv.Atoi64(matches[1])
 	lastByteInclusive := int64(-1)

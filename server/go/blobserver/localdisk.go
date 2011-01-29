@@ -62,4 +62,3 @@ func BlobFileName(b *blobref.BlobRef) string {
 func BlobFromUrlPath(path string) *blobref.BlobRef {
 	return blobref.FromPattern(kGetPutPattern, path)
 }
-
