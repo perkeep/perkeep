@@ -25,9 +25,9 @@ pieces and use cases, and where they're at.</p>
 
 <tr><td>Search / indexer server</td><td>5%</td><td>Toy prototype started. See <a href="/gw/indexing/basic">indexing/basic</a>.  Upcoming area of focus.</td></tr>
 
-<tr><td>JSON signing / verification server (Go)</td><td>80%</td><td>See <a href="/gw/server/go/sigserver">server/go/sigserver</a>.  Does JSON signing and verification, but doesn't yet permit uploading keys.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript.</td></tr>
+<tr><td>JSON signing / verification server (Go)</td><td>80%</td><td>See <a href="/gw/server/go/sigserver">server/go/sigserver</a>.  Does JSON signing and verification, but doesn't yet permit uploading keys.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript/simple clients.</td></tr>
 
-<tr><td>JSON signing / verification server (App Engine)</td><td>70%</td><td>See <a href="/gw/server/appengine/sigserver">server/appengine/sigserver</a>.  Does JSON signing and verification, but doesn't yet permit uploading keys.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript.</td></tr>
+<tr><td>JSON signing / verification server (App Engine)</td><td>40%</td><td>See <a href="/gw/server/appengine/sigserver">server/appengine/sigserver</a>.  Does JSON verification, but kind of broken.  This isn't a formal part of Camlistore but is rather a temporary bootstrapping component, a crutch for JavaScript/simple clients.</td></tr>
 
 
 </table>
@@ -49,7 +49,9 @@ time.</td></tr>
 
 <tr><td><a href="/gw/clients/chrome/clip-it-good">Clip It Good</a></td><td>80%</td>
 
-<td>Camli port of <a href="https://chrome.google.com/extensions/detail/aimbcenmfmipmcllpgajennfdfmmhmjj">Clip It Good</a>.  (currently still forked)</td></tr>
+<td>Camli port of <a href="https://chrome.google.com/extensions/detail/aimbcenmfmipmcllpgajennfdfmmhmjj">Clip It Good</a>. Chrome extension allows right-click on images and save them to your blobserver.  (currently still forked)</td></tr>
+
+<tr><td><a href="/gw/clients/python">camliclient.py</a></td><td>50%</td><td>example command-line tool for uploading/downloading files using the <a href="/gw/lib/python">Python library</a>.</td></tr>
 
 </table>
 
