@@ -1,3 +1,12 @@
 <h1>Sharing</h1>
 
-....
+<p><b>TODO:</b> finish documenting this.</p>
+
+<p>For now, see <a
+href="http://groups.google.com/group/camlistore/browse_thread/thread/a4920d6a1c5fc3ce">this
+thread</a> for some background.  The basic summary is that you create
+a <a href="/docs/terms#claim">claim</a> that a user has access to
+something, and then your blobserver's public frontend authenticates
+(if applicable) a remote user and gives them access as permitted by
+your claim.</p>
+

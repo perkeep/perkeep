@@ -108,7 +108,7 @@ header:</p>
 
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>signed schema blob (aka "claim")</dt>
+<a name="claim"><dt>signed schema blob (aka "claim")</dt></a>
 
 <dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
   it's now a "signed schema blob" or "claim".  The terms are used pretty
@@ -156,6 +156,12 @@ header:</p>
 ,"camliSig":"iQEcBAABAgAGBQJNQzByAAoJEGjzeDN/6vt85G4IAI9HdygAD8bgz1BnRak6fI+L1dT56MxNsHyAoJaNjYJYKvWR4mrzZonF6l/I7SlvwV4mojofHS21urL8HIGhcMN9dP7Lr9BkCB428kvBtDdazdfN/XVfALVWJOuZEmg165uwTreMOUs377IZom1gjrhnC1bd1VDG7XZ1bP3PPxTxqppM0RuuFWx3/SwixSeWnI+zj9/Qon/wG6M/KDx+cCzuiBwwnpHf8rBmBLNbCs8SVNF3mGwPK0IQq/l4SS6VERVYDPlbBy1hNNdg40MqlJ5jr+Zln3cwF9WzQDznasTs5vK/ylxoXCvVFdOfwBaHkW1NHc3RRpwR0wq2Q8DN3mQ==gR7A"}</pre>
 
   </dd>
+
+<!-- ---------------------------------------------------------------------- -->
+<a name='frontend'><dt>frontend</dt></a>
+<dd>the public-facing server that handles sharing and unified access to both
+  your blob server and search server.  (see <a href="arch">architecture diagram</a>)
+</dd>
 
 <!-- ---------------------------------------------------------------------- -->
 <dt>full sync</dt>
