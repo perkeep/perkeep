@@ -7,12 +7,12 @@ if things here are confusing or lacking.</p>
 <dl class='terms'>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>blob</dt>
+<dt id='blob'>blob</dt>
 
   <dd>an immutable sequence of 0 or more bytes, with no extra metadata</dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>blobref</dt>
+<dt id='blobref'>blobref</dt>
 
   <dd>a reference to a blob, consisting of a cryptographic hash
   function name and that hash function's digest of the blob's bytes,
@@ -26,7 +26,7 @@ if things here are confusing or lacking.</p>
   </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>blob server</dt>
+<dt id='blobserver'>blob server</dt>
 
   <dd>the simplest and lowest layer of the Camlistore servers (see: <a
      href="/docs/arch">architecture</a>).  A blob server, while
@@ -55,7 +55,7 @@ if things here are confusing or lacking.</p>
    </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>schema blob</dt>
+<dt id='schemablob'>schema blob</dt>
 
 <dd>a <a href="/docs/schema">Camlistore-recognized data structure</a>, serialized as a JSON
 object (map).  A schema blob must have top-level keys
@@ -108,7 +108,7 @@ header:</p>
 
 
 <!-- ---------------------------------------------------------------------- -->
-<a name="claim"><dt>signed schema blob (aka "claim")</dt></a>
+<dt id='claim'>signed schema blob (aka "claim")</dt>
 
 <dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
   it's now a "signed schema blob" or "claim".  The terms are used pretty
@@ -119,7 +119,7 @@ header:</p>
 
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>object</dt>
+<dt id='object'>object</dt>
 
 <dd>something that's mutable.  While a <em>blob</em> is a single
   immutable thing, an <em>object</em> is a collection of claims
@@ -127,7 +127,7 @@ header:</p>
 </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<a name='permanode'><dt>permanode</dt></a>
+<dt id='permanode'>permanode</dt>
         
 <dd>since an object is mutable and Camlistore is primarily content-addressed,
   the question arises how you could have a stable reference to something that's
@@ -158,13 +158,13 @@ header:</p>
   </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<a name='frontend'><dt>frontend</dt></a>
+<dt id='frontend'>frontend</dt>
 <dd>the public-facing server that handles sharing and unified access to both
   your blob server and search server.  (see <a href="arch">architecture diagram</a>)
 </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>full sync</dt>
+<dt id='fullsync'>full sync</dt>
 <dd>synchronizing all your blobs between two or more of your blob servers
 (e.g. mirroring between your house, App Engine, and Amazon).
 
@@ -174,17 +174,16 @@ other party doesn't already have.</p>
 </dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>graph sync</dt>
+<dt id='graphsync'>graph sync</dt>
 
 <dd>as opposed to a <em>full sync</em>, a graph sync is synchronizing
 a sub-graph of your blobs between blob servers.  This level of sync will operate
 with knowledge of the schema.</dd>
 
 <!-- ---------------------------------------------------------------------- -->
-<dt>search server</dt>
-<dt>indexer</dt>
+<dt id='searchserver'>search server</dt>
+<dt id='indexer'>indexer</dt>
 
 <dd>TODO: finish documenting</dd>
-
 
 </dl>
