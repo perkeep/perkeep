@@ -72,7 +72,7 @@ href="http://en.wikipedia.org/wiki/File_format#Magic_number">number</a>
 by which a Camli search server can quickly recognize and index schema blobs.
 
 <p>The recommended way to serialize your own Camli schema blobs is to
-use any exiting JSON serialization library to serialize an object
+use any existing JSON serialization library to serialize an object
 <em>without</em> the <tt>camliVersion</tt> key, and then manually remove
 the initial byte of the blob (the <tt>{</tt>) and prepend the required
 header:</p>
@@ -132,7 +132,7 @@ header:</p>
 <dd>since an object is mutable and Camlistore is primarily content-addressed,
   the question arises how you could have a stable reference to something that's
   changing.  Camlistore solves this with the concept of a <em>permanode</em>.
-  Link a permalink on the web, a permanode is a stable link to a Camli object.
+  Like a permalink on the web, a permanode is a stable link to a Camli object.
 
   <p>A permanode is simply a <a href="/docs/json-signing">signed</a>
      schema blob with no data inside that would be interesting to
