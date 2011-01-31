@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path"
 	"regexp"
@@ -266,7 +267,41 @@ func main() {
 	if *logDir != "" || *logStdout {
 		handler = NewLoggingHandler(handler, *logDir, *logStdout)
 	}
-	if err := http.ListenAndServe(*httpAddr, handler); err != nil {
-		log.Exitf("ListenAndServe %s: %v", *httpAddr, err)
+
+	var listener net.Listener
+	var err os.Error
+	listener, err = net.Listen("tcp", *httpAddr)
+	if err != nil {
+		log.Exitf("Listen error on %s: %v", *httpAddr, err)
 	}
+
+	listener = &withTimeoutListener{listener, connTimeoutNanos}
+	defer listener.Close()
+
+	if err = http.Serve(listener, handler); err != nil {
+		log.Exitf("Serve error: %v", err)
+	}
+}
+
+const connTimeoutNanos = 15e9
+
+type withTimeoutListener struct {
+	l            net.Listener
+	timeoutNanos int64
+}
+
+func (wtl *withTimeoutListener) Accept() (c net.Conn, err os.Error) {
+	c, err = wtl.l.Accept()
+	if err == nil {
+		c.SetTimeout(wtl.timeoutNanos)
+	}
+	return
+}
+
+func (wtl *withTimeoutListener) Close() os.Error {
+	return wtl.l.Close()
+}
+
+func (wtl *withTimeoutListener) Addr() net.Addr {
+	return wtl.l.Addr()
 }
