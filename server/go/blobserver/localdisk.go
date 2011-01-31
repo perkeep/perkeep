@@ -52,6 +52,9 @@ func BlobFileBaseName(b *blobref.BlobRef) string {
 
 func BlobDirectoryName(b *blobref.BlobRef) string {
 	d := b.Digest()
+	if len(d) < 6 {
+		d = d + "______"
+	}
 	return fmt.Sprintf("%s/%s/%s/%s", *flagStorageRoot, b.HashName(), d[0:3], d[3:6])
 }
 
