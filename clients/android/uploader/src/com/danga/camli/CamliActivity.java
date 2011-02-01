@@ -198,9 +198,16 @@ public class CamliActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         super.onCreateOptionsMenu(menu);
-        menu.add(Menu.NONE, MENU_UPLOAD_ALL, 0, "Upload All");
-        menu.add(Menu.NONE, MENU_STOP, 0, "Stop");
-        menu.add(Menu.NONE, MENU_SETTINGS, 0, "Settings");
+
+        MenuItem uploadAll = menu.add(Menu.NONE, MENU_UPLOAD_ALL, 0, R.string.upload_all);
+        uploadAll.setIcon(android.R.drawable.ic_menu_upload);
+
+        MenuItem stop = menu.add(Menu.NONE, MENU_STOP, 0, R.string.stop);
+        stop.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
+
+        MenuItem settings = menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.settings);
+        settings.setIcon(android.R.drawable.ic_menu_preferences);
+
         return true;
     }
 
