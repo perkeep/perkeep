@@ -59,50 +59,18 @@ if things here are confusing or lacking.</p>
 
 <dd>a <a href="/docs/schema">Camlistore-recognized data structure</a>, serialized as a JSON
 object (map).  A schema blob must have top-level keys
-<tt>camliVersion</tt> and <tt>camliType</tt>.  While you may use any valid JSON
-serialization library to generate schema blobs, a Camli schema blob has the further
-restriction that its first 16 bytes must be:
+<tt>camliVersion</tt> and <tt>camliType</tt> and start with a open brace (<tt>{</tt>, byte 0x7B).  You may use any valid JSON
+serialization library to generate schema blobs.  Whitespace or formatting doesn't matter, as long as the blob
+starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its entirety.
 
-   <pre class='sty'>{"camliVersion":</pre>
-
-Those 16 bytes are the <a
-href="http://en.wikipedia.org/wiki/Magic_number_(programming)">magic</a>
-<a
-href="http://en.wikipedia.org/wiki/File_format#Magic_number">number</a>
-by which a Camli search server can quickly recognize and index schema blobs.
-
-<p>The recommended way to serialize your own Camli schema blobs is to
-use any existing JSON serialization library to serialize an object
-<em>without</em> the <tt>camliVersion</tt> key, and then manually remove
-the initial byte of the blob (the <tt>{</tt>) and prepend the required
-header:</p>
-
-<table border='1'>
-<tr valign='top'>
-<td><pre>
+<p>Example:</p>
+<pre class='sty'>
 {
   "aKey": "itsValue",
   "camliType": "foo",
+  "camliVersion": 1,
   "somethingElse": [1, 2, 3]
-}</pre></td>
-
-<td><pre>
-<span style="background: #cd6d6d"><strike>{</strike></span>
-  "aKey": "itsValue",
-  "camliType": "foo",
-  "somethingElse": [1, 2, 3]
-}</pre></td>
-
-<td><pre>
-<span style="background: #87cd6f"><span style="background: #57cd2d; font-weight: bold;">{"camliVersion":</span> 1,</span></span>
-  "aKey": "itsValue",
-  "camliType": "foo",
-  "somethingElse": [1, 2, 3]
-}</pre></td>
-
-</tr>
-</table>
-
+}</pre>
 
 </dd>
 
