@@ -2,11 +2,21 @@
 
 <p>Want to contribute to the project?  Awesome!</h1>
 
-<ul>
-   <li>Join the <a href="http://groups.google.com/group/camlistore/">mailing list</a>.  Say hi.</li>
+<ul class='lispaced'>
+   <li>Join the <a href="/lists">mailing list</a>.  Say hi.</li>
    <li>Pick an area to tackle.  Discuss it first, especially if it's large and/or not well designed yet.</li>
    <li>Put your changes online somewhere for review &amp; git pulling.</li>
-   <li>Once you contribute good changes for awhile we'll get you direct commit access.</li>
+   <li>Note that you'll need to agree to the appropriate Contributor License Agreement:
+       <ul>
+          <li><a href="http://code.google.com/legal/individual-cla-v1.0.html">Individual Contributor License Agreement</a> (electronic signature okay) </li>
+          <li><a href="http://code.google.com/legal/corporate-cla-v1.0.html">Corporate Contributor License Agreement</a> (requires faxing or mailing)</li>
+       </ul>
+       (These make lawyers feel all warm and cozy about open source.)
+   </li>
+
+   <li>We'll submit your changes for initially but once you contribute
+   good changes for awhile we'll get you direct commit access.</li>
+
 </ul>
 
 
