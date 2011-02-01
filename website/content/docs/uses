@@ -6,7 +6,7 @@ at least lay out some of that vision here.</p>
 <p>What could one potentially do with all this?</p>
 
 <ul class='lispaced'>
-<li><b>Filesystem backups</b>: easy initial use case.  Since you can easily put <a href="/docs/schema">files & directories and such</a> in camlistore with <a href="/cmd/camput">camput</a>, you can use Camlistore for your backups.  Incremental backups are basically free.</lil>
+<li><b>Filesystem backups</b>: easy initial use case.  Since you can easily put <a href="/docs/schema">files & directories and such</a> in camlistore with <a href="/cmd/camput">camput</a>, you can use Camlistore for your backups.  Incremental backups are basically free.</li>
 
 <li><b>Efficient remote filesystem</b>: should be easy to do an aggressively caching remote FUSE filesystem.  Read-only is trivial.  Read-write shouldn't be too painful. Every modification would be snapshotted implicitly, so revision control would be the default.</li>
 
