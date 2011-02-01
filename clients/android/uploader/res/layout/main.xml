@@ -1,66 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
-    android:padding="10sp"
-    >
-<TextView  
-    android:id="@+id/textStatus"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="Camlistore Uploader"
-    />
-<LinearLayout android:orientation="horizontal"
-    android:layout_width="fill_parent"
-    android:layout_height="wrap_content"
-    android:padding="5px"
-    android:gravity="center_horizontal"
-    >
-  <Button android:id="@+id/buttonToggle" android:padding="15sp"
-   android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@+string/pause_resume"></Button>
+	android:orientation="vertical"
+	android:layout_width="fill_parent"
+	android:layout_height="fill_parent"
+	android:padding="10sp">
+	<TextView
+		android:id="@+id/textStatus"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:text="Camlistore Uploader" />
+	<LinearLayout
+		android:orientation="horizontal"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:padding="5px"
+		android:gravity="center_horizontal">
+		<Button
+			android:id="@+id/buttonToggle"
+			android:padding="15sp"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="@+string/pause_resume" />
+	</LinearLayout>
+	<TextView
+		android:id="@+id/textBlobsRemain"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:text="@+string/blobs_remaining" />
+	<TextView
+		android:id="@+id/textUploadStatus"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:text="@+string/status_detail" />
+	<TextView
+		android:id="@+id/textByteStatus"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:text="@+string/bytes_uploaded" />
+	<ProgressBar
+		android:id="@+id/progressByteStatus"
+		style="?android:attr/progressBarStyleHorizontal"
+		android:indeterminate="false"
+		android:indeterminateOnly="false"
+		android:minHeight="20sp"
+		android:layout_width="fill_parent"
+		android:layout_height="20sp" />
+	<TextView
+		android:id="@+id/textByteStatus"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:text="@+string/blobs_uploaded" />
+	<ProgressBar
+		android:id="@+id/progressBlobStatus"
+		style="?android:attr/progressBarStyleHorizontal"
+		android:indeterminate="false"
+		android:indeterminateOnly="false"
+		android:minHeight="20sp"
+		android:layout_width="fill_parent"
+		android:layout_height="20sp" />
 </LinearLayout>
-
-<TextView  
-    android:id="@+id/textBlobsRemain"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="Blobs Remaining: --"
-    />
-<TextView  
-    android:id="@+id/textUploadStatus"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="[status detail]"
-    />
-
-<TextView  
-    android:id="@+id/textByteStatus"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="Bytes Uploaded"
-    />
-<ProgressBar
-  android:id="@+id/progressByteStatus" 
-  style="?android:attr/progressBarStyleHorizontal"
-  android:indeterminate="false" android:indeterminateOnly="false" 
-  android:minHeight="20sp"
-  android:layout_width="fill_parent" android:layout_height="20sp"
-   />
-
-<TextView  
-    android:id="@+id/textByteStatus"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="Blobs Uploaded"
-    />
-<ProgressBar
-  android:id="@+id/progressBlobStatus"
-  style="?android:attr/progressBarStyleHorizontal"
-  android:indeterminate="false" android:indeterminateOnly="false" 
-  android:minHeight="20sp"
-  android:layout_width="fill_parent" android:layout_height="20sp"
-   />
-
-</LinearLayout>
-
