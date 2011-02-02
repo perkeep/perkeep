@@ -1,0 +1,2 @@
+Brad's public key, used to sign the permanode in 
+sha1-648357ea2ee9dd7031d0ff786840e6deac8b7a6a.dat
