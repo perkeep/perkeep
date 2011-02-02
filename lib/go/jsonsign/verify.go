@@ -19,6 +19,7 @@ package jsonsign
 import (
 	"bytes"
 	"camli/blobref"
+	"crypto"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
 	"crypto/rsa"
@@ -167,7 +168,7 @@ func (vr *VerifyRequest) VerifySignature() bool {
 	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
 		return vr.fail("hash tag doesn't match")
 	}
-	err = rsa.VerifyPKCS1v15(&vr.PublicKeyPacket.PublicKey, rsa.HashSHA1, hashBytes, sig.Signature)
+	err = rsa.VerifyPKCS1v15(&vr.PublicKeyPacket.PublicKey, crypto.SHA1, hashBytes, sig.Signature)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("bad signature: %s", err))
 	}
