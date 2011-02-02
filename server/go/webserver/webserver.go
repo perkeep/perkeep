@@ -51,7 +51,7 @@ func (s *Server) Serve() {
 
 	listener, err := net.Listen("tcp", *Listen)
 	if err != nil {
-		log.Exitf("Failed to listen on %s: %v", *Listen, err)
+		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
 	}
 	go runTestHarnessIntegration(listener)
 	err = http.Serve(listener, s.mux)
@@ -69,7 +69,7 @@ func pipeFromEnvFd(env string) *os.File {
 	}
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		log.Exitf("Bogus test harness fd '%s': %v", fdStr, err)
+		log.Fatalf("Bogus test harness fd '%s': %v", fdStr, err)
 	}
 	return os.NewFile(fd, "testingpipe-" + env)
 }

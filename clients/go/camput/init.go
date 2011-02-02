@@ -44,7 +44,7 @@ func doInit() {
 	if keyId == "" {
 		// TODO: run and parse gpg --list-secret-keys and see if there's just one and suggest that?  Or show
 		// a list of them?
-		log.Exitf("Initialization requires your public GPG key.  Set --gpgkey=<pubid> or set $GPGKEY in your environment.  Run gpg --list-secret-keys to find their key IDs.")
+		log.Fatalf("Initialization requires your public GPG key.  Set --gpgkey=<pubid> or set $GPGKEY in your environment.  Run gpg --list-secret-keys to find their key IDs.")
 	}
 
 	if os.Getenv("GPG_AGENT_INFO") == "" {
@@ -55,7 +55,7 @@ func doInit() {
 	// unify them into a shared package just for gpg-related stuff?
 	gpgBinary, err := exec.LookPath("gpg")
 	if err != nil {
-		log.Exitf("Failed to find gpg binary in your path.")
+		log.Fatalf("Failed to find gpg binary in your path.")
 	}
 	cmd, err := exec.Run(gpgBinary,
 		[]string{"gpg", "--export", "--armor", keyId},
@@ -65,11 +65,11 @@ func doInit() {
 		exec.Pipe,
 		exec.DevNull)
 	if err != nil {
-		log.Exitf("Error running gpg to export public key: %v", err)
+		log.Fatalf("Error running gpg to export public key: %v", err)
 	}
 	keyBytes, err := ioutil.ReadAll(cmd.Stdout)
 	if err != nil {
-                log.Exitf("Error read from gpg to export public key: %v", err)
+                log.Fatalf("Error read from gpg to export public key: %v", err)
         }
 	
 	hash := sha1.New()
@@ -78,18 +78,18 @@ func doInit() {
 	
 	keyBlobPath := path.Join(blobDir, bref.String() + ".camli")
 	if err = ioutil.WriteFile(keyBlobPath, keyBytes, 0644); err != nil {
-		log.Exitf("Error writing public key blob to %q: %v", keyBlobPath, err)
+		log.Fatalf("Error writing public key blob to %q: %v", keyBlobPath, err)
 	}
 	
 	if ok, err := jsonsign.VerifyPublicKeyFile(keyBlobPath, keyId); !ok {
-		log.Exitf("Error verifying public key at %q: %v", keyBlobPath, err)
+		log.Fatalf("Error verifying public key at %q: %v", keyBlobPath, err)
 	}
 	
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
 
 	_, err = os.Stat(client.ConfigFilePath())
 	if err == nil {
-		log.Exitf("Config file %q already exists; quitting without touching it.", client.ConfigFilePath())
+		log.Fatalf("Config file %q already exists; quitting without touching it.", client.ConfigFilePath())
 	}
 
 	if f, err := os.Open(client.ConfigFilePath(), os.O_CREAT|os.O_WRONLY, 0600); err == nil {
@@ -120,11 +120,11 @@ func doInit() {
 
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
-			log.Exitf("JSON serialization error: %v", err)
+			log.Fatalf("JSON serialization error: %v", err)
 		}
 		_, err = f.Write(jsonBytes)
 		if err != nil {
-			log.Exitf("Error writing to %q: %v", client.ConfigFilePath(), err)
+			log.Fatalf("Error writing to %q: %v", client.ConfigFilePath(), err)
 		}
 		log.Printf("Wrote %q; modify as necessary.", client.ConfigFilePath())
 	}

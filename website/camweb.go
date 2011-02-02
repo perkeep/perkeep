@@ -126,11 +126,11 @@ func readTemplate(name string) *template.Template {
 	fileName := path.Join(*root, "tmpl", name)
 	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		log.Exitf("ReadFile %s: %v", fileName, err)
+		log.Fatalf("ReadFile %s: %v", fileName, err)
 	}
 	t, err := template.Parse(string(data), fmap)
 	if err != nil {
-		log.Exitf("%s: %v", fileName, err)
+		log.Fatalf("%s: %v", fileName, err)
 	}
 	return t
 }
@@ -232,7 +232,7 @@ func main() {
 		var err os.Error
 		*root, err = os.Getwd()
 		if err != nil {
-			log.Exitf("Failed to getwd: %v", err)
+			log.Fatalf("Failed to getwd: %v", err)
 		}
 	}
 
@@ -272,14 +272,14 @@ func main() {
 	var err os.Error
 	listener, err = net.Listen("tcp", *httpAddr)
 	if err != nil {
-		log.Exitf("Listen error on %s: %v", *httpAddr, err)
+		log.Fatalf("Listen error on %s: %v", *httpAddr, err)
 	}
 
 	listener = &withTimeoutListener{listener, connTimeoutNanos}
 	defer listener.Close()
 
 	if err = http.Serve(listener, handler); err != nil {
-		log.Exitf("Serve error: %v", err)
+		log.Fatalf("Serve error: %v", err)
 	}
 }
 

@@ -61,7 +61,7 @@ func main() {
 		arg := flag.Arg(n)
 		br := blobref.Parse(arg)
 		if br == nil {
-			log.Exitf("Failed to parse argument \"%s\" as a blobref.", arg)
+			log.Fatalf("Failed to parse argument \"%s\" as a blobref.", arg)
 		}
 		if *flagVerbose {
 			log.Printf("Need to fetch %s", br.String())
@@ -77,7 +77,7 @@ func main() {
 			for i, sbr := range vs {
 				abr[i] = blobref.Parse(sbr)
 				if abr[i] == nil {
-					log.Exitf("Invalid -via blobref: %q", sbr)
+					log.Fatalf("Invalid -via blobref: %q", sbr)
 				}
 				if *flagVerbose {
 					log.Printf("via: %s", sbr)
@@ -88,11 +88,11 @@ func main() {
 			r, _, err = client.Fetch(br)
 		}
 		if err != nil {
-			log.Exitf("Failed to fetch %q: %s", br, err)
+			log.Fatalf("Failed to fetch %q: %s", br, err)
 		}
 		_, err = io.Copy(w, r)
 		if err != nil {
-			log.Exitf("Failed transferring %q: %s", br, err)
+			log.Fatalf("Failed transferring %q: %s", br, err)
 		}
 	}
 

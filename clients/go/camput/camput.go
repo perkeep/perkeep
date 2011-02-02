@@ -242,7 +242,7 @@ func main() {
 		return
 	case *flagPermanode:
 		if flag.NArg() > 0 {
-			log.Exitf("--permanode doesn't take any additional arguments")
+			log.Fatalf("--permanode doesn't take any additional arguments")
 		}
 		pr, err := uploader.UploadNewPermanode()
 		handleResult("permanode", pr, err)
@@ -258,11 +258,11 @@ func main() {
 		}
 	case *flagShare:
 		if flag.NArg() != 1 {
-			log.Exitf("--share only supports one blobref")
+			log.Fatalf("--share only supports one blobref")
 		}
 		br := blobref.Parse(flag.Arg(0))
 		if br == nil {
-			log.Exitf("BlobRef is invalid: %q", flag.Arg(0))
+			log.Fatalf("BlobRef is invalid: %q", flag.Arg(0))
 		}
 		pr, err := uploader.UploadShare(br, *flagTransitive)
 		handleResult("share", pr, err)

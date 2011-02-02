@@ -85,8 +85,8 @@ func blobServerOrDie() string {
 	}
 	server = cleanServer(server)
 	if !ok || server == "" {
-		log.Exitf("Missing or invalid \"blobServer\" in %q", ConfigFilePath())
-        }
+		log.Fatalf("Missing or invalid \"blobServer\" in %q", ConfigFilePath())
+	}
 	return server
 }
 
@@ -101,7 +101,7 @@ func passwordOrDie() string {
 		password, ok = value.(string)
 	}
 	if !ok {
-		log.Exitf("No --password parameter specified, and no \"blobServerPassword\" defined in %q", ConfigFilePath())
+		log.Fatalf("No --password parameter specified, and no \"blobServerPassword\" defined in %q", ConfigFilePath())
 	}
 	if password == "" {
 		// TODO: provide way to override warning?
