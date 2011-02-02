@@ -28,6 +28,7 @@ import (
 	"log"
 	"mime"
 	"os"
+	"strings"
 )
 
 type receivedBlob struct {
@@ -35,7 +36,9 @@ type receivedBlob struct {
 	size    int64
 }
 
-var flagOpenImages *bool = flag.Bool("showimages", false, "Show images on receiving them with eog.")
+var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
+
+var flagQueuePartitions = flag.String("queue-partitions", "", "Comma-separated list of queue partitions to reference uploaded blobs into.  Typically one for your indexer and one per mirror full syncer.")
 
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
@@ -191,6 +194,20 @@ func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedB
 	if !stat.IsRegular() || stat.Size != written {
 		err = os.NewError("Written size didn't match.")
 		return
+	}
+
+	if p := *flagQueuePartitions; p != "" {
+		for _, part := range strings.Split(p, ",", -1) {
+			partitionDir := BlobPartitionDirectoryName(part, blobRef)
+			if err = os.MkdirAll(partitionDir, 0700); err != nil {
+				return
+			}
+			partitionFileName := PartitionBlobFileName(part, blobRef)
+			if err = os.Link(fileName, partitionFileName); err != nil {
+				return
+			}
+			log.Printf("Mirrored to partition %q", part)
+		}
 	}
 
 	blobGot = &receivedBlob{blobRef: blobRef, size: stat.Size}

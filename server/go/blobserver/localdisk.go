@@ -50,16 +50,30 @@ func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func BlobDirectoryName(b *blobref.BlobRef) string {
+func blobPartitionDirName(partitionDirSlash string, b *blobref.BlobRef) string {
 	d := b.Digest()
 	if len(d) < 6 {
 		d = d + "______"
 	}
-	return fmt.Sprintf("%s/%s/%s/%s", *flagStorageRoot, b.HashName(), d[0:3], d[3:6])
+	return fmt.Sprintf("%s/%s%s/%s/%s",
+		*flagStorageRoot, partitionDirSlash,
+		b.HashName(), d[0:3], d[3:6])
+}
+
+func BlobDirectoryName(b *blobref.BlobRef) string {
+	return blobPartitionDirName("", b)
 }
 
 func BlobFileName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s-%s.dat", BlobDirectoryName(b), b.HashName(), b.Digest())
+}
+
+func BlobPartitionDirectoryName(partition string, b *blobref.BlobRef) string {
+	return blobPartitionDirName("partition/" + partition + "/", b)
+}
+
+func PartitionBlobFileName(partition string, b *blobref.BlobRef) string {
+	return fmt.Sprintf("%s/%s-%s.dat", BlobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
 }
 
 func BlobFromUrlPath(path string) *blobref.BlobRef {
