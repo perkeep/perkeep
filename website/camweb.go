@@ -252,14 +252,14 @@ func main() {
 		env := os.Environ()
 		env = append(env, "GITWEB_CONFIG="+path.Join(*root, "gitweb-camli.conf"))
 		env = append(env, "CAMWEB_ROOT="+path.Join(*root))
-		mux.Handle("/code/", &gitwebHandler{
+		mux.Handle("/code/", &fixUpGitwebUrls{&gitwebHandler{
 			Cgi: &CgiHandler{
 				ExecutablePath: *gitwebScript,
 				Root:           "/code/",
 				Environ:        env,
 			},
 			Static: http.FileServer(*gitwebFiles, "/code/"),
-		})
+		}})
 	}
 	mux.HandleFunc("/", mainHandler)
 
@@ -304,4 +304,25 @@ func (wtl *withTimeoutListener) Close() os.Error {
 
 func (wtl *withTimeoutListener) Addr() net.Addr {
 	return wtl.l.Addr()
+}
+
+type fixUpGitwebUrls struct {
+	handler http.Handler
+}
+
+// Not sure what's making these broken URLs like:
+//
+//   http://localhost:8080/code/?p=camlistore.git%3Bf=doc/json-signing/json-signing.txt%3Bhb=master
+//
+// ... but something is.  Maybe Buzz?  For now just re-write them
+// . Doesn't seem to be a bug in the CGI implementation, though, which
+// is what I'd originally suspected.
+func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	oldUrl := req.RawURL
+	newUrl := strings.Replace(oldUrl, "%3B", ";", -1)
+	if newUrl == oldUrl {
+		fu.handler.ServeHTTP(rw, req)
+		return
+	}
+	http.Redirect(rw, req, newUrl, http.StatusFound)
 }
