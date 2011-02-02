@@ -43,7 +43,7 @@ type CgiHandler struct {
 }
 
 func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	pathInfo := req.URL.RawPath
+	pathInfo := req.URL.Path
 	if strings.HasPrefix(pathInfo, h.Root) {
 		pathInfo = pathInfo[len(h.Root):]
 	}
