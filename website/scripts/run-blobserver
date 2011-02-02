@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+Bin=$(dirname $( readlink -f $0))
+
+ROOT=$HOME/blobroot
+if [ ! -d $ROOT ]; then
+    mkdir $ROOT
+fi
+chmod 0700 $ROOT
+
+export CAMLI_PASSWORD=`cat $HOME/.camli/camorg-blobserver.pass`
+
+$Bin/../../build.pl server/go/blobserver && $Bin/../../server/go/blobserver/camlistored -root=$ROOT -listen=:3179 "$@"
