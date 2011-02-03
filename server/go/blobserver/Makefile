@@ -1,6 +1,7 @@
 include $(GOROOT)/src/Make.inc
 
-PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver.a
+PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver.a\
+	$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver/handlers.a\
 
 TARG=camlistored
 GOFILES=\
@@ -11,7 +12,6 @@ GOFILES=\
 	partitions.go\
 	preupload.go\
 	range.go\
-	remove.go\
 	temp_testing.go\
 	upload.go\
 	util.go\

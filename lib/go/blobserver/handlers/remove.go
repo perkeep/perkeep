@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package handlers
 
 import (
 	"camli/blobref"
@@ -27,7 +27,7 @@ import (
 
 const maxRemovesPerRequest = 1000
 
-func createRemoveHandler(storage blobserver.Storage, partition string) func(http.ResponseWriter, *http.Request) {
+func CreateRemoveHandler(storage blobserver.Storage, partition string) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		handleRemove(conn, req, storage, partition)
 	}

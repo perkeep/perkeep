@@ -9,6 +9,7 @@ import (
 	"camli/httputil"
 	"camli/webserver"
 	"camli/blobserver"
+	"camli/blobserver/handlers"
 	"flag"
 	"fmt"
 	"http"
@@ -90,7 +91,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 			handler = auth.RequireAuth(handleMultiPartUpload)
 		case "remove":
 			// Currently only allows removing from a non-main partition.
-			handler = auth.RequireAuth(createRemoveHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage, partition))
 
 	        // Not part of the spec:
 		case "testform": // debug only

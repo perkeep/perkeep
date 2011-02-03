@@ -73,7 +73,11 @@ unless (@matches) {
     die "No build targets patching pattern /$target/\n";
 }
 if (@matches > 1) {
-    die "Build pattern is ambiguous, matches multiple targets:\n  * " . join("\n  * ", @matches) . "\n";
+    if (scalar(grep { $_ eq $target } @matches) == 1) {
+        @matches = ($target);
+    } else {
+        die "Build pattern is ambiguous, matches multiple targets:\n  * " . join("\n  * ", @matches) . "\n";
+    }
 }
 
 build($matches[0]);
@@ -163,6 +167,7 @@ __DATA__
     - server/go/httputil
     - lib/go/blobref
     - lib/go/blobserver
+    - lib/go/blobserver/handlers
     - server/go/auth
     - server/go/webserver
 ./server/go/sigserver/Makefile
@@ -210,3 +215,6 @@ __DATA__
     # (no deps)
 ./lib/go/blobserver/Makefile
     - lib/go/blobref
+./lib/go/blobserver/handlers/Makefile
+    - server/go/httputil
+    - lib/go/blobserver
