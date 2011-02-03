@@ -138,7 +138,9 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 	}
 
 	// Common elements (from file-common.txt)
-	m["unixPermission"] = fmt.Sprintf("0%o", fi.Permission())
+	if !fi.IsSymlink() {
+		m["unixPermission"] = fmt.Sprintf("0%o", fi.Permission())
+	}
 	if fi.Uid != -1 {
 		m["unixOwnerId"] = fi.Uid
 		if user := getUserFromUid(fi.Uid); user != "" {
