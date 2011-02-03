@@ -3,12 +3,16 @@ include $(GOROOT)/src/Make.inc
 TARG=camlistored
 GOFILES=\
 	camlistored.go\
-	localdisk.go\
 	enumerate.go\
 	get.go\
+	interface.go\
+	localdisk.go\
+	partitions.go\
 	preupload.go\
-	temp_testing.go\
 	range.go\
+	remove.go\
+	temp_testing.go\
 	upload.go\
+	util.go\
 
 include $(GOROOT)/src/Make.cmd

@@ -8,45 +8,93 @@ import (
 	"camli/auth"
 	"camli/httputil"
 	"camli/webserver"
-	"camli/blobref"
 	"flag"
 	"fmt"
 	"http"
 	"log"
+	"strings"
 	"os"
 )
 
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
 
-var blobFetcher blobref.Fetcher
+var blobServer BlobServer
+
+const camliPrefix = "/camli/"
+const partitionPrefix = "/partition-"
+
+var InvalidCamliPath = os.NewError("Invalid Camlistore request path")
+
+func parseCamliPath(path string) (partition, action string, err os.Error) {
+	camIdx := strings.Index(path, camliPrefix)
+	if camIdx == -1 {
+		err = InvalidCamliPath
+		return
+	}
+	action = path[camIdx+len(camliPrefix):]
+	if camIdx == 0 {
+		return
+	}
+	if !strings.HasPrefix(path, partitionPrefix) {
+		err = InvalidCamliPath
+		return
+	}
+	partition = path[len(partitionPrefix):camIdx]
+	if !isValidPartitionName(partition) {
+		err = InvalidCamliPath
+		return
+	}
+	return
+}
+
+func pickPartitionHandlerMaybe(req *http.Request) (handler http.HandlerFunc, intercept bool) {
+	if !strings.HasPrefix(req.URL.Path, partitionPrefix) {
+		intercept = false
+		return
+	}
+	return http.HandlerFunc(handleCamli), true
+}
+
+func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
+        httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
+}
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
-	handler := func(conn http.ResponseWriter, req *http.Request) {
-		httputil.BadRequestError(conn,
-			fmt.Sprintf("Unsupported path (%s) or method (%s).",
-				req.URL.Path, req.Method))
+	partition, action, err := parseCamliPath(req.URL.Path)
+	if err != nil {
+		log.Printf("Invalid request for method %q, path %q", 
+			req.Method, req.URL.Path)
+		unsupportedHandler(conn, req)
+		return
 	}
+
+	handler := unsupportedHandler
 	if *flagRequestLog {
-		log.Printf("%s %s", req.Method, req.RawURL)
+		log.Printf("method %q; partition %q; action %q", req.Method, partition, action)
 	}
 	switch req.Method {
 	case "GET":
-		switch req.URL.Path {
-		case "/camli/enumerate-blobs":
-			handler = auth.RequireAuth(handleEnumerateBlobs)
+		switch action {
+		case "enumerate-blobs":
+			handler = auth.RequireAuth(createEnumerateHandler(blobServer, partition))
 		default:
-			handler = createGetHandler(blobFetcher)
+			handler = createGetHandler(blobServer)
 		}
 	case "POST":
-		switch req.URL.Path {
-		case "/camli/preupload":
+		switch action {
+		case "preupload":
 			handler = auth.RequireAuth(handlePreUpload)
-		case "/camli/upload":
+		case "upload":
 			handler = auth.RequireAuth(handleMultiPartUpload)
-		case "/camli/testform": // debug only
+		case "remove":
+			// Currently only allows removing from a non-main partition.
+			handler = auth.RequireAuth(createRemoveHandler(blobServer, partition))
+
+	        // Not part of the spec:
+		case "testform": // debug only
 			handler = handleTestForm
-		case "/camli/form": // debug only
+		case "form": // debug only
 			handler = handleCamliForm
 		}
 	case "PUT": // no longer part of spec
@@ -79,9 +127,10 @@ func main() {
 		}
 	}
 
-	blobFetcher = newDiskStorage(*flagStorageRoot)
+	blobServer = newDiskStorage(*flagStorageRoot)
 
 	ws := webserver.New()
+	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
 	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))

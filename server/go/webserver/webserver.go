@@ -28,12 +28,25 @@ import (
 
 var Listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
 
+type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
+
 type Server struct {
+	premux []HandlerPicker
 	mux  *http.ServeMux
 }
 
 func New() *Server {
-	return &Server{mux: http.NewServeMux()}
+	return &Server{
+	premux: make([]HandlerPicker, 0),
+	mux: http.NewServeMux(),
+	}
+}
+
+// Register conditional handler-picker functions which get run before
+// HandleFunc or Handle.  The HandlerPicker should return false if
+// it's not interested in a request.
+func (s *Server) RegisterPreMux(hp HandlerPicker) {
+	s.premux = append(s.premux, hp)
 }
 
 func (s *Server) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.Request)) {
@@ -42,6 +55,17 @@ func (s *Server) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.R
 
 func (s *Server) Handle(pattern string, handler http.Handler) {
 	s.mux.Handle(pattern, handler)
+}
+
+func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	for _, hp := range s.premux {
+		handler, ok := hp(req)
+		if ok {
+			handler(rw, req)
+			return
+		}
+	}
+	s.mux.ServeHTTP(rw, req)
 }
 
 func (s *Server) Serve() {
@@ -54,7 +78,7 @@ func (s *Server) Serve() {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
 	}
 	go runTestHarnessIntegration(listener)
-	err = http.Serve(listener, s.mux)
+	err = http.Serve(listener, s)
 	if err != nil {
 		log.Printf("Error in http server: %v\n", err)
 		os.Exit(1)

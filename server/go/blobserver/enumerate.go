@@ -22,13 +22,10 @@ import (
 	"http"
 	"os"
 	"log"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 )
-
-var validPartitionName = regexp.MustCompile(`^[a-z0-9_]*$`)
 
 const maxEnumerate = 100000
 
@@ -121,18 +118,17 @@ func readBlobs(opts readBlobRequest) {
 	}
 }
 
-func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
+func createEnumerateHandler(server BlobServer, partition string) func(http.ResponseWriter, *http.Request) {
+	return func(conn http.ResponseWriter, req *http.Request) {
+		handleEnumerateBlobs(conn, req, server, partition)
+	}
+}
 
+// TODO: use the provided server argument
+func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, server BlobServer, partition string) {
 	limit, err := strconv.Atoui(req.FormValue("limit"))
 	if err != nil || limit > maxEnumerate {
 		limit = maxEnumerate
-	}
-
-	partition := req.FormValue("partition")
-	if len(partition) > 50 || !validPartitionName.MatchString(partition) {
-		conn.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(conn, "Invalid partition.")
-		return
 	}
 
 	ch := make(chan *blobInfo, 100)
@@ -140,7 +136,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
 
 	dirRoot := *flagStorageRoot
-	if dirRoot != "" {
+	if partition != "" {
 		dirRoot += "/partition/" + partition + "/"
 	}
 	go readBlobs(readBlobRequest{

@@ -20,6 +20,7 @@ import (
 	"camli/blobref"
 	"fmt"
 	"regexp"
+	"log"
 	"os"
 )
 
@@ -38,6 +39,22 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 		return nil, 0, err
 	}
 	return file, stat.Size, nil
+}
+
+func (ds *diskStorage) Remove(partition string, blobs []*blobref.BlobRef) os.Error {
+	for _, blob := range blobs {
+		fileName := PartitionBlobFileName(partition, blob)
+		err := os.Remove(fileName)
+		if err == nil {
+			continue;
+		}
+		if errorIsNoEnt(err) {
+			log.Printf("Deleting already-deleted file; harmless.")
+			continue
+		}
+		return err
+	}
+	return nil
 }
 
 func newDiskStorage(root string) *diskStorage {
