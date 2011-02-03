@@ -45,14 +45,15 @@ func (ds *diskStorage) Remove(partition string, blobs []*blobref.BlobRef) os.Err
 	for _, blob := range blobs {
 		fileName := PartitionBlobFileName(partition, blob)
 		err := os.Remove(fileName)
-		if err == nil {
-			continue;
-		}
-		if errorIsNoEnt(err) {
+		switch {
+		case err == nil:
+			continue
+		case errorIsNoEnt(err):
 			log.Printf("Deleting already-deleted file; harmless.")
 			continue
+		default:
+			return err
 		}
-		return err
 	}
 	return nil
 }
