@@ -8,6 +8,7 @@ import (
 	"camli/auth"
 	"camli/httputil"
 	"camli/webserver"
+	"camli/blobserver"
 	"flag"
 	"fmt"
 	"http"
@@ -19,7 +20,7 @@ import (
 var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
 
-var blobServer BlobServer
+var storage blobserver.Storage
 
 const camliPrefix = "/camli/"
 const partitionPrefix = "/partition-"
@@ -77,9 +78,9 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = auth.RequireAuth(createEnumerateHandler(blobServer, partition))
+			handler = auth.RequireAuth(createEnumerateHandler(storage, partition))
 		default:
-			handler = createGetHandler(blobServer)
+			handler = createGetHandler(storage)
 		}
 	case "POST":
 		switch action {
@@ -89,7 +90,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 			handler = auth.RequireAuth(handleMultiPartUpload)
 		case "remove":
 			// Currently only allows removing from a non-main partition.
-			handler = auth.RequireAuth(createRemoveHandler(blobServer, partition))
+			handler = auth.RequireAuth(createRemoveHandler(storage, partition))
 
 	        // Not part of the spec:
 		case "testform": // debug only
@@ -127,7 +128,7 @@ func main() {
 		}
 	}
 
-	blobServer = newDiskStorage(*flagStorageRoot)
+	storage = newDiskStorage(*flagStorageRoot)
 
 	ws := webserver.New()
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))

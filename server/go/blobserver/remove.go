@@ -18,6 +18,7 @@ package main
 
 import (
 	"camli/blobref"
+	"camli/blobserver"
 	"camli/httputil"
 	"fmt"
 	"http"
@@ -26,13 +27,13 @@ import (
 
 const maxRemovesPerRequest = 1000
 
-func createRemoveHandler(server BlobServer, partition string) func(http.ResponseWriter, *http.Request) {
+func createRemoveHandler(storage blobserver.Storage, partition string) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleRemove(conn, req, server, partition)
+		handleRemove(conn, req, storage, partition)
 	}
 }
 
-func handleRemove(conn http.ResponseWriter, req *http.Request, server BlobServer, partition string) {
+func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition string) {
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
@@ -67,7 +68,7 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, server BlobServer
 		toRemoveStr = append(toRemoveStr, ref.String())
 	}
 
-	err := server.Remove(partition, toRemove)
+	err := storage.Remove(partition, toRemove)
 	if err != nil {
 		conn.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)

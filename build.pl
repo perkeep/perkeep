@@ -162,6 +162,7 @@ __DATA__
 ./server/go/blobserver/Makefile
     - server/go/httputil
     - lib/go/blobref
+    - lib/go/blobserver
     - server/go/auth
     - server/go/webserver
 ./server/go/sigserver/Makefile
@@ -207,5 +208,5 @@ __DATA__
     - lib/go/ext/openpgp/error
 ./lib/go/blobref/Makefile
     # (no deps)
-
-
+./lib/go/blobserver/Makefile
+    - lib/go/blobref

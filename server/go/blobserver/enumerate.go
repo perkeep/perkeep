@@ -18,6 +18,7 @@ package main
 
 import (
 	"camli/blobref"
+	"camli/blobserver"
 	"fmt"
 	"http"
 	"os"
@@ -118,14 +119,14 @@ func readBlobs(opts readBlobRequest) {
 	}
 }
 
-func createEnumerateHandler(server BlobServer, partition string) func(http.ResponseWriter, *http.Request) {
+func createEnumerateHandler(storage blobserver.Storage, partition string) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleEnumerateBlobs(conn, req, server, partition)
+		handleEnumerateBlobs(conn, req, storage, partition)
 	}
 }
 
-// TODO: use the provided server argument
-func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, server BlobServer, partition string) {
+// TODO: use the provided storage argument
+func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition string) {
 	limit, err := strconv.Atoui(req.FormValue("limit"))
 	if err != nil || limit > maxEnumerate {
 		limit = maxEnumerate
