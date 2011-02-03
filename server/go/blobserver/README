@@ -1,1 +1,6 @@
-The Camli storage node daemon ("layer 1").
+The Camlistore blob server HTTP server binary.
+
+See also:
+ - The storage interface is in lib/go/blobserver/
+ - The storage implementations are under that e.g. lib/go/blobserver/localdisk/
+ - The HTTP handlers are implemented in lib/go/blobserver/handlers/
