@@ -29,6 +29,7 @@ import (
 	"log"
 	"mime"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -228,8 +229,12 @@ func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedB
 	return
 }
 
+// NOTE: not part of the spec at present.  old.  might be re-introduced.
+var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
+
+// NOTE: not part of the spec at present.  old.  might be re-introduced.
 func handlePut(conn http.ResponseWriter, req *http.Request) {
-	blobRef := BlobFromUrlPath(req.URL.Path)
+	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed PUT URL.")
 		return

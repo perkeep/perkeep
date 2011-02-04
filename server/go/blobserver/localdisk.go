@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -164,8 +163,6 @@ func newDiskStorage(root string) *diskStorage {
 	return &diskStorage{Root: root}
 }
 
-var kGetPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
-
 func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
@@ -194,8 +191,4 @@ func BlobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobR
 
 func PartitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s-%s.dat", BlobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
-}
-
-func BlobFromUrlPath(path string) *blobref.BlobRef {
-	return blobref.FromPattern(kGetPutPattern, path)
 }

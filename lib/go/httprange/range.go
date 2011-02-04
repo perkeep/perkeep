@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package httprange
 
 import (
 	"http"
@@ -23,31 +23,40 @@ import (
 )
 
 // Default is {0, -1} to read all of a file.
-type requestedRange struct {
-	SkipBytes  int64
-	LimitBytes int64 // or -1 to read all
+type Range struct {
+	skipBytes  int64
+	limitBytes int64 // or -1 to read all
 }
 
-func (rr *requestedRange) IsWholeFile() bool {
-	return rr.SkipBytes == 0 && rr.LimitBytes == -1
+func (rr *Range) SkipBytes() int64 {
+	return rr.skipBytes
 }
 
-var wholeRange = &requestedRange{0, -1}
+// LimitBytes reads the max number of bytes to read, or -1 for no limit.
+func (rr *Range) LimitBytes() int64 {
+	return rr.limitBytes
+}
+
+func (rr *Range) IsWholeFile() bool {
+	return rr.skipBytes == 0 && rr.limitBytes == -1
+}
+
+var WholeRange = &Range{0, -1}
 
 var rangePattern = regexp.MustCompile(`bytes=([0-9]+)-([0-9]*)`)
 
-func getRequestedRange(req *http.Request) *requestedRange {
+func FromRequest(req *http.Request) *Range {
 	rrange, ok := req.Header["Range"]
 	if !ok {
-		return wholeRange
+		return WholeRange
 	}
-	return getRequestedRangeFromString(rrange)
+	return FromString(rrange)
 }
 
-func getRequestedRangeFromString(rrange string) *requestedRange {
+func FromString(rrange string) *Range {
 	matches := rangePattern.FindStringSubmatch(rrange)
 	if len(matches) == 0 {
-		return wholeRange
+		return WholeRange
 	}
 	skipBytes, _ := strconv.Atoi64(matches[1])
 	lastByteInclusive := int64(-1)
@@ -61,5 +70,5 @@ func getRequestedRangeFromString(rrange string) *requestedRange {
 			limitBytes = 0
 		}
 	}
-	return &requestedRange{skipBytes, limitBytes}
+	return &Range{skipBytes, limitBytes}
 }

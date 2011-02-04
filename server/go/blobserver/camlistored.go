@@ -82,7 +82,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		case "enumerate-blobs":
 			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage, partition))
 		default:
-			handler = createGetHandler(storage)
+			handler = handlers.CreateGetHandler(storage)
 		}
 	case "POST":
 		switch action {

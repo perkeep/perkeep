@@ -216,5 +216,8 @@ __DATA__
 ./lib/go/blobserver/Makefile
     - lib/go/blobref
 ./lib/go/blobserver/handlers/Makefile
+    - server/go/auth
     - server/go/httputil
     - lib/go/blobserver
+    - lib/go/httprange
+./lib/go/httprange/Makefile

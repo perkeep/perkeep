@@ -6,11 +6,9 @@ PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver.a\
 TARG=camlistored
 GOFILES=\
 	camlistored.go\
-	get.go\
 	localdisk.go\
 	partitions.go\
 	preupload.go\
-	range.go\
 	temp_testing.go\
 	upload.go\
 	util.go\

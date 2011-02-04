@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package handlers
 
 import (
 	"bufio"
 	"bytes"
 	"camli/auth"
 	"camli/blobref"
+	"camli/httprange"
 	"camli/httputil"
 	"fmt"
 	"http"
@@ -29,11 +30,14 @@ import (
 	"io/ioutil"
 	"json"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 )
 
-func createGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.Request) {
+var kGetPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
+
+func CreateGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		handleGet(conn, req, fetcher)
 	}
@@ -50,7 +54,7 @@ func sendUnauthorized(conn http.ResponseWriter) {
 func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetcher) {
 	isOwner := auth.IsAuthorized(req)
 
-	blobRef := BlobFromUrlPath(req.URL.Path)
+	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed GET URL.")
 		return
@@ -164,9 +168,9 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 
 	defer file.Close()
 
-	reqRange := getRequestedRange(req)
-	if reqRange.SkipBytes != 0 {
-		_, err = file.Seek(reqRange.SkipBytes, 0)
+	reqRange := httprange.FromRequest(req)
+	if reqRange.SkipBytes() != 0 {
+		_, err = file.Seek(reqRange.SkipBytes(), 0)
 		if err != nil {
 			httputil.ServerError(conn, err)
 			return
@@ -174,14 +178,14 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 	}
 
 	var input io.Reader = file
-	if reqRange.LimitBytes != -1 {
-		input = io.LimitReader(file, reqRange.LimitBytes)
+	if reqRange.LimitBytes() != -1 {
+		input = io.LimitReader(file, reqRange.LimitBytes())
 	}
 
-	remainBytes := size - reqRange.SkipBytes
-	if reqRange.LimitBytes != -1 &&
-		reqRange.LimitBytes < remainBytes {
-		remainBytes = reqRange.LimitBytes
+	remainBytes := size - reqRange.SkipBytes()
+	if reqRange.LimitBytes() != -1 &&
+		reqRange.LimitBytes() < remainBytes {
+		remainBytes = reqRange.LimitBytes()
 	}
 
 	// Assume this generic content type by default.  For better
@@ -209,8 +213,8 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 	conn.SetHeader("Content-Type", contentType)
 	if !reqRange.IsWholeFile() {
 		conn.SetHeader("Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes,
-				reqRange.SkipBytes+remainBytes,
+			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes(),
+				reqRange.SkipBytes()+remainBytes,
 				size))
 		conn.WriteHeader(http.StatusPartialContent)
 	}
@@ -250,4 +254,8 @@ func isValidUtf8(s string) bool {
 	}
 	return true
 
+}
+
+func blobFromUrlPath(path string) *blobref.BlobRef {
+	return blobref.FromPattern(kGetPattern, path)
 }
