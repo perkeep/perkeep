@@ -1,5 +1,5 @@
 all:
-	./build.pl all
+	./build.pl allfast
 
 clean:
 	./build.pl clean

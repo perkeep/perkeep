@@ -39,6 +39,7 @@ sub usage {
     die <<EOM
 Usage:
   build.pl all         # build all
+  build.pl allfast     # build all targets that compile quickly
   build.pl clean       # clean all
   build.pl REGEXP      # builds specific target, if it matches any targets
   build.pl --list
@@ -78,6 +79,13 @@ my $target = shift or usage();
 
 if ($target eq "clean") {
     clean();
+    exit;
+}
+
+if ($target eq "allfast") {
+    foreach my $target (sort grep { !$targets{$_}{tags}{not_in_all} } keys %targets) {
+        build($target);
+    }
     exit;
 }
 
@@ -166,10 +174,18 @@ sub read_targets {
             $targets{$target} ||= { deps => [] };
             next;
         }
+        s/\#.*//;
         if (m!^\s+\-\s(\S+)\s*$!) {
             my $dep = $1;
             my $t = $targets{$last} or die "Unexpected dependency line: $_";
             push @{$t->{deps}}, $dep;
+            next;
+        }
+        if (m!^\s+\=\s*(\S+)\s*$!) {
+            my $tag = $1;
+            my $t = $targets{$last} or die "Unexpected dependency line: $_";
+            $t->{tags}{$tag} = 1;
+            next;
         }
     }
     #use Data::Dumper;
@@ -262,3 +278,5 @@ TARGET: lib/go/blobserver/handlers
 
 TARGET: lib/go/httprange
 
+TARGET: clients/android/uploader
+    =not_in_all  # too slow
