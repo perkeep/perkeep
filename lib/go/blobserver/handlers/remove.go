@@ -27,13 +27,13 @@ import (
 
 const maxRemovesPerRequest = 1000
 
-func CreateRemoveHandler(storage blobserver.Storage, partition string) func(http.ResponseWriter, *http.Request) {
+func CreateRemoveHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		handleRemove(conn, req, storage, partition)
 	}
 }
 
-func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition string) {
+func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition blobserver.Partition) {
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}

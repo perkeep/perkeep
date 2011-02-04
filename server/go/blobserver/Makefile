@@ -6,7 +6,6 @@ PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver.a\
 TARG=camlistored
 GOFILES=\
 	camlistored.go\
-	enumerate.go\
 	get.go\
 	localdisk.go\
 	partitions.go\

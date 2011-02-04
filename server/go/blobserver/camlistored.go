@@ -28,7 +28,7 @@ const partitionPrefix = "/partition-"
 
 var InvalidCamliPath = os.NewError("Invalid Camlistore request path")
 
-func parseCamliPath(path string) (partition, action string, err os.Error) {
+func parseCamliPath(path string) (partition blobserver.Partition, action string, err os.Error) {
 	camIdx := strings.Index(path, camliPrefix)
 	if camIdx == -1 {
 		err = InvalidCamliPath
@@ -42,11 +42,12 @@ func parseCamliPath(path string) (partition, action string, err os.Error) {
 		err = InvalidCamliPath
 		return
 	}
-	partition = path[len(partitionPrefix):camIdx]
-	if !isValidPartitionName(partition) {
+	name := path[len(partitionPrefix):camIdx]
+	if !isValidPartitionName(name) {
 		err = InvalidCamliPath
 		return
 	}
+	partition = blobserver.Partition(name)
 	return
 }
 
@@ -79,7 +80,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = auth.RequireAuth(createEnumerateHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage, partition))
 		default:
 			handler = createGetHandler(storage)
 		}

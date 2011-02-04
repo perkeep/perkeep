@@ -18,6 +18,7 @@ package main
 
 import (
 	"camli/blobref"
+	"camli/blobserver"
 	"camli/httputil"
 	"exec"
 	"flag"
@@ -197,16 +198,17 @@ func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedB
 	}
 
 	if p := *flagQueuePartitions; p != "" {
-		for _, part := range strings.Split(p, ",", -1) {
-			partitionDir := BlobPartitionDirectoryName(part, blobRef)
+		for _, partname := range strings.Split(p, ",", -1) {
+			partition := blobserver.Partition(partname)
+			partitionDir := BlobPartitionDirectoryName(partition, blobRef)
 			if err = os.MkdirAll(partitionDir, 0700); err != nil {
 				return
 			}
-			partitionFileName := PartitionBlobFileName(part, blobRef)
+			partitionFileName := PartitionBlobFileName(partition, blobRef)
 			if err = os.Link(fileName, partitionFileName); err != nil {
 				return
 			}
-			log.Printf("Mirrored to partition %q", part)
+			log.Printf("Mirrored to partition %q", partition)
 		}
 	}
 

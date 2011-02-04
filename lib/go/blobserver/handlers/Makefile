@@ -6,6 +6,7 @@ PREREQ=$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/camli/blobserver.a\
 
 TARG=camli/blobserver/handlers
 GOFILES=\
+	enumerate.go\
 	remove.go\
 
 include $(GOROOT)/src/Make.pkg

@@ -18,10 +18,13 @@ package main
 
 import (
 	"camli/blobref"
+	"camli/blobserver"
 	"fmt"
-	"regexp"
 	"log"
 	"os"
+	"regexp"
+	"sort"
+	"strings"
 )
 
 type diskStorage struct {
@@ -41,7 +44,7 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 	return file, stat.Size, nil
 }
 
-func (ds *diskStorage) Remove(partition string, blobs []*blobref.BlobRef) os.Error {
+func (ds *diskStorage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
 	for _, blob := range blobs {
 		fileName := PartitionBlobFileName(partition, blob)
 		err := os.Remove(fileName)
@@ -56,6 +59,105 @@ func (ds *diskStorage) Remove(partition string, blobs []*blobref.BlobRef) os.Err
 		}
 	}
 	return nil
+}
+
+type readBlobRequest struct {
+	ch     chan *blobref.SizedBlobRef
+	after  string
+	remain *uint         // limit countdown
+	dirRoot string
+
+	// Not used on initial request, only on recursion
+	blobPrefix, pathInto string
+}
+
+type enumerateError struct {
+	msg string
+	err os.Error
+}
+
+func (ee *enumerateError) String() string {
+	return fmt.Sprintf("Enumerate error: %s: %v", ee.msg, ee.err)
+}
+
+func readBlobs(opts readBlobRequest) os.Error {
+	dirFullPath := opts.dirRoot + "/" + opts.pathInto
+	dir, err := os.Open(dirFullPath, os.O_RDONLY, 0)
+	if err != nil {
+		return &enumerateError{"opening directory " + dirFullPath, err}
+	}
+	defer dir.Close()
+	names, err := dir.Readdirnames(32768)
+	if err != nil {
+		return &enumerateError{"readdirnames of " + dirFullPath, err}
+	}
+	sort.SortStrings(names)
+	for _, name := range names {
+		if *opts.remain == 0 {
+			return nil
+		}
+
+		fullPath := dirFullPath + "/" + name
+		fi, err := os.Stat(fullPath)
+		if err != nil {
+			return &enumerateError{"stat of file " + fullPath, err}
+		}
+
+		if fi.IsDirectory() {
+			var newBlobPrefix string
+			if opts.blobPrefix == "" {
+				newBlobPrefix = name + "-"
+			} else {
+				newBlobPrefix = opts.blobPrefix + name
+			}
+			if len(opts.after) > 0 {
+				compareLen := len(newBlobPrefix)
+				if len(opts.after) < compareLen {
+					compareLen = len(opts.after)
+				}
+				if newBlobPrefix[0:compareLen] < opts.after[0:compareLen] {
+					continue
+				}
+			}
+			ropts := opts
+			ropts.blobPrefix = newBlobPrefix
+			ropts.pathInto = opts.pathInto+"/"+name
+			readBlobs(ropts)
+			continue
+		}
+
+		if fi.IsRegular() && strings.HasSuffix(name, ".dat") {
+			blobName := name[0 : len(name)-4]
+			if blobName <= opts.after {
+				continue
+			}
+			blobRef := blobref.Parse(blobName)
+			if blobRef != nil {
+				opts.ch <- &blobref.SizedBlobRef{BlobRef: blobRef, Size: fi.Size}
+				(*opts.remain)--
+			}
+			continue
+		}
+	}
+
+	if opts.pathInto == "" {
+		opts.ch <- nil
+	}
+	return nil
+}
+
+func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint) os.Error {
+	dirRoot := *flagStorageRoot
+	if partition != "" {
+		dirRoot += "/partition/" + string(partition) + "/"
+	}
+	limitMutable := limit
+	return readBlobs(readBlobRequest{
+	   ch: dest,
+	   dirRoot: dirRoot,
+	   after: after,
+	   remain: &limitMutable,
+	})
 }
 
 func newDiskStorage(root string) *diskStorage {
@@ -86,11 +188,11 @@ func BlobFileName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s-%s.dat", BlobDirectoryName(b), b.HashName(), b.Digest())
 }
 
-func BlobPartitionDirectoryName(partition string, b *blobref.BlobRef) string {
-	return blobPartitionDirName("partition/" + partition + "/", b)
+func BlobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobRef) string {
+	return blobPartitionDirName("partition/" + string(partition) + "/", b)
 }
 
-func PartitionBlobFileName(partition string, b *blobref.BlobRef) string {
+func PartitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s-%s.dat", BlobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
 }
 
