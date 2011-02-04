@@ -1,4 +1,24 @@
 #!/usr/bin/perl
+#
+# Copyright 2011 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+
+# A simple little build system.
+#
+# See the configuration at the bottom of this file.
 
 use strict;
 use Getopt::Long;
@@ -140,7 +160,7 @@ sub build {
 sub read_targets {
     my $last;
     for (<DATA>) {
-        if (m!^\./(.+)/Makefile\s*$!) {
+        if (m!^\TARGET:\s*(.+)\s*$!) {
             my $target = $1;
             $last = $target;
             $targets{$target} ||= { deps => [] };
@@ -157,20 +177,25 @@ sub read_targets {
 }
 
 __DATA__
-./server/go/httputil/Makefile
+
+TARGET: server/go/httputil
     # (no deps)
-./server/go/auth/Makefile
+
+TARGET: server/go/auth
     # (no deps)
-./server/go/webserver/Makefile
+
+TARGET: server/go/webserver
     # (no deps)
-./server/go/blobserver/Makefile
+
+TARGET: server/go/blobserver
     - server/go/httputil
     - lib/go/blobref
     - lib/go/blobserver
     - lib/go/blobserver/handlers
     - server/go/auth
     - server/go/webserver
-./server/go/sigserver/Makefile
+
+TARGET: server/go/sigserver
     - server/go/webserver
     - lib/go/blobref
     - server/go/auth
@@ -179,45 +204,61 @@ __DATA__
     - lib/go/ext/openpgp/packet
     - lib/go/ext/openpgp/error
     - lib/go/ext/openpgp/armor
-./website/Makefile
+
+TARGET: website
     - lib/go/line
-./clients/go/camput/Makefile
+
+TARGET: clients/go/camput
     - lib/go/client
     - lib/go/blobref
     - lib/go/schema
     - lib/go/jsonsign
-./clients/go/camget/Makefile
+
+TARGET: clients/go/camget
     - lib/go/client
     - lib/go/blobref
     - lib/go/schema
-./lib/go/http/Makefile
+
+TARGET: lib/go/http
     # (no deps, fork of Go's http library)
-./lib/go/line/Makefile
+
+TARGET: lib/go/line
     # (no deps, fork of Go's encoding/line library)
-./lib/go/ext/openpgp/error/Makefile
+
+TARGET: lib/go/ext/openpgp/error
     # (no deps)
-./lib/go/ext/openpgp/packet/Makefile
+
+TARGET: lib/go/ext/openpgp/packet
     - lib/go/ext/openpgp/error
-./lib/go/ext/openpgp/armor/Makefile
+
+TARGET: lib/go/ext/openpgp/armor
     - lib/go/ext/openpgp/error
     - lib/go/ext/openpgp/packet
-./lib/go/schema/Makefile
+
+TARGET: lib/go/schema
     - lib/go/blobref
-./lib/go/client/Makefile
+
+TARGET: lib/go/client
     - lib/go/http
     - lib/go/blobref
-./lib/go/jsonsign/Makefile
+
+TARGET: lib/go/jsonsign
     - lib/go/blobref
     - lib/go/ext/openpgp/packet
     - lib/go/ext/openpgp/armor
     - lib/go/ext/openpgp/error
-./lib/go/blobref/Makefile
+
+TARGET: lib/go/blobref
     # (no deps)
-./lib/go/blobserver/Makefile
+
+TARGET: lib/go/blobserver
     - lib/go/blobref
-./lib/go/blobserver/handlers/Makefile
+
+TARGET: lib/go/blobserver/handlers
     - server/go/auth
     - server/go/httputil
     - lib/go/blobserver
     - lib/go/httprange
-./lib/go/httprange/Makefile
+
+TARGET: lib/go/httprange
+
