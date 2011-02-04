@@ -18,6 +18,7 @@ package blobserver
 
 import (
 	"camli/blobref"
+	"io"
 	"os"
 )
 
@@ -27,15 +28,26 @@ func (p Partition) IsDefault() bool {
 	return len(p) == 0
 }
 
+type BlobReceiver interface {
+	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
+}
+
 type Storage interface {
 	blobref.Fetcher
+	BlobReceiver
 
-	// Remove 0 or more blobs from provided partition, which should be empty
-	// for the default partition.  Removal of non-existent items isn't an error.
-	// Returns failure if any items existed but failed to be deleted.
+	// Remove 0 or more blobs from provided partition, which
+	// should be empty for the default partition.  Removal of
+	// non-existent items isn't an error.  Returns failure if any
+	// items existed but failed to be deleted.
 	Remove(partition Partition, blobs []*blobref.BlobRef) os.Error
 
-	// EnumerateBobs sends at most limit SizedBlobRef into dest, sorted, as long
-	// as they are lexigraphically greater than after (if provided).
+	// EnumerateBobs sends at most limit SizedBlobRef into dest,
+	// sorted, as long as they are lexigraphically greater than
+	// after (if provided).
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition Partition, after string, limit uint) os.Error
+
+	// Stat checks for the existence of blobs, writing their sizes
+	// (if found back to the dest channel)
+	Stat(dest chan *blobref.SizedBlobRef, partition Partition, blobs []*blobref.BlobRef) os.Error
 }

@@ -14,43 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package handlers
 
 import (
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/httputil"
-	"exec"
 	"flag"
 	"fmt"
 	"http"
-	"io"
-	"io/ioutil"
 	"log"
 	"mime"
-	"os"
 	"regexp"
 	"strings"
 )
 
-type receivedBlob struct {
-	blobRef *blobref.BlobRef
-	size    int64
-}
-
-var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
-
 var flagQueuePartitions = flag.String("queue-partitions", "", "Comma-separated list of queue partitions to reference uploaded blobs into.  Typically one for your indexer and one per mirror full syncer.")
 
-var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
+func CreateUploadHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+	return func(conn http.ResponseWriter, req *http.Request) {
+		handleMultiPartUpload(conn, req, storage)
+	}
+}
 
-func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
+func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobReceiver) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
 		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
 
-	receivedBlobs := make([]*receivedBlob, 0, 10)
+	receivedBlobs := make([]*blobref.SizedBlobRef, 0, 10)
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
@@ -104,7 +97,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 			continue
 		}
 
-		blobGot, err := receiveBlob(ref, part)
+		blobGot, err := storage.ReceiveBlob(ref, part, getMirrorPartitions())
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break
@@ -120,8 +113,8 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request) {
 	for _, got := range receivedBlobs {
 		log.Printf("Got blob: %v\n", got)
 		blob := make(map[string]interface{})
-		blob["blobRef"] = got.blobRef.String()
-		blob["size"] = got.size
+		blob["blobRef"] = got.BlobRef.String()
+		blob["size"] = got.Size
 		received = append(received, blob)
 	}
 	ret["received"] = received
@@ -147,93 +140,27 @@ func commonUploadResponse(req *http.Request) map[string]interface{} {
 	return ret
 }
 
-func receiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *receivedBlob, err os.Error) {
-	hashedDirectory := BlobDirectoryName(blobRef)
-	err = os.MkdirAll(hashedDirectory, 0700)
-	if err != nil {
-		return
-	}
-
-	var tempFile *os.File
-	tempFile, err = ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
-	if err != nil {
-		return
-	}
-
-	success := false // set true later
-	defer func() {
-		if !success {
-			log.Println("Removing temp file: ", tempFile.Name())
-			os.Remove(tempFile.Name())
-		}
-	}()
-
-	hash := blobRef.Hash()
-	var written int64
-	written, err = io.Copy(io.MultiWriter(hash, tempFile), source)
-	if err != nil {
-		return
-	}
-	// TODO: fsync before close.
-	if err = tempFile.Close(); err != nil {
-		return
-	}
-
-	if !blobRef.HashMatches(hash) {
-		err = CorruptBlobError
-		return
-	}
-
-	fileName := BlobFileName(blobRef)
-	if err = os.Rename(tempFile.Name(), fileName); err != nil {
-		return
-	}
-
-	stat, err := os.Lstat(fileName)
-	if err != nil {
-		return
-	}
-	if !stat.IsRegular() || stat.Size != written {
-		err = os.NewError("Written size didn't match.")
-		return
-	}
-
-	if p := *flagQueuePartitions; p != "" {
-		for _, partname := range strings.Split(p, ",", -1) {
-			partition := blobserver.Partition(partname)
-			partitionDir := BlobPartitionDirectoryName(partition, blobRef)
-			if err = os.MkdirAll(partitionDir, 0700); err != nil {
-				return
-			}
-			partitionFileName := PartitionBlobFileName(partition, blobRef)
-			if err = os.Link(fileName, partitionFileName); err != nil {
-				return
-			}
-			log.Printf("Mirrored to partition %q", partition)
+func getMirrorPartitions() []blobserver.Partition {
+	mp := make([]blobserver.Partition, 0)
+	if *flagQueuePartitions != "" {
+		for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
+			mp = append(mp, blobserver.Partition(partName))
 		}
 	}
-
-	blobGot = &receivedBlob{blobRef: blobRef, size: stat.Size}
-	success = true
-
-	if *flagOpenImages {
-		exec.Run("/usr/bin/eog",
-			[]string{"/usr/bin/eog", fileName},
-			os.Environ(),
-			"/",
-			exec.DevNull,
-			exec.DevNull,
-			exec.MergeWithStdout)
-	}
-
-	return
+	return mp
 }
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
 var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
-func handlePut(conn http.ResponseWriter, req *http.Request) {
+func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+	return func(conn http.ResponseWriter, req *http.Request) {
+		handlePut(conn, req, storage)
+	}
+}
+
+func handlePut(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobReceiver) {
 	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed PUT URL.")
@@ -245,7 +172,7 @@ func handlePut(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	_, err := receiveBlob(blobRef, req.Body)
+	_, err := storage.ReceiveBlob(blobRef, req.Body, getMirrorPartitions())
 	if err != nil {
 		httputil.ServerError(conn, err)
 		return

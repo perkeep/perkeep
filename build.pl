@@ -227,6 +227,7 @@ TARGET: server/go/blobserver
     - lib/go/blobref
     - lib/go/blobserver
     - lib/go/blobserver/handlers
+    - lib/go/blobserver/localdisk
     - server/go/auth
     - server/go/webserver
 
@@ -294,6 +295,10 @@ TARGET: lib/go/blobserver/handlers
     - server/go/httputil
     - lib/go/blobserver
     - lib/go/httprange
+
+TARGET: lib/go/blobserver/localdisk
+    - lib/go/blobref
+    - lib/go/blobserver
 
 TARGET: lib/go/httprange
 

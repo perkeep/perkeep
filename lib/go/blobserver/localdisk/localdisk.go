@@ -14,26 +14,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package localdisk
 
 import (
 	"camli/blobref"
 	"camli/blobserver"
+	"exec"
+	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"sort"
 	"strings"
 )
 
+var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
+
 type diskStorage struct {
-	Root string
+	root string
+}
+
+func New(root string) (storage blobserver.Storage, err os.Error) {
+	// Local disk.
+	fi, staterr := os.Stat(root)
+	if staterr != nil || !fi.IsDirectory() {
+		err = os.NewError(fmt.Sprintf("Storage root %q doesn't exist or is not a directory.", root))
+		return
+	}
+	storage = &diskStorage{root}
+	return
 }
 
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
-	fileName := BlobFileName(blob)
+	fileName := ds.blobFileName(blob)
 	stat, err := os.Stat(fileName)
-	if err == os.ENOENT {
+	if errorIsNoEnt(err) {
 		return nil, 0, err
 	}
 	file, err := os.Open(fileName, os.O_RDONLY, 0)
@@ -45,7 +62,7 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 
 func (ds *diskStorage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
 	for _, blob := range blobs {
-		fileName := PartitionBlobFileName(partition, blob)
+		fileName := ds.partitionBlobFileName(partition, blob)
 		err := os.Remove(fileName)
 		switch {
 		case err == nil:
@@ -146,7 +163,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 }
 
 func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint) os.Error {
-	dirRoot := *flagStorageRoot
+	dirRoot := ds.root
 	if partition != "" {
 		dirRoot += "/partition/" + string(partition) + "/"
 	}
@@ -159,36 +176,127 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 	})
 }
 
-func newDiskStorage(root string) *diskStorage {
-	return &diskStorage{Root: root}
+func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
+	// TODO: stat in parallel; keep disks busy
+	for _, ref := range blobs {
+		fi, err := os.Stat(ds.blobFileName(ref))
+		switch {
+		case err == nil && fi.IsRegular():
+			dest <- &blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}
+		case err != nil && !errorIsNoEnt(err):
+			return err
+		}
+	}
+	return nil
+}
+
+var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
+
+func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartitions []blobserver.Partition) (blobGot *blobref.SizedBlobRef, err os.Error) {
+	hashedDirectory := ds.blobDirectoryName(blobRef)
+	err = os.MkdirAll(hashedDirectory, 0700)
+	if err != nil {
+		return
+	}
+
+	var tempFile *os.File
+	tempFile, err = ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
+	if err != nil {
+		return
+	}
+
+	success := false // set true later
+	defer func() {
+		if !success {
+			log.Println("Removing temp file: ", tempFile.Name())
+			os.Remove(tempFile.Name())
+		}
+	}()
+
+	hash := blobRef.Hash()
+	var written int64
+	written, err = io.Copy(io.MultiWriter(hash, tempFile), source)
+	if err != nil {
+		return
+	}
+	// TODO: fsync before close.
+	if err = tempFile.Close(); err != nil {
+		return
+	}
+
+	if !blobRef.HashMatches(hash) {
+		err = CorruptBlobError
+		return
+	}
+
+	fileName := ds.blobFileName(blobRef)
+	if err = os.Rename(tempFile.Name(), fileName); err != nil {
+		return
+	}
+
+	stat, err := os.Lstat(fileName)
+	if err != nil {
+		return
+	}
+	if !stat.IsRegular() || stat.Size != written {
+		err = os.NewError("Written size didn't match.")
+		return
+	}
+
+	for _, partition := range mirrorPartitions {
+		partitionDir := ds.blobPartitionDirectoryName(partition, blobRef)
+		if err = os.MkdirAll(partitionDir, 0700); err != nil {
+			return
+		}
+		partitionFileName := ds.partitionBlobFileName(partition, blobRef)
+		if err = os.Link(fileName, partitionFileName); err != nil {
+			return
+		}
+		log.Printf("Mirrored to partition %q", partition)
+	}
+
+	blobGot = &blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
+	success = true
+
+	if *flagOpenImages {
+		exec.Run("/usr/bin/eog",
+			[]string{"/usr/bin/eog", fileName},
+			os.Environ(),
+			"/",
+			exec.DevNull,
+			exec.DevNull,
+			exec.MergeWithStdout)
+	}
+
+	return
 }
 
 func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func blobPartitionDirName(partitionDirSlash string, b *blobref.BlobRef) string {
+func (ds *diskStorage) blobPartitionDirName(partitionDirSlash string, b *blobref.BlobRef) string {
 	d := b.Digest()
 	if len(d) < 6 {
 		d = d + "______"
 	}
 	return fmt.Sprintf("%s/%s%s/%s/%s",
-		*flagStorageRoot, partitionDirSlash,
+		ds.root, partitionDirSlash,
 		b.HashName(), d[0:3], d[3:6])
 }
 
-func BlobDirectoryName(b *blobref.BlobRef) string {
-	return blobPartitionDirName("", b)
+func (ds *diskStorage) blobDirectoryName(b *blobref.BlobRef) string {
+	return ds.blobPartitionDirName("", b)
 }
 
-func BlobFileName(b *blobref.BlobRef) string {
-	return fmt.Sprintf("%s/%s-%s.dat", BlobDirectoryName(b), b.HashName(), b.Digest())
+func (ds *diskStorage) blobFileName(b *blobref.BlobRef) string {
+	return fmt.Sprintf("%s/%s-%s.dat", ds.blobDirectoryName(b), b.HashName(), b.Digest())
 }
 
-func BlobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobRef) string {
-	return blobPartitionDirName("partition/" + string(partition) + "/", b)
+func (ds *diskStorage) blobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobRef) string {
+	return ds.blobPartitionDirName("partition/" + string(partition) + "/", b)
 }
 
-func PartitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {
-	return fmt.Sprintf("%s/%s-%s.dat", BlobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
+func (ds *diskStorage) partitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {
+	return fmt.Sprintf("%s/%s-%s.dat", ds.blobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
 }

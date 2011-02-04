@@ -9,6 +9,7 @@ import (
 	"camli/httputil"
 	"camli/webserver"
 	"camli/blobserver"
+	"camli/blobserver/localdisk"
 	"camli/blobserver/handlers"
 	"flag"
 	"fmt"
@@ -87,27 +88,29 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	case "POST":
 		switch action {
 		case "preupload":
-			handler = auth.RequireAuth(handlePreUpload)
+			handler = auth.RequireAuth(handlers.CreatePreUploadHandler(storage))
 		case "upload":
-			handler = auth.RequireAuth(handleMultiPartUpload)
+			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage))
 		case "remove":
 			// Currently only allows removing from a non-main partition.
 			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage, partition))
-
-	        // Not part of the spec:
-		case "testform": // debug only
-			handler = handleTestForm
-		case "form": // debug only
-			handler = handleCamliForm
 		}
 	case "PUT": // no longer part of spec
-		handler = auth.RequireAuth(handlePut)
+		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage))
 	}
 	handler(conn, req)
 }
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(conn, "This is camlistored, a Camlistore storage daemon.\n")
+	fmt.Fprintf(conn, "<html><body>This is camlistored, a <a href='http://camlistore.org'>Camlistore</a> storage daemon.</body></html>\n")
+}
+
+func exitFailure(pattern string, args ...interface{}) {
+	if !strings.HasSuffix(pattern, "\n") {
+		pattern = pattern + "\n"
+	}
+	fmt.Fprintf(os.Stderr, pattern, args...)
+	os.Exit(1)
 }
 
 func main() {
@@ -115,22 +118,29 @@ func main() {
 
 	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
 	if len(auth.AccessPassword) == 0 {
-		fmt.Fprintf(os.Stderr,
-			"No CAMLI_PASSWORD environment variable set.\n")
-		os.Exit(1)
+		exitFailure("No CAMLI_PASSWORD environment variable set.")
 	}
 
-	{
-		fi, err := os.Stat(*flagStorageRoot)
-		if err != nil || !fi.IsDirectory() {
-			fmt.Fprintf(os.Stderr,
-				"Storage root '%s' doesn't exist or is not a directory.\n",
-				*flagStorageRoot)
-			os.Exit(1)
+	rootPrefix := func(s string) bool {
+		return strings.HasPrefix(*flagStorageRoot, s)
+	}
+
+	switch {
+	case *flagStorageRoot == "":
+		exitFailure("No storage root specified in --root")
+	case rootPrefix("s3:"):
+		// TODO: support Amazon, etc.
+	default:
+		var err os.Error
+		storage, err = localdisk.New(*flagStorageRoot)
+		if err != nil {
+			exitFailure("Error for --root of %q: %v", *flagStorageRoot, err)
 		}
 	}
 
-	storage = newDiskStorage(*flagStorageRoot)
+	if storage == nil {
+		exitFailure("Unsupported storage root type %q", *flagStorageRoot)
+	}
 
 	ws := webserver.New()
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
