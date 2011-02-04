@@ -32,9 +32,16 @@ var supportedDigests = map[string]func()hash.Hash{
 	},
 }
 
+// BlobRef is an immutable reference to a blob.
 type BlobRef struct {
 	hashName  string
 	digest    string
+}
+
+// SizedBlobRef is like a BlobRef but includes a (potentially mutable) size.
+type SizedBlobRef struct {
+	*BlobRef
+	Size int64
 }
 
 type ReadSeekCloser interface {
