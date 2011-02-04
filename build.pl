@@ -132,9 +132,28 @@ sub clean {
     }
 }
 
+sub perform_go_check() {
+    if ($ENV{GOROOT}) {
+        die "Your \$GOROOT environment variable isn't a directory.\n" unless -d $ENV{GOROOT};
+        return 1;
+    }
+    # No GOROOT set; see if they have 8g or 6g
+    if (`which 8g` =~ /\S/ || `which 6g` =~ /\S/) {
+        die "You seem to have Go installed, but you don't have your ".
+            "\$GOROOT environment variable set.\n".
+            "Can't build without it.\n";
+    }
+    die "You don't seem to have Go installed.  See:\n\n   http://golang.org/doc/install.html\n\n";
+}
+
 sub build {
     my @history = @_;
     my $target = $history[0];
+
+    if ($target =~ m!/go/!) {
+        perform_go_check();
+    }
+
     my $already_built = $built{$target} || 0;
     v("Building '$target' (already_built=$already_built; via @history)");
     return if $already_built;
