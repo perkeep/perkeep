@@ -128,7 +128,7 @@ class ListHandler(webapp.RequestHandler):
     if blob_ref_list and len(blob_ref_list) == limit:
       out.append(
         '],'
-        '\n  "after": "%s"\n'
+        '\n  "continueAfter": "%s"\n'
         '}' % blob_ref_list[-1].key().name())
     else:
       out.append(

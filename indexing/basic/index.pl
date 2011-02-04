@@ -107,7 +107,7 @@ sub populate_blob_digests_and_sizes {
             }
         }
 
-        last unless $jres->{'after'} && $jres->{'after'} gt $after;
+        last unless $jres->{'continueAfter'} && $jres->{'continueAfter'} gt $after;
         $after = $jres->{'after'};
     }
     return $n_blobs;
