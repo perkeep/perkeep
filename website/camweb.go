@@ -286,24 +286,16 @@ func main() {
 const connTimeoutNanos = 15e9
 
 type withTimeoutListener struct {
-	l            net.Listener
+	net.Listener
 	timeoutNanos int64
 }
 
 func (wtl *withTimeoutListener) Accept() (c net.Conn, err os.Error) {
-	c, err = wtl.l.Accept()
+	c, err = wtl.Listener.Accept()
 	if err == nil {
 		c.SetTimeout(wtl.timeoutNanos)
 	}
 	return
-}
-
-func (wtl *withTimeoutListener) Close() os.Error {
-	return wtl.l.Close()
-}
-
-func (wtl *withTimeoutListener) Addr() net.Addr {
-	return wtl.l.Addr()
 }
 
 type fixUpGitwebUrls struct {

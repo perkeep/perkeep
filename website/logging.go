@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"http"
@@ -12,14 +10,14 @@ import (
 )
 
 type logRecord struct {
+	http.ResponseWriter
+
 	time                *time.Time
 	ip, method, rawpath string
 	responseBytes       int64
 	responseStatus      int
 	userAgent, referer  string
 	proto               string // "HTTP/1.1"
-
-	rw http.ResponseWriter
 }
 
 type logHandler struct {
@@ -57,7 +55,7 @@ func (h *logHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		referer:        r.Referer,
 		responseStatus: http.StatusOK,
 		proto:          r.Proto,
-		rw:             rw,
+		ResponseWriter: rw,
 	}
 	h.handler.ServeHTTP(lr, r)
 	h.ch <- lr
@@ -117,34 +115,12 @@ func (h *logHandler) logFromChannel() {
 }
 
 func (lr *logRecord) Write(p []byte) (int, os.Error) {
-	written, err := lr.rw.Write(p)
+	written, err := lr.ResponseWriter.Write(p)
 	lr.responseBytes += int64(written)
 	return written, err
 }
 
 func (lr *logRecord) WriteHeader(status int) {
 	lr.responseStatus = status
-	lr.rw.WriteHeader(status)
-}
-
-// Boring proxies:  (seems like I should be able to use embedding somehow...)
-
-func (lr *logRecord) RemoteAddr() string {
-	return lr.rw.RemoteAddr()
-}
-
-func (lr *logRecord) UsingTLS() bool {
-	return lr.rw.UsingTLS()
-}
-
-func (lr *logRecord) SetHeader(k, v string) {
-	lr.rw.SetHeader(k, v)
-}
-
-func (lr *logRecord) Flush() {
-	lr.rw.Flush()
-}
-
-func (lr *logRecord) Hijack() (io.ReadWriteCloser, *bufio.ReadWriter, os.Error) {
-	return lr.rw.Hijack()
+	lr.ResponseWriter.WriteHeader(status)
 }
