@@ -24,20 +24,20 @@
 
 To test:
 
-# Preupload -- 200 response
+# Stat -- 200 response
 curl -v \
   -d camliversion=1 \
-  http://localhost:8080/camli/preupload
+  http://localhost:8080/camli/stat
 
 # Upload -- 200 response
 curl -v -L \
   -F sha1-126249fd8c18cbb5312a5705746a2af87fba9538=@./test_data.txt \
-  <the url returned by preupload>
+  <the url returned by stat>
 
 # Put with bad blob_ref parameter -- 400 response
 curl -v -L \
   -F sha1-22a7fdd575f4c3e7caa3a55cc83db8b8a6714f0f=@./test_data.txt \
-  <the url returned by preupload>
+  <the url returned by stat>
 
 # Get present -- the blob
 curl -v http://localhost:8080/camli/\
@@ -152,16 +152,19 @@ class GetHandler(blobstore_handlers.BlobstoreDownloadHandler):
     self.send_blob(blob.blob, 'application/octet-stream')
 
 
-class PreuploadHandler(webapp.RequestHandler):
+class StatHandler(webapp.RequestHandler):
   """Handler to return a URL for a script to get an upload URL."""
 
+  def stat_key(self):
+    return "stat"
+
   def get(self):
-    self.handle(continuation=True)
+    self.handle()
 
   def post(self):
-    self.handle(continuation=False)
+    self.handle()
 
-  def handle(self, continuation):
+  def handle(self):
     if self.request.get('camliversion') != '1':
       self.response.headers['Content-Type'] = 'text/plain'
       self.response.out.write('Bad parameter: "camliversion"')
@@ -183,10 +186,7 @@ class PreuploadHandler(webapp.RequestHandler):
       else:
         blob_ref_list.append(value)
 
-    if continuation:
-      already_have_name = 'received'
-    else:
-      already_have_name = 'alreadyHave'
+    key_name = self.stat_key()
 
     self.response.headers['Content-Type'] = 'text/javascript'
     out = [
@@ -197,7 +197,7 @@ class PreuploadHandler(webapp.RequestHandler):
       '  "%s": [\n'
       % (config.MAX_UPLOAD_SIZE,
          blobstore.create_upload_url('/upload_complete'),
-         already_have_name)
+         key_name)
     ]
 
     already_have = db.get([
@@ -215,6 +215,12 @@ class PreuploadHandler(webapp.RequestHandler):
       '}'
     )
     self.response.out.write(''.join(out))
+
+
+class PostUploadHandler(StatHandler):
+
+  def stat_key(self):
+    return "received"
 
 
 class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
@@ -323,9 +329,9 @@ APP = webapp.WSGIApplication(
     ('/', HelloHandler),
     ('/debug/upform', DebugUploadForm),
     ('/camli/enumerate-blobs', ListHandler),
-    ('/camli/preupload', PreuploadHandler),
+    ('/camli/stat', StatHandler),
     ('/camli/([^/]+)', GetHandler),
-    ('/nonstandard/upload_complete', PreuploadHandler),
+    ('/nonstandard/upload_complete', PostUploadHandler),
     ('/upload_complete', UploadHandler),  # Admin only.
     ('/error', ErrorHandler),
   ],

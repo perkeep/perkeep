@@ -3,11 +3,10 @@ Optional upload protocol extension:
 Blobs can be large, devices (e.g. mobile phones) can have slow
 uploads, or both.  Thus, it's nice to have an upload resume mechanism.
 
-In a preupload response, a server can return a JSON key
-"alreadyHavePartially" with similar format to the spec-required
-"alreadyHave" array.  Instead of just "blobRef" and "size", though,
-there's a continuation key and blobref of the part that server already
-has:
+In a stat response, a server can return a JSON key
+"alreadyHavePartially" with similar format to the spec-required "stat"
+array.  Instead of just "blobRef" and "size", though, there's a
+continuation key and blobref of the part that server already has:
 
 ...
    "alreadyHavePartially": [

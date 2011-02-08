@@ -91,7 +91,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	// Pre-upload.  Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
-	url := fmt.Sprintf("%s/camli/preupload", c.server)
+	url := fmt.Sprintf("%s/camli/stat", c.server)
 	requestBody := "camliversion=1&blob1="+blobRefString
 	req := http.NewPostRequest(
 		url,
@@ -103,22 +103,22 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	resp, err := req.Send()
 	if err != nil {
-		return error("preupload http error", err)
+		return error("stat http error", err)
 	}
 
 	pur, err := c.jsonFromResponse(resp)
 	if err != nil {
-		return error("preupload json parse error", err)
+		return error("stat json parse error", err)
 	}
 	
 	uploadUrl, ok := pur["uploadUrl"].(string)
 	if uploadUrl == "" {
-		return error("preupload json validity error: no 'uploadUrl'", nil)
+		return error("stat json validity error: no 'uploadUrl'", nil)
 	}
 
-	alreadyHave, ok := pur["alreadyHave"].([]interface{})
+	alreadyHave, ok := pur["stat"].([]interface{})
 	if !ok {
-		return error("preupload json validity error: no 'alreadyHave'", nil)
+		return error("stat json validity error: no 'stat'", nil)
 	}
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: h.Size}

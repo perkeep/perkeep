@@ -112,7 +112,7 @@ public class UploadThread extends Thread {
             status("Starting pre-upload of " + mQueue.size() + " files.");
             JSONObject preUpload = doPreUpload();
             if (preUpload == null) {
-                Log.w(TAG, "Preupload failed, ending UploadThread.");
+                Log.w(TAG, "Preupload stat failed, ending UploadThread.");
                 return;
             }
 
@@ -136,7 +136,7 @@ public class UploadThread extends Thread {
     private JSONObject doPreUpload() {
         // Do the pre-upload.
         HttpPost preReq = new HttpPost("http://" + mHostPort
-                + "/camli/preupload");
+                + "/camli/stat");
         preReq.setHeader("Authorization", getBasicAuthHeaderValue());
         List<BasicNameValuePair> uploadKeys = new ArrayList<BasicNameValuePair>();
         uploadKeys.add(new BasicNameValuePair("camliversion", "1"));

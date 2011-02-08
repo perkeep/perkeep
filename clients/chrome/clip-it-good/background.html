@@ -180,18 +180,18 @@
         uploadXhr.send(payload);
       }
 
-      var preUploadXhr = new XMLHttpRequest();
-      preUploadXhr.open('POST', albumId + '/camli/preupload', true,
+      var statXhr = new XMLHttpRequest();
+      statXhr.open('POST', albumId + '/camli/stat', true,
                         options.username, options.password);
-      preUploadXhr.onreadystatechange = function() {
-        if (preUploadXhr.readyState == XMLHttpRequest.DONE &&
-            preUploadXhr.status == 200) {
+      statXhr.onreadystatechange = function() {
+        if (statXhr.readyState == XMLHttpRequest.DONE &&
+            statXhr.status == 200) {
           // XXX Check for bad response format (not JSON).
-          var responseJson = $.parseJSON(preUploadXhr.responseText);
+          var responseJson = $.parseJSON(statXhr.responseText);
 
-          if (responseJson.alreadyHave &&
-              responseJson.alreadyHave.length == 1 &&
-              responseJson.alreadyHave[0].blobRef == blobRef) {
+          if (responseJson.stat &&
+              responseJson.stat.length == 1 &&
+              responseJson.stat[0].blobRef == blobRef) {
             console.log('Blob already present: ' + blobRef);
             uploadDone();
             return;
@@ -199,8 +199,8 @@
 
           var uploadUrl = responseJson.uploadUrl;
           if (!uploadUrl) {
-            alert('Camlistore preupload response missing "uploadUrl": ' +
-                  preUploadXhr.responseText);
+            alert('Camlistore stat response missing "uploadUrl": ' +
+                  statXhr.responseText);
             return;
           }
 
@@ -208,9 +208,9 @@
         }
         // XXX: Handle request errors
       }
-      preUploadXhr.setRequestHeader(
+      statXhr.setRequestHeader(
           'Content-Type', 'application/x-www-form-urlencoded');
-      preUploadXhr.send('camliversion=1&blob1=' + blobRef);
+      statXhr.send('camliversion=1&blob1=' + blobRef);
     }
 
   };

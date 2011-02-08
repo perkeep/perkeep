@@ -29,7 +29,7 @@ if ($implopt eq "go") {
 ok($impl->start, "Server started");
 
 $impl->verify_no_blobs;  # also tests some of enumerate
-$impl->test_preupload_and_upload;
+$impl->test_stat_and_upload;
 $impl->test_upload_corrupt_blob;  # blobref digest doesn't match
 
 # TODO: test multiple uploads in a batch
@@ -39,6 +39,7 @@ $impl->test_upload_corrupt_blob;  # blobref digest doesn't match
 #       disk in subsequent GET
 # ....
 # test auth works on bogus password?  (auth still undefined)
+# TODO: test stat with both GET and POST (currently just POST)
 
 done_testing();
 
@@ -96,6 +97,15 @@ sub get {
     $path ||= "";
     $form ||= {};
     return GET($self->path($path),
+               "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
+               %$form);
+}
+
+sub head {
+    my ($self, $path, $form) = @_;
+    $path ||= "";
+    $form ||= {};
+    return HEAD($self->path($path),
                "Authorization" => "Basic dGVzdDp0ZXN0", # test:test
                %$form);
 }
@@ -162,7 +172,7 @@ sub verify_no_blobs {
     is(0, scalar @{$json->{'blobs'}}, "no blobs on server");
 }
 
-sub test_preupload_and_upload {
+sub test_stat_and_upload {
     my $self = shift;
     my ($req, $res);
 
@@ -170,35 +180,35 @@ sub test_preupload_and_upload {
     my $blobref = "sha1-" . sha1_hex($blob);
 
     # Bogus method.
-    $req = $self->get("/camli/preupload", {
+    $req = $self->head("/camli/stat", {
         "camliversion" => 1,
         "blob1" => $blobref,
     });
     $res = $self->ua->request($req);
-    ok(!$res->is_success, "returns failure for GET on /camli/preupload");
+    ok(!$res->is_success, "returns failure for HEAD on /camli/stat");
 
     # Correct method, but missing camliVersion.
-    $req = $self->post("/camli/preupload", {
+    $req = $self->post("/camli/stat", {
         "blob1" => $blobref,
     });
     $res = $self->ua->request($req);
-    ok(!$res->is_success, "returns failure for missing camliVersion param on preupload");
+    ok(!$res->is_success, "returns failure for missing camliVersion param on stat");
 
     # Valid pre-upload
-    $req = $self->post("/camli/preupload", {
+    $req = $self->post("/camli/stat", {
         "camliversion" => 1,
         "blob1" => $blobref,
     });
-    my $jres = $self->get_json($req, "valid preupload");
-    diag("preupload response: " . Dumper($jres));
-    ok($jres, "valid preupload JSON response");
-    for my $f (qw(alreadyHave maxUploadSize uploadUrl uploadUrlExpirationSeconds)) {
+    my $jres = $self->get_json($req, "valid stat");
+    diag("stat response: " . Dumper($jres));
+    ok($jres, "valid stat JSON response");
+    for my $f (qw(stat maxUploadSize uploadUrl uploadUrlExpirationSeconds)) {
         ok(defined($jres->{$f}), "required field '$f' present");
     }
     is(scalar(keys %$jres), 4, "Exactly 4 JSON keys returned");
-    my $already = $jres->{alreadyHave};
-    is(ref($already), "ARRAY", "alreadyHave is an array");
-    is(scalar(@$already), 0, "server doesn't have this blob yet.");
+    my $statList = $jres->{stat};
+    is(ref($statList), "ARRAY", "stat is an array");
+    is(scalar(@$statList), 0, "server doesn't have this blob yet.");
     like($jres->{uploadUrlExpirationSeconds}, qr/^\d+$/, "uploadUrlExpirationSeconds is numeric");
     my $upload_url = URI::URL->new($jres->{uploadUrl}, $self->root)->abs;
     ok($upload_url, "valid uploadUrl");
@@ -239,11 +249,11 @@ sub test_upload_corrupt_blob {
     my $blobref = "sha1-" . sha1_hex($blob);
     $blob .= "OIEWUROIEWURLKJDSLKj CORRUPT";
 
-    $req = $self->post("/camli/preupload", {
+    $req = $self->post("/camli/stat", {
         "camliversion" => 1,
         "blob1" => $blobref,
     });
-    my $jres = $self->get_json($req, "valid preupload");
+    my $jres = $self->get_json($req, "valid stat");
     my $upload_url = URI::URL->new($jres->{uploadUrl}, $self->root)->abs;
     # TODO: test & clarify in spec: are relative URLs allowed in uploadUrl?
     # App Engine seems to do it already, and makes it easier, so probably
@@ -377,7 +387,7 @@ sub start {
     my $pid = fork;
     die "Failed to fork" unless defined($pid);
     if ($pid == 0) {
-        my $appdir = "$FindBin::Bin/../appengine";
+        my $appdir = "$FindBin::Bin/../appengine/blobserver";
 
         # child
         my @args = ($dev_appserver,

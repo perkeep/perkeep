@@ -32,9 +32,17 @@ type BlobReceiver interface {
 	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
 }
 
+type BlobStatter interface {
+	// Stat checks for the existence of blobs, writing their sizes
+	// (if found back to the dest channel), and returning an error
+	// or nil.  Stat() should NOT close the channel.
+	Stat(dest chan *blobref.SizedBlobRef, partition Partition, blobs []*blobref.BlobRef) os.Error
+}
+
 type Storage interface {
 	blobref.Fetcher
 	BlobReceiver
+	BlobStatter
 
 	// Remove 0 or more blobs from provided partition, which
 	// should be empty for the default partition.  Removal of
@@ -47,7 +55,4 @@ type Storage interface {
 	// after (if provided).
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition Partition, after string, limit uint) os.Error
 
-	// Stat checks for the existence of blobs, writing their sizes
-	// (if found back to the dest channel)
-	Stat(dest chan *blobref.SizedBlobRef, partition Partition, blobs []*blobref.BlobRef) os.Error
 }

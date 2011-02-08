@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Lame upload script for development testing only.  Doesn't do the
-# preupload step and hard-codes the Go server's upload path (not
+# stat step and hard-codes the Go server's upload path (not
 # conformant to spec).
 
 use strict;

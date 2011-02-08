@@ -82,13 +82,15 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		switch action {
 		case "enumerate-blobs":
 			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage, partition))
+		case "stat":
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage, partition))
 		default:
 			handler = handlers.CreateGetHandler(storage)
 		}
 	case "POST":
 		switch action {
-		case "preupload":
-			handler = auth.RequireAuth(handlers.CreatePreUploadHandler(storage))
+		case "stat":
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage, partition))
 		case "upload":
 			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage))
 		case "remove":

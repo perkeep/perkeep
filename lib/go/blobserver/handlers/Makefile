@@ -11,6 +11,6 @@ GOFILES=\
 	enumerate.go\
 	remove.go\
 	upload.go\
-	preupload.go\
+	stat.go\
 
 include $(GOROOT)/src/Make.pkg

@@ -26,52 +26,55 @@ import (
 	"os"
 )
 
-func CreatePreUploadHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+func CreateStatHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handlePreUpload(conn, req, storage)
+		handleStat(conn, req, storage, partition)
 	}
 }
 
-const maxPreUploadBlobs = 1000
+const maxStatBlobs = 1000
 
 // TODO: for testing, tighten this interface to exactly the one method
 // we need, rather than using all of blobserver.Storage
-func handlePreUpload(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
-	if !(req.Method == "POST" && req.URL.Path == "/camli/preupload") {
-		httputil.BadRequestError(conn, "Inconfigured handler.")
-		return
-	}
-
-	camliVersion := req.FormValue("camliversion")
-	if camliVersion == "" {
-		httputil.BadRequestError(conn, "No camliversion")
-		return
-	}
-
-	n := 0
+func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition blobserver.Partition) {
 	toStat := make([]*blobref.BlobRef, 0)
-	for {
-		n++
-		key := fmt.Sprintf("blob%v", n)
-		value := req.FormValue(key)
-		if value == "" {
-			n--
-			break
-		}
-		if n > maxPreUploadBlobs {
-			httputil.BadRequestError(conn, "Too many preupload blob checks")
-                        return
-		}
-		ref := blobref.Parse(value)
-		if ref == nil {
-			httputil.BadRequestError(conn, "Bogus blobref for key "+key)
+	switch req.Method {
+	case "POST":
+		fallthrough
+	case "GET":
+		camliVersion := req.FormValue("camliversion")
+		if camliVersion == "" {
+			httputil.BadRequestError(conn, "No camliversion")
 			return
 		}
-		toStat = append(toStat, ref)
+		n := 0
+		for {
+			n++
+			key := fmt.Sprintf("blob%v", n)
+			value := req.FormValue(key)
+			if value == "" {
+				n--
+				break
+			}
+			if n > maxStatBlobs {
+				httputil.BadRequestError(conn, "Too many stat blob checks")
+				return
+			}
+			ref := blobref.Parse(value)
+			if ref == nil {
+				httputil.BadRequestError(conn, "Bogus blobref for key "+key)
+				return
+			}
+			toStat = append(toStat, ref)
+		}
+	default:
+		httputil.BadRequestError(conn, "Invalid method.");
+		return
+
 	}
 
-	alreadyHave := make([]map[string]interface{}, 0)
-	if n > 0 {
+	statRes := make([]map[string]interface{}, 0)
+	if len(toStat) > 0 {
 		blobch := make(chan *blobref.SizedBlobRef)
 		resultch := make(chan os.Error, 1)
 		go func() {
@@ -84,7 +87,7 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request, storage blobse
 			ah := make(map[string]interface{})
 			ah["blobRef"] = sb.BlobRef.String()
 			ah["size"] = sb.Size
-			alreadyHave = append(alreadyHave, ah)
+			statRes = append(statRes, ah)
 		}
 
 		err := <-resultch
@@ -96,6 +99,6 @@ func handlePreUpload(conn http.ResponseWriter, req *http.Request, storage blobse
 	}
 
 	ret := commonUploadResponse(req)
-	ret["alreadyHave"] = alreadyHave
+	ret["stat"] = statRes
 	httputil.ReturnJson(conn, ret)
 }
