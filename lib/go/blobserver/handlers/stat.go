@@ -24,6 +24,7 @@ import (
 	"http"
 	"log"
 	"os"
+	"strconv"
 )
 
 func CreateStatHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
@@ -73,12 +74,23 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 
 	}
 
+	waitSeconds := 0
+	if waitStr := req.FormValue("maxwaitsec"); waitStr != "" {
+		waitSeconds, _ = strconv.Atoi(waitStr)
+		switch {
+		case waitSeconds < 0:
+			waitSeconds = 0
+		case waitSeconds > 30:
+			waitSeconds = 30
+		}
+	}
+
 	statRes := make([]map[string]interface{}, 0)
 	if len(toStat) > 0 {
 		blobch := make(chan *blobref.SizedBlobRef)
 		resultch := make(chan os.Error, 1)
 		go func() {
-			err := storage.Stat(blobch, blobserver.Partition(""), toStat)
+			err := storage.Stat(blobch, blobserver.Partition(""), toStat, waitSeconds)
 			close(blobch)
 			resultch <- err
 		}()
@@ -100,5 +112,6 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 
 	ret := commonUploadResponse(req)
 	ret["stat"] = statRes
+	ret["canLongPoll"] = true
 	httputil.ReturnJson(conn, ret)
 }

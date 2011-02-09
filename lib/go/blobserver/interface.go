@@ -36,7 +36,12 @@ type BlobStatter interface {
 	// Stat checks for the existence of blobs, writing their sizes
 	// (if found back to the dest channel), and returning an error
 	// or nil.  Stat() should NOT close the channel.
-	Stat(dest chan *blobref.SizedBlobRef, partition Partition, blobs []*blobref.BlobRef) os.Error
+	// waitSeconds is the max time to wait for the blobs to exist
+	// in the given partition, or 0 for no delay.
+	Stat(dest chan *blobref.SizedBlobRef,
+		partition Partition,
+		blobs []*blobref.BlobRef,
+		waitSeconds int) os.Error
 }
 
 type Storage interface {

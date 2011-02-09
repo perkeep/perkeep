@@ -176,17 +176,27 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 	})
 }
 
-func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
+func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	// TODO: stat in parallel; keep disks busy
+	var missing []*blobref.BlobRef
+
 	for _, ref := range blobs {
 		fi, err := os.Stat(ds.blobFileName(ref))
 		switch {
 		case err == nil && fi.IsRegular():
 			dest <- &blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}
+		case err != nil && errorIsNoEnt(err) && waitSeconds > 0:
+			missing = append(missing, ref)
 		case err != nil && !errorIsNoEnt(err):
 			return err
 		}
 	}
+
+	if len(missing) > 0 {
+		// TODO: use waitSeconds
+		log.Printf("TODO: wait for %d blobs: %#v", len(missing), missing)
+	}
+
 	return nil
 }
 

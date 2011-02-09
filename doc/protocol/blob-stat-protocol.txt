@@ -21,6 +21,21 @@ application/x-www-form-urlencoded body for POST)
                               for too many.  All servers should support <= 1000
                               though.
 
+   maxwaitsec      optional   The client may send this, an integer max number
+                              of seconds the client is willing to wait
+                              for the arrival of blobs.  If the server
+                              supports long-polling (an optional
+                              feature), then the server will return
+                              immediately if all the requested blobs
+                              or available, or wait up until this
+                              amount of time for the blobs to become
+                              available.  The server's reply must
+                              include "canLongPoll" set to true if the
+                              server supports this feature.  Even if
+                              the server supports long polling, the
+                              server may cap 'maxwaitsec' and wait for
+                              less time than requested by the client.
+
 Examples:
 
 GET /camli/stat?camliversion=1&blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8 HTTP/1.1
@@ -53,6 +68,7 @@ Content-Type: text/javascript
    "maxUploadSize": 1048576,
    "uploadUrl": "http://upload-server.example.com/some/server-chosen/url",
    "uploadUrlExpirationSeconds": 7200,
+   "canLongPoll": true
 }
 
 Response keys:
@@ -60,10 +76,16 @@ Response keys:
    stat             required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
                                for blobs that the system already has. Empty
                                list if no blobs are already present.
+
    maxUploadSize    required   Integer of max byte size for whole request
                                payload, which may be one or more blobs.
+
    uploadUrl        required   Next URL to use to upload any more blobs.
+
    uploadUrlExpirationSeconds
                     required   How long the upload URL will be valid for,
                                in seconds.
 
+   canLongPoll      optional   Set to true (type boolean) if the server supports
+                               long polling.  If not true, the server ignores
+                               the client's "maxwaitsec" parameter.
