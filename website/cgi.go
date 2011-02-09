@@ -21,7 +21,7 @@ package main
 // is intended primarily for compatibility.
 
 import (
-	"camli/encoding/line"
+	"encoding/line"
 	"exec"
 	"fmt"
 	"http"
