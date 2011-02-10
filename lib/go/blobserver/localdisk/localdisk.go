@@ -28,12 +28,16 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 )
 
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
 type diskStorage struct {
 	root string
+
+	hubLock sync.Mutex
+	hubMap  map[blobserver.Partition]blobserver.BlobHub
 }
 
 func New(root string) (storage blobserver.Storage, err os.Error) {
@@ -43,8 +47,22 @@ func New(root string) (storage blobserver.Storage, err os.Error) {
 		err = os.NewError(fmt.Sprintf("Storage root %q doesn't exist or is not a directory.", root))
 		return
 	}
-	storage = &diskStorage{root}
+	storage = &diskStorage{
+		root:   root,
+		hubMap: make(map[blobserver.Partition]blobserver.BlobHub),
+	}
 	return
+}
+
+func (ds *diskStorage) GetBlobHub(partition blobserver.Partition) blobserver.BlobHub {
+	ds.hubLock.Lock()
+	defer ds.hubLock.Unlock()
+	if hub, ok := ds.hubMap[partition]; ok {
+		return hub
+	}
+	hub := new(blobserver.SimpleBlobHub)
+	ds.hubMap[partition] = hub
+	return hub
 }
 
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
@@ -78,9 +96,9 @@ func (ds *diskStorage) Remove(partition blobserver.Partition, blobs []*blobref.B
 }
 
 type readBlobRequest struct {
-	ch     chan *blobref.SizedBlobRef
-	after  string
-	remain *uint         // limit countdown
+	ch      chan *blobref.SizedBlobRef
+	after   string
+	remain  *uint // limit countdown
 	dirRoot string
 
 	// Not used on initial request, only on recursion
@@ -137,7 +155,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 			}
 			ropts := opts
 			ropts.blobPrefix = newBlobPrefix
-			ropts.pathInto = opts.pathInto+"/"+name
+			ropts.pathInto = opts.pathInto + "/" + name
 			readBlobs(ropts)
 			continue
 		}
@@ -169,10 +187,10 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 	}
 	limitMutable := limit
 	return readBlobs(readBlobRequest{
-	   ch: dest,
-	   dirRoot: dirRoot,
-	   after: after,
-	   remain: &limitMutable,
+		ch:      dest,
+		dirRoot: dirRoot,
+		after:   after,
+		remain:  &limitMutable,
 	})
 }
 
@@ -278,6 +296,13 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 			exec.MergeWithStdout)
 	}
 
+	hub := ds.GetBlobHub(blobserver.DefaultPartition)
+	hub.NotifyBlobReceived(blobRef)
+	for _, partition := range mirrorPartitions {
+		hub = ds.GetBlobHub(partition)
+		hub.NotifyBlobReceived(blobRef)
+	}
+
 	return
 }
 
@@ -304,7 +329,7 @@ func (ds *diskStorage) blobFileName(b *blobref.BlobRef) string {
 }
 
 func (ds *diskStorage) blobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobRef) string {
-	return ds.blobPartitionDirName("partition/" + string(partition) + "/", b)
+	return ds.blobPartitionDirName("partition/"+string(partition)+"/", b)
 }
 
 func (ds *diskStorage) partitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {

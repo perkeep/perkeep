@@ -24,6 +24,8 @@ import (
 
 type Partition string
 
+const DefaultPartition = Partition("")
+
 func (p Partition) IsDefault() bool {
 	return len(p) == 0
 }
@@ -39,9 +41,9 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist
 	// in the given partition, or 0 for no delay.
 	Stat(dest chan *blobref.SizedBlobRef,
-		partition Partition,
-		blobs []*blobref.BlobRef,
-		waitSeconds int) os.Error
+	partition Partition,
+	blobs []*blobref.BlobRef,
+	waitSeconds int) os.Error
 }
 
 type Storage interface {
@@ -60,4 +62,6 @@ type Storage interface {
 	// after (if provided).
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition Partition, after string, limit uint) os.Error
 
+	// Returns the blob notification bus for a given partition.
+	GetBlobHub(partition Partition) BlobHub
 }
