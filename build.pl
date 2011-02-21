@@ -242,7 +242,7 @@ TARGET: server/go/sigserver
     - lib/go/ext/openpgp/armor
 
 TARGET: website
-    - lib/go/line
+    # (no deps)
 
 TARGET: clients/go/camput
     - lib/go/client
@@ -257,9 +257,6 @@ TARGET: clients/go/camget
 
 TARGET: lib/go/http
     # (no deps, fork of Go's http library)
-
-TARGET: lib/go/line
-    # (no deps, fork of Go's encoding/line library)
 
 TARGET: lib/go/ext/openpgp/error
     # (no deps)

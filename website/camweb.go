@@ -100,7 +100,7 @@ func writeText(w io.Writer, text []byte, html bool) {
 
 func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 	var buf bytes.Buffer
-	if err := t.Execute(data, &buf); err != nil {
+	if err := t.Execute(&buf, data); err != nil {
 		log.Printf("%s.Execute: %s", name, err)
 	}
 	return buf.Bytes()
@@ -117,7 +117,7 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 		content,
 	}
 
-	if err := pageHtml.Execute(&d, w); err != nil {
+	if err := pageHtml.Execute(w, &d); err != nil {
 		log.Printf("godocHTML.Execute: %s", err)
 	}
 }
