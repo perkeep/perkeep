@@ -195,9 +195,9 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 }
 
 func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
-	// TODO: stat in parallel; keep disks busy
 	var missing []*blobref.BlobRef
 
+	// TODO: stat in parallel; keep disks busy
 	for _, ref := range blobs {
 		fi, err := os.Stat(ds.blobFileName(ref))
 		switch {
