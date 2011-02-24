@@ -29,8 +29,8 @@ var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/
 var AccessPassword string
 
 func IsAuthorized(req *http.Request) bool {
-	auth, present := req.Header["Authorization"]
-	if !present {
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
 		return false
 	}
 	matches := kBasicAuthPattern.FindStringSubmatch(auth)
