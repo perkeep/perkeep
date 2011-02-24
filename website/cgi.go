@@ -69,15 +69,15 @@ func (h *CgiHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		"SERVER_PORT=" + port,
 	}
 
-	for k, _ := range req.Header {
+	for k, v := range req.Header {
 		k = strings.Map(upperCaseAndUnderscore, k)
-		env = append(env, "HTTP_"+k+"="+req.Header.Get(k))
+		env = append(env, "HTTP_"+k+"="+v)
 	}
 
 	if req.ContentLength > 0 {
 		env = append(env, fmt.Sprintf("CONTENT_LENGTH=%d", req.ContentLength))
 	}
-	if ctype := req.Header.Get("Content-Type"); ctype != "" {
+	if ctype, ok := req.Header["Content-Type"]; ok {
 		env = append(env, "CONTENT_TYPE="+ctype)
 	}
 

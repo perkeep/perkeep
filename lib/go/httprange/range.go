@@ -46,8 +46,8 @@ var WholeRange = &Range{0, -1}
 var rangePattern = regexp.MustCompile(`bytes=([0-9]+)-([0-9]*)`)
 
 func FromRequest(req *http.Request) *Range {
-	rrange := req.Header.Get("Range")
-	if rrange == "" {
+	rrange, ok := req.Header["Range"]
+	if !ok {
 		return WholeRange
 	}
 	return FromString(rrange)
