@@ -5,3 +5,6 @@
 .*.swp
 logs
 _obj
+6.out
+_test
+_testmain.go
