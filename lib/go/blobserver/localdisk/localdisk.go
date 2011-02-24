@@ -247,7 +247,9 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 	if err != nil {
 		return
 	}
-	// TODO: fsync before close.
+	if err = tempFile.Sync(); err != nil {
+		return
+	}
 	if err = tempFile.Close(); err != nil {
 		return
 	}
