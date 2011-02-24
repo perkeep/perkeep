@@ -73,7 +73,6 @@ func (tb *testBlob) Reader() io.Reader {
 func TestReceiveStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	t.Logf("Storage is at: %q", ds.root)
 
 	tb := &testBlob{"Foo"}
 	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader(), nil)
@@ -91,9 +90,10 @@ func TestReceiveStat(t *testing.T) {
 	checkSizedBlob()
 
 	ch := make(chan *blobref.SizedBlobRef, 0)
-	errch := make(chan os.Error, 0)
+	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch, blobserver.DefaultPartition, []*blobref.BlobRef{tb.BlobRef()}, 0)
+		close(ch)
 	}()
 	got := 0
 	for sb = range ch {
@@ -111,5 +111,5 @@ func TestReceiveStat(t *testing.T) {
 func TestStatWait(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	t.Logf("Storage is at: %q", ds.root)
+	// TODO
 }
