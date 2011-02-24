@@ -17,10 +17,15 @@ limitations under the License.
 package localdisk
 
 import (
+	"camli/blobref"
+	"camli/blobserver"
+	"crypto/sha1"
 	"fmt"
-	"testing"
+	"io"
 	"os"
+	"strings"
 	"sync"
+	"testing"
 )
 
 func cleanUp(ds *diskStorage) {
@@ -47,7 +52,63 @@ func NewStorage(t *testing.T) *diskStorage {
 	return ds.(*diskStorage)
 }
 
-func TestEnumerateWait(t *testing.T) {
+type testBlob struct {
+	val string
+}
+
+func (tb *testBlob) BlobRef() *blobref.BlobRef {
+	h := sha1.New()
+	h.Write([]byte(tb.val))
+	return blobref.FromHash("sha1", h)
+}
+
+func (tb *testBlob) Size() int64 {
+	return int64(len(tb.val))
+}
+
+func (tb *testBlob) Reader() io.Reader {
+	return strings.NewReader(tb.val)
+}
+
+func TestReceiveStat(t *testing.T) {
+	ds := NewStorage(t)
+	defer cleanUp(ds)
+	t.Logf("Storage is at: %q", ds.root)
+
+	tb := &testBlob{"Foo"}
+	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader(), nil)
+	if err != nil {
+		t.Fatalf("ReceiveBlob error: %v", err)
+	}
+	checkSizedBlob := func() {
+		if sb.Size != tb.Size() {
+			t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
+		}
+		if sb.BlobRef.String() != tb.BlobRef().String() {
+			t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
+		}
+	}
+	checkSizedBlob()
+
+	ch := make(chan *blobref.SizedBlobRef, 0)
+	errch := make(chan os.Error, 0)
+	go func() {
+		errch <- ds.Stat(ch, blobserver.DefaultPartition, []*blobref.BlobRef{tb.BlobRef()}, 0)
+	}()
+	got := 0
+	for sb = range ch {
+		got++
+		checkSizedBlob()
+	}
+	if got != 1 {
+		t.Fatalf("Expected %d stat results; got %d", 1, got)
+	}
+	if err = <-errch; err != nil {
+		t.Fatalf("Got error from stat: %v", err)
+	}
+}
+
+func TestStatWait(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 	t.Logf("Storage is at: %q", ds.root)
