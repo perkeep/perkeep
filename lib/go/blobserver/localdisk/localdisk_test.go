@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func cleanUp(ds *diskStorage) {
@@ -62,6 +63,10 @@ func (tb *testBlob) BlobRef() *blobref.BlobRef {
 	return blobref.FromHash("sha1", h)
 }
 
+func (tb *testBlob) BlobRefSlice() []*blobref.BlobRef {
+	return []*blobref.BlobRef{tb.BlobRef()}
+}
+
 func (tb *testBlob) Size() int64 {
 	return int64(len(tb.val))
 }
@@ -70,40 +75,46 @@ func (tb *testBlob) Reader() io.Reader {
 	return strings.NewReader(tb.val)
 }
 
+func (tb *testBlob) AssertMatches(t *testing.T, sb *blobref.SizedBlobRef) {
+	if sb.Size != tb.Size() {
+		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
+	}
+	if sb.BlobRef.String() != tb.BlobRef().String() {
+		t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
+	}
+}
+
+func (tb *testBlob) ExpectUploadBlob(t *testing.T, ds blobserver.BlobReceiver) {
+	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader(), nil)
+	if err != nil {
+		t.Fatalf("ReceiveBlob error: %v", err)
+	}
+	tb.AssertMatches(t, sb)
+}
+
 func TestReceiveStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
 	tb := &testBlob{"Foo"}
-	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader(), nil)
-	if err != nil {
-		t.Fatalf("ReceiveBlob error: %v", err)
-	}
-	checkSizedBlob := func() {
-		if sb.Size != tb.Size() {
-			t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
-		}
-		if sb.BlobRef.String() != tb.BlobRef().String() {
-			t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
-		}
-	}
-	checkSizedBlob()
+	tb.ExpectUploadBlob(t, ds)
 
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, blobserver.DefaultPartition, []*blobref.BlobRef{tb.BlobRef()}, 0)
+		errch <- ds.Stat(ch, blobserver.DefaultPartition, tb.BlobRefSlice(), 0)
 		close(ch)
 	}()
 	got := 0
-	for sb = range ch {
+	for sb := range ch {
 		got++
-		checkSizedBlob()
+		tb.AssertMatches(t, sb)
+		break
 	}
 	if got != 1 {
 		t.Fatalf("Expected %d stat results; got %d", 1, got)
 	}
-	if err = <-errch; err != nil {
+	if err := <-errch; err != nil {
 		t.Fatalf("Got error from stat: %v", err)
 	}
 }
@@ -111,5 +122,35 @@ func TestReceiveStat(t *testing.T) {
 func TestStatWait(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	// TODO
+	tb := &testBlob{"Foo"}
+
+	// Do a stat before the blob exists, but wait 5 seconds for it to arrive.
+	const waitSeconds = 5
+	ch := make(chan *blobref.SizedBlobRef, 0)
+	errch := make(chan os.Error, 1)
+	go func() {
+		errch <- ds.Stat(ch, blobserver.DefaultPartition, tb.BlobRefSlice(), waitSeconds)
+		close(ch)
+	}()
+
+	// Sum and verify the stat results, writing the total number of returned matches
+	// to statCountCh (expected: 1)
+	statCountCh := make(chan int)
+	go func() {
+		got := 0
+		for sb := range ch {
+			got++
+			tb.AssertMatches(t, sb)
+		}
+		statCountCh <- got
+	}()
+
+	// Now upload the blob, now that everything else is in-flight.
+	// Sleep a bit to make sure the ds.Stat above has had a chance to fail and sleep.
+	time.Sleep(1e9 / 5)  // 200ms in nanos
+	tb.ExpectUploadBlob(t, ds)
+
+	if got := <- statCountCh; got != 1 {
+		t.Fatalf("Expected %d stat results; got %d", 1, got)
+	}
 }
