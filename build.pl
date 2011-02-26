@@ -27,12 +27,14 @@ use FindBin;
 my $opt_list;
 my $opt_eachclean;
 my $opt_verbose;
+my $opt_test;
 
 chdir($FindBin::Bin) or die "Couldn't chdir to $FindBin::Bin: $!";
 
 GetOptions("list" => \$opt_list,
            "eachclean" => \$opt_eachclean,
            "verbose" => \$opt_verbose,
+           "test" => \$opt_test,
     ) or usage();
 
 sub usage {
@@ -48,6 +50,7 @@ Usage:
 
 Other options:
   --verbose|-v         Verbose
+  --test|-t            Run tests where found
 EOM
 ;
 }
@@ -182,6 +185,17 @@ sub build {
         die "Error building $target $chain\n";
     }
     v("Built '$target'");
+
+    if ($opt_test) {
+        opendir(my $dh, $target);
+        my @test_files = grep { /_test\.go/ } grep { !/~$/ } readdir($dh);
+        closedir($dh);
+        if (@test_files) {
+            if (system("make", @quiet, "-C", $target, "test") != 0) {
+                die "Tests failed for $target\n";
+            }
+        }
+    }
 }
 
 sub read_targets {
