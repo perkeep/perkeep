@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	. "camli/testing"
 	"os"
 	"strings"
 	"testing"
@@ -81,10 +82,10 @@ func TestRfc3339FromNanos(t *testing.T) {
 }
 
 func TestRegularFile(t *testing.T) {
-	m, err := NewFileMap("schema_test.go", nil)
-	if err != nil {
-                t.Fatalf("Unexpected error: %v", err)
-        }
+	fileName := "schema_test.go"
+	fi, err := os.Lstat(fileName)
+        AssertNil(t, err, "test-symlink stat")
+	m := NewCommonFileMap("schema_test.go", fi)
 	json, err := MapToCamliJson(m)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -93,10 +94,10 @@ func TestRegularFile(t *testing.T) {
 }
 
 func TestSymlink(t *testing.T) {
-	m, err := NewFileMap("testdata/test-symlink", nil)
-	if err != nil {
-                t.Fatalf("Unexpected error: %v", err)
-        }
+	fileName := "testdata/test-symlink"
+	fi, err := os.Lstat(fileName)
+	AssertNil(t, err, "test-symlink stat")
+	m := NewCommonFileMap(fileName, fi)
 	json, err := MapToCamliJson(m)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
