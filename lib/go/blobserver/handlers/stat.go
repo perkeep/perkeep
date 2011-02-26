@@ -35,9 +35,7 @@ func CreateStatHandler(storage blobserver.Storage, partition blobserver.Partitio
 
 const maxStatBlobs = 1000
 
-// TODO: for testing, tighten this interface to exactly the one method
-// we need, rather than using all of blobserver.Storage
-func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition blobserver.Partition) {
+func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter, partition blobserver.Partition) {
 	toStat := make([]*blobref.BlobRef, 0)
 	switch req.Method {
 	case "POST":
