@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
@@ -211,7 +212,24 @@ func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserve
 	}
 
 	if len(missing) > 0 {
-		// TODO: use waitSeconds
+		if waitSeconds > 60 {
+			// TODO: use a flag, defaulting to 60?
+			waitSeconds = 60
+		}
+		hub := ds.GetBlobHub(partition)
+		ch := make(chan *blobref.BlobRef, 1)
+		for _, missblob := range missing {
+			hub.RegisterBlobListener(missblob, ch)
+			defer hub.UnregisterBlobListener(missblob, ch)
+		}
+		timer := time.NewTimer(int64(waitSeconds) * 1e9)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return nil
+		case <-ch:
+			log.Printf("TODO: stat/return")
+		}
 		log.Printf("TODO: wait for %d blobs: %#v", len(missing), missing)
 	}
 

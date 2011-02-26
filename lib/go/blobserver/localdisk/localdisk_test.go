@@ -124,8 +124,8 @@ func TestStatWait(t *testing.T) {
 	defer cleanUp(ds)
 	tb := &testBlob{"Foo"}
 
-	// Do a stat before the blob exists, but wait 5 seconds for it to arrive.
-	const waitSeconds = 5
+	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
+	const waitSeconds = 2
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
