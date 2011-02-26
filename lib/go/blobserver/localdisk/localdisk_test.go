@@ -19,6 +19,7 @@ package localdisk
 import (
 	"camli/blobref"
 	"camli/blobserver"
+	. "camli/testing"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -111,12 +112,8 @@ func TestReceiveStat(t *testing.T) {
 		tb.AssertMatches(t, sb)
 		break
 	}
-	if got != 1 {
-		t.Fatalf("Expected %d stat results; got %d", 1, got)
-	}
-	if err := <-errch; err != nil {
-		t.Fatalf("Got error from stat: %v", err)
-	}
+	AssertInt(t, 1, got, "number stat results")
+	AssertNil(t, <-errch, "result from stat")
 }
 
 func TestStatWait(t *testing.T) {
@@ -147,10 +144,43 @@ func TestStatWait(t *testing.T) {
 
 	// Now upload the blob, now that everything else is in-flight.
 	// Sleep a bit to make sure the ds.Stat above has had a chance to fail and sleep.
-	time.Sleep(1e9 / 5)  // 200ms in nanos
+	time.Sleep(1e9 / 5) // 200ms in nanos
 	tb.ExpectUploadBlob(t, ds)
 
-	if got := <- statCountCh; got != 1 {
-		t.Fatalf("Expected %d stat results; got %d", 1, got)
+	AssertInt(t, 1, <-statCountCh, "number stat results")
+}
+
+func TestMultiStat(t *testing.T) {
+	ds := NewStorage(t)
+	defer cleanUp(ds)
+
+	blobfoo := &testBlob{"foo"}
+	blobbar := &testBlob{"bar!"}
+	blobfoo.ExpectUploadBlob(t, ds)
+	blobbar.ExpectUploadBlob(t, ds)
+
+	need := make(map[string]bool)
+	need[blobfoo.BlobRef().String()] = true
+	need[blobbar.BlobRef().String()] = true
+
+	ch := make(chan *blobref.SizedBlobRef, 0)
+	errch := make(chan os.Error, 1)
+	go func() {
+		errch <- ds.Stat(ch,
+			blobserver.DefaultPartition,
+			[]*blobref.BlobRef{blobfoo.BlobRef(), blobbar.BlobRef()},
+			0)
+		close(ch)
+	}()
+	got := 0
+	for sb := range ch {
+		got++
+		br := sb.BlobRef
+		brstr := br.String()
+		Expect(t, need[brstr], "need stat of blobref " + brstr)
+		need[brstr] = false, false
 	}
+	ExpectInt(t, 2, got, "number stat results")
+	ExpectNil(t, <-errch, "result from stat")
+	ExpectInt(t, 0, len(need), "all stat results needed returned")
 }
