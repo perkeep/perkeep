@@ -256,7 +256,6 @@ TARGET: server/go/sigserver
     - lib/go/ext/openpgp/armor
 
 TARGET: website
-    # (no deps)
 
 TARGET: clients/go/camput
     - lib/go/client
@@ -273,7 +272,6 @@ TARGET: lib/go/http
     # (no deps, fork of Go's http library)
 
 TARGET: lib/go/ext/openpgp/error
-    # (no deps)
 
 TARGET: lib/go/ext/openpgp/packet
     - lib/go/ext/openpgp/error
@@ -284,6 +282,9 @@ TARGET: lib/go/ext/openpgp/armor
 
 TARGET: lib/go/schema
     - lib/go/blobref
+    - lib/go/testing
+
+TARGET: lib/go/testing
 
 TARGET: lib/go/client
     - lib/go/http
@@ -296,10 +297,10 @@ TARGET: lib/go/jsonsign
     - lib/go/ext/openpgp/error
 
 TARGET: lib/go/blobref
-    # (no deps)
 
 TARGET: lib/go/blobserver
     - lib/go/blobref
+    - lib/go/testing
 
 TARGET: lib/go/blobserver/handlers
     - server/go/auth
@@ -310,6 +311,7 @@ TARGET: lib/go/blobserver/handlers
 TARGET: lib/go/blobserver/localdisk
     - lib/go/blobref
     - lib/go/blobserver
+    - lib/go/testing
 
 TARGET: lib/go/httprange
 
