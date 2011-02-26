@@ -18,27 +18,10 @@ package blobserver
 
 import (
 	"camli/blobref"
+	. "camli/testing"
 	"testing"
 	"time"
 )
-
-func Expect(t *testing.T, got bool, what string) {
-	if !got {
-		t.Errorf("%s: got %v; expected %v", what, got, true)
-	}
-}
-
-func ExpectBool(t *testing.T, expect, got bool, what string) {
-	if expect != got {
-		t.Errorf("%s: got %v; expected %v", what, got, expect)
-	}
-}
-
-func ExpectInt(t *testing.T, expect, got int, what string) {
-	if expect != got {
-		t.Errorf("%s: got %d; expected %d", what, got, expect)
-	}
-}
 
 func TestHubRegistration(t *testing.T) {
 	hub := &SimpleBlobHub{}
