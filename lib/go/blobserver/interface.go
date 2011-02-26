@@ -41,26 +41,33 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist
 	// in the given partition, or 0 for no delay.
 	Stat(dest chan *blobref.SizedBlobRef,
-	partition Partition,
-	blobs []*blobref.BlobRef,
-	waitSeconds int) os.Error
+		partition Partition,
+		blobs []*blobref.BlobRef,
+		waitSeconds int) os.Error
+}
+
+type BlobEnumerator interface {
+	// EnumerateBobs sends at most limit SizedBlobRef into dest,
+	// sorted, as long as they are lexigraphically greater than
+	// after (if provided).
+	EnumerateBlobs(dest chan *blobref.SizedBlobRef,
+		partition Partition,
+		after string,
+		limit uint,
+		waitSeconds int) os.Error
 }
 
 type Storage interface {
 	blobref.Fetcher
 	BlobReceiver
 	BlobStatter
+	BlobEnumerator
 
 	// Remove 0 or more blobs from provided partition, which
 	// should be empty for the default partition.  Removal of
 	// non-existent items isn't an error.  Returns failure if any
 	// items existed but failed to be deleted.
 	Remove(partition Partition, blobs []*blobref.BlobRef) os.Error
-
-	// EnumerateBobs sends at most limit SizedBlobRef into dest,
-	// sorted, as long as they are lexigraphically greater than
-	// after (if provided).
-	EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition Partition, after string, limit uint) os.Error
 
 	// Returns the blob notification bus for a given partition.
 	GetBlobHub(partition Partition) BlobHub

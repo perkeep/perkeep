@@ -79,6 +79,9 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		case waitSeconds < 0:
 			waitSeconds = 0
 		case waitSeconds > 30:
+			// TODO: don't hard-code 30.  push this up into a blobserver interface
+			// for getting the configuration of the server (ultimately a flag in
+			// in the binary)
 			waitSeconds = 30
 		}
 	}

@@ -124,7 +124,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
 	if err != nil {
-		return &enumerateError{"readdirnames of " + dirFullPath, err}
+		return &enumerateError{"localdisk: readdirnames of " + dirFullPath, err}
 	}
 	sort.SortStrings(names)
 	for _, name := range names {
@@ -135,7 +135,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 		fullPath := dirFullPath + "/" + name
 		fi, err := os.Stat(fullPath)
 		if err != nil {
-			return &enumerateError{"stat of file " + fullPath, err}
+			return &enumerateError{"localdisk: stat of file " + fullPath, err}
 		}
 
 		if fi.IsDirectory() {
@@ -181,7 +181,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 	return nil
 }
 
-func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint) os.Error {
+func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) os.Error {
 	dirRoot := ds.root
 	if partition != "" {
 		dirRoot += "/partition/" + string(partition) + "/"

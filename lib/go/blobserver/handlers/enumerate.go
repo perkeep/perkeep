@@ -41,10 +41,24 @@ func CreateEnumerateHandler(storage blobserver.Storage, partition blobserver.Par
 	}
 }
 
-func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition blobserver.Partition) {
+func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator, partition blobserver.Partition) {
 	limit, err := strconv.Atoui(req.FormValue("limit"))
 	if err != nil || limit > maxEnumerate {
 		limit = maxEnumerate
+	}
+
+	waitSeconds := 0
+	if waitStr := req.FormValue("maxwaitsec"); waitStr != "" {
+		waitSeconds, _ = strconv.Atoi(waitStr)
+		switch {
+		case waitSeconds < 0:
+			waitSeconds = 0
+		case waitSeconds > 30:
+			// TODO: don't hard-code 30.  push this up into a blobserver interface
+			// for getting the configuration of the server (ultimately a flag in
+			// in the binary)
+			waitSeconds = 30
+		}
 	}
 
 	conn.SetHeader("Content-Type", "text/javascript; charset=utf-8")
@@ -53,7 +67,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	blobch := make(chan *blobref.SizedBlobRef, 100)
 	resultch := make(chan os.Error, 1)
 	go func() {
-		resultch <- storage.EnumerateBlobs(blobch, partition, req.FormValue("after"), limit+1)
+		resultch <- storage.EnumerateBlobs(blobch, partition, req.FormValue("after"), limit+1, waitSeconds)
 	}()
 
 	after := ""
@@ -100,6 +114,10 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	fmt.Fprintf(conn, "\n  ]")
 	if after != "" {
 		fmt.Fprintf(conn, ",\n  \"continueAfter\": \"%s\"", after)
+	}
+	const longPollSupported = true
+	if longPollSupported {
+		fmt.Fprintf(conn, ",\n  \"canLongPoll\": true")
 	}
 	fmt.Fprintf(conn, "\n}\n")
 }
