@@ -62,6 +62,10 @@ func (o *BlobRef) String() string {
 	return fmt.Sprintf("%s-%s", o.hashName, o.digest)
 }
 
+func (o *BlobRef) Equals(other *BlobRef) bool {
+	return o.hashName == other.hashName && o.digest == other.digest
+}
+
 func (o *BlobRef) Hash() hash.Hash {
 	fn, ok := supportedDigests[o.hashName]
 	if !ok {
