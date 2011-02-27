@@ -119,7 +119,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 	dirFullPath := opts.dirRoot + "/" + opts.pathInto
 	dir, err := os.Open(dirFullPath, os.O_RDONLY, 0)
 	if err != nil {
-		return &enumerateError{"opening directory " + dirFullPath, err}
+		return &enumerateError{"localdisk: opening directory " + dirFullPath, err}
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
@@ -187,12 +187,22 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 		dirRoot += "/partition/" + string(partition) + "/"
 	}
 	limitMutable := limit
-	return readBlobs(readBlobRequest{
-		ch:      dest,
-		dirRoot: dirRoot,
-		after:   after,
-		remain:  &limitMutable,
-	})
+	var err os.Error
+	doScan := func() {
+		err = readBlobs(readBlobRequest{
+			ch:      dest,
+			dirRoot: dirRoot,
+			after:   after,
+			remain:  &limitMutable,
+		})
+	}
+	doScan()
+	if err == nil && limitMutable == limit && waitSeconds > 0 {
+		// TODO: sleep w/ blobhub + select
+		doScan()
+		return nil
+	}
+	return err
 }
 
 const maxParallelStats = 20
@@ -230,7 +240,7 @@ func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserve
 		rateLimiter := make(chan bool, maxParallelStats)
 		for _, ref := range blobs {
 			go func(ref *blobref.BlobRef) {
-				rateLimiter<-true
+				rateLimiter <- true
 				errCh <- statSend(ref, waitSeconds > 0)
 				<-rateLimiter
 			}(ref)
