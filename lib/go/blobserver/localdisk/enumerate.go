@@ -23,6 +23,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
 type readBlobRequest struct {
@@ -104,9 +105,6 @@ func readBlobs(opts readBlobRequest) os.Error {
 		}
 	}
 
-	if opts.pathInto == "" {
-		opts.ch <- nil
-	}
 	return nil
 }
 
@@ -126,10 +124,32 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 		})
 	}
 	doScan()
-	if err == nil && limitMutable == limit && waitSeconds > 0 {
-		// TODO: sleep w/ blobhub + select
-		doScan()
-		return nil
+
+	// The not waiting case:
+	if err != nil || limitMutable != limit || waitSeconds == 0 {
+		dest <- nil
+		return err
 	}
+
+	// The case where we have to wait for waitSeconds for any blob
+	// to possibly appear.
+	hub := ds.GetBlobHub(partition)
+	ch := make(chan *blobref.BlobRef, 1)
+	hub.RegisterListener(ch)
+	defer hub.UnregisterListener(ch)
+	timer := time.NewTimer(int64(waitSeconds) * 1e9)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		// Done waiting.
+		return nil
+	case <-ch:
+		// Don't actually care what it is, but _something_
+		// arrived.  We can just re-scan.
+		// TODO: might be better to just stat this one item
+		// so there's no race?  But this is easier:
+		doScan()
+	}
+	dest <- nil
 	return err
 }
