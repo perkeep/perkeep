@@ -41,15 +41,33 @@ func CreateEnumerateHandler(storage blobserver.Storage, partition blobserver.Par
 	}
 }
 
+const errMsgMaxWaitSecWithAfter = "Can't use 'maxwaitsec' with 'after'.\n"
+
 func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator, partition blobserver.Partition) {
-	limit, err := strconv.Atoui(req.FormValue("limit"))
-	if err != nil || limit > maxEnumerate {
-		limit = maxEnumerate
+	// Potential input parameters
+	formValueLimit := req.FormValue("limit")
+	formValueMaxWaitSec := req.FormValue("maxwaitsec")
+	formValueAfter := req.FormValue("after")
+
+	var (
+		err os.Error
+		limit uint
+	)
+	if formValueLimit != "" {
+		limit, err = strconv.Atoui(formValueLimit)
+		if err != nil || limit > maxEnumerate {
+			limit = maxEnumerate
+		}
 	}
 
 	waitSeconds := 0
-	if waitStr := req.FormValue("maxwaitsec"); waitStr != "" {
-		waitSeconds, _ = strconv.Atoi(waitStr)
+	if formValueMaxWaitSec != "" {
+		waitSeconds, _ = strconv.Atoi(formValueMaxWaitSec)
+		if waitSeconds != 0 && formValueAfter != "" {
+			conn.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(conn, errMsgMaxWaitSecWithAfter)
+			return
+		}
 		switch {
 		case waitSeconds < 0:
 			waitSeconds = 0
@@ -67,7 +85,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	blobch := make(chan *blobref.SizedBlobRef, 100)
 	resultch := make(chan os.Error, 1)
 	go func() {
-		resultch <- storage.EnumerateBlobs(blobch, partition, req.FormValue("after"), limit+1, waitSeconds)
+		resultch <- storage.EnumerateBlobs(blobch, partition, formValueAfter, limit+1, waitSeconds)
 	}()
 
 	after := ""

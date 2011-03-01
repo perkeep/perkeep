@@ -34,13 +34,13 @@ func Assert(t *testing.T, got bool, what string) {
 
 func ExpectString(t *testing.T, expect, got string, what string) {
 	if expect != got {
-		t.Errorf("%s: got %v; expected %v", what, got, expect)
+		t.Errorf("%s: got %q; expected %q", what, got, expect)
 	}
 }
 
 func AssertString(t *testing.T, expect, got string, what string) {
 	if expect != got {
-		t.Fatalf("%s: got %v; expected %v", what, got, expect)
+		t.Fatalf("%s: got %q; expected %q", what, got, expect)
 	}
 }
 

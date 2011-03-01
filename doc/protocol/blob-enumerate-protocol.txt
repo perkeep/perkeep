@@ -26,14 +26,14 @@ URL GET parameters:
                            feature), then the server will return
                            immediately if any blobs or available, else
                            it will wait for this number of seconds.
-                           This option isn't supported with 'after'.
+                           It is an error to send this option with a non-
+                           zero value along with the 'after' option.
                            The server's reply must include
                            "canLongPoll" set to true if the server
                            supports this feature.  Even if the server
                            supports long polling, the server may cap
                            'maxwaitsec' and wait for less time than
                            requested by the client.
-
 
 
 Response:

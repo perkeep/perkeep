@@ -307,6 +307,7 @@ TARGET: lib/go/blobserver/handlers
     - server/go/httputil
     - lib/go/blobserver
     - lib/go/httprange
+    - lib/go/testing
 
 TARGET: lib/go/blobserver/localdisk
     - lib/go/blobref
