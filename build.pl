@@ -268,9 +268,6 @@ TARGET: clients/go/camget
     - lib/go/blobref
     - lib/go/schema
 
-TARGET: lib/go/http
-    # (no deps, fork of Go's http library)
-
 TARGET: lib/go/ext/openpgp/error
 
 TARGET: lib/go/ext/openpgp/packet
@@ -287,7 +284,6 @@ TARGET: lib/go/schema
 TARGET: lib/go/testing
 
 TARGET: lib/go/client
-    - lib/go/http
     - lib/go/blobref
 
 TARGET: lib/go/jsonsign

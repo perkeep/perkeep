@@ -19,10 +19,10 @@ package client
 import (
 	"bytes"
 	"camli/blobref"
-	"camli/http"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
+	"http"
 	"io"
 	"json"
 	"log"
@@ -41,6 +41,12 @@ type PutResult struct {
 	Size     int64
 	Skipped  bool    // already present on blobserver
 }
+
+type nopCloser struct {
+	io.Reader
+}
+
+func (nopCloser) Close() os.Error { return nil }
 
 // Note: must not touch data after calling this.
 func NewUploadHandleFromString(data string) *UploadHandle {
@@ -93,15 +99,14 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	// server and if not, the URL to upload it to.
 	url := fmt.Sprintf("%s/camli/stat", c.server)
 	requestBody := "camliversion=1&blob1="+blobRefString
-	req := http.NewPostRequest(
-		url,
-		"application/x-www-form-urlencoded",
-		strings.NewReader(requestBody))
-	req.Header["Authorization"] = c.authHeader()
+	req := newRequest("POST", url)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Body = &nopCloser{strings.NewReader(requestBody)}
+	req.Header.Add("Authorization", c.authHeader())
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
-	resp, err := req.Send()
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return error("stat http error", err)
 	}
@@ -142,16 +147,16 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	multiPartFooter := "\r\n--"+boundary+"--\r\n"
 
 	c.log.Printf("Uploading to URL: %s", uploadUrl)
-	req = http.NewPostRequest(uploadUrl,
-		"multipart/form-data; boundary="+boundary,
-		io.MultiReader(
-		        strings.NewReader(multiPartHeader),
-			h.Contents,
-		        strings.NewReader(multiPartFooter)))
-	req.Header["Authorization"] = c.authHeader()
+	req = newRequest("POST", uploadUrl)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Body = &nopCloser{io.MultiReader(
+		strings.NewReader(multiPartHeader),
+		h.Contents,
+			strings.NewReader(multiPartFooter))}
+	req.Header.Add("Authorization", c.authHeader())
 	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
 	req.TransferEncoding = nil
-	resp, err = req.Send()
+	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return error("upload http error", err)
 	}
@@ -162,16 +167,15 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 
 	if resp.StatusCode == 303 {
-		otherLocation, ok := resp.Header["Location"]
-		if !ok {
+		otherLocation := resp.Header.Get("Location")
+		if otherLocation == "" {
 			return error("303 without a Location", nil)
 		}
-		relUrl, err := http.ParseURL(otherLocation)
-		if err != nil {
-			return error("303 Location URL parse error", err)
-		}
 		baseUrl, _ := http.ParseURL(uploadUrl)
-		absUrl := baseUrl.Add(relUrl)
+		absUrl, err := baseUrl.ParseURL(otherLocation)
+		if err != nil {
+			return error("303 Location URL relative resolve error", err)
+		}
 		otherLocation = absUrl.String()
 		resp, _, err = http.Get(otherLocation)
 		if err != nil {

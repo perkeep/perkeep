@@ -19,12 +19,24 @@ package client
 import (
 	"bytes"
 	"camli/blobref"
-	"camli/http"
 	"fmt"
+	"http"
 	"io"
 	"os"
 	"strconv"
 )
+
+func newRequest(method, url string) *http.Request {
+	req := new(http.Request)
+	req.Method = method
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	req.Close = true
+	req.Header = http.Header(make(map[string][]string))
+	req.URL, _ = http.ParseURL(url)
+	req.RawURL = url
+	return req
+}
 
 func (c *Client) Fetch(b *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
 	return c.FetchVia(b, nil)
@@ -45,18 +57,18 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.Rea
 	        url = buf.String()
 	}
 
-	req := http.NewGetRequest(url)
+	req := newRequest("GET", url)
 
 	if c.HasAuthCredentials() {
-		req.Header["Authorization"] = c.authHeader()
+		req.Header.Add("Authorization", c.authHeader())
 	}
-	resp, err := req.Send()
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var size int64
-	if s := resp.GetHeader("Content-Length"); s != "" {
+	if s := resp.Header.Get("Content-Length"); s != "" {
 		size, _ = strconv.Atoi64(s)
 	}
 
