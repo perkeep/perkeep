@@ -26,7 +26,7 @@ import (
 	"strconv"
 )
 
-func newRequest(method, url string) *http.Request {
+func (c *Client) newRequest(method, url string) *http.Request {
 	req := new(http.Request)
 	req.Method = method
 	req.ProtoMajor = 1
@@ -35,6 +35,11 @@ func newRequest(method, url string) *http.Request {
 	req.Header = http.Header(make(map[string][]string))
 	req.URL, _ = http.ParseURL(url)
 	req.RawURL = url
+
+	if c.HasAuthCredentials() {
+		req.Header.Add("Authorization", c.authHeader())
+	}
+
 	return req
 }
 
@@ -57,11 +62,7 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.Rea
 	        url = buf.String()
 	}
 
-	req := newRequest("GET", url)
-
-	if c.HasAuthCredentials() {
-		req.Header.Add("Authorization", c.authHeader())
-	}
+	req := c.newRequest("GET", url)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, 0, err

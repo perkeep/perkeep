@@ -99,10 +99,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	// server and if not, the URL to upload it to.
 	url := fmt.Sprintf("%s/camli/stat", c.server)
 	requestBody := "camliversion=1&blob1="+blobRefString
-	req := newRequest("POST", url)
+	req := c.newRequest("POST", url)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = &nopCloser{strings.NewReader(requestBody)}
-	req.Header.Add("Authorization", c.authHeader())
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
@@ -147,13 +146,13 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	multiPartFooter := "\r\n--"+boundary+"--\r\n"
 
 	c.log.Printf("Uploading to URL: %s", uploadUrl)
-	req = newRequest("POST", uploadUrl)
+	req = c.newRequest("POST", uploadUrl)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Body = &nopCloser{io.MultiReader(
 		strings.NewReader(multiPartHeader),
 		h.Contents,
 			strings.NewReader(multiPartFooter))}
-	req.Header.Add("Authorization", c.authHeader())
+
 	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
 	req.TransferEncoding = nil
 	resp, err = http.DefaultClient.Do(req)

@@ -268,6 +268,10 @@ TARGET: clients/go/camget
     - lib/go/blobref
     - lib/go/schema
 
+TARGET: clients/go/camsync
+    - lib/go/client
+    - lib/go/blobref
+
 TARGET: lib/go/ext/openpgp/error
 
 TARGET: lib/go/ext/openpgp/packet

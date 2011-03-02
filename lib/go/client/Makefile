@@ -6,6 +6,7 @@ TARG=camli/client
 GOFILES=\
 	client.go\
 	config.go\
+	enumerate.go\
 	get.go\
 	upload.go\
 

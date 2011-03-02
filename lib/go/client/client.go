@@ -38,7 +38,7 @@ func (s *Stats) String() string {
 }
 
 type Client struct {
-	server   string
+	server   string  // URL prefix before "/camli/"
 	password string
 	
 	statsMutex  sync.Mutex
@@ -54,6 +54,13 @@ type ByCountAndBytes struct {
 
 func (bb *ByCountAndBytes) String() string {
 	return fmt.Sprintf("[blobs=%d bytes=%d]", bb.Blobs, bb.Bytes)
+}
+
+func New(server, password string) *Client {
+	return &Client{
+	server: server,
+	password: password,
+	}
 }
 
 func NewOrFail() *Client {
