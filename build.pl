@@ -297,6 +297,7 @@ TARGET: lib/go/jsonsign
     - lib/go/ext/openpgp/error
 
 TARGET: lib/go/blobref
+    - lib/go/testing
 
 TARGET: lib/go/blobserver
     - lib/go/blobref

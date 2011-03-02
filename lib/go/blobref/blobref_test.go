@@ -18,10 +18,12 @@ package blobref
 
 import (
 	"testing"
+	. "camli/testing"
 )
 
 func TestAll(t *testing.T) {
- 	br := Parse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	refStr := "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
+	br := Parse(refStr)
 	if br == nil {
 		t.Fatalf("Failed to parse blobref")
 	}
@@ -31,9 +33,8 @@ func TestAll(t *testing.T) {
 	if br.digest != "0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33" {
 		t.Errorf("Invalid digest")
 	}
-	if !br.IsSupported() {
-		t.Errorf("sha1 should be supported")
-	}
+	Expect(t, br.IsSupported(), "sha1 should be supported")
+	ExpectString(t, refStr, br.String(), "String() value")
 
 	hash := br.Hash()
 	hash.Write([]byte("foo"))
@@ -47,7 +48,7 @@ func TestAll(t *testing.T) {
 }
 
 func TestNotSupported(t *testing.T) {
- 	br := Parse("unknownfunc-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	br := Parse("unknownfunc-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	if br == nil {
 		t.Fatalf("Failed to parse blobref")
 	}

@@ -26,7 +26,7 @@ import (
 
 var kBlobRefPattern *regexp.Regexp = regexp.MustCompile(`^([a-z0-9]+)-([a-f0-9]+)$`)
 
-var supportedDigests = map[string]func()hash.Hash{
+var supportedDigests = map[string]func() hash.Hash{
 	"sha1": func() hash.Hash {
 		return sha1.New()
 	},
@@ -34,8 +34,10 @@ var supportedDigests = map[string]func()hash.Hash{
 
 // BlobRef is an immutable reference to a blob.
 type BlobRef struct {
-	hashName  string
-	digest    string
+	hashName string
+	digest   string
+
+	strValue string // "<hashname>-<digest>"
 }
 
 // SizedBlobRef is like a BlobRef but includes a (potentially mutable) size.
@@ -58,8 +60,8 @@ func (b *BlobRef) Digest() string {
 	return b.digest
 }
 
-func (o *BlobRef) String() string {
-	return fmt.Sprintf("%s-%s", o.hashName, o.digest)
+func (b *BlobRef) String() string {
+	return b.strValue
 }
 
 func (o *BlobRef) Equals(other *BlobRef) bool {
@@ -88,16 +90,23 @@ var kExpectedDigestSize = map[string]int{
 	"sha1": 40,
 }
 
+func newBlob(hashName, digest string) *BlobRef {
+	strValue := fmt.Sprintf("%s-%s", hashName, digest)
+	return &BlobRef{strValue[0:len(hashName)],
+		strValue[len(hashName)+1:],
+		strValue}
+}
+
 func blobIfValid(hashname, digest string) *BlobRef {
 	expectedSize := kExpectedDigestSize[hashname]
 	if expectedSize != 0 && len(digest) != expectedSize {
 		return nil
 	}
-	return &BlobRef{hashname, digest}
+	return newBlob(hashname, digest)
 }
 
 func FromHash(name string, h hash.Hash) *BlobRef {
-	return &BlobRef{name, fmt.Sprintf("%x", h.Sum())}
+	return newBlob(name, fmt.Sprintf("%x", h.Sum()))
 }
 
 // FromPattern takes a pattern and if it matches 's' with two exactly two valid

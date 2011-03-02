@@ -47,5 +47,3 @@ func (df *dirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os
 	size = stat.Size
 	return
 }
-
-
