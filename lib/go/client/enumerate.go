@@ -32,6 +32,8 @@ const enumerateBatchSize = 10
 
 // Note: closes ch.
 func (c *Client) EnumerateBlobsAfter(ch chan *blobref.SizedBlobRef, after string) os.Error {
+	defer close(ch)
+
 	error := func(msg string, e os.Error) os.Error {
 		err := os.NewError(fmt.Sprintf("client enumerate error: %s: %v", msg, e))
 		c.log.Print(err.String())
@@ -42,7 +44,6 @@ func (c *Client) EnumerateBlobsAfter(ch chan *blobref.SizedBlobRef, after string
 	for keepGoing {
 		url := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d",
 			c.server, http.URLEscape(after), enumerateBatchSize)
-		c.log.Print("Fetching " + url)
 		req := c.newRequest("GET", url)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -80,8 +81,6 @@ func (c *Client) EnumerateBlobsAfter(ch chan *blobref.SizedBlobRef, after string
 
 		after, keepGoing = getJsonMapString(json, "continueAfter")
 	}
-
-	close(ch)
 	return nil
 }
 
