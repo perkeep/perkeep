@@ -132,7 +132,7 @@ func main() {
 		}
 	} else {
 		go func() {
-			destErr <- sc.EnumerateBlobs(destBlobs)
+			destErr <- dc.EnumerateBlobs(destBlobs)
 		}()
 
 		// Merge sort srcBlobs and destBlobs

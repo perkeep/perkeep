@@ -23,7 +23,6 @@ import (
 	"http"
 	"io"
 	"os"
-	"strconv"
 )
 
 func (c *Client) newRequest(method, url string) *http.Request {
@@ -68,9 +67,9 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.Rea
 		return nil, 0, err
 	}
 
-	var size int64
-	if s := resp.Header.Get("Content-Length"); s != "" {
-		size, _ = strconv.Atoi64(s)
+	size := resp.ContentLength
+	if size == -1 {
+		return nil, 0, os.NewError("blobserver didn't return a Content-Length for blob")
 	}
 
 	return nopSeeker{resp.Body}, size, nil	

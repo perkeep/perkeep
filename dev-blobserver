@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+
+use strict;
+use FindBin;
+use Getopt::Long;
+
+sub usage {
+    die "Usage: dev-blobserver [--wipe] <portnumber> -- [other_camlistored_opts]";
+}
+
+my $opt_wipe;
+GetOptions("wipe" => \$opt_wipe)
+    or usage();
+
+my $port = shift || "3179";
+usage() unless $port =~ /^\d+$/;
+
+system("./build.pl", "server/go/blobserver") and die "Failed to build.\n";
+
+my $root = "/tmp/camliroot/port$port/";
+if ($opt_wipe && -d $root) {
+    print "Wiping $root\n";
+    system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
+}
+unless (-d $root) {
+    system("mkdir", "-p", $root) and die "Failed to create $root.\n";
+}
+
+print "Starting blobserver on http://localhost:$port/ in $root\n";
+
+$ENV{CAMLI_PASSWORD} = "pass$port";
+exec("$FindBin::Bin/server/go/blobserver/camlistored",
+     "-root=$root",
+     "-listen=:$port",
+     @ARGV);

@@ -31,6 +31,7 @@ import (
 	"json"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -208,6 +209,8 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 			}
 		}
 		input = bufReader
+
+		conn.SetHeader("Content-Length", strconv.Itoa64(size))
 	}
 
 	conn.SetHeader("Content-Type", contentType)

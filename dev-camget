@@ -1,4 +1,4 @@
 #!/bin/sh
 
 ./build.pl camget && \
-  clients/go/camget/camget --verbose --blobserver=localhost:3179 --password=foo $@
+  clients/go/camget/camget --verbose --blobserver=localhost:3179 --password=pass3179 $@
