@@ -11,6 +11,7 @@ import (
 	"camli/blobserver"
 	"camli/blobserver/localdisk"
 	"camli/blobserver/handlers"
+	"camli/mysqlindexer" // TODO: temporary for testing; wrong place kinda
 	"flag"
 	"fmt"
 	"http"
@@ -23,6 +24,7 @@ var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root direct
 var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
 
 var storage blobserver.Storage
+var indexerStorage blobserver.Storage
 
 const camliPrefix = "/camli/"
 const partitionPrefix = "/partition-"
@@ -72,7 +74,33 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		unsupportedHandler(conn, req)
 		return
 	}
+	handleCamliUsingStorage(conn, req, action, partition, storage)
+}
 
+func handleIndexRequest(conn http.ResponseWriter, req *http.Request) {
+	const prefix = "/indexer"
+	if !strings.HasPrefix(req.URL.Path, prefix) {
+		panic("bogus request")
+		return
+	}
+	path := req.URL.Path[len(prefix):]
+	partition, action, err := parseCamliPath(path)
+	if err != nil {
+		log.Printf("Invalid request for method %q, path %q", 
+			req.Method, req.URL.Path)
+		unsupportedHandler(conn, req)
+		return
+	}
+	if partition != "" {
+		conn.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(conn, "Indexer doesn't support partitions.")
+		return
+	}
+	handleCamliUsingStorage(conn, req, action, partition, indexerStorage)
+}
+
+func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request,
+	action string, partition blobserver.Partition, storage blobserver.Storage) {
 	handler := unsupportedHandler
 	if *flagRequestLog {
 		log.Printf("method %q; partition %q; action %q", req.Method, partition, action)
@@ -148,6 +176,15 @@ func main() {
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
+
+	// TODO: temporary
+	if true {
+		indexerStorage = &mysqlindexer.Indexer{}
+		ws.HandleFunc("/indexer/", handleIndexRequest)
+	}
+
+
+
 	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
 	ws.Serve()
 }
