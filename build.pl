@@ -122,7 +122,7 @@ sub v {
 
 sub clean {
     for my $root ("$ENV{GOROOT}/pkg/linux_amd64",
-                 "$ENV{GOROOT}/pkg/linux_386") {
+                  "$ENV{GOROOT}/pkg/linux_386") {
         for my $pkg ("camli", "crypto/openpgp") {
             my $dir = "$root/$pkg";
             next unless -d $dir;
@@ -162,6 +162,16 @@ sub build {
     return if $already_built;
     $built{$target} = 1;
 
+    if ($target =~ /^ext:(.+)/) {
+        die "\$GOROOT not set" unless $ENV{GOROOT} && -d $ENV{GOROOT};
+        my $golib = $1;
+        my @files = glob("$ENV{GOROOT}/pkg/*/${golib}.a");
+        unless (@files) {
+            die "You need to run:\n\n\tgoinstall $golib\n";
+        }
+        return;
+    }
+    
     my $t = $targets{$target} or die "Bogus build target: $target\n";
 
     # Dependencies first.
@@ -319,3 +329,9 @@ TARGET: lib/go/httprange
 
 TARGET: clients/android/uploader
     =not_in_all  # too slow
+
+TARGET: lib/go/mysqlindexer
+    - ext:github.com/Philio/GoMySQL
+    - lib/go/blobref
+    - lib/go/blobserver
+    - lib/go/testing
