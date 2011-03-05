@@ -42,63 +42,6 @@ func usage(err string) {
 	os.Exit(2)
 }
 
-// TODO: use Generics if/when available
-type chanPeeker struct {
-	ch     chan *blobref.SizedBlobRef
-	peek   *blobref.SizedBlobRef
-	Closed bool
-}
-
-func (cp *chanPeeker) Peek() *blobref.SizedBlobRef {
-	if cp.Closed {
-		return nil
-	}
-	if cp.peek != nil {
-		return cp.peek
-	}
-	cp.peek = <-cp.ch
-	if closed(cp.ch) {
-		cp.Closed = true
-		return nil
-	}
-	return cp.peek
-}
-
-func (cp *chanPeeker) Take() *blobref.SizedBlobRef {
-	v := cp.Peek()
-	cp.peek = nil
-	return v
-}
-
-func yieldMissingDestinationBlobs(destMissing, srcch, dstch chan *blobref.SizedBlobRef) {
-	defer close(destMissing)
-
-	src := &chanPeeker{ch: srcch}
-	dst := &chanPeeker{ch: dstch}
-
-	for src.Peek() != nil {
-		// If the destination has reached its end, anything
-		// remaining in the source is needed.
-		if dst.Peek() == nil {
-			destMissing <- src.Take()
-			continue
-		}
-
-		srcStr := src.Peek().BlobRef.String()
-		dstStr := dst.Peek().BlobRef.String()
-		switch {
-		case srcStr == dstStr:
-			// Skip both
-			src.Take()
-			dst.Take()
-		case srcStr < dstStr:
-			src.Take()
-		case srcStr > dstStr:
-			destMissing <- src.Take()
-		}
-	}
-}
-
 func main() {
 	flag.Parse()
 
@@ -138,7 +81,7 @@ func main() {
 
 		// Merge sort srcBlobs and destBlobs
 		destNotHaveBlobs := make(chan *blobref.SizedBlobRef, 100)
-		go yieldMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
+		go client.ListMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
 		for sb := range destNotHaveBlobs {
 			fmt.Printf("Destination needs blob: %s\n", sb)
 

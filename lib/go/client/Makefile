@@ -9,5 +9,6 @@ GOFILES=\
 	enumerate.go\
 	get.go\
 	upload.go\
+	sync.go\
 
 include $(GOROOT)/src/Make.pkg
