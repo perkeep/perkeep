@@ -145,7 +145,7 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 			bytesCopied += pr.Size
 		}
 		if *flagRemoveSource {
-			if err = sc.Remove(sb.BlobRef); err != nil {
+			if err = sc.RemoveBlob(sb.BlobRef); err != nil {
 				errorCount++
 				log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
 			}
