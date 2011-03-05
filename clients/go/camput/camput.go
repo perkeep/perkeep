@@ -78,12 +78,12 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error
 
 func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 	fi, err := os.Lstat(filename)
-        if err != nil {
-                return nil, err
-        }
+	if err != nil {
+		return nil, err
+	}
 
 	m := schema.NewCommonFileMap(filename, fi)
-	
+
 	switch {
 	case fi.IsRegular():
 		// Put the blob of the file itself.  (TODO: smart boundary chunking)
@@ -92,7 +92,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 		if err != nil {
 			return nil, err
 		}
-		parts := []schema.ContentPart{ {BlobRef: blobpr.BlobRef, Size: blobpr.Size }}
+		parts := []schema.ContentPart{{BlobRef: blobpr.BlobRef, Size: blobpr.Size}}
 		if blobpr.Size != fi.Size {
 			// TODO: handle races of file changing while reading it
 			// after the stat.
@@ -103,17 +103,17 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 	case fi.IsSymlink():
 		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
 			return nil, err
-                }
+		}
 	case fi.IsDirectory():
 		ss := new(schema.StaticSet)
 		dir, err := os.Open(filename, os.O_RDONLY, 0)
 		if err != nil {
-                        return nil, err
-                }
+			return nil, err
+		}
 		dirNames, err := dir.Readdirnames(-1)
 		if err != nil {
-                        return nil, err
-                }
+			return nil, err
+		}
 		dir.Close()
 		sort.SortStrings(dirNames)
 		// TODO: process dirName entries in parallel
@@ -126,9 +126,9 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 		}
 		sspr, err := up.UploadMap(ss.Map())
 		if err != nil {
-                                return nil, err
-                }
-                schema.PopulateDirectoryMap(m, sspr.BlobRef)
+			return nil, err
+		}
+		schema.PopulateDirectoryMap(m, sspr.BlobRef)
 	case fi.IsBlock():
 		fallthrough
 	case fi.IsChar():
@@ -148,8 +148,8 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.Error) {
 	json, err := schema.MapToCamliJson(m)
 	if err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 	if *flagVerbose {
 		fmt.Printf("json: %s\n", json)
 	}
@@ -170,9 +170,9 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 	}
 	sr := &jsonsign.SignRequest{
 		UnsignedJson: unsigned,
-		Fetcher: up.Client.GetBlobFetcher(),
-		UseAgent: true,
-	} 
+		Fetcher:      up.Client.GetBlobFetcher(),
+		UseAgent:     true,
+	}
 	return sr.Sign()
 }
 
