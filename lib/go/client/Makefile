@@ -8,7 +8,8 @@ GOFILES=\
 	config.go\
 	enumerate.go\
 	get.go\
-	upload.go\
+	remove.go\
 	sync.go\
+	upload.go\
 
 include $(GOROOT)/src/Make.pkg
