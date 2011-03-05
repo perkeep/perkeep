@@ -28,6 +28,6 @@ func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
 	limit uint,
 	waitSeconds int) os.Error {
 	// TODO: finish
-	return os.NewError("Fetch isn't supported by the MySQL indexer")
+	return os.NewError("EnumerateBlobs isn't supported by the MySQL indexer")
 }
 

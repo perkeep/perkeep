@@ -20,8 +20,11 @@ import (
 	"os"
 )
 
-var flagStorageRoot *string = flag.String("root", "/tmp/camliroot", "Root directory to store files")
-var flagRequestLog *bool = flag.Bool("reqlog", false, "Log incoming requests")
+var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
+var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
+
+// TODO: Temporary
+var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
 
 var storage blobserver.Storage
 var indexerStorage blobserver.Storage
@@ -178,12 +181,19 @@ func main() {
 	ws.HandleFunc("/camli/", handleCamli)
 
 	// TODO: temporary
-	if true {
-		indexerStorage = &mysqlindexer.Indexer{}
+	if *flagDevMySql {
+		myIndexer := &mysqlindexer.Indexer{
+		Host: "localhost",
+		User: "root",
+		Password: "root",
+		Database: "camlistore",
+		}
+		if ok, err := myIndexer.IsAlive(); !ok {
+			log.Fatalf("Could not connect indexer to MySQL server: %s", err)
+		}
+		indexerStorage = myIndexer
 		ws.HandleFunc("/indexer/", handleIndexRequest)
 	}
-
-
 
 	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
 	ws.Serve()

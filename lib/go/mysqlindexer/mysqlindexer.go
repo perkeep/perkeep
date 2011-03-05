@@ -37,6 +37,49 @@ type Indexer struct {
 	cachedClients []*mysql.Client
 }
 
+func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
+	var client *mysql.Client
+	client, err = mi.getConnection()
+	defer mi.releaseConnection(client)
+
+	if err != nil {
+		return
+	}
+	err = client.Query("SELECT 1 + 1")
+	if err != nil {
+		return
+	}
+	_, err = client.UseResult()
+	if err != nil {
+		return
+	}
+	client.FreeResult()
+	return true, nil
+}
+
+// Get a free cached connection or allocate a new one.
+func (mi *Indexer) getConnection() (client *mysql.Client, err os.Error) {
+	mi.clientLock.Lock()
+	if len(mi.cachedClients) > 0 {
+		defer mi.clientLock.Unlock()
+		client = mi.cachedClients[len(mi.cachedClients)-1]
+		mi.cachedClients = mi.cachedClients[:len(mi.cachedClients)-1]
+		// TODO: Outside the mutex, double check that the client is still good.
+		return
+	}
+	mi.clientLock.Unlock()
+
+	client, err = mysql.DialTCP(mi.Host, mi.User, mi.Password, mi.Database)
+	return
+}
+
+// Release a client to the cached client pool.
+func (mi *Indexer) releaseConnection(client *mysql.Client) {
+	mi.clientLock.Lock()
+	defer mi.clientLock.Unlock()
+	mi.cachedClients = append(mi.cachedClients, client)
+}
+
 func (mi *Indexer) GetBlobHub(partition blobserver.Partition) blobserver.BlobHub {
 	mi.hubLock.Lock()
 	defer mi.hubLock.Unlock()
