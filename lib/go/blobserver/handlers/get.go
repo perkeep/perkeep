@@ -36,6 +36,7 @@ import (
 	"time"
 )
 
+// TODO: support gets on partitions?  Be less rigid here.
 var kGetPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
 func CreateGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.Request) {
@@ -53,106 +54,26 @@ func sendUnauthorized(conn http.ResponseWriter) {
 }
 
 func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetcher) {
-	isOwner := auth.IsAuthorized(req)
-
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed GET URL.")
 		return
 	}
 
-	var viaBlobs []*blobref.BlobRef
-	if !isOwner {
-		viaPathOkay := false
-		startTime := time.Nanoseconds()
-		defer func() {
-			if !viaPathOkay {
-				// Insert a delay, to hide timing attacks probing
-				// for the existence of blobs.
-				sleep := fetchFailureDelayNs - (time.Nanoseconds() - startTime)
-				if sleep > 0 {
-					time.Sleep(sleep)
-				}
-			}
-		}()
-		viaBlobs = make([]*blobref.BlobRef, 0)
-		if via := req.FormValue("via"); via != "" {
-			for _, vs := range strings.Split(via, ",", -1) {
-				if br := blobref.Parse(vs); br == nil {
-					httputil.BadRequestError(conn, "Malformed blobref in via param")
-					return
-				} else {
-					viaBlobs = append(viaBlobs, br)
-				}
-			}
-		}
-
-		fetchChain := make([]*blobref.BlobRef, 0)
-		fetchChain = append(fetchChain, viaBlobs...)
-		fetchChain = append(fetchChain, blobRef)
-		for i, br := range fetchChain {
-			switch i {
-			case 0:
-				file, size, err := fetcher.Fetch(br)
-				if err != nil {
-					log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
-					sendUnauthorized(conn)
-					return
-				}
-				defer file.Close()
-				if size > maxJsonSize {
-					log.Printf("Fetch chain 0 of %s too large", br.String())
-					sendUnauthorized(conn)
-					return
-				}
-				jd := json.NewDecoder(file)
-				m := make(map[string]interface{})
-				if err := jd.Decode(&m); err != nil {
-					log.Printf("Fetch chain 0 of %s wasn't JSON: %v", br.String(), err)
-					sendUnauthorized(conn)
-					return
-				}
-				if m["camliType"].(string) != "share" {
-					log.Printf("Fetch chain 0 of %s wasn't a share", br.String())
-					sendUnauthorized(conn)
-					return
-				}
-				if len(fetchChain) > 1 && fetchChain[1].String() != m["target"].(string) {
-					log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
-						br.String(), fetchChain[1].String(), m["target"])
-					sendUnauthorized(conn)
-					return
-				}
-			case len(fetchChain) - 1:
-				// Last one is fine (as long as its path up to here has been proven, and it's
-				// not the first thing in the chain)
-				continue
-			default:
-				file, _, err := fetcher.Fetch(br)
-				if err != nil {
-					log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
-					sendUnauthorized(conn)
-					return
-				}
-				defer file.Close()
-				lr := io.LimitReader(file, maxJsonSize)
-				slurpBytes, err := ioutil.ReadAll(lr)
-				if err != nil {
-					log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
-					sendUnauthorized(conn)
-					return
-				}
-				saught := fetchChain[i+1].String()
-				if bytes.IndexAny(slurpBytes, saught) == -1 {
-					log.Printf("Fetch chain %d of %s failed; no reference to %s",
-						i, br.String(), saught)
-					sendUnauthorized(conn)
-					return
-				}
-			}
-		}
-		viaPathOkay = true
+	switch {
+	case auth.IsAuthorized(req):
+		serveBlobRef(conn, req, blobRef, fetcher)
+	case auth.TriedAuthorization(req):
+		log.Printf("Attempted authorization failed on %s", req.URL)
+		sendUnauthorized(conn)
+	default:
+		handleGetViaSharing(conn, req, blobRef, fetcher)
 	}
+}
+
+// serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
+func serveBlobRef(conn http.ResponseWriter, req *http.Request,
+	blobRef *blobref.BlobRef, fetcher blobref.Fetcher) {
 
 	file, size, err := fetcher.Fetch(blobRef)
 	switch err {
@@ -239,12 +160,112 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 		killConnection()
 		return
 	}
+
 	if bytesCopied != remainBytes {
 		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied=%d, not %d\n", blobRef,
 			bytesCopied, remainBytes)
 		killConnection()
 		return
 	}
+}
+
+// Unauthenticated user.  Be paranoid.
+func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
+	blobRef *blobref.BlobRef, fetcher blobref.Fetcher) {
+
+	viaPathOkay := false
+	startTime := time.Nanoseconds()
+	defer func() {
+		if !viaPathOkay {
+			// Insert a delay, to hide timing attacks probing
+			// for the existence of blobs.
+			sleep := fetchFailureDelayNs - (time.Nanoseconds() - startTime)
+			if sleep > 0 {
+				time.Sleep(sleep)
+			}
+		}
+	}()
+	viaBlobs := make([]*blobref.BlobRef, 0)
+	if via := req.FormValue("via"); via != "" {
+		for _, vs := range strings.Split(via, ",", -1) {
+			if br := blobref.Parse(vs); br == nil {
+				httputil.BadRequestError(conn, "Malformed blobref in via param")
+				return
+			} else {
+				viaBlobs = append(viaBlobs, br)
+			}
+		}
+	}
+
+	fetchChain := make([]*blobref.BlobRef, 0)
+	fetchChain = append(fetchChain, viaBlobs...)
+	fetchChain = append(fetchChain, blobRef)
+	for i, br := range fetchChain {
+		switch i {
+		case 0:
+			file, size, err := fetcher.Fetch(br)
+			if err != nil {
+				log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
+				sendUnauthorized(conn)
+				return
+			}
+			defer file.Close()
+			if size > maxJsonSize {
+				log.Printf("Fetch chain 0 of %s too large", br.String())
+				sendUnauthorized(conn)
+				return
+			}
+			jd := json.NewDecoder(file)
+			m := make(map[string]interface{})
+			if err := jd.Decode(&m); err != nil {
+				log.Printf("Fetch chain 0 of %s wasn't JSON: %v", br.String(), err)
+				sendUnauthorized(conn)
+				return
+			}
+			if m["camliType"].(string) != "share" {
+				log.Printf("Fetch chain 0 of %s wasn't a share", br.String())
+				sendUnauthorized(conn)
+				return
+			}
+			if len(fetchChain) > 1 && fetchChain[1].String() != m["target"].(string) {
+				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
+					br.String(), fetchChain[1].String(), m["target"])
+				sendUnauthorized(conn)
+				return
+			}
+		case len(fetchChain) - 1:
+			// Last one is fine (as long as its path up to here has been proven, and it's
+			// not the first thing in the chain)
+			continue
+		default:
+			file, _, err := fetcher.Fetch(br)
+			if err != nil {
+				log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
+				sendUnauthorized(conn)
+				return
+			}
+			defer file.Close()
+			lr := io.LimitReader(file, maxJsonSize)
+			slurpBytes, err := ioutil.ReadAll(lr)
+			if err != nil {
+				log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
+				sendUnauthorized(conn)
+				return
+			}
+			saught := fetchChain[i+1].String()
+			if bytes.IndexAny(slurpBytes, saught) == -1 {
+				log.Printf("Fetch chain %d of %s failed; no reference to %s",
+					i, br.String(), saught)
+				sendUnauthorized(conn)
+				return
+			}
+		}
+	}
+
+	viaPathOkay = true
+
+	serveBlobRef(conn, req, blobRef, fetcher)
+
 }
 
 // TODO: copied this from lib/go/schema, but this might not be ideal.
@@ -256,7 +277,6 @@ func isValidUtf8(s string) bool {
 		}
 	}
 	return true
-
 }
 
 func blobFromUrlPath(path string) *blobref.BlobRef {

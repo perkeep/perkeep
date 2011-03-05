@@ -22,6 +22,9 @@ import (
 )
 
 type Fetcher interface {
+	// Fetch returns a blob.  If the blob is not found then
+	// os.ENOENT should be returned for the error (not a wrapped
+	// error with a ENOENT inside)
 	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
 }
 

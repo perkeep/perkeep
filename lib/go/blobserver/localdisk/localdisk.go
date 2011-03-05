@@ -69,6 +69,9 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 	}
 	file, err := os.Open(fileName, os.O_RDONLY, 0)
 	if err != nil {
+		if errorIsNoEnt(err) {
+			err = os.ENOENT
+		}
 		return nil, 0, err
 	}
 	return file, stat.Size, nil

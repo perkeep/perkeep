@@ -31,6 +31,8 @@ func (p Partition) IsDefault() bool {
 }
 
 type BlobReceiver interface {
+	// ReceiveBlob accepts a newly uploaded blob and writes it to
+	// disk.
 	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
 }
 
