@@ -66,13 +66,13 @@ func pickPartitionHandlerMaybe(req *http.Request) (handler http.HandlerFunc, int
 }
 
 func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
-        httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
+	httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
 }
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
 	partition, action, err := parseCamliPath(req.URL.Path)
 	if err != nil {
-		log.Printf("Invalid request for method %q, path %q", 
+		log.Printf("Invalid request for method %q, path %q",
 			req.Method, req.URL.Path)
 		unsupportedHandler(conn, req)
 		return
@@ -89,7 +89,7 @@ func handleIndexRequest(conn http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path[len(prefix):]
 	partition, action, err := parseCamliPath(path)
 	if err != nil {
-		log.Printf("Invalid request for method %q, path %q", 
+		log.Printf("Invalid request for method %q, path %q",
 			req.Method, req.URL.Path)
 		unsupportedHandler(conn, req)
 		return
@@ -103,7 +103,7 @@ func handleIndexRequest(conn http.ResponseWriter, req *http.Request) {
 }
 
 func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request,
-	action string, partition blobserver.Partition, storage blobserver.Storage) {
+action string, partition blobserver.Partition, storage blobserver.Storage) {
 	handler := unsupportedHandler
 	if *flagRequestLog {
 		log.Printf("method %q; partition %q; action %q", req.Method, partition, action)
@@ -183,10 +183,10 @@ func main() {
 	// TODO: temporary
 	if *flagDevMySql {
 		myIndexer := &mysqlindexer.Indexer{
-		Host: "localhost",
-		User: "root",
-		Password: "root",
-		Database: "camlistore",
+			Host:     "localhost",
+			User:     "root",
+			Password: "root",
+			Database: "camlistore",
 		}
 		if ok, err := myIndexer.IsAlive(); !ok {
 			log.Fatalf("Could not connect indexer to MySQL server: %s", err)

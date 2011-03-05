@@ -102,4 +102,3 @@ func (mi *Indexer) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, 
 func (mi *Indexer) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
 	return os.NewError("Remove isn't supported by the MySQL indexer")
 }
-

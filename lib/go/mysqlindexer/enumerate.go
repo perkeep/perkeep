@@ -23,11 +23,10 @@ import (
 )
 
 func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
-	partition blobserver.Partition,
-	after string,
-	limit uint,
-	waitSeconds int) os.Error {
+partition blobserver.Partition,
+after string,
+limit uint,
+waitSeconds int) os.Error {
 	// TODO: finish
 	return os.NewError("EnumerateBlobs isn't supported by the MySQL indexer")
 }
-
