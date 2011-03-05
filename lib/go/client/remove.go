@@ -29,7 +29,7 @@ import (
 )
 
 type removeResponse struct {
-	removed []string
+	Removed []string "removed"
 }
 
 // Remove the list of blobs. An error is returned if the server failed to
@@ -39,7 +39,10 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	params := make(map[string][]string)  // "blobN" -> BlobRefStr
 	needsDelete := make(map[string]bool) // BlobRefStr -> true
 	for n, b := range blobs {
-		key := fmt.Sprintf("blob%v", n)
+		if b == nil {
+			return os.NewError("Cannot delete nil blobref")
+		}
+		key := fmt.Sprintf("blob%v", n+1)
 		params[key] = []string{b.String()}
 		needsDelete[b.String()] = true
 	}
@@ -77,9 +80,9 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	resp.Body.Close()
 	var remResp removeResponse
 	if jerr := json.Unmarshal(buf.Bytes(), &remResp); jerr != nil {
-		return jerr
+		return os.NewError(fmt.Sprintf("Failed to parse remove response %q: %s", buf.String(), jerr))
 	}
-	for _, value := range remResp.removed {
+	for _, value := range remResp.Removed {
 		needsDelete[value] = false, false
 	}
 
@@ -96,11 +99,7 @@ func (c *Client) RemoveBlob(b *blobref.BlobRef) os.Error {
 	return c.RemoveBlobs([]*blobref.BlobRef{b})
 }
 
-func stringKeys(v interface{}) (s []string) {
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		panic("Wrong type")
-	}
+func stringKeys(m map[string]bool) (s []string) {
 	s = make([]string, 0, len(m))
 	for key, _ := range m {
 		s = append(s, key)

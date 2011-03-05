@@ -40,7 +40,7 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 
 	if partition == "" {
 		// TODO: remove this hard-coded policy and make configurable?
-		conn.WriteHeader(http.StatusUnauthorized)
+		conn.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(conn, "Can't remove blobs from the default partition.\n")
 		return
 	}

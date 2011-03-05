@@ -122,3 +122,12 @@ func FromPattern(r *regexp.Regexp, s string) *BlobRef {
 func Parse(ref string) *BlobRef {
 	return FromPattern(kBlobRefPattern, ref)
 }
+
+// May return nil in list positions where the blobref could not be parsed.
+func ParseMulti(refs []string) (parsed []*BlobRef) {
+	parsed = make([]*BlobRef, 0, len(refs))
+	for _, ref := range refs {
+		parsed = append(parsed, Parse(ref))
+	}
+	return
+}

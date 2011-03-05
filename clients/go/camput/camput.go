@@ -28,6 +28,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 )
 
 // Things that can be uploaded.  (at most one of these)
@@ -37,6 +38,7 @@ var flagPermanode = flag.Bool("permanode", false, "create a new permanode")
 var flagInit = flag.Bool("init", false, "first-time configuration.")
 var flagShare = flag.Bool("share", false, "create a camli share by haveref with the given blobrefs")
 var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
+var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
@@ -237,7 +239,7 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	if sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare) != 1 {
+	if sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove) != 1 {
 		// TODO: say which ones are conflicting
 		usage("Conflicting mode options.")
 	}
@@ -278,6 +280,15 @@ func main() {
 		}
 		pr, err := uploader.UploadShare(br, *flagTransitive)
 		handleResult("share", pr, err)
+	case *flagRemove:
+		if flag.NArg() == 0 {
+			log.Fatalf("--remove takes one or more blobrefs")
+		}
+		err := uploader.RemoveBlobs(blobref.ParseMulti(flag.Args()))
+		if err != nil {
+			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
+			wereErrors = true
+		}
 	}
 
 	if *flagVerbose {
