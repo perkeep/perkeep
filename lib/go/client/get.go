@@ -67,6 +67,10 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.Rea
 		return nil, 0, err
 	}
 
+	if resp.StatusCode != 200 {
+		return nil, 0, os.NewError(fmt.Sprintf("Got status code %d from blobserver for %s", resp.StatusCode, b))
+	}
+
 	size := resp.ContentLength
 	if size == -1 {
 		return nil, 0, os.NewError("blobserver didn't return a Content-Length for blob")

@@ -123,6 +123,7 @@ func main() {
 	destBlobs := make(chan *blobref.SizedBlobRef, 100)
 	srcErr := make(chan os.Error)
 	destErr := make(chan os.Error)
+	errorCount := 0
 	go func() {
 		srcErr <- sc.EnumerateBlobs(srcBlobs)
 	}()
@@ -140,6 +141,27 @@ func main() {
 		go yieldMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
 		for sb := range destNotHaveBlobs {
 			fmt.Printf("Destination needs blob: %s\n", sb)
+
+			blobReader, size, err := sc.Fetch(sb.BlobRef)
+			if err != nil {
+				errorCount++
+				log.Printf("Error fetching %s: %v", sb.BlobRef, err)
+				continue
+			}
+			if size != sb.Size {
+				errorCount++
+				log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
+					sb.Size, sb.BlobRef, size)
+				continue
+			}
+			uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
+			pr, err := dc.Upload(uh)
+			if err != nil {
+				errorCount++
+				log.Printf("Upload of %s to destination blobserver failed: %v", sb.BlobRef, err)
+				continue
+			}
+			log.Printf("Put: %v", pr)
 		}
 	}
 
