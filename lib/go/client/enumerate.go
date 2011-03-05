@@ -23,16 +23,24 @@ import (
 	"os"
 )
 
+type EnumerateOpts struct {
+	After      string
+	MaxWaitSec int // max seconds to long poll for, waiting for any blob
+}
+
 // Note: closes ch.
 func (c *Client) EnumerateBlobs(ch chan *blobref.SizedBlobRef) os.Error {
-	return c.EnumerateBlobsAfter(ch, "")
+	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
 const enumerateBatchSize = 10
 
 // Note: closes ch.
-func (c *Client) EnumerateBlobsAfter(ch chan *blobref.SizedBlobRef, after string) os.Error {
+func (c *Client) EnumerateBlobsOpts(ch chan *blobref.SizedBlobRef, opts EnumerateOpts) os.Error {
 	defer close(ch)
+	if opts.After != "" && opts.MaxWaitSec != 0 {
+		return os.NewError("client error: it's invalid to use enumerate After and MaxWaitSec together")
+	}
 
 	error := func(msg string, e os.Error) os.Error {
 		err := os.NewError(fmt.Sprintf("client enumerate error: %s: %v", msg, e))
@@ -41,9 +49,14 @@ func (c *Client) EnumerateBlobsAfter(ch chan *blobref.SizedBlobRef, after string
 	}
 
 	keepGoing := true
+	after := opts.After
 	for keepGoing {
-		url := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d",
-			c.server, http.URLEscape(after), enumerateBatchSize)
+		waitSec := 0
+		if after == "" {
+			waitSec = opts.MaxWaitSec
+		}
+		url := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
+			c.server, http.URLEscape(after), enumerateBatchSize, waitSec)
 		req := c.newRequest("GET", url)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
