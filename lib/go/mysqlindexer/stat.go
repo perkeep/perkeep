@@ -19,14 +19,53 @@ package mysqlindexer
 import (
 	"camli/blobref"
 	"camli/blobserver"
+
+	"fmt"
 	"os"
+	"strings"
 )
 
-func (mi *Indexer) Stat(dest chan *blobref.SizedBlobRef,
-        partition blobserver.Partition,
-        blobs []*blobref.BlobRef,
-        waitSeconds int) os.Error {
-	// TODO: implement
-	return os.NewError("Stat isn't yet supported by the MySQL indexer")
+func (mi *Indexer) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+	// MySQL connection stuff.
+	client, err := mi.getConnection()
+	if err != nil {
+		return err
+	}
+	defer mi.releaseConnection(client)
+
+	quotedBlobRefs := []string{}
+	for _, br := range blobs {
+		quotedBlobRefs = append(quotedBlobRefs, fmt.Sprintf("%q", br.String()))
+	}
+	stmt, err := client.Prepare("SELECT blobref, size FROM blobs WHERE blobref IN (" +
+		strings.Join(quotedBlobRefs, ", ") + ")")
+	if err != nil {
+		return err
+	}
+	err = stmt.Execute()
+	if err != nil {
+		return err
+	}
+
+	var row blobRow
+	stmt.BindResult(&row.blobref, &row.size)
+	for {
+		done, err := stmt.Fetch()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+		br := blobref.Parse(row.blobref)
+		if br == nil {
+			continue
+		}
+		dest <- &blobref.SizedBlobRef{
+			BlobRef: br,
+			Size:    row.size,
+		}
+	}
+	return nil
 }
 

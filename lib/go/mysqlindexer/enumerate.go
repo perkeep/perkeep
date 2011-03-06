@@ -31,6 +31,7 @@ type blobRow struct {
 }
 
 func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) (err os.Error) {
+	// MySQL connection stuff.
 	var client *mysql.Client
 	client, err = mi.getConnection()
 	if err != nil {
@@ -39,7 +40,7 @@ func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blo
 	defer mi.releaseConnection(client)
 
 	var stmt *mysql.Statement
-	stmt, err = client.Prepare("SELECT * FROM blobs WHERE blobref > ? ORDER BY blobref LIMIT ?")
+	stmt, err = client.Prepare("SELECT blobref, size FROM blobs WHERE blobref > ? ORDER BY blobref LIMIT ?")
 	if err != nil {
 		return
 	}
@@ -57,11 +58,11 @@ func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blo
 	for {
 		var done bool
 		done, err = stmt.Fetch()
-		if done {
-			break
-		}
 		if err != nil {
 			return
+		}
+		if done {
+			break
 		}
 		br := blobref.Parse(row.blobref)
 		if br == nil {
