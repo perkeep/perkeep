@@ -40,11 +40,11 @@ type Indexer struct {
 func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
 	var client *mysql.Client
 	client, err = mi.getConnection()
-	defer mi.releaseConnection(client)
-
 	if err != nil {
 		return
 	}
+	defer mi.releaseConnection(client)
+
 	err = client.Query("SELECT 1 + 1")
 	if err != nil {
 		return

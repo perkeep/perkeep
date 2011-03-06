@@ -52,6 +52,7 @@ type BlobEnumerator interface {
 	// EnumerateBobs sends at most limit SizedBlobRef into dest,
 	// sorted, as long as they are lexigraphically greater than
 	// after (if provided).
+	// limit will be supplied and sanity checked by caller.
 	// waitSeconds is the max time to wait for any blobs to exist
 	// in the given partition, or 0 for no delay.
 	// EnumerateBlobs doesn't close the channel at the end but

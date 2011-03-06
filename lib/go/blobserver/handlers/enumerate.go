@@ -27,6 +27,7 @@ import (
 )
 
 const maxEnumerate = 100000
+const defaultEnumerateSize = 100
 
 type blobInfo struct {
 	*blobref.BlobRef
@@ -51,7 +52,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 
 	var (
 		err os.Error
-		limit uint
+		limit uint = defaultEnumerateSize
 	)
 	if formValueLimit != "" {
 		limit, err = strconv.Atoui(formValueLimit)

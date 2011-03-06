@@ -19,14 +19,59 @@ package mysqlindexer
 import (
 	"camli/blobref"
 	"camli/blobserver"
+
 	"os"
+
+	mysql "github.com/Philio/GoMySQL"
 )
 
-func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
-partition blobserver.Partition,
-after string,
-limit uint,
-waitSeconds int) os.Error {
-	// TODO: finish
-	return os.NewError("EnumerateBlobs isn't supported by the MySQL indexer")
+type blobRow struct {
+	blobref string
+	size int64
+}
+
+func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) (err os.Error) {
+	var client *mysql.Client
+	client, err = mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	var stmt *mysql.Statement
+	stmt, err = client.Prepare("SELECT * FROM blobs WHERE blobref > ? ORDER BY blobref LIMIT ?")
+	if err != nil {
+		return
+	}
+	err = stmt.BindParams(after, limit)
+	if err != nil {
+		return
+	}
+	err = stmt.Execute()
+	if err != nil {
+		return
+	}
+
+	var row blobRow
+	stmt.BindResult(&row.blobref, &row.size)
+	for {
+		var done bool
+		done, err = stmt.Fetch()
+		if done {
+			break
+		}
+		if err != nil {
+			return
+		}
+		br := blobref.Parse(row.blobref)
+		if br == nil {
+			continue
+		}
+		dest <- &blobref.SizedBlobRef{
+			BlobRef: br,
+			Size: row.size,
+		}
+	}
+	dest <- nil
+	return
 }
