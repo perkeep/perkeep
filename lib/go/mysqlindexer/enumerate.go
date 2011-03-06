@@ -27,7 +27,7 @@ import (
 
 type blobRow struct {
 	blobref string
-	size int64
+	size    int64
 }
 
 func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) (err os.Error) {
@@ -69,7 +69,7 @@ func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blo
 		}
 		dest <- &blobref.SizedBlobRef{
 			BlobRef: br,
-			Size: row.size,
+			Size:    row.size,
 		}
 	}
 	dest <- nil
