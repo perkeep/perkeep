@@ -19,12 +19,37 @@ package mysqlindexer
 import (
 	"camli/blobref"
 	"camli/blobserver"
+
 	"io"
+	"log"
 	"os"
 )
 
+type tempBlob struct {
+}
+
+func (tb *tempBlob) Write(d []byte) (int, os.Error) {
+	return len(d), nil
+}
+
 func (mi *Indexer) ReceiveBlob(
-	blob *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (*blobref.SizedBlobRef, os.Error) {
+	blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
+	temp := new(tempBlob)
+	hash := blobRef.Hash()
+	var written int64
+	written, err = io.Copy(io.MultiWriter(hash, temp), source)
+	if err != nil {
+		return
+	}
+
+	if !blobRef.HashMatches(hash) {
+		err = blobserver.CorruptBlobError
+		return
+	}
+
+	temp = temp
+	log.Printf("Read %d bytes", written)
+
 	// TODO: index
 	return nil, os.NewError("ReceiveBlob not yet implemented by the MySQL indexer")
 }

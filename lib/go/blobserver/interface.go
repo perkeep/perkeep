@@ -22,6 +22,8 @@ import (
 	"os"
 )
 
+var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
+
 type Partition string
 
 const DefaultPartition = Partition("")

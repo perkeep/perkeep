@@ -29,8 +29,6 @@ import (
 
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
-var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
-
 func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartitions []blobserver.Partition) (blobGot *blobref.SizedBlobRef, err os.Error) {
 	hashedDirectory := ds.blobDirectoryName(blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
@@ -66,7 +64,7 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 	}
 
 	if !blobRef.HashMatches(hash) {
-		err = CorruptBlobError
+		err = blobserver.CorruptBlobError
 		return
 	}
 
