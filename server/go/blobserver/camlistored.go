@@ -186,7 +186,7 @@ func main() {
 			Host:     "localhost",
 			User:     "root",
 			Password: "root",
-			Database: "camlistore",
+			Database: "devcamlistore",
 		}
 		if ok, err := myIndexer.IsAlive(); !ok {
 			log.Fatalf("Could not connect indexer to MySQL server: %s", err)

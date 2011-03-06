@@ -29,9 +29,9 @@ unless (-d $root) {
 }
 
 if ($opt_wipe) {
-    system("mysqladmin", "-uroot", "-proot", "drop", "camlistore");
-    system("mysqladmin", "-uroot", "-proot", "create", "camlistore") and die "Could not create MySQL database on localhost.\n";
-    my $dbh = DBI->connect("DBI:mysql:database=camlistore", "root", "root", {
+    system("mysqladmin", "-uroot", "-proot", "drop", "devcamlistore");
+    system("mysqladmin", "-uroot", "-proot", "create", "devcamlistore") and die "Could not create MySQL database on localhost.\n";
+    my $dbh = DBI->connect("DBI:mysql:database=devcamlistore", "root", "root", {
         "RaiseError" => 1,
     }) or die "Failed to connect to MySQL on localhost.\n";
 
