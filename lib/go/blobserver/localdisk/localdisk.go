@@ -29,7 +29,7 @@ type diskStorage struct {
 	root string
 
 	hubLock sync.Mutex
-	hubMap  map[blobserver.Partition]blobserver.BlobHub
+	hubMap  map[string]blobserver.BlobHub
 }
 
 func New(root string) (storage blobserver.Storage, err os.Error) {
@@ -41,15 +41,19 @@ func New(root string) (storage blobserver.Storage, err os.Error) {
 	}
 	storage = &diskStorage{
 		root:   root,
-		hubMap: make(map[blobserver.Partition]blobserver.BlobHub),
+		hubMap: make(map[string]blobserver.BlobHub),
 	}
 	return
 }
 
 func (ds *diskStorage) GetBlobHub(partition blobserver.Partition) blobserver.BlobHub {
+	name := ""
+	if partition != nil {
+		name = partition.Name()
+	}
 	ds.hubLock.Lock()
 	defer ds.hubLock.Unlock()
-	if hub, ok := ds.hubMap[partition]; ok {
+	if hub, ok := ds.hubMap[name]; ok {
 		return hub
 	}
 
@@ -57,12 +61,12 @@ func (ds *diskStorage) GetBlobHub(partition blobserver.Partition) blobserver.Blo
 	// implementations rather than the
 	// everything-in-memory-on-a-single-machine SimpleBlobHub.
 	hub := new(blobserver.SimpleBlobHub)
-	ds.hubMap[partition] = hub
+	ds.hubMap[name] = hub
 	return hub
 }
 
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
-	fileName := ds.blobFileName(blob)
+	fileName := ds.blobPath(nil, blob)
 	stat, err := os.Stat(fileName)
 	if errorIsNoEnt(err) {
 		return nil, 0, err
@@ -79,7 +83,7 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 
 func (ds *diskStorage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
 	for _, blob := range blobs {
-		fileName := ds.partitionBlobFileName(partition, blob)
+		fileName := ds.blobPath(partition, blob)
 		err := os.Remove(fileName)
 		switch {
 		case err == nil:

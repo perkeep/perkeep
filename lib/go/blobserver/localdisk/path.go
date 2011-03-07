@@ -19,35 +19,33 @@ package localdisk
 import (
 	"camli/blobref"
 	"camli/blobserver"
+
 	"fmt"
+	"http"
 )
 
 func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func (ds *diskStorage) blobPartitionDirName(partitionDirSlash string, b *blobref.BlobRef) string {
+func (ds *diskStorage) blobDirectory(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
 	d := b.Digest()
 	if len(d) < 6 {
 		d = d + "______"
 	}
-	return fmt.Sprintf("%s/%s%s/%s/%s",
-		ds.root, partitionDirSlash,
-		b.HashName(), d[0:3], d[3:6])
+	return fmt.Sprintf("%s/%s/%s/%s", ds.PartitionRoot(partition), b.HashName(), d[0:3], d[3:6])
 }
 
-func (ds *diskStorage) blobDirectoryName(b *blobref.BlobRef) string {
-	return ds.blobPartitionDirName("", b)
+func (ds *diskStorage) blobPath(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
+	return fmt.Sprintf("%s/%s", ds.blobDirectory(partition, b), BlobFileBaseName(b))
 }
 
-func (ds *diskStorage) blobFileName(b *blobref.BlobRef) string {
-	return fmt.Sprintf("%s/%s-%s.dat", ds.blobDirectoryName(b), b.HashName(), b.Digest())
-}
-
-func (ds *diskStorage) blobPartitionDirectoryName(partition blobserver.Partition, b *blobref.BlobRef) string {
-	return ds.blobPartitionDirName("partition/"+string(partition)+"/", b)
-}
-
-func (ds *diskStorage) partitionBlobFileName(partition blobserver.Partition, b *blobref.BlobRef) string {
-	return fmt.Sprintf("%s/%s-%s.dat", ds.blobPartitionDirectoryName(partition, b), b.HashName(), b.Digest())
+func (ds *diskStorage) PartitionRoot(partition blobserver.NamedPartition) string {
+	if partition == nil {
+		return ds.root
+	}
+	if pname := partition.Name(); pname != "" {
+		return fmt.Sprintf("%s/partition/%s", ds.root, http.URLEscape(pname))
+	}
+	return ds.root
 }

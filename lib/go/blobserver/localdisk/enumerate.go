@@ -109,10 +109,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 }
 
 func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) os.Error {
-	dirRoot := ds.root
-	if partition != "" {
-		dirRoot += "/partition/" + string(partition) + "/"
-	}
+	dirRoot := ds.PartitionRoot(partition)
 	limitMutable := limit
 	var err os.Error
 	doScan := func() {

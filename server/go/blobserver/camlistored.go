@@ -23,18 +23,38 @@ import (
 var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
 
+var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
+	"Comma-separated list of queue partitions to reference uploaded blobs into. "+
+		"Typically one for your indexer and one per mirror full syncer.")
+
 // TODO: Temporary
 var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
 
 var storage blobserver.Storage
-var indexerStorage blobserver.Storage
 
 const camliPrefix = "/camli/"
 const partitionPrefix = "/partition-"
 
 var InvalidCamliPath = os.NewError("Invalid Camlistore request path")
 
-func parseCamliPath(path string) (partition blobserver.Partition, action string, err os.Error) {
+type partitionConfig struct {
+	name                      string
+	writable, readable, queue bool
+	mirrors                   []blobserver.Partition
+	urlbase                   string
+}
+
+func (p *partitionConfig) Name() string                                { return p.name }
+func (p *partitionConfig) Writable() bool                              { return p.writable }
+func (p *partitionConfig) Readable() bool                              { return p.readable }
+func (p *partitionConfig) IsQueue() bool                               { return p.queue }
+func (p *partitionConfig) URLBase() string                             { return p.urlbase }
+func (p *partitionConfig) GetMirrorPartitions() []blobserver.Partition { return p.mirrors }
+
+var _ blobserver.Partition = &partitionConfig{}
+var mainPartition = &partitionConfig{"", true, true, false, nil, "http://localhost"}
+
+func parseCamliPath(path string) (partitionName string, action string, err os.Error) {
 	camIdx := strings.Index(path, camliPrefix)
 	if camIdx == -1 {
 		err = InvalidCamliPath
@@ -48,12 +68,11 @@ func parseCamliPath(path string) (partition blobserver.Partition, action string,
 		err = InvalidCamliPath
 		return
 	}
-	name := path[len(partitionPrefix):camIdx]
-	if !isValidPartitionName(name) {
+	partitionName = path[len(partitionPrefix):camIdx]
+	if !isValidPartitionName(partitionName) {
 		err = InvalidCamliPath
 		return
 	}
-	partition = blobserver.Partition(name)
 	return
 }
 
@@ -70,40 +89,50 @@ func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
 }
 
 func handleCamli(conn http.ResponseWriter, req *http.Request) {
-	partition, action, err := parseCamliPath(req.URL.Path)
+	partName, action, err := parseCamliPath(req.URL.Path)
 	if err != nil {
 		log.Printf("Invalid request for method %q, path %q",
 			req.Method, req.URL.Path)
 		unsupportedHandler(conn, req)
+		return
+	}
+	partition := queuePartitionMap[partName]
+	if partition == nil {
+		httputil.BadRequestError(conn, "Unconfigured partition.")
 		return
 	}
 	handleCamliUsingStorage(conn, req, action, partition, storage)
 }
 
-func handleIndexRequest(conn http.ResponseWriter, req *http.Request) {
+func makeIndexHandler(storage blobserver.Storage) func(conn http.ResponseWriter, req *http.Request) {
 	const prefix = "/indexer"
-	if !strings.HasPrefix(req.URL.Path, prefix) {
-		panic("bogus request")
-		return
+	partition := &partitionConfig{
+		name:     "indexer",
+		writable: true,
+		readable: false,
+		queue:    false,
+		urlbase:  mainPartition.urlbase + prefix,
 	}
-	path := req.URL.Path[len(prefix):]
-	partition, action, err := parseCamliPath(path)
-	if err != nil {
-		log.Printf("Invalid request for method %q, path %q",
-			req.Method, req.URL.Path)
-		unsupportedHandler(conn, req)
-		return
+	return func(conn http.ResponseWriter, req *http.Request) {
+		if !strings.HasPrefix(req.URL.Path, prefix) {
+			panic("bogus request")
+			return
+		}
+
+		path := req.URL.Path[len(prefix):]
+		_, action, err := parseCamliPath(path)
+		if err != nil {
+			log.Printf("Invalid request for method %q, path %q",
+				req.Method, req.URL.Path)
+			unsupportedHandler(conn, req)
+			return
+		}
+		log.Printf("INDEXER action %s on partition %q", action, partition)
+		handleCamliUsingStorage(conn, req, action, partition, storage)
 	}
-	if partition != "" {
-		conn.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(conn, "Indexer doesn't support partitions.")
-		return
-	}
-	handleCamliUsingStorage(conn, req, action, partition, indexerStorage)
 }
 
-func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request,
-action string, partition blobserver.Partition, storage blobserver.Storage) {
+func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, partition blobserver.Partition, storage blobserver.Storage) {
 	handler := unsupportedHandler
 	if *flagRequestLog {
 		log.Printf("method %q; partition %q; action %q", req.Method, partition, action)
@@ -123,13 +152,13 @@ action string, partition blobserver.Partition, storage blobserver.Storage) {
 		case "stat":
 			handler = auth.RequireAuth(handlers.CreateStatHandler(storage, partition))
 		case "upload":
-			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage, partition))
 		case "remove":
 			// Currently only allows removing from a non-main partition.
 			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage, partition))
 		}
 	case "PUT": // no longer part of spec
-		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage))
+		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage, partition))
 	}
 	handler(conn, req)
 }
@@ -144,6 +173,23 @@ func exitFailure(pattern string, args ...interface{}) {
 	}
 	fmt.Fprintf(os.Stderr, pattern, args...)
 	os.Exit(1)
+}
+
+var queuePartitionMap = make(map[string]blobserver.Partition)
+
+func setupMirrorPartitions() {
+	queuePartitionMap[""] = mainPartition
+	if *flagQueuePartitions == "" {
+		return
+	}
+	for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
+		if _, dup := queuePartitionMap[partName]; dup {
+			log.Fatalf("Duplicate partition in --queue-partitions")
+		}
+		part := &partitionConfig{name: partName, writable: false, readable: true, queue: true}
+		part.urlbase = mainPartition.urlbase + "/partition-" + partName
+		mainPartition.mirrors = append(mainPartition.mirrors, part)
+	}
 }
 
 func main() {
@@ -176,6 +222,12 @@ func main() {
 	}
 
 	ws := webserver.New()
+
+	mainPartition.urlbase = ws.BaseURL()
+	log.Printf("Base URL is %q", mainPartition.urlbase)
+	setupMirrorPartitions() // after mainPartition.urlbase is set
+
+
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
@@ -191,8 +243,7 @@ func main() {
 		if ok, err := myIndexer.IsAlive(); !ok {
 			log.Fatalf("Could not connect indexer to MySQL server: %s", err)
 		}
-		indexerStorage = myIndexer
-		ws.HandleFunc("/indexer/", handleIndexRequest)
+		ws.HandleFunc("/indexer/", makeIndexHandler(myIndexer))
 	}
 
 	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))

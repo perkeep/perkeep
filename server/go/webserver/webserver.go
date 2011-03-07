@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 )
 
 var Listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
@@ -33,6 +34,7 @@ type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
 type Server struct {
 	premux []HandlerPicker
 	mux  *http.ServeMux
+	listener net.Listener
 }
 
 func New() *Server {
@@ -40,6 +42,13 @@ func New() *Server {
 	premux: make([]HandlerPicker, 0),
 	mux: http.NewServeMux(),
 	}
+}
+
+func (s *Server) BaseURL() string {
+	if strings.HasPrefix(*Listen, ":") {
+		return "http://127.0.0.1" + *Listen
+	}
+	return "http://" + strings.Replace(*Listen, "0.0.0.0:", "127.0.0.1:", 1)
 }
 
 // Register conditional handler-picker functions which get run before
@@ -73,12 +82,13 @@ func (s *Server) Serve() {
 		log.Printf("Starting to listen on http://%v/\n", *Listen)
 	}
 
-	listener, err := net.Listen("tcp", *Listen)
+	var err os.Error
+	s.listener, err = net.Listen("tcp", *Listen)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
 	}
-	go runTestHarnessIntegration(listener)
-	err = http.Serve(listener, s)
+	go runTestHarnessIntegration(s.listener)
+	err = http.Serve(s.listener, s)
 	if err != nil {
 		log.Printf("Error in http server: %v\n", err)
 		os.Exit(1)

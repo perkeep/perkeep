@@ -20,7 +20,7 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/httputil"
-	"flag"
+
 	"fmt"
 	"http"
 	"log"
@@ -29,16 +29,14 @@ import (
 	"strings"
 )
 
-var flagQueuePartitions = flag.String("queue-partitions", "", "Comma-separated list of queue partitions to reference uploaded blobs into.  Typically one for your indexer and one per mirror full syncer.")
-
-func CreateUploadHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+func CreateUploadHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(conn, req, storage)
+		handleMultiPartUpload(conn, req, storage, partition)
 	}
 }
 
-func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobReceiver) {
-	if !(req.Method == "POST" && req.URL.Path == "/camli/upload") {
+func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, partition blobserver.Partition) {
+	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
@@ -63,16 +61,16 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage 
 	}
 
 	for {
-		part, err := multipart.NextPart()
+		mimePart, err := multipart.NextPart()
 		if err != nil {
 			addError(fmt.Sprintf("Error reading multipart section: %v", err))
 			break
 		}
-		if part == nil {
+		if mimePart == nil {
 			break
 		}
 
-		contentDisposition, params := mime.ParseMediaType(part.Header["Content-Disposition"])
+		contentDisposition, params := mime.ParseMediaType(mimePart.Header["Content-Disposition"])
 		if contentDisposition != "form-data" {
 			addError(fmt.Sprintf("Expected Content-Disposition of \"form-data\"; got %q", contentDisposition))
 			break
@@ -85,7 +83,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage 
 			continue
 		}
 
-		_, hasContentType := part.Header["Content-Type"]
+		_, hasContentType := mimePart.Header["Content-Type"]
 		if !hasContentType {
 			addError(fmt.Sprintf("Expected Content-Type header for blobref %s; see spec", ref))
 			continue
@@ -97,7 +95,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage 
 			continue
 		}
 
-		blobGot, err := storage.ReceiveBlob(ref, part, getMirrorPartitions())
+		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart, partition.GetMirrorPartitions())
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break
@@ -107,7 +105,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage 
 	}
 
 	log.Println("Done reading multipart body.")
-	ret := commonUploadResponse(req)
+	ret := commonUploadResponse(partition, req)
 
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
@@ -126,41 +124,29 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, storage 
 	httputil.ReturnJson(conn, ret)
 }
 
-func commonUploadResponse(req *http.Request) map[string]interface{} {
+func commonUploadResponse(partition blobserver.Partition, req *http.Request) map[string]interface{} {
 	ret := make(map[string]interface{})
 	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
 	ret["uploadUrlExpirationSeconds"] = 86400
-	if len(req.Host) > 0 {
-		scheme := "http" // TODO: https
-		ret["uploadUrl"] = fmt.Sprintf("%s://%s/camli/upload",
-			scheme, req.Host)
-	} else {
-		ret["uploadUrl"] = "/camli/upload"
-	}
-	return ret
-}
 
-func getMirrorPartitions() []blobserver.Partition {
-	mp := make([]blobserver.Partition, 0)
-	if *flagQueuePartitions != "" {
-		for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
-			mp = append(mp, blobserver.Partition(partName))
-		}
-	}
-	return mp
+	// TODO: camli/upload isn't part of the spec.  we should pick
+	// something different here just to make it obvious that this
+	// isn't a well-known URL and facilitate lazy clients.
+	ret["uploadUrl"] = partition.URLBase() + "/camli/upload"
+	return ret
 }
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
 var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
-func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+func CreateNonStandardPutHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handlePut(conn, req, storage)
+		handlePut(conn, req, storage, partition)
 	}
 }
 
-func handlePut(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobReceiver) {
+func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, partition blobserver.Partition) {
 	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed PUT URL.")
@@ -172,7 +158,7 @@ func handlePut(conn http.ResponseWriter, req *http.Request, storage blobserver.B
 		return
 	}
 
-	_, err := storage.ReceiveBlob(blobRef, req.Body, getMirrorPartitions())
+	_, err := blobReceiver.ReceiveBlob(blobRef, req.Body, partition.GetMirrorPartitions())
 	if err != nil {
 		httputil.ServerError(conn, err)
 		return

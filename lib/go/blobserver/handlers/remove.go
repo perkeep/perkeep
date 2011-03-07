@@ -38,10 +38,9 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
 
-	if partition == "" {
-		// TODO: remove this hard-coded policy and make configurable?
+	if !partition.IsQueue() {
 		conn.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(conn, "Can't remove blobs from the default partition.\n")
+		fmt.Fprintf(conn, "Can only remove blobs from a queue partition.\n")
 		return
 	}
 

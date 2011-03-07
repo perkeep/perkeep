@@ -20,16 +20,21 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 
+	"log"
 	"fmt"
 	"os"
 	"strings"
 )
 
 func (mi *Indexer) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+	error := func(err os.Error) os.Error {
+		log.Printf("mysqlindexer: stat error: %v", err)
+		return err
+	}
 	// MySQL connection stuff.
 	client, err := mi.getConnection()
 	if err != nil {
-		return err
+		return error(err)
 	}
 	defer mi.releaseConnection(client)
 
@@ -37,14 +42,16 @@ func (mi *Indexer) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Pa
 	for _, br := range blobs {
 		quotedBlobRefs = append(quotedBlobRefs, fmt.Sprintf("%q", br.String()))
 	}
-	stmt, err := client.Prepare("SELECT blobref, size FROM blobs WHERE blobref IN (" +
-		strings.Join(quotedBlobRefs, ", ") + ")")
+	sql := "SELECT blobref, size FROM blobs WHERE blobref IN (" +
+		strings.Join(quotedBlobRefs, ", ") + ")"
+	log.Printf("Running: [%s]", sql)
+	stmt, err := client.Prepare(sql)
 	if err != nil {
-		return err
+		return error(err)
 	}
 	err = stmt.Execute()
 	if err != nil {
-		return err
+		return error(err)
 	}
 
 	var row blobRow
@@ -52,7 +59,7 @@ func (mi *Indexer) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Pa
 	for {
 		done, err := stmt.Fetch()
 		if err != nil {
-			return err
+			return error(err)
 		}
 		if done {
 			break

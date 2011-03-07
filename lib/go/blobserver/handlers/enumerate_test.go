@@ -129,7 +129,7 @@ func TestEnumerateInput(t *testing.T) {
 	for _, test := range tests {
 		wr := NewRecordingWriter()
 		req := makeGetRequest(test.url)
-		handleEnumerateBlobs(wr, req, enumerator, blobserver.DefaultPartition)
+		handleEnumerateBlobs(wr, req, enumerator, nil)  // TODO: use better partition
 		ExpectInt(t, test.expectedCode, wr.status, "response code for " + test.name)
 		ExpectString(t, test.expectedBody, wr.output.String(), "output for " + test.name)
 	}

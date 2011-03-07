@@ -35,7 +35,7 @@ func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserve
 	var missing []*blobref.BlobRef
 
 	statSend := func(ref *blobref.BlobRef, appendMissing bool) os.Error {
-		fi, err := os.Stat(ds.blobFileName(ref))
+		fi, err := os.Stat(ds.blobPath(partition, ref))
 		switch {
 		case err == nil && fi.IsRegular():
 			dest <- &blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}

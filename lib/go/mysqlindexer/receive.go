@@ -23,21 +23,40 @@ import (
 	"io"
 	"log"
 	"os"
+
+	mysql "github.com/Philio/GoMySQL"
 )
 
-type tempBlob struct {
+const maxSniffSize = 1024 * 16
+
+type blobSniffer struct {
+	header  []byte
+	written int64
 }
 
-func (tb *tempBlob) Write(d []byte) (int, os.Error) {
+func (sn *blobSniffer) Write(d []byte) (int, os.Error) {
+	sn.written += int64(len(d))
+	if len(sn.header) < maxSniffSize {
+		n := maxSniffSize - len(sn.header)
+		if len(d) < n {
+			n = len(d)
+		}
+		sn.header = append(sn.header, d[:n]...)
+	}
 	return len(d), nil
+}
+
+func (sn *blobSniffer) IsTruncated() bool {
+	return sn.written > maxSniffSize
 }
 
 func (mi *Indexer) ReceiveBlob(
 	blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
-	temp := new(tempBlob)
+	sniffer := new(blobSniffer)
 	hash := blobRef.Hash()
 	var written int64
-	written, err = io.Copy(io.MultiWriter(hash, temp), source)
+	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
+	log.Printf("mysqlindexer: wrote %d; err %v", written, err)
 	if err != nil {
 		return
 	}
@@ -47,10 +66,26 @@ func (mi *Indexer) ReceiveBlob(
 		return
 	}
 
-	temp = temp
-	log.Printf("Read %d bytes", written)
+	log.Printf("Read %d bytes; truncated = %v", written, sniffer.IsTruncated())
 
-	// TODO: index
-	return nil, os.NewError("ReceiveBlob not yet implemented by the MySQL indexer")
+	var client *mysql.Client
+	if client, err = mi.getConnection(); err != nil {
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	var stmt *mysql.Statement
+	if stmt, err = client.Prepare("INSERT INTO blobs (blobref, size) VALUES (?, ?)"); err != nil {
+		return
+	}
+	if err = stmt.BindParams(blobRef.String(), written); err != nil {
+		return
+	}
+	if err = stmt.Execute(); err != nil {
+                return
+	}
+
+	retsb = &blobref.SizedBlobRef{BlobRef: blobRef, Size: written}
+	return
 }
 

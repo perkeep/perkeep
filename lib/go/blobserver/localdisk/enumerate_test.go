@@ -25,6 +25,8 @@ import (
 	"time"
 )
 
+var defaultPartition blobserver.Partition = nil
+
 func TestEnumerate(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
@@ -43,8 +45,7 @@ func TestEnumerate(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, blobserver.DefaultPartition,
-			"", limit, waitSeconds)
+		errCh <- ds.EnumerateBlobs(ch, defaultPartition, "", limit, waitSeconds)
 	}()
 
 	var sb *blobref.SizedBlobRef
@@ -63,7 +64,7 @@ func TestEnumerate(t *testing.T) {
 
 	// Now again, but skipping foo's blob
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, blobserver.DefaultPartition,
+		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
 			foo.BlobRef().String(),
 			limit, waitSeconds)
 	}()
@@ -87,7 +88,7 @@ func TestEnumerateEmpty(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, blobserver.DefaultPartition,
+		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
 			"", limit, waitSeconds)
 	}()
 
@@ -104,7 +105,7 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, blobserver.DefaultPartition,
+		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
 			"", limit, waitSeconds)
 	}()
 

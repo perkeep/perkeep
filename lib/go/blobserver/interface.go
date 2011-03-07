@@ -24,12 +24,22 @@ import (
 
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
-type Partition string
+type NamedPartition interface {
+	Name() string  // "" for default, "queue-indexer", etc
+}
 
-const DefaultPartition = Partition("")
+type Partition interface {
+	NamedPartition
 
-func (p Partition) IsDefault() bool {
-	return len(p) == 0
+	Writable() bool  // accepts direct uploads (excluding mirroring from default partition)
+	Readable() bool  // can return blobs (e.g. indexer partition can't)
+	IsQueue() bool   // is a temporary queue partition (supports deletes)
+
+	// TODO: rename this.  just "UploadMirrors"?
+	GetMirrorPartitions() []Partition
+
+	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
+	URLBase() string
 }
 
 type BlobReceiver interface {
@@ -66,6 +76,7 @@ type BlobEnumerator interface {
 		waitSeconds int) os.Error
 }
 
+
 type Storage interface {
 	blobref.Fetcher
 	BlobReceiver
@@ -79,5 +90,7 @@ type Storage interface {
 	Remove(partition Partition, blobs []*blobref.BlobRef) os.Error
 
 	// Returns the blob notification bus for a given partition.
+	// Use nil for the default partition.
+	// TODO: move this to be a method on the Partition interface?
 	GetBlobHub(partition Partition) BlobHub
 }

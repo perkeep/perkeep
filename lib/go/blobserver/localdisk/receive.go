@@ -30,7 +30,7 @@ import (
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
 func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartitions []blobserver.Partition) (blobGot *blobref.SizedBlobRef, err os.Error) {
-	hashedDirectory := ds.blobDirectoryName(blobRef)
+	hashedDirectory := ds.blobDirectory(nil, blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		return
@@ -68,7 +68,7 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 		return
 	}
 
-	fileName := ds.blobFileName(blobRef)
+	fileName := ds.blobPath(nil, blobRef)
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
 		return
 	}
@@ -83,11 +83,11 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 	}
 
 	for _, partition := range mirrorPartitions {
-		partitionDir := ds.blobPartitionDirectoryName(partition, blobRef)
+		partitionDir := ds.blobDirectory(partition, blobRef)
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
 			return
 		}
-		partitionFileName := ds.partitionBlobFileName(partition, blobRef)
+		partitionFileName := ds.blobPath(partition, blobRef)
 		if err = os.Link(fileName, partitionFileName); err != nil {
 			return
 		}
@@ -107,12 +107,11 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 			exec.MergeWithStdout)
 	}
 
-	hub := ds.GetBlobHub(blobserver.DefaultPartition)
+	hub := ds.GetBlobHub(nil)
 	hub.NotifyBlobReceived(blobRef)
 	for _, partition := range mirrorPartitions {
 		hub = ds.GetBlobHub(partition)
 		hub.NotifyBlobReceived(blobRef)
 	}
-
 	return
 }

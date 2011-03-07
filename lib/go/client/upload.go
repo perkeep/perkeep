@@ -119,6 +119,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	if uploadUrl == "" {
 		return error("stat json validity error: no 'uploadUrl'", nil)
 	}
+	log.Printf("Got upload url: %q", uploadUrl)
 
 	alreadyHave, ok := pur["stat"].([]interface{})
 	if !ok {

@@ -103,7 +103,7 @@ func TestReceiveStat(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, blobserver.DefaultPartition, tb.BlobRefSlice(), 0)
+		errch <- ds.Stat(ch, defaultPartition, tb.BlobRefSlice(), 0)
 		close(ch)
 	}()
 	got := 0
@@ -126,7 +126,7 @@ func TestStatWait(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, blobserver.DefaultPartition, tb.BlobRefSlice(), waitSeconds)
+		errch <- ds.Stat(ch, defaultPartition, tb.BlobRefSlice(), waitSeconds)
 		close(ch)
 	}()
 
@@ -167,7 +167,7 @@ func TestMultiStat(t *testing.T) {
 	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch,
-			blobserver.DefaultPartition,
+			defaultPartition,
 			[]*blobref.BlobRef{blobfoo.BlobRef(), blobbar.BlobRef()},
 			0)
 		close(ch)
