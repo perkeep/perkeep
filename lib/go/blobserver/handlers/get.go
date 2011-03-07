@@ -149,9 +149,10 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 	// to verify the digest doesn't match.  But we close the (chunked) response anyway,
 	// to further signal errors.
 	killConnection := func() {
-		closer, _, err := conn.Hijack()
-		if err != nil {
-			closer.Close()
+		if hj, ok := conn.(http.Hijacker); ok {
+			if closer, _, err := hj.Hijack(); err != nil {
+				closer.Close()
+			}
 		}
 	}
 
