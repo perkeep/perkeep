@@ -239,37 +239,60 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	if sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove) != 1 {
-		// TODO: say which ones are conflicting
+	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove)
+	if !(nOpts == 1 ||
+		(nOpts == 2 && *flagFile && *flagPermanode)) {
 		usage("Conflicting mode options.")
 	}
 
-	client := client.NewOrFail()
+	cc := client.NewOrFail()
 	if !*flagVerbose {
-		client.SetLogger(nil)
+		cc.SetLogger(nil)
 	}
-	uploader := &Uploader{client}
+	uploader := &Uploader{cc}
 
 	switch {
 	case *flagInit:
 		doInit()
 		return
+	case *flagFile || *flagBlob:
+		var (
+			permaNode *client.PutResult
+			lastPut *client.PutResult
+			err os.Error
+		)
+		if n := flag.NArg(); *flagPermanode {
+			if n != 1 {
+				log.Fatalf("Options --permanode and --file can only be used together when there's exactly one argument")
+			}
+			permaNode, err = uploader.UploadNewPermanode()
+			if err != nil {
+				log.Fatalf("Error uploading permanode: %v", err)
+			}
+		}
+		for n := 0; n < flag.NArg(); n++ {
+			if *flagBlob {
+				lastPut, err = uploader.UploadFileBlob(flag.Arg(n))
+				handleResult("blob", lastPut, err)
+			} else {
+				lastPut, err = uploader.UploadFile(flag.Arg(n))
+				handleResult("file", lastPut, err)
+			}
+		}
+		if permaNode != nil {
+			// TODO: upload a signed "become" claim
+			// linking permaNode => lastPut
+
+			// TODO: add a --name and/or --tag flags to
+			// camput to then also issue some attribute
+			// modifications on the permanode as well.
+		}
 	case *flagPermanode:
 		if flag.NArg() > 0 {
 			log.Fatalf("--permanode doesn't take any additional arguments")
 		}
 		pr, err := uploader.UploadNewPermanode()
 		handleResult("permanode", pr, err)
-	case *flagFile || *flagBlob:
-		for n := 0; n < flag.NArg(); n++ {
-			if *flagBlob {
-				pr, err := uploader.UploadFileBlob(flag.Arg(n))
-				handleResult("blob", pr, err)
-			} else {
-				pr, err := uploader.UploadFile(flag.Arg(n))
-				handleResult("file", pr, err)
-			}
-		}
 	case *flagShare:
 		if flag.NArg() != 1 {
 			log.Fatalf("--share only supports one blobref")
