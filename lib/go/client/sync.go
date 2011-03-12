@@ -34,8 +34,9 @@ func (cp *chanPeeker) Peek() *blobref.SizedBlobRef {
 	if cp.peek != nil {
 		return cp.peek
 	}
-	cp.peek = <-cp.ch
-	if closed(cp.ch) {
+	var ok bool
+	cp.peek, ok = <-cp.ch
+	if !ok {
 		cp.Closed = true
 		return nil
 	}

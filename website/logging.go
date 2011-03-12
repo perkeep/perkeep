@@ -41,7 +41,7 @@ func NewLoggingHandler(handler http.Handler, dir string, writeStdout bool) http.
 
 func (h *logHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Strip port number from address
-	addr := rw.RemoteAddr()
+	addr := r.RemoteAddr
 	if colon := strings.LastIndex(addr, ":"); colon != -1 {
 		addr = addr[:colon]
 	}

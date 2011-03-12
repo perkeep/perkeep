@@ -131,12 +131,12 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 		}
 		input = bufReader
 
-		conn.SetHeader("Content-Length", strconv.Itoa64(size))
+		conn.Header().Set("Content-Length", strconv.Itoa64(size))
 	}
 
-	conn.SetHeader("Content-Type", contentType)
+	conn.Header().Set("Content-Type", contentType)
 	if !reqRange.IsWholeFile() {
-		conn.SetHeader("Content-Range",
+		conn.Header().Set("Content-Range",
 			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes(),
 				reqRange.SkipBytes()+remainBytes,
 				size))

@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"http"
+	"http/cgi"
 	"io"
 	"io/ioutil"
 	"log"
@@ -41,7 +42,7 @@ var (
 	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
 	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
 	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
-	logDir              = flag.String("logdir", "-", "Directory to write log files to (one per hour), or empty to not log.")
+	logDir              = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
 	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
 	pageHtml, errorHtml *template.Template
 )
@@ -241,7 +242,7 @@ func main() {
 	mux.Handle("/robots.txt", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 
-	testCgi := &CgiHandler{ExecutablePath: path.Join(*root, "test.cgi"),
+	testCgi := &cgi.Handler{Path: path.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
 	}
 	mux.Handle("/test.cgi", testCgi)
@@ -253,10 +254,10 @@ func main() {
 		env = append(env, "GITWEB_CONFIG="+path.Join(*root, "gitweb-camli.conf"))
 		env = append(env, "CAMWEB_ROOT="+path.Join(*root))
 		mux.Handle("/code/", &fixUpGitwebUrls{&gitwebHandler{
-			Cgi: &CgiHandler{
-				ExecutablePath: *gitwebScript,
+			Cgi: &cgi.Handler{
+				Path: *gitwebScript,
 				Root:           "/code/",
-				Environ:        env,
+				Env:        env,
 			},
 			Static: http.FileServer(*gitwebFiles, "/code/"),
 		}})

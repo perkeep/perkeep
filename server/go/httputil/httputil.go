@@ -36,7 +36,7 @@ func ServerError(conn http.ResponseWriter, err os.Error) {
 }
 
 func ReturnJson(conn http.ResponseWriter, data interface{}) {
-	conn.SetHeader("Content-Type", "text/javascript")
+	conn.Header().Set("Content-Type", "text/javascript")
 	bytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		BadRequestError(conn, fmt.Sprintf(

@@ -80,7 +80,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 		}
 	}
 
-	conn.SetHeader("Content-Type", "text/javascript; charset=utf-8")
+	conn.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
 
 	blobch := make(chan *blobref.SizedBlobRef, 100)
