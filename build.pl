@@ -335,4 +335,5 @@ TARGET: lib/go/mysqlindexer
     - ext:github.com/Philio/GoMySQL
     - lib/go/blobref
     - lib/go/blobserver
+    - lib/go/schema
     - lib/go/testing

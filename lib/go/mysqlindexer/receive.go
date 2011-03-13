@@ -19,6 +19,7 @@ package mysqlindexer
 import (
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/schema"
 
 	"bytes"
 	"io"
@@ -32,8 +33,10 @@ import (
 const maxSniffSize = 1024 * 16
 
 type blobSniffer struct {
-	header  []byte
-	written int64
+	header   []byte
+	written  int64
+	camli    schema.Superset
+	mimeType *string
 }
 
 func (sn *blobSniffer) Write(d []byte) (int, os.Error) {
@@ -65,39 +68,40 @@ var prefixTable = []prefixEntry{
 
 // returns content type (string) or nil if unknown
 func (sn *blobSniffer) MimeType() interface{} {
+	if sn.mimeType != nil {
+		return *sn.mimeType
+	}
+	return nil
+}
+
+func (sn *blobSniffer) Parse() {
 	hlen := len(sn.header)
 	for _, pte := range prefixTable {
 		plen := len(pte.prefix)
 		if hlen > plen && bytes.Equal(sn.header[:plen], pte.prefix) {
-			return pte.mtype
+			sn.mimeType = &pte.mtype
 		}
 	}
 
 	// Try to parse it as JSON
-	if m, ok := bufferIsJsonMap(sn.header); ok {
-		_, ok := m["camliVersion"]
-		if ok {
-			if camType, ok := m["camliType"].(string); ok {
-				return "application/json; camliType=" + camType
-			}
-		}
-		return "application/json"
+	if sn.bufferIsCamliJson() {
+		str := "application/json; camliType=" + sn.camli.Type
+		sn.mimeType = &str
 	}
 
-	return nil
+	return
 }
 
-func bufferIsJsonMap(buf []byte) (map[string]interface{}, bool) {
+func (sn *blobSniffer) bufferIsCamliJson() bool {
+	buf := sn.header
 	if len(buf) < 2 || buf[0] != '{' {
-		return nil, false
+		return false
 	}
-	var got interface{}
-	err := json.Unmarshal(buf, &got)
+	err := json.Unmarshal(buf, &sn.camli)
 	if err != nil {
-		return nil, false
+		return false
 	}
-	m, ok := got.(map[string]interface{})
-	return m, ok
+	return true
 }
 
 func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
@@ -115,6 +119,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirro
 		return
 	}
 
+	sniffer.Parse()
 	mimeType := sniffer.MimeType()
 	log.Printf("Read %d bytes; type=%v; truncated=%v", written, sniffer.IsTruncated())
 

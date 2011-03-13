@@ -40,6 +40,23 @@ type StatHasher interface {
 	Hash(fileName string) (*blobref.BlobRef, os.Error)
 }
 
+// Superset represents the superset of common camlistore JSON schema
+// keys as a convenient json.Unmarshal target
+type Superset struct {
+	Version int    "camliVersion"
+	Type    string "camliType"
+
+	Signer string "camliSigner"
+	Sig    string "camliSig"
+
+	ClaimType string "claimType"
+	ClaimDate string "claimDate"
+
+	Permanode string "permaNode"
+	Attribute string "attribute"
+	Value     string "value"
+}
+
 var DefaultStatHasher = &defaultStatHasher{}
 
 type defaultStatHasher struct{}
