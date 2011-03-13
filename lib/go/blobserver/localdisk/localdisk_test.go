@@ -184,3 +184,17 @@ func TestMultiStat(t *testing.T) {
 	ExpectNil(t, <-errch, "result from stat")
 	ExpectInt(t, 0, len(need), "all stat results needed returned")
 }
+
+func TestMissingGetReturnsNoEnt(t *testing.T) {
+	ds := NewStorage(t)
+	defer cleanUp(ds)
+	foo := &testBlob{"foo"}
+
+	blob, _, err := ds.Fetch(foo.BlobRef())
+	if err != os.ENOENT {
+		t.Errorf("expected ENOENT; got %v", err)
+	}
+	if blob != nil {
+		t.Errorf("expected nil blob; got a value")
+	}
+}
