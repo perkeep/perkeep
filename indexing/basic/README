@@ -1,5 +1,0 @@
-This is a basic indexing system for prototyping and demonstration
-purposes only.
-
-It's not production quality by any stretch of the imagination: it uses
-sqlite, is single-threaded, single-process, etc.
