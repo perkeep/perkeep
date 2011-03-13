@@ -55,6 +55,19 @@ if ($opt_wipe) {
              "size INTEGER NOT NULL, ".
              "type VARCHAR(100)".
              ")");
+
+    $dbh->do("CREATE TABLE claims (".
+             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
+             "signer VARCHAR(128) NOT NULL, ".
+             "date VARCHAR(40) NOT NULL, ".
+             "INDEX (signer, date), ".
+             "unverified CHAR(1) NULL, ".
+             "claim VARCHAR(50) NOT NULL, ".
+             "permanode VARCHAR(128) NOT NULL, ".
+             "INDEX (permanode), ".
+             "attr VARCHAR(128) NULL, ".
+             "value VARCHAR(128) NULL ".
+             ")");
 }
 
 print "Starting blobserver with indexer on http://localhost:$port/ in $root\n";

@@ -35,7 +35,7 @@ const maxSniffSize = 1024 * 16
 type blobSniffer struct {
 	header   []byte
 	written  int64
-	camli    schema.Superset
+	camli    *schema.Superset
 	mimeType *string
 }
 
@@ -97,10 +97,12 @@ func (sn *blobSniffer) bufferIsCamliJson() bool {
 	if len(buf) < 2 || buf[0] != '{' {
 		return false
 	}
-	err := json.Unmarshal(buf, &sn.camli)
+	camli := new(schema.Superset)
+	err := json.Unmarshal(buf, camli)
 	if err != nil {
 		return false
 	}
+	sn.camli = camli
 	return true
 }
 
@@ -140,6 +142,28 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirro
 		return
 	}
 
+	if camli := sniffer.camli; camli != nil && camli.Type == "claim" {
+		if err = populateClaim(client, blobRef, camli); err != nil {
+			return
+		}
+	}
+
 	retsb = &blobref.SizedBlobRef{BlobRef: blobRef, Size: written}
 	return
+}
+
+func populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+	var stmt *mysql.Statement
+        if stmt, err = client.Prepare("INSERT INTO claims (blobref, signer, date, unverified, claim, permanode, attr, value) " +
+		"VALUES (?, ?, ?, 'Y', ?, ?, ?, ?)"); err != nil {
+                return
+        }
+	if err = stmt.BindParams(blobRef.String(), camli.Signer, camli.ClaimDate,
+		camli.ClaimType, camli.Permanode, camli.Attribute, camli.Value); err != nil {
+                return
+        }
+	if err = stmt.Execute(); err != nil {
+                return
+        }
+	return nil
 }
