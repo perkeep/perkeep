@@ -10,5 +10,6 @@ GOFILES=\
 	enumerate.go\
 	stat.go\
 	receive.go\
+	search.go\
 
 include $(GOROOT)/src/Make.pkg
