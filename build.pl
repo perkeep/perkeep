@@ -328,7 +328,7 @@ TARGET: lib/go/blobserver/localdisk
 
 TARGET: lib/go/httprange
 
-TARGET: clients/android/uploader
+TARGET: clients/android
     =not_in_all  # too slow
 
 TARGET: lib/go/mysqlindexer

@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.danga.camli;
+package org.camlistore;
 
-import com.danga.camli.IStatusCallback;
+import org.camlistore.IStatusCallback;
 import android.os.ParcelFileDescriptor;
 import android.net.Uri;
 import java.util.List;
