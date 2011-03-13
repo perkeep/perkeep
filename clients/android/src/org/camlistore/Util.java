@@ -25,6 +25,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import android.os.AsyncTask;
+import android.util.Base64;
 import android.util.Log;
 
 public class Util {
@@ -85,5 +86,10 @@ public class Util {
         byte[] sha1hash = new byte[40];
         sha1hash = md.digest();
         return getHex(sha1hash);
+    }
+
+    public static String getBasicAuthHeaderValue(String username, String password) {
+        return "Basic " + Base64.encodeToString((username + ":" + password).getBytes(),
+                                                Base64.NO_WRAP);
     }
 }

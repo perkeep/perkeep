@@ -89,8 +89,7 @@ public class UploadThread extends Thread {
     }
 
     private String getBasicAuthHeaderValue() {
-        return "Basic " + Base64.encodeToString((USERNAME + ":" + mPassword).getBytes(),
-                                                Base64.NO_WRAP);
+        return Util.getBasicAuthHeaderValue(USERNAME, mPassword);
     }
 
     @Override
