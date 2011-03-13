@@ -250,6 +250,7 @@ func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
+	m["claimDate"] = rfc3339FromNanos(time.Nanoseconds())
 	return m
 }
 
