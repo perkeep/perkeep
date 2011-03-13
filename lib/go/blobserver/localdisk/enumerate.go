@@ -61,7 +61,9 @@ func readBlobs(opts readBlobRequest) os.Error {
 		if *opts.remain == 0 {
 			return nil
 		}
-
+		if name == "partition" {
+			continue
+		}
 		fullPath := dirFullPath + "/" + name
 		fi, err := os.Stat(fullPath)
 		if err != nil {
