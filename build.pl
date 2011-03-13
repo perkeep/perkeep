@@ -314,6 +314,9 @@ TARGET: lib/go/blobserver
     - lib/go/blobref
     - lib/go/testing
 
+TARGET: lib/go/search
+    - lib/go/blobref
+
 TARGET: lib/go/blobserver/handlers
     - server/go/auth
     - server/go/httputil
