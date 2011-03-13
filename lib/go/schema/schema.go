@@ -73,14 +73,14 @@ func (d *defaultStatHasher) Hash(fileName string) (*blobref.BlobRef, os.Error) {
 	}
 	defer file.Close()
 	_, err = io.Copy(s1, file)
-        if err != nil {
-                return nil, err
-        }
+	if err != nil {
+		return nil, err
+	}
 	return blobref.FromHash("sha1", s1), nil
 }
 
 type StaticSet struct {
-	l  sync.Mutex
+	l    sync.Mutex
 	refs []*blobref.BlobRef
 }
 
@@ -92,8 +92,8 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 
 func newCamliMap(version int, ctype string) map[string]interface{} {
 	m := make(map[string]interface{})
-        m["camliVersion"] = version
-        m["camliType"] = ctype
+	m["camliVersion"] = version
+	m["camliType"] = ctype
 	return m
 }
 
@@ -104,7 +104,7 @@ func NewUnsignedPermanode() map[string]interface{} {
 	// will be GPG signed anyway.
 	rnd := rand.New(rand.NewSource(time.Nanoseconds()))
 	for idx, _ := range chars {
-		chars[idx] = byte(32 + rnd.Intn(126 - 32))
+		chars[idx] = byte(32 + rnd.Intn(126-32))
 	}
 	m["random"] = string(chars)
 	return m
@@ -144,8 +144,8 @@ func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 }
 
 func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
-	m := newCamliMap(1, "" /* no type yet */)
-	
+	m := newCamliMap(1, "" /* no type yet */ )
+
 	lastSlash := strings.LastIndex(fileName, "/")
 	baseName := fileName[lastSlash+1:]
 	if isValidUtf8(baseName) {
@@ -182,9 +182,9 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 }
 
 type ContentPart struct {
-	BlobRef   *blobref.BlobRef
-	Size      int64
-	Offset    int64
+	BlobRef *blobref.BlobRef
+	Size    int64
+	Offset  int64
 }
 
 type InvalidContentPartsError struct {
@@ -314,6 +314,7 @@ func populateMap(m map[int]string, file string) {
 
 var uidToUsernameMap map[int]string
 var getUserFromUidOnce sync.Once
+
 func getUserFromUid(uid int) string {
 	getUserFromUidOnce.Do(func() {
 		uidToUsernameMap = make(map[int]string)
@@ -324,6 +325,7 @@ func getUserFromUid(uid int) string {
 
 var gidToUsernameMap map[int]string
 var getGroupFromGidOnce sync.Once
+
 func getGroupFromGid(uid int) string {
 	getGroupFromGidOnce.Do(func() {
 		gidToUsernameMap = make(map[int]string)
