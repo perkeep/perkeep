@@ -51,7 +51,7 @@ if ($opt_wipe) {
 
     # Begin schema creation.
     $dbh->do("CREATE TABLE blobs (".
-             "blobref VARCHAR(100) NOT NULL PRIMARY KEY, ".
+             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
              "size INTEGER NOT NULL, ".
              "type VARCHAR(100)".
              ")");
@@ -67,6 +67,14 @@ if ($opt_wipe) {
              "INDEX (permanode), ".
              "attr VARCHAR(128) NULL, ".
              "value VARCHAR(128) NULL ".
+             ")");
+
+    $dbh->do("CREATE TABLE permanodes (".
+             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
+             "unverified CHAR(1) NULL, ".
+             "signer VARCHAR(128) NOT NULL DEFAULT '', ".
+             "lastmod VARCHAR(40) NOT NULL DEFAULT '', ".
+             "INDEX (signer, lastmod) ".
              ")");
 }
 
