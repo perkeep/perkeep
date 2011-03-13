@@ -39,7 +39,7 @@ var flagInit = flag.Bool("init", false, "first-time configuration.")
 var flagShare = flag.Bool("share", false, "create a camli share by haveref with the given blobrefs")
 var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
 var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
-
+var flagName = flag.String("name", "", "Optional name attribute to set on permanode when using -permanode and -file")
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
 var wereErrors = false
@@ -176,26 +176,22 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 	return sr.Sign()
 }
 
-func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
-	unsigned := schema.NewUnsignedPermanode()
-
-	signed, err := up.SignMap(unsigned)
+func (up *Uploader) UploadAndSignMap(m map[string]interface{}) (*client.PutResult, os.Error) {
+	signed, err := up.SignMap(m)
 	if err != nil {
 		return nil, err
 	}
-
 	return up.Upload(client.NewUploadHandleFromString(signed))
+}
+
+func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
+	unsigned := schema.NewUnsignedPermanode()
+	return up.UploadAndSignMap(unsigned)
 }
 
 func (up *Uploader) UploadShare(target *blobref.BlobRef, transitive bool) (*client.PutResult, os.Error) {
 	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
-
-	signed, err := up.SignMap(unsigned)
-	if err != nil {
-		return nil, err
-	}
-
-	return up.Upload(client.NewUploadHandleFromString(signed))
+	return up.UploadAndSignMap(unsigned)
 }
 
 func sumSet(flags ...*bool) (count int) {
@@ -249,7 +245,7 @@ func main() {
 	if !*flagVerbose {
 		cc.SetLogger(nil)
 	}
-	uploader := &Uploader{cc}
+	up := &Uploader{cc}
 
 	switch {
 	case *flagInit:
@@ -265,33 +261,34 @@ func main() {
 			if n != 1 {
 				log.Fatalf("Options --permanode and --file can only be used together when there's exactly one argument")
 			}
-			permaNode, err = uploader.UploadNewPermanode()
+			permaNode, err = up.UploadNewPermanode()
 			if err != nil {
 				log.Fatalf("Error uploading permanode: %v", err)
 			}
 		}
 		for n := 0; n < flag.NArg(); n++ {
 			if *flagBlob {
-				lastPut, err = uploader.UploadFileBlob(flag.Arg(n))
+				lastPut, err = up.UploadFileBlob(flag.Arg(n))
 				handleResult("blob", lastPut, err)
 			} else {
-				lastPut, err = uploader.UploadFile(flag.Arg(n))
+				lastPut, err = up.UploadFile(flag.Arg(n))
 				handleResult("file", lastPut, err)
 			}
 		}
 		if permaNode != nil {
-			// TODO: upload a signed "become" claim
-			// linking permaNode => lastPut
-
-			// TODO: add a --name and/or --tag flags to
-			// camput to then also issue some attribute
-			// modifications on the permanode as well.
+			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
+			handleResult("claim-permanode-content", put, err)
+			if *flagName != "" {
+				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", *flagName))
+                                handleResult("claim-permanode-name", put, err)
+			}
+                        handleResult("permanode", permaNode, nil)
 		}
 	case *flagPermanode:
 		if flag.NArg() > 0 {
 			log.Fatalf("--permanode doesn't take any additional arguments")
 		}
-		pr, err := uploader.UploadNewPermanode()
+		pr, err := up.UploadNewPermanode()
 		handleResult("permanode", pr, err)
 	case *flagShare:
 		if flag.NArg() != 1 {
@@ -301,13 +298,13 @@ func main() {
 		if br == nil {
 			log.Fatalf("BlobRef is invalid: %q", flag.Arg(0))
 		}
-		pr, err := uploader.UploadShare(br, *flagTransitive)
+		pr, err := up.UploadShare(br, *flagTransitive)
 		handleResult("share", pr, err)
 	case *flagRemove:
 		if flag.NArg() == 0 {
 			log.Fatalf("--remove takes one or more blobrefs")
 		}
-		err := uploader.RemoveBlobs(blobref.ParseMulti(flag.Args()))
+		err := up.RemoveBlobs(blobref.ParseMulti(flag.Args()))
 		if err != nil {
 			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
 			wereErrors = true
@@ -315,7 +312,7 @@ func main() {
 	}
 
 	if *flagVerbose {
-		stats := uploader.Stats()
+		stats := up.Stats()
 		log.Printf("Client stats: %s", stats.String())
 	}
 	if wereErrors {

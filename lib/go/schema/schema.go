@@ -222,11 +222,38 @@ func PopulateDirectoryMap(m map[string]interface{}, staticSetRef *blobref.BlobRe
 }
 
 func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) map[string]interface{} {
-	m := newCamliMap(1, "" /* no type yet */)
-	m["camliType"] = "share"
+	m := newCamliMap(1, "share")
 	m["authType"] = authType
 	m["target"] = target.String()
 	m["transitive"] = transitive
+	return m
+}
+
+func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface{} {
+	m := newCamliMap(1, "claim")
+	m["permaNode"] = permaNode.String()
+	m["claimType"] = claimType
+	return m
+}
+
+func newAttrChangeClaim(permaNode *blobref.BlobRef, claimType, attr, value string) map[string]interface{} {
+	m := NewClaim(permaNode, "set-attribute")
+	m["attribute"] = attr
+	m["value"] = value
+	return m
+}
+
+func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
+	return newAttrChangeClaim(permaNode, "set-attribute", attr, value)
+}
+
+func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
+	return newAttrChangeClaim(permaNode, "add-attribute", attr, value)
+}
+
+func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]interface{} {
+	m := newAttrChangeClaim(permaNode, "del-attribute", attr, "")
+	m["value"] = "", false
 	return m
 }
 
