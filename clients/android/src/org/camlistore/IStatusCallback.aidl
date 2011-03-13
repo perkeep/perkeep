@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.danga.camli;
+package org.camlistore;
 
-import android.test.ActivityInstrumentationTestCase2;
+oneway interface IStatusCallback {
+    void logToClient(String stuff);
+    void setUploadStatusText(String text);
+    void setUploading(boolean uploading);
+    
+    void setBlobsRemain(int toUpload, int toDigest);
 
-public class CamliActivityTest extends ActivityInstrumentationTestCase2<CamliActivity> {
-	
-	public CamliActivityTest(String pkg, Class<CamliActivity> activityClass) {
-		super(pkg, activityClass);
-		// TODO Auto-generated constructor stub
-	}
-
-	public void testSanity() {
-		assertEquals(2, 1 + 1);
-		assertEquals(4, 2 + 2);
-	}
+    // done: acknowledged by server
+    // inFlight: written to the server, but no reply yet (i.e. large HTTP POST body)
+    // total: "this batch" size.  reset on transition from 0 -> 1 blobs remain.
+    void setBlobStatus(int done, int inFlight, int total);
+    void setByteStatus(long done, int inFlight, long total);
 }

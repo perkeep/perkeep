@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.danga.camli;
+package org.camlistore;
 
 import java.io.File;
 
@@ -23,7 +23,7 @@ import android.os.FileObserver;
 import android.os.RemoteException;
 import android.util.Log;
 
-import com.danga.camli.IUploadService.Stub;
+import org.camlistore.IUploadService.Stub;
 
 public class CamliFileObserver extends FileObserver {
     private static final String TAG = "CamliFileObserver";
