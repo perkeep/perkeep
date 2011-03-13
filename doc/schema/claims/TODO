@@ -2,9 +2,32 @@ TODO:
 -----
 Clean this up and/or break into separate files.
 
+{"camliVersion": 1,
+ "camliType": "claim",
+ "camliSigner": "....",
+ "claimDate": "2010-07-10T17:20:03.9212Z", // redundant with data in ascii armored "camliSig", 
+                                           // but required. more legible. takes precedent over 
+                                           // any date inferred from camliSig
+ "permaNode": "dig-xxxxxxx",        // what is being modified
+ "claimType": "set-attribute",
+ "attribute": "camliContent",
+ "value": "dig-yyyyyyy",
+}
 
-Old notes from July doc:
-------------------------
+claimTypes:
+-----------
+set-attribute (set a single-valued attribute)
+del-attribute (unsets a single-valued attribute)
+add-attribute (adds a value to a multi-valued attribute (e.g. "tag"))
+unadd-attribute (removes just one value from a multi-valued attribute)
+
+Attribute names:
+----------------
+camliContent: a permanode "becoming" something.  value is pointer to what it is now.
+
+
+Old notes from July 2010 doc:
+-----------------------------
 Claim types:
 permanode-become:
    -- implies either:
