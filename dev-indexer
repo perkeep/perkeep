@@ -28,10 +28,24 @@ unless (-d $root) {
     system("mkdir", "-p", $root) and die "Failed to create $root.\n";
 }
 
+my $DBNAME = "devcamlistore";
+
+my $dbh = DBI->connect("DBI:mysql:database=mysql", "root", "root") or
+    die "Failed to connect to MySQL on localhost with user/pass of root/root.\n";
+
+my $camdb = DBI->connect("DBI:mysql:database=$DBNAME", "root", "root", {
+    PrintWarn => 0,
+    PrintError => 0,
+});
+unless ($camdb) {
+    print "Database '$DBNAME' doesn't exist; assuming --wipe and initializing.\n";
+    $opt_wipe = 1;
+}
+
 if ($opt_wipe) {
-    system("mysqladmin", "-uroot", "-proot", "drop", "devcamlistore");
-    system("mysqladmin", "-uroot", "-proot", "create", "devcamlistore") and die "Could not create MySQL database on localhost.\n";
-    my $dbh = DBI->connect("DBI:mysql:database=devcamlistore", "root", "root", {
+    system("mysqladmin", "-uroot", "-proot", "--force", "drop", "$DBNAME");
+    system("mysqladmin", "-uroot", "-proot", "create", "$DBNAME") and die "Could not create MySQL database on localhost.\n";
+    my $dbh = DBI->connect("DBI:mysql:database=$DBNAME", "root", "root", {
         "RaiseError" => 1,
     }) or die "Failed to connect to MySQL on localhost.\n";
 
