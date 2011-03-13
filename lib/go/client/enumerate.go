@@ -33,7 +33,7 @@ func (c *Client) EnumerateBlobs(ch chan *blobref.SizedBlobRef) os.Error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
-const enumerateBatchSize = 10
+const enumerateBatchSize = 1000
 
 // Note: closes ch.
 func (c *Client) EnumerateBlobsOpts(ch chan *blobref.SizedBlobRef, opts EnumerateOpts) os.Error {
