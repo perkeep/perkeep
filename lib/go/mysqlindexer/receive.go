@@ -20,7 +20,9 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 
+	"bytes"
 	"io"
+	"json"
 	"log"
 	"os"
 
@@ -50,8 +52,53 @@ func (sn *blobSniffer) IsTruncated() bool {
 	return sn.written > maxSniffSize
 }
 
-func (mi *Indexer) ReceiveBlob(
-	blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
+type prefixEntry struct {
+	prefix []byte
+	mtype  string
+}
+
+var prefixTable = []prefixEntry{
+	{[]byte("\xff\xd8\xff\xe1"), "image/jpeg"},
+}
+
+// returns content type (string) or nil if unknown
+func (sn *blobSniffer) MimeType() interface{} {
+	hlen := len(sn.header)
+	for _, pte := range prefixTable {
+		plen := len(pte.prefix)
+		if hlen > plen && bytes.Equal(sn.header[:plen], pte.prefix) {
+			return pte.mtype
+		}
+	}
+
+	// Try to parse it as JSON
+	if m, ok := bufferIsJsonMap(sn.header); ok {
+		_, ok := m["camliVersion"]
+		if ok {
+			if camType, ok := m["camliType"].(string); ok {
+				return "application/json; camliType=" + camType
+			}
+		}
+		return "application/json"
+	}
+
+	return nil
+}
+
+func bufferIsJsonMap(buf []byte) (map[string]interface{}, bool) {
+	if len(buf) < 2 || buf[0] != '{' {
+		return nil, false
+	}
+	var got interface{}
+	err := json.Unmarshal(buf, &got)
+	if err != nil {
+		return nil, false
+	}
+	m, ok := got.(map[string]interface{})
+	return m, ok
+}
+
+func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
 	sniffer := new(blobSniffer)
 	hash := blobRef.Hash()
 	var written int64
@@ -66,7 +113,8 @@ func (mi *Indexer) ReceiveBlob(
 		return
 	}
 
-	log.Printf("Read %d bytes; truncated = %v", written, sniffer.IsTruncated())
+	mimeType := sniffer.MimeType()
+	log.Printf("Read %d bytes; type=%v; truncated=%v", written, sniffer.IsTruncated())
 
 	var client *mysql.Client
 	if client, err = mi.getConnection(); err != nil {
@@ -75,17 +123,16 @@ func (mi *Indexer) ReceiveBlob(
 	defer mi.releaseConnection(client)
 
 	var stmt *mysql.Statement
-	if stmt, err = client.Prepare("INSERT INTO blobs (blobref, size) VALUES (?, ?)"); err != nil {
+	if stmt, err = client.Prepare("INSERT INTO blobs (blobref, size, type) VALUES (?, ?, ?)"); err != nil {
 		return
 	}
-	if err = stmt.BindParams(blobRef.String(), written); err != nil {
+	if err = stmt.BindParams(blobRef.String(), written, mimeType); err != nil {
 		return
 	}
 	if err = stmt.Execute(); err != nil {
-                return
+		return
 	}
 
 	retsb = &blobref.SizedBlobRef{BlobRef: blobRef, Size: written}
 	return
 }
-
