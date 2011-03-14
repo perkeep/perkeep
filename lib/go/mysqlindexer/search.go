@@ -28,6 +28,7 @@ import (
 
 type permaNodeRow struct {
 	blobref string
+	signer  string
 	lastmod string // "2011-03-13T23:30:19.03946Z"
 }
 
@@ -37,17 +38,20 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 		return nil
 	}
 
+	// TODO: support multiple
+	user := owner[0]
+
 	client, err := mi.getConnection()
 	if err != nil {
 		return err
 	}
 	defer mi.releaseConnection(client)
 
-	stmt, err := client.Prepare("SELECT blobref, lastmod FROM permanodes WHERE signer = ? AND lastmod <> '' ORDER BY lastmod DESC LIMIT ?")
+	stmt, err := client.Prepare("SELECT blobref, signer, lastmod FROM permanodes WHERE signer = ? AND lastmod <> '' ORDER BY lastmod DESC LIMIT ?")
 	if err != nil {
 		return err
 	}
-	err = stmt.BindParams(owner[0].String(), limit) // TODO: more than one owner, verification
+	err = stmt.BindParams(user.String(), limit) // TODO: more than one owner, verification
 	if err != nil {
 		return err
 	}
@@ -57,7 +61,7 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 	}
 
 	var row permaNodeRow
-	stmt.BindResult(&row.blobref, &row.lastmod)
+	stmt.BindResult(&row.blobref, &row.signer, &row.lastmod)
 	for {
 		done, err := stmt.Fetch()
 		if err != nil {
@@ -70,6 +74,10 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 		if br == nil {
 			continue
 		}
+		signer := blobref.Parse(row.signer)
+		if signer == nil {
+			continue
+		}
 		row.lastmod = trimRFC3339Subseconds(row.lastmod)
 		t, err := time.Parse(time.RFC3339, row.lastmod)
 		if err != nil {
@@ -78,6 +86,7 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 		}
 		dest <- &search.Result{
 			BlobRef:     br,
+			Signer:      signer,
 			LastModTime: t.Seconds(),
 		}
 	}
@@ -90,4 +99,63 @@ func trimRFC3339Subseconds(s string) string {
 		return s
 	}
 	return s[:19] + "Z"
+}
+
+type claimsRow struct {
+	blobref, signer, date, claim, unverified, permanode, attr, value string
+}
+
+func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims []*search.Claim, reterr os.Error) {
+	claims = make([]*search.Claim, 0)
+	client, err := mi.getConnection()
+	if err != nil {
+		reterr = err
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	// TODO: ignore rows where unverified = 'N'
+	stmt, err := client.Prepare("SELECT blobref, date, claim, attr, value FROM claims WHERE permanode = ? AND signer = ?")
+	if err != nil {
+		reterr = err
+		return
+	}
+	err = stmt.BindParams(permanode.String(), owner.String())
+	if err != nil {
+		reterr = err
+		return
+	}
+	err = stmt.Execute()
+	if err != nil {
+		reterr = err
+		return
+	}
+
+	var row claimsRow
+	stmt.BindResult(&row.blobref, &row.date, &row.claim, &row.attr, &row.value)
+	for {
+		done, err := stmt.Fetch()
+		if err != nil {
+			reterr = err
+			return
+		}
+		if done {
+			break
+		}
+		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(row.date))
+		if err != nil {
+			log.Printf("Skipping; error parsing time %q: %v", row.date, err)
+			continue
+		}
+		claims = append(claims, &search.Claim{
+			BlobRef:   blobref.Parse(row.blobref),
+			Signer:    owner,
+			Permanode: permanode,
+			Type:      row.claim,
+			Date:      t,
+			Attr:      row.attr,
+			Value:     row.value,
+		})
+	}
+	return
 }

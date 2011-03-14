@@ -18,12 +18,26 @@ package search
 
 import (
 	"camli/blobref"
+
 	"os"
+	"time"
 )
 
 type Result struct {
 	BlobRef     *blobref.BlobRef
-	LastModTime int64 // seconds since epoch
+	Signer      *blobref.BlobRef // may be nil
+	LastModTime int64            // seconds since epoch
+}
+
+// TODO: move this to schema or something?
+type Claim struct {
+	BlobRef, Signer, Permanode *blobref.BlobRef
+
+	Date *time.Time
+	Type string // "set-attribute", "add-attribute", etc
+
+	// If an attribute modification
+	Attr, Value string
 }
 
 type Index interface {
@@ -32,4 +46,6 @@ type Index interface {
 	GetRecentPermanodes(dest chan *Result,
 	owner []*blobref.BlobRef,
 	limit int) os.Error
+
+	GetOwnerClaims(permaNode, owner *blobref.BlobRef) ([]*Claim, os.Error)
 }
