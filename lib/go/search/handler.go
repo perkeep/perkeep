@@ -17,8 +17,13 @@ limitations under the License.
 package search
 
 import (
+	"camli/blobref"
+	"camli/httputil"
+
 	"fmt"
 	"http"
+	"os"
+	"time"
 )
 
 func CreateHandler(idx Index) func(http.ResponseWriter, *http.Request) {
@@ -27,6 +32,27 @@ func CreateHandler(idx Index) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+type jsonMap map[string]interface{}
+
 func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index) {
-	fmt.Fprintf(conn, "Woot.")
+	ch := make(chan *Result)
+	results := make([]jsonMap, 0)
+	errch := make(chan os.Error)
+	go func() {
+		errch <- idx.GetRecentPermanodes(ch, []*blobref.BlobRef{blobref.Parse("sha1-c4da9d771661563a27704b91b67989e7ea1e50b8")},
+			50)
+	}()
+	for res := range ch {
+		jm := make(jsonMap)
+		jm["blobref"] = res.BlobRef.String()
+		t := time.SecondsToUTC(res.LastModTime)
+		jm["modtime"] = t.Format(time.RFC3339)
+		results = append(results, jm)
+	}
+	err := <-errch
+
+	ret := make(jsonMap)
+	ret["results"] = results
+	ret["_err"] = fmt.Sprintf("%v", err)
+	httputil.ReturnJson(conn, ret)
 }

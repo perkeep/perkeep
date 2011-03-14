@@ -23,7 +23,7 @@ import (
 
 type Result struct {
 	BlobRef     *blobref.BlobRef
-	LastModTime int64 // nanos since epoch
+	LastModTime int64 // seconds since epoch
 }
 
 type Index interface {
