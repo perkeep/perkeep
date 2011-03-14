@@ -42,6 +42,9 @@ var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 var flagName = flag.String("name", "", "Optional name attribute to set on permanode when using -permanode and -file")
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
+var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
+var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
+
 var wereErrors = false
 
 type Uploader struct {
@@ -235,7 +238,8 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	flag.Parse()
 
-	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove)
+	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove,
+		flagSetAttr, flagAddAttr)
 	if !(nOpts == 1 ||
 		(nOpts == 2 && *flagFile && *flagPermanode)) {
 		usage("Conflicting mode options.")
@@ -309,6 +313,20 @@ func main() {
 			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
 			wereErrors = true
 		}
+	case *flagAddAttr || *flagSetAttr:
+		if flag.NArg() != 3 {
+                        log.Fatalf("--set-attr and --add-attr take 3 args: <permanode> <attr> <value>")
+                }
+		pn := blobref.Parse(flag.Arg(0))
+		if pn == nil {
+			log.Fatalf("Error parsing blobref %q", flag.Arg(0))
+		}
+		m := schema.NewSetAttributeClaim(pn, flag.Arg(1), flag.Arg(2))
+		if *flagAddAttr {
+			m = schema.NewAddAttributeClaim(pn, flag.Arg(1), flag.Arg(2))
+		}
+		put, err := up.UploadAndSignMap(m)
+		handleResult(m["claimType"].(string), put, err)
 	}
 
 	if *flagVerbose {

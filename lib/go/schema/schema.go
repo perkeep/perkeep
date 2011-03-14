@@ -255,7 +255,7 @@ func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface
 }
 
 func newAttrChangeClaim(permaNode *blobref.BlobRef, claimType, attr, value string) map[string]interface{} {
-	m := NewClaim(permaNode, "set-attribute")
+	m := NewClaim(permaNode, claimType)
 	m["attribute"] = attr
 	m["value"] = value
 	return m
