@@ -37,8 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class BrowseActivity extends ListActivity
-                            implements DownloadService.Listener {
+public class BrowseActivity extends ListActivity {
     private static final String TAG = "BrowseActivity";
     private static final String BUNDLE_BLOBREF = "blobref";
 
@@ -49,11 +48,7 @@ public class BrowseActivity extends ListActivity
     private DownloadService mService = null;
     private SimpleAdapter mAdapter;
 
-    private String mDirectoryBlobRef = "";
-    private String mDirectoryEntriesBlobRef = "";
-
-    // If true, we're showing the results of a search.
-    private boolean mIsSearch;
+    private String mBlobRef = "";
 
     private ArrayList<HashMap<String, String>> mEntries =
         new ArrayList<HashMap<String, String>>();
@@ -64,14 +59,168 @@ public class BrowseActivity extends ListActivity
         public void onServiceConnected(ComponentName className, IBinder service) {
             Log.d(TAG, "connected to service");
             mService = ((DownloadService.LocalBinder) service).getService();
-            mService.getBlob(mDirectoryBlobRef.equals("") ? "search" : mDirectoryBlobRef,
-                             !mDirectoryBlobRef.equals(""),  // persistent
-                             BrowseActivity.this);
+            if (mBlobRef.equals("")) {
+                mService.getBlob("search", false, mSearchResultsListener);
+            } else {
+                mService.getBlob(mBlobRef, true, mDirectoryListener);
+            }
         }
 
         public void onServiceDisconnected(ComponentName className) {
             Log.d(TAG, "disconnected from service");
             mService = null;
+        }
+    };
+
+    private final DownloadService.Listener mSearchResultsListener = new DownloadService.Listener() {
+        @Override
+        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+            try {
+                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                JSONArray array = object.getJSONArray("results");
+                if (array == null) {
+                    Log.e(TAG, "search results are missing results key");
+                    return;
+                }
+
+                mEntries.clear();
+                for (int i = 0; i < array.length(); ++i) {
+                    JSONObject jsonEntry = array.getJSONObject(i);
+                    Log.d(TAG, "adding entry " + jsonEntry.getString("blobref"));
+                    HashMap<String, String> entry = new HashMap<String, String>();
+                    entry.put(KEY_TITLE, jsonEntry.getString("blobref"));
+                    entry.put(KEY_CONTENT, jsonEntry.getString("content"));
+                    mEntries.add(entry);
+                    mEntriesByBlobRef.put(jsonEntry.getString("blobref"), entry);
+                }
+                mAdapter.notifyDataSetChanged();
+            } catch (IOException e) {
+                Log.e(TAG, "got IO error while reading search results", e);
+            } catch (org.json.JSONException e) {
+                Log.e(TAG, "unable to parse JSON for search results", e);
+            }
+        }
+
+        @Override
+        public void onBlobDownloadFail(final String blobRef) {
+            Log.e(TAG, "download failed for search results");
+        }
+    };
+
+    private final DownloadService.Listener mDirectoryListener = new DownloadService.Listener() {
+        @Override
+        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+            try {
+                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                String type = object.getString("camliType");
+                if (type == null || !type.equals("directory")) {
+                    Log.e(TAG, "directory " + blobRef + " has missing or invalid type");
+                    return;
+                }
+
+                String fileName = object.getString("fileName");
+                if (fileName == null) {
+                    Log.e(TAG, "directory " + blobRef + " doesn't have fileName");
+                    return;
+                }
+                setTitle(fileName + "/");
+
+                String entriesBlobRef = object.getString("entries");
+                if (entriesBlobRef == null) {
+                    Log.e(TAG, "directory " + blobRef + " doesn't have entries");
+                    return;
+                }
+
+                Log.d(TAG, "requesting directory entries " + entriesBlobRef);
+                mService.getBlob(entriesBlobRef, true, mDirectoryEntriesListener);
+            } catch (IOException e) {
+                Log.e(TAG, "got IO error while reading directory " + blobRef, e);
+            } catch (org.json.JSONException e) {
+                Log.e(TAG, "unable to parse JSON for search results", e);
+            }
+        }
+
+        @Override
+        public void onBlobDownloadFail(final String blobRef) {
+            Log.e(TAG, "download failed for directory " + blobRef);
+        }
+    };
+
+    private final DownloadService.Listener mDirectoryEntriesListener = new DownloadService.Listener() {
+        @Override
+        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+            try {
+                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                String type = object.getString("camliType");
+                if (type == null || !type.equals("static-set")) {
+                    Log.e(TAG, "directory list " + blobRef + " has missing or invalid camliType");
+                    return;
+                }
+
+                JSONArray members = object.getJSONArray("members");
+                if (members == null) {
+                    Log.e(TAG, "directory list " + blobRef + " has no members key");
+                    return;
+                }
+
+                mEntries.clear();
+                for (int i = 0; i < members.length(); ++i) {
+                    String entryBlobRef = members.getString(i);
+                    mService.getBlob(entryBlobRef, true, mEntryListener);
+
+                    Log.d(TAG, "adding directory entry " + entryBlobRef);
+                    HashMap<String, String> entry = new HashMap<String, String>();
+                    entry.put(KEY_TITLE, entryBlobRef);
+                    entry.put(KEY_CONTENT, entryBlobRef);
+                    mEntries.add(entry);
+                    mEntriesByBlobRef.put(entryBlobRef, entry);
+                }
+                mAdapter.notifyDataSetChanged();
+            } catch (IOException e) {
+                Log.e(TAG, "got IO error while reading directory list " + blobRef, e);
+            } catch (org.json.JSONException e) {
+                Log.e(TAG, "unable to parse JSON for directory list " + blobRef, e);
+            }
+        }
+
+        @Override
+        public void onBlobDownloadFail(final String blobRef) {
+            Log.e(TAG, "download failed for directory list " + blobRef);
+        }
+    };
+
+    private final DownloadService.Listener mEntryListener = new DownloadService.Listener() {
+        @Override
+        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+            try {
+                HashMap<String, String> entry = mEntriesByBlobRef.get(blobRef);
+                if (entry == null) {
+                    Log.e(TAG, "got unknown entry " + blobRef);
+                    return;
+                }
+
+                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                String fileName = object.getString("fileName");
+                String type = object.getString("camliType");
+                if (fileName == null || type == null) {
+                    Log.e(TAG, "entry " + blobRef + " is missing filename or type");
+                    return;
+                }
+
+                Log.d(TAG, "updating directory entry " + blobRef + " to " + fileName);
+                entry.put(KEY_TITLE, fileName);
+                entry.put(KEY_TYPE, type);
+                mAdapter.notifyDataSetChanged();
+            } catch (IOException e) {
+                Log.e(TAG, "got IO error while reading entry " + blobRef, e);
+            } catch (org.json.JSONException e) {
+                Log.e(TAG, "unable to parse JSON for entry " + blobRef, e);
+            }
+        }
+
+        @Override
+        public void onBlobDownloadFail(final String blobRef) {
+            Log.e(TAG, "download failed for entry " + blobRef);
         }
     };
 
@@ -82,8 +231,8 @@ public class BrowseActivity extends ListActivity
 
         String blobRef = getIntent().getStringExtra(BUNDLE_BLOBREF);
         if (blobRef != null && !blobRef.equals(""))
-            mDirectoryBlobRef = blobRef;
-        setTitle(mDirectoryBlobRef.equals("") ? getString(R.string.results) : mDirectoryBlobRef);
+            mBlobRef = blobRef;
+        setTitle(mBlobRef.equals("") ? getString(R.string.results) : mBlobRef);
 
         Intent serviceIntent = new Intent(this, DownloadService.class);
         startService(serviceIntent);
@@ -111,160 +260,5 @@ public class BrowseActivity extends ListActivity
         HashMap<String, String> blob = mEntries.get(position);
         intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
         startActivity(intent);
-    }
-
-    // Implements DownloadService.Listener.
-    @Override
-    public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String json = Util.slurp(stream);
-                    Log.d(TAG, "got reply: " + json);
-
-                    if (blobRef.equals("search")) {
-                        parseSearchResults(json);
-                    } else if (blobRef.equals(mDirectoryBlobRef)) {
-                        parseDirectory(json);
-                    } else if (blobRef.equals(mDirectoryEntriesBlobRef)) {
-                        parseDirectoryEntries(json);
-                    } else if (mEntriesByBlobRef.get(blobRef) != null) {
-                        parseEntry(blobRef, json);
-                    }
-                } catch (IOException e) {
-                }
-            }
-        });
-    }
-
-    // Implements DownloadService.Listener.
-    @Override
-    public void onBlobDownloadFail(final String blobRef) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(BrowseActivity.this, "Download failed.", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private boolean parseSearchResults(String json) {
-        try {
-            JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
-            JSONArray array = object.getJSONArray("results");
-            if (array == null)
-                return false;
-
-            mEntries.clear();
-            for (int i = 0; i < array.length(); ++i) {
-                JSONObject jsonBlob = array.getJSONObject(i);
-
-                String title = "";
-                JSONObject jsonAttributes = jsonBlob.getJSONObject("attr");
-                if (jsonAttributes != null) {
-                    JSONArray jsonTitle = jsonAttributes.getJSONArray("title");
-                    if (jsonTitle != null && jsonTitle.length() > 0)
-                        title = jsonTitle.getString(0);
-                }
-                if (title.equals(""))
-                    title = jsonBlob.getString("blobref");
-
-                Log.d(TAG, "adding entry " + title);
-                HashMap<String, String> entry = new HashMap<String, String>();
-                entry.put(KEY_TITLE, title);
-                entry.put(KEY_CONTENT, jsonBlob.getString("content"));
-                mEntries.add(entry);
-                mEntriesByBlobRef.put(jsonBlob.getString("blobref"), entry);
-            }
-        } catch (org.json.JSONException e) {
-            return false;
-        }
-
-        mAdapter.notifyDataSetChanged();
-        return true;
-    }
-
-    private boolean parseDirectory(String json) {
-        try {
-            JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
-            String type = object.getString("camliType");
-            if (type == null || !type.equals("directory"))
-                return false;
-
-            String fileName = object.getString("fileName");
-            if (fileName == null)
-                return false;
-            setTitle(fileName + "/");
-
-            String entriesBlobRef = object.getString("entries");
-            if (entriesBlobRef == null)
-                return false;
-
-            Log.d(TAG, "requesting directory entries " + entriesBlobRef);
-            mDirectoryEntriesBlobRef = entriesBlobRef;
-            mService.getBlob(entriesBlobRef, true, BrowseActivity.this);
-
-        } catch (org.json.JSONException e) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private boolean parseDirectoryEntries(String json) {
-        try {
-            JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
-            String type = object.getString("camliType");
-            if (type == null || !type.equals("static-set"))
-                return false;
-
-            JSONArray members = object.getJSONArray("members");
-            if (members == null)
-                return false;
-
-            mEntries.clear();
-            for (int i = 0; i < members.length(); ++i) {
-                String blobRef = members.getString(i);
-                mService.getBlob(blobRef, true, BrowseActivity.this);
-
-                Log.d(TAG, "adding directory entry " + blobRef);
-                HashMap<String, String> entry = new HashMap<String, String>();
-                entry.put(KEY_TITLE, blobRef);
-                entry.put(KEY_CONTENT, blobRef);
-                mEntries.add(entry);
-                mEntriesByBlobRef.put(blobRef, entry);
-            }
-
-        } catch (org.json.JSONException e) {
-            return false;
-        }
-
-        mAdapter.notifyDataSetChanged();
-        return true;
-    }
-
-    private boolean parseEntry(String blobRef, String json) {
-        try {
-            HashMap<String, String> entry = mEntriesByBlobRef.get(blobRef);
-            if (entry == null)
-                return false;
-
-            JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
-            String fileName = object.getString("fileName");
-            String type = object.getString("camliType");
-            if (fileName == null || type == null)
-                return false;
-
-            Log.d(TAG, "updating directory entry " + blobRef + " to " + fileName);
-            entry.put(KEY_TITLE, fileName);
-            entry.put(KEY_TYPE, type);
-
-        } catch (org.json.JSONException e) {
-            return false;
-        }
-
-        mAdapter.notifyDataSetChanged();
-        return true;
     }
 }
