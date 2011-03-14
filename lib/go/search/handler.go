@@ -22,7 +22,9 @@ import (
 
 	"fmt"
 	"http"
+	"log"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
@@ -74,10 +76,45 @@ func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index) {
 }
 
 func populatePermanodeFields(jm jsonMap, idx Index, pn, signer *blobref.BlobRef) {
-	jm["content"] = "sha1-4dc0d8d22de9979f74f3cc6ab59c6592061e24b9" // TODO: un-hardcode
-	jm["type"] = "directory"
+	jm["content"] = ""
 	attr := make(jsonMap)
 	jm["attr"] = attr
 	attr["title"] = []string{"camlistore lib/"}
 	attr["tag"] = []string{"test", "code"}
+
+	claims, err := idx.GetOwnerClaims(pn, signer)
+	if err != nil {
+		log.Printf("Error getting claims of %s: %v", pn.String(), err)
+	} else {
+		sort.Sort(claims)
+		for _, cl := range claims {
+			switch cl.Type {
+			case "del-attribute":
+				attr[cl.Attr] = nil, false
+			case "set-attribute":
+				attr[cl.Attr] = nil, false
+				fallthrough
+			case "add-attribute":
+				sl, ok := attr[cl.Attr].([]string)
+				if !ok {
+					sl = make([]string, 0, 1)
+					attr[cl.Attr] = sl
+				}
+				attr[cl.Attr] = append(sl, cl.Value)
+			}
+		}
+		if sl, ok := attr["camliContent"].([]string); ok && len(sl) > 0 {
+			jm["content"] = sl[0]
+			attr["camliContent"] = nil, false
+		}
+	}
+
+	// If the content permanode is now known, look up its type
+	if content, ok := jm["content"].(string); ok && content != "" {
+		cbr := blobref.Parse(content)
+		mime, ok, _ := idx.GetBlobMimeType(cbr)
+		if ok {
+			jm["type"] = mime
+		}
+	}
 }

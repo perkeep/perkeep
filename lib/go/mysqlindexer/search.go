@@ -105,8 +105,8 @@ type claimsRow struct {
 	blobref, signer, date, claim, unverified, permanode, attr, value string
 }
 
-func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims []*search.Claim, reterr os.Error) {
-	claims = make([]*search.Claim, 0)
+func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims search.ClaimList, reterr os.Error) {
+	claims = make(search.ClaimList, 0)
 	client, err := mi.getConnection()
 	if err != nil {
 		reterr = err
@@ -157,5 +157,44 @@ func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims []*
 			Value:     row.value,
 		})
 	}
+	return
+}
+
+func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool, reterr os.Error) {
+	client, err := mi.getConnection()
+	if err != nil {
+		reterr = err
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	stmt, err := client.Prepare("SELECT type FROM blobs WHERE blobref=?")
+	if err != nil {
+		reterr = err
+		return
+	}
+	err = stmt.BindParams(blob.String())
+	if err != nil {
+		reterr = err
+		return
+	}
+	err = stmt.Execute()
+	if err != nil {
+		reterr = err
+		return
+	}
+
+	stmt.BindResult(&mime)
+	for {
+		done, err := stmt.Fetch()
+		if err != nil {
+			reterr = err
+			return
+		}
+		if done {
+			break
+		}
+	}
+	ok = mime != ""
 	return
 }
