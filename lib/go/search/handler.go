@@ -79,8 +79,6 @@ func populatePermanodeFields(jm jsonMap, idx Index, pn, signer *blobref.BlobRef)
 	jm["content"] = ""
 	attr := make(jsonMap)
 	jm["attr"] = attr
-	attr["title"] = []string{"camlistore lib/"}
-	attr["tag"] = []string{"test", "code"}
 
 	claims, err := idx.GetOwnerClaims(pn, signer)
 	if err != nil {
