@@ -64,7 +64,7 @@ if ($opt_wipe) {
              "unverified CHAR(1) NULL, ".
              "claim VARCHAR(50) NOT NULL, ".
              "permanode VARCHAR(128) NOT NULL, ".
-             "INDEX (permanode), ".
+             "INDEX (permanode, signer, date), ".
              "attr VARCHAR(128) NULL, ".
              "value VARCHAR(128) NULL ".
              ")");
