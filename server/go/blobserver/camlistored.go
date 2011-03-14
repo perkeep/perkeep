@@ -12,6 +12,7 @@ import (
 	"camli/blobserver/localdisk"
 	"camli/blobserver/handlers"
 	"camli/mysqlindexer" // TODO: temporary for testing; wrong place kinda
+	"camli/search" // TODO: temporary for testing; wrong place kinda
 	"flag"
 	"fmt"
 	"http"
@@ -29,6 +30,7 @@ var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
 
 // TODO: Temporary
 var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
+var flagDevSearch = flag.Bool("devsearch", false, "Temporary option to enable search interface at /camli/search")
 
 var storage blobserver.Storage
 
@@ -232,9 +234,9 @@ func main() {
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
 
-	// TODO: temporary
-	if *flagDevMySql {
-		myIndexer := &mysqlindexer.Indexer{
+	var myIndexer *mysqlindexer.Indexer
+	if *flagDevSearch || *flagDevMySql {
+		myIndexer = &mysqlindexer.Indexer{
 			Host:     "localhost",
 			User:     "root",
 			Password: "root",
@@ -243,6 +245,18 @@ func main() {
 		if ok, err := myIndexer.IsAlive(); !ok {
 			log.Fatalf("Could not connect indexer to MySQL server: %s", err)
 		}
+	}
+
+	// TODO: temporary
+	if *flagDevSearch {
+		ws.HandleFunc("/camli/search", func(conn http.ResponseWriter, req *http.Request) {
+			handler := auth.RequireAuth(search.CreateHandler(myIndexer))
+			handler(conn, req)
+		})
+	}
+
+	// TODO: temporary
+	if *flagDevMySql {
 		ws.HandleFunc("/indexer/", makeIndexHandler(myIndexer))
 	}
 

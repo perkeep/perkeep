@@ -132,7 +132,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirro
 	defer mi.releaseConnection(client)
 
 	var stmt *mysql.Statement
-	if stmt, err = client.Prepare("INSERT INTO blobs (blobref, size, type) VALUES (?, ?, ?)"); err != nil {
+	if stmt, err = client.Prepare("INSERT IGNORE INTO blobs (blobref, size, type) VALUES (?, ?, ?)"); err != nil {
 		return
 	}
 	if err = stmt.BindParams(blobRef.String(), written, mimeType); err != nil {
@@ -142,9 +142,16 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirro
 		return
 	}
 
-	if camli := sniffer.camli; camli != nil && camli.Type == "claim" {
-		if err = populateClaim(client, blobRef, camli); err != nil {
-			return
+	if camli := sniffer.camli; camli != nil {
+		switch camli.Type {
+		case "claim":
+			if err = populateClaim(client, blobRef, camli); err != nil {
+				return
+			}
+		case "permanode":
+			if err = populatePermanode(client, blobRef, camli); err != nil {
+				return
+			}
 		}
 	}
 
@@ -152,18 +159,55 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirro
 	return
 }
 
-func populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Error) {
 	var stmt *mysql.Statement
-        if stmt, err = client.Prepare("INSERT INTO claims (blobref, signer, date, unverified, claim, permanode, attr, value) " +
-		"VALUES (?, ?, ?, 'Y', ?, ?, ?, ?)"); err != nil {
-                return
-        }
-	if err = stmt.BindParams(blobRef.String(), camli.Signer, camli.ClaimDate,
-		camli.ClaimType, camli.Permanode, camli.Attribute, camli.Value); err != nil {
-                return
-        }
+	if stmt, err = client.Prepare(sql); err != nil {
+		return
+	}
+	if err = stmt.BindParams(args...); err != nil {
+		return
+	}
 	if err = stmt.Execute(); err != nil {
-                return
-        }
+		return
+	}
+	return
+}
+
+func populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+	pnBlobref := blobref.Parse(camli.Permanode)
+	if pnBlobref == nil {
+		// Skip bogus claim with malformed permanode.
+		return
+	}
+
+	if err = execSQL(client,
+		"INSERT IGNORE INTO claims (blobref, signer, date, unverified, claim, permanode, attr, value) "+
+			"VALUES (?, ?, ?, 'Y', ?, ?, ?, ?)",
+		blobRef.String(), camli.Signer, camli.ClaimDate,
+		camli.ClaimType, camli.Permanode,
+		camli.Attribute, camli.Value); err != nil {
+		return
+	}
+
+	// And update the lastmod on the permanode row.
+	if err = execSQL(client,
+		"INSERT IGNORE INTO permanodes (blobref) VALUES (?)",
+		pnBlobref.String()); err != nil {
+		return
+	}
+	if err = execSQL(client,
+		"UPDATE permanodes SET lastmod=? WHERE blobref=? AND ? > lastmod",
+		camli.ClaimDate, pnBlobref.String(), camli.ClaimDate); err != nil {
+		return
+	}
+
 	return nil
+}
+
+func populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+	err = execSQL(client,
+		"INSERT IGNORE INTO permanodes (blobref, unverified, signer, lastmod) "+
+			"VALUES (?, 'Y', ?, '')",
+		blobRef.String(), camli.Signer)
+	return
 }
