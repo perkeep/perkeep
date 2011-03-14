@@ -20,6 +20,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -44,6 +45,7 @@ public class DownloadService extends Service {
     private static final String USERNAME = "TODO-DUMMY-USER";
 
     private final IBinder mBinder = new LocalBinder();
+    private final Handler mHandler = new Handler();
 
     // Effectively-final objects initialized in onCreate().
     private SharedPreferences mSharedPrefs;
@@ -120,7 +122,7 @@ public class DownloadService extends Service {
                     Log.e(TAG,
                           "got status code " + response.getStatusLine().getStatusCode() +
                           "while downloading " + mBlobRef);
-                    mListener.onBlobDownloadFail(mBlobRef);
+                    handleFailure();
                     return;
                 }
 
@@ -147,11 +149,11 @@ public class DownloadService extends Service {
 
             } catch (ClientProtocolException e) {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
-                mListener.onBlobDownloadFail(mBlobRef);
+                handleFailure();
                 return;
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
-                mListener.onBlobDownloadFail(mBlobRef);
+                handleFailure();
                 return;
             } finally {
                 if (outputStream != null) {
@@ -159,7 +161,24 @@ public class DownloadService extends Service {
                 }
             }
 
-            mListener.onBlobDownloadComplete(mBlobRef, resultStream);
+            // FIXME: In the case of BrowseActivity asking for a schema blob, we should probably
+            // just return an in-memory copy and write to disk in the background.
+            final InputStream finalResultStream = resultStream;
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    mListener.onBlobDownloadComplete(mBlobRef, finalResultStream);
+                }
+            });
+        }
+
+        private void handleFailure() {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    mListener.onBlobDownloadFail(mBlobRef);
+                }
+            });
         }
     }
 }
