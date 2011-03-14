@@ -40,6 +40,21 @@ type Claim struct {
 	Attr, Value string
 }
 
+type ClaimList []*Claim
+
+func (cl ClaimList) Len() int {
+	return len(cl)
+}
+
+func (cl ClaimList) Less(i, j int) bool {
+	// TODO: memoize Seconds in unexported Claim field
+	return cl[i].Date.Seconds() < cl[j].Date.Seconds()
+}
+
+func (cl ClaimList) Swap(i, j int) {
+	cl[i], cl[j] = cl[j], cl[i]
+}
+
 type Index interface {
 	// dest is closed
 	// limit is <= 0 for default.  smallest possible default is 0
@@ -47,5 +62,7 @@ type Index interface {
 	owner []*blobref.BlobRef,
 	limit int) os.Error
 
-	GetOwnerClaims(permaNode, owner *blobref.BlobRef) ([]*Claim, os.Error)
+	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
+
+	GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool, err os.Error)
 }
