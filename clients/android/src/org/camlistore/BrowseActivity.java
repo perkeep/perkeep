@@ -60,9 +60,9 @@ public class BrowseActivity extends ListActivity {
             Log.d(TAG, "connected to service");
             mService = ((DownloadService.LocalBinder) service).getService();
             if (mBlobRef.equals("")) {
-                mService.getBlob("search", false, mSearchResultsListener);
+                mService.getBlob("search", mSearchResultsListener);
             } else {
-                mService.getBlob(mBlobRef, true, mDirectoryListener);
+                mService.getBlob(mBlobRef, mDirectoryListener);
             }
         }
 
@@ -132,7 +132,7 @@ public class BrowseActivity extends ListActivity {
                 }
 
                 Log.d(TAG, "requesting directory entries " + entriesBlobRef);
-                mService.getBlob(entriesBlobRef, true, mDirectoryEntriesListener);
+                mService.getBlob(entriesBlobRef, mDirectoryEntriesListener);
             } catch (IOException e) {
                 Log.e(TAG, "got IO error while reading directory " + blobRef, e);
             } catch (org.json.JSONException e) {
@@ -166,7 +166,7 @@ public class BrowseActivity extends ListActivity {
                 mEntries.clear();
                 for (int i = 0; i < members.length(); ++i) {
                     String entryBlobRef = members.getString(i);
-                    mService.getBlob(entryBlobRef, true, mEntryListener);
+                    mService.getBlob(entryBlobRef, mEntryListener);
 
                     Log.d(TAG, "adding directory entry " + entryBlobRef);
                     HashMap<String, String> entry = new HashMap<String, String>();

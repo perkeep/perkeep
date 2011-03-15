@@ -43,6 +43,7 @@ public class DownloadService extends Service {
     private static final String BLOB_SUBDIR = "blobs";
     private static final int BUFFER_SIZE = 4096;
     private static final String USERNAME = "TODO-DUMMY-USER";
+    private static final String SEARCH_BLOBREF = "search";
 
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
@@ -87,20 +88,18 @@ public class DownloadService extends Service {
         return START_STICKY;
     }
 
-    public void getBlob(String blobRef, boolean persistent, Listener listener) {
-        Util.runAsync(new DownloadTask(blobRef, persistent, listener));
+    public void getBlob(String blobRef, Listener listener) {
+        Util.runAsync(new DownloadTask(blobRef, listener));
     }
 
     private class DownloadTask implements Runnable {
         private static final String TAG = "DownloadService.DownloadTask";
 
         private final String mBlobRef;
-        private final boolean mPersistent;
         private final Listener mListener;
 
-        DownloadTask(String blobRef, boolean persistent, Listener listener) {
+        DownloadTask(String blobRef, Listener listener) {
             mBlobRef = blobRef;
-            mPersistent = persistent;
             mListener = listener;
         }
 
@@ -126,13 +125,15 @@ public class DownloadService extends Service {
                     return;
                 }
 
+                final boolean isTransient = mBlobRef.equals(SEARCH_BLOBREF);
+
                 File file = null;
-                if (mPersistent) {
+                if (isTransient) {
+                    outputStream = new ByteArrayOutputStream();
+                } else {
                     file = new File(mBlobDir, mBlobRef);
                     file.createNewFile();
                     outputStream = new FileOutputStream(file);
-                } else {
-                    outputStream = new ByteArrayOutputStream();
                 }
 
                 int bytesRead = 0;
@@ -143,7 +144,7 @@ public class DownloadService extends Service {
                 }
 
                 resultStream =
-                    mPersistent ?
+                    isTransient ?
                     new FileInputStream(file) :
                     new ByteArrayInputStream(((ByteArrayOutputStream) outputStream).toByteArray());
 
