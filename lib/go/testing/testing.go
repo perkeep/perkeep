@@ -17,6 +17,8 @@ limitations under the License.
 package testing
 
 import (
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -29,6 +31,24 @@ func Expect(t *testing.T, got bool, what string) {
 func Assert(t *testing.T, got bool, what string) {
 	if !got {
 		t.Fatalf("%s: got %v; expected %v", what, got, true)
+	}
+}
+
+func ExpectErrorContains(t *testing.T, err os.Error, substr, msg string) {
+	errorContains((*testing.T).Errorf, t, err, substr, msg)
+}
+
+func AssertErrorContains(t *testing.T, err os.Error, substr, msg string) {
+	errorContains((*testing.T).Fatalf, t, err, substr, msg)
+}
+
+func errorContains(f func(*testing.T, string, ...interface{}), t *testing.T, err os.Error, substr, msg string) {
+	if err == nil {
+		f(t, "%s: got nil error; expected error containing %q", msg, substr)
+		return
+	}
+	if !strings.Contains(err.String(), substr) {
+		f(t, "%s: expected error containing %q; got instead error %q", msg, substr, err.String())
 	}
 }
 
