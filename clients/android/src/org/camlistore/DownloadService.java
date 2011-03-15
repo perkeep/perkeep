@@ -121,7 +121,7 @@ public class DownloadService extends Service {
                 if (response.getStatusLine().getStatusCode() != 200) {
                     Log.e(TAG,
                           "got status code " + response.getStatusLine().getStatusCode() +
-                          "while downloading " + mBlobRef);
+                          " while downloading " + mBlobRef);
                     handleFailure();
                     return;
                 }

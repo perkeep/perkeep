@@ -76,7 +76,9 @@ public class BrowseActivity extends ListActivity {
         @Override
         public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
             try {
-                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                String data = Util.slurp(stream);
+                Log.d(TAG, "got search results: " + data);
+                JSONObject object = (JSONObject) new JSONTokener(data).nextValue();
                 JSONArray array = object.getJSONArray("results");
                 if (array == null) {
                     Log.e(TAG, "search results are missing results key");
@@ -241,9 +243,9 @@ public class BrowseActivity extends ListActivity {
         mAdapter = new SimpleAdapter(
             this,
             mEntries,
-            android.R.layout.simple_list_item_1,
+            R.layout.browse_row,
             new String[]{ KEY_TITLE },
-            new int[]{ android.R.id.text1 });
+            new int[]{ android.R.id.title });
         setListAdapter(mAdapter);
     }
 
