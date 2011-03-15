@@ -46,6 +46,23 @@ type SignRequest struct {
 	// In server-mode, don't use any default (user) keys
 	// TODO: formalize what this means?
 	ServerMode    bool
+
+	SecretKeyringPath string
+	KeyringPath string
+}
+
+func (sr *SignRequest) publicRingPath() string {
+	if sr.KeyringPath != "" {
+		return sr.KeyringPath
+	}
+	return *flagRing
+}
+
+func (sr *SignRequest) secretRingPath() string {
+	if sr.SecretKeyringPath != "" {
+		return sr.SecretKeyringPath
+	}
+	return *flagSecretRing
 }
 
 func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
@@ -106,8 +123,8 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	if sr.ServerMode {
 		args = append(args,
 			"--no-default-keyring",
-			"--keyring", *flagRing, // TODO: needed for signing?
-			"--secret-keyring", *flagSecretRing)
+			"--keyring", sr.publicRingPath(), // TODO: needed for signing?
+			"--secret-keyring", sr.secretRingPath())
 	}
 
 	args = append(args, "-")
