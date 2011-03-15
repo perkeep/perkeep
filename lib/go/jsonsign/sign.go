@@ -69,7 +69,8 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 		return inputfail("json lacks \"camliSigner\" key with public key blobref")
 	}
 
-	signerBlob := blobref.Parse(camliSigner.(string))
+	camliSignerStr, _ := camliSigner.(string)
+	signerBlob := blobref.Parse(camliSignerStr)
 	if signerBlob == nil {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
@@ -94,7 +95,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	trimmedJson = trimmedJson[0:len(trimmedJson)-1]
 
 	args := []string{"gpg",
-			"--local-user", pk.KeyIdString(),
+		        "--local-user", fmt.Sprintf("%X", pk.Fingerprint[len(pk.Fingerprint)-4:]),
 			"--detach-sign",
 			"--armor"}
 

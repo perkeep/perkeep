@@ -123,7 +123,7 @@ sub v {
 sub clean {
     for my $root ("$ENV{GOROOT}/pkg/linux_amd64",
                   "$ENV{GOROOT}/pkg/linux_386") {
-        for my $pkg ("camli", "crypto/openpgp") {
+        for my $pkg ("camli") {
             my $dir = "$root/$pkg";
             next unless -d $dir;
             system("rm", "-rfv", $dir);
@@ -263,9 +263,6 @@ TARGET: server/go/sigserver
     - server/go/auth
     - server/go/httputil
     - lib/go/jsonsign
-    - lib/go/ext/openpgp/packet
-    - lib/go/ext/openpgp/error
-    - lib/go/ext/openpgp/armor
 
 TARGET: website
 
@@ -284,15 +281,6 @@ TARGET: clients/go/camsync
     - lib/go/client
     - lib/go/blobref
 
-TARGET: lib/go/ext/openpgp/error
-
-TARGET: lib/go/ext/openpgp/packet
-    - lib/go/ext/openpgp/error
-
-TARGET: lib/go/ext/openpgp/armor
-    - lib/go/ext/openpgp/error
-    - lib/go/ext/openpgp/packet
-
 TARGET: lib/go/schema
     - lib/go/blobref
     - lib/go/testing
@@ -304,9 +292,7 @@ TARGET: lib/go/client
 
 TARGET: lib/go/jsonsign
     - lib/go/blobref
-    - lib/go/ext/openpgp/packet
-    - lib/go/ext/openpgp/armor
-    - lib/go/ext/openpgp/error
+    - lib/go/testing
 
 TARGET: lib/go/blobref
     - lib/go/testing

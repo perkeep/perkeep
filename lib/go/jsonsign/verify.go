@@ -22,7 +22,6 @@ import (
 	"crypto"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
-	"crypto/rsa"
 	"fmt"
 	"json"
 	"log"
@@ -65,7 +64,7 @@ type VerifyRequest struct {
 	PayloadMap  map[string]interface{}  // The JSON values from BPJ
 	CamliSig    string
 
-	PublicKeyPacket *packet.PublicKeyPacket
+	PublicKeyPacket *packet.PublicKey
 
 	Err os.Error   // last error encountered
 }
@@ -142,20 +141,21 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 
 func (vr *VerifyRequest) VerifySignature() bool {
 	armorData := reArmor(vr.CamliSig)
-	block, _ := armor.Decode([]byte(armorData))
+	block, _ := armor.Decode(bytes.NewBufferString(armorData))
 	if block == nil {
 		return vr.fail("Can't parse camliSig armor")
 	}
-	buf := bytes.NewBuffer(block.Bytes)
-	p, err := packet.ReadPacket(buf)
+	var p packet.Packet
+	var err os.Error
+	p, err = packet.Read(block.Body)
 	if err != nil {
 		return vr.fail("Error reading PGP packet from camliSig")
 	}
-	sig, ok := p.(packet.SignaturePacket)
+	sig, ok := p.(*packet.Signature)
 	if !ok {
 		return vr.fail("PGP packet isn't a signature packet")
 	}
-	if sig.Hash != packet.HashFuncSHA1 {
+	if sig.Hash != crypto.SHA1 {
 		return vr.fail("I can only verify SHA1 signatures")
 	}
 	if sig.SigType != packet.SigTypeBinary {
@@ -168,7 +168,7 @@ func (vr *VerifyRequest) VerifySignature() bool {
 	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
 		return vr.fail("hash tag doesn't match")
 	}
-	err = rsa.VerifyPKCS1v15(&vr.PublicKeyPacket.PublicKey, crypto.SHA1, hashBytes, sig.Signature)
+	err = vr.PublicKeyPacket.VerifySignature(hash, sig)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("bad signature: %s", err))
 	}
