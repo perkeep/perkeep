@@ -21,7 +21,7 @@ import (
 	"os"
 	"io"
 	"crypto/openpgp/armor"
-        "crypto/openpgp/packet"
+	"crypto/openpgp/packet"
 	"strings"
 )
 

@@ -27,8 +27,8 @@ import (
 	"log"
 	"os"
 	"strings"
-        "crypto/sha1"
-	)
+	"crypto/sha1"
+)
 
 var logf = log.Printf
 
@@ -41,43 +41,52 @@ func reArmor(line string) string {
 	if lastEq == -1 {
 		return ""
 	}
-	return fmt.Sprintf(`
------BEGIN PGP SIGNATURE-----
-
-%s
-%s
------END PGP SIGNATURE-----
-`, line[0:lastEq], line[lastEq:])
+	buf := new(bytes.Buffer)
+	fmt.Fprintf(buf, "-----BEGIN PGP SIGNATURE-----\n\n")
+	payload := line[0:lastEq]
+	crc := line[lastEq:]
+	for len(payload) > 0 {
+		chunkLen := len(payload)
+		if chunkLen > 60 {
+			chunkLen = 60
+		}
+		fmt.Fprintf(buf, "%s\n", payload[0:chunkLen])
+		payload = payload[chunkLen:]
+	}
+	fmt.Fprintf(buf, "%s\n-----BEGIN PGP SIGNATURE-----\n", crc)
+	return buf.String()
 }
 
 // See doc/json-signing/* for background and details
 // on these variable names.
 type VerifyRequest struct {
-	fetcher blobref.Fetcher  // fetcher used to find public key blob
+	fetcher blobref.Fetcher // fetcher used to find public key blob
 
-	ba  []byte  // "bytes all"
-	bp  []byte  // "bytes payload" (the part that is signed)
-	bpj []byte  // "bytes payload, JSON" (BP + "}")
-	bs  []byte  // "bytes signature", "{" + separator + camliSig, valid JSON
+	ba  []byte // "bytes all"
+	bp  []byte // "bytes payload" (the part that is signed)
+	bpj []byte // "bytes payload, JSON" (BP + "}")
+	bs  []byte // "bytes signature", "{" + separator + camliSig, valid JSON
 
-	CamliSigner *blobref.BlobRef
-	PayloadMap  map[string]interface{}  // The JSON values from BPJ
-	CamliSig    string
-
+	CamliSigner     *blobref.BlobRef
+	CamliSig        string
 	PublicKeyPacket *packet.PublicKey
 
-	Err os.Error   // last error encountered
+	// set if Verify() returns true:
+	PayloadMap  map[string]interface{} // The JSON values from BPJ
+	SignerKeyId string
+
+	Err os.Error // last error encountered
 }
 
 func (vr *VerifyRequest) fail(msg string) bool {
-	vr.Err = os.NewError(msg)
+	vr.Err = os.NewError("jsonsign: " + msg)
 	return false
 }
 
 func (vr *VerifyRequest) ParseSigMap() bool {
 	sigMap := make(map[string]interface{})
 	if err := json.Unmarshal(vr.bs, &sigMap); err != nil {
-		return vr.fail("Invalid JSON in signature")
+		return vr.fail("invalid JSON in signature")
 	}
 
 	if len(sigMap) != 1 {
@@ -107,21 +116,21 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 	}
 
 	if _, hasVersion := pm["camliVersion"]; !hasVersion {
-		return vr.fail("Missing 'camliVersion' in the JSON payload")
+		return vr.fail("missing 'camliVersion' in the JSON payload")
 	}
 
 	signer, hasSigner := pm["camliSigner"]
 	if !hasSigner {
-		return vr.fail("Missing 'camliSigner' in the JSON payload")
+		return vr.fail("missing 'camliSigner' in the JSON payload")
 	}
 
 	if _, ok := signer.(string); !ok {
-		return vr.fail("Invalid 'camliSigner' in the JSON payload")
+		return vr.fail("invalid 'camliSigner' in the JSON payload")
 	}
 
 	vr.CamliSigner = blobref.Parse(signer.(string))
 	if vr.CamliSigner == nil {
-		return vr.fail("Malformed 'camliSigner' blobref in the JSON payload")
+		return vr.fail("malformed 'camliSigner' blobref in the JSON payload")
 	}
 	return true
 }
@@ -129,27 +138,27 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
 	if err != nil {
-		return vr.fail(fmt.Sprintf("Error fetching public key blob: %v", err))
+		return vr.fail(fmt.Sprintf("error fetching public key blob: %v", err))
 	}
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
-		return vr.fail(fmt.Sprintf("Error opening public key file: %v", err))
+		return vr.fail(fmt.Sprintf("error opening public key file: %v", err))
 	}
 	vr.PublicKeyPacket = pk
-	return true;
+	return true
 }
 
 func (vr *VerifyRequest) VerifySignature() bool {
 	armorData := reArmor(vr.CamliSig)
 	block, _ := armor.Decode(bytes.NewBufferString(armorData))
 	if block == nil {
-		return vr.fail("Can't parse camliSig armor")
+		return vr.fail("can't parse camliSig armor")
 	}
 	var p packet.Packet
 	var err os.Error
 	p, err = packet.Read(block.Body)
 	if err != nil {
-		return vr.fail("Error reading PGP packet from camliSig")
+		return vr.fail("error reading PGP packet from camliSig: " + err.String())
 	}
 	sig, ok := p.(*packet.Signature)
 	if !ok {
@@ -162,16 +171,12 @@ func (vr *VerifyRequest) VerifySignature() bool {
 		return vr.fail("I can only verify binary signatures")
 	}
 	hash := sha1.New()
-	hash.Write(vr.bp)  // payload bytes
-	hash.Write(sig.HashSuffix)
-	hashBytes := hash.Sum()
-	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
-		return vr.fail("hash tag doesn't match")
-	}
+	hash.Write(vr.bp) // payload bytes
 	err = vr.PublicKeyPacket.VerifySignature(hash, sig)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("bad signature: %s", err))
 	}
+	vr.SignerKeyId = vr.PublicKeyPacket.KeyIdString()
 	return true
 }
 
@@ -179,20 +184,20 @@ func NewVerificationRequest(sjson string, fetcher blobref.Fetcher) (vr *VerifyRe
 	vr = new(VerifyRequest)
 	vr.ba = []byte(sjson)
 	vr.fetcher = fetcher
-	
+
 	sigIndex := bytes.LastIndex(vr.ba, []byte(sigSeparator))
 	if sigIndex == -1 {
-		vr.Err = os.NewError("no 13-byte camliSig separator found in sjson")
+		vr.Err = os.NewError("jsonsign: no 13-byte camliSig separator found in sjson")
 		return
 	}
 
 	// "Bytes Payload"
-	vr.bp = vr.ba[0:sigIndex]
+	vr.bp = vr.ba[:sigIndex]
 
 	// "Bytes Payload JSON".  Note we re-use the memory (the ",")
 	// from BA in BPJ, so we can't re-use that "," byte for
 	// the opening "{" in "BS".
-	vr.bpj = vr.ba[0:sigIndex+1]
+	vr.bpj = vr.ba[:sigIndex+1]
 	vr.bpj[sigIndex] = '}'
 	vr.bs = []byte("{" + sjson[sigIndex+1:])
 	return
@@ -207,16 +212,16 @@ func (vr *VerifyRequest) Verify() bool {
 		vr.ParsePayloadMap() &&
 		vr.FindAndParsePublicKeyBlob() &&
 		vr.VerifySignature() {
-		return true;
+		return true
 	}
 
 	// Don't allow dumbs callers to accidentally check this
 	// if it's not valid.
 	vr.PayloadMap = nil
 	if vr.Err == nil {
-		// The other functions just fill this in already,
-		// but just in case:
-		vr.Err = os.NewError("Verification failed")
+		// The other functions should have filled this in
+		// already, but just in case:
+		vr.Err = os.NewError("jsonsign: verification failed")
 	}
 	return false
 }
