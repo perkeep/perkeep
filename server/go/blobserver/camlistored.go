@@ -6,6 +6,8 @@ package main
 
 import (
 	"camli/auth"
+	"camli/blobref"
+	"camli/client"
 	"camli/httputil"
 	"camli/webserver"
 	"camli/blobserver"
@@ -73,7 +75,7 @@ func parseCamliPath(path string) (partitionName string, action string, err os.Er
 	partitionName = path[len(partitionPrefix):camIdx]
 	if !isValidPartitionName(partitionName) {
 		err = InvalidCamliPath
-		return
+	return
 	}
 	return
 }
@@ -234,13 +236,25 @@ func main() {
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
 
-	var myIndexer *mysqlindexer.Indexer
+	var (
+		myIndexer *mysqlindexer.Indexer
+		ownerBlobRef *blobref.BlobRef
+	)
 	if *flagDevSearch || *flagDevMySql {
+		ownerBlobRef = client.SignerPublicKeyBlobref()
+		if ownerBlobRef == nil {
+			log.Fatalf("Public key not configured.")
+		}
+
 		myIndexer = &mysqlindexer.Indexer{
 			Host:     "localhost",
 			User:     "root",
 			Password: "root",
 			Database: "devcamlistore",
+		        OwnerBlobRef: ownerBlobRef,
+			KeyFetcher: blobref.NewSerialFetcher(
+				blobref.NewConfigDirFetcher(),
+				storage),
 		}
 		if ok, err := myIndexer.IsAlive(); !ok {
 			log.Fatalf("Could not connect indexer to MySQL server: %s", err)
@@ -250,7 +264,7 @@ func main() {
 	// TODO: temporary
 	if *flagDevSearch {
 		ws.HandleFunc("/camli/search", func(conn http.ResponseWriter, req *http.Request) {
-			handler := auth.RequireAuth(search.CreateHandler(myIndexer))
+			handler := auth.RequireAuth(search.CreateHandler(myIndexer, ownerBlobRef))
 			handler(conn, req)
 		})
 	}

@@ -19,6 +19,7 @@ package blobref
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type Fetcher interface {
@@ -28,8 +29,31 @@ type Fetcher interface {
 	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
 }
 
+func NewSerialFetcher(fetchers ...Fetcher) Fetcher {
+	return &serialFetcher{fetchers}
+}
+
 func NewSimpleDirectoryFetcher(dir string) Fetcher {
 	return &dirFetcher{dir, "camli"}
+}
+
+func NewConfigDirFetcher() Fetcher {
+	configDir := filepath.Join(os.Getenv("HOME"), ".camli", "keyblobs")
+	return NewSimpleDirectoryFetcher(configDir)
+}
+
+type serialFetcher struct {
+	fetchers []Fetcher
+}
+
+func (sf *serialFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os.Error) {
+	for _, fetcher := range sf.fetchers {
+		file, size, err = fetcher.Fetch(b)
+		if err == nil {
+			return
+		}
+	}
+	return
 }
 
 type dirFetcher struct {

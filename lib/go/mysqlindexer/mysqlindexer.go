@@ -30,6 +30,11 @@ type Indexer struct {
 	Host, User, Password, Database string
 	Port                           int
 
+	// TODO: does this belong at this layer?  or should the indexer
+	// simply present a list of 
+	KeyFetcher   blobref.Fetcher // for verifying claims
+	OwnerBlobRef *blobref.BlobRef
+
 	hubLock sync.Mutex
 	hubMap  map[blobserver.Partition]blobserver.BlobHub
 

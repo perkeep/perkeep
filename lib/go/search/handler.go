@@ -29,23 +29,21 @@ import (
 	"time"
 )
 
-func CreateHandler(idx Index) func(http.ResponseWriter, *http.Request) {
+func CreateHandler(idx Index, ownerBlobRef *blobref.BlobRef) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleSearch(conn, req, idx)
+		handleSearch(conn, req, idx, ownerBlobRef)
 	}
 }
 
 type jsonMap map[string]interface{}
 
-func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index) {
-
-	user := blobref.Parse("sha1-c4da9d771661563a27704b91b67989e7ea1e50b8")
+func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index, ownerBlobRef *blobref.BlobRef) {
 
 	ch := make(chan *Result)
 	results := make([]jsonMap, 0)
 	errch := make(chan os.Error)
 	go func() {
-		errch <- idx.GetRecentPermanodes(ch, []*blobref.BlobRef{user}, 50)
+		errch <- idx.GetRecentPermanodes(ch, []*blobref.BlobRef{ownerBlobRef}, 50)
 	}()
 
 	wg := new(sync.WaitGroup)

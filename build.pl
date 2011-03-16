@@ -252,6 +252,7 @@ TARGET: server/go/blobserver
     - lib/go/blobserver
     - lib/go/blobserver/handlers
     - lib/go/blobserver/localdisk
+    - lib/go/client
     - lib/go/mysqlindexer
     - lib/go/search
     - server/go/auth

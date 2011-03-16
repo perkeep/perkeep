@@ -123,6 +123,14 @@ func Parse(ref string) *BlobRef {
 	return FromPattern(kBlobRefPattern, ref)
 }
 
+func MustParse(ref string) *BlobRef {
+	br := Parse(ref)
+	if br == nil {
+		panic("Failed to parse blobref: " + ref)
+	}
+	return br
+}
+
 // May return nil in list positions where the blobref could not be parsed.
 func ParseMulti(refs []string) (parsed []*BlobRef) {
 	parsed = make([]*BlobRef, 0, len(refs))

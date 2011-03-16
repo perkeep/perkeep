@@ -22,7 +22,7 @@ import (
 	"json"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -34,11 +34,11 @@ var flagServer *string = flag.String("blobserver", "", "camlistore blob server")
 var flagPassword *string = flag.String("password", "", "password for blob server")
 
 func ConfigDir() string {
-	return path.Join(os.Getenv("HOME"), ".camli")
+	return filepath.Join(os.Getenv("HOME"), ".camli")
 }
 
 func ConfigFilePath() string {
-	return path.Join(os.Getenv("HOME"), ".camli", "config")
+	return filepath.Join(os.Getenv("HOME"), ".camli", "config")
 }
 
 var configOnce sync.Once
@@ -115,6 +115,11 @@ func passwordOrDie() string {
 
 // Returns blobref of signer's public key, or nil if unconfigured.
 func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
+	return SignerPublicKeyBlobref()
+}
+
+// TODO: move to config package?
+func SignerPublicKeyBlobref() *blobref.BlobRef {
 	configOnce.Do(parseConfig)
 	key := "publicKeyBlobref"
 	v, ok := config[key]
@@ -136,6 +141,6 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 }
 
 func (c *Client) GetBlobFetcher() blobref.Fetcher {
-	// TODO: make a NewSeriesAttemptFetcher(...all configured fetch paths...)
-	return blobref.NewSimpleDirectoryFetcher(path.Join(os.Getenv("HOME"), ".camli", "keyblobs"))
+	// Use blobref.NewSeriesFetcher(...all configured fetch paths...)
+	return blobref.NewConfigDirFetcher()
 }
