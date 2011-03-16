@@ -24,8 +24,8 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.SimpleAdapter;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -46,29 +46,27 @@ public class BrowseActivity extends ListActivity {
     private static final String KEY_TYPE = "type";
 
     private DownloadService mService = null;
-    private SimpleAdapter mAdapter;
+    private ArrayAdapter mAdapter;
 
     private String mBlobRef = "";
 
-    private ArrayList<HashMap<String, String>> mEntries =
-        new ArrayList<HashMap<String, String>>();
-    private HashMap<String, HashMap<String, String>> mEntriesByBlobRef =
-        new HashMap<String, HashMap<String, String>>();
+    private ArrayList<Entry> mEntries = new ArrayList<Entry>();
+    private HashMap<String, Entry> mEntriesByBlobRef = new HashMap<String, Entry>();
 
-    private enum DirectoryEntryType {
+    private enum EntryType {
         UNKNOWN("unknown"),
         FILE("file"),
         DIRECTORY("directory");
 
         private String mName;
 
-        DirectoryEntryType(String name) {
+        EntryType(String name) {
             mName = name;
         }
 
-        public static DirectoryEntryType fromString(String str) {
+        public static EntryType fromString(String str) {
             if (str != null) {
-                for (DirectoryEntryType type : DirectoryEntryType.values()) {
+                for (EntryType type : EntryType.values()) {
                     if (type.mName.equals(str))
                         return type;
                 }
@@ -77,26 +75,31 @@ public class BrowseActivity extends ListActivity {
         }
     }
 
-    private class DirectoryEntry {
+    private class Entry {
         final private String mBlobRef;
-        private String mFilename;
-        private DirectoryEntryType mType;
+        private String mFilename = null;
+        private EntryType mType = EntryType.UNKNOWN;
+        private String mContentBlobRef = null;
 
-        DirectoryEntry(String blobRef) {
+        Entry(String blobRef) {
             mBlobRef = blobRef;
-            mFilename = null;
-            mType = DirectoryEntryType.UNKNOWN;
         }
 
         public String getBlobRef() { return mBlobRef; }
-        public String getDisplayName() { return mFilename != null ? mFilename : mBlobRef; }
-        public DirectoryEntryType getType() { return mType; }
+        public EntryType getType() { return mType; }
+        public String getContentBlobRef() { return mContentBlobRef; }
+
+        public String toString() { return mFilename != null ? mFilename : mBlobRef; }
 
         public boolean updateFromJSON(String json) {
             try {
                 JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
                 mFilename = object.getString("fileName");
-                mType = DirectoryEntryType.fromString(object.getString("camliType"));
+                mType = EntryType.fromString(object.getString("camliType"));
+                if (mType == EntryType.DIRECTORY) {
+                    mContentBlobRef = mBlobRef;
+                }
+                // TODO: Handle contentParts for files.
                 return true;
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for entry " + mBlobRef, e);
@@ -119,12 +122,11 @@ public class BrowseActivity extends ListActivity {
         startService(serviceIntent);
         bindService(new Intent(this, DownloadService.class), mConnection, 0);
 
-        mAdapter = new SimpleAdapter(
+        mAdapter = new ArrayAdapter(
             this,
-            mEntries,
             R.layout.browse_row,
-            new String[]{ KEY_TITLE },
-            new int[]{ android.R.id.title });
+            android.R.id.title,
+            mEntries);
         setListAdapter(mAdapter);
     }
 
@@ -137,16 +139,15 @@ public class BrowseActivity extends ListActivity {
 
     @Override
     protected void onListItemClick(ListView listView, View view, int position, long id) {
-        HashMap<String, String> blob = mEntries.get(position);
-        String type = blob.get("type");
-        if (type == null)
-            return;
-
-        if (type.equals("directory")) {
+        Entry entry = mEntries.get(position);
+        if (entry.getType() == EntryType.DIRECTORY) {
+            if (entry.getContentBlobRef() == null) {
+                Log.e(TAG, "no content for directory " + entry.getBlobRef());
+                return;
+            }
             Intent intent = new Intent(this, BrowseActivity.class);
-            intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
+            intent.putExtra(BUNDLE_BLOBREF, entry.getContentBlobRef());
             startActivity(intent);
-        } else if (type.equals("file")) {
         }
     }
 
@@ -181,12 +182,12 @@ public class BrowseActivity extends ListActivity {
                 mEntries.clear();
                 for (int i = 0; i < array.length(); ++i) {
                     JSONObject jsonEntry = array.getJSONObject(i);
-                    Log.d(TAG, "adding entry " + jsonEntry.getString("blobref"));
-                    HashMap<String, String> entry = new HashMap<String, String>();
-                    entry.put(KEY_TITLE, jsonEntry.getString("blobref"));
-                    entry.put(KEY_CONTENT, jsonEntry.getString("content"));
+                    String entryBlobRef = jsonEntry.getString("content");
+                    Log.d(TAG, "adding search entry " + entryBlobRef);
+                    Entry entry = new Entry(entryBlobRef);
                     mEntries.add(entry);
-                    mEntriesByBlobRef.put(jsonEntry.getString("blobref"), entry);
+                    mEntriesByBlobRef.put(entryBlobRef, entry);
+                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
                 }
                 mAdapter.notifyDataSetChanged();
             } catch (org.json.JSONException e) {
@@ -257,14 +258,11 @@ public class BrowseActivity extends ListActivity {
                 mEntries.clear();
                 for (int i = 0; i < members.length(); ++i) {
                     String entryBlobRef = members.getString(i);
-                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
-
                     Log.d(TAG, "adding directory entry " + entryBlobRef);
-                    HashMap<String, String> entry = new HashMap<String, String>();
-                    entry.put(KEY_TITLE, entryBlobRef);
-                    entry.put(KEY_CONTENT, entryBlobRef);
+                    Entry entry = new Entry(entryBlobRef);
                     mEntries.add(entry);
                     mEntriesByBlobRef.put(entryBlobRef, entry);
+                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
                 }
                 mAdapter.notifyDataSetChanged();
             } catch (org.json.JSONException e) {
@@ -281,28 +279,15 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.ByteArrayListener mEntryListener = new DownloadService.ByteArrayListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
-            try {
-                HashMap<String, String> entry = mEntriesByBlobRef.get(blobRef);
-                if (entry == null) {
-                    Log.e(TAG, "got unknown entry " + blobRef);
-                    return;
-                }
-
-                JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
-                String fileName = object.getString("fileName");
-                String type = object.getString("camliType");
-                if (fileName == null || type == null) {
-                    Log.e(TAG, "entry " + blobRef + " is missing filename or type");
-                    return;
-                }
-
-                Log.d(TAG, "updating directory entry " + blobRef + " to " + fileName);
-                entry.put(KEY_TITLE, fileName);
-                entry.put(KEY_TYPE, type);
-                mAdapter.notifyDataSetChanged();
-            } catch (org.json.JSONException e) {
-                Log.e(TAG, "unable to parse JSON for entry " + blobRef, e);
+            Entry entry = mEntriesByBlobRef.get(blobRef);
+            if (entry == null) {
+                Log.e(TAG, "got unknown entry " + blobRef);
+                return;
             }
+
+            Log.d(TAG, "updating directory entry " + blobRef);
+            if (entry.updateFromJSON(new String(bytes)))
+                mAdapter.notifyDataSetChanged();
         }
 
         @Override
