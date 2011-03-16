@@ -60,7 +60,7 @@ public class BrowseActivity extends ListActivity {
         FILE("file"),
         DIRECTORY("directory");
 
-        private String mName;
+        private final String mName;
 
         EntryType(String name) {
             mName = name;
@@ -78,7 +78,9 @@ public class BrowseActivity extends ListActivity {
     }
 
     private class Entry {
-        final private String mBlobRef;
+        private final String mBlobRef;
+
+        // Effectively-final objects initialized in updateFromJSON().
         private String mFilename = null;
         private EntryType mType = EntryType.UNKNOWN;
         private String mContentBlobRef = null;
@@ -102,15 +104,10 @@ public class BrowseActivity extends ListActivity {
                 if (mType == EntryType.DIRECTORY) {
                     mContentBlobRef = mBlobRef;
                 } else if (mType == EntryType.FILE) {
-                    JSONArray parts = object.getJSONArray("contentParts");
-                    if (parts == null) {
-                        Log.e(TAG, "file " + mBlobRef + " is missing contentParts");
-                        return false;
-                    }
                     // TODO: Handle multi-part files, partial portions of blobs, etc.
-                    if (parts.length() == 1) {
+                    JSONArray parts = object.getJSONArray("contentParts");
+                    if (parts != null && parts.length() == 1)
                         mContentBlobRef = parts.getJSONObject(0).getString("blobRef");
-                    }
                 }
                 return true;
             } catch (org.json.JSONException e) {
