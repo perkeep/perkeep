@@ -55,6 +55,44 @@ public class BrowseActivity extends ListActivity {
     private HashMap<String, HashMap<String, String>> mEntriesByBlobRef =
         new HashMap<String, HashMap<String, String>>();
 
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "onCreate");
+        super.onCreate(savedInstanceState);
+
+        String blobRef = getIntent().getStringExtra(BUNDLE_BLOBREF);
+        if (blobRef != null && !blobRef.equals(""))
+            mBlobRef = blobRef;
+        setTitle(mBlobRef.equals("") ? getString(R.string.results) : mBlobRef);
+
+        Intent serviceIntent = new Intent(this, DownloadService.class);
+        startService(serviceIntent);
+        bindService(new Intent(this, DownloadService.class), mConnection, 0);
+
+        mAdapter = new SimpleAdapter(
+            this,
+            mEntries,
+            R.layout.browse_row,
+            new String[]{ KEY_TITLE },
+            new int[]{ android.R.id.title });
+        setListAdapter(mAdapter);
+    }
+
+    @Override
+    protected void onDestroy() {
+        Log.d(TAG, "onDestroy");
+        super.onDestroy();
+        unbindService(mConnection);
+    }
+
+    @Override
+    protected void onListItemClick(ListView listView, View view, int position, long id) {
+        Intent intent = new Intent(this, BrowseActivity.class);
+        HashMap<String, String> blob = mEntries.get(position);
+        intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
+        startActivity(intent);
+    }
+
     private final ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
             Log.d(TAG, "connected to service");
@@ -215,42 +253,4 @@ public class BrowseActivity extends ListActivity {
             Log.e(TAG, "download failed for entry " + blobRef);
         }
     };
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        Log.d(TAG, "onCreate");
-        super.onCreate(savedInstanceState);
-
-        String blobRef = getIntent().getStringExtra(BUNDLE_BLOBREF);
-        if (blobRef != null && !blobRef.equals(""))
-            mBlobRef = blobRef;
-        setTitle(mBlobRef.equals("") ? getString(R.string.results) : mBlobRef);
-
-        Intent serviceIntent = new Intent(this, DownloadService.class);
-        startService(serviceIntent);
-        bindService(new Intent(this, DownloadService.class), mConnection, 0);
-
-        mAdapter = new SimpleAdapter(
-            this,
-            mEntries,
-            R.layout.browse_row,
-            new String[]{ KEY_TITLE },
-            new int[]{ android.R.id.title });
-        setListAdapter(mAdapter);
-    }
-
-    @Override
-    protected void onDestroy() {
-        Log.d(TAG, "onDestroy");
-        super.onDestroy();
-        unbindService(mConnection);
-    }
-
-    @Override
-    protected void onListItemClick(ListView listView, View view, int position, long id) {
-        Intent intent = new Intent(this, BrowseActivity.class);
-        HashMap<String, String> blob = mEntries.get(position);
-        intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
-        startActivity(intent);
-    }
 }
