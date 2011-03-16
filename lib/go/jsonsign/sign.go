@@ -39,16 +39,16 @@ var flagSecretRing *string = flag.String("secret-keyring", "./test/test-secring.
 
 
 type SignRequest struct {
-	UnsignedJson  string
-	Fetcher       blobref.Fetcher
-	UseAgent      bool
+	UnsignedJson string
+	Fetcher      blobref.Fetcher
+	UseAgent     bool
 
 	// In server-mode, don't use any default (user) keys
 	// TODO: formalize what this means?
-	ServerMode    bool
+	ServerMode bool
 
 	SecretKeyringPath string
-	KeyringPath string
+	KeyringPath       string
 }
 
 func (sr *SignRequest) publicRingPath() string {
@@ -109,12 +109,12 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	if len(trimmedJson) == 0 || trimmedJson[len(trimmedJson)-1] != '}' {
 		return inputfail("json parameter lacks trailing '}'")
 	}
-	trimmedJson = trimmedJson[0:len(trimmedJson)-1]
+	trimmedJson = trimmedJson[0 : len(trimmedJson)-1]
 
 	args := []string{"gpg",
-		        "--local-user", fmt.Sprintf("%X", pk.Fingerprint[len(pk.Fingerprint)-4:]),
-			"--detach-sign",
-			"--armor"}
+		"--local-user", fmt.Sprintf("%X", pk.Fingerprint[len(pk.Fingerprint)-4:]),
+		"--detach-sign",
+		"--armor"}
 
 	if sr.UseAgent {
 		args = append(args, "--use-agent")
@@ -134,9 +134,9 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 		args,
 		os.Environ(),
 		".",
-		exec.Pipe,  // stdin
-		exec.Pipe,  // stdout
-		exec.Pipe)  // stderr
+		exec.Pipe, // stdin
+		exec.Pipe, // stdout
+		exec.Pipe) // stderr
 	if err != nil {
 		return execfail("Failed to run gpg.")
 	}
@@ -162,12 +162,11 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 
 	index1 := strings.Index(output, "\n\n")
 	index2 := strings.Index(output, "\n-----")
-	if (index1 == -1 || index2 == -1) {
+	if index1 == -1 || index2 == -1 {
 		return execfail("Failed to parse signature from gpg.")
 	}
-	inner := output[index1+2:index2]
+	inner := output[index1+2 : index2]
 	signature := strings.Replace(inner, "\n", "", -1)
 
 	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJson, signature), nil
 }
-

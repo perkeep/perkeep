@@ -62,16 +62,50 @@ iNSWzNQiTT6k7fumOABCoSZsow/AJxQSxqKOJBjgpKjIKCgY
 =ru0J
 -----END PGP PUBLIC KEY BLOCK-----`
 
-var pubKeyBlob1 = &blobref.TestBlob{pubKey1}
+var pubKey2 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1.4.10 (GNU/Linux)
+
+mQENBEz61lcBCADRQhcb9LIQdV3LhU5f7cCjOctmLsL+y4k4VKmznssWORiNPEHQ
+13CxFLjRDN2OQYXi4NSqoUqHNMsRTUJTVW0CnznUUb11ibXLUYW/zbPN9dWs8PlI
+UZSScS1dxtGKKk+VfXrvc1LB6pqrjWmAgEwQxsBWToW2IFR/eMo1LiVU83dzpKU1
+n/yb8Jy9wizchspd9xecK2X0JnKLRIJklLTAKQ+XKP+cSwXmShcs+3pxu5f4piqF
+7oBfh9noFA0vdGYNBGVch3DfJwFcTmLkkGFZKdiehWncvVYT1jxUkJvc0K44ohDH
+smkG2VZm3rJCwi2GIWA/clLiDAhYM6vTI3oZABEBAAG0K0NhbWxpIFRlc3R1c2Vy
+IFR3byA8Y2FtbGkudGVzdEBleGFtcGxlLmNvbT6JATgEEwECACIFAkz61lcCGwMG
+CwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEIUeCLJL7Fq1c44IAKOJjymoinXd
+9NOW7GfpHCmynzSflJJoRcRzsNz83lJbwITYCd1ExQxkO84sMKRPJiefc9epP/Hg
+8V4b1SwkGi+A8WaoH/OZtEM8HA7iEKmV+wjfZE6kt+y0trbxdu42W5hLz/uerrNl
+G+r90mBNjmJXsZxmwaZEFrLtFlqezCzdQSur35QLZMFvW6aoYFTAgOk1rk9lBtkC
+DePaadZQGHNWr+Rw2M5xXv9BZ4Rrjl6VLjE2DuqMSBVkelckBcsmRppaszF3J8y3
+9gd10xC+5/LVfhU8niDZjY3pIcjQwsYJ+Jdyce2OEYo1i6pQDiq2WewXdCJ28DVK
+1SX38WFB3Zm5AQ0ETPrWVwEIAMQ/dRCrkhy2D0SzJV5o/Z3uVf1nFLlEFfavV45F
+8wtG/Bi5EuZXoYqU+O79O7sPy9Dw3Qhxtvt159l6/sSLXYTBBs3HJ2zTVhI5tbAZ
+DMz4/wfkRP/h74KuXnWfin1ynswzqdPVXgrRvTsfHbkwbTaRwbx186VYqM17Wqy2
+hFAUCdQIIW0+X9upjGek+kESldSzeUV87fr3IN/pq6fRc90h8xAKfz6mMc7AAUUL
+NLNxb9y18u4Bw+fKgc6W7YxB+gQN1IajmgGPcqUTxNxydWF974iqsKnkZpzHg0Ce
+zGGLWzCAGzI8drltgJPBoGGo56U1s2hW6JzLUi03phV10H8AEQEAAYkBHwQYAQIA
+CQUCTPrWVwIbDAAKCRCFHgiyS+xatUPIB/9VPOeIxH5UcNYuZT+LW2tdcWPNhyQ+
+u5UC9DC2A3F9AYNYRwDcSVOMmqS8hPJxg/biFxFoGFgm14Vp0nd1blOHcmNXcDzk
+XTv2CKcUbgYpvDVmfCcEf6seSf+/RDbyj/VzebE6yvXuwsPus7ntbMw+Dum42z55
+XYiYsfEFu25RtxritG3eYklCKymdRg615pj8zoRpL5Z1NAy5QBb5sv5hPbdGSyqL
+Kw6aLcq2IU7kev6CYJVyXzJ1XtsYv/o7hzKKmZ5WcwuPc9Yqh6onJt1RC8jzz8Ry
+jyVNPb8AaaWVW1uZLg6Em61aKnbOG10B30m3CQ8dwBjF9hgmtcY0IZ/Y
+=OWHA
+-----END PGP PUBLIC KEY BLOCK-----
+`
+
+var pubKeyBlob1 = &blobref.TestBlob{pubKey1} // user 1
+var pubKeyBlob2 = &blobref.TestBlob{pubKey2} // user 2
 
 var testFetcher = &TestFetcher{}
 
 func init() {
 	testFetcher.AddBlob(pubKeyBlob1)
+	testFetcher.AddBlob(pubKeyBlob2)
 }
 
 func TestSigningBadInput(t *testing.T) {
-	sr := newRequest()
+	sr := newRequest(1)
 
 	sr.UnsignedJson = ""
 	_, err := sr.Sign()
@@ -90,29 +124,48 @@ func TestSigningBadInput(t *testing.T) {
 	ExpectErrorContains(t, err, "\"camliSigner\" key is malformed or unsupported", "empty camliSigner")
 }
 
-func newRequest() *SignRequest {
+func newRequest(userN int) *SignRequest {
+	if userN < 1 || userN > 2 {
+		panic("invalid userid")
+	}
+	suffix := ".gpg"
+	if userN == 2 {
+		suffix = "2.gpg"
+	}
 	return &SignRequest{
 		UnsignedJson:      "",
 		Fetcher:           testFetcher,
 		UseAgent:          false,
 		ServerMode:        true,
-		SecretKeyringPath: "./testdata/test-secring.gpg",
-		KeyringPath:       "./testdata/test-keyring.gpg",
+		SecretKeyringPath: "./testdata/test-secring" + suffix,
+		KeyringPath:       "./testdata/test-keyring" + suffix,
 	}
 }
 
 func TestSigning(t *testing.T) {
-	sr := newRequest()
-	sr.UnsignedJson = fmt.Sprintf(`{"camliVersion": 1, "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
+	sr := newRequest(1)
+	sr.UnsignedJson = fmt.Sprintf(`{"camliVersion": 1, "foo": "fooVal", "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
 	signed, err := sr.Sign()
 	AssertNil(t, err, "no error signing")
 	Assert(t, strings.Contains(signed, `"camliSig":`), "got a camliSig")
 
 	vr := NewVerificationRequest(signed, testFetcher)
 	if !vr.Verify() {
-		t.Errorf("verification failed on signed json [%s]: %v", signed, vr.Err)
+		t.Fatalf("verification failed on signed json [%s]: %v", signed, vr.Err)
 	}
-	t.Logf("TODO: finish these tests; verify things round-trip, verify GPG external-vs-Go sign & verify round-trip, test signatures from wrong signer don't verify, etc.")
+	ExpectString(t, "fooVal", vr.PayloadMap["foo"].(string), "PayloadMap")
+	ExpectString(t, "2931A67C26F5ABDA", vr.SignerKeyId, "SignerKeyId")
+
+	// Test a non-matching signature.
+	fakeSigned := strings.Replace(signed, pubKeyBlob1.BlobRef().String(), pubKeyBlob2.BlobRef().String(), 1)
+	vr = NewVerificationRequest(fakeSigned, testFetcher)
+	if vr.Verify() {
+		t.Fatalf("unexpected verification of faked signature")
+	}
+	AssertErrorContains(t, vr.Err, "OpenPGP signature invalid: hash tag doesn't match",
+		"expected signature verification error")
+
+	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
 }
 
 type TestFetcher struct {

@@ -27,8 +27,8 @@ import (
 	"log"
 	"os"
 	"strings"
-        "crypto/sha1"
-	)
+	"crypto/sha1"
+)
 
 var logf = log.Printf
 
@@ -60,20 +60,22 @@ func reArmor(line string) string {
 // See doc/json-signing/* for background and details
 // on these variable names.
 type VerifyRequest struct {
-	fetcher blobref.Fetcher  // fetcher used to find public key blob
+	fetcher blobref.Fetcher // fetcher used to find public key blob
 
-	ba  []byte  // "bytes all"
-	bp  []byte  // "bytes payload" (the part that is signed)
-	bpj []byte  // "bytes payload, JSON" (BP + "}")
-	bs  []byte  // "bytes signature", "{" + separator + camliSig, valid JSON
+	ba  []byte // "bytes all"
+	bp  []byte // "bytes payload" (the part that is signed)
+	bpj []byte // "bytes payload, JSON" (BP + "}")
+	bs  []byte // "bytes signature", "{" + separator + camliSig, valid JSON
 
-	CamliSigner *blobref.BlobRef
-	PayloadMap  map[string]interface{}  // The JSON values from BPJ
-	CamliSig    string
-
+	CamliSigner     *blobref.BlobRef
+	CamliSig        string
 	PublicKeyPacket *packet.PublicKey
 
-	Err os.Error   // last error encountered
+	// set if Verify() returns true:
+	PayloadMap  map[string]interface{} // The JSON values from BPJ
+	SignerKeyId string
+
+	Err os.Error // last error encountered
 }
 
 func (vr *VerifyRequest) fail(msg string) bool {
@@ -143,7 +145,7 @@ func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 		return vr.fail(fmt.Sprintf("error opening public key file: %v", err))
 	}
 	vr.PublicKeyPacket = pk
-	return true;
+	return true
 }
 
 func (vr *VerifyRequest) VerifySignature() bool {
@@ -169,11 +171,12 @@ func (vr *VerifyRequest) VerifySignature() bool {
 		return vr.fail("I can only verify binary signatures")
 	}
 	hash := sha1.New()
-	hash.Write(vr.bp)  // payload bytes
+	hash.Write(vr.bp) // payload bytes
 	err = vr.PublicKeyPacket.VerifySignature(hash, sig)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("bad signature: %s", err))
 	}
+	vr.SignerKeyId = vr.PublicKeyPacket.KeyIdString()
 	return true
 }
 
@@ -181,7 +184,7 @@ func NewVerificationRequest(sjson string, fetcher blobref.Fetcher) (vr *VerifyRe
 	vr = new(VerifyRequest)
 	vr.ba = []byte(sjson)
 	vr.fetcher = fetcher
-	
+
 	sigIndex := bytes.LastIndex(vr.ba, []byte(sigSeparator))
 	if sigIndex == -1 {
 		vr.Err = os.NewError("jsonsign: no 13-byte camliSig separator found in sjson")
@@ -189,12 +192,12 @@ func NewVerificationRequest(sjson string, fetcher blobref.Fetcher) (vr *VerifyRe
 	}
 
 	// "Bytes Payload"
-	vr.bp = vr.ba[0:sigIndex]
+	vr.bp = vr.ba[:sigIndex]
 
 	// "Bytes Payload JSON".  Note we re-use the memory (the ",")
 	// from BA in BPJ, so we can't re-use that "," byte for
 	// the opening "{" in "BS".
-	vr.bpj = vr.ba[0:sigIndex+1]
+	vr.bpj = vr.ba[:sigIndex+1]
 	vr.bpj[sigIndex] = '}'
 	vr.bs = []byte("{" + sjson[sigIndex+1:])
 	return
@@ -209,7 +212,7 @@ func (vr *VerifyRequest) Verify() bool {
 		vr.ParsePayloadMap() &&
 		vr.FindAndParsePublicKeyBlob() &&
 		vr.VerifySignature() {
-		return true;
+		return true
 	}
 
 	// Don't allow dumbs callers to accidentally check this
