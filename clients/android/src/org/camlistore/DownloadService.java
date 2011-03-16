@@ -213,7 +213,7 @@ public class DownloadService extends Service {
                 HttpResponse response = httpClient.execute(req);
                 final int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode != 200) {
-                    Log.e(TAG, "got status code " + statusCode + "while downloading " + mBlobRef);
+                    Log.e(TAG, "got status code " + statusCode + " while downloading " + mBlobRef);
                     return null;
                 }
 

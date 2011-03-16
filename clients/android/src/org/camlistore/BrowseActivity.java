@@ -233,9 +233,9 @@ public class BrowseActivity extends ListActivity {
         mAdapter = new SimpleAdapter(
             this,
             mEntries,
-            android.R.layout.simple_list_item_1,
+            R.layout.browse_row,
             new String[]{ KEY_TITLE },
-            new int[]{ android.R.id.text1 });
+            new int[]{ android.R.id.title });
         setListAdapter(mAdapter);
     }
 
