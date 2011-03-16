@@ -55,6 +55,56 @@ public class BrowseActivity extends ListActivity {
     private HashMap<String, HashMap<String, String>> mEntriesByBlobRef =
         new HashMap<String, HashMap<String, String>>();
 
+    private enum DirectoryEntryType {
+        UNKNOWN("unknown"),
+        FILE("file"),
+        DIRECTORY("directory");
+
+        private String mName;
+
+        DirectoryEntryType(String name) {
+            mName = name;
+        }
+
+        public static DirectoryEntryType fromString(String str) {
+            if (str != null) {
+                for (DirectoryEntryType type : DirectoryEntryType.values()) {
+                    if (type.mName.equals(str))
+                        return type;
+                }
+            }
+            return UNKNOWN;
+        }
+    }
+
+    private class DirectoryEntry {
+        final private String mBlobRef;
+        private String mFilename;
+        private DirectoryEntryType mType;
+
+        DirectoryEntry(String blobRef) {
+            mBlobRef = blobRef;
+            mFilename = null;
+            mType = DirectoryEntryType.UNKNOWN;
+        }
+
+        public String getBlobRef() { return mBlobRef; }
+        public String getDisplayName() { return mFilename != null ? mFilename : mBlobRef; }
+        public DirectoryEntryType getType() { return mType; }
+
+        public boolean updateFromJSON(String json) {
+            try {
+                JSONObject object = (JSONObject) new JSONTokener(json).nextValue();
+                mFilename = object.getString("fileName");
+                mType = DirectoryEntryType.fromString(object.getString("camliType"));
+                return true;
+            } catch (org.json.JSONException e) {
+                Log.e(TAG, "unable to parse JSON for entry " + mBlobRef, e);
+                return false;
+            }
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate");
@@ -87,10 +137,17 @@ public class BrowseActivity extends ListActivity {
 
     @Override
     protected void onListItemClick(ListView listView, View view, int position, long id) {
-        Intent intent = new Intent(this, BrowseActivity.class);
         HashMap<String, String> blob = mEntries.get(position);
-        intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
-        startActivity(intent);
+        String type = blob.get("type");
+        if (type == null)
+            return;
+
+        if (type.equals("directory")) {
+            Intent intent = new Intent(this, BrowseActivity.class);
+            intent.putExtra(BUNDLE_BLOBREF, blob.get(KEY_CONTENT));
+            startActivity(intent);
+        } else if (type.equals("file")) {
+        }
     }
 
     private final ServiceConnection mConnection = new ServiceConnection() {
