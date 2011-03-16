@@ -17,6 +17,7 @@ limitations under the License.
 package org.camlistore;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -38,6 +39,15 @@ public class Util {
             sb.append(new String(b, 0, n));
         }
         return sb.toString();
+    }
+
+    public static byte[] slurpToByteArray(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        for (int numRead; (numRead = inputStream.read(buffer)) != -1;) {
+            outputStream.write(buffer, 0, numRead);
+        }
+        return outputStream.toByteArray();
     }
 
     public static void runAsync(final Runnable r) {

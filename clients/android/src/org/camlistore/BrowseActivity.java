@@ -60,9 +60,9 @@ public class BrowseActivity extends ListActivity {
             Log.d(TAG, "connected to service");
             mService = ((DownloadService.LocalBinder) service).getService();
             if (mBlobRef.equals("")) {
-                mService.getBlob("search", mSearchResultsListener);
+                mService.getBlobAsByteArray("search", mSearchResultsListener);
             } else {
-                mService.getBlob(mBlobRef, mDirectoryListener);
+                mService.getBlobAsByteArray(mBlobRef, mDirectoryListener);
             }
         }
 
@@ -72,11 +72,11 @@ public class BrowseActivity extends ListActivity {
         }
     };
 
-    private final DownloadService.Listener mSearchResultsListener = new DownloadService.Listener() {
+    private final DownloadService.ByteArrayListener mSearchResultsListener = new DownloadService.ByteArrayListener() {
         @Override
-        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+        public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
             try {
-                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 JSONArray array = object.getJSONArray("results");
                 if (array == null) {
                     Log.e(TAG, "search results are missing results key");
@@ -94,24 +94,22 @@ public class BrowseActivity extends ListActivity {
                     mEntriesByBlobRef.put(jsonEntry.getString("blobref"), entry);
                 }
                 mAdapter.notifyDataSetChanged();
-            } catch (IOException e) {
-                Log.e(TAG, "got IO error while reading search results", e);
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for search results", e);
             }
         }
 
         @Override
-        public void onBlobDownloadFail(final String blobRef) {
+        public void onBlobDownloadFailure(String blobRef) {
             Log.e(TAG, "download failed for search results");
         }
     };
 
-    private final DownloadService.Listener mDirectoryListener = new DownloadService.Listener() {
+    private final DownloadService.ByteArrayListener mDirectoryListener = new DownloadService.ByteArrayListener() {
         @Override
-        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+        public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
             try {
-                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 String type = object.getString("camliType");
                 if (type == null || !type.equals("directory")) {
                     Log.e(TAG, "directory " + blobRef + " has missing or invalid type");
@@ -132,25 +130,23 @@ public class BrowseActivity extends ListActivity {
                 }
 
                 Log.d(TAG, "requesting directory entries " + entriesBlobRef);
-                mService.getBlob(entriesBlobRef, mDirectoryEntriesListener);
-            } catch (IOException e) {
-                Log.e(TAG, "got IO error while reading directory " + blobRef, e);
+                mService.getBlobAsByteArray(entriesBlobRef, mDirectoryEntriesListener);
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for search results", e);
             }
         }
 
         @Override
-        public void onBlobDownloadFail(final String blobRef) {
+        public void onBlobDownloadFailure(String blobRef) {
             Log.e(TAG, "download failed for directory " + blobRef);
         }
     };
 
-    private final DownloadService.Listener mDirectoryEntriesListener = new DownloadService.Listener() {
+    private final DownloadService.ByteArrayListener mDirectoryEntriesListener = new DownloadService.ByteArrayListener() {
         @Override
-        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+        public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
             try {
-                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 String type = object.getString("camliType");
                 if (type == null || !type.equals("static-set")) {
                     Log.e(TAG, "directory list " + blobRef + " has missing or invalid camliType");
@@ -166,7 +162,7 @@ public class BrowseActivity extends ListActivity {
                 mEntries.clear();
                 for (int i = 0; i < members.length(); ++i) {
                     String entryBlobRef = members.getString(i);
-                    mService.getBlob(entryBlobRef, mEntryListener);
+                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
 
                     Log.d(TAG, "adding directory entry " + entryBlobRef);
                     HashMap<String, String> entry = new HashMap<String, String>();
@@ -176,22 +172,20 @@ public class BrowseActivity extends ListActivity {
                     mEntriesByBlobRef.put(entryBlobRef, entry);
                 }
                 mAdapter.notifyDataSetChanged();
-            } catch (IOException e) {
-                Log.e(TAG, "got IO error while reading directory list " + blobRef, e);
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for directory list " + blobRef, e);
             }
         }
 
         @Override
-        public void onBlobDownloadFail(final String blobRef) {
+        public void onBlobDownloadFailure(String blobRef) {
             Log.e(TAG, "download failed for directory list " + blobRef);
         }
     };
 
-    private final DownloadService.Listener mEntryListener = new DownloadService.Listener() {
+    private final DownloadService.ByteArrayListener mEntryListener = new DownloadService.ByteArrayListener() {
         @Override
-        public void onBlobDownloadComplete(final String blobRef, final InputStream stream) {
+        public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
             try {
                 HashMap<String, String> entry = mEntriesByBlobRef.get(blobRef);
                 if (entry == null) {
@@ -199,7 +193,7 @@ public class BrowseActivity extends ListActivity {
                     return;
                 }
 
-                JSONObject object = (JSONObject) new JSONTokener(Util.slurp(stream)).nextValue();
+                JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 String fileName = object.getString("fileName");
                 String type = object.getString("camliType");
                 if (fileName == null || type == null) {
@@ -211,15 +205,13 @@ public class BrowseActivity extends ListActivity {
                 entry.put(KEY_TITLE, fileName);
                 entry.put(KEY_TYPE, type);
                 mAdapter.notifyDataSetChanged();
-            } catch (IOException e) {
-                Log.e(TAG, "got IO error while reading entry " + blobRef, e);
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for entry " + blobRef, e);
             }
         }
 
         @Override
-        public void onBlobDownloadFail(final String blobRef) {
+        public void onBlobDownloadFailure(String blobRef) {
             Log.e(TAG, "download failed for entry " + blobRef);
         }
     };
