@@ -103,11 +103,15 @@ func newRequest() *SignRequest {
 
 func TestSigning(t *testing.T) {
 	sr := newRequest()
-	sr.UnsignedJson = fmt.Sprintf(`{"camliSigner": %q}`, pubKeyBlob1.BlobRef().String())
-	got, err := sr.Sign()
+	sr.UnsignedJson = fmt.Sprintf(`{"camliVersion": 1, "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
+	signed, err := sr.Sign()
 	AssertNil(t, err, "no error signing")
-	Expect(t, strings.Contains(got, `"camliSig":`), "got a camliSig")
+	Assert(t, strings.Contains(signed, `"camliSig":`), "got a camliSig")
 
+	vr := NewVerificationRequest(signed, testFetcher)
+	if !vr.Verify() {
+		t.Errorf("verification failed on signed json [%s]: %v", signed, vr.Err)
+	}
 	t.Logf("TODO: finish these tests; verify things round-trip, verify GPG external-vs-Go sign & verify round-trip, test signatures from wrong signer don't verify, etc.")
 }
 
