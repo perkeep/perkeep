@@ -20,6 +20,7 @@ import android.app.ListActivity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
@@ -32,18 +33,17 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import java.io.InputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 public class BrowseActivity extends ListActivity {
     private static final String TAG = "BrowseActivity";
     private static final String BUNDLE_BLOBREF = "blobref";
-
-    private static final String KEY_TITLE = "title";
-    private static final String KEY_CONTENT = "content";
-    private static final String KEY_TYPE = "type";
+    private static final String DEFAULT_MIME_TYPE = "application/octet-stream";
 
     private DownloadService mService = null;
     private ArrayAdapter mAdapter;
@@ -52,6 +52,8 @@ public class BrowseActivity extends ListActivity {
 
     private ArrayList<Entry> mEntries = new ArrayList<Entry>();
     private HashMap<String, Entry> mEntriesByBlobRef = new HashMap<String, Entry>();
+    // TODO: Remove this; it's pretty ugly.
+    private HashMap<String, Entry> mEntriesByContentBlobRef = new HashMap<String, Entry>();
 
     private enum EntryType {
         UNKNOWN("unknown"),
@@ -86,6 +88,7 @@ public class BrowseActivity extends ListActivity {
         }
 
         public String getBlobRef() { return mBlobRef; }
+        public String getFilename() { return mFilename; }
         public EntryType getType() { return mType; }
         public String getContentBlobRef() { return mContentBlobRef; }
 
@@ -98,8 +101,17 @@ public class BrowseActivity extends ListActivity {
                 mType = EntryType.fromString(object.getString("camliType"));
                 if (mType == EntryType.DIRECTORY) {
                     mContentBlobRef = mBlobRef;
+                } else if (mType == EntryType.FILE) {
+                    JSONArray parts = object.getJSONArray("contentParts");
+                    if (parts == null) {
+                        Log.e(TAG, "file " + mBlobRef + " is missing contentParts");
+                        return false;
+                    }
+                    // TODO: Handle multi-part files, partial portions of blobs, etc.
+                    if (parts.length() == 1) {
+                        mContentBlobRef = parts.getJSONObject(0).getString("blobRef");
+                    }
                 }
-                // TODO: Handle contentParts for files.
                 return true;
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for entry " + mBlobRef, e);
@@ -148,6 +160,12 @@ public class BrowseActivity extends ListActivity {
             Intent intent = new Intent(this, BrowseActivity.class);
             intent.putExtra(BUNDLE_BLOBREF, entry.getContentBlobRef());
             startActivity(intent);
+        } else if (entry.getType() == EntryType.FILE) {
+            if (entry.getContentBlobRef() == null) {
+                Log.e(TAG, "no content for file " + entry.getBlobRef());
+                return;
+            }
+            mService.getBlobAsFile(entry.getContentBlobRef(), mFileListener);
         }
     }
 
@@ -286,13 +304,57 @@ public class BrowseActivity extends ListActivity {
             }
 
             Log.d(TAG, "updating directory entry " + blobRef);
-            if (entry.updateFromJSON(new String(bytes)))
+            if (entry.updateFromJSON(new String(bytes))) {
                 mAdapter.notifyDataSetChanged();
+                if (entry.getContentBlobRef() != null)
+                    mEntriesByContentBlobRef.put(entry.getContentBlobRef(), entry);
+            }
         }
 
         @Override
         public void onBlobDownloadFailure(String blobRef) {
             Log.e(TAG, "download failed for entry " + blobRef);
+        }
+    };
+
+    private final DownloadService.FileListener mFileListener = new DownloadService.FileListener() {
+        @Override
+        public void onBlobDownloadSuccess(String blobRef, File file) {
+            Entry entry = mEntriesByContentBlobRef.get(blobRef);
+            if (entry == null) {
+                Log.e(TAG, "got unknown file content " + blobRef);
+                return;
+            }
+
+            // Try to guess the MIME type from the data itself first.
+            String mimeType = null;
+            try {
+                FileInputStream inputStream = new FileInputStream(file);
+                mimeType = URLConnection.guessContentTypeFromStream(inputStream);
+                inputStream.close();
+            } catch (IOException e) {
+                Log.e(TAG, "got IO error while trying to guess mime type for " + file.getPath(), e);
+            }
+
+            // If that didn't work, try to guess it from the filename.
+            if (mimeType == null && entry.getFilename() != null)
+                mimeType = URLConnection.guessContentTypeFromName(entry.getFilename());
+            if (mimeType == null)
+                mimeType = DEFAULT_MIME_TYPE;
+
+            Intent intent = new Intent();
+            intent.setAction(intent.ACTION_VIEW);
+            intent.setDataAndType(Uri.fromFile(file), mimeType);
+            try {
+                startActivity(intent);
+            } catch (android.content.ActivityNotFoundException e) {
+                Toast.makeText(BrowseActivity.this, "No activity found to display " + mimeType + ".", Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        @Override
+        public void onBlobDownloadFailure(String blobRef) {
+            Log.e(TAG, "download failed for file " + blobRef);
         }
     };
 }
