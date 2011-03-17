@@ -45,6 +45,7 @@ public class DownloadService extends Service {
     private static final int BUFFER_SIZE = 4096;
     private static final String USERNAME = "TODO-DUMMY-USER";
     private static final String SEARCH_BLOBREF = "search";
+    private static final String PARTIAL_DOWNLOAD_SUFFIX = ".partial";
 
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
@@ -200,7 +201,7 @@ public class DownloadService extends Service {
         // Load |mBlobRef| from the cache, returning a File on success or null on failure.
         private File loadBlobFromCache() {
             Util.assertNotMainThread();
-            if (canBlobBeCached(mBlobRef))
+            if (!canBlobBeCached(mBlobRef))
                 return null;
 
             File file = new File(mBlobDir, mBlobRef);
@@ -219,8 +220,6 @@ public class DownloadService extends Service {
                           Util.getBasicAuthHeaderValue(
                               USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
 
-            boolean success = false;
-            File file = null;
             FileOutputStream outputStream = null;
 
             try {
@@ -231,15 +230,22 @@ public class DownloadService extends Service {
                     return null;
                 }
 
+                // Temporary location where we download the file and final path to which
+                // we rename it after it's complete.
+                File tempFile = null;
+                File finalFile = null;
+
                 if (canBlobBeCached(mBlobRef)) {
-                    file = new File(mBlobDir, mBlobRef);
-                    file.createNewFile();
+                    finalFile = new File(mBlobDir, mBlobRef);
+                    tempFile = new File(finalFile.getPath() + PARTIAL_DOWNLOAD_SUFFIX);
+                    tempFile.createNewFile();
                 } else {
                     // FIXME: Don't write uncacheable blobs to disk at all.
-                    file = File.createTempFile(mBlobRef, null, mBlobDir);
-                    file.deleteOnExit();
+                    // deleteOnExit() doesn't work on Android, either.
+                    tempFile = finalFile = File.createTempFile(mBlobRef, null, mBlobDir);
+                    tempFile.deleteOnExit();
                 }
-                outputStream = new FileOutputStream(file);
+                outputStream = new FileOutputStream(tempFile);
 
                 int bytesRead = 0;
                 byte[] buffer = new byte[BUFFER_SIZE];
@@ -248,8 +254,10 @@ public class DownloadService extends Service {
                     outputStream.write(buffer, 0, bytesRead);
                 }
 
-                success = true;
-                return file;
+                if (tempFile != finalFile) {
+                    tempFile.renameTo(finalFile);
+                }
+                return finalFile;
 
             } catch (ClientProtocolException e) {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
@@ -260,9 +268,6 @@ public class DownloadService extends Service {
             } finally {
                 if (outputStream != null) {
                     try { outputStream.close(); } catch (IOException e) {}
-                }
-                if (!success && file != null && file.exists()) {
-                    file.delete();
                 }
             }
         }
