@@ -85,6 +85,13 @@ public class Util {
         }
     }
 
+    // Asserts that |lock| is not held by the current thread.
+    public static void assertLockIsNotHeld(ReentrantLock lock) {
+        if (lock.isHeldByCurrentThread()) {
+            throw new RuntimeException("Assert: lock is held by current thread but shouldn't be");
+        }
+    }
+
     private static final String HEX = "0123456789abcdef";
 
     private static String getHex(byte[] raw) {

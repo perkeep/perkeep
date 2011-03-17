@@ -29,11 +29,13 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.DefaultHttpClient;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.HashMap;
@@ -157,6 +159,9 @@ public class DownloadService extends Service {
         private final ByteArrayListener mByteArrayListener;
         private final FileListener mFileListener;
 
+        private byte[] mBlobBytes = null;
+        private File mBlobFile = null;
+
         GetBlobTask(String blobRef, ByteArrayListener byteArrayListener, FileListener fileListener) {
             if (!(byteArrayListener != null) ^ (fileListener != null))
                 throw new RuntimeException("exactly one of byteArrayListener and fileListener must be non-null");
@@ -169,10 +174,15 @@ public class DownloadService extends Service {
         public void run() {
             mDownloadLock.lock();
             try {
-                if (mByteArrayListener != null)
+                if (mByteArrayListener != null) {
                     getByteArrayListenersForBlobRef(mBlobRef, true).add(mByteArrayListener);
-                if (mFileListener != null)
+                }
+                if (mFileListener != null) {
+                    if (!canBlobBeCached(mBlobRef)) {
+                        throw new RuntimeException("got file listener for uncacheable blob " + mBlobRef);
+                    }
                     getFileListenersForBlobRef(mBlobRef, true).add(mFileListener);
+                }
 
                 // If another thread is already servicing a request for this blob, let it handle us too.
                 if (mInProgressBlobRefs.contains(mBlobRef))
@@ -182,34 +192,31 @@ public class DownloadService extends Service {
                 mDownloadLock.unlock();
             }
 
-            File file = loadBlobFromCache();
-            if (file == null)
-                file = downloadBlob();
-
-            mDownloadLock.lock();
-            try {
-                if (file != null) {
-                    handleSuccess(file);
-                } else {
-                    handleFailure();
-                }
-            } finally {
-                mDownloadLock.unlock();
+            if (!loadBlobFromCache()) {
+                downloadBlob();
             }
+            notifyListeners();
         }
 
-        // Load |mBlobRef| from the cache, returning a File on success or null on failure.
-        private File loadBlobFromCache() {
+        // Load |mBlobRef| from the cache, updating |mBlobFile| and returning true on success.
+        private boolean loadBlobFromCache() {
             Util.assertNotMainThread();
             if (!canBlobBeCached(mBlobRef))
-                return null;
+                return false;
 
             File file = new File(mBlobDir, mBlobRef);
-            return file.exists() ? file : null;
+            if (!file.exists())
+                return false;
+
+            mBlobFile = file;
+            return true;
         }
 
-        // Download |mBlobRef|, returning a File on success or null on failure.
-        private File downloadBlob() {
+        // Download |mBlobRef| from the blobserver, returning true on success.
+        // If the blob is downloaded into memory (because there were byte array listeners registered when we checked),
+        // then it's saved to |mBlobBytes|.  If it's downloaded to disk (because it's cacheable), then |mBlobFile| is
+        // updated.
+        private boolean downloadBlob() {
             Util.assertNotMainThread();
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
@@ -220,32 +227,33 @@ public class DownloadService extends Service {
                           Util.getBasicAuthHeaderValue(
                               USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
 
-            FileOutputStream outputStream = null;
+            OutputStream outputStream = null;
 
             try {
                 HttpResponse response = httpClient.execute(req);
                 final int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode != 200) {
                     Log.e(TAG, "got status code " + statusCode + " while downloading " + mBlobRef);
-                    return null;
+                    return false;
                 }
 
-                // Temporary location where we download the file and final path to which
-                // we rename it after it's complete.
-                File tempFile = null;
-                File finalFile = null;
+                mDownloadLock.lock();
+                final boolean shouldDownloadToByteArray = !getByteArrayListenersForBlobRef(mBlobRef, false).isEmpty();
+                mDownloadLock.unlock();
 
+                // Temporary location where we write the file and final path to which we rename it after it's complete.
+                File tempFile = null, finalFile = null;
                 if (canBlobBeCached(mBlobRef)) {
                     finalFile = new File(mBlobDir, mBlobRef);
                     tempFile = new File(finalFile.getPath() + PARTIAL_DOWNLOAD_SUFFIX);
-                    tempFile.createNewFile();
-                } else {
-                    // FIXME: Don't write uncacheable blobs to disk at all.
-                    // deleteOnExit() doesn't work on Android, either.
-                    tempFile = finalFile = File.createTempFile(mBlobRef, null, mBlobDir);
-                    tempFile.deleteOnExit();
                 }
-                outputStream = new FileOutputStream(tempFile);
+
+                if (shouldDownloadToByteArray) {
+                    outputStream = new ByteArrayOutputStream();
+                } else if (tempFile != null) {
+                    tempFile.createNewFile();
+                    outputStream = new FileOutputStream(tempFile);
+                }
 
                 int bytesRead = 0;
                 byte[] buffer = new byte[BUFFER_SIZE];
@@ -254,17 +262,41 @@ public class DownloadService extends Service {
                     outputStream.write(buffer, 0, bytesRead);
                 }
 
-                if (tempFile != finalFile) {
-                    tempFile.renameTo(finalFile);
+                // If we downloaded directly into a byte array, send it to any currently-registered byte array listeners
+                // before writing it to a file if it's cacheable.  We'll make another pass after the file is complete to
+                // handle the file listeners and any byte array listeners that were added in the meantime; this is just
+                // an optimization so we don't block on disk if we only have byte array listeners.
+                if (shouldDownloadToByteArray) {
+                    mDownloadLock.lock();
+                    ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
+                    mByteArrayListenersByBlobRef.remove(mBlobRef);
+                    mDownloadLock.unlock();
+
+                    mBlobBytes = ((ByteArrayOutputStream) outputStream).toByteArray();
+                    sendBlobToByteArrayListeners(byteArrayListeners, mBlobBytes);
+
+                    if (tempFile != null) {
+                        tempFile.createNewFile();
+                        FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
+                        fileOutputStream.write(mBlobBytes);
+                        fileOutputStream.close();
+                    }
                 }
-                return finalFile;
+
+                if (tempFile != null && tempFile != finalFile) {
+                    tempFile.renameTo(finalFile);
+                    mBlobFile = finalFile;
+                    Log.d(TAG, "wrote " + mBlobFile.getPath());
+                }
+
+                return true;
 
             } catch (ClientProtocolException e) {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
-                return null;
+                return false;
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
-                return null;
+                return false;
             } finally {
                 if (outputStream != null) {
                     try { outputStream.close(); } catch (IOException e) {}
@@ -272,75 +304,62 @@ public class DownloadService extends Service {
             }
         }
 
-        // Report a successful download or cache access of |mBlobRef| to all waiting listeners.
-        // Removes |mBlobRef| from |mInProgressBlobRefs|.
-        private void handleSuccess(final File file) {
-            Util.assertLockIsHeld(mDownloadLock);
-            Log.d(TAG, "returning " + file.getPath());
-
-            ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
-            if (!byteArrayListeners.isEmpty()) {
-                byte[] bytes = null;
-                try {
-                    bytes = Util.slurpToByteArray(new FileInputStream(file));
-                } catch (IOException e) {
-                    Log.e(TAG, "got IO error while reading " + file.getPath(), e);
-                }
-
-                final byte[] finalBytes = bytes;
-                for (final ByteArrayListener listener : byteArrayListeners) {
-                    mHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (finalBytes != null)
-                                listener.onBlobDownloadSuccess(mBlobRef, finalBytes);
-                            else
-                                listener.onBlobDownloadFailure(mBlobRef);
-                        }
-                    });
-                }
-            }
-            mByteArrayListenersByBlobRef.remove(mBlobRef);
-
-            for (final FileListener listener : getFileListenersForBlobRef(mBlobRef, false)) {
+        // Send |bytes| to |listeners|.  Invokes their failure handlers instead if |bytes| is null.
+        private void sendBlobToByteArrayListeners(ArrayList<ByteArrayListener> listeners, final byte[] bytes) {
+            for (final ByteArrayListener listener : listeners) {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        listener.onBlobDownloadSuccess(mBlobRef, file);
+                        if (bytes != null) {
+                            listener.onBlobDownloadSuccess(mBlobRef, bytes);
+                        } else {
+                            listener.onBlobDownloadFailure(mBlobRef);
+                        }
                     }
                 });
             }
-            mFileListenersByBlobRef.remove(mBlobRef);
-
-            mInProgressBlobRefs.remove(mBlobRef);
         }
 
-        // Report a unsuccessful download of |mBlobRef| to all waiting listeners.
-        // Removes |mBlobRef| from |mInProgressBlobRefs|.
-        private void handleFailure() {
-            Util.assertLockIsHeld(mDownloadLock);
-
-            for (final ByteArrayListener listener : getByteArrayListenersForBlobRef(mBlobRef, false)) {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onBlobDownloadFailure(mBlobRef);
-                    }
-                });
-            }
+        // Report the completion of our attempt to fetch |mBlobRef| to all waiting listeners.
+        // Removes |mBlobRef| from |mInProgressBlobRefs| and removes listeners from
+        // |mByteArrayListenersByBlobRef| and |mFileListenersByBlobRef|.
+        private void notifyListeners() {
+            mDownloadLock.lock();
+            ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
             mByteArrayListenersByBlobRef.remove(mBlobRef);
+            ArrayList<FileListener> fileListeners = getFileListenersForBlobRef(mBlobRef, false);
+            mFileListenersByBlobRef.remove(mBlobRef);
+            mInProgressBlobRefs.remove(mBlobRef);
+            mDownloadLock.unlock();
 
-            for (final FileListener listener : getFileListenersForBlobRef(mBlobRef, false)) {
+            // Make sure that we're not holding the lock; we're about to hit the disk.
+            Util.assertLockIsNotHeld(mDownloadLock);
+
+            if (!byteArrayListeners.isEmpty()) {
+                // If we don't have the data in memory already but it's on disk, read it.
+                if (mBlobBytes == null && mBlobFile != null) {
+                    try {
+                        Log.d(TAG, "reading " + mBlobFile.getPath() + " to send to listeners");
+                        mBlobBytes = Util.slurpToByteArray(new FileInputStream(mBlobFile));
+                    } catch (IOException e) {
+                        Log.e(TAG, "got IO error while reading " + mBlobFile.getPath(), e);
+                    }
+                }
+                sendBlobToByteArrayListeners(byteArrayListeners, mBlobBytes);
+            }
+
+            for (final FileListener listener : fileListeners) {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        listener.onBlobDownloadFailure(mBlobRef);
+                        if (mBlobFile != null) {
+                            listener.onBlobDownloadSuccess(mBlobRef, mBlobFile);
+                        } else {
+                            listener.onBlobDownloadFailure(mBlobRef);
+                        }
                     }
                 });
             }
-            mFileListenersByBlobRef.remove(mBlobRef);
-
-            mInProgressBlobRefs.remove(mBlobRef);
         }
     }
 }
