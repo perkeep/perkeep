@@ -77,6 +77,8 @@ public class BrowseActivity extends ListActivity {
         }
     }
 
+    // Represents a listed entry that the user can click (generally, a file or directory).
+    // Not thread-safe.
     private class Entry {
         private final String mBlobRef;
 
@@ -186,6 +188,7 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.ByteArrayListener mSearchResultsListener = new DownloadService.ByteArrayListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
+            Util.assertMainThread();
             try {
                 JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 JSONArray array = object.getJSONArray("results");
@@ -219,6 +222,7 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.ByteArrayListener mDirectoryListener = new DownloadService.ByteArrayListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
+            Util.assertMainThread();
             try {
                 JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 String type = object.getString("camliType");
@@ -256,6 +260,7 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.ByteArrayListener mDirectoryEntriesListener = new DownloadService.ByteArrayListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
+            Util.assertMainThread();
             try {
                 JSONObject object = (JSONObject) new JSONTokener(new String(bytes)).nextValue();
                 String type = object.getString("camliType");
@@ -294,6 +299,7 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.ByteArrayListener mEntryListener = new DownloadService.ByteArrayListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, byte[] bytes) {
+            Util.assertMainThread();
             Entry entry = mEntriesByBlobRef.get(blobRef);
             if (entry == null) {
                 Log.e(TAG, "got unknown entry " + blobRef);
@@ -317,6 +323,7 @@ public class BrowseActivity extends ListActivity {
     private final DownloadService.FileListener mFileListener = new DownloadService.FileListener() {
         @Override
         public void onBlobDownloadSuccess(String blobRef, File file) {
+            Util.assertMainThread();
             Entry entry = mEntriesByContentBlobRef.get(blobRef);
             if (entry == null) {
                 Log.e(TAG, "got unknown file content " + blobRef);

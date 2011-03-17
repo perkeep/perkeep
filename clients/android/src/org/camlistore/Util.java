@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import android.os.AsyncTask;
+import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 
@@ -58,6 +60,29 @@ public class Util {
                 return null;
             }
         }.execute();
+    }
+
+    public static boolean onMainThread() {
+        return Looper.myLooper() == Looper.getMainLooper();
+    }
+
+    public static void assertMainThread() {
+        if (!onMainThread()) {
+            throw new RuntimeException("Assert: unexpected call off the main thread");
+        }
+    }
+
+    public static void assertNotMainThread() {
+        if (onMainThread()) {
+            throw new RuntimeException("Assert: unexpected call on main thread");
+        }
+    }
+
+    // Asserts that |lock| is held by the current thread.
+    public static void assertLockIsHeld(ReentrantLock lock) {
+        if (!lock.isHeldByCurrentThread()) {
+            throw new RuntimeException("Assert: mandatory lock isn't held by current thread");
+        }
     }
 
     private static final String HEX = "0123456789abcdef";

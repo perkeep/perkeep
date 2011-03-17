@@ -35,6 +35,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -48,10 +49,13 @@ public class DownloadService extends Service {
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
 
-    // Blobs currently being downloaded.  Protected by |this|.
+    // Protects members containing the state of current downloads.
+    private final ReentrantLock mDownloadLock = new ReentrantLock();
+
+    // Blobs currently being downloaded.  Protected by |mDownloadLock|.
     private final HashSet<String> mInProgressBlobRefs = new HashSet<String>();
 
-    // Maps from blobrefs to callbacks for their contents.  Protected by |this|.
+    // Maps from blobrefs to callbacks for their contents.  Protected by |mDownloadLock|.
     private final HashMap<String, ArrayList<ByteArrayListener>> mByteArrayListenersByBlobRef =
         new HashMap<String, ArrayList<ByteArrayListener>>();
     private final HashMap<String, ArrayList<FileListener>> mFileListenersByBlobRef =
@@ -122,6 +126,7 @@ public class DownloadService extends Service {
     // Get a list of byte array listeners waiting for |blobRef|.
     // If |insert| is true, the returned list can be used for adding new listeners.
     private ArrayList<ByteArrayListener> getByteArrayListenersForBlobRef(String blobRef, boolean insert) {
+        Util.assertLockIsHeld(mDownloadLock);
         ArrayList<ByteArrayListener> listeners = mByteArrayListenersByBlobRef.get(blobRef);
         if (listeners == null) {
             listeners = new ArrayList<ByteArrayListener>();
@@ -134,6 +139,7 @@ public class DownloadService extends Service {
     // Get a list of file listeners waiting for |blobRef|.
     // If |insert| is true, the returned list can be used for adding new listeners.
     private ArrayList<FileListener> getFileListenersForBlobRef(String blobRef, boolean insert) {
+        Util.assertLockIsHeld(mDownloadLock);
         ArrayList<FileListener> listeners = mFileListenersByBlobRef.get(blobRef);
         if (listeners == null) {
             listeners = new ArrayList<FileListener>();
@@ -160,7 +166,8 @@ public class DownloadService extends Service {
 
         @Override
         public void run() {
-            synchronized(DownloadService.this) {
+            mDownloadLock.lock();
+            try {
                 if (mByteArrayListener != null)
                     getByteArrayListenersForBlobRef(mBlobRef, true).add(mByteArrayListener);
                 if (mFileListener != null)
@@ -170,23 +177,29 @@ public class DownloadService extends Service {
                 if (mInProgressBlobRefs.contains(mBlobRef))
                     return;
                 mInProgressBlobRefs.add(mBlobRef);
+            } finally {
+                mDownloadLock.unlock();
             }
 
             File file = loadBlobFromCache();
             if (file == null)
                 file = downloadBlob();
 
-            synchronized(DownloadService.this) {
+            mDownloadLock.lock();
+            try {
                 if (file != null) {
                     handleSuccess(file);
                 } else {
                     handleFailure();
                 }
+            } finally {
+                mDownloadLock.unlock();
             }
         }
 
         // Load |mBlobRef| from the cache, returning a File on success or null on failure.
         private File loadBlobFromCache() {
+            Util.assertNotMainThread();
             if (canBlobBeCached(mBlobRef))
                 return null;
 
@@ -196,6 +209,7 @@ public class DownloadService extends Service {
 
         // Download |mBlobRef|, returning a File on success or null on failure.
         private File downloadBlob() {
+            Util.assertNotMainThread();
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
             String url = "http://" + hp.toString() + "/camli/" + mBlobRef;
@@ -256,6 +270,7 @@ public class DownloadService extends Service {
         // Report a successful download or cache access of |mBlobRef| to all waiting listeners.
         // Removes |mBlobRef| from |mInProgressBlobRefs|.
         private void handleSuccess(final File file) {
+            Util.assertLockIsHeld(mDownloadLock);
             Log.d(TAG, "returning " + file.getPath());
 
             ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
@@ -298,6 +313,8 @@ public class DownloadService extends Service {
         // Report a unsuccessful download of |mBlobRef| to all waiting listeners.
         // Removes |mBlobRef| from |mInProgressBlobRefs|.
         private void handleFailure() {
+            Util.assertLockIsHeld(mDownloadLock);
+
             for (final ByteArrayListener listener : getByteArrayListenersForBlobRef(mBlobRef, false)) {
                 mHandler.post(new Runnable() {
                     @Override
