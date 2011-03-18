@@ -16,12 +16,31 @@ limitations under the License.
 
 package org.camlistore;
 
+/**
+ * HostPort parses a "host.com", "host.com:port", or "https://host.com:port"
+ * It doesn't handle paths.  TODO(bradfitz): This should probably be scrapped
+ * and use a URL parsers or something instead.
+ */
 public class HostPort {
     private final boolean mValid;
     private final String mHost;
     private final int mPort;
+    private final boolean mSecure;
+
+    private static final String HTTP_PREFIX = "http://";
+    private static final String SECURE_PREFIX = "https://";
 
     public HostPort(String hostPort) {
+        if (hostPort.startsWith(HTTP_PREFIX)) {
+            mSecure = false;
+            hostPort = hostPort.substring(HTTP_PREFIX.length());
+        } else if (hostPort.startsWith(SECURE_PREFIX)) {
+            mSecure = true;
+            hostPort = hostPort.substring(SECURE_PREFIX.length());
+        } else {
+            mSecure = false;
+        }
+
         String[] parts = hostPort.split(":");
         if (parts.length == 2) {
             mHost = parts[0];
@@ -34,7 +53,7 @@ public class HostPort {
         } else {
             mValid = hostPort.length() > 0;
             mHost = hostPort;
-            mPort = 80;
+            mPort = mSecure ? 443 : 80;
         }
     }
 
@@ -48,6 +67,14 @@ public class HostPort {
 
     public boolean isValid() {
         return mValid;
+    }
+
+    public boolean isSecure() {
+        return mSecure;
+    }
+
+    public String httpScheme() {
+        return mSecure ? "https" : "http";
     }
 
     @Override

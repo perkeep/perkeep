@@ -134,7 +134,7 @@ public class UploadThread extends Thread {
 
     private JSONObject doPreUpload() {
         // Do the pre-upload.
-        HttpPost preReq = new HttpPost("http://" + mHostPort
+        HttpPost preReq = new HttpPost(mHostPort.httpScheme() + "://" + mHostPort
                 + "/camli/stat");
         preReq.setHeader("Authorization", getBasicAuthHeaderValue());
         List<BasicNameValuePair> uploadKeys = new ArrayList<BasicNameValuePair>();
@@ -178,7 +178,7 @@ public class UploadThread extends Thread {
     private boolean doUpload(JSONObject preUpload) {
         Log.d(TAG, "JSON: " + preUpload);
         String uploadUrl = preUpload
-                .optString("uploadUrl", "http://" + mHostPort + "/camli/upload");
+            .optString("uploadUrl", mHostPort.httpScheme() + "://" + mHostPort + "/camli/upload");
         Log.d(TAG, "uploadURL is: " + uploadUrl);
 
         // Which ones do we already have, so don't have to upload again?

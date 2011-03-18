@@ -220,7 +220,7 @@ public class DownloadService extends Service {
             Util.assertNotMainThread();
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
-            String url = "http://" + hp.toString() + "/camli/" + mBlobRef;
+            String url = hp.httpScheme() + "://" + hp.toString() + "/camli/" + mBlobRef;
             Log.d(TAG, "downloading " + url);
             HttpGet req = new HttpGet(url);
             req.setHeader("Authorization",
