@@ -18,6 +18,8 @@ package webserver
 
 import (
 	"bufio"
+	"crypto/rand"
+	"crypto/tls"
 	"flag"
 	"http"
 	"log"
@@ -25,22 +27,27 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
-var Listen *string = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
+var Listen = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
+
+var flagTLS = flag.Bool("tls", false, "Use TLS")
+var flagCertFile = flag.String("tls-crt", "", "If using TLS, path to cert (public key) file.")
+var flagKeyFile = flag.String("tls-key", "", "If using TLS, path to private key file.")
 
 type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
 
 type Server struct {
-	premux []HandlerPicker
-	mux  *http.ServeMux
+	premux   []HandlerPicker
+	mux      *http.ServeMux
 	listener net.Listener
 }
 
 func New() *Server {
 	return &Server{
-	premux: make([]HandlerPicker, 0),
-	mux: http.NewServeMux(),
+		premux: make([]HandlerPicker, 0),
+		mux:    http.NewServeMux(),
 	}
 }
 
@@ -78,7 +85,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) Serve() {
-	if os.Getenv("TESTING_PORT_WRITE_FD") == "" {  // Don't make noise during unit tests
+	if os.Getenv("TESTING_PORT_WRITE_FD") == "" { // Don't make noise during unit tests
 		log.Printf("Starting to listen on http://%v/\n", *Listen)
 	}
 
@@ -86,6 +93,20 @@ func (s *Server) Serve() {
 	s.listener, err = net.Listen("tcp", *Listen)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
+	}
+
+	if *flagTLS {
+		config := &tls.Config{
+			Rand:       rand.Reader,
+			Time:       time.Seconds,
+			NextProtos: []string{"http/1.1"},
+		}
+		config.Certificates = make([]tls.Certificate, 1)
+		config.Certificates[0], err = tls.LoadX509KeyPair(*flagCertFile, *flagKeyFile)
+		if err != nil {
+			log.Fatalf("Failed to load TLS cert: %v", err)
+		}
+		s.listener = tls.NewListener(s.listener, config)
 	}
 	go runTestHarnessIntegration(s.listener)
 	err = http.Serve(s.listener, s)
@@ -105,7 +126,7 @@ func pipeFromEnvFd(env string) *os.File {
 	if err != nil {
 		log.Fatalf("Bogus test harness fd '%s': %v", fdStr, err)
 	}
-	return os.NewFile(fd, "testingpipe-" + env)
+	return os.NewFile(fd, "testingpipe-"+env)
 }
 
 // Signals the test harness that we've started listening.
