@@ -43,14 +43,17 @@ import java.util.HashSet;
 
 public class DownloadService extends Service {
     private static final String TAG = "DownloadService";
-    private static final String BLOB_SUBDIR = "blobs";
     private static final int BUFFER_SIZE = 4096;
     private static final String USERNAME = "TODO-DUMMY-USER";
     private static final String SEARCH_BLOBREF = "search";
-    private static final String PARTIAL_DOWNLOAD_SUFFIX = ".partial";
+    private static final String BLOB_SUBDIR = "blobs";
 
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
+
+    // Effectively-final objects initialized in onCreate().
+    private SharedPreferences mSharedPrefs;
+    private DownloadCache mCache;
 
     // Protects members containing the state of current downloads.
     private final ReentrantLock mDownloadLock = new ReentrantLock();
@@ -63,10 +66,6 @@ public class DownloadService extends Service {
         new HashMap<String, ArrayList<ByteArrayListener>>();
     private final HashMap<String, ArrayList<FileListener>> mFileListenersByBlobRef =
         new HashMap<String, ArrayList<FileListener>>();
-
-    // Effectively-final objects initialized in onCreate().
-    private SharedPreferences mSharedPrefs;
-    private File mBlobDir;
 
     // Callback for receiving a blob's contents as an in-memory array of bytes.
     interface ByteArrayListener {
@@ -91,8 +90,7 @@ public class DownloadService extends Service {
         Log.d(TAG, "onCreate");
         super.onCreate();
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
-        mBlobDir = new File(getExternalFilesDir(null), BLOB_SUBDIR);
-        mBlobDir.mkdirs();
+        mCache = new DownloadCache(new File(getExternalFilesDir(null), BLOB_SUBDIR).getPath());
     }
 
     @Override
@@ -192,31 +190,21 @@ public class DownloadService extends Service {
                 mDownloadLock.unlock();
             }
 
-            if (!loadBlobFromCache()) {
+            mBlobFile = mCache.getFileForBlob(mBlobRef);
+            if (mBlobFile != null) {
+                Log.d(TAG, "using cached file " + mBlobFile.getPath() + " for blob " + mBlobRef);
+            } else {
                 downloadBlob();
             }
+
             notifyListeners();
         }
 
-        // Load |mBlobRef| from the cache, updating |mBlobFile| and returning true on success.
-        private boolean loadBlobFromCache() {
-            Util.assertNotMainThread();
-            if (!canBlobBeCached(mBlobRef))
-                return false;
-
-            File file = new File(mBlobDir, mBlobRef);
-            if (!file.exists())
-                return false;
-
-            mBlobFile = file;
-            return true;
-        }
-
-        // Download |mBlobRef| from the blobserver, returning true on success.
+        // Download |mBlobRef| from the blobserver.
         // If the blob is downloaded into memory (because there were byte array listeners registered when we checked),
         // then it's saved to |mBlobBytes|.  If it's downloaded to disk (because it's cacheable), then |mBlobFile| is
         // updated.
-        private boolean downloadBlob() {
+        private void downloadBlob() {
             Util.assertNotMainThread();
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
@@ -229,30 +217,31 @@ public class DownloadService extends Service {
 
             OutputStream outputStream = null;
 
+            // Temporary location where we write the file.
+            File tempFile = null;
+
             try {
                 HttpResponse response = httpClient.execute(req);
                 final int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode != 200) {
                     Log.e(TAG, "got status code " + statusCode + " while downloading " + mBlobRef);
-                    return false;
+                    return;
                 }
 
                 mDownloadLock.lock();
                 final boolean shouldDownloadToByteArray = !getByteArrayListenersForBlobRef(mBlobRef, false).isEmpty();
                 mDownloadLock.unlock();
 
-                // Temporary location where we write the file and final path to which we rename it after it's complete.
-                File tempFile = null, finalFile = null;
-                if (canBlobBeCached(mBlobRef)) {
-                    finalFile = new File(mBlobDir, mBlobRef);
-                    tempFile = new File(finalFile.getPath() + PARTIAL_DOWNLOAD_SUFFIX);
-                }
+                if (canBlobBeCached(mBlobRef))
+                    tempFile = mCache.getTempFileForDownload(mBlobRef);
 
                 if (shouldDownloadToByteArray) {
                     outputStream = new ByteArrayOutputStream();
                 } else if (tempFile != null) {
                     tempFile.createNewFile();
                     outputStream = new FileOutputStream(tempFile);
+                } else {
+                    throw new RuntimeException("blob " + mBlobRef + " can't be cached but has a file listener");
                 }
 
                 int bytesRead = 0;
@@ -283,24 +272,21 @@ public class DownloadService extends Service {
                     }
                 }
 
-                if (tempFile != null && tempFile != finalFile) {
-                    tempFile.renameTo(finalFile);
-                    mBlobFile = finalFile;
-                    Log.d(TAG, "wrote " + mBlobFile.getPath());
+                if (tempFile != null) {
+                    mBlobFile = mCache.handleDoneWritingTempFile(tempFile, true);
+                    tempFile = null;
                 }
-
-                return true;
-
             } catch (ClientProtocolException e) {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
-                return false;
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
-                return false;
             } finally {
                 if (outputStream != null) {
                     try { outputStream.close(); } catch (IOException e) {}
                 }
+                // Report failure to the cache.
+                if (tempFile != null)
+                    mCache.handleDoneWritingTempFile(tempFile, false);
             }
         }
 
