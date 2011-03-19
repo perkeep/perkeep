@@ -17,7 +17,7 @@ limitations under the License.
 package schema
 
 import (
-	. "camli/testing"
+	. "camli/test/asserts"
 	"os"
 	"strings"
 	"testing"

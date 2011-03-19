@@ -1,8 +1,7 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camli/blobref
+TARG=camli/test
 GOFILES=\
-	blobref.go\
-	fetcher.go\
+	blob.go\
 
 include $(GOROOT)/src/Make.pkg

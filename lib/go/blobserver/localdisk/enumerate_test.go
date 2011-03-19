@@ -19,7 +19,7 @@ package localdisk
 import (
 	"camli/blobref"
 	"camli/blobserver"
-	. "camli/testing"
+	. "camli/test/asserts"
 
 	"fmt"
 	"io/ioutil"

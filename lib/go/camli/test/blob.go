@@ -14,39 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blobref
+package test
 
 import (
+	"camli/blobref"
+
 	"crypto/sha1"
 	"io"
 	"strings"
 	"testing"
 )
 
-// TestBlob is a utility class for unit tests.
-type TestBlob struct {
-	Val string
+// Blob is a utility class for unit tests.
+type Blob struct {
+	Contents string  // the contents of the blob
 }
 
-func (tb *TestBlob) BlobRef() *BlobRef {
+func (tb *Blob) BlobRef() *blobref.BlobRef {
 	h := sha1.New()
-	h.Write([]byte(tb.Val))
-	return FromHash("sha1", h)
+	h.Write([]byte(tb.Contents))
+	return blobref.FromHash("sha1", h)
 }
 
-func (tb *TestBlob) BlobRefSlice() []*BlobRef {
-	return []*BlobRef{tb.BlobRef()}
+func (tb *Blob) BlobRefSlice() []*blobref.BlobRef {
+	return []*blobref.BlobRef{tb.BlobRef()}
 }
 
-func (tb *TestBlob) Size() int64 {
-	return int64(len(tb.Val))
+func (tb *Blob) Size() int64 {
+	return int64(len(tb.Contents))
 }
 
-func (tb *TestBlob) Reader() io.Reader {
-	return strings.NewReader(tb.Val)
+func (tb *Blob) Reader() io.Reader {
+	return strings.NewReader(tb.Contents)
 }
 
-func (tb *TestBlob) AssertMatches(t *testing.T, sb *SizedBlobRef) {
+func (tb *Blob) AssertMatches(t *testing.T, sb *blobref.SizedBlobRef) {
 	if sb.Size != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}

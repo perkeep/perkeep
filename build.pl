@@ -284,23 +284,27 @@ TARGET: clients/go/camsync
 
 TARGET: lib/go/schema
     - lib/go/blobref
-    - lib/go/testing
+    - lib/go/camli/test/asserts
 
-TARGET: lib/go/testing
+TARGET: lib/go/camli/test/asserts
+    - lib/go/blobref
 
 TARGET: lib/go/client
     - lib/go/blobref
 
 TARGET: lib/go/jsonsign
     - lib/go/blobref
-    - lib/go/testing
+    - lib/go/camli/test/asserts
+    - lib/go/camli/test
+
+TARGET: lib/go/camli/test
 
 TARGET: lib/go/blobref
-    - lib/go/testing
+    - lib/go/camli/test/asserts
 
 TARGET: lib/go/blobserver
     - lib/go/blobref
-    - lib/go/testing
+    - lib/go/camli/test/asserts
 
 TARGET: lib/go/search
     - lib/go/blobref
@@ -311,12 +315,12 @@ TARGET: lib/go/blobserver/handlers
     - server/go/httputil
     - lib/go/blobserver
     - lib/go/httprange
-    - lib/go/testing
+    - lib/go/camli/test/asserts
 
 TARGET: lib/go/blobserver/localdisk
     - lib/go/blobref
     - lib/go/blobserver
-    - lib/go/testing
+    - lib/go/camli/test/asserts
 
 TARGET: lib/go/httprange
 
@@ -328,5 +332,5 @@ TARGET: lib/go/mysqlindexer
     - lib/go/blobref
     - lib/go/blobserver
     - lib/go/schema
-    - lib/go/testing
+    - lib/go/camli/test/asserts
     - lib/go/search

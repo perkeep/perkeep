@@ -19,7 +19,7 @@ package handlers
 import (
 	"camli/blobref"
 	"camli/blobserver"
-	. "camli/testing"
+	. "camli/test/asserts"
 	"http"
 	"http/httptest"
 	"os"

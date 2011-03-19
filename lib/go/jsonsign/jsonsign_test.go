@@ -18,7 +18,8 @@ package jsonsign
 
 import (
 	"camli/blobref"
-	. "camli/testing"
+	"camli/test"
+	. "camli/test/asserts"
 
 	"fmt"
 	"os"
@@ -94,8 +95,8 @@ jyVNPb8AaaWVW1uZLg6Em61aKnbOG10B30m3CQ8dwBjF9hgmtcY0IZ/Y
 -----END PGP PUBLIC KEY BLOCK-----
 `
 
-var pubKeyBlob1 = &blobref.TestBlob{pubKey1} // user 1
-var pubKeyBlob2 = &blobref.TestBlob{pubKey2} // user 2
+var pubKeyBlob1 = &test.Blob{pubKey1} // user 1
+var pubKeyBlob2 = &test.Blob{pubKey2} // user 2
 
 var testFetcher = &TestFetcher{}
 
@@ -170,14 +171,14 @@ func TestSigning(t *testing.T) {
 
 type TestFetcher struct {
 	l sync.Mutex
-	m map[string]*blobref.TestBlob
+	m map[string]*test.Blob
 }
 
-func (tf *TestFetcher) AddBlob(b *blobref.TestBlob) {
+func (tf *TestFetcher) AddBlob(b *test.Blob) {
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	if tf.m == nil {
-		tf.m = make(map[string]*blobref.TestBlob)
+		tf.m = make(map[string]*test.Blob)
 	}
 	tf.m[b.BlobRef().String()] = b
 }
@@ -194,8 +195,8 @@ func (tf *TestFetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser,
 		err = os.ENOENT
 		return
 	}
-	file = &strReader{tb.Val, 0}
-	size = int64(len(tb.Val))
+	file = &strReader{tb.Contents, 0}
+	size = int64(len(tb.Contents))
 	return
 }
 

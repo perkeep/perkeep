@@ -18,7 +18,7 @@ package blobserver
 
 import (
 	"camli/blobref"
-	. "camli/testing"
+	. "camli/test/asserts"
 	"testing"
 	"time"
 )

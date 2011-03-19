@@ -18,7 +18,7 @@ package blobref
 
 import (
 	"testing"
-	. "camli/testing"
+	. "camli/test/asserts"
 )
 
 func TestAll(t *testing.T) {

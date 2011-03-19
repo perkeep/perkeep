@@ -1,7 +1,7 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camli/testing
+TARG=camli/test/asserts
 GOFILES=\
-	testing.go\
+	asserts.go\
 
 include $(GOROOT)/src/Make.pkg
