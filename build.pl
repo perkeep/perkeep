@@ -237,17 +237,17 @@ sub read_targets {
 
 __DATA__
 
-TARGET: server/go/httputil
+TARGET: lib/go/camli/httputil
     # (no deps)
 
-TARGET: server/go/auth
+TARGET: lib/go/camli/auth
     # (no deps)
 
-TARGET: server/go/webserver
+TARGET: lib/go/camli/webserver
     # (no deps)
 
 TARGET: server/go/blobserver
-    - server/go/httputil
+    - lib/go/camli/httputil
     - lib/go/camli/blobref
     - lib/go/camli/blobserver
     - lib/go/camli/blobserver/handlers
@@ -255,14 +255,14 @@ TARGET: server/go/blobserver
     - lib/go/camli/client
     - lib/go/camli/mysqlindexer
     - lib/go/camli/search
-    - server/go/auth
-    - server/go/webserver
+    - lib/go/camli/auth
+    - lib/go/camli/webserver
 
 TARGET: server/go/sigserver
-    - server/go/webserver
+    - lib/go/camli/webserver
     - lib/go/camli/blobref
-    - server/go/auth
-    - server/go/httputil
+    - lib/go/camli/auth
+    - lib/go/camli/httputil
     - lib/go/camli/jsonsign
 
 TARGET: website
@@ -308,11 +308,11 @@ TARGET: lib/go/camli/blobserver
 
 TARGET: lib/go/camli/search
     - lib/go/camli/blobref
-    - server/go/httputil
+    - lib/go/camli/httputil
 
 TARGET: lib/go/camli/blobserver/handlers
-    - server/go/auth
-    - server/go/httputil
+    - lib/go/camli/auth
+    - lib/go/camli/httputil
     - lib/go/camli/blobserver
     - lib/go/camli/misc/httprange
     - lib/go/camli/test/asserts
