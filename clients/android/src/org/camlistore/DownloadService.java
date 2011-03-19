@@ -90,7 +90,8 @@ public class DownloadService extends Service {
         Log.d(TAG, "onCreate");
         super.onCreate();
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
-        mCache = new DownloadCache(new File(getExternalFilesDir(null), BLOB_SUBDIR).getPath());
+        mCache = new DownloadCache(new File(getExternalFilesDir(null), BLOB_SUBDIR).getPath(),
+                                   new Preferences(mSharedPrefs));
     }
 
     @Override
@@ -111,13 +112,15 @@ public class DownloadService extends Service {
     }
 
     // Get |blobRef|'s contents, passing them as a byte[] to |listener| on the UI thread.
-    public void getBlobAsByteArray(String blobRef, ByteArrayListener listener) {
-        Util.runAsync(new GetBlobTask(blobRef, listener, null));
+    // If |sizeHintBytes| is greater than zero, it will be interpreted as the blob's size.
+    public void getBlobAsByteArray(String blobRef, long sizeHintBytes, ByteArrayListener listener) {
+        Util.runAsync(new GetBlobTask(blobRef, sizeHintBytes, listener, null));
     }
 
     // Get |blobRef|'s contents, passing them as a File to |listener| on the UI thread.
-    public void getBlobAsFile(String blobRef, FileListener listener) {
-        Util.runAsync(new GetBlobTask(blobRef, null, listener));
+    // If |sizeHintBytes| is greater than zero, it will be interpreted as the blob's size.
+    public void getBlobAsFile(String blobRef, long sizeHintBytes, FileListener listener) {
+        Util.runAsync(new GetBlobTask(blobRef, sizeHintBytes, null, listener));
     }
 
     private static boolean canBlobBeCached(String blobRef) {
@@ -154,16 +157,18 @@ public class DownloadService extends Service {
         private static final String TAG = "DownloadService.GetBlobTask";
 
         private final String mBlobRef;
+        private final long mSizeHintBytes;
         private final ByteArrayListener mByteArrayListener;
         private final FileListener mFileListener;
 
         private byte[] mBlobBytes = null;
         private File mBlobFile = null;
 
-        GetBlobTask(String blobRef, ByteArrayListener byteArrayListener, FileListener fileListener) {
+        GetBlobTask(String blobRef, long sizeHintBytes, ByteArrayListener byteArrayListener, FileListener fileListener) {
             if (!(byteArrayListener != null) ^ (fileListener != null))
                 throw new RuntimeException("exactly one of byteArrayListener and fileListener must be non-null");
             mBlobRef = blobRef;
+            mSizeHintBytes = sizeHintBytes;
             mByteArrayListener = byteArrayListener;
             mFileListener = fileListener;
         }
@@ -232,8 +237,13 @@ public class DownloadService extends Service {
                 final boolean shouldDownloadToByteArray = !getByteArrayListenersForBlobRef(mBlobRef, false).isEmpty();
                 mDownloadLock.unlock();
 
-                if (canBlobBeCached(mBlobRef))
-                    tempFile = mCache.getTempFileForDownload(mBlobRef);
+                if (canBlobBeCached(mBlobRef)) {
+                    tempFile = mCache.getTempFileForDownload(mBlobRef, mSizeHintBytes);
+                    if (tempFile == null) {
+                        Log.e(TAG, "couldn't create temporary file in cache for downloading " + mBlobRef);
+                        return;
+                    }
+                }
 
                 if (shouldDownloadToByteArray) {
                     outputStream = new ByteArrayOutputStream();
@@ -250,6 +260,7 @@ public class DownloadService extends Service {
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
                 }
+                inputStream.close();
 
                 // If we downloaded directly into a byte array, send it to any currently-registered byte array listeners
                 // before writing it to a file if it's cacheable.  We'll make another pass after the file is complete to

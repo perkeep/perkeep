@@ -86,6 +86,7 @@ public class BrowseActivity extends ListActivity {
         private String mFilename = null;
         private EntryType mType = EntryType.UNKNOWN;
         private String mContentBlobRef = null;
+        private long mContentLength = 0;
 
         Entry(String blobRef) {
             mBlobRef = blobRef;
@@ -95,6 +96,7 @@ public class BrowseActivity extends ListActivity {
         public String getFilename() { return mFilename; }
         public EntryType getType() { return mType; }
         public String getContentBlobRef() { return mContentBlobRef; }
+        public long getContentLength() { return mContentLength; }
 
         public String toString() { return mFilename != null ? mFilename : mBlobRef; }
 
@@ -108,8 +110,11 @@ public class BrowseActivity extends ListActivity {
                 } else if (mType == EntryType.FILE) {
                     // TODO: Handle multi-part files, partial portions of blobs, etc.
                     JSONArray parts = object.getJSONArray("contentParts");
-                    if (parts != null && parts.length() == 1)
-                        mContentBlobRef = parts.getJSONObject(0).getString("blobRef");
+                    if (parts != null && parts.length() == 1) {
+                        JSONObject partsObject = parts.getJSONObject(0);
+                        mContentBlobRef = partsObject.getString("blobRef");
+                        mContentLength = partsObject.getLong("size");
+                    }
                 }
                 return true;
             } catch (org.json.JSONException e) {
@@ -164,7 +169,7 @@ public class BrowseActivity extends ListActivity {
                 Log.e(TAG, "no content for file " + entry.getBlobRef());
                 return;
             }
-            mService.getBlobAsFile(entry.getContentBlobRef(), mFileListener);
+            mService.getBlobAsFile(entry.getContentBlobRef(), entry.getContentLength(), mFileListener);
         }
     }
 
@@ -173,9 +178,9 @@ public class BrowseActivity extends ListActivity {
             Log.d(TAG, "connected to service");
             mService = ((DownloadService.LocalBinder) service).getService();
             if (mBlobRef.equals("")) {
-                mService.getBlobAsByteArray("search", mSearchResultsListener);
+                mService.getBlobAsByteArray("search", 0, mSearchResultsListener);
             } else {
-                mService.getBlobAsByteArray(mBlobRef, mDirectoryListener);
+                mService.getBlobAsByteArray(mBlobRef, 0, mDirectoryListener);
             }
         }
 
@@ -205,7 +210,7 @@ public class BrowseActivity extends ListActivity {
                     Entry entry = new Entry(entryBlobRef);
                     mEntries.add(entry);
                     mEntriesByBlobRef.put(entryBlobRef, entry);
-                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
+                    mService.getBlobAsByteArray(entryBlobRef, 0, mEntryListener);
                 }
                 mAdapter.notifyDataSetChanged();
             } catch (org.json.JSONException e) {
@@ -245,7 +250,7 @@ public class BrowseActivity extends ListActivity {
                 }
 
                 Log.d(TAG, "requesting directory entries " + entriesBlobRef);
-                mService.getBlobAsByteArray(entriesBlobRef, mDirectoryEntriesListener);
+                mService.getBlobAsByteArray(entriesBlobRef, 0, mDirectoryEntriesListener);
             } catch (org.json.JSONException e) {
                 Log.e(TAG, "unable to parse JSON for search results", e);
             }
@@ -282,7 +287,7 @@ public class BrowseActivity extends ListActivity {
                     Entry entry = new Entry(entryBlobRef);
                     mEntries.add(entry);
                     mEntriesByBlobRef.put(entryBlobRef, entry);
-                    mService.getBlobAsByteArray(entryBlobRef, mEntryListener);
+                    mService.getBlobAsByteArray(entryBlobRef, 0, mEntryListener);
                 }
                 mAdapter.notifyDataSetChanged();
             } catch (org.json.JSONException e) {

@@ -41,6 +41,7 @@ public class SettingsActivity extends PreferenceActivity {
     private EditTextPreference passwordPref;
     private CheckBoxPreference autoPref;
     private PreferenceScreen autoOpts;
+    private EditTextPreference maxCacheSizePref;
 
     private SharedPreferences mSharedPrefs;
     private Preferences mPrefs;
@@ -66,9 +67,14 @@ public class SettingsActivity extends PreferenceActivity {
         passwordPref = (EditTextPreference) findPreference(Preferences.PASSWORD);
         autoPref = (CheckBoxPreference) findPreference(Preferences.AUTO);
         autoOpts = (PreferenceScreen) findPreference(Preferences.AUTO_OPTS);
+        maxCacheSizePref = (EditTextPreference) findPreference(Preferences.MAX_CACHE_MB);
 
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
         mPrefs = new Preferences(mSharedPrefs);
+
+        // Display defaults.
+        maxCacheSizePref.setSummary(
+            getString(R.string.settings_max_cache_size_summary, mPrefs.maxCacheMb()));
 
         OnPreferenceChangeListener onChange = new OnPreferenceChangeListener() {
             public boolean onPreferenceChange(Preference pref, Object newValue) {
@@ -81,15 +87,18 @@ public class SettingsActivity extends PreferenceActivity {
                         : null;
                 if (pref == hostPref) {
                     updateHostSummary(newStr);
-                }
-                if (pref == passwordPref) {
+                } else if (pref == passwordPref) {
                     updatePasswordSummary(newStr);
+                } else if (pref == maxCacheSizePref) {
+                    if (!updateMaxCacheSizeSummary(newStr))
+                        return false;
                 }
                 return true; // yes, persist it
             }
         };
         hostPref.setOnPreferenceChangeListener(onChange);
         passwordPref.setOnPreferenceChangeListener(onChange);
+        maxCacheSizePref.setOnPreferenceChangeListener(onChange);
     }
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = new
@@ -133,6 +142,7 @@ public class SettingsActivity extends PreferenceActivity {
         updateHostSummary(hostPref.getText());
         updatePasswordSummary(passwordPref.getText());
         updateAutoOpts(autoPref.isChecked());
+        updateMaxCacheSizeSummary(hostPref.getText());
     }
 
     private void updatePasswordSummary(String value) {
@@ -153,6 +163,20 @@ public class SettingsActivity extends PreferenceActivity {
 
     private void updateAutoOpts(boolean checked) {
         autoOpts.setEnabled(checked);
+    }
+
+    // Update the summary for the max cache size setting.
+    // Returns true if the value is valid and should be persisted and false otherwise.
+    private boolean updateMaxCacheSizeSummary(String value) {
+        try {
+            int mb = Integer.parseInt(value);
+            if (mb <= 0)
+                return false;
+            maxCacheSizePref.setSummary(getString(R.string.settings_max_cache_size_summary, mb));
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     // Convenience method.

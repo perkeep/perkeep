@@ -31,8 +31,7 @@ class DownloadCache {
     private static final String TAG = "DownloadCache";
     private static final String PARTIAL_DOWNLOAD_SUFFIX = ".partial";
 
-    // FIXME: Move this to a pref.
-    private static final long MAX_CACHE_BYTES = 256 * 1024 * 1024;
+    private final Preferences mPrefs;
 
     // Directory where we store blobs.
     private final File mBlobDir;
@@ -52,9 +51,10 @@ class DownloadCache {
     // Protected by |mLock|.
     private HashSet<String> mPinnedPaths = new HashSet<String>();
 
-    DownloadCache(String path) {
+    DownloadCache(String path, Preferences prefs) {
         mBlobDir = new File(path);
         mBlobDir.mkdirs();
+        mPrefs = prefs;
 
         // Compute the starting size of the cache.
         Util.runAsync(new Runnable() {
@@ -67,7 +67,7 @@ class DownloadCache {
                         mUsedBytes += file.length();
                     }
                     Log.d(TAG, "cache is ready; currently has " + mUsedBytes +
-                          " byte(s) of " + MAX_CACHE_BYTES + " max");
+                          " byte(s) of " + mPrefs.maxCacheBytes() + " max");
                     mIsReady = true;
                     mIsReadyCondition.signal();
                 } finally {
@@ -92,10 +92,11 @@ class DownloadCache {
         return file;
     }
 
-    // Get a temporary file to which |blobRef| can be downloaded.
+    // Get a temporary file to which |blobRef| can be downloaded.  Returns null on failure.
+    // If |sizeHintBytes| is greater than zero, we require that much free space in the cache.
     // The underlying file will not be created; the caller must call createNewFile().
     // In any case, the caller must call handleDoneWritingTempFile() when done using the file.
-    public File getTempFileForDownload(String blobRef) {
+    public File getTempFileForDownload(String blobRef, long sizeHintBytes) {
         Util.assertNotMainThread();
         File file = new File(mBlobDir, blobRef + PARTIAL_DOWNLOAD_SUFFIX);
 
@@ -105,6 +106,14 @@ class DownloadCache {
                 try { mIsReadyCondition.await(); } catch (InterruptedException e) {}
             if (!mPinnedPaths.add(file.getAbsolutePath()))
                 throw new RuntimeException("temp file " + file.getPath() + " for " + blobRef + " already in use");
+
+            if (sizeHintBytes > 0) {
+                // Discount existing space used by a previous partial download of this blob.
+                if (file.exists())
+                    sizeHintBytes -= file.length();
+                if (!makeSpace(sizeHintBytes))
+                    return null;
+            }
         } finally {
             mLock.unlock();
         }
@@ -141,53 +150,50 @@ class DownloadCache {
 
     // Try to make space for |neededBytes| bytes.
     // Returns true if successful and false otherwise.
-    public boolean makeSpace(long neededBytes) {
-        Util.assertNotMainThread();
-        mLock.lock();
-        try {
-            while (!mIsReady)
-                try { mIsReadyCondition.await(); } catch (InterruptedException e) {}
-            Log.d(TAG, "making space for " + neededBytes + " byte(s) " +
-                  "(using " + mUsedBytes + ", max is " + MAX_CACHE_BYTES + ")");
+    private boolean makeSpace(long neededBytes) {
+        final long maxCacheBytes = mPrefs.maxCacheBytes();
 
-            if (neededBytes > MAX_CACHE_BYTES)
-                return false;
+        Util.assertLockIsHeld(mLock);
+        if (!mIsReady)
+            throw new RuntimeException("attempted to make space in cache before it was initialized");
+        Log.d(TAG, "making space for " + neededBytes + " byte(s) " +
+              "(using " + mUsedBytes + ", max is " + maxCacheBytes + ")");
 
-            long freeBytes = MAX_CACHE_BYTES - mUsedBytes;
-            if (freeBytes >= neededBytes)
-                return true;
+        if (neededBytes > maxCacheBytes)
+            return false;
 
-            // Pairs of (mtime, File), sorted by ascending mtime.
-            ArrayList<Pair<Long, File>> filesByMtime = new ArrayList<Pair<Long, File>>();
-            for (File file : mBlobDir.listFiles())
-                filesByMtime.add(new Pair<Long, File>(file.lastModified(), file));
-            Collections.sort(filesByMtime, new Comparator() {
-                @Override
-                public int compare(Object a, Object b) {
-                    return compare(((Pair<Long, File>) a).first, ((Pair<Long, File>) b).first);
-                }
-            });
+        long freeBytes = maxCacheBytes - mUsedBytes;
+        if (freeBytes >= neededBytes)
+            return true;
 
-            while (freeBytes < neededBytes && !filesByMtime.isEmpty()) {
-                File file = filesByMtime.get(0).second;
-                filesByMtime.remove(0);
-
-                if (mPinnedPaths.contains(file.getAbsolutePath()))
-                    continue;
-
-                final long fileBytes = file.length();
-                Log.d(TAG, "deleting " + file.getPath() + " of length " + fileBytes);
-                if (file.delete()) {
-                    mUsedBytes -= fileBytes;
-                    freeBytes += fileBytes;
-                } else {
-                    Log.e(TAG, "failed to delete " + file.getPath());
-                }
+        // Pairs of (mtime, File), sorted by ascending mtime.
+        ArrayList<Pair<Long, File>> filesByMtime = new ArrayList<Pair<Long, File>>();
+        for (File file : mBlobDir.listFiles())
+            filesByMtime.add(new Pair<Long, File>(file.lastModified(), file));
+        Collections.sort(filesByMtime, new Comparator() {
+            @Override
+            public int compare(Object a, Object b) {
+                return ((Pair<Long, File>) a).first.compareTo(((Pair<Long, File>) b).first);
             }
-            return (freeBytes >= neededBytes);
-        } finally {
-            mLock.unlock();
+        });
+
+        while (freeBytes < neededBytes && !filesByMtime.isEmpty()) {
+            File file = filesByMtime.get(0).second;
+            filesByMtime.remove(0);
+
+            if (mPinnedPaths.contains(file.getAbsolutePath()))
+                continue;
+
+            final long fileBytes = file.length();
+            Log.d(TAG, "deleting " + file.getPath() + " of length " + fileBytes);
+            if (file.delete()) {
+                mUsedBytes -= fileBytes;
+                freeBytes += fileBytes;
+            } else {
+                Log.e(TAG, "failed to delete " + file.getPath());
+            }
         }
+        return (freeBytes >= neededBytes);
     }
 
 }
