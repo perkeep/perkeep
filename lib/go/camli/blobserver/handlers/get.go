@@ -41,6 +41,11 @@ var kGetPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-
 
 func CreateGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
+			// Test handler.
+			simulatePrematurelyClosedConnection(conn, req)
+			return
+		}
 		handleGet(conn, req, fetcher)
 	}
 }
@@ -282,4 +287,22 @@ func isValidUtf8(s string) bool {
 
 func blobFromUrlPath(path string) *blobref.BlobRef {
 	return blobref.FromPattern(kGetPattern, path)
+}
+
+// For client testing.
+func simulatePrematurelyClosedConnection(conn http.ResponseWriter, req *http.Request) {
+	flusher, ok := conn.(http.Flusher)
+	if !ok {
+		return
+	}
+	hj, ok := conn.(http.Hijacker)
+	if !ok {
+		return
+	}
+	for n := 1; n <= 100; n++ {
+		fmt.Fprintf(conn, "line %d\n", n)
+		flusher.Flush()
+	}
+	wrc, _, _ := hj.Hijack()
+	wrc.Close()  // without sending final chunk; should be an error for the client
 }
