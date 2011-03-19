@@ -286,7 +286,7 @@ sub find_go_camli_deps {
     print $mf "include \$(GOROOT)/src/Make.$type\n";
     close($mf);
 
-    print "DEPS of $target: @{ $t->{deps} }\n";
+    # print "DEPS of $target: @{ $t->{deps} }\n";
 }
 
 sub read_targets {
