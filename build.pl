@@ -147,6 +147,39 @@ sub clean {
     }
 }
 
+# Returns a help message on a build failure of a given target.
+sub fixit_tip {
+    my $target = shift;
+    if ($target =~ /\bgo\b/) {
+        my $gover = `gotry runtime 'Version()'`;
+        unless ($gover =~ /Version.+"(.+)"/) {
+            return "Failed to find 'gotry'.  Is Go installed?  Or have you put \$GOROOT/bin in your \$PATH?";
+        }
+        $gover = $1;
+        if ($gover =~ /release/) {
+            return "You're running a release version of Go ($gover) but \n".
+                "Camlistore generally tracks the 'weekly' releases.\n".
+                "See: http://blog.golang.org/2011/03/go-becomes-more-stable.html\n";
+        }
+        unless ($gover =~ /weekly\.(\d\d\d\d)-(\d\d)-(\d\d)/) {
+            return "Failed to parse your Go version.  You have \$gover\" but since\n".
+                "I can't parse it, I can't tell you if it's too old or not.\n";
+        }
+        my ($yyyy, $mm, $dd) = ($1, $2, $3);
+        # TODO: check the internet to see what the latest Go weekly is?
+        # Or keep it in git here?  Or go purely on number of days passed?
+        return "You're running Go weekly release $gover; maybe it's too old?";
+    }
+
+    if ($target =~ /\bandroid\b/) {
+        return "Have you installed the Android SDK, installed ant, set \$JAVA_HOME?\n".
+            "Unset \$JAVA_HOME if it points to a bogus place? Run update-java-alternatives?\n".
+            "See errors above.";
+    }
+
+    return "";
+}
+
 my $did_go_check = 0;
 sub perform_go_check() {
     return if $did_go_check++;
@@ -209,7 +242,15 @@ sub build {
         if (@history > 1) {
             $chain = "(via chain @history)";
         }
-        die "Error building $target $chain\n";
+        my $help_msg = fixit_tip($target);
+        if ($help_msg) {
+            $help_msg = "\nPossible tip: $help_msg\n\n";
+        }
+        my $deps;
+        if ($chain) {
+            $deps = " (via deps: $chain)";
+        }
+        die "\nError building $target$deps\n$help_msg";
     }
     v("Built '$target'");
 
