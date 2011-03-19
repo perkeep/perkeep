@@ -19,9 +19,9 @@ package mysqlindexer
 import (
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/magic"
 	"camli/schema"
 
-	"bytes"
 	"io"
 	"json"
 	"log"
@@ -55,17 +55,6 @@ func (sn *blobSniffer) IsTruncated() bool {
 	return sn.written > maxSniffSize
 }
 
-type prefixEntry struct {
-	prefix []byte
-	mtype  string
-}
-
-var prefixTable = []prefixEntry{
-	{[]byte("\xff\xd8\xff\xe1"), "image/jpeg"},
-	{[]byte("\xff\xd8\xff\xe0"), "image/jpeg"},
-	{[]byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, "image/png"},
-}
-
 // returns content type (string) or nil if unknown
 func (sn *blobSniffer) MimeType() interface{} {
 	if sn.mimeType != nil {
@@ -75,21 +64,17 @@ func (sn *blobSniffer) MimeType() interface{} {
 }
 
 func (sn *blobSniffer) Parse() {
-	hlen := len(sn.header)
-	for _, pte := range prefixTable {
-		plen := len(pte.prefix)
-		if hlen > plen && bytes.Equal(sn.header[:plen], pte.prefix) {
-			sn.mimeType = &pte.mtype
-		}
-	}
-
 	// Try to parse it as JSON
+	// TODO: move this into the magic library?  Is the magic library Camli-specific
+	// or to be upstreamed elsewhere?
 	if sn.bufferIsCamliJson() {
 		str := "application/json; camliType=" + sn.camli.Type
 		sn.mimeType = &str
 	}
 
-	return
+	if mime := magic.MimeType(sn.header); mime != "" {
+		sn.mimeType = &mime
+	}
 }
 
 func (sn *blobSniffer) bufferIsCamliJson() bool {

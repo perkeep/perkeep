@@ -329,6 +329,7 @@ TARGET: lib/go/camli/blobserver/localdisk
 TARGET: lib/go/camli/client
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonsign
+TARGET: lib/go/camli/magic
 TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/mysqlindexer
     - ext:github.com/Philio/GoMySQL
