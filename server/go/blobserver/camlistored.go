@@ -33,6 +33,7 @@ var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
 // TODO: Temporary
 var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
 var flagDevSearch = flag.Bool("devsearch", false, "Temporary option to enable search interface at /camli/search")
+var flagDatabaseName = flag.String("dbname", "devcamlistore", "MySQL database name")
 
 var storage blobserver.Storage
 
@@ -250,7 +251,7 @@ func main() {
 			Host:     "localhost",
 			User:     "root",
 			Password: "root",
-			Database: "devcamlistore",
+			Database: *flagDatabaseName,
 		        OwnerBlobRef: ownerBlobRef,
 			KeyFetcher: blobref.NewSerialFetcher(
 				blobref.NewConfigDirFetcher(),
