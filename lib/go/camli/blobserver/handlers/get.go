@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"camli/auth"
 	"camli/blobref"
-	"camli/httprange"
+	"camli/misc/httprange"
 	"camli/httputil"
 	"fmt"
 	"http"

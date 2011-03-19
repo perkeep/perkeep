@@ -1,6 +1,6 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=camli/httprange
+TARG=camli/misc/httprange
 GOFILES=\
 	range.go\
 

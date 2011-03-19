@@ -16,7 +16,9 @@ limitations under the License.
 
 package httprange
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestRange(t *testing.T) {
 

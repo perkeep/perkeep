@@ -135,7 +135,9 @@ sub clean {
     }
 }
 
+my $did_go_check = 0;
 sub perform_go_check() {
+    return if $did_go_check++;
     if ($ENV{GOROOT}) {
         die "Your \$GOROOT environment variable isn't a directory.\n" unless -d $ENV{GOROOT};
         return 1;
@@ -172,7 +174,10 @@ sub build {
         return;
     }
     
-    my $t = $targets{$target} or die "Bogus build target: $target\n";
+    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
+
+    # Add auto-learned dependencies.
+    find_go_camli_deps($target);
 
     # Dependencies first.
     my @deps = @{ $t->{deps} };
@@ -197,13 +202,58 @@ sub build {
     v("Built '$target'");
 
     if ($opt_test) {
-        opendir(my $dh, $target);
-        my @test_files = grep { /_test\.go/ } grep { !/~$/ } readdir($dh);
+        opendir(my $dh, $target) or die;
+        my @test_files = grep { /_test\.go$/ } readdir($dh);
         closedir($dh);
         if (@test_files) {
             if (system("make", @quiet, "-C", $target, "test") != 0) {
                 die "Tests failed for $target\n";
             }
+        }
+    }
+}
+
+sub find_go_camli_deps {
+    my $target = shift;
+    my $type = "";
+    if ($target =~ m!lib/go/camli!) {
+        $type = "pkg";
+    } elsif ($target =~ m!(server|clients)/go\b!) {
+        $type = "cmd";
+    } else {
+        return;
+    }
+    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
+
+    opendir(my $dh, $target) or die;
+    my @go_files = grep { /\.go$/ } readdir($dh);
+    closedir($dh);
+
+    # TODO: just stat the files first and keep a cache file of the
+    # deps somewhere (the header of the generated Makefile?)  but
+    # maybe it's not worth it.  for now we'll parse all the files
+    # every time to find their deps and also generate the Makefile
+    # every time.
+    
+    my @deps;
+    my %seen;  # $dep -> 1
+    for my $f (@go_files) {
+        open(my $fh, "$target/$f") or die;
+        my $src = do { local $/; <$fh>; };
+        unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
+            die "Failed to parse imports from $target/$f.\n".
+                "No imports(...) block?  Um, add a fake one.  :)\n";
+        }
+        my $imports = $1;
+        while ($imports =~ m!"(camli\b.+?)"!g) {
+            my $dep = "lib/go/$1";
+            push @deps, $dep unless $seen{$dep}++;
+        }
+    }
+
+    foreach my $dep (@deps) {
+        unless (grep { $_ eq $dep } @{$t->{deps}}) {
+            push @{$t->{deps}}, $dep;
         }
     }
 }
@@ -237,100 +287,27 @@ sub read_targets {
 
 __DATA__
 
-TARGET: lib/go/camli/httputil
-    # (no deps)
-
-TARGET: lib/go/camli/auth
-    # (no deps)
-
-TARGET: lib/go/camli/webserver
-    # (no deps)
-
-TARGET: server/go/blobserver
-    - lib/go/camli/httputil
-    - lib/go/camli/blobref
-    - lib/go/camli/blobserver
-    - lib/go/camli/blobserver/handlers
-    - lib/go/camli/blobserver/localdisk
-    - lib/go/camli/client
-    - lib/go/camli/mysqlindexer
-    - lib/go/camli/search
-    - lib/go/camli/auth
-    - lib/go/camli/webserver
-
-TARGET: server/go/sigserver
-    - lib/go/camli/webserver
-    - lib/go/camli/blobref
-    - lib/go/camli/auth
-    - lib/go/camli/httputil
-    - lib/go/camli/jsonsign
-
-TARGET: website
-
-TARGET: clients/go/camput
-    - lib/go/camli/client
-    - lib/go/camli/blobref
-    - lib/go/camli/schema
-    - lib/go/camli/jsonsign
-
 TARGET: clients/go/camget
-    - lib/go/camli/client
-    - lib/go/camli/blobref
-    - lib/go/camli/schema
-
+TARGET: clients/go/camput
 TARGET: clients/go/camsync
-    - lib/go/camli/client
-    - lib/go/camli/blobref
-
-TARGET: lib/go/camli/schema
-    - lib/go/camli/blobref
-    - lib/go/camli/test/asserts
-
-TARGET: lib/go/camli/test/asserts
-    - lib/go/camli/blobref
-
-TARGET: lib/go/camli/client
-    - lib/go/camli/blobref
-
-TARGET: lib/go/camli/jsonsign
-    - lib/go/camli/blobref
-    - lib/go/camli/test/asserts
-    - lib/go/camli/test
-
-TARGET: lib/go/camli/test
-
+TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
-    - lib/go/camli/test/asserts
-
 TARGET: lib/go/camli/blobserver
-    - lib/go/camli/blobref
-    - lib/go/camli/test/asserts
-
-TARGET: lib/go/camli/search
-    - lib/go/camli/blobref
-    - lib/go/camli/httputil
-
 TARGET: lib/go/camli/blobserver/handlers
-    - lib/go/camli/auth
-    - lib/go/camli/httputil
-    - lib/go/camli/blobserver
-    - lib/go/camli/misc/httprange
-    - lib/go/camli/test/asserts
-
 TARGET: lib/go/camli/blobserver/localdisk
-    - lib/go/camli/blobref
-    - lib/go/camli/blobserver
-    - lib/go/camli/test/asserts
-
+TARGET: lib/go/camli/client
+TARGET: lib/go/camli/httputil
+TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/misc/httprange
-
-TARGET: clients/android
-    =not_in_all  # too slow
-
 TARGET: lib/go/camli/mysqlindexer
     - ext:github.com/Philio/GoMySQL
-    - lib/go/camli/blobref
-    - lib/go/camli/blobserver
-    - lib/go/camli/schema
-    - lib/go/camli/test/asserts
-    - lib/go/camli/search
+TARGET: lib/go/camli/schema
+TARGET: lib/go/camli/search
+TARGET: lib/go/camli/test
+TARGET: lib/go/camli/test/asserts
+TARGET: lib/go/camli/webserver
+TARGET: server/go/blobserver
+TARGET: server/go/sigserver
+TARGET: website
+TARGET: clients/android
+    =not_in_all  # too slow
