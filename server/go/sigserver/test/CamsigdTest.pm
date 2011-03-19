@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Common test library for camsigd
+# Common test library for camsigd (sigserver)
 
 package CamsigdTest;
 
@@ -11,7 +11,7 @@ use LWP::UserAgent;
 use HTTP::Request;
 use Fcntl;
 
-our $BINARY = "$FindBin::Bin/../camsigd";
+our $BINARY = "$FindBin::Bin/../sigserver";
 
 sub start {
     my ($port_rd, $port_wr, $exit_rd, $exit_wr);
