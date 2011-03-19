@@ -32,6 +32,7 @@ import (
 
 var Listen = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
 
+var flagSelfUrlBase = flag.String("self-base-url", "", "If empty, automatic.  Else of form https://foo.com (no trailing slash)")
 var flagTLS = flag.Bool("tls", false, "Use TLS")
 var flagCertFile = flag.String("tls-crt", "", "If using TLS, path to cert (public key) file.")
 var flagKeyFile = flag.String("tls-key", "", "If using TLS, path to private key file.")
@@ -52,6 +53,10 @@ func New() *Server {
 }
 
 func (s *Server) BaseURL() string {
+	if *flagSelfUrlBase != "" {
+		// TODO: be automatic for TLS certs? find host name of cert inside it.
+		return *flagSelfUrlBase
+	}
 	if strings.HasPrefix(*Listen, ":") {
 		return "http://127.0.0.1" + *Listen
 	}
