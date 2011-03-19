@@ -26,6 +26,7 @@ import android.util.Log;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.DefaultHttpClient;
 
@@ -220,13 +221,24 @@ public class DownloadService extends Service {
                           Util.getBasicAuthHeaderValue(
                               USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
 
+            // Incoming data from the server.
+            InputStream inputStream = null;
+
+            // Output for the blob data (either a file in the cache or an in-memory buffer).
             OutputStream outputStream = null;
 
-            // Temporary location where we write the file.
+            // Temporary location in the cache where we write the blob.
             File tempFile = null;
 
             try {
-                HttpResponse response = httpClient.execute(req);
+                final HttpResponse response = httpClient.execute(req);
+                final HttpEntity entity = response.getEntity();
+                long contentLength = -1;
+                if (entity != null) {
+                    inputStream = entity.getContent();
+                    contentLength = entity.getContentLength();
+                }
+
                 final int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode != 200) {
                     Log.e(TAG, "got status code " + statusCode + " while downloading " + mBlobRef);
@@ -255,12 +267,17 @@ public class DownloadService extends Service {
                 }
 
                 int bytesRead = 0;
+                long totalBytesWritten = 0;
                 byte[] buffer = new byte[BUFFER_SIZE];
-                InputStream inputStream = response.getEntity().getContent();
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
+                    totalBytesWritten += bytesRead;
                 }
-                inputStream.close();
+                if (contentLength > 0 && totalBytesWritten != contentLength) {
+                    Log.e(TAG, "got " + totalBytesWritten + " byte(s) for " + mBlobRef +
+                          " but Content-Length header claimed " + contentLength);
+                    return;
+                }
 
                 // If we downloaded directly into a byte array, send it to any currently-registered byte array listeners
                 // before writing it to a file if it's cacheable.  We'll make another pass after the file is complete to
@@ -292,9 +309,11 @@ public class DownloadService extends Service {
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
             } finally {
-                if (outputStream != null) {
+                if (inputStream != null)
+                    try { inputStream.close(); } catch (IOException e) {}
+                if (outputStream != null)
                     try { outputStream.close(); } catch (IOException e) {}
-                }
+
                 // Report failure to the cache.
                 if (tempFile != null)
                     mCache.handleDoneWritingTempFile(tempFile, false);
