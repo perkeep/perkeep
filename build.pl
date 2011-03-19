@@ -248,89 +248,89 @@ TARGET: server/go/webserver
 
 TARGET: server/go/blobserver
     - server/go/httputil
-    - lib/go/blobref
-    - lib/go/blobserver
-    - lib/go/blobserver/handlers
-    - lib/go/blobserver/localdisk
-    - lib/go/client
-    - lib/go/mysqlindexer
-    - lib/go/search
+    - lib/go/camli/blobref
+    - lib/go/camli/blobserver
+    - lib/go/camli/blobserver/handlers
+    - lib/go/camli/blobserver/localdisk
+    - lib/go/camli/client
+    - lib/go/camli/mysqlindexer
+    - lib/go/camli/search
     - server/go/auth
     - server/go/webserver
 
 TARGET: server/go/sigserver
     - server/go/webserver
-    - lib/go/blobref
+    - lib/go/camli/blobref
     - server/go/auth
     - server/go/httputil
-    - lib/go/jsonsign
+    - lib/go/camli/jsonsign
 
 TARGET: website
 
 TARGET: clients/go/camput
-    - lib/go/client
-    - lib/go/blobref
-    - lib/go/schema
-    - lib/go/jsonsign
+    - lib/go/camli/client
+    - lib/go/camli/blobref
+    - lib/go/camli/schema
+    - lib/go/camli/jsonsign
 
 TARGET: clients/go/camget
-    - lib/go/client
-    - lib/go/blobref
-    - lib/go/schema
+    - lib/go/camli/client
+    - lib/go/camli/blobref
+    - lib/go/camli/schema
 
 TARGET: clients/go/camsync
-    - lib/go/client
-    - lib/go/blobref
+    - lib/go/camli/client
+    - lib/go/camli/blobref
 
-TARGET: lib/go/schema
-    - lib/go/blobref
+TARGET: lib/go/camli/schema
+    - lib/go/camli/blobref
     - lib/go/camli/test/asserts
 
 TARGET: lib/go/camli/test/asserts
-    - lib/go/blobref
+    - lib/go/camli/blobref
 
-TARGET: lib/go/client
-    - lib/go/blobref
+TARGET: lib/go/camli/client
+    - lib/go/camli/blobref
 
-TARGET: lib/go/jsonsign
-    - lib/go/blobref
+TARGET: lib/go/camli/jsonsign
+    - lib/go/camli/blobref
     - lib/go/camli/test/asserts
     - lib/go/camli/test
 
 TARGET: lib/go/camli/test
 
-TARGET: lib/go/blobref
+TARGET: lib/go/camli/blobref
     - lib/go/camli/test/asserts
 
-TARGET: lib/go/blobserver
-    - lib/go/blobref
+TARGET: lib/go/camli/blobserver
+    - lib/go/camli/blobref
     - lib/go/camli/test/asserts
 
-TARGET: lib/go/search
-    - lib/go/blobref
+TARGET: lib/go/camli/search
+    - lib/go/camli/blobref
     - server/go/httputil
 
-TARGET: lib/go/blobserver/handlers
+TARGET: lib/go/camli/blobserver/handlers
     - server/go/auth
     - server/go/httputil
-    - lib/go/blobserver
-    - lib/go/httprange
+    - lib/go/camli/blobserver
+    - lib/go/camli/misc/httprange
     - lib/go/camli/test/asserts
 
-TARGET: lib/go/blobserver/localdisk
-    - lib/go/blobref
-    - lib/go/blobserver
+TARGET: lib/go/camli/blobserver/localdisk
+    - lib/go/camli/blobref
+    - lib/go/camli/blobserver
     - lib/go/camli/test/asserts
 
-TARGET: lib/go/httprange
+TARGET: lib/go/camli/misc/httprange
 
 TARGET: clients/android
     =not_in_all  # too slow
 
-TARGET: lib/go/mysqlindexer
+TARGET: lib/go/camli/mysqlindexer
     - ext:github.com/Philio/GoMySQL
-    - lib/go/blobref
-    - lib/go/blobserver
-    - lib/go/schema
+    - lib/go/camli/blobref
+    - lib/go/camli/blobserver
+    - lib/go/camli/schema
     - lib/go/camli/test/asserts
-    - lib/go/search
+    - lib/go/camli/search
