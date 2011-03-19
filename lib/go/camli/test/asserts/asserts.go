@@ -92,13 +92,13 @@ func ExpectNil(t *testing.T, v interface{}, what string) {
 	if v == nil {
 		return
 	}
-	t.Errorf("%s: expected nil; got %v", v)
+	t.Errorf("%s: expected nil; got %v", what, v)
 }
 
 func AssertNil(t *testing.T, v interface{}, what string) {
 	if v == nil {
 		return
 	}
-	t.Fatalf("%s: expected nil; got %v", v)
+	t.Fatalf("%s: expected nil; got %v", what, v)
 }
 
