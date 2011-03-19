@@ -28,6 +28,7 @@ my $opt_list;
 my $opt_eachclean;
 my $opt_verbose;
 my $opt_test;
+my $opt_deps;
 
 chdir($FindBin::Bin) or die "Couldn't chdir to $FindBin::Bin: $!";
 
@@ -35,6 +36,7 @@ GetOptions("list" => \$opt_list,
            "eachclean" => \$opt_eachclean,
            "verbose" => \$opt_verbose,
            "test" => \$opt_test,
+           "deps" => \$opt_deps,
     ) or usage();
 
 sub usage {
@@ -47,6 +49,7 @@ Usage:
   build.pl --list
   build.pl --eachclean # builds each target with a full clean before it
                        # (for testing that dependencies are correct)
+  build.pl --deps      # Show each target's dependencies
 
 Other options:
   --verbose|-v         Verbose
@@ -64,7 +67,16 @@ if ($opt_list)  {
     foreach my $target (sort keys %targets) {
         print "  * $target\n";
     }
-    exit;        
+    exit;
+}
+
+if ($opt_deps)  {
+    foreach my $target (sort keys %targets) {
+        find_go_camli_deps($target);
+        my $t = $targets{$target} or die;
+        print "$target: @{ $t->{deps} }\n";
+    }
+    exit;
 }
 
 if ($opt_eachclean) {
