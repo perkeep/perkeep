@@ -226,7 +226,7 @@ sub find_go_camli_deps {
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
 
     opendir(my $dh, $target) or die;
-    my @go_files = grep { /\.go$/ } readdir($dh);
+    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
     # TODO: just stat the files first and keep a cache file of the
@@ -256,6 +256,37 @@ sub find_go_camli_deps {
             push @{$t->{deps}}, $dep;
         }
     }
+
+    open(my $mf, ">$target/Makefile") or die;
+    print $mf "\n\n";
+    print $mf "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
+    print $mf "\n\n";
+    print $mf "include \$(GOROOT)/src/Make.inc\n";
+    if (@deps) {
+        my $pr = "";
+        foreach my $dep (@deps) {
+            my $cam_lib = $dep;
+            $cam_lib =~ s!^lib/go/!!;
+            $pr .= '$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/' . $cam_lib . ".a\\\n\t";
+        }
+        chop $pr; chop $pr; chop $pr;
+        print $mf "PREREQ=$pr\n";
+    }
+    if ($type eq "pkg") {
+        my $targ = $target;
+        $targ =~ s!^lib/go/!!;
+        print $mf "TARG=$targ\n";
+    } else {
+        my $targ = $target;
+        $targ =~ s!^.*/!!;
+        print $mf "TARG=$targ\n";
+    }
+    my @non_test_files = grep { !/_test\.go/ } @go_files;
+    print $mf "GOFILES=@non_test_files\n";
+    print $mf "include \$(GOROOT)/src/Make.$type\n";
+    close($mf);
+
+    print "DEPS of $target: @{ $t->{deps} }\n";
 }
 
 sub read_targets {
