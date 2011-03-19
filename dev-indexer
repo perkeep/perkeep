@@ -6,7 +6,7 @@ use Getopt::Long;
 use DBI;
 
 sub usage {
-    die "Usage: dev-indexer [--wipe] <portnumber> -- [other_camlistored_opts]";
+    die "Usage: dev-indexer [--wipe] <portnumber> -- [other_blobserver_opts]";
 }
 
 my $opt_wipe;
@@ -81,7 +81,7 @@ if ($opt_wipe) {
 print "Starting blobserver with indexer on http://localhost:$port/ in $root\n";
 
 $ENV{CAMLI_PASSWORD} = "pass$port";
-exec("$FindBin::Bin/server/go/blobserver/camlistored",
+exec("$FindBin::Bin/server/go/blobserver/blobserver",
      "-root=$root",  # NOTE: Root required but not used by indexer blobserver
      "-listen=:$port",
      "-devmysqlindexer",

@@ -290,7 +290,7 @@ sub start {
         and die "Failed to build Go blobserver.";
 
     my $bindir = "$FindBin::Bin/../go/blobserver/";
-    my $binary = "$bindir/camlistored";
+    my $binary = "$bindir/blobserver";
 
     chdir($bindir) or die "filed to chdir to $bindir: $!";
     system("make") and die "failed to run make in $bindir";
