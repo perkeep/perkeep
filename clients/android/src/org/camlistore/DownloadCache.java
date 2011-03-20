@@ -121,23 +121,37 @@ class DownloadCache {
         return file;
     }
 
+    // Status passed to handleDoneWritingTempFile().
+    public enum WriteStatus {
+        // |tempFile| is renamed to indicate that it's fully downloaded and the file's final location is returned.
+        SUCCESS,
+        // |tempFile| is kept on-disk and NULL is returned.
+        FAILURE_KEEP,
+        // |tempFile| is deleted.
+        FAILURE_DELETE,
+    }
+
     // Handle the completion (either successful or not) of a download to a file returned by getTempFileForDownload().
-    // If |successfullyWritten| is true, |tempFile| will be renamed to indicate that it's fully downloaded and the
-    // file's final location will be returned.
-    public File handleDoneWritingTempFile(File tempFile, boolean successfullyWritten) {
+    // The exact behavior depends on the value of |status|.
+    public File handleDoneWritingTempFile(File tempFile, WriteStatus status) {
         Util.assertNotMainThread();
         mLock.lock();
         try {
             while (!mIsReady)
                 try { mIsReadyCondition.await(); } catch (InterruptedException e) {}
-            mUsedBytes += tempFile.length();
             if (!mPinnedPaths.remove(tempFile.getAbsolutePath()))
                 throw new RuntimeException("unknown temp file " + tempFile.getPath());
+
+            if (status == WriteStatus.FAILURE_DELETE) {
+                tempFile.delete();
+            } else {
+                mUsedBytes += tempFile.length();
+            }
         } finally {
             mLock.unlock();
         }
 
-        if (!successfullyWritten)
+        if (status != WriteStatus.SUCCESS)
             return null;
 
         final String name = tempFile.getName();

@@ -230,6 +230,10 @@ public class DownloadService extends Service {
             // Temporary location in the cache where we write the blob.
             File tempFile = null;
 
+            // Set to true if the downloaded data didn't match the digest from the blobref.
+            // If |tempFile| exists, we need to throw it away.
+            boolean dataIsCorrupt = false;
+
             try {
                 final HttpResponse response = httpClient.execute(req);
                 final HttpEntity entity = response.getEntity();
@@ -266,16 +270,29 @@ public class DownloadService extends Service {
                     throw new RuntimeException("blob " + mBlobRef + " can't be cached but has a file listener");
                 }
 
+                BlobVerifier verifier = new BlobVerifier(mBlobRef);
                 int bytesRead = 0;
                 long totalBytesWritten = 0;
                 byte[] buffer = new byte[BUFFER_SIZE];
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
                     totalBytesWritten += bytesRead;
+                    verifier.processBytes(buffer, 0, bytesRead);
                 }
+
+                // This is unnecessary since we verify the digest, but I'm leaving it in since it'll be needed after
+                // support for resuming downloads is added (we don't want to delete a partial download as a result of it
+                // not matching the expected digest).
                 if (contentLength > 0 && totalBytesWritten != contentLength) {
                     Log.e(TAG, "got " + totalBytesWritten + " byte(s) for " + mBlobRef +
                           " but Content-Length header claimed " + contentLength);
+                    if (totalBytesWritten > contentLength)
+                        dataIsCorrupt = true;
+                    return;
+                }
+                if (!verifier.isBlobValid()) {
+                    Log.e(TAG, "blob " + mBlobRef + "'s data doesn't match expected digest");
+                    dataIsCorrupt = true;
                     return;
                 }
 
@@ -301,7 +318,7 @@ public class DownloadService extends Service {
                 }
 
                 if (tempFile != null) {
-                    mBlobFile = mCache.handleDoneWritingTempFile(tempFile, true);
+                    mBlobFile = mCache.handleDoneWritingTempFile(tempFile, DownloadCache.WriteStatus.SUCCESS);
                     tempFile = null;
                 }
             } catch (ClientProtocolException e) {
@@ -315,8 +332,13 @@ public class DownloadService extends Service {
                     try { outputStream.close(); } catch (IOException e) {}
 
                 // Report failure to the cache.
-                if (tempFile != null)
-                    mCache.handleDoneWritingTempFile(tempFile, false);
+                if (tempFile != null) {
+                    DownloadCache.WriteStatus status =
+                        dataIsCorrupt ?
+                        DownloadCache.WriteStatus.FAILURE_DELETE :
+                        DownloadCache.WriteStatus.FAILURE_KEEP;
+                    mCache.handleDoneWritingTempFile(tempFile, status);
+                }
             }
         }
 
