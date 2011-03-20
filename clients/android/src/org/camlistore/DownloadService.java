@@ -26,6 +26,7 @@ import android.util.Log;
 
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.DefaultHttpClient;
 
@@ -43,14 +44,17 @@ import java.util.HashSet;
 
 public class DownloadService extends Service {
     private static final String TAG = "DownloadService";
-    private static final String BLOB_SUBDIR = "blobs";
     private static final int BUFFER_SIZE = 4096;
     private static final String USERNAME = "TODO-DUMMY-USER";
     private static final String SEARCH_BLOBREF = "search";
-    private static final String PARTIAL_DOWNLOAD_SUFFIX = ".partial";
+    private static final String BLOB_SUBDIR = "blobs";
 
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
+
+    // Effectively-final objects initialized in onCreate().
+    private SharedPreferences mSharedPrefs;
+    private DownloadCache mCache;
 
     // Protects members containing the state of current downloads.
     private final ReentrantLock mDownloadLock = new ReentrantLock();
@@ -63,10 +67,6 @@ public class DownloadService extends Service {
         new HashMap<String, ArrayList<ByteArrayListener>>();
     private final HashMap<String, ArrayList<FileListener>> mFileListenersByBlobRef =
         new HashMap<String, ArrayList<FileListener>>();
-
-    // Effectively-final objects initialized in onCreate().
-    private SharedPreferences mSharedPrefs;
-    private File mBlobDir;
 
     // Callback for receiving a blob's contents as an in-memory array of bytes.
     interface ByteArrayListener {
@@ -91,8 +91,8 @@ public class DownloadService extends Service {
         Log.d(TAG, "onCreate");
         super.onCreate();
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
-        mBlobDir = new File(getExternalFilesDir(null), BLOB_SUBDIR);
-        mBlobDir.mkdirs();
+        mCache = new DownloadCache(new File(getExternalFilesDir(null), BLOB_SUBDIR).getPath(),
+                                   new Preferences(mSharedPrefs));
     }
 
     @Override
@@ -113,13 +113,15 @@ public class DownloadService extends Service {
     }
 
     // Get |blobRef|'s contents, passing them as a byte[] to |listener| on the UI thread.
-    public void getBlobAsByteArray(String blobRef, ByteArrayListener listener) {
-        Util.runAsync(new GetBlobTask(blobRef, listener, null));
+    // If |sizeHintBytes| is greater than zero, it will be interpreted as the blob's size.
+    public void getBlobAsByteArray(String blobRef, long sizeHintBytes, ByteArrayListener listener) {
+        Util.runAsync(new GetBlobTask(blobRef, sizeHintBytes, listener, null));
     }
 
     // Get |blobRef|'s contents, passing them as a File to |listener| on the UI thread.
-    public void getBlobAsFile(String blobRef, FileListener listener) {
-        Util.runAsync(new GetBlobTask(blobRef, null, listener));
+    // If |sizeHintBytes| is greater than zero, it will be interpreted as the blob's size.
+    public void getBlobAsFile(String blobRef, long sizeHintBytes, FileListener listener) {
+        Util.runAsync(new GetBlobTask(blobRef, sizeHintBytes, null, listener));
     }
 
     private static boolean canBlobBeCached(String blobRef) {
@@ -156,16 +158,18 @@ public class DownloadService extends Service {
         private static final String TAG = "DownloadService.GetBlobTask";
 
         private final String mBlobRef;
+        private final long mSizeHintBytes;
         private final ByteArrayListener mByteArrayListener;
         private final FileListener mFileListener;
 
         private byte[] mBlobBytes = null;
         private File mBlobFile = null;
 
-        GetBlobTask(String blobRef, ByteArrayListener byteArrayListener, FileListener fileListener) {
+        GetBlobTask(String blobRef, long sizeHintBytes, ByteArrayListener byteArrayListener, FileListener fileListener) {
             if (!(byteArrayListener != null) ^ (fileListener != null))
                 throw new RuntimeException("exactly one of byteArrayListener and fileListener must be non-null");
             mBlobRef = blobRef;
+            mSizeHintBytes = sizeHintBytes;
             mByteArrayListener = byteArrayListener;
             mFileListener = fileListener;
         }
@@ -192,31 +196,21 @@ public class DownloadService extends Service {
                 mDownloadLock.unlock();
             }
 
-            if (!loadBlobFromCache()) {
+            mBlobFile = mCache.getFileForBlob(mBlobRef);
+            if (mBlobFile != null) {
+                Log.d(TAG, "using cached file " + mBlobFile.getPath() + " for blob " + mBlobRef);
+            } else {
                 downloadBlob();
             }
+
             notifyListeners();
         }
 
-        // Load |mBlobRef| from the cache, updating |mBlobFile| and returning true on success.
-        private boolean loadBlobFromCache() {
-            Util.assertNotMainThread();
-            if (!canBlobBeCached(mBlobRef))
-                return false;
-
-            File file = new File(mBlobDir, mBlobRef);
-            if (!file.exists())
-                return false;
-
-            mBlobFile = file;
-            return true;
-        }
-
-        // Download |mBlobRef| from the blobserver, returning true on success.
+        // Download |mBlobRef| from the blobserver.
         // If the blob is downloaded into memory (because there were byte array listeners registered when we checked),
         // then it's saved to |mBlobBytes|.  If it's downloaded to disk (because it's cacheable), then |mBlobFile| is
         // updated.
-        private boolean downloadBlob() {
+        private void downloadBlob() {
             Util.assertNotMainThread();
             DefaultHttpClient httpClient = new DefaultHttpClient();
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
@@ -227,25 +221,44 @@ public class DownloadService extends Service {
                           Util.getBasicAuthHeaderValue(
                               USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
 
+            // Incoming data from the server.
+            InputStream inputStream = null;
+
+            // Output for the blob data (either a file in the cache or an in-memory buffer).
             OutputStream outputStream = null;
 
+            // Temporary location in the cache where we write the blob.
+            File tempFile = null;
+
+            // Set to true if the downloaded data didn't match the digest from the blobref.
+            // If |tempFile| exists, we need to throw it away.
+            boolean dataIsCorrupt = false;
+
             try {
-                HttpResponse response = httpClient.execute(req);
+                final HttpResponse response = httpClient.execute(req);
+                final HttpEntity entity = response.getEntity();
+                long contentLength = -1;
+                if (entity != null) {
+                    inputStream = entity.getContent();
+                    contentLength = entity.getContentLength();
+                }
+
                 final int statusCode = response.getStatusLine().getStatusCode();
                 if (statusCode != 200) {
                     Log.e(TAG, "got status code " + statusCode + " while downloading " + mBlobRef);
-                    return false;
+                    return;
                 }
 
                 mDownloadLock.lock();
                 final boolean shouldDownloadToByteArray = !getByteArrayListenersForBlobRef(mBlobRef, false).isEmpty();
                 mDownloadLock.unlock();
 
-                // Temporary location where we write the file and final path to which we rename it after it's complete.
-                File tempFile = null, finalFile = null;
                 if (canBlobBeCached(mBlobRef)) {
-                    finalFile = new File(mBlobDir, mBlobRef);
-                    tempFile = new File(finalFile.getPath() + PARTIAL_DOWNLOAD_SUFFIX);
+                    tempFile = mCache.getTempFileForDownload(mBlobRef, mSizeHintBytes);
+                    if (tempFile == null) {
+                        Log.e(TAG, "couldn't create temporary file in cache for downloading " + mBlobRef);
+                        return;
+                    }
                 }
 
                 if (shouldDownloadToByteArray) {
@@ -253,13 +266,34 @@ public class DownloadService extends Service {
                 } else if (tempFile != null) {
                     tempFile.createNewFile();
                     outputStream = new FileOutputStream(tempFile);
+                } else {
+                    throw new RuntimeException("blob " + mBlobRef + " can't be cached but has a file listener");
                 }
 
+                BlobVerifier verifier = new BlobVerifier(mBlobRef);
                 int bytesRead = 0;
+                long totalBytesWritten = 0;
                 byte[] buffer = new byte[BUFFER_SIZE];
-                InputStream inputStream = response.getEntity().getContent();
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
+                    totalBytesWritten += bytesRead;
+                    verifier.processBytes(buffer, 0, bytesRead);
+                }
+
+                // This is unnecessary since we verify the digest, but I'm leaving it in since it'll be needed after
+                // support for resuming downloads is added (we don't want to delete a partial download as a result of it
+                // not matching the expected digest).
+                if (contentLength > 0 && totalBytesWritten != contentLength) {
+                    Log.e(TAG, "got " + totalBytesWritten + " byte(s) for " + mBlobRef +
+                          " but Content-Length header claimed " + contentLength);
+                    if (totalBytesWritten > contentLength)
+                        dataIsCorrupt = true;
+                    return;
+                }
+                if (!verifier.isBlobValid()) {
+                    Log.e(TAG, "blob " + mBlobRef + "'s data doesn't match expected digest");
+                    dataIsCorrupt = true;
+                    return;
                 }
 
                 // If we downloaded directly into a byte array, send it to any currently-registered byte array listeners
@@ -283,23 +317,27 @@ public class DownloadService extends Service {
                     }
                 }
 
-                if (tempFile != null && tempFile != finalFile) {
-                    tempFile.renameTo(finalFile);
-                    mBlobFile = finalFile;
-                    Log.d(TAG, "wrote " + mBlobFile.getPath());
+                if (tempFile != null) {
+                    mBlobFile = mCache.handleDoneWritingTempFile(tempFile, DownloadCache.WriteStatus.SUCCESS);
+                    tempFile = null;
                 }
-
-                return true;
-
             } catch (ClientProtocolException e) {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
-                return false;
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
-                return false;
             } finally {
-                if (outputStream != null) {
+                if (inputStream != null)
+                    try { inputStream.close(); } catch (IOException e) {}
+                if (outputStream != null)
                     try { outputStream.close(); } catch (IOException e) {}
+
+                // Report failure to the cache.
+                if (tempFile != null) {
+                    DownloadCache.WriteStatus status =
+                        dataIsCorrupt ?
+                        DownloadCache.WriteStatus.FAILURE_DELETE :
+                        DownloadCache.WriteStatus.FAILURE_KEEP;
+                    mCache.handleDoneWritingTempFile(tempFile, status);
                 }
             }
         }

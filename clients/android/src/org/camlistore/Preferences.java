@@ -25,6 +25,7 @@ public final class Preferences {
     public static final String PASSWORD = "camli.password";
     public static final String AUTO = "camli.auto";
     public static final String AUTO_OPTS = "camli.auto.opts";
+    public static final String MAX_CACHE_MB = "camli.max_cache_mb";
 
     public static final String AUTO_REQUIRE_POWER = "camli.auto.require_power";
     public static final String AUTO_REQUIRE_WIFI = "camli.auto.require_wifi";
@@ -38,6 +39,14 @@ public final class Preferences {
 
     public boolean autoUpload() {
         return mSP.getBoolean(AUTO, false);
+    }
+
+    public int maxCacheMb() {
+        return Integer.parseInt(mSP.getString(MAX_CACHE_MB, "256"));
+    }
+
+    public long maxCacheBytes() {
+        return maxCacheMb() * 1024 * 1024;
     }
 
     private final SharedPreferences mSP;

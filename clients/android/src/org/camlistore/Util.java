@@ -94,7 +94,7 @@ public class Util {
 
     private static final String HEX = "0123456789abcdef";
 
-    private static String getHex(byte[] raw) {
+    public static String getHex(byte[] raw) {
         if (raw == null) {
             return null;
         }

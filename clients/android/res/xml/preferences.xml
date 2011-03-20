@@ -1,62 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen
-  xmlns:android="http://schemas.android.com/apk/res/android"
-   android:key="first_preferencescreen">
-  
-    <EditTextPreference
-     android:key="camli.host"
-     android:title="@string/settings_host_title"
-     android:summary="@string/settings_host_summary"
-     android:persistent="true" />
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:key="first_preferencescreen">
+
+   <EditTextPreference
+       android:key="camli.host"
+       android:title="@string/settings_host_title"
+       android:summary="@string/settings_host_summary"
+       android:persistent="true"
+       />
 
   <EditTextPreference
-     android:key="camli.password"
-     android:title="@string/settings_password_title"
-     android:persistent="true"
-     android:inputType="textPassword"
-     />
-     
-   <CheckBoxPreference
-     android:key="camli.auto"
-     android:title="@string/settings_auto"
-     android:summary="@string/settings_auto_summary"
-     android:persistent="true"
-      />
-  
-   <PreferenceScreen
-       android:title="Auto-upload settings"
-       android:key="camli.auto.opts">
-  
-     <CheckBoxPreference
-     android:key="camli.auto.photos"
-     android:title="Photos (DCIM/Camera/)"
-     android:persistent="true"
-     android:defaultValue="true"
+      android:key="camli.password"
+      android:title="@string/settings_password_title"
+      android:persistent="true"
+      android:inputType="textPassword"
       />
 
-     <CheckBoxPreference
-     android:key="camli.auto.mytracks"
-     android:title="MyTracks exports"
-     android:persistent="true"
-     android:defaultValue="true"
-      />
-      
-     <CheckBoxPreference
-     android:key="camli.auto.require_wifi"
-     android:title="Require Wifi"
-     android:summary="Wait for Wifi to auto-upload"
-     android:persistent="true"
-     android:defaultValue="false"
+  <CheckBoxPreference
+      android:key="camli.auto"
+      android:title="@string/settings_auto"
+      android:summary="@string/settings_auto_summary"
+      android:persistent="true"
       />
 
-     <CheckBoxPreference
-     android:key="camli.auto.require_power"
-     android:title="Require Power"
-     android:summary="Wait until charging to auto-upload"
-     android:persistent="true"
-     android:defaultValue="false"
-      />
+  <PreferenceScreen
+      android:title="Auto-upload settings"
+      android:key="camli.auto.opts">
 
-    </PreferenceScreen>
-    
+    <CheckBoxPreference
+        android:key="camli.auto.photos"
+        android:title="Photos (DCIM/Camera/)"
+        android:persistent="true"
+        android:defaultValue="true"
+        />
+
+    <CheckBoxPreference
+        android:key="camli.auto.mytracks"
+        android:title="MyTracks exports"
+        android:persistent="true"
+        android:defaultValue="true"
+        />
+
+    <CheckBoxPreference
+        android:key="camli.auto.require_wifi"
+        android:title="Require Wifi"
+        android:summary="Wait for Wifi to auto-upload"
+        android:persistent="true"
+        android:defaultValue="false"
+        />
+
+    <CheckBoxPreference
+        android:key="camli.auto.require_power"
+        android:title="Require Power"
+        android:summary="Wait until charging to auto-upload"
+        android:persistent="true"
+        android:defaultValue="false"
+        />
+  </PreferenceScreen>
+
+  <EditTextPreference
+      android:key="camli.max_cache_mb"
+      android:title="@string/settings_max_cache_size_title"
+      android:persistent="true"
+      android:numeric="integer"
+      android:singleLine="true"
+      />
 </PreferenceScreen>
