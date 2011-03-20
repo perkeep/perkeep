@@ -18,15 +18,19 @@ package org.camlistore;
 
 import android.app.ListActivity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -46,7 +50,7 @@ public class BrowseActivity extends ListActivity {
     private static final String DEFAULT_MIME_TYPE = "application/octet-stream";
 
     private DownloadService mService = null;
-    private ArrayAdapter mAdapter;
+    private final EntryAdapter mAdapter = new EntryAdapter();
 
     private String mBlobRef = "";
 
@@ -124,6 +128,30 @@ public class BrowseActivity extends ListActivity {
         }
     }
 
+    private class EntryAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return mEntries.size(); }
+        @Override
+        public Object getItem(int position) { return position; }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View view;
+            if (convertView != null) {
+                view = convertView;
+            } else {
+                LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+                view = inflater.inflate(R.layout.browse_row, null);
+            }
+
+            Entry entry = mEntries.get(position);
+            ((TextView) view.findViewById(R.id.title)).setText(entry.toString());
+            return view;
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate");
@@ -138,11 +166,6 @@ public class BrowseActivity extends ListActivity {
         startService(serviceIntent);
         bindService(new Intent(this, DownloadService.class), mConnection, 0);
 
-        mAdapter = new ArrayAdapter(
-            this,
-            R.layout.browse_row,
-            android.R.id.title,
-            mEntries);
         setListAdapter(mAdapter);
     }
 
