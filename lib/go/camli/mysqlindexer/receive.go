@@ -27,7 +27,7 @@ import (
 	"log"
 	"os"
 
-	mysql "github.com/Philio/GoMySQL"
+	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
 const maxSniffSize = 1024 * 16

@@ -23,7 +23,7 @@ import (
 	"os"
 	"sync"
 
-	mysql "github.com/Philio/GoMySQL"
+	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
 type Indexer struct {

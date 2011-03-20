@@ -22,7 +22,7 @@ import (
 
 	"os"
 
-	mysql "github.com/Philio/GoMySQL"
+	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
 type blobRow struct {

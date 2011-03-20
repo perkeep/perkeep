@@ -368,6 +368,7 @@ TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test
 TARGET: lib/go/camli/test/asserts
+TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
 TARGET: lib/go/camli/webserver
 TARGET: server/go/blobserver
 TARGET: server/go/sigserver
