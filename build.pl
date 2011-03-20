@@ -190,6 +190,7 @@ sub build {
 
     # Add auto-learned dependencies.
     find_go_camli_deps($target);
+    gen_target_makefile($target);
 
     # Dependencies first.
     my @deps = @{ $t->{deps} };
@@ -227,12 +228,12 @@ sub build {
 
 sub find_go_camli_deps {
     my $target = shift;
-    my $type = "";
-    if ($target =~ m!lib/go/camli!) {
-        $type = "pkg";
-    } elsif ($target =~ m!(server|clients)/go\b!) {
-        $type = "cmd";
-    } else {
+    if ($target =~ /\bthird_party\b/) {
+        # Skip third-party stuff.
+        return;
+    }
+    unless ($target =~ m!lib/go/camli! ||
+            $target =~ m!(server|clients)/go\b!) {
         return;
     }
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
@@ -268,6 +269,25 @@ sub find_go_camli_deps {
             push @{$t->{deps}}, $dep;
         }
     }
+}
+
+sub gen_target_makefile {
+    my $target = shift;
+    my $type = "";
+    if ($target =~ m!lib/go/camli!) {
+        $type = "pkg";
+    } elsif ($target =~ m!(server|clients)/go\b!) {
+        $type = "cmd";
+    } else {
+        return;
+    }
+    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
+    
+    my @deps = @{$t->{deps}};
+
+    opendir(my $dh, $target) or die;
+    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    closedir($dh);
 
     open(my $mf, ">$target/Makefile") or die;
     print $mf "\n\n";
@@ -344,7 +364,6 @@ TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/magic
 TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/mysqlindexer
-    - ext:github.com/Philio/GoMySQL
 TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test
