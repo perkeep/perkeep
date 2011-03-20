@@ -214,7 +214,7 @@ sub build {
     }
     v("Built '$target'");
 
-    if ($opt_test) {
+    if ($opt_test && !$t->{tags}{skip_tests}) {
         opendir(my $dh, $target) or die;
         my @test_files = grep { /_test\.go$/ } readdir($dh);
         closedir($dh);
@@ -369,7 +369,9 @@ TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test
 TARGET: lib/go/camli/test/asserts
 TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
+    =skip_tests
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
+    =skip_tests
 TARGET: lib/go/camli/webserver
 TARGET: server/go/blobserver
 TARGET: server/go/sigserver
