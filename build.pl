@@ -352,6 +352,7 @@ __DATA__
 
 TARGET: clients/go/camget
 TARGET: clients/go/camput
+TARGET: clients/go/cammount
 TARGET: clients/go/camsync
 TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
