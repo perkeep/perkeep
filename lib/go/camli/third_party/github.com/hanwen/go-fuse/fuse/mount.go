@@ -52,9 +52,9 @@ func mount(mountPoint string) (f *os.File, finalMountPoint string, err os.Error)
 	}
 	proc, err := os.StartProcess("/bin/fusermount",
 		[]string{"/bin/fusermount", mountPoint},
-		[]string{"_FUSE_COMMFD=3"},
-		"",
-		[]*os.File{os.Stdin, os.Stdout, os.Stderr, remote})
+		&os.ProcAttr{
+			Env:[]string{"_FUSE_COMMFD=3"},
+			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr, remote}})
 	if err != nil {
 		return
 	}
@@ -76,9 +76,7 @@ func unmount(mountPoint string) (err os.Error) {
 	dir, _ := filepath.Split(mountPoint)
 	proc, err := os.StartProcess("/bin/fusermount",
 		[]string{"/bin/fusermount", "-u", mountPoint},
-		nil,
-		dir,
-		[]*os.File{nil, nil, os.Stderr})
+		&os.ProcAttr{Dir: dir, Files: []*os.File{nil, nil, os.Stderr}})
 	if err != nil {
 		return
 	}
