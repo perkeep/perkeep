@@ -19,11 +19,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"json"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"camli/blobref"
 	"camli/client"
+	"camli/schema"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
@@ -31,23 +34,133 @@ var _ = fmt.Println
 var _ = log.Println
 
 type CamliFileSystem struct {
-	client *client.Client
+	fetcher blobref.Fetcher
 	root   *blobref.BlobRef
+
+	lk         sync.Mutex
+	nameToBlob map[string]*blobref.BlobRef
 }
 
 func NewCamliFileSystem(client *client.Client, root *blobref.BlobRef) *CamliFileSystem {
-	return &CamliFileSystem{client: client, root: root}
+	return &CamliFileSystem{
+	fetcher: client,
+	root: root,
+	nameToBlob: make(map[string]*blobref.BlobRef),
+	}
 }
 
 // Where name == "" for root,
 // Returns nil on failure
-func (fs *CamliFileSystem) blobRefFromName(name string) *blobref.BlobRef {
-	parts := filepath.SplitList(name)
-	if name == "" || len(parts) == 0 {
-		return fs.root
+func (fs *CamliFileSystem) blobRefFromNameCached(name string) *blobref.BlobRef {
+	fs.lk.Lock()
+	defer fs.lk.Unlock()
+	return fs.nameToBlob[name]
+}
+
+func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Superset, os.Error) {
+	rsc, _, err := fs.fetcher.Fetch(br)
+	if err != nil {
+		return nil, err
 	}
-	// TODO: walk
-	return nil
+	defer rsc.Close()
+	jd := json.NewDecoder(rsc)
+	ss := new(schema.Superset)
+        err = jd.Decode(ss)
+        if err != nil {
+		log.Printf("Error parsing %s as schema blob: %v", br, err)
+                return nil, os.EINVAL
+        }
+	return ss, nil
+}
+
+// Where name == "" for root,
+// Returns fuse.Status == fuse.OK on success or anything else on failure.
+func (fs *CamliFileSystem) blobRefFromName(name string) (*blobref.BlobRef, fuse.Status) {
+	if name == "" {
+		return fs.root, fuse.OK
+	}
+	if br := fs.blobRefFromNameCached(name); br != nil {
+		return br, fuse.OK
+	}
+	dir, fileName := filepath.Split(name)
+	dirBlob, fuseStatus := fs.blobRefFromName(dir)
+	if fuseStatus != fuse.OK {
+		return nil, fuseStatus
+	}
+
+	dirss, err := fs.fetchSchemaSuperset(dirBlob)
+	switch {
+	case err == os.ENOENT:
+		log.Printf("Failed to find directory %s", dirBlob)
+		return nil, fuse.ENOENT
+	case err == os.EINVAL:
+		log.Printf("Failed to parse directory %s", dirBlob)
+		return nil, fuse.ENOTDIR
+	case err != nil:
+		panic(fmt.Sprintf("Invalid fetcher error: %v", err))
+	case dirss == nil:
+		panic("nil dirss")
+	case dirss.Type != "directory":
+		log.Printf("Expected %s to be a directory; actually a %s",
+			dirBlob, dirss.Type)
+		return nil, fuse.ENOTDIR
+	}
+
+	if dirss.Entries == "" {
+		log.Printf("Expected %s to have 'entries'", dirBlob)
+		return nil, fuse.ENOTDIR
+	}
+	entriesBlob := blobref.Parse(dirss.Entries)
+	if entriesBlob == nil {
+		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirBlob, dirss.Entries)
+		return nil, fuse.ENOTDIR
+	}
+
+	entss, err := fs.fetchSchemaSuperset(entriesBlob)
+	switch {
+	case err == os.ENOENT:
+		log.Printf("Failed to find entries %s via directory %s", entriesBlob, dirBlob)
+		return nil, fuse.ENOENT
+	case err == os.EINVAL:
+		log.Printf("Failed to parse entries %s via directory %s", entriesBlob, dirBlob)
+		return nil, fuse.ENOTDIR
+	case err != nil:
+		panic(fmt.Sprintf("Invalid fetcher error: %v", err))
+	case entss == nil:
+		panic("nil entss")
+	case entss.Type != "static-set":
+		log.Printf("Expected %s to be a directory; actually a %s",
+			dirBlob, dirss.Type)
+		return nil, fuse.ENOTDIR
+	}
+
+	wg := new(sync.WaitGroup)
+	foundCh := make(chan *blobref.BlobRef)
+	for _, m := range entss.Members {
+		wg.Add(1)
+		go func(memberBlobstr string) {
+			childss, err := fs.fetchSchemaSuperset(entriesBlob)
+			if err == nil && childss.HasFilename(fileName) {
+				foundCh <- entriesBlob
+			}
+			wg.Done()
+		}(m)
+	}
+	failCh := make(chan string)
+	go func() {
+		wg.Wait()
+		failCh <- "ENOENT"
+	}()
+	select {
+	case found := <-foundCh:
+		fs.lk.Lock()
+		defer fs.lk.Unlock()
+		fs.nameToBlob[name] = found
+		return found, fuse.OK
+	case <-failCh:
+	}
+	// TODO: negative cache
+	return nil, fuse.ENOENT
 }
 
 func (fs *CamliFileSystem) Mount(connector *fuse.PathFileSystemConnector) fuse.Status {
@@ -60,11 +173,11 @@ func (fs *CamliFileSystem) Unmount() {
 }
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
-	blobref := fs.blobRefFromName(name)
-	if blobref == nil {
-		return nil, fuse.ENOENT
+	blobref, errStatus := fs.blobRefFromName(name)
+	log.Printf("cammount: GetAttr(%q) (%s, %v)", name, blobref, errStatus)
+	if errStatus != fuse.OK {
+		return nil, errStatus
 	}
-	log.Printf("cammount: GetAttr(%q)", name)
 	out := new(fuse.Attr)
 	var fi os.FileInfo
 	// TODO
