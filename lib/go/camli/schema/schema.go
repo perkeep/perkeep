@@ -67,6 +67,8 @@ type Superset struct {
 	UnixCtime      string "unixCtime"
 	UnixAtime      string "unixAtime"
 
+	Size  int64 "size"  // for files
+
 	Entries   string "entries" // for directories, a blobref to a static-set
 	Members []string "members" // for static sets (for directory static-sets:
 	                           // blobrefs to child dirs/files)

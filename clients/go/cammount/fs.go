@@ -22,7 +22,9 @@ import (
 	"json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 
 	"camli/blobref"
 	"camli/client"
@@ -173,14 +175,51 @@ func (fs *CamliFileSystem) Unmount() {
 }
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
+	log.Printf("cammount: GetAttr(%q)", name)
 	blobref, errStatus := fs.blobRefFromName(name)
-	log.Printf("cammount: GetAttr(%q) (%s, %v)", name, blobref, errStatus)
+	log.Printf("cammount: GetAttr(%q), blobRefFromName err=%v", name, errStatus)
 	if errStatus != fuse.OK {
 		return nil, errStatus
 	}
+	log.Printf("cammount: got blob %s", blobref)
+
+	// TODO: this is redundant with what blobRefFromName already
+	// did.  we should at least keep this in RAM (pre-de-JSON'd)
+	// so we don't have to fetch + unmarshal it again.
+	ss, err := fs.fetchSchemaSuperset(blobref)
+	if err != nil {
+		log.Printf("cammount: GetAttr(%q, %s): fetch schema error: %v", name, blobref, err)
+		return nil, fuse.EIO
+	}
+
 	out := new(fuse.Attr)
 	var fi os.FileInfo
-	// TODO
+
+	if ss.UnixPermission != "" {
+		// Convert from octal
+		mode, err := strconv.Btoui64(ss.UnixPermission, 8)
+		if err != nil {
+			fi.Mode = uint32(mode)
+		}
+	}
+
+	// TODO: have a mode to set permissions equal to mounting user?
+	fi.Uid = ss.UnixOwnerId
+	fi.Gid = ss.UnixGroupId
+
+	// TODO: other types
+	switch ss.Type {
+	case "directory":
+		fi.Mode = fi.Mode | syscall.S_IFDIR
+	case "file":
+		fi.Mode = fi.Mode | syscall.S_IFREG
+		fi.Size = ss.Size
+	case "symlink":
+		fi.Mode = fi.Mode | syscall.S_IFLNK
+	}
+
+	// TODO: mtime and such
+
 	fuse.CopyFileInfo(&fi, out)
 	return out, fuse.OK
 }
