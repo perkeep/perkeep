@@ -22,9 +22,7 @@ import (
 	"json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
-	"syscall"
 
 	"camli/blobref"
 	"camli/client"
@@ -195,27 +193,15 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 	out := new(fuse.Attr)
 	var fi os.FileInfo
 
-	if ss.UnixPermission != "" {
-		// Convert from octal
-		mode, err := strconv.Btoui64(ss.UnixPermission, 8)
-		if err != nil {
-			fi.Mode = uint32(mode)
-		}
-	}
+	fi.Mode = ss.UnixMode()
 
 	// TODO: have a mode to set permissions equal to mounting user?
 	fi.Uid = ss.UnixOwnerId
 	fi.Gid = ss.UnixGroupId
 
 	// TODO: other types
-	switch ss.Type {
-	case "directory":
-		fi.Mode = fi.Mode | syscall.S_IFDIR
-	case "file":
-		fi.Mode = fi.Mode | syscall.S_IFREG
+	if ss.Type == "file" {
 		fi.Size = ss.Size
-	case "symlink":
-		fi.Mode = fi.Mode | syscall.S_IFLNK
 	}
 
 	// TODO: mtime and such
@@ -237,8 +223,70 @@ func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFil
 
 func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
 	log.Printf("cammount: OpenDir(%q)", name)
-	// TODO
-	return nil, fuse.EACCES
+
+	dirBlob, errStatus := fs.blobRefFromName(name)
+	log.Printf("cammount: OpenDir(%q), dirBlobFromName err=%v", name, errStatus)
+	if errStatus != fuse.OK {
+		return nil, errStatus
+	}
+	log.Printf("cammount: got blob %s", dirBlob)
+
+	// TODO: this is redundant with what blobRefFromName already
+	// did.  we should at least keep this in RAM (pre-de-JSON'd)
+	// so we don't have to fetch + unmarshal it again.
+	ss, err := fs.fetchSchemaSuperset(dirBlob)
+	if err != nil {
+		log.Printf("cammount: OpenDir(%q, %s): fetch schema error: %v", name, dirBlob, err)
+		return nil, fuse.EIO
+	}
+
+	if ss.Entries == "" {
+		log.Printf("Expected %s to have 'entries'", dirBlob)
+		return nil, fuse.ENOTDIR
+	}
+	entriesBlob := blobref.Parse(ss.Entries)
+	if entriesBlob == nil {
+		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirBlob, ss.Entries)
+		return nil, fuse.ENOTDIR
+	}
+
+	entss, err := fs.fetchSchemaSuperset(entriesBlob)
+	switch {
+	case err == os.ENOENT:
+		log.Printf("Failed to find entries %s via directory %s", entriesBlob, dirBlob)
+		return nil, fuse.ENOENT
+	case err == os.EINVAL:
+		log.Printf("Failed to parse entries %s via directory %s", entriesBlob, dirBlob)
+		return nil, fuse.ENOTDIR
+	case err != nil:
+		panic(fmt.Sprintf("Invalid fetcher error: %v", err))
+	case entss == nil:
+		panic("nil entss")
+	case entss.Type != "static-set":
+		log.Printf("Expected %s to be a directory; actually a %s",
+			dirBlob, ss.Type)
+		return nil, fuse.ENOTDIR
+	}
+
+	retch := make(chan fuse.DirEntry, 20)
+	wg := new(sync.WaitGroup)
+	for _, m := range entss.Members {
+		wg.Add(1)
+		go func(memberBlobstr string) {
+			childss, err := fs.fetchSchemaSuperset(entriesBlob)
+			if err == nil {
+				retch <- fuse.DirEntry{Name: childss.FileName, Mode: ss.UnixMode()}
+			} else {
+				log.Printf("Error fetching %s: %v", entriesBlob, err)
+			}
+			wg.Done()
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(retch)
+	}()
+	return retch, fuse.OK
 }
 
 func (fs *CamliFileSystem) Readlink(name string) (string, fuse.Status) {

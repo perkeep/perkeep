@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -77,6 +78,24 @@ type Superset struct {
 func (ss *Superset) HasFilename(name string) bool {
 	// TODO: use filename bytes too
 	return ss.FileName == name
+}
+
+func (ss *Superset) UnixMode() (mode uint32) {
+	m64, err := strconv.Btoui64(ss.UnixPermission, 8)
+	if err == nil {
+		mode = mode | uint32(m64)
+	}
+
+	// TODO: add other types
+	switch ss.Type {
+	case "directory":
+		mode = mode | syscall.S_IFDIR
+	case "file":
+		mode = mode | syscall.S_IFREG
+	case "symlink":
+		mode = mode | syscall.S_IFLNK
+	}
+	return
 }
 
 var DefaultStatHasher = &defaultStatHasher{}
