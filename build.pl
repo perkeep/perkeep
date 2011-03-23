@@ -280,7 +280,7 @@ sub find_go_camli_deps {
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
 
     opendir(my $dh, $target) or die;
-    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
     # TODO: just stat the files first and keep a cache file of the
@@ -292,7 +292,7 @@ sub find_go_camli_deps {
     my @deps;
     my %seen;  # $dep -> 1
     for my $f (@go_files) {
-        open(my $fh, "$target/$f") or die;
+        open(my $fh, "$target/$f") or die "Failed to open $target/$f: $!";
         my $src = do { local $/; <$fh>; };
         unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
             die "Failed to parse imports from $target/$f.\n".
@@ -327,7 +327,7 @@ sub gen_target_makefile {
     my @deps = @{$t->{deps}};
 
     opendir(my $dh, $target) or die;
-    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
     open(my $mf, ">$target/Makefile") or die;

@@ -55,6 +55,28 @@ type Superset struct {
 	Permanode string "permaNode"
 	Attribute string "attribute"
 	Value     string "value"
+
+	FileName      string "fileName"
+	FileNameBytes []byte "fileNameBytes" // TODO: needs custom UnmarshalJSON?
+	UnixPermission string "unixPermission"
+	UnixOwnerId    int "unixOwnerId"
+	UnixOwner      string "unixOwner"
+	UnixGroupId    int "unixGroupId"
+	UnixGroup      string "unixGroup"
+	UnixMtime      string "unixMtime"
+	UnixCtime      string "unixCtime"
+	UnixAtime      string "unixAtime"
+
+	Size  int64 "size"  // for files
+
+	Entries   string "entries" // for directories, a blobref to a static-set
+	Members []string "members" // for static sets (for directory static-sets:
+	                           // blobrefs to child dirs/files)
+}
+
+func (ss *Superset) HasFilename(name string) bool {
+	// TODO: use filename bytes too
+	return ss.FileName == name
 }
 
 var DefaultStatHasher = &defaultStatHasher{}
