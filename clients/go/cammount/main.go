@@ -22,6 +22,8 @@ import (
 	"os"
 	"sort"
 
+	"camli/blobref"
+	"camli/client"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
@@ -45,22 +47,18 @@ func main() {
 	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
 	flag.Parse()
 	if flag.NArg() < 2 {
-		// TODO - where to get program name?
-		fmt.Println("usage: main ORIGINAL MOUNTPOINT")
+		fmt.Println("usage: cammount <blobref> <mountpoint>")
 		os.Exit(2)
 	}
 
-	orig := flag.Arg(0)
-	fs := fuse.NewLoopbackFileSystem(orig)
+	root := blobref.Parse(flag.Arg(0))
+	if root == nil {
+		fmt.Printf("Error parsing root blobref: %q\n", root)
+		os.Exit(2)
+	}
+	client := client.NewOrFail() // automatic from flags
+	fs := NewCamliFileSystem(client, root)
 	timing := fuse.NewTimingPathFilesystem(fs)
-
-	var opts fuse.PathFileSystemConnectorOptions
-
-	opts.AttrTimeout = 1.0
-	opts.EntryTimeout = 1.0
-	opts.NegativeTimeout = 1.0
-
-	fs.SetOptions(&opts)
 
 	conn := fuse.NewPathFileSystemConnector(timing)
 	rawTiming := fuse.NewTimingRawFilesystem(conn)
@@ -75,7 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", orig, mountPoint, *threaded, *debug)
+	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", root.String(), mountPoint, *threaded, *debug)
 	state.Loop(*threaded)
 	fmt.Println("Finished", state.Stats())
 
