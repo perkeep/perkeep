@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"camli/blobref"
 	"camli/client"
@@ -38,6 +39,17 @@ func NewCamliFileSystem(client *client.Client, root *blobref.BlobRef) *CamliFile
 	return &CamliFileSystem{client: client, root: root}
 }
 
+// Where name == "" for root,
+// Returns nil on failure
+func (fs *CamliFileSystem) blobRefFromName(name string) *blobref.BlobRef {
+	parts := filepath.SplitList(name)
+	if name == "" || len(parts) == 0 {
+		return fs.root
+	}
+	// TODO: walk
+	return nil
+}
+
 func (fs *CamliFileSystem) Mount(connector *fuse.PathFileSystemConnector) fuse.Status {
 	log.Printf("cammount: Mount")
 	return fuse.OK
@@ -48,6 +60,11 @@ func (fs *CamliFileSystem) Unmount() {
 }
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
+	blobref := fs.blobRefFromName(name)
+	if blobref == nil {
+		return nil, fuse.ENOENT
+	}
+	log.Printf("cammount: GetAttr(%q)", name)
 	out := new(fuse.Attr)
 	var fi os.FileInfo
 	// TODO
@@ -56,20 +73,24 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 }
 
 func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
+	log.Printf("cammount: Access(%q, %d)", name, mode)
 	return fuse.OK
 }
 
 func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFile, code fuse.Status) {
+	log.Printf("cammount: Open(%q, %d)", name, flags)
 	// TODO
 	return nil, fuse.EACCES
 }
 
 func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
+	log.Printf("cammount: OpenDir(%q)", name)
 	// TODO
 	return nil, fuse.EACCES
 }
 
 func (fs *CamliFileSystem) Readlink(name string) (string, fuse.Status) {
+	log.Printf("cammount: Readlink(%q)", name)
 	// TODO
 	return "", fuse.EACCES
 }
