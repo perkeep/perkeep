@@ -77,14 +77,23 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 
 // Where name == "" for root,
 // Returns fuse.Status == fuse.OK on success or anything else on failure.
-func (fs *CamliFileSystem) blobRefFromName(name string) (*blobref.BlobRef, fuse.Status) {
+func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef, retstatus fuse.Status) {
 	if name == "" {
 		return fs.root, fuse.OK
 	}
 	if br := fs.blobRefFromNameCached(name); br != nil {
 		return br, fuse.OK
 	}
+
+	log.Printf("blobRefFromName(%q) = ...", name)
+	defer func() {
+		log.Printf("blobRefFromName(%q) = %s, %v", retbr, retstatus)
+	}()
+
 	dir, fileName := filepath.Split(name)
+	if len(dir) > 0 {
+		dir = dir[:len(dir)-1] // remove trailing "/" or whatever
+	}
 	dirBlob, fuseStatus := fs.blobRefFromName(dir)
 	if fuseStatus != fuse.OK {
 		return nil, fuseStatus
@@ -141,11 +150,16 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (*blobref.BlobRef, fuse.
 	for _, m := range entss.Members {
 		wg.Add(1)
 		go func(memberBlobstr string) {
-			childss, err := fs.fetchSchemaSuperset(entriesBlob)
-			if err == nil && childss.HasFilename(fileName) {
-				foundCh <- entriesBlob
+			defer wg.Done()
+			memberBlob := blobref.Parse(memberBlobstr)
+			if memberBlob == nil {
+				log.Printf("invalid blobref of %q in static set %s", memberBlobstr, entss)
+				return
 			}
-			wg.Done()
+			childss, err := fs.fetchSchemaSuperset(memberBlob)
+			if err == nil && childss.HasFilename(fileName) {
+				foundCh <- memberBlob
+			}
 		}(m)
 	}
 	failCh := make(chan string)
