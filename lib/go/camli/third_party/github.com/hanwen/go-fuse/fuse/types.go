@@ -86,14 +86,15 @@ type Status int32
 
 const (
 	OK      = Status(0)
-	EIO     = Status(syscall.EIO)
-	ENOSYS  = Status(syscall.ENOSYS)
-	ENOENT  = Status(syscall.ENOENT)
-	ENOTDIR = Status(syscall.ENOTDIR)
 	EACCES  = Status(syscall.EACCES)
-	EPERM   = Status(syscall.EPERM)
 	EBUSY   = Status(syscall.EBUSY)
 	EINVAL  = Status(syscall.EINVAL)
+	EIO     = Status(syscall.EIO)
+	ENOENT  = Status(syscall.ENOENT)
+	ENOSYS  = Status(syscall.ENOSYS)
+	ENOTDIR = Status(syscall.ENOTDIR)
+	EPERM   = Status(syscall.EPERM)
+	ERANGE  = Status(syscall.ERANGE)
 	EXDEV   = Status(syscall.EXDEV)
 )
 
@@ -518,9 +519,10 @@ type RawFileSystem interface {
 	Rename(header *InHeader, input *RenameIn, oldName string, newName string) (code Status)
 	Link(header *InHeader, input *LinkIn, filename string) (out *EntryOut, code Status)
 
+	GetXAttr(header *InHeader, attr string) (data []byte, code Status)
+
 	// Unused:
 	SetXAttr(header *InHeader, input *SetXAttrIn) Status
-	GetXAttr(header *InHeader, input *GetXAttrIn) (out *GetXAttrOut, code Status)
 
 	Access(header *InHeader, input *AccessIn) (code Status)
 	Create(header *InHeader, input *CreateIn, name string) (flags uint32, fuseFile RawFuseFile, out *EntryOut, code Status)
@@ -565,6 +567,8 @@ type PathFilesystem interface {
 	Chown(name string, uid uint32, gid uint32) (code Status)
 	Truncate(name string, offset uint64) (code Status)
 	Open(name string, flags uint32) (file RawFuseFile, code Status)
+
+	GetXAttr(name string, attribute string) (data []byte, code Status)
 
 	// Where to hook up statfs?
 	//

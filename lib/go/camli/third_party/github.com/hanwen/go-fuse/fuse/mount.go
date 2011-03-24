@@ -53,8 +53,9 @@ func mount(mountPoint string) (f *os.File, finalMountPoint string, err os.Error)
 	proc, err := os.StartProcess("/bin/fusermount",
 		[]string{"/bin/fusermount", mountPoint},
 		&os.ProcAttr{
-			Env:[]string{"_FUSE_COMMFD=3"},
+			Env:   []string{"_FUSE_COMMFD=3"},
 			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr, remote}})
+
 	if err != nil {
 		return
 	}

@@ -153,8 +153,8 @@ func (me *WrappingRawFilesystem) SetXAttr(header *InHeader, input *SetXAttrIn) S
 	return me.original.SetXAttr(header, input)
 }
 
-func (me *WrappingRawFilesystem) GetXAttr(header *InHeader, input *GetXAttrIn) (out *GetXAttrOut, code Status) {
-	return me.original.GetXAttr(header, input)
+func (me *WrappingRawFilesystem) GetXAttr(header *InHeader, attr string) (data []byte, code Status) {
+	return me.original.GetXAttr(header, attr)
 }
 
 func (me *WrappingRawFilesystem) Access(header *InHeader, input *AccessIn) (code Status) {
@@ -188,6 +188,3 @@ func (me *WrappingRawFilesystem) Release(header *InHeader, f RawFuseFile) {
 func (me *WrappingRawFilesystem) ReleaseDir(header *InHeader, f RawFuseDir) {
 	me.original.ReleaseDir(header, f)
 }
-
-
-

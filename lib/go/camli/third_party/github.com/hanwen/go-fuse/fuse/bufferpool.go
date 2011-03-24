@@ -4,7 +4,10 @@ import (
 	"sync"
 	"fmt"
 	"unsafe"
+	"log"
 )
+
+var _ = log.Println
 
 // This implements a pool of buffers that returns slices with capacity
 // (2^e * PAGESIZE) for e=0,1,...  which have possibly been used, and
@@ -17,6 +20,10 @@ type BufferPool struct {
 
 	// start of slice -> exponent.
 	outstandingBuffers map[uintptr]uint
+
+	// Total count of created buffers.  Handy for finding memory
+	// leaks.
+	createdBuffers int
 }
 
 // Returns the smallest E such that 2^E >= Z.
@@ -71,6 +78,13 @@ func (me *BufferPool) addBuffer(slice []byte, exp uint) {
 }
 
 
+func (me *BufferPool) AllocCount() int {
+	me.lock.Lock()
+	defer me.lock.Unlock()
+
+	return me.createdBuffers
+}
+
 func (me *BufferPool) AllocBuffer(size uint32) []byte {
 	sz := int(size)
 	if sz < PAGESIZE {
@@ -87,12 +101,13 @@ func (me *BufferPool) AllocBuffer(size uint32) []byte {
 
 	b := me.getBuffer(exp)
 
-	if b != nil {
+	if b == nil {
+		me.createdBuffers++
+		b = make([]byte, size, rounded)
+	} else {
 		b = b[:size]
-		return b
 	}
 
-	b = make([]byte, size, rounded)
 	me.outstandingBuffers[uintptr(unsafe.Pointer(&b[0]))] = exp
 	return b
 }
@@ -103,9 +118,9 @@ func (me *BufferPool) FreeBuffer(slice []byte) {
 	if cap(slice) < PAGESIZE {
 		return
 	}
-	slice = slice[:cap(slice)] 
+	slice = slice[:cap(slice)]
 	key := uintptr(unsafe.Pointer(&slice[0]))
-	
+
 	me.lock.Lock()
 	defer me.lock.Unlock()
 	exp, ok := me.outstandingBuffers[key]

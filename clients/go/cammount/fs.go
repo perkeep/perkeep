@@ -34,6 +34,8 @@ var _ = fmt.Println
 var _ = log.Println
 
 type CamliFileSystem struct {
+	fuse.DefaultPathFilesystem
+
 	fetcher blobref.Fetcher
 	root   *blobref.BlobRef
 
@@ -293,56 +295,4 @@ func (fs *CamliFileSystem) Readlink(name string) (string, fuse.Status) {
 	log.Printf("cammount: Readlink(%q)", name)
 	// TODO
 	return "", fuse.EACCES
-}
-
-// *************************************************************************
-// EACCESS stuff
-
-func (fs *CamliFileSystem) Chmod(name string, mode uint32) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Chown(name string, uid uint32, gid uint32) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Create(name string, flags uint32, mode uint32) (file fuse.RawFuseFile, code fuse.Status) {
-	code = fuse.EACCES
-	return
-}
-
-func (fs *CamliFileSystem) Link(oldName string, newName string) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Mkdir(name string, mode uint32) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Mknod(name string, mode uint32, dev uint32) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Rename(oldName string, newName string) (code fuse.Status) {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Rmdir(name string) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Symlink(value string, linkName string) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Truncate(name string, offset uint64) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Unlink(name string) fuse.Status {
-	return fuse.EACCES
-}
-
-func (fs *CamliFileSystem) Utimens(name string, AtimeNs uint64, CtimeNs uint64) fuse.Status {
-	return fuse.EACCES
 }
