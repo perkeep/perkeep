@@ -224,35 +224,34 @@ func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFil
 }
 
 func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
-	log.Printf("cammount: OpenDir(%q)", name)
-
 	dirBlob, errStatus := fs.blobRefFromName(name)
-	log.Printf("cammount: OpenDir(%q), dirBlobFromName err=%v", name, errStatus)
+	log.Printf("cammount: OpenDir(%q), dirBlob=%s err=%v", name, dirBlob, errStatus)
 	if errStatus != fuse.OK {
 		return nil, errStatus
 	}
-	log.Printf("cammount: got blob %s", dirBlob)
 
 	// TODO: this is redundant with what blobRefFromName already
 	// did.  we should at least keep this in RAM (pre-de-JSON'd)
 	// so we don't have to fetch + unmarshal it again.
-	ss, err := fs.fetchSchemaSuperset(dirBlob)
+	dirss, err := fs.fetchSchemaSuperset(dirBlob)
+	log.Printf("dirss blob: %v, err=%v", dirss, err)
 	if err != nil {
 		log.Printf("cammount: OpenDir(%q, %s): fetch schema error: %v", name, dirBlob, err)
 		return nil, fuse.EIO
 	}
 
-	if ss.Entries == "" {
+	if dirss.Entries == "" {
 		log.Printf("Expected %s to have 'entries'", dirBlob)
 		return nil, fuse.ENOTDIR
 	}
-	entriesBlob := blobref.Parse(ss.Entries)
+	entriesBlob := blobref.Parse(dirss.Entries)
 	if entriesBlob == nil {
-		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirBlob, ss.Entries)
+		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirBlob, dirss.Entries)
 		return nil, fuse.ENOTDIR
 	}
 
 	entss, err := fs.fetchSchemaSuperset(entriesBlob)
+	log.Printf("entries blob: %v, err=%v", entss, err)
 	switch {
 	case err == os.ENOENT:
 		log.Printf("Failed to find entries %s via directory %s", entriesBlob, dirBlob)
@@ -266,7 +265,7 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 		panic("nil entss")
 	case entss.Type != "static-set":
 		log.Printf("Expected %s to be a directory; actually a %s",
-			dirBlob, ss.Type)
+			dirBlob, entss.Type)
 		return nil, fuse.ENOTDIR
 	}
 
@@ -275,13 +274,24 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 	for _, m := range entss.Members {
 		wg.Add(1)
 		go func(memberBlobstr string) {
-			childss, err := fs.fetchSchemaSuperset(entriesBlob)
-			if err == nil {
-				retch <- fuse.DirEntry{Name: childss.FileName, Mode: ss.UnixMode()}
-			} else {
-				log.Printf("Error fetching %s: %v", entriesBlob, err)
+			defer wg.Done()
+			memberBlob := blobref.Parse(memberBlobstr)
+			if memberBlob == nil {
+				log.Printf("invalid blobref of %q in static set %s", memberBlobstr, entss)
+				return
 			}
-			wg.Done()
+			childss, err := fs.fetchSchemaSuperset(memberBlob)
+			if err == nil {
+				if childss.FileName != "" {
+					mode := childss.UnixMode()
+					//log.Printf("adding to dir %s: file=%q, mode=%d", dirBlob, childss.FileName, mode)
+					retch <- fuse.DirEntry{Name: childss.FileName, Mode: mode}
+				} else {
+					log.Printf("Blob %s had no filename", childss.FileName)
+				}
+			} else {
+				log.Printf("Error fetching %s: %v", memberBlobstr, err)
+			}
 		}(m)
 	}
 	go func() {

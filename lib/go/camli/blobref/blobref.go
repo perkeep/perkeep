@@ -61,6 +61,9 @@ func (b *BlobRef) Digest() string {
 }
 
 func (b *BlobRef) String() string {
+	if b == nil {
+		return "<nil-BlobRef>"
+	}
 	return b.strValue
 }
 
