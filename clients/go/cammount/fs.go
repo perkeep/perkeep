@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"io"
 	"json"
 	"os"
 	"path/filepath"
@@ -99,7 +101,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 
 	log.Printf("blobRefFromName(%q) = ...", name)
 	defer func() {
-		log.Printf("blobRefFromName(%q) = %s, %v", retbr, retstatus)
+		log.Printf("blobRefFromName(%q) = %s, %v", name, retbr, retstatus)
 	}()
 
 	dir, fileName := filepath.Split(name)
@@ -224,7 +226,7 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 
 	// TODO: other types
 	if ss.Type == "file" {
-		fi.Size = ss.Size
+		fi.Size = int64(ss.Size)
 	}
 
 	// TODO: mtime and such
@@ -353,16 +355,25 @@ type CamliFile struct {
 
 func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
 	offset := ri.Offset
-	if int64(offset) > file.ss.Size {
+	if offset >= file.ss.Size {
 		return []byte(""), fuse.OK  // TODO: correct status?
 	}
-	size := ri.Size
+	size := ri.Size // size of read to do (uint32)
 	endOffset := offset + uint64(size)
-	if int64(endOffset) > file.ss.Size {
-		size -= uint32(int64(endOffset) - file.ss.Size)
+	if endOffset > file.ss.Size {
+		size -= uint32(endOffset - file.ss.Size)
+		endOffset = file.ss.Size
 	}
-	log.Printf("read of %d@%d in blob %s (%#v)", size, offset, file.blob, file.ss)
-	retbuf = make([]byte, size)
-	retst = fuse.OK
+
+	buf := bytes.NewBuffer(make([]byte, 0, int(size)))
+	fr := file.ss.NewFileReader(file.fs.fetcher)
+	fr.Skip(offset)
+	lr := io.LimitReader(fr, int64(size))
+	_, err := io.Copy(buf, lr)  // TODO: care about n bytes copied?
+	if err == nil {
+		return buf.Bytes(), fuse.OK
+	}
+	log.Printf("cammount Read error: %v", err)
+	retst = fuse.EIO
 	return
 }

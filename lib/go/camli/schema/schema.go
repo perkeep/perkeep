@@ -71,7 +71,7 @@ type Superset struct {
 	UnixCtime      string "unixCtime"
 	UnixAtime      string "unixAtime"
 
-	Size  int64 "size"  // for files
+	Size  uint64 "size"  // for files
 	ContentParts []*ContentPart "contentParts"
 
 	Entries   string "entries" // for directories, a blobref to a static-set
@@ -82,8 +82,15 @@ type Superset struct {
 type ContentPart struct {
 	BlobRefString string "blobRef"
 	BlobRef       *blobref.BlobRef  // TODO: ditch BlobRefString? use json.Unmarshaler?
-	Size          int64 "size"
-	Offset        int64 "offset"
+	Size          uint64 "size"
+	Offset        uint64 "offset"
+}
+
+func (cp *ContentPart) blobref() *blobref.BlobRef {
+	if cp.BlobRef == nil {
+		cp.BlobRef = blobref.Parse(cp.BlobRefString)
+	}
+	return cp.BlobRef
 }
 
 func (ss *Superset) HasFilename(name string) bool {
@@ -108,6 +115,79 @@ func (ss *Superset) UnixMode() (mode uint32) {
 	}
 	return
 }
+
+type FileReader struct {
+	fetcher blobref.Fetcher
+	ss      *Superset
+	ci      int     // index into contentparts
+	ccon    uint64  // bytes into current chunk already consumed
+}
+
+func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
+	return &FileReader{fetcher, ss, 0, 0}
+}
+
+func minu64(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (fr *FileReader) Skip(skipBytes uint64) {
+	for skipBytes != 0 && fr.ci < len(fr.ss.ContentParts) {
+		cp := fr.ss.ContentParts[fr.ci]
+		thisChunkSkippable := cp.Size - fr.ccon
+		toSkip := minu64(skipBytes, thisChunkSkippable)
+		fr.ccon += toSkip
+		if fr.ccon == cp.Size {
+			fr.ci++
+			fr.ccon = 0
+		}
+	}
+}
+
+func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
+	var cp *ContentPart
+	for {
+		if fr.ci >= len(fr.ss.ContentParts) {
+			return 0, os.EOF
+		}
+		cp = fr.ss.ContentParts[fr.ci]
+		thisChunkReadable := cp.Size - fr.ccon
+		if thisChunkReadable == 0 {
+			fr.ci++
+			fr.ccon = 0
+			continue
+		}
+		break
+	}
+
+	br := cp.blobref()
+	if br == nil {
+			return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
+	}
+	// TODO: performance: don't re-fetch this on every
+	// Read call.  most parts will be large relative to
+	// read sizes.  we should stuff the rsc away in fr
+	// and re-use it just re-seeking if needed, which
+	// could also be tracked.
+	rsc, _, ferr := fr.fetcher.Fetch(br)
+	if ferr != nil {
+		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
+	}
+	defer rsc.Close()
+	
+	seekTo := cp.Offset + fr.ccon
+	if seekTo != 0 {
+		_, serr := rsc.Seek(int64(seekTo), 0)
+		if serr != nil {
+			return 0, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
+		}
+	}
+	return rsc.Read(p)
+}
+
 
 var DefaultStatHasher = &defaultStatHasher{}
 
@@ -246,7 +326,7 @@ func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []C
 	m["camliType"] = "file"
 	m["size"] = fi.Size
 
-	sumSize := int64(0)
+	sumSize := uint64(0)
 	mparts := make([]map[string]interface{}, len(parts))
 	for idx, part := range parts {
 		mpart := make(map[string]interface{})
@@ -258,8 +338,8 @@ func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []C
 			mpart["offset"] = part.Offset
 		}
 	}
-	if sumSize != fi.Size {
-		return &InvalidContentPartsError{fi.Size, sumSize}
+	if sumSize != uint64(fi.Size) {
+		return &InvalidContentPartsError{fi.Size, int64(sumSize)}
 	}
 	m["contentParts"] = mparts
 	return nil
