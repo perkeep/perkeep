@@ -44,6 +44,9 @@ type StatHasher interface {
 // Superset represents the superset of common camlistore JSON schema
 // keys as a convenient json.Unmarshal target
 type Superset struct {
+	BlobRef *blobref.BlobRef  // Not in JSON, but included for
+				  // those who want to set it.
+
 	Version int    "camliVersion"
 	Type    string "camliType"
 
@@ -69,10 +72,18 @@ type Superset struct {
 	UnixAtime      string "unixAtime"
 
 	Size  int64 "size"  // for files
+	ContentParts []*ContentPart "contentParts"
 
 	Entries   string "entries" // for directories, a blobref to a static-set
 	Members []string "members" // for static sets (for directory static-sets:
 	                           // blobrefs to child dirs/files)
+}
+
+type ContentPart struct {
+	BlobRefString string "blobRef"
+	BlobRef       *blobref.BlobRef  // TODO: ditch BlobRefString? use json.Unmarshaler?
+	Size          int64 "size"
+	Offset        int64 "offset"
 }
 
 func (ss *Superset) HasFilename(name string) bool {
@@ -220,12 +231,6 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 	}
 
 	return m
-}
-
-type ContentPart struct {
-	BlobRef *blobref.BlobRef
-	Size    int64
-	Offset  int64
 }
 
 type InvalidContentPartsError struct {

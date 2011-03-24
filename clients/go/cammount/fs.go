@@ -59,7 +59,14 @@ func (fs *CamliFileSystem) blobRefFromNameCached(name string) *blobref.BlobRef {
 	return fs.nameToBlob[name]
 }
 
+// Errors returned are:
+//    os.ENOENT -- blob not found
+//    os.EINVAL -- not JSON or a camli schema blob
+
 func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Superset, os.Error) {
+	// TODO: LRU caching here?  fs.fetcher will also be a caching
+	// Fetcher, but we want to avoid re-de-JSONing the blobs on
+	// each call.
 	rsc, _, err := fs.fetcher.Fetch(br)
 	if err != nil {
 		return nil, err
@@ -72,6 +79,11 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 		log.Printf("Error parsing %s as schema blob: %v", br, err)
                 return nil, os.EINVAL
         }
+	if ss.Type == "" {
+		log.Printf("blob %s is JSON but lacks camliType", br)
+		return nil, os.EINVAL
+	}
+	ss.BlobRef = br
 	return ss, nil
 }
 
@@ -146,7 +158,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	}
 
 	wg := new(sync.WaitGroup)
-	foundCh := make(chan *blobref.BlobRef)
+	foundCh := make(chan *blobref.BlobRef)  // important: unbuffered
 	for _, m := range entss.Members {
 		wg.Add(1)
 		go func(memberBlobstr string) {
@@ -189,17 +201,12 @@ func (fs *CamliFileSystem) Unmount() {
 }
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
-	log.Printf("cammount: GetAttr(%q)", name)
 	blobref, errStatus := fs.blobRefFromName(name)
-	log.Printf("cammount: GetAttr(%q), blobRefFromName err=%v", name, errStatus)
+	log.Printf("cammount: GetAttr(%q) => (%s, %v)", name, blobref, errStatus)
 	if errStatus != fuse.OK {
 		return nil, errStatus
 	}
-	log.Printf("cammount: got blob %s", blobref)
 
-	// TODO: this is redundant with what blobRefFromName already
-	// did.  we should at least keep this in RAM (pre-de-JSON'd)
-	// so we don't have to fetch + unmarshal it again.
 	ss, err := fs.fetchSchemaSuperset(blobref)
 	if err != nil {
 		log.Printf("cammount: GetAttr(%q, %s): fetch schema error: %v", name, blobref, err)
@@ -232,9 +239,27 @@ func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
 }
 
 func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFile, code fuse.Status) {
-	log.Printf("cammount: Open(%q, %d)", name, flags)
-	// TODO
-	return nil, fuse.EACCES
+	if flags & uint32(os.O_CREAT | os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_TRUNC) != 0 {
+		log.Printf("cammount: Open(%q, %d): denying write access", name, flags)
+		return nil, fuse.EACCES
+	}
+
+	fileblob, errStatus := fs.blobRefFromName(name)
+	log.Printf("cammount: Open(%q, %d) => (%s, %v)", name, flags, fileblob, errStatus)
+	if errStatus != fuse.OK {
+                return nil, errStatus
+        }
+	ss, err := fs.fetchSchemaSuperset(fileblob)
+	if err != nil {
+		log.Printf("cammount: Open(%q): %v", name, err)
+		return nil, fuse.EIO
+	}
+	if ss.Type != "file" {
+		log.Printf("cammount: Open(%q): %s is a %q, not file", name, fileblob, ss.Type)
+		return nil, fuse.EINVAL
+	}
+
+	return &CamliFile{nil, fs, fileblob, ss}, fuse.OK
 }
 
 func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
@@ -244,9 +269,6 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 		return nil, errStatus
 	}
 
-	// TODO: this is redundant with what blobRefFromName already
-	// did.  we should at least keep this in RAM (pre-de-JSON'd)
-	// so we don't have to fetch + unmarshal it again.
 	dirss, err := fs.fetchSchemaSuperset(dirBlob)
 	log.Printf("dirss blob: %v, err=%v", dirss, err)
 	if err != nil {
@@ -319,4 +341,28 @@ func (fs *CamliFileSystem) Readlink(name string) (string, fuse.Status) {
 	log.Printf("cammount: Readlink(%q)", name)
 	// TODO
 	return "", fuse.EACCES
+}
+
+type CamliFile struct {
+	*fuse.DefaultRawFuseFile
+
+	fs   *CamliFileSystem
+	blob *blobref.BlobRef
+	ss   *schema.Superset
+}
+
+func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
+	offset := ri.Offset
+	if int64(offset) > file.ss.Size {
+		return []byte(""), fuse.OK  // TODO: correct status?
+	}
+	size := ri.Size
+	endOffset := offset + uint64(size)
+	if int64(endOffset) > file.ss.Size {
+		size -= uint32(int64(endOffset) - file.ss.Size)
+	}
+	log.Printf("read of %d@%d in blob %s (%#v)", size, offset, file.blob, file.ss)
+	retbuf = make([]byte, size)
+	retst = fuse.OK
+	return
 }
