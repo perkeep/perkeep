@@ -95,7 +95,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 		if err != nil {
 			return nil, err
 		}
-		parts := []schema.ContentPart{{BlobRef: blobpr.BlobRef, Size: blobpr.Size}}
+		parts := []schema.ContentPart{{BlobRef: blobpr.BlobRef, Size: uint64(blobpr.Size)}}
 		if blobpr.Size != fi.Size {
 			// TODO: handle races of file changing while reading it
 			// after the stat.
