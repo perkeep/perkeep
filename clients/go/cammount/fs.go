@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"camli/blobref"
-	"camli/client"
 	"camli/schema"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
@@ -45,9 +44,9 @@ type CamliFileSystem struct {
 	nameToBlob map[string]*blobref.BlobRef
 }
 
-func NewCamliFileSystem(client *client.Client, root *blobref.BlobRef) *CamliFileSystem {
+func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFileSystem {
 	return &CamliFileSystem{
-		fetcher:    client,
+		fetcher:    fetcher,
 		root:       root,
 		nameToBlob: make(map[string]*blobref.BlobRef),
 	}
