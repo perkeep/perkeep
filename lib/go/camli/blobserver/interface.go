@@ -45,6 +45,9 @@ type Partition interface {
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
+	//
+	// mirrorPartitions may not be supported by all instances
+	// and may return an error if used.
 	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
 }
 
@@ -76,6 +79,12 @@ type BlobEnumerator interface {
 		waitSeconds int) os.Error
 }
 
+// Cache is the minimal interface expected of a blob cache.
+type Cache interface {
+	blobref.Fetcher
+	BlobReceiver
+	BlobStatter
+}
 
 type Storage interface {
 	blobref.Fetcher
