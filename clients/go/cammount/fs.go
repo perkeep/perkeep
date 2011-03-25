@@ -39,7 +39,7 @@ type CamliFileSystem struct {
 	fuse.DefaultPathFilesystem
 
 	fetcher blobref.Fetcher
-	root   *blobref.BlobRef
+	root    *blobref.BlobRef
 
 	lk         sync.Mutex
 	nameToBlob map[string]*blobref.BlobRef
@@ -47,9 +47,9 @@ type CamliFileSystem struct {
 
 func NewCamliFileSystem(client *client.Client, root *blobref.BlobRef) *CamliFileSystem {
 	return &CamliFileSystem{
-	fetcher: client,
-	root: root,
-	nameToBlob: make(map[string]*blobref.BlobRef),
+		fetcher:    client,
+		root:       root,
+		nameToBlob: make(map[string]*blobref.BlobRef),
 	}
 }
 
@@ -76,11 +76,11 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 	defer rsc.Close()
 	jd := json.NewDecoder(rsc)
 	ss := new(schema.Superset)
-        err = jd.Decode(ss)
-        if err != nil {
+	err = jd.Decode(ss)
+	if err != nil {
 		log.Printf("Error parsing %s as schema blob: %v", br, err)
-                return nil, os.EINVAL
-        }
+		return nil, os.EINVAL
+	}
 	if ss.Type == "" {
 		log.Printf("blob %s is JSON but lacks camliType", br)
 		return nil, os.EINVAL
@@ -160,7 +160,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	}
 
 	wg := new(sync.WaitGroup)
-	foundCh := make(chan *blobref.BlobRef)  // important: unbuffered
+	foundCh := make(chan *blobref.BlobRef) // important: unbuffered
 	for _, m := range entss.Members {
 		wg.Add(1)
 		go func(memberBlobstr string) {
@@ -241,7 +241,7 @@ func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
 }
 
 func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFile, code fuse.Status) {
-	if flags & uint32(os.O_CREAT | os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_TRUNC) != 0 {
+	if flags&uint32(os.O_CREAT|os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_TRUNC) != 0 {
 		log.Printf("cammount: Open(%q, %d): denying write access", name, flags)
 		return nil, fuse.EACCES
 	}
@@ -249,8 +249,8 @@ func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFil
 	fileblob, errStatus := fs.blobRefFromName(name)
 	log.Printf("cammount: Open(%q, %d) => (%s, %v)", name, flags, fileblob, errStatus)
 	if errStatus != fuse.OK {
-                return nil, errStatus
-        }
+		return nil, errStatus
+	}
 	ss, err := fs.fetchSchemaSuperset(fileblob)
 	if err != nil {
 		log.Printf("cammount: Open(%q): %v", name, err)
@@ -356,7 +356,7 @@ type CamliFile struct {
 func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
 	offset := ri.Offset
 	if offset >= file.ss.Size {
-		return []byte(""), fuse.OK  // TODO: correct status?
+		return []byte(""), fuse.OK // TODO: correct status?
 	}
 	size := ri.Size // size of read to do (uint32)
 	endOffset := offset + uint64(size)
@@ -369,7 +369,7 @@ func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte
 	fr := file.ss.NewFileReader(file.fs.fetcher)
 	fr.Skip(offset)
 	lr := io.LimitReader(fr, int64(size))
-	_, err := io.Copy(buf, lr)  // TODO: care about n bytes copied?
+	_, err := io.Copy(buf, lr) // TODO: care about n bytes copied?
 	if err == nil {
 		return buf.Bytes(), fuse.OK
 	}
