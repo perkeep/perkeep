@@ -121,7 +121,7 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 	for sb := range destNotHaveBlobs {
 		fmt.Printf("Destination needs blob: %s\n", sb)
 
-		blobReader, size, err := sc.Fetch(sb.BlobRef)
+		blobReader, size, err := sc.FetchStreaming(sb.BlobRef)
 		if err != nil {
 			errorCount++
 			log.Printf("Error fetching %s: %v", sb.BlobRef, err)
