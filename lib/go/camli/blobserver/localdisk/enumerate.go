@@ -126,7 +126,7 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 
 	// The not waiting case:
 	if err != nil || limitMutable != limit || waitSeconds == 0 {
-		dest <- nil
+		close(dest)
 		return err
 	}
 
@@ -149,6 +149,6 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 		// so there's no race?  But this is easier:
 		doScan()
 	}
-	dest <- nil
+	close(dest)
 	return err
 }

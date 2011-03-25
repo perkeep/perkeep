@@ -70,8 +70,8 @@ type BlobEnumerator interface {
 	// limit will be supplied and sanity checked by caller.
 	// waitSeconds is the max time to wait for any blobs to exist
 	// in the given partition, or 0 for no delay.
-	// EnumerateBlobs doesn't close the channel at the end but
-	// sends a nil.  TODO: change this later to close?
+	// EnumerateBlobs must close the channel.  (even if limit
+	// was hit and more blobs remain)
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef,
 		partition Partition,
 		after string,

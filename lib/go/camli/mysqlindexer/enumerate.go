@@ -73,6 +73,6 @@ func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blo
 			Size:    row.size,
 		}
 	}
-	dest <- nil
+	close(dest)
 	return
 }

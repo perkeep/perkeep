@@ -67,6 +67,7 @@ func TestEnumerate(t *testing.T) {
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 
 	// Now again, but skipping foo's blob
+	ch = make(chan *blobref.SizedBlobRef)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
 			foo.BlobRef().String(),
