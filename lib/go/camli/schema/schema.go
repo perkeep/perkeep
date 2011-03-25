@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"json"
+	"log"
 	"os"
 	"rand"
 	"strconv"
@@ -32,6 +33,8 @@ import (
 	"syscall"
 	"time"
 )
+
+var _ = log.Printf
 
 var NoCamliVersionError = os.NewError("No camliVersion key in map")
 var UnimplementedError = os.NewError("Unimplemented")
@@ -124,6 +127,8 @@ type FileReader struct {
 }
 
 func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
+	// TODO: return an error if ss isn't a Type "file" ?
+	// TODO: return some error if the redundant ss.Size field doesn't match ContentParts?
 	return &FileReader{fetcher, ss, 0, 0}
 }
 
@@ -144,6 +149,7 @@ func (fr *FileReader) Skip(skipBytes uint64) {
 			fr.ci++
 			fr.ccon = 0
 		}
+		skipBytes -= toSkip
 	}
 }
 
@@ -185,7 +191,17 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 			return 0, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
 		}
 	}
-	return rsc.Read(p)
+
+	readSize := cp.Size - fr.ccon
+	if uint64(len(p)) < readSize {
+		readSize = uint64(len(p))
+	}
+
+	n, err = rsc.Read(p[:int(readSize)])
+	if err == nil || err == os.EOF {
+		fr.ccon += uint64(n)
+	}
+	return
 }
 
 
