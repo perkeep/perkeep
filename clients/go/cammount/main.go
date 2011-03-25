@@ -19,10 +19,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 
 	"camli/blobref"
+	"camli/blobserver/localdisk" // used for the blob cache
 	"camli/client"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
@@ -46,18 +48,34 @@ func main() {
 	debug := flag.Bool("debug", false, "print debugging messages.")
 	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
 	flag.Parse()
-	if flag.NArg() < 2 {
-		fmt.Println("usage: cammount <blobref> <mountpoint>")
+
+	errorf := func(msg string, args ...interface{}) {
+		fmt.Fprintf(os.Stderr, msg, args...)
 		os.Exit(2)
+	}
+
+	if flag.NArg() < 2 {
+		errorf("usage: cammount <blobref> <mountpoint>")
 	}
 
 	root := blobref.Parse(flag.Arg(0))
 	if root == nil {
-		fmt.Printf("Error parsing root blobref: %q\n", root)
-		os.Exit(2)
+		errorf("Error parsing root blobref: %q\n", root)
 	}
 	client := client.NewOrFail() // automatic from flags
-	fs := NewCamliFileSystem(client, root)
+
+	cacheDir, err := ioutil.TempDir("", "camlicache")
+	if err != nil {
+		errorf("Error creating temp cache directory: %v\n", err)
+	}
+	defer os.RemoveAll(cacheDir)
+	diskcache, err := localdisk.New(cacheDir)
+	if err != nil {
+		errorf("Error setting up local disk cache: %v", err)
+	}
+	fetcher := NewCachingFetcher(diskcache, client)
+
+	fs := NewCamliFileSystem(fetcher, root)
 	timing := fuse.NewTimingPathFilesystem(fs)
 
 	conn := fuse.NewPathFileSystemConnector(timing)
@@ -67,7 +85,7 @@ func main() {
 	state.Debug = *debug
 
 	mountPoint := flag.Arg(1)
-	err := state.Mount(mountPoint)
+	err = state.Mount(mountPoint)
 	if err != nil {
 		fmt.Printf("MountFuse fail: %v\n", err)
 		os.Exit(1)
