@@ -162,7 +162,7 @@ sub fixit_tip {
                 "See: http://blog.golang.org/2011/03/go-becomes-more-stable.html\n";
         }
         unless ($gover =~ /weekly\.(\d\d\d\d)-(\d\d)-(\d\d)/) {
-            return "Failed to parse your Go version.  You have \$gover\" but since\n".
+            return "Failed to parse your Go version.  You have \"$gover\" but since\n".
                 "I can't parse it, I can't tell you if it's too old or not.\n";
         }
         my ($yyyy, $mm, $dd) = ($1, $2, $3);
