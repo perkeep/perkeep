@@ -41,26 +41,26 @@ type CamliFileSystem struct {
 	fetcher blobref.Fetcher
 	root    *blobref.BlobRef
 
-	schemaBlob *lru.Cache
-
-	lk         sync.Mutex
-	nameToBlob map[string]*blobref.BlobRef  // TODO: bound this?
+	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
+	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
 }
 
 func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFileSystem {
 	return &CamliFileSystem{
-		fetcher:    fetcher,
-		root:       root,
-		nameToBlob: make(map[string]*blobref.BlobRef),
+		fetcher:      fetcher,
+		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?
+		root:         root,
+		nameToBlob:   lru.New(1024), // arbitrary: TODO: tunable/smarter?
 	}
 }
 
 // Where name == "" for root,
 // Returns nil on failure
 func (fs *CamliFileSystem) blobRefFromNameCached(name string) *blobref.BlobRef {
-	fs.lk.Lock()
-	defer fs.lk.Unlock()
-	return fs.nameToBlob[name]
+	if br, ok := fs.nameToBlob.Get(name); ok {
+		return br.(*blobref.BlobRef)
+	}
+	return nil
 }
 
 // Errors returned are:
@@ -68,9 +68,12 @@ func (fs *CamliFileSystem) blobRefFromNameCached(name string) *blobref.BlobRef {
 //    os.EINVAL -- not JSON or a camli schema blob
 
 func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Superset, os.Error) {
-	// TODO: LRU caching here?  fs.fetcher will also be a caching
-	// Fetcher, but we want to avoid re-de-JSONing the blobs on
-	// each call.
+	blobStr := br.String()
+	if ss, ok := fs.blobToSchema.Get(blobStr); ok {
+		return ss.(*schema.Superset), nil
+	}
+	log.Printf("schema cache MISS on %q", blobStr)
+
 	rsc, _, err := fs.fetcher.Fetch(br)
 	if err != nil {
 		return nil, err
@@ -88,6 +91,7 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 		return nil, os.EINVAL
 	}
 	ss.BlobRef = br
+	fs.blobToSchema.Add(blobStr, ss)
 	return ss, nil
 }
 
@@ -100,8 +104,6 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	if br := fs.blobRefFromNameCached(name); br != nil {
 		return br, fuse.OK
 	}
-
-	log.Printf("blobRefFromName(%q) = ...", name)
 	defer func() {
 		log.Printf("blobRefFromName(%q) = %s, %v", name, retbr, retstatus)
 	}()
@@ -185,9 +187,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	}()
 	select {
 	case found := <-foundCh:
-		fs.lk.Lock()
-		defer fs.lk.Unlock()
-		fs.nameToBlob[name] = found
+		fs.nameToBlob.Add(name, found)
 		return found, fuse.OK
 	case <-failCh:
 	}
@@ -321,8 +321,8 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 
 	entss, status := fs.getSchemaBlobByBlobRefAndType(entriesBlob, "static-set")
 	if status != fuse.OK {
-                return nil, status
-        }
+		return nil, status
+	}
 
 	retch := make(chan fuse.DirEntry, 20)
 	wg := new(sync.WaitGroup)
