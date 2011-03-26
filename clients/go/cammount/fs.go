@@ -206,8 +206,8 @@ func (fs *CamliFileSystem) Unmount() {
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 	blobref, errStatus := fs.blobRefFromName(name)
-	log.Printf("cammount: GetAttr(%q) => (%s, %v)", name, blobref, errStatus)
 	if errStatus != fuse.OK {
+		log.Printf("cammount: GetAttr(%q, %s): %v", name, blobref, errStatus)
 		return nil, errStatus
 	}
 
@@ -238,7 +238,9 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 }
 
 func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
-	log.Printf("cammount: Access(%q, %d)", name, mode)
+	// TODO: this is called a lot (as are many of the operations).  See
+	// if we can reply to the kernel with a cache expiration time.
+	//log.Printf("cammount: Access(%q, %d)", name, mode)
 	return fuse.OK
 }
 
