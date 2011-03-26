@@ -29,9 +29,15 @@ type Cache struct {
 	cache map[string]*list.Element
 }
 
+type entry struct {
+	key   string
+	value interface{}
+}
+
 func New(maxEntries int) *Cache {
 	return &Cache{
 		maxEntries: maxEntries,
+		ll:         list.New(),
 		cache:      make(map[string]*list.Element),
 	}
 }
@@ -39,10 +45,51 @@ func New(maxEntries int) *Cache {
 func (c *Cache) Add(key string, value interface{}) {
 	c.lk.Lock()
 	defer c.lk.Unlock()
+
+	// Already in cache?
 	if ee, ok := c.cache[key]; ok {
 		c.ll.MoveToFront(ee)
-		ee.Value = value
+		ee.Value.(*entry).value = value
 		return
 	}
-	// TODO: check size, add new element, etc
+
+	// Add to cache if not present
+	ele := c.ll.PushFront(&entry{key, value})
+	c.cache[key] = ele
+
+	if c.ll.Len() > c.maxEntries {
+		c.removeOldest()
+	}
+}
+
+func (c *Cache) Get(key string) (value interface{}, ok bool) {
+	c.lk.Lock()
+	defer c.lk.Unlock()
+	if ele, hit := c.cache[key]; hit {
+		c.ll.MoveToFront(ele)
+		return ele.Value.(*entry).value, true
+	}
+	return
+}
+
+func (c *Cache) RemoveOldest() {
+	c.lk.Lock()
+	defer c.lk.Unlock()
+	c.removeOldest()
+}
+
+// note: must hold c.lk
+func (c *Cache) removeOldest() {
+	ele := c.ll.Back()
+	if ele == nil {
+		return
+	}
+	c.ll.Remove(ele)
+	c.cache[ele.Value.(*entry).key] = nil, false
+}
+
+func (c *Cache) Len() int {
+	c.lk.Lock()
+	defer c.lk.Unlock()
+	return c.ll.Len()
 }
