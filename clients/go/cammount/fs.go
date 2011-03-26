@@ -43,6 +43,7 @@ type CamliFileSystem struct {
 
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
+	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
 
 func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFileSystem {
@@ -51,6 +52,7 @@ func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFi
 		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?
 		root:         root,
 		nameToBlob:   lru.New(1024), // arbitrary: TODO: tunable/smarter?
+		nameToAttr:   lru.New(1024), // arbitrary: TODO: tunable/smarter?
 	}
 }
 
@@ -205,6 +207,10 @@ func (fs *CamliFileSystem) Unmount() {
 }
 
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
+	if attr, ok := fs.nameToAttr.Get(name); ok {
+		return attr.(*fuse.Attr), fuse.OK
+	}
+
 	blobref, errStatus := fs.blobRefFromName(name)
 	if errStatus != fuse.OK {
 		log.Printf("cammount: GetAttr(%q, %s): %v", name, blobref, errStatus)
@@ -234,6 +240,7 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 	// TODO: mtime and such
 
 	fuse.CopyFileInfo(&fi, out)
+	fs.nameToAttr.Add(name, out)
 	return out, fuse.OK
 }
 
