@@ -18,6 +18,7 @@ package schema
 
 import (
 	. "camli/test/asserts"
+	"json"
 	"os"
 	"strings"
 	"testing"
@@ -103,4 +104,27 @@ func TestSymlink(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	t.Logf("Got json for symlink file: [%s]\n", json)
+}
+
+type mixPartsTest struct {
+	json, expected string
+}
+
+func TestStringFromMixedArray(t *testing.T) {
+	tests := []mixPartsTest{
+		{`["brad"]`, "brad"},
+		{`["brad", 32, 70]`, "brad F"},
+		{`["brad", "fitz"]`, "bradfitz"},
+		{`["../foo/Am", 233, "lie.jpg"]`, "../foo/Am\xe9lie.jpg"},
+	}
+	for idx, test := range tests {
+		var v []interface{}
+		if err := json.Unmarshal([]byte(test.json), &v); err != nil {
+			t.Fatalf("invalid JSON in test %d", idx)
+		}
+		got := stringFromMixedArray(v)
+		if got != test.expected {
+			t.Errorf("test %d got %q; expected %q", idx, got, test.expected)
+		}
+	}
 }

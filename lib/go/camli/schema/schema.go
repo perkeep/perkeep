@@ -107,11 +107,10 @@ func stringFromMixedArray(parts []interface{}) string {
 			buf.WriteString(s)
 			continue
 		}
-		if b, ok := part.(byte); ok {
-			buf.WriteByte(b)
+		if num, ok := part.(float64); ok {
+			buf.WriteByte(byte(num))
                         continue
 		}
-		// TODO: finish / test (see what types actually come from JSON unmarshalling)
 	}
 	return buf.String()
 }
