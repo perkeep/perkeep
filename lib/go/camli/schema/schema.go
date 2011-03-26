@@ -64,7 +64,11 @@ type Superset struct {
 	Value     string "value"
 
 	FileName      string "fileName"
-	FileNameBytes []byte "fileNameBytes" // TODO: needs custom UnmarshalJSON?
+	FileNameBytes []interface{} "fileNameBytes" // TODO: needs custom UnmarshalJSON?
+
+	SymlinkTarget      string "symlinkTarget"
+	SymlinkTargetBytes []interface{} "symlinkTargetBytes" // TODO: needs custom UnmarshalJSON?
+
 	UnixPermission string "unixPermission"
 	UnixOwnerId    int "unixOwnerId"
 	UnixOwner      string "unixOwner"
@@ -96,9 +100,38 @@ func (cp *ContentPart) blobref() *blobref.BlobRef {
 	return cp.BlobRef
 }
 
+func stringFromMixedArray(parts []interface{}) string {
+	buf := new(bytes.Buffer)
+	for _, part := range parts {
+		if s, ok := part.(string); ok {
+			buf.WriteString(s)
+			continue
+		}
+		if b, ok := part.(byte); ok {
+			buf.WriteByte(b)
+                        continue
+		}
+		// TODO: finish / test (see what types actually come from JSON unmarshalling)
+	}
+	return buf.String()
+}
+
+func (ss *Superset) SymlinkTargetString() string {
+	if ss.SymlinkTarget != "" {
+		return ss.SymlinkTarget
+	}
+	return stringFromMixedArray(ss.SymlinkTargetBytes)
+}
+
+func (ss *Superset) FileNameString() string {
+	if ss.FileName != "" {
+		return ss.FileName
+	}
+	return stringFromMixedArray(ss.FileNameBytes)
+}
+
 func (ss *Superset) HasFilename(name string) bool {
-	// TODO: use filename bytes too
-	return ss.FileName == name
+	return ss.FileNameString() == name
 }
 
 func (ss *Superset) UnixMode() (mode uint32) {

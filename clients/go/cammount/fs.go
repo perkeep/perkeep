@@ -263,48 +263,63 @@ func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFil
 	return &CamliFile{nil, fs, fileblob, ss}, fuse.OK
 }
 
-func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
-	dirBlob, errStatus := fs.blobRefFromName(name)
-	log.Printf("cammount: OpenDir(%q), dirBlob=%s err=%v", name, dirBlob, errStatus)
-	if errStatus != fuse.OK {
-		return nil, errStatus
+// returns fuse.OK on success; anything else on error
+func (fs *CamliFileSystem) getSchemaBlobByNameAndType(name string, expectedType string) (ss *schema.Superset, status fuse.Status) {
+	br, status := fs.blobRefFromName(name)
+	if status != fuse.OK {
+		return nil, status
 	}
+	return fs.getSchemaBlobByBlobRefAndType(br, expectedType)
+}
 
-	dirss, err := fs.fetchSchemaSuperset(dirBlob)
-	log.Printf("dirss blob: %v, err=%v", dirss, err)
-	if err != nil {
-		log.Printf("cammount: OpenDir(%q, %s): fetch schema error: %v", name, dirBlob, err)
+func (fs *CamliFileSystem) getSchemaBlobByBlobRefAndType(br *blobref.BlobRef, expectedType string) (ss *schema.Superset, status fuse.Status) {
+	ss, err := fs.fetchSchemaSuperset(br)
+	switch {
+	case err == os.ENOENT:
+		log.Printf("failed to find blob %s", br)
+		return nil, fuse.ENOENT
+	case err == os.EINVAL:
+		log.Printf("failed to parse expected %q schema blob %s", expectedType, br)
 		return nil, fuse.EIO
+	case err != nil:
+		panic(fmt.Sprintf("Invalid fetcher error: %v", err))
+	case ss == nil:
+		panic("nil ss")
+	case ss.Type != expectedType:
+		log.Printf("expected %s to be %q directory; actually a %s",
+			br, expectedType, ss.Type)
+		return nil, fuse.EIO
+	}
+	return ss, fuse.OK
+}
+
+func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
+	defer func() {
+		log.Printf("cammount: OpenDir(%q) = %v", name, code)
+	}()
+	dirss, status := fs.getSchemaBlobByNameAndType(name, "directory")
+	if status != fuse.OK {
+		return nil, status
 	}
 
 	if dirss.Entries == "" {
-		log.Printf("Expected %s to have 'entries'", dirBlob)
-		return nil, fuse.ENOTDIR
-	}
-	entriesBlob := blobref.Parse(dirss.Entries)
-	if entriesBlob == nil {
-		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirBlob, dirss.Entries)
+		// TODO: can this be empty for an empty directory?
+		// clarify in spec one way or another.  probably best
+		// to make it required to remove special cases.
+		log.Printf("Expected %s to have 'entries'", dirss.BlobRef)
 		return nil, fuse.ENOTDIR
 	}
 
-	entss, err := fs.fetchSchemaSuperset(entriesBlob)
-	log.Printf("entries blob: %v, err=%v", entss, err)
-	switch {
-	case err == os.ENOENT:
-		log.Printf("Failed to find entries %s via directory %s", entriesBlob, dirBlob)
-		return nil, fuse.ENOENT
-	case err == os.EINVAL:
-		log.Printf("Failed to parse entries %s via directory %s", entriesBlob, dirBlob)
-		return nil, fuse.ENOTDIR
-	case err != nil:
-		panic(fmt.Sprintf("Invalid fetcher error: %v", err))
-	case entss == nil:
-		panic("nil entss")
-	case entss.Type != "static-set":
-		log.Printf("Expected %s to be a directory; actually a %s",
-			dirBlob, entss.Type)
+	entriesBlob := blobref.Parse(dirss.Entries)
+	if entriesBlob == nil {
+		log.Printf("Blob %s had invalid blobref %q for its 'entries'", dirss.BlobRef, dirss.Entries)
 		return nil, fuse.ENOTDIR
 	}
+
+	entss, status := fs.getSchemaBlobByBlobRefAndType(entriesBlob, "static-set")
+	if status != fuse.OK {
+                return nil, status
+        }
 
 	retch := make(chan fuse.DirEntry, 20)
 	wg := new(sync.WaitGroup)
@@ -319,12 +334,12 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 			}
 			childss, err := fs.fetchSchemaSuperset(memberBlob)
 			if err == nil {
-				if childss.FileName != "" {
+				if fileName := childss.FileNameString(); fileName != "" {
 					mode := childss.UnixMode()
 					//log.Printf("adding to dir %s: file=%q, mode=%d", dirBlob, childss.FileName, mode)
-					retch <- fuse.DirEntry{Name: childss.FileName, Mode: mode}
+					retch <- fuse.DirEntry{Name: childss.FileNameString(), Mode: mode}
 				} else {
-					log.Printf("Blob %s had no filename", childss.FileName)
+					log.Printf("Blob %s had no filename", childss.BlobRef)
 				}
 			} else {
 				log.Printf("Error fetching %s: %v", memberBlobstr, err)
@@ -338,10 +353,15 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 	return retch, fuse.OK
 }
 
-func (fs *CamliFileSystem) Readlink(name string) (string, fuse.Status) {
-	log.Printf("cammount: Readlink(%q)", name)
-	// TODO
-	return "", fuse.EACCES
+func (fs *CamliFileSystem) Readlink(name string) (target string, status fuse.Status) {
+	defer func() {
+		log.Printf("Readlink(%q) = %q, %v", name, target, status)
+	}()
+	ss, status := fs.getSchemaBlobByNameAndType(name, "symlink")
+	if status != fuse.OK {
+		return "", status
+	}
+	return ss.SymlinkTargetString(), fuse.OK
 }
 
 type CamliFile struct {
