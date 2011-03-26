@@ -73,9 +73,11 @@ func TestRfc3339FromNanos(t *testing.T) {
 		{1, "1970-01-01T00:00:00.000000001Z"},
 		{10, "1970-01-01T00:00:00.00000001Z"},
 		{1000, "1970-01-01T00:00:00.000001Z"},
+		{1301114560 * 1e9, "2011-03-26T04:42:40Z"},
+		{1301114560 * 1e9 + 10, "2011-03-26T04:42:40.00000001Z"},
 	}
 	for idx, test := range tests {
-		got := rfc3339FromNanos(test.nanos)
+		got := Rfc3339FromNanos(test.nanos)
 		if got != test.e {
 			t.Errorf("On test %d got %q; expected %q", idx, got, test.e)
 		}

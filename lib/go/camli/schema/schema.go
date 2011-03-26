@@ -351,11 +351,11 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 		}
 	}
 	if mtime := fi.Mtime_ns; mtime != 0 {
-		m["unixMtime"] = rfc3339FromNanos(mtime)
+		m["unixMtime"] = Rfc3339FromNanos(mtime)
 	}
 	// Include the ctime too, if it differs.
 	if ctime := fi.Ctime_ns; ctime != 0 && fi.Mtime_ns != fi.Ctime_ns {
-		m["unixCtime"] = rfc3339FromNanos(ctime)
+		m["unixCtime"] = Rfc3339FromNanos(ctime)
 	}
 
 	return m
@@ -424,7 +424,7 @@ func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
-	m["claimDate"] = rfc3339FromNanos(time.Nanoseconds())
+	m["claimDate"] = Rfc3339FromNanos(time.Nanoseconds())
 	return m
 }
 
@@ -452,7 +452,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]in
 // Types of ShareRefs
 const ShareHaveRef = "haveref"
 
-func rfc3339FromNanos(epochnanos int64) string {
+func Rfc3339FromNanos(epochnanos int64) string {
 	nanos := epochnanos % 1e9
 	esec := epochnanos / 1e9
 	t := time.SecondsToUTC(esec)
