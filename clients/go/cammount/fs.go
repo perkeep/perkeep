@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"camli/blobref"
+	"camli/lru"
 	"camli/schema"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
@@ -40,8 +41,10 @@ type CamliFileSystem struct {
 	fetcher blobref.Fetcher
 	root    *blobref.BlobRef
 
+	schemaBlob *lru.Cache
+
 	lk         sync.Mutex
-	nameToBlob map[string]*blobref.BlobRef
+	nameToBlob map[string]*blobref.BlobRef  // TODO: bound this?
 }
 
 func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFileSystem {
