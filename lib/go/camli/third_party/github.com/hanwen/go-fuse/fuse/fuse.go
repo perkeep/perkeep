@@ -3,7 +3,6 @@ package fuse
 import (
 	"bytes"
 	"encoding/binary"
-	"expvar"
 	"fmt"
 	"log"
 	"os"
@@ -38,11 +37,12 @@ type fuseRequest struct {
 	status   Status
 	flatData []byte
 
-	// The stuff we send back to the kernel.
-	serialized [][]byte
+	// Header+data for what we send back to the kernel.
+	// May be followed by flatData.
+	output []byte
 
 	// Start timestamp for timing info.
-	startNs int64
+	startNs    int64
 	dispatchNs int64
 	preWriteNs int64
 }
@@ -66,9 +66,9 @@ type MountState struct {
 	fileSystem RawFileSystem
 
 	// I/O with kernel and daemon.
-	mountFile     *os.File
-	
-	errorChannel  chan os.Error
+	mountFile *os.File
+
+	errorChannel chan os.Error
 
 	// Run each operation in its own Go-routine.
 	threaded bool
@@ -79,8 +79,10 @@ type MountState struct {
 	// For efficient reads.
 	buffers *BufferPool
 
-	statisticsMutex    sync.Mutex
-	operationCounts    map[string]int64
+	statisticsMutex sync.Mutex
+	operationCounts map[string]int64
+
+	// In nanoseconds.
 	operationLatencies map[string]int64
 }
 
@@ -191,16 +193,22 @@ func (me *MountState) Error(err os.Error) {
 }
 
 func (me *MountState) Write(req *fuseRequest) {
-	if req.serialized == nil {
+	if req.output == nil {
 		return
 	}
 
-	_, err := Writev(me.mountFile.Fd(), req.serialized)
-	if err != nil {
-		me.Error(os.NewError(fmt.Sprintf("writer: Writev %v failed, err: %v", req.serialized, err)))
+	var err os.Error
+	if req.flatData == nil {
+		_, err = me.mountFile.Write(req.output)
+	} else {
+		_, err = Writev(me.mountFile.Fd(),
+			[][]byte{req.output, req.flatData})
 	}
 
-	me.discardFuseRequest(req)
+	if err != nil {
+		me.Error(os.NewError(fmt.Sprintf("writer: Writev %v failed, err: %v. Opcode: %v",
+			req.output, err, operationName(req.inHeader.Opcode))))
+	}
 }
 
 func NewMountState(fs RawFileSystem) *MountState {
@@ -221,7 +229,7 @@ func (me *MountState) Latencies() map[string]float64 {
 
 	r := make(map[string]float64)
 	for k, v := range me.operationCounts {
-		r[k] = float64(me.operationLatencies[k]) / float64(v)
+		r[k] = 1e-6 * float64(me.operationLatencies[k]) / float64(v)
 	}
 
 	return r
@@ -239,24 +247,14 @@ func (me *MountState) OperationCounts() map[string]int64 {
 }
 
 func (me *MountState) Stats() string {
-	var lines []string
-
-	// TODO - bufferpool should use expvar.
-	lines = append(lines,
-		fmt.Sprintf("buffers: %v", me.buffers.String()))
-
-	for v := range expvar.Iter() {
-		if strings.HasPrefix(v.Key, "mount") {
-			lines = append(lines, fmt.Sprintf("%v: %v\n", v.Key, v.Value))
-		}
-	}
-	return strings.Join(lines, "\n")
+	return fmt.Sprintf("buffer alloc count %d\nbuffers %v",
+		me.buffers.AllocCount(), me.buffers.String())
 }
 
 ////////////////////////////////////////////////////////////////
 // Logic for the control loop.
 
-func (me *MountState) newFuseRequest() (*fuseRequest) {
+func (me *MountState) newFuseRequest() *fuseRequest {
 	req := new(fuseRequest)
 	req.status = OK
 	req.inputBuf = me.buffers.AllocBuffer(bufSize)
@@ -273,7 +271,7 @@ func (me *MountState) readRequest(req *fuseRequest) os.Error {
 }
 
 func (me *MountState) discardFuseRequest(req *fuseRequest) {
-	endNs := time.Nanoseconds() 
+	endNs := time.Nanoseconds()
 	dt := endNs - req.startNs
 
 	me.statisticsMutex.Lock()
@@ -282,15 +280,15 @@ func (me *MountState) discardFuseRequest(req *fuseRequest) {
 	opname := operationName(req.inHeader.Opcode)
 	key := opname
 	me.operationCounts[key] += 1
-	me.operationLatencies[key] += dt / 1e6
+	me.operationLatencies[key] += dt
 
-	key += "-dispatch" 
-	me.operationLatencies[key] += (req.dispatchNs - req.startNs) / 1e6	
-	me.operationCounts[key] += 1 
+	key += "-dispatch"
+	me.operationLatencies[key] += (req.dispatchNs - req.startNs)
+	me.operationCounts[key] += 1
 
-	key = opname + "-write" 
-	me.operationLatencies[key] += (endNs - req.preWriteNs) / 1e6	
-	me.operationCounts[key] += 1 
+	key = opname + "-write"
+	me.operationLatencies[key] += (endNs - req.preWriteNs)
+	me.operationCounts[key] += 1
 
 	me.buffers.FreeBuffer(req.inputBuf)
 	me.buffers.FreeBuffer(req.flatData)
@@ -347,19 +345,20 @@ func (me *MountState) handle(req *fuseRequest) {
 		return
 	}
 	me.dispatch(req)
-	req.preWriteNs = time.Nanoseconds()
-	me.Write(req)
+	if req.inHeader.Opcode != FUSE_FORGET {
+		serialize(req, me.Debug)
+		req.preWriteNs = time.Nanoseconds()
+		me.Write(req)
+	}
+	me.discardFuseRequest(req)
 }
 
-
 func (me *MountState) dispatch(req *fuseRequest) {
-	// TODO - would be nice to remove this logging from the critical path.
 	h := &req.inHeader
 
 	input := newInput(h.Opcode)
 	if input != nil && !parseLittleEndian(req.arg, input) {
 		req.status = EIO
-		serialize(req, me.Debug)
 		return
 	}
 
@@ -372,7 +371,7 @@ func (me *MountState) dispatch(req *fuseRequest) {
 	if h.Opcode == FUSE_UNLINK || h.Opcode == FUSE_RMDIR ||
 		h.Opcode == FUSE_LOOKUP || h.Opcode == FUSE_MKDIR ||
 		h.Opcode == FUSE_MKNOD || h.Opcode == FUSE_CREATE ||
-		h.Opcode == FUSE_LINK {
+		h.Opcode == FUSE_LINK || h.Opcode == FUSE_GETXATTR {
 		filename = strings.TrimRight(string(req.arg.Bytes()), "\x00")
 	}
 	if me.Debug {
@@ -396,7 +395,6 @@ func (me *MountState) dispatch(req *fuseRequest) {
 		// If we try to write OK, nil, we will get
 		// error:  writer: Writev [[16 0 0 0 0 0 0 0 17 0 0 0 0 0 0 0]]
 		// failed, err: writev: no such file or directory
-		me.discardFuseRequest(req)
 		return
 	case FUSE_GETATTR:
 		// TODO - if input.Fh is set, do file.GetAttr
@@ -454,8 +452,9 @@ func (me *MountState) dispatch(req *fuseRequest) {
 	// TODO - implement XAttr routines.
 	// case FUSE_SETXATTR:
 	//	status = fs.SetXAttr(h, input.(*SetXAttrIn))
-	// case FUSE_GETXATTR:
-	//	out, status = fs.GetXAttr(h, input.(*GetXAttrIn))
+	case FUSE_GETXATTR:
+		out, req.flatData, status = doGetXAttr(me, h, input.(*GetXAttrIn), filename)
+
 	// case FUSE_LISTXATTR:
 	// case FUSE_REMOVEXATTR
 
@@ -478,24 +477,19 @@ func (me *MountState) dispatch(req *fuseRequest) {
 	default:
 		me.Error(os.NewError(fmt.Sprintf("Unsupported OpCode: %d=%v", h.Opcode, operationName(h.Opcode))))
 		req.status = ENOSYS
-		serialize(req, me.Debug)
 		return
 	}
 
 	req.status = status
 	req.data = out
-
-	serialize(req, me.Debug)
 }
 
 func serialize(req *fuseRequest, debug bool) {
-	out_data := make([]byte, 0)
-	b := new(bytes.Buffer)
+	headerBytes := make([]byte, SizeOfOutHeader)
+	buf := bytes.NewBuffer(headerBytes)
 	if req.data != nil && req.status == OK {
-		err := binary.Write(b, binary.LittleEndian, req.data)
-		if err == nil {
-			out_data = b.Bytes()
-		} else {
+		err := binary.Write(buf, binary.LittleEndian, req.data)
+		if err != nil {
 			panic(fmt.Sprintf("Can't serialize out: %v, err: %v", req.data, err))
 		}
 	}
@@ -503,15 +497,17 @@ func serialize(req *fuseRequest, debug bool) {
 	var hOut OutHeader
 	hOut.Unique = req.inHeader.Unique
 	hOut.Status = -req.status
-	hOut.Length = uint32(len(out_data) + SizeOfOutHeader + len(req.flatData))
+	hOut.Length = uint32(buf.Len() + len(req.flatData))
 
-	b = new(bytes.Buffer)
-	err := binary.Write(b, binary.LittleEndian, &hOut)
+	data := buf.Bytes()
+
+	buf = bytes.NewBuffer(data[:0])
+	err := binary.Write(buf, binary.LittleEndian, &hOut)
 	if err != nil {
 		panic("Can't serialize OutHeader")
 	}
 
-	req.serialized = [][]byte{b.Bytes(), out_data, req.flatData}
+	req.output = data
 	if debug {
 		val := fmt.Sprintf("%v", req.data)
 		max := 1024
@@ -611,6 +607,26 @@ func doFlush(state *MountState, header *InHeader, input *FlushIn) (out Empty, co
 func doSetattr(state *MountState, header *InHeader, input *SetAttrIn) (out *AttrOut, code Status) {
 	// TODO - if Fh != 0, we should do a FSetAttr instead.
 	return state.fileSystem.SetAttr(header, input)
+}
+
+func doGetXAttr(state *MountState, header *InHeader, input *GetXAttrIn, attr string) (out Empty, data []byte, code Status) {
+	data, code = state.fileSystem.GetXAttr(header, attr)
+	if code != OK {
+		return nil, nil, code
+	}
+
+	size := uint32(len(data))
+	if input.Size == 0 {
+		out := new(GetXAttrOut)
+		out.Size = size
+		return out, nil, OK
+	}
+
+	if size > input.Size {
+		return nil, nil, ERANGE
+	}
+
+	return nil, data, OK
 }
 
 ////////////////////////////////////////////////////////////////

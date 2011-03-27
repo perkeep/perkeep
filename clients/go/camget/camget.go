@@ -67,7 +67,7 @@ func main() {
 			log.Printf("Need to fetch %s", br.String())
 		}
 		var (
-			r blobref.ReadSeekCloser
+			r io.ReadCloser
 			err os.Error
 		)
 
@@ -85,11 +85,12 @@ func main() {
 			}
 			r, _, err = client.FetchVia(br, abr)
 		} else {
-			r, _, err = client.Fetch(br)
+			r, _, err = client.FetchStreaming(br)
 		}
 		if err != nil {
 			log.Fatalf("Failed to fetch %q: %s", br, err)
 		}
+		defer r.Close()
 		_, err = io.Copy(w, r)
 		if err != nil {
 			log.Fatalf("Failed transferring %q: %s", br, err)

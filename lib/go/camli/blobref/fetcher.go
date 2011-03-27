@@ -18,6 +18,7 @@ package blobref
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -27,6 +28,13 @@ type Fetcher interface {
 	// os.ENOENT should be returned for the error (not a wrapped
 	// error with a ENOENT inside)
 	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
+}
+
+type StreamingFetcher interface {
+	// Fetch returns a blob.  If the blob is not found then
+	// os.ENOENT should be returned for the error (not a wrapped
+	// error with a ENOENT inside)
+	FetchStreaming(*BlobRef) (file io.ReadCloser, size int64, err os.Error)
 }
 
 func NewSerialFetcher(fetchers ...Fetcher) Fetcher {

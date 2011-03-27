@@ -96,8 +96,8 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	gotBlobs := uint(0)
 	for endsReached < 2 {
 		select {
-		case sb := <-blobch:
-			if sb == nil {
+		case sb, ok := <-blobch:
+			if !ok {
 				endsReached++
 				if gotBlobs <= limit {
 					after = ""

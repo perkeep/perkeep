@@ -162,7 +162,7 @@ sub fixit_tip {
                 "See: http://blog.golang.org/2011/03/go-becomes-more-stable.html\n";
         }
         unless ($gover =~ /weekly\.(\d\d\d\d)-(\d\d)-(\d\d)/) {
-            return "Failed to parse your Go version.  You have \$gover\" but since\n".
+            return "Failed to parse your Go version.  You have \"$gover\" but since\n".
                 "I can't parse it, I can't tell you if it's too old or not.\n";
         }
         my ($yyyy, $mm, $dd) = ($1, $2, $3);
@@ -280,7 +280,7 @@ sub find_go_camli_deps {
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
 
     opendir(my $dh, $target) or die;
-    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
     # TODO: just stat the files first and keep a cache file of the
@@ -292,7 +292,7 @@ sub find_go_camli_deps {
     my @deps;
     my %seen;  # $dep -> 1
     for my $f (@go_files) {
-        open(my $fh, "$target/$f") or die;
+        open(my $fh, "$target/$f") or die "Failed to open $target/$f: $!";
         my $src = do { local $/; <$fh>; };
         unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
             die "Failed to parse imports from $target/$f.\n".
@@ -327,7 +327,7 @@ sub gen_target_makefile {
     my @deps = @{$t->{deps}};
 
     opendir(my $dh, $target) or die;
-    my @go_files = grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
     open(my $mf, ">$target/Makefile") or die;
@@ -403,6 +403,7 @@ TARGET: lib/go/camli/blobserver/localdisk
 TARGET: lib/go/camli/client
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonsign
+TARGET: lib/go/camli/lru
 TARGET: lib/go/camli/magic
 TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/mysqlindexer

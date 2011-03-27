@@ -45,6 +45,9 @@ type Partition interface {
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
+	//
+	// mirrorPartitions may not be supported by all instances
+	// and may return an error if used.
 	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
 }
 
@@ -67,8 +70,8 @@ type BlobEnumerator interface {
 	// limit will be supplied and sanity checked by caller.
 	// waitSeconds is the max time to wait for any blobs to exist
 	// in the given partition, or 0 for no delay.
-	// EnumerateBlobs doesn't close the channel at the end but
-	// sends a nil.  TODO: change this later to close?
+	// EnumerateBlobs must close the channel.  (even if limit
+	// was hit and more blobs remain)
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef,
 		partition Partition,
 		after string,
@@ -76,6 +79,12 @@ type BlobEnumerator interface {
 		waitSeconds int) os.Error
 }
 
+// Cache is the minimal interface expected of a blob cache.
+type Cache interface {
+	blobref.Fetcher
+	BlobReceiver
+	BlobStatter
+}
 
 type Storage interface {
 	blobref.Fetcher

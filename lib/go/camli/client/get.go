@@ -42,11 +42,11 @@ func (c *Client) newRequest(method, url string) *http.Request {
 	return req
 }
 
-func (c *Client) Fetch(b *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
+func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	return c.FetchVia(b, nil)
 }
 
-func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
+func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	url := fmt.Sprintf("%s/camli/%s", c.server, b)
 
 	if len(v) > 0 {
@@ -76,14 +76,5 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (blobref.Rea
 		return nil, 0, os.NewError("blobserver didn't return a Content-Length for blob")
 	}
 
-	return nopSeeker{resp.Body}, size, nil	
+	return resp.Body, size, nil
 }
-
-type nopSeeker struct {
-	io.ReadCloser
-}
-
-func (n nopSeeker) Seek(offset int64, whence int) (ret int64, err os.Error) {
-	return 0, os.NewError("seek unsupported")
-}
-

@@ -69,7 +69,7 @@ func (me *DefaultRawFuseFileSystem) SetXAttr(header *InHeader, input *SetXAttrIn
 	return ENOSYS
 }
 
-func (me *DefaultRawFuseFileSystem) GetXAttr(header *InHeader, input *GetXAttrIn) (out *GetXAttrOut, code Status) {
+func (me *DefaultRawFuseFileSystem) GetXAttr(header *InHeader, attr string) (data []byte, code Status) {
 	return nil, ENOSYS
 }
 
@@ -146,6 +146,10 @@ func (me *DefaultRawFuseDir) FsyncDir(input *FsyncIn) (code Status) {
 // DefaultPathFilesystem
 
 func (me *DefaultPathFilesystem) GetAttr(name string) (*Attr, Status) {
+	return nil, ENOSYS
+}
+
+func (me *DefaultPathFilesystem) GetXAttr(name string, attr string) ([]byte, Status) {
 	return nil, ENOSYS
 }
 

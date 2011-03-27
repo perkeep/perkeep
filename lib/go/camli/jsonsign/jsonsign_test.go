@@ -17,14 +17,11 @@ limitations under the License.
 package jsonsign
 
 import (
-	"camli/blobref"
 	"camli/test"
 	. "camli/test/asserts"
 
 	"fmt"
-	"os"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -98,7 +95,7 @@ jyVNPb8AaaWVW1uZLg6Em61aKnbOG10B30m3CQ8dwBjF9hgmtcY0IZ/Y
 var pubKeyBlob1 = &test.Blob{pubKey1} // user 1
 var pubKeyBlob2 = &test.Blob{pubKey2} // user 2
 
-var testFetcher = &TestFetcher{}
+var testFetcher = &test.Fetcher{}
 
 func init() {
 	testFetcher.AddBlob(pubKeyBlob1)
@@ -167,69 +164,4 @@ func TestSigning(t *testing.T) {
 		"expected signature verification error")
 
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
-}
-
-type TestFetcher struct {
-	l sync.Mutex
-	m map[string]*test.Blob
-}
-
-func (tf *TestFetcher) AddBlob(b *test.Blob) {
-	tf.l.Lock()
-	defer tf.l.Unlock()
-	if tf.m == nil {
-		tf.m = make(map[string]*test.Blob)
-	}
-	tf.m[b.BlobRef().String()] = b
-}
-
-func (tf *TestFetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
-	tf.l.Lock()
-	defer tf.l.Unlock()
-	if tf.m == nil {
-		err = os.ENOENT
-		return
-	}
-	tb, ok := tf.m[ref.String()]
-	if !ok {
-		err = os.ENOENT
-		return
-	}
-	file = &strReader{tb.Contents, 0}
-	size = int64(len(tb.Contents))
-	return
-}
-
-type strReader struct {
-	s   string
-	pos int
-}
-
-func (sr *strReader) Close() os.Error { return nil }
-
-func (sr *strReader) Seek(offset int64, whence int) (ret int64, err os.Error) {
-	// Note: ignoring 64-bit offsets.  test data should be tiny.
-	switch whence {
-	case 0:
-		sr.pos = int(offset)
-	case 1:
-		sr.pos += int(offset)
-	case 2:
-		sr.pos = len(sr.s) + int(offset)
-	}
-	ret = int64(sr.pos)
-	return
-}
-
-func (sr *strReader) Read(p []byte) (n int, err os.Error) {
-	if sr.pos >= len(sr.s) {
-		err = os.EOF
-		return
-	}
-	n = copy(p, sr.s[sr.pos:])
-	if n == 0 {
-		err = os.EOF
-	}
-	sr.pos += n
-	return
 }

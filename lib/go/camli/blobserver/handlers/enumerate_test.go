@@ -47,7 +47,7 @@ func (ee *emptyEnumerator) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
         after string,
         limit uint,
         waitSeconds int) os.Error {
-	dest <- nil
+	close(dest)
 	return nil
 }
 

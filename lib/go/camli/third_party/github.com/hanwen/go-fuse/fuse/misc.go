@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"regexp"
+	"sort"
 	"syscall"
 	"unsafe"
 	"io/ioutil"
@@ -17,7 +18,7 @@ import (
 
 // Make a temporary directory securely.
 func MakeTempDir() string {
-	nm, err := ioutil.TempDir("", "go-fuse");
+	nm, err := ioutil.TempDir("", "go-fuse")
 	if err != nil {
 		panic("TempDir() failed: " + err.String())
 	}
@@ -257,12 +258,12 @@ func Writev(fd int, packet [][]byte) (n int, err os.Error) {
 			continue
 		}
 		vec := syscall.Iovec{
-		Base: &v[0],
+			Base: &v[0],
 		}
 		vec.SetLen(len(v))
-		iovecs = append(iovecs, vec) 
+		iovecs = append(iovecs, vec)
 	}
-	
+
 	if len(iovecs) == 0 {
 		return 0, nil
 	}
@@ -307,3 +308,22 @@ func CheckSuccess(e os.Error) {
 	}
 }
 
+// For printing latency data.
+func PrintMap(m map[string]float64) {
+	keys := make([]string, len(m))
+	for k, _ := range m {
+		keys = append(keys, k)
+	}
+
+	sort.SortStrings(keys)
+	for _, k := range keys {
+		if m[k] > 0 {
+			fmt.Println(k, m[k])
+		}
+	}
+}
+
+func MyPID() string {
+	v, _ := os.Readlink("/proc/self")
+	return v
+}

@@ -19,9 +19,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 
+	"camli/blobref"
+	"camli/blobserver/localdisk" // used for the blob cache
+	"camli/client"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
@@ -44,23 +48,35 @@ func main() {
 	debug := flag.Bool("debug", false, "print debugging messages.")
 	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
 	flag.Parse()
-	if flag.NArg() < 2 {
-		// TODO - where to get program name?
-		fmt.Println("usage: main ORIGINAL MOUNTPOINT")
+
+	errorf := func(msg string, args ...interface{}) {
+		fmt.Fprintf(os.Stderr, msg, args...)
 		os.Exit(2)
 	}
 
-	orig := flag.Arg(0)
-	fs := fuse.NewLoopbackFileSystem(orig)
+	if flag.NArg() < 2 {
+		errorf("usage: cammount <blobref> <mountpoint>")
+	}
+
+	root := blobref.Parse(flag.Arg(0))
+	if root == nil {
+		errorf("Error parsing root blobref: %q\n", root)
+	}
+	client := client.NewOrFail() // automatic from flags
+
+	cacheDir, err := ioutil.TempDir("", "camlicache")
+	if err != nil {
+		errorf("Error creating temp cache directory: %v\n", err)
+	}
+	defer os.RemoveAll(cacheDir)
+	diskcache, err := localdisk.New(cacheDir)
+	if err != nil {
+		errorf("Error setting up local disk cache: %v", err)
+	}
+	fetcher := NewCachingFetcher(diskcache, client)
+
+	fs := NewCamliFileSystem(fetcher, root)
 	timing := fuse.NewTimingPathFilesystem(fs)
-
-	var opts fuse.PathFileSystemConnectorOptions
-
-	opts.AttrTimeout = 1.0
-	opts.EntryTimeout = 1.0
-	opts.NegativeTimeout = 1.0
-
-	fs.SetOptions(&opts)
 
 	conn := fuse.NewPathFileSystemConnector(timing)
 	rawTiming := fuse.NewTimingRawFilesystem(conn)
@@ -69,13 +85,13 @@ func main() {
 	state.Debug = *debug
 
 	mountPoint := flag.Arg(1)
-	err := state.Mount(mountPoint)
+	err = state.Mount(mountPoint)
 	if err != nil {
 		fmt.Printf("MountFuse fail: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", orig, mountPoint, *threaded, *debug)
+	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", root.String(), mountPoint, *threaded, *debug)
 	state.Loop(*threaded)
 	fmt.Println("Finished", state.Stats())
 

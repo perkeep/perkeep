@@ -99,9 +99,8 @@ func (me *FuseDir) ReadDir(input *ReadIn) (*DirEntryList, Status) {
 	}
 
 	for {
-		d := <-me.stream
-		if d.Name == "" {
-			close(me.stream)
+		d, isOpen := <-me.stream
+		if !isOpen {
 			me.stream = nil
 			break
 		}

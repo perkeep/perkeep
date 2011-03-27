@@ -24,13 +24,17 @@ import (
 	"fmt"
 	"io"
 	"json"
+	"log"
 	"os"
 	"rand"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
+
+var _ = log.Printf
 
 var NoCamliVersionError = os.NewError("No camliVersion key in map")
 var UnimplementedError = os.NewError("Unimplemented")
@@ -43,6 +47,9 @@ type StatHasher interface {
 // Superset represents the superset of common camlistore JSON schema
 // keys as a convenient json.Unmarshal target
 type Superset struct {
+	BlobRef *blobref.BlobRef  // Not in JSON, but included for
+				  // those who want to set it.
+
 	Version int    "camliVersion"
 	Type    string "camliType"
 
@@ -55,7 +62,180 @@ type Superset struct {
 	Permanode string "permaNode"
 	Attribute string "attribute"
 	Value     string "value"
+
+	FileName      string "fileName"
+	FileNameBytes []interface{} "fileNameBytes" // TODO: needs custom UnmarshalJSON?
+
+	SymlinkTarget      string "symlinkTarget"
+	SymlinkTargetBytes []interface{} "symlinkTargetBytes" // TODO: needs custom UnmarshalJSON?
+
+	UnixPermission string "unixPermission"
+	UnixOwnerId    int "unixOwnerId"
+	UnixOwner      string "unixOwner"
+	UnixGroupId    int "unixGroupId"
+	UnixGroup      string "unixGroup"
+	UnixMtime      string "unixMtime"
+	UnixCtime      string "unixCtime"
+	UnixAtime      string "unixAtime"
+
+	Size  uint64 "size"  // for files
+	ContentParts []*ContentPart "contentParts"
+
+	Entries   string "entries" // for directories, a blobref to a static-set
+	Members []string "members" // for static sets (for directory static-sets:
+	                           // blobrefs to child dirs/files)
 }
+
+type ContentPart struct {
+	BlobRefString string "blobRef"
+	BlobRef       *blobref.BlobRef  // TODO: ditch BlobRefString? use json.Unmarshaler?
+	Size          uint64 "size"
+	Offset        uint64 "offset"
+}
+
+func (cp *ContentPart) blobref() *blobref.BlobRef {
+	if cp.BlobRef == nil {
+		cp.BlobRef = blobref.Parse(cp.BlobRefString)
+	}
+	return cp.BlobRef
+}
+
+func stringFromMixedArray(parts []interface{}) string {
+	buf := new(bytes.Buffer)
+	for _, part := range parts {
+		if s, ok := part.(string); ok {
+			buf.WriteString(s)
+			continue
+		}
+		if num, ok := part.(float64); ok {
+			buf.WriteByte(byte(num))
+                        continue
+		}
+	}
+	return buf.String()
+}
+
+func (ss *Superset) SymlinkTargetString() string {
+	if ss.SymlinkTarget != "" {
+		return ss.SymlinkTarget
+	}
+	return stringFromMixedArray(ss.SymlinkTargetBytes)
+}
+
+func (ss *Superset) FileNameString() string {
+	if ss.FileName != "" {
+		return ss.FileName
+	}
+	return stringFromMixedArray(ss.FileNameBytes)
+}
+
+func (ss *Superset) HasFilename(name string) bool {
+	return ss.FileNameString() == name
+}
+
+func (ss *Superset) UnixMode() (mode uint32) {
+	m64, err := strconv.Btoui64(ss.UnixPermission, 8)
+	if err == nil {
+		mode = mode | uint32(m64)
+	}
+
+	// TODO: add other types
+	switch ss.Type {
+	case "directory":
+		mode = mode | syscall.S_IFDIR
+	case "file":
+		mode = mode | syscall.S_IFREG
+	case "symlink":
+		mode = mode | syscall.S_IFLNK
+	}
+	return
+}
+
+type FileReader struct {
+	fetcher blobref.Fetcher
+	ss      *Superset
+	ci      int     // index into contentparts
+	ccon    uint64  // bytes into current chunk already consumed
+}
+
+func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
+	// TODO: return an error if ss isn't a Type "file" ?
+	// TODO: return some error if the redundant ss.Size field doesn't match ContentParts?
+	return &FileReader{fetcher, ss, 0, 0}
+}
+
+func minu64(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (fr *FileReader) Skip(skipBytes uint64) {
+	for skipBytes != 0 && fr.ci < len(fr.ss.ContentParts) {
+		cp := fr.ss.ContentParts[fr.ci]
+		thisChunkSkippable := cp.Size - fr.ccon
+		toSkip := minu64(skipBytes, thisChunkSkippable)
+		fr.ccon += toSkip
+		if fr.ccon == cp.Size {
+			fr.ci++
+			fr.ccon = 0
+		}
+		skipBytes -= toSkip
+	}
+}
+
+func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
+	var cp *ContentPart
+	for {
+		if fr.ci >= len(fr.ss.ContentParts) {
+			return 0, os.EOF
+		}
+		cp = fr.ss.ContentParts[fr.ci]
+		thisChunkReadable := cp.Size - fr.ccon
+		if thisChunkReadable == 0 {
+			fr.ci++
+			fr.ccon = 0
+			continue
+		}
+		break
+	}
+
+	br := cp.blobref()
+	if br == nil {
+			return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
+	}
+	// TODO: performance: don't re-fetch this on every
+	// Read call.  most parts will be large relative to
+	// read sizes.  we should stuff the rsc away in fr
+	// and re-use it just re-seeking if needed, which
+	// could also be tracked.
+	rsc, _, ferr := fr.fetcher.Fetch(br)
+	if ferr != nil {
+		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
+	}
+	defer rsc.Close()
+	
+	seekTo := cp.Offset + fr.ccon
+	if seekTo != 0 {
+		_, serr := rsc.Seek(int64(seekTo), 0)
+		if serr != nil {
+			return 0, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
+		}
+	}
+
+	readSize := cp.Size - fr.ccon
+	if uint64(len(p)) < readSize {
+		readSize = uint64(len(p))
+	}
+
+	n, err = rsc.Read(p[:int(readSize)])
+	if err == nil || err == os.EOF {
+		fr.ccon += uint64(n)
+	}
+	return
+}
+
 
 var DefaultStatHasher = &defaultStatHasher{}
 
@@ -171,20 +351,14 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 		}
 	}
 	if mtime := fi.Mtime_ns; mtime != 0 {
-		m["unixMtime"] = rfc3339FromNanos(mtime)
+		m["unixMtime"] = Rfc3339FromNanos(mtime)
 	}
 	// Include the ctime too, if it differs.
 	if ctime := fi.Ctime_ns; ctime != 0 && fi.Mtime_ns != fi.Ctime_ns {
-		m["unixCtime"] = rfc3339FromNanos(ctime)
+		m["unixCtime"] = Rfc3339FromNanos(ctime)
 	}
 
 	return m
-}
-
-type ContentPart struct {
-	BlobRef *blobref.BlobRef
-	Size    int64
-	Offset  int64
 }
 
 type InvalidContentPartsError struct {
@@ -200,7 +374,7 @@ func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []C
 	m["camliType"] = "file"
 	m["size"] = fi.Size
 
-	sumSize := int64(0)
+	sumSize := uint64(0)
 	mparts := make([]map[string]interface{}, len(parts))
 	for idx, part := range parts {
 		mpart := make(map[string]interface{})
@@ -212,8 +386,8 @@ func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []C
 			mpart["offset"] = part.Offset
 		}
 	}
-	if sumSize != fi.Size {
-		return &InvalidContentPartsError{fi.Size, sumSize}
+	if sumSize != uint64(fi.Size) {
+		return &InvalidContentPartsError{fi.Size, int64(sumSize)}
 	}
 	m["contentParts"] = mparts
 	return nil
@@ -250,7 +424,7 @@ func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
-	m["claimDate"] = rfc3339FromNanos(time.Nanoseconds())
+	m["claimDate"] = Rfc3339FromNanos(time.Nanoseconds())
 	return m
 }
 
@@ -278,7 +452,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]in
 // Types of ShareRefs
 const ShareHaveRef = "haveref"
 
-func rfc3339FromNanos(epochnanos int64) string {
+func Rfc3339FromNanos(epochnanos int64) string {
 	nanos := epochnanos % 1e9
 	esec := epochnanos / 1e9
 	t := time.SecondsToUTC(esec)
