@@ -29,6 +29,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -148,6 +149,18 @@ public class BrowseActivity extends ListActivity {
 
             Entry entry = mEntries.get(position);
             ((TextView) view.findViewById(R.id.title)).setText(entry.toString());
+
+            ImageView icon = ((ImageView) view.findViewById(R.id.icon));
+            switch (entry.getType()) {
+                case DIRECTORY:
+                    icon.setImageResource(R.drawable.icon_folder);
+                    break;
+                case FILE:
+                    icon.setImageResource(R.drawable.icon_file);
+                    break;
+                default:
+            }
+
             return view;
         }
     }
