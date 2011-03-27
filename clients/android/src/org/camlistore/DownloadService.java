@@ -20,6 +20,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Binder;
+import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
@@ -47,7 +48,13 @@ public class DownloadService extends Service {
     private static final int BUFFER_SIZE = 4096;
     private static final String USERNAME = "TODO-DUMMY-USER";
     private static final String SEARCH_BLOBREF = "search";
+
+    // Name of directory on external storage where cached blobs are stored.
     private static final String BLOB_SUBDIR = "blobs";
+
+    // Name of cache directory on external storage where we write copies of cached blobs
+    // to hand out to listeners.  Cleared at startup.
+    private static final String BLOB_COPIES_SUBDIR = "blob_copies";
 
     private final IBinder mBinder = new LocalBinder();
     private final Handler mHandler = new Handler();
@@ -55,18 +62,23 @@ public class DownloadService extends Service {
     // Effectively-final objects initialized in onCreate().
     private SharedPreferences mSharedPrefs;
     private DownloadCache mCache;
+    // Directory on external storage where we make copies of blob files to hand to clients.
+    private File mBlobCopiesDir;
 
     // Protects members containing the state of current downloads.
-    private final ReentrantLock mDownloadLock = new ReentrantLock();
+    private final ReentrantLock mLock = new ReentrantLock();
 
-    // Blobs currently being downloaded.  Protected by |mDownloadLock|.
+    // Blobs currently being downloaded.  Protected by |mLock|.
     private final HashSet<String> mInProgressBlobRefs = new HashSet<String>();
 
-    // Maps from blobrefs to callbacks for their contents.  Protected by |mDownloadLock|.
+    // Maps from blobrefs to callbacks for their contents.  Protected by |mLock|.
     private final HashMap<String, ArrayList<ByteArrayListener>> mByteArrayListenersByBlobRef =
         new HashMap<String, ArrayList<ByteArrayListener>>();
     private final HashMap<String, ArrayList<FileListener>> mFileListenersByBlobRef =
         new HashMap<String, ArrayList<FileListener>>();
+
+    // Closed until |mBlobCopiesDir| has been created and cleared.
+    private final ConditionVariable mBlobCopiesDirIsReady = new ConditionVariable(false);
 
     // Callback for receiving a blob's contents as an in-memory array of bytes.
     interface ByteArrayListener {
@@ -76,6 +88,8 @@ public class DownloadService extends Service {
 
     // Callback for receiving a blob's contents as a File.
     interface FileListener {
+        // The listener is responsible for deleting |file| once it's done using it.
+        // Abandoned files are cleared when the service starts.
         void onBlobDownloadSuccess(String blobRef, File file);
         void onBlobDownloadFailure(String data);
     }
@@ -93,6 +107,20 @@ public class DownloadService extends Service {
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
         mCache = new DownloadCache(new File(getExternalFilesDir(null), BLOB_SUBDIR).getPath(),
                                    new Preferences(mSharedPrefs));
+
+        // Create |mBlobCopiesDir| and delete any stale files left over in it from a previous run.
+        mBlobCopiesDir = new File(getExternalCacheDir(), BLOB_COPIES_SUBDIR);
+        Util.runAsync(new Runnable() {
+            @Override
+            public void run() {
+                mBlobCopiesDir.mkdirs();
+                for (File file : mBlobCopiesDir.listFiles()) {
+                    Log.d(TAG, "deleting stale temp blob file " + file.getPath());
+                    file.delete();
+                }
+                mBlobCopiesDirIsReady.open();
+            }
+        });
     }
 
     @Override
@@ -131,7 +159,7 @@ public class DownloadService extends Service {
     // Get a list of byte array listeners waiting for |blobRef|.
     // If |insert| is true, the returned list can be used for adding new listeners.
     private ArrayList<ByteArrayListener> getByteArrayListenersForBlobRef(String blobRef, boolean insert) {
-        Util.assertLockIsHeld(mDownloadLock);
+        Util.assertLockIsHeld(mLock);
         ArrayList<ByteArrayListener> listeners = mByteArrayListenersByBlobRef.get(blobRef);
         if (listeners == null) {
             listeners = new ArrayList<ByteArrayListener>();
@@ -144,7 +172,7 @@ public class DownloadService extends Service {
     // Get a list of file listeners waiting for |blobRef|.
     // If |insert| is true, the returned list can be used for adding new listeners.
     private ArrayList<FileListener> getFileListenersForBlobRef(String blobRef, boolean insert) {
-        Util.assertLockIsHeld(mDownloadLock);
+        Util.assertLockIsHeld(mLock);
         ArrayList<FileListener> listeners = mFileListenersByBlobRef.get(blobRef);
         if (listeners == null) {
             listeners = new ArrayList<FileListener>();
@@ -176,7 +204,7 @@ public class DownloadService extends Service {
 
         @Override
         public void run() {
-            mDownloadLock.lock();
+            mLock.lock();
             try {
                 if (mByteArrayListener != null) {
                     getByteArrayListenersForBlobRef(mBlobRef, true).add(mByteArrayListener);
@@ -193,7 +221,7 @@ public class DownloadService extends Service {
                     return;
                 mInProgressBlobRefs.add(mBlobRef);
             } finally {
-                mDownloadLock.unlock();
+                mLock.unlock();
             }
 
             mBlobFile = mCache.getFileForBlob(mBlobRef);
@@ -249,9 +277,9 @@ public class DownloadService extends Service {
                     return;
                 }
 
-                mDownloadLock.lock();
+                mLock.lock();
                 final boolean shouldDownloadToByteArray = !getByteArrayListenersForBlobRef(mBlobRef, false).isEmpty();
-                mDownloadLock.unlock();
+                mLock.unlock();
 
                 if (canBlobBeCached(mBlobRef)) {
                     tempFile = mCache.getTempFileForDownload(mBlobRef, mSizeHintBytes);
@@ -301,10 +329,10 @@ public class DownloadService extends Service {
                 // handle the file listeners and any byte array listeners that were added in the meantime; this is just
                 // an optimization so we don't block on disk if we only have byte array listeners.
                 if (shouldDownloadToByteArray) {
-                    mDownloadLock.lock();
+                    mLock.lock();
                     ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
                     mByteArrayListenersByBlobRef.remove(mBlobRef);
-                    mDownloadLock.unlock();
+                    mLock.unlock();
 
                     mBlobBytes = ((ByteArrayOutputStream) outputStream).toByteArray();
                     sendBlobToByteArrayListeners(byteArrayListeners, mBlobBytes);
@@ -362,16 +390,16 @@ public class DownloadService extends Service {
         // Removes |mBlobRef| from |mInProgressBlobRefs| and removes listeners from
         // |mByteArrayListenersByBlobRef| and |mFileListenersByBlobRef|.
         private void notifyListeners() {
-            mDownloadLock.lock();
+            mLock.lock();
             ArrayList<ByteArrayListener> byteArrayListeners = getByteArrayListenersForBlobRef(mBlobRef, false);
             mByteArrayListenersByBlobRef.remove(mBlobRef);
             ArrayList<FileListener> fileListeners = getFileListenersForBlobRef(mBlobRef, false);
             mFileListenersByBlobRef.remove(mBlobRef);
             mInProgressBlobRefs.remove(mBlobRef);
-            mDownloadLock.unlock();
+            mLock.unlock();
 
             // Make sure that we're not holding the lock; we're about to hit the disk.
-            Util.assertLockIsNotHeld(mDownloadLock);
+            Util.assertLockIsNotHeld(mLock);
 
             if (!byteArrayListeners.isEmpty()) {
                 // If we don't have the data in memory already but it's on disk, read it.
@@ -387,11 +415,25 @@ public class DownloadService extends Service {
             }
 
             for (final FileListener listener : fileListeners) {
+                File listenerFile = null;
+                if (mBlobFile != null) {
+                    mBlobCopiesDirIsReady.block();
+                    // Make a copy of the file for each listener to ensure that they won't modify the cached blob.
+                    try {
+                        listenerFile = File.createTempFile(mBlobRef + "-", "", mBlobCopiesDir);
+                        Log.d(TAG, "copying " + mBlobFile.getPath() + " to " + listenerFile.getPath());
+                        Util.copyFile(mBlobFile, listenerFile);
+                    } catch (IOException e) {
+                        Log.e(TAG, "got IO error while making copy of blob " + mBlobRef, e);
+                    }
+                }
+
+                final File finalListenerFile = listenerFile;
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (mBlobFile != null) {
-                            listener.onBlobDownloadSuccess(mBlobRef, mBlobFile);
+                        if (finalListenerFile != null) {
+                            listener.onBlobDownloadSuccess(mBlobRef, finalListenerFile);
                         } else {
                             listener.onBlobDownloadFailure(mBlobRef);
                         }

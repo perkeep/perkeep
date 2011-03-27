@@ -18,15 +18,20 @@ package org.camlistore;
 
 import android.app.ListActivity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -46,7 +51,7 @@ public class BrowseActivity extends ListActivity {
     private static final String DEFAULT_MIME_TYPE = "application/octet-stream";
 
     private DownloadService mService = null;
-    private ArrayAdapter mAdapter;
+    private final EntryAdapter mAdapter = new EntryAdapter();
 
     private String mBlobRef = "";
 
@@ -54,6 +59,13 @@ public class BrowseActivity extends ListActivity {
     private HashMap<String, Entry> mEntriesByBlobRef = new HashMap<String, Entry>();
     // TODO: Remove this; it's pretty ugly.
     private HashMap<String, Entry> mEntriesByContentBlobRef = new HashMap<String, Entry>();
+
+    // Map from the request code of an activity that we started to the file that we passed to it.
+    // We keep track of this so that we can delete the file when the activity is done.
+    private HashMap<Integer, File> mOutstandingActivities = new HashMap<Integer, File>();
+
+    // Next request code to allocate for |mOutstandingActivities|.
+    private int mNextActivityRequestCode = 1;
 
     private enum EntryType {
         UNKNOWN("unknown"),
@@ -124,6 +136,42 @@ public class BrowseActivity extends ListActivity {
         }
     }
 
+    private class EntryAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return mEntries.size(); }
+        @Override
+        public Object getItem(int position) { return position; }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View view;
+            if (convertView != null) {
+                view = convertView;
+            } else {
+                LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+                view = inflater.inflate(R.layout.browse_row, null);
+            }
+
+            Entry entry = mEntries.get(position);
+            ((TextView) view.findViewById(R.id.title)).setText(entry.toString());
+
+            ImageView icon = ((ImageView) view.findViewById(R.id.icon));
+            switch (entry.getType()) {
+                case DIRECTORY:
+                    icon.setImageResource(R.drawable.icon_folder);
+                    break;
+                case FILE:
+                    icon.setImageResource(R.drawable.icon_file);
+                    break;
+                default:
+            }
+
+            return view;
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate");
@@ -138,11 +186,6 @@ public class BrowseActivity extends ListActivity {
         startService(serviceIntent);
         bindService(new Intent(this, DownloadService.class), mConnection, 0);
 
-        mAdapter = new ArrayAdapter(
-            this,
-            R.layout.browse_row,
-            android.R.id.title,
-            mEntries);
         setListAdapter(mAdapter);
     }
 
@@ -151,6 +194,24 @@ public class BrowseActivity extends ListActivity {
         Log.d(TAG, "onDestroy");
         super.onDestroy();
         unbindService(mConnection);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        final File file = mOutstandingActivities.get(requestCode);
+        if (file == null) {
+            Log.e(TAG, "got unknown activity result with request code " + requestCode);
+            return;
+        }
+        mOutstandingActivities.remove(requestCode);
+
+        Util.runAsync(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "deleting " + file.getPath());
+                file.delete();
+            }
+        });
     }
 
     @Override
@@ -335,18 +396,9 @@ public class BrowseActivity extends ListActivity {
                 return;
             }
 
-            // Try to guess the MIME type from the data itself first.
+            // Try to guess the mime type from the filename's extension.
             String mimeType = null;
-            try {
-                FileInputStream inputStream = new FileInputStream(file);
-                mimeType = URLConnection.guessContentTypeFromStream(inputStream);
-                inputStream.close();
-            } catch (IOException e) {
-                Log.e(TAG, "got IO error while trying to guess mime type for " + file.getPath(), e);
-            }
-
-            // If that didn't work, try to guess it from the filename.
-            if (mimeType == null && entry.getFilename() != null)
+            if (entry.getFilename() != null)
                 mimeType = URLConnection.guessContentTypeFromName(entry.getFilename());
             if (mimeType == null)
                 mimeType = DEFAULT_MIME_TYPE;
@@ -354,8 +406,11 @@ public class BrowseActivity extends ListActivity {
             Intent intent = new Intent();
             intent.setAction(intent.ACTION_VIEW);
             intent.setDataAndType(Uri.fromFile(file), mimeType);
+            final int requestCode = mNextActivityRequestCode++;
+            if (mOutstandingActivities.put(requestCode, file) != null)
+                throw new RuntimeException("request code " + requestCode + " is already in use");
             try {
-                startActivity(intent);
+                startActivityForResult(intent, requestCode);
             } catch (android.content.ActivityNotFoundException e) {
                 Toast.makeText(BrowseActivity.this, "No activity found to display " + mimeType + ".", Toast.LENGTH_SHORT).show();
             }
