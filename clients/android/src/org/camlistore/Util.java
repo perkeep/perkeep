@@ -18,8 +18,10 @@ package org.camlistore;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
@@ -50,6 +52,16 @@ public class Util {
             outputStream.write(buffer, 0, numRead);
         }
         return outputStream.toByteArray();
+    }
+
+    public static void copyFile(File fromFile, File toFile) throws IOException {
+        FileInputStream inputStream = new FileInputStream(fromFile);
+        FileOutputStream outputStream = new FileOutputStream(toFile);
+        byte[] buffer = new byte[4096];
+        for (int numRead; (numRead = inputStream.read(buffer)) != -1;)
+            outputStream.write(buffer, 0, numRead);
+        inputStream.close();
+        outputStream.close();
     }
 
     public static void runAsync(final Runnable r) {
