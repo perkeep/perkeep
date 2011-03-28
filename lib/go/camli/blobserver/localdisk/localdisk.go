@@ -22,14 +22,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 )
 
 type diskStorage struct {
+	*blobserver.SimpleBlobHubPartitionMap
 	root string
 
-	hubLock sync.Mutex
-	hubMap  map[string]blobserver.BlobHub
 }
 
 func New(root string) (storage blobserver.Storage, err os.Error) {
@@ -40,29 +38,10 @@ func New(root string) (storage blobserver.Storage, err os.Error) {
 		return
 	}
 	storage = &diskStorage{
-		root:   root,
-		hubMap: make(map[string]blobserver.BlobHub),
+		&blobserver.SimpleBlobHubPartitionMap{},
+		root,
 	}
 	return
-}
-
-func (ds *diskStorage) GetBlobHub(partition blobserver.Partition) blobserver.BlobHub {
-	name := ""
-	if partition != nil {
-		name = partition.Name()
-	}
-	ds.hubLock.Lock()
-	defer ds.hubLock.Unlock()
-	if hub, ok := ds.hubMap[name]; ok {
-		return hub
-	}
-
-	// TODO: in the future, allow for different blob hub
-	// implementations rather than the
-	// everything-in-memory-on-a-single-machine SimpleBlobHub.
-	hub := new(blobserver.SimpleBlobHub)
-	ds.hubMap[name] = hub
-	return hub
 }
 
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {

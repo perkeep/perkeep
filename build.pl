@@ -400,6 +400,7 @@ TARGET: lib/go/camli/blobref
 TARGET: lib/go/camli/blobserver
 TARGET: lib/go/camli/blobserver/handlers
 TARGET: lib/go/camli/blobserver/localdisk
+TARGET: lib/go/camli/blobserver/s3
 TARGET: lib/go/camli/client
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonsign

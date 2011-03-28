@@ -118,3 +118,31 @@ func (h *SimpleBlobHub) UnregisterBlobListener(blob *blobref.BlobRef, ch chan *b
 		h.blobListeners[bstr] = nil, false
 	}
 }
+
+type SimpleBlobHubPartitionMap struct {
+	hubLock sync.Mutex
+	hubMap  map[string]BlobHub
+}
+
+func (spm *SimpleBlobHubPartitionMap) GetBlobHub(partition Partition) BlobHub {
+	name := ""
+	if partition != nil {
+		name = partition.Name()
+	}
+	spm.hubLock.Lock()
+	defer spm.hubLock.Unlock()
+	if spm.hubMap == nil {
+		spm.hubMap = make(map[string]BlobHub)
+	}
+	if hub, ok := spm.hubMap[name]; ok {
+		return hub
+	}
+
+	// TODO: in the future, allow for different blob hub
+	// implementations rather than the
+	// everything-in-memory-on-a-single-machine SimpleBlobHub.
+	hub := new(SimpleBlobHub)
+	spm.hubMap[name] = hub
+	return hub
+}
+
