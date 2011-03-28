@@ -55,7 +55,7 @@ func main() {
 	}
 
 	if flag.NArg() < 2 {
-		errorf("usage: cammount <blobref> <mountpoint>")
+		errorf("usage: cammount <blobref> <mountpoint>\n")
 	}
 
 	root := blobref.Parse(flag.Arg(0))
