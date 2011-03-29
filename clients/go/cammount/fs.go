@@ -237,7 +237,15 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 		fi.Size = int64(ss.Size)
 	}
 
-	// TODO: mtime and such
+	fi.Mtime_ns = schema.NanosFromRFC3339(ss.UnixMtime)
+	fi.Atime_ns = fi.Mtime_ns
+	fi.Ctime_ns = fi.Mtime_ns
+	if atime := schema.NanosFromRFC3339(ss.UnixAtime); atime > 0 {
+		fi.Atime_ns = atime
+	}
+	if ctime := schema.NanosFromRFC3339(ss.UnixCtime); ctime > 0 {
+		fi.Ctime_ns = ctime
+	}
 
 	fuse.CopyFileInfo(&fi, out)
 	fs.nameToAttr.Add(name, out)
