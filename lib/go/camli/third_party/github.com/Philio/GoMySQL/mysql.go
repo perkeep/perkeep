@@ -586,7 +586,7 @@ func (c *Client) dial() (err os.Error) {
 	// Log connect
 	c.log(1, "Connecting to server via %s to %s", c.network, c.raddr)
 	// Connect to server
-	c.conn, err = net.Dial(c.network, "", c.raddr)
+	c.conn, err = net.Dial(c.network, c.raddr)
 	if err != nil {
 		// Store error state
 		if c.network == UNIX {
