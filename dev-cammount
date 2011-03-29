@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -x
+set -e
+
+DIR=/tmp/cammount-dir
+mkdir -p $DIR
+
+./build.pl cammount
+
+(fusermount -u $DIR) || true
+clients/go/cammount/cammount --blobserver=localhost:3179 --password=pass3179 $@ $DIR &
+sleep 1
+cd $DIR
+bash
+cd /
+fusermount -u $DIR
