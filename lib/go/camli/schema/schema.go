@@ -351,11 +351,11 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 		}
 	}
 	if mtime := fi.Mtime_ns; mtime != 0 {
-		m["unixMtime"] = Rfc3339FromNanos(mtime)
+		m["unixMtime"] = RFC3339FromNanos(mtime)
 	}
 	// Include the ctime too, if it differs.
 	if ctime := fi.Ctime_ns; ctime != 0 && fi.Mtime_ns != fi.Ctime_ns {
-		m["unixCtime"] = Rfc3339FromNanos(ctime)
+		m["unixCtime"] = RFC3339FromNanos(ctime)
 	}
 
 	return m
@@ -424,7 +424,7 @@ func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
-	m["claimDate"] = Rfc3339FromNanos(time.Nanoseconds())
+	m["claimDate"] = RFC3339FromNanos(time.Nanoseconds())
 	return m
 }
 
@@ -452,7 +452,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]in
 // Types of ShareRefs
 const ShareHaveRef = "haveref"
 
-func Rfc3339FromNanos(epochnanos int64) string {
+func RFC3339FromNanos(epochnanos int64) string {
 	nanos := epochnanos % 1e9
 	esec := epochnanos / 1e9
 	t := time.SecondsToUTC(esec)
@@ -463,6 +463,28 @@ func Rfc3339FromNanos(epochnanos int64) string {
 	nanoStr := fmt.Sprintf("%09d", nanos)
 	nanoStr = strings.TrimRight(nanoStr, "0")
 	return timeStr[:len(timeStr)-1] + "." + nanoStr + "Z"
+}
+
+func NanosFromRFC3339(timestr string) int64 {
+	dotpos := strings.Index(timestr, ".")
+	simple3339 := timestr
+	nanostr := ""
+	if dotpos != -1 {
+		if !strings.HasSuffix(timestr, "Z") {
+			return -1
+		}
+		simple3339 = timestr[:dotpos] + "Z"
+		nanostr = timestr[dotpos+1:len(timestr)-1]
+		if needDigits := 9 - len(nanostr); needDigits > 0 {
+			nanostr = nanostr + "000000000"[:needDigits]
+		}
+	}
+	t, err := time.Parse(time.RFC3339, simple3339)
+	if err != nil {
+		return -1
+	}
+	nanos, _ := strconv.Atoi64(nanostr)
+	return t.Seconds() * 1e9 + nanos
 }
 
 func populateMap(m map[int]string, file string) {

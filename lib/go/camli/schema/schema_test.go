@@ -67,7 +67,7 @@ type rfc3339NanoTest struct {
 	e     string
 }
 
-func TestRfc3339FromNanos(t *testing.T) {
+func TestRFC3339Nanos(t *testing.T) {
 	tests := []rfc3339NanoTest{
 		{0, "1970-01-01T00:00:00Z"},
 		{1, "1970-01-01T00:00:00.000000001Z"},
@@ -77,9 +77,14 @@ func TestRfc3339FromNanos(t *testing.T) {
 		{1301114560 * 1e9 + 10, "2011-03-26T04:42:40.00000001Z"},
 	}
 	for idx, test := range tests {
-		got := Rfc3339FromNanos(test.nanos)
+		got := RFC3339FromNanos(test.nanos)
 		if got != test.e {
 			t.Errorf("On test %d got %q; expected %q", idx, got, test.e)
+		}
+		// and back!
+		back := NanosFromRFC3339(test.e)
+		if back != test.nanos {
+			t.Errorf("On test %d NanosFromRFC3339(%q) got %d; expected %d", idx, test.e, back, test.nanos)
 		}
 	}
 }
