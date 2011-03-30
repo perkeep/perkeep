@@ -15,7 +15,7 @@ GetOptions("wipe" => \$opt_wipe)
 my $port = shift || "3179";
 usage() unless $port =~ /^\d+$/;
 
-system("./build.pl", "server/go/blobserver") and die "Failed to build.\n";
+system("./build.pl", "server/go/camlistored") and die "Failed to build.\n";
 
 my $root = "/tmp/camliroot/port$port/";
 if ($opt_wipe && -d $root) {
@@ -29,7 +29,7 @@ unless (-d $root) {
 print "Starting blobserver on http://localhost:$port/ in $root\n";
 
 $ENV{CAMLI_PASSWORD} = "pass$port";
-exec("$FindBin::Bin/server/go/blobserver/blobserver",
+exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-root=$root",
      "-listen=:$port",
      @ARGV);

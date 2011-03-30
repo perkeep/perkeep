@@ -418,7 +418,7 @@ TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
-TARGET: server/go/blobserver
+TARGET: server/go/camlistored
 TARGET: server/go/sigserver
 TARGET: website
 TARGET: clients/android

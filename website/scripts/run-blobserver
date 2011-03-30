@@ -11,4 +11,4 @@ chmod 0700 $ROOT
 
 export CAMLI_PASSWORD=`cat $HOME/.camli/camorg-blobserver.pass`
 
-$Bin/../../build.pl server/go/blobserver && $Bin/../../server/go/blobserver/blobserver -root=$ROOT -listen=:3179 "$@"
+$Bin/../../build.pl server/go/camlistored && $Bin/../../server/go/camlistored/camlistored -root=$ROOT -listen=:3179 "$@"
