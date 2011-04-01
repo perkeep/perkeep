@@ -35,17 +35,23 @@ import (
 	"os"
 )
 
-var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
-var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
+var flagUseConfigFiles = flag.Bool("useconfigfiles", false,
+	"Use the ~/.camli/config files and enable the /config HTTP handler." +
+	"+If false, all configuration is done ")
+var flagPasswordFile = flag.String("passwordfile", "password.txt",
+	"Password file, relative to the ~USER/.camli/ directory.")
 
+// If useConfigFiles is off:
+var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
 	"Comma-separated list of queue partitions to reference uploaded blobs into. "+
 		"Typically one for your indexer and one per mirror full syncer.")
-
 // TODO: Temporary
+var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
 var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
 var flagDevSearch = flag.Bool("devsearch", false, "Temporary option to enable search interface at /camli/search")
 var flagDatabaseName = flag.String("dbname", "devcamlistore", "MySQL database name")
+
 
 var storage blobserver.Storage
 
@@ -212,6 +218,15 @@ func setupMirrorPartitions() {
 func main() {
 	flag.Parse()
 
+	if *flagUseConfigFiles {
+		configFileMain()
+		return
+	}
+
+	commandLineConfigurationMain()
+}
+
+func commandLineConfigurationMain() {
 	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
 	if len(auth.AccessPassword) == 0 {
 		exitFailure("No CAMLI_PASSWORD environment variable set.")
