@@ -32,3 +32,12 @@ func New(bucketPrefixURL, accessKey, secretAccessKey string) (storage blobserver
 		&blobserver.NoImplStorage{},
 	}, nil
 }
+
+func newFromConfig(config map[string]interface{}) (storage blobserver.Storage, err os.Error) {
+	// TODO: implement
+	return nil, os.NewError("not implemented")
+}
+
+func init() {
+	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
+}

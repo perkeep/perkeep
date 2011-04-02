@@ -27,7 +27,6 @@ import (
 type diskStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	root string
-
 }
 
 func New(root string) (storage blobserver.Storage, err os.Error) {

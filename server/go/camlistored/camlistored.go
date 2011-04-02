@@ -24,6 +24,7 @@ import (
 	"camli/webserver"
 	"camli/blobserver"
 	"camli/blobserver/localdisk"
+	_ "camli/blobserver/s3"
 	"camli/blobserver/handlers"
 	"camli/mysqlindexer" // TODO: temporary for testing; wrong place kinda
 	"camli/search" // TODO: temporary for testing; wrong place kinda
@@ -232,25 +233,14 @@ func commandLineConfigurationMain() {
 		exitFailure("No CAMLI_PASSWORD environment variable set.")
 	}
 
-	rootPrefix := func(s string) bool {
-		return strings.HasPrefix(*flagStorageRoot, s)
-	}
-
-	switch {
-	case *flagStorageRoot == "":
+	if *flagStorageRoot == "" {
 		exitFailure("No storage root specified in --root")
-	case rootPrefix("s3:"):
-		// TODO: support Amazon, etc.
-	default:
-		var err os.Error
-		storage, err = localdisk.New(*flagStorageRoot)
-		if err != nil {
-			exitFailure("Error for --root of %q: %v", *flagStorageRoot, err)
-		}
 	}
 
-	if storage == nil {
-		exitFailure("Unsupported storage root type %q", *flagStorageRoot)
+	var err os.Error
+	storage, err = localdisk.New(*flagStorageRoot)
+	if err != nil {
+		exitFailure("Error for --root of %q: %v", *flagStorageRoot, err)
 	}
 
 	ws := webserver.New()
