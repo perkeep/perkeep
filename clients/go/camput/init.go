@@ -17,9 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"camli/blobref"
-	"camli/client"
-	"camli/jsonsign"
 	"crypto/sha1"
 	"exec"
 	"flag"
@@ -28,13 +25,18 @@ import (
 	"path"
 	"json"
 	"log"
+
+	"camli/blobref"
+	"camli/client"
+	"camli/jsonsign"
+	"camli/osutil"
 )
 
 var flagGpgKey = flag.String("gpgkey", "", "(init option only) GPG key to use for signing.")
 
 func doInit() {
-	blobDir := path.Join(client.ConfigDir(), "keyblobs")
-	os.Mkdir(client.ConfigDir(), 0700)
+	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
+	os.Mkdir(osutil.CamliConfigDir(), 0700)
 	os.Mkdir(blobDir, 0700)
 
 	keyId := *flagGpgKey

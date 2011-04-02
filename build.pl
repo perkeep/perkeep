@@ -410,6 +410,7 @@ TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/misc/amazon/s3
 TARGET: lib/go/camli/mysqlindexer
 TARGET: lib/go/camli/netutil
+TARGET: lib/go/camli/osutil
 TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test

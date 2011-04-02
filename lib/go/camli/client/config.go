@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"camli/blobref"
 	"flag"
 	"json"
 	"log"
@@ -26,6 +25,9 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"camli/blobref"
+	"camli/osutil"
 )
 
 // These override the JSON config file ~/.camli/config "server" and
@@ -33,12 +35,8 @@ import (
 var flagServer *string = flag.String("blobserver", "", "camlistore blob server")
 var flagPassword *string = flag.String("password", "", "password for blob server")
 
-func ConfigDir() string {
-	return filepath.Join(os.Getenv("HOME"), ".camli")
-}
-
 func ConfigFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".camli", "config")
+	return filepath.Join(osutil.CamliConfigDir(), "config")
 }
 
 var configOnce sync.Once
