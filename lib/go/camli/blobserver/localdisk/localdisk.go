@@ -44,6 +44,15 @@ func New(root string) (storage blobserver.Storage, err os.Error) {
 	return
 }
 
+func newFromConfig(config map[string]interface{}) (storage blobserver.Storage, err os.Error) {
+	// TODO: implement
+	return nil, os.NewError("not implemented")
+}
+
+func init() {
+	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
+}
+
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
 	fileName := ds.blobPath(nil, blob)
 	stat, err := os.Stat(fileName)
