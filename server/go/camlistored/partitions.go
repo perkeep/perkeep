@@ -18,6 +18,8 @@ package main
 
 import (
 	"regexp"
+
+	"camli/blobserver"
 )
 
 var validPartitionPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
@@ -25,3 +27,18 @@ var validPartitionPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 func isValidPartitionName(name string) bool {
 	return len(name) <= 50 && validPartitionPattern.MatchString(name)
 }
+
+type partitionConfig struct {
+	name                      string
+	writable, readable, queue bool
+	mirrors                   []blobserver.Partition
+	urlbase                   string
+}
+
+func (p *partitionConfig) Name() string                                { return p.name }
+func (p *partitionConfig) Writable() bool                              { return p.writable }
+func (p *partitionConfig) Readable() bool                              { return p.readable }
+func (p *partitionConfig) IsQueue() bool                               { return p.queue }
+func (p *partitionConfig) URLBase() string                             { return p.urlbase }
+func (p *partitionConfig) GetMirrorPartitions() []blobserver.Partition { return p.mirrors }
+

@@ -17,23 +17,26 @@ limitations under the License.
 package main
 
 import (
-	"camli/auth"
-	"camli/blobref"
-	"camli/client"
-	"camli/httputil"
-	"camli/webserver"
-	"camli/blobserver"
-	"camli/blobserver/localdisk"
-	_ "camli/blobserver/s3"
-	"camli/blobserver/handlers"
-	"camli/mysqlindexer" // TODO: temporary for testing; wrong place kinda
-	"camli/search" // TODO: temporary for testing; wrong place kinda
 	"flag"
 	"fmt"
 	"http"
 	"log"
 	"strings"
 	"os"
+
+	"camli/auth"
+	"camli/blobref"
+	"camli/client"
+	"camli/httputil"
+	"camli/webserver"
+	"camli/blobserver"
+	"camli/blobserver/handlers"
+	"camli/search"
+
+	// Storage options:
+	"camli/blobserver/localdisk"
+	_ "camli/blobserver/s3"
+	"camli/mysqlindexer"  // indexer, but uses storage interface
 )
 
 var flagUseConfigFiles = flag.Bool("useconfigfiles", false,
@@ -53,27 +56,12 @@ var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enab
 var flagDevSearch = flag.Bool("devsearch", false, "Temporary option to enable search interface at /camli/search")
 var flagDatabaseName = flag.String("dbname", "devcamlistore", "MySQL database name")
 
-
 var storage blobserver.Storage
 
 const camliPrefix = "/camli/"
 const partitionPrefix = "/partition-"
 
 var InvalidCamliPath = os.NewError("Invalid Camlistore request path")
-
-type partitionConfig struct {
-	name                      string
-	writable, readable, queue bool
-	mirrors                   []blobserver.Partition
-	urlbase                   string
-}
-
-func (p *partitionConfig) Name() string                                { return p.name }
-func (p *partitionConfig) Writable() bool                              { return p.writable }
-func (p *partitionConfig) Readable() bool                              { return p.readable }
-func (p *partitionConfig) IsQueue() bool                               { return p.queue }
-func (p *partitionConfig) URLBase() string                             { return p.urlbase }
-func (p *partitionConfig) GetMirrorPartitions() []blobserver.Partition { return p.mirrors }
 
 var _ blobserver.Partition = &partitionConfig{}
 var mainPartition = &partitionConfig{"", true, true, false, nil, "http://localhost"}
@@ -188,7 +176,14 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 }
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(conn, "<html><body>This is camlistored, a <a href='http://camlistore.org'>Camlistore</a> storage daemon.</body></html>\n")
+	configLink := ""
+	if *flagUseConfigFiles {
+		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
+	}
+	fmt.Fprintf(conn,
+		"<html><body>This is camlistored, a " +
+		"<a href='http://camlistore.org'>Camlistore</a> server." +
+		"%s</body></html>\n", configLink)
 }
 
 func exitFailure(pattern string, args ...interface{}) {
@@ -249,7 +244,6 @@ func commandLineConfigurationMain() {
 	log.Printf("Base URL is %q", mainPartition.urlbase)
 	setupMirrorPartitions() // after mainPartition.urlbase is set
 
-
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/camli/", handleCamli)
@@ -293,5 +287,12 @@ func commandLineConfigurationMain() {
 	}
 
 	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
+	ws.Serve()
+}
+
+func configFileMain() {
+	ws := webserver.New()
+	ws.HandleFunc("/", handleRoot)
+	ws.HandleFunc("/setup", setupHome)
 	ws.Serve()
 }

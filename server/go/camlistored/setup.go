@@ -37,9 +37,3 @@ func setupHome(rw http.ResponseWriter, req *http.Request) {
 
 	fmt.Fprintf(rw, "<p>http_local_uid(%q => %q) = %d (%v)\n", req.RemoteAddr, ourAddr, uid, err)
 }
-
-func configFileMain() {
-	ws := webserver.New()
-	ws.HandleFunc("/", setupHome)
-	ws.Serve()
-}
