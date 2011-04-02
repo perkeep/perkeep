@@ -26,18 +26,11 @@ type s3Storage struct {
 	*blobserver.NoImplStorage
 }
 
-func New(bucketPrefixURL, accessKey, secretAccessKey string) (storage blobserver.Storage, err os.Error) {
-	return &s3Storage{
-		&blobserver.SimpleBlobHubPartitionMap{},
-		&blobserver.NoImplStorage{},
-	}, nil
-}
-
 func newFromConfig(config map[string]interface{}) (storage blobserver.Storage, err os.Error) {
 	// TODO: implement
 	return nil, os.NewError("not implemented")
 }
 
 func init() {
-	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
+	blobserver.RegisterStorageConstructor("s3", blobserver.StorageConstructor(newFromConfig))
 }
