@@ -109,3 +109,17 @@ func TestBucketFromHostname(t *testing.T) {
 		}
 	}
 }
+
+func TestSignRequest(t *testing.T) {
+	r := req("GET /foo HTTP/1.1\n\n")
+	auth := &Auth{"key", "secretkey"}
+	auth.SignRequest(r)
+	if r.Header.Get("Date") == "" {
+		t.Error("expected a Date set")
+	}
+	r.Header.Set("Date", "Sat, 02 Apr 2011 04:23:52 GMT")
+	auth.SignRequest(r)
+	if e, g := r.Header.Get("Authorization"), "AWS key:kHpCR/N7Rw3PwRlDd8+5X40CFVc="; e != g {
+		t.Errorf("got header %q; expected %q", g, e)
+	}
+}

@@ -18,9 +18,14 @@ package s3
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"encoding/base64"
+	"fmt"
 	"http"
+	"io"
 	"sort"
 	"strings"
+	"time"
 )
 
 // See http://docs.amazonwebservices.com/AmazonS3/latest/dev/index.html?RESTAuthentication.html
@@ -28,6 +33,21 @@ import (
 type Auth struct {
 	AccessKey       string
 	SecretAccessKey string
+}
+
+func (a *Auth) SignRequest(req *http.Request) {
+	if date := req.Header.Get("Date"); date == "" {
+		req.Header.Set("Date", time.UTC().Format(http.TimeFormat))
+	}
+	hm := hmac.NewSHA1([]byte(a.SecretAccessKey))
+	io.WriteString(hm, stringToSign(req))
+
+	authHeader := new(bytes.Buffer)
+	fmt.Fprintf(authHeader, "AWS %s:", a.AccessKey)
+	encoder := base64.NewEncoder(base64.StdEncoding, authHeader)
+	encoder.Write(hm.Sum())
+	encoder.Close()
+	req.Header.Set("Authorization", authHeader.String())
 }
 
 func firstNonEmptyString(strs ...string) string {
