@@ -17,11 +17,12 @@ limitations under the License.
 package localdisk
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
 	"fmt"
 	"log"
 	"os"
+
+	"camli/blobref"
+	"camli/blobserver"
 )
 
 type diskStorage struct {
@@ -43,9 +44,22 @@ func New(root string) (storage blobserver.Storage, err os.Error) {
 	return
 }
 
-func newFromConfig(config map[string]interface{}) (storage blobserver.Storage, err os.Error) {
-	// TODO: implement
-	return nil, os.NewError("not implemented")
+func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, err os.Error) {
+	sto := &diskStorage{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		root:                      config.RequiredString("path"),
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	fi, err := os.Stat(sto.root)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to stat directory %q: %v", sto.root, err)
+	}
+	if !fi.IsDirectory() {
+		return nil, fmt.Errorf("Path %q isn't a directory", sto.root)
+	}
+	return sto, nil
 }
 
 func init() {

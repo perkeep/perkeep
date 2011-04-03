@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"http"
+	"json"
 	"log"
 	"strings"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"camli/webserver"
 	"camli/blobserver"
 	"camli/blobserver/handlers"
+	"camli/osutil"
 	"camli/search"
 
 	// Storage options:
@@ -114,6 +116,22 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 	handleCamliUsingStorage(conn, req, action, partition, storage)
+}
+
+// where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
+func makeCamliHandler(prefix string, storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+	return func(conn http.ResponseWriter, req *http.Request) {
+		partName, action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
+		if err != nil {
+			log.Printf("Invalid request for partName %q, method %q, path %q",
+				partName, req.Method, req.URL.Path)
+			unsupportedHandler(conn, req)
+			return
+		}
+		// TODO: actually deal with partitions here
+		part := &partitionConfig{"", true, true, false, nil, prefix}
+		handleCamliUsingStorage(conn, req, action, part, storage)
+	}
 }
 
 func makeIndexHandler(storage blobserver.Storage) func(conn http.ResponseWriter, req *http.Request) {
@@ -291,7 +309,51 @@ func commandLineConfigurationMain() {
 }
 
 func configFileMain() {
+	config := make(map[string]interface{})
+	f, err := os.Open(osutil.UserServerConfigPath(), os.O_RDONLY, 0)
+	if err != nil {
+		exitFailure("error opening %s: %v", osutil.UserServerConfigPath(), err)
+	}
+	defer f.Close()
+	dj := json.NewDecoder(f)
+	if err = dj.Decode(&config); err != nil {
+		exitFailure("error parsing JSON object in config file %s: %v", osutil.UserServerConfigPath(), err)
+	}
+
+	prefixes, ok := config["prefixes"].(map[string]interface{})
+	if !ok {
+		exitFailure("No top-level \"prefixes\": {...} in %s", osutil.UserServerConfigPath)
+	}
+
 	ws := webserver.New()
+
+	for prefix, vei := range prefixes {
+		if !strings.HasPrefix(prefix, "/") {
+			exitFailure("prefix %q doesn't start with /", prefix)
+		}
+		if !strings.HasSuffix(prefix, "/") {
+			exitFailure("prefix %q doesn't end with /", prefix)
+		}
+		pconf, ok := vei.(map[string]interface{})
+		if !ok {
+			exitFailure("prefix %q value isn't an object", prefix)
+		}
+		storageType, ok := pconf["type"].(string)
+		if !ok {
+			exitFailure("expected the \"type\" of prefix %q to be a string")
+		}
+		storageArgs, ok := pconf["typeArgs"].(map[string]interface{})
+		if !ok {
+			exitFailure("expected the \"typeArgs\" to be a JSON object")
+		}
+		pstorage, err := blobserver.CreateStorage(storageType, blobserver.JSONConfig(storageArgs))
+		if err != nil {
+			exitFailure("error instantiating storage for prefix %q, type %q: %v",
+				prefix, storageType, err)
+		}
+		ws.HandleFunc(prefix + "camli/", makeCamliHandler(prefix, pstorage))
+	}
+
 	ws.HandleFunc("/", handleRoot)
 	ws.HandleFunc("/setup", setupHome)
 	ws.Serve()

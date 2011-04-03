@@ -20,6 +20,7 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 
+	"fmt"
 	"os"
 	"sync"
 
@@ -27,19 +28,39 @@ import (
 )
 
 type Indexer struct {
+	*blobserver.SimpleBlobHubPartitionMap
+
 	Host, User, Password, Database string
 	Port                           int
 
-	// TODO: does this belong at this layer?  or should the indexer
-	// simply present a list of 
+	// TODO: does this belong at this layer?
 	KeyFetcher   blobref.Fetcher // for verifying claims
 	OwnerBlobRef *blobref.BlobRef
 
-	hubLock sync.Mutex
-	hubMap  map[blobserver.Partition]blobserver.BlobHub
-
 	clientLock    sync.Mutex
 	cachedClients []*mysql.Client
+}
+
+func newFromConfig(config blobserver.JSONConfig) (blobserver.Storage, os.Error) {
+	indexer := &Indexer{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		Host:                      config.OptionalString("host", "localhost"),
+		User:                      config.RequiredString("user"),
+		Password:                  config.OptionalString("password", ""),
+		Database:                  config.RequiredString("database"),
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	ok, err := indexer.IsAlive()
+	if !ok {
+		return nil, fmt.Errorf("Failed to connect to MySQL: %v", err)
+	}
+	return indexer, nil
+}
+
+func init() {
+	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
 }
 
 func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
@@ -83,21 +104,6 @@ func (mi *Indexer) releaseConnection(client *mysql.Client) {
 	mi.clientLock.Lock()
 	defer mi.clientLock.Unlock()
 	mi.cachedClients = append(mi.cachedClients, client)
-}
-
-func (mi *Indexer) GetBlobHub(partition blobserver.Partition) blobserver.BlobHub {
-	mi.hubLock.Lock()
-	defer mi.hubLock.Unlock()
-	if hub, ok := mi.hubMap[partition]; ok {
-		return hub
-	}
-
-	// TODO: in the future, allow for different blob hub
-	// implementations rather than the
-	// everything-in-memory-on-a-single-machine SimpleBlobHub.
-	hub := new(blobserver.SimpleBlobHub)
-	mi.hubMap[partition] = hub
-	return hub
 }
 
 func (mi *Indexer) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {

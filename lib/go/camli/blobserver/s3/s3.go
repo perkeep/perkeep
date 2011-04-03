@@ -17,18 +17,42 @@ limitations under the License.
 package s3
 
 import (
-	"camli/blobserver"
+	"fmt"
+	"http"
 	"os"
+
+	"camli/blobserver"
+	"camli/misc/amazon/s3"
 )
 
 type s3Storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
+	s3Client *s3.Client
 	*blobserver.NoImplStorage
 }
 
-func newFromConfig(config map[string]interface{}) (storage blobserver.Storage, err os.Error) {
-	// TODO: implement
-	return nil, os.NewError("not implemented")
+func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, err os.Error) {
+	client := &s3.Client{
+		Auth: &s3.Auth{
+			AccessKey:       config.RequiredString("aws_access_key"),
+			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
+		},
+		HttpClient: http.DefaultClient,
+	}
+	sto := &s3Storage{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		s3Client:                  client,
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	// TODO: skip this check if a file
+	// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +
+	// secret key)") exists and has recent time?
+	if _, err := client.Buckets(); err != nil {
+		return nil, fmt.Errorf("Failed to get bucket list from S3: %v", err)
+	}
+	return sto, nil
 }
 
 func init() {

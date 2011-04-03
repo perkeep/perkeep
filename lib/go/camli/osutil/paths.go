@@ -31,4 +31,9 @@ func CamliConfigDir() string {
 	return filepath.Join(HomeDir(), ".camli")
 }
 
+func UserServerConfigPath() string {
+	// TODO: windows / mac support
+	return filepath.Join(HomeDir(), ".camli", "serverconfig")
+}
+
 

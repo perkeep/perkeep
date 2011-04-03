@@ -17,10 +17,67 @@ limitations under the License.
 package blobserver
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
-type StorageConstructor func(config map[string]interface{}) (Storage, os.Error)
+
+type JSONConfig map[string]interface{}
+
+func (jc JSONConfig) RequiredString(key string) string {
+	ei, ok := jc[key]
+	if !ok {
+		jc.appendError(fmt.Errorf("Missing required config key %q", key))
+		return ""
+	}
+	s, ok := ei.(string)
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a string", key))
+		return ""
+	}
+	return s
+}
+
+func (jc JSONConfig) OptionalString(key, def string) string {
+	ei, ok := jc[key]
+	if !ok {
+		return def
+	}
+	s, ok := ei.(string)
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a string", key))
+		return ""
+	}
+	return s
+}
+
+func (jc JSONConfig) appendError(err os.Error) {
+	ei, ok := jc["_errors"]
+	if ok {
+		jc["_errors"] = append(ei.([]os.Error), err)
+	} else {
+		jc["_errors"] = []os.Error{err}
+	}
+}
+
+func (jc JSONConfig) Validate() os.Error {
+	ei, ok := jc["_errors"]
+	if !ok {
+		return nil
+	}
+	errList := ei.([]os.Error)
+	if len(errList) == 1 {
+		return errList[0]
+	}
+	strs := make([]string, 0)
+	for _, v := range errList {
+		strs = append(strs, v.String())
+	}
+	return fmt.Errorf("Multiple errors: " + strings.Join(strs, ", "))
+}
+
+type StorageConstructor func(config JSONConfig) (Storage, os.Error)
 
 var mapLock sync.Mutex
 var storageConstructors = make(map[string]StorageConstructor)
@@ -32,4 +89,14 @@ func RegisterStorageConstructor(typ string, ctor StorageConstructor) {
 		panic("blobserver: StorageConstructor already registered for type: " + typ)
 	}
 	storageConstructors[typ] = ctor
+}
+
+func CreateStorage(typ string, config JSONConfig) (Storage, os.Error) {
+	mapLock.Lock()
+	ctor, ok := storageConstructors[typ]
+	mapLock.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("Storage type %q not known or loaded", typ)
+	}
+	return ctor(config)
 }
