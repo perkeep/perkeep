@@ -22,16 +22,21 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
-	//"camli/misc/amazon/s3"
 )
 
 var _ = log.Printf
 
-func (s3 *s3Storage) Stat(dest chan *blobref.SizedBlobRef,
-	partition blobserver.Partition,
-	blobs []*blobref.BlobRef,
-	waitSeconds int) os.Error {
-	// TODO: implement
+func (sto *s3Storage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+	// TODO: do n stats in parallel
+	for _, br := range blobs {
+		size, err := sto.s3Client.Stat(br.String(), sto.bucket)
+		log.Printf("stat of %s: %d, %v", br.String(), size, err)
+		if err == nil {
+			dest <- &blobref.SizedBlobRef{BlobRef: br, Size: size}
+		} else {
+			// TODO: handle
+		}
+	}
 	return nil
 }
 

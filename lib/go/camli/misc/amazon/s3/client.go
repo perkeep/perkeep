@@ -17,11 +17,16 @@ limitations under the License.
 package s3
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"hash"
 	"http"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 )
 
 var _ = log.Printf
@@ -51,6 +56,7 @@ func newReq(url string) *http.Request {
 	return &http.Request{
 		Method:     "GET",
 		URL:        u,
+		Host:       u.Host,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
@@ -67,6 +73,60 @@ func (c *Client) Buckets() ([]*Bucket, os.Error) {
 		return nil, err
 	}
 	slurp, _ := ioutil.ReadAll(res.Body)
+	res.Body.Close()
 	log.Printf("got: %q", string(slurp))
 	return nil, nil
+}
+
+// Returns 0, os.ENOENT if not on S3, otherwise reterr is real.
+func (c *Client) Stat(name, bucket string) (size int64, reterr os.Error) {
+	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
+	req.Method = "HEAD"
+	c.Auth.SignRequest(req)
+	log.Printf("pre-Stat Do")
+	res, err := c.httpClient().Do(req)
+	log.Printf("post-Stat Do: res=%v, err=%v", res, err)
+        if err != nil {
+                return 0, err
+        }
+	if res != nil {
+		res.Write(os.Stderr)
+	}
+	if res.StatusCode == http.StatusNotFound {
+		log.Printf("state of %s == EOF", name)
+		return 0, os.ENOENT
+	}
+
+	if res.Body != nil {
+		//defer res.Body.Close()
+	}
+	return strconv.Atoi64(res.Header.Get("Content-Length"))
+}
+
+func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body io.Reader) os.Error {
+	req := newReq("https://" + bucket + ".s3.amazonaws.com/" + name)
+	req.Method = "PUT"
+	req.ContentLength = size
+	if md5 != nil {
+		b64 := new(bytes.Buffer)
+		encoder := base64.NewEncoder(base64.StdEncoding, b64)
+		encoder.Write(md5.Sum())
+		encoder.Close()
+		req.Header.Set("Content-MD5", b64.String())
+	}
+	c.Auth.SignRequest(req)
+	req.Body = ioutil.NopCloser(body)
+
+	res, err := c.httpClient().Do(req)
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		res.Write(os.Stderr)
+		return fmt.Errorf("Got response code %d from s3", res.StatusCode)
+	}
+	return nil
 }
