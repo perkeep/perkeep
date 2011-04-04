@@ -26,6 +26,7 @@ import (
 type JSONConfig map[string]interface{}
 
 func (jc JSONConfig) RequiredString(key string) string {
+	jc.noteKnownKey(key)
 	ei, ok := jc[key]
 	if !ok {
 		jc.appendError(fmt.Errorf("Missing required config key %q", key))
@@ -40,6 +41,7 @@ func (jc JSONConfig) RequiredString(key string) string {
 }
 
 func (jc JSONConfig) OptionalString(key, def string) string {
+	jc.noteKnownKey(key)
 	ei, ok := jc[key]
 	if !ok {
 		return def
@@ -52,6 +54,14 @@ func (jc JSONConfig) OptionalString(key, def string) string {
 	return s
 }
 
+func (jc JSONConfig) noteKnownKey(key string) {
+	_, ok := jc["_knownkeys"]
+	if !ok {
+                jc["_knownkeys"] = make(map[string]bool)
+	}
+	jc["_knownkeys"].(map[string]bool)[key] = true
+}
+
 func (jc JSONConfig) appendError(err os.Error) {
 	ei, ok := jc["_errors"]
 	if ok {
@@ -61,7 +71,28 @@ func (jc JSONConfig) appendError(err os.Error) {
 	}
 }
 
+func (jc JSONConfig) lookForUnknownKeys() {
+	ei, ok := jc["_knownkeys"]
+	var known map[string]bool
+	if ok {
+		known = ei.(map[string]bool)
+	}
+	for k, _ := range jc {
+		if ok && known[k] {
+			continue
+		}
+		if strings.HasPrefix(k, "_") {
+			// Permit keys with a leading underscore as a
+			// form of comments.
+			continue
+		}
+		jc.appendError(fmt.Errorf("Unknown key %q", k))
+	}
+}
+
 func (jc JSONConfig) Validate() os.Error {
+	jc.lookForUnknownKeys()
+
 	ei, ok := jc["_errors"]
 	if !ok {
 		return nil
