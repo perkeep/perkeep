@@ -119,7 +119,7 @@ func handleCamli(conn http.ResponseWriter, req *http.Request) {
 }
 
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
-func makeCamliHandler(prefix string, storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		partName, action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
@@ -129,7 +129,7 @@ func makeCamliHandler(prefix string, storage blobserver.Storage) func(http.Respo
 			return
 		}
 		// TODO: actually deal with partitions here
-		part := &partitionConfig{"", true, true, false, nil, prefix}
+		part := &partitionConfig{"", true, true, false, nil, baseURL + prefix[:len(prefix)-1]}
 		handleCamliUsingStorage(conn, req, action, part, storage)
 	}
 }
@@ -320,16 +320,21 @@ func configFileMain() {
 		exitFailure("error parsing JSON object in config file %s: %v", osutil.UserServerConfigPath(), err)
 	}
 
+	ws := webserver.New()
+	baseURL := ws.BaseURL()
+
 	if password, ok := config["password"].(string); ok {
 		auth.AccessPassword = password
+	}
+
+	if url, ok := config["baseURL"].(string); ok {
+		baseURL = url
 	}
 
 	prefixes, ok := config["prefixes"].(map[string]interface{})
 	if !ok {
 		exitFailure("No top-level \"prefixes\": {...} in %s", osutil.UserServerConfigPath)
 	}
-
-	ws := webserver.New()
 
 	for prefix, vei := range prefixes {
 		if !strings.HasPrefix(prefix, "/") {
@@ -355,7 +360,7 @@ func configFileMain() {
 			exitFailure("error instantiating storage for prefix %q, type %q: %v",
 				prefix, storageType, err)
 		}
-		ws.HandleFunc(prefix + "camli/", makeCamliHandler(prefix, pstorage))
+		ws.HandleFunc(prefix + "camli/", makeCamliHandler(prefix, baseURL, pstorage))
 	}
 
 	ws.HandleFunc("/", handleRoot)
