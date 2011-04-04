@@ -45,14 +45,17 @@ func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, er
 		s3Client:                  client,
 		bucket:                    config.RequiredString("bucket"),
 	}
+	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	// TODO: skip this check if a file
-	// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +
-	// secret key)") exists and has recent time?
-	if _, err := client.Buckets(); err != nil {
-		return nil, fmt.Errorf("Failed to get bucket list from S3: %v", err)
+	if !skipStartupCheck {
+		// TODO: skip this check if a file
+		// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +
+		// secret key)") exists and has recent time?
+		if _, err := client.Buckets(); err != nil {
+			return nil, fmt.Errorf("Failed to get bucket list from S3: %v", err)
+		}
 	}
 	return sto, nil
 }
@@ -60,3 +63,4 @@ func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, er
 func init() {
 	blobserver.RegisterStorageConstructor("s3", blobserver.StorageConstructor(newFromConfig))
 }
+
