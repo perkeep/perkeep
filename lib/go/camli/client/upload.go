@@ -82,8 +82,7 @@ func (c *Client) jsonFromResponse(resp *http.Response) (map[string]interface{}, 
 
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	error := func(msg string, e os.Error) (*PutResult, os.Error) {
-		err := os.NewError(fmt.Sprintf("Error uploading blob %s: %s; err=%s",
-			h.BlobRef, msg, e))
+		err := fmt.Errorf("Error uploading blob %s: %s; err=%v", h.BlobRef, msg, e)
 		c.log.Print(err.String())
 		return nil, err
 	}
