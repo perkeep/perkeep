@@ -29,7 +29,7 @@ func (jc JSONConfig) RequiredString(key string) string {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
 	if !ok {
-		jc.appendError(fmt.Errorf("Missing required config key %q", key))
+		jc.appendError(fmt.Errorf("Missing required config key %q (string)", key))
 		return ""
 	}
 	s, ok := ei.(string)
@@ -52,6 +52,35 @@ func (jc JSONConfig) OptionalString(key, def string) string {
 		return ""
 	}
 	return s
+}
+
+func (jc JSONConfig) RequiredBool(key string) bool {
+	jc.noteKnownKey(key)
+	ei, ok := jc[key]
+	if !ok {
+		jc.appendError(fmt.Errorf("Missing required config key %q (boolean)", key))
+		return false
+	}
+	b, ok := ei.(bool)
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a boolean", key))
+		return false
+	}
+	return b
+}
+
+func (jc JSONConfig) OptionalBool(key string, def bool) bool {
+	jc.noteKnownKey(key)
+	ei, ok := jc[key]
+	if !ok {
+		return def
+	}
+	b, ok := ei.(bool)
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a boolean", key))
+		return def
+	}
+	return b
 }
 
 func (jc JSONConfig) noteKnownKey(key string) {
