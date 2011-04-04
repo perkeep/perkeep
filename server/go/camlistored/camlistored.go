@@ -320,6 +320,10 @@ func configFileMain() {
 		exitFailure("error parsing JSON object in config file %s: %v", osutil.UserServerConfigPath(), err)
 	}
 
+	if password, ok := config["password"].(string); ok {
+		auth.AccessPassword = password
+	}
+
 	prefixes, ok := config["prefixes"].(map[string]interface{})
 	if !ok {
 		exitFailure("No top-level \"prefixes\": {...} in %s", osutil.UserServerConfigPath)
