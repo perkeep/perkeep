@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"http"
 	"io"
+	"log"
 	"sort"
 	"strings"
 	"time"
 )
+
+var _ = log.Printf
 
 // See http://docs.amazonwebservices.com/AmazonS3/latest/dev/index.html?RESTAuthentication.html
 
@@ -40,7 +43,8 @@ func (a *Auth) SignRequest(req *http.Request) {
 		req.Header.Set("Date", time.UTC().Format(http.TimeFormat))
 	}
 	hm := hmac.NewSHA1([]byte(a.SecretAccessKey))
-	io.WriteString(hm, stringToSign(req))
+	ss := stringToSign(req)
+	io.WriteString(hm, ss)
 
 	authHeader := new(bytes.Buffer)
 	fmt.Fprintf(authHeader, "AWS %s:", a.AccessKey)
@@ -148,6 +152,9 @@ const standardUSRegionAWS = "s3.amazonaws.com"
 
 func bucketFromHostname(req *http.Request) string {
 	host := req.Host
+	if host == "" {
+		host = req.URL.Host
+	}
 	if host == standardUSRegionAWS {
 		return ""
 	}
