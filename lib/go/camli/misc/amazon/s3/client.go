@@ -80,31 +80,27 @@ func (c *Client) Buckets() ([]*Bucket, os.Error) {
 
 // Returns 0, os.ENOENT if not on S3, otherwise reterr is real.
 func (c *Client) Stat(name, bucket string) (size int64, reterr os.Error) {
+	defer func() {
+		log.Printf("s3 client: Stat(%q, %q) = %d, %v", name, bucket, size, reterr)
+	}()
 	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
-	log.Printf("pre-Stat Do")
 	res, err := c.httpClient().Do(req)
-	log.Printf("post-Stat Do: res=%v, err=%v", res, err)
-        if err != nil {
-                return 0, err
-        }
-	if res != nil {
-		res.Write(os.Stderr)
+	if err != nil {
+		return 0, err
+	}
+	if res.Body != nil {
+		defer res.Body.Close()
 	}
 	if res.StatusCode == http.StatusNotFound {
-		log.Printf("state of %s == EOF", name)
 		return 0, os.ENOENT
-	}
-
-	if res.Body != nil {
-		//defer res.Body.Close()
 	}
 	return strconv.Atoi64(res.Header.Get("Content-Length"))
 }
 
 func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body io.Reader) os.Error {
-	req := newReq("https://" + bucket + ".s3.amazonaws.com/" + name)
+	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
