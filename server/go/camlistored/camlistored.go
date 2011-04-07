@@ -310,7 +310,7 @@ func commandLineConfigurationMain() {
 
 func configFileMain() {
 	config := make(map[string]interface{})
-	f, err := os.Open(osutil.UserServerConfigPath(), os.O_RDONLY, 0)
+	f, err := os.Open(osutil.UserServerConfigPath())
 	if err != nil {
 		exitFailure("error opening %s: %v", osutil.UserServerConfigPath(), err)
 	}

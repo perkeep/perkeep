@@ -47,7 +47,7 @@ func (ee *enumerateError) String() string {
 
 func readBlobs(opts readBlobRequest) os.Error {
 	dirFullPath := opts.dirRoot + "/" + opts.pathInto
-	dir, err := os.Open(dirFullPath, os.O_RDONLY, 0)
+	dir, err := os.Open(dirFullPath)
 	if err != nil {
 		return &enumerateError{"localdisk: opening directory " + dirFullPath, err}
 	}

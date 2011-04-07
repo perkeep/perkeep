@@ -42,7 +42,7 @@ func ConfigFilePath() string {
 var configOnce sync.Once
 var config = make(map[string]interface{})
 func parseConfig() {
-	f, err := os.Open(ConfigFilePath(), os.O_RDONLY, 0)
+	f, err := os.Open(ConfigFilePath())
 	switch {
 	case err != nil && err.(*os.PathError).Error.(os.Errno) == syscall.ENOENT:
 		// TODO: write empty file?

@@ -260,7 +260,7 @@ func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
 }
 
 func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFile, code fuse.Status) {
-	if flags&uint32(os.O_CREAT|os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_TRUNC) != 0 {
+	if flags&uint32(os.O_CREATE|os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_TRUNC) != 0 {
 		log.Printf("cammount: Open(%q, %d): denying write access", name, flags)
 		return nil, fuse.EACCES
 	}

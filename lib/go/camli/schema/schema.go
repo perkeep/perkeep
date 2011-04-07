@@ -247,7 +247,7 @@ func (d *defaultStatHasher) Lstat(fileName string) (*os.FileInfo, os.Error) {
 
 func (d *defaultStatHasher) Hash(fileName string) (*blobref.BlobRef, os.Error) {
 	s1 := sha1.New()
-	file, err := os.Open(fileName, os.O_RDONLY, 0)
+	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +488,7 @@ func NanosFromRFC3339(timestr string) int64 {
 }
 
 func populateMap(m map[int]string, file string) {
-	f, err := os.Open(file, os.O_RDONLY, 0)
+	f, err := os.Open(file)
 	if err != nil {
 		return
 	}

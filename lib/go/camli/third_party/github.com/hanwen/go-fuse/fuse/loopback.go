@@ -47,7 +47,7 @@ func (me *LoopbackFileSystem) GetAttr(name string) (*Attr, Status) {
 func (me *LoopbackFileSystem) OpenDir(name string) (stream chan DirEntry, status Status) {
 	// What other ways beyond O_RDONLY are there to open
 	// directories?
-	f, err := os.Open(me.GetPath(name), os.O_RDONLY, 0)
+	f, err := os.Open(me.GetPath(name))
 	if err != nil {
 		return nil, OsErrorToFuseError(err)
 	}
@@ -78,7 +78,7 @@ func (me *LoopbackFileSystem) OpenDir(name string) (stream chan DirEntry, status
 }
 
 func (me *LoopbackFileSystem) Open(name string, flags uint32) (fuseFile RawFuseFile, status Status) {
-	f, err := os.Open(me.GetPath(name), int(flags), 0)
+	f, err := os.OpenFile(me.GetPath(name), int(flags), 0)
 	if err != nil {
 		return nil, OsErrorToFuseError(err)
 	}
@@ -142,7 +142,7 @@ func (me *LoopbackFileSystem) Access(name string, mode uint32) (code Status) {
 }
 
 func (me *LoopbackFileSystem) Create(path string, flags uint32, mode uint32) (fuseFile RawFuseFile, code Status) {
-	f, err := os.Open(me.GetPath(path), int(flags)|os.O_CREAT, mode)
+	f, err := os.OpenFile(me.GetPath(path), int(flags)|os.O_CREATE, mode)
 	return &LoopbackFile{file: f}, OsErrorToFuseError(err)
 }
 

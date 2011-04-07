@@ -75,7 +75,7 @@ func (df *dirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os
 	if err != nil {
 		return
 	}
-	file, err = os.Open(fileName, os.O_RDONLY, 0)
+	file, err = os.Open(fileName)
 	if err != nil {
 		return
 	}

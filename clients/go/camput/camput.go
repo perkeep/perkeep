@@ -65,7 +65,7 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error
 	if *flagVerbose {
 		log.Printf("Uploading filename: %s", filename)
 	}
-	file, err := os.Open(filename, os.O_RDONLY, 0)
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 		}
 	case fi.IsDirectory():
 		ss := new(schema.StaticSet)
-		dir, err := os.Open(filename, os.O_RDONLY, 0)
+		dir, err := os.Open(filename)
 		if err != nil {
 			return nil, err
 		}

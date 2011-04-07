@@ -28,7 +28,7 @@ import (
 const publicKeyMaxSize = 256 * 1024
 
 func VerifyPublicKeyFile(file, keyid string) (bool, os.Error) {
-	f, err := os.Open(file, os.O_RDONLY, 0)
+	f, err := os.Open(file)
 	if err != nil {
 		return false, err
 	}

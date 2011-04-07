@@ -85,7 +85,7 @@ func (h *logHandler) logFromChannel() {
 					logFile.Close()
 				}
 				var err os.Error
-				logFile, err = os.Open(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREAT, 0644)
+				logFile, err = os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 				if err != nil {
 					log.Printf("Error opening %q: %v", fileName, err)
 					continue

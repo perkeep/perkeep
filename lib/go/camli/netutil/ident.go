@@ -78,7 +78,7 @@ func AddrPairUserid(lipport, ripport string) (uid int, err os.Error) {
 	if !localv4 {
 		file = "/proc/net/tcp6"
 	}
-	f, err := os.Open(file, os.O_RDONLY, 0)
+	f, err := os.Open(file)
 	if err != nil {
 		return -1, fmt.Errorf("Error opening %s: %v", file, err)
 	}

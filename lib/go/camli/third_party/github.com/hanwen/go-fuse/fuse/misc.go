@@ -278,7 +278,7 @@ func Writev(fd int, packet [][]byte) (n int, err os.Error) {
 func CountCpus() int {
 	var contents [10240]byte
 
-	f, err := os.Open("/proc/stat", os.O_RDONLY, 0)
+	f, err := os.Open("/proc/stat")
 	defer f.Close()
 	if err != nil {
 		return 1

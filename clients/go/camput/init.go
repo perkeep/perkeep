@@ -94,7 +94,7 @@ func doInit() {
 		log.Fatalf("Config file %q already exists; quitting without touching it.", client.ConfigFilePath())
 	}
 
-	if f, err := os.Open(client.ConfigFilePath(), os.O_CREAT|os.O_WRONLY, 0600); err == nil {
+	if f, err := os.OpenFile(client.ConfigFilePath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
 		m := make(map[string]interface{})
 		m["publicKeyBlobref"] = bref.String()
