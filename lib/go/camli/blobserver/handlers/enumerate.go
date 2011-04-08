@@ -122,8 +122,6 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 		case err := <-resultch:
 			if err != nil {
 				log.Printf("Error during enumerate: %v", err)
-				close(blobch)   // TODO: necessary?
-				close(resultch) // TODO: necessary?
 				fmt.Fprintf(conn, "{{{ SERVER ERROR }}}")
 				return
 			}
