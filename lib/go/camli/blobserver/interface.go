@@ -63,6 +63,12 @@ type BlobStatter interface {
 		waitSeconds int) os.Error
 }
 
+type MaxEnumerateConfig interface {
+	// Returns the max that this storage interface is capable
+	// of enumerating at once.
+	MaxEnumerate() uint
+}
+
 type BlobEnumerator interface {
 	// EnumerateBobs sends at most limit SizedBlobRef into dest,
 	// sorted, as long as they are lexigraphically greater than
