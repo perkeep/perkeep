@@ -27,6 +27,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"xml"
 )
 
 var _ = log.Printf
@@ -125,4 +126,32 @@ func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body 
 		return fmt.Errorf("Got response code %d from s3", res.StatusCode)
 	}
 	return nil
+}
+
+type Item struct {
+	Key  string
+	Size int64
+}
+
+type listBucketResults struct {
+	Contents []*Item
+}
+
+func (c *Client) ListBucket(bucket string, after string, maxKeys uint) (items []*Item, reterr os.Error) {
+	var bres listBucketResults
+	url := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
+		bucket, http.URLEscape(after), maxKeys)
+	req := newReq(url)
+	c.Auth.SignRequest(req)
+	res, err := c.httpClient().Do(req)
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := xml.Unmarshal(res.Body, &bres); err != nil {
+		return nil, err
+	}
+	return bres.Contents, nil
 }
