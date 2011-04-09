@@ -36,10 +36,9 @@ import (
 	"time"
 )
 
-// TODO: support gets on partitions?  Be less rigid here.
-var kGetPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
+var kGetPattern *regexp.Regexp = regexp.MustCompile(`/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
-func CreateGetHandler(fetcher blobref.Fetcher) func(http.ResponseWriter, *http.Request) {
+func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
 			// Test handler.
@@ -58,7 +57,7 @@ func sendUnauthorized(conn http.ResponseWriter) {
 	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
 }
 
-func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetcher) {
+func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.StreamingFetcher) {
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed GET URL.")
@@ -78,9 +77,9 @@ func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.Fetc
 
 // serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
 func serveBlobRef(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.Fetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
-	file, size, err := fetcher.Fetch(blobRef)
+	file, size, err := fetcher.FetchStreaming(blobRef)
 	switch err {
 	case nil:
 		break
@@ -95,9 +94,13 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 
 	defer file.Close()
 
+	seeker, isSeeker := file.(io.Seeker)
 	reqRange := httprange.FromRequest(req)
-	if reqRange.SkipBytes() != 0 {
-		_, err = file.Seek(reqRange.SkipBytes(), 0)
+	if reqRange.SkipBytes() != 0 && isSeeker {
+		// TODO: set the Range-specific response headers too,
+		// acknowledging that we honored the content range
+		// request.
+		_, err = seeker.Seek(reqRange.SkipBytes(), 0)
 		if err != nil {
 			httputil.ServerError(conn, err)
 			return
@@ -177,7 +180,7 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.Fetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	viaPathOkay := false
 	startTime := time.Nanoseconds()
@@ -209,7 +212,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	for i, br := range fetchChain {
 		switch i {
 		case 0:
-			file, size, err := fetcher.Fetch(br)
+			file, size, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
 				sendUnauthorized(conn)
@@ -244,7 +247,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			// not the first thing in the chain)
 			continue
 		default:
-			file, _, err := fetcher.Fetch(br)
+			file, _, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
 				sendUnauthorized(conn)

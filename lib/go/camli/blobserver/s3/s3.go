@@ -29,7 +29,6 @@ type s3Storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	s3Client *s3.Client
 	bucket   string
-	*blobserver.NoImplStorage
 }
 
 func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, err os.Error) {

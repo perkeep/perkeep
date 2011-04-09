@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"http"
 	"io"
+	"log"
 	"os"
 )
+
+var _ = log.Printf
 
 func (c *Client) newRequest(method, url string) *http.Request {
 	req := new(http.Request)

@@ -41,11 +41,15 @@ func NewSerialFetcher(fetchers ...Fetcher) Fetcher {
 	return &serialFetcher{fetchers}
 }
 
-func NewSimpleDirectoryFetcher(dir string) Fetcher {
-	return &dirFetcher{dir, "camli"}
+func NewSerialStreamingFetcher(fetchers ...StreamingFetcher) StreamingFetcher {
+	return &serialStreamingFetcher{fetchers}
 }
 
-func NewConfigDirFetcher() Fetcher {
+func NewSimpleDirectoryFetcher(dir string) *DirFetcher {
+	return &DirFetcher{dir, "camli"}
+}
+
+func NewConfigDirFetcher() *DirFetcher {
 	configDir := filepath.Join(os.Getenv("HOME"), ".camli", "keyblobs")
 	return NewSimpleDirectoryFetcher(configDir)
 }
@@ -62,13 +66,32 @@ func (sf *serialFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err
 		}
 	}
 	return
+
 }
 
-type dirFetcher struct {
+type serialStreamingFetcher struct {
+	fetchers []StreamingFetcher
+}
+
+func (sf *serialStreamingFetcher) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	for _, fetcher := range sf.fetchers {
+		file, size, err = fetcher.FetchStreaming(b)
+		if err == nil {
+			return
+		}
+	}
+	return
+}
+
+type DirFetcher struct {
 	directory, extension string
 }
 
-func (df *dirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os.Error) {
+func (df *DirFetcher) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	return df.Fetch(b)
+}
+
+func (df *DirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os.Error) {
 	fileName := fmt.Sprintf("%s/%s.%s", df.directory, b.String(), df.extension)
 	var stat *os.FileInfo
 	stat, err = os.Stat(fileName)

@@ -19,6 +19,7 @@ package localdisk
 import (
 	"fmt"
 	"log"
+	"io"
 	"os"
 
 	"camli/blobref"
@@ -30,17 +31,23 @@ type diskStorage struct {
 	root string
 }
 
-func New(root string) (storage blobserver.Storage, err os.Error) {
+// TODO: lazy hack because I didn't want to rename diskStorage everywhere
+// during an experiment.  should just rename it now.
+type DiskStorage struct {
+	*diskStorage
+}
+
+func New(root string) (storage *DiskStorage, err os.Error) {
 	// Local disk.
 	fi, staterr := os.Stat(root)
 	if staterr != nil || !fi.IsDirectory() {
 		err = os.NewError(fmt.Sprintf("Storage root %q doesn't exist or is not a directory.", root))
 		return
 	}
-	storage = &diskStorage{
+	storage = &DiskStorage{&diskStorage{
 		&blobserver.SimpleBlobHubPartitionMap{},
 		root,
-	}
+	}}
 	return
 }
 
@@ -64,6 +71,10 @@ func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, er
 
 func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
+}
+
+func (ds *diskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
+	return ds.Fetch(blob)
 }
 
 func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {

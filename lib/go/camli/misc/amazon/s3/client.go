@@ -155,3 +155,28 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys uint) (items []
 	}
 	return bres.Contents, nil
 }
+
+func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err os.Error) {
+	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	req := newReq(url)
+        c.Auth.SignRequest(req)
+	var res *http.Response
+        res, err = c.httpClient().Do(req)
+	if err != nil {
+		return
+	}
+	if res.StatusCode != http.StatusOK && res != nil && res.Body != nil {
+		defer func() {
+			io.Copy(os.Stderr, res.Body)
+		}()
+	}
+	if res.StatusCode == http.StatusNotFound {
+		err = os.ENOENT
+		return
+	}
+	if res.StatusCode != http.StatusOK {
+		err = fmt.Errorf("Amazon HTTP error on GET: %d", res.Status)
+		return
+	}
+	return res.Body, res.ContentLength, nil
+}

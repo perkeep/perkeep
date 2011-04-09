@@ -282,7 +282,7 @@ func commandLineConfigurationMain() {
 			Password: "root",
 			Database: *flagDatabaseName,
 		        OwnerBlobRef: ownerBlobRef,
-			KeyFetcher: blobref.NewSerialFetcher(
+			KeyFetcher: blobref.NewSerialStreamingFetcher(
 				blobref.NewConfigDirFetcher(),
 				storage),
 		}

@@ -93,7 +93,7 @@ type Cache interface {
 }
 
 type Storage interface {
-	blobref.Fetcher
+	blobref.StreamingFetcher
 	BlobReceiver
 	BlobStatter
 	BlobEnumerator

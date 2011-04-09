@@ -51,7 +51,7 @@ func NewStorage(t *testing.T) *diskStorage {
 	if err != nil {
 		t.Fatalf("Failed to run New: %v", err)
 	}
-	return ds.(*diskStorage)
+	return ds.diskStorage
 }
 
 type testBlob struct {

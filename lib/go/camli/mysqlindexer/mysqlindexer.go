@@ -21,6 +21,7 @@ import (
 	"camli/blobserver"
 
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -34,7 +35,7 @@ type Indexer struct {
 	Port                           int
 
 	// TODO: does this belong at this layer?
-	KeyFetcher   blobref.Fetcher // for verifying claims
+	KeyFetcher   blobref.StreamingFetcher // for verifying claims
 	OwnerBlobRef *blobref.BlobRef
 
 	clientLock    sync.Mutex
@@ -107,6 +108,10 @@ func (mi *Indexer) releaseConnection(client *mysql.Client) {
 }
 
 func (mi *Indexer) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
+	return nil, 0, os.NewError("Fetch isn't supported by the MySQL indexer")
+}
+
+func (mi *Indexer) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	return nil, 0, os.NewError("Fetch isn't supported by the MySQL indexer")
 }
 
