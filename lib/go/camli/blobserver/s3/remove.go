@@ -27,6 +27,14 @@ import (
 var _ = log.Printf
 
 func (sto *s3Storage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
-	return os.NewError("NOIMPL")
+	// TODO: do these in parallel
+	var reterr os.Error
+	for _, blob := range blobs {
+		if err := sto.s3Client.Delete(sto.bucket, blob.String()); err != nil {
+			reterr = err
+		}
+	}
+	return reterr
+
 }
 

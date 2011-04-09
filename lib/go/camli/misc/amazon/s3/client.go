@@ -175,8 +175,27 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err os
 		return
 	}
 	if res.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Amazon HTTP error on GET: %d", res.Status)
+		err = fmt.Errorf("Amazon HTTP error on GET: %d", res.StatusCode)
 		return
 	}
 	return res.Body, res.ContentLength, nil
+}
+
+func (c *Client) Delete(bucket, key string) os.Error {
+	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	req := newReq(url)
+	req.Method = "DELETE"
+        c.Auth.SignRequest(req)
+        res, err := c.httpClient().Do(req)
+	if err != nil {
+		return err
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusNoContent ||
+		res.StatusCode == http.StatusOK {
+		return nil
+	}
+	return fmt.Errorf("Amazon HTTP error on DELETE: %d", res.StatusCode)
 }
