@@ -17,13 +17,14 @@ limitations under the License.
 package mysqlindexer
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
-
 	"fmt"
 	"io"
 	"os"
 	"sync"
+
+	"camli/blobref"
+	"camli/blobserver"
+	"camli/jsonconfig"
 
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
@@ -42,7 +43,7 @@ type Indexer struct {
 	cachedClients []*mysql.Client
 }
 
-func newFromConfig(config blobserver.JSONConfig) (blobserver.Storage, os.Error) {
+func newFromConfig(config jsonconfig.Obj) (blobserver.Storage, os.Error) {
 	indexer := &Indexer{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		Host:                      config.OptionalString("host", "localhost"),
@@ -53,6 +54,17 @@ func newFromConfig(config blobserver.JSONConfig) (blobserver.Storage, os.Error) 
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
+		//ownerBlobRef = client.SignerPublicKeyBlobref()
+		//if ownerBlobRef == nil {
+		//	log.Fatalf("Public key not configured.")
+		//}
+
+	//KeyFetcher: blobref.NewSerialStreamingFetcher(
+	//			blobref.NewConfigDirFetcher(),
+	//			storage),
+	//}
+
 	ok, err := indexer.IsAlive()
 	if !ok {
 		return nil, fmt.Errorf("Failed to connect to MySQL: %v", err)

@@ -24,6 +24,7 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/jsonconfig"
 )
 
 type diskStorage struct {
@@ -51,7 +52,7 @@ func New(root string) (storage *DiskStorage, err os.Error) {
 	return
 }
 
-func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &diskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      config.RequiredString("path"),

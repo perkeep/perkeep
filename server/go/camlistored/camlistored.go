@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"http"
-	"io"
 	"json"
 	"log"
 	"strings"
@@ -28,19 +27,19 @@ import (
 
 	"camli/auth"
 	"camli/blobref"
-	"camli/client"
-	"camli/errorutil"
-	"camli/httputil"
-	"camli/webserver"
 	"camli/blobserver"
 	"camli/blobserver/handlers"
+	"camli/errorutil"
+	"camli/httputil"
+	"camli/jsonconfig"
 	"camli/osutil"
 	"camli/search"
+	"camli/webserver"
 
 	// Storage options:
 	"camli/blobserver/localdisk"
 	_ "camli/blobserver/s3"
-	"camli/mysqlindexer"  // indexer, but uses storage interface
+	_ "camli/mysqlindexer"  // indexer, but uses storage interface
 )
 
 var flagUseConfigFiles = flag.Bool("useconfigfiles", false,
@@ -54,114 +53,41 @@ var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to s
 var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
 	"Comma-separated list of queue partitions to reference uploaded blobs into. "+
 		"Typically one for your indexer and one per mirror full syncer.")
+
 // TODO: Temporary
 var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
-var flagDevMySql = flag.Bool("devmysqlindexer", false, "Temporary option to enable MySQL indexer on /indexer")
-var flagDevSearch = flag.Bool("devsearch", false, "Temporary option to enable search interface at /camli/search")
-var flagDatabaseName = flag.String("dbname", "devcamlistore", "MySQL database name")
-
-var storage blobserver.Storage
 
 const camliPrefix = "/camli/"
-const partitionPrefix = "/partition-"
 
-var InvalidCamliPath = os.NewError("Invalid Camlistore request path")
+var ErrCamliPath = os.NewError("Invalid Camlistore request path")
 
-var _ blobserver.Partition = &partitionConfig{}
-var mainPartition = &partitionConfig{"", true, true, false, nil, "http://localhost"}
-
-func parseCamliPath(path string) (partitionName string, action string, err os.Error) {
+func parseCamliPath(path string) (action string, err os.Error) {
 	camIdx := strings.Index(path, camliPrefix)
 	if camIdx == -1 {
-		err = InvalidCamliPath
-		return
+		return "", ErrCamliPath
 	}
 	action = path[camIdx+len(camliPrefix):]
-	if camIdx == 0 {
-		return
-	}
-	if !strings.HasPrefix(path, partitionPrefix) {
-		err = InvalidCamliPath
-		return
-	}
-	partitionName = path[len(partitionPrefix):camIdx]
-	if !isValidPartitionName(partitionName) {
-		err = InvalidCamliPath
 	return
-	}
-	return
-}
-
-func pickPartitionHandlerMaybe(req *http.Request) (handler http.HandlerFunc, intercept bool) {
-	if !strings.HasPrefix(req.URL.Path, partitionPrefix) {
-		intercept = false
-		return
-	}
-	return http.HandlerFunc(handleCamli), true
 }
 
 func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
 	httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
 }
 
-func handleCamli(conn http.ResponseWriter, req *http.Request) {
-	partName, action, err := parseCamliPath(req.URL.Path)
-	if err != nil {
-		log.Printf("Invalid request for method %q, path %q",
-			req.Method, req.URL.Path)
-		unsupportedHandler(conn, req)
-		return
-	}
-	partition := queuePartitionMap[partName]
-	if partition == nil {
-		httputil.BadRequestError(conn, "Unconfigured partition.")
-		return
-	}
-	handleCamliUsingStorage(conn, req, action, partition, storage)
-}
-
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
-func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
-		partName, action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
-		if err != nil {
-			log.Printf("Invalid request for partName %q, method %q, path %q",
-				partName, req.Method, req.URL.Path)
-			unsupportedHandler(conn, req)
-			return
-		}
-		// TODO: actually deal with partitions here
-		part := &partitionConfig{"", true, true, false, nil, baseURL + prefix[:len(prefix)-1]}
-		handleCamliUsingStorage(conn, req, action, part, storage)
-	}
-}
-
-func makeIndexHandler(storage blobserver.Storage) func(conn http.ResponseWriter, req *http.Request) {
-	const prefix = "/indexer"
-	partition := &partitionConfig{
-		name:     "indexer",
-		writable: true,
-		readable: false,
-		queue:    false,
-		urlbase:  mainPartition.urlbase + prefix,
-	}
-	return func(conn http.ResponseWriter, req *http.Request) {
-		if !strings.HasPrefix(req.URL.Path, prefix) {
-			panic("bogus request")
-			return
-		}
-
-		path := req.URL.Path[len(prefix):]
-		_, action, err := parseCamliPath(path)
+func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.Handler {
+	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
+		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
 			log.Printf("Invalid request for method %q, path %q",
 				req.Method, req.URL.Path)
 			unsupportedHandler(conn, req)
 			return
 		}
-		log.Printf("INDEXER action %s on partition %q", action, partition)
-		handleCamliUsingStorage(conn, req, action, partition, storage)
-	}
+		// TODO: actually deal with partitions here
+		part := &partitionConfig{"", true, true, false, nil, baseURL + prefix[:len(prefix)-1]}
+		handleCamliUsingStorage(conn, req, action, part, storage)
+	})
 }
 
 func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, partition blobserver.Partition, storage blobserver.Storage) {
@@ -214,23 +140,6 @@ func exitFailure(pattern string, args ...interface{}) {
 	os.Exit(1)
 }
 
-var queuePartitionMap = make(map[string]blobserver.Partition)
-
-func setupMirrorPartitions() {
-	queuePartitionMap[""] = mainPartition
-	if *flagQueuePartitions == "" {
-		return
-	}
-	for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
-		if _, dup := queuePartitionMap[partName]; dup {
-			log.Fatalf("Duplicate partition in --queue-partitions")
-		}
-		part := &partitionConfig{name: partName, writable: false, readable: true, queue: true}
-		part.urlbase = mainPartition.urlbase + "/partition-" + partName
-		mainPartition.mirrors = append(mainPartition.mirrors, part)
-	}
-}
-
 func main() {
 	flag.Parse()
 
@@ -252,83 +161,48 @@ func commandLineConfigurationMain() {
 		exitFailure("No storage root specified in --root")
 	}
 
-	var err os.Error
-	storage, err = localdisk.New(*flagStorageRoot)
+	storage, err := localdisk.New(*flagStorageRoot)
 	if err != nil {
 		exitFailure("Error for --root of %q: %v", *flagStorageRoot, err)
 	}
 
+	for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
+		log.Printf("TODO: partition %q requested by command-line mode is broken at the moment", partName)
+		// TODO: get this working again
+		//part := &partitionConfig{name: partName, writable: false, readable: true, queue: true}
+		// part.urlbase = "/partition-" + partName
+	}
+
 	ws := webserver.New()
 
-	mainPartition.urlbase = ws.BaseURL()
-	log.Printf("Base URL is %q", mainPartition.urlbase)
-	setupMirrorPartitions() // after mainPartition.urlbase is set
+	const partitionPrefix = "/partition-"
+	pickPartitionHandlerMaybe := func(req *http.Request) (handler http.HandlerFunc, intercept bool) {
+		if !strings.HasPrefix(req.URL.Path, partitionPrefix) {
+			intercept = false
+			return
+		}
+		panic("TODO: re-implement, maybe")
+		//return http.HandlerFunc(handleCamli), true
+	}
 
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
 	ws.HandleFunc("/", handleRoot)
-	ws.HandleFunc("/camli/", handleCamli)
+	ws.Handle("/camli/", makeCamliHandler("/", ws.BaseURL(), storage))
 
-	var (
-		myIndexer *mysqlindexer.Indexer
-		ownerBlobRef *blobref.BlobRef
-	)
-	if *flagDevSearch || *flagDevMySql {
-		ownerBlobRef = client.SignerPublicKeyBlobref()
-		if ownerBlobRef == nil {
-			log.Fatalf("Public key not configured.")
-		}
+	//// TODO: temporary
+	if false {
+		//ownerBlobRef := client.SignerPublicKeyBlobref()
+		//if ownerBlobRef == nil {
+		//	log.Fatalf("Public key not configured.")
+		//}
 
-		myIndexer = &mysqlindexer.Indexer{
-			Host:     "localhost",
-			User:     "root",
-			Password: "root",
-			Database: *flagDatabaseName,
-		        OwnerBlobRef: ownerBlobRef,
-			KeyFetcher: blobref.NewSerialStreamingFetcher(
-				blobref.NewConfigDirFetcher(),
-				storage),
-		}
-		if ok, err := myIndexer.IsAlive(); !ok {
-			log.Fatalf("Could not connect indexer to MySQL server: %s", err)
-		}
+		//ws.HandleFunc("/camli/search", func(conn http.ResponseWriter, req *http.Request) {
+		//	handler := auth.RequireAuth(search.CreateHandler(myIndexer, ownerBlobRef))
+		//	handler(conn, req)
+		//})
 	}
 
-	// TODO: temporary
-	if *flagDevSearch {
-		ws.HandleFunc("/camli/search", func(conn http.ResponseWriter, req *http.Request) {
-			handler := auth.RequireAuth(search.CreateHandler(myIndexer, ownerBlobRef))
-			handler(conn, req)
-		})
-	}
-
-	// TODO: temporary
-	if *flagDevMySql {
-		ws.HandleFunc("/indexer/", makeIndexHandler(myIndexer))
-	}
-
-	ws.Handle("/js/", http.FileServer("../../clients/js", "/js/"))
 	ws.Serve()
-}
-
-type lineColumnCountingReader struct {
-	r      io.Reader
-	line   int
-	column int
-}
-
-func (lc *lineColumnCountingReader) Read(p []byte) (n int, err os.Error) {
-	if lc.line == 0 {
-		lc.line = 1
-	}
-	n, err = lc.r.Read(p)
-	for i := 0; i < n; i++ {
-		if p[i] == '\n' {
-			lc.line++
-			lc.column = 0
-		}
-		lc.column++
-	}
-	return 
 }
 
 func configFileMain() {
@@ -369,6 +243,8 @@ func configFileMain() {
 		exitFailure("No top-level \"prefixes\": {...} in %s", osutil.UserServerConfigPath)
 	}
 
+	createdHandlers := make(map[string]interface{})
+
 	for prefix, vei := range prefixes {
 		if !strings.HasPrefix(prefix, "/") {
 			exitFailure("prefix %q doesn't start with /", prefix)
@@ -380,20 +256,67 @@ func configFileMain() {
 		if !ok {
 			exitFailure("prefix %q value isn't an object", prefix)
 		}
-		storageType, ok := pconf["type"].(string)
+		handlerType, ok := pconf["handler"].(string)
 		if !ok {
-			exitFailure("expected the \"type\" of prefix %q to be a string")
+			exitFailure("in prefix %q, expected the \"handler\" of prefix %q to be a string",
+				prefix)
 		}
-		storageArgs, ok := pconf["typeArgs"].(map[string]interface{})
+		handlerArgs, ok := pconf["handlerArgs"].(map[string]interface{})
 		if !ok {
-			exitFailure("expected the \"typeArgs\" to be a JSON object")
+			if _, present := pconf["handlerArgs"]; !present {
+				handlerArgs = make(jsonconfig.Obj)
+			} else {
+				exitFailure("in prefix %q, expected the \"handlerArgs\" to be a JSON object",
+					prefix)
+			}
 		}
-		pstorage, err := blobserver.CreateStorage(storageType, blobserver.JSONConfig(storageArgs))
-		if err != nil {
-			exitFailure("error instantiating storage for prefix %q, type %q: %v",
-				prefix, storageType, err)
+		switch {
+		case handlerType == "search":
+			// Skip it this round. Get it in second pass
+			// to ensure the search's dependent indexer
+			// has been created.
+		default:
+			// Assume a storage interface
+			pstorage, err := blobserver.CreateStorage(handlerType, jsonconfig.Obj(handlerArgs))
+			if err != nil {
+				exitFailure("error instantiating storage for prefix %q, type %q: %v",
+					prefix, handlerType, err)
+			}
+			createdHandlers[prefix] = pstorage
+			ws.Handle(prefix + "camli/", makeCamliHandler(prefix, baseURL, pstorage))
 		}
-		ws.HandleFunc(prefix + "camli/", makeCamliHandler(prefix, baseURL, pstorage))
+	}
+
+	// Another pass for search handler(s)
+	for prefix, vei := range prefixes {
+		pconf := vei.(map[string]interface{})
+		handlerType := pconf["handler"].(string)
+		config := jsonconfig.Obj(pconf["handlerArgs"].(map[string]interface{}))
+		checkConfig := func() {
+			if err := config.Validate(); err != nil {
+				exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", err)
+			}
+		}
+		switch {
+                case handlerType == "search":
+			indexPrefix := config.RequiredString("index")  // TODO: add optional help tips here?
+			ownerBlobStr := config.RequiredString("owner")
+			checkConfig()
+			indexer, ok := createdHandlers[indexPrefix].(search.Index)
+			if !ok {
+				exitFailure("prefix %q references invalid indexer %q", prefix, indexPrefix)
+			}
+			ownerBlobRef := blobref.Parse(ownerBlobStr)
+			if ownerBlobRef == nil {
+				exitFailure("prefix %q references has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
+					prefix, ownerBlobStr)
+			}
+			h := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
+			ws.HandleFunc(prefix + "camli/", h)
+		default:
+			panic("unexpected handlerType: " + handlerType)
+		}
+
 	}
 
 	ws.HandleFunc("/", handleRoot)

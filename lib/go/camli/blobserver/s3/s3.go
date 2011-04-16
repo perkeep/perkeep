@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"camli/blobserver"
+	"camli/jsonconfig"
 	"camli/misc/amazon/s3"
 )
 
@@ -31,7 +32,7 @@ type s3Storage struct {
 	bucket   string
 }
 
-func newFromConfig(config blobserver.JSONConfig) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	client := &s3.Client{
 		Auth: &s3.Auth{
 			AccessKey:       config.RequiredString("aws_access_key"),
