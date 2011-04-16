@@ -14,16 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+var disco = null;
+
 function discover() {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
         if (xhr.status != 200) {
             console.log("no status 200; got " + xhr.status);
+            return;
         }
-        var disco = JSON.parse(xhr.responseText);
-        alert(JSON.stringify(disco));
+        disco = JSON.parse(xhr.responseText);
+        document.getElementById("discores").innerHTML = JSON.stringify(disco);
     };
     xhr.open("GET", "./?camli.mode=config", true);
+    xhr.send();
+}
+
+function search() {
+        var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            console.log("no status 200; got " + xhr.status);
+            return;
+        }
+        document.getElementById("searchres").innerHTML = "<pre>" + xhr.responseText + "</pre>";
+    };
+    xhr.open("GET", disco.searchRoot + "camli/search", true);
     xhr.send();
 }

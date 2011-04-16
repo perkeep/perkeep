@@ -1,15 +1,17 @@
 <html>
 <head>
   <title>Camlistored UI</title>
-<script src='ui.js'></script>
+  <script src="ui.js"></script>
 </head>
 <body>
+  <h1>Camlistored UI</h1>
 
-<h1>Camlistored UI</h1>
-
-<form>
-  <input type='button' id='discobtn' onclick='discover()' value="Do Discovery" />
-</form>
+  <form>
+    <p><input type="button" id="discobtn" onclick="discover()" value="Do Discovery" /></p>
+    <div id="discores" style="border: 2px solid gray">(discovery results)</div>
+    <p><input type="button" id="searchbtn" onclick="search()" value="Do Search" /></p>
+    <div id="searchres" style="border: 2px solid gray">(search results)</div>
+  </form>
 
 </body>
 </html>
