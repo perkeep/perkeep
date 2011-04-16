@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"http"
+	"io"
 	"json"
 	"log"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"camli/auth"
 	"camli/blobref"
 	"camli/client"
+	"camli/errorutil"
 	"camli/httputil"
 	"camli/webserver"
 	"camli/blobserver"
@@ -308,16 +310,47 @@ func commandLineConfigurationMain() {
 	ws.Serve()
 }
 
+type lineColumnCountingReader struct {
+	r      io.Reader
+	line   int
+	column int
+}
+
+func (lc *lineColumnCountingReader) Read(p []byte) (n int, err os.Error) {
+	if lc.line == 0 {
+		lc.line = 1
+	}
+	n, err = lc.r.Read(p)
+	for i := 0; i < n; i++ {
+		if p[i] == '\n' {
+			lc.line++
+			lc.column = 0
+		}
+		lc.column++
+	}
+	return 
+}
+
 func configFileMain() {
-	config := make(map[string]interface{})
 	f, err := os.Open(osutil.UserServerConfigPath())
 	if err != nil {
 		exitFailure("error opening %s: %v", osutil.UserServerConfigPath(), err)
 	}
 	defer f.Close()
 	dj := json.NewDecoder(f)
+	config := make(map[string]interface{})
 	if err = dj.Decode(&config); err != nil {
-		exitFailure("error parsing JSON object in config file %s: %v", osutil.UserServerConfigPath(), err)
+		extra := ""
+		if serr, ok := err.(*json.SyntaxError); ok {
+			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
+				log.Fatalf("seek error: %v", serr)
+			}
+			line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
+			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
+				line, col, serr.Offset, highlight)
+		}
+		exitFailure("error parsing JSON object in config file %s%s\n%v",
+			osutil.UserServerConfigPath(), extra, err)
 	}
 
 	ws := webserver.New()
