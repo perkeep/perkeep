@@ -121,17 +121,6 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 	handler(conn, req)
 }
 
-func handleRoot(conn http.ResponseWriter, req *http.Request) {
-	configLink := ""
-	if *flagUseConfigFiles {
-		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
-	}
-	fmt.Fprintf(conn,
-		"<html><body>This is camlistored, a " +
-		"<a href='http://camlistore.org'>Camlistore</a> server." +
-		"%s</body></html>\n", configLink)
-}
-
 func exitFailure(pattern string, args ...interface{}) {
 	if !strings.HasSuffix(pattern, "\n") {
 		pattern = pattern + "\n"
@@ -186,7 +175,6 @@ func commandLineConfigurationMain() {
 	}
 
 	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
-	ws.HandleFunc("/", handleRoot)
 	ws.Handle("/camli/", makeCamliHandler("/", ws.BaseURL(), storage))
 
 	//// TODO: temporary
@@ -202,6 +190,9 @@ func commandLineConfigurationMain() {
 		//})
 	}
 
+	root := &RootHandler{OfferSetup: true}
+	ws.Handle("/", root)
+	ws.HandleFunc("/setup", setupHome)
 	ws.Serve()
 }
 
@@ -270,11 +261,24 @@ func configFileMain() {
 					prefix)
 			}
 		}
+		installHandler := func(creator func (conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
+			h, err := creator(jsonconfig.Obj(handlerArgs))
+			if err != nil {
+				exitFailure("error instantiating handler for prefix %s: %v",
+					prefix, err)
+			}
+			createdHandlers[prefix] = h
+			ws.Handle(prefix, h)
+		}
 		switch {
 		case handlerType == "search":
 			// Skip it this round. Get it in second pass
 			// to ensure the search's dependent indexer
 			// has been created.
+		case handlerType == "root":
+			installHandler(createRootHandler)
+		case handlerType == "ui":
+			installHandler(createUIHandler)
 		default:
 			// Assume a storage interface
 			pstorage, err := blobserver.CreateStorage(handlerType, jsonconfig.Obj(handlerArgs))
@@ -289,6 +293,9 @@ func configFileMain() {
 
 	// Another pass for search handler(s)
 	for prefix, vei := range prefixes {
+		if _, alreadyCreated := createdHandlers[prefix]; alreadyCreated {
+			continue
+		}
 		pconf := vei.(map[string]interface{})
 		handlerType := pconf["handler"].(string)
 		config := jsonconfig.Obj(pconf["handlerArgs"].(map[string]interface{}))
@@ -319,7 +326,5 @@ func configFileMain() {
 
 	}
 
-	ws.HandleFunc("/", handleRoot)
-	ws.HandleFunc("/setup", setupHome)
 	ws.Serve()
 }
