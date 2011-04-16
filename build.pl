@@ -404,6 +404,7 @@ TARGET: lib/go/camli/blobserver/s3
 TARGET: lib/go/camli/client
 TARGET: lib/go/camli/errorutil
 TARGET: lib/go/camli/httputil
+TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/lru
 TARGET: lib/go/camli/magic
