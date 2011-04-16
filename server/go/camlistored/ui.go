@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"http"
+	"json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,12 +61,32 @@ func createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	return ui, nil
 }
 
+func wantsDiscovery(req *http.Request) bool {
+	return req.Method == "GET" &&
+		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
+		req.FormValue("camli.mode") == "config")
+}
+
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	file := staticFilePattern.FindString(req.URL.Path)
-	if file != "" {
-		file = file[1:]
-	} else {
-		file = "index.html"
+	rw.Header().Set("Vary", "Accept")
+	switch {
+	case wantsDiscovery(req):
+		ui.serveDiscovery(rw)
+	default:
+		file := staticFilePattern.FindString(req.URL.Path)
+		if file != "" {
+			file = file[1:]
+		} else {
+			file = "index.html"
+		}
+		http.ServeFile(rw, req, filepath.Join(ui.FilesDir, file))
 	}
-	http.ServeFile(rw, req, filepath.Join(ui.FilesDir, file))
+}
+
+func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter) {
+	rw.Header().Set("Content-Type", "text/javascript")
+	json.NewEncoder(rw).Encode(map[string]interface{}{
+		"blobRoot": ui.BlobRoot,
+		"searchRoot": ui.SearchRoot,
+	})
 }
