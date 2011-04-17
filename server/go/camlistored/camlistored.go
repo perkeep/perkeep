@@ -279,6 +279,8 @@ func configFileMain() {
 			installHandler(createRootHandler)
 		case handlerType == "ui":
 			installHandler(createUIHandler)
+		case handlerType == "jsonsign":
+			installHandler(createJSONSignHandler)
 		default:
 			// Assume a storage interface
 			pstorage, err := blobserver.CreateStorage(handlerType, jsonconfig.Obj(handlerArgs))

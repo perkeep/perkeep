@@ -27,15 +27,17 @@ import (
 	"camli/jsonconfig"
 )
 
-var staticFilePattern = regexp.MustCompile(`/([a-z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+var staticFilePattern = regexp.MustCompile(`/static/([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
 	// URL prefixes (path or full URL) to the primary blob and
 	// search root.  Only used by the UI and thus necessary if UI
 	// is true.
-	BlobRoot   string
-	SearchRoot string
+	BlobRoot     string
+	SearchRoot   string
+	JSONSignRoot string
 
 	FilesDir string
 }
@@ -47,8 +49,9 @@ func defaultFilesDir() string {
 
 func createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	ui := &UIHandler{}
-	ui.BlobRoot = conf.RequiredString("blobRoot")
-	ui.SearchRoot = conf.RequiredString("searchRoot")
+	ui.BlobRoot = conf.OptionalString("blobRoot", "")
+	ui.SearchRoot = conf.OptionalString("searchRoot", "")
+	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
 	ui.FilesDir = conf.OptionalString("staticFiles", defaultFilesDir())
 	if err = conf.Validate(); err != nil {
 		return
@@ -64,18 +67,18 @@ func createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 func wantsDiscovery(req *http.Request) bool {
 	return req.Method == "GET" &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
-		req.FormValue("camli.mode") == "config")
+			req.FormValue("camli.mode") == "config")
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Vary", "Accept")
 	switch {
 	case wantsDiscovery(req):
-		ui.serveDiscovery(rw)
+		ui.serveDiscovery(rw, req)
 	default:
-		file := staticFilePattern.FindString(req.URL.Path)
-		if file != "" {
-			file = file[1:]
+		file := ""
+		if m := staticFilePattern.FindStringSubmatch(req.URL.Path); m != nil {
+			file = m[1]
 		} else {
 			file = "index.html"
 		}
@@ -83,10 +86,20 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter) {
+func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "text/javascript")
-	json.NewEncoder(rw).Encode(map[string]interface{}{
-		"blobRoot": ui.BlobRoot,
-		"searchRoot": ui.SearchRoot,
-	})
+	inCb := false
+	if cb := req.FormValue("cb"); identPattern.MatchString(cb) {
+		fmt.Fprintf(rw, "%s(", cb)
+		inCb = true
+	}
+	bytes, _ := json.Marshal(map[string]interface{}{
+                "blobRoot":   ui.BlobRoot,
+                "searchRoot": ui.SearchRoot,
+                "jsonSignRoot": ui.JSONSignRoot,
+        })
+	rw.Write(bytes)
+	if inCb {
+		rw.Write([]byte{')'})
+	}
 }

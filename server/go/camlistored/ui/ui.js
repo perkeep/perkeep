@@ -16,6 +16,13 @@ limitations under the License.
 
 var disco = null;
 
+// Method 1 to get discovery information (JSONP style):
+function onConfiguration(conf) {
+    disco = conf;
+    console.log("Got config: " + JSON.stringify(conf));
+}
+
+// Or get configuration info like this:
 function discover() {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
