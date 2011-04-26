@@ -195,7 +195,7 @@ func (s *Statement) BindParams(params ...interface{}) (err os.Error) {
 			d = append(d, param.([]byte)...)
 		// Other types
 		default:
-			return &ClientError{CR_UNSUPPORTED_PARAM_TYPE, s.c.fmtError(CR_UNSUPPORTED_PARAM_TYPE_STR, reflect.NewValue(param).Type(), k)}
+			return &ClientError{CR_UNSUPPORTED_PARAM_TYPE, s.c.fmtError(CR_UNSUPPORTED_PARAM_TYPE_STR, reflect.ValueOf(param).Type(), k)}
 		}
 		// Append values
 		s.paramType = append(s.paramType, []byte{byte(t), 0x0})
