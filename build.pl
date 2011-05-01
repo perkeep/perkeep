@@ -279,7 +279,7 @@ sub find_go_camli_deps {
     }
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
 
-    opendir(my $dh, $target) or die;
+    opendir(my $dh, $target) or die "Failed to open directory: $target\n";
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
@@ -410,7 +410,6 @@ TARGET: lib/go/camli/lru
 TARGET: lib/go/camli/magic
 TARGET: lib/go/camli/misc/amazon/s3
 TARGET: lib/go/camli/misc/httprange
-TARGET: lib/go/camli/misc/runas
 TARGET: lib/go/camli/mysqlindexer
 TARGET: lib/go/camli/netutil
 TARGET: lib/go/camli/osutil
