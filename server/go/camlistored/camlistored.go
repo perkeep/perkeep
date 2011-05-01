@@ -22,6 +22,7 @@ import (
 	"http"
 	"json"
 	"log"
+	"path/filepath"
 	"strings"
 	"os"
 
@@ -39,16 +40,13 @@ import (
 	// Storage options:
 	"camli/blobserver/localdisk"
 	_ "camli/blobserver/s3"
-	_ "camli/mysqlindexer"  // indexer, but uses storage interface
+	_ "camli/mysqlindexer" // indexer, but uses storage interface
 )
 
-var flagUseConfigFiles = flag.Bool("useconfigfiles", false,
-	"Use the ~/.camli/config files and enable the /config HTTP handler." +
-	"+If false, all configuration is done ")
-var flagPasswordFile = flag.String("passwordfile", "password.txt",
-	"Password file, relative to the ~USER/.camli/ directory.")
+var flagConfigFile = flag.String("configfile", "serverconfig",
+	"Config file to use, relative to camli config dir root, or blank to not use config files.")
 
-// If useConfigFiles is off:
+// If flagConfigFile is blank:
 var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
 var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
 	"Comma-separated list of queue partitions to reference uploaded blobs into. "+
@@ -132,7 +130,7 @@ func exitFailure(pattern string, args ...interface{}) {
 func main() {
 	flag.Parse()
 
-	if *flagUseConfigFiles {
+	if *flagConfigFile != "" {
 		configFileMain()
 		return
 	}
@@ -197,9 +195,13 @@ func commandLineConfigurationMain() {
 }
 
 func configFileMain() {
-	f, err := os.Open(osutil.UserServerConfigPath())
+	configPath := *flagConfigFile
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
+	}
+	f, err := os.Open(configPath)
 	if err != nil {
-		exitFailure("error opening %s: %v", osutil.UserServerConfigPath(), err)
+		exitFailure("error opening %s: %v", configPath, err)
 	}
 	defer f.Close()
 	dj := json.NewDecoder(f)
@@ -216,6 +218,9 @@ func configFileMain() {
 		}
 		exitFailure("error parsing JSON object in config file %s%s\n%v",
 			osutil.UserServerConfigPath(), extra, err)
+	}
+	if err := jsonconfig.EvaluateExpressions(config); err != nil {
+		exitFailure("error expanding JSON config expressions in %s: %v", configPath, err)
 	}
 
 	ws := webserver.New()
@@ -261,7 +266,7 @@ func configFileMain() {
 					prefix)
 			}
 		}
-		installHandler := func(creator func (conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
+		installHandler := func(creator func(conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
 			h, err := creator(jsonconfig.Obj(handlerArgs))
 			if err != nil {
 				exitFailure("error instantiating handler for prefix %s: %v",
@@ -289,7 +294,7 @@ func configFileMain() {
 					prefix, handlerType, err)
 			}
 			createdHandlers[prefix] = pstorage
-			ws.Handle(prefix + "camli/", makeCamliHandler(prefix, baseURL, pstorage))
+			ws.Handle(prefix+"camli/", makeCamliHandler(prefix, baseURL, pstorage))
 		}
 	}
 
@@ -307,8 +312,8 @@ func configFileMain() {
 			}
 		}
 		switch {
-                case handlerType == "search":
-			indexPrefix := config.RequiredString("index")  // TODO: add optional help tips here?
+		case handlerType == "search":
+			indexPrefix := config.RequiredString("index") // TODO: add optional help tips here?
 			ownerBlobStr := config.RequiredString("owner")
 			checkConfig()
 			indexer, ok := createdHandlers[indexPrefix].(search.Index)
@@ -321,7 +326,7 @@ func configFileMain() {
 					prefix, ownerBlobStr)
 			}
 			h := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
-			ws.HandleFunc(prefix + "camli/", h)
+			ws.HandleFunc(prefix+"camli/", h)
 		default:
 			panic("unexpected handlerType: " + handlerType)
 		}

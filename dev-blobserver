@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use FindBin;
+use FindBin qw($Bin);
 use Getopt::Long;
 
 sub usage {
@@ -29,7 +29,9 @@ unless (-d $root) {
 print "Starting blobserver on http://localhost:$port/ in $root\n";
 
 $ENV{CAMLI_PASSWORD} = "pass$port";
+$ENV{CAMLI_PORT} = $port;
+$ENV{CAMLI_ROOT} = $root;
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
-     "-root=$root",
+     "-configfile=$Bin/config/dev-blobserver-config.json",
      "-listen=:$port",
      @ARGV);

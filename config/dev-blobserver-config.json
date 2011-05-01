@@ -1,0 +1,13 @@
+{ "_for-emacs": "-*- mode: js2;-*-",
+  "baseURL": ["_env", "http://localhost:${CAMLI_PORT}"],
+  "password": ["_env", "${CAMLI_PASSWORD}"],
+  "prefixes": {
+    "/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT}"]
+      }
+    }
+  }
+}
+
