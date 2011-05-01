@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use FindBin;
+use FindBin qw($Bin);
 use Getopt::Long;
 use DBI;
 
@@ -27,6 +27,7 @@ if ($opt_wipe && -d $root) {
 unless (-d $root) {
     system("mkdir", "-p", $root) and die "Failed to create $root.\n";
 }
+
 
 my $DBNAME = "devcamlistore";
 
@@ -78,11 +79,11 @@ if ($opt_wipe) {
              ")");
 }
 
-print "Starting indexer with indexer on http://localhost:$port/ in $root\n";
+print "Starting indexer with indexer on http://localhost:$port/indexer/\n";
 
 $ENV{CAMLI_PASSWORD} = "pass$port";
+$ENV{CAMLI_PORT} = $port;
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
-     "-root=$root",  # NOTE: Root required but not used by indexer blobserver
+     "-configfile=$Bin/config/dev-indexer-config.json",
      "-listen=:$port",
-     "-devmysqlindexer",
      @ARGV);

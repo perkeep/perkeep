@@ -1,0 +1,17 @@
+{ "_for-emacs": "-*- mode: js2;-*-",
+  "baseURL": ["_env", "http://localhost:${CAMLI_PORT}"],
+  "password": ["_env", "${CAMLI_PASSWORD}"],
+  "prefixes": {
+    "/indexer/": {
+         "handler": "mysqlindexer",
+         "handlerArgs": {
+              "database": "devcamlistore",
+              "user": "root",
+              "password": "root",
+              "host": "127.0.0.1"
+         }
+      }
+  }
+}
+
+
