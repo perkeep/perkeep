@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"http"
 	"os"
 
@@ -24,14 +25,28 @@ import (
 )
 
 type JSONSignHandler struct {
+	// Optional path to non-standard secret gpg keyring file
+	secretRing string
+
+	// Required keyId, either a short form ("26F5ABDA") or one
+	// of the longer forms. Case insensitive.
+	keyId string
 }
 
 func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{}
-	//h.Stealth = conf.OptionalBool("stealth", false)
+	h.keyId = conf.RequiredString("keyId")
+	h.secretRing = conf.OptionalString("secretRing", "")
 	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
+
+	if h.secretRing != "" {
+		if _, err := os.Stat(h.secretRing); err != nil {
+			return nil, fmt.Errorf("secretRing file: %v", err)
+		}
+	}
+
 	return h, nil
 }
 
