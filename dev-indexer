@@ -3,7 +3,6 @@
 use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
-use DBI;
 
 sub usage {
     die "Usage: dev-indexer [--wipe] <portnumber> -- [other_blobserver_opts]";
@@ -16,68 +15,23 @@ GetOptions("wipe" => \$opt_wipe)
 my $port = shift || "3200";
 usage() unless $port =~ /^\d+$/;
 
-system("./build.pl", "server/go/camlistored") and die "Failed to build.\n";
-
-# NOTE: Root required but not used by indexer blobserver
-my $root = "/tmp/camliroot/port$port/";
-if ($opt_wipe && -d $root) {
-    print "Wiping $root\n";
-    system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
-}
-unless (-d $root) {
-    system("mkdir", "-p", $root) and die "Failed to create $root.\n";
-}
-
+system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
+system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
 
 my $DBNAME = "devcamlistore";
-
-my $dbh = DBI->connect("DBI:mysql:database=mysql", "root", "root") or
-    die "Failed to connect to MySQL on localhost with user/pass of root/root.\n";
-
-my $camdb = DBI->connect("DBI:mysql:database=$DBNAME", "root", "root", {
-    PrintWarn => 0,
-    PrintError => 0,
-});
-unless ($camdb) {
-    print "Database '$DBNAME' doesn't exist; assuming --wipe and initializing.\n";
-    $opt_wipe = 1;
-}
-
+my @opts;
 if ($opt_wipe) {
-    system("mysqladmin", "-uroot", "-proot", "--force", "drop", "$DBNAME");
-    system("mysqladmin", "-uroot", "-proot", "create", "$DBNAME") and die "Could not create MySQL database on localhost.\n";
-    my $dbh = DBI->connect("DBI:mysql:database=$DBNAME", "root", "root", {
-        "RaiseError" => 1,
-    }) or die "Failed to connect to MySQL on localhost.\n";
-
-    # Begin schema creation.
-    $dbh->do("CREATE TABLE blobs (".
-             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
-             "size INTEGER NOT NULL, ".
-             "type VARCHAR(100)".
-             ")");
-
-    $dbh->do("CREATE TABLE claims (".
-             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
-             "signer VARCHAR(128) NOT NULL, ".
-             "date VARCHAR(40) NOT NULL, ".
-             "INDEX (signer, date), ".
-             "unverified CHAR(1) NULL, ".
-             "claim VARCHAR(50) NOT NULL, ".
-             "permanode VARCHAR(128) NOT NULL, ".
-             "INDEX (permanode, signer, date), ".
-             "attr VARCHAR(128) NULL, ".
-             "value VARCHAR(128) NULL ".
-             ")");
-
-    $dbh->do("CREATE TABLE permanodes (".
-             "blobref VARCHAR(128) NOT NULL PRIMARY KEY, ".
-             "unverified CHAR(1) NULL, ".
-             "signer VARCHAR(128) NOT NULL DEFAULT '', ".
-             "lastmod VARCHAR(40) NOT NULL DEFAULT '', ".
-             "INDEX (signer, lastmod) ".
-             ")");
+    push @opts, "-wipe";
+} else {
+    push @opts, "-ignoreexists";
 }
+
+system("./clients/go/camdbinit/camdbinit",
+       "-user=root",
+       "-password=root",
+       "-host=localhost",
+       "-database=$DBNAME",
+       @opts) and die "Failed to run camdbinit.\n";
 
 print "Starting indexer with indexer on http://localhost:$port/indexer/\n";
 

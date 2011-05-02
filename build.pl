@@ -391,6 +391,7 @@ sub read_targets {
 
 __DATA__
 
+TARGET: clients/go/camdbinit
 TARGET: clients/go/camget
 TARGET: clients/go/camput
 TARGET: clients/go/cammount
