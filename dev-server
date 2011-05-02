@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+
+use strict;
+use FindBin qw($Bin);
+use Getopt::Long;
+
+sub usage {
+    die "Usage: dev-server [--wipe] <portnumber> -- [other_blobserver_opts]";
+}
+
+my $opt_wipe;
+GetOptions("wipe" => \$opt_wipe)
+    or usage();
+
+my $port = shift || "3202";
+usage() unless $port =~ /^\d+$/;
+
+system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
+system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+
+my $root = "/tmp/camliroot/port$port/";
+if ($opt_wipe && -d $root) {
+    print "Wiping $root\n";
+    system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
+}
+unless (-d $root) {
+    system("mkdir", "-p", $root) and die "Failed to create $root.\n";
+}
+
+my $DBNAME = "devcamlistore";
+my @opts;
+if ($opt_wipe) {
+    push @opts, "-wipe";
+} else {
+    push @opts, "-ignoreexists";
+}
+
+system("./clients/go/camdbinit/camdbinit",
+       "-user=root",
+       "-password=root",
+       "-host=localhost",
+       "-database=$DBNAME",
+       @opts) and die "Failed to run camdbinit.\n";
+
+print "Starting dev server on http://localhost:$port/ui/ with password \"pass$port\"\n";
+
+$ENV{CAMLI_PASSWORD} = "pass$port";
+$ENV{CAMLI_ROOT} = $root;
+$ENV{CAMLI_PORT} = $port;
+exec("$FindBin::Bin/server/go/camlistored/camlistored",
+     "-configfile=$Bin/config/dev-server-config.json",
+     "-listen=:$port",
+     @ARGV);

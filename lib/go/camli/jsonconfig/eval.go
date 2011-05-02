@@ -29,6 +29,10 @@ func EvaluateExpressions(m map[string]interface{}) os.Error {
 		switch subval := ei.(type) {
 		case string:
 			continue
+		case bool:
+			continue
+		case float64:
+			continue
 		case []interface{}:
 			if len(subval) == 0 {
 				continue

@@ -254,8 +254,8 @@ func configFileMain() {
 		}
 		handlerType, ok := pconf["handler"].(string)
 		if !ok {
-			exitFailure("in prefix %q, expected the \"handler\" of prefix %q to be a string",
-				prefix)
+			exitFailure("in prefix %q, expected the \"handler\" parameter to be a string, got %T",
+				prefix, pconf["handler"])
 		}
 		handlerArgs, ok := pconf["handlerArgs"].(map[string]interface{})
 		if !ok {
