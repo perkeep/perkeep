@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"http"
 	"os"
+	"path/filepath"
+	"crypto/openpgp"
 
 	"camli/jsonconfig"
 )
@@ -33,6 +35,13 @@ type JSONSignHandler struct {
 	keyId string
 }
 
+func (h *JSONSignHandler) secretRingPath() string {
+	if h.secretRing != "" {
+		return h.secretRing
+	}
+	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gog")
+}
+
 func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{}
 	h.keyId = conf.RequiredString("keyId")
@@ -41,10 +50,17 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 		return nil, err
 	}
 
-	if h.secretRing != "" {
-		if _, err := os.Stat(h.secretRing); err != nil {
-			return nil, fmt.Errorf("secretRing file: %v", err)
-		}
+	secring, err := os.Open(h.secretRingPath())
+	if err != nil {
+		return nil, fmt.Errorf("secretRing file: %v", err)
+	}
+	defer secring.Close()
+	el, err := openpgp.ReadKeyRing(secring)
+	if err != nil {
+		return nil, fmt.Errorf("openpgp.ReadKeyRing of %q: %v", h.secretRingPath(), err)
+	}
+	for idx, entity := range el {
+		fmt.Fprintf(os.Stderr, "index %d: %#v\n", idx, entity)
 	}
 
 	return h, nil
@@ -53,4 +69,3 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 func (h *JSONSignHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	// TODO
 }
-
