@@ -17,22 +17,30 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"crypto/openpgp"
+	"crypto/openpgp/armor"
 	"fmt"
 	"http"
+	"log"
 	"os"
 	"path/filepath"
-	"crypto/openpgp"
+	"strings"
 
 	"camli/jsonconfig"
 )
+
+var _ = log.Printf
 
 type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
 
 	// Required keyId, either a short form ("26F5ABDA") or one
-	// of the longer forms. Case insensitive.
+	// of the longer forms.
 	keyId string
+
+	entity *openpgp.Entity
 }
 
 func (h *JSONSignHandler) secretRingPath() string {
@@ -44,7 +52,7 @@ func (h *JSONSignHandler) secretRingPath() string {
 
 func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{}
-	h.keyId = conf.RequiredString("keyId")
+	h.keyId = strings.ToUpper(conf.RequiredString("keyId"))
 	h.secretRing = conf.OptionalString("secretRing", "")
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -59,9 +67,29 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	if err != nil {
 		return nil, fmt.Errorf("openpgp.ReadKeyRing of %q: %v", h.secretRingPath(), err)
 	}
-	for idx, entity := range el {
-		fmt.Fprintf(os.Stderr, "index %d: %#v\n", idx, entity)
+	for _, e := range el {
+		pk := e.PrivateKey
+		if pk == nil || (pk.KeyIdString() != h.keyId && pk.KeyIdShortString() != h.keyId) {
+			continue
+		}
+		h.entity = e
 	}
+	if h.entity == nil {
+		return nil, fmt.Errorf("didn't find a key in %q for keyId %q", h.secretRingPath(), h.keyId)
+	}
+	if h.entity.PrivateKey.Encrypted {
+		// TODO: support decrypting this
+		return nil, fmt.Errorf("Encrypted keys aren't yet supported")
+	}
+
+	var buf bytes.Buffer
+	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return nil, err
+	}
+	h.entity.PrivateKey.PublicKey.Serialize(wc)
+	wc.Close()
+	log.Printf("got key: %s", buf.String())
 
 	return h, nil
 }
