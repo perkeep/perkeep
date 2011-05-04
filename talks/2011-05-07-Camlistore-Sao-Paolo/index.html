@@ -22,8 +22,27 @@
   <style>
     /* Your individual styles here, or just use inline styles if that’s
        what you want. */
+    .smaller {
+    font-size: 80%;
+    }
     
-    
+    ul li ul {
+      margin-top: 1.5em;
+      margin-bottom: 1em;
+    }
+    ul li ul li {
+      margin-top: 1em;
+      font-size: 80%;
+    }
+    ul li ul.dense li {
+      margin-top: 0em;
+      margin-bottom: 0em;
+      font-size: 80%;
+    }
+    h1.center {
+      text-align: center;
+      font-style: italic;
+    }
   </style>
 
   <body style='display: none'>
@@ -45,8 +64,202 @@
       </article>
 
 
+      <article>
+        <h3>
+          Who am I?
+        </h3>
+        <ul class='nobuild'>
+          <li>
+            Brad Fitzpatrick &lt;brad@danga.com&gt;
+          </li>
+          <li>Perl Hacker since 1994</li>
+          <li>Projects:
+              <table><tr valign='top'>
+                  <th>Danga / 6A (Perl)</th>
+                  <th>Google</th>
+                  </tr>
+                  <td class='nobuild'>
+                    <div>LiveJournal</div>
+                    <div>memcached</div>
+                    <div>Perlbal</div>
+                    <div>MogileFS</div>
+                    <div class='blue'>OpenID</div>
+                  </td>
+                  <td class='nobuild'>
+                    <div><nobr>Social Graph API (<span class='blue'>XFN / FOAF</a>)</nobr></div>
+                    <div class='blue'>WebFinger</div>
+                    <div class='blue'>PubSubHubbub</div>
+                    <div>Android</div>
+                    <div>Go</div>
+                  </td>
+                  </table>
+               <div style='font-size: 70%; margin-top: 1em'>* <span class='blue'>decentralized social</span></div>
+          </li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          But why am I in Brazil?
+        </h3>
+        <ul class='nobuild'>
+          <li>
+            <i>"Hey, want to come speak at a Perl conference in Brazil?"</i>
+          </li>
+          <li>"Yes, totally, but... I don't write much Perl these days. :-("</li> <!-- " -->
+          <li style="margin-top: 2em"><i>"You could speak on memcached."</i></li>
+          <li>"But that's an old topic, no?"</li>
+          <li style="margin-top: 2em"><i>"You have any new project you're excited about?"</i></li>
+          </li>
+        </ul>
+      </article>
 
 
+      <article>
+        <h1 align='center'>
+          Camlistore!
+        </h1>
+      </article>
+
+      <article>
+        <h3>
+          Camlistore
+        </h1>
+        <ul>
+          <li>New open source project</li>
+          <li>Almost a year old</li>
+          <li>Still in development</li>
+          <li>Starting to be useful :-)</li>
+          <li>Hard to easily describe...</li>
+      </article>
+
+      <article>
+        <q>
+          Camlistore is a way to store, sync, share, model and back up content
+        </q>
+        <div class='author'>
+          camlistore.org
+        </div>
+      </article>
+
+      <article>
+        <h3>
+          Motivation
+        </h3>
+        <ul>
+          <li>I've written too many Content Management Systems
+            <ul>
+              <li>blogs, comments, photos, emails, backups, scanned paperwork, ...</li>
+              <li>is a scanned photo a scan, a photo, or a blog post? who cares.</li>
+              <li>write <b>one CMS to rule them all</b></li>
+              <li>... or at least a good framework for higher-level CMSes</li>
+            </ul>
+          </li>
+          </ul>
+        </article>
+
+
+      <article>
+        <h3>
+          Motivation (cont)
+        </h3>
+        <ul>
+          <li>I still want to solve the Decentralized Social Network Problem
+            <ul>
+              <li>protocols, not companies</li>
+              <li>gmail, hotmail: hosted versions of SMTP, IMAP</li>
+              <li>... but I can run my own SMTP/IMAP server if I want.</li>
+              <li>... or change my SMTP/IMAP provider</li>
+            </ul>
+          </li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          Motivation (cont)
+        </h3>
+        <ul>
+          <li>I wanted something conceptually simple.</li>
+          <li>HTTP interfaces, not language-specific</li>
+          <li>I use lots of machines; don't want to think about sync or conflicts.</li>
+          <li>Data archaeology: should be easy and obvious to
+          reconstruct in 20 or 100 years</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          The Product I Want:
+        </h3>
+        <ul>
+          <li>one private dumping ground to store anything</li>
+          <li>backups, filesystems, objects, my website, ...</li>
+          <li>live backup my phone</li>
+          <li>live replicate / sync my dumping group between my house & laptop & Amazon & Google</li>
+          <li>give out access to  / sub-trees to friends or the world</li>
+          <li>web UI (ala gmail, docs.google.com, etc) or FUSE filesystem</li>
+        </ul>
+      </article>
+
+      <article>
+        <h1 class='center'>
+          So what's with the silly name?
+        </h1>
+      </article>
+
+      <article>
+        <h3>
+          Camlistore
+        </h3>
+        <ul>
+          <li>Content-</li>
+          <li>Addressable</li>
+          <li>Multi-</li>
+          <li>Layer-</li>
+          <li>Indexed</li>
+          <li>Storage</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          Content-Addressable
+        </h3>
+        <ul>
+          <li>At the core, everything is stored &amp; addressed by its digest (e.g. SHA1, MD5, etc)</li>
+          <li>e.g. <tt class='smaller'>"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"</tt> for the blob <tt class='smaller'>"foo"</tt></li>
+          <li>Great properties:
+            <ul>
+              <li>no versions of content: change it changes the new digest too</li>
+              <li>no versions: no sync conflicts</li>
+              <li>no versions: perfect caching (have it or don't)</li>
+            </ul>
+          </li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          Multi-Layer, Indexed
+        </h3>
+        <ul>
+          <li>Unix philosophy: small pieces with well-defined interfaces that can be chained or composed</li>
+          <li>Camlistore pieces include:
+            <ul class='dense'>
+              <li style='margin-top: 1em'>Blob storage: memory, disk, S3, Google, MySQL index, etc</li>
+              <li>Schema</li>
+              <li>Signing</li>
+              <li>Replication</li>
+              <li>Indexing: (e.g. replicate from disk to MySQL index)</li>
+              <li>Search</li>
+              <li>HTML UI</li>
+            </ul>
+            </li>
+          
+        </ul>
+      </article>
+      
 <!-- END -->
 
       <article>
@@ -115,7 +328,7 @@
         <h3>
           Slide with bullet points that builds
         </h3>
-        <ul class="build">
+        <ul class="nobuild">
           <li>
             This is an example of a list
           </li>
@@ -127,7 +340,7 @@
           </li>
         </ul>
 
-        <div class="build">
+        <div class="nobuild">
           <p>Any element with child nodes can build.</p>
           <p>It doesn't have to be a list.</p>
         </div>
@@ -318,8 +531,8 @@
         <div class='author'>
           Alan Kay
         </div>
-      </article>
-      
+      </article>  
+    
       <article class='smaller'>
         <q>
           A distributed system is one in which the failure of a computer 
