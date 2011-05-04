@@ -17,11 +17,15 @@ limitations under the License.
 package blobref
 
 import (
+	"crypto"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 )
+
+var _ = log.Printf
 
 type Fetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
@@ -105,3 +109,22 @@ func (df *DirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os
 	size = stat.Size
 	return
 }
+
+// MemoryStore stores blobs in memory and is a Fetcher and
+// StreamingFetcher. Its zero value is usable.
+type MemoryStore struct {
+	m map[string][]byte
+}
+
+func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data []byte) os.Error {
+	if hashtype != crypto.SHA1 {
+		return os.NewError("blobref: unsupported hash type")
+	}
+	hash := hashtype.New()
+	hash.Write(data)
+	bstr := fmt.Sprintf("sha1-%x", hash.Sum())
+	s.m[bstr] = data
+	log.Printf("added %s", bstr)
+	return nil
+}
+
