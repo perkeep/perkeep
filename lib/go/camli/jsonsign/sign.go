@@ -17,16 +17,18 @@ limitations under the License.
 package jsonsign
 
 import (
-	"camli/blobref"
 	"exec"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"json"
 	"log"
 	"os"
 	"strings"
 	"unicode"
+
+	"camli/blobref"
 )
 
 var gpgPath *string = flag.String("gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
@@ -40,7 +42,7 @@ var flagSecretRing *string = flag.String("secret-keyring", "./test/test-secring.
 
 type SignRequest struct {
 	UnsignedJson string
-	Fetcher      blobref.Fetcher
+	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
 	UseAgent     bool
 
 	// In server-mode, don't use any default (user) keys
@@ -92,7 +94,15 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
 
-	pubkeyReader, _, err := sr.Fetcher.Fetch(signerBlob)
+	var pubkeyReader io.ReadCloser
+	switch fetcher := sr.Fetcher.(type) {
+	case blobref.Fetcher:
+		pubkeyReader, _, err = fetcher.Fetch(signerBlob)
+	case blobref.StreamingFetcher:
+		pubkeyReader, _, err = fetcher.FetchStreaming(signerBlob)
+	default:
+		panic(fmt.Sprintf("jsonsign: bogus SignRequest.Fetcher of type %T", sr.Fetcher))
+	}
 	if err != nil {
 		// TODO: not really either an inputfail or an execfail.. but going
 		// with exec for now.
