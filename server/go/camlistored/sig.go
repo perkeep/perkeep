@@ -27,10 +27,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"camli/blobref"
 	"camli/jsonconfig"
+	"camli/jsonsign"
 )
 
 var _ = log.Printf
+
+const kMaxJsonLength = 1024 * 1024
 
 type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
@@ -39,6 +43,8 @@ type JSONSignHandler struct {
 	// Required keyId, either a short form ("26F5ABDA") or one
 	// of the longer forms.
 	keyId string
+
+	pubKeyFetcher blobref.StreamingFetcher
 
 	entity *openpgp.Entity
 }
@@ -51,9 +57,10 @@ func (h *JSONSignHandler) secretRingPath() string {
 }
 
 func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
-	h := &JSONSignHandler{}
-	h.keyId = strings.ToUpper(conf.RequiredString("keyId"))
-	h.secretRing = conf.OptionalString("secretRing", "")
+	h := &JSONSignHandler{
+		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
+		secretRing: conf.OptionalString("secretRing", ""),
+	}
 	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
@@ -91,9 +98,49 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	wc.Close()
 	log.Printf("got key: %s", buf.String())
 
+	h.pubKeyFetcher = nil // TODO
+
 	return h, nil
 }
 
-func (h *JSONSignHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
-	// TODO
+func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case "POST":
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/camli/sig/sign"):
+			h.handleSign(rw, req)
+			return
+		case strings.HasSuffix(req.URL.Path, "/camli/sig/verify"):
+			h.handleVerify(rw, req)
+			return
+		}
+	}
+	http.Error(rw, "Unsupported path or method.", http.StatusBadRequest)
+}
+
+func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request) {
+	http.Error(rw, "TODO: finish moving this code over from camsigd", http.StatusBadRequest)
+}
+
+func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+
+	jsonStr := req.FormValue("json")
+	if jsonStr == "" {
+		http.Error(rw, "Missing json parameter", http.StatusBadRequest)
+		return
+	}
+	if len(jsonStr) > kMaxJsonLength {
+		http.Error(rw, "json parameter too large", http.StatusBadRequest)
+		return
+	}
+
+	sreq := &jsonsign.SignRequest{UnsignedJson: jsonStr, Fetcher: h.pubKeyFetcher}
+	signedJson, err := sreq.Sign()
+	if err != nil {
+		// TODO: some aren't really a "bad request"
+		http.Error(rw, fmt.Sprintf("%v", err), http.StatusBadRequest)
+		return
+	}
+	rw.Write([]byte(signedJson))
 }
