@@ -20,9 +20,12 @@ import (
 	"crypto"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 )
 
 var _ = log.Printf
@@ -113,18 +116,36 @@ func (df *DirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os
 // MemoryStore stores blobs in memory and is a Fetcher and
 // StreamingFetcher. Its zero value is usable.
 type MemoryStore struct {
-	m map[string][]byte
+	lk sync.Mutex
+	m  map[string]string
 }
 
-func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data []byte) os.Error {
+func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) os.Error {
 	if hashtype != crypto.SHA1 {
 		return os.NewError("blobref: unsupported hash type")
 	}
 	hash := hashtype.New()
-	hash.Write(data)
+	hash.Write([]byte(data))
 	bstr := fmt.Sprintf("sha1-%x", hash.Sum())
+	s.lk.Lock()
+	defer s.lk.Unlock()
+	if s.m == nil {
+		s.m = make(map[string]string)
+	}
 	s.m[bstr] = data
 	log.Printf("added %s", bstr)
 	return nil
 }
 
+func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	s.lk.Lock()
+        defer s.lk.Unlock()
+	if s.m == nil {
+		return nil, 0, os.ENOENT
+	}
+	str, ok := s.m[b.String()]
+	if !ok {
+		return nil, 0, os.ENOENT
+	}
+	return ioutil.NopCloser(strings.NewReader(str)), int64(len(str)), nil
+}

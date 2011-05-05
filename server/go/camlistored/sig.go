@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/openpgp"
 	"crypto/openpgp/armor"
 	"fmt"
@@ -98,7 +99,12 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	wc.Close()
 	log.Printf("got key: %s", buf.String())
 
-	h.pubKeyFetcher = nil // TODO
+	ms := new(blobref.MemoryStore)
+	err = ms.AddBlob(crypto.SHA1, buf.String())
+	if err != nil {
+		return nil, err
+	}
+	h.pubKeyFetcher = ms
 
 	return h, nil
 }
