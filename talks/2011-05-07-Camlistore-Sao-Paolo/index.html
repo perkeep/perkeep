@@ -164,7 +164,7 @@
           Motivation (cont)
         </h3>
         <ul>
-          <li>I still want to solve the Decentralized Social Network Problem
+          <li>I still want to help solve the Decentralized Social Network Problem
             <ul>
               <li>protocols, not companies</li>
               <li>gmail, hotmail: hosted versions of SMTP, IMAP</li>
@@ -194,13 +194,23 @@
         </h3>
         <ul>
           <li>one private dumping ground to store anything</li>
-          <li><i><b>your</b></i> private repo, for life</li>
-          <li>backups, filesystems, objects, my website, ...</li>
+          <li>backups, filesystems, objects, photos, likes, bookmarks, shares, my website, ...</li>
           <li>live backup my phone</li>
           <li>live replicate / sync my dumping group between my house & laptop & Amazon & Google</li>
-          <li>give out access to  / sub-trees to friends or the world</li>
           <li>web UI (ala gmail, docs.google.com, etc) or FUSE filesystem</li>
           <li>Easy for end-users; powerful for dorks</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          Security Model
+        </h3>
+        <ul>
+          <li><i><b>your</b></i> private repo, for life</li>
+          <li>everything private by default</li>
+          <li>grant access to specific objects/trees with friends or the world</li>
+          <li>web UI or CLI tools let you share</li>
         </ul>
       </article>
 
@@ -275,46 +285,288 @@
         </ul>
       </article>
 
+      <article>
+        <h2>
+          From the bottom up...
+        </h2>
+      </article>
+
+      <article>
+        <h2>
+          Blob Server
+        </h2>
+      </article>
+
+      <article>
+        <h3>Blob Server: how dumb it is</h3>
+        <ul>
+          <li>"Blob" == zero or more bytes. <i class='red'>no</i> meta-data</li>
+          <li>private operations, to owner of data only:</li>
+          <ul>
+            <li class='green'>get(blobref) → blob</li>
+            <li class='green'>stat(blobref+) → [(blobref, size), ...]</li>
+            <li class='green'>put(blobref, blob)</li>
+            <li class='green'>enumerate(..) → [(blobref, size)...] (sorted by blobref)</li>
+          </ul>
+          <li>no public (non-owner) access</li>
+          <li>HTTP interface: <tt>GET /camli/sha1-xxxxxxx HTTP/1.1</tt></li>
+          <li><span class='green'>delete(blobref)</span> is disabled by default, privileged op for GC or replication queues only</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>Blob Server: seriously, no metadata</h3>
+        <ul>
+          <li>no filenames</li>
+          <li>no "mime types"</li>
+          <li>no "{create,mod,access} time"</li>
+          <li>size is implicit</li>
+          <li>blob: just some bytes</li>
+          <li>metadata? layers above.</li>
+        </ul>
+      </article>
+
+      <article>
+        <h1 class='center'>
+          Uh, what can you do with that?
+        </h1>
+      </article>
+
+      <article>
+        <h3>Uh, what can you do with that?</h3>
+        <ul>
+          <li>with just a blob server?</li>
+          <li>not much</li>
+          <li>but let's start with an easy example...</li>
+        </ul>
+      </article>
+
+      <article>
+        <h1 class='center'>
+          Filesystem Backups
+        </h1>
+      </article>
+
+      <article>
+        <h3>Filesystem Backups</h3>
+        <ul>
+          <li>previous project: brackup
+            <ul>
+              <li>good: Perl, slide/dice/encrypt S3 backup, content-addressed, good iterative backups</li>
+              <li>bad: large (several MB) "backup manifest" text files 
+            </ul>
+          </li>
+          
+          <li>fossil/venti, git, etc: directories content-addressed by content of their children, hash trees, etc</li>
+          <li>git: "tree objects", "commmit objects", etc</li>
+          <li>Camlistore: "schema blobs"</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>Schema: how to model your content</h3>
+        <ul>
+          <li>Camlistore defines <i>one possible</i> schema</li>
+          <li>but blobserver doesn't know about it all</li>
+          <li>tools generate schema,</li>
+          <li>indexer + search understand the schema.</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>Schema Blobs</h3>
+        <ul>
+          <li>so if all blobs are just dumb blobs of bytes with no metadata,</li>
+          <li>how do you store metadata?</li>
+          <li>as blobs themselves!</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>Minimal Schema Blob</h3>
+
+        <section>
+          <pre>{
+  "camliVersion": 1,
+  "camliType": "whatever"
+}</pre>
+        </section>
+        <p>Whitespace doesn't matter. Just must be valid JSON in its
+entirety. Use whatever JSON libraries you've got.</p>
+
+        <p>That one is named<br/><tt class='smaller'>sha1-19e851fe3eb3d1f3d9d1cefe9f92c6f3c7d754f6</tt></p>
+        <p>or perhaps: <tt class='smaller'>sha512-2c6746aba012337aaf113fd63c24d994a0703d33eb5d6ed58859e45dc4e02dcf<br/>dae5c4d46c5c757fb85d5aff342245fe4edb780c028a6f3c994c1295236c931e</tt></p>
+
+      </article>            
+
 <!-- END -->
 
       <article>
-        <p>
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-        </p>
-        <p>
-          There is more text just underneath.
-        </p>
+        <h3>Schema blob; type "file"</h3>
+        <section><pre>{"camliVersion": 1,
+ <span style='background: #fff'>"camliType": "file",</span>
+ "fileName": "foo.dat",
+ "unixPermission": "0644",
+ ...,
+ "size": 6000133,
+ "contentParts": [
+   {"blobRef": "sha1-...dead", "size": 111},
+   {"blobRef": "sha1-...beef", "size": 5000000, "offset": 492 },
+   {"size": 1000000},
+   {"blobRef": "digalg-blobref", "size": 22},
+  ]
+}</pre></section>
+      </article>
+
+      <article>
+        <h3>Schema blob; type "directory"</h3>
+        <section><pre>{"camliVersion": 1,
+ <span style='background: #fff'>"camliType": "directory",</span>
+ "fileName": "foodir",
+ "unixPermission": "0755",
+  ...,
+ "entries": <span style='background: #fff'>"sha1-c3764bc2138338d5e2936def18ff8cc9cda38455"</span>
+}</pre></section>
+      </article>
+
+      <article>
+        <h3>Schema blob; type "static-set"</h3>
+        <section><pre>{"camliVersion": 1,
+ <span style='background: #fff'>"camliType": "static-set",</span>
+"members": [
+     "sha1-xxxxxxxxxxxx",
+     "sha1-xxxxxxxxxxxx",
+     "sha1-xxxxxxxxxxxx",
+     "sha1-xxxxxxxxxxxx",
+     "sha1-xxxxxxxxxxxx",
+     "sha1-xxxxxxxxxxxx",
+  ]
+}</pre></section>
       </article>
 
       <article>
         <h3>
-          Simple slide with header and text
+          Backup a directory...
         </h3>
-        <p>
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-        </p>
-        <p>
-          There is more text just underneath with a <code>code sample: 5px</code>.
-        </p>
+        <section><pre>$ camput --file $HOME
+sha1-8659a52f726588dc44d38dfb22d84a4da2902fed</pre></section>
+        
+<p>(like git/hg/fossil, that identifier represents everything down.)</p>
+
+<p>Iterative backups are cheap, easy identifier to share, etc</p>
+
+<p>But how will you remember that identifier? (later)</p>
       </article>
 
-      <article class='smaller'>
+      <article>
         <h3>
-          Simple slide with header and text (small font)
+          But what about mutable data?
         </h3>
-        <p>
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-          This is a slide with just text. This is a slide with just text.
-        </p>
-        <p>
-          There is more text just underneath with a <code>code sample: 5px</code>.
-        </p>
+        <ul>
+          <li>immutable data is easy to represent & reference</li>
+          <ul>
+            <li><tt class='smaller'>sha1-8659a52f726588dc44d38dfb22d84a4da2902fed</tt> is an immutable snapshot</li>
+            </ul>
+          <li>how to represent mutable data in an immutable, content-addressed world?</li>
+          <li>how to share a reference to a mutable object when changing an object mutates its name?</li>
+        </ul>
       </article>
+
+      <article>
+        <h1 class='center'>
+          Objects & "Permanodes"
+        </h1>
+      </article>
+      
+      <article>
+        <h3>
+          Terminology
+        </h3>
+        <ul>
+          <li><span class='red'>blob</span>: just dumb, immutable series of bytes</li>
+          <li><span class='red'>schema blob</span>: a blob that's a valid JSON object w/ camliVersion & camliType</li>
+          <li><span class='red'>signed schema blob</span> aka "<span class='red'>claim</span>": a schema blob with an embedded OpenPGP signature</li>
+          <li><span class='red'>object</span>: something mutable.  represented as an anchor "<span class='blue'>permanode</span>" + a set of mutations (<span class='blue'>claims</span>)</li>
+          <li><span class='red'>permanode</span>: a stable reference. an anchor. just a <span class='blue'>signed schema blob</span>, but of almost no content...</li>
+        </ul>
+      </article>
+
+      <article>
+        <h3>
+          Permanode
+        </h3>
+        <section><pre><span style='font-weight: bold' class='blue'>$ camput --permanode</span>
+sha1-ea799271abfbf85d8e22e4577f15f704c8349026
+
+<span style='font-weight: bold' class="blue">$ camget sha1-ea799271abfbf85d8e22e4577f15f704c8349026</span>
+<span style="background: #ff7">{"camliVersion": 1,
+  "camliSigner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8",
+  <span style='font-weight: bold'>"camliType": "permanode"</span>,
+  "random": "oj)r}$Wa/[J|XQThNdhE"</span>
+,"camliSig":"iQEcBAABAgAGBQJNRxceAAoJEGjzeDN/6vt8ihIH/Aov7FRIq4dODAPWGDwqL
+1X9Ko2ZtSSO1lwHxCQVdCMquDtAdI3387fDlEG/ALoT/LhmtXQgYTt8QqDxVdu
+EK1or6/jqo3RMQ8tTgZ+rW2cj9f3Q/dg7el0Ngoq03hyYXdo3whxCH2x0jajSt4RCc
+gdXN6XmLlOgD/LVQEJ303Du1OhCvKX1A40BIdwe1zxBc5zkLmoa8rClAlHdqwo
+gxYFY4cwFm+jJM5YhSPemNrDe8W7KT6r0oA7SVfOan1NbIQUel65xwIZBD0ah
+CXBx6WXvfId6AdiahnbZiBup1fWSzxeeW7Y2/RQwv5IZ8UgfBqRHvnxcbNmScrzl
+p3V3ZoY"}</pre></section>
+
+      </article>
+
+      <article>
+        <h3>
+          Backup a directory...
+        </h3>
+        <section><pre><span style='font-weight: bold'>$ camput --file $HOME</span>
+sha1-8659a52f726588dc44d38dfb22d84a4da2902fed
+<span style='font-weight: bold'>$ camput --permanode --file $HOME</span>
+sha1-ea799271abfbf85d8e22e4577f15f704c8349026
+<span style='font-weight: bold'>$ camput --permanode --name="Brad's home directory" --file $HOME</span>
+sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
+        <ul>
+          <li>all the file data blobs, file/dir schema blobs,</li>
+          <li>a new permanode, owned by you</li>
+          <li>a mutation: permanode's content attribute == directory root</li>
+          <li>a mutation: permanode's name attribute == "Brad's home directory"</li>
+        </ul>
+      </article>
+
+      <article class='fill'>
+        <p><img src="fsbackup.png" height="100%"/></p>
+      </article>
+
+      <article>
+        <h1 class='center'>
+          Modeling non-filesystem objects
+        </h1>
+      </article>
+
+      <article>
+        <h3>Example: a photo gallery</h3>
+        <ul>
+          <li>Photos are objects</li>
+          <li>Galleries (sets) are objects</li>
+          <li>Photos are members of galleries</li>
+          <li>Photos & galleries have attributes (single-valued: "title", multi-valued: "tag")</li>
+          <li>Photos might be updated over time:
+            <ul>
+              <li>EXIF GPS updated, cropping, white balance</li>
+              <li>don't want to break links!</li>
+              </ul>
+            </li>
+        </ul>
+      </article>
+
+      <article class='fill'>
+        <p><img src="blobjects.png" width="100%"/></p>
+      </article>
+
+      <article>
+        <h1 class='center'>
+          How to make sense of that?
+        </h1>
+      </article>
+
 
       <article>
         <h3>
@@ -455,29 +707,6 @@
         </h2>
       </article>
 
-      <article>
-        <h3>
-          Slide with an image
-        </h3>
-        <p>
-          <img style='height: 500px' src='images/example-graph.png'>
-        </p>
-        <div class='source'>
-          Source: Sergey Brin
-        </div>
-      </article>
-
-      <article>
-        <h3>
-          Slide with an image (centered)
-        </h3>
-        <p>
-          <img class='centered' style='height: 500px' src='images/example-graph.png'>
-        </p>
-        <div class='source'>
-          Source: Larry Page
-        </div>
-      </article>
 
       <article class='fill'>
         <h3>
