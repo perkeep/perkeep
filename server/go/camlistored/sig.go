@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"camli/blobref"
+	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/jsonsign"
 )
@@ -45,6 +46,7 @@ type JSONSignHandler struct {
 	// of the longer forms.
 	keyId string
 
+	pubKeyBlobRef *blobref.BlobRef
 	pubKeyFetcher blobref.StreamingFetcher
 
 	entity *openpgp.Entity
@@ -100,7 +102,7 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	log.Printf("got key: %s", buf.String())
 
 	ms := new(blobref.MemoryStore)
-	err = ms.AddBlob(crypto.SHA1, buf.String())
+	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, buf.String())
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +113,15 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch req.Method {
+	case "GET":
+		if strings.HasSuffix(req.URL.Path, "/camli/sig/discovery") {
+			m := map[string]interface{}{}
+			if h.pubKeyBlobRef != nil {
+				m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
+			}
+			httputil.ReturnJson(rw, m)
+			return
+		}
 	case "POST":
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/camli/sig/sign"):

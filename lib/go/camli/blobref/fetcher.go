@@ -120,9 +120,9 @@ type MemoryStore struct {
 	m  map[string]string
 }
 
-func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) os.Error {
+func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) (*BlobRef, os.Error) {
 	if hashtype != crypto.SHA1 {
-		return os.NewError("blobref: unsupported hash type")
+		return nil, os.NewError("blobref: unsupported hash type")
 	}
 	hash := hashtype.New()
 	hash.Write([]byte(data))
@@ -134,7 +134,7 @@ func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) os.Error {
 	}
 	s.m[bstr] = data
 	log.Printf("added %s", bstr)
-	return nil
+	return Parse(bstr), nil
 }
 
 func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64, err os.Error) {
