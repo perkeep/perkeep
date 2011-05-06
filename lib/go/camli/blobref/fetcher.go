@@ -133,7 +133,6 @@ func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) (*BlobRef, os.E
 		s.m = make(map[string]string)
 	}
 	s.m[bstr] = data
-	log.Printf("added %s", bstr)
 	return Parse(bstr), nil
 }
 

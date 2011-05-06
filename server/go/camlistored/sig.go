@@ -110,10 +110,9 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	io.Copy(wc, &buf1)
 	wc.Close()
 
-	log.Printf("got key: %s", buf2.String())
-
+	armoredPublicKey := buf2.String()
 	ms := new(blobref.MemoryStore)
-	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, buf2.String())
+	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, armoredPublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +219,7 @@ func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request
 	vreq := jsonsign.NewVerificationRequest(sjson, fetcher)
 	if vreq.Verify() {
 		m["signatureValid"] = 1
+		m["signerKeyId"] = vreq.SignerKeyId
 		m["verifiedData"] = vreq.PayloadMap
 	} else {
 		errStr := vreq.Err.String()
