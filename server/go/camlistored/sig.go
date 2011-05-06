@@ -171,9 +171,16 @@ func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request
 func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 
+	badReq := func(s string) {
+		http.Error(rw, s, http.StatusBadRequest)
+		log.Printf("bad request: %s", s)
+		return
+	}
+	// TODO: SECURITY: auth
+
 	jsonStr := req.FormValue("json")
 	if jsonStr == "" {
-		http.Error(rw, "Missing json parameter", http.StatusBadRequest)
+		badReq(rw, "Missing json parameter", http.StatusBadRequest)
 		return
 	}
 	if len(jsonStr) > kMaxJsonLength {
