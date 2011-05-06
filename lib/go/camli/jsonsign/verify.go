@@ -60,7 +60,7 @@ func reArmor(line string) string {
 // See doc/json-signing/* for background and details
 // on these variable names.
 type VerifyRequest struct {
-	fetcher blobref.Fetcher // fetcher used to find public key blob
+	fetcher blobref.StreamingFetcher // fetcher used to find public key blob
 
 	ba  []byte // "bytes all"
 	bp  []byte // "bytes payload" (the part that is signed)
@@ -136,10 +136,11 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 }
 
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
-	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
+	reader, _, err := vr.fetcher.FetchStreaming(vr.CamliSigner)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("error fetching public key blob: %v", err))
 	}
+	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
 		return vr.fail(fmt.Sprintf("error opening public key file: %v", err))
@@ -180,7 +181,7 @@ func (vr *VerifyRequest) VerifySignature() bool {
 	return true
 }
 
-func NewVerificationRequest(sjson string, fetcher blobref.Fetcher) (vr *VerifyRequest) {
+func NewVerificationRequest(sjson string, fetcher blobref.StreamingFetcher) (vr *VerifyRequest) {
 	vr = new(VerifyRequest)
 	vr.ba = []byte(sjson)
 	vr.fetcher = fetcher

@@ -22,6 +22,8 @@
         <th>JSON blob to sign: <input type='button' id='addkeyref' onclick='addKeyRef()' value="Add keyref"/></th>
         <th></th>
         <th>Signed blob:</th>
+        <th></th>
+        <th>Verification details:</th>
       </tr>
       <tr>
         <td><textarea id='clearjson' rows=10 cols=40>{"camliVersion": 1,
@@ -29,7 +31,9 @@
  "foo": "bar"
 }</textarea></td>
         <td valign='middle'><input type='button' id='sign' onclick='doSign()' value="Sign &gt;&gt;" /></td>
-        <td><textarea id="signedjson" rows=10 cols=40 readonly></textarea></td>
+        <td><textarea id="signedjson" rows=10 cols=40></textarea></td>
+        <td valign='middle'><input type='button' id='sign' onclick='doVerify()' value="Verify &gt;&gt;" /></td>
+        <td><div id='verifyinfo'></div></td>
       </tr>
     </table>
 

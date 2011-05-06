@@ -204,7 +204,31 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request) {
-	http.Error(rw, "TODO: finish moving this code over from camsigd", http.StatusBadRequest)
+	req.ParseForm()
+	sjson := req.FormValue("sjson")
+	if sjson == "" {
+		http.Error(rw, "missing \"sjson\" parameter", http.StatusBadRequest)
+		return
+	}
+
+	m := make(map[string]interface{})
+
+	// TODO: use a different fetcher here that checks memory, disk,
+	// the internet, etc.
+	fetcher := h.pubKeyFetcher
+
+	vreq := jsonsign.NewVerificationRequest(sjson, fetcher)
+	if vreq.Verify() {
+		m["signatureValid"] = 1
+		m["verifiedData"] = vreq.PayloadMap
+	} else {
+		errStr := vreq.Err.String()
+		m["signatureValid"] = 0
+		m["errorMessage"] = errStr
+	}
+
+	rw.WriteHeader(http.StatusOK)  // no HTTP response code fun, error info in JSON
+	httputil.ReturnJson(rw, m)
 }
 
 func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) {

@@ -17,9 +17,11 @@ limitations under the License.
 package test
 
 import (
-	"camli/blobref"
+	"io"
 	"os"
 	"sync"
+
+	"camli/blobref"
 )
 
 type Fetcher struct {
@@ -34,6 +36,10 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 		tf.m = make(map[string]*Blob)
 	}
 	tf.m[b.BlobRef().String()] = b
+}
+
+func (tf *Fetcher) FetchStreaming(ref *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	return tf.Fetch(ref)
 }
 
 func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {

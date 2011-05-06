@@ -93,6 +93,28 @@ function doSign() {
     xhr.send("json=" + encodeURIComponent(clearta.value));
 }
 
+function doVerify() {
+    if (!sigdisco) {
+        alert("must do jsonsign discovery first");
+        return;
+    }
+
+    signedta = document.getElementById("signedjson");
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            alert("got status " + xhr.status)
+            return;
+        }
+        document.getElementById("verifyinfo").innerHTML = "<pre>" + xhr.responseText + "</pre>";
+    };
+    xhr.open("POST", sigdisco.verifyHandler, true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.send("sjson=" + encodeURIComponent(signedta.value));
+}
+
 function search() {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
