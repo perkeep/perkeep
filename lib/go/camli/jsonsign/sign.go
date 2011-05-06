@@ -133,7 +133,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	if sr.ServerMode {
 		args = append(args,
 			"--no-default-keyring",
-			"--keyring", sr.publicRingPath(), // TODO: needed for signing?
+			"--keyring", sr.publicRingPath(),
 			"--secret-keyring", sr.secretRingPath())
 	}
 

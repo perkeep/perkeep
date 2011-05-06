@@ -23,6 +23,7 @@ import (
 	"crypto/openpgp/armor"
 	"fmt"
 	"http"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ const kMaxJsonLength = 1024 * 1024
 
 type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
-	secretRing string
+	keyRing, secretRing string
 
 	// Required keyId, either a short form ("26F5ABDA") or one
 	// of the longer forms.
@@ -66,6 +67,7 @@ func (h *JSONSignHandler) secretRingPath() string {
 func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
+		keyRing:    conf.OptionalString("keyRing", ""),
 		secretRing: conf.OptionalString("secretRing", ""),
 	}
 	if err := conf.Validate(); err != nil {
@@ -96,17 +98,22 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 		return nil, fmt.Errorf("Encrypted keys aren't yet supported")
 	}
 
-	var buf bytes.Buffer
-	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
+	var buf1 bytes.Buffer
+	var buf2 bytes.Buffer
+	h.entity.PrivateKey.PublicKey.Serialize(&buf1)
+
+	wc, err := armor.Encode(&buf2, openpgp.PublicKeyType, nil)
 	if err != nil {
 		return nil, err
 	}
-	h.entity.PrivateKey.PublicKey.Serialize(wc)
+	serializeHeader(wc, buf1.Len())
+	io.Copy(wc, &buf1)
 	wc.Close()
-	log.Printf("got key: %s", buf.String())
+
+	log.Printf("got key: %s", buf2.String())
 
 	ms := new(blobref.MemoryStore)
-	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, buf.String())
+	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, buf2.String())
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +128,38 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	return h, nil
 }
 
+// TODO(bradfitz): this isn't exported in openpgp/packet/packet.go, so copied here
+// for now.
+//
+// serializeHeader writes an OpenPGP packet header to w. See RFC 4880, section
+// 4.2.
+func serializeHeader(w io.Writer, length int) (err os.Error) {
+	ptype := byte(6)
+	var buf [6]byte
+	var n int
+
+	buf[0] = 0x80 | 0x40 | byte(ptype)
+	if length < 192 {
+		buf[1] = byte(length)
+		n = 2
+	} else if length < 8384 {
+		length -= 192
+		buf[1] = 192 + byte(length>>8)
+		buf[2] = byte(length)
+		n = 3
+	} else {
+		buf[1] = 255
+		buf[2] = byte(length >> 24)
+		buf[3] = byte(length >> 16)
+		buf[4] = byte(length >> 8)
+		buf[5] = byte(length)
+		n = 6
+	}
+
+	_, err = w.Write(buf[:n])
+	return
+}
+
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	subPath := req.Header.Get("X-PrefixHandler-PathSuffix")
@@ -128,7 +167,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case "GET":
 		switch subPath {
 		case "":
-			http.Redirect(rw, req, base + "camli/sig/discovery", http.StatusFound)
+			http.Redirect(rw, req, base+"camli/sig/discovery", http.StatusFound)
 			return
 		case h.pubKeyBlobRefServeSuffix:
 			h.pubKeyHandler.ServeHTTP(rw, req)
@@ -140,8 +179,8 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		case "camli/sig/discovery":
 			m := map[string]interface{}{
-				"publicKeyId": h.keyId,
-				"signHandler": base + "camli/sig/sign",
+				"publicKeyId":   h.keyId,
+				"signHandler":   base + "camli/sig/sign",
 				"verifyHandler": base + "camli/sig/verify",
 			}
 			if h.pubKeyBlobRef != nil {
@@ -180,19 +219,25 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 
 	jsonStr := req.FormValue("json")
 	if jsonStr == "" {
-		badReq(rw, "Missing json parameter", http.StatusBadRequest)
+		badReq("missing \"json\" parameter")
 		return
 	}
 	if len(jsonStr) > kMaxJsonLength {
-		http.Error(rw, "json parameter too large", http.StatusBadRequest)
+		badReq("parameter \"json\" too large")
 		return
 	}
 
-	sreq := &jsonsign.SignRequest{UnsignedJson: jsonStr, Fetcher: h.pubKeyFetcher}
+	sreq := &jsonsign.SignRequest{
+		UnsignedJson:      jsonStr,
+		Fetcher:           h.pubKeyFetcher,
+		ServerMode:        true,
+		SecretKeyringPath: h.secretRing,
+		KeyringPath: h.keyRing,
+	}
 	signedJson, err := sreq.Sign()
 	if err != nil {
 		// TODO: some aren't really a "bad request"
-		http.Error(rw, fmt.Sprintf("%v", err), http.StatusBadRequest)
+		badReq(fmt.Sprintf("%v", err))
 		return
 	}
 	rw.Write([]byte(signedJson))

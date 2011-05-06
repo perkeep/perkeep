@@ -20,6 +20,7 @@
       "/sighelper/": {
           "handler": "jsonsign",
           "handlerArgs": {
+              "keyRing": ["_env", "${CAMLI_KEY_RING}"],
               "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
               "keyId": "26F5ABDA"
           }

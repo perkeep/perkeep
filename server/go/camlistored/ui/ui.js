@@ -88,8 +88,9 @@ function doSign() {
         }
         document.getElementById("signedjson").value = xhr.responseText;
     };
-    xhr.open("POST", sigdisco.signHandler, true)
-    xhr.send("json=" + encodeURIComponent(clearta.vale));
+    xhr.open("POST", sigdisco.signHandler, true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.send("json=" + encodeURIComponent(clearta.value));
 }
 
 function search() {

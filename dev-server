@@ -47,6 +47,7 @@ print "Starting dev server on http://localhost:$port/ui/ with password \"pass$po
 $ENV{CAMLI_PASSWORD} = "pass$port";
 $ENV{CAMLI_ROOT} = $root;
 $ENV{CAMLI_PORT} = $port;
+$ENV{CAMLI_KEY_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-keyring.gpg";
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
