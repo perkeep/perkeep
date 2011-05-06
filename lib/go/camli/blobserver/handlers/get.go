@@ -38,14 +38,20 @@ import (
 
 var kGetPattern *regexp.Regexp = regexp.MustCompile(`/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
+type GetHandler struct {
+	Fetcher           blobref.StreamingFetcher
+	AllowGlobalAccess bool
+}
+
 func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter, *http.Request) {
+	gh := &GetHandler{Fetcher: fetcher}
 	return func(conn http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
 			// Test handler.
 			simulatePrematurelyClosedConnection(conn, req)
 			return
 		}
-		handleGet(conn, req, fetcher)
+		gh.ServeHTTP(conn, req)
 	}
 }
 
@@ -57,27 +63,27 @@ func sendUnauthorized(conn http.ResponseWriter) {
 	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
 }
 
-func handleGet(conn http.ResponseWriter, req *http.Request, fetcher blobref.StreamingFetcher) {
+func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
-		httputil.BadRequestError(conn, "Malformed GET URL.")
+		http.Error(conn, "Malformed GET URL.", 400)
 		return
 	}
 
 	switch {
-	case auth.IsAuthorized(req):
-		serveBlobRef(conn, req, blobRef, fetcher)
+	case h.AllowGlobalAccess || auth.IsAuthorized(req):
+		serveBlobRef(conn, req, blobRef, h.Fetcher)
 	case auth.TriedAuthorization(req):
 		log.Printf("Attempted authorization failed on %s", req.URL)
 		sendUnauthorized(conn)
 	default:
-		handleGetViaSharing(conn, req, blobRef, fetcher)
+		handleGetViaSharing(conn, req, blobRef, h.Fetcher)
 	}
 }
 
 // serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
 func serveBlobRef(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	file, size, err := fetcher.FetchStreaming(blobRef)
 	switch err {
@@ -180,7 +186,7 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	viaPathOkay := false
 	startTime := time.Nanoseconds()
@@ -307,5 +313,5 @@ func simulatePrematurelyClosedConnection(conn http.ResponseWriter, req *http.Req
 		flusher.Flush()
 	}
 	wrc, _, _ := hj.Hijack()
-	wrc.Close()  // without sending final chunk; should be an error for the client
+	wrc.Close() // without sending final chunk; should be an error for the client
 }

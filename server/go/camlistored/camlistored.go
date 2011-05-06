@@ -273,7 +273,7 @@ func configFileMain() {
 					prefix, err)
 			}
 			createdHandlers[prefix] = h
-			ws.Handle(prefix, h)
+			ws.Handle(prefix, &httputil.PrefixHandler{prefix, h})
 		}
 		switch {
 		case handlerType == "search":

@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"camli/blobref"
+	"camli/blobserver/handlers"
 	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/jsonsign"
@@ -48,6 +49,9 @@ type JSONSignHandler struct {
 
 	pubKeyBlobRef *blobref.BlobRef
 	pubKeyFetcher blobref.StreamingFetcher
+
+	pubKeyBlobRefServeSuffix string // "camli/sha1-xxxx"
+	pubKeyHandler            http.Handler
 
 	entity *openpgp.Entity
 }
@@ -108,26 +112,51 @@ func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	}
 	h.pubKeyFetcher = ms
 
+	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
+	h.pubKeyHandler = &handlers.GetHandler{
+		Fetcher:           ms,
+		AllowGlobalAccess: true, // just public keys
+	}
+
 	return h, nil
 }
 
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	base := req.Header.Get("X-PrefixHandler-PathBase")
+	subPath := req.Header.Get("X-PrefixHandler-PathSuffix")
 	switch req.Method {
 	case "GET":
-		if strings.HasSuffix(req.URL.Path, "/camli/sig/discovery") {
-			m := map[string]interface{}{}
+		switch subPath {
+		case "":
+			http.Redirect(rw, req, base + "camli/sig/discovery", http.StatusFound)
+			return
+		case h.pubKeyBlobRefServeSuffix:
+			h.pubKeyHandler.ServeHTTP(rw, req)
+			return
+		case "camli/sig/sign":
+			fallthrough
+		case "camli/sig/verify":
+			http.Error(rw, "POST required", 400)
+			return
+		case "camli/sig/discovery":
+			m := map[string]interface{}{
+				"publicKeyId": h.keyId,
+				"signHandler": base + "camli/sig/sign",
+				"verifyHandler": base + "camli/sig/verify",
+			}
 			if h.pubKeyBlobRef != nil {
 				m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
+				m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
 			}
 			httputil.ReturnJson(rw, m)
 			return
 		}
 	case "POST":
-		switch {
-		case strings.HasSuffix(req.URL.Path, "/camli/sig/sign"):
+		switch subPath {
+		case "camli/sig/sign":
 			h.handleSign(rw, req)
 			return
-		case strings.HasSuffix(req.URL.Path, "/camli/sig/verify"):
+		case "camli/sig/verify":
 			h.handleVerify(rw, req)
 			return
 		}

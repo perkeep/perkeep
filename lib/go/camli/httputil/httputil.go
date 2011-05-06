@@ -22,6 +22,7 @@ import (
 	"json"
 	"os"
 	"log"
+	"strings"
 )
 
 func BadRequestError(conn http.ResponseWriter, errorMessage string) {
@@ -45,4 +46,19 @@ func ReturnJson(conn http.ResponseWriter, data interface{}) {
 	}
 	conn.Write(bytes)
 	conn.Write([]byte("\n"))
+}
+
+type PrefixHandler struct {
+	Prefix  string
+	Handler http.Handler
+}
+
+func (p *PrefixHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if !strings.HasPrefix(req.URL.Path, p.Prefix) {
+		http.Error(rw, "Inconfigured PrefixHandler", 500)
+		return
+	}
+	req.Header.Set("X-PrefixHandler-PathBase", p.Prefix)
+	req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[len(p.Prefix):])
+	p.Handler.ServeHTTP(rw, req)
 }
