@@ -1,17 +1,6 @@
 <!DOCTYPE html>
 
 <!--
-   TODO;
-   * sharing,
-   * sharing an object vs. blob vs. search
-   * replication queue/details,
-   * tree sync vs. graph sync,
-   * project status, impl details, google, go
-     - python app engine version
-     - android client
-     - android gpg
-     - perl test suite
-
   Google I/O 2011 HTML slides template
   URL: http://code.google.com/p/io-2011-slides/
 -->
@@ -541,6 +530,16 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
       </article>
 
       <article>
+        <h3>Aside: Garbage Collection</h3>
+        <ul>
+          <li>Permanodes are (optionally) GC roots,</li>
+          <li>or anything signed by you.</li>
+          <li>If not a blob isn't reachable by a signed root, can be deleted.</li>
+          <li>If you want to keep a plain "dumb" blob, you should create a "keep" claim for it, or a permanode.</li>
+        </ul>
+      </article>
+
+      <article>
         <h1 class='center'>
           Modeling non-filesystem objects
         </h1>
@@ -598,9 +597,22 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
         <ul>
           <li>indexing is real-time, no polling</li>
           <li>MySQL index speaks the blob server protocol</li>
-          <li>just replicated to MySQL (etc) just like Amazon S3 (etc)</li>
+          <li>just replicate <i>to</i> the index (MySQL, etc) just like other blob servers (Amazon S3, etc)</li>
         </ul>
         <center><img src='repl.png' /></center>
+      </article>
+
+      <article>
+        <h3>
+          Replication Implementation
+        </h3>
+        <ul>
+          <li>cold bootstrap: <tt class='green'>enumerate()</tt> (sorted) all blobs from <tt class='red'>src</tt> and <tt class='red'>dst</tt>, copy all blobs that <tt>dst</tt> doesn't have.</tt>
+          <li>more efficient: use multiple machines, starting at <tt class='blue'>sha1-0*</tt>, <tt class='blue'>sha1-1*</tt>, <tt class='blue'>sha1-2*</tt>, ... etc</li>
+          <li>once in-sync, for each <tt class='red'>(src, dst)</tt> replication pair, keep a <tt class='red'>src_to_dst_QUEUE</tt> namespace on <tt class='red'>src</tt>,</li>
+          <li>all new blobs to <tt class='red'>src</tt> also go into <tt class='red'>src_to_dst_QUEUE</tt> (refcount, hardlink, etc)</li>
+          <li>real-time watch <tt class='red'>src_to_dst_QUEUE</tt> & replicate & delete from the queue. or re-enumerate just the queue.
+        </ul>
       </article>
 
       <article>
@@ -636,53 +648,95 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
         <h3>
           Sharing & Share Blobs
         </h3>
+        <p>the act of sharing involves creating a new <span class='red'>share claim</span>, just another blob, signed.</p>
+        <p>here is: <a href="http://camlistore.org:3179/camli/sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708"><tt class='smaller'>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</tt></a>:</p>
+        <section><pre>{"camliVersion": 1,
+  "authType": <span style="background: #fff">"haveref"</span>,
+  "camliSigner": "sha1-f019d17dd308eebbd49fd94536eb67214c2f0587",
+  "camliType": "share",
+  "target": "<a style="background: #fff" href="http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</a>",
+  "transitive": <span style="background: #fff">true</span>
+,"camliSig":"iQEcBAABAgAGBQJNQJGuAAoJEIUeCLJL7Fq1EuAIAL/nGoX8caGaANnam0bcIQT7C61wXMRW4qCCaFW+w67ys5z4ztfnTPKwL9ErzMF8Hd32Xe/bVcF6ZL38x/axqI7ehxN8lneKGQNoEdZDA9i752aAr0fkAba6eDehoOj9F4XxOzk3iVrq445jEXtu/+twamHV3UfRozWK1ZQb57dM+cRff47M/Y6VIBRSgW2BrABjuBs8G6PiKxycgh1mb+RL8f9KG+HB/yFuK37YJqZ0zU2OTRp6ELiOgTxbeg99koV9Duy4f4mQgxQgli46077Sv/ujzIeVbmdFL3OenGEzQnyKG0fhf8fa5WkED0XfH7zibAHLiSq3O7x11Q0406U==ANug"}</pre></section>
+        Target w/ ?via= parameter: <a href="http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708">sha1-0e5e60f?via=sha1-071fda</a> & <a href="http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">next hop</a>
+      </article>
+
+     <article>
+        <h3>
+          Sharing Details & Implementation
+        </h3>
         <ul>
-          <li>the act of sharing involves creating a new <span class='red'>share claim</span>, just another blob, signed.</li>
+          <li>blobserver is private-only. the <span class='red'>frontend</span> mediates access to the world, checks authentication, or lack thereof.</li>
+          <li>all non-owner requests must present a share blob's blobref as an access token</li>
+          <li>that share blob dictates:
+            <ul>
+              <li>what sort of authenticatation is required (or "<tt class="green">haveref</tt>" for none, like a secret link)</li>
+              <li>which blob(s) are granted access (the "<tt class='green'>transitive</tt>" option)</li>
+            </ul>
+          </li>
+          <li>requests for a blob must include the path to get there, from the share root</li>
         </ul>
-      </article>
+     </article>
 
-
-      <article class='fill'>
+     <article>
         <h3>
-          Image filling the slide (with optional header)
+          What can be shared
         </h3>
-        <p>
-          <img src='images/example-cat.jpg'>
-        </p>
-        <div class='source white'>
-          Cat
-        </div>
+        <ul>
+          <li>Share a single blob,
+          <li>Share a subtree,
+          <li>Share a <i>search query</i> and its results' reachable blobs</li>
+          <li>... give out [world, girlfriend] access to all pictures you take on your phone, in real-time</li>
+        </ul>
+     </article>
+
+      <article>
+        <h2>
+          Project Status
+        </h2>
       </article>
 
-      
-      <article class='nobackground'>
+     <article>
         <h3>
-          A slide with an embed + title
+          Project Status
         </h3>
-        
-        <iframe src='http://www.google.com/doodle4google/history.html'></iframe>
-      </article>
+        <ul>
+          <li>Blobstore, Go (any OS), can store on disk, s3, mysqlindex
+          <li>Blobstore, Python (App Engine only) can store on Google
+          <li>Perl tests for two blob stores
+          <li>Android uploader (Java)
+          <li>Bunch of Go libraries / command-line tools: sync, put, get
+          <li>FUSE filesystem (read-only, currently)
+          <li>Search: basics working. more queries looks easy now.
+          <li>Simple, self-contained everything binary (blob storage, sharing, search, index, frontend) for early adopters: ~95%
+          <li>Web UI / JavaScript APIs: in progress
+        </ul>
+     </article>
 
-      <article class='nobackground'>
-        <iframe src='http://www.google.com/doodle4google/history.html'></iframe>
-      </article>
-
-      <article class='fill'>
+     <article>
         <h3>
-          Full-slide embed with (optional) slide title on top
+          In Review
         </h3>
-        <iframe src='http://www.google.com/doodle4google/history.html'></iframe>
-      </article>
-      
+        <ul>
+          <li>You own all your blobs; everything is private by default.</li>
+          <li>Mutable objects are made of mutation claim blobs.</li>
+          <li>Sync is trivial: either you have it or you don't</li>
+          <li>Some blobs are signed</li>
+          <li>Indexing & search to find your blobs / roots</li>
+          <li>To share you must create a declaration of sharing ...</li>
+          <li>... and the system will only allow access if such claims exist.</li>
+          <li>Decentralized, but hostable.  You can run your own server (with no central
+            company or point of control), but you can also let somebody else do it for
+            you, like email.</li>
+        </ul>
+     </article>
+     
       <article>
         <h3>
           Thank you!
         </h3>
         
-        <ul>
-          <li>Brad Fitzpatrick, brad@danga.com</li>
-          <li>camlistore.org</li>
-        </ul>
+        <p class='smaller'>Brad Fitzpatrick, <a href="mailto:brad@danga.com">brad@danga.com</a>; Want to help? More info: <a href="http://camlistore.org/">camlistore.org</a></p>
+        <img src='arch.png' width='100%'/>
       </article>
 
     </section>
