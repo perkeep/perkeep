@@ -23,6 +23,7 @@ import (
 
 	"fmt"
 	"http"
+	"os"
 	"log"
 	"mime"
 	"regexp"
@@ -62,11 +63,11 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 	for {
 		mimePart, err := multipart.NextPart()
-		if err != nil {
-			addError(fmt.Sprintf("Error reading multipart section: %v", err))
+		if err == os.EOF {
 			break
 		}
-		if mimePart == nil {
+		if err != nil {
+			addError(fmt.Sprintf("Error reading multipart section: %v", err))
 			break
 		}
 
