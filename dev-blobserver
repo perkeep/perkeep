@@ -15,7 +15,8 @@ GetOptions(
     "tls" => \$opt_tls,
     ) or usage();
 
-my $port = shift || "3179";
+my $port = shift;
+$port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
 system("./build.pl", "server/go/camlistored") and die "Failed to build.\n";
@@ -38,6 +39,6 @@ $ENV{CAMLI_TLS_CRT_FILE} = $opt_tls ? "$Bin/config/dev-tls.crt" : "";
 $ENV{CAMLI_TLS_KEY_FILE} = $opt_tls ? "$Bin/config/dev-tls.key" : "";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-blobserver-config.json",
-     "-listen=:$port",
+     "-listen=127.0.0.1:$port",
      @ARGV);
 

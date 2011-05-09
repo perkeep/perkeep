@@ -61,10 +61,13 @@ func (s *Server) BaseURL() string {
 	if s.enableTLS {
 		scheme = "https"
 	}
-	if strings.HasPrefix(*Listen, ":") {
-		return scheme + "://127.0.0.1" + *Listen
+	if s.listener != nil {
+		return scheme + "://" + s.listener.Addr().String()
 	}
-	return scheme + "://" + strings.Replace(*Listen, "0.0.0.0:", "127.0.0.1:", 1)
+	if strings.HasPrefix(*Listen, ":") {
+		return scheme + "://localhost" + *Listen
+	}
+	return scheme + "://" + strings.Replace(*Listen, "0.0.0.0:", "localhost:", 1)
 }
 
 // Register conditional handler-picker functions which get run before
@@ -94,14 +97,20 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) Serve() {
-	if os.Getenv("TESTING_PORT_WRITE_FD") == "" { // Don't make noise during unit tests
-		log.Printf("Starting to listen on %s\n", s.BaseURL())
+	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
+	base := s.BaseURL()
+	if doLog {
+		log.Printf("Starting to listen on %s\n", base)
 	}
 
 	var err os.Error
 	s.listener, err = net.Listen("tcp", *Listen)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
+	}
+
+	if doLog && strings.HasSuffix(base, ":0") {
+		log.Printf("Now listening on %s\n", s.BaseURL())
 	}
 
 	if s.enableTLS {
