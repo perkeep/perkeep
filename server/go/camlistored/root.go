@@ -34,7 +34,7 @@ type RootHandler struct {
 	OfferSetup bool
 }
 
-func createRootHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
+func (hl *handlerLoader) createRootHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	root := &RootHandler{}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	if err = conf.Validate(); err != nil {

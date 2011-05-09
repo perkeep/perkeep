@@ -114,6 +114,21 @@ func exitFailure(pattern string, args ...interface{}) {
 	os.Exit(1)
 }
 
+type handlerConfig struct {
+	prefix string         // "/foo/"
+	htype  string         // "localdisk", etc
+	conf   jsonconfig.Obj // never nil
+
+	settingUp, setupDone bool
+}
+
+type handlerLoader struct {
+	ws      *webserver.Server
+	baseURL string
+	config  map[string]*handlerConfig // prefix -> config
+	handler map[string]interface{}    // prefix -> http.Handler / func
+}
+
 func main() {
 	flag.Parse()
 
@@ -169,7 +184,13 @@ func main() {
 	if err := config.Validate(); err != nil {
 		exitFailure("configuration error in root object's keys in %s: %v", configPath, err)
 	}
-	createdHandlers := make(map[string]interface{})
+
+	hl := &handlerLoader{
+		ws:      ws,
+		baseURL: baseURL,
+		config:  make(map[string]*handlerConfig),
+		handler: make(map[string]interface{}),
+	}
 
 	for prefix, vei := range prefixes {
 		if !strings.HasPrefix(prefix, "/") {
@@ -178,117 +199,129 @@ func main() {
 		if !strings.HasSuffix(prefix, "/") {
 			exitFailure("prefix %q doesn't end with /", prefix)
 		}
-		pconf, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(map[string]interface{})
 		if !ok {
 			exitFailure("prefix %q value isn't an object", prefix)
 		}
-		handlerType, ok := pconf["handler"].(string)
-		if !ok {
-			exitFailure("in prefix %q, expected the \"handler\" parameter to be a string, got %T",
-				prefix, pconf["handler"])
+		pconf := jsonconfig.Obj(pmap)
+		handlerType := pconf.RequiredString("handler")
+		handlerArgs := pconf.OptionalObject("handlerArgs")
+		if err := pconf.Validate(); err != nil {
+			exitFailure("configuration error in prefix %s: %v", prefix, err)
 		}
-		handlerArgs, ok := pconf["handlerArgs"].(map[string]interface{})
-		if !ok {
-			if _, present := pconf["handlerArgs"]; !present {
-				handlerArgs = make(jsonconfig.Obj)
-			} else {
-				exitFailure("in prefix %q, expected the \"handlerArgs\" to be a JSON object",
-					prefix)
-			}
+		h := &handlerConfig{
+			prefix: prefix,
+			htype:  handlerType,
+			conf:   handlerArgs,
 		}
-		installHandler := func(creator func(conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
-			h, err := creator(jsonconfig.Obj(handlerArgs))
-			if err != nil {
-				exitFailure("error instantiating handler for prefix %s: %v",
-					prefix, err)
-			}
-			createdHandlers[prefix] = h
-			ws.Handle(prefix, &httputil.PrefixHandler{prefix, h})
-		}
-		switch {
-		case handlerType == "search":
-			// Skip it this round. Get it in second pass
-			// to ensure the search's dependent indexer
-			// has been created.
-		case handlerType == "sync":
-			// Skip it this round. Get it in second pass
-			// to ensure the dependent blob servers have
-			// been created.
-		case handlerType == "root":
-			installHandler(createRootHandler)
-		case handlerType == "ui":
-			installHandler(createUIHandler)
-		case handlerType == "jsonsign":
-			installHandler(createJSONSignHandler)
-		default:
-			// Assume a storage interface
-			pstorage, err := blobserver.CreateStorage(handlerType, jsonconfig.Obj(handlerArgs))
-			if err != nil {
-				exitFailure("error instantiating storage for prefix %q, type %q: %v",
-					prefix, handlerType, err)
-			}
-			createdHandlers[prefix] = pstorage
-			ws.Handle(prefix+"camli/", makeCamliHandler(prefix, baseURL, pstorage))
-		}
+		hl.config[prefix] = h
 	}
-
-	// Another pass for search handler(s)
-	for prefix, vei := range prefixes {
-		if _, alreadyCreated := createdHandlers[prefix]; alreadyCreated {
-			continue
-		}
-		pconf := vei.(map[string]interface{})
-		handlerType := pconf["handler"].(string)
-		config := jsonconfig.Obj(pconf["handlerArgs"].(map[string]interface{}))
-		checkConfig := func() {
-			if err := config.Validate(); err != nil {
-				exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", err)
-			}
-		}
-		switch handlerType {
-		case "search":
-			indexPrefix := config.RequiredString("index") // TODO: add optional help tips here?
-			ownerBlobStr := config.RequiredString("owner")
-			checkConfig()
-			indexer, ok := createdHandlers[indexPrefix].(search.Index)
-			if !ok {
-				exitFailure("prefix %q references invalid indexer %q", prefix, indexPrefix)
-			}
-			ownerBlobRef := blobref.Parse(ownerBlobStr)
-			if ownerBlobRef == nil {
-				exitFailure("prefix %q references has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
-					prefix, ownerBlobStr)
-			}
-			h := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
-			ws.HandleFunc(prefix+"camli/", h)
-		case "sync":
-			from := config.RequiredString("from")
-			to := config.RequiredString("to")
-			checkConfig()
-			getBlobServer := func(bsPrefix string) blobserver.Storage {
-				h, ok := createdHandlers[bsPrefix]
-				if !ok {
-					exitFailure("sync prefix %q references non-existent %q blob storage prefix",
-						prefix, bsPrefix)
-				}
-				bs, ok := h.(blobserver.Storage)
-				if !ok {
-                                        exitFailure("sync prefix %q references %q, of type %T, but expected a blob server",
-                                                prefix, bsPrefix, h)
-                                }
-				return bs
-			}
-			fromBs, toBs := getBlobServer(from), getBlobServer(to)
-			h, err := createSyncHandler(from, to, fromBs, toBs)
-			if err != nil {
-				exitFailure(err.String())
-			}
-			ws.Handle(prefix, h)
-		default:
-			panic("unexpected handlerType: " + handlerType)
-		}
-
-	}
-
+	hl.setupAll()
 	ws.Serve()
+}
+
+func (hl *handlerLoader) setupAll() {
+	for prefix := range hl.config {
+		hl.setupHandler(prefix)
+	}
+}
+
+func (hl *handlerLoader) configType(prefix string) string {
+	if h, ok := hl.config[prefix]; ok {
+		return h.htype
+	}
+	return ""
+}
+
+func (hl *handlerLoader) getOrSetup(prefix string) interface{} {
+	hl.setupHandler(prefix)
+	return hl.handler[prefix]
+}
+
+func (hl *handlerLoader) setupHandler(prefix string) {
+	h, ok := hl.config[prefix]
+	if !ok {
+		exitFailure("invalid reference to non-existant handler %q", prefix)
+	}
+	if h.setupDone {
+		// Already setup by something else reference it and forcing it to be
+		// setup before the bottom loop got to it.
+		return
+	}
+	if h.settingUp {
+		exitFailure("loop in configuration graph; %q tried to load itself indirectly", prefix)
+	}
+	h.settingUp = true
+	defer func() {
+		h.setupDone = true
+		if hl.handler[prefix] == nil {
+			panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
+		}
+	}()
+	installHandler := func(creator func(_ *handlerLoader, conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
+		hh, err := creator(hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating handler for prefix %s: %v",
+				prefix, err)
+		}
+		hl.handler[prefix] = hh
+		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
+	}
+	checkConfig := func() {
+		if err := h.conf.Validate(); err != nil {
+			exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", prefix, err)
+		}
+	}
+	switch h.htype {
+	case "root":
+		installHandler((*handlerLoader).createRootHandler)
+	case "ui":
+		installHandler((*handlerLoader).createUIHandler)
+	case "jsonsign":
+		installHandler((*handlerLoader).createJSONSignHandler)
+	case "search":
+		indexPrefix := h.conf.RequiredString("index") // TODO: add optional help tips here?
+		ownerBlobStr := h.conf.RequiredString("owner")
+		checkConfig()
+		indexer, ok := hl.getOrSetup(indexPrefix).(search.Index)
+		if !ok {
+			exitFailure("prefix %q references invalid indexer %q", prefix, indexPrefix)
+		}
+		ownerBlobRef := blobref.Parse(ownerBlobStr)
+		if ownerBlobRef == nil {
+			exitFailure("prefix %q references has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
+				prefix, ownerBlobStr)
+		}
+		searchh := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
+		hl.handler[h.prefix] = searchh
+		hl.ws.HandleFunc(prefix+"camli/", searchh)
+	case "sync":
+		from := h.conf.RequiredString("from")
+		to := h.conf.RequiredString("to")
+		checkConfig()
+		getBlobServer := func(bsPrefix string) blobserver.Storage {
+			bs, ok := hl.getOrSetup(bsPrefix).(blobserver.Storage)
+			if !ok {
+				exitFailure("sync prefix %q references %q, of type %T, but expected a blob server",
+					prefix, bsPrefix, h)
+			}
+			return bs
+		}
+		fromBs, toBs := getBlobServer(from), getBlobServer(to)
+		synch, err := createSyncHandler(from, to, fromBs, toBs)
+		if err != nil {
+			exitFailure(err.String())
+		}
+		hl.handler[h.prefix] = synch
+		hl.ws.Handle(prefix, synch)
+	default:
+		// Assume a storage interface
+		pstorage, err := blobserver.CreateStorage(h.htype, h.conf)
+		if err != nil {
+			exitFailure("error instantiating storage for prefix %q, type %q: %v",
+				h.prefix, h.htype, err)
+		}
+		hl.handler[h.prefix] = pstorage
+		hl.ws.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
+	}
 }

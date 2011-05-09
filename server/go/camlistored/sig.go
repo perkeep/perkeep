@@ -64,7 +64,7 @@ func (h *JSONSignHandler) secretRingPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gog")
 }
 
-func createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
+func (hl *handlerLoader) createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
 		keyRing:    conf.OptionalString("keyRing", ""),

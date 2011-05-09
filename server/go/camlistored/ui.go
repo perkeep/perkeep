@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"camli/blobserver"
 	"camli/jsonconfig"
 )
 
@@ -47,7 +48,7 @@ func defaultFilesDir() string {
 	return filepath.Join(dir, "ui")
 }
 
-func createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
+func (hl *handlerLoader) createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	ui := &UIHandler{}
 	ui.BlobRoot = conf.OptionalString("blobRoot", "")
 	ui.SearchRoot = conf.OptionalString("searchRoot", "")
@@ -56,6 +57,38 @@ func createUIHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	if err = conf.Validate(); err != nil {
 		return
 	}
+
+	checkType := func(key string, htype string) {
+		v := conf.OptionalString(key, "")
+		if v == "" {
+			return
+		}
+		ct := hl.configType(v)
+		if ct == "" {
+			err = fmt.Errorf("UI handler's %q references non-existant %q", key, v)
+		} else if ct != htype {
+			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v,
+				ct, htype)
+		}
+	}
+	checkType("searchRoot", "search")
+	checkType("jsonSignRoot", "jsonsign")
+	if err != nil {
+		return
+	}
+
+	if ui.BlobRoot != "" {
+		bh := hl.getOrSetup(ui.BlobRoot)
+		if bh == nil {
+			return nil, fmt.Errorf("UI handler's blobRoot references non-existant %q", ui.BlobRoot)
+		}
+		_, ok := bh.(blobserver.Storage)
+		if !ok {
+			return nil, fmt.Errorf("UI handler's blobRoot references %q of type %T; expected a storage target",
+				ui.BlobRoot, bh)
+		}
+	}
+
 	fi, sterr := os.Stat(ui.FilesDir)
 	if sterr != nil || !fi.IsDirectory() {
 		err = fmt.Errorf("UI handler's \"staticFiles\" of %q is invalid", ui.FilesDir)
