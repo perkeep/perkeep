@@ -64,19 +64,34 @@ func EvaluateExpressions(m map[string]interface{}) os.Error {
 	return nil
 }
 
+// Permit either:
+//    ["_env", "VARIABLE"] (required to be set)
+// or ["_env", "VARIABLE", "default_value"]
 func expandEnv(v []interface{}) (interface{}, os.Error) {
-	if len(v) != 1 {
-		return "", fmt.Errorf("_env expansion expected 1 arg, got %d", len(v))
+	hasDefault := false
+	def := ""
+	if len(v) < 1 || len(v) > 2 {
+		return "", fmt.Errorf("_env expansion expected 1 or 2 args, got %d", len(v))
 	}
 	s, ok := v[0].(string)
 	if !ok {
-		return "", fmt.Errorf("Expected a string after _env expansion; got %#v", v)
+		return "", fmt.Errorf("Expected a string after _env expansion; got %#v", v[0])
+	}
+	if len(v) == 2 {
+		hasDefault = true
+		def, hasDefault = v[1].(string)
+		if !hasDefault {
+			return "", fmt.Errorf("Expected default value in %q _env expansion; got %#v", s, v[1])
+		}
 	}
 	var err os.Error
 	expanded := envPattern.ReplaceAllStringFunc(s, func(match string) string {
 		envVar := match[2 : len(match)-1]
 		val := os.Getenv(envVar)
 		if val == "" {
+			if hasDefault {
+				return def
+			}
 			err = fmt.Errorf("couldn't expand environment variable %q", envVar)
 		}
 		return val
