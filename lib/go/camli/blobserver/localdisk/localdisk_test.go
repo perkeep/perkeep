@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-func cleanUp(ds *diskStorage) {
+func cleanUp(ds *DiskStorage) {
 	os.RemoveAll(ds.root)
 }
 
@@ -39,7 +39,7 @@ var (
 	rootEpoch = 0
 )
 
-func NewStorage(t *testing.T) *diskStorage {
+func NewStorage(t *testing.T) *DiskStorage {
 	epochLock.Lock()
 	rootEpoch++
 	path := fmt.Sprintf("%s/camli-testroot-%d-%d", os.TempDir(), os.Getpid(), rootEpoch)
@@ -51,7 +51,7 @@ func NewStorage(t *testing.T) *diskStorage {
 	if err != nil {
 		t.Fatalf("Failed to run New: %v", err)
 	}
-	return ds.diskStorage
+	return ds
 }
 
 type testBlob struct {
@@ -86,7 +86,7 @@ func (tb *testBlob) AssertMatches(t *testing.T, sb *blobref.SizedBlobRef) {
 }
 
 func (tb *testBlob) ExpectUploadBlob(t *testing.T, ds blobserver.BlobReceiver) {
-	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader(), nil)
+	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader())
 	if err != nil {
 		t.Fatalf("ReceiveBlob error: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestReceiveStat(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, defaultPartition, tb.BlobRefSlice(), 0)
+		errch <- ds.Stat(ch, tb.BlobRefSlice(), 0)
 		close(ch)
 	}()
 	got := 0
@@ -126,7 +126,7 @@ func TestStatWait(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, defaultPartition, tb.BlobRefSlice(), waitSeconds)
+		errch <- ds.Stat(ch, tb.BlobRefSlice(), waitSeconds)
 		close(ch)
 	}()
 
@@ -167,7 +167,6 @@ func TestMultiStat(t *testing.T) {
 	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch,
-			defaultPartition,
 			[]*blobref.BlobRef{blobfoo.BlobRef(), blobbar.BlobRef()},
 			0)
 		close(ch)

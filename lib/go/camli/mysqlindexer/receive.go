@@ -91,7 +91,7 @@ func (sn *blobSniffer) bufferIsCamliJson() bool {
 	return true
 }
 
-func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (retsb *blobref.SizedBlobRef, err os.Error) {
+func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb *blobref.SizedBlobRef, err os.Error) {
 	sniffer := new(blobSniffer)
 	hash := blobRef.Hash()
 	var written int64

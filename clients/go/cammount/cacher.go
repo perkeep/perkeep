@@ -47,7 +47,7 @@ func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file blobref.ReadSeekClose
 		return nil, 0, err
 	}
 
-	_, err = cf.c.ReceiveBlob(br, sblob, nil)
+	_, err = cf.c.ReceiveBlob(br, sblob)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -21,14 +21,13 @@ import (
 	"os"
 
 	"camli/blobref"
-	"camli/blobserver"
 )
 
 var _ = log.Printf
 
 func (sto *s3Storage) MaxEnumerate() uint { return 1000 }
 
-func (sto *s3Storage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) os.Error {
+func (sto *s3Storage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
 	objs, err := sto.s3Client.ListBucket(sto.bucket, after, limit)
 	if err != nil {

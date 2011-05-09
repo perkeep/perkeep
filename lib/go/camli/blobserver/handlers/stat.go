@@ -27,15 +27,15 @@ import (
 	"strconv"
 )
 
-func CreateStatHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
+func CreateStatHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleStat(conn, req, storage, partition)
+		handleStat(conn, req, storage)
 	}
 }
 
 const maxStatBlobs = 1000
 
-func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter, partition blobserver.Partition) {
+func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
 	toStat := make([]*blobref.BlobRef, 0)
 	switch req.Method {
 	case "POST":
@@ -91,7 +91,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		blobch := make(chan *blobref.SizedBlobRef)
 		resultch := make(chan os.Error, 1)
 		go func() {
-			err := storage.Stat(blobch, partition, toStat, waitSeconds)
+			err := storage.Stat(blobch, toStat, waitSeconds)
 			close(blobch)
 			resultch <- err
 		}()
@@ -111,7 +111,8 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		}
 	}
 
-	ret := commonUploadResponse(partition, req)
+	configer, _ := storage.(blobserver.Configer)
+	ret := commonUploadResponse(configer, req)
 	ret["stat"] = statRes
 	ret["canLongPoll"] = true
 	httputil.ReturnJson(conn, ret)

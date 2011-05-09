@@ -27,15 +27,15 @@ import (
 	"camli/jsonconfig"
 )
 
-type diskStorage struct {
+type DiskStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	root string
-}
 
-// TODO: lazy hack because I didn't want to rename diskStorage everywhere
-// during an experiment.  should just rename it now.
-type DiskStorage struct {
-	*diskStorage
+	// the sub-partition to read from.
+	partition blobserver.Partition
+
+	// to mirror new blobs into (when partition above is the default partition)
+	mirrorPartitions []blobserver.Partition
 }
 
 func New(root string) (storage *DiskStorage, err os.Error) {
@@ -45,15 +45,16 @@ func New(root string) (storage *DiskStorage, err os.Error) {
 		err = os.NewError(fmt.Sprintf("Storage root %q doesn't exist or is not a directory.", root))
 		return
 	}
-	storage = &DiskStorage{&diskStorage{
-		&blobserver.SimpleBlobHubPartitionMap{},
-		root,
-	}}
+	storage = &DiskStorage{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		root:                      root,
+		partition:                 nil, // TODO: this will probably crash elsewhere
+	}
 	return
 }
 
 func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
-	sto := &diskStorage{
+	sto := &DiskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      config.RequiredString("path"),
 	}
@@ -74,11 +75,11 @@ func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
 }
 
-func (ds *diskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
+func (ds *DiskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	return ds.Fetch(blob)
 }
 
-func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
+func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
 	fileName := ds.blobPath(nil, blob)
 	stat, err := os.Stat(fileName)
 	if errorIsNoEnt(err) {
@@ -94,9 +95,9 @@ func (ds *diskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 	return file, stat.Size, nil
 }
 
-func (ds *diskStorage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
+func (ds *DiskStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	for _, blob := range blobs {
-		fileName := ds.blobPath(partition, blob)
+		fileName := ds.blobPath(ds.partition, blob)
 		err := os.Remove(fileName)
 		switch {
 		case err == nil:

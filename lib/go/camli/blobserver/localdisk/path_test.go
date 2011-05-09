@@ -29,7 +29,7 @@ func (pn partitionName) Name() string {
 
 func TestPaths(t *testing.T) {
 	br := blobref.Parse("digalg-abc")
-	ds := &diskStorage{root: "/tmp/dir"}
+	ds := &DiskStorage{root: "/tmp/dir"}
 	
 	if e, g := "/tmp/dir/digalg/abc/___", ds.blobDirectory(nil, br); e != g {
 		t.Errorf("short blobref dir; expected path %q; got %q", e, g)

@@ -45,20 +45,16 @@ type Partition interface {
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
-	//
-	// mirrorPartitions may not be supported by all instances
-	// and may return an error if used.
-	ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error)
+	ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error)
 }
 
 type BlobStatter interface {
 	// Stat checks for the existence of blobs, writing their sizes
 	// (if found back to the dest channel), and returning an error
 	// or nil.  Stat() should NOT close the channel.
-	// waitSeconds is the max time to wait for the blobs to exist
-	// in the given partition, or 0 for no delay.
+	// waitSeconds is the max time to wait for the blobs to exist,
+	// or 0 for no delay.
 	Stat(dest chan *blobref.SizedBlobRef,
-		partition Partition,
 		blobs []*blobref.BlobRef,
 		waitSeconds int) os.Error
 }
@@ -74,12 +70,11 @@ type BlobEnumerator interface {
 	// sorted, as long as they are lexigraphically greater than
 	// after (if provided).
 	// limit will be supplied and sanity checked by caller.
-	// waitSeconds is the max time to wait for any blobs to exist
-	// in the given partition, or 0 for no delay.
+	// waitSeconds is the max time to wait for any blobs to exist,
+	// or 0 for no delay.
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
 	EnumerateBlobs(dest chan *blobref.SizedBlobRef,
-		partition Partition,
 		after string,
 		limit uint,
 		waitSeconds int) os.Error
@@ -92,20 +87,29 @@ type Cache interface {
 	BlobStatter
 }
 
+type Config struct {
+	Writable, Readable bool
+	IsQueue bool // supports deletes
+
+	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
+	URLBase string
+}
+
+type Configer interface {
+	Config() *Config
+}
+
 type Storage interface {
 	blobref.StreamingFetcher
 	BlobReceiver
 	BlobStatter
 	BlobEnumerator
 
-	// Remove 0 or more blobs from provided partition, which
-	// should be empty for the default partition.  Removal of
-	// non-existent items isn't an error.  Returns failure if any
-	// items existed but failed to be deleted.
-	Remove(partition Partition, blobs []*blobref.BlobRef) os.Error
+	// Remove 0 or more blobs.  Removal of non-existent items
+	// isn't an error.  Returns failure if any items existed but
+	// failed to be deleted.
+	Remove(blobs []*blobref.BlobRef) os.Error
 
-	// Returns the blob notification bus for a given partition.
-	// Use nil for the default partition.
-	// TODO: move this to be a method on the Partition interface?
-	GetBlobHub(partition Partition) BlobHub
+	// Returns the blob notification bus
+	GetBlobHub() BlobHub
 }

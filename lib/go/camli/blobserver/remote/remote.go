@@ -49,15 +49,15 @@ func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Er
 	return sto, nil
 }
 
-func (sto *remoteStorage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
+func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return os.NewError("TODO: implement")
 }
 
-func (sto *remoteStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *remoteStorage) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	return os.NewError("TODO: implement")
 }
 
-func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (*blobref.SizedBlobRef, os.Error) {
+func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
 	return nil, os.NewError("TODO: implement")
 }
 
@@ -67,7 +67,7 @@ func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser
 
 func (sto *remoteStorage) MaxEnumerate() uint { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) os.Error {
+func (sto *remoteStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
 	return os.NewError("TODO: implement")
 }

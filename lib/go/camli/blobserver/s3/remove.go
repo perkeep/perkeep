@@ -21,12 +21,11 @@ import (
 	"os"
 
 	"camli/blobref"
-	"camli/blobserver"
 )
 
 var _ = log.Printf
 
-func (sto *s3Storage) Remove(partition blobserver.Partition, blobs []*blobref.BlobRef) os.Error {
+func (sto *s3Storage) Remove(blobs []*blobref.BlobRef) os.Error {
 	// TODO: do these in parallel
 	var reterr os.Error
 	for _, blob := range blobs {

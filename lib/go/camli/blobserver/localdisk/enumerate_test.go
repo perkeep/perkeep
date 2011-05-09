@@ -18,7 +18,6 @@ package localdisk
 
 import (
 	"camli/blobref"
-	"camli/blobserver"
 	. "camli/test/asserts"
 
 	"fmt"
@@ -28,8 +27,6 @@ import (
 	"testing"
 	"time"
 )
-
-var defaultPartition blobserver.Partition = nil
 
 func TestEnumerate(t *testing.T) {
 	ds := NewStorage(t)
@@ -49,7 +46,7 @@ func TestEnumerate(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, defaultPartition, "", limit, waitSeconds)
+		errCh <- ds.EnumerateBlobs(ch, "", limit, waitSeconds)
 	}()
 
 	var sb *blobref.SizedBlobRef
@@ -69,7 +66,7 @@ func TestEnumerate(t *testing.T) {
 	// Now again, but skipping foo's blob
 	ch = make(chan *blobref.SizedBlobRef)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
+		errCh <- ds.EnumerateBlobs(ch,
 			foo.BlobRef().String(),
 			limit, waitSeconds)
 	}()
@@ -93,7 +90,7 @@ func TestEnumerateEmpty(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
+		errCh <- ds.EnumerateBlobs(ch,
 			"", limit, waitSeconds)
 	}()
 
@@ -110,7 +107,7 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 	ch := make(chan *blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, defaultPartition,
+		errCh <- ds.EnumerateBlobs(ch,
 			"", limit, waitSeconds)
 	}()
 
@@ -177,7 +174,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 		ch := make(chan *blobref.SizedBlobRef)
 		errCh := make(chan os.Error)
 		go func() {
-			errCh <- ds.EnumerateBlobs(ch, defaultPartition, test.after, limit, 0)
+			errCh <- ds.EnumerateBlobs(ch, test.after, limit, 0)
 		}()
 		var got = make([]*blobref.SizedBlobRef, 0, blobsToMake)
 		for {

@@ -36,15 +36,15 @@ type blobInfo struct {
 }
 
 
-func CreateEnumerateHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
+func CreateEnumerateHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleEnumerateBlobs(conn, req, storage, partition)
+		handleEnumerateBlobs(conn, req, storage)
 	}
 }
 
 const errMsgMaxWaitSecWithAfter = "Can't use 'maxwaitsec' with 'after'.\n"
 
-func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator, partition blobserver.Partition) {
+func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator) {
 	// Potential input parameters
 	formValueLimit := req.FormValue("limit")
 	formValueMaxWaitSec := req.FormValue("maxwaitsec")
@@ -92,7 +92,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	blobch := make(chan *blobref.SizedBlobRef, 100)
 	resultch := make(chan os.Error, 1)
 	go func() {
-		resultch <- storage.EnumerateBlobs(blobch, partition, formValueAfter, limit+1, waitSeconds)
+		resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1, waitSeconds)
 	}()
 
 	after := ""

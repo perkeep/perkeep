@@ -97,24 +97,23 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage))
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage))
 		default:
 			handler = handlers.CreateGetHandler(storage)
 		}
 	case "POST":
 		switch action {
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage))
 		case "upload":
-			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage))
 		case "remove":
-			// Currently only allows removing from a non-main partition.
-			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage, partition))
+			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage))
 		}
 	case "PUT": // no longer part of spec
-		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage, partition))
+		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage))
 	}
 	handler(conn, req)
 }

@@ -29,7 +29,7 @@ import (
 
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
-func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, mirrorPartitions []blobserver.Partition) (blobGot *blobref.SizedBlobRef, err os.Error) {
+func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *blobref.SizedBlobRef, err os.Error) {
 	hashedDirectory := ds.blobDirectory(nil, blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
@@ -82,7 +82,7 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 		return
 	}
 
-	for _, partition := range mirrorPartitions {
+	for _, partition := range ds.mirrorPartitions {
 		partitionDir := ds.blobDirectory(partition, blobRef)
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
 			return
@@ -107,11 +107,14 @@ func (ds *diskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader, m
 			exec.MergeWithStdout)
 	}
 
-	hub := ds.GetBlobHub(nil)
+	hub := ds.GetBlobHub()
 	hub.NotifyBlobReceived(blobRef)
-	for _, partition := range mirrorPartitions {
-		hub = ds.GetBlobHub(partition)
-		hub.NotifyBlobReceived(blobRef)
+	for _, partition := range ds.mirrorPartitions {
+		partition = partition
+		// TODO: need to get the other blobserver.Storage for
+		// the mirrors, not just their partition names,
+		// because we need their blob hubs now to wake them
+		// up.
 	}
 	return
 }

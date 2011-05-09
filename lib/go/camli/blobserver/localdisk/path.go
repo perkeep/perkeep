@@ -28,7 +28,7 @@ func BlobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func (ds *diskStorage) blobDirectory(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
+func (ds *DiskStorage) blobDirectory(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
 	d := b.Digest()
 	if len(d) < 6 {
 		d = d + "______"
@@ -36,11 +36,11 @@ func (ds *diskStorage) blobDirectory(partition blobserver.NamedPartition, b *blo
 	return fmt.Sprintf("%s/%s/%s/%s", ds.PartitionRoot(partition), b.HashName(), d[0:3], d[3:6])
 }
 
-func (ds *diskStorage) blobPath(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
+func (ds *DiskStorage) blobPath(partition blobserver.NamedPartition, b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s/%s", ds.blobDirectory(partition, b), BlobFileBaseName(b))
 }
 
-func (ds *diskStorage) PartitionRoot(partition blobserver.NamedPartition) string {
+func (ds *DiskStorage) PartitionRoot(partition blobserver.NamedPartition) string {
 	if partition == nil {
 		return ds.root
 	}

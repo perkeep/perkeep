@@ -17,13 +17,13 @@ limitations under the License.
 package localdisk
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"camli/blobref"
 )
 
 type readBlobRequest struct {
@@ -110,8 +110,8 @@ func readBlobs(opts readBlobRequest) os.Error {
 	return nil
 }
 
-func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) os.Error {
-	dirRoot := ds.PartitionRoot(partition)
+func (ds *DiskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
 	var err os.Error
 	doScan := func() {
@@ -132,7 +132,7 @@ func (ds *diskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition
 
 	// The case where we have to wait for waitSeconds for any blob
 	// to possibly appear.
-	hub := ds.GetBlobHub(partition)
+	hub := ds.GetBlobHub()
 	ch := make(chan *blobref.BlobRef, 1)
 	hub.RegisterListener(ch)
 	defer hub.UnregisterListener(ch)

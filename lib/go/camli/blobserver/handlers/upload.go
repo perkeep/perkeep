@@ -30,13 +30,13 @@ import (
 	"strings"
 )
 
-func CreateUploadHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
+func CreateUploadHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(conn, req, storage, partition)
+		handleMultiPartUpload(conn, req, storage)
 	}
 }
 
-func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, partition blobserver.Partition) {
+func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver) {
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
@@ -96,7 +96,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			continue
 		}
 
-		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart, partition.GetMirrorPartitions())
+		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart)
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break
@@ -106,7 +106,8 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 	}
 
 	log.Println("Done reading multipart body.")
-	ret := commonUploadResponse(partition, req)
+	configer, _ := blobReceiver.(blobserver.Configer)  // TODO: ugly?
+	ret := commonUploadResponse(configer, req)
 
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
@@ -125,15 +126,17 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 	httputil.ReturnJson(conn, ret)
 }
 
-func commonUploadResponse(partition blobserver.Partition, req *http.Request) map[string]interface{} {
+func commonUploadResponse(configer blobserver.Configer, req *http.Request) map[string]interface{} {
 	ret := make(map[string]interface{})
-	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*
+	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*. TODO: cut this down, standardize
 	ret["uploadUrlExpirationSeconds"] = 86400
 
 	// TODO: camli/upload isn't part of the spec.  we should pick
 	// something different here just to make it obvious that this
-	// isn't a well-known URL and facilitate lazy clients.
-	ret["uploadUrl"] = partition.URLBase() + "/camli/upload"
+	// isn't a well-known URL and accidentally encourage lazy clients.
+	if configer != nil {
+		ret["uploadUrl"] = configer.Config().URLBase + "/camli/upload"
+	}
 	return ret
 }
 
@@ -141,13 +144,13 @@ func commonUploadResponse(partition blobserver.Partition, req *http.Request) map
 var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
-func CreateNonStandardPutHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
+func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handlePut(conn, req, storage, partition)
+		handlePut(conn, req, storage)
 	}
 }
 
-func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, partition blobserver.Partition) {
+func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver) {
 	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed PUT URL.")
@@ -159,7 +162,7 @@ func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobser
 		return
 	}
 
-	_, err := blobReceiver.ReceiveBlob(blobRef, req.Body, partition.GetMirrorPartitions())
+	_, err := blobReceiver.ReceiveBlob(blobRef, req.Body)
 	if err != nil {
 		httputil.ServerError(conn, err)
 		return

@@ -17,10 +17,9 @@ limitations under the License.
 package mysqlindexer
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
-
 	"os"
+
+	"camli/blobref"
 
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
@@ -30,7 +29,7 @@ type blobRow struct {
 	size    int64
 }
 
-func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, after string, limit uint, waitSeconds int) (err os.Error) {
+func (mi *Indexer) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) (err os.Error) {
 	// MySQL connection stuff.
 	var client *mysql.Client
 	client, err = mi.getConnection()

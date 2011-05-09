@@ -18,7 +18,6 @@ package handlers
 
 import (
 	"camli/blobref"
-	"camli/blobserver"
 	. "camli/test/asserts"
 	"http"
 	"http/httptest"
@@ -43,7 +42,6 @@ type emptyEnumerator struct {
 }
 
 func (ee *emptyEnumerator) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
-        partition blobserver.Partition,
         after string,
         limit uint,
         waitSeconds int) os.Error {
@@ -75,7 +73,7 @@ func TestEnumerateInput(t *testing.T) {
 		wr := httptest.NewRecorder()
 		wr.Code = 200 // default
 		req := makeGetRequest(test.url)
-		handleEnumerateBlobs(wr, req, enumerator, nil)  // TODO: use better partition
+		handleEnumerateBlobs(wr, req, enumerator)
 		ExpectInt(t, test.expectedCode, wr.Code, "response code for " + test.name)
 		ExpectString(t, test.expectedBody, wr.Body.String(), "output for " + test.name)
 	}

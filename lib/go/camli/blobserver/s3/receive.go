@@ -100,7 +100,7 @@ func (as *amazonSlurper) Cleanup() {
 	}
 }
 
-func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []blobserver.Partition) (*blobref.SizedBlobRef, os.Error) {
+func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
 	slurper := newAmazonSlurper(blob)
 	defer slurper.Cleanup()
 

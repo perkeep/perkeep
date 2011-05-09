@@ -17,16 +17,16 @@ limitations under the License.
 package localdisk
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
 	"os"
 	"sync"
 	"time"
+
+	"camli/blobref"
 )
 
 const maxParallelStats = 20
 
-func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserver.Partition, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (ds *DiskStorage) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if len(blobs) == 0 {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserve
 	var missing []*blobref.BlobRef
 
 	statSend := func(ref *blobref.BlobRef, appendMissing bool) os.Error {
-		fi, err := os.Stat(ds.blobPath(partition, ref))
+		fi, err := os.Stat(ds.blobPath(ds.partition, ref))
 		switch {
 		case err == nil && fi.IsRegular():
 			dest <- &blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}
@@ -76,7 +76,7 @@ func (ds *diskStorage) Stat(dest chan *blobref.SizedBlobRef, partition blobserve
 			// TODO: use a flag, defaulting to 60?
 			waitSeconds = 60
 		}
-		hub := ds.GetBlobHub(partition)
+		hub := ds.GetBlobHub()
 		ch := make(chan *blobref.BlobRef, 1)
 		for _, missblob := range missing {
 			hub.RegisterBlobListener(missblob, ch)

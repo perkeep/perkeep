@@ -27,20 +27,25 @@ import (
 
 const maxRemovesPerRequest = 1000
 
-func CreateRemoveHandler(storage blobserver.Storage, partition blobserver.Partition) func(http.ResponseWriter, *http.Request) {
+func CreateRemoveHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		handleRemove(conn, req, storage, partition)
+		handleRemove(conn, req, storage)
 	}
 }
 
-func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage, partition blobserver.Partition) {
+func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
-
-	if !partition.IsQueue() {
+	configer, ok := storage.(blobserver.Configer)
+	if !ok {
 		conn.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(conn, "Can only remove blobs from a queue partition.\n")
+		fmt.Fprintf(conn, "Remove handler's blobserver.Storage isn't a blobserver.Configuer; can't remove")
+		return
+	}
+	if !configer.Config().IsQueue {
+		conn.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(conn, "Can only remove blobs from a queue.\n")
 		return
 	}
 
@@ -68,7 +73,7 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		toRemoveStr = append(toRemoveStr, ref.String())
 	}
 
-	err := storage.Remove(partition, toRemove)
+	err := storage.Remove(toRemove)
 	if err != nil {
 		conn.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)
