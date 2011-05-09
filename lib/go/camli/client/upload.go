@@ -111,7 +111,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	pur, err := c.jsonFromResponse(resp)
 	if err != nil {
-		return error("stat json parse error", err)
+		return error("json parse error", fmt.Errorf("response from %s wasn't valid JSON; wrong URL prefix?", url))
 	}
 	
 	uploadUrl, ok := pur["uploadUrl"].(string)
