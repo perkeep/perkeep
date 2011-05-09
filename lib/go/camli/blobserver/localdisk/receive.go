@@ -18,7 +18,6 @@ package localdisk
 
 import (
 	"exec"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,8 +27,6 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 )
-
-var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
 func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *blobref.SizedBlobRef, err os.Error) {
 	pname := ds.partition
@@ -107,7 +104,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 	blobGot = &blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
 	success = true
 
-	if *flagOpenImages {
+	if os.Getenv("CAMLI_HACK_OPEN_IMAGES") == "1" {
 		exec.Run("/usr/bin/eog",
 			[]string{"/usr/bin/eog", fileName},
 			os.Environ(),
