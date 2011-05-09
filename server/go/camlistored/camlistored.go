@@ -204,8 +204,8 @@ func configFileMain() {
 	}
 	defer f.Close()
 	dj := json.NewDecoder(f)
-	config := make(map[string]interface{})
-	if err = dj.Decode(&config); err != nil {
+	rootjson := make(map[string]interface{})
+	if err = dj.Decode(&rootjson); err != nil {
 		extra := ""
 		if serr, ok := err.(*json.SyntaxError); ok {
 			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
@@ -218,26 +218,34 @@ func configFileMain() {
 		exitFailure("error parsing JSON object in config file %s%s\n%v",
 			osutil.UserServerConfigPath(), extra, err)
 	}
-	if err := jsonconfig.EvaluateExpressions(config); err != nil {
+	if err := jsonconfig.EvaluateExpressions(rootjson); err != nil {
 		exitFailure("error expanding JSON config expressions in %s: %v", configPath, err)
 	}
 
 	ws := webserver.New()
 	baseURL := ws.BaseURL()
 
-	if password, ok := config["password"].(string); ok {
-		auth.AccessPassword = password
+	// Root configuration
+	config := jsonconfig.Obj(rootjson)
+
+	{
+		cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
+		if (cert != "") != (key != "") {
+			exitFailure("TLSCertFile and TLSKeyFile must both be either present or absent")
+		}
+		if cert != "" {
+			ws.SetTLS(cert, key)
+		}
 	}
 
-	if url, ok := config["baseURL"].(string); ok {
+	auth.AccessPassword = config.OptionalString("password", "")
+	if url := config.OptionalString("baseURL", ""); url != "" {
 		baseURL = url
 	}
-
-	prefixes, ok := config["prefixes"].(map[string]interface{})
-	if !ok {
-		exitFailure("No top-level \"prefixes\": {...} in %s", osutil.UserServerConfigPath)
+	prefixes := config.RequiredObject("prefixes")
+	if err := config.Validate(); err != nil {
+		exitFailure("configuration error in root object's keys in %s: %v", configPath, err)
 	}
-
 	createdHandlers := make(map[string]interface{})
 
 	for prefix, vei := range prefixes {

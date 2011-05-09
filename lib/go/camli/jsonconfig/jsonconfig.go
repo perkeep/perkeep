@@ -24,10 +24,25 @@ import (
 
 type Obj map[string]interface{}
 
+func (jc Obj) RequiredObject(key string) Obj {
+	jc.noteKnownKey(key)
+        ei, ok := jc[key]
+	if !ok {
+		jc.appendError(fmt.Errorf("Missing required config key %q (object)", key))
+		return make(Obj)
+	}
+	m, ok := ei.(map[string]interface{})
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be an object, not %T", key, ei))
+		return make(Obj)
+	}
+	return Obj(m)
+}
+
 func (jc Obj) RequiredString(key string) string {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
-	if !ok {
+ 	if !ok {
 		jc.appendError(fmt.Errorf("Missing required config key %q (string)", key))
 		return ""
 	}

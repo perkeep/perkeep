@@ -5,12 +5,15 @@ use FindBin qw($Bin);
 use Getopt::Long;
 
 sub usage {
-    die "Usage: dev-blobserver [--wipe] <portnumber> -- [other_blobserver_opts]";
+    die "Usage: dev-blobserver [--wipe] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
 my $opt_wipe;
-GetOptions("wipe" => \$opt_wipe)
-    or usage();
+my $opt_tls;
+GetOptions(
+    "wipe" => \$opt_wipe,
+    "tls" => \$opt_tls,
+    ) or usage();
 
 my $port = shift || "3179";
 usage() unless $port =~ /^\d+$/;
@@ -31,7 +34,10 @@ print "Starting blobserver on http://localhost:$port/ in $root\n";
 $ENV{CAMLI_PASSWORD} = "pass$port";
 $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_ROOT} = $root;
+$ENV{CAMLI_TLS_CRT_FILE} = $opt_tls ? "$Bin/config/dev-tls.crt" : "";
+$ENV{CAMLI_TLS_KEY_FILE} = $opt_tls ? "$Bin/config/dev-tls.key" : "";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-blobserver-config.json",
      "-listen=:$port",
      @ARGV);
+

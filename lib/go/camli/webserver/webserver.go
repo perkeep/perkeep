@@ -32,17 +32,15 @@ import (
 
 var Listen = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
 
-var flagSelfUrlBase = flag.String("self-base-url", "", "If empty, automatic.  Else of form https://foo.com (no trailing slash)")
-var flagTLS = flag.Bool("tls", false, "Use TLS")
-var flagCertFile = flag.String("tls-crt", "", "If using TLS, path to cert (public key) file.")
-var flagKeyFile = flag.String("tls-key", "", "If using TLS, path to private key file.")
-
 type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
 
 type Server struct {
 	premux   []HandlerPicker
 	mux      *http.ServeMux
 	listener net.Listener
+
+	enableTLS               bool
+	tlsCertFile, tlsKeyFile string
 }
 
 func New() *Server {
@@ -52,15 +50,21 @@ func New() *Server {
 	}
 }
 
+func (s *Server) SetTLS(certFile, keyFile string) {
+	s.enableTLS = true
+	s.tlsCertFile = certFile
+	s.tlsKeyFile = keyFile
+}
+
 func (s *Server) BaseURL() string {
-	if *flagSelfUrlBase != "" {
-		// TODO: be automatic for TLS certs? find host name of cert inside it.
-		return *flagSelfUrlBase
+	scheme := "http"
+	if s.enableTLS {
+		scheme = "https"
 	}
 	if strings.HasPrefix(*Listen, ":") {
-		return "http://127.0.0.1" + *Listen
+		return scheme + "://127.0.0.1" + *Listen
 	}
-	return "http://" + strings.Replace(*Listen, "0.0.0.0:", "127.0.0.1:", 1)
+	return scheme + "://" + strings.Replace(*Listen, "0.0.0.0:", "127.0.0.1:", 1)
 }
 
 // Register conditional handler-picker functions which get run before
@@ -91,7 +95,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (s *Server) Serve() {
 	if os.Getenv("TESTING_PORT_WRITE_FD") == "" { // Don't make noise during unit tests
-		log.Printf("Starting to listen on http://%v/\n", *Listen)
+		log.Printf("Starting to listen on %s\n", s.BaseURL())
 	}
 
 	var err os.Error
@@ -100,14 +104,14 @@ func (s *Server) Serve() {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
 	}
 
-	if *flagTLS {
+	if s.enableTLS {
 		config := &tls.Config{
 			Rand:       rand.Reader,
 			Time:       time.Seconds,
 			NextProtos: []string{"http/1.1"},
 		}
 		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0], err = tls.LoadX509KeyPair(*flagCertFile, *flagKeyFile)
+		config.Certificates[0], err = tls.LoadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 		if err != nil {
 			log.Fatalf("Failed to load TLS cert: %v", err)
 		}

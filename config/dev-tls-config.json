@@ -1,10 +1,6 @@
 { "_for-emacs": "-*- mode: js2;-*-",
   "baseURL": ["_env", "http://localhost:${CAMLI_PORT}"],
   "password": ["_env", "${CAMLI_PASSWORD}"],
-
-  "TLSCertFile": ["_env", "${CAMLI_TLS_CRT_FILE}"],
-  "TLSKeyFile": ["_env", "${CAMLI_TLS_KEY_FILE}"],
-
   "prefixes": {
     "/": {
          "handler": "filesystem",
