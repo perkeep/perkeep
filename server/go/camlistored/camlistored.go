@@ -280,6 +280,10 @@ func configFileMain() {
 			// Skip it this round. Get it in second pass
 			// to ensure the search's dependent indexer
 			// has been created.
+		case handlerType == "sync":
+			// Skip it this round. Get it in second pass
+			// to ensure the dependent blob servers have
+			// been created.
 		case handlerType == "root":
 			installHandler(createRootHandler)
 		case handlerType == "ui":
@@ -311,8 +315,8 @@ func configFileMain() {
 				exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", err)
 			}
 		}
-		switch {
-		case handlerType == "search":
+		switch handlerType {
+		case "search":
 			indexPrefix := config.RequiredString("index") // TODO: add optional help tips here?
 			ownerBlobStr := config.RequiredString("owner")
 			checkConfig()
@@ -327,6 +331,25 @@ func configFileMain() {
 			}
 			h := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
 			ws.HandleFunc(prefix+"camli/", h)
+		case "sync":
+			from := config.RequiredString("from")
+			to := config.RequiredString("to")
+			checkConfig()
+			getBlobServer := func(bsPrefix string) blobserver.Storage {
+				h, ok := createdHandlers[bsPrefix]
+				if !ok {
+					exitFailure("sync prefix %q references non-existent %q blob storage prefix",
+						prefix, bsPrefix)
+				}
+				bs, ok := h.(blobserver.Storage)
+				if !ok {
+                                        exitFailure("sync prefix %q references %q, of type %T, but expected a blob server",
+                                                prefix, bsPrefix, h)
+                                }
+				return bs
+			}
+			fromBs, toBs := getBlobServer(from), getBlobServer(to)
+			ws.Handle(prefix, createSyncHandler(fromBs, toBs))
 		default:
 			panic("unexpected handlerType: " + handlerType)
 		}

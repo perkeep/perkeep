@@ -17,6 +17,14 @@
           }
      },
 
+      "/sync/": {
+          "handler": "sync",
+          "handlerArgs": {
+              "from": "/bs/",
+              "to": "/indexer/"
+          }
+      },
+
       "/sighelper/": {
           "handler": "jsonsign",
           "handlerArgs": {
