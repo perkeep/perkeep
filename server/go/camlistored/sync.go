@@ -27,16 +27,19 @@ import (
 var _ = log.Printf
 
 type SyncHandler struct {
-	from, to blobserver.Storage
+	fromName, toName string
+	from, to         blobserver.Storage
 }
 
-func createSyncHandler(from, to blobserver.Storage) *SyncHandler {
+func createSyncHandler(fromName, toName string, from, to blobserver.Storage) *SyncHandler {
 	return &SyncHandler{
-		from: from,
-		to:   to,
+		from:     from,
+		to:       to,
+		fromName: fromName,
+		toName:   toName,
 	}
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(rw, "sync handler")
+	fmt.Fprintf(rw, "sync handler, from %s to %s", sh.fromName, sh.toName)
 }

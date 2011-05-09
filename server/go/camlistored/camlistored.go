@@ -349,7 +349,7 @@ func configFileMain() {
 				return bs
 			}
 			fromBs, toBs := getBlobServer(from), getBlobServer(to)
-			ws.Handle(prefix, createSyncHandler(fromBs, toBs))
+			ws.Handle(prefix, createSyncHandler(from, to, fromBs, toBs))
 		default:
 			panic("unexpected handlerType: " + handlerType)
 		}
