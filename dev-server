@@ -13,7 +13,7 @@ GetOptions("wipe" => \$opt_wipe)
     or usage();
 
 my $port = shift;
-$port = "3202" unless defined($port);
+$port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
 system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
