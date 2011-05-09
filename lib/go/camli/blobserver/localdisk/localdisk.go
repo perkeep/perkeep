@@ -21,6 +21,7 @@ import (
 	"log"
 	"io"
 	"os"
+	"regexp"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -31,11 +32,12 @@ type DiskStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	root string
 
-	// the sub-partition to read from.
-	partition blobserver.Partition
+	// the sub-partition (queue) to write to / read from, or "" for none.
+	partition string
 
-	// to mirror new blobs into (when partition above is the default partition)
-	mirrorPartitions []blobserver.Partition
+	// queue partitions to mirror new blobs into (when partition
+	// above is the empty string)
+	mirrorPartitions []*DiskStorage
 }
 
 func New(root string) (storage *DiskStorage, err os.Error) {
@@ -48,7 +50,6 @@ func New(root string) (storage *DiskStorage, err os.Error) {
 	storage = &DiskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      root,
-		partition:                 nil, // TODO: this will probably crash elsewhere
 	}
 	return
 }
@@ -75,12 +76,32 @@ func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
 }
 
+
+var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
+
+func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, os.Error) {
+	if !validQueueName.MatchString(name) {
+		return nil, fmt.Errorf("invalid queue name %q", name)
+	}
+	if ds.partition != "" {
+		return nil, fmt.Errorf("can't create queue %q on existing queue %q",
+			name, ds.partition)
+	}
+	q := &DiskStorage{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		root:                      ds.root,
+		partition:                 name,
+	}
+	ds.mirrorPartitions = append(ds.mirrorPartitions, q)
+	return q, nil
+}
+
 func (ds *DiskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	return ds.Fetch(blob)
 }
 
 func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {
-	fileName := ds.blobPath(nil, blob)
+	fileName := ds.blobPath("", blob)
 	stat, err := os.Stat(fileName)
 	if errorIsNoEnt(err) {
 		return nil, 0, os.ENOENT

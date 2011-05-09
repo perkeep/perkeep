@@ -59,6 +59,14 @@ type BlobStatter interface {
 		waitSeconds int) os.Error
 }
 
+// QueueCreator is implemented by Storage interfaces which support
+// creating queues in which all new uploads go to both the root
+// storage as well as the named queue, which is then returned.  This
+// is used by replication.
+type QueueCreator interface {
+	CreateQueue(name string) (Storage, os.Error)
+}
+
 type MaxEnumerateConfig interface {
 	// Returns the max that this storage interface is capable
 	// of enumerating at once.

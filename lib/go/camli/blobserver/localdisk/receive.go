@@ -17,20 +17,26 @@ limitations under the License.
 package localdisk
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
 	"exec"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+
+	"camli/blobref"
+	"camli/blobserver"
 )
 
 var flagOpenImages = flag.Bool("showimages", false, "Show images on receiving them with eog.")
 
 func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *blobref.SizedBlobRef, err os.Error) {
-	hashedDirectory := ds.blobDirectory(nil, blobRef)
+	pname := ds.partition
+	if pname != "" {
+		return nil, fmt.Errorf("refusing upload directly to queue partition %q", pname)
+	}
+	hashedDirectory := ds.blobDirectory(pname, blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		return
@@ -68,7 +74,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		return
 	}
 
-	fileName := ds.blobPath(nil, blobRef)
+	fileName := ds.blobPath("", blobRef)
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
 		return
 	}
@@ -82,16 +88,20 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		return
 	}
 
-	for _, partition := range ds.mirrorPartitions {
-		partitionDir := ds.blobDirectory(partition, blobRef)
+	for _, mirror := range ds.mirrorPartitions {
+		pname := mirror.partition
+		if pname == "" {
+			panic("expected partition name")
+		}
+		partitionDir := ds.blobDirectory(pname, blobRef)
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
 			return
 		}
-		partitionFileName := ds.blobPath(partition, blobRef)
+		partitionFileName := ds.blobPath(pname, blobRef)
 		if err = os.Link(fileName, partitionFileName); err != nil {
 			return
 		}
-		log.Printf("Mirrored to partition %q", partition)
+		log.Printf("Mirrored to partition %q", pname)
 	}
 
 	blobGot = &blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
@@ -109,12 +119,8 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 
 	hub := ds.GetBlobHub()
 	hub.NotifyBlobReceived(blobRef)
-	for _, partition := range ds.mirrorPartitions {
-		partition = partition
-		// TODO: need to get the other blobserver.Storage for
-		// the mirrors, not just their partition names,
-		// because we need their blob hubs now to wake them
-		// up.
+	for _, mirror := range ds.mirrorPartitions {
+		mirror.GetBlobHub().NotifyBlobReceived(blobRef)
 	}
 	return
 }

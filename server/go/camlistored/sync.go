@@ -19,7 +19,9 @@ package main
 import (
 	"fmt"
 	"http"
+	"os"
 	"log"
+	"strings"
 
 	"camli/blobserver"
 )
@@ -28,16 +30,32 @@ var _ = log.Printf
 
 type SyncHandler struct {
 	fromName, toName string
-	from, to         blobserver.Storage
+	from, fromq, to  blobserver.Storage
 }
 
-func createSyncHandler(fromName, toName string, from, to blobserver.Storage) *SyncHandler {
-	return &SyncHandler{
+func createSyncHandler(fromName, toName string, from, to blobserver.Storage) (*SyncHandler, os.Error) {
+	h := &SyncHandler{
 		from:     from,
 		to:       to,
 		fromName: fromName,
 		toName:   toName,
 	}
+
+	qc, ok := from.(blobserver.QueueCreator)
+	if !ok {
+		return nil, fmt.Errorf(
+			"Prefix %s (type %T) does not support being efficient replication source (queueing)",
+			fromName, from)
+	}
+	queueName := strings.Replace(strings.Trim(toName, "/"), "/", "-", -1)
+	var err os.Error
+	h.fromq, err = qc.CreateQueue(queueName)
+	if err != nil {
+		return nil, fmt.Errorf("Prefix %s (type %T) failed to create queue %q: %v",
+			fromName, from, queueName, err)
+	}
+
+	return h, nil
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

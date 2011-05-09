@@ -348,7 +348,11 @@ func configFileMain() {
 				return bs
 			}
 			fromBs, toBs := getBlobServer(from), getBlobServer(to)
-			ws.Handle(prefix, createSyncHandler(from, to, fromBs, toBs))
+			h, err := createSyncHandler(from, to, fromBs, toBs)
+			if err != nil {
+				exitFailure(err.String())
+			}
+			ws.Handle(prefix, h)
 		default:
 			panic("unexpected handlerType: " + handlerType)
 		}
