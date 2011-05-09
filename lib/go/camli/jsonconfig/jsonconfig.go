@@ -39,6 +39,21 @@ func (jc Obj) RequiredObject(key string) Obj {
 	return Obj(m)
 }
 
+// Optional object doesn't take a default; it always returns an empty map.
+func (jc Obj) OptionalObject(key string) Obj {
+	jc.noteKnownKey(key)
+        ei, ok := jc[key]
+	if !ok {
+		return make(Obj)
+	}
+	m, ok := ei.(map[string]interface{})
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be an object, not %T", key, ei))
+		return make(Obj)
+	}
+	return Obj(m)
+}
+
 func (jc Obj) RequiredString(key string) string {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
