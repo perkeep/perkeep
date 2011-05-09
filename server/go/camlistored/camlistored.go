@@ -38,22 +38,13 @@ import (
 	"camli/webserver"
 
 	// Storage options:
-	"camli/blobserver/localdisk"
+	_ "camli/blobserver/localdisk"
 	_ "camli/blobserver/s3"
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
 )
 
 var flagConfigFile = flag.String("configfile", "serverconfig",
 	"Config file to use, relative to camli config dir root, or blank to not use config files.")
-
-// If flagConfigFile is blank:
-var flagStorageRoot = flag.String("root", "/tmp/camliroot", "Root directory to store files")
-var flagQueuePartitions = flag.String("queue-partitions", "queue-indexer",
-	"Comma-separated list of queue partitions to reference uploaded blobs into. "+
-		"Typically one for your indexer and one per mirror full syncer.")
-
-// TODO: Temporary
-var flagRequestLog = flag.Bool("reqlog", false, "Log incoming requests")
 
 const camliPrefix = "/camli/"
 
@@ -90,9 +81,6 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.H
 
 func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, partition blobserver.Partition, storage blobserver.Storage) {
 	handler := unsupportedHandler
-	if *flagRequestLog {
-		log.Printf("method %q; partition %q; action %q", req.Method, partition, action)
-	}
 	switch req.Method {
 	case "GET":
 		switch action {
@@ -129,71 +117,6 @@ func exitFailure(pattern string, args ...interface{}) {
 func main() {
 	flag.Parse()
 
-	if *flagConfigFile != "" {
-		configFileMain()
-		return
-	}
-
-	commandLineConfigurationMain()
-}
-
-func commandLineConfigurationMain() {
-	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
-	if len(auth.AccessPassword) == 0 {
-		exitFailure("No CAMLI_PASSWORD environment variable set.")
-	}
-
-	if *flagStorageRoot == "" {
-		exitFailure("No storage root specified in --root")
-	}
-
-	storage, err := localdisk.New(*flagStorageRoot)
-	if err != nil {
-		exitFailure("Error for --root of %q: %v", *flagStorageRoot, err)
-	}
-
-	for _, partName := range strings.Split(*flagQueuePartitions, ",", -1) {
-		log.Printf("TODO: partition %q requested by command-line mode is broken at the moment", partName)
-		// TODO: get this working again
-		//part := &partitionConfig{name: partName, writable: false, readable: true, queue: true}
-		// part.urlbase = "/partition-" + partName
-	}
-
-	ws := webserver.New()
-
-	const partitionPrefix = "/partition-"
-	pickPartitionHandlerMaybe := func(req *http.Request) (handler http.HandlerFunc, intercept bool) {
-		if !strings.HasPrefix(req.URL.Path, partitionPrefix) {
-			intercept = false
-			return
-		}
-		panic("TODO: re-implement, maybe")
-		//return http.HandlerFunc(handleCamli), true
-	}
-
-	ws.RegisterPreMux(webserver.HandlerPicker(pickPartitionHandlerMaybe))
-	ws.Handle("/camli/", makeCamliHandler("/", ws.BaseURL(), storage))
-
-	//// TODO: temporary
-	if false {
-		//ownerBlobRef := client.SignerPublicKeyBlobref()
-		//if ownerBlobRef == nil {
-		//	log.Fatalf("Public key not configured.")
-		//}
-
-		//ws.HandleFunc("/camli/search", func(conn http.ResponseWriter, req *http.Request) {
-		//	handler := auth.RequireAuth(search.CreateHandler(myIndexer, ownerBlobRef))
-		//	handler(conn, req)
-		//})
-	}
-
-	root := &RootHandler{OfferSetup: true}
-	ws.Handle("/", root)
-	ws.HandleFunc("/setup", setupHome)
-	ws.Serve()
-}
-
-func configFileMain() {
 	configPath := *flagConfigFile
 	if !filepath.IsAbs(configPath) {
 		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
