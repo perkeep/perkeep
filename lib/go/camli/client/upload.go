@@ -165,6 +165,10 @@ func (c *Client) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRe
 		fmt.Fprintf(&buf, "&blob%d=%s", n+1, blob)
 	}
 
+	if waitSeconds > 0 {
+		fmt.Fprintf(&buf, "&maxwaitsec=%d", waitSeconds)
+	}
+
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/camli/stat", c.server), strings.NewReader(buf.String()))
 	if err != nil {
 		return err
@@ -177,9 +181,20 @@ func (c *Client) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRe
 		return fmt.Errorf("stat HTTP error: %v", err)
 	}
 
-	resp = resp
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("stat response had http status %d", resp.StatusCode)
+	}
 
-	return os.NewError("TODO: implement")
+	stat, err := parseStatResponse(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	for _, sb := range stat.HaveMap {
+		lsb := sb // local one to take pointer of: TODO: change channel type to non-pointer?
+		dest <- &lsb
+	}
+	return nil
 }
 
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
@@ -213,7 +228,6 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	if resp.StatusCode != 200 {
 		return error("stat response had http status %d", resp.StatusCode)
-
 	}
 
 	stat, err := parseStatResponse(resp.Body)
