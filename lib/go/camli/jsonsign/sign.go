@@ -31,14 +31,17 @@ import (
 	"camli/blobref"
 )
 
-var gpgPath *string = flag.String("gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
+var gpgPath = "/usr/bin/gpg"
+var flagRing = ""
+var flagSecretRing = ""
 
-var flagRing *string = flag.String("keyring", "./test/test-keyring.gpg",
-	"GnuPG public keyring file to use.")
-
-var flagSecretRing *string = flag.String("secret-keyring", "./test/test-secring.gpg",
-	"GnuPG secret keyring file to use.")
-
+func AddFlags() {
+	flag.StringVar(&gpgPath, "gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
+	flag.StringVar(&flagRing, "keyring", "./test/test-keyring.gpg",
+			"GnuPG public keyring file to use.")
+	flag.StringVar(&flagSecretRing, "secret-keyring", "./test/test-secring.gpg",
+			"GnuPG secret keyring file to use.")
+}
 
 type SignRequest struct {
 	UnsignedJson string
@@ -57,14 +60,14 @@ func (sr *SignRequest) publicRingPath() string {
 	if sr.KeyringPath != "" {
 		return sr.KeyringPath
 	}
-	return *flagRing
+	return flagRing
 }
 
 func (sr *SignRequest) secretRingPath() string {
 	if sr.SecretKeyringPath != "" {
 		return sr.SecretKeyringPath
 	}
-	return *flagSecretRing
+	return flagSecretRing
 }
 
 func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
@@ -135,12 +138,25 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 			"--no-default-keyring",
 			"--keyring", sr.publicRingPath(),
 			"--secret-keyring", sr.secretRingPath())
+	} else {
+		override := false
+		if kr := sr.publicRingPath(); kr != "" {
+			args = append(args, "--keyring", kr)
+			override = true
+		}
+		if kr := sr.secretRingPath(); kr != "" {
+			args = append(args, "--secret-keyring", kr)
+			override = true
+		}
+		if override {
+			args = append(args, "--no-default-keyring")
+		}
 	}
 
 	args = append(args, "-")
 
 	cmd, err := exec.Run(
-		*gpgPath,
+		gpgPath,
 		args,
 		os.Environ(),
 		".",
