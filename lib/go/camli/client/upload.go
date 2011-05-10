@@ -59,7 +59,8 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
 }
 
-func parseStatResponse(r io.Reader) (sr *statResponse, _ os.Error) {
+// TODO-GO: if outerr is replaced by a "_", gotest(!) fails with a 6g error.
+func parseStatResponse(r io.Reader) (sr *statResponse, outerr os.Error) {
 	var (
 		ok   bool
 		err  os.Error
