@@ -34,7 +34,7 @@ chdir($FindBin::Bin) or die "Couldn't chdir to $FindBin::Bin: $!";
 
 GetOptions("list" => \$opt_list,
            "eachclean" => \$opt_eachclean,
-           "verbose" => \$opt_verbose,
+           "verbose+" => \$opt_verbose,
            "test" => \$opt_test,
            "deps" => \$opt_deps,
     ) or usage();
@@ -132,6 +132,13 @@ sub v {
     print STDERR "# $msg\n";
 }
 
+sub v2 {
+    return unless $opt_verbose >= 2;
+    my $msg = shift;
+    chomp $msg;
+    print STDERR "# $msg\n";
+}
+
 sub clean {
     for my $root ("$ENV{GOROOT}/pkg/linux_amd64",
                   "$ENV{GOROOT}/pkg/linux_386") {
@@ -205,7 +212,7 @@ sub build {
     }
 
     my $already_built = $built{$target} || 0;
-    v("Building '$target' (already_built=$already_built; via @history)");
+    v2("Building '$target' (already_built=$already_built; via @history)");
     return if $already_built;
     $built{$target} = 1;
 
@@ -228,11 +235,11 @@ sub build {
     # Dependencies first.
     my @deps = @{ $t->{deps} };
     if (@deps) {
-        v("Deps of '$target' are @deps");
+        v2("Deps of '$target' are @deps");
         foreach my $dep (@deps) {
             build($dep, @history);
         }
-        v("built deps for $target, now can build");
+        v2("built deps for $target, now can build");
     }
 
     my @quiet = ("--silent");
