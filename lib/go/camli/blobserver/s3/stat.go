@@ -25,7 +25,7 @@ import (
 
 var _ = log.Printf
 
-func (sto *s3Storage) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *s3Storage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	// TODO: do n stats in parallel
 	for _, br := range blobs {
 		size, err := sto.s3Client.Stat(br.String(), sto.bucket)

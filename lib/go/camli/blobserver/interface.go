@@ -22,8 +22,6 @@ import (
 	"os"
 )
 
-// TODO: put directional constraints on all the channel types
-
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
 type NamedPartition interface {
@@ -56,7 +54,7 @@ type BlobStatter interface {
 	// or nil.  Stat() should NOT close the channel.
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
-	Stat(dest chan *blobref.SizedBlobRef,
+	Stat(dest chan<- *blobref.SizedBlobRef,
 		blobs []*blobref.BlobRef,
 		waitSeconds int) os.Error
 }
@@ -84,7 +82,7 @@ type BlobEnumerator interface {
 	// or 0 for no delay.
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
-	EnumerateBlobs(dest chan *blobref.SizedBlobRef,
+	EnumerateBlobs(dest chan<- *blobref.SizedBlobRef,
 		after string,
 		limit uint,
 		waitSeconds int) os.Error

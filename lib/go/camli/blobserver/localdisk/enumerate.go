@@ -27,7 +27,7 @@ import (
 )
 
 type readBlobRequest struct {
-	ch      chan *blobref.SizedBlobRef
+	ch      chan<- *blobref.SizedBlobRef
 	after   string
 	remain  *uint // limit countdown
 	dirRoot string
@@ -110,7 +110,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+func (ds *DiskStorage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
 	var err os.Error

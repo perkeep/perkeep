@@ -53,7 +53,7 @@ func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return sto.client.RemoveBlobs(blobs)
 }
 
-func (sto *remoteStorage) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *remoteStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	return sto.client.Stat(dest, blobs, waitSeconds)
 }
 
@@ -67,7 +67,7 @@ func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser
 
 func (sto *remoteStorage) MaxEnumerate() uint { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+func (sto *remoteStorage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
 	return os.NewError("TODO: implement")
 }

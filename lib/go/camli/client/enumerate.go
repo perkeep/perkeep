@@ -36,7 +36,7 @@ func (c *Client) EnumerateBlobs(ch chan *blobref.SizedBlobRef) os.Error {
 const enumerateBatchSize = 1000
 
 // Note: closes ch.
-func (c *Client) EnumerateBlobsOpts(ch chan *blobref.SizedBlobRef, opts EnumerateOpts) os.Error {
+func (c *Client) EnumerateBlobsOpts(ch chan<- *blobref.SizedBlobRef, opts EnumerateOpts) os.Error {
 	defer close(ch)
 	if opts.After != "" && opts.MaxWaitSec != 0 {
 		return os.NewError("client error: it's invalid to use enumerate After and MaxWaitSec together")
