@@ -60,7 +60,7 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	if c.HasAuthCredentials() {
 		req.Header.Add("Authorization", c.authHeader())
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 
 	if err != nil {
 		return os.NewError(fmt.Sprintf("Got status code %d from blobserver for remove %s", resp.StatusCode, body))

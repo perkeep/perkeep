@@ -37,9 +37,9 @@ type UploadHandle struct {
 }
 
 type PutResult struct {
-	BlobRef  *blobref.BlobRef
-	Size     int64
-	Skipped  bool    // already present on blobserver
+	BlobRef *blobref.BlobRef
+	Size    int64
+	Skipped bool // already present on blobserver
 }
 
 type nopCloser struct {
@@ -63,11 +63,11 @@ func encodeBase64(s string) string {
 	return string(buf)
 }
 
-func (c *Client) jsonFromResponse(resp *http.Response) (map[string]interface{}, os.Error) {
+func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[string]interface{}, os.Error) {
 	if resp.StatusCode != 200 {
-		log.Printf("Failed to JSON from response; status code is %d", resp.StatusCode)
+		log.Printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
-		return nil, os.NewError(fmt.Sprintf("HTTP response code is %d; no JSON to parse.", resp.StatusCode))
+		return nil, os.NewError(fmt.Sprintf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode))
 	}
 	// TODO: LimitReader here for paranoia
 	buf := new(bytes.Buffer)
@@ -78,6 +78,40 @@ func (c *Client) jsonFromResponse(resp *http.Response) (map[string]interface{}, 
 		return nil, jerr
 	}
 	return jmap, nil
+}
+
+func (c *Client) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+	if len(blobs) == 0 {
+		return nil
+	}
+
+	// TODO: if len(blobs) > 1000 or something, cut this up into
+	// multiple http requests, and also if the server returns a
+	// 400 error, per the blob-stat-protocol.txt document.
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "camliversion=1")
+	for n, blob := range blobs {
+		if blob == nil {
+			panic("nil blob")
+		}
+		fmt.Fprintf(&buf, "&blob%d=%s", n+1, blob)
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/camli/stat", c.server), strings.NewReader(buf.String()))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.ContentLength = int64(buf.Len())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("stat HTTP error: %v", err)
+	}
+
+	resp = resp
+
+	return os.NewError("TODO: implement")
 }
 
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
@@ -97,23 +131,23 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	// Pre-upload.  Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
 	url := fmt.Sprintf("%s/camli/stat", c.server)
-	requestBody := "camliversion=1&blob1="+blobRefString
+	requestBody := "camliversion=1&blob1=" + blobRefString
 	req := c.newRequest("POST", url)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = &nopCloser{strings.NewReader(requestBody)}
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return error("stat http error", err)
 	}
 
-	pur, err := c.jsonFromResponse(resp)
+	pur, err := c.jsonFromResponse("pre-upload stat", resp)
 	if err != nil {
 		return error("json parse error", fmt.Errorf("response from %s wasn't valid JSON; wrong URL prefix?", url))
 	}
-	
+
 	uploadUrl, ok := pur["uploadUrl"].(string)
 	if uploadUrl == "" {
 		return error("stat json validity error: no 'uploadUrl'", nil)
@@ -138,12 +172,13 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	// TODO: use a proper random boundary
 	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
 
+	// TODO-GO: add a multipart writer class.
 	multiPartHeader := fmt.Sprintf(
-		                "--%s\r\nContent-Type: application/octet-stream\r\n" +
-		                "Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n\r\n",
-				boundary,
-				h.BlobRef, h.BlobRef)
-	multiPartFooter := "\r\n--"+boundary+"--\r\n"
+		"--%s\r\nContent-Type: application/octet-stream\r\n"+
+			"Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n\r\n",
+		boundary,
+		h.BlobRef, h.BlobRef)
+	multiPartFooter := "\r\n--" + boundary + "--\r\n"
 
 	c.log.Printf("Uploading to URL: %s", uploadUrl)
 	req = c.newRequest("POST", uploadUrl)
@@ -151,11 +186,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	req.Body = &nopCloser{io.MultiReader(
 		strings.NewReader(multiPartHeader),
 		h.Contents,
-			strings.NewReader(multiPartFooter))}
+		strings.NewReader(multiPartFooter))}
 
 	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
 	req.TransferEncoding = nil
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = c.httpClient.Do(req)
 	if err != nil {
 		return error("upload http error", err)
 	}
@@ -182,7 +217,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		}
 	}
 
-	ures, err := c.jsonFromResponse(resp)
+	ures, err := c.jsonFromResponse("upload", resp)
 	if err != nil {
 		return error("json parse from upload error", err)
 	}
@@ -216,7 +251,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 					return pr, nil
 				} else {
 					return error(fmt.Sprintf("Server got blob, but reports wrong length (%v; expected %d)",
-						size, h.Size), nil)
+						size, h.Size),nil)
 				}
 			default:
 				return error("unsupported type of 'size' in received response", nil)

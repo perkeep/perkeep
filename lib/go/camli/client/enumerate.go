@@ -58,12 +58,12 @@ func (c *Client) EnumerateBlobsOpts(ch chan *blobref.SizedBlobRef, opts Enumerat
 		url := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
 			c.server, http.URLEscape(after), enumerateBatchSize, waitSec)
 		req := c.newRequest("GET", url)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return error("http request", err)
 		}
 
-		json, err := c.jsonFromResponse(resp)
+		json, err := c.jsonFromResponse("enumerate-blobs", resp)
 		if err != nil {
 			return error("stat json parse error", err)
 		}

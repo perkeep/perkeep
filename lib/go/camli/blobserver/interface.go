@@ -22,6 +22,8 @@ import (
 	"os"
 )
 
+// TODO: put directional constraints on all the channel types
+
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
 type NamedPartition interface {

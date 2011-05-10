@@ -18,6 +18,7 @@ package client
 
 import (
 	"fmt"
+	"http"
 	"log"
 	"os"
 	"sync"
@@ -26,11 +27,11 @@ import (
 type Stats struct {
 	// The number of uploads that were requested, but perhaps
 	// not actually performed if the server already had the items.
-	UploadRequests  ByCountAndBytes
+	UploadRequests ByCountAndBytes
 
 	// The uploads which were actually sent to the blobserver
 	// due to the server not having the blobs
-	Uploads         ByCountAndBytes
+	Uploads ByCountAndBytes
 }
 
 func (s *Stats) String() string {
@@ -38,13 +39,15 @@ func (s *Stats) String() string {
 }
 
 type Client struct {
-	server   string  // URL prefix before "/camli/"
+	server   string // URL prefix before "/camli/"
 	password string
-	
-	statsMutex  sync.Mutex
+
+	httpClient *http.Client
+
+	statsMutex sync.Mutex
 	stats      Stats
 
-	log       *log.Logger  // not nil
+	log *log.Logger // not nil
 }
 
 type ByCountAndBytes struct {
@@ -58,9 +61,14 @@ func (bb *ByCountAndBytes) String() string {
 
 func New(server, password string) *Client {
 	return &Client{
-	server: server,
-	password: password,
+		server:   server,
+		password: password,
+		httpClient: http.DefaultClient,
 	}
+}
+
+func (c *Client) SetHttpClient(client *http.Client) {
+	c.httpClient = client
 }
 
 func NewOrFail() *Client {
@@ -69,6 +77,7 @@ func NewOrFail() *Client {
 }
 
 type devNullWriter struct{}
+
 func (_ *devNullWriter) Write(p []byte) (int, os.Error) {
 	return len(p), nil
 }
@@ -84,7 +93,7 @@ func (c *Client) SetLogger(logger *log.Logger) {
 func (c *Client) Stats() Stats {
 	c.statsMutex.Lock()
 	defer c.statsMutex.Unlock()
-	return c.stats  // copy
+	return c.stats // copy
 }
 
 func (c *Client) HasAuthCredentials() bool {
@@ -92,5 +101,5 @@ func (c *Client) HasAuthCredentials() bool {
 }
 
 func (c *Client) authHeader() string {
-	return "Basic " + encodeBase64("username:" + c.password)
+	return "Basic " + encodeBase64("username:"+c.password)
 }

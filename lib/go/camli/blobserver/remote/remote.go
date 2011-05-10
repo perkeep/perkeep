@@ -50,11 +50,11 @@ func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Er
 }
 
 func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
-	return os.NewError("TODO: implement")
+	return sto.client.RemoveBlobs(blobs)
 }
 
 func (sto *remoteStorage) Stat(dest chan *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
-	return os.NewError("TODO: implement")
+	return sto.client.Stat(dest, blobs, waitSeconds)
 }
 
 func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
