@@ -64,7 +64,17 @@ func (sto *remoteStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobr
 }
 
 func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
-	return nil, os.NewError("TODO: implement")
+	h := &client.UploadHandle{
+		BlobRef:  blob,
+		Size:     -1, // size isn't known; -1 is fine, but TODO: ask source if it knows its size
+		Contents: source,
+	}
+	pr, err := sto.client.Upload(h)
+	if err != nil {
+		return nil, err
+	}
+	sb := pr.SizedBlobRef()
+	return &sb, nil // TODO: make this not return a pointer
 }
 
 func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
@@ -75,9 +85,9 @@ func (sto *remoteStorage) MaxEnumerate() uint { return 1000 }
 
 func (sto *remoteStorage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
-		After: after,
+		After:      after,
 		MaxWaitSec: waitSeconds,
-	        Limit: limit,
+		Limit:      limit,
 	})
 }
 

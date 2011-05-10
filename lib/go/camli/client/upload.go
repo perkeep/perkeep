@@ -45,6 +45,10 @@ type PutResult struct {
 	Skipped bool // already present on blobserver
 }
 
+func (pr *PutResult) SizedBlobRef() blobref.SizedBlobRef {
+	return blobref.SizedBlobRef{pr.BlobRef, pr.Size}
+}
+
 type statResponse struct {
 	HaveMap                    map[string]blobref.SizedBlobRef
 	maxUploadSize              int64
