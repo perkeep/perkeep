@@ -33,6 +33,8 @@ type remoteStorage struct {
 	client                                *client.Client
 }
 
+var _ = blobserver.Storage((*remoteStorage)(nil))
+
 func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	url := config.RequiredString("url")
 	password := config.RequiredString("password")
@@ -62,14 +64,17 @@ func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (
 }
 
 func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
-	return nil, 0, os.NewError("TODO: implement")
+	return sto.client.FetchStreaming(b)
 }
 
 func (sto *remoteStorage) MaxEnumerate() uint { return 1000 }
 
 func (sto *remoteStorage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
-	defer close(dest)
-	return os.NewError("TODO: implement")
+	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
+		After: after,
+		MaxWaitSec: waitSeconds,
+	        Limit: limit,
+	})
 }
 
 func init() {

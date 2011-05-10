@@ -26,10 +26,11 @@ import (
 type EnumerateOpts struct {
 	After      string
 	MaxWaitSec int // max seconds to long poll for, waiting for any blob
+	Limit      uint // if non-zero, the max blobs to return
 }
 
 // Note: closes ch.
-func (c *Client) EnumerateBlobs(ch chan *blobref.SizedBlobRef) os.Error {
+func (c *Client) EnumerateBlobs(ch chan<- *blobref.SizedBlobRef) os.Error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
@@ -48,6 +49,7 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- *blobref.SizedBlobRef, opts Enumer
 		return err
 	}
 
+	nSent := uint(0)
 	keepGoing := true
 	after := opts.After
 	for keepGoing {
@@ -90,6 +92,12 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- *blobref.SizedBlobRef, opts Enumer
 				return error("item in 'blobs' had invalid blobref.", nil)
 			}
 			ch <- &blobref.SizedBlobRef{BlobRef: br, Size: size}
+			nSent++
+			if opts.Limit == nSent {
+				// nSent can't be zero at this point, so opts.Limit being 0
+				// is okay.
+				return nil
+			}
 		}
 
 		after, keepGoing = getJsonMapString(json, "continueAfter")
