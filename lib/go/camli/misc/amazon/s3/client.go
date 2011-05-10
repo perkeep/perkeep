@@ -50,20 +50,12 @@ func (c *Client) httpClient() *http.Client {
 }
 
 func newReq(url string) *http.Request {
-	u, err := http.ParseURL(url)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		panic(fmt.Sprintf("s3 client; invalid URL: %v", err))
 	}
-	return &http.Request{
-		Method:     "GET",
-		URL:        u,
-		Host:       u.Host,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     http.Header{},
-		UserAgent:  "go-camlistore-s3",
-	}
+	req.UserAgent = "go-camlistore-s3"
+	return req
 }
 
 func (c *Client) Buckets() ([]*Bucket, os.Error) {

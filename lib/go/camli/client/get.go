@@ -29,19 +29,13 @@ import (
 var _ = log.Printf
 
 func (c *Client) newRequest(method, url string) *http.Request {
-	req := new(http.Request)
-	req.Method = method
-	req.ProtoMajor = 1
-	req.ProtoMinor = 1
-	req.Close = true
-	req.Header = http.Header(make(map[string][]string))
-	req.URL, _ = http.ParseURL(url)
-	req.RawURL = url
-
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		panic(err.String())
+	}
 	if c.HasAuthCredentials() {
 		req.Header.Add("Authorization", c.authHeader())
 	}
-
 	return req
 }
 

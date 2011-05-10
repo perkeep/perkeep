@@ -48,21 +48,18 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	}
 	body := http.EncodeQuery(params)
 
-	req := new(http.Request)
-	req.Method = "POST"
-	req.ProtoMajor = 1
-	req.ProtoMinor = 1
-	req.Close = true
-	req.Header = http.Header(make(map[string][]string))
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("Error creating RemoveBlobs POST request: %v", err)
+	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	// TODO-GO: teach http.NewRequest how to find a
+	// strings.NewReader's Content-Length.
+	req.ContentLength = int64(len(body))
 	req.Header.Add("Content-Length", strconv.Itoa(len(body)))
 	if c.HasAuthCredentials() {
 		req.Header.Add("Authorization", c.authHeader())
 	}
-	req.URL, _ = http.ParseURL(url)
-	req.RawURL = url
-	req.Body = nopCloser{strings.NewReader(body)}
-	req.ContentLength = int64(len(body))
 	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
