@@ -45,7 +45,7 @@ type Partition interface {
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
-	ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error)
+	ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, os.Error)
 }
 
 type BlobStatter interface {
@@ -54,7 +54,7 @@ type BlobStatter interface {
 	// or nil.  Stat() should NOT close the channel.
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
-	Stat(dest chan<- *blobref.SizedBlobRef,
+	Stat(dest chan<- blobref.SizedBlobRef,
 	blobs []*blobref.BlobRef,
 	waitSeconds int) os.Error
 	// TODO-GO: file a gofmt bug on how ugly those lines above look
@@ -83,7 +83,7 @@ type BlobEnumerator interface {
 	// or 0 for no delay.
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
-	EnumerateBlobs(dest chan<- *blobref.SizedBlobRef,
+	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 	after string,
 	limit uint,
 	waitSeconds int) os.Error

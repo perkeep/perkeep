@@ -160,7 +160,7 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 	return jmap, nil
 }
 
-func (c *Client) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (c *Client) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if len(blobs) == 0 {
 		return nil
 	}
@@ -203,8 +203,7 @@ func (c *Client) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRe
 	}
 
 	for _, sb := range stat.HaveMap {
-		lsb := sb // local one to take pointer of: TODO: change channel type to non-pointer?
-		dest <- &lsb
+		dest <- sb
 	}
 	return nil
 }

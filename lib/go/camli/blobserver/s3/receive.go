@@ -100,22 +100,22 @@ func (as *amazonSlurper) Cleanup() {
 	}
 }
 
-func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
+func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (outsb blobref.SizedBlobRef, outerr os.Error) {
+	zero := outsb
 	slurper := newAmazonSlurper(blob)
 	defer slurper.Cleanup()
 
 	hash := blob.Hash()
 	size, err := io.Copy(io.MultiWriter(hash, slurper), source)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
 	if !blob.HashMatches(hash) {
-		return nil, blobserver.CorruptBlobError
+		return zero, blobserver.CorruptBlobError
 	}
 	err = sto.s3Client.PutObject(blob.String(), sto.bucket, slurper.md5, size, slurper)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
-	sb := &blobref.SizedBlobRef{BlobRef: blob, Size: size}
-	return sb, nil
+	return blobref.SizedBlobRef{BlobRef: blob, Size: size}, nil
 }

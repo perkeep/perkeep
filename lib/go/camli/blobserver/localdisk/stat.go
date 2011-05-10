@@ -26,7 +26,7 @@ import (
 
 const maxParallelStats = 20
 
-func (ds *DiskStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (ds *DiskStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if len(blobs) == 0 {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (ds *DiskStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.
 		fi, err := os.Stat(ds.blobPath(ds.partition, ref))
 		switch {
 		case err == nil && fi.IsRegular():
-			dest <- &blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}
+			dest <- blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size}
 		case err != nil && appendMissing && errorIsNoEnt(err):
 			missingLock.Lock()
 			missing = append(missing, ref)

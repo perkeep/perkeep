@@ -55,7 +55,7 @@ func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return sto.client.RemoveBlobs(blobs)
 }
 
-func (sto *remoteStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *remoteStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	// TODO: cache the stat response's uploadUrl to save a future
 	// stat later?  otherwise clients will just Stat + Upload, but
 	// Upload will also Stat.  should be smart and make sure we
@@ -63,7 +63,7 @@ func (sto *remoteStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobr
 	return sto.client.Stat(dest, blobs, waitSeconds)
 }
 
-func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (*blobref.SizedBlobRef, os.Error) {
+func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (outsb blobref.SizedBlobRef, outerr os.Error) {
 	h := &client.UploadHandle{
 		BlobRef:  blob,
 		Size:     -1, // size isn't known; -1 is fine, but TODO: ask source if it knows its size
@@ -71,10 +71,10 @@ func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (
 	}
 	pr, err := sto.client.Upload(h)
 	if err != nil {
-		return nil, err
+		outerr = err
+		return
 	}
-	sb := pr.SizedBlobRef()
-	return &sb, nil // TODO: make this not return a pointer
+	return pr.SizedBlobRef(), nil
 }
 
 func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
@@ -83,7 +83,7 @@ func (sto *remoteStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser
 
 func (sto *remoteStorage) MaxEnumerate() uint { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+func (sto *remoteStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
 		After:      after,
 		MaxWaitSec: waitSeconds,

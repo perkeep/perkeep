@@ -40,7 +40,9 @@ type BlobRef struct {
 	strValue string // "<hashname>-<digest>"
 }
 
-// SizedBlobRef is like a BlobRef but includes a (potentially mutable) size.
+// SizedBlobRef is like a BlobRef but includes because it includes a
+// potentially mutable 'Size', this should be used as a stack value,
+// not a *SizedBlobRef.
 type SizedBlobRef struct {
 	*BlobRef
 	Size int64

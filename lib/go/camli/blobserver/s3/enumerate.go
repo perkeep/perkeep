@@ -27,7 +27,7 @@ var _ = log.Printf
 
 func (sto *s3Storage) MaxEnumerate() uint { return 1000 }
 
-func (sto *s3Storage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+func (sto *s3Storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
 	objs, err := sto.s3Client.ListBucket(sto.bucket, after, limit)
 	if err != nil {
@@ -39,7 +39,7 @@ func (sto *s3Storage) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after st
 		if br == nil {
 			continue
 		}
-		dest <- &blobref.SizedBlobRef{BlobRef: br, Size: obj.Size}
+		dest <- blobref.SizedBlobRef{BlobRef: br, Size: obj.Size}
 	}
 	return nil
 }

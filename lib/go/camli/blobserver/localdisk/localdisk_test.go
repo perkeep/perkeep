@@ -76,7 +76,7 @@ func (tb *testBlob) Reader() io.Reader {
 	return strings.NewReader(tb.val)
 }
 
-func (tb *testBlob) AssertMatches(t *testing.T, sb *blobref.SizedBlobRef) {
+func (tb *testBlob) AssertMatches(t *testing.T, sb blobref.SizedBlobRef) {
 	if sb.Size != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}
@@ -100,7 +100,7 @@ func TestReceiveStat(t *testing.T) {
 	tb := &testBlob{"Foo"}
 	tb.ExpectUploadBlob(t, ds)
 
-	ch := make(chan *blobref.SizedBlobRef, 0)
+	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch, tb.BlobRefSlice(), 0)
@@ -123,7 +123,7 @@ func TestStatWait(t *testing.T) {
 
 	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
 	const waitSeconds = 2
-	ch := make(chan *blobref.SizedBlobRef, 0)
+	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch, tb.BlobRefSlice(), waitSeconds)
@@ -163,7 +163,7 @@ func TestMultiStat(t *testing.T) {
 	need[blobfoo.BlobRef().String()] = true
 	need[blobbar.BlobRef().String()] = true
 
-	ch := make(chan *blobref.SizedBlobRef, 0)
+	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
 		errch <- ds.Stat(ch,

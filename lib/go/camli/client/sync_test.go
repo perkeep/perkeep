@@ -27,12 +27,12 @@ type lmdbTest struct {
 }
 
 func (lt *lmdbTest) run(t *testing.T) {
-	srcBlobs := make(chan *blobref.SizedBlobRef, 100)
-	destBlobs := make(chan *blobref.SizedBlobRef, 100)
+	srcBlobs := make(chan blobref.SizedBlobRef, 100)
+	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	sendTestBlobs(srcBlobs, lt.source)
 	sendTestBlobs(destBlobs, lt.dest)
 
-	missing := make(chan *blobref.SizedBlobRef, 100)
+	missing := make(chan blobref.SizedBlobRef, 100)
 	got := make([]string, 0)
 	go ListMissingDestinationBlobs(missing, srcBlobs, destBlobs)
 	for sb := range missing {
@@ -45,7 +45,7 @@ func (lt *lmdbTest) run(t *testing.T) {
 	}
 }
 
-func sendTestBlobs(ch chan *blobref.SizedBlobRef, list string) {
+func sendTestBlobs(ch chan blobref.SizedBlobRef, list string) {
 	defer close(ch)
 	if list == "" {
 		return
@@ -55,7 +55,7 @@ func sendTestBlobs(ch chan *blobref.SizedBlobRef, list string) {
 		if br == nil {
 			panic("Invalid blobref: " + b)
 		}
-		ch <- &blobref.SizedBlobRef{BlobRef: br, Size: 123}
+		ch <- blobref.SizedBlobRef{BlobRef: br, Size: 123}
 	}
 }
 

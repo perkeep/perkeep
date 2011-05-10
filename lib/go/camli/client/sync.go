@@ -22,7 +22,7 @@ import (
 
 // TODO: use Generics if/when available
 type chanPeeker struct {
-	ch     chan *blobref.SizedBlobRef
+	ch     chan blobref.SizedBlobRef
 	peek   *blobref.SizedBlobRef
 	Closed bool
 }
@@ -34,12 +34,12 @@ func (cp *chanPeeker) Peek() *blobref.SizedBlobRef {
 	if cp.peek != nil {
 		return cp.peek
 	}
-	var ok bool
-	cp.peek, ok = <-cp.ch
+	v, ok := <-cp.ch
 	if !ok {
 		cp.Closed = true
 		return nil
 	}
+	cp.peek = &v
 	return cp.peek
 }
 
@@ -53,7 +53,7 @@ func (cp *chanPeeker) Take() *blobref.SizedBlobRef {
 // enumerations of blobs from two blob servers) and sends to
 // 'destMissing' any blobs which appear on the source but not at the
 // destination.  destMissing is closed at the end.
-func ListMissingDestinationBlobs(destMissing, srcch, dstch chan *blobref.SizedBlobRef) {
+func ListMissingDestinationBlobs(destMissing, srcch, dstch chan blobref.SizedBlobRef) {
 	defer close(destMissing)
 
 	src := &chanPeeker{ch: srcch}
@@ -63,7 +63,7 @@ func ListMissingDestinationBlobs(destMissing, srcch, dstch chan *blobref.SizedBl
 		// If the destination has reached its end, anything
 		// remaining in the source is needed.
 		if dst.Peek() == nil {
-			destMissing <- src.Take()
+			destMissing <- *(src.Take())
 			continue
 		}
 
@@ -76,7 +76,7 @@ func ListMissingDestinationBlobs(destMissing, srcch, dstch chan *blobref.SizedBl
 			src.Take()
 			dst.Take()
 		case srcStr < dstStr:
-			destMissing <- src.Take()
+			destMissing <- *(src.Take())
 		case srcStr > dstStr:
 			dst.Take()
 		}

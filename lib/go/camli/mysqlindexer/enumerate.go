@@ -29,7 +29,7 @@ type blobRow struct {
 	size    int64
 }
 
-func (mi *Indexer) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after string, limit uint, waitSeconds int) (err os.Error) {
+func (mi *Indexer) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) (err os.Error) {
 	// MySQL connection stuff.
 	var client *mysql.Client
 	client, err = mi.getConnection()
@@ -67,7 +67,7 @@ func (mi *Indexer) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef, after strin
 		if br == nil {
 			continue
 		}
-		dest <- &blobref.SizedBlobRef{
+		dest <- blobref.SizedBlobRef{
 			BlobRef: br,
 			Size:    row.size,
 		}

@@ -43,41 +43,44 @@ func TestEnumerate(t *testing.T) {
 
 	limit := uint(5000)
 	waitSeconds := 0
-	ch := make(chan *blobref.SizedBlobRef)
+	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch, "", limit, waitSeconds)
 	}()
 
-	var sb *blobref.SizedBlobRef
-	sb = <-ch
-	Assert(t, sb != nil, "got 1st blob")
+	var (
+		sb blobref.SizedBlobRef
+		ok bool
+	)
+	sb, ok = <-ch
+	Assert(t, ok, "got 1st blob")
 	ExpectInt(t, 3, int(sb.Size), "1st blob size")
-	sb = <-ch
-	Assert(t, sb != nil, "got 2nd blob")
+	sb, ok = <-ch
+	Assert(t, ok, "got 2nd blob")
 	ExpectInt(t, 4, int(sb.Size), "2nd blob size")
-	sb = <-ch
-	Assert(t, sb != nil, "got 3rd blob")
+	sb, ok = <-ch
+	Assert(t, ok, "got 3rd blob")
 	ExpectInt(t, 5, int(sb.Size), "3rd blob size")
-	sb = <-ch
-	Assert(t, sb == nil, "got final nil")
+	sb, ok = <-ch
+	Assert(t, !ok, "got channel close")
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 
 	// Now again, but skipping foo's blob
-	ch = make(chan *blobref.SizedBlobRef)
+	ch = make(chan blobref.SizedBlobRef)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch,
 			foo.BlobRef().String(),
 			limit, waitSeconds)
 	}()
-	sb = <-ch
-        Assert(t, sb != nil, "got 1st blob, skipping foo")
+	sb, ok = <-ch
+        Assert(t, ok, "got 1st blob, skipping foo")
         ExpectInt(t, 4, int(sb.Size), "blob size")
-        sb = <-ch
-        Assert(t, sb != nil, "got 2nd blob, skipping foo")
+        sb, ok = <-ch
+        Assert(t, ok, "got 2nd blob, skipping foo")
         ExpectInt(t, 5, int(sb.Size), "blob size")
-        sb = <-ch
-        Assert(t, sb == nil, "got final nil")
+        sb, ok = <-ch
+        Assert(t, !ok, "got final nil")
         ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
@@ -87,14 +90,15 @@ func TestEnumerateEmpty(t *testing.T) {
 
 	limit := uint(5000)
 	waitSeconds := 0
-	ch := make(chan *blobref.SizedBlobRef)
+	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch,
 			"", limit, waitSeconds)
 	}()
 
-	Expect(t, (<-ch) == nil, "no first blob")
+	_, ok := <-ch
+	Expect(t, !ok, "no first blob")
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
@@ -104,7 +108,7 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 
 	limit := uint(5000)
 	waitSeconds := 1
-	ch := make(chan *blobref.SizedBlobRef)
+	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan os.Error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch,
@@ -117,16 +121,17 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 		foo.ExpectUploadBlob(t, ds)
 	}()
 
-	sb := <-ch
-        Assert(t, sb != nil, "got a blob")
+	sb, ok := <-ch
+        Assert(t, ok, "got a blob")
         ExpectInt(t, 3, int(sb.Size), "blob size")
 	ExpectString(t, "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", sb.BlobRef.String(), "got the right blob")
 
-	Expect(t, (<-ch) == nil, "only one blob returned")
+	sb, ok = <-ch
+	Expect(t, !ok, "only one blob returned")
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
-type SortedSizedBlobs []*blobref.SizedBlobRef
+type SortedSizedBlobs []blobref.SizedBlobRef
 
 func (sb SortedSizedBlobs) Len() int {
 	return len(sb)
@@ -171,17 +176,13 @@ func TestEnumerateIsSorted(t *testing.T) {
 	}
 	for _, test := range tests {
 		limit := uint(test.limit)
-		ch := make(chan *blobref.SizedBlobRef)
+		ch := make(chan blobref.SizedBlobRef)
 		errCh := make(chan os.Error)
 		go func() {
 			errCh <- ds.EnumerateBlobs(ch, test.after, limit, 0)
 		}()
-		var got = make([]*blobref.SizedBlobRef, 0, blobsToMake)
-		for {
-			sb := <-ch
-			if sb == nil {
-				break
-			}
+		var got = make([]blobref.SizedBlobRef, 0, blobsToMake)
+		for sb := range ch {
 			got = append(got, sb)
 		}
 		if !sort.IsSorted(SortedSizedBlobs(got)) {

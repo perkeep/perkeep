@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-func (mi *Indexer) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (mi *Indexer) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	error := func(err os.Error) os.Error {
 		log.Printf("mysqlindexer: stat error: %v", err)
 		return err
@@ -67,7 +67,7 @@ func (mi *Indexer) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.Blob
 		if br == nil {
 			continue
 		}
-		dest <- &blobref.SizedBlobRef{
+		dest <- blobref.SizedBlobRef{
 			BlobRef: br,
 			Size:    row.size,
 		}

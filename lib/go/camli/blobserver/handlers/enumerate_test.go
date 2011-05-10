@@ -41,7 +41,7 @@ func makeGetRequest(url string) *http.Request {
 type emptyEnumerator struct {
 }
 
-func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- *blobref.SizedBlobRef,
+func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
         after string,
         limit uint,
         waitSeconds int) os.Error {

@@ -43,7 +43,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		return
 	}
 
-	receivedBlobs := make([]*blobref.SizedBlobRef, 0, 10)
+	receivedBlobs := make([]blobref.SizedBlobRef, 0, 10)
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {

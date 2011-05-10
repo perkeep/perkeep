@@ -28,10 +28,11 @@ import (
 	"camli/blobserver"
 )
 
-func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot *blobref.SizedBlobRef, err os.Error) {
+func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot blobref.SizedBlobRef, err os.Error) {
 	pname := ds.partition
 	if pname != "" {
-		return nil, fmt.Errorf("refusing upload directly to queue partition %q", pname)
+		err = fmt.Errorf("refusing upload directly to queue partition %q", pname)
+		return
 	}
 	hashedDirectory := ds.blobDirectory(pname, blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
@@ -101,7 +102,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		log.Printf("Mirrored to partition %q", pname)
 	}
 
-	blobGot = &blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
+	blobGot = blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
 	success = true
 
 	if os.Getenv("CAMLI_HACK_OPEN_IMAGES") == "1" {

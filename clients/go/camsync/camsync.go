@@ -81,8 +81,8 @@ func main() {
 }
 
 func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
-	srcBlobs := make(chan *blobref.SizedBlobRef, 100)
-	destBlobs := make(chan *blobref.SizedBlobRef, 100)
+	srcBlobs := make(chan blobref.SizedBlobRef, 100)
+	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan os.Error)
 	destErr := make(chan os.Error)
 	errorCount := 0
@@ -116,7 +116,7 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 	bytesCopied := int64(0)
 	blobsCopied := 0
 
-	destNotHaveBlobs := make(chan *blobref.SizedBlobRef, 100)
+	destNotHaveBlobs := make(chan blobref.SizedBlobRef, 100)
 	go client.ListMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
 	for sb := range destNotHaveBlobs {
 		fmt.Printf("Destination needs blob: %s\n", sb)
