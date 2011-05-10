@@ -56,6 +56,10 @@ func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 }
 
 func (sto *remoteStorage) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+	// TODO: cache the stat response's uploadUrl to save a future
+	// stat later?  otherwise clients will just Stat + Upload, but
+	// Upload will also Stat.  should be smart and make sure we
+	// avoid ReceiveBlob's Stat whenever it would be redundant.
 	return sto.client.Stat(dest, blobs, waitSeconds)
 }
 
