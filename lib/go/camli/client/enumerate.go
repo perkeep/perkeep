@@ -25,7 +25,7 @@ import (
 
 type EnumerateOpts struct {
 	After      string
-	MaxWaitSec int // max seconds to long poll for, waiting for any blob
+	MaxWaitSec int  // max seconds to long poll for, waiting for any blob
 	Limit      uint // if non-zero, the max blobs to return
 }
 

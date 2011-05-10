@@ -41,6 +41,7 @@ func ConfigFilePath() string {
 
 var configOnce sync.Once
 var config = make(map[string]interface{})
+
 func parseConfig() {
 	f, err := os.Open(ConfigFilePath())
 	switch {
@@ -56,7 +57,7 @@ func parseConfig() {
 		if err := dj.Decode(&config); err != nil {
 			log.Printf("Error parsing JSON in config file %q: %v", ConfigFilePath(), err)
 		}
-        }
+	}
 }
 
 func cleanServer(server string) string {

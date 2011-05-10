@@ -55,7 +55,7 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadClos
 			}
 			buf.WriteString(br.String())
 		}
-	        url = buf.String()
+		url = buf.String()
 	}
 
 	req := c.newRequest("GET", url)

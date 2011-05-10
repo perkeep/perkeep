@@ -61,8 +61,8 @@ func (bb *ByCountAndBytes) String() string {
 
 func New(server, password string) *Client {
 	return &Client{
-		server:   server,
-		password: password,
+		server:     server,
+		password:   password,
 		httpClient: http.DefaultClient,
 	}
 }

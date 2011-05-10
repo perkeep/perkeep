@@ -61,15 +61,15 @@ func sendTestBlobs(ch chan *blobref.SizedBlobRef, list string) {
 
 func TestListMissingDestinationBlobs(t *testing.T) {
 	tests := []lmdbTest{
-		{ "foo-a,foo-b,foo-c", "", "foo-a,foo-b,foo-c" },
-		{ "foo-a,foo-b,foo-c", "foo-a", "foo-b,foo-c" },
-		{ "foo-a,foo-b,foo-c", "foo-b", "foo-a,foo-c" },
-		{ "foo-a,foo-b,foo-c", "foo-c", "foo-a,foo-b" },
-		{ "foo-a,foo-b,foo-c", "foo-a,foo-b", "foo-c" },
-		{ "foo-a,foo-b,foo-c", "foo-b,foo-c", "foo-a" },
-		{ "foo-a,foo-b,foo-c", "foo-a,foo-b,foo-c", "" },
-		{ "", "foo-a,foo-b,foo-c", "" },
-		{ "foo-f", "foo-a,foo-b,foo-c", "foo-f" },
+		{"foo-a,foo-b,foo-c", "", "foo-a,foo-b,foo-c"},
+		{"foo-a,foo-b,foo-c", "foo-a", "foo-b,foo-c"},
+		{"foo-a,foo-b,foo-c", "foo-b", "foo-a,foo-c"},
+		{"foo-a,foo-b,foo-c", "foo-c", "foo-a,foo-b"},
+		{"foo-a,foo-b,foo-c", "foo-a,foo-b", "foo-c"},
+		{"foo-a,foo-b,foo-c", "foo-b,foo-c", "foo-a"},
+		{"foo-a,foo-b,foo-c", "foo-a,foo-b,foo-c", ""},
+		{"", "foo-a,foo-b,foo-c", ""},
+		{"foo-f", "foo-a,foo-b,foo-c", "foo-f"},
 	}
 
 	for _, test := range tests {
