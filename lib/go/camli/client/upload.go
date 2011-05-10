@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"http"
 	"io"
+	"io/ioutil"
 	"json"
 	"log"
 	"os"
@@ -42,13 +43,80 @@ type PutResult struct {
 	Skipped bool // already present on blobserver
 }
 
-type nopCloser struct {
-	io.Reader
+type statResponse struct {
+	HaveMap                    map[string]blobref.SizedBlobRef
+	maxUploadSize              int64
+	uploadUrl                  string
+	uploadUrlExpirationSeconds int
+	canLongPoll                bool
 }
 
-func (nopCloser) Close() os.Error { return nil }
+type ResponseFormatError os.Error
 
-// Note: must not touch data after calling this.
+func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
+	return ResponseFormatError(fmt.Errorf(s, arg...))
+}
+
+func parseStatResponse(r io.Reader) (*statResponse, os.Error) {
+	var (
+		ok   bool
+		err  os.Error
+		s    = &statResponse{HaveMap: make(map[string]blobref.SizedBlobRef)}
+		jmap = make(map[string]interface{})
+	)
+	if err = json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
+		return nil, ResponseFormatError(err)
+	}
+
+	s.uploadUrl, ok = jmap["uploadUrl"].(string)
+	if !ok {
+		return nil, newResFormatError("no 'uploadUrl' in stat response")
+	}
+
+	if n, ok := jmap["maxUploadSize"].(float64); ok {
+		s.maxUploadSize = int64(n)
+	} else {
+		return nil, newResFormatError("no 'maxUploadSize' in stat response")
+	}
+
+	if n, ok := jmap["uploadUrlExpirationSeconds"].(float64); ok {
+		s.uploadUrlExpirationSeconds = int(n)
+	} else {
+		return nil, newResFormatError("no 'uploadUrlExpirationSeconds' in stat response")
+	}
+
+	if v, ok := jmap["canLongPoll"].(bool); ok {
+		s.canLongPoll = v
+	}
+
+	alreadyHave, ok := jmap["stat"].([]interface{})
+	if !ok {
+		return nil, newResFormatError("no 'stat' key in stat response")
+	}
+
+	for _, li := range alreadyHave {
+		m, ok := li.(map[string]interface{})
+		if !ok {
+			return nil, newResFormatError("'stat' list value of unexpected type %T", li)
+		}
+		blobRefStr, ok := m["blobRef"].(string)
+		if !ok {
+			return nil, newResFormatError("'stat' list item has non-string 'blobRef' key")
+		}
+		size, ok := m["size"].(float64)
+		if !ok {
+			return nil, newResFormatError("'stat' list item has non-number 'size' key")
+		}
+		br := blobref.Parse(blobRefStr)
+		if br == nil {
+			return nil, newResFormatError("'stat' list item has invalid 'blobRef' key")
+		}
+		s.HaveMap[br.String()] = blobref.SizedBlobRef{br, int64(size)}
+	}
+
+	return s, nil
+}
+
 func NewUploadHandleFromString(data string) *UploadHandle {
 	s1 := sha1.New()
 	s1.Write([]byte(data))
@@ -115,8 +183,8 @@ func (c *Client) Stat(dest chan<- *blobref.SizedBlobRef, blobs []*blobref.BlobRe
 }
 
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
-	error := func(msg string, e os.Error) (*PutResult, os.Error) {
-		err := fmt.Errorf("Error uploading blob %s: %s; err=%v", h.BlobRef, msg, e)
+	error := func(msg string, arg ...interface{}) (*PutResult, os.Error) {
+		err := fmt.Errorf(msg, arg...)
 		c.log.Print(err.String())
 		return nil, err
 	}
@@ -134,39 +202,29 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	requestBody := "camliversion=1&blob1=" + blobRefString
 	req := c.newRequest("POST", url)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Body = &nopCloser{strings.NewReader(requestBody)}
+	req.Body = ioutil.NopCloser(strings.NewReader(requestBody))
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return error("stat http error", err)
+		return error("stat http error: %v", err)
 	}
 
-	pur, err := c.jsonFromResponse("pre-upload stat", resp)
+	if resp.StatusCode != 200 {
+		return error("stat response had http status %d", resp.StatusCode)
+
+	}
+
+	stat, err := parseStatResponse(resp.Body)
 	if err != nil {
-		return error("json parse error", fmt.Errorf("response from %s wasn't valid JSON; wrong URL prefix?", url))
-	}
-
-	uploadUrl, ok := pur["uploadUrl"].(string)
-	if uploadUrl == "" {
-		return error("stat json validity error: no 'uploadUrl'", nil)
-	}
-	log.Printf("Got upload url: %q", uploadUrl)
-
-	alreadyHave, ok := pur["stat"].([]interface{})
-	if !ok {
-		return error("stat json validity error: no 'stat'", nil)
+		return nil, err
 	}
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: h.Size}
-
-	for _, haveObj := range alreadyHave {
-		haveObj := haveObj.(map[string]interface{})
-		if haveObj["blobRef"].(string) == h.BlobRef.String() {
-			pr.Skipped = true
-			return pr, nil
-		}
+	if _, ok := stat.HaveMap[h.BlobRef.String()]; ok {
+		pr.Skipped = true
+		return pr, nil
 	}
 
 	// TODO: use a proper random boundary
@@ -180,13 +238,13 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		h.BlobRef, h.BlobRef)
 	multiPartFooter := "\r\n--" + boundary + "--\r\n"
 
-	c.log.Printf("Uploading to URL: %s", uploadUrl)
-	req = c.newRequest("POST", uploadUrl)
+	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
+	req = c.newRequest("POST", stat.uploadUrl)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
-	req.Body = &nopCloser{io.MultiReader(
+	req.Body = ioutil.NopCloser(io.MultiReader(
 		strings.NewReader(multiPartHeader),
 		h.Contents,
-		strings.NewReader(multiPartFooter))}
+		strings.NewReader(multiPartFooter)))
 
 	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
 	req.TransferEncoding = nil
@@ -205,7 +263,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		if otherLocation == "" {
 			return error("303 without a Location", nil)
 		}
-		baseUrl, _ := http.ParseURL(uploadUrl)
+		baseUrl, _ := http.ParseURL(stat.uploadUrl)
 		absUrl, err := baseUrl.ParseURL(otherLocation)
 		if err != nil {
 			return error("303 Location URL relative resolve error", err)
