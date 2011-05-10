@@ -25,15 +25,15 @@ import (
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
 type NamedPartition interface {
-	Name() string  // "" for default, "queue-indexer", etc
+	Name() string // "" for default, "queue-indexer", etc
 }
 
 type Partition interface {
 	NamedPartition
 
-	Writable() bool  // accepts direct uploads (excluding mirroring from default partition)
-	Readable() bool  // can return blobs (e.g. indexer partition can't)
-	IsQueue() bool   // is a temporary queue partition (supports deletes)
+	Writable() bool // accepts direct uploads (excluding mirroring from default partition)
+	Readable() bool // can return blobs (e.g. indexer partition can't)
+	IsQueue() bool  // is a temporary queue partition (supports deletes)
 
 	// TODO: rename this.  just "UploadMirrors"?
 	GetMirrorPartitions() []Partition
@@ -55,8 +55,9 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
 	Stat(dest chan<- *blobref.SizedBlobRef,
-		blobs []*blobref.BlobRef,
-		waitSeconds int) os.Error
+	blobs []*blobref.BlobRef,
+	waitSeconds int) os.Error
+	// TODO-GO: file a gofmt bug on how ugly those lines above look
 }
 
 // QueueCreator is implemented by Storage interfaces which support
@@ -83,9 +84,9 @@ type BlobEnumerator interface {
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
 	EnumerateBlobs(dest chan<- *blobref.SizedBlobRef,
-		after string,
-		limit uint,
-		waitSeconds int) os.Error
+	after string,
+	limit uint,
+	waitSeconds int) os.Error
 }
 
 // Cache is the minimal interface expected of a blob cache.
@@ -95,9 +96,14 @@ type Cache interface {
 	BlobStatter
 }
 
+type BlobReceiveConfiger interface {
+	BlobReceiver
+	Configer
+}
+
 type Config struct {
 	Writable, Readable bool
-	IsQueue bool // supports deletes
+	IsQueue            bool // supports deletes
 
 	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
 	URLBase string
@@ -120,4 +126,9 @@ type Storage interface {
 
 	// Returns the blob notification bus
 	GetBlobHub() BlobHub
+}
+
+type StorageConfiger interface {
+	Storage
+	Configer
 }

@@ -63,8 +63,31 @@ func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
 	httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
 }
 
+type storageAndConfig struct {
+	blobserver.Storage
+	config *blobserver.Config
+}
+
+func (s *storageAndConfig) Config() *blobserver.Config {
+	return s.config
+}
+
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
 func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.Handler {
+	if !strings.HasSuffix(prefix, "/") {
+		panic("expected prefix to end in slash")
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	storageConfig := &storageAndConfig{
+		storage,
+		&blobserver.Config{
+			Writable: true,
+			Readable: true,
+			IsQueue:  false,
+			URLBase:  baseURL + prefix[:len(prefix)-1],
+		},
+	}
 	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
@@ -73,13 +96,11 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.H
 			unsupportedHandler(conn, req)
 			return
 		}
-		// TODO: actually deal with partitions here
-		part := &partitionConfig{"", true, true, false, nil, baseURL + prefix[:len(prefix)-1]}
-		handleCamliUsingStorage(conn, req, action, part, storage)
+		handleCamliUsingStorage(conn, req, action, storageConfig)
 	})
 }
 
-func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, partition blobserver.Partition, storage blobserver.Storage) {
+func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, storage blobserver.StorageConfiger) {
 	handler := unsupportedHandler
 	switch req.Method {
 	case "GET":

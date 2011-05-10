@@ -73,7 +73,12 @@ func (c *Client) SetHttpClient(client *http.Client) {
 
 func NewOrFail() *Client {
 	log := log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	return &Client{server: blobServerOrDie(), password: passwordOrDie(), log: log}
+	return &Client{
+		server:     blobServerOrDie(),
+		password:   passwordOrDie(),
+		httpClient: http.DefaultClient,
+		log:        log,
+	}
 }
 
 type devNullWriter struct{}

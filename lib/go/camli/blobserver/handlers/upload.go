@@ -30,14 +30,15 @@ import (
 	"strings"
 )
 
-func CreateUploadHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
+func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		handleMultiPartUpload(conn, req, storage)
 	}
 }
 
-func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver) {
+func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
+		log.Printf("Inconfigured handler upload handler")
 		httputil.BadRequestError(conn, "Inconfigured handler.")
 		return
 	}
@@ -106,8 +107,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 	}
 
 	log.Println("Done reading multipart body.")
-	configer, _ := blobReceiver.(blobserver.Configer)  // TODO: ugly?
-	ret := commonUploadResponse(configer, req)
+	ret := commonUploadResponse(blobReceiver, req)
 
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
@@ -134,9 +134,7 @@ func commonUploadResponse(configer blobserver.Configer, req *http.Request) map[s
 	// TODO: camli/upload isn't part of the spec.  we should pick
 	// something different here just to make it obvious that this
 	// isn't a well-known URL and accidentally encourage lazy clients.
-	if configer != nil {
-		ret["uploadUrl"] = configer.Config().URLBase + "/camli/upload"
-	}
+	ret["uploadUrl"] = configer.Config().URLBase + "/camli/upload"
 	return ret
 }
 

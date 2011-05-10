@@ -31,9 +31,11 @@ import (
 	"strings"
 )
 
+var _ = log.Printf
+
 type UploadHandle struct {
 	BlobRef  *blobref.BlobRef
-	Size     int64
+	Size     int64 // or -1 if size isn't known
 	Contents io.Reader
 }
 
@@ -57,7 +59,7 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
 }
 
-func parseStatResponse(r io.Reader) (*statResponse, os.Error) {
+func parseStatResponse(r io.Reader) (sr *statResponse, _ os.Error) {
 	var (
 		ok   bool
 		err  os.Error
@@ -67,6 +69,11 @@ func parseStatResponse(r io.Reader) (*statResponse, os.Error) {
 	if err = json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
 		return nil, ResponseFormatError(err)
 	}
+	defer func() {
+		if sr == nil {
+			log.Printf("parseStatResponse got map: %#v", jmap)
+		}
+	}()
 
 	s.uploadUrl, ok = jmap["uploadUrl"].(string)
 	if !ok {
@@ -206,7 +213,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
-	c.stats.UploadRequests.Bytes += h.Size
+	if h.Size != -1 {
+		c.stats.UploadRequests.Bytes += h.Size
+	}
 	c.statsMutex.Unlock()
 
 	blobRefString := h.BlobRef.String()
@@ -238,6 +247,27 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	pr := &PutResult{BlobRef: h.BlobRef, Size: h.Size}
 	if _, ok := stat.HaveMap[h.BlobRef.String()]; ok {
 		pr.Skipped = true
+
+		// Consume the buffer that was provided, just for
+		// consistency. But if it's a closer, do that
+		// instead. But if they didn't provide a size,
+		// we consume it anyway just to get the size
+		// for stats.
+		closer, _ := h.Contents.(io.Closer)
+		if h.Size >= 0 && closer != nil {
+			closer.Close()
+		} else {
+			n, err := io.Copy(ioutil.Discard, h.Contents)
+			if err != nil {
+				return nil, err
+			}
+			if h.Size == -1 {
+				pr.Size = n
+				c.statsMutex.Lock()
+				c.stats.UploadRequests.Bytes += pr.Size
+				c.statsMutex.Unlock()
+			}
+		}
 		return pr, nil
 	}
 
@@ -255,43 +285,55 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
 	req = c.newRequest("POST", stat.uploadUrl)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+
+	contentsSize := int64(0)
 	req.Body = ioutil.NopCloser(io.MultiReader(
 		strings.NewReader(multiPartHeader),
-		h.Contents,
+		countingReader{h.Contents, &contentsSize},
 		strings.NewReader(multiPartFooter)))
 
-	req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
+	if h.Size >= 0 {
+		req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
+	}
 	req.TransferEncoding = nil
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
-		return error("upload http error", err)
+		return error("upload http error: %v", err)
+	}
+
+	if h.Size >= 0 {
+		if contentsSize != h.Size {
+			return error("UploadHandle declared size %d but Contents length was %d", h.Size, contentsSize)
+		}
+	} else {
+		h.Size = contentsSize
 	}
 
 	// The only valid HTTP responses are 200 and 303.
 	if resp.StatusCode != 200 && resp.StatusCode != 303 {
-		return error(fmt.Sprintf("invalid http response %d in upload response", resp.StatusCode), nil)
+		return error("invalid http response %d in upload response", resp.StatusCode)
 	}
 
 	if resp.StatusCode == 303 {
 		otherLocation := resp.Header.Get("Location")
 		if otherLocation == "" {
-			return error("303 without a Location", nil)
+			return error("303 without a Location")
 		}
 		baseUrl, _ := http.ParseURL(stat.uploadUrl)
 		absUrl, err := baseUrl.ParseURL(otherLocation)
 		if err != nil {
-			return error("303 Location URL relative resolve error", err)
+			return error("303 Location URL relative resolve error: %v", err)
 		}
 		otherLocation = absUrl.String()
 		resp, _, err = http.Get(otherLocation)
 		if err != nil {
-			return error("error following 303 redirect after upload", err)
+			return error("error following 303 redirect after upload: %v", err)
 		}
 	}
 
 	ures, err := c.jsonFromResponse("upload", resp)
 	if err != nil {
-		return error("json parse from upload error", err)
+		return error("json parse from upload error: %v", err)
 	}
 
 	errorText, ok := ures["errorText"].(string)
@@ -301,18 +343,18 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	received, ok := ures["received"].([]interface{})
 	if !ok {
-		return error("upload json validity error: no 'received'", nil)
+		return error("upload json validity error: no 'received'")
 	}
 
 	for _, rit := range received {
 		it, ok := rit.(map[string]interface{})
 		if !ok {
-			return error("upload json validity error: 'received' is malformed", nil)
+			return error("upload json validity error: 'received' is malformed")
 		}
 		if it["blobRef"] == blobRefString {
 			switch size := it["size"].(type) {
 			case nil:
-				return error("upload json validity error: 'received' is missing 'size'", nil)
+				return error("upload json validity error: 'received' is missing 'size'")
 			case float64:
 				if int64(size) == h.Size {
 					// Success!
@@ -322,14 +364,25 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 					c.statsMutex.Unlock()
 					return pr, nil
 				} else {
-					return error(fmt.Sprintf("Server got blob, but reports wrong length (%v; expected %d)",
-						size, h.Size),nil)
+					return error("Server got blob, but reports wrong length (%v; expected %d)",
+						size, h.Size)
 				}
 			default:
-				return error("unsupported type of 'size' in received response", nil)
+				return error("unsupported type of 'size' in received response")
 			}
 		}
 	}
 
 	return nil, os.NewError("Server didn't receive blob.")
+}
+
+type countingReader struct {
+	r io.Reader
+	n *int64
+}
+
+func (cr countingReader) Read(p []byte) (n int, err os.Error) {
+	n, err = cr.r.Read(p)
+	*cr.n += int64(n)
+	return
 }
