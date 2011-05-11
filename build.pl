@@ -337,11 +337,11 @@ sub gen_target_makefile {
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
-    open(my $mf, ">$target/Makefile") or die;
-    print $mf "\n\n";
-    print $mf "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
-    print $mf "\n\n";
-    print $mf "include \$(GOROOT)/src/Make.inc\n";
+    # Generate the Makefile
+    my $mfc = "\n\n";
+    $mfc .= "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
+    $mfc .= "\n\n";
+    $mfc .= "include \$(GOROOT)/src/Make.inc\n";
     if (@deps) {
         my $pr = "";
         foreach my $dep (@deps) {
@@ -350,23 +350,34 @@ sub gen_target_makefile {
             $pr .= '$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/' . $cam_lib . ".a\\\n\t";
         }
         chop $pr; chop $pr; chop $pr;
-        print $mf "PREREQ=$pr\n";
+        $mfc .= "PREREQ=$pr\n";
     }
     if ($type eq "pkg") {
         my $targ = $target;
         $targ =~ s!^lib/go/!!;
-        print $mf "TARG=$targ\n";
+        $mfc .= "TARG=$targ\n";
     } else {
         my $targ = $target;
         $targ =~ s!^.*/!!;
-        print $mf "TARG=$targ\n";
+        $mfc .= "TARG=$targ\n";
     }
     my @non_test_files = grep { !/_test\.go/ } @go_files;
-    print $mf "GOFILES=@non_test_files\n";
-    print $mf "include \$(GOROOT)/src/Make.$type\n";
-    close($mf);
+    $mfc .= "GOFILES=@non_test_files\n";
+    $mfc .= "include \$(GOROOT)/src/Make.$type\n";
+
+    set_file_contents("$target/Makefile", $mfc);
 
     # print "DEPS of $target: @{ $t->{deps} }\n";
+}
+
+sub set_file_contents {
+    my ($fn, $new) = @_;
+    open(my $fh, $fn) or die;
+    my $cur = do { local $/; <$fh> };
+    return if $new eq $cur;
+    open(my $fh, ">$fn") or die;
+    print $fh $new;
+    close($fh) or die;
 }
 
 sub read_targets {
