@@ -17,10 +17,11 @@ limitations under the License.
 package localdisk
 
 import (
-	"camli/blobref"
-
 	"fmt"
 	"http"
+	"path/filepath"
+
+	"camli/blobref"
 )
 
 func BlobFileBaseName(b *blobref.BlobRef) string {
@@ -32,16 +33,16 @@ func (ds *DiskStorage) blobDirectory(partition string, b *blobref.BlobRef) strin
 	if len(d) < 6 {
 		d = d + "______"
 	}
-	return fmt.Sprintf("%s/%s/%s/%s", ds.PartitionRoot(partition), b.HashName(), d[0:3], d[3:6])
+	return filepath.Join(ds.PartitionRoot(partition), b.HashName(), d[0:3], d[3:6])
 }
 
 func (ds *DiskStorage) blobPath(partition string, b *blobref.BlobRef) string {
-	return fmt.Sprintf("%s/%s", ds.blobDirectory(partition, b), BlobFileBaseName(b))
+	return filepath.Join(ds.blobDirectory(partition, b), BlobFileBaseName(b))
 }
 
 func (ds *DiskStorage) PartitionRoot(partition string) string {
 	if partition == "" {
 		return ds.root
 	}
-	return fmt.Sprintf("%s/partition/%s", ds.root, http.URLEscape(partition))
+	return filepath.Join(ds.root, "partition", http.URLEscape(partition))
 }
