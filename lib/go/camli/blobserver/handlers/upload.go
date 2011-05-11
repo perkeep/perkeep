@@ -54,7 +54,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 	var errText string
 	addError := func(s string) {
-		log.Printf("handlers/upload: client error: %s", s)
+		log.Printf("Client error: %s", s)
 		if errText == "" {
 			errText = s
 			return

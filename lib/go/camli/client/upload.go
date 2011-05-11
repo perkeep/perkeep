@@ -302,7 +302,6 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	req.TransferEncoding = nil
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
-		log.Printf("client/upload: http write error: %v", err)
 		return error("upload http error: %v", err)
 	}
 
