@@ -83,6 +83,9 @@ type BlobEnumerator interface {
 	// or 0 for no delay.
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
+	//
+	// after and waitSeconds can't be used together. One must be
+	// its zero value.
 	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 	after string,
 	limit uint,

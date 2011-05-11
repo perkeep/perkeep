@@ -14,6 +14,8 @@ URL GET parameters:
      after     optional    If provided, only blobs GREATER THAN this
                            value are returned.
 
+                           Can't be used in combination with 'maxwaitsec'
+
      limit     optional    Limit the number of returned blobrefs.  The
                            server may have its own lower limit, however,
                            so be sure to pay attention to the presence
@@ -34,6 +36,8 @@ URL GET parameters:
                            supports long polling, the server may cap
                            'maxwaitsec' and wait for less time than
                            requested by the client.
+
+                           Can't be used in combination with 'after'.
 
 
 Response:
