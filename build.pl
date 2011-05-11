@@ -417,6 +417,7 @@ TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/lru
 TARGET: lib/go/camli/magic
+TARGET: lib/go/camli/misc
 TARGET: lib/go/camli/misc/amazon/s3
 TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/mysqlindexer

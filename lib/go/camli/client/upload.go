@@ -18,7 +18,6 @@ package client
 
 import (
 	"bytes"
-	"camli/blobref"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
@@ -29,6 +28,9 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"camli/blobref"
+	"camli/misc"
 )
 
 var _ = log.Printf
@@ -293,7 +295,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	contentsSize := int64(0)
 	req.Body = ioutil.NopCloser(io.MultiReader(
 		strings.NewReader(multiPartHeader),
-		countingReader{h.Contents, &contentsSize},
+		misc.CountingReader{h.Contents, &contentsSize},
 		strings.NewReader(multiPartFooter)))
 
 	if h.Size >= 0 {
@@ -380,13 +382,3 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	return nil, os.NewError("Server didn't receive blob.")
 }
 
-type countingReader struct {
-	r io.Reader
-	n *int64
-}
-
-func (cr countingReader) Read(p []byte) (n int, err os.Error) {
-	n, err = cr.r.Read(p)
-	*cr.n += int64(n)
-	return
-}
