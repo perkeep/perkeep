@@ -111,6 +111,8 @@ func readBlobs(opts readBlobRequest) os.Error {
 }
 
 func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+	defer close(dest)
+
 	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
 	var err os.Error
@@ -126,7 +128,6 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after st
 
 	// The not waiting case:
 	if err != nil || limitMutable != limit || waitSeconds == 0 {
-		close(dest)
 		return err
 	}
 
@@ -149,6 +150,5 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after st
 		// so there's no race?  But this is easier:
 		doScan()
 	}
-	close(dest)
 	return err
 }
