@@ -28,6 +28,7 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/misc"
 )
 
 const queueSyncInterval = seconds(5)
@@ -35,13 +36,21 @@ const maxErrors = 20
 
 var _ = log.Printf
 
+// TODO: rate control + tunable
+// TODO: expose copierPoolSize as tunable
 type SyncHandler struct {
 	fromName, fromqName, toName string
 	from, fromq, to             blobserver.Storage
 
-	lk           sync.Mutex
-	lastStatus   string
-	recentErrors []timestampedError
+	copierPoolSize int
+
+	lk             sync.Mutex // protects following
+	status         string
+	blobStatus     map[string]fmt.Stringer // stringer called with lk held
+	recentErrors   []timestampedError
+	recentCopyTime *time.Time
+	totalCopies    int64
+	totalCopyBytes int64
 }
 
 type timestampedError struct {
@@ -51,11 +60,13 @@ type timestampedError struct {
 
 func createSyncHandler(fromName, toName string, from, to blobserver.Storage) (*SyncHandler, os.Error) {
 	h := &SyncHandler{
-		from:       from,
-		to:         to,
-		fromName:   fromName,
-		toName:     toName,
-		lastStatus: "not started",
+		copierPoolSize: 3,
+		from:           from,
+		to:             to,
+		fromName:       fromName,
+		toName:         toName,
+		status:         "not started",
+		blobStatus:     make(map[string]fmt.Stringer),
 	}
 
 	qc, ok := from.(blobserver.QueueCreator)
@@ -78,11 +89,29 @@ func createSyncHandler(fromName, toName string, from, to blobserver.Storage) (*S
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(rw, "sync handler, from %s to %s<p>status: %s", sh.fromName, sh.toName,
-		html.EscapeString(sh.status()))
-
 	sh.lk.Lock()
 	defer sh.lk.Unlock()
+
+	fmt.Fprintf(rw, "<h1>%s to %s Sync Status</h1><p><b>Current status: </b>%s</p>",
+		sh.fromName, sh.toName, html.EscapeString(sh.status))
+
+	fmt.Fprintf(rw, "<h2>Stats:</h2><ul>")
+	fmt.Fprintf(rw, "<li>Blobs copied: %d</li>", sh.totalCopies)
+	fmt.Fprintf(rw, "<li>Bytes copied: %d</li>", sh.totalCopyBytes)
+	if sh.recentCopyTime != nil {
+		fmt.Fprintf(rw, "<li>Most recent copy: %s</li>", sh.recentCopyTime.Format(time.RFC3339))
+	}
+	fmt.Fprintf(rw, "</ul>")
+
+	if len(sh.blobStatus) > 0 {
+		fmt.Fprintf(rw, "<h2>Current Copies:</h2><ul>")
+		for blobstr, sfn := range sh.blobStatus {
+			fmt.Fprintf(rw, "<li>%s: %s</li>\n",
+				blobstr, html.EscapeString(sfn.String()))
+		}
+		fmt.Fprintf(rw, "</ul>")
+	}
+
 	if len(sh.recentErrors) > 0 {
 		fmt.Fprintf(rw, "<h2>Recent Errors:</h2><ul>")
 		for _, te := range sh.recentErrors {
@@ -98,13 +127,17 @@ func (sh *SyncHandler) setStatus(s string, args ...interface{}) {
 	s = time.UTC().Format(time.RFC3339) + ": " + fmt.Sprintf(s, args...)
 	sh.lk.Lock()
 	defer sh.lk.Unlock()
-	sh.lastStatus = s
+	sh.status = s
 }
 
-func (sh *SyncHandler) status() string {
+func (sh *SyncHandler) setBlobStatus(blobref string, s fmt.Stringer) {
 	sh.lk.Lock()
 	defer sh.lk.Unlock()
-	return sh.lastStatus
+	if s != nil {
+		sh.blobStatus[blobref] = s
+	} else {
+		sh.blobStatus[blobref] = nil, false
+	}
 }
 
 func (sh *SyncHandler) addErrorToLog(err os.Error) {
@@ -121,62 +154,113 @@ func (sh *SyncHandler) addErrorToLog(err os.Error) {
 
 func (sh *SyncHandler) syncQueueLoop() {
 	every(queueSyncInterval, func() {
-		sh.setStatus("Long-polling enumerate on queue %q, waiting for new blobs.", sh.fromqName)
+	Enumerate:
+		sh.setStatus("Idle; waiting for new blobs")
 
-		ch := make(chan blobref.SizedBlobRef)
+		enumch := make(chan blobref.SizedBlobRef)
 		errch := make(chan os.Error, 1)
 		go func() {
-			log.Printf("pre-enumerate, for %d seconds", int(queueSyncInterval.Seconds()))
-			errch <- sh.fromq.EnumerateBlobs(ch, "", 100, int(queueSyncInterval.Seconds()))
-			log.Printf("post-enumerate")
+			errch <- sh.fromq.EnumerateBlobs(enumch, "", 1000, int(queueSyncInterval.Seconds()))
 		}()
-		for sb := range ch {
-			log.Printf("sync in queue %q: got blob: %s", sh.fromqName, sb)
+		nCopied := 0
 
-			// TODO: have a pool of copiers, not just a
-			// single thread here.  Mostly simple, but
-			// having a good status will make it more
-			// complicated.
-
-			error := func(s string, args ...interface{}) {
-				// TODO: increment error stats
-				pargs := []interface{}{sh.fromqName, sb.BlobRef}
-				pargs = append(pargs, args...)
-				sh.addErrorToLog(fmt.Errorf("replication error for queue %q, blob %s: "+s, pargs...))
+		toCopy := 0
+		workch := make(chan blobref.SizedBlobRef, 1000)
+		wg := new(sync.WaitGroup)
+		for sb := range enumch {
+			toCopy++
+			workch <- sb
+			if toCopy <= sh.copierPoolSize {
+				wg.Add(1)
+				go func() {
+					nCopied += sh.copyWorker(workch)
+					wg.Done()
+				}()
 			}
-
-			sh.setStatus("Syncing blob %s (size %d)", sb.BlobRef, sb.Size)
-			blobReader, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
-			if err != nil {
-				error("source fetch: %v", err)
-				continue
-			}
-			if fromSize != sb.Size {
-				error("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
-				continue
-			}
-			newsb, err := sh.to.ReceiveBlob(sb.BlobRef, blobReader)
-			if err != nil {
-				error("dest write: %v", err)
-				continue
-			}
-			if newsb.Size != sb.Size {
-				error("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
-				continue
-			}
-			err = sh.fromq.Remove([]*blobref.BlobRef{sb.BlobRef})
-			if err != nil {
-				error("source queue delete: %v", err)
-			}
-			error("replicated %s size %d", sb.BlobRef, sb.Size)
 		}
+		close(workch)
+		wg.Wait()
+
 		if err := <-errch; err != nil {
 			sh.addErrorToLog(fmt.Errorf("replication error for queue %q, enumerate from source: %v", err))
 			return
 		}
-
+		if nCopied > 0 {
+			// Don't sleep. More to do probably.
+			goto Enumerate
+		}
 		sh.setStatus("Sleeping briefly before next long poll.")
 	})
+}
+
+func (sh *SyncHandler) copyWorker(ch chan blobref.SizedBlobRef) (nCopied int) {
+	for sb := range ch {
+		if err := sh.copyBlob(sb); err == nil {
+			nCopied++
+			sh.lk.Lock()
+			sh.totalCopies++
+			sh.totalCopyBytes += sb.Size
+			sh.recentCopyTime = time.UTC()
+			sh.lk.Unlock()
+		}
+	}
+	return
+}
+
+type statusFunc func() string
+
+func (sf statusFunc) String() string {
+	return sf()
+}
+
+type status string
+
+func (s status) String() string {
+	return string(s)
+}
+
+func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) os.Error {
+	key := sb.BlobRef.String()
+	set := func(s fmt.Stringer) {
+		sh.setBlobStatus(key, s)
+	}
+	defer set(nil)
+
+	error := func(s string, args ...interface{}) os.Error {
+		// TODO: increment error stats
+		pargs := []interface{}{sh.fromqName, sb.BlobRef}
+		pargs = append(pargs, args...)
+		err := fmt.Errorf("replication error for queue %q, blob %s: "+s, pargs...)
+		sh.addErrorToLog(err)
+		return err
+	}
+
+	set(status("sending GET to source"))
+	blobReader, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
+	if err != nil {
+		return error("source fetch: %v", err)
+	}
+	if fromSize != sb.Size {
+		return error("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
+	}
+
+	bytesCopied := int64(0) // accessed without locking; minor, just for status display
+	set(statusFunc(func() string {
+		return fmt.Sprintf("copying: %d/%d bytes", bytesCopied, sb.Size)
+	}))
+	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, misc.CountingReader{blobReader, &bytesCopied})
+	if err != nil {
+		return error("dest write: %v", err)
+	}
+	if newsb.Size != sb.Size {
+		return error("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
+	}
+	set(status("copied; removing from queue"))
+	err = sh.fromq.Remove([]*blobref.BlobRef{sb.BlobRef})
+	if err != nil {
+		return error("source queue delete: %v", err)
+	}
+	return nil
 }
 
 // TODO: move this elsewhere (timeutil?)
