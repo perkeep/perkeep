@@ -96,7 +96,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	hash := blobRef.Hash()
 	var written int64
 	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
-	log.Printf("mysqlindexer: wrote %d; err %v", written, err)
+	log.Printf("mysqlindexer/receive: copied to hash/sniffer %d; err %v", written, err)
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 
 	sniffer.Parse()
 	mimeType := sniffer.MimeType()
-	log.Printf("Read %d bytes; type=%v; truncated=%v", written, sniffer.IsTruncated())
+	log.Printf("mysqlindexer/receive: Read %d bytes; type=%v; truncated=%v", written, sniffer.IsTruncated())
 
 	var client *mysql.Client
 	if client, err = mi.getConnection(); err != nil {

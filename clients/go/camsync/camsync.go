@@ -17,12 +17,15 @@ limitations under the License.
 package main
 
 import (
-	"camli/blobref"
-	"camli/client"
 	"flag"
 	"fmt"
 	"log"
+	"io"
 	"os"
+	"strings"
+
+	"camli/blobref"
+	"camli/client"
 )
 
 // Things that can be uploaded.  (at most one of these)
@@ -121,7 +124,12 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 	for sb := range destNotHaveBlobs {
 		fmt.Printf("Destination needs blob: %s\n", sb)
 
-		blobReader, size, err := sc.FetchStreaming(sb.BlobRef)
+		var (
+			blobReader io.Reader
+			size       int64
+			err        os.Error
+		)
+		blobReader, size, err = sc.FetchStreaming(sb.BlobRef)
 		if err != nil {
 			errorCount++
 			log.Printf("Error fetching %s: %v", sb.BlobRef, err)
@@ -132,6 +140,11 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 			log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
 				sb.Size, sb.BlobRef, size)
 			continue
+		}
+		if size == 0 {
+			// Hack.
+			// TODO-GO: fix http?
+			blobReader = strings.NewReader("")
 		}
 		uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
 		pr, err := dc.Upload(uh)
