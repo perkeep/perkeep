@@ -30,6 +30,9 @@ import (
 
 var _ = log.Printf
 
+// TODO: rename StreamingFetcher to be Fetch (the common case) and
+// make a new interface for SeekingFetcher (the rare case)
+
 type Fetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
 	// os.ENOENT should be returned for the error (not a wrapped
