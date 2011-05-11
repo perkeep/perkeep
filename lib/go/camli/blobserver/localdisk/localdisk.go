@@ -90,8 +90,13 @@ func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, os.Error) {
 	q := &DiskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      ds.root,
-		partition:                 name,
+		partition:                 "queue-" + name,
 	}
+	baseDir := ds.PartitionRoot(q.partition)
+	if err := os.MkdirAll(baseDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create queue base dir: %v", err)
+	}
+
 	ds.mirrorPartitions = append(ds.mirrorPartitions, q)
 	return q, nil
 }
