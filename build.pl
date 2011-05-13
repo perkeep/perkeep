@@ -372,9 +372,11 @@ sub gen_target_makefile {
 
 sub set_file_contents {
     my ($fn, $new) = @_;
-    open(my $fh, $fn) or die;
-    my $cur = do { local $/; <$fh> };
-    return if $new eq $cur;
+    if (-e $fn) {
+        open(my $fh, $fn) or die "Failed to write to $fn: $!";
+        my $cur = do { local $/; <$fh> };
+        return if $new eq $cur;
+    }
     open(my $fh, ">$fn") or die;
     print $fh $new;
     close($fh) or die;
