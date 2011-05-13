@@ -39,7 +39,6 @@ type BlobStatter interface {
 	Stat(dest chan<- blobref.SizedBlobRef,
 	blobs []*blobref.BlobRef,
 	waitSeconds int) os.Error
-	// TODO-GO: file a gofmt bug on how ugly those lines above look
 }
 
 // QueueCreator is implemented by Storage interfaces which support
