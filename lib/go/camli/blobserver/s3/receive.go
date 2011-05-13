@@ -111,7 +111,7 @@ func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (outs
 		return zero, err
 	}
 	if !blob.HashMatches(hash) {
-		return zero, blobserver.CorruptBlobError
+		return zero, blobserver.ErrCorruptBlob
 	}
 	err = sto.s3Client.PutObject(blob.String(), sto.bucket, slurper.md5, size, slurper)
 	if err != nil {

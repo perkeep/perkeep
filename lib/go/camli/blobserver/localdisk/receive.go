@@ -68,7 +68,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 	}
 
 	if !blobRef.HashMatches(hash) {
-		err = blobserver.CorruptBlobError
+		err = blobserver.ErrCorruptBlob
 		return
 	}
 

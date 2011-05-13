@@ -22,7 +22,7 @@ import (
 	"os"
 )
 
-var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
+var ErrCorruptBlob = os.NewError("corrupt blob; digest doesn't match")
 
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
