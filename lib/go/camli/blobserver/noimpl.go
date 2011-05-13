@@ -17,37 +17,47 @@ limitations under the License.
 package blobserver
 
 import (
-	"camli/blobref"
 	"io"
 	"os"
+
+	"camli/blobref"
 )
 
 type NoImplStorage struct {
+}
+
+var _ Storage = (*NoImplStorage)(nil)
+
+func (nis *NoImplStorage) GetBlobHub() BlobHub {
+	return nil
 }
 
 func (nis *NoImplStorage) Fetch(*blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
 	return nil, 0, os.ENOENT
 }
 
-func (nis *NoImplStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader, mirrorPartions []Partition) (*blobref.SizedBlobRef, os.Error) {
-	return nil, os.NewError("ReceiveBlob not implemented")
+func (nis *NoImplStorage) FetchStreaming(*blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	return nil, 0, os.ENOENT
 }
 
-func (nis *NoImplStorage) Stat(dest chan *blobref.SizedBlobRef,
-		partition Partition,
+func (nis *NoImplStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+	err = os.NewError("ReceiveBlob not implemented")
+	return
+}
+
+func (nis *NoImplStorage) Stat(dest chan<- blobref.SizedBlobRef,
 		blobs []*blobref.BlobRef,
 		waitSeconds int) os.Error {
 	return os.NewError("Stat not implemented")
 }
 
-func (nis *NoImplStorage) EnumerateBlobs(dest chan *blobref.SizedBlobRef,
-		partition Partition,
+func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 		after string,
 		limit uint,
 		waitSeconds int) os.Error {
 	return os.NewError("EnumerateBlobs not implemented")
 }
 
-func (nis *NoImplStorage) Remove(partition Partition, blobs []*blobref.BlobRef) os.Error {
+func (nis *NoImplStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return os.NewError("Remove not implemented")
 }
