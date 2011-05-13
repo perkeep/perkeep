@@ -24,24 +24,6 @@ import (
 
 var CorruptBlobError = os.NewError("corrupt blob; digest doesn't match")
 
-type NamedPartition interface {
-	Name() string // "" for default, "queue-indexer", etc
-}
-
-type Partition interface {
-	NamedPartition
-
-	Writable() bool // accepts direct uploads (excluding mirroring from default partition)
-	Readable() bool // can return blobs (e.g. indexer partition can't)
-	IsQueue() bool  // is a temporary queue partition (supports deletes)
-
-	// TODO: rename this.  just "UploadMirrors"?
-	GetMirrorPartitions() []Partition
-
-	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
-	URLBase() string
-}
-
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
