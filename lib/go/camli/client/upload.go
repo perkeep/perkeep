@@ -331,7 +331,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 			return error("303 Location URL relative resolve error: %v", err)
 		}
 		otherLocation = absUrl.String()
-		resp, _, err = http.Get(otherLocation)
+		resp, err = http.Get(otherLocation)
 		if err != nil {
 			return error("error following 303 redirect after upload: %v", err)
 		}
@@ -381,4 +381,3 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	return nil, os.NewError("Server didn't receive blob.")
 }
-
