@@ -97,7 +97,7 @@ func (me *testCase) removeMountFile() {
 }
 
 func (me *testCase) writeOrigFile() {
-	f, err := os.Open(me.origFile, os.O_WRONLY|os.O_CREAT, 0700)
+	f, err := os.Create(me.origFile)
 	CheckSuccess(err)
 	_, err = f.Write([]byte(contents))
 	CheckSuccess(err)
@@ -108,7 +108,7 @@ func (me *testCase) writeOrigFile() {
 // Tests.
 
 func (me *testCase) testOpenUnreadable() {
-	_, err := os.Open(filepath.Join(me.mountPoint, "doesnotexist"), os.O_RDONLY, 0)
+	_, err := os.Open(filepath.Join(me.mountPoint, "doesnotexist"))
 	if err == nil {
 		me.tester.Errorf("open non-existent should raise error")
 	}
@@ -130,7 +130,7 @@ func (me *testCase) testReadThroughFuse() {
 
 	// Open (for read), read.
 	fmt.Println("Testing open.")
-	f, err := os.Open(me.mountFile, os.O_RDONLY, 0)
+	f, err := os.Open(me.mountFile)
 	CheckSuccess(err)
 
 	fmt.Println("Testing read.")
@@ -162,7 +162,7 @@ func (me *testCase) testRemove() {
 func (me *testCase) testWriteThroughFuse() {
 	// Create (for write), write.
 	me.tester.Log("Testing create.")
-	f, err := os.Open(me.mountFile, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.Create(me.mountFile)
 	CheckSuccess(err)
 
 	me.tester.Log("Testing write.")
@@ -177,7 +177,7 @@ func (me *testCase) testWriteThroughFuse() {
 		me.tester.Errorf("create mode error %o", fi.Mode&0777)
 	}
 
-	f, err = os.Open(me.origFile, os.O_RDONLY, 0)
+	f, err = os.Open(me.origFile)
 	CheckSuccess(err)
 	var buf [1024]byte
 	slice := buf[:]
@@ -220,7 +220,7 @@ func (me *testCase) testLink() {
 		me.tester.Errorf("Expect 2 links: %v", fi)
 	}
 
-	f, err := os.Open(me.mountSubfile, os.O_RDONLY, 0)
+	f, err := os.Open(me.mountSubfile)
 
 	var buf [1024]byte
 	slice := buf[:]
@@ -324,7 +324,7 @@ func (me *testCase) testReaddir() {
 	me.writeOrigFile()
 	me.makeOrigSubdir()
 
-	dir, err := os.Open(me.mountPoint, os.O_RDONLY, 0)
+	dir, err := os.Open(me.mountPoint)
 	CheckSuccess(err)
 	infos, err := dir.Readdir(10)
 	CheckSuccess(err)
@@ -354,7 +354,7 @@ func (me *testCase) testFSync() {
 	me.tester.Log("Testing fsync.")
 	me.writeOrigFile()
 
-	f, err := os.Open(me.mountFile, os.O_WRONLY, 0)
+	f, err := os.OpenFile(me.mountFile, os.O_WRONLY, 0)
 	_, err = f.WriteString("hello there")
 	CheckSuccess(err)
 
@@ -369,7 +369,7 @@ func (me *testCase) testFSync() {
 func (me *testCase) testLargeRead() {
 	me.tester.Log("Testing large read.")
 	name := filepath.Join(me.origDir, "large")
-	f, err := os.Open(name, os.O_WRONLY|os.O_CREATE, 0777)
+	f, err := os.Create(name)
 	CheckSuccess(err)
 
 	b := bytes.NewBuffer(nil)
@@ -387,7 +387,7 @@ func (me *testCase) testLargeRead() {
 	CheckSuccess(err)
 
 	// Read in one go.
-	g, err := os.Open(filepath.Join(me.mountPoint, "large"), os.O_RDONLY, 0)
+	g, err := os.Open(filepath.Join(me.mountPoint, "large"))
 	CheckSuccess(err)
 	readSlice := make([]byte, len(slice))
 	m, err := g.Read(readSlice)
@@ -405,7 +405,7 @@ func (me *testCase) testLargeRead() {
 	g.Close()
 
 	// Read in chunks
-	g, err = os.Open(filepath.Join(me.mountPoint, "large"), os.O_RDONLY, 0)
+	g, err = os.Open(filepath.Join(me.mountPoint, "large"))
 	CheckSuccess(err)
 	readSlice = make([]byte, 4096)
 	total := 0
@@ -457,7 +457,7 @@ func (me *testCase) testLargeDirRead() {
 
 		nameSet[base] = true
 
-		f, err := os.Open(name, os.O_WRONLY|os.O_CREATE, 0777)
+		f, err := os.Create(name)
 		CheckSuccess(err)
 		f.WriteString("bla")
 		f.Close()
@@ -465,7 +465,7 @@ func (me *testCase) testLargeDirRead() {
 		names[i] = name
 	}
 
-	dir, err := os.Open(filepath.Join(me.mountPoint, "readdirSubdir"), os.O_RDONLY, 0)
+	dir, err := os.Open(filepath.Join(me.mountPoint, "readdirSubdir"))
 	CheckSuccess(err)
 	// Chunked read.
 	total := 0
@@ -524,8 +524,7 @@ func TestRecursiveMount(t *testing.T) {
 	ts := new(testCase)
 	ts.Setup(t)
 
-	f, err := os.Open(filepath.Join(ts.mountPoint, "hello.txt"),
-		os.O_WRONLY|os.O_CREATE, 0777)
+	f, err := os.Create(filepath.Join(ts.mountPoint, "hello.txt"))
 
 	CheckSuccess(err)
 	f.WriteString("bla")
@@ -550,7 +549,7 @@ func TestRecursiveMount(t *testing.T) {
 	_, err = os.Lstat(filepath.Join(submnt, "hello.txt"))
 	CheckSuccess(err)
 
-	f, err = os.Open(filepath.Join(submnt, "hello.txt"), os.O_RDONLY, 0)
+	f, err = os.Open(filepath.Join(submnt, "hello.txt"))
 	CheckSuccess(err)
 	code = ts.connector.Unmount("/mnt")
 	if code != EBUSY {
