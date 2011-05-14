@@ -9,7 +9,10 @@ sub usage {
 }
 
 my $opt_wipe;
-GetOptions("wipe" => \$opt_wipe)
+my $opt_all;  # listen on all interfaces
+GetOptions("wipe" => \$opt_wipe,
+           "all" => \$opt_all,
+    )
     or usage();
 
 my $port = shift;
@@ -43,8 +46,18 @@ system("./clients/go/camdbinit/camdbinit",
        "-database=$DBNAME",
        @opts) and die "Failed to run camdbinit.\n";
 
-print "Starting dev server on http://localhost:$port/ui/ with password \"pass$port\"\n";
+my $base = "http://localhost:$port";
+my $listen = "127.0.0.1:$port";
+if ($opt_all) {
+    $listen = "0.0.0.0:$port";
+    my $host = `hostname`;
+    chomp $host;
+    $base = "http://$host:$port";
+}
 
+print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
+
+$ENV{CAMLI_BASEURL} = $base;
 $ENV{CAMLI_PASSWORD} = "pass$port";
 $ENV{CAMLI_ROOT} = $root;
 $ENV{CAMLI_PORT} = $port;
@@ -52,5 +65,5 @@ $ENV{CAMLI_KEY_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-keyring.gpg";
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
-     "-listen=127.0.0.1:$port",
+     "-listen=$listen",
      @ARGV);

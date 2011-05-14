@@ -1,5 +1,5 @@
 { "_for-emacs": "-*- mode: js2;-*-",
-  "baseURL": ["_env", "http://localhost:${CAMLI_PORT}"],
+  "baseURL": ["_env", "${CAMLI_BASEURL}"],
   "password": ["_env", "${CAMLI_PASSWORD}"],
   "prefixes": {
      "/": {
