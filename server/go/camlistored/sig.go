@@ -23,7 +23,6 @@ import (
 	"crypto/openpgp/armor"
 	"fmt"
 	"http"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -98,19 +97,15 @@ func (hl *handlerLoader) createJSONSignHandler(conf jsonconfig.Obj) (http.Handle
 		return nil, fmt.Errorf("Encrypted keys aren't yet supported")
 	}
 
-	var buf1 bytes.Buffer
-	var buf2 bytes.Buffer
-	h.entity.PrivateKey.PublicKey.Serialize(&buf1)
-
-	wc, err := armor.Encode(&buf2, openpgp.PublicKeyType, nil)
+	var buf bytes.Buffer
+	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
 	if err != nil {
 		return nil, err
 	}
-	serializeHeader(wc, buf1.Len())
-	io.Copy(wc, &buf1)
+	h.entity.PrivateKey.PublicKey.Serialize(wc)
 	wc.Close()
 
-	armoredPublicKey := buf2.String()
+	armoredPublicKey := buf.String()
 	ms := new(blobref.MemoryStore)
 	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, armoredPublicKey)
 	if err != nil {
@@ -125,38 +120,6 @@ func (hl *handlerLoader) createJSONSignHandler(conf jsonconfig.Obj) (http.Handle
 	}
 
 	return h, nil
-}
-
-// TODO(bradfitz): this isn't exported in openpgp/packet/packet.go, so copied here
-// for now.
-//
-// serializeHeader writes an OpenPGP packet header to w. See RFC 4880, section
-// 4.2.
-func serializeHeader(w io.Writer, length int) (err os.Error) {
-	ptype := byte(6)
-	var buf [6]byte
-	var n int
-
-	buf[0] = 0x80 | 0x40 | byte(ptype)
-	if length < 192 {
-		buf[1] = byte(length)
-		n = 2
-	} else if length < 8384 {
-		length -= 192
-		buf[1] = 192 + byte(length>>8)
-		buf[2] = byte(length)
-		n = 3
-	} else {
-		buf[1] = 255
-		buf[2] = byte(length >> 24)
-		buf[3] = byte(length >> 16)
-		buf[4] = byte(length >> 8)
-		buf[5] = byte(length)
-		n = 6
-	}
-
-	_, err = w.Write(buf[:n])
-	return
 }
 
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
