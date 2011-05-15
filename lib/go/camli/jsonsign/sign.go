@@ -29,6 +29,7 @@ import (
 	"unicode"
 
 	"camli/blobref"
+	"camli/misc/pinentry"
 )
 
 var gpgPath = "/usr/bin/gpg"
@@ -71,6 +72,15 @@ func (sr *SignRequest) secretRingPath() string {
 }
 
 func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
+	if os.Getenv("TEST_PIN") == "1" {
+	pinReq := &pinentry.Request{Prompt: "what up?"}
+		pin, err := pinReq.GetPIN()
+		if err != nil {
+			return "", fmt.Errorf("Failed to get private key decryption password: %v", err)
+		}
+		log.Printf("Got password; length=%d", len(pin))
+	}
+
 	trimmedJson := strings.TrimRightFunc(sr.UnsignedJson, unicode.IsSpace)
 
 	// TODO: make sure these return different things
