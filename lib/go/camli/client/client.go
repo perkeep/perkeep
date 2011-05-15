@@ -105,6 +105,17 @@ func (c *Client) HasAuthCredentials() bool {
 	return c.password != ""
 }
 
-func (c *Client) authHeader() string {
-	return "Basic " + encodeBase64("username:"+c.password)
+func (c *Client) newRequest(method, url string) *http.Request {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		panic(err.String())
+	}
+	c.addAuthHeader(req)
+	return req
+}
+
+func (c *Client) addAuthHeader(req *http.Request) {
+	if c.HasAuthCredentials() {
+		req.SetBasicAuth("username", c.password)
+	}
 }

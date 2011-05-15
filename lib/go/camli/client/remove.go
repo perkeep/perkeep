@@ -57,9 +57,7 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	// strings.NewReader's Content-Length.
 	req.ContentLength = int64(len(body))
 	req.Header.Add("Content-Length", strconv.Itoa(len(body)))
-	if c.HasAuthCredentials() {
-		req.Header.Add("Authorization", c.authHeader())
-	}
+	c.addAuthHeader(req)
 	resp, err := c.httpClient.Do(req)
 
 	if err != nil {

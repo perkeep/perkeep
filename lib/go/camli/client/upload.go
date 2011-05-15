@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"crypto/sha1"
-	"encoding/base64"
 	"fmt"
 	"http"
 	"io"
@@ -137,12 +136,6 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 	bref := blobref.FromHash("sha1", s1)
 	buf := bytes.NewBufferString(data)
 	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: buf}
-}
-
-func encodeBase64(s string) string {
-	buf := make([]byte, base64.StdEncoding.EncodedLen(len(s)))
-	base64.StdEncoding.Encode(buf, []byte(s))
-	return string(buf)
 }
 
 func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[string]interface{}, os.Error) {

@@ -20,24 +20,12 @@ import (
 	"bytes"
 	"camli/blobref"
 	"fmt"
-	"http"
 	"io"
 	"log"
 	"os"
 )
 
 var _ = log.Printf
-
-func (c *Client) newRequest(method, url string) *http.Request {
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		panic(err.String())
-	}
-	if c.HasAuthCredentials() {
-		req.Header.Add("Authorization", c.authHeader())
-	}
-	return req
-}
 
 func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	return c.FetchVia(b, nil)
