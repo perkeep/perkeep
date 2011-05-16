@@ -22,18 +22,20 @@ import (
 )
 
 func HomeDir() string {
-	// TODO: windows support
+	// TODO: windows support? is HOME correct?
 	return os.Getenv("HOME")
 }
 
 func CamliConfigDir() string {
-	// TODO: windows / mac support
+	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
+		return p
+	}
+	// TODO: windows / mac support in their proper places
 	return filepath.Join(HomeDir(), ".camli")
 }
 
 func UserServerConfigPath() string {
-	// TODO: windows / mac support
-	return filepath.Join(HomeDir(), ".camli", "serverconfig")
+	return filepath.Join(CamliConfigDir(), "serverconfig")
 }
 
 
