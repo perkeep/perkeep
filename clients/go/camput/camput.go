@@ -50,6 +50,7 @@ var wereErrors = false
 
 type Uploader struct {
 	*client.Client
+	entityFetcher jsonsign.EntityFetcher
 }
 
 func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err os.Error) {
@@ -173,8 +174,9 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 		return "", err
 	}
 	sr := &jsonsign.SignRequest{
-		UnsignedJson: unsigned,
-		Fetcher:      up.Client.GetBlobFetcher(),
+		UnsignedJson:  unsigned,
+		Fetcher:       up.Client.GetBlobFetcher(),
+		EntityFetcher: up.entityFetcher,
 	}
 	return sr.Sign()
 }
@@ -250,8 +252,12 @@ func main() {
 	if !*flagVerbose {
 		cc.SetLogger(nil)
 	}
-	up := &Uploader{cc}
-
+	up := &Uploader{
+		Client: cc,
+		entityFetcher: &jsonsign.CachingEntityFetcher{
+			Fetcher: jsonsign.FlagEntityFetcher(),
+		},
+	}
 	switch {
 	case *flagInit:
 		doInit()
@@ -259,8 +265,8 @@ func main() {
 	case *flagFile || *flagBlob:
 		var (
 			permaNode *client.PutResult
-			lastPut *client.PutResult
-			err os.Error
+			lastPut   *client.PutResult
+			err       os.Error
 		)
 		if n := flag.NArg(); *flagPermanode {
 			if n != 1 {
@@ -285,9 +291,9 @@ func main() {
 			handleResult("claim-permanode-content", put, err)
 			if *flagName != "" {
 				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", *flagName))
-                                handleResult("claim-permanode-name", put, err)
+				handleResult("claim-permanode-name", put, err)
 			}
-                        handleResult("permanode", permaNode, nil)
+			handleResult("permanode", permaNode, nil)
 		}
 	case *flagPermanode:
 		if flag.NArg() > 0 {
@@ -297,7 +303,7 @@ func main() {
 		handleResult("permanode", pr, err)
 		if *flagName != "" {
 			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(pr.BlobRef, "name", *flagName))
-                        handleResult("permanode-name", put, err)
+			handleResult("permanode-name", put, err)
 		}
 	case *flagShare:
 		if flag.NArg() != 1 {
@@ -320,8 +326,8 @@ func main() {
 		}
 	case *flagAddAttr || *flagSetAttr:
 		if flag.NArg() != 3 {
-                        log.Fatalf("--set-attr and --add-attr take 3 args: <permanode> <attr> <value>")
-                }
+			log.Fatalf("--set-attr and --add-attr take 3 args: <permanode> <attr> <value>")
+		}
 		pn := blobref.Parse(flag.Arg(0))
 		if pn == nil {
 			log.Fatalf("Error parsing blobref %q", flag.Arg(0))

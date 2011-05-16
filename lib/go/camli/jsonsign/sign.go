@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
 
 	"camli/blobref"
@@ -42,15 +43,96 @@ func AddFlags() {
 	defSecRing := filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
 	flag.StringVar(&gpgPath, "gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
 	flag.StringVar(&flagSecretRing, "secret-keyring", defSecRing,
-			"GnuPG secret keyring file to use.")
+		"GnuPG secret keyring file to use.")
+}
+
+type EntityFetcher interface {
+	FetchEntity(keyId string) (*openpgp.Entity, os.Error)
+}
+
+type FileEntityFetcher struct {
+	File string
+}
+
+func FlagEntityFetcher() *FileEntityFetcher {
+	return &FileEntityFetcher{File: flagSecretRing}
+}
+
+type CachingEntityFetcher struct {
+	Fetcher EntityFetcher
+
+	lk sync.Mutex
+	m  map[string]*openpgp.Entity
+}
+
+func (ce *CachingEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, os.Error) {
+	ce.lk.Lock()
+	if ce.m != nil {
+		e := ce.m[keyId]
+		if e != nil {
+			ce.lk.Unlock()
+			return e, nil
+		}
+	}
+	ce.lk.Unlock()
+
+	e, err := ce.Fetcher.FetchEntity(keyId)
+	if err == nil {
+		ce.lk.Lock()
+		defer ce.lk.Unlock()
+		if ce.m == nil {
+			ce.m = make(map[string]*openpgp.Entity)
+		}
+		ce.m[keyId] = e
+	}
+
+	return e, err
+}
+
+func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, os.Error) {
+	f, err := os.Open(fe.File)
+	if err != nil {
+		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
+	}
+	el, err := openpgp.ReadKeyRing(f)
+	if err != nil {
+		return nil, fmt.Errorf("jsonsign: openpgp.ReadKeyRing of %q: %v", fe.File, err)
+	}
+	for _, e := range el {
+		if e.PrivateKey.PublicKey.KeyIdString() != keyId {
+			continue
+		}
+		if e.PrivateKey.Encrypted {
+			// TODO: syscall.Mlock a region and keep pass phrase in it.
+			pinReq := &pinentry.Request{Prompt: "passphrase yo"}
+			pin, err := pinReq.GetPIN()
+			if err != nil {
+				return nil, fmt.Errorf("jsonsign: failed to get private key decryption password: %v", err)
+			}
+			err = e.PrivateKey.Decrypt([]byte(pin))
+			if err != nil {
+				return nil, fmt.Errorf("jsonsign: failed to decrypt private key: %v", err)
+			}
+		}
+		return e, nil
+	}
+	return nil, fmt.Errorf("jsonsign: entity for keyid %q not found in %q", keyId, fe.File)
 }
 
 type SignRequest struct {
 	UnsignedJson string
 	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
-	ServerMode   bool // if true, can't use pinentry or gpg-agent, etc.
+	ServerMode   bool        // if true, can't use pinentry or gpg-agent, etc.
 
-	SecretKeyringPath string // Or "" to use flag value.
+	// Optional function to return an entity (including decrypting
+	// the PrivateKey, if necessary)
+	EntityFetcher EntityFetcher
+
+	// SecretKeyringPath is only used if EntityFetcher is nil,
+	// in which case SecretKeyringPath is used if non-empty.
+	// As a final resort, the flag value (defaulting to
+	// ~/.gnupg/secring.gpg) is used.
+	SecretKeyringPath string
 }
 
 func (sr *SignRequest) secretRingPath() string {
@@ -121,34 +203,20 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	}
 	defer secring.Close()
 
-	el, err := openpgp.ReadKeyRing(secring)
+	entityFetcher := sr.EntityFetcher
+	if entityFetcher == nil {
+		file := sr.SecretKeyringPath
+		if file == "" {
+			file = flagSecretRing
+		}
+		if file == "" {
+			return "", os.NewError("jsonsign: no EntityFetcher, SecretKeyringPath, or secret-keyring flag provided")
+		}
+		entityFetcher = &FileEntityFetcher{File: file}
+	}
+	signer, err := entityFetcher.FetchEntity(pubk.KeyIdString())
 	if err != nil {
-		return "", fmt.Errorf("jsonsign: openpgp.ReadKeyRing of %q: %v", sr.secretRingPath(), err)
-	}
-	var signer *openpgp.Entity
-	for _, e := range el {
-		if !bytes.Equal(e.PrivateKey.PublicKey.Fingerprint[:], pubk.Fingerprint[:]) {
-			continue
-		}
-		signer = e
-		break
-	}
-
-	if signer == nil {
-		return "", fmt.Errorf("jsonsign: didn't find private key %q in %q", pubk.KeyIdShortString(), sr.secretRingPath())
-	}
-
-	if signer.PrivateKey.Encrypted {
-		// TODO: syscall.Mlock a region and keep pass phrase in it.
-		pinReq := &pinentry.Request{Prompt: "passphrase yo"}
-		pin, err := pinReq.GetPIN()
-		if err != nil {
-			return "", fmt.Errorf("jsonsign: failed to get private key decryption password: %v", err)
-		}
-		err = signer.PrivateKey.Decrypt([]byte(pin))
-		if err != nil {
-			return "", fmt.Errorf("jsonsign: failed to decrypt private key: %v", err)
-		}
+		return "", err
 	}
 
 	var buf bytes.Buffer
