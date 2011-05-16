@@ -133,10 +133,8 @@ func newRequest(userN int) *SignRequest {
 	return &SignRequest{
 		UnsignedJson:      "",
 		Fetcher:           testFetcher,
-		UseAgent:          false,
 		ServerMode:        true,
 		SecretKeyringPath: "./testdata/test-secring" + suffix,
-		KeyringPath:       "./testdata/test-keyring" + suffix,
 	}
 }
 

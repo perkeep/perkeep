@@ -18,7 +18,6 @@ package jsonsign
 
 import (
 	"bytes"
-	"camli/blobref"
 	"crypto"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
@@ -27,10 +26,11 @@ import (
 	"log"
 	"os"
 	"strings"
-	"crypto/sha1"
+
+	"camli/blobref"
 )
 
-var logf = log.Printf
+var _ = log.Printf
 
 const sigSeparator = `,"camliSig":"`
 
@@ -165,13 +165,13 @@ func (vr *VerifyRequest) VerifySignature() bool {
 	if !ok {
 		return vr.fail("PGP packet isn't a signature packet")
 	}
-	if sig.Hash != crypto.SHA1 {
-		return vr.fail("I can only verify SHA1 signatures")
+	if sig.Hash != crypto.SHA1 && sig.Hash != crypto.SHA256 {
+		return vr.fail("I can only verify SHA1 or SHA256 signatures")
 	}
 	if sig.SigType != packet.SigTypeBinary {
 		return vr.fail("I can only verify binary signatures")
 	}
-	hash := sha1.New()
+	hash := sig.Hash.New()
 	hash.Write(vr.bp) // payload bytes
 	err = vr.PublicKeyPacket.VerifySignature(hash, sig)
 	if err != nil {

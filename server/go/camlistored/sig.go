@@ -41,7 +41,7 @@ const kMaxJsonLength = 1024 * 1024
 
 type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
-	keyRing, secretRing string
+	secretRing string
 
 	// Required keyId, either a short form ("26F5ABDA") or one
 	// of the longer forms.
@@ -66,7 +66,6 @@ func (h *JSONSignHandler) secretRingPath() string {
 func (hl *handlerLoader) createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
-		keyRing:    conf.OptionalString("keyRing", ""),
 		secretRing: conf.OptionalString("secretRing", ""),
 	}
 	if err := conf.Validate(); err != nil {
@@ -219,7 +218,6 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 		Fetcher:           h.pubKeyFetcher,
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
-		KeyringPath: h.keyRing,
 	}
 	signedJson, err := sreq.Sign()
 	if err != nil {

@@ -17,14 +17,15 @@ limitations under the License.
 package jsonsign
 
 import (
-	"exec"
+	"bytes"
+	"crypto/openpgp"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"json"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -32,36 +33,24 @@ import (
 	"camli/misc/pinentry"
 )
 
+var _ = log.Printf
+
 var gpgPath = "/usr/bin/gpg"
-var flagRing = ""
 var flagSecretRing = ""
 
 func AddFlags() {
+	defSecRing := filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
 	flag.StringVar(&gpgPath, "gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
-	flag.StringVar(&flagRing, "keyring", "./test/test-keyring.gpg",
-			"GnuPG public keyring file to use.")
-	flag.StringVar(&flagSecretRing, "secret-keyring", "./test/test-secring.gpg",
+	flag.StringVar(&flagSecretRing, "secret-keyring", defSecRing,
 			"GnuPG secret keyring file to use.")
 }
 
 type SignRequest struct {
 	UnsignedJson string
 	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
-	UseAgent     bool
+	ServerMode   bool // if true, can't use pinentry or gpg-agent, etc.
 
-	// In server-mode, don't use any default (user) keys
-	// TODO: formalize what this means?
-	ServerMode bool
-
-	SecretKeyringPath string
-	KeyringPath       string
-}
-
-func (sr *SignRequest) publicRingPath() string {
-	if sr.KeyringPath != "" {
-		return sr.KeyringPath
-	}
-	return flagRing
+	SecretKeyringPath string // Or "" to use flag value.
 }
 
 func (sr *SignRequest) secretRingPath() string {
@@ -72,15 +61,6 @@ func (sr *SignRequest) secretRingPath() string {
 }
 
 func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
-	if os.Getenv("TEST_PIN") == "1" {
-	pinReq := &pinentry.Request{Prompt: "what up?"}
-		pin, err := pinReq.GetPIN()
-		if err != nil {
-			return "", fmt.Errorf("Failed to get private key decryption password: %v", err)
-		}
-		log.Printf("Got password; length=%d", len(pin))
-	}
-
 	trimmedJson := strings.TrimRightFunc(sr.UnsignedJson, unicode.IsSpace)
 
 	// TODO: make sure these return different things
@@ -122,7 +102,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 		return execfail(fmt.Sprintf("failed to find public key %s", signerBlob.String()))
 	}
 
-	pk, err := openArmoredPublicKeyFile(pubkeyReader)
+	pubk, err := openArmoredPublicKeyFile(pubkeyReader)
 	if err != nil {
 		return execfail(fmt.Sprintf("failed to parse public key from blobref %s: %v", signerBlob.String(), err))
 	}
@@ -134,67 +114,50 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	}
 	trimmedJson = trimmedJson[0 : len(trimmedJson)-1]
 
-	args := []string{"gpg",
-		"--local-user", fmt.Sprintf("%X", pk.Fingerprint[len(pk.Fingerprint)-4:]),
-		"--detach-sign",
-		"--armor"}
-
-	if sr.UseAgent {
-		args = append(args, "--use-agent")
-	}
-
-	if sr.ServerMode {
-		args = append(args,
-			"--no-default-keyring",
-			"--keyring", sr.publicRingPath(),
-			"--secret-keyring", sr.secretRingPath())
-	} else {
-		override := false
-		if kr := sr.publicRingPath(); kr != "" {
-			args = append(args, "--keyring", kr)
-			override = true
-		}
-		if kr := sr.secretRingPath(); kr != "" {
-			args = append(args, "--secret-keyring", kr)
-			override = true
-		}
-		if override {
-			args = append(args, "--no-default-keyring")
-		}
-	}
-
-	args = append(args, "-")
-
-	cmd, err := exec.Run(
-		gpgPath,
-		args,
-		os.Environ(),
-		".",
-		exec.Pipe, // stdin
-		exec.Pipe, // stdout
-		exec.Pipe) // stderr
+	// sign it
+	secring, err := os.Open(sr.secretRingPath())
 	if err != nil {
-		return execfail("Failed to run gpg.")
+		return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
 	}
+	defer secring.Close()
 
-	_, err = cmd.Stdin.WriteString(trimmedJson)
+	el, err := openpgp.ReadKeyRing(secring)
 	if err != nil {
-		return execfail("Failed to write to gpg.")
+		return "", fmt.Errorf("jsonsign: openpgp.ReadKeyRing of %q: %v", sr.secretRingPath(), err)
 	}
-	cmd.Stdin.Close()
+	var signer *openpgp.Entity
+	for _, e := range el {
+		if !bytes.Equal(e.PrivateKey.PublicKey.Fingerprint[:], pubk.Fingerprint[:]) {
+			continue
+		}
+		signer = e
+		break
+	}
 
-	outputBytes, err := ioutil.ReadAll(cmd.Stdout)
+	if signer == nil {
+		return "", fmt.Errorf("jsonsign: didn't find private key %q in %q", pubk.KeyIdShortString(), sr.secretRingPath())
+	}
+
+	if signer.PrivateKey.Encrypted {
+		// TODO: syscall.Mlock a region and keep pass phrase in it.
+		pinReq := &pinentry.Request{Prompt: "passphrase yo"}
+		pin, err := pinReq.GetPIN()
+		if err != nil {
+			return "", fmt.Errorf("jsonsign: failed to get private key decryption password: %v", err)
+		}
+		err = signer.PrivateKey.Decrypt([]byte(pin))
+		if err != nil {
+			return "", fmt.Errorf("jsonsign: failed to decrypt private key: %v", err)
+		}
+	}
+
+	var buf bytes.Buffer
+	err = openpgp.ArmoredDetachSign(&buf, signer, strings.NewReader(trimmedJson))
 	if err != nil {
-		return execfail("Failed to read from gpg.")
-	}
-	output := string(outputBytes)
-
-	errOutput, err := ioutil.ReadAll(cmd.Stderr)
-	if len(errOutput) > 0 {
-		log.Printf("Got error: %q", string(errOutput))
+		return "", err
 	}
 
-	cmd.Close()
+	output := buf.String()
 
 	index1 := strings.Index(output, "\n\n")
 	index2 := strings.Index(output, "\n-----")
