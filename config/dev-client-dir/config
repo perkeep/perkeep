@@ -1,0 +1,23 @@
+{
+  "blobGet": [
+    {
+      "alias": "keyblobs",
+      "path": "$CAMLI_DEV_KEYBLOBS"
+    },
+    {
+      "alias": "local",
+      "host": "http://localhost:3179/bs",
+      "password": "test"
+    }
+  ],
+  "blobPut": [
+    {
+      "alias": "local",
+      "host": "http://localhost:3179/bs",
+      "password": "test"
+    }
+  ],
+  "blobServer": "http://localhost:3179/bs",
+  "blobServerPassword": "pass3179",
+  "publicKeyBlobref": "sha1-82e6f3494f698aa498d5906349c0aa0a183d89a6"
+}
