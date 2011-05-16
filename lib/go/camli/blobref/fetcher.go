@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"camli/osutil"
 )
 
 var _ = log.Printf
@@ -60,7 +62,7 @@ func NewSimpleDirectoryFetcher(dir string) *DirFetcher {
 }
 
 func NewConfigDirFetcher() *DirFetcher {
-	configDir := filepath.Join(os.Getenv("HOME"), ".camli", "keyblobs")
+	configDir := filepath.Join(osutil.CamliConfigDir(), "keyblobs")
 	return NewSimpleDirectoryFetcher(configDir)
 }
 
