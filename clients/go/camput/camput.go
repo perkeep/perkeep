@@ -17,10 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"camli/blobref"
-	"camli/client"
-	"camli/schema"
-	"camli/jsonsign"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -29,6 +25,11 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"camli/blobref"
+	"camli/client"
+	"camli/schema"
+	"camli/jsonsign"
 )
 
 // Things that can be uploaded.  (at most one of these)
@@ -236,6 +237,7 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 }
 
 func main() {
+	jsonsign.AddFlags()
 	flag.Parse()
 
 	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove,
