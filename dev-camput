@@ -1,4 +1,14 @@
-#!/bin/sh
+#!/usr/bin/perl
 
-./build.pl camput && \
-  clients/go/camput/camput --verbose --blobserver=http://localhost:3179/bs --password=pass3179 $@
+use strict;
+use FindBin qw($Bin);
+
+system("$Bin/build.pl", "camput") and die "failed to build camput";
+
+$ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
+system("$Bin/clients/go/camput/camput",
+       "--verbose",
+       "--secret-keyring=$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg",
+       "--blobserver=http://localhost:3179/bs",
+       "--password=pass3179",
+       @ARGV);
