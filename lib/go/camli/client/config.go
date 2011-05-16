@@ -18,6 +18,7 @@ package client
 
 import (
 	"flag"
+	"fmt"
 	"json"
 	"log"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"syscall"
 
 	"camli/blobref"
+	"camli/errorutil"
 	"camli/osutil"
 )
 
@@ -55,7 +57,17 @@ func parseConfig() {
 		defer f.Close()
 		dj := json.NewDecoder(f)
 		if err := dj.Decode(&config); err != nil {
-			log.Printf("Error parsing JSON in config file %q: %v", ConfigFilePath(), err)
+			extra := ""
+			if serr, ok := err.(*json.SyntaxError); ok {
+				if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
+					log.Fatalf("seek error: %v", serr)
+				}
+				line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
+				extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
+					line, col, serr.Offset, highlight)
+			}
+			log.Printf("error parsing JSON object in config file %s%s\n%v",
+				ConfigFilePath(), extra, err)
 		}
 	}
 }
