@@ -295,6 +295,10 @@ func main() {
 		}
 		pr, err := up.UploadNewPermanode()
 		handleResult("permanode", pr, err)
+		if *flagName != "" {
+			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(pr.BlobRef, "name", *flagName))
+                        handleResult("permanode-name", put, err)
+		}
 	case *flagShare:
 		if flag.NArg() != 1 {
 			log.Fatalf("--share only supports one blobref")
