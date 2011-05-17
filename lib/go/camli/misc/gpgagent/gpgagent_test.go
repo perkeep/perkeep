@@ -17,6 +17,7 @@ limitations under the License.
 package gpgagent
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestPrompt(t *testing.T) {
 		return
 	}
 	req := &PassphraseRequest{
-		CacheKey: "gpgagent_test-cachekey",
+		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Nanoseconds()),
 	}
 	s1, err := req.GetPassphrase()
 	if err != nil {

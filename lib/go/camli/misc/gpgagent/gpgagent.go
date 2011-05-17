@@ -19,6 +19,7 @@ package gpgagent
 import (
 	"bufio"
 	"fmt"
+	"http"
 	"net"
 	"io"
 	"strings"
@@ -91,7 +92,7 @@ func (pr *PassphraseRequest) GetPassphrase() (passphrase string, outerr os.Error
 		set("OPTION", "ttyname="+tty)
 	}
 	set("OPTION", "ttytype="+os.Getenv("TERM"))
-	fmt.Fprintf(conn, "GET_PASSPHRASE foo err+msg prompt desc\n")
+	fmt.Fprintf(conn, "GET_PASSPHRASE %s err+msg prompt desc\n", http.URLEscape(pr.CacheKey))
 	lineb, err := br.ReadSlice('\n')
 	if err != nil {
 		return "", err
