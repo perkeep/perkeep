@@ -82,7 +82,7 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 	set("SETCANCEL", r.Cancel)
 	set("SETERROR", r.Error)
 	set("OPTION", "ttytype=" + os.Getenv("TERM"))
-	tty, err := os.Readlink("/proc/self/fd/1")
+	tty, err := os.Readlink("/proc/self/fd/0")
 	if err == nil {
 		set("OPTION", "ttyname=" + tty)
 	}
