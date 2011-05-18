@@ -124,12 +124,20 @@ func (c *Conn) GetPassphrase(pr *PassphraseRequest) (passphrase string, outerr o
 	if pr.NoAsk {
 		opts += "--no-ask "
 	}
+
+	encOrX := func(s string) string {
+		if s == "" {
+			return "X"
+		}
+		return http.URLEscape(s)
+	}
+
 	_, err = fmt.Fprintf(c.c, "GET_PASSPHRASE %s%s %s %s %s\n",
 		opts,
 		http.URLEscape(pr.CacheKey),
-		http.URLEscape(pr.Error),
-		http.URLEscape(pr.Prompt),
-		http.URLEscape(pr.Desc))
+		encOrX(pr.Error),
+		encOrX(pr.Prompt),
+		encOrX(pr.Desc))
 	if err != nil {
 		return "", err
 	}

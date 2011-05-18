@@ -27,6 +27,8 @@ import (
 
 var _ = log.Printf
 
+var ErrCancel = os.NewError("pinentry: Cancel")
+
 type Request struct {
 	Desc, Prompt, OK, Cancel, Error string
 }
@@ -92,8 +94,11 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 		return "", fmt.Errorf("Failed to read line after GETPIN: %v", err)
 	}
 	line = string(lineb)
-	if !strings.HasPrefix(line, "D ") {
-		return "", os.NewError("GETPIN response didn't start with D")
+	if strings.HasPrefix(line, "D ") {
+		return line[2:], nil
 	}
-	return line[2:], nil
+	if strings.HasPrefix(line, "ERR 83886179 ") {
+		return "", ErrCancel
+	}
+	return "", fmt.Errorf("GETPIN response didn't start with D; got %q", line)
 }

@@ -31,6 +31,7 @@ import (
 	"unicode"
 
 	"camli/blobref"
+	"camli/misc/gpgagent"
 	"camli/misc/pinentry"
 )
 
@@ -94,29 +95,82 @@ func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, os.Erro
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
 	}
+	defer f.Close()
 	el, err := openpgp.ReadKeyRing(f)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: openpgp.ReadKeyRing of %q: %v", fe.File, err)
 	}
 	for _, e := range el {
-		if e.PrivateKey.PublicKey.KeyIdString() != keyId {
+		pubk := &e.PrivateKey.PublicKey
+		if pubk.KeyIdString() != keyId {
 			continue
 		}
 		if e.PrivateKey.Encrypted {
-			// TODO: syscall.Mlock a region and keep pass phrase in it.
-			pinReq := &pinentry.Request{Prompt: "passphrase yo"}
-			pin, err := pinReq.GetPIN()
-			if err != nil {
-				return nil, fmt.Errorf("jsonsign: failed to get private key decryption password: %v", err)
-			}
-			err = e.PrivateKey.Decrypt([]byte(pin))
-			if err != nil {
-				return nil, fmt.Errorf("jsonsign: failed to decrypt private key: %v", err)
+			if err := fe.decryptEntity(e); err == nil {
+				return e, nil
+			} else {
+				return nil, err
 			}
 		}
 		return e, nil
 	}
 	return nil, fmt.Errorf("jsonsign: entity for keyid %q not found in %q", keyId, fe.File)
+}
+
+func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) os.Error {
+	// TODO: syscall.Mlock a region and keep pass phrase in it.
+	pubk := &e.PrivateKey.PublicKey
+	desc := fmt.Sprintf("Need to unlock GPG key %s to use it for signing.",
+		pubk.KeyIdShortString())
+
+	conn, err := gpgagent.NewConn()
+	switch err {
+	case gpgagent.ErrNoAgent:
+		// fine, don't log
+	case nil:
+		defer conn.Close()
+		req := &gpgagent.PassphraseRequest{
+			CacheKey: "camli:jsonsign:" + pubk.KeyIdShortString(),
+			Prompt:   "Passphrase",
+			Desc:     desc,
+		}
+		for tries := 0; tries < 2; tries++ {
+			pass, err := conn.GetPassphrase(req)
+			if err == nil {
+				err = e.PrivateKey.Decrypt([]byte(pass))
+				if err == nil {
+					return nil
+				}
+				req.Error = "Passphrase failed to decrypt: " + err.String()
+				conn.RemoveFromCache(req.CacheKey)
+				continue
+			}
+			if err == gpgagent.ErrCancel {
+				return os.NewError("jsonsign: failed to decrypt key; action canceled")
+			}
+			log.Printf("jsonsign: gpgagent: %v", err)
+		}
+	default:
+		log.Printf("jsonsign: gpgagent: %v", err)
+	}
+
+	pinReq := &pinentry.Request{Desc: desc, Prompt: "Passphrase"}
+	for tries := 0; tries < 2; tries++ {
+		pass, err := pinReq.GetPIN()
+		if err == nil {
+			err = e.PrivateKey.Decrypt([]byte(pass))
+			if err == nil {
+				return nil
+			}
+			pinReq.Error = "Passphrase failed to decrypt: " + err.String()
+			continue
+		}
+		if err == pinentry.ErrCancel {
+			return os.NewError("jsonsign: failed to decrypt key; action canceled")
+		}
+		log.Printf("jsonsign: pinentry: %v", err)
+	}
+	return fmt.Errorf("jsonsign: failed to decrypt key %q", pubk.KeyIdShortString())
 }
 
 type SignRequest struct {
