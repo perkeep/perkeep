@@ -40,8 +40,12 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 			outerr = os.NewError(e)
 		}
 	}()
-	c, err := exec.Run("/usr/bin/pinentry",
-		[]string{"/usr/bin/pinentry"},
+	bin, err := exec.LookPath("pinentry")
+	if err != nil {
+		return r.getPINNaïve()
+	}
+	c, err := exec.Run(bin,
+		[]string{bin},
 		os.Environ(),
 		"/",
 		exec.Pipe,
@@ -101,4 +105,41 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 		return "", ErrCancel
 	}
 	return "", fmt.Errorf("GETPIN response didn't start with D; got %q", line)
+}
+
+func runPass(bin string, args ...string) {
+	a := []string{bin}
+	a = append(a, args...)
+	c, err := exec.Run(bin, a, os.Environ(), "/", exec.PassThrough, exec.PassThrough, exec.PassThrough)
+	if err != nil {
+		return
+	}
+	defer func() {
+		c.Close()
+		c.Wait(0)
+	}()
+}
+
+func (r *Request) getPINNaïve() (string, os.Error) {
+	stty, err := exec.LookPath("stty")
+	if err != nil {
+		return "", os.NewError("no pinentry or stty found")
+	}
+	runPass(stty, "-echo")
+	defer runPass(stty, "echo")
+
+	if r.Desc != "" {
+		fmt.Printf("%s\n\n", r.Desc)
+	}
+	prompt := r.Prompt
+	if prompt == "" {
+		prompt = "Password"
+	}
+	fmt.Printf("%s: ", prompt)
+	br := bufio.NewReader(os.Stdin)
+	line, _, err := br.ReadLine()
+	if err != nil {
+		return "", err
+	}
+	return string(line), nil
 }

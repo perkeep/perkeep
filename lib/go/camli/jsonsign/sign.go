@@ -126,7 +126,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) os.Error {
 	conn, err := gpgagent.NewConn()
 	switch err {
 	case gpgagent.ErrNoAgent:
-		// fine, don't log
+		fmt.Fprintf(os.Stderr, "Note: gpg-agent not found; resorting to on-demand password entry.\n")
 	case nil:
 		defer conn.Close()
 		req := &gpgagent.PassphraseRequest{
