@@ -17,6 +17,7 @@ limitations under the License.
 package gpgagent
 
 import (
+	"encoding/hex"
 	"bufio"
 	"fmt"
 	"http"
@@ -26,62 +27,89 @@ import (
 	"os"
 )
 
-type PassphraseRequest struct {
-	CacheKey, ErrorMessage, Prompt, Desc string
-
-	// Open file/socket to use, mostly for testing.
-	// If nil, os.Getenv("GPG_AGENT_INFO") will be used.
-	Conn io.ReadWriter
+// A connection to the GPG agent.
+type Conn struct {
+	c  io.ReadWriteCloser
+	br *bufio.Reader
 }
 
 var ErrNoAgent = os.NewError("GPG_AGENT_INFO not set in environment")
+var ErrNoData = os.NewError("GPG_ERR_NO_DATA cache miss")
+var ErrCancel = os.NewError("gpgagent: Cancel")
 
-func (pr *PassphraseRequest) GetPassphrase() (passphrase string, outerr os.Error) {
+func NewConn() (*Conn, os.Error) {
+	sp := strings.Split(os.Getenv("GPG_AGENT_INFO"), ":", 3)
+	if len(sp) == 0 || len(sp[0]) == 0 {
+		return nil, ErrNoAgent
+	}
+	addr := &net.UnixAddr{Net: "unix", Name: sp[0]}
+	uc, err := net.DialUnix("unix", nil, addr)
+	if err != nil {
+		return nil, err
+	}
+	br := bufio.NewReader(uc)
+	lineb, err := br.ReadSlice('\n')
+	if err != nil {
+		return nil, err
+	}
+	line := string(lineb)
+	if !strings.HasPrefix(line, "OK") {
+		return nil, fmt.Errorf("gpgagent: didn't get OK; got %q", line)
+	}
+	return &Conn{uc, br}, nil
+}
+
+func (c *Conn) Close() os.Error {
+	c.br = nil
+	return c.c.Close()
+}
+
+type PassphraseRequest struct {
+	CacheKey, Error, Prompt, Desc string
+
+	// If the option --no-ask is used and the passphrase is not in
+	// the cache the user will not be asked to enter a passphrase
+	// but the error code GPG_ERR_NO_DATA is returned.  (ErrNoData)
+	NoAsk bool
+}
+
+func (c *Conn) RemoveFromCache(cacheKey string) os.Error {
+	_, err := fmt.Fprintf(c.c, "CLEAR_PASSPHRASE %s\n", http.URLEscape(cacheKey))
+	if err != nil {
+		return err
+	}
+	lineb, err := c.br.ReadSlice('\n')
+	if err != nil {
+		return err
+	}
+	line := string(lineb)
+	if !strings.HasPrefix(line, "OK") {
+		return fmt.Errorf("gpgagent: CLEAR_PASSPHRASE returned %q", line)
+	}
+	return nil
+}
+
+func (c *Conn) GetPassphrase(pr *PassphraseRequest) (passphrase string, outerr os.Error) {
 	defer func() {
 		if e, ok := recover().(string); ok {
 			passphrase = ""
 			outerr = os.NewError(e)
 		}
 	}()
-
-	conn := pr.Conn
-	var br *bufio.Reader
-	if conn == nil {
-		sp := strings.Split(os.Getenv("GPG_AGENT_INFO"), ":", 3)
-		if len(sp) == 0 || len(sp[0]) == 0 {
-			return "", ErrNoAgent
-		}
-		var err os.Error
-		addr := &net.UnixAddr{Net: "unix", Name: sp[0]}
-		uc, err := net.DialUnix("unix", nil, addr)
-		if err != nil {
-			return "", err
-		}
-		defer uc.Close()
-		br = bufio.NewReader(uc)
-		lineb, err := br.ReadSlice('\n')
-		if err != nil {
-			return "", err
-		}
-		line := string(lineb)
-		if !strings.HasPrefix(line, "OK") {
-			return "", fmt.Errorf("didn't get OK; got %q", line)
-		}
-		conn = uc
-	} else {
-		br = bufio.NewReader(conn)
-	}
 	set := func(cmd string, val string) {
 		if val == "" {
 			return
 		}
-		fmt.Fprintf(conn, "%s %s\n", cmd, val)
-		line, _, err := br.ReadLine()
+		_, err := fmt.Fprintf(c.c, "%s %s\n", cmd, val)
 		if err != nil {
-			panic("Failed to " + cmd)
+			panic("gpgagent: failed to send " + cmd)
+		}
+		line, _, err := c.br.ReadLine()
+		if err != nil {
+			panic("gpgagent: failed to read " + cmd)
 		}
 		if !strings.HasPrefix(string(line), "OK") {
-			panic("Response to " + cmd + " was " + string(line))
+			panic("gpgagent: response to " + cmd + " was " + string(line))
 		}
 	}
 	if d := os.Getenv("DISPLAY"); d != "" {
@@ -92,12 +120,39 @@ func (pr *PassphraseRequest) GetPassphrase() (passphrase string, outerr os.Error
 		set("OPTION", "ttyname="+tty)
 	}
 	set("OPTION", "ttytype="+os.Getenv("TERM"))
-	fmt.Fprintf(conn, "GET_PASSPHRASE %s err+msg prompt desc\n", http.URLEscape(pr.CacheKey))
-	lineb, err := br.ReadSlice('\n')
+	opts := ""
+	if pr.NoAsk {
+		opts += "--no-ask "
+	}
+	_, err = fmt.Fprintf(c.c, "GET_PASSPHRASE %s%s %s %s %s\n",
+		opts,
+		http.URLEscape(pr.CacheKey),
+		http.URLEscape(pr.Error),
+		http.URLEscape(pr.Prompt),
+		http.URLEscape(pr.Desc))
+	if err != nil {
+		return "", err
+	}
+	lineb, err := c.br.ReadSlice('\n')
 	if err != nil {
 		return "", err
 	}
 	line := string(lineb)
-
-	return line, nil
+	if strings.HasPrefix(line, "OK ") {
+		decb, err := hex.DecodeString(line[3 : len(line)-1])
+		if err != nil {
+			return "", err
+		}
+		return string(decb), nil
+	}
+	fields := strings.Split(line, " ", -1)
+	if len(fields) >= 2 && fields[0] == "ERR" {
+		switch fields[1] {
+		case "67108922":
+			return "", ErrNoData
+		case "83886179":
+			return "", ErrCancel
+		}
+	}
+	return "", os.NewError(line)
 }
