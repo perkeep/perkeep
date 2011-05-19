@@ -241,6 +241,7 @@ func main() {
 	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/robots.txt", http.FileServer(path.Join(*root, "static"), "/"))
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
+	mux.Handle("/talks/", http.FileServer(path.Join(*root, "talks"), "/talks/"))
 
 	testCgi := &cgi.Handler{Path: path.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
