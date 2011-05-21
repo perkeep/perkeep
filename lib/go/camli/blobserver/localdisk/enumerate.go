@@ -53,6 +53,9 @@ func readBlobs(opts readBlobRequest) os.Error {
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
+	if err == os.EOF {
+		return nil
+	}
 	if err != nil {
 		return &enumerateError{"localdisk: readdirnames of " + dirFullPath, err}
 	}
