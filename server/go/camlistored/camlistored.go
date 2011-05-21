@@ -280,7 +280,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
 		}
 	}()
-	installHandler := func(creator func(_ *handlerLoader, conf jsonconfig.Obj) (h http.Handler, err os.Error)) {
+	installHandler := func(creator func(*handlerLoader, jsonconfig.Obj) (h http.Handler, err os.Error)) {
 		hh, err := creator(hl, h.conf)
 		if err != nil {
 			exitFailure("error instantiating handler for prefix %s: %v",
