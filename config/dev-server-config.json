@@ -40,6 +40,27 @@
           }
      },
 
+     "/sharder/": {
+         "handler": "shard",
+         "handlerArgs": {
+             "backends": ["/s1/", "/s2/"]
+          }
+     },
+
+     "/s1/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_SHARD1}"]
+          }
+     },
+
+     "/s2/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_SHARD2}"]
+          }
+     },
+
      "/indexer/": {
          "handler": "mysqlindexer",
          "handlerArgs": {
@@ -53,8 +74,8 @@
      "/my-search/": {
          "handler": "search",
          "handlerArgs": {
-                  "index": "/indexer/",
-                  "owner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8"
+             "index": "/indexer/",
+             "owner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8"
          }
      }
   }

@@ -112,6 +112,30 @@ func (jc Obj) OptionalBool(key string, def bool) bool {
 	return b
 }
 
+func (jc Obj) RequiredList(key string) []string {
+	jc.noteKnownKey(key)
+        ei, ok := jc[key]
+	if !ok {
+		jc.appendError(fmt.Errorf("Missing required config key %q (list of strings)", key))
+		return nil
+	}
+	eil, ok := ei.([]interface{})
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a list, not %T", key, ei))
+		return nil
+	}
+	sl := make([]string, len(eil))
+	for i, ei := range eil {
+		s, ok := ei.(string)
+		if !ok {
+			jc.appendError(fmt.Errorf("Expected config key %q index %d to be a string, not %T", key, i, ei))
+			return nil
+		}
+		sl[i] = s
+	}
+	return sl
+}
+
 func (jc Obj) noteKnownKey(key string) {
 	_, ok := jc["_knownkeys"]
 	if !ok {

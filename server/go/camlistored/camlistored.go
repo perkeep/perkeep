@@ -40,6 +40,7 @@ import (
 	// Storage options:
 	_ "camli/blobserver/localdisk"
 	_ "camli/blobserver/s3"
+	_ "camli/blobserver/shard"
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
 )
 

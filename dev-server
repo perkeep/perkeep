@@ -27,8 +27,11 @@ if ($opt_wipe && -d $root) {
     print "Wiping $root\n";
     system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
 }
-unless (-d $root) {
-    system("mkdir", "-p", $root) and die "Failed to create $root.\n";
+my ($bsroot, $s1root, $s2root) = ("$root/bs", "$root/s1", "$root/s2");
+for my $d ($bsroot, $s1root, $s2root) {
+    unless (-d $d) {
+        system("mkdir", "-p", $d) and die "Failed to create $d.\n";
+    }
 }
 
 my $DBNAME = "devcamlistore";
@@ -59,9 +62,10 @@ print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
 
 $ENV{CAMLI_BASEURL} = $base;
 $ENV{CAMLI_PASSWORD} = "pass$port";
-$ENV{CAMLI_ROOT} = $root;
+$ENV{CAMLI_ROOT} = $bsroot;
+$ENV{CAMLI_ROOT_SHARD1} = $s1root;
+$ENV{CAMLI_ROOT_SHARD2} = $s2root;
 $ENV{CAMLI_PORT} = $port;
-$ENV{CAMLI_KEY_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-keyring.gpg";
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
