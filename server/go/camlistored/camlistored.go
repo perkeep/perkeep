@@ -39,6 +39,7 @@ import (
 
 	// Storage options:
 	_ "camli/blobserver/localdisk"
+	_ "camli/blobserver/remote"
 	_ "camli/blobserver/s3"
 	_ "camli/blobserver/shard"
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
@@ -148,7 +149,7 @@ type handlerLoader struct {
 	ws      *webserver.Server
 	baseURL string
 	config  map[string]*handlerConfig // prefix -> config
-	handler map[string]interface{}    // prefix -> http.Handler / func
+	handler map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
 }
 
 func main() {
@@ -260,6 +261,14 @@ func (hl *handlerLoader) getOrSetup(prefix string) interface{} {
 	return hl.handler[prefix]
 }
 
+func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, os.Error) {
+	hl.setupHandler(prefix)
+	if s, ok := hl.handler[prefix].(blobserver.Storage); ok {
+		return s, nil
+	}
+	return nil, fmt.Errorf("bogus storage handler referenced as %q", prefix)
+}
+
 func (hl *handlerLoader) setupHandler(prefix string) {
 	h, ok := hl.config[prefix]
 	if !ok {
@@ -338,7 +347,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		hl.ws.Handle(prefix, synch)
 	default:
 		// Assume a storage interface
-		pstorage, err := blobserver.CreateStorage(h.htype, h.conf)
+		pstorage, err := blobserver.CreateStorage(h.htype, hl, h.conf)
 		if err != nil {
 			exitFailure("error instantiating storage for prefix %q, type %q: %v",
 				h.prefix, h.htype, err)

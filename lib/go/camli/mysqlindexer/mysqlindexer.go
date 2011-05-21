@@ -43,7 +43,7 @@ type Indexer struct {
 	cachedClients []*mysql.Client
 }
 
-func newFromConfig(config jsonconfig.Obj) (blobserver.Storage, os.Error) {
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
 	indexer := &Indexer{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		Host:                      config.OptionalString("host", "localhost"),

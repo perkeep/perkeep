@@ -54,7 +54,7 @@ func New(root string) (storage *DiskStorage, err os.Error) {
 	return
 }
 
-func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &DiskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      config.RequiredString("path"),

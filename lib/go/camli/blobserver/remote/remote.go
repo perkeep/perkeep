@@ -35,7 +35,7 @@ type remoteStorage struct {
 
 var _ = blobserver.Storage((*remoteStorage)(nil))
 
-func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	url := config.RequiredString("url")
 	password := config.RequiredString("password")
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)

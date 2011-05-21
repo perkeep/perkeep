@@ -25,7 +25,16 @@ import (
 	"camli/jsonconfig"
 )
 
-type StorageConstructor func(config jsonconfig.Obj) (Storage, os.Error)
+type Loader interface {
+	GetStorage(prefix string) (Storage, os.Error)
+}
+
+type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, os.Error)
+
+// TODO: HandlerConstructor never ended up being used, but that was from
+// before the Loader interface was introduced. Perhaps camlistored server
+// could have all its non-Storage handlers simplified and no longer
+// special-cased by using HandlerConstructor with a Loader parameter.
 type HandlerConstructor func(config jsonconfig.Obj) (http.Handler, os.Error)
 
 var mapLock sync.Mutex
@@ -41,14 +50,14 @@ func RegisterStorageConstructor(typ string, ctor StorageConstructor) {
 	storageConstructors[typ] = ctor
 }
 
-func CreateStorage(typ string, config jsonconfig.Obj) (Storage, os.Error) {
+func CreateStorage(typ string, loader Loader, config jsonconfig.Obj) (Storage, os.Error) {
 	mapLock.Lock()
 	ctor, ok := storageConstructors[typ]
 	mapLock.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("Storage type %q not known or loaded", typ)
 	}
-	return ctor(config)
+	return ctor(loader, config)
 }
 
 func RegisterHandlerConstrutor(typ string, ctor HandlerConstructor) {

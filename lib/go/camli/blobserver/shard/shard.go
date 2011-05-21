@@ -36,7 +36,7 @@ func (ss *shardStorage) GetBlobHub() blobserver.BlobHub {
 	return ss.SimpleBlobHubPartitionMap.GetBlobHub()
 }
 
-func newFromConfig(config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &shardStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		NoImplStorage:             &blobserver.NoImplStorage{},
