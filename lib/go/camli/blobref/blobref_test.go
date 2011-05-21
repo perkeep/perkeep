@@ -56,3 +56,15 @@ func TestNotSupported(t *testing.T) {
 		t.Fatalf("Unexpected IsSupported() on unknownfunc")
 	}
 }
+
+func TestSum32(t *testing.T) {
+	refStr := "sha1-0000000000000000000000000000000000000012"
+	br := Parse(refStr)
+	if br == nil {
+		t.Fatalf("Failed to parse blobref")
+	}
+	h32 := br.Sum32()
+	if h32 != 18 {
+		t.Errorf("got %d, want 18", h32)
+	}
+}

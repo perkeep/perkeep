@@ -16,38 +16,106 @@ limitations under the License.
 
 package shard
 
-// TODO: IMPLEMENT
-
 import (
+	"io"
 	"os"
 
+	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonconfig"
 )
 
 type shardStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
-	*blobserver.NoImplStorage
 
-	// TODO: IMPLEMENT
+	shardPrefixes []string
+	shards        []blobserver.Storage
 }
 
-func (ss *shardStorage) GetBlobHub() blobserver.BlobHub {
-	return ss.SimpleBlobHubPartitionMap.GetBlobHub()
+func (sto *shardStorage) GetBlobHub() blobserver.BlobHub {
+	return sto.SimpleBlobHubPartitionMap.GetBlobHub()
 }
 
-func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &shardStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		NoImplStorage:             &blobserver.NoImplStorage{},
 	}
-	backends := config.RequiredList("backends")
-	for _, _ = range backends {
-	}
+	sto.shardPrefixes = config.RequiredList("backends")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	if len(sto.shardPrefixes) == 0 {
+		return nil, os.NewError("shard: need at least one shard")
+	}
+	sto.shards = make([]blobserver.Storage, len(sto.shardPrefixes))
+	for i, prefix := range sto.shardPrefixes {
+		shardSto, err := ld.GetStorage(prefix)
+		if err != nil {
+			return nil, err
+		}
+		sto.shards[i] = shardSto
+	}
 	return sto, nil
+}
+
+func (sto *shardStorage) shard(b *blobref.BlobRef) blobserver.Storage {
+	return sto.shards[int(sto.shardNum(b))]
+}
+
+func (sto *shardStorage) shardNum(b *blobref.BlobRef) uint32 {
+	return b.Sum32() % uint32(len(sto.shards))
+}
+
+func (sto *shardStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	return sto.shard(b).FetchStreaming(b)
+}
+
+func (sto *shardStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+	return sto.shard(b).ReceiveBlob(b, source)
+}
+
+func (sto *shardStorage) batchedShards(blobs []*blobref.BlobRef, fn func(blobserver.Storage, []*blobref.BlobRef) os.Error) os.Error {
+	m := make(map[uint32][]*blobref.BlobRef)
+	for _, b := range blobs {
+		sn := sto.shardNum(b)
+		m[sn] = append(m[sn], b)
+	}
+	ch := make(chan os.Error, len(m))
+	for sn := range m {
+		sblobs := m[sn]
+		s := sto.shards[sn]
+		go func() {
+			ch <- fn(s, sblobs)
+		}()
+	}
+	var reterr os.Error
+	for _ = range m {
+		if err := <-ch; err != nil {
+			reterr = err
+		}
+	}
+	return reterr
+}
+
+func (sto *shardStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) os.Error {
+		return s.Remove(blobs)
+	})
+}
+
+func (sto *shardStorage) Stat(dest chan<- blobref.SizedBlobRef,
+blobs []*blobref.BlobRef,
+waitSeconds int) os.Error {
+	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) os.Error {
+		return s.Stat(dest, blobs, waitSeconds)
+	})
+}
+
+func (sto *shardStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+after string,
+limit uint,
+waitSeconds int) os.Error {
+	return os.NewError("shard: TODO: NOT IMPLEMENTED")
 }
 
 func init() {

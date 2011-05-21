@@ -90,6 +90,18 @@ func (o *BlobRef) IsSupported() bool {
 	return ok
 }
 
+func (o *BlobRef) Sum32() uint32 {
+	var h32 uint32
+	n, err := fmt.Sscanf(o.digest[len(o.digest)-8:], "%8x", &h32)
+	if err != nil {
+		panic(err)
+	}
+	if n != 1 {
+		panic("sum32")
+	}
+	return h32
+}
+
 var kExpectedDigestSize = map[string]int{
 	"md5":  32,
 	"sha1": 40,
