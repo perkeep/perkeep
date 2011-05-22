@@ -71,7 +71,12 @@ func (sto *shardStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser,
 }
 
 func (sto *shardStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
-	return sto.shard(b).ReceiveBlob(b, source)
+	sb, err = sto.shard(b).ReceiveBlob(b, source)
+	if err == nil {
+		hub := sto.GetBlobHub()
+		hub.NotifyBlobReceived(b)
+	}
+	return
 }
 
 func (sto *shardStorage) batchedShards(blobs []*blobref.BlobRef, fn func(blobserver.Storage, []*blobref.BlobRef) os.Error) os.Error {
