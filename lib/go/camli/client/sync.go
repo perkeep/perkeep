@@ -20,35 +20,6 @@ import (
 	"camli/blobref"
 )
 
-// TODO: use Generics if/when available
-type chanPeeker struct {
-	ch     chan blobref.SizedBlobRef
-	peek   *blobref.SizedBlobRef
-	Closed bool
-}
-
-func (cp *chanPeeker) Peek() *blobref.SizedBlobRef {
-	if cp.Closed {
-		return nil
-	}
-	if cp.peek != nil {
-		return cp.peek
-	}
-	v, ok := <-cp.ch
-	if !ok {
-		cp.Closed = true
-		return nil
-	}
-	cp.peek = &v
-	return cp.peek
-}
-
-func (cp *chanPeeker) Take() *blobref.SizedBlobRef {
-	v := cp.Peek()
-	cp.peek = nil
-	return v
-}
-
 // ListMissingDestinationBlobs reads from 'srcch' and 'dstch' (sorted
 // enumerations of blobs from two blob servers) and sends to
 // 'destMissing' any blobs which appear on the source but not at the
@@ -56,8 +27,8 @@ func (cp *chanPeeker) Take() *blobref.SizedBlobRef {
 func ListMissingDestinationBlobs(destMissing, srcch, dstch chan blobref.SizedBlobRef) {
 	defer close(destMissing)
 
-	src := &chanPeeker{ch: srcch}
-	dst := &chanPeeker{ch: dstch}
+	src := &blobref.ChanPeeker{Ch: srcch}
+	dst := &blobref.ChanPeeker{Ch: dstch}
 
 	for src.Peek() != nil {
 		// If the destination has reached its end, anything
