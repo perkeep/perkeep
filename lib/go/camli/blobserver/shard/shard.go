@@ -103,19 +103,14 @@ func (sto *shardStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	})
 }
 
-func (sto *shardStorage) Stat(dest chan<- blobref.SizedBlobRef,
-blobs []*blobref.BlobRef,
-waitSeconds int) os.Error {
+func (sto *shardStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) os.Error {
 		return s.Stat(dest, blobs, waitSeconds)
 	})
 }
 
-func (sto *shardStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-after string,
-limit uint,
-waitSeconds int) os.Error {
-	return os.NewError("shard: TODO: NOT IMPLEMENTED")
+func (sto *shardStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+	return blobserver.MergedEnumerated(dest, sto.shards, after, limit, waitSeconds)
 }
 
 func init() {
