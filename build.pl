@@ -301,14 +301,16 @@ sub find_go_camli_deps {
     for my $f (@go_files) {
         open(my $fh, "$target/$f") or die "Failed to open $target/$f: $!";
         my $src = do { local $/; <$fh>; };
-        unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
-            die "Failed to parse imports from $target/$f.\n".
-                "No imports(...) block?  Um, add a fake one.  :)\n";
-        }
-        my $imports = $1;
-        while ($imports =~ m!"(camli\b.+?)"!g) {
-            my $dep = "lib/go/$1";
-            push @deps, $dep unless $seen{$dep}++;
+        if ($src =~ m!^import\b!m) {
+            unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
+                die "Failed to parse imports from $target/$f.\n".
+                    "No imports(...) block?  Um, add a fake one.  :)\n";
+            }
+            my $imports = $1;
+            while ($imports =~ m!"(camli\b.+?)"!g) {
+                my $dep = "lib/go/$1";
+                push @deps, $dep unless $seen{$dep}++;
+            }
         }
     }
 
