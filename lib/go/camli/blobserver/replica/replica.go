@@ -177,6 +177,7 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 		case res.err == nil && res.sb.Size == size:
 			nSuccess++
 			if nSuccess == sto.minWritesForSuccess {
+				sto.GetBlobHub().NotifyBlobReceived(b)
 				return res.sb, nil
 			}
 		case res.err == nil:
