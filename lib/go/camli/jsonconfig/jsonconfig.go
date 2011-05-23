@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package jsonconfig defines a helper type for JSON objects to be
+// used for configuration.
 package jsonconfig
 
 import (
@@ -22,12 +24,24 @@ import (
 	"strings"
 )
 
+// Obj is a JSON configuration map.
 type Obj map[string]interface{}
 
 func (jc Obj) RequiredObject(key string) Obj {
+	return jc.obj(key, false)
+}
+
+func (jc Obj) OptionalObject(key string) Obj {
+	return jc.obj(key, true)
+}
+
+func (jc Obj) obj(key string, optional bool) Obj {
 	jc.noteKnownKey(key)
         ei, ok := jc[key]
 	if !ok {
+		if optional {
+			return make(Obj)
+		}
 		jc.appendError(fmt.Errorf("Missing required config key %q (object)", key))
 		return make(Obj)
 	}
@@ -39,25 +53,21 @@ func (jc Obj) RequiredObject(key string) Obj {
 	return Obj(m)
 }
 
-// Optional object doesn't take a default; it always returns an empty map.
-func (jc Obj) OptionalObject(key string) Obj {
-	jc.noteKnownKey(key)
-        ei, ok := jc[key]
-	if !ok {
-		return make(Obj)
-	}
-	m, ok := ei.(map[string]interface{})
-	if !ok {
-		jc.appendError(fmt.Errorf("Expected config key %q to be an object, not %T", key, ei))
-		return make(Obj)
-	}
-	return Obj(m)
+func (jc Obj) RequiredString(key string) string {
+	return jc.string(key, nil)
 }
 
-func (jc Obj) RequiredString(key string) string {
+func (jc Obj) OptionalString(key, def string) string {
+	return jc.string(key, &def)
+}
+
+func (jc Obj) string(key string, def *string) string {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
  	if !ok {
+		if def != nil {
+			return *def
+		}
 		jc.appendError(fmt.Errorf("Missing required config key %q (string)", key))
 		return ""
 	}
@@ -69,24 +79,21 @@ func (jc Obj) RequiredString(key string) string {
 	return s
 }
 
-func (jc Obj) OptionalString(key, def string) string {
-	jc.noteKnownKey(key)
-	ei, ok := jc[key]
-	if !ok {
-		return def
-	}
-	s, ok := ei.(string)
-	if !ok {
-		jc.appendError(fmt.Errorf("Expected config key %q to be a string", key))
-		return ""
-	}
-	return s
+func (jc Obj) RequiredBool(key string) bool {
+	return jc.bool(key, nil)
 }
 
-func (jc Obj) RequiredBool(key string) bool {
+func (jc Obj) OptionalBool(key string, def bool) bool {
+	return jc.bool(key, &def)
+}
+
+func (jc Obj) bool(key string, def *bool) bool {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
 	if !ok {
+		if def != nil {
+			return *def
+		}
 		jc.appendError(fmt.Errorf("Missing required config key %q (boolean)", key))
 		return false
 	}
@@ -98,18 +105,31 @@ func (jc Obj) RequiredBool(key string) bool {
 	return b
 }
 
-func (jc Obj) OptionalBool(key string, def bool) bool {
+func (jc Obj) RequiredInt(key string) int {
+	return jc.int(key, nil)
+}
+
+func (jc Obj) OptionalInt(key string, def int) int {
+	return jc.int(key, &def)
+}
+
+func (jc Obj) int(key string, def *int) int {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
 	if !ok {
-		return def
+		if def != nil {
+			return *def
+		}
+		jc.appendError(fmt.Errorf("Missing required config key %q (integer)", key))
+		return 0
 	}
-	b, ok := ei.(bool)
+	b, ok := ei.(float64)
 	if !ok {
-		jc.appendError(fmt.Errorf("Expected config key %q to be a boolean", key))
-		return def
+		jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
+		return 0
 	}
-	return b
+	return int(b)
+
 }
 
 func (jc Obj) RequiredList(key string) []string {
