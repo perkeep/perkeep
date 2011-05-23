@@ -27,12 +27,15 @@ if ($opt_wipe && -d $root) {
     print "Wiping $root\n";
     system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
 }
-my ($bsroot, $s1root, $s2root) = ("$root/bs", "$root/s1", "$root/s2");
-for my $d ($bsroot, $s1root, $s2root) {
-    unless (-d $d) {
-        system("mkdir", "-p", $d) and die "Failed to create $d.\n";
+
+my $suffixdir = sub {
+    my $suffix = shift;
+    my $root = "$root/$suffix";
+    unless (-d $root) {
+        system("mkdir", "-p", $root) and die "Failed to create $root.\n";
     }
-}
+    return $root;
+};
 
 my $DBNAME = "devcamlistore";
 my @opts;
@@ -62,9 +65,12 @@ print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
 
 $ENV{CAMLI_BASEURL} = $base;
 $ENV{CAMLI_PASSWORD} = "pass$port";
-$ENV{CAMLI_ROOT} = $bsroot;
-$ENV{CAMLI_ROOT_SHARD1} = $s1root;
-$ENV{CAMLI_ROOT_SHARD2} = $s2root;
+$ENV{CAMLI_ROOT} = $suffixdir->("bs");
+$ENV{CAMLI_ROOT_SHARD1} = $suffixdir->("s1");
+$ENV{CAMLI_ROOT_SHARD2} = $suffixdir->("s2");
+$ENV{CAMLI_ROOT_REPLICA1} = $suffixdir->("r1");
+$ENV{CAMLI_ROOT_REPLICA2} = $suffixdir->("r2");
+$ENV{CAMLI_ROOT_REPLICA3} = $suffixdir->("r3");
 $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",

@@ -61,6 +61,35 @@
           }
      },
 
+      "/repl/": {
+          "handler": "replica",
+          "handlerArgs": {
+              "backends": ["/r1/", "/r2/", "/r3/"],
+              "minWritesForSuccess": 2
+          }
+      },
+
+     "/r1/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_REPLICA1}"]
+          }
+     },
+
+     "/r2/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_REPLICA2}"]
+          }
+     },
+
+     "/r3/": {
+         "handler": "filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_REPLICA3}"]
+          }
+     },
+
      "/indexer/": {
          "handler": "mysqlindexer",
          "handlerArgs": {
