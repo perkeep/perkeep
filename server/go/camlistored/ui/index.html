@@ -36,12 +36,25 @@
         <td><div id='verifyinfo'></div></td>
       </tr>
     </table>
+  </form>
+
+    <h2>Upload</h2>
+    <form method="POST" id='uploadform' enctype="multipart/form-data">
+      <input type="file" id="fileinput" multiple="true" name="file" disabled="true" />
+      <input type="submit" id="filesubmit" value="Upload" disabled="true" />
+    </form>
+    <script>
+    if (disco && disco.uploadHelper) {
+        document.getElementById("uploadform").action = disco.uploadHelper;
+        document.getElementById("fileinput").disabled = false;
+        document.getElementById("filesubmit").disabled = false;
+    }
+    </script>
 
     <h2>Search</h2>
     <p><input type="button" id="searchbtn" onclick="search()" value="Do Search" /></p>
     <div id="searchres" style="border: 2px solid gray">(search results)</div>
 
-  </form>
 
 </body>
 </html>

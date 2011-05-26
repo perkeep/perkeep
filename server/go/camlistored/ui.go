@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"http"
+	"io"
 	"json"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,6 +30,8 @@ import (
 	"camli/blobserver"
 	"camli/jsonconfig"
 )
+
+var _ = log.Printf
 
 var staticFilePattern = regexp.MustCompile(`/static/([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
 var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
@@ -97,10 +102,27 @@ func (hl *handlerLoader) createUIHandler(conf jsonconfig.Obj) (h http.Handler, e
 	return ui, nil
 }
 
+func camliMode(req *http.Request) string {
+	// TODO-GO: this is too hard to get at the GET Query args on a
+	// POST request.
+	m, err := http.ParseQuery(req.URL.RawQuery)
+	if err != nil {
+		return ""
+	}
+	if mode, ok := m["camli.mode"]; ok && len(mode) > 0 {
+		return mode[0]
+	}
+	return ""
+}
+
 func wantsDiscovery(req *http.Request) bool {
 	return req.Method == "GET" &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
-			req.FormValue("camli.mode") == "config")
+		camliMode(req) == "config")
+}
+
+func wantsUploadHelper(req *http.Request) bool {
+	return req.Method == "POST" && camliMode(req) == "uploadhelper"
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -108,6 +130,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch {
 	case wantsDiscovery(req):
 		ui.serveDiscovery(rw, req)
+	case wantsUploadHelper(req):
+		ui.serveUploadHelper(rw, req)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(req.URL.Path); m != nil {
@@ -130,9 +154,36 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
                 "blobRoot":   ui.BlobRoot,
                 "searchRoot": ui.SearchRoot,
                 "jsonSignRoot": ui.JSONSignRoot,
+                "uploadHelper": "?camli.mode=uploadhelper", // hack; remove with better javascript
         })
 	rw.Write(bytes)
 	if inCb {
 		rw.Write([]byte{')'})
+	}
+}
+
+func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
+	var buf bytes.Buffer
+	defer io.Copy(rw, &buf)
+
+	fmt.Fprintf(&buf, "<pre>\n")
+
+	mr, err := req.MultipartReader()
+	if err != nil {
+		fmt.Fprintf(&buf, "multipart reader: %v", err)
+		return
+	}
+
+	for {
+		part, err := mr.NextPart()
+		if err == os.EOF {
+			break
+		}
+		if err != nil {
+			buf.Reset()
+			http.Error(rw, "Multipart error: " + err.String(), 500)
+			break
+		}
+		fmt.Fprintf(&buf, "filename=%q, formname=%q\n", part.FileName(), part.FormName())
 	}
 }
