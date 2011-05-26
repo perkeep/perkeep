@@ -19,7 +19,6 @@ package schema
 import (
 	"bufio"
 	"bytes"
-	"camli/blobref"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -32,12 +31,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"camli/blobref"
 )
 
 var _ = log.Printf
 
-var NoCamliVersionError = os.NewError("No camliVersion key in map")
-var UnimplementedError = os.NewError("Unimplemented")
+var ErrNoCamliVersion = os.NewError("schema: no camliVersion key in map")
+var ErrUnimplemented = os.NewError("schema: unimplemented")
 
 type StatHasher interface {
 	Lstat(fileName string) (*os.FileInfo, os.Error)
@@ -47,8 +48,8 @@ type StatHasher interface {
 // Superset represents the superset of common camlistore JSON schema
 // keys as a convenient json.Unmarshal target
 type Superset struct {
-	BlobRef *blobref.BlobRef  // Not in JSON, but included for
-				  // those who want to set it.
+	BlobRef *blobref.BlobRef // Not in JSON, but included for
+	// those who want to set it.
 
 	Version int    "camliVersion"
 	Type    string "camliType"
@@ -63,34 +64,34 @@ type Superset struct {
 	Attribute string "attribute"
 	Value     string "value"
 
-	FileName      string "fileName"
+	FileName      string        "fileName"
 	FileNameBytes []interface{} "fileNameBytes" // TODO: needs custom UnmarshalJSON?
 
-	SymlinkTarget      string "symlinkTarget"
+	SymlinkTarget      string        "symlinkTarget"
 	SymlinkTargetBytes []interface{} "symlinkTargetBytes" // TODO: needs custom UnmarshalJSON?
 
 	UnixPermission string "unixPermission"
-	UnixOwnerId    int "unixOwnerId"
+	UnixOwnerId    int    "unixOwnerId"
 	UnixOwner      string "unixOwner"
-	UnixGroupId    int "unixGroupId"
+	UnixGroupId    int    "unixGroupId"
 	UnixGroup      string "unixGroup"
 	UnixMtime      string "unixMtime"
 	UnixCtime      string "unixCtime"
 	UnixAtime      string "unixAtime"
 
-	Size  uint64 "size"  // for files
+	Size         uint64         "size" // for files
 	ContentParts []*ContentPart "contentParts"
 
-	Entries   string "entries" // for directories, a blobref to a static-set
+	Entries string   "entries" // for directories, a blobref to a static-set
 	Members []string "members" // for static sets (for directory static-sets:
-	                           // blobrefs to child dirs/files)
+	// blobrefs to child dirs/files)
 }
 
 type ContentPart struct {
-	BlobRefString string "blobRef"
-	BlobRef       *blobref.BlobRef  // TODO: ditch BlobRefString? use json.Unmarshaler?
-	Size          uint64 "size"
-	Offset        uint64 "offset"
+	BlobRefString string           "blobRef"
+	BlobRef       *blobref.BlobRef // TODO: ditch BlobRefString? use json.Unmarshaler?
+	Size          uint64           "size"
+	Offset        uint64           "offset"
 }
 
 func (cp *ContentPart) blobref() *blobref.BlobRef {
@@ -109,7 +110,7 @@ func stringFromMixedArray(parts []interface{}) string {
 		}
 		if num, ok := part.(float64); ok {
 			buf.WriteByte(byte(num))
-                        continue
+			continue
 		}
 	}
 	return buf.String()
@@ -154,8 +155,8 @@ func (ss *Superset) UnixMode() (mode uint32) {
 type FileReader struct {
 	fetcher blobref.Fetcher
 	ss      *Superset
-	ci      int     // index into contentparts
-	ccon    uint64  // bytes into current chunk already consumed
+	ci      int    // index into contentparts
+	ccon    uint64 // bytes into current chunk already consumed
 }
 
 func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
@@ -203,7 +204,7 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 
 	br := cp.blobref()
 	if br == nil {
-			return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
+		return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
 	}
 	// TODO: performance: don't re-fetch this on every
 	// Read call.  most parts will be large relative to
@@ -215,7 +216,7 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
 	}
 	defer rsc.Close()
-	
+
 	seekTo := cp.Offset + fr.ccon
 	if seekTo != 0 {
 		_, serr := rsc.Seek(int64(seekTo), 0)
@@ -309,7 +310,7 @@ func (ss *StaticSet) Map() map[string]interface{} {
 func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
-		return "", NoCamliVersionError
+		return "", ErrNoCamliVersion
 	}
 	m["camliVersion"] = 0, false
 	jsonBytes, err := json.MarshalIndent(m, "", "  ")
@@ -474,7 +475,7 @@ func NanosFromRFC3339(timestr string) int64 {
 			return -1
 		}
 		simple3339 = timestr[:dotpos] + "Z"
-		nanostr = timestr[dotpos+1:len(timestr)-1]
+		nanostr = timestr[dotpos+1 : len(timestr)-1]
 		if needDigits := 9 - len(nanostr); needDigits > 0 {
 			nanostr = nanostr + "000000000"[:needDigits]
 		}
@@ -484,7 +485,7 @@ func NanosFromRFC3339(timestr string) int64 {
 		return -1
 	}
 	nanos, _ := strconv.Atoi64(nanostr)
-	return t.Seconds() * 1e9 + nanos
+	return t.Seconds()*1e9 + nanos
 }
 
 func populateMap(m map[int]string, file string) {

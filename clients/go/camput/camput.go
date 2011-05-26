@@ -143,7 +143,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 	case fi.IsFifo():
 		fallthrough
 	default:
-		return nil, schema.UnimplementedError
+		return nil, schema.ErrUnimplemented
 	}
 
 	mappr, err := up.UploadMap(m)
