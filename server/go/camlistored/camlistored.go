@@ -270,6 +270,19 @@ func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, os.Error
 	return nil, fmt.Errorf("bogus storage handler referenced as %q", prefix)
 }
 
+func (hl *handlerLoader) GetHandler(prefix string) (http.Handler, os.Error) {
+	hl.setupHandler(prefix)
+	if h, ok := hl.handler[prefix].(http.Handler); ok {
+		return h, nil
+	}
+	return nil, fmt.Errorf("bogus http handler referenced as %q", prefix)
+}
+
+func (hl *handlerLoader) GetHandlerType(prefix string) string {
+	hl.setupHandler(prefix)
+	return hl.configType(prefix)
+}
+
 func (hl *handlerLoader) setupHandler(prefix string) {
 	h, ok := hl.config[prefix]
 	if !ok {
@@ -290,28 +303,21 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
 		}
 	}()
-	installHandler := func(creator func(*handlerLoader, jsonconfig.Obj) (h http.Handler, err os.Error)) {
-		hh, err := creator(hl, h.conf)
-		if err != nil {
-			exitFailure("error instantiating handler for prefix %s: %v",
-				prefix, err)
-		}
-		hl.handler[prefix] = hh
-		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
-	}
 	checkConfig := func() {
 		if err := h.conf.Validate(); err != nil {
 			exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", prefix, err)
 		}
 	}
 	switch h.htype {
-	case "root":
-		installHandler((*handlerLoader).createRootHandler)
-	case "ui":
-		installHandler((*handlerLoader).createUIHandler)
-	case "jsonsign":
-		installHandler((*handlerLoader).createJSONSignHandler)
-	case "search":
+	case "ui", "root", "jsonsign":
+		hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating handler for prefix %q, type %q: %v",
+				h.prefix, h.htype, err)
+		}
+		hl.handler[prefix] = hh
+		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
+	case "search": // TODO: use blobserver registry
 		indexPrefix := h.conf.RequiredString("index") // TODO: add optional help tips here?
 		ownerBlobStr := h.conf.RequiredString("owner")
 		checkConfig()
@@ -327,7 +333,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		searchh := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
 		hl.handler[h.prefix] = searchh
 		hl.ws.HandleFunc(prefix+"camli/", searchh)
-	case "sync":
+	case "sync": // TODO: use blobserver registry
 		from := h.conf.RequiredString("from")
 		to := h.conf.RequiredString("to")
 		checkConfig()

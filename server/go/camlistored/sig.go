@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"camli/blobref"
+	"camli/blobserver"
 	"camli/blobserver/handlers"
 	"camli/httputil"
 	"camli/jsonconfig"
@@ -63,7 +64,11 @@ func (h *JSONSignHandler) secretRingPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gog")
 }
 
-func (hl *handlerLoader) createJSONSignHandler(conf jsonconfig.Obj) (http.Handler, os.Error) {
+func init() {
+	blobserver.RegisterHandlerConstructor("jsonsign", newJsonSignFromConfig)
+}
+
+func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, os.Error) {
 	h := &JSONSignHandler{
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
 		secretRing: conf.OptionalString("secretRing", ""),

@@ -21,6 +21,7 @@ import (
 	"http"
 	"os"
 
+	"camli/blobserver"
 	"camli/jsonconfig"
 )
 
@@ -34,7 +35,11 @@ type RootHandler struct {
 	OfferSetup bool
 }
 
-func (hl *handlerLoader) createRootHandler(conf jsonconfig.Obj) (h http.Handler, err os.Error) {
+func init() {
+	blobserver.RegisterHandlerConstructor("root", newRootFromConfig)
+}
+
+func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	root := &RootHandler{}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	if err = conf.Validate(); err != nil {
