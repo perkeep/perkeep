@@ -102,7 +102,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 			// TODO: handle races of file changing while reading it
 			// after the stat.
 		}
-		if err = schema.PopulateRegularFileMap(m, fi, parts); err != nil {
+		if err = schema.PopulateRegularFileMap(m, fi.Size, parts); err != nil {
 			return nil, err
 		}
 	case fi.IsSymlink():

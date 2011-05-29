@@ -64,6 +64,8 @@ type Superset struct {
 	Attribute string "attribute"
 	Value     string "value"
 
+	// TODO: ditch both the FooBytes variants below. a string doesn't have to be UTF-8.
+
 	FileName      string        "fileName"
 	FileNameBytes []interface{} "fileNameBytes" // TODO: needs custom UnmarshalJSON?
 
@@ -238,9 +240,8 @@ func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 	return string(buf.Bytes()), nil
 }
 
-func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
+func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	m := newCamliMap(1, "" /* no type yet */ )
-
 	lastSlash := strings.LastIndex(fileName, "/")
 	baseName := fileName[lastSlash+1:]
 	if isValidUtf8(baseName) {
@@ -248,7 +249,11 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 	} else {
 		m["fileNameBytes"] = []uint8(baseName)
 	}
+	return m
+}
 
+func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
+	m := NewCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
 	if !fi.IsSymlink() {
 		m["unixPermission"] = fmt.Sprintf("0%o", fi.Permission())
@@ -285,9 +290,9 @@ func (e *InvalidContentPartsError) String() string {
 	return fmt.Sprintf("Invalid ContentPart slice in PopulateRegularFileMap; file stat size is %d but sum of parts was %d", e.StatSize, e.SumOfParts)
 }
 
-func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []ContentPart) os.Error {
+func PopulateRegularFileMap(m map[string]interface{}, size int64, parts []ContentPart) os.Error {
 	m["camliType"] = "file"
-	m["size"] = fi.Size
+	m["size"] = size
 
 	sumSize := uint64(0)
 	mparts := make([]map[string]interface{}, len(parts))
@@ -301,8 +306,8 @@ func PopulateRegularFileMap(m map[string]interface{}, fi *os.FileInfo, parts []C
 			mpart["offset"] = part.Offset
 		}
 	}
-	if sumSize != uint64(fi.Size) {
-		return &InvalidContentPartsError{fi.Size, int64(sumSize)}
+	if sumSize != uint64(size) {
+		return &InvalidContentPartsError{size, int64(sumSize)}
 	}
 	m["contentParts"] = mparts
 	return nil
