@@ -29,6 +29,7 @@ import (
 
 	"camli/blobserver"
 	"camli/jsonconfig"
+	"camli/schema"
 )
 
 var _ = log.Printf
@@ -46,6 +47,8 @@ type UIHandler struct {
 	JSONSignRoot string
 
 	FilesDir string
+
+	Storage blobserver.Storage // of BlobRoot
 }
 
 func defaultFilesDir() string {
@@ -87,10 +90,11 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	}
 
 	if ui.BlobRoot != "" {
-		_, err := ld.GetStorage(ui.BlobRoot)
+		bs, err := ld.GetStorage(ui.BlobRoot)
 		if err != nil {
 			return nil, fmt.Errorf("UI handler's blobRoot of %q error: %v", ui.BlobRoot, err)
 		}
+		ui.Storage = bs
 	}
 
 	fi, sterr := os.Stat(ui.FilesDir)
@@ -117,7 +121,7 @@ func camliMode(req *http.Request) string {
 func wantsDiscovery(req *http.Request) bool {
 	return req.Method == "GET" &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
-		camliMode(req) == "config")
+			camliMode(req) == "config")
 }
 
 func wantsUploadHelper(req *http.Request) bool {
@@ -150,11 +154,11 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		inCb = true
 	}
 	bytes, _ := json.Marshal(map[string]interface{}{
-                "blobRoot":   ui.BlobRoot,
-                "searchRoot": ui.SearchRoot,
-                "jsonSignRoot": ui.JSONSignRoot,
-                "uploadHelper": "?camli.mode=uploadhelper", // hack; remove with better javascript
-        })
+		"blobRoot":     ui.BlobRoot,
+		"searchRoot":   ui.SearchRoot,
+		"jsonSignRoot": ui.JSONSignRoot,
+		"uploadHelper": "?camli.mode=uploadhelper", // hack; remove with better javascript
+	})
 	rw.Write(bytes)
 	if inCb {
 		rw.Write([]byte{')'})
@@ -162,6 +166,10 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
+	if ui.Storage == nil {
+		http.Error(rw, "No BlobRoot configured", 500)
+		return
+	}
 	var buf bytes.Buffer
 	defer io.Copy(rw, &buf)
 
@@ -180,9 +188,12 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		}
 		if err != nil {
 			buf.Reset()
-			http.Error(rw, "Multipart error: " + err.String(), 500)
+			http.Error(rw, "Multipart error: "+err.String(), 500)
 			break
 		}
-		fmt.Fprintf(&buf, "filename=%q, formname=%q\n", part.FileName(), part.FormName())
+		br, err := schema.WriteFileFromReader(ui.Storage, part.FileName(), part)
+
+		fmt.Fprintf(&buf, "filename=%q, formname=%q, br=%s, err=%v\n", part.FileName(), part.FormName(), br, err)
+
 	}
 }
