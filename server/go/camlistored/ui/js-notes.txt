@@ -1,0 +1,16 @@
+FormData
+http://hacks.mozilla.org/2010/05/formdata-interface-coming-to-firefox/
+
+window.atob / window.btoa
+https://developer.mozilla.org/en/DOM/window.atob
+http://demos.hacks.mozilla.org/openweb/imageUploader/js/extends/xhr.js
+
+File Writer
+http://www.w3.org/TR/file-writer-api/
+
+File API
+http://www.w3.org/TR/2009/WD-FileAPI-20091117/
+
+Uint8Array
+https://developer.mozilla.org/en/JavaScript_typed_arrays/Uint8Array
+
