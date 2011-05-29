@@ -18,7 +18,6 @@ package client
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"fmt"
 	"http"
 	"io"
@@ -131,11 +130,9 @@ func parseStatResponse(r io.Reader) (sr *statResponse, outerr os.Error) {
 }
 
 func NewUploadHandleFromString(data string) *UploadHandle {
-	s1 := sha1.New()
-	s1.Write([]byte(data))
-	bref := blobref.FromHash("sha1", s1)
-	buf := bytes.NewBufferString(data)
-	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: buf}
+	bref := blobref.Sha1FromString(data)
+	r := strings.NewReader(data)
+	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: r}
 }
 
 func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[string]interface{}, os.Error) {
