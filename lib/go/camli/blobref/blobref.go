@@ -48,6 +48,14 @@ type SizedBlobRef struct {
 	Size int64
 }
 
+func (sb *SizedBlobRef) Equal(o SizedBlobRef) bool {
+	return sb.Size == o.Size && sb.BlobRef.String() == o.BlobRef.String()
+}
+
+func (sb *SizedBlobRef) String() string {
+	return fmt.Sprintf("[%s %d bytes]", sb.BlobRef.String(), sb.Size)
+}
+
 type ReadSeekCloser interface {
 	io.Reader
 	io.Seeker
@@ -122,8 +130,14 @@ func blobIfValid(hashname, digest string) *BlobRef {
 	return newBlob(hashname, digest)
 }
 
-func FromHash(name string, h hash.Hash) *BlobRef {
-	return newBlob(name, fmt.Sprintf("%x", h.Sum()))
+func FromHash(hashfunc string, h hash.Hash) *BlobRef {
+	return newBlob(hashfunc, fmt.Sprintf("%x", h.Sum()))
+}
+
+func Sha1FromString(s string) *BlobRef {
+	s1 := sha1.New()
+	s1.Write([]byte(s))
+	return FromHash("sha1", s1)
 }
 
 // FromPattern takes a pattern and if it matches 's' with two exactly two valid
