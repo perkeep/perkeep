@@ -255,7 +255,7 @@ func main() {
 	up := &Uploader{
 		Client: cc,
 		entityFetcher: &jsonsign.CachingEntityFetcher{
-			Fetcher: jsonsign.FlagEntityFetcher(),
+			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
 	}
 	switch {

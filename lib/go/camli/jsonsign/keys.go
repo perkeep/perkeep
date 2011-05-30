@@ -17,11 +17,14 @@ limitations under the License.
 package jsonsign
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"io"
+	"crypto/openpgp"
 	"crypto/openpgp/armor"
 	"crypto/openpgp/packet"
+	"path/filepath"
 	"strings"
 )
 
@@ -66,4 +69,56 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, os.Error
 		return nil, os.NewError(fmt.Sprintf("Invalid public key blob; not a public key packet"))
 	}
 	return pk, nil
+}
+
+func DefaultSecRingPath() string {
+	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
+}
+
+// keyFile defaults to $HOME/.gnupg/secring.gpg
+func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, os.Error) {
+	keyId = strings.ToUpper(keyId)
+	if keyFile == "" {
+		keyFile = DefaultSecRingPath()
+	}
+	secring, err := os.Open(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("jsonsign: failed to open keyring: %v", err)
+	}
+	defer secring.Close()
+
+	el, err := openpgp.ReadKeyRing(secring)
+	if err != nil {
+		return nil, fmt.Errorf("openpgp.ReadKeyRing of %q: %v", keyFile, err)
+	}
+	var entity *openpgp.Entity
+	for _, e := range el {
+		pk := e.PrivateKey
+		if pk == nil || (pk.KeyIdString() != keyId && pk.KeyIdShortString() != keyId) {
+			continue
+		}
+		entity = e
+	}
+	if entity == nil {
+		return nil, fmt.Errorf("didn't find a key in %q for keyId %q", keyFile, keyId)
+	}
+	if entity.PrivateKey.Encrypted {
+		// TODO: support decrypting this
+		return nil, fmt.Errorf("jsonsign: encrypted keys aren't yet supported")
+	}
+	return entity, nil
+}
+
+func ArmoredPublicKey(entity *openpgp.Entity) (string, os.Error) {
+	var buf bytes.Buffer
+	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return "", err
+	}
+	err = entity.PrivateKey.PublicKey.Serialize(wc)
+	if err != nil {
+		return "", err
+	}
+	wc.Close()
+	return buf.String(), nil
 }

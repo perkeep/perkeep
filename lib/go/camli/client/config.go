@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"json"
 	"log"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,8 @@ import (
 
 	"camli/blobref"
 	"camli/errorutil"
+	"camli/jsonconfig"
+	"camli/jsonsign"
 	"camli/osutil"
 )
 
@@ -45,7 +48,8 @@ var configOnce sync.Once
 var config = make(map[string]interface{})
 
 func parseConfig() {
-	f, err := os.Open(ConfigFilePath())
+	configPath := ConfigFilePath()
+	f, err := os.Open(configPath)
 	switch {
 	case err != nil && err.(*os.PathError).Error.(os.Errno) == syscall.ENOENT:
 		// TODO: write empty file?
@@ -53,23 +57,26 @@ func parseConfig() {
 	case err != nil:
 		log.Printf("Error opening config file %q: %v", ConfigFilePath(), err)
 		return
-	default:
-		defer f.Close()
-		dj := json.NewDecoder(f)
-		if err := dj.Decode(&config); err != nil {
-			extra := ""
-			if serr, ok := err.(*json.SyntaxError); ok {
-				if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
-					log.Fatalf("seek error: %v", serr)
-				}
-				line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
-				extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
-					line, col, serr.Offset, highlight)
-			}
-			log.Printf("error parsing JSON object in config file %s%s\n%v",
-				ConfigFilePath(), extra, err)
-		}
 	}
+	defer f.Close()
+	dj := json.NewDecoder(f)
+	if err := dj.Decode(&config); err != nil {
+		extra := ""
+		if serr, ok := err.(*json.SyntaxError); ok {
+			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
+				log.Fatalf("seek error: %v", serr)
+			}
+			line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
+			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
+				line, col, serr.Offset, highlight)
+		}
+		log.Fatalf("error parsing JSON object in config file %s%s\n%v",
+			ConfigFilePath(), extra, err)
+	}
+	if err := jsonconfig.EvaluateExpressions(config); err != nil {
+		log.Fatalf("error expanding JSON config expressions in %s: %v", configPath, err)
+	}
+
 }
 
 func cleanServer(server string) string {
@@ -129,26 +136,62 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 	return SignerPublicKeyBlobref()
 }
 
+func (c *Client) SecretRingFile() string {
+	configOnce.Do(parseConfig)
+	keyRing, ok := config["secretRing"].(string)
+	if ok && keyRing != "" {
+		return keyRing
+	}
+	return jsonsign.DefaultSecRingPath()
+}
+
 // TODO: move to config package?
 func SignerPublicKeyBlobref() *blobref.BlobRef {
 	configOnce.Do(parseConfig)
-	key := "publicKeyBlobref"
-	v, ok := config[key]
+	key := "keyId"
+	keyId, ok := config[key].(string)
 	if !ok {
 		log.Printf("No key %q in JSON configuration file %q; have you run \"camput --init\"?", key, ConfigFilePath())
 		return nil
 	}
-	s, ok := v.(string)
+	keyRing, _ := config["secretRing"].(string)
+
+	entity, err := jsonsign.EntityFromSecring(keyId, keyRing)
+	if err != nil {
+		log.Printf("Couldn't find keyId %q in secret ring: %v", err)
+		return nil
+	}
+	armored, err := jsonsign.ArmoredPublicKey(entity)
+	if err != nil {
+		log.Printf("Error serializing public key: %v", err)
+		return nil
+	}
+
+	selfPubKeyDir, ok := config["selfPubKeyDir"].(string)
 	if !ok {
-		log.Printf("Expected a string value for key %q in JSON file %q",
-			key, ConfigFilePath())
+		log.Printf("No 'selfPubKeyDir' defined in %q", ConfigFilePath())
+		return nil
 	}
-	ref := blobref.Parse(s)
-	if ref == nil {
-		log.Printf("Bogus value %#v for key %q in file %q; not a valid blobref",
-			s, key, ConfigFilePath())
+	fi, err := os.Stat(selfPubKeyDir)
+	if err != nil || !fi.IsDirectory() {
+		log.Printf("selfPubKeyDir of %q doesn't exist or not a directory", selfPubKeyDir)
+		return nil
 	}
-	return ref
+
+	br := blobref.Sha1FromString(armored)
+
+	pubFile := filepath.Join(selfPubKeyDir, br.String() + ".camli")
+	log.Printf("key file: %q", pubFile)
+	fi, err = os.Stat(pubFile)
+	if err != nil {
+		err = ioutil.WriteFile(pubFile, []byte(armored), 0644)
+		if err != nil {
+			log.Printf("Error writing public key to %q: %v", pubFile, err)
+			return nil
+		}
+	}
+
+	return br
 }
 
 func (c *Client) GetBlobFetcher() blobref.Fetcher {

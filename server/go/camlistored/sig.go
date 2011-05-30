@@ -17,10 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/openpgp"
-	"crypto/openpgp/armor"
 	"fmt"
 	"http"
 	"log"
@@ -61,7 +59,7 @@ func (h *JSONSignHandler) secretRingPath() string {
 	if h.secretRing != "" {
 		return h.secretRing
 	}
-	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gog")
+	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
 }
 
 func init() {
@@ -73,43 +71,17 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
 		secretRing: conf.OptionalString("secretRing", ""),
 	}
-	if err := conf.Validate(); err != nil {
+	var err os.Error
+	if err = conf.Validate(); err != nil {
 		return nil, err
 	}
 
-	secring, err := os.Open(h.secretRingPath())
-	if err != nil {
-		return nil, fmt.Errorf("secretRing file: %v", err)
-	}
-	defer secring.Close()
-	el, err := openpgp.ReadKeyRing(secring)
-	if err != nil {
-		return nil, fmt.Errorf("openpgp.ReadKeyRing of %q: %v", h.secretRingPath(), err)
-	}
-	for _, e := range el {
-		pk := e.PrivateKey
-		if pk == nil || (pk.KeyIdString() != h.keyId && pk.KeyIdShortString() != h.keyId) {
-			continue
-		}
-		h.entity = e
-	}
-	if h.entity == nil {
-		return nil, fmt.Errorf("didn't find a key in %q for keyId %q", h.secretRingPath(), h.keyId)
-	}
-	if h.entity.PrivateKey.Encrypted {
-		// TODO: support decrypting this
-		return nil, fmt.Errorf("Encrypted keys aren't yet supported")
-	}
-
-	var buf bytes.Buffer
-	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
+	h.entity, err = jsonsign.EntityFromSecring(h.keyId, h.secretRingPath())
 	if err != nil {
 		return nil, err
 	}
-	h.entity.PrivateKey.PublicKey.Serialize(wc)
-	wc.Close()
+	armoredPublicKey, err := jsonsign.ArmoredPublicKey(h.entity)
 
-	armoredPublicKey := buf.String()
 	ms := new(blobref.MemoryStore)
 	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, armoredPublicKey)
 	if err != nil {
