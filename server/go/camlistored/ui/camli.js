@@ -60,6 +60,45 @@ function camliSigDiscovery(opts) {
     xhr.send();
 }
 
+function camliDescribeBlob(blobref, opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            opts.fail("got HTTP status " + xhr.status);
+            return;
+        }
+        var jres;
+        try {
+            jres = JSON.parse(xhr.responseText);
+        } catch (x) {
+            opts.fail("JSON parse error");
+            return;
+        }
+        opts.success(jres);
+    };
+    var path = disco.searchRoot + "camli/search/describe?blobref=" + blobref;
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
+function camliGetBlobContents(blobref, opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            opts.fail("got HTTP status " + xhr.status);
+            return;
+        }
+        opts.success(xhr.responseText);
+    };
+    var path = disco.blobRoot + "camli/" + blobref;
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliSign(clearObj, opts) {
     opts = saneOpts(opts);
 
@@ -160,3 +199,19 @@ function camliCreateNewPermanode(opts) {
                });
 }
 
+// Returns the first value from the query string corresponding to |key|.
+// Returns null if the key isn't present.
+function getQueryParam(key) {
+    var params = document.location.search.substring(1).split('&');
+    for (var i = 0; i < params.length; ++i) {
+        var parts = params[i].split('=');
+        if (parts.length == 2 && decodeURIComponent(parts[0]) == key)
+            return decodeURIComponent(parts[1]);
+    }
+    return null;
+}
+
+// Returns true if the passed-in string might be a blobref.
+function isPlausibleBlobRef(blobRef) {
+    return /^\w+-[a-f0-9]+$/.test(blobRef);
+}

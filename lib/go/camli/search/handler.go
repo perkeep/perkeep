@@ -143,18 +143,19 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 	}
 
 	mime, size, err := sh.index.GetBlobMimeType(br)
-	if err != nil {
-		// TODO: special error value for not found
-		ret["errorText"] = err.String()
-	} else {
-		m := dmap(br)
-		setMimeType(m, mime)
-		m["size"] = size
+	if err != os.ENOENT {
+		if err != nil {
+			ret["errorText"] = err.String()
+		} else {
+			m := dmap(br)
+			setMimeType(m, mime)
+			m["size"] = size
 
-		if mime == "application/json; camliType=permanode" {
-			pm := make(jsonMap)
-			m["permanode"] = pm
-			sh.populatePermanodeFields(pm, br, sh.owner, dmap)
+			if mime == "application/json; camliType=permanode" {
+				pm := make(jsonMap)
+				m["permanode"] = pm
+				sh.populatePermanodeFields(pm, br, sh.owner, dmap)
+			}
 		}
 	}
 

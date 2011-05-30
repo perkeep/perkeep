@@ -133,6 +133,10 @@ func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
 
+func wantsBlobInfo(req *http.Request) bool {
+	return req.Method == "GET" && blobref.Parse(req.FormValue("b")) != nil
+}
+
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
@@ -147,13 +151,18 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
-		} else if wantsPermanode(req) {
-			file = "permanode.html"
-		} else if req.URL.Path == base {
-			file = "index.html"
 		} else {
-			http.Error(rw, "Illegal URL.", 404)
-			return
+			switch {
+			case wantsPermanode(req):
+				file = "permanode.html"
+			case wantsBlobInfo(req):
+				file = "blobinfo.html"
+			case req.URL.Path == base:
+				file = "index.html"
+			default:
+				http.Error(rw, "Illegal URL.", 404)
+				return
+			}
 		}
 		http.ServeFile(rw, req, filepath.Join(ui.FilesDir, file))
 	}

@@ -14,27 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Returns the first value from the query string corresponding to |key|.
-// Returns null if the key isn't present.
-function getQueryParam(key) {
-  var params = document.location.search.substring(1).split('&');
-  for (var i = 0; i < params.length; ++i) {
-    var parts = params[i].split('=');
-    if (parts.length == 2 && decodeURIComponent(parts[0]) == key)
-      return decodeURIComponent(parts[1]);
-  }
-  return null;
-}
-
-// Returns true if the passed-in string might be a blobref.
-function isPlausibleBlobRef(blobRef) {
-  return /^\w+-[a-f0-9]+$/.test(blobRef);
-}
-
 // Gets the |p| query parameter, assuming that it looks like a blobref.
 function getPermanodeParam() {
-  var blobRef = getQueryParam('p');
-  return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
+    var blobRef = getQueryParam('p');
+    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
 window.addEventListener("load", function (e) {
