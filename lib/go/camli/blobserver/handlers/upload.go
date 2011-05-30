@@ -30,6 +30,14 @@ import (
 	"strings"
 )
 
+// We used to require that multipart sections had a content type and
+// filename to make App Engine happy. Now that App Engine supports up
+// to 32 MB requests and programatic blob writing we can just do this
+// ourselves and stop making compromises in the spec.  Also because
+// the JavaScript FormData spec (http://www.w3.org/TR/XMLHttpRequest2/)
+// doesn't let you set those.
+const oldAppEngineHappySpec = false
+
 func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) func(http.ResponseWriter, *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
 		handleMultiPartUpload(conn, req, storage)
@@ -85,16 +93,18 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			continue
 		}
 
-		_, hasContentType := mimePart.Header["Content-Type"]
-		if !hasContentType {
-			addError(fmt.Sprintf("Expected Content-Type header for blobref %s; see spec", ref))
-			continue
-		}
+		if oldAppEngineHappySpec {
+			_, hasContentType := mimePart.Header["Content-Type"]
+			if !hasContentType {
+				addError(fmt.Sprintf("Expected Content-Type header for blobref %s; see spec", ref))
+				continue
+			}
 
-		_, hasFileName := params["filename"]
-		if !hasFileName {
-			addError(fmt.Sprintf("Expected 'filename' Content-Disposition parameter for blobref %s; see spec", ref))
-			continue
+			_, hasFileName := params["filename"]
+			if !hasFileName {
+				addError(fmt.Sprintf("Expected 'filename' Content-Disposition parameter for blobref %s; see spec", ref))
+				continue
+			}
 		}
 
 		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart)
