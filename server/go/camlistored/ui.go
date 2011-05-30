@@ -34,7 +34,7 @@ import (
 
 var _ = log.Printf
 
-var staticFilePattern = regexp.MustCompile(`/static/([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+var staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
 var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 
 // UIHandler handles serving the UI and discovery JSON.
@@ -129,6 +129,9 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	base := req.Header.Get("X-PrefixHandler-PathBase")
+	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+
 	rw.Header().Set("Vary", "Accept")
 	switch {
 	case wantsDiscovery(req):
@@ -137,10 +140,13 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveUploadHelper(rw, req)
 	default:
 		file := ""
-		if m := staticFilePattern.FindStringSubmatch(req.URL.Path); m != nil {
+		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
-		} else {
+		} else if req.URL.Path == base {
 			file = "index.html"
+		} else {
+			http.Error(rw, "Illegal URL.", 404)
+			return
 		}
 		http.ServeFile(rw, req, filepath.Join(ui.FilesDir, file))
 	}

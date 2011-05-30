@@ -1,42 +1,15 @@
 <html>
 <head>
   <title>Camlistored UI</title>
-  <script src="static/ui.js"></script>
+  <script src="ui.js"></script>
   <script src="?camli.mode=config&cb=onConfiguration"></script>
 </head>
 <body>
   <h1>Camlistored UI</h1>
-
-  <form>
-    <h2>Root Discovery</h2>
-    <p><input type="button" id="discobtn" onclick="discover()" value="Do Discovery" /></p>
-    <div id="discores" style="border: 2px solid gray">(discovery results)</div>
-
-
-    <h2>Signing</h2>
-    <p><input type="button" id="sigdiscobtn" onclick="discoverJsonSign()" value="Do jsonSign discovery" /></p>
-    <div id="sigdiscores" style="border: 2px solid gray">(jsonsign discovery results)</div>
-
-    <table>
-      <tr align='left'>
-        <th>JSON blob to sign: <input type='button' id='addkeyref' onclick='addKeyRef()' value="Add keyref"/></th>
-        <th></th>
-        <th>Signed blob:</th>
-        <th></th>
-        <th>Verification details:</th>
-      </tr>
-      <tr>
-        <td><textarea id='clearjson' rows=10 cols=40>{"camliVersion": 1,
- "camliType": "whatever",
- "foo": "bar"
-}</textarea></td>
-        <td valign='middle'><input type='button' id='sign' onclick='doSign()' value="Sign &gt;&gt;" /></td>
-        <td><textarea id="signedjson" rows=10 cols=40></textarea></td>
-        <td valign='middle'><input type='button' id='sign' onclick='doVerify()' value="Verify &gt;&gt;" /></td>
-        <td><div id='verifyinfo'></div></td>
-      </tr>
-    </table>
-  </form>
+  <p>[<b>Debug:</b>
+<a href="disco.html">discovery</a> |
+<a href="signing.html">signing</a> |
+<a href="search.html">search</a>]</p>
 
     <h2>Upload</h2>
     <form method="POST" id='uploadform' enctype="multipart/form-data">
@@ -50,10 +23,6 @@
         document.getElementById("filesubmit").disabled = false;
     }
     </script>
-
-    <h2>Search</h2>
-    <p><input type="button" id="searchbtn" onclick="search()" value="Do Search" /></p>
-    <div id="searchres" style="border: 2px solid gray">(search results)</div>
 
 
 </body>

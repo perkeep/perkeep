@@ -1,0 +1,19 @@
+<html>
+<head>
+  <title>Camlistored UI</title>
+  <script src="ui.js"></script>
+  <script src="./?camli.mode=config&cb=onConfiguration"></script>
+</head>
+<body>
+  <form>
+    <h2>Root Discovery</h2>
+    <p><input type="button" id="discobtn" onclick="discover()" value="Do Discovery" /></p>
+    <div id="discores" style="border: 2px solid gray">(discovery results)</div>
+
+
+    <h2>Signing Discovery</h2>
+    <p><input type="button" id="sigdiscobtn" onclick="discoverJsonSign()" value="Do jsonSign discovery" /></p>
+    <div id="sigdiscores" style="border: 2px solid gray">(jsonsign discovery results)</div>
+  </form>
+</body>
+</html>
