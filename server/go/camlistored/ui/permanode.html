@@ -1,0 +1,18 @@
+<html>
+<head>
+  <title>Permanode</title>
+  <script type="text/javascript" src="permanode.js"></script>
+  <script type="text/javascript">
+    function fillPage() {
+      var permanode = getPermanodeParam();
+      if (permanode) {
+        document.getElementById('permanode').innerText = permanode;
+      }
+    }
+  </script>
+</head>
+<body onload="fillPage();">
+  <h1>Permanode</h1>
+  <p><span id="permanode"></span></p>
+</body>
+</html>
