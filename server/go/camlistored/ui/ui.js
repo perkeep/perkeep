@@ -106,7 +106,6 @@ function camliSign(clearObj, opts) {
         });
 }
 
-
 function search() {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
@@ -177,12 +176,13 @@ function createNewPermanode() {
                            got,
                            {
                                success: function(blobref) {
-                                   alert("uploaded permanode blobref: " + blobref);
+                                   // alert("uploaded permanode blobref: " + blobref);
+                                   window.location = "./?p=" + blobref;
                                },
                                fail: function(msg) {
                                    alert("upload permanode fail: " + msg);                                   
                                }
-                           })
+                           });
                    },
                    fail: function(msg) {
                        alert("sign fail: " + msg);
