@@ -1,6 +1,8 @@
 <html>
 <head>
   <title>Permanode</title>
+  <script src="ui.js"></script>
+  <script src="?camli.mode=config&cb=onConfiguration"></script>
   <script type="text/javascript" src="permanode.js"></script>
   <script type="text/javascript">
     function fillPage() {
@@ -13,6 +15,11 @@
 </head>
 <body onload="fillPage();">
   <h1>Permanode</h1>
+  <form>
+  <p>Name: <input type="inputName" size="30" value="(loading)" disabled="true" />
+    <input type="button" id="btnSave" value="Save" disabled="true" />
   <p><span id="permanode"></span></p>
+
+  </form>
 </body>
 </html>
