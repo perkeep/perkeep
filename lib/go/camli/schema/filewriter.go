@@ -21,12 +21,15 @@ import (
 	"crypto"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
 )
+
+var _ = log.Printf
 
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
@@ -58,22 +61,21 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 		if err != nil {
 			return nil, err
 		}
-		if hasBlob {
-			continue
+		if !hasBlob {
+			sb, err := bs.ReceiveBlob(br, buf)
+			if err != nil {
+				return nil, err
+			}
+			if expect := (blobref.SizedBlobRef{br, n}); !expect.Equal(sb) {
+				return nil, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
+			}
 		}
 
-		sb, err := bs.ReceiveBlob(br, buf)
-		if err != nil {
-			return nil, err
-		}
-		if expect := (blobref.SizedBlobRef{br, n}); !expect.Equal(sb) {
-			return nil, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
-		}
 		size += n
 		parts = append(parts, ContentPart{
 			BlobRefString: br.String(),
 			BlobRef:       br,
-			Size:          uint64(sb.Size),
+			Size:          uint64(n),
 			Offset:        uint64(offset),
 		})
 	}
