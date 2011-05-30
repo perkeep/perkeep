@@ -1,15 +1,31 @@
 <html>
 <head>
   <title>Camlistored UI</title>
+  <script type="text/javascript" src="base64.js"></script>
+  <script type="text/javascript" src="Crypto.js"></script>
+  <script type="text/javascript" src="SHA1.js"></script>
   <script src="ui.js"></script>
   <script src="?camli.mode=config&cb=onConfiguration"></script>
+  <style>
+    #btnnew {
+    font-size: 45px;
+    font-family: sans;
+    padding: 0.25em;
+    background: #008aff;
+    color: #fff;
+    }
+
+  </style>
 </head>
 <body>
   <h1>Camlistored UI</h1>
   <p>[<b>Debug:</b>
 <a href="disco.html">discovery</a> |
 <a href="signing.html">signing</a> |
-<a href="search.html">search</a>]</p>
+<a href="search.html">search</a> |
+<a href="files.html">jsfiles</a>]</p>
+
+  <input type='button' value='New' id="btnNew" /> - create a new item or collection
 
     <h2>Upload</h2>
     <form method="POST" id='uploadform' enctype="multipart/form-data">

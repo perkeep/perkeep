@@ -38,82 +38,74 @@ function discover() {
     xhr.send();
 }
 
-var sigdisco = null;
+function saneOpts(opts) {
+    if (!opts) {
+        opts = {}
+    }
+    if (!opts.success) {
+        opts.success = function() {};
+    }
+    if (!opts.fail) {
+        opts.fail = function() {};
+    }
+    return opts;
+}
 
-function discoverJsonSign() {
+var cachedCamliSigDiscovery;
+
+function camliSigDiscovery(opts) {
+    opts = saneOpts(opts);
+    if (cachedCamliSigDiscovery) {
+        opts.success(cachedCamliSigDiscovery);
+        return;
+    }
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
         if (xhr.status != 200) {
-            console.log("no status 200; got " + xhr.status);
+            opts.fail("no status 200; got " + xhr.status);
             return;
         }
         sigdisco = JSON.parse(xhr.responseText);
-        document.getElementById("sigdiscores").innerHTML = JSON.stringify(sigdisco);
+        cachedCamliSigDiscovery = sigdisco;
+        opts.success(sigdisco);
     };
     xhr.open("GET", disco.jsonSignRoot + "/camli/sig/discovery", true);
     xhr.send();
 }
 
-function addKeyRef() {
-    if (!sigdisco) {
-        alert("must do jsonsign discovery first");        
-        return;
-    }
-    clearta = document.getElementById("clearjson");
-    var j;
-    try {
-        j = JSON.parse(clearta.value);
-    } catch (x) {
-        alert(x);
-        return
-    }
-    j.camliSigner = sigdisco.publicKeyBlobRef;
-    clearta.value = JSON.stringify(j);
+function camliSign(clearObj, opts) {
+    opts = saneOpts(opts);
+
+    camliSigDiscovery(
+        {
+            success: function(sigConf) {
+                if (!sigConf.publicKeyBlobRef) {
+                    opts.fail("Missing sigConf.publicKeyBlobRef");
+                    return;
+                }
+                clearObj.camliSigner = sigConf.publicKeyBlobRef;
+                clearText = JSON.stringify(clearObj, null, 2);
+                
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState != 4) { return; }
+                    if (xhr.status != 200) {
+                        opts.fail("got status " + xhr.status);
+                        return;
+                    }
+                    opts.success(xhr.responseText);
+                };
+                xhr.open("POST", sigConf.signHandler, true);
+                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                xhr.send("json=" + encodeURIComponent(clearText));
+            },
+            fail: function(errMsg) {
+                opts.fail(errMsg);
+            }
+        });
 }
 
-function doSign() {
-    if (!sigdisco) {
-        alert("must do jsonsign discovery first");
-        return;
-    }
-    clearta = document.getElementById("clearjson");
-
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState != 4) { return; }
-        if (xhr.status != 200) {
-            alert("got status " + xhr.status)
-            return;
-        }
-        document.getElementById("signedjson").value = xhr.responseText;
-    };
-    xhr.open("POST", sigdisco.signHandler, true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.send("json=" + encodeURIComponent(clearta.value));
-}
-
-function doVerify() {
-    if (!sigdisco) {
-        alert("must do jsonsign discovery first");
-        return;
-    }
-
-    signedta = document.getElementById("signedjson");
-
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState != 4) { return; }
-        if (xhr.status != 200) {
-            alert("got status " + xhr.status)
-            return;
-        }
-        document.getElementById("verifyinfo").innerHTML = "<pre>" + xhr.responseText + "</pre>";
-    };
-    xhr.open("POST", sigdisco.verifyHandler, true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.send("sjson=" + encodeURIComponent(signedta.value));
-}
 
 function search() {
     var xhr = new XMLHttpRequest();
@@ -128,3 +120,30 @@ function search() {
     xhr.open("GET", disco.searchRoot + "camli/search", true);
     xhr.send();
 }
+
+
+
+function createNewPermanode() {
+     var json = {
+         "camliVersion": 1,
+         "camliType": "permanode",
+         "random": ""+Math.random()
+     };
+     camliSign(json, {
+                   success: function(got) {
+                       alert("got signed: " + got);
+                   },
+                   fail: function(msg) {
+                       alert("sign fail: " + msg);
+                   }
+               });
+}
+
+function camliOnload(e) {
+    var btnNew = document.getElementById("btnNew");
+    if (btnNew) {
+        btnNew.addEventListener("click", createNewPermanode);
+    }
+}
+
+window.addEventListener("load", camliOnload);
