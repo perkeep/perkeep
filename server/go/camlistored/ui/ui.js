@@ -57,7 +57,7 @@ function discoverJsonSign() {
 
 function addKeyRef() {
     if (!sigdisco) {
-        alert("must do jsonsign discovery first");        
+        alert("must do jsonsign discovery first");
         return;
     }
     clearta = document.getElementById("clearjson");
