@@ -98,7 +98,9 @@ if ($target eq "clean") {
 }
 
 if ($target eq "allfast") {
-    foreach my $target (sort grep { !$targets{$_}{tags}{not_in_all} } keys %targets) {
+    my @targets = sort grep { !$targets{$_}{tags}{not_in_all} } keys %targets;
+    @targets = filter_os_targets(@targets);
+    foreach my $target (@targets) {
         build($target);
     }
     record_go_version();
@@ -106,7 +108,8 @@ if ($target eq "allfast") {
 }
 
 if ($target eq "all") {
-    foreach my $target (sort keys %targets) {
+    my @targets = filter_os_targets(sort keys %targets);
+    foreach my $target (@targets) {
         build($target);
     }
     record_go_version();
@@ -418,12 +421,26 @@ sub record_go_version {
     close($fh);
 }
 
+sub filter_os_targets {
+    my @targets = @_;
+    my @out;
+    my $is_linux = (`uname` =~ /linux/i);
+    foreach my $t (@targets) {
+        if ($targets{$t}{tags}{only_os_linux} && !$is_linux) {
+            next;
+        }
+        push @out, $t;
+    }
+    return @out;
+}
+
 __DATA__
 
 TARGET: clients/go/camdbinit
 TARGET: clients/go/camget
 TARGET: clients/go/camput
 TARGET: clients/go/cammount
+    =only_os_linux
 TARGET: clients/go/camsync
 TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
@@ -455,6 +472,7 @@ TARGET: lib/go/camli/test
 TARGET: lib/go/camli/test/asserts
 TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
     =skip_tests
+    =only_os_linux
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
