@@ -27,8 +27,10 @@ import (
 
 type Loader interface {
 	GetStorage(prefix string) (Storage, os.Error)
-	GetHandler(prefix string) (http.Handler, os.Error)
 	GetHandlerType(prefix string) string // or ""
+
+	// Returns either a Storage or an http.Handler
+	GetHandler(prefix string) (interface{}, os.Error)
 }
 
 type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, os.Error)

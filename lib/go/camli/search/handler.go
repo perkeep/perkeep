@@ -17,9 +17,6 @@ limitations under the License.
 package search
 
 import (
-	"camli/blobref"
-	"camli/httputil"
-
 	"fmt"
 	"http"
 	"log"
@@ -27,23 +24,58 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"camli/blobref"
+	"camli/blobserver"
+	"camli/jsonconfig"
+	"camli/httputil"
 )
 
-func CreateHandler(idx Index, ownerBlobRef *blobref.BlobRef) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
-		handleSearch(conn, req, idx, ownerBlobRef)
-	}
+func init() {
+	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
 }
+
+type searchHandler struct {
+	index Index
+	owner *blobref.BlobRef
+}
+
+func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, os.Error) {
+	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
+	ownerBlobStr := conf.RequiredString("owner")
+	if err := conf.Validate(); err != nil {
+		return nil, err
+	}
+
+	indexHandler, err := ld.GetHandler(indexPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("search config references unknown handler %q", indexPrefix)
+	}
+	indexer, ok := indexHandler.(Index)
+	if !ok {
+		return nil, fmt.Errorf("search config references invalid indexer %q (actually a %T)", indexPrefix, indexHandler)
+	}
+	ownerBlobRef := blobref.Parse(ownerBlobStr)
+	if ownerBlobRef == nil {
+		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
+			ownerBlobStr)
+	}
+	return &searchHandler{
+		index: indexer,
+		owner: ownerBlobRef,
+	}, nil
+}
+
 
 type jsonMap map[string]interface{}
 
-func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index, ownerBlobRef *blobref.BlobRef) {
-
+func (sh *searchHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	ch := make(chan *Result)
 	results := make([]jsonMap, 0)
 	errch := make(chan os.Error)
 	go func() {
-		errch <- idx.GetRecentPermanodes(ch, []*blobref.BlobRef{ownerBlobRef}, 50)
+		log.Printf("finding recent permanodes for %s", sh.owner)
+		errch <- sh.index.GetRecentPermanodes(ch, []*blobref.BlobRef{sh.owner}, 50)
 	}()
 
 	wg := new(sync.WaitGroup)
@@ -56,7 +88,7 @@ func handleSearch(conn http.ResponseWriter, req *http.Request, idx Index, ownerB
 		results = append(results, jm)
 		wg.Add(1)
 		go func() {
-			populatePermanodeFields(jm, idx, res.BlobRef, res.Signer)
+			populatePermanodeFields(jm, sh.index, res.BlobRef, res.Signer)
 			wg.Done()
 		}()
 	}

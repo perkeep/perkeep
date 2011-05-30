@@ -27,14 +27,12 @@ import (
 	"os"
 
 	"camli/auth"
-	"camli/blobref"
 	"camli/blobserver"
 	"camli/blobserver/handlers"
 	"camli/errorutil"
 	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/osutil"
-	"camli/search"
 	"camli/webserver"
 
 	// Storage options:
@@ -44,6 +42,9 @@ import (
 	_ "camli/blobserver/s3"
 	_ "camli/blobserver/shard"
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
+	// Handlers:
+	_ "camli/search"
+
 )
 
 var flagConfigFile = flag.String("configfile", "serverconfig",
@@ -270,12 +271,15 @@ func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, os.Error
 	return nil, fmt.Errorf("bogus storage handler referenced as %q", prefix)
 }
 
-func (hl *handlerLoader) GetHandler(prefix string) (http.Handler, os.Error) {
+func (hl *handlerLoader) GetHandler(prefix string) (interface{}, os.Error) {
 	hl.setupHandler(prefix)
+	if s, ok := hl.handler[prefix].(blobserver.Storage); ok {
+		return s, nil
+	}
 	if h, ok := hl.handler[prefix].(http.Handler); ok {
 		return h, nil
 	}
-	return nil, fmt.Errorf("bogus http handler referenced as %q", prefix)
+	return nil, fmt.Errorf("bogus http or storage handler referenced as %q", prefix)
 }
 
 func (hl *handlerLoader) GetHandlerType(prefix string) string {
@@ -323,22 +327,6 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 	}
 	switch h.htype {
-	case "search": // TODO: use blobserver registry
-		indexPrefix := h.conf.RequiredString("index") // TODO: add optional help tips here?
-		ownerBlobStr := h.conf.RequiredString("owner")
-		checkConfig()
-		indexer, ok := hl.getOrSetup(indexPrefix).(search.Index)
-		if !ok {
-			exitFailure("prefix %q references invalid indexer %q", prefix, indexPrefix)
-		}
-		ownerBlobRef := blobref.Parse(ownerBlobStr)
-		if ownerBlobRef == nil {
-			exitFailure("prefix %q references has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
-				prefix, ownerBlobStr)
-		}
-		searchh := auth.RequireAuth(search.CreateHandler(indexer, ownerBlobRef))
-		hl.handler[h.prefix] = searchh
-		hl.ws.HandleFunc(prefix+"camli/", searchh)
 	case "sync": // TODO: use blobserver registry
 		from := h.conf.RequiredString("from")
 		to := h.conf.RequiredString("to")
