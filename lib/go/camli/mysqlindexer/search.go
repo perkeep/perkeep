@@ -133,6 +133,7 @@ func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims sea
 
 	var row claimsRow
 	stmt.BindResult(&row.blobref, &row.date, &row.claim, &row.attr, &row.value)
+	defer stmt.Close()
 	for {
 		done, err := stmt.Fetch()
 		if err != nil {
@@ -185,6 +186,7 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	}
 
 	stmt.BindResult(&mime, &size)
+	defer stmt.Close()
 	ok := false
 	for {
 		done, err := stmt.Fetch()
