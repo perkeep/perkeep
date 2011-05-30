@@ -121,7 +121,49 @@ function search() {
     xhr.send();
 }
 
+function camliUploadString(s, opts) {
+    opts = saneOpts(opts);
+    var blobref = "sha1-" + Crypto.SHA1(s);
+    // alert("blobref " + blobref + ": " + s);
 
+    bb = new WebKitBlobBuilder();
+    bb.append(s);
+    
+    var fd = new FormData();
+    fd.append(blobref, bb.getBlob());
+    
+    var xhr = new XMLHttpRequest();
+
+    // TODO: hack, hard-coding the upload URL here.
+    // Change the spec now that App Engine permits 32 MB requests
+    // and permit a PUT request on the sha1?  Or at least let us
+    // specify the well-known upload URL?  In cases like this, uploading
+    // a new permanode, it's silly to even stat.
+    xhr.open("POST", disco.blobRoot + "camli/upload")
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) {
+             return;
+        }
+        if (xhr.status != 200) {
+            opts.fail("got status " + xhr.status);
+            return;
+        }
+        var resj;
+        try {
+            resj = JSON.parse(xhr.responseText);
+        } catch (x) {
+            opts.fail("error parsing JSON in upload response: " + xhr.responseText);
+            return;
+        }
+        if (resj.errorText) {
+            opts.fail("error uploading " + blobref + ": " + resj.errorText);
+            return;
+        }
+        // TODO: check resj.received[] array.
+        opts.success(blobref);
+    };
+    xhr.send(fd);
+}
 
 function createNewPermanode() {
      var json = {
@@ -131,7 +173,16 @@ function createNewPermanode() {
      };
      camliSign(json, {
                    success: function(got) {
-                       alert("got signed: " + got);
+                       camliUploadString(
+                           got,
+                           {
+                               success: function(blobref) {
+                                   alert("uploaded permanode blobref: " + blobref);
+                               },
+                               fail: function(msg) {
+                                   alert("upload permanode fail: " + msg);                                   
+                               }
+                           })
                    },
                    fail: function(msg) {
                        alert("sign fail: " + msg);
