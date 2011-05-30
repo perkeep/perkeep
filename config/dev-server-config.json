@@ -104,7 +104,7 @@
          "handler": "search",
          "handlerArgs": {
              "index": "/indexer/",
-             "owner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8"
+             "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
          }
      }
   }
