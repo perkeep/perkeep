@@ -3,7 +3,7 @@
   "password": ["_env", "${CAMLI_PASSWORD}"],
   "prefixes": {
     "/indexer/": {
-         "handler": "mysqlindexer",
+         "handler": "storage-mysqlindexer",
          "handlerArgs": {
               "database": "devcamlistore",
               "user": "root",

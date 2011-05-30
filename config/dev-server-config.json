@@ -34,35 +34,35 @@
      },
 
      "/bs/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT}"]
           }
      },
 
      "/sharder/": {
-         "handler": "shard",
+         "handler": "storage-shard",
          "handlerArgs": {
              "backends": ["/s1/", "/s2/"]
           }
      },
 
      "/s1/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_SHARD1}"]
           }
      },
 
      "/s2/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_SHARD2}"]
           }
      },
 
       "/repl/": {
-          "handler": "replica",
+          "handler": "storage-replica",
           "handlerArgs": {
               "backends": ["/r1/", "/r2/", "/r3/"],
               "minWritesForSuccess": 2
@@ -70,28 +70,28 @@
       },
 
      "/r1/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_REPLICA1}"]
           }
      },
 
      "/r2/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_REPLICA2}"]
           }
      },
 
      "/r3/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_REPLICA3}"]
           }
      },
 
      "/indexer/": {
-         "handler": "mysqlindexer",
+         "handler": "storage-mysqlindexer",
          "handlerArgs": {
               "database": "devcamlistore",
               "user": "root",

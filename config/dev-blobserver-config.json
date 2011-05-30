@@ -7,7 +7,7 @@
 
   "prefixes": {
     "/": {
-         "handler": "filesystem",
+         "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT}"]
       }

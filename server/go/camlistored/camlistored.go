@@ -303,20 +303,26 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
 		}
 	}()
+
+	if strings.HasPrefix(h.htype, "storage-") {
+		stype := h.htype[len("storage-"):]
+		// Assume a storage interface
+		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating storage for prefix %q, type %q: %v",
+				h.prefix, stype, err)
+		}
+		hl.handler[h.prefix] = pstorage
+		hl.ws.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
+		return
+	}
+
 	checkConfig := func() {
 		if err := h.conf.Validate(); err != nil {
 			exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", prefix, err)
 		}
 	}
 	switch h.htype {
-	case "ui", "root", "jsonsign":
-		hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
-		if err != nil {
-			exitFailure("error instantiating handler for prefix %q, type %q: %v",
-				h.prefix, h.htype, err)
-		}
-		hl.handler[prefix] = hh
-		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
 	case "search": // TODO: use blobserver registry
 		indexPrefix := h.conf.RequiredString("index") // TODO: add optional help tips here?
 		ownerBlobStr := h.conf.RequiredString("owner")
@@ -353,13 +359,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		hl.handler[h.prefix] = synch
 		hl.ws.Handle(prefix, synch)
 	default:
-		// Assume a storage interface
-		pstorage, err := blobserver.CreateStorage(h.htype, hl, h.conf)
+		hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
 		if err != nil {
-			exitFailure("error instantiating storage for prefix %q, type %q: %v",
+			exitFailure("error instantiating handler for prefix %q, type %q: %v",
 				h.prefix, h.htype, err)
 		}
-		hl.handler[h.prefix] = pstorage
-		hl.ws.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
+		hl.handler[prefix] = hh
+		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
 	}
 }
