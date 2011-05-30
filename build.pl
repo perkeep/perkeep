@@ -101,6 +101,7 @@ if ($target eq "allfast") {
     foreach my $target (sort grep { !$targets{$_}{tags}{not_in_all} } keys %targets) {
         build($target);
     }
+    record_go_version();
     exit;
 }
 
@@ -108,6 +109,7 @@ if ($target eq "all") {
     foreach my $target (sort keys %targets) {
         build($target);
     }
+    record_go_version();
     exit;
 }
 
@@ -163,19 +165,15 @@ sub fixit_tip {
             return "Failed to find 'gotry'.  Is Go installed?  Or have you put \$GOROOT/bin in your \$PATH?";
         }
         $gover = $1;
-        if ($gover =~ /release/) {
-            return "You're running a release version of Go ($gover) but \n".
-                "Camlistore generally tracks the 'weekly' releases.\n".
-                "See: http://blog.golang.org/2011/03/go-becomes-more-stable.html\n";
+        my $last = do { open(my $fh, ".last_go_version") or die; local $/; <$fh> };
+        $last =~ s!^[68]g version !!;
+        chomp $last;
+        chomp $gover;
+        if ($last eq $gover) {
+            return "";
         }
-        unless ($gover =~ /weekly\.(\d\d\d\d)-(\d\d)-(\d\d)/) {
-            return "Failed to parse your Go version.  You have \"$gover\" but since\n".
-                "I can't parse it, I can't tell you if it's too old or not.\n";
-        }
-        my ($yyyy, $mm, $dd) = ($1, $2, $3);
-        # TODO: check the internet to see what the latest Go weekly is?
-        # Or keep it in git here?  Or go purely on number of days passed?
-        return "You're running Go weekly release $gover; maybe it's too old?";
+        return "You're running Go version: $gover (maintainer's last version used was $last)\nCamlistore generally tracks Go tip closely (run \"hg update tip\" in \$GOROOT)";
+
     }
 
     if ($target =~ /\bandroid\b/) {
@@ -248,7 +246,7 @@ sub build {
     if (system("make", @quiet, "-C", $target, "install") != 0) {
         my $chain = "";
         if (@history > 1) {
-            $chain = "(via chain @history)";
+            $chain = "via chain @history";
         }
         my $help_msg = fixit_tip($target);
         if ($help_msg) {
@@ -409,6 +407,15 @@ sub read_targets {
     }
     #use Data::Dumper;
     #print Dumper(\%targets);
+}
+
+sub record_go_version {
+    return unless $ENV{USER} eq "bradfitz";
+    return unless `uname -m` =~ /x86_64/;
+    my $ver = `6g -V`;
+    open(my $fh, ">.last_go_version") or return;
+    print $fh $ver;
+    close($fh);
 }
 
 __DATA__
