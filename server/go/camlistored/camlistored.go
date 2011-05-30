@@ -290,7 +290,7 @@ func (hl *handlerLoader) GetHandlerType(prefix string) string {
 func (hl *handlerLoader) setupHandler(prefix string) {
 	h, ok := hl.config[prefix]
 	if !ok {
-		exitFailure("invalid reference to non-existant handler %q", prefix)
+		exitFailure("invalid reference to undefined handler %q", prefix)
 	}
 	if h.setupDone {
 		// Already setup by something else reference it and forcing it to be
@@ -321,38 +321,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		return
 	}
 
-	checkConfig := func() {
-		if err := h.conf.Validate(); err != nil {
-			exitFailure("configuration error in \"handlerArgs\" for prefix %s: %v", prefix, err)
-		}
+	hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
+	if err != nil {
+		exitFailure("error instantiating handler for prefix %q, type %q: %v",
+			h.prefix, h.htype, err)
 	}
-	switch h.htype {
-	case "sync": // TODO: use blobserver registry
-		from := h.conf.RequiredString("from")
-		to := h.conf.RequiredString("to")
-		checkConfig()
-		getBlobServer := func(bsPrefix string) blobserver.Storage {
-			bs, ok := hl.getOrSetup(bsPrefix).(blobserver.Storage)
-			if !ok {
-				exitFailure("sync prefix %q references %q, of type %T, but expected a blob server",
-					prefix, bsPrefix, h)
-			}
-			return bs
-		}
-		fromBs, toBs := getBlobServer(from), getBlobServer(to)
-		synch, err := createSyncHandler(from, to, fromBs, toBs)
-		if err != nil {
-			exitFailure(err.String())
-		}
-		hl.handler[h.prefix] = synch
-		hl.ws.Handle(prefix, synch)
-	default:
-		hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
-		if err != nil {
-			exitFailure("error instantiating handler for prefix %q, type %q: %v",
-				h.prefix, h.htype, err)
-		}
-		hl.handler[prefix] = hh
-		hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
-	}
+	hl.handler[prefix] = hh
+	hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
 }

@@ -28,6 +28,7 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/jsonconfig"
 	"camli/misc"
 )
 
@@ -53,6 +54,32 @@ type SyncHandler struct {
 	totalCopyBytes int64
 	totalErrors    int64
 }
+
+func init() {
+	blobserver.RegisterHandlerConstructor("sync", newSyncFromConfig)
+}
+
+func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err os.Error) {
+	from := conf.RequiredString("from")
+	to := conf.RequiredString("to")
+	if err = conf.Validate(); err != nil {
+		return
+	}
+	fromBs, err := ld.GetStorage(from)
+	if err != nil {
+		return
+	}
+	toBs, err := ld.GetStorage(to)
+	if err != nil {
+		return
+	}
+	synch, err := createSyncHandler(from, to, fromBs, toBs)
+	if err != nil {
+		return
+	}
+	return synch, nil
+}
+
 
 type timestampedError struct {
 	t   *time.Time
