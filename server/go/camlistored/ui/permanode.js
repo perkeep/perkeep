@@ -20,9 +20,29 @@ function getPermanodeParam() {
     return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
+function btnSaveName(e) {
+    var inputName = document.getElementById("inputName");
+    if (!inputName) {
+        alert("missing inputName");
+    }
+    camliNewSetAttributeClaim(
+        getPermanodeParam(),
+        "name",
+        inputName.value,
+        {
+            fail: function(msg) { alert(msg); }
+        });
+}
+
 window.addEventListener("load", function (e) {
-      var permanode = getPermanodeParam();
-      if (permanode) {
-        document.getElementById('permanode').innerText = permanode;
-      }
+    var permanode = getPermanodeParam();
+    if (permanode) {
+      document.getElementById('permanode').innerText = permanode;
+    }
+
+    var btnSave = document.getElementById("btnSave");
+    if (!btnSave) {
+        alert("missing btnSave");
+    }
+    btnSave.addEventListener("click", btnSaveName);
 });

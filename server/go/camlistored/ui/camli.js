@@ -35,6 +35,20 @@ function saneOpts(opts) {
     return opts;
 }
 
+// Format |dateVal| as specified by RFC 3339.
+function dateToRfc3339String(dateVal) {
+    // Return a string containing |num| zero-padded to |length| digits.
+    var pad = function(num, length) {
+        var numStr = "" + num;
+        while (numStr.length < length) {
+            numStr = "0" + numStr;
+        }
+        return numStr;
+    }
+    return dateVal.getUTCFullYear() + "-" + pad(dateVal.getUTCMonth(), 2) + "-" + pad(dateVal.getUTCDate(), 2) + "T" +
+           pad(dateVal.getUTCHours(), 2) + ":" + pad(dateVal.getUTCMinutes(), 2) + ":" + pad(dateVal.getUTCSeconds(), 2) + "Z";
+}
+
 var cachedCamliSigDiscovery;
 
 // opts.success called with discovery object
@@ -194,7 +208,7 @@ function camliCreateNewPermanode(opts) {
                            });
                    },
                    fail: function(msg) {
-                       alert("sign fail: " + msg);
+                       opts.fail("sign permanode fail: " + msg);
                    }
                });
 }
@@ -214,4 +228,37 @@ function getQueryParam(key) {
 // Returns true if the passed-in string might be a blobref.
 function isPlausibleBlobRef(blobRef) {
     return /^\w+-[a-f0-9]+$/.test(blobRef);
+}
+
+// Helper function for camliNewSetAttributeClaim() (and eventually, for
+// similar functions to add or delete attributes).
+function changeAttribute(permanode, claimType, attribute, value, opts) {
+    opts = saneOpts(opts);
+    var json = {
+        "camliVersion": 1,
+        "camliType": "claim",
+        "permaNode": permanode,
+        "claimType": claimType,
+        "claimDate": dateToRfc3339String(new Date()),
+        "attribute": attribute,
+        "value": value
+    };
+    camliSign(json, {
+        success: function(signedBlob) {
+            camliUploadString(signedBlob, {
+                success: opts.success,
+                fail: function(msg) {
+                    opts.fail("upload " + claimType + " fail: " + msg);
+                }
+            });
+        },
+        fail: function(msg) {
+            opts.fail("sign " + claimType + " fail: " + msg);
+        }
+    });
+}
+
+// Create and upload a new set-attribute claim.
+function camliNewSetAttributeClaim(permanode, attribute, value, opts) {
+    changeAttribute(permanode, "set-attribute", attribute, value, opts);
 }
