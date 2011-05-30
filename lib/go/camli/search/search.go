@@ -64,5 +64,5 @@ type Index interface {
 
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 
-	GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool, err os.Error)
+	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error)
 }

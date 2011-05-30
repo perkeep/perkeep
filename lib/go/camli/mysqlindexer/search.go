@@ -160,7 +160,7 @@ func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims sea
 	return
 }
 
-func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool, reterr os.Error) {
+func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, reterr os.Error) {
 	client, err := mi.getConnection()
 	if err != nil {
 		reterr = err
@@ -168,7 +168,7 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool,
 	}
 	defer mi.releaseConnection(client)
 
-	stmt, err := client.Prepare("SELECT type FROM blobs WHERE blobref=?")
+	stmt, err := client.Prepare("SELECT type, size FROM blobs WHERE blobref=?")
 	if err != nil {
 		reterr = err
 		return
@@ -184,17 +184,21 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, ok bool,
 		return
 	}
 
-	stmt.BindResult(&mime)
+	stmt.BindResult(&mime, &size)
+	ok := false
 	for {
 		done, err := stmt.Fetch()
 		if err != nil {
 			reterr = err
 			return
 		}
+		ok = true
 		if done {
 			break
 		}
 	}
-	ok = mime != ""
+	if !ok && err == nil {
+		err = os.ENOENT
+	}
 	return
 }
