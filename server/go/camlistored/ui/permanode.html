@@ -1,19 +1,11 @@
 <html>
 <head>
   <title>Permanode</title>
-  <script src="ui.js"></script>
-  <script src="?camli.mode=config&cb=onConfiguration"></script>
+  <script type="text/javascript" src="camli.js"></script>
+  <script type="text/javascript" src="?camli.mode=config&cb=onConfiguration"></script>
   <script type="text/javascript" src="permanode.js"></script>
-  <script type="text/javascript">
-    function fillPage() {
-      var permanode = getPermanodeParam();
-      if (permanode) {
-        document.getElementById('permanode').innerText = permanode;
-      }
-    }
-  </script>
 </head>
-<body onload="fillPage();">
+<body>
   <h1>Permanode</h1>
   <form>
   <p>Name: <input type="inputName" size="30" value="(loading)" disabled="true" />

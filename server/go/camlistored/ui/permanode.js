@@ -36,3 +36,10 @@ function getPermanodeParam() {
   var blobRef = getQueryParam('p');
   return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
+
+window.addEventListener("load", function (e) {
+      var permanode = getPermanodeParam();
+      if (permanode) {
+        document.getElementById('permanode').innerText = permanode;
+      }
+});

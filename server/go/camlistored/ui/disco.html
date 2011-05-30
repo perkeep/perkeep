@@ -1,9 +1,29 @@
 <html>
 <head>
   <title>Camlistored UI</title>
-  <script src="ui.js"></script>
+  <script src="camli.js"></script>
   <script src="sigdebug.js"></script>
   <script src="./?camli.mode=config&cb=onConfiguration"></script>
+<script>
+
+// Or get configuration info like this:
+function discover() {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            console.log("no status 200; got " + xhr.status);
+            return;
+        }
+        disco = JSON.parse(xhr.responseText);
+        document.getElementById("discores").innerHTML = JSON.stringify(disco);
+    };
+    xhr.open("GET", "./?camli.mode=config", true);
+    xhr.send();
+}
+
+
+</script>
 </head>
 <body>
   <form>

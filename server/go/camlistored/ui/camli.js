@@ -22,22 +22,6 @@ function onConfiguration(conf) {
     console.log("Got config: " + JSON.stringify(conf));
 }
 
-// Or get configuration info like this:
-function discover() {
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState != 4) { return; }
-        if (xhr.status != 200) {
-            console.log("no status 200; got " + xhr.status);
-            return;
-        }
-        disco = JSON.parse(xhr.responseText);
-        document.getElementById("discores").innerHTML = JSON.stringify(disco);
-    };
-    xhr.open("GET", "./?camli.mode=config", true);
-    xhr.send();
-}
-
 function saneOpts(opts) {
     if (!opts) {
         opts = {}
@@ -152,7 +136,8 @@ function camliUploadString(s, opts) {
     xhr.send(fd);
 }
 
-function createNewPermanode() {
+function camliCreateNewPermanode(opts) {
+    opts = saneOpts(opts);
      var json = {
          "camliVersion": 1,
          "camliType": "permanode",
@@ -163,12 +148,9 @@ function createNewPermanode() {
                        camliUploadString(
                            got,
                            {
-                               success: function(blobref) {
-                                   // alert("uploaded permanode blobref: " + blobref);
-                                   window.location = "./?p=" + blobref;
-                               },
+                               success: opts.success,
                                fail: function(msg) {
-                                   alert("upload permanode fail: " + msg);                                   
+                                   opts.fail("upload permanode fail: " + msg);
                                }
                            });
                    },
@@ -178,11 +160,3 @@ function createNewPermanode() {
                });
 }
 
-function camliOnload(e) {
-    var btnNew = document.getElementById("btnNew");
-    if (btnNew) {
-        btnNew.addEventListener("click", createNewPermanode);
-    }
-}
-
-window.addEventListener("load", camliOnload);
