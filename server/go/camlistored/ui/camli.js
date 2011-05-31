@@ -108,9 +108,12 @@ function camliGetBlobContents(blobref, opts) {
         }
         opts.success(xhr.responseText);
     };
-    var path = disco.blobRoot + "camli/" + blobref;
-    xhr.open("GET", path, true);
+    xhr.open("GET", camliBlobURL(blobref), true);
     xhr.send();
+}
+
+function camliBlobURL(blobref) {
+    return disco.blobRoot + "camli/" + blobref;
 }
 
 function camliSign(clearObj, opts) {

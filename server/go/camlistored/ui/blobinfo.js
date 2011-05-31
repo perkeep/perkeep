@@ -43,7 +43,7 @@ function blobInfoUpdate(bmap) {
                 fail: alert
             });
     } else {
-        document.getElementById("blobdata").innerHTML = "Unknown/binary data; <a href='" + camliBlobUrl(blobref) + "'>download</a>";
+        document.getElementById("blobdata").innerHTML = "Unknown/binary data; <a href='" + camliBlobURL(blobref) + "'>download</a>";
     }
 }
 
