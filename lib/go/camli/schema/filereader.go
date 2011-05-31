@@ -18,6 +18,8 @@ package schema
 
 import (
 	"fmt"
+	"json"
+	"log"
 	"os"
 
 	"camli/blobref"
@@ -30,10 +32,31 @@ type FileReader struct {
 	ccon    uint64 // bytes into current chunk already consumed
 }
 
+// TODO: make this take a blobref.FetcherAt instead?
+func NewFileReader(fetcher blobref.Fetcher, fileBlobRef *blobref.BlobRef) (*FileReader, os.Error) {
+	ss := new(Superset)
+	rsc, _, err := fetcher.Fetch(fileBlobRef)
+	if err != nil {
+		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
+	}
+	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
+		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
+	}
+	if ss.Type != "file" {
+		return nil, fmt.Errorf("schema/filereader: expected \"file\" schema blob, got %q", ss.Type)
+	}
+	return ss.NewFileReader(fetcher), nil
+}
+
 func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
 	// TODO: return an error if ss isn't a Type "file" ?
 	// TODO: return some error if the redundant ss.Size field doesn't match ContentParts?
 	return &FileReader{fetcher, ss, 0, 0}
+}
+
+// FileSchema returns the reader's schema superset. Don't mutate it.
+func (fr *FileReader) FileSchema() *Superset {
+	return fr.ss
 }
 
 func (fr *FileReader) Skip(skipBytes uint64) {
@@ -75,6 +98,7 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	// read sizes.  we should stuff the rsc away in fr
 	// and re-use it just re-seeking if needed, which
 	// could also be tracked.
+	log.Printf("filereader: fetching blob %s", br)
 	rsc, _, ferr := fr.fetcher.Fetch(br)
 	if ferr != nil {
 		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
@@ -107,4 +131,3 @@ func minu64(a, b uint64) uint64 {
 	}
 	return b
 }
-

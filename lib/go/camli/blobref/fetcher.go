@@ -33,7 +33,10 @@ import (
 var _ = log.Printf
 
 // TODO: rename StreamingFetcher to be Fetch (the common case) and
-// make a new interface for SeekingFetcher (the rare case)
+// make a new interface for FetchSeeker (the rare case)
+
+// TODO: add FetcherAt / FetchAt (for HTTP range requests).  But then how
+// to make all FetchSeeker also be a FetchAt? By hand? 
 
 type Fetcher interface {
 	// Fetch returns a blob.  If the blob is not found then

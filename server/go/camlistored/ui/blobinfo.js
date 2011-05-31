@@ -22,6 +22,8 @@ function getBlobParam() {
 
 function blobInfoUpdate(bmap) {
     var blobpre = document.getElementById('blobpre');
+    var bd = document.getElementById("blobdownload")
+    bd.innerHTML = "";
     var blobref = getBlobParam();
     if (!blobref) {
         alert("no blobref?");
@@ -39,6 +41,17 @@ function blobInfoUpdate(bmap) {
             {
                 success: function(data) {
                     document.getElementById("blobdata").innerHTML = linkifyBlobRefs(data);
+                    if (binfo.camliType == "file") {
+                        try { 
+                            finfo = JSON.parse(data);
+                            bd.innerHTML = "<a href=''></a>";
+                            var fileName = finfo.fileName || blobref;
+                            bd.firstChild.href = "./download/" + blobref + "/" + fileName;
+                            bd.firstChild.innerText = fileName;
+                            bd.innerHTML = "Download: " + bd.innerHTML;
+                        } catch (x) {
+                        }
+                    }
                 },
                 fail: alert
             });

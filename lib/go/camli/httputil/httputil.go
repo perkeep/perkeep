@@ -25,6 +25,11 @@ import (
 	"strings"
 )
 
+func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
+	http.Error(conn, "Handlers wired up wrong; this path shouldn't be hit", 500)
+	log.Printf("Internal routing error on %q", req.URL.Path)
+}
+
 func BadRequestError(conn http.ResponseWriter, errorMessage string) {
 	conn.WriteHeader(http.StatusBadRequest)
 	log.Printf("Bad request: %s", errorMessage)
