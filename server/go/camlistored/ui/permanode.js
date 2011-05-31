@@ -54,7 +54,7 @@ function handleFormSubmit(e) {
 window.addEventListener("load", function (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
-      document.getElementById('permanode').innerText = permanode;
+      document.getElementById('permanode').innerHTML = linkifyBlobRefs(permanode);
     }
 
     var form = document.getElementById("form");
