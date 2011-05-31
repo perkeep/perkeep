@@ -20,17 +20,34 @@ function getPermanodeParam() {
     return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
-function btnSaveName(e) {
+function handleFormSubmit(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
     var inputName = document.getElementById("inputName");
-    if (!inputName) {
-        alert("missing inputName");
-    }
+    inputName.disabled = "disabled";
+    var btnSave = document.getElementById("btnSave");
+    btnSave.disabled = "disabled";
+
+    var startTime = new Date();
+
     camliNewSetAttributeClaim(
         getPermanodeParam(),
         "name",
         inputName.value,
         {
-            fail: function(msg) { alert(msg); }
+            success: function() {
+                var elapsedMs = new Date().getTime() - startTime.getTime();
+                setTimeout(function() {
+                    inputName.disabled = null;
+                    btnSave.disabled = null;
+                }, Math.max(250 - elapsedMs, 0));
+            },
+            fail: function(msg) {
+                alert(msg);
+                inputName.disabled = null;
+                btnSave.disabled = null;
+            }
         });
 }
 
@@ -40,9 +57,28 @@ window.addEventListener("load", function (e) {
       document.getElementById('permanode').innerText = permanode;
     }
 
-    var btnSave = document.getElementById("btnSave");
-    if (!btnSave) {
-        alert("missing btnSave");
-    }
-    btnSave.addEventListener("click", btnSaveName);
+    var form = document.getElementById("form");
+    form.addEventListener("submit", handleFormSubmit);
+
+    camliDescribeBlob(permanode, {
+        success: function(jres) {
+            if (!jres[permanode]) {
+                alert("didn't get blob " + permanode);
+                return;
+            }
+            var permanodeObject = jres[permanode].permanode;
+            if (!permanodeObject) {
+                alert("blob " + permanode + " isn't a permanode");
+                return;
+            }
+            if (permanodeObject.attr.name && permanodeObject.attr.name.length == 1) {
+                var inputName = document.getElementById("inputName");
+                inputName.value = permanodeObject.attr.name[0];
+                inputName.disabled = null;
+                var btnSave = document.getElementById("btnSave");
+                btnSave.disabled = null;
+            }
+        },
+        failure: function(msg) { alert("failed to get blob description: " + msg); }
+    });
 });
