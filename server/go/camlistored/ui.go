@@ -215,7 +215,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		}
 		br, err := schema.WriteFileFromReader(ui.Storage, part.FileName(), part)
 
-		fmt.Fprintf(&buf, "filename=%q, formname=%q, br=%s, err=%v\n", part.FileName(), part.FormName(), br, err)
+		fmt.Fprintf(&buf, "filename=%q, formname=%q, br=<a href='./?b=%s'>%s</a>, err=%v\n", part.FileName(), part.FormName(), br, br, err)
 
 	}
 }
