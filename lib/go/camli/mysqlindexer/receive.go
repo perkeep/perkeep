@@ -129,7 +129,6 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 		log.Printf("mysqlindexer: execute error: %v", err)
 		return
 	}
-	defer stmt.Close()
 
 	if camli := sniffer.camli; camli != nil {
 		switch camli.Type {
@@ -162,7 +161,6 @@ func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Erro
 		log.Printf("mysqlindexer execSQL exe: %v", err)
 		return
 	}
-	defer stmt.Close()
 	return
 }
 

@@ -17,13 +17,14 @@ limitations under the License.
 package mysqlindexer
 
 import (
-	"camli/blobref"
-	"camli/search"
-
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	"camli/blobref"
+	"camli/search"
 )
 
 type permaNodeRow struct {
@@ -161,46 +162,38 @@ func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims sea
 	return
 }
 
-func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, reterr os.Error) {
+func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
 	client, err := mi.getConnection()
 	if err != nil {
-		reterr = err
 		return
 	}
-	defer mi.releaseConnection(client)
+	defer func() {
+		if err == nil || err == os.ENOENT {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
 
-	stmt, err := client.Prepare("SELECT type, size FROM blobs WHERE blobref=?")
+	err = client.Query(fmt.Sprintf("SELECT type, size FROM blobs WHERE blobref=%q", blob.String()))
 	if err != nil {
-		reterr = err
-		return
-	}
-	err = stmt.BindParams(blob.String())
-	if err != nil {
-		reterr = err
-		return
-	}
-	err = stmt.Execute()
-	if err != nil {
-		reterr = err
 		return
 	}
 
-	stmt.BindResult(&mime, &size)
-	defer stmt.Close()
-	ok := false
-	for {
-		done, err := stmt.Fetch()
-		if err != nil {
-			reterr = err
-			return
-		}
-		ok = true
-		if done {
-			break
-		}
+	result, err := client.StoreResult()
+	if err != nil {
+		return
 	}
-	if !ok && err == nil {
+	defer client.FreeResult()
+
+	row := result.FetchRow()
+	if row == nil {
 		err = os.ENOENT
+		return
 	}
+
+	//log.Printf("got row: %#v (2 is %T)", row, row[1])
+	mime, _ = row[0].(string)
+	size, _ = row[1].(int64)
 	return
 }
