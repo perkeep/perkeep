@@ -38,13 +38,11 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 	// Naive for now.  Just in 1MB chunks.
 	// TODO: rolling hash and hash trees.
 
-	parts := []ContentPart{}
-	size, offset := int64(0), int64(0)
+	parts, size := []ContentPart{}, int64(0)
 
 	buf := new(bytes.Buffer)
 	for {
 		buf.Reset()
-		offset = size
 
 		n, err := io.Copy(buf, io.LimitReader(r, 1<<20))
 		if err != nil {
@@ -76,7 +74,7 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 			BlobRefString: br.String(),
 			BlobRef:       br,
 			Size:          uint64(n),
-			Offset:        uint64(offset),
+			Offset:        0, // into BlobRef to read from (not of dest)
 		})
 	}
 
