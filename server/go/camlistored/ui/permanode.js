@@ -71,13 +71,16 @@ window.addEventListener("load", function (e) {
                 alert("blob " + permanode + " isn't a permanode");
                 return;
             }
-            if (permanodeObject.attr.name && permanodeObject.attr.name.length == 1) {
-                var inputName = document.getElementById("inputName");
-                inputName.value = permanodeObject.attr.name[0];
-                inputName.disabled = null;
-                var btnSave = document.getElementById("btnSave");
-                btnSave.disabled = null;
-            }
+
+            var inputName = document.getElementById("inputName");
+            inputName.value =
+                (permanodeObject.attr.name && permanodeObject.attr.name.length == 1) ?
+                permanodeObject.attr.name[0] :
+                "";
+            inputName.disabled = null;
+
+            var btnSave = document.getElementById("btnSave");
+            btnSave.disabled = null;
         },
         failure: function(msg) { alert("failed to get blob description: " + msg); }
     });
