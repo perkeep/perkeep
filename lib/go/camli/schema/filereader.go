@@ -25,11 +25,16 @@ import (
 	"camli/blobref"
 )
 
+var _ = log.Printf
+
 type FileReader struct {
 	fetcher blobref.Fetcher
 	ss      *Superset
 	ci      int    // index into contentparts
 	ccon    uint64 // bytes into current chunk already consumed
+
+	cr   blobref.ReadSeekCloser // cached reader
+	crbr *blobref.BlobRef  // the blobref that cr is for
 }
 
 // TODO: make this take a blobref.FetcherAt instead?
@@ -51,7 +56,7 @@ func NewFileReader(fetcher blobref.Fetcher, fileBlobRef *blobref.BlobRef) (*File
 func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
 	// TODO: return an error if ss isn't a Type "file" ?
 	// TODO: return some error if the redundant ss.Size field doesn't match ContentParts?
-	return &FileReader{fetcher, ss, 0, 0}
+	return &FileReader{fetcher: fetcher, ss: ss}
 }
 
 // FileSchema returns the reader's schema superset. Don't mutate it.
@@ -73,10 +78,33 @@ func (fr *FileReader) Skip(skipBytes uint64) {
 	}
 }
 
+func (fr *FileReader) closeOpenBlobs() {
+	if fr.cr != nil {
+		fr.cr.Close()
+		fr.cr = nil
+		fr.crbr = nil
+	}
+}
+
+func (fr *FileReader) readerFor(br *blobref.BlobRef) (blobref.ReadSeekCloser, os.Error) {
+	if fr.crbr == br {
+		return fr.cr, nil
+	}
+	fr.closeOpenBlobs()
+	rsc, _, ferr := fr.fetcher.Fetch(br)
+	if ferr != nil {
+		return nil, ferr
+	}
+	fr.crbr = br
+	fr.cr = rsc
+	return rsc, nil
+}
+
 func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	var cp *ContentPart
 	for {
 		if fr.ci >= len(fr.ss.ContentParts) {
+			fr.closeOpenBlobs()
 			return 0, os.EOF
 		}
 		cp = fr.ss.ContentParts[fr.ci]
@@ -93,17 +121,11 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	if br == nil {
 		return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
 	}
-	// TODO: performance: don't re-fetch this on every
-	// Read call.  most parts will be large relative to
-	// read sizes.  we should stuff the rsc away in fr
-	// and re-use it just re-seeking if needed, which
-	// could also be tracked.
-	log.Printf("filereader: fetching blob %s", br)
-	rsc, _, ferr := fr.fetcher.Fetch(br)
+
+	rsc, ferr := fr.readerFor(br)
 	if ferr != nil {
 		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
 	}
-	defer rsc.Close()
 
 	seekTo := cp.Offset + fr.ccon
 	if seekTo != 0 {
