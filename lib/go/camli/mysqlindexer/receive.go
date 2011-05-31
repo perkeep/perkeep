@@ -118,14 +118,18 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 
 	var stmt *mysql.Statement
 	if stmt, err = client.Prepare("INSERT IGNORE INTO blobs (blobref, size, type) VALUES (?, ?, ?)"); err != nil {
+		log.Printf("mysqlindexer: prepare error: %v", err)
 		return
 	}
 	if err = stmt.BindParams(blobRef.String(), written, mimeType); err != nil {
+		log.Printf("mysqlindexer: bind error: %v", err)
 		return
 	}
 	if err = stmt.Execute(); err != nil {
+		log.Printf("mysqlindexer: execute error: %v", err)
 		return
 	}
+	defer stmt.Close()
 
 	if camli := sniffer.camli; camli != nil {
 		switch camli.Type {
@@ -147,14 +151,18 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Error) {
 	var stmt *mysql.Statement
 	if stmt, err = client.Prepare(sql); err != nil {
+		log.Printf("mysqlindexer execSQL prepare: %v", err)
 		return
 	}
 	if err = stmt.BindParams(args...); err != nil {
+		log.Printf("mysqlindexer execSQL bind: %v", err)
 		return
 	}
 	if err = stmt.Execute(); err != nil {
+		log.Printf("mysqlindexer execSQL exe: %v", err)
 		return
 	}
+	defer stmt.Close()
 	return
 }
 
