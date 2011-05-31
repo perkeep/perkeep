@@ -233,6 +233,11 @@ function isPlausibleBlobRef(blobRef) {
     return /^\w+-[a-f0-9]+$/.test(blobRef);
 }
 
+function linkifyBlobRefs(schemaBlob) {
+    var re = /(\w{3,6}-[a-f0-9]{30,})/g;
+    return schemaBlob.replace(re, "<a href='./?b=$1'>$1</a>");
+}
+
 // Helper function for camliNewSetAttributeClaim() (and eventually, for
 // similar functions to add or delete attributes).
 function changeAttribute(permanode, claimType, attribute, value, opts) {

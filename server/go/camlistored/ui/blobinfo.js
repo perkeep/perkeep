@@ -47,11 +47,6 @@ function blobInfoUpdate(bmap) {
     }
 }
 
-function linkifyBlobRefs(schemaBlob) {
-    var re = /(\w{3,6}-[a-f0-9]{30,})/g;
-    return schemaBlob.replace(re, "<a href='./?b=$1'>$1</a>");
-}
-
 function blobInfoOnLoad() {
     var blobref = getBlobParam();
     if (!blobref) {

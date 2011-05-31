@@ -6,7 +6,7 @@ function search() {
             console.log("no status 200; got " + xhr.status);
             return;
         }
-        document.getElementById("searchres").innerHTML = "<pre>" + xhr.responseText + "</pre>";
+        document.getElementById("searchres").innerHTML = "<pre>" + linkifyBlobRefs(xhr.responseText) + "</pre>";
     };
     xhr.open("GET", disco.searchRoot + "camli/search", true);
     xhr.send();
