@@ -93,6 +93,15 @@ func (tb *testBlob) ExpectUploadBlob(t *testing.T, ds blobserver.BlobReceiver) {
 	tb.AssertMatches(t, sb)
 }
 
+func TestUploadDup(t *testing.T) {
+	ds := NewStorage(t)
+	defer cleanUp(ds)
+	ds.CreateQueue("some-queue")
+	tb := &testBlob{"Foo"}
+	tb.ExpectUploadBlob(t, ds)
+	tb.ExpectUploadBlob(t, ds)
+}
+
 func TestReceiveStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
@@ -176,7 +185,7 @@ func TestMultiStat(t *testing.T) {
 		got++
 		br := sb.BlobRef
 		brstr := br.String()
-		Expect(t, need[brstr], "need stat of blobref " + brstr)
+		Expect(t, need[brstr], "need stat of blobref "+brstr)
 		need[brstr] = false, false
 	}
 	ExpectInt(t, 2, got, "number stat results")

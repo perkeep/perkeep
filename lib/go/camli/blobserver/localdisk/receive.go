@@ -96,10 +96,16 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 			return
 		}
 		partitionFileName := ds.blobPath(pname, blobRef)
-		if err = os.Link(fileName, partitionFileName); err != nil {
-			return
+		pfi, err := os.Stat(partitionFileName)
+		if err == nil && pfi.IsRegular() {
+			log.Printf("Skipped dup on partition %q", pname)
+		} else {
+			if err = os.Link(fileName, partitionFileName); err != nil {
+				log.Fatalf("got link error %T %#v", err, err)
+				return
+			}
+			log.Printf("Mirrored to partition %q", pname)
 		}
-		log.Printf("Mirrored to partition %q", pname)
 	}
 
 	blobGot = blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size}
