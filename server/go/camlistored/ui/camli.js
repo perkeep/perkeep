@@ -270,3 +270,9 @@ function changeAttribute(permanode, claimType, attribute, value, opts) {
 function camliNewSetAttributeClaim(permanode, attribute, value, opts) {
     changeAttribute(permanode, "set-attribute", attribute, value, opts);
 }
+
+// Create and upload a new add-attribute claim.
+function camliNewAddAttributeClaim(permanode, attribute, value, opts) {
+    changeAttribute(permanode, "add-attribute", attribute, value, opts);
+}
+

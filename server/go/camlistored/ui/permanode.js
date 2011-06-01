@@ -20,12 +20,12 @@ function getPermanodeParam() {
     return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
-function handleFormSubmit(e) {
+function handleFormTitleSubmit(e) {
     e.stopPropagation();
     e.preventDefault();
 
-    var inputName = document.getElementById("inputName");
-    inputName.disabled = "disabled";
+    var inputTitle = document.getElementById("inputTitle");
+    inputTitle.disabled = "disabled";
     var btnSave = document.getElementById("btnSave");
     btnSave.disabled = "disabled";
 
@@ -33,20 +33,54 @@ function handleFormSubmit(e) {
 
     camliNewSetAttributeClaim(
         getPermanodeParam(),
-        "name",
-        inputName.value,
+        "title",
+        inputTitle.value,
         {
             success: function() {
                 var elapsedMs = new Date().getTime() - startTime.getTime();
                 setTimeout(function() {
-                    inputName.disabled = null;
+                    inputTitle.disabled = null;
                     btnSave.disabled = null;
                 }, Math.max(250 - elapsedMs, 0));
             },
             fail: function(msg) {
                 alert(msg);
-                inputName.disabled = null;
+                inputTitle.disabled = null;
                 btnSave.disabled = null;
+            }
+        });
+}
+
+function handleFormTagsSubmit(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var input = document.getElementById("inputNewTag");
+    var btn = document.getElementById("btnAddTag");
+    input.disabled = "disabled";
+    btn.disabled = "disabled";
+
+    var startTime = new Date();
+
+    // TODO: split on /\s*,\s*/ first and add a tag for each
+    // TODO: unifiy this code/timing logic with title above
+
+    camliNewAddAttributeClaim(
+        getPermanodeParam(),
+        "tag",
+        input.value,
+        {
+            success: function() {
+                var elapsedMs = new Date().getTime() - startTime.getTime();
+                setTimeout(function() {
+                    input.disabled = null;
+                    btn.disabled = null;
+                }, Math.max(250 - elapsedMs, 0));
+            },
+            fail: function(msg) {
+                alert(msg);
+                input.disabled = null;
+                btn.disabled = null;
             }
         });
 }
@@ -54,11 +88,14 @@ function handleFormSubmit(e) {
 window.addEventListener("load", function (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
-      document.getElementById('permanode').innerHTML = linkifyBlobRefs(permanode);
+      document.getElementById('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
+        document.getElementById('permanodeBlob').innerHTML = "<a href='./?b=" + permanode + "'>view blob</a>";
     }
 
-    var form = document.getElementById("form");
-    form.addEventListener("submit", handleFormSubmit);
+    var formTitle = document.getElementById("formTitle");
+    formTitle.addEventListener("submit", handleFormTitleSubmit);
+    var formTags = document.getElementById("formTags");
+    formTags.addEventListener("submit", handleFormTagsSubmit);
 
     camliDescribeBlob(permanode, {
         success: function(jres) {
@@ -72,12 +109,12 @@ window.addEventListener("load", function (e) {
                 return;
             }
 
-            var inputName = document.getElementById("inputName");
-            inputName.value =
-                (permanodeObject.attr.name && permanodeObject.attr.name.length == 1) ?
-                permanodeObject.attr.name[0] :
+            var inputTitle = document.getElementById("inputTitle");
+            inputTitle.value =
+                (permanodeObject.attr.title && permanodeObject.attr.title.length == 1) ?
+                permanodeObject.attr.title[0] :
                 "";
-            inputName.disabled = null;
+            inputTitle.disabled = null;
 
             var btnSave = document.getElementById("btnSave");
             btnSave.disabled = null;

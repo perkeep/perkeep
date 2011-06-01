@@ -11,10 +11,31 @@
 <body>
   <h1>Permanode</h1>
 
-  <form id="form">
-  <p>Name: <input type="text" id="inputName" size="30" value="(loading)" disabled="disabled" />
-    <input type="submit" id="btnSave" value="Save" disabled="disabled" />
-  <p><span id="permanode"></span></p>
+  <p>Permalink: <span id="permanode"></span> [<span id="permanodeBlob"></span>]</p>
+
+  <form id="formTitle">
+    <p>Title: <input type="text" id="inputTitle" size="30" value="(loading)" disabled="disabled" />
+    <input type="submit" id="btnSave" value="Save" disabled="disabled" /></p>
+  </form>
+
+  <form id="formTags">
+  <p>Tags: <span id="spanTags"></span> <input id="inputNewTag" /> <input type="submit" id="btnAddTag" value="Add Tag(s)" />
+  </form>
+
+  <form id="formType">
+  <p>Type:
+      <select id='type'>
+        <option value=''>(None / auto)</option>
+        <option value='_other'>(Other)</option>
+        <option value="file">File</option>
+        <option value="collection">File Collection / Gallery</option>
+        <option value="microblog">Microblog Post</option>
+        <option value="blog">Blog Post</option>
+      </select>
+   </p>
+  </form>
+  
+
   </form>
 </body>
 </html>
