@@ -33,34 +33,38 @@ type Request struct {
 	Desc, Prompt, OK, Cancel, Error string
 }
 
+func catch(err *os.Error) {
+	rerr := recover()
+	if rerr == nil {
+		return
+	}
+	if e, ok := rerr.(string); ok {
+		*err = os.NewError(e)
+	}
+	if e, ok := rerr.(os.Error); ok {
+		*err = e
+	}
+}
+
+func check(err os.Error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (r *Request) GetPIN() (pin string, outerr os.Error) {
-	defer func() {
-		if e, ok := recover().(string); ok {
-			pin = ""
-			outerr = os.NewError(e)
-		}
-	}()
+	defer catch(&outerr)
 	bin, err := exec.LookPath("pinentry")
 	if err != nil {
 		return r.getPINNaïve()
 	}
-	c, err := exec.Run(bin,
-		[]string{bin},
-		os.Environ(),
-		"/",
-		exec.Pipe,
-		exec.Pipe,
-		exec.DevNull)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		c.Stdin.Close()
-		c.Stdout.Close()
-		c.Close()
-		c.Wait(0)
-	}()
-	br := bufio.NewReader(c.Stdout)
+	cmd := exec.Command(bin)
+	stdin, _ := cmd.StdinPipe()
+	stdout, _ := cmd.StdoutPipe()
+	check(cmd.Start())
+	defer cmd.Wait()
+	defer stdin.Close()
+	br := bufio.NewReader(stdout)
 	lineb, _, err := br.ReadLine()
 	if err != nil {
 		return "", fmt.Errorf("Failed to get getpin greeting")
@@ -73,7 +77,7 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 		if val == "" {
 			return
 		}
-		fmt.Fprintf(c.Stdin, "%s %s\n", cmd, val)
+		fmt.Fprintf(stdin, "%s %s\n", cmd, val)
 		line, _, err := br.ReadLine()
 		if err != nil {
 			panic("Failed to " + cmd)
@@ -92,7 +96,7 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 	if err == nil {
 		set("OPTION", "ttyname=" + tty)
 	}
-	fmt.Fprintf(c.Stdin, "GETPIN\n")
+	fmt.Fprintf(stdin, "GETPIN\n")
 	lineb, _, err = br.ReadLine()
 	if err != nil {
 		return "", fmt.Errorf("Failed to read line after GETPIN: %v", err)
@@ -108,16 +112,9 @@ func (r *Request) GetPIN() (pin string, outerr os.Error) {
 }
 
 func runPass(bin string, args ...string) {
-	a := []string{bin}
-	a = append(a, args...)
-	c, err := exec.Run(bin, a, os.Environ(), "/", exec.PassThrough, exec.PassThrough, exec.PassThrough)
-	if err != nil {
-		return
-	}
-	defer func() {
-		c.Close()
-		c.Wait(0)
-	}()
+	cmd := exec.Command(bin, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
 
 func (r *Request) getPINNaïve() (string, os.Error) {

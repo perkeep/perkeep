@@ -55,23 +55,9 @@ func doInit() {
 
 	// TODO: use same command-line flag as the jsonsign package.
 	// unify them into a shared package just for gpg-related stuff?
-	gpgBinary, err := exec.LookPath("gpg")
+	keyBytes, err := exec.Command("gpg", "--export", "--armor", keyId).Output()
 	if err != nil {
-		log.Fatalf("Failed to find gpg binary in your path.")
-	}
-	cmd, err := exec.Run(gpgBinary,
-		[]string{"gpg", "--export", "--armor", keyId},
-		os.Environ(),
-		"/",
-		exec.DevNull,
-		exec.Pipe,
-		exec.DevNull)
-	if err != nil {
-		log.Fatalf("Error running gpg to export public key: %v", err)
-	}
-	keyBytes, err := ioutil.ReadAll(cmd.Stdout)
-	if err != nil {
-                log.Fatalf("Error read from gpg to export public key: %v", err)
+                log.Fatalf("Error running gpg to export public key: %v", err)
         }
 	
 	hash := sha1.New()

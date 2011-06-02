@@ -112,13 +112,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 	success = true
 
 	if os.Getenv("CAMLI_HACK_OPEN_IMAGES") == "1" {
-		exec.Run("/usr/bin/eog",
-			[]string{"/usr/bin/eog", fileName},
-			os.Environ(),
-			"/",
-			exec.DevNull,
-			exec.DevNull,
-			exec.MergeWithStdout)
+		exec.Command("eog", fileName).Run()
 	}
 
 	hub := ds.GetBlobHub()
