@@ -18,5 +18,5 @@
   
   "selfPubKeyDir": ["_env", "${CAMLI_DEV_KEYBLOBS}" ],
   "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
-  "keyId": "26F5ABDA"
+  "keyId": ["_env", "${CAMLI_KEYID}"]
 }

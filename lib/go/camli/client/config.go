@@ -158,7 +158,7 @@ func SignerPublicKeyBlobref() *blobref.BlobRef {
 
 	entity, err := jsonsign.EntityFromSecring(keyId, keyRing)
 	if err != nil {
-		log.Printf("Couldn't find keyId %q in secret ring: %v", err)
+		log.Printf("Couldn't find keyId %q in secret ring: %v", keyId, err)
 		return nil
 	}
 	armored, err := jsonsign.ArmoredPublicKey(entity)

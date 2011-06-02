@@ -100,11 +100,15 @@ func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, os.Error) {
 		entity = e
 	}
 	if entity == nil {
-		return nil, fmt.Errorf("didn't find a key in %q for keyId %q", keyFile, keyId)
-	}
-	if entity.PrivateKey.Encrypted {
-		// TODO: support decrypting this
-		return nil, fmt.Errorf("jsonsign: encrypted keys aren't yet supported")
+		found := []string{}
+		for _, e := range el {
+			pk := e.PrivateKey
+			if pk == nil {
+				continue
+			}
+			found = append(found, pk.KeyIdShortString())
+		}
+		return nil, fmt.Errorf("didn't find a key in %q for keyId %q; other keyIds in file = %v", keyFile, keyId, found)
 	}
 	return entity, nil
 }

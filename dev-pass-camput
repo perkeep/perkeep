@@ -9,10 +9,11 @@ system("$Bin/build.pl", "camput") and die "failed to build camput";
 $ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
 
 # Respected by env expansions in config/dev-client-dir/config
-$ENV{"CAMLI_SECRET_RING"} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
-$ENV{"CAMLI_KEYID"} = "26F5ABDA";
+$ENV{"CAMLI_SECRET_RING"} = "$Bin/lib/go/camli/jsonsign/testdata/password-foo-secring.gpg";
+$ENV{"CAMLI_KEYID"} = "C7C3E176";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
 
+print "**\n** Note: password is \"foo\"\n**\n";
 system("$Bin/clients/go/camput/camput",
        "--verbose",
        "--blobserver=http://localhost:3179/bs",
