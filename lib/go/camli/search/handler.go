@@ -85,6 +85,8 @@ func (sh *searchHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		sh.serveRecentPermanodes(rw, req)
 	case "camli/search/describe":
 		sh.serveDescribe(rw, req)
+	case "camli/search/claims":
+		sh.serveClaims(rw, req)
 	}
 }
 
@@ -121,6 +123,45 @@ func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http
 		// TODO: return error status code
 		ret["error"] = fmt.Sprintf("%v", err)
 	}
+	httputil.ReturnJson(rw, ret)
+}
+
+func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) {
+	ret := make(jsonMap)
+
+	pn := blobref.Parse(req.FormValue("permanode"))
+	if pn == nil {
+		http.Error(rw, "Missing or invalid 'permanode' param", 400)
+		return
+	}
+
+	// TODO: rename GetOwnerClaims to GetClaims?
+	claims, err := sh.index.GetOwnerClaims(pn, sh.owner)
+	if err != nil {
+		log.Printf("Error getting claims of %s: %v", pn.String(), err)
+	} else {
+		sort.Sort(claims)
+		jclaims := make([]jsonMap, 0)
+
+		for _, claim := range claims {
+			jclaim := make(jsonMap)
+			jclaim["blobref"] = claim.BlobRef.String()
+			jclaim["signer"] = claim.Signer.String()
+			jclaim["permanode"] = claim.Permanode.String()
+			jclaim["date"] = claim.Date.Format(time.RFC3339)
+			jclaim["type"] = claim.Type
+			if claim.Attr != "" {
+				jclaim["attr"] = claim.Attr
+			}
+			if claim.Value != "" {
+				jclaim["value"] = claim.Value
+			}
+
+			jclaims = append(jclaims, jclaim)
+		}
+		ret["claims"] = jclaims
+	}
+
 	httputil.ReturnJson(rw, ret)
 }
 

@@ -58,6 +58,22 @@ function blobInfoUpdate(bmap) {
     } else {
         document.getElementById("blobdata").innerHTML = "Unknown/binary data; <a href='" + camliBlobURL(blobref) + "'>download</a>";
     }
+
+    if (binfo.camliType && binfo.camliType == "permanode") {
+        var claims = document.getElementById("claimsdiv");
+        claims.style.visibility = "";
+        camliGetPermanodeClaims(
+            blobref,
+            {
+                success: function(data) {
+                    document.getElementById("claims").innerHTML = linkifyBlobRefs(JSON.stringify(data, null, 2));
+                },
+                fail: function(msg) {
+                    alert(msg);
+                }
+            });
+    }
+
 }
 
 function blobInfoOnLoad() {

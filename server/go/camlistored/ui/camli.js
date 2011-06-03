@@ -97,6 +97,29 @@ function camliDescribeBlob(blobref, opts) {
     xhr.send();
 }
 
+function camliGetPermanodeClaims(permanode, opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            opts.fail("got HTTP status " + xhr.status);
+            return;
+        }
+        var jres;
+        try {
+            jres = JSON.parse(xhr.responseText);
+        } catch (x) {
+            opts.fail("JSON parse error: " + xhr.responseText);
+            return;
+        }
+        opts.success(jres);
+    };
+    var path = disco.searchRoot + "camli/search/claims?permanode=" + permanode;
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliGetBlobContents(blobref, opts) {
     opts = saneOpts(opts);
     var xhr = new XMLHttpRequest();
