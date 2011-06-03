@@ -176,7 +176,20 @@ func (sh *searchHandler) populatePermanodeFields(jm jsonMap, pn, signer *blobref
 		for _, cl := range claims {
 			switch cl.Type {
 			case "del-attribute":
-				attr[cl.Attr] = nil, false
+				if cl.Value == "" {
+					attr[cl.Attr] = nil, false
+				} else {
+					sl, ok := attr[cl.Attr].([]string)
+					if ok {
+						filtered := make([]string, 0, len(sl))
+						for _, val := range sl {
+							if val != cl.Value {
+								filtered = append(filtered, val)
+							}
+						}
+						attr[cl.Attr] = filtered
+					}
+				}
 			case "set-attribute":
 				attr[cl.Attr] = nil, false
 				fallthrough

@@ -276,3 +276,8 @@ function camliNewAddAttributeClaim(permanode, attribute, value, opts) {
     changeAttribute(permanode, "add-attribute", attribute, value, opts);
 }
 
+// Create and upload a new del-attribute claim.
+function camliNewDelAttributeClaim(permanode, attribute, value, opts) {
+    changeAttribute(permanode, "del-attribute", attribute, value, opts);
+}
+

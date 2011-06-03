@@ -85,6 +85,25 @@ function handleFormTagsSubmit(e) {
         });
 }
 
+// TODO: immediately <s>xxx</s> out xele, and after success remove removeele
+function deleteTagFunc(tag, strikeEle, removeEle) {
+    return function(e) {
+        strikeEle.innerHTML = "<s>" + strikeEle.innerHTML + "</s>";
+        camliNewDelAttributeClaim(
+            getPermanodeParam(),
+            "tag",
+            tag,
+            {
+                success: function() {
+                    removeEle.innerHTML = "";
+                },
+                fail: function(msg) {
+                    alert(msg);
+                }
+            });
+    };
+}
+
 window.addEventListener("load", function (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
@@ -115,6 +134,34 @@ window.addEventListener("load", function (e) {
                 permanodeObject.attr.title[0] :
                 "";
             inputTitle.disabled = null;
+
+
+            var spanTags = document.getElementById("spanTags");
+            while (spanTags.firstChild) {
+                spanTags.removeChild(spanTags.firstChild);
+            }
+
+            var tags = permanodeObject.attr.tag;
+            for (idx in tags) {
+                var tagSpan = document.createElement("span");
+
+                if (idx > 0) {
+                    tagSpan.appendChild(document.createTextNode(", "));
+                }
+                var tagLink = document.createElement("i");
+                var tag = tags[idx];
+                tagLink.innerText = tags[idx];
+                tagSpan.appendChild(tagLink);
+                tagSpan.appendChild(document.createTextNode(" ["));
+                var delLink = document.createElement("a");
+                delLink.href = '#';
+                delLink.innerText = "X";
+                delLink.addEventListener("click", deleteTagFunc(tag, tagLink, tagSpan));
+                tagSpan.appendChild(delLink);
+                tagSpan.appendChild(document.createTextNode("]"));
+
+                spanTags.appendChild(tagSpan);
+            }
 
             var btnSave = document.getElementById("btnSave");
             btnSave.disabled = null;
