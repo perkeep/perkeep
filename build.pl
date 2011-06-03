@@ -208,7 +208,8 @@ sub build {
     my @history = @_;
     my $target = $history[0];
 
-    if ($target =~ m!/go/!) {
+    my $is_go = $target =~ m!/go/!;
+    if ($is_go) {
         perform_go_check();
     }
 
@@ -246,7 +247,23 @@ sub build {
     my @quiet = ("--silent");
     @quiet = () if $opt_verbose;
 
-    if (system("make", @quiet, "-C", $target, "install") != 0) {
+    my $build_command = sub {
+        return system("make", @quiet, "-C", $target, "install") == 0;
+    };
+
+    if ($is_go) {
+        my $make_build = $build_command;
+        $build_command = sub {
+            if ($make_build->()) {
+                return 1;
+            }
+            print STDERR "# Go build failed (linker version skew?) Running 'clean' and re-trying...\n";
+            system("make", @quiet, "-C", $target, "clean");
+            return $make_build->();
+        };
+    }
+
+    if (!$build_command->()) {
         my $chain = "";
         if (@history > 1) {
             $chain = "via chain @history";
