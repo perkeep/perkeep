@@ -35,7 +35,7 @@ function blobInfoUpdate(bmap) {
         return;
     }
     blobpre.innerHTML = JSON.stringify(binfo, null, 2);
-    if (binfo.camliType) {
+    if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
         camliGetBlobContents(
             blobref,
             {
@@ -56,8 +56,9 @@ function blobInfoUpdate(bmap) {
                 fail: alert
             });
     } else {
-        document.getElementById("blobdata").innerHTML = "Unknown/binary data; <a href='" + camliBlobURL(blobref) + "'>download</a>";
+        document.getElementById("blobdata").innerHTML = "<i>Unknown/binary data</i>";
     }
+    bd.innerHTML = "<a href='" + camliBlobURL(blobref) + "'>download</a>";
 
     if (binfo.camliType && binfo.camliType == "permanode") {
         var claims = document.getElementById("claimsdiv");
