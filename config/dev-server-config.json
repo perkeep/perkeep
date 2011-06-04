@@ -13,7 +13,8 @@
           "handlerArgs": {
              "blobRoot": "/bs-and-maybe-also-index/",
              "searchRoot": "/my-search/",
-             "jsonSignRoot": "/sighelper/"
+             "jsonSignRoot": "/sighelper/",
+             "cache": "/cache/"
           }
      },
 
@@ -57,6 +58,13 @@
          "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT}"]
+          }
+     },
+
+     "/cache/": {
+         "handler": "storage-filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_CACHE}"]
           }
      },
 

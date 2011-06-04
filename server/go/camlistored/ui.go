@@ -58,6 +58,7 @@ type UIHandler struct {
 	FilesDir string
 
 	Storage blobserver.Storage // of BlobRoot
+	Cache   blobserver.Storage // or nil
 }
 
 func defaultFilesDir() string {
@@ -74,6 +75,7 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	ui.BlobRoot = conf.OptionalString("blobRoot", "")
 	ui.SearchRoot = conf.OptionalString("searchRoot", "")
 	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
+	cachePrefix := conf.OptionalString("cache", "")
 	ui.FilesDir = conf.OptionalString("staticFiles", defaultFilesDir())
 	if err = conf.Validate(); err != nil {
 		return
@@ -104,6 +106,14 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 			return nil, fmt.Errorf("UI handler's blobRoot of %q error: %v", ui.BlobRoot, err)
 		}
 		ui.Storage = bs
+	}
+
+	if cachePrefix != "" {
+		bs, err := ld.GetStorage(cachePrefix)
+		if err != nil {
+			return nil, fmt.Errorf("UI handler's cache of %q error: %v", ui.BlobRoot, err)
+		}
+		ui.Cache = bs
 	}
 
 	fi, sterr := os.Stat(ui.FilesDir)
@@ -230,16 +240,31 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	}
 }
 
+func (ui *UIHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
+	fetchSeeker, ok := ui.Storage.(blobref.SeekFetcher)
+	if ok {
+		return fetchSeeker, nil
+	}
+	tester, ok := ui.Storage.(blobref.SeekTester)
+	if ok {
+		if tester.IsFetcherASeeker() {
+			log.Printf("ui.Storage is a seeker; returning wrapper")
+			return &blobref.FetcherToSeekerWrapper{ui.Storage}, nil
+		}
+	}
+	return nil, fmt.Errorf("TODO: ui.Storage of %T %v doesn't support seeking. TODO: wrap in a cache",
+		ui.Storage, ui.Storage)
+}
+
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 	if ui.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
 		return
 	}
 
-	fetchSeeker, ok := ui.Storage.(blobref.SeekFetcher)
-	if !ok {
-		// TODO: wrap ui.Storage in disk-caching wrapper so it can seek
-		http.Error(rw, "TODO: configured BlobRoot doesn't support seeking and disk cache wrapping not yet implemented", 500)
+	fetchSeeker, err := ui.storageSeekFetcher()
+	if err != nil {
+		http.Error(rw, err.String(), 500)
 		return
 	}
 

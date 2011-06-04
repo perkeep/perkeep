@@ -44,6 +44,29 @@ type SeekFetcher interface {
 	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err os.Error)
 }
 
+// SeekTester is the interface implemented by storage implementations that don't
+// know until runtime whether or not their StreamingFetcher happens to also
+// return a ReadCloser that's also a ReadSeekCloser.
+type SeekTester interface {
+	IsFetcherASeeker() bool
+}
+
+// FetcherToSeekerWrapper wraps a StreamingFetcher and convert it into
+// a SeekFetcher if SeekTester has confirmed the inteface conversion
+// is safe.
+type FetcherToSeekerWrapper struct {
+	StreamingFetcher
+}
+
+func (w *FetcherToSeekerWrapper) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os.Error) {
+	rc, size, err := w.StreamingFetcher.FetchStreaming(b)
+	if err != nil {
+		return
+	}
+	file = rc.(ReadSeekCloser)
+	return
+}
+
 type StreamingFetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
 	// os.ENOENT should be returned for the error (not a wrapped

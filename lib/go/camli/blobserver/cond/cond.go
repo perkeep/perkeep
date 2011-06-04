@@ -162,6 +162,11 @@ func (sto *condStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return os.NewError("cond: Remove not configured")
 }
 
+func (sto *condStorage) IsFetcherASeeker() bool {
+	_, ok := sto.read.(blobref.SeekFetcher)
+	return ok
+}
+
 func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
 	if sto.read != nil {
 		return sto.read.FetchStreaming(b)

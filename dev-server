@@ -71,6 +71,7 @@ $ENV{CAMLI_ROOT_SHARD2} = $suffixdir->("s2");
 $ENV{CAMLI_ROOT_REPLICA1} = $suffixdir->("r1");
 $ENV{CAMLI_ROOT_REPLICA2} = $suffixdir->("r2");
 $ENV{CAMLI_ROOT_REPLICA3} = $suffixdir->("r3");
+$ENV{CAMLI_ROOT_CACHE} = $suffixdir->("cache");
 $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
