@@ -11,7 +11,7 @@
      "/ui/": {
           "handler": "ui",
           "handlerArgs": {
-             "blobRoot": "/bs/",
+             "blobRoot": "/bs-and-maybe-also-index/",
              "searchRoot": "/my-search/",
              "jsonSignRoot": "/sighelper/"
           }
@@ -44,9 +44,12 @@
       "/bs-and-maybe-also-index/": {
           "handler": "storage-cond",
           "handlerArgs": {
-              "if": "isSchema",
-              "then": "/bs-and-index/",
-              "else": "/bs/"
+              "write": {
+                  "if": "isSchema",
+                  "then": "/bs-and-index/",
+                  "else": "/bs/"
+              },
+              "read": "/bs/"
           }
       },
 
