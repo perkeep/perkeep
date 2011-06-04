@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 
 	"camli/blobref"
 	"camli/client"
+	"camli/rollsum"
 	"camli/schema"
 	"camli/jsonsign"
 )
@@ -45,6 +47,8 @@ var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
 var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
 var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
+
+var flagSplits = flag.Bool("debug-splits", false, "show splits")
 
 var wereErrors = false
 
@@ -241,6 +245,11 @@ func main() {
 	jsonsign.AddFlags()
 	flag.Parse()
 
+	if *flagSplits {
+		showSplits()
+		return
+	}
+
 	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove,
 		flagSetAttr, flagAddAttr)
 	if !(nOpts == 1 ||
@@ -347,4 +356,31 @@ func main() {
 	if wereErrors {
 		os.Exit(2)
 	}
+}
+
+func showSplits() {
+	file := flag.Arg(0)
+	f, err := os.Open(file)
+	if err != nil {
+		panic(err.String())
+	}
+	bufr := bufio.NewReader(f)
+
+	rs := rollsum.New()
+	n := 0
+	for {
+		c, err := bufr.ReadByte()
+		if err != nil {
+			if err == os.EOF {
+				break
+			}
+			panic(err.String())
+		}
+		n++
+		rs.Roll(c)
+		if rs.OnSplit() {
+			log.Printf("split at %d, bits=%d", n, rs.Bits())
+		}
+	}
+
 }

@@ -29,7 +29,7 @@ func TestSum(t *testing.T) {
 	}
 
 	sum := func(offset, len int) uint32 {
-		rs := NewRollSum()
+		rs := New()
 		for count := offset; count < len; count++ {
 			rs.Roll(buf[count])
 		}

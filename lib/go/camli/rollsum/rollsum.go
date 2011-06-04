@@ -19,11 +19,13 @@ limitations under the License.
 package rollsum
 
 import (
-
-)
+	)
 
 const windowSize = 64
 const charOffset = 31
+
+const blobBits = 13
+const blobSize = 1 << blobBits // 8k
 
 type RollSum struct {
 	s1, s2 uint32
@@ -31,7 +33,7 @@ type RollSum struct {
 	wofs   int
 }
 
-func NewRollSum() *RollSum {
+func New() *RollSum {
 	return &RollSum{
 		s1: windowSize * charOffset,
 		s2: windowSize * (windowSize - 1) * charOffset,
@@ -47,6 +49,20 @@ func (rs *RollSum) Roll(ch byte) {
 	rs.add(rs.window[rs.wofs], ch)
 	rs.window[rs.wofs] = ch
 	rs.wofs = (rs.wofs + 1) % windowSize
+}
+
+func (rs *RollSum) OnSplit() bool {
+	return (rs.s2 & (blobSize-1)) == ((^0) & (blobSize-1))
+}
+
+func (rs *RollSum) Bits() int {
+	bits := blobBits
+	rsum := rs.Digest()
+	rsum >>= blobBits;
+	for ; (rsum >> 1) & 1 != 0; bits++ {
+		rsum >>= 1
+	}
+	return bits
 }
 
 func (rs *RollSum) Digest() uint32 {
