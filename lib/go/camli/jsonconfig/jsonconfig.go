@@ -79,6 +79,34 @@ func (jc Obj) string(key string, def *string) string {
 	return s
 }
 
+func (jc Obj) RequiredStringOrObject(key string) interface{} {
+	return jc.stringOrObject(key, true)
+}
+
+func (jc Obj) OptionalStringOrObject(key string) interface{} {
+	return jc.stringOrObject(key, false)
+}
+
+func (jc Obj) stringOrObject(key string, required bool) interface{} {
+	jc.noteKnownKey(key)
+        ei, ok := jc[key]
+	if !ok {
+		if !required {
+			return nil
+		}
+		jc.appendError(fmt.Errorf("Missing required config key %q (string or object)", key))
+		return ""
+	}
+	if _, ok := ei.(map[string]interface{}); ok {
+		return ei
+	}
+	if _, ok := ei.(string); ok {
+		return ei
+	}
+	jc.appendError(fmt.Errorf("Expected config key %q to be a string or object", key))
+        return ""
+}
+
 func (jc Obj) RequiredBool(key string) bool {
 	return jc.bool(key, nil)
 }
@@ -129,7 +157,6 @@ func (jc Obj) int(key string, def *int) int {
 		return 0
 	}
 	return int(b)
-
 }
 
 func (jc Obj) RequiredList(key string) []string {
