@@ -34,6 +34,22 @@
           }
      },
 
+      "/bs-and-index/": {
+          "handler": "storage-replica",
+          "handlerArgs": {
+              "backends": ["/bs/", "/indexer/"]
+          }
+      },
+
+      "/bs-and-maybe-also-index/": {
+          "handler": "storage-cond",
+          "handlerArgs": {
+              "if": "isSchema",
+              "then": "/bs-and-index/",
+              "else": "/bs/"
+          }
+      },
+
      "/bs/": {
          "handler": "storage-filesystem",
          "handlerArgs": {

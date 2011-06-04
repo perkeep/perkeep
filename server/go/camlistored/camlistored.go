@@ -36,6 +36,7 @@ import (
 	"camli/webserver"
 
 	// Storage options:
+	_ "camli/blobserver/cond"
 	_ "camli/blobserver/localdisk"
 	_ "camli/blobserver/remote"
 	_ "camli/blobserver/replica"

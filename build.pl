@@ -462,6 +462,7 @@ TARGET: clients/go/camsync
 TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
 TARGET: lib/go/camli/blobserver
+TARGET: lib/go/camli/blobserver/cond
 TARGET: lib/go/camli/blobserver/handlers
 TARGET: lib/go/camli/blobserver/localdisk
 TARGET: lib/go/camli/blobserver/remote
