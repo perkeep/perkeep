@@ -21,7 +21,7 @@ function getBlobParam() {
 }
 
 function blobInfoUpdate(bmap) {
-    var blobpre = document.getElementById('blobpre');
+    var blobmeta = document.getElementById('blobmeta');
     var bd = document.getElementById("blobdownload")
     bd.innerHTML = "";
     var blobref = getBlobParam();
@@ -31,10 +31,10 @@ function blobInfoUpdate(bmap) {
     }
     var binfo = bmap[blobref];
     if (!binfo) {
-        blobpre.innerHTML = "(not found)";
+        blobmeta.innerHTML = "(not found)";
         return;
     }
-    blobpre.innerHTML = JSON.stringify(binfo, null, 2);
+    blobmeta.innerHTML = JSON.stringify(binfo, null, 2);
     if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
         camliGetBlobContents(
             blobref,
@@ -48,7 +48,7 @@ function blobInfoUpdate(bmap) {
                             var fileName = finfo.fileName || blobref;
                             bd.firstChild.href = "./download/" + blobref + "/" + fileName;
                             bd.firstChild.innerText = fileName;
-                            bd.innerHTML = "Download: " + bd.innerHTML;
+                            bd.innerHTML = "[download: " + bd.innerHTML + "]";
                         } catch (x) {
                         }
                     }
@@ -58,9 +58,12 @@ function blobInfoUpdate(bmap) {
     } else {
         document.getElementById("blobdata").innerHTML = "<i>Unknown/binary data</i>";
     }
-    bd.innerHTML = "<a href='" + camliBlobURL(blobref) + "'>download</a>";
+    bd.innerHTML = "[<a href='" + camliBlobURL(blobref) + "'>download blob</a>]";
 
     if (binfo.camliType && binfo.camliType == "permanode") {
+        document.getElementById("editspan").style.display = "inline";
+        document.getElementById("editlink").href = "./?p=" + blobref;
+
         var claims = document.getElementById("claimsdiv");
         claims.style.visibility = "";
         camliGetPermanodeClaims(
@@ -82,8 +85,8 @@ function blobInfoOnLoad() {
     if (!blobref) {
         return
     }
-    var blobpre = document.getElementById('blobpre');
-    blobpre.innerText = "(loading)";
+    var blobmeta = document.getElementById('blobmeta');
+    blobmeta.innerText = "(loading)";
     camliDescribeBlob(
         blobref,
         {

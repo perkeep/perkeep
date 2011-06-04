@@ -12,3 +12,4 @@ function search() {
     xhr.send();
 }
 
+window.addEventListener("load", search);
