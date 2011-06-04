@@ -52,6 +52,10 @@ type JSONSignHandler struct {
 	pubKeyBlobRefServeSuffix string // "camli/sha1-xxxx"
 	pubKeyHandler            http.Handler
 
+	// Where & if our public key is published
+	pubKeyDest    blobserver.Storage
+	pubKeyWritten bool
+
 	entity *openpgp.Entity
 }
 
@@ -67,6 +71,7 @@ func init() {
 }
 
 func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, os.Error) {
+	pubKeyDestPrefix := conf.OptionalString("publicKeyDest", "")
 	h := &JSONSignHandler{
 		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
 		secretRing: conf.OptionalString("secretRing", ""),
@@ -89,6 +94,15 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	}
 	h.pubKeyFetcher = ms
 
+	if pubKeyDestPrefix != "" {
+		sto, err := ld.GetStorage(pubKeyDestPrefix)
+		if err != nil {
+			return nil, err
+		}
+		h.pubKeyDest = sto
+		go h.uploadPublicKey(armoredPublicKey)
+	}
+
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
 	h.pubKeyHandler = &handlers.GetHandler{
 		Fetcher:           ms,
@@ -96,6 +110,17 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	}
 
 	return h, nil
+}
+
+func (h *JSONSignHandler) uploadPublicKey(key string) {
+	if h.pubKeyDest == nil {
+		return
+	}
+	// TODO: error check
+	_, err := h.pubKeyDest.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(key))
+	if err != nil {
+		log.Printf("upload public key: %v", err)
+	}
 }
 
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -166,7 +191,7 @@ func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request
 		m["errorMessage"] = errStr
 	}
 
-	rw.WriteHeader(http.StatusOK)  // no HTTP response code fun, error info in JSON
+	rw.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
 	httputil.ReturnJson(rw, m)
 }
 
