@@ -251,6 +251,28 @@ function getQueryParam(key) {
     return null;
 }
 
+function camliGetRecentlyUpdatedPermanodes(opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {
+            opts.fail("no status 200; got " + xhr.status);
+            return;
+        }
+        var resj;
+        try {
+            resj = JSON.parse(xhr.responseText);
+        } catch(x) {
+            opts.fail("error parsing JSON in upload response: " + xhr.responseText);
+            return
+        }
+        opts.success(resj);
+    };
+    xhr.open("GET", disco.searchRoot + "camli/search", true);
+    xhr.send();
+}
+
 // Returns true if the passed-in string might be a blobref.
 function isPlausibleBlobRef(blobRef) {
     return /^\w+-[a-f0-9]+$/.test(blobRef);
