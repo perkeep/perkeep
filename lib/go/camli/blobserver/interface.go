@@ -75,7 +75,7 @@ type BlobEnumerator interface {
 
 // Cache is the minimal interface expected of a blob cache.
 type Cache interface {
-	blobref.SeekFetcher // TODO: change this to be just a normal StreamingFetcher
+	blobref.SeekFetcher
 	BlobReceiver
 	BlobStatter
 }

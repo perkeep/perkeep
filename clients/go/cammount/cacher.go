@@ -17,10 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"io"
+	"os"
+
 	"camli/blobref"
 	"camli/blobserver"
-
-	"os"
 )
 
 func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) blobref.SeekFetcher {
@@ -32,25 +33,33 @@ type CachingFetcher struct {
 	sf blobref.StreamingFetcher
 }
 
+var _ blobref.StreamingFetcher = (*CachingFetcher)(nil)
+var _ blobref.SeekFetcher = (*CachingFetcher)(nil)
+
+func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+	file, size, err = cf.c.Fetch(br)
+        if err == nil {
+                return
+        }
+	cf.faultIn(br)
+	return cf.c.Fetch(br)
+}
+
 func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err os.Error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return
 	}
+	cf.faultIn(br)
+	return cf.c.Fetch(br)
+}
 
-	// TODO: let fetches some in real-time with stream in the
-	// common case, only blocking if a Seek-forward is encountered
-	// mid-download.  But for now we're lazy and first copy the
-	// whole thing to cache.
-	sblob, size, err := cf.sf.FetchStreaming(br)
+func (cf *CachingFetcher) faultIn(br *blobref.BlobRef) os.Error {
+	sblob, _, err := cf.sf.FetchStreaming(br)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 
 	_, err = cf.c.ReceiveBlob(br, sblob)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return cf.c.Fetch(br)
+	return err
 }
