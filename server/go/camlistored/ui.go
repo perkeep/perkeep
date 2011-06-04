@@ -236,7 +236,7 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fetchSeeker, ok := ui.Storage.(blobref.Fetcher)
+	fetchSeeker, ok := ui.Storage.(blobref.SeekFetcher)
 	if !ok {
 		// TODO: wrap ui.Storage in disk-caching wrapper so it can seek
 		http.Error(rw, "TODO: configured BlobRoot doesn't support seeking and disk cache wrapping not yet implemented", 500)

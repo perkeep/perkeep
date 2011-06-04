@@ -32,13 +32,12 @@ import (
 
 var _ = log.Printf
 
-// TODO: rename StreamingFetcher to be Fetch (the common case) and
-// make a new interface for FetchSeeker (the rare case)
+// TODO: rename StreamingFetcher to be Fetcher (the common case)
 
 // TODO: add FetcherAt / FetchAt (for HTTP range requests).  But then how
-// to make all FetchSeeker also be a FetchAt? By hand? 
+// to make all SeekFetcer also be a FetchAt? By hand?
 
-type Fetcher interface {
+type SeekFetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
 	// os.ENOENT should be returned for the error (not a wrapped
 	// error with a ENOENT inside)
@@ -52,7 +51,7 @@ type StreamingFetcher interface {
 	FetchStreaming(*BlobRef) (file io.ReadCloser, size int64, err os.Error)
 }
 
-func NewSerialFetcher(fetchers ...Fetcher) Fetcher {
+func NewSerialFetcher(fetchers ...SeekFetcher) SeekFetcher {
 	return &serialFetcher{fetchers}
 }
 
@@ -70,7 +69,7 @@ func NewConfigDirFetcher() *DirFetcher {
 }
 
 type serialFetcher struct {
-	fetchers []Fetcher
+	fetchers []SeekFetcher
 }
 
 func (sf *serialFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err os.Error) {

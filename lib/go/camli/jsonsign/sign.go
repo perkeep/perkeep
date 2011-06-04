@@ -225,7 +225,7 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 
 	var pubkeyReader io.ReadCloser
 	switch fetcher := sr.Fetcher.(type) {
-	case blobref.Fetcher:
+	case blobref.SeekFetcher:
 		pubkeyReader, _, err = fetcher.Fetch(signerBlob)
 	case blobref.StreamingFetcher:
 		pubkeyReader, _, err = fetcher.FetchStreaming(signerBlob)

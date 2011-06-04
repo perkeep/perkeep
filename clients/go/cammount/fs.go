@@ -38,7 +38,7 @@ var _ = log.Println
 type CamliFileSystem struct {
 	fuse.DefaultPathFilesystem
 
-	fetcher blobref.Fetcher
+	fetcher blobref.SeekFetcher
 	root    *blobref.BlobRef
 
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
@@ -46,7 +46,7 @@ type CamliFileSystem struct {
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
 
-func NewCamliFileSystem(fetcher blobref.Fetcher, root *blobref.BlobRef) *CamliFileSystem {
+func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *CamliFileSystem {
 	return &CamliFileSystem{
 		fetcher:      fetcher,
 		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?

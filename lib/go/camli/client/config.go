@@ -194,7 +194,7 @@ func SignerPublicKeyBlobref() *blobref.BlobRef {
 	return br
 }
 
-func (c *Client) GetBlobFetcher() blobref.Fetcher {
+func (c *Client) GetBlobFetcher() blobref.SeekFetcher {
 	// Use blobref.NewSeriesFetcher(...all configured fetch paths...)
 	return blobref.NewConfigDirFetcher()
 }

@@ -23,7 +23,7 @@ import (
 	"os"
 )
 
-func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) blobref.Fetcher {
+func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) blobref.SeekFetcher {
 	return &CachingFetcher{cacheTarget, sfetcher}
 }
 

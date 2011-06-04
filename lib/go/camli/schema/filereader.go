@@ -28,7 +28,7 @@ import (
 var _ = log.Printf
 
 type FileReader struct {
-	fetcher blobref.Fetcher
+	fetcher blobref.SeekFetcher
 	ss      *Superset
 	ci      int    // index into contentparts
 	ccon    uint64 // bytes into current chunk already consumed
@@ -38,7 +38,7 @@ type FileReader struct {
 }
 
 // TODO: make this take a blobref.FetcherAt instead?
-func NewFileReader(fetcher blobref.Fetcher, fileBlobRef *blobref.BlobRef) (*FileReader, os.Error) {
+func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, os.Error) {
 	ss := new(Superset)
 	rsc, _, err := fetcher.Fetch(fileBlobRef)
 	if err != nil {
@@ -53,7 +53,7 @@ func NewFileReader(fetcher blobref.Fetcher, fileBlobRef *blobref.BlobRef) (*File
 	return ss.NewFileReader(fetcher), nil
 }
 
-func (ss *Superset) NewFileReader(fetcher blobref.Fetcher) *FileReader {
+func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) *FileReader {
 	// TODO: return an error if ss isn't a Type "file" ?
 	// TODO: return some error if the redundant ss.Size field doesn't match ContentParts?
 	return &FileReader{fetcher: fetcher, ss: ss}
