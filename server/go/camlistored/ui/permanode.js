@@ -57,35 +57,45 @@ function handleFormTagsSubmit(e) {
 
     var input = document.getElementById("inputNewTag");
     var btn = document.getElementById("btnAddTag");
+
+    if (input.value == "") {
+        return;
+    }
+
     input.disabled = "disabled";
     btn.disabled = "disabled";
 
     var startTime = new Date();
 
-    // TODO: split on /\s*,\s*/ first and add a tag for each
-    // TODO: unifiy this code/timing logic with title above
+    var tags = input.value.split(/\s*,\s*/);
+    var nRemain = tags.length;
 
-    camliNewAddAttributeClaim(
-        getPermanodeParam(),
-        "tag",
-        input.value,
-        {
-            success: function() {
-                var elapsedMs = new Date().getTime() - startTime.getTime();
-                setTimeout(function() {
-                    input.disabled = null;
-                    btn.disabled = null;
-                }, Math.max(250 - elapsedMs, 0));
-            },
-            fail: function(msg) {
-                alert(msg);
-                input.disabled = null;
-                btn.disabled = null;
-            }
-        });
+    var oneDone = function() {
+        nRemain--;
+        if (nRemain == 0) {
+            var elapsedMs = new Date().getTime() - startTime.getTime();
+            setTimeout(function() {
+                           input.disabled = null;
+                           btn.disabled = null;
+                       }, Math.max(250 - elapsedMs, 0));
+        }
+    };
+    for (idx in tags) {
+        var tag = tags[idx]; 
+        camliNewAddAttributeClaim(
+            getPermanodeParam(),
+            "tag",
+            tag,
+            {
+                success: oneDone,
+                fail: function(msg) {
+                    alert(msg);
+                    oneDone();
+                }
+            });
+    }
 }
 
-// TODO: immediately <s>xxx</s> out xele, and after success remove removeele
 function deleteTagFunc(tag, strikeEle, removeEle) {
     return function(e) {
         strikeEle.innerHTML = "<s>" + strikeEle.innerHTML + "</s>";
