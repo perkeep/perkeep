@@ -214,6 +214,7 @@ func (sh *searchHandler) populatePermanodeFields(jm jsonMap, pn, signer *blobref
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
 	} else {
 		sort.Sort(claims)
+	claimLoop:
 		for _, cl := range claims {
 			switch cl.Type {
 			case "del-attribute":
@@ -235,8 +236,17 @@ func (sh *searchHandler) populatePermanodeFields(jm jsonMap, pn, signer *blobref
 				attr[cl.Attr] = nil, false
 				fallthrough
 			case "add-attribute":
+				if cl.Value == "" {
+					continue
+				}
 				sl, ok := attr[cl.Attr].([]string)
-				if !ok {
+				if ok {
+					for _, exist := range sl {
+						if exist == cl.Value {
+							continue claimLoop
+						}
+					}
+				} else {
 					sl = make([]string, 0, 1)
 					attr[cl.Attr] = sl
 				}
