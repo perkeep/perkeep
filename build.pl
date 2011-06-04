@@ -484,6 +484,7 @@ TARGET: lib/go/camli/misc/pinentry
 TARGET: lib/go/camli/mysqlindexer
 TARGET: lib/go/camli/netutil
 TARGET: lib/go/camli/osutil
+TARGET: lib/go/camli/rollsum
 TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test
