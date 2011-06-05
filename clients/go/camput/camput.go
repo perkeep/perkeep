@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"bufio"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -29,7 +28,6 @@ import (
 
 	"camli/blobref"
 	"camli/client"
-	"camli/rollsum"
 	"camli/schema"
 	"camli/jsonsign"
 )
@@ -356,39 +354,4 @@ func main() {
 	if wereErrors {
 		os.Exit(2)
 	}
-}
-
-func showSplits() {
-	file := flag.Arg(0)
-	f, err := os.Open(file)
-	if err != nil {
-		panic(err.String())
-	}
-	bufr := bufio.NewReader(f)
-
-	rs := rollsum.New()
-	n := 0
-	lastSplit := map[int]int{}
-	last := 0
-	for {
-		c, err := bufr.ReadByte()
-		if err != nil {
-			if err == os.EOF {
-				break
-			}
-			panic(err.String())
-		}
-		n++
-		rs.Roll(c)
-		if rs.OnSplit() {
-			bits := rs.Bits()
-			log.Printf("split at %d (after %d), bits=%d", n, n - last, bits)
-			last = n
-			for bits, last := range lastSplit {
-				log.Printf("  since %d = %d", bits, n - last)
-			}
-			lastSplit[bits] = n
-		}
-	}
-
 }
