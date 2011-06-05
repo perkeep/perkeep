@@ -368,6 +368,8 @@ func showSplits() {
 
 	rs := rollsum.New()
 	n := 0
+	lastSplit := map[int]int{}
+	last := 0
 	for {
 		c, err := bufr.ReadByte()
 		if err != nil {
@@ -379,7 +381,13 @@ func showSplits() {
 		n++
 		rs.Roll(c)
 		if rs.OnSplit() {
-			log.Printf("split at %d, bits=%d", n, rs.Bits())
+			bits := rs.Bits()
+			log.Printf("split at %d (after %d), bits=%d", n, n - last, bits)
+			last = n
+			for bits, last := range lastSplit {
+				log.Printf("  since %d = %d", bits, n - last)
+			}
+			lastSplit[bits] = n
 		}
 	}
 
