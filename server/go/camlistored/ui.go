@@ -297,6 +297,14 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 	schema := fr.FileSchema()
 	rw.Header().Set("Content-Type", "application/octet-stream")
 	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.Size))
-	io.Copy(rw, fr)
-
+	n, err := io.Copy(rw, fr)
+	if err != nil {
+		log.Printf("error serving download of file schema %s: %v", blobref, err)
+		return
+	}
+	if n != int64(schema.Size) {
+		log.Printf("error serving download of file schema %s: sent %d, expected size of %d",
+			blobref, n, schema.Size)
+		return
+	}
 }
