@@ -55,6 +55,13 @@ func parts(parts ...*ContentPart) []*ContentPart {
 	return parts
 }
 
+func sizeSum(parts []*ContentPart) (s uint64) {
+	for _, p := range parts {
+		s += uint64(p.Size)
+	}
+	return
+}
+
 var readTests = []readTest{
 	{parts(all(blobA)), 0, "AAAAAaaaaa"},
 	{parts(all(blobA)), 2, "AAAaaaaa"},
@@ -78,7 +85,7 @@ func TestReader(t *testing.T) {
 		ss := new(Superset)
 		ss.Type = "file"
 		ss.Version = 1
-		// TODO: set size?
+		ss.Size = sizeSum(rt.parts)
 		ss.ContentParts = rt.parts
 		fr := ss.NewFileReader(testFetcher)
 		fr.Skip(rt.skip)
