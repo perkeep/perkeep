@@ -90,10 +90,12 @@ type Superset struct {
 }
 
 type ContentPart struct {
-	BlobRefString string           "blobRef"
-	BlobRef       *blobref.BlobRef // TODO: ditch BlobRefString? use json.Unmarshaler?
-	Size          uint64           "size"
-	Offset        uint64           "offset"
+	BlobRefString    string           "blobRef"
+	BlobRef          *blobref.BlobRef // TODO: ditch BlobRefString? use json.Unmarshaler?
+	SubBlobRefString string           "subFileBlobRef"
+	SubBlobRef       *blobref.BlobRef
+	Size             uint64 "size"
+	Offset           uint64 "offset"
 }
 
 func (cp *ContentPart) blobref() *blobref.BlobRef {
@@ -242,12 +244,14 @@ func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 
 func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	m := newCamliMap(1, "" /* no type yet */ )
-	lastSlash := strings.LastIndex(fileName, "/")
-	baseName := fileName[lastSlash+1:]
-	if isValidUtf8(baseName) {
-		m["fileName"] = baseName
-	} else {
-		m["fileNameBytes"] = []uint8(baseName)
+	if fileName != "" {
+		lastSlash := strings.LastIndex(fileName, "/")
+		baseName := fileName[lastSlash+1:]
+		if isValidUtf8(baseName) {
+			m["fileName"] = baseName
+		} else {
+			m["fileNameBytes"] = []uint8(baseName)
+		}
 	}
 	return m
 }
@@ -299,7 +303,11 @@ func PopulateRegularFileMap(m map[string]interface{}, size int64, parts []Conten
 	for idx, part := range parts {
 		mpart := make(map[string]interface{})
 		mparts[idx] = mpart
-		mpart["blobRef"] = part.BlobRef.String()
+		if part.BlobRef != nil {
+			mpart["blobRef"] = part.BlobRef.String()
+		} else if part.SubBlobRef != nil {
+			mpart["subFileBlobRef"] = part.SubBlobRef.String()
+		}
 		mpart["size"] = part.Size
 		sumSize += part.Size
 		if part.Offset != 0 {
