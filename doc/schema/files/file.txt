@@ -21,12 +21,18 @@ File schema
   // Typically will be just one.
   //
   // Each element must have:
-  //    "size": the number of bytes that this element contributes to this file
+  //    "size": the number of bytes that this element contributes to this file.
+  //            required, and must be greater than zero.
   //
   // Optional:
-  //    "blobRef": where to get the bytes from.  if missing, the bytes are all
-  //               zero (e.g. a sparse file hole)
-  //    "offset": the number of bytes into blobRef to skip.
+  //    "blobRef": where to get the raw bytes from.  if this and "subFileBlobRef"
+  //               are missing, the bytes are all zero (e.g. a sparse file hole)
+  //    "subFileBlobRef": alternative to blobRef, where to get the range's bytes
+  //                      from, but pointing at a file schema blob describing the
+  //                      range, recursively. large files are made of these in
+  //                      a hash tree.
+  //    "offset": the number of bytes into blobRef or subFileBlobRef to skip to
+  //              get the necessary bytes for the range. usually zero.
   "contentParts": [
     {"blobRef": "digalg-blobref", "size": 1024},
     {"blobRef": "digalg-blobref", "size": 5000000, "offset": 492 },
