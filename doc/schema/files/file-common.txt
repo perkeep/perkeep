@@ -3,7 +3,9 @@ Fields common to files, directories, and symlinks:
 {"camliVersion": 1,
  "camliType": "...",  // one of "file", "directory", "symlink"
 
-  // Exactly one of these is required:
+  // At most one of these may be set. (zero may be present only for large files' subranges,
+  // represented as a tree of file schemas)  But exactly one of these is required for
+  // top-level files, directories, symlinks, etc.
   "fileName": "if-it-is-utf8.txt",    // only for utf-8
   "fileNameBytes": [65, 234, 234, 192, 23, 123],   // if unknown charset (not recommended)
 
