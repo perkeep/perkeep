@@ -18,6 +18,7 @@ package schema
 
 import (
 	"fmt"
+	"io"
 	"json"
 	"log"
 	"os"
@@ -30,16 +31,23 @@ var _ = log.Printf
 type FileReader struct {
 	fetcher blobref.SeekFetcher
 	ss      *Superset
-	ci      int    // index into contentparts
-	ccon    uint64 // bytes into current chunk already consumed
-	remain  int64  // bytes remaining
 
-	cr   blobref.ReadSeekCloser // cached reader
+	ci     int    // index into contentparts
+	ccon   uint64 // bytes into current chunk already consumed
+	remain int64  // bytes remaining
+
+	cr   blobref.ReadSeekCloser // cached reader (for blobref chunks)
 	crbr *blobref.BlobRef       // the blobref that cr is for
+
+	csubfr *FileReader  // cached sub blobref reader (for subBlobRef chunks)
+	ccp    *ContentPart // the content part that csubfr is cached for
 }
 
 // TODO: make this take a blobref.FetcherAt instead?
 func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, os.Error) {
+	if fileBlobRef == nil {
+		return nil, os.NewError("schema/filereader: NewFileReader blobref was nil")
+	}
 	ss := new(Superset)
 	rsc, _, err := fetcher.Fetch(fileBlobRef)
 	if err != nil {
@@ -65,7 +73,9 @@ func (fr *FileReader) FileSchema() *Superset {
 	return fr.ss
 }
 
-func (fr *FileReader) Skip(skipBytes uint64) {
+func (fr *FileReader) Skip(skipBytes uint64) uint64 {
+	wantedSkipped := skipBytes
+
 	for skipBytes != 0 && fr.ci < len(fr.ss.ContentParts) {
 		cp := fr.ss.ContentParts[fr.ci]
 		thisChunkSkippable := cp.Size - fr.ccon
@@ -78,6 +88,8 @@ func (fr *FileReader) Skip(skipBytes uint64) {
 		}
 		skipBytes -= toSkip
 	}
+
+	return wantedSkipped - skipBytes
 }
 
 func (fr *FileReader) closeOpenBlobs() {
@@ -88,16 +100,23 @@ func (fr *FileReader) closeOpenBlobs() {
 	}
 }
 
-func (fr *FileReader) readerFor(br *blobref.BlobRef) (rsc blobref.ReadSeekCloser, err os.Error) {
+func (fr *FileReader) readerFor(br *blobref.BlobRef, seekTo int64) (r io.Reader, err os.Error) {
 	if fr.crbr == br {
 		return fr.cr, nil
 	}
 	fr.closeOpenBlobs()
+	var rsc blobref.ReadSeekCloser
 	if br != nil {
 		rsc, _, err = fr.fetcher.Fetch(br)
 		if err != nil {
 			return
 		}
+
+		_, serr := rsc.Seek(int64(seekTo), os.SEEK_SET)
+		if serr != nil {
+			return nil, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
+		}
+
 	} else {
 		rsc = &zeroReader{}
 	}
@@ -106,24 +125,44 @@ func (fr *FileReader) readerFor(br *blobref.BlobRef) (rsc blobref.ReadSeekCloser
 	return rsc, nil
 }
 
-func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
-	var cp *ContentPart
+func (fr *FileReader) subBlobRefReader(cp *ContentPart) (io.Reader, os.Error) {
+	if fr.ccp == cp {
+		return fr.csubfr, nil
+	}
+	subfr, err := NewFileReader(fr.fetcher, cp.subblobref())
+	if err == nil {
+		subfr.Skip(cp.Offset)
+		fr.csubfr = subfr
+		fr.ccp = cp
+	}
+	return subfr, err
+}
+
+func (fr *FileReader) currentPart() (*ContentPart, os.Error) {
 	for {
 		if fr.ci >= len(fr.ss.ContentParts) {
 			fr.closeOpenBlobs()
 			if fr.remain > 0 {
-				return 0, fmt.Errorf("schema: declared file schema size was larger than sum of content parts")
+				return nil, fmt.Errorf("schema: declared file schema size was larger than sum of content parts")
 			}
-			return 0, os.EOF
+			return nil, os.EOF
 		}
-		cp = fr.ss.ContentParts[fr.ci]
+		cp := fr.ss.ContentParts[fr.ci]
 		thisChunkReadable := cp.Size - fr.ccon
 		if thisChunkReadable == 0 {
 			fr.ci++
 			fr.ccon = 0
 			continue
 		}
-		break
+		return cp, nil
+	}
+	panic("unreachable")
+}
+
+func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
+	cp, err := fr.currentPart()
+	if err != nil {
+		return 0, err
 	}
 
 	if cp.Size == 0 {
@@ -135,30 +174,28 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	if br != nil && sbr != nil {
 		return 0, fmt.Errorf("content part index %d has both blobRef and subFileBlobRef", fr.ci)
 	}
+
+	var r io.Reader
+
 	if sbr != nil {
-		// TODO
-		return 0, fmt.Errorf("TODO: unsupported subFileBlobRef in content part index %d", fr.ci)
-	}
-
-	rsc, ferr := fr.readerFor(br)
-	if ferr != nil {
-		return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, ferr)
-	}
-
-	seekTo := cp.Offset + fr.ccon
-	if seekTo != 0 {
-		_, serr := rsc.Seek(int64(seekTo), 0)
-		if serr != nil {
-			return 0, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
+		r, err = fr.subBlobRefReader(cp)
+		if err != nil {
+			return 0, fmt.Errorf("schema: FileReader.Read error fetching sub file %s: %v", sbr, err)
+		}
+	} else {
+		seekTo := cp.Offset + fr.ccon
+		r, err = fr.readerFor(br, int64(seekTo))
+		if err != nil {
+			return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, err)
 		}
 	}
 
 	readSize := cp.Size - fr.ccon
-	if uint64(len(p)) < readSize {
-		readSize = uint64(len(p))
+	if readSize < uint64(len(p)) {
+		p = p[:int(readSize)]
 	}
 
-	n, err = rsc.Read(p[:int(readSize)])
+	n, err = r.Read(p)
 	fr.ccon += uint64(n)
 	fr.remain -= int64(n)
 	if fr.remain < 0 {
@@ -174,7 +211,7 @@ func minu64(a, b uint64) uint64 {
 	return b
 }
 
-type zeroReader struct {}
+type zeroReader struct{}
 
 func (*zeroReader) Read(p []byte) (int, os.Error) {
 	for i := range p {
@@ -191,4 +228,3 @@ func (*zeroReader) Seek(offset int64, whence int) (newFilePos int64, err os.Erro
 	// Caller is ignoring our newFilePos return value.
 	return 0, nil
 }
-

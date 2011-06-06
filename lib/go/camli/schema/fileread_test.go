@@ -49,7 +49,7 @@ func part(blob *test.Blob, offset, size uint64) *ContentPart {
 
 // filePart returns a ContentPart that references a file JSON schema
 // blob made of the provided content parts.
-func filePart(cps []*ContentPart) *ContentPart {
+func filePart(cps []*ContentPart, skip uint64) *ContentPart {
 	m := NewCommonFilenameMap("")
 	fileSize := int64(0)
 	cpl := []ContentPart{}
@@ -67,7 +67,7 @@ func filePart(cps []*ContentPart) *ContentPart {
 	}
 	tb := &test.Blob{json}
 	testFetcher.AddBlob(tb)
-	return &ContentPart{SubBlobRef: tb.BlobRef(), Size: uint64(fileSize)}
+	return &ContentPart{SubBlobRef: tb.BlobRef(), Size: uint64(fileSize) - skip, Offset: skip}
 }
 
 func all(blob *test.Blob) *ContentPart {
@@ -106,6 +106,19 @@ var readTests = []readTest{
 	{parts(all(blobA), all(blobB), all(blobC)), 22, "CCCccccc"},
 	{parts(part(blobA, 5, 5), part(blobB, 0, 5), part(blobC, 4, 2)), 1, "aaaaBBBBBCc"},
 	{parts(all(blobA), zero(2), all(blobB)), 5, "aaaaa\x00\x00BBBBBbbbbb"},
+	{parts(all(blobB), part(blobC, 4, 2)), 0, "BBBBBbbbbbCc"},
+	{parts(
+		all(blobA),
+		filePart(parts(all(blobB), part(blobC, 4, 2)), 0),
+		part(blobA, 5, 5)),
+		1,
+		"AAAAaaaaa" + "BBBBBbbbbb" + "Cc" + "aaaaa"},
+	{parts(
+		all(blobA),
+		filePart(parts(all(blobB), part(blobC, 4, 2)), 4),
+			part(blobA, 5, 5)),
+		1,
+		"AAAAaaaaa" + "Bbbbbb" + "Cc" + "aaaaa"},
 }
 
 func TestReader(t *testing.T) {
@@ -123,7 +136,7 @@ func TestReader(t *testing.T) {
 			continue
 		}
 		if g, e := string(all), rt.expected; e != g {
-			t.Errorf("test %d: expected %q; got %q", idx, e, g)
+			t.Errorf("test %d\nwant %q\n got %q", idx, e, g)
 		}
 	}
 }
