@@ -33,6 +33,26 @@ function indexOnLoad(e) {
     }
     btnNew.addEventListener("click", btnCreateNewPermanode);
     camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes });
+
+    if (disco && disco.uploadHelper) {
+        var uploadForm = document.getElementById("uploadform");
+        uploadform.action = disco.uploadHelper;
+        document.getElementById("fileinput").disabled = false;
+        document.getElementById("filesubmit").disabled = false;
+        var chkRollSum = document.getElementById("chkrollsum");
+        chkRollSum.addEventListener("change", function (e) {
+                                        if (chkRollSum.checked) {
+                                            if (disco.uploadHelper.indexOf("?") == -1) {
+                                                uploadform.action = disco.uploadHelper + "?rollsum=1";
+                                            } else {
+                                                uploadform.action = disco.uploadHelper + "&rollsum=1";
+                                            }
+                                        } else {
+                                            uploadform.action = disco.uploadHelper;
+                                        }
+                                    });
+    }
+
 }
 
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {

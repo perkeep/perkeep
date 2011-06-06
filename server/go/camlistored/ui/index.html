@@ -36,15 +36,8 @@
     <form method="POST" id='uploadform' enctype="multipart/form-data">
       <input type="file" id="fileinput" multiple="true" name="file" disabled="true" />
       <input type="submit" id="filesubmit" value="Upload" disabled="true" />
+      <input type="checkbox" name="rollsum" id="chkrollsum" value="1" /> <label for="chkrollsum">Use rolling checksum for boundaries</label>
     </form>
-    <script>
-    if (disco && disco.uploadHelper) {
-        document.getElementById("uploadform").action = disco.uploadHelper;
-        document.getElementById("fileinput").disabled = false;
-        document.getElementById("filesubmit").disabled = false;
-    }
-    </script>
-
 
 </body>
 </html>

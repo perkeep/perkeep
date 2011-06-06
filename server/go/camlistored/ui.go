@@ -233,7 +233,16 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			http.Error(rw, "Multipart error: "+err.String(), 500)
 			break
 		}
-		br, err := schema.WriteFileFromReader(ui.Storage, part.FileName(), part)
+		fileName := part.FileName()
+		if fileName == "" {
+			continue
+		}
+		get, _ := http.ParseQuery(req.URL.RawQuery)
+		writeFn := schema.WriteFileFromReader
+		if len(get["rollsum"]) == 1 && get["rollsum"][0] == "1" {
+			writeFn = schema.WriteFileFromReaderRolling
+		}
+		br, err := writeFn(ui.Storage, fileName, part)
 
 		fmt.Fprintf(&buf, "filename=%q, formname=%q, br=<a href='./?b=%s'>%s</a>, err=%v\n", part.FileName(), part.FormName(), br, br, err)
 
