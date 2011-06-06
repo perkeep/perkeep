@@ -99,10 +99,17 @@ type ContentPart struct {
 }
 
 func (cp *ContentPart) blobref() *blobref.BlobRef {
-	if cp.BlobRef == nil {
+	if cp.BlobRef == nil && cp.BlobRefString != "" {
 		cp.BlobRef = blobref.Parse(cp.BlobRefString)
 	}
 	return cp.BlobRef
+}
+
+func (cp *ContentPart) subblobref() *blobref.BlobRef {
+	if cp.SubBlobRef == nil && cp.SubBlobRefString != "" {
+		cp.SubBlobRef = blobref.Parse(cp.SubBlobRefString)
+	}
+	return cp.SubBlobRef
 }
 
 func stringFromMixedArray(parts []interface{}) string {

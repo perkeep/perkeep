@@ -88,14 +88,18 @@ func (fr *FileReader) closeOpenBlobs() {
 	}
 }
 
-func (fr *FileReader) readerFor(br *blobref.BlobRef) (blobref.ReadSeekCloser, os.Error) {
+func (fr *FileReader) readerFor(br *blobref.BlobRef) (rsc blobref.ReadSeekCloser, err os.Error) {
 	if fr.crbr == br {
 		return fr.cr, nil
 	}
 	fr.closeOpenBlobs()
-	rsc, _, ferr := fr.fetcher.Fetch(br)
-	if ferr != nil {
-		return nil, ferr
+	if br != nil {
+		rsc, _, err = fr.fetcher.Fetch(br)
+		if err != nil {
+			return
+		}
+	} else {
+		rsc = &zeroReader{}
 	}
 	fr.crbr = br
 	fr.cr = rsc
@@ -127,8 +131,13 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	}
 
 	br := cp.blobref()
-	if br == nil {
-		return 0, fmt.Errorf("no blobref in content part %d", fr.ci)
+	sbr := cp.subblobref()
+	if br != nil && sbr != nil {
+		return 0, fmt.Errorf("content part index %d has both blobRef and subFileBlobRef", fr.ci)
+	}
+	if sbr != nil {
+		// TODO
+		return 0, fmt.Errorf("TODO: unsupported subFileBlobRef in content part index %d", fr.ci)
 	}
 
 	rsc, ferr := fr.readerFor(br)
@@ -164,3 +173,22 @@ func minu64(a, b uint64) uint64 {
 	}
 	return b
 }
+
+type zeroReader struct {}
+
+func (*zeroReader) Read(p []byte) (int, os.Error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
+
+func (*zeroReader) Close() os.Error {
+	return nil
+}
+
+func (*zeroReader) Seek(offset int64, whence int) (newFilePos int64, err os.Error) {
+	// Caller is ignoring our newFilePos return value.
+	return 0, nil
+}
+

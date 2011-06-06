@@ -47,8 +47,35 @@ func part(blob *test.Blob, offset, size uint64) *ContentPart {
 	return &ContentPart{BlobRef: blob.BlobRef(), Size: size, Offset: offset}
 }
 
+// filePart returns a ContentPart that references a file JSON schema
+// blob made of the provided content parts.
+func filePart(cps []*ContentPart) *ContentPart {
+	m := NewCommonFilenameMap("")
+	fileSize := int64(0)
+	cpl := []ContentPart{}
+	for _, cp := range cps {
+		fileSize += int64(cp.Size)
+		cpl = append(cpl, *cp)
+	}
+	err := PopulateRegularFileMap(m, fileSize, cpl)
+	if err != nil {
+		panic(err.String())
+	}
+	json, err := MapToCamliJson(m)
+	if err != nil {
+		panic(err.String())
+	}
+	tb := &test.Blob{json}
+	testFetcher.AddBlob(tb)
+	return &ContentPart{SubBlobRef: tb.BlobRef(), Size: uint64(fileSize)}
+}
+
 func all(blob *test.Blob) *ContentPart {
 	return part(blob, 0, uint64(blob.Size()))
+}
+
+func zero(size uint64) *ContentPart {
+	return &ContentPart{Size: size}
 }
 
 func parts(parts ...*ContentPart) []*ContentPart {
@@ -78,6 +105,7 @@ var readTests = []readTest{
 	{parts(all(blobA), all(blobB), all(blobC)), 20, "CCCCCccccc"},
 	{parts(all(blobA), all(blobB), all(blobC)), 22, "CCCccccc"},
 	{parts(part(blobA, 5, 5), part(blobB, 0, 5), part(blobC, 4, 2)), 1, "aaaaBBBBBCc"},
+	{parts(all(blobA), zero(2), all(blobB)), 5, "aaaaa\x00\x00BBBBBbbbbb"},
 }
 
 func TestReader(t *testing.T) {
