@@ -16,6 +16,9 @@ limitations under the License.
 
 // Package rollsum implements rolling checksums similar to apenwarr's bup, which
 // is similar to librsync.
+//
+// The bup project is at https://github.com/apenwarr/bup and its splitting in
+// particular is at https://github.com/apenwarr/bup/blob/master/lib/bup/bupsplit.c
 package rollsum
 
 import (

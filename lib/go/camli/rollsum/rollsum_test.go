@@ -53,3 +53,19 @@ func TestSum(t *testing.T) {
 		t.Errorf("sum3a=%d sum3b=%d", sum3a, sum3b)
 	}
 }
+
+func BenchmarkRollsum(b *testing.B) {
+	bytesSize := int64(1024 * 1024 * 5)
+	rs := New()
+	bits := 0
+	for i := 0; i < b.N; i++ {
+		for j := int64(0); j < bytesSize; j++ {
+			rs.Roll(byte(rand.Int63() & 0xff))
+			if rs.OnSplit() {
+				bits = rs.Bits()
+			}
+		}
+	}
+	b.SetBytes(bytesSize)
+	_ = bits
+}
