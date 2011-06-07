@@ -19,10 +19,13 @@ package osutil
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 func HomeDir() string {
-	// TODO: windows support? is HOME correct?
+	if runtime.GOOS == "windows" {
+		return os.Getenv("HOMEPATH")
+	}
 	return os.Getenv("HOME")
 }
 
@@ -30,12 +33,13 @@ func CamliConfigDir() string {
 	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
 		return p
 	}
-	// TODO: windows / mac support in their proper places
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.Getenv("APPDATA"), "camli")
+	}
 	return filepath.Join(HomeDir(), ".camli")
 }
 
 func UserServerConfigPath() string {
 	return filepath.Join(CamliConfigDir(), "serverconfig")
 }
-
 
