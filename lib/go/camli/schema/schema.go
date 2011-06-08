@@ -90,26 +90,10 @@ type Superset struct {
 }
 
 type ContentPart struct {
-	BlobRefString    string           "blobRef"
-	BlobRef          *blobref.BlobRef // TODO: ditch BlobRefString? use json.Unmarshaler?
-	SubBlobRefString string           "subFileBlobRef"
-	SubBlobRef       *blobref.BlobRef
+	BlobRef          *blobref.BlobRef "blobRef"
+	SubBlobRef       *blobref.BlobRef "subFileBlobRef"
 	Size             uint64 "size"
 	Offset           uint64 "offset"
-}
-
-func (cp *ContentPart) blobref() *blobref.BlobRef {
-	if cp.BlobRef == nil && cp.BlobRefString != "" {
-		cp.BlobRef = blobref.Parse(cp.BlobRefString)
-	}
-	return cp.BlobRef
-}
-
-func (cp *ContentPart) subblobref() *blobref.BlobRef {
-	if cp.SubBlobRef == nil && cp.SubBlobRefString != "" {
-		cp.SubBlobRef = blobref.Parse(cp.SubBlobRefString)
-	}
-	return cp.SubBlobRef
 }
 
 func stringFromMixedArray(parts []interface{}) string {

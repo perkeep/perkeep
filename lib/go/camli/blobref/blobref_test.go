@@ -17,6 +17,7 @@ limitations under the License.
 package blobref
 
 import (
+	"json"
 	"testing"
 	. "camli/test/asserts"
 )
@@ -66,5 +67,33 @@ func TestSum32(t *testing.T) {
 	h32 := br.Sum32()
 	if h32 != 18 {
 		t.Errorf("got %d, want 18", h32)
+	}
+}
+
+type Foo struct {
+	B *BlobRef "foo"
+}
+
+func TestJsonUnmarshal(t *testing.T) {
+	var f Foo
+	if err := json.Unmarshal([]byte(`{"foo": "abc-def123", "other": 123}`), &f); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if f.B == nil {
+		t.Fatal("blobref is nil")
+	}
+	if g, e := f.B.String(), "abc-def123"; g != e {
+		t.Errorf("got %q, want %q", g, e)
+	}
+}
+
+func TestJsonMarshal(t *testing.T) {
+	f := &Foo{B: MustParse("def-1234abc")}
+	bs, err := json.Marshal(f)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if g, e := string(bs), `{"foo":"def-1234abc"}`; g != e {
+		t.Errorf("got %q, want %q", g, e)
 	}
 }

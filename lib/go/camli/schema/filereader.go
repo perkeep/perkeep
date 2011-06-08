@@ -129,7 +129,7 @@ func (fr *FileReader) subBlobRefReader(cp *ContentPart) (io.Reader, os.Error) {
 	if fr.ccp == cp {
 		return fr.csubfr, nil
 	}
-	subfr, err := NewFileReader(fr.fetcher, cp.subblobref())
+	subfr, err := NewFileReader(fr.fetcher, cp.SubBlobRef)
 	if err == nil {
 		subfr.Skip(cp.Offset)
 		fr.csubfr = subfr
@@ -169,8 +169,8 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 		return 0, fmt.Errorf("blobref content part contained illegal size 0")
 	}
 
-	br := cp.blobref()
-	sbr := cp.subblobref()
+	br := cp.BlobRef
+	sbr := cp.SubBlobRef
 	if br != nil && sbr != nil {
 		return 0, fmt.Errorf("content part index %d has both blobRef and subFileBlobRef", fr.ci)
 	}
