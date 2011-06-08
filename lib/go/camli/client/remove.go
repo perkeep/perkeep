@@ -18,14 +18,14 @@ package client
 
 import (
 	"bytes"
-	"camli/blobref"
 	"fmt"
 	"http"
 	"io"
 	"json"
 	"os"
-	"strconv"
 	"strings"
+
+	"camli/blobref"
 )
 
 type removeResponse struct {
@@ -36,32 +36,27 @@ type removeResponse struct {
 // remove a blob. Removing a non-existent blob isn't an error.
 func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	url := fmt.Sprintf("%s/camli/remove", c.server)
-	params := make(map[string][]string)  // "blobN" -> BlobRefStr
+	params := make(http.Values)  // "blobN" -> BlobRefStr
 	needsDelete := make(map[string]bool) // BlobRefStr -> true
 	for n, b := range blobs {
 		if b == nil {
 			return os.NewError("Cannot delete nil blobref")
 		}
 		key := fmt.Sprintf("blob%v", n+1)
-		params[key] = []string{b.String()}
+		params.Add(key, b.String())
 		needsDelete[b.String()] = true
 	}
-	body := http.EncodeQuery(params)
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	req, err := http.NewRequest("POST", url, strings.NewReader(params.Encode()))
 	if err != nil {
 		return fmt.Errorf("Error creating RemoveBlobs POST request: %v", err)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	// TODO-GO: teach http.NewRequest how to find a
-	// strings.NewReader's Content-Length.
-	req.ContentLength = int64(len(body))
-	req.Header.Add("Content-Length", strconv.Itoa(len(body)))
 	c.addAuthHeader(req)
 	resp, err := c.httpClient.Do(req)
 
 	if err != nil {
-		return os.NewError(fmt.Sprintf("Got status code %d from blobserver for remove %s", resp.StatusCode, body))
+		return os.NewError(fmt.Sprintf("Got status code %d from blobserver for remove %s", resp.StatusCode, params.Encode()))
 	}
 
 	// The only valid HTTP responses are 200.
