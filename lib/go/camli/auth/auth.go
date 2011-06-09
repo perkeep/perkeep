@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"http"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -64,8 +65,11 @@ func IsAuthorized(req *http.Request) bool {
 func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
 	return func (conn http.ResponseWriter, req *http.Request) {
 		if !IsAuthorized(req) {
-			req.Body.Close()  // http://code.google.com/p/go/issues/detail?id=1306
-			conn.Header().Set("WWW-Authenticate", "Basic realm=\"camlistored\"")
+			realm := "camlistored"
+			if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
+				realm = "Any username, password is: " + pw
+			}
+			conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
 			conn.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprintf(conn, "Authentication required.\n")
 			return
