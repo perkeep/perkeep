@@ -221,7 +221,14 @@ func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, 
 	fr := ss.NewFileReader(seekFetcher)
 	n, err := io.Copy(sha1, fr)
 	if err != nil {
-		return err
+		// TODO: job scheduling system to retry this spaced
+		// out max n times.  Right now our options are
+		// ignoring this error (forever) or returning the
+		// error and making the indexing try again (likely
+		// forever failing).  Both options suck.  For now just
+		// log and act like all's okay.
+		log.Printf("mysqlindex: error indexing file %s: %v", blobRef, err)
+		return nil
 	}
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
 	err = execSQL(client,
