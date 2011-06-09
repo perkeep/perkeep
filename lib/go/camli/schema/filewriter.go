@@ -213,7 +213,7 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 
 	var addContentParts func(dst *[]ContentPart, s []span) os.Error
 
-	uploadFile := func(filename string, fileSize int64, s []span) (*blobref.BlobRef, os.Error) {
+	uploadFile := func(filename string, isFragment bool, fileSize int64, s []span) (*blobref.BlobRef, os.Error) {
 		parts := []ContentPart{}
 		err := addContentParts(&parts, s)
 		if err != nil {
@@ -223,6 +223,9 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 		err = PopulateRegularFileMap(m, fileSize, parts)
 		if err != nil {
 			return nil, err
+		}
+		if isFragment {
+			m["fragment"] = true
 		}
 		json, err := MapToCamliJson(m)
 		if err != nil {
@@ -238,7 +241,7 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 				for _, cs := range sp.children {
 					childrenSize += cs.size()
 				}
-				br, err := uploadFile("", childrenSize, sp.children)
+				br, err := uploadFile("", true, childrenSize, sp.children)
 				if err != nil {
 					return err
 				}
@@ -258,5 +261,5 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 	}
 
 	// The top-level content parts
-	return uploadFile(filename, n, spans)
+	return uploadFile(filename, false, n, spans)
 }

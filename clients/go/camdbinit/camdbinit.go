@@ -78,6 +78,12 @@ unverified CHAR(1) NULL,
 signer VARCHAR(128) NOT NULL DEFAULT '',
 lastmod VARCHAR(40) NOT NULL DEFAULT '',
 INDEX (signer, lastmod))`)
+	do(db, `CREATE TABLE files (
+fileschemaref VARCHAR(128) NOT NULL,
+bytesref VARCHAR(128) NOT NULL,
+size BIGINT,
+PRIMARY KEY(fileschemaref, bytesref),
+INDEX (bytesref))`)
 }
 
 func do(db *mysql.Client, sql string) {

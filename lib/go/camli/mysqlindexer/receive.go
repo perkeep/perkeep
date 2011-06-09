@@ -209,6 +209,9 @@ func populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *sc
 }
 
 func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
+	if ss.Fragment {
+		return nil
+	}
 	seekFetcher, err := blobref.SeekerFromStreamingFetcher(mi.BlobSource)
 	if err != nil {
 		return err
@@ -221,5 +224,10 @@ func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, 
 		return err
 	}
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
-	return nil
+	err = execSQL(client,
+		"INSERT IGNORE INTO files (fileschemaref, bytesref, size) VALUES (?, ?, ?)",
+		blobRef.String(),
+		blobref.FromHash("sha1", sha1).String(),
+		n)
+	return
 }

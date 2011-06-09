@@ -83,6 +83,7 @@ type Superset struct {
 
 	Size         uint64         "size" // for files
 	ContentParts []*ContentPart "contentParts"
+	Fragment     bool           "fragment"
 
 	Entries string   "entries" // for directories, a blobref to a static-set
 	Members []string "members" // for static sets (for directory static-sets:
