@@ -178,3 +178,17 @@ func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64
 	}
 	return ioutil.NopCloser(strings.NewReader(str)), int64(len(str)), nil
 }
+
+func SeekerFromStreamingFetcher(f StreamingFetcher) (SeekFetcher, os.Error) {
+	seeker, ok := f.(SeekFetcher)
+	if ok {
+		return seeker, nil
+	}
+	tester, ok := f.(SeekTester)
+	if ok {
+		if tester.IsFetcherASeeker() {
+			return &FetcherToSeekerWrapper{f}, nil
+		}
+	}
+	return nil, fmt.Errorf("bloref: TODO: SeekerFromStreamingFetcher: %T %v doesn't support seeking. TODO: wrap in a write-to-disk-and-read wrapper and/or cache", f, f)
+}

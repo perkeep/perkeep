@@ -250,19 +250,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 }
 
 func (ui *UIHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
-	fetchSeeker, ok := ui.Storage.(blobref.SeekFetcher)
-	if ok {
-		return fetchSeeker, nil
-	}
-	tester, ok := ui.Storage.(blobref.SeekTester)
-	if ok {
-		if tester.IsFetcherASeeker() {
-			log.Printf("ui.Storage is a seeker; returning wrapper")
-			return &blobref.FetcherToSeekerWrapper{ui.Storage}, nil
-		}
-	}
-	return nil, fmt.Errorf("TODO: ui.Storage of %T %v doesn't support seeking. TODO: wrap in a cache",
-		ui.Storage, ui.Storage)
+	return blobref.SeekerFromStreamingFetcher(ui.Storage)
 }
 
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
