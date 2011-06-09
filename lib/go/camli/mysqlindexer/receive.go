@@ -17,17 +17,18 @@ limitations under the License.
 package mysqlindexer
 
 import (
-	"camli/blobref"
-	"camli/blobserver"
-	"camli/magic"
-	"camli/schema"
-
+	"crypto/sha1"
 	"io"
 	"json"
 	"log"
 	"os"
 
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
+
+	"camli/blobref"
+	"camli/blobserver"
+	"camli/magic"
+	"camli/schema"
 )
 
 const maxSniffSize = 1024 * 16
@@ -140,6 +141,10 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 			if err = populatePermanode(client, blobRef, camli); err != nil {
 				return
 			}
+		case "file":
+			if err = mi.populateFile(client, blobRef, camli); err != nil {
+				return
+			}
 		}
 	}
 
@@ -201,4 +206,20 @@ func populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *sc
 			"VALUES (?, 'Y', ?, '')",
 		blobRef.String(), camli.Signer)
 	return
+}
+
+func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
+	seekFetcher, err := blobref.SeekerFromStreamingFetcher(mi.BlobSource)
+	if err != nil {
+		return err
+	}
+
+	sha1 := sha1.New()
+	fr := ss.NewFileReader(seekFetcher)
+	n, err := io.Copy(sha1, fr)
+	if err != nil {
+		return err
+	}
+	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
+	return nil
 }

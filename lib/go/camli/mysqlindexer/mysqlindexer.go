@@ -39,11 +39,16 @@ type Indexer struct {
 	KeyFetcher   blobref.StreamingFetcher // for verifying claims
 	OwnerBlobRef *blobref.BlobRef
 
+	// Used for fetching blobs to find the complete sha1 of schema
+	// blobs.
+	BlobSource    blobserver.Storage
+
 	clientLock    sync.Mutex
 	cachedClients []*mysql.Client
 }
 
-func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
+	blobPrefix := config.RequiredString("blobSource")
 	indexer := &Indexer{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		Host:                      config.OptionalString("host", "localhost"),
@@ -54,6 +59,12 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
+	sto, err := ld.GetStorage(blobPrefix)
+	if err != nil {
+		return nil, err
+	}
+	indexer.BlobSource = sto
 
 		//ownerBlobRef = client.SignerPublicKeyBlobref()
 		//if ownerBlobRef == nil {
