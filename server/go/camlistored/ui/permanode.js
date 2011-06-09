@@ -118,7 +118,7 @@ function onTypeChange(e) {
     var sel = document.getElementById("type");
     var dnd = document.getElementById("dnd");
 
-    if (sel.value == "collection") {
+    if (sel.value == "collection" || sel.value == "") {
         dnd.style.display = "block";
     } else {
         dnd.style.display = "none"; 
