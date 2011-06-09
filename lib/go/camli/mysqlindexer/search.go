@@ -197,3 +197,37 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	size, _ = row[1].(int64)
 	return
 }
+
+func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	err = client.Query(fmt.Sprintf("SELECT fileschemaref FROM files WHERE bytesref=%q", bytesRef.String()))
+	if err != nil {
+		return
+	}
+
+	result, err := client.StoreResult()
+	if err != nil {
+		return
+	}
+	defer client.FreeResult()
+
+	for {
+		row := result.FetchRow()
+		if row == nil {
+			break
+		}
+		files = append(files, blobref.Parse(row[0].(string)))
+	}
+	return
+}

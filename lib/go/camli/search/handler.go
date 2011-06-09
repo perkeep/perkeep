@@ -68,31 +68,45 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 }
 
 
-type jsonMap map[string]interface{}
+func jsonMap() map[string]interface{} {
+	return make(map[string]interface{})
+}
+
+func jsonMapList() []map[string]interface{} {
+	return make([]map[string]interface{}, 0)
+}
 
 func (sh *searchHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	_ = req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-	log.Printf("suffix = %q", suffix)
 
-	if req.Method != "GET" {
-		http.Error(rw, "Unsupported method", 400)
-		return
+	if req.Method == "GET" {
+		switch suffix {
+		case "camli/search", "camli/search/recent":
+			sh.serveRecentPermanodes(rw, req)
+			return
+		case "camli/search/describe":
+			sh.serveDescribe(rw, req)
+			return
+		case "camli/search/claims":
+			sh.serveClaims(rw, req)
+			return
+		case "camli/search/files":
+			sh.serveFiles(rw, req)
+			return
+		}
 	}
 
-	switch suffix {
-	case "camli/search", "camli/search/recent":
-		sh.serveRecentPermanodes(rw, req)
-	case "camli/search/describe":
-		sh.serveDescribe(rw, req)
-	case "camli/search/claims":
-		sh.serveClaims(rw, req)
-	}
+	// TODO: discovery for the endpoints & better error message with link to discovery info
+	ret := jsonMap()
+	ret["error"] = "Unsupported search path or method"
+	ret["errorType"] = "input"
+	httputil.ReturnJson(rw, ret)
 }
 
 func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	ch := make(chan *Result)
-	results := make([]jsonMap, 0)
+	results := jsonMapList()
 	errch := make(chan os.Error)
 	go func() {
 		log.Printf("finding recent permanodes for %s", sh.owner)
@@ -101,7 +115,7 @@ func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http
 
 	wg := new(sync.WaitGroup)
 	for res := range ch {
-		jm := make(jsonMap)
+		jm := jsonMap()
 		jm["blobref"] = res.BlobRef.String()
 		jm["owner"] = res.Signer.String()
 		t := time.SecondsToUTC(res.LastModTime)
@@ -117,7 +131,7 @@ func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http
 
 	err := <-errch
 
-	ret := make(jsonMap)
+	ret := jsonMap()
 	ret["results"] = results
 	if err != nil {
 		// TODO: return error status code
@@ -127,7 +141,7 @@ func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http
 }
 
 func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) {
-	ret := make(jsonMap)
+	ret := jsonMap()
 
 	pn := blobref.Parse(req.FormValue("permanode"))
 	if pn == nil {
@@ -141,10 +155,10 @@ func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) 
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
 	} else {
 		sort.Sort(claims)
-		jclaims := make([]jsonMap, 0)
+		jclaims := jsonMapList()
 
 		for _, claim := range claims {
-			jclaim := make(jsonMap)
+			jclaim := jsonMap()
 			jclaim["blobref"] = claim.BlobRef.String()
 			jclaim["signer"] = claim.Signer.String()
 			jclaim["permanode"] = claim.Permanode.String()
@@ -166,19 +180,19 @@ func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) 
 }
 
 func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	ret := make(jsonMap)
+	ret := jsonMap()
 	br := blobref.Parse(req.FormValue("blobref"))
 	if br == nil {
 		http.Error(rw, "Missing or invalid 'blobref' param", 400)
 		return
 	}
 
-	dmap := func(b *blobref.BlobRef) jsonMap {
+	dmap := func(b *blobref.BlobRef) map[string]interface{} {
 		bs := b.String()
 		if m, ok := ret[bs]; ok {
-			return m.(jsonMap)
+			return m.(map[string]interface{})
 		}
-		m := make(jsonMap)
+		m := jsonMap()
 		ret[bs] = m
 		return m
 	}
@@ -193,7 +207,7 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 			m["size"] = size
 
 			if mime == "application/json; camliType=permanode" {
-				pm := make(jsonMap)
+				pm := jsonMap()
 				m["permanode"] = pm
 				sh.populatePermanodeFields(pm, br, sh.owner, dmap)
 			}
@@ -203,10 +217,41 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 	httputil.ReturnJson(rw, ret)
 }
 
+func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+
+	br := blobref.Parse(req.FormValue("bytesref"))
+	if br == nil {
+		// TODO: formalize how errors are returned And make
+		// ReturnJson set the HTTP status to 400 automatically
+		// in some cases, if errorType is "input"?  Document
+		// this somewhere.  Are there existing JSON
+		// conventions to use?
+		ret["error"] = "Missing or invalid 'bytesref' param"
+		ret["errorType"] = "input"
+		return
+	}
+
+	files, err := sh.index.ExistingFileSchemas(br)
+	if err != nil {
+		ret["error"] = err.String()
+		ret["errorType"] = "server"
+		return
+	}
+
+	strList := []string{}
+	for _, br := range files {
+		strList = append(strList, br.String())
+	}
+	ret["files"] = strList
+	return
+}
+
 // dmap may be nil, returns the jsonMap to populate into
-func (sh *searchHandler) populatePermanodeFields(jm jsonMap, pn, signer *blobref.BlobRef, dmap func(b *blobref.BlobRef) jsonMap) {
+func (sh *searchHandler) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, dmap func(b *blobref.BlobRef) map[string]interface{}) {
 	jm["content"] = ""
-	attr := make(jsonMap)
+	attr := jsonMap()
 	jm["attr"] = attr
 
 	claims, err := sh.index.GetOwnerClaims(pn, signer)
@@ -278,7 +323,7 @@ func (sh *searchHandler) populatePermanodeFields(jm jsonMap, pn, signer *blobref
 
 const camliTypePrefix = "application/json; camliType="
 
-func setMimeType(m jsonMap, mime string) {
+func setMimeType(m map[string]interface{}, mime string) {
 	m["type"] = mime
 	if strings.HasPrefix(mime, camliTypePrefix) {
 		m["camliType"] = mime[len(camliTypePrefix):]

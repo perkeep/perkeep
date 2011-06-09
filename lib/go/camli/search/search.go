@@ -65,4 +65,13 @@ type Index interface {
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 
 	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error)
+
+	// ExistingFileSchemas returns 0 or more blobrefs of file
+	// schema blobs that represent the bytes of a file given in
+	// bytesRef.  The file schema blobs returned are not
+	// guaranteed to reference chunks that still exist on the
+	// blobservers, though.  It's purely a hint for clients to
+	// avoid uploads if possible.  Before re-using any returned
+	// blobref they should be checked.
+	ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error)
 }
