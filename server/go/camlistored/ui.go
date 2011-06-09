@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"http"
 	"io"
@@ -204,48 +203,6 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	rw.Write(bytes)
 	if inCb {
 		rw.Write([]byte{')'})
-	}
-}
-
-func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
-	if ui.Storage == nil {
-		http.Error(rw, "No BlobRoot configured", 500)
-		return
-	}
-	var buf bytes.Buffer
-	defer io.Copy(rw, &buf)
-
-	fmt.Fprintf(&buf, "<pre>\n")
-
-	mr, err := req.MultipartReader()
-	if err != nil {
-		fmt.Fprintf(&buf, "multipart reader: %v", err)
-		return
-	}
-
-	for {
-		part, err := mr.NextPart()
-		if err == os.EOF {
-			break
-		}
-		if err != nil {
-			buf.Reset()
-			http.Error(rw, "Multipart error: "+err.String(), 500)
-			break
-		}
-		fileName := part.FileName()
-		if fileName == "" {
-			continue
-		}
-		get, _ := http.ParseQuery(req.URL.RawQuery)
-		writeFn := schema.WriteFileFromReader
-		if len(get["rollsum"]) == 1 && get["rollsum"][0] == "1" {
-			writeFn = schema.WriteFileFromReaderRolling
-		}
-		br, err := writeFn(ui.Storage, fileName, part)
-
-		fmt.Fprintf(&buf, "filename=%q, formname=%q, br=<a href='./?b=%s'>%s</a>, err=%v\n", part.FileName(), part.FormName(), br, br, err)
-
 	}
 }
 

@@ -63,7 +63,7 @@ function camliSigDiscovery(opts) {
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
         if (xhr.status != 200) {
-            opts.fail("no status 200; got " + xhr.status);
+            opts.fail("camliSigDiscovery expected status 200; got " + xhr.status);
             return;
         }
         sigdisco = JSON.parse(xhr.responseText);
@@ -171,6 +171,41 @@ function camliSign(clearObj, opts) {
         });
 }
 
+function camliUploadFileHelper(file, opts) {
+    opts = saneOpts(opts);
+    if (!disco.uploadHelper) {
+        opts.fail("no uploadHelper available");
+        return
+    }
+    var fd = new FormData();
+    fd.append(fd, file);
+    var xhr = new XMLHttpRequest();
+
+    xhr.open("POST", disco.uploadHelper);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) {
+             return;
+        }
+        if (xhr.status != 200) {
+            opts.fail("got status " + xhr.status);
+            return;
+        }
+        var resj;
+        try {
+            resj = JSON.parse(xhr.responseText);
+        } catch (x) {
+            opts.fail("error parsing JSON in upload response: " + xhr.responseText);
+            return;
+        }
+        if (resj.error) {
+            opts.fail("error uploading " + blobref + ": " + resj.error);
+            return;
+        }
+        opts.success(resj);
+    };
+    xhr.send(fd);
+}
+
 function camliUploadString(s, opts) {
     opts = saneOpts(opts);
     var blobref = "sha1-" + Crypto.SHA1(s);
@@ -205,7 +240,7 @@ function camliUploadString(s, opts) {
             opts.fail("error parsing JSON in upload response: " + xhr.responseText);
             return;
         }
-        if (resj.errorText) {
+        if (resj.errorText) {  // TODO: change this to error, not errorText, to be consistent
             opts.fail("error uploading " + blobref + ": " + resj.errorText);
             return;
         }
@@ -257,19 +292,46 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
         if (xhr.status != 200) {
-            opts.fail("no status 200; got " + xhr.status);
+            opts.fail("camliGetRecentlyUpdatedPermanodes expected status 200; got " + xhr.status);
             return;
         }
         var resj;
         try {
             resj = JSON.parse(xhr.responseText);
         } catch(x) {
-            opts.fail("error parsing JSON in upload response: " + xhr.responseText);
+            opts.fail("error parsing JSON in response: " + xhr.responseText);
             return
         }
         opts.success(resj);
     };
     xhr.open("GET", disco.searchRoot + "camli/search", true);
+    xhr.send();
+}
+
+function camliFindExistingFileSchemas(bytesRef, opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status != 200) {            
+            opts.fail("camliFindExistingFileSchemas expected status 200; got " + xhr.status + ", " + xhr.statusText);
+            return;
+        }
+        var resj;
+        try {
+            resj = JSON.parse(xhr.responseText);
+        } catch(x) {
+            opts.fail("error parsing JSON in response: " + xhr.responseText);
+            return
+        }
+        if (resj.error) {
+            opts.fail(resj.error);
+        } else {
+            opts.success(resj);
+        }
+    };
+    var path = disco.searchRoot + "camli/search/files?bytesref=" + bytesRef;
+    xhr.open("GET", path, true);
     xhr.send();
 }
 

@@ -130,28 +130,55 @@ var lastFiles;
 function handleFiles(files) {
     lastFiles = files;
 
-    info = document.getElementById("info");
-    t = "N files: " + files.length + "\n";
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
-        t += "file[" + i + "] name=" + file.name + "; size=" + file.size + "; file.type=" + file.type + "\n";
-
-        (function(file) {
-             var fr = new FileReader();
-             fr.onload = function() {
-                 dataurl = fr.result;
-                 comma = dataurl.indexOf(",")
-                 if (comma != -1) {
-                     b64 = dataurl.substring(comma + 1);
-                     var arrayBuffer = Base64.decode(b64).buffer;
-                     var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
-                     info.innerHTML += "File " + file.name + " = sha1-" + hash + "\n";                
-                 }
-             };
-             fr.readAsDataURL(file);
-        })(file);
+        startFileUpload(file);
     }
-    info.innerHTML += t;
+}
+
+function startFileUpload(file) {
+    var dnd = document.getElementById("dnd");
+    var up = document.createElement("div");
+    up.setAttribute("class", "fileupload");
+    dnd.appendChild(up);
+    var info = "name=" + file.name + " size=" + file.size + "; type=" + file.type;
+    up.innerHTML = info + " (scanning)";
+    var contentsRef; // set later
+
+    var onFail = function(msg) {
+        up.innerHTML = info + " <b>fail:</b> ";
+        up.appendChild(document.createTextNode(msg));
+    };
+
+    var onUploaded = function(res) {
+      alert("Uploaded: " + JSON.stringify(res, null, 2));
+    };
+        
+    var onFileSearch = function(res) {
+        if (res.files.length > 0) {
+            up.innerHTML = info + " <b>TODO: server dup, handle</b>";
+            alert("TODO: server already has it, maybe. verify the files in " + JSON.stringify(res, null, 2));
+            return;
+        } 
+        up.innerHTML = info + " <b>Uploading...</b>";
+        camliUploadFileHelper(file, { success: onUploaded, fail: onFail });
+    };
+
+    var fr = new FileReader();
+    fr.onload = function() {
+        dataurl = fr.result;
+        comma = dataurl.indexOf(",")
+        if (comma != -1) {
+            b64 = dataurl.substring(comma + 1);
+            var arrayBuffer = Base64.decode(b64).buffer;
+            var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
+
+            contentsRef = "sha1-" + hash;
+            up.innerHTML = info + " (checking for dup of " + contentsRef + ")";
+            camliFindExistingFileSchemas(contentsRef, { success: onFileSearch, fail: onFail });
+        }
+    };
+    fr.readAsDataURL(file);
 }
 
 function onFileFormSubmit(e) {

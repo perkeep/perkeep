@@ -45,13 +45,20 @@ func ReturnJson(conn http.ResponseWriter, data interface{}) {
 	conn.Header().Set("Content-Type", "text/javascript")
 
 	if m, ok := data.(map[string]interface{}); ok {
+		statusCode := 0
+		if t, ok := m["error"].(string); ok && len(t) > 0 {
+			statusCode = http.StatusInternalServerError
+		}
 		if t, ok := m["errorType"].(string); ok {
 			switch t {
 			case "server":
-				conn.WriteHeader(http.StatusInternalServerError)
+				statusCode = http.StatusInternalServerError
 			case "input":
-				conn.WriteHeader(http.StatusBadRequest)
+				statusCode = http.StatusBadRequest
 			}
+		}
+		if statusCode != 0 {
+			conn.WriteHeader(statusCode)
 		}
 	}
 
