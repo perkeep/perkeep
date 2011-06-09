@@ -43,6 +43,18 @@ func ServerError(conn http.ResponseWriter, err os.Error) {
 
 func ReturnJson(conn http.ResponseWriter, data interface{}) {
 	conn.Header().Set("Content-Type", "text/javascript")
+
+	if m, ok := data.(map[string]interface{}); ok {
+		if t, ok := m["errorType"].(string); ok {
+			switch t {
+			case "server":
+				conn.WriteHeader(http.StatusInternalServerError)
+			case "input":
+				conn.WriteHeader(http.StatusBadRequest)
+			}
+		}
+	}
+
 	bytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		BadRequestError(conn, fmt.Sprintf(
