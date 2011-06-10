@@ -199,6 +199,7 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		"searchRoot":   ui.SearchRoot,
 		"jsonSignRoot": ui.JSONSignRoot,
 		"uploadHelper": "?camli.mode=uploadhelper", // hack; remove with better javascript
+		"downloadHelper": "./download/",
 	})
 	rw.Write(bytes)
 	if inCb {
