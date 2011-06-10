@@ -28,11 +28,14 @@ import (
 
 var _ = log.Printf
 
+const closedIndex = -1
+var errClosed = os.NewError("filereader is closed")
+
 type FileReader struct {
 	fetcher blobref.SeekFetcher
 	ss      *Superset
 
-	ci     int    // index into contentparts
+	ci     int    // index into contentparts, or -1 on closed
 	ccon   uint64 // bytes into current chunk already consumed
 	remain int64  // bytes remaining
 
@@ -73,7 +76,20 @@ func (fr *FileReader) FileSchema() *Superset {
 	return fr.ss
 }
 
+func (fr *FileReader) Close() os.Error {
+	if fr.ci == closedIndex {
+		return errClosed
+	}
+	fr.closeOpenBlobs()
+	fr.ci = closedIndex
+	return nil
+}
+
 func (fr *FileReader) Skip(skipBytes uint64) uint64 {
+	if fr.ci == closedIndex {
+		return 0
+	}
+
 	wantedSkipped := skipBytes
 
 	for skipBytes != 0 && fr.ci < len(fr.ss.ContentParts) {
@@ -160,6 +176,10 @@ func (fr *FileReader) currentPart() (*ContentPart, os.Error) {
 }
 
 func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
+	if fr.ci == closedIndex {
+		return 0, errClosed
+	}
+
 	cp, err := fr.currentPart()
 	if err != nil {
 		return 0, err
