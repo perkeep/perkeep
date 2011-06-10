@@ -1,0 +1,52 @@
+#!/usr/bin/python
+# Copyright (c) 2009 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import os
+import sys
+from subprocess import Popen, PIPE
+
+# Try locating depot_tools from the user's PATH.
+depot_tools_path = None
+
+# First parse PATH if there's a "depot_tools" inside
+for path in os.environ.get("PATH").split(os.pathsep):
+  if not path.endswith("depot_tools") and not path.endswith("depot_tools/"):
+    continue
+  depot_tools_path = path
+  break
+
+# If depot_tools dir is not called depot_tools, or other weirdness
+if not depot_tools_path:
+  # Grab a `which gclient', which gives first match
+  # `which' also uses PATH, but is not restricted to specific directory name
+  path = Popen(["which", "gclient"], stdout=PIPE).communicate()[0].strip()
+  if path:
+    depot_tools_path = path.replace("/gclient","")
+
+# If we found depot_tools, add it to the script's import path.
+# Use realpath to normalize the actual path
+if depot_tools_path:
+  sys.path.insert(0, os.path.realpath(depot_tools_path))
+else:
+  print "ERROR: Could not find depot_tools in your PATH."
+  print "ERROR: Please add it to your PATH and try again."
+  sys.exit(1)
+
+# Try importing git_cl_hooks from depot_tools.
+try:
+  import git_cl_hooks
+except ImportError:
+  print "ERROR: Could not import git_cl_hooks from depot_tools in your PATH."
+  print "ERROR: Make sure %s is up-to-date and try again." % depot_tools_path
+  sys.exit(1)
+
+# Ensure we were called with the necessary number of arguments.
+program_name = os.path.basename(sys.argv[0])
+if len(sys.argv) != 2:
+  print "usage: %s [upstream branch]" % program_name
+  sys.exit(1)
+
+# Run the hooks library with our arguments.
+exec git_cl_hooks.RunHooks(hook_name=program_name, upstream_branch=sys.argv[1])

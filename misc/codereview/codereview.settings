@@ -1,0 +1,6 @@
+# This file is used by gcl to get repository specific information.
+CODE_REVIEW_SERVER: codereview.appspot.com
+CC_LIST: camlistore@googlegroups.com
+#VIEW_VC: http://src.chromium.org/viewvc/chrome?view=rev&revision=
+#GITCL_PREUPLOAD: http://src.chromium.org/viewvc/chrome/trunk/tools/depot_tools/git-cl-upload-hook?revision=HEAD
+#GITCL_PREDCOMMIT: http://src.chromium.org/viewvc/chrome/trunk/tools/depot_tools/git-cl-upload-hook?revision=HEAD

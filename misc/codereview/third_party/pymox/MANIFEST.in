@@ -1,0 +1,5 @@
+include COPYING
+include mox_test.py
+include mox_test_helper.py
+include stubout_test.py
+include stubout_testee.py

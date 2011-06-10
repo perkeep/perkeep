@@ -19,4 +19,29 @@
 
 </ul>
 
-
+<h1>Code Review</h1>
+<ul class='lispaced'>
+	<li>Camlistore requires changes to be reviewed before they are committed.</li>
+	<li>Add $CAMLISTORE/misc/codereview to your path.</li>
+	<li>Configuring 'git cl'</li>
+		<ul>
+			<li>Go to $CAMLISTORE and type: git cl config</li>
+			<li>The codereview server address is: codereview.appspot.com</li>
+			<li>The CC list is: camlistore@googlegroups.com</li>
+			<li>Leave the rest of the questions blank.</li>
+		</ul>
+	<li>Usual Work Flow</li>
+		<ul>
+			<li>Make a topic branch or just do some work on master.</li>
+			<li>Commit, write a reasonable description, and type 'git cl upload'.  
+				This uploads the changes between origin/{branch} and {branch}. to the review server.</li>
+			<li>Once the review is on the server, others will have a chance to review your code and make comments / recommendations.</li>
+			<li>Typically, the keyword LGTM (looks good to me) is used to affirm it has been reviewed and is ready to be committed.</li>
+			<li>A project committer can then run 'git cl patch {issue number}' to pull in the issues changes and then run 'git cl push'.</li>
+			<li>Contributors and committers alike can use 'git cl {issue, status, tree, etc...}' 
+				to get more information about the changes and state of the tree.</li>
+			<li>Finally, if you have any questions don't hesitate to ask the <a href='/lists'>mailing list</a> if you have questions. Also,
+				'git cl help' and 'git cl {command} help' are your friends!</li>
+		</ul>
+	<li>Have Fun!</li>
+</ul>
