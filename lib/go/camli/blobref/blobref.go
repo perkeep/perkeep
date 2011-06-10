@@ -85,7 +85,7 @@ func (o *BlobRef) Equals(other *BlobRef) bool {
 func (o *BlobRef) Hash() hash.Hash {
 	fn, ok := supportedDigests[o.hashName]
 	if !ok {
-		return nil
+		return nil // TODO: return an error here, not nil
 	}
 	return fn()
 }
