@@ -142,7 +142,12 @@ function startFileUpload(file) {
     up.setAttribute("class", "fileupload");
     dnd.appendChild(up);
     var info = "name=" + file.name + " size=" + file.size + "; type=" + file.type;
-    up.innerHTML = info + " (scanning)";
+
+    var setStatus = function(status) {
+        up.innerHTML = info + " " + status;
+    };
+    setStatus("(scanning)");
+
     var contentsRef; // set later
 
     var onFail = function(msg) {
@@ -151,7 +156,25 @@ function startFileUpload(file) {
     };
 
     var onGotFileSchemaRef = function(fileref) {
-        up.innerHTML = info + " <b>fileref: " + fileref + "</b>";
+        setStatus(" <b>fileref: " + fileref + "</b>");
+        camliCreateNewPermanode(
+            {
+            success: function(filepn) {
+                var doneWithAll = function() {
+                    setStatus("- done");
+                };
+                var addMember = function() {
+                    setStatus("adding member");
+                    camliNewAddAttributeClaim(getPermanodeParam(), "member", filepn, { success: doneWithAll, fail: onFail });
+                };
+                var makePermanode = function() {
+                    setStatus("making permanode");
+                    camliNewSetAttributeClaim(filepn, "camliContent", fileref, { success: addMember, fail: onFail });
+                };
+                makePermanode();
+            },
+            fail: onFail
+        });
     };
 
     var fr = new FileReader();
@@ -164,7 +187,7 @@ function startFileUpload(file) {
             var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
 
             contentsRef = "sha1-" + hash;
-            up.innerHTML = info + " (checking for dup of " + contentsRef + ")";
+            setStatus("(checking for dup of " + contentsRef + ")");
             camliUploadFileHelper(file, contentsRef, { success: onGotFileSchemaRef, fail: onFail });
         }
     };
