@@ -44,7 +44,7 @@ import watchlists
 
 
 
-DEFAULT_SERVER = 'http://code.dexrex.com'
+DEFAULT_SERVER = 'http://codereview.appspot.com'
 POSTUPSTREAM_HOOK_PATTERN = '.git/hooks/post-cl-%s'
 DESCRIPTION_BACKUP_FILE = '~/.git_cl_description_backup'
 
