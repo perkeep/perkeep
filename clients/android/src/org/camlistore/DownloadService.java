@@ -244,10 +244,6 @@ public class DownloadService extends Service {
             HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
             String url = hp.httpScheme() + "://" + hp.toString() + "/camli/" + mBlobRef;
             Log.d(TAG, "downloading " + url);
-            HttpGet req = new HttpGet(url);
-            req.setHeader("Authorization",
-                          Util.getBasicAuthHeaderValue(
-                              USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
 
             // Incoming data from the server.
             InputStream inputStream = null;
@@ -263,6 +259,10 @@ public class DownloadService extends Service {
             boolean dataIsCorrupt = false;
 
             try {
+                HttpGet req = new HttpGet(url);
+                req.setHeader("Authorization",
+                              Util.getBasicAuthHeaderValue(
+                                  USERNAME, mSharedPrefs.getString(Preferences.PASSWORD, "")));
                 final HttpResponse response = httpClient.execute(req);
                 final HttpEntity entity = response.getEntity();
                 long contentLength = -1;
@@ -353,6 +353,8 @@ public class DownloadService extends Service {
                 Log.e(TAG, "protocol error while downloading " + mBlobRef, e);
             } catch (IOException e) {
                 Log.e(TAG, "IO error while downloading " + mBlobRef, e);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "invalid Camli server", e);
             } finally {
                 if (inputStream != null)
                     try { inputStream.close(); } catch (IOException e) {}
