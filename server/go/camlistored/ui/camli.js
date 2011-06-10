@@ -135,17 +135,69 @@ function camliSign(clearObj, opts) {
         });
 }
 
-function camliUploadFileHelper(file, opts) {
+// file: File object
+// contentsBlobRef: blob ref of file as sha1'd locally
+// opts: fail(strMsg) success(strFileBlobRef) of the validated (or uploaded + created) file schema blob.
+//       associating with a permanode is caller's job.
+function camliUploadFileHelper(file, contentsBlobRef, opts) {
     opts = saneOpts(opts);
     if (!disco.uploadHelper) {
         opts.fail("no uploadHelper available");
         return
     }
-    var fd = new FormData();
-    fd.append(fd, file);
-    var xhr = camliJsonXhr("camliUploadFileHelper", opts);
-    xhr.open("POST", disco.uploadHelper);
-    xhr.send(fd);
+
+    var doUpload = function() {
+        var fd = new FormData();
+        fd.append(fd, file);
+        var uploadCb = { fail: opts.fail };
+        uploadCb.success = function(res) {
+            if (res.got && res.got.length == 1 && res.got[0].fileref) {
+                var fileblob = res.got[0].fileref;
+                console.log("uploaded " + contentsBlobRef + " => file blob " + fileblob);
+                opts.success(fileblob);
+            } else {
+                opts.fail("failed to upload " + file.name + ": " + contentsBlobRef + ": " + JSON.stringify(res, null, 2))
+            }
+        };
+        var xhr = camliJsonXhr("camliUploadFileHelper", uploadCb);
+        xhr.open("POST", disco.uploadHelper);
+        xhr.send(fd);
+    };
+    
+    var dupcheckCb = { fail: opts.fail };
+    dupcheckCb.success = function(res) {
+        var remain = res.files;
+        var checkNext;
+        checkNext = function() {
+            if (remain.length == 0) {
+                doUpload();
+                return;
+            }
+            // TODO: verify filename and other file metadata in the
+            // file json schema match too, not just the contents
+            var checkFile = remain.shift()
+            console.log("integrity checking reported dup " + checkFile);
+
+            var vcb = {};
+            vcb.fail = function(xhr) {
+                console.log("integrity checked failed on " + checkFile);
+                checkNext();
+            };
+            vcb.success = function(xhr) {
+                if (xhr.getResponseHeader("X-Camli-Contents") == contentsBlobRef) {
+                    console.log("integrity checked passed on " + checkFile);
+                    opts.success(checkFile);
+                } else {
+                    checkNext();                 
+                }
+            };
+            var xhr = camliXhr("headVerifyFile", vcb);
+            xhr.open("HEAD", disco.downloadHelper + checkFile + "/?verifycontents=" + contentsBlobRef, true);
+            xhr.send();
+        };
+        checkNext();
+    };
+    camliFindExistingFileSchemas(contentsBlobRef, dupcheckCb);
 }
 
 function camliUploadString(s, opts) {
@@ -217,6 +269,20 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
     xhr.send();
 }
 
+function camliXhr(name, opts) {
+    opts = saneOpts(opts);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState != 4) { return; }
+        if (xhr.status == 200) {
+            opts.success(xhr);
+        } else {
+            opts.fail(name + ": expected status 200; got " + xhr.status + ": " + xhr.responseText);
+        }
+    };
+    return xhr;
+}
+
 function camliJsonXhr(name, opts) {
     opts = saneOpts(opts);
     var xhr = new XMLHttpRequest();
@@ -235,7 +301,7 @@ function camliJsonXhr(name, opts) {
         try {
             resj = JSON.parse(xhr.responseText);
         } catch(x) {
-            opts.fail("error parsing JSON in response: " + xhr.responseText);
+            opts.fail(name + ": error parsing JSON in response: " + xhr.responseText);
             return
         }
         if (resj.error) {

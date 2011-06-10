@@ -150,18 +150,8 @@ function startFileUpload(file) {
         up.appendChild(document.createTextNode(msg));
     };
 
-    var onUploaded = function(res) {
-      alert("Uploaded: " + JSON.stringify(res, null, 2));
-    };
-        
-    var onFileSearch = function(res) {
-        if (res.files.length > 0) {
-            up.innerHTML = info + " <b>TODO: server dup, handle</b>";
-            alert("TODO: server already has it, maybe. verify the files in " + JSON.stringify(res, null, 2));
-            return;
-        } 
-        up.innerHTML = info + " <b>Uploading...</b>";
-        camliUploadFileHelper(file, { success: onUploaded, fail: onFail });
+    var onGotFileSchemaRef = function(fileref) {
+        up.innerHTML = info + " <b>fileref: " + fileref + "</b>";
     };
 
     var fr = new FileReader();
@@ -175,7 +165,7 @@ function startFileUpload(file) {
 
             contentsRef = "sha1-" + hash;
             up.innerHTML = info + " (checking for dup of " + contentsRef + ")";
-            camliFindExistingFileSchemas(contentsRef, { success: onFileSearch, fail: onFail });
+            camliUploadFileHelper(file, contentsRef, { success: onGotFileSchemaRef, fail: onFail });
         }
     };
     fr.readAsDataURL(file);
