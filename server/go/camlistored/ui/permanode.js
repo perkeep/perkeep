@@ -268,6 +268,24 @@ window.addEventListener("load", function (e) {
                 spanTags.removeChild(spanTags.firstChild);
             }
 
+            var membersDiv = document.getElementById("members");
+            membersDiv.innerHTML = "";
+            var members = permanodeObject.attr.member;
+            if (members && members.length > 0) {
+                var membersUl = document.createElement("ul");
+                for (idx in members) {
+                    var member = members[idx];
+                    var memberLi = document.createElement("li");
+                    var memberLink = document.createElement("a");
+                    memberLi.appendChild(memberLink);
+                    memberLink.href = "./?p=" + member;
+                    memberLink.innerText = member;
+                    membersUl.appendChild(memberLi);
+                }
+                membersDiv.appendChild(document.createTextNode("Members:"));
+                membersDiv.appendChild(membersUl);
+            }
+
             var tags = permanodeObject.attr.tag;
             for (idx in tags) {
                 var tagSpan = document.createElement("span");
