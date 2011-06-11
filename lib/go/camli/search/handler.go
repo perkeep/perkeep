@@ -316,6 +316,24 @@ claimLoop:
 			dm["size"] = size
 		}
 	}
+
+	// Resolve children
+	if dmap != nil {
+		if member, ok := attr["camliMember"].([]string); ok && len(member) > 0 {
+			wg := new(sync.WaitGroup)
+			for _, member := range member {
+				membr := blobref.Parse(member)
+				if membr != nil {
+					wg.Add(1)
+					go func() {
+						sh.populatePermanodeFields(dmap(membr), membr, signer, dmap)
+						wg.Done()
+					}()
+				}
+			}
+			wg.Wait()
+		}
+	}
 }
 
 const camliTypePrefix = "application/json; camliType="
