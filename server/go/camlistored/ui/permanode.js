@@ -162,14 +162,15 @@ function startFileUpload(file) {
             success: function(filepn) {
                 var doneWithAll = function() {
                     setStatus("- done");
+                    addMemberDiv(filepn);
                 };
-                var addMember = function() {
+                var addMemberToParent = function() {
                     setStatus("adding member");
                     camliNewAddAttributeClaim(getPermanodeParam(), "camliMember", filepn, { success: doneWithAll, fail: onFail });
                 };
                 var makePermanode = function() {
                     setStatus("making permanode");
-                    camliNewSetAttributeClaim(filepn, "camliContent", fileref, { success: addMember, fail: onFail });
+                    camliNewSetAttributeClaim(filepn, "camliContent", fileref, { success: addMemberToParent, fail: onFail });
                 };
                 makePermanode();
             },
@@ -226,6 +227,24 @@ function setupFilesHandlers(e) {
     dnd.addEventListener("drop", drop, false);
 }
 
+function addMemberDiv(pn) {
+    var membersDiv = document.getElementById("members");
+    var ul;
+    if (membersDiv.innerHTML == "") {
+        membersDiv.appendChild(document.createTextNode("Members:"));
+        ul = document.createElement("ul");
+        membersDiv.appendChild(ul);
+    } else {
+        ul = membersDiv.firstChild.nextSibling;
+    }
+    var li = document.createElement("li");
+    var a = document.createElement("a");
+    li.appendChild(a);
+    a.href = "./?p=" + pn;
+    a.innerText = pn;
+    ul.appendChild(li);
+}
+
 window.addEventListener("load", function (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
@@ -268,22 +287,24 @@ window.addEventListener("load", function (e) {
                 spanTags.removeChild(spanTags.firstChild);
             }
 
-            var membersDiv = document.getElementById("members");
-            membersDiv.innerHTML = "";
             var members = permanodeObject.attr.camliMember;
             if (members && members.length > 0) {
-                var membersUl = document.createElement("ul");
                 for (idx in members) {
                     var member = members[idx];
-                    var memberLi = document.createElement("li");
-                    var memberLink = document.createElement("a");
-                    memberLi.appendChild(memberLink);
-                    memberLink.href = "./?p=" + member;
-                    memberLink.innerText = member;
-                    membersUl.appendChild(memberLi);
+                    addMemberDiv(member);
                 }
-                membersDiv.appendChild(document.createTextNode("Members:"));
-                membersDiv.appendChild(membersUl);
+            }
+
+            var camliContent = permanodeObject.attr.camliContent;
+            if (camliContent && camliContent.length > 0) {
+                camliContent = camliContent[camliContent.length-1];
+                var c = document.getElementById("content");
+                c.innerHTML = "";
+                c.appendChild(document.createTextNode("Content: "));
+                var a = document.createElement("a");
+                a.href = "./?b=" + camliContent;
+                a.innerText = camliContent;
+                c.appendChild(a);
             }
 
             var tags = permanodeObject.attr.tag;

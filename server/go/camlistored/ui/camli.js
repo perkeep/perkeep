@@ -203,7 +203,6 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
 function camliUploadString(s, opts) {
     opts = saneOpts(opts);
     var blobref = "sha1-" + Crypto.SHA1(s);
-    // alert("blobref " + blobref + ": " + s);
 
     bb = new WebKitBlobBuilder();
     bb.append(s);
