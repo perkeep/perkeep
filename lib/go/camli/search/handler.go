@@ -251,59 +251,59 @@ func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 
 // dmap may be nil, returns the jsonMap to populate into
 func (sh *searchHandler) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, dmap func(b *blobref.BlobRef) map[string]interface{}) {
-	jm["content"] = ""
 	attr := jsonMap()
 	jm["attr"] = attr
 
 	claims, err := sh.index.GetOwnerClaims(pn, signer)
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-	} else {
-		sort.Sort(claims)
-	claimLoop:
-		for _, cl := range claims {
-			switch cl.Type {
-			case "del-attribute":
-				if cl.Value == "" {
-					attr[cl.Attr] = nil, false
-				} else {
-					sl, ok := attr[cl.Attr].([]string)
-					if ok {
-						filtered := make([]string, 0, len(sl))
-						for _, val := range sl {
-							if val != cl.Value {
-								filtered = append(filtered, val)
-							}
-						}
-						attr[cl.Attr] = filtered
-					}
-				}
-			case "set-attribute":
+		jm["error"] = fmt.Sprintf("Error getting claims of %s: %v", pn.String(), err)
+		return
+	}
+	sort.Sort(claims)
+claimLoop:
+	for _, cl := range claims {
+		switch cl.Type {
+		case "del-attribute":
+			if cl.Value == "" {
 				attr[cl.Attr] = nil, false
-				fallthrough
-			case "add-attribute":
-				if cl.Value == "" {
-					continue
-				}
+			} else {
 				sl, ok := attr[cl.Attr].([]string)
 				if ok {
-					for _, exist := range sl {
-						if exist == cl.Value {
-							continue claimLoop
+					filtered := make([]string, 0, len(sl))
+					for _, val := range sl {
+						if val != cl.Value {
+							filtered = append(filtered, val)
 						}
 					}
-				} else {
-					sl = make([]string, 0, 1)
-					attr[cl.Attr] = sl
+					attr[cl.Attr] = filtered
 				}
-				attr[cl.Attr] = append(sl, cl.Value)
 			}
+		case "set-attribute":
+			attr[cl.Attr] = nil, false
+			fallthrough
+		case "add-attribute":
+			if cl.Value == "" {
+				continue
+			}
+			sl, ok := attr[cl.Attr].([]string)
+			if ok {
+				for _, exist := range sl {
+					if exist == cl.Value {
+						continue claimLoop
+					}
+				}
+			} else {
+				sl = make([]string, 0, 1)
+				attr[cl.Attr] = sl
+			}
+			attr[cl.Attr] = append(sl, cl.Value)
 		}
 	}
 
 	// If the content permanode is now known, look up its type
-	if content, ok := jm["content"].(string); ok && content != "" {
-		cbr := blobref.Parse(content)
+	if content, ok := attr["camliContent"].([]string); ok && len(content) > 0 {
+		cbr := blobref.Parse(content[len(content)-1])
 
 		dm := jm
 		if dmap != nil {
