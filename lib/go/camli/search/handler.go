@@ -181,9 +181,12 @@ func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) 
 
 func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+
 	br := blobref.Parse(req.FormValue("blobref"))
 	if br == nil {
-		http.Error(rw, "Missing or invalid 'blobref' param", 400)
+		ret["error"] = "Missing or invalid 'blobref' param"
+		ret["errorType"] = "input"
 		return
 	}
 
@@ -213,8 +216,6 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 			}
 		}
 	}
-
-	httputil.ReturnJson(rw, ret)
 }
 
 func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
