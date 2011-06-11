@@ -298,10 +298,6 @@ func (sh *searchHandler) populatePermanodeFields(jm map[string]interface{}, pn, 
 				attr[cl.Attr] = append(sl, cl.Value)
 			}
 		}
-		if sl, ok := attr["camliContent"].([]string); ok && len(sl) > 0 {
-			jm["content"] = sl[len(sl)-1]
-			attr["camliContent"] = nil, false
-		}
 	}
 
 	// If the content permanode is now known, look up its type

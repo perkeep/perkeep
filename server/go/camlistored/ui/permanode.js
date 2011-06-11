@@ -165,7 +165,7 @@ function startFileUpload(file) {
                 };
                 var addMember = function() {
                     setStatus("adding member");
-                    camliNewAddAttributeClaim(getPermanodeParam(), "member", filepn, { success: doneWithAll, fail: onFail });
+                    camliNewAddAttributeClaim(getPermanodeParam(), "camliMember", filepn, { success: doneWithAll, fail: onFail });
                 };
                 var makePermanode = function() {
                     setStatus("making permanode");
@@ -270,7 +270,7 @@ window.addEventListener("load", function (e) {
 
             var membersDiv = document.getElementById("members");
             membersDiv.innerHTML = "";
-            var members = permanodeObject.attr.member;
+            var members = permanodeObject.attr.camliMember;
             if (members && members.length > 0) {
                 var membersUl = document.createElement("ul");
                 for (idx in members) {
