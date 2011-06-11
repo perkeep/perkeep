@@ -22,6 +22,7 @@ import (
 	"json"
 	"log"
 	"os"
+	"strings"
 
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
 
@@ -219,7 +220,8 @@ func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, 
 
 	sha1 := sha1.New()
 	fr := ss.NewFileReader(seekFetcher)
-	n, err := io.Copy(sha1, fr)
+	mime, reader := magic.MimeTypeFromReader(fr)
+	n, err := io.Copy(sha1, reader)
 	if err != nil {
 		// TODO: job scheduling system to retry this spaced
 		// out max n times.  Right now our options are
@@ -230,11 +232,26 @@ func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, 
 		log.Printf("mysqlindex: error indexing file %s: %v", blobRef, err)
 		return nil
 	}
+
+	attrs := []string{}
+	if ss.UnixPermission != "" {
+		attrs = append(attrs, "perm")
+	}
+	if ss.UnixOwnerId != 0 || ss.UnixOwner != "" || ss.UnixGroupId != 0 || ss.UnixGroup != "" {
+		attrs = append(attrs, "owner")
+	}
+	if ss.UnixMtime != "" || ss.UnixCtime != "" || ss.UnixAtime != "" {
+		attrs = append(attrs, "time")
+	}
+
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
 	err = execSQL(client,
-		"INSERT IGNORE INTO files (fileschemaref, bytesref, size) VALUES (?, ?, ?)",
+		"INSERT IGNORE INTO files (fileschemaref, bytesref, size, filename, mime, setattrs) VALUES (?, ?, ?, ?, ?, ?)",
 		blobRef.String(),
 		blobref.FromHash("sha1", sha1).String(),
-		n)
+		n,
+		ss.FileNameString(),
+		mime,
+		strings.Join(attrs, ","))
 	return
 }

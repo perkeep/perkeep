@@ -82,6 +82,9 @@ INDEX (signer, lastmod))`)
 fileschemaref VARCHAR(128) NOT NULL,
 bytesref VARCHAR(128) NOT NULL,
 size BIGINT,
+filename VARCHAR(255),
+mime VARCHAR(255),
+setattrs VARCHAR(255),
 PRIMARY KEY(fileschemaref, bytesref),
 INDEX (bytesref))`)
 }

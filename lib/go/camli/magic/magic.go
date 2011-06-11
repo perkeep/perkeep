@@ -18,6 +18,7 @@ package magic
 
 import (
 	"bytes"
+	"io"
 )
 
 type prefixEntry struct {
@@ -42,4 +43,15 @@ func MimeType(hdr []byte) string {
 		}
 	}
 	return ""
+}
+
+// MimeTypeFromReader takes a reader, sniffs the beginning of it,
+// and returns the mime (if sniffed, else "") and a new reader
+// that's the concatenation of the bytes sniffed and the remaining
+// reader.
+func MimeTypeFromReader(r io.Reader) (mime string, reader io.Reader) {
+	var buf bytes.Buffer
+	io.Copyn(&buf, r, 1024)
+	mime = MimeType(buf.Bytes())
+	return mime, io.MultiReader(&buf, r)
 }
