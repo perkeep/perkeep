@@ -105,39 +105,37 @@ func (sh *searchHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+
 	ch := make(chan *Result)
-	results := jsonMapList()
 	errch := make(chan os.Error)
 	go func() {
-		log.Printf("finding recent permanodes for %s", sh.owner)
 		errch <- sh.index.GetRecentPermanodes(ch, []*blobref.BlobRef{sh.owner}, 50)
 	}()
 
-	wg := new(sync.WaitGroup)
+	dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+
+	recent := jsonMapList()
 	for res := range ch {
 		jm := jsonMap()
+		dr.describe(res.BlobRef, 2)
 		jm["blobref"] = res.BlobRef.String()
 		jm["owner"] = res.Signer.String()
 		t := time.SecondsToUTC(res.LastModTime)
 		jm["modtime"] = t.Format(time.RFC3339)
-		results = append(results, jm)
-		wg.Add(1)
-		go func() {
-			sh.populatePermanodeFields(jm, res.BlobRef, res.Signer, nil)
-			wg.Done()
-		}()
+		recent = append(recent, jm)
 	}
-	wg.Wait()
 
 	err := <-errch
-
-	ret := jsonMap()
-	ret["results"] = results
 	if err != nil {
 		// TODO: return error status code
 		ret["error"] = fmt.Sprintf("%v", err)
+		return
 	}
-	httputil.ReturnJson(rw, ret)
+
+	dr.wg.Wait()
+	ret["recent"] = recent
 }
 
 func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) {
@@ -179,6 +177,75 @@ func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) 
 	httputil.ReturnJson(rw, ret)
 }
 
+type describeRequest struct {
+	sh *searchHandler
+
+	lk   sync.Mutex             // protects m
+	m    map[string]interface{} // top-level response JSON
+	done map[string]bool        // blobref -> described
+
+	wg *sync.WaitGroup // for load requests
+}
+
+func (dr *describeRequest) blobRefMap(b *blobref.BlobRef) map[string]interface{} {
+	dr.lk.Lock()
+	defer dr.lk.Unlock()
+	bs := b.String()
+	if m, ok := dr.m[bs]; ok {
+		return m.(map[string]interface{})
+	}
+	m := jsonMap()
+	dr.m[bs] = m
+	return m
+}
+
+func (dr *describeRequest) describe(br *blobref.BlobRef, depth int) {
+	if depth <= 0 {
+		return
+	}
+	dr.lk.Lock()
+	defer dr.lk.Unlock()
+	if dr.done == nil {
+		dr.done = make(map[string]bool)
+	}
+	if dr.done[br.String()] {
+		return
+	}
+	dr.done[br.String()] = true
+	dr.wg.Add(1)
+	go func() {
+		defer dr.wg.Done()
+		dr.describeReally(br, depth)
+	}()
+}
+
+func (dr *describeRequest) describeReally(br *blobref.BlobRef, depth int) {
+	mime, size, err := dr.sh.index.GetBlobMimeType(br)
+	if err == os.ENOENT {
+		return
+	}
+	if err != nil {
+		dr.lk.Lock()
+		defer dr.lk.Unlock()
+		dr.m["error"] = err.String()
+		return
+	}
+	m := dr.blobRefMap(br)
+	setMimeType(m, mime)
+	m["size"] = size
+
+	switch mime {
+	case "application/json; camliType=permanode":
+		pm := jsonMap()
+		m["permanode"] = pm
+		dr.populatePermanodeFields(pm, br, dr.sh.owner, depth)
+	case "application/json; camliType=file":
+		fm := jsonMap()
+		m["file"] = fm
+		dr.populateFileFields(fm, br)
+	}
+}
+
 func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
@@ -190,32 +257,9 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	dmap := func(b *blobref.BlobRef) map[string]interface{} {
-		bs := b.String()
-		if m, ok := ret[bs]; ok {
-			return m.(map[string]interface{})
-		}
-		m := jsonMap()
-		ret[bs] = m
-		return m
-	}
-
-	mime, size, err := sh.index.GetBlobMimeType(br)
-	if err != os.ENOENT {
-		if err != nil {
-			ret["error"] = err.String()
-		} else {
-			m := dmap(br)
-			setMimeType(m, mime)
-			m["size"] = size
-
-			if mime == "application/json; camliType=permanode" {
-				pm := jsonMap()
-				m["permanode"] = pm
-				sh.populatePermanodeFields(pm, br, sh.owner, dmap)
-			}
-		}
-	}
+	dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+	dr.describe(br, 4)
+	dr.wg.Wait()
 }
 
 func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
@@ -249,17 +293,29 @@ func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	return
 }
 
+func (dr *describeRequest) populateFileFields(fm map[string]interface{}, fbr *blobref.BlobRef) {
+	fi, err := dr.sh.index.GetFileInfo(fbr)
+	if err != nil {
+		return
+	}
+	fm["size"] = fi.Size
+	fm["fileName"] = fi.FileName
+	fm["mimeType"] = fi.MimeType
+}
+
 // dmap may be nil, returns the jsonMap to populate into
-func (sh *searchHandler) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, dmap func(b *blobref.BlobRef) map[string]interface{}) {
+func (dr *describeRequest) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, depth int) {
+	//log.Printf("populate permanode %s depth %d", pn, depth)
 	attr := jsonMap()
 	jm["attr"] = attr
 
-	claims, err := sh.index.GetOwnerClaims(pn, signer)
+	claims, err := dr.sh.index.GetOwnerClaims(pn, signer)
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
 		jm["error"] = fmt.Sprintf("Error getting claims of %s: %v", pn.String(), err)
 		return
 	}
+
 	sort.Sort(claims)
 claimLoop:
 	for _, cl := range claims {
@@ -304,34 +360,16 @@ claimLoop:
 	// If the content permanode is now known, look up its type
 	if content, ok := attr["camliContent"].([]string); ok && len(content) > 0 {
 		cbr := blobref.Parse(content[len(content)-1])
-
-		dm := jm
-		if dmap != nil {
-			dm = dmap(cbr)
-		}
-
-		mime, size, err := sh.index.GetBlobMimeType(cbr)
-		if err == nil {
-			setMimeType(dm, mime)
-			dm["size"] = size
-		}
+		dr.describe(cbr, depth-1)
 	}
 
 	// Resolve children
-	if dmap != nil {
-		if member, ok := attr["camliMember"].([]string); ok && len(member) > 0 {
-			wg := new(sync.WaitGroup)
-			for _, member := range member {
-				membr := blobref.Parse(member)
-				if membr != nil {
-					wg.Add(1)
-					go func() {
-						sh.populatePermanodeFields(dmap(membr), membr, signer, dmap)
-						wg.Done()
-					}()
-				}
+	if member, ok := attr["camliMember"].([]string); ok && len(member) > 0 {
+		for _, member := range member {
+			membr := blobref.Parse(member)
+			if membr != nil {
+				dr.describe(membr, depth-1)
 			}
-			wg.Wait()
 		}
 	}
 }

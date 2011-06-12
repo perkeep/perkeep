@@ -58,14 +58,17 @@ function indexOnLoad(e) {
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {
     var div = document.getElementById("recent");
     div.innerHTML = "";
-    for (var i = 0; i < searchRes.results.length; i++) {
-        var result = searchRes.results[i];      
+    for (var i = 0; i < searchRes.recent.length; i++) {
+        var result = searchRes.recent[i];      
         var title = function() {
-            var attr = result.attr;
-            if (!attr || !attr.title) {
-                return result.blobref;
+            var pnProps = searchRes[result.blobref];
+            if (pnProps && pnProps.permanode) {
+                var attr = pnProps.permanode.attr;
+                if (attr && attr.title) {
+                    return attr.title[0];
+                }
             }
-            return attr.title[0];
+            return result.blobref;
         };
         var pdiv = document.createElement("li");
         var alink = document.createElement("a");

@@ -231,3 +231,43 @@ func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blob
 	}
 	return
 }
+
+func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (fi *search.FileInfo, err os.Error) {
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	err = client.Query(fmt.Sprintf("SELECT size, filename, mime FROM files WHERE fileschemaref=%q", fileRef.String()))
+	if err != nil {
+		return
+	}
+
+	result, err := client.StoreResult()
+	if err != nil {
+		return
+	}
+	defer client.FreeResult()
+
+	row := result.FetchRow()
+	if row == nil {
+		return nil, os.ENOENT
+	}
+
+	size, _ := row[0].(int64)
+	fileName, _ := row[1].(string)
+	mimeType, _ := row[2].(string)
+
+	return &search.FileInfo{
+		Size:     size,
+		FileName: fileName,
+		MimeType: mimeType,
+	}, nil
+}

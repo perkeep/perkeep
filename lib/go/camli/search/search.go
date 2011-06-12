@@ -55,6 +55,12 @@ func (cl ClaimList) Swap(i, j int) {
 	cl[i], cl[j] = cl[j], cl[i]
 }
 
+type FileInfo struct {
+	Size     int64
+	FileName string
+	MimeType string
+}
+
 type Index interface {
 	// dest is closed
 	// limit is <= 0 for default.  smallest possible default is 0
@@ -74,4 +80,6 @@ type Index interface {
 	// avoid uploads if possible.  Before re-using any returned
 	// blobref they should be checked.
 	ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error)
+
+	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error)
 }
