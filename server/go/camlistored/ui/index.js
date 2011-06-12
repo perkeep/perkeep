@@ -60,20 +60,10 @@ function indexBuildRecentlyUpdatedPermanodes(searchRes) {
     div.innerHTML = "";
     for (var i = 0; i < searchRes.recent.length; i++) {
         var result = searchRes.recent[i];      
-        var title = function() {
-            var pnProps = searchRes[result.blobref];
-            if (pnProps && pnProps.permanode) {
-                var attr = pnProps.permanode.attr;
-                if (attr && attr.title) {
-                    return attr.title[0];
-                }
-            }
-            return result.blobref;
-        };
         var pdiv = document.createElement("li");
         var alink = document.createElement("a");
         alink.href = "./?p=" + result.blobref;
-        alink.innerText = title();
+        alink.innerText = camliBlobTitle(result.blobref, searchRes);
         pdiv.appendChild(alink);
         div.appendChild(pdiv);
     }

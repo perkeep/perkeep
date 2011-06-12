@@ -357,6 +357,31 @@ function changeAttribute(permanode, claimType, attribute, value, opts) {
     });
 }
 
+// pn: permanode to find a good title of
+// jdes: describe response of root permanode
+function camliBlobTitle(pn, des) {
+    var d = des[pn];
+    if (!d) {
+        return pn;
+    }
+    if (d.camliType == "file" && d.file && d.file.fileName) {
+        return d.file.fileName;
+    }
+    if (d.permanode) {
+        var attr = d.permanode.attr;
+        if (!attr) {
+            return pn;
+        }
+        if (attr.title) {
+            return attr.title[0];
+        }
+        if (attr.camliContent) {
+            return camliBlobTitle(attr.camliContent[0], des);
+        }
+    }
+    return pn;
+}
+
 // Create and upload a new set-attribute claim.
 function camliNewSetAttributeClaim(permanode, attribute, value, opts) {
     changeAttribute(permanode, "set-attribute", attribute, value, opts);
