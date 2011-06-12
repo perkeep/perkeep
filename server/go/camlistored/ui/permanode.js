@@ -227,7 +227,7 @@ function setupFilesHandlers(e) {
     dnd.addEventListener("drop", drop, false);
 }
 
-function addMemberDiv(pn) {
+function addMemberDiv(pn, pnRoot) {
     var membersDiv = document.getElementById("members");
     var ul;
     if (membersDiv.innerHTML == "") {
@@ -245,10 +245,80 @@ function addMemberDiv(pn) {
     ul.appendChild(li);
 }
 
-window.addEventListener("load", function (e) {
+function onBlobDescribed(jres) {
+    var permanode = getPermanodeParam();
+    if (!jres[permanode]) {
+        alert("didn't get blob " + permanode);
+        return;
+    }
+    var permanodeObject = jres[permanode].permanode;
+    if (!permanodeObject) {
+        alert("blob " + permanode + " isn't a permanode");
+        return;
+    }
+
+    var inputTitle = document.getElementById("inputTitle");
+    inputTitle.value =
+        (permanodeObject.attr.title && permanodeObject.attr.title.length == 1) ?
+        permanodeObject.attr.title[0] :
+        "";
+    inputTitle.disabled = null;
+
+    var spanTags = document.getElementById("spanTags");
+    while (spanTags.firstChild) {
+        spanTags.removeChild(spanTags.firstChild);
+    }
+
+    var members = permanodeObject.attr.camliMember;
+    if (members && members.length > 0) {
+        for (idx in members) {
+            var member = members[idx];
+            addMemberDiv(member, jres);
+        }
+    }
+
+    var camliContent = permanodeObject.attr.camliContent;
+    if (camliContent && camliContent.length > 0) {
+        camliContent = camliContent[camliContent.length-1];
+        var c = document.getElementById("content");
+        c.innerHTML = "";
+        c.appendChild(document.createTextNode("Content: "));
+        var a = document.createElement("a");
+        a.href = "./?b=" + camliContent;
+        a.innerText = camliContent;
+        c.appendChild(a);
+    }
+
+    var tags = permanodeObject.attr.tag;
+    for (idx in tags) {
+        var tagSpan = document.createElement("span");
+        
+        if (idx > 0) {
+            tagSpan.appendChild(document.createTextNode(", "));
+        }
+        var tagLink = document.createElement("i");
+        var tag = tags[idx];
+        tagLink.innerText = tags[idx];
+        tagSpan.appendChild(tagLink);
+        tagSpan.appendChild(document.createTextNode(" ["));
+        var delLink = document.createElement("a");
+        delLink.href = '#';
+        delLink.innerText = "X";
+        delLink.addEventListener("click", deleteTagFunc(tag, tagLink, tagSpan));
+        tagSpan.appendChild(delLink);
+        tagSpan.appendChild(document.createTextNode("]"));
+
+        spanTags.appendChild(tagSpan);
+    }
+
+    var btnSave = document.getElementById("btnSave");
+    btnSave.disabled = null;
+}
+
+function permanodePageOnLoad (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
-      document.getElementById('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
+        document.getElementById('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
         document.getElementById('permanodeBlob').innerHTML = "<a href='./?b=" + permanode + "'>view blob</a>";
     }
 
@@ -256,82 +326,17 @@ window.addEventListener("load", function (e) {
     formTitle.addEventListener("submit", handleFormTitleSubmit);
     var formTags = document.getElementById("formTags");
     formTags.addEventListener("submit", handleFormTagsSubmit);
-
+                            
     var selectType = document.getElementById("type");
     selectType.addEventListener("change", onTypeChange);
 
     setupFilesHandlers();
 
-    camliDescribeBlob(permanode, {
-        success: function(jres) {
-            if (!jres[permanode]) {
-                alert("didn't get blob " + permanode);
-                return;
-            }
-            var permanodeObject = jres[permanode].permanode;
-            if (!permanodeObject) {
-                alert("blob " + permanode + " isn't a permanode");
-                return;
-            }
+    camliDescribeBlob(permanode,
+                      {
+                          success: onBlobDescribed,
+                          failure: function(msg) { alert("failed to get blob description: " + msg); }
+                      });
+}
 
-            var inputTitle = document.getElementById("inputTitle");
-            inputTitle.value =
-                (permanodeObject.attr.title && permanodeObject.attr.title.length == 1) ?
-                permanodeObject.attr.title[0] :
-                "";
-            inputTitle.disabled = null;
-
-
-            var spanTags = document.getElementById("spanTags");
-            while (spanTags.firstChild) {
-                spanTags.removeChild(spanTags.firstChild);
-            }
-
-            var members = permanodeObject.attr.camliMember;
-            if (members && members.length > 0) {
-                for (idx in members) {
-                    var member = members[idx];
-                    addMemberDiv(member);
-                }
-            }
-
-            var camliContent = permanodeObject.attr.camliContent;
-            if (camliContent && camliContent.length > 0) {
-                camliContent = camliContent[camliContent.length-1];
-                var c = document.getElementById("content");
-                c.innerHTML = "";
-                c.appendChild(document.createTextNode("Content: "));
-                var a = document.createElement("a");
-                a.href = "./?b=" + camliContent;
-                a.innerText = camliContent;
-                c.appendChild(a);
-            }
-
-            var tags = permanodeObject.attr.tag;
-            for (idx in tags) {
-                var tagSpan = document.createElement("span");
-
-                if (idx > 0) {
-                    tagSpan.appendChild(document.createTextNode(", "));
-                }
-                var tagLink = document.createElement("i");
-                var tag = tags[idx];
-                tagLink.innerText = tags[idx];
-                tagSpan.appendChild(tagLink);
-                tagSpan.appendChild(document.createTextNode(" ["));
-                var delLink = document.createElement("a");
-                delLink.href = '#';
-                delLink.innerText = "X";
-                delLink.addEventListener("click", deleteTagFunc(tag, tagLink, tagSpan));
-                tagSpan.appendChild(delLink);
-                tagSpan.appendChild(document.createTextNode("]"));
-
-                spanTags.appendChild(tagSpan);
-            }
-
-            var btnSave = document.getElementById("btnSave");
-            btnSave.disabled = null;
-        },
-        failure: function(msg) { alert("failed to get blob description: " + msg); }
-    });
-});
+window.addEventListener("load", permanodePageOnLoad);
