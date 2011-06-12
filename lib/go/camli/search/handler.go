@@ -203,7 +203,7 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 	mime, size, err := sh.index.GetBlobMimeType(br)
 	if err != os.ENOENT {
 		if err != nil {
-			ret["errorText"] = err.String()
+			ret["error"] = err.String()
 		} else {
 			m := dmap(br)
 			setMimeType(m, mime)
