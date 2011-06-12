@@ -27,6 +27,7 @@ type prefixEntry struct {
 }
 
 var prefixTable = []prefixEntry{
+	{[]byte("\xff\xd8\xff\xe2"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xe1"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xe0"), "image/jpeg"},
 	{[]byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, "image/png"},
