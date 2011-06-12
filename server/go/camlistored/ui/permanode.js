@@ -227,7 +227,9 @@ function setupFilesHandlers(e) {
     dnd.addEventListener("drop", drop, false);
 }
 
-function addMemberDiv(pn, pnRoot) {
+// pn: child permanode
+// jdes: describe response of root permanode
+function addMemberDiv(pn, des) {
     var membersDiv = document.getElementById("members");
     var ul;
     if (membersDiv.innerHTML == "") {
@@ -241,8 +243,31 @@ function addMemberDiv(pn, pnRoot) {
     var a = document.createElement("a");
     li.appendChild(a);
     a.href = "./?p=" + pn;
-    a.innerText = pn;
+    a.innerText = blobTitle(pn, des);
     ul.appendChild(li);
+}
+
+function blobTitle(pn, des) {
+    var d = des[pn];
+    if (!d) {
+        return pn;
+    }
+    if (d.camliType == "file" && d.file && d.file.fileName) {
+        return d.file.fileName;
+    }
+    if (d.permanode) {
+        var attr = d.permanode.attr;
+        if (!attr) {
+            return pn;
+        }
+        if (attr.title) {
+            return attr.title[0];
+        }
+        if (attr.camliContent) {
+            return blobTitle(attr.camliContent[0], des);
+        }
+    }
+    return pn;
 }
 
 function onBlobDescribed(jres) {
@@ -285,7 +310,7 @@ function onBlobDescribed(jres) {
         c.appendChild(document.createTextNode("Content: "));
         var a = document.createElement("a");
         a.href = "./?b=" + camliContent;
-        a.innerText = camliContent;
+        a.innerText = blobTitle(camliContent, jres);
         c.appendChild(a);
     }
 
