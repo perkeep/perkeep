@@ -3,7 +3,6 @@
 -- add CROS support?
    http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
 
--- Go: http persistent connections (will speed up camput)
 -- Go: ditch our http Range header stuff, get in upstream Go
 
 -- camput: keep a digest cache somewhere to speed
@@ -12,7 +11,7 @@
 -- camget: finish.  it's barely started.  should be able to cat blobs
    or restore filesytems from backup.
 
--- fuse mount client; for static filesystems at least initially
+-- fuse read/write support using search / camliMember, permanode per inode
    (https://github.com/hanwen/go-fuse + Go camlistore client == easy?)
 
 -- brackup integration, perhaps sans GPG? (requires Perl client?)
@@ -20,7 +19,7 @@
 -- blobserver test suite: flesh it out.  (bs-test.pl ... it's pretty good
    so far, but not done)
 -- blobserver: clean up channel-closing consistency in blobserver interface
-   (one closes, one sends nil, one does neither.  all should close)
+   (most close, one doesn't.  all should probably close)
 
 Android:
 
@@ -37,9 +36,8 @@ Android:
 Client libraries:
 
 [X] Go (Brad)
+[/] JavaScript (Brad)
 [/] Python (Brett)
 [ ] Perl
 [ ] Ruby
 [ ] PHP
-[/] JavaScript (evan)
-
