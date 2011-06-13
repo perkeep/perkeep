@@ -243,6 +243,9 @@ func main() {
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 	mux.Handle("/talks/", http.FileServer(path.Join(*root, "talks"), "/talks/"))
 
+	gerritUrl, _ := http.ParseURL("http://127.0.0.1:8000/")
+	mux.Handle("/r/", http.NewSingleHostReverseProxy(gerritUrl))
+
 	testCgi := &cgi.Handler{Path: path.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
 	}

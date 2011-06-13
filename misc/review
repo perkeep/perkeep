@@ -1,0 +1,3 @@
+#!/bin/sh
+
+git push ssh://$USER@camlistore.org:29418/camlistore HEAD:refs/for/master
