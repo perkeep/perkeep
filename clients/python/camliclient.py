@@ -62,7 +62,6 @@ def upload_dir(op, root_path, recursive=True, ignore_patterns=[r'^\..*']):
   Returns:
     Exit code.
   """
-  # TODO: Make ignore patterns into a command-line flag.
   def should_ignore(dirname):
     for pattern in ignore_patterns:
       if re.match(pattern, dirname):
@@ -143,6 +142,9 @@ Commands:
   parser.add_option('-d', '--debug', dest='debug',
                     action='store_true',
                     help='print debug logging')
+  parser.add_option('-i', '--ignore_patterns', dest="ignore_patterns",
+                    default="",
+                    help='regexp patterns to ignore')
 
   def error_and_exit(message):
     print >>sys.stderr, message, '\n'
@@ -161,9 +163,9 @@ Commands:
   command = args[0].lower()
 
   if command == 'putdir':
-    if len(args) != 2:
-      error_and_exit('Must supply directory to put')
-    return upload_dir(op, args[1])
+    if len(args) < 2:
+      error_and_exit('Must supply at least a directory to put')
+    return upload_dir(op, args[1], opts.ignore_patterns)
   elif command == 'put':
     if len(args) < 2:
       error_and_exit('Must supply one or more file paths to upload')
