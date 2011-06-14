@@ -71,8 +71,8 @@ func main() {
 	passNum := 0
 	for {
 		passNum++
-		if err := doPass(sc, dc, passNum); err != nil {
-			log.Fatalf("sync failed: %v", err)
+		if blobsCopied, bytesCopied, err := doPass(sc, dc, passNum); err != nil {
+			log.Fatalf("sync failed: %v, blobs copied: %d, bytes copied: %d", err, blobsCopied, bytesCopied)
 		}
 		if !*flagLoop {
 			break
@@ -80,7 +80,7 @@ func main() {
 	}
 }
 
-func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
+func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied int64, retErr os.Error) {
 	srcBlobs := make(chan blobref.SizedBlobRef, 100)
 	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan os.Error)
@@ -113,8 +113,8 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 		}
 	}
 
-	bytesCopied := int64(0)
-	blobsCopied := 0
+	bytesCopied = int64(0)
+	blobsCopied = 0
 
 	destNotHaveBlobs := make(chan blobref.SizedBlobRef, 100)
 	go client.ListMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
@@ -152,11 +152,10 @@ func doPass(sc, dc *client.Client, passNum int) (retErr os.Error) {
 		}
 	}
 
-	// TODO: return blobsCopied & bytesCopied
 	checkSourceError()
 	checkDestError()
 	if retErr == nil && errorCount > 0 {
 		retErr = os.NewError(fmt.Sprintf("%d errors during sync", errorCount))
 	}
-	return
+	return blobsCopied, bytesCopied, retErr
 }
