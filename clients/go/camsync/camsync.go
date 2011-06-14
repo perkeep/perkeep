@@ -37,6 +37,12 @@ var flagDestPass = flag.String("destpassword", "", "Destination password")
 var flagRemoveSource = flag.Bool("removesrc", false,
 	"remove each blob from the source after syncing to the destination; for queue processing")
 
+type SyncStats struct {
+	BlobsCopied	int
+	BytesCopied	int64
+	ErrorCount	int
+}
+
 func usage(err string) {
 	if err != "" {
 		fmt.Fprintf(os.Stderr, "Error: %s\n\nUsage:\n", err)
@@ -71,8 +77,12 @@ func main() {
 	passNum := 0
 	for {
 		passNum++
-		if blobsCopied, bytesCopied, err := doPass(sc, dc, passNum); err != nil {
-			log.Fatalf("sync failed: %v, blobs copied: %d, bytes copied: %d", err, blobsCopied, bytesCopied)
+		stats, err := doPass(sc, dc, passNum)
+		if err != nil {
+			log.Fatalf("sync failed: %v", err)
+		}
+		if *flagVerbose {
+			log.Println("sync stats - pass: %d, blobs: %d, bytes %d", passNum, stats.BlobsCopied, stats.BytesCopied)
 		}
 		if !*flagLoop {
 			break
@@ -80,12 +90,11 @@ func main() {
 	}
 }
 
-func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied int64, retErr os.Error) {
+func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr os.Error) {
 	srcBlobs := make(chan blobref.SizedBlobRef, 100)
 	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan os.Error)
 	destErr := make(chan os.Error)
-	errorCount := 0
 
 	go func() {
 		srcErr <- sc.EnumerateBlobs(srcBlobs)
@@ -113,9 +122,6 @@ func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied in
 		}
 	}
 
-	bytesCopied = int64(0)
-	blobsCopied = 0
-
 	destNotHaveBlobs := make(chan blobref.SizedBlobRef, 100)
 	go client.ListMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
 	for sb := range destNotHaveBlobs {
@@ -123,12 +129,12 @@ func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied in
 
 		blobReader, size, err := sc.FetchStreaming(sb.BlobRef)
 		if err != nil {
-			errorCount++
+			stats.ErrorCount++
 			log.Printf("Error fetching %s: %v", sb.BlobRef, err)
 			continue
 		}
 		if size != sb.Size {
-			errorCount++
+			stats.ErrorCount++
 			log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
 				sb.Size, sb.BlobRef, size)
 			continue
@@ -136,17 +142,17 @@ func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied in
 		uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
 		pr, err := dc.Upload(uh)
 		if err != nil {
-			errorCount++
+			stats.ErrorCount++
 			log.Printf("Upload of %s to destination blobserver failed: %v", sb.BlobRef, err)
 			continue
 		}
 		if !pr.Skipped {
-			blobsCopied++
-			bytesCopied += pr.Size
+			stats.BlobsCopied++
+			stats.BytesCopied += pr.Size
 		}
 		if *flagRemoveSource {
 			if err = sc.RemoveBlob(sb.BlobRef); err != nil {
-				errorCount++
+				stats.ErrorCount++
 				log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
 			}
 		}
@@ -154,8 +160,8 @@ func doPass(sc, dc *client.Client, passNum int) (blobsCopied int, bytesCopied in
 
 	checkSourceError()
 	checkDestError()
-	if retErr == nil && errorCount > 0 {
-		retErr = os.NewError(fmt.Sprintf("%d errors during sync", errorCount))
+	if retErr == nil && stats.ErrorCount > 0 {
+		retErr = os.NewError(fmt.Sprintf("%d errors during sync", stats.ErrorCount))
 	}
-	return blobsCopied, bytesCopied, retErr
+	return stats, retErr
 }
