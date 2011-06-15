@@ -17,20 +17,26 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"http"
 	"io"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"json"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/httputil"
 	"camli/jsonconfig"
+	"camli/misc/resize"
 	"camli/schema"
 )
 
@@ -44,6 +50,7 @@ var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 //   $2: optional "/filename" to be sent as recommended download name,
 //       if sane looking
 var downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+var thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
@@ -166,6 +173,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveUploadHelper(rw, req)
 	case strings.HasPrefix(suffix, "download/"):
 		ui.serveDownload(rw, req)
+	case strings.HasPrefix(suffix, "thumbnail/"):
+		ui.serveThumbnail(rw, req)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
@@ -283,6 +292,120 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 	if n != int64(schema.Size) {
 		log.Printf("error serving download of file schema %s: sent %d, expected size of %d",
 			fbr, n, schema.Size)
+		return
+	}
+}
+
+func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
+	if ui.Storage == nil {
+		http.Error(rw, "No BlobRoot configured", 500)
+		return
+	}
+
+	fetchSeeker, err := ui.storageSeekFetcher()
+	if err != nil {
+		http.Error(rw, err.String(), 500)
+		return
+	}
+
+	suffix := req.URL.Path
+	m := thumbnailPattern.FindStringSubmatch(suffix)
+	if m == nil {
+		httputil.ErrorRouting(rw, req)
+		return
+	}
+	
+	query := req.URL.Query()
+	width, err := strconv.Atoi(query.Get("mw"))
+	if err != nil {
+		http.Error(rw, "Invalid specified width: "+err.String(), 500)
+		return
+	}
+	height, err := strconv.Atoi(query.Get("my"))
+	if err != nil {
+		http.Error(rw, "Invalid specified height: "+err.String(), 500)
+		return
+	}		
+
+	blobref := blobref.Parse(m[1])
+	if blobref == nil {
+		http.Error(rw, "Invalid blobref", 400)
+		return
+	}
+
+	filename := m[2]
+	if len(filename) > 0 {
+		filename = filename[1:] // remove leading slash
+	}
+
+	fr, err := schema.NewFileReader(fetchSeeker, blobref)
+	if err != nil {
+		http.Error(rw, "Can't serve file: "+err.String(), 500)
+		return
+	}
+
+	var buf bytes.Buffer
+	n, err := io.Copy(&buf, fr)
+	i, format, err := image.Decode(&buf)
+	if err != nil {
+		http.Error(rw, "Can't serve file: "+err.String(), 500)
+		return
+	}
+	b := i.Bounds()
+	// only do downscaling, otherwise just serve the original image
+	if width < b.Dx() || height < b.Dy() {
+		const huge = 2400
+		// If it's gigantic, it's more efficient to downsample first
+		// and then resize; resizing will smooth out the roughness.
+		// (trusting the moustachio guys on that one).
+		if b.Dx() > huge || b.Dy() > huge {
+			w, h := width * 2, height * 2
+			if b.Dx() > b.Dy() {
+				w = b.Dx() * h / b.Dy()
+			} else {
+				h = b.Dy() * w / b.Dx()
+			}
+			i = resize.Resample(i, i.Bounds(), w, h)
+			b = i.Bounds()
+		}
+		// conserve proportions. use the smallest of the two as the decisive one.
+		if width > height {
+			width = b.Dx() * height / b.Dy()
+		} else {
+			height = b.Dy() * width / b.Dx()
+		}	
+		i = resize.Resize(i, b, width, height)
+		// Encode as a new image
+		buf.Reset()
+		switch format {
+		case "jpeg": 
+			err = jpeg.Encode(&buf, i, nil)
+		default:
+			err = png.Encode(&buf, i)
+		}
+		if err != nil {
+			http.Error(rw, "Can't serve file: "+err.String(), 500)
+			return
+		}
+	}
+	ct := ""
+	switch format {
+	case "jpeg": 
+		ct = "image/jpeg"
+	default:
+		ct = "image/png"
+	}
+	rw.Header().Set("Content-Type", ct)
+	size := buf.Len()
+	rw.Header().Set("Content-Length", fmt.Sprintf("%d", size))
+	n, err = io.Copy(rw, &buf)
+	if err != nil {
+		log.Printf("error serving thumbnail of file schema %s: %v", blobref, err)
+		return
+	}
+	if n != int64(size) {
+		log.Printf("error serving thumbnail of file schema %s: sent %d, expected size of %d",
+			blobref, n, size)
 		return
 	}
 }
