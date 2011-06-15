@@ -30,10 +30,22 @@ func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
 	log.Printf("Internal routing error on %q", req.URL.Path)
 }
 
-func BadRequestError(conn http.ResponseWriter, errorMessage string) {
+func BadRequestError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
 	conn.WriteHeader(http.StatusBadRequest)
-	log.Printf("Bad request: %s", errorMessage)
+	log.Printf("Bad request: %s", fmt.Sprintf(errorMessage, args...))
 	fmt.Fprintf(conn, "%s\n", errorMessage)
+}
+
+func ForbiddenError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
+	conn.WriteHeader(http.StatusForbidden)
+	log.Printf("Forbidden: %s", fmt.Sprintf(errorMessage, args...))
+	fmt.Fprintf(conn, "<h1>Forbidden</h1>")
+}
+
+func RequestEntityTooLargeError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
+	conn.WriteHeader(http.StatusForbidden)
+	log.Printf("Request entity is too large: %s", fmt.Sprintf(errorMessage, args...))
+	fmt.Fprintf(conn, "<h1>Request entity is too large</h1>")
 }
 
 func ServerError(conn http.ResponseWriter, err os.Error) {
