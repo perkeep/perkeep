@@ -35,6 +35,16 @@ func TriedAuthorization(req *http.Request) bool {
 	return req.Header.Get("Authorization") != ""
 }
 
+func SendUnauthorized(conn http.ResponseWriter) {
+	realm := "camlistored"
+	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
+		realm = "Any username, password is: " + pw
+	}
+	conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
+	conn.WriteHeader(http.StatusUnauthorized)
+	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
+}
+
 func IsAuthorized(req *http.Request) bool {
 	auth := req.Header.Get("Authorization")
 	if auth == "" {
@@ -64,17 +74,11 @@ func IsAuthorized(req *http.Request) bool {
 // HTTP Basic Auth.
 func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
 	return func (conn http.ResponseWriter, req *http.Request) {
-		if !IsAuthorized(req) {
-			realm := "camlistored"
-			if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
-				realm = "Any username, password is: " + pw
-			}
-			conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
-			conn.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprintf(conn, "Authentication required.\n")
-			return
+		if IsAuthorized(req) {
+			handler(conn, req)
+		} else {
+			SendUnauthorized(conn)
 		}
-		handler(conn, req)
 	}
 }
 
