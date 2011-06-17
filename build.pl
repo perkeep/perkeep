@@ -175,7 +175,7 @@ sub fixit_tip {
         if ($last eq $gover) {
             return "";
         }
-        return "You're running Go version: $gover (maintainer's last version used was $last)\nCamlistore generally tracks Go tip closely (run \"hg update tip\" in \$GOROOT)";
+        return "You're running Go version: $gover (maintainer's last version used was $last)\nCamlistore generally tracks Go tip closely.\n(run \"hg pull && hg update tip && cd src && ./all.bash\" in \$GOROOT)";
 
     }
 
