@@ -47,8 +47,13 @@ function blobInfoUpdate(bmap) {
                             bd.innerHTML = "<a href=''></a>";
                             var fileName = finfo.fileName || blobref;
                             bd.firstChild.href = "./download/" + blobref + "/" + fileName;
-                            bd.firstChild.innerText = fileName;
-                            bd.innerHTML = "[download: " + bd.innerHTML + "]";
+                            if (binfo.file.mimeType.indexOf("image/") == 0) {
+                                img = "<img src='./thumbnail/" + blobref + "/" + fileName + "?mw=100&mh=100'/>";
+                                bd.firstChild.innerHTML = img;
+                            } else {
+                                bd.firstChild.innerText = fileName;
+                                bd.innerHTML = "[download: " + bd.innerHTML + "]";
+                            }
                         } catch (x) {
                         }
                     }
