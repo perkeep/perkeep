@@ -9,3 +9,4 @@ _obj
 _test
 _testmain.go
 _go_.[568]
+_embed_*.go

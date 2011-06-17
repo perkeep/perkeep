@@ -38,12 +38,15 @@ import (
 	"camli/jsonconfig"
 	"camli/misc/resize"
 	"camli/schema"
+	uistatic "camlistore.org/server/uistatic"
 )
 
 var _ = log.Printf
 
 var staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
 var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
+
+var uiFiles = uistatic.Files
 
 // Download URL suffix:
 //   $1: blobref (checked in download handler)

@@ -59,6 +59,9 @@ EOM
 }
 
 my %built;  # target -> bool (was it already built?)
+
+# Note: the target key is usually the directory, but may be overridden.  use
+# the dir($target) function to find the directory
 my %targets;  # dir -> { deps => [ ... ], } 
 read_targets();
 
@@ -147,7 +150,7 @@ sub v2 {
 sub clean {
     for my $root ("$ENV{GOROOT}/pkg/linux_amd64",
                   "$ENV{GOROOT}/pkg/linux_386") {
-        for my $pkg ("camli") {
+        for my $pkg ("camli", "camlistore.org") {
             my $dir = "$root/$pkg";
             next unless -d $dir;
             system("rm", "-rfv", $dir);
@@ -155,7 +158,7 @@ sub clean {
     }
     foreach my $target (sort keys %targets) {
         print STDERR "Cleaning $target\n";
-        system("make", "-C", $target, "clean");
+        system("make", "-C", dir($target), "clean");
     }
 }
 
@@ -248,7 +251,7 @@ sub build {
     @quiet = () if $opt_verbose;
 
     my $build_command = sub {
-        return system("make", @quiet, "-C", $target, "install") == 0;
+        return system("make", @quiet, "-C", dir($target), "install") == 0;
     };
 
     if ($is_go) {
@@ -258,7 +261,7 @@ sub build {
                 return 1;
             }
             print STDERR "# Go build failed (linker version skew?) Running 'clean' and re-trying...\n";
-            system("make", @quiet, "-C", $target, "clean");
+            system("make", @quiet, "-C", dir($target), "clean");
             return $make_build->();
         };
     }
@@ -281,11 +284,11 @@ sub build {
     v("Built '$target'");
 
     if ($opt_test && !$t->{tags}{skip_tests}) {
-        opendir(my $dh, $target) or die;
+        opendir(my $dh, dir($target)) or die;
         my @test_files = grep { /_test\.go$/ } readdir($dh);
         closedir($dh);
         if (@test_files) {
-            if (system("make", @quiet, "-C", $target, "test") != 0) {
+            if (system("make", @quiet, "-C", dir($target), "test") != 0) {
                 die "Tests failed for $target\n";
             }
         }
@@ -299,12 +302,15 @@ sub find_go_camli_deps {
         return;
     }
     unless ($target =~ m!lib/go/camli! ||
+            $target =~ m!^camlistore\.org/! ||
             $target =~ m!(server|clients)/go\b!) {
         return;
     }
-    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
 
-    opendir(my $dh, $target) or die "Failed to open directory: $target\n";
+    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
+    my $target_dir = dir($target);
+    v2("Deps of $target in $target_dir?");
+    opendir(my $dh, $target_dir) or die "Failed to open directory: $target\n";
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
 
@@ -317,16 +323,20 @@ sub find_go_camli_deps {
     my @deps;
     my %seen;  # $dep -> 1
     for my $f (@go_files) {
-        open(my $fh, "$target/$f") or die "Failed to open $target/$f: $!";
+        open(my $fh, "$target_dir/$f") or die "Failed to open $target_dir/$f: $!";
         my $src = do { local $/; <$fh>; };
         if ($src =~ m!^import\b!m) {
             unless ($src =~ m!\bimport\s*\((.+?)\)!s) {
-                die "Failed to parse imports from $target/$f.\n".
+                die "Failed to parse imports from $target_dir/$f.\n".
                     "No imports(...) block?  Um, add a fake one.  :)\n";
             }
             my $imports = $1;
             while ($imports =~ m!"(camli\b.+?)"!g) {
                 my $dep = "lib/go/$1";
+                push @deps, $dep unless $seen{$dep}++;
+            }
+            while ($imports =~ m!"(camlistore\.org/.+?)"!g) {
+                my $dep = $1;
                 push @deps, $dep unless $seen{$dep}++;
             }
         }
@@ -337,6 +347,12 @@ sub find_go_camli_deps {
             push @{$t->{deps}}, $dep;
         }
     }
+}
+
+sub dir {
+    my $target = shift;
+    my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
+    return $t->{tags}{dir} || $target;
 }
 
 sub gen_target_makefile {
@@ -350,12 +366,43 @@ sub gen_target_makefile {
         return;
     }
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
-    
+    my $override_target;  # optional override of what to write to Makefile
     my @deps = @{$t->{deps}};
 
-    opendir(my $dh, $target) or die;
-    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    my $target_dir = dir($target);
+
+    opendir(my $dh, $target_dir) or die;
+    my @dir_files = readdir($dh);
+    my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } @dir_files;
     closedir($dh);
+
+    if ($t->{tags}{fileembed}) {
+        $type = "pkg";
+        die "No fileembed.go file in $target, but declared with tag 'fileembed'\n" unless
+            grep { $_ eq "fileembed.go" } @go_files;
+        open(my $fe, "$target_dir/fileembed.go") or die;
+        my ($pattern, $embed_pkg);
+        while (<$fe>) {
+            if (!$embed_pkg && /^package (\S+)/) {
+                $embed_pkg = $1;
+            }
+            if (!$pattern && /^#fileembed pattern (\S+)\s*$/) {
+                $pattern = $1;
+            }
+            if (!$override_target && /^#fileembed target (\S+)\s*$/) {
+                $override_target = $1;
+            }
+        }
+        close($fe);
+        die "No #filepattern found in $target_dir/fileembed.go" unless $pattern;
+        foreach my $resfile (grep { /^$pattern$/o } @dir_files) {
+            my $gores = "_embed_${resfile}.go";
+            push @go_files, $gores;
+            if (modtime("$target_dir/$gores") < max(modtime("build.pl"), modtime("$target_dir/$resfile"))) {
+                generate_embed_file($embed_pkg, $resfile, "$target_dir/$resfile", "$target_dir/$gores");
+            }
+        }
+    }
 
     # Generate the Makefile
     my $mfc = "\n\n";
@@ -375,6 +422,7 @@ sub gen_target_makefile {
     if ($type eq "pkg") {
         my $targ = $target;
         $targ =~ s!^lib/go/!!;
+        $targ = $override_target || $targ;
         $mfc .= "TARG=$targ\n";
     } else {
         my $targ = $target;
@@ -385,7 +433,7 @@ sub gen_target_makefile {
     $mfc .= "GOFILES=@non_test_files\n";
     $mfc .= "include \$(GOROOT)/src/Make.$type\n";
 
-    set_file_contents("$target/Makefile", $mfc);
+    set_file_contents("$target_dir/Makefile", $mfc);
 
     # print "DEPS of $target: @{ $t->{deps} }\n";
 }
@@ -416,6 +464,12 @@ sub read_targets {
             my $dep = $1;
             my $t = $targets{$last} or die "Unexpected dependency line: $_";
             push @{$t->{deps}}, $dep;
+            next;
+        }
+        if (m!^\s+\=\s*(\S+):(\S+)\s*$!) {
+            my $tag = $1;
+            my $t = $targets{$last} or die "Unexpected dependency line: $_";
+            $t->{tags}{$tag} = $2;
             next;
         }
         if (m!^\s+\=\s*(\S+)\s*$!) {
@@ -451,6 +505,45 @@ sub filter_os_targets {
     return @out;
 }
 
+sub modtime {
+    my $file = shift;
+    my @st = stat($file);
+    return $st[9];
+}
+
+sub max {
+    my $n = shift;
+    foreach my $c (@_) {
+        $n = $c if $c > $n;
+    }
+    return $n;
+}
+
+sub generate_embed_file {
+    my ($pkg, $base_file, $source, $dest) = @_;
+    print STDERR "# Generating $base_file -> $dest\n";
+    open(my $sf, $source) or die "Error opening $source for embedding: $!\n";
+    open(my $dest, ">$dest") or die "Error creating $dest for embedding: $!\n";
+    my $contents = do { local $/; <$sf> };
+    print $dest "// THIS FILE IS AUTO-GENERATED FROM $base_file\n";
+    print $dest "// DO NOT EDIT.\n";
+    print $dest "package $pkg\n";
+    my $escaped;
+    for my $i (0..length($contents)-1) {
+        my $ch = substr($contents, $i, 1);
+        my $b = ord($ch);
+        if ($b >= 32 && $b < 127 && $b != ord("\"") && $b != ord("\\")) {
+            $escaped .= $ch;
+        } else {
+            $escaped .= "\\x" . sprintf("%02x", $b);
+        }
+        if (++$i % 70 == 50) {
+            $escaped .= "\"+\n\t\"";
+        }
+    }
+    print $dest "func init() {\n\tFiles.Add(\"$base_file\", \"$escaped\");\n}\n";
+}
+
 __DATA__
 
 TARGET: clients/go/camdbinit
@@ -478,6 +571,7 @@ TARGET: lib/go/camli/lru
 TARGET: lib/go/camli/magic
 TARGET: lib/go/camli/misc
 TARGET: lib/go/camli/misc/amazon/s3
+TARGET: lib/go/camli/misc/fileembed
 TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/misc/gpgagent
 TARGET: lib/go/camli/misc/pinentry
@@ -497,6 +591,9 @@ TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
 TARGET: server/go/camlistored
+TARGET: camlistore.org/server/uistatic
+    =fileembed
+    =dir:server/go/camlistored/ui
 TARGET: server/go/sigserver
 TARGET: website
 TARGET: clients/android
