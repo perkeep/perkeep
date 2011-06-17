@@ -308,7 +308,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	suffix := req.URL.Path
+	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 	m := thumbnailPattern.FindStringSubmatch(suffix)
 	if m == nil {
 		httputil.ErrorRouting(rw, req)
@@ -318,12 +318,12 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	width, err := strconv.Atoi(query.Get("mw"))
 	if err != nil {
-		http.Error(rw, "Invalid specified width: "+err.String(), 500)
+		http.Error(rw, "Invalid specified max width 'mw': "+err.String(), 500)
 		return
 	}
-	height, err := strconv.Atoi(query.Get("my"))
+	height, err := strconv.Atoi(query.Get("mh"))
 	if err != nil {
-		http.Error(rw, "Invalid specified height: "+err.String(), 500)
+		http.Error(rw, "Invalid specified height 'mh': "+err.String(), 500)
 		return
 	}		
 
