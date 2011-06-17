@@ -117,7 +117,7 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)
 		if err != nil {
-			return nil, fmt.Errorf("UI handler's cache of %q error: %v", ui.BlobRoot, err)
+			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ui.Cache = bs
 	}
