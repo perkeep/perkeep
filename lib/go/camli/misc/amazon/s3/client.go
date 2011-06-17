@@ -54,7 +54,7 @@ func newReq(url string) *http.Request {
 	if err != nil {
 		panic(fmt.Sprintf("s3 client; invalid URL: %v", err))
 	}
-	req.UserAgent = "go-camlistore-s3"
+	req.Header.Set("User-Agent", "go-camlistore-s3")
 	return req
 }
 
