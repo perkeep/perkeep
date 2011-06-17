@@ -1,3 +1,4 @@
+<!doctype html>
 <html>
 <head>
   <title>Permanode</title>
@@ -22,12 +23,26 @@ div.fileupload {
   <p>Permalink: <span id="permanode"></span> [<span id="permanodeBlob"></span>]</p>
 
   <form id="formTitle">
-    <p>Title: <input type="text" id="inputTitle" size="30" value="(loading)" disabled="disabled" />
-    <input type="submit" id="btnSaveTitle" value="Save" disabled="disabled" /></p>
+    <p>
+      Title: <input type="text" id="inputTitle" size="30" value="(loading)" disabled="disabled">
+      <input type="submit" id="btnSave" value="Save" disabled="disabled">
+    </p>
   </form>
 
   <form id="formTags">
-  <p>Tags: <span id="spanTags"></span> <input id="inputNewTag" /> <input type="submit" id="btnAddTag" value="Add Tag(s)" />
+    <p>
+      <label for="inputNewTag">Tags:</label>
+      <span id="spanTags"></span>
+      <input id="inputNewTag">
+      <input type="submit" id="btnAddTag" value="Add Tag(s)">
+  </form>
+
+  <form id="formUrlPath">
+    <p>
+      <label for="inputUrlPath">URL:</label>
+      http://<span id="urlHostName">(loading)</span>/<input id="inputUrlPath" size="50" disabled="disabled">
+      <input type="submit" id="btnSetUrlPath" value="Save path" disabled="disabled">
+    </p>
   </form>
 
   <form id="formAccess">
@@ -57,13 +72,14 @@ div.fileupload {
   </p>
   </form>
 
-   <div id='dnd' style="border: 2px dashed black; min-height: 250px; display: block;">
+  <div id='dnd' style="border: 2px dashed black; min-height: 250px; display: block;">
     <form id="fileForm">
-<input type="file" id="fileInput" multiple="true" onchange="">
-<input type="submit" id="fileUploadBtn" value="Upload">
-<form><p><i>(or drag &amp; drop files here)</i></p>
-<pre id="info"></pre></div>
-
+      <input type="file" id="fileInput" multiple="true" onchange="">
+      <input type="submit" id="fileUploadBtn" value="Upload">
+    </form>
+    <p><i>(or drag &amp; drop files here)</i></p>
+    <pre id="info"></pre>
+  </div>
 
 </body>
 </html>

@@ -362,6 +362,46 @@ function onBlobDescribed(jres) {
     btnSaveAccess.disabled = null;
 }
 
+function handleFormUrlPathSubmit(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var inputUrlPath = document.getElementById("inputUrlPath");
+    if (!inputUrlPath.value) {
+	alert("Please specify a mount path like '/foo/bar/stuff'");
+	return;
+    }
+
+    // var btnSaveUrlPath = document.getElementById("btnSaveUrlPath");
+    // btnSaveUrlPath.disabled = "disabled";
+    // btnSaveUrlPath.disabled = "disabled";
+
+    // TODO(bslatkin): Finish this function. Need to call
+    // camliNewSetAttributeClaim() here with the root node for the
+    // server specified as the target of the claim. See
+    // lib/go/camli/search/search.go:FindPermanode for the general
+    // approach for finding the root permanode by name.
+
+    // camliNewSetAttributeClaim(
+    //   getPermanodeParam(),
+    //   "mount:" + inputUrlPath.value,
+    //   ,
+    //   {
+    // 	  success: oneDone,
+    // 	  fail: function(msg) {
+    // 	      alert(msg);
+    // 	      oneDone();
+    // 	  }
+    //   });
+}
+
+function setupUrlPathHandler() {
+    var hostName = document.getElementById("urlHostName");
+    hostName.innerHTML = window.location.host;
+    var formUrlPath = document.getElementById("formUrlPath");
+    formUrlPath.addEventListener("submit", handleFormUrlPathSubmit);
+}
+
 function permanodePageOnLoad (e) {
     var permanode = getPermanodeParam();
     if (permanode) {
@@ -386,6 +426,8 @@ function permanodePageOnLoad (e) {
                           success: onBlobDescribed,
                           failure: function(msg) { alert("failed to get blob description: " + msg); }
                       });
+
+    setupUrlPathHandler();
 }
 
 window.addEventListener("load", permanodePageOnLoad);
