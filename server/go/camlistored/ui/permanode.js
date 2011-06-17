@@ -26,8 +26,8 @@ function handleFormTitleSubmit(e) {
 
     var inputTitle = document.getElementById("inputTitle");
     inputTitle.disabled = "disabled";
-    var btnSave = document.getElementById("btnSave");
-    btnSave.disabled = "disabled";
+    var btnSaveTitle = document.getElementById("btnSaveTitle");
+    btnSaveTitle.disabled = "disabled";
 
     var startTime = new Date();
 
@@ -40,13 +40,13 @@ function handleFormTitleSubmit(e) {
                 var elapsedMs = new Date().getTime() - startTime.getTime();
                 setTimeout(function() {
                     inputTitle.disabled = null;
-                    btnSave.disabled = null;
+                    btnSaveTitle.disabled = null;
                 }, Math.max(250 - elapsedMs, 0));
             },
             fail: function(msg) {
                 alert(msg);
                 inputTitle.disabled = null;
-                btnSave.disabled = null;
+                btnSaveTitle.disabled = null;
             }
         });
 }
@@ -81,7 +81,7 @@ function handleFormTagsSubmit(e) {
         }
     };
     for (idx in tags) {
-        var tag = tags[idx]; 
+        var tag = tags[idx];
         camliNewAddAttributeClaim(
             getPermanodeParam(),
             "tag",
@@ -94,6 +94,44 @@ function handleFormTagsSubmit(e) {
                 }
             });
     }
+}
+
+function handleFormAccessSubmit(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var selectAccess = document.getElementById("selectAccess");
+    selectAccess.disabled = "disabled";
+    var btnSaveAccess = document.getElementById("btnSaveAccess");
+    btnSaveAccess.disabled = "disabled";
+
+    var operation = camliNewDelAttributeClaim;
+    var value = "";
+    if (selectAccess.value != "private") {
+        operation = camliNewSetAttributeClaim;
+        value = selectAccess.value;
+    }
+
+    var startTime = new Date();
+
+    operation(
+        getPermanodeParam(),
+        "camliAccess",
+        value,
+        {
+            success: function() {
+                var elapsedMs = new Date().getTime() - startTime.getTime();
+                setTimeout(function() {
+                    selectAccess.disabled = null;
+                    btnSaveAccess.disabled = null;
+                }, Math.max(250 - elapsedMs, 0));
+            },
+            fail: function(msg) {
+                alert(msg);
+                selectAccess.disabled = null;
+                btnSaveAccess.disabled = null;
+            }
+        });
 }
 
 function deleteTagFunc(tag, strikeEle, removeEle) {
@@ -121,9 +159,8 @@ function onTypeChange(e) {
     if (sel.value == "collection" || sel.value == "") {
         dnd.style.display = "block";
     } else {
-        dnd.style.display = "none"; 
+        dnd.style.display = "none";
     }
-    
 }
 
 var lastFiles;
@@ -205,7 +242,7 @@ function onFileInputChange(e) {
     handleFiles(document.getElementById("fileInput").files);
 }
 
-function setupFilesHandlers(e) {    
+function setupFilesHandlers(e) {
     var dnd = document.getElementById("dnd");
     document.getElementById("fileForm").addEventListener("submit", onFileFormSubmit);
     document.getElementById("fileInput").addEventListener("change", onFileInputChange);
@@ -294,7 +331,7 @@ function onBlobDescribed(jres) {
     var tags = permanodeObject.attr.tag;
     for (idx in tags) {
         var tagSpan = document.createElement("span");
-        
+
         if (idx > 0) {
             tagSpan.appendChild(document.createTextNode(", "));
         }
@@ -313,8 +350,16 @@ function onBlobDescribed(jres) {
         spanTags.appendChild(tagSpan);
     }
 
-    var btnSave = document.getElementById("btnSave");
-    btnSave.disabled = null;
+    var selectAccess = document.getElementById("selectAccess");
+    var access = permanodeObject.attr.camliAccess;
+    selectAccess.value = (access && access.length) ? access[0] : "private";
+    selectAccess.disabled = null;
+
+    var btnSaveTitle = document.getElementById("btnSaveTitle");
+    btnSaveTitle.disabled = null;
+
+    var btnSaveAccess = document.getElementById("btnSaveAccess");
+    btnSaveAccess.disabled = null;
 }
 
 function permanodePageOnLoad (e) {
@@ -328,7 +373,9 @@ function permanodePageOnLoad (e) {
     formTitle.addEventListener("submit", handleFormTitleSubmit);
     var formTags = document.getElementById("formTags");
     formTags.addEventListener("submit", handleFormTagsSubmit);
-                            
+    var formAccess = document.getElementById("formAccess");
+    formAccess.addEventListener("submit", handleFormAccessSubmit);
+
     var selectType = document.getElementById("type");
     selectType.addEventListener("change", onTypeChange);
 
