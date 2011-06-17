@@ -8,6 +8,16 @@
              "stealth": false
          }
      },
+
+      "/www/": {
+          "handler": "publish",
+          "handlerArgs": {
+              "blobRoot": "/bs/",
+              "searchRoot": "/my-search/",
+              "cache": "/cache/"
+          }
+      },
+
      "/ui/": {
           "handler": "ui",
           "handlerArgs": {

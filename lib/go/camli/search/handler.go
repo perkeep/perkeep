@@ -36,7 +36,7 @@ func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
 }
 
-type searchHandler struct {
+type Handler struct {
 	index Index
 	owner *blobref.BlobRef
 }
@@ -61,7 +61,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
 			ownerBlobStr)
 	}
-	return &searchHandler{
+	return &Handler{
 		index: indexer,
 		owner: ownerBlobRef,
 	}, nil
@@ -76,7 +76,7 @@ func jsonMapList() []map[string]interface{} {
 	return make([]map[string]interface{}, 0)
 }
 
-func (sh *searchHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	_ = req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 
@@ -104,7 +104,7 @@ func (sh *searchHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJson(rw, ret)
 }
 
-func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
 
@@ -138,7 +138,7 @@ func (sh *searchHandler) serveRecentPermanodes(rw http.ResponseWriter, req *http
 	ret["recent"] = recent
 }
 
-func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 
 	pn := blobref.Parse(req.FormValue("permanode"))
@@ -178,7 +178,7 @@ func (sh *searchHandler) serveClaims(rw http.ResponseWriter, req *http.Request) 
 }
 
 type describeRequest struct {
-	sh *searchHandler
+	sh *Handler
 
 	lk   sync.Mutex             // protects m
 	m    map[string]interface{} // top-level response JSON
@@ -246,7 +246,7 @@ func (dr *describeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	}
 }
 
-func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
 
@@ -262,7 +262,7 @@ func (sh *searchHandler) serveDescribe(rw http.ResponseWriter, req *http.Request
 	dr.wg.Wait()
 }
 
-func (sh *searchHandler) serveFiles(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
 
