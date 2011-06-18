@@ -75,6 +75,11 @@ $ENV{CAMLI_ROOT_REPLICA3} = $suffixdir->("r3");
 $ENV{CAMLI_ROOT_CACHE} = $suffixdir->("cache");
 $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
+
+# To use resources from disk, instead of the copies linked into the
+# binary:
+$ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/go/camlistored/ui"; # set in server/go/camlistored/ui/fileembed.go
+
 exec("$FindBin::Bin/server/go/camlistored/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
      "-listen=$listen",
