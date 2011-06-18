@@ -309,7 +309,7 @@ sub find_go_camli_deps {
 
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
     my $target_dir = dir($target);
-    v2("Deps of $target in $target_dir?");
+    v2("Deps of $target in $target_dir");
     opendir(my $dh, $target_dir) or die "Failed to open directory: $target\n";
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
@@ -362,6 +362,8 @@ sub gen_target_makefile {
         $type = "pkg";
     } elsif ($target =~ m!(server|clients)/go\b!) {
         $type = "cmd";
+    } elsif ($target =~ m!^camlistore\.org/!) {
+        # type to be set later
     } else {
         return;
     }
