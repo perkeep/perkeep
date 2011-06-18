@@ -578,6 +578,7 @@ TARGET: lib/go/camli/misc/httprange
 TARGET: lib/go/camli/misc/gpgagent
 TARGET: lib/go/camli/misc/pinentry
 TARGET: lib/go/camli/misc/resize
+TARGET: lib/go/camli/misc/vfs
 TARGET: lib/go/camli/mysqlindexer
 TARGET: lib/go/camli/netutil
 TARGET: lib/go/camli/osutil

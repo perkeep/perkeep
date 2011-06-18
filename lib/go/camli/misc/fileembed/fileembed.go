@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+
+	"camli/misc/vfs"
 )
 
 var binaryModTime = statBinaryModTime()
@@ -34,14 +36,6 @@ type Files struct {
 	file map[string]string
 }
 
-type File interface {
-	Close() os.Error
-	Stat() (*os.FileInfo, os.Error)
-	Readdir(count int) ([]os.FileInfo, os.Error)
-	Read([]byte) (int, os.Error)
-	Seek(offset int64, whence int) (int64, os.Error)
-}
-
 // Add adds a file to the file set.
 func (f *Files) Add(filename, body string) {
 	f.lk.Lock()
@@ -52,7 +46,7 @@ func (f *Files) Add(filename, body string) {
 	f.file[filename] = body
 }
 
-func (f *Files) Open(filename string) (File, os.Error) {
+func (f *Files) Open(filename string) (vfs.File, os.Error) {
 	if e := f.OverrideEnv; e != "" && os.Getenv(e) != "" {
 		return os.Open(filepath.Join(os.Getenv(e), filename))
 	}

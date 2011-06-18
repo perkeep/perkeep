@@ -37,6 +37,7 @@ import (
 	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/misc/resize"
+	"camli/misc/vfs" // TODO: ditch this once pkg http gets it
 	"camli/schema"
 	uistatic "camlistore.org/server/uistatic"
 )
@@ -195,7 +196,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
-		http.ServeFile(rw, req, filepath.Join(ui.FilesDir, file))
+		vfs.ServeFileFromFS(rw, req, uiFiles, file)
 	}
 }
 
