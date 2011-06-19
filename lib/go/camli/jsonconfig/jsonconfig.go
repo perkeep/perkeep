@@ -37,7 +37,7 @@ func (jc Obj) OptionalObject(key string) Obj {
 
 func (jc Obj) obj(key string, optional bool) Obj {
 	jc.noteKnownKey(key)
-        ei, ok := jc[key]
+	ei, ok := jc[key]
 	if !ok {
 		if optional {
 			return make(Obj)
@@ -64,7 +64,7 @@ func (jc Obj) OptionalString(key, def string) string {
 func (jc Obj) string(key string, def *string) string {
 	jc.noteKnownKey(key)
 	ei, ok := jc[key]
- 	if !ok {
+	if !ok {
 		if def != nil {
 			return *def
 		}
@@ -89,7 +89,7 @@ func (jc Obj) OptionalStringOrObject(key string) interface{} {
 
 func (jc Obj) stringOrObject(key string, required bool) interface{} {
 	jc.noteKnownKey(key)
-        ei, ok := jc[key]
+	ei, ok := jc[key]
 	if !ok {
 		if !required {
 			return nil
@@ -104,7 +104,7 @@ func (jc Obj) stringOrObject(key string, required bool) interface{} {
 		return ei
 	}
 	jc.appendError(fmt.Errorf("Expected config key %q to be a string or object", key))
-        return ""
+	return ""
 }
 
 func (jc Obj) RequiredBool(key string) bool {
@@ -160,10 +160,20 @@ func (jc Obj) int(key string, def *int) int {
 }
 
 func (jc Obj) RequiredList(key string) []string {
+	return jc.requiredList(key, true)
+}
+
+func (jc Obj) OptionalList(key string) []string {
+	return jc.requiredList(key, false)
+}
+
+func (jc Obj) requiredList(key string, required bool) []string {
 	jc.noteKnownKey(key)
-        ei, ok := jc[key]
+	ei, ok := jc[key]
 	if !ok {
-		jc.appendError(fmt.Errorf("Missing required config key %q (list of strings)", key))
+		if required {
+			jc.appendError(fmt.Errorf("Missing required config key %q (list of strings)", key))
+		}
 		return nil
 	}
 	eil, ok := ei.([]interface{})
@@ -186,7 +196,7 @@ func (jc Obj) RequiredList(key string) []string {
 func (jc Obj) noteKnownKey(key string) {
 	_, ok := jc["_knownkeys"]
 	if !ok {
-                jc["_knownkeys"] = make(map[string]bool)
+		jc["_knownkeys"] = make(map[string]bool)
 	}
 	jc["_knownkeys"].(map[string]bool)[key] = true
 }
