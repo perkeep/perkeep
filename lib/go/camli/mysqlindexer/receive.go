@@ -135,11 +135,11 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	if camli := sniffer.camli; camli != nil {
 		switch camli.Type {
 		case "claim":
-			if err = populateClaim(client, blobRef, camli); err != nil {
+			if err = mi.populateClaim(client, blobRef, camli); err != nil {
 				return
 			}
 		case "permanode":
-			if err = populatePermanode(client, blobRef, camli); err != nil {
+			if err = mi.populatePermanode(client, blobRef, camli); err != nil {
 				return
 			}
 		case "file":
@@ -170,7 +170,7 @@ func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Erro
 	return
 }
 
-func populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
 	pnBlobref := blobref.Parse(camli.Permanode)
 	if pnBlobref == nil {
 		// Skip bogus claim with malformed permanode.
@@ -201,7 +201,7 @@ func populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema
 	return nil
 }
 
-func populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+func (mi *Indexer) populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
 	err = execSQL(client,
 		"INSERT IGNORE INTO permanodes (blobref, unverified, signer, lastmod) "+
 			"VALUES (?, 'Y', ?, '')",
