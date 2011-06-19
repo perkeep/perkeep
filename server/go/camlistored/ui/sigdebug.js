@@ -9,7 +9,7 @@ function discoverJsonSign() {
             return;
         }
         sigdisco = JSON.parse(xhr.responseText);
-        document.getElementById("sigdiscores").innerHTML = JSON.stringify(sigdisco);
+        document.getElementById("sigdiscores").innerHTML = "<pre>" + JSON.stringify(sigdisco, null, 2) + "</pre>";
     };
     xhr.open("GET", disco.jsonSignRoot + "/camli/sig/discovery", true);
     xhr.send();

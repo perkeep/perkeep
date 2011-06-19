@@ -16,7 +16,7 @@ function discover() {
             return;
         }
         disco = JSON.parse(xhr.responseText);
-        document.getElementById("discores").innerHTML = JSON.stringify(disco);
+        document.getElementById("discores").innerHTML = "<pre>" + JSON.stringify(disco, null, 2) + "</pre>";
     };
     xhr.open("GET", "./?camli.mode=config", true);
     xhr.send();
