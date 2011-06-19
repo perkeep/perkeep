@@ -42,10 +42,6 @@ type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
 
-	// Required keyId, either a short form ("26F5ABDA") or one
-	// of the longer forms.
-	keyId string
-
 	pubKeyBlobRef *blobref.BlobRef
 	pubKeyFetcher blobref.StreamingFetcher
 
@@ -72,8 +68,11 @@ func init() {
 
 func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, os.Error) {
 	pubKeyDestPrefix := conf.OptionalString("publicKeyDest", "")
+
+	// either a short form ("26F5ABDA") or one the longer forms.
+	keyId := conf.RequiredString("keyId")
+
 	h := &JSONSignHandler{
-		keyId:      strings.ToUpper(conf.RequiredString("keyId")),
 		secretRing: conf.OptionalString("secretRing", ""),
 	}
 	var err os.Error
@@ -81,10 +80,11 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		return nil, err
 	}
 
-	h.entity, err = jsonsign.EntityFromSecring(h.keyId, h.secretRingPath())
+	h.entity, err = jsonsign.EntityFromSecring(keyId, h.secretRingPath())
 	if err != nil {
 		return nil, err
 	}
+
 	armoredPublicKey, err := jsonsign.ArmoredPublicKey(h.entity)
 
 	ms := new(blobref.MemoryStore)
@@ -142,7 +142,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		case "camli/sig/discovery":
 			m := map[string]interface{}{
-				"publicKeyId":   h.keyId,
+				"publicKeyId":   h.entity.PrimaryKey.KeyIdString(),
 				"signHandler":   base + "camli/sig/sign",
 				"verifyHandler": base + "camli/sig/verify",
 			}
