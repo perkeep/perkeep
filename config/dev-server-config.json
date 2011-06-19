@@ -9,9 +9,20 @@
          }
      },
 
-      "/www/": {
+      "/blog/": {
           "handler": "publish",
           "handlerArgs": {
+              "rootName": "dev-blog-root",
+              "blobRoot": "/bs/",
+              "searchRoot": "/my-search/",
+              "cache": "/cache/"
+          }
+      },
+
+      "/pics/": {
+          "handler": "publish",
+          "handlerArgs": {
+              "rootName": "dev-pics-root",
               "blobRoot": "/bs/",
               "searchRoot": "/my-search/",
               "cache": "/cache/"
@@ -19,13 +30,14 @@
       },
 
      "/ui/": {
-          "handler": "ui",
-          "handlerArgs": {
+         "handler": "ui",
+         "handlerArgs": {
              "blobRoot": "/bs-and-maybe-also-index/",
              "searchRoot": "/my-search/",
              "jsonSignRoot": "/sighelper/",
-             "cache": "/cache/"
-          }
+             "cache": "/cache/",
+             "publishRoots": ["/blog/", "/pics/"]
+         }
      },
 
       "/sync/": {
@@ -92,12 +104,12 @@
           }
      },
 
-     "/s2/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_SHARD2}"]
+      "/s2/": {
+          "handler": "storage-filesystem",
+          "handlerArgs": {
+              "path": ["_env", "${CAMLI_ROOT_SHARD2}"]
           }
-     },
+      },
 
       "/repl/": {
           "handler": "storage-replica",

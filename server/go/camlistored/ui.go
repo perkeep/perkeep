@@ -64,6 +64,8 @@ type UIHandler struct {
 	SearchRoot   string
 	JSONSignRoot string
 
+	PublishRoots map[string]*PublishHandler
+
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
 }
@@ -77,9 +79,24 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	ui.BlobRoot = conf.OptionalString("blobRoot", "")
 	ui.SearchRoot = conf.OptionalString("searchRoot", "")
 	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
+	pubRoots := conf.OptionalList("publishRoots")
+
 	cachePrefix := conf.OptionalString("cache", "")
 	if err = conf.Validate(); err != nil {
 		return
+	}
+
+	ui.PublishRoots = make(map[string]*PublishHandler)
+	for _, pubRoot := range pubRoots {
+		h, err := ld.GetHandler(pubRoot)
+		if err != nil {
+			return nil, fmt.Errorf("UI handler's publishRoots references invalid %q", pubRoot)
+		}
+		pubh, ok := h.(*PublishHandler)
+		if !ok {
+			return
+		}
+		ui.PublishRoots[pubh.RootName] = pubh
 	}
 
 	checkType := func(key string, htype string) {
@@ -194,10 +211,10 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		inCb = true
 	}
 	bytes, _ := json.Marshal(map[string]interface{}{
-		"blobRoot":     ui.BlobRoot,
-		"searchRoot":   ui.SearchRoot,
-		"jsonSignRoot": ui.JSONSignRoot,
-		"uploadHelper": "?camli.mode=uploadhelper", // hack; remove with better javascript
+		"blobRoot":       ui.BlobRoot,
+		"searchRoot":     ui.SearchRoot,
+		"jsonSignRoot":   ui.JSONSignRoot,
+		"uploadHelper":   "?camli.mode=uploadhelper", // hack; remove with better javascript
 		"downloadHelper": "./download/",
 	})
 	rw.Write(bytes)
@@ -304,7 +321,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		httputil.ErrorRouting(rw, req)
 		return
 	}
-	
+
 	query := req.URL.Query()
 	width, err := strconv.Atoi(query.Get("mw"))
 	if err != nil {
@@ -315,7 +332,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(rw, "Invalid specified height 'mh': "+err.String(), 500)
 		return
-	}		
+	}
 
 	blobref := blobref.Parse(m[1])
 	if blobref == nil {
@@ -349,7 +366,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		// and then resize; resizing will smooth out the roughness.
 		// (trusting the moustachio guys on that one).
 		if b.Dx() > huge || b.Dy() > huge {
-			w, h := width * 2, height * 2
+			w, h := width*2, height*2
 			if b.Dx() > b.Dy() {
 				w = b.Dx() * h / b.Dy()
 			} else {
@@ -363,12 +380,12 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 			width = b.Dx() * height / b.Dy()
 		} else {
 			height = b.Dy() * width / b.Dx()
-		}	
+		}
 		i = resize.Resize(i, b, width, height)
 		// Encode as a new image
 		buf.Reset()
 		switch format {
-		case "jpeg": 
+		case "jpeg":
 			err = jpeg.Encode(&buf, i, nil)
 		default:
 			err = png.Encode(&buf, i)
@@ -380,7 +397,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	}
 	ct := ""
 	switch format {
-	case "jpeg": 
+	case "jpeg":
 		ct = "image/jpeg"
 	default:
 		ct = "image/png"

@@ -30,9 +30,10 @@ import (
 // PublishHandler publishes your info to the world, if permanodes have
 // appropriate ACLs set.  (everything is private by default)
 type PublishHandler struct {
-	Search  *search.Handler
-	Storage blobserver.Storage // of blobRoot
-	Cache   blobserver.Storage // or nil
+	RootName string
+	Search   *search.Handler
+	Storage  blobserver.Storage // of blobRoot
+	Cache    blobserver.Storage // or nil
 }
 
 func init() {
@@ -41,11 +42,16 @@ func init() {
 
 func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	pub := &PublishHandler{}
+	pub.RootName = conf.RequiredString("rootName")
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
 	if err = conf.Validate(); err != nil {
 		return
+	}
+
+	if pub.RootName == "" {
+		return nil, os.NewError("invalid empty rootName")
 	}
 
 	bs, err := ld.GetStorage(blobRoot)
@@ -75,5 +81,6 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 
-	fmt.Fprintf(rw, "I am publish handler at base %q, suffix %q", base, html.EscapeString(suffix))
+	fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q, suffix %q",
+		base, pub.RootName, html.EscapeString(suffix))
 }
