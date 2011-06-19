@@ -96,7 +96,7 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		if !ok {
 			return
 		}
-		ui.PublishRoots[pubh.RootName] = pubh
+		ui.PublishRoots[pubRoot] = pubh
 	}
 
 	checkType := func(key string, htype string) {
@@ -210,12 +210,22 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(rw, "%s(", cb)
 		inCb = true
 	}
+
+	pubRoots := map[string]interface{}{}
+	for key, pubh := range ui.PublishRoots {
+		pubRoots[key] = map[string]interface{}{
+			"name": pubh.RootName,
+			// TODO: include gpg key id
+		}
+	}
+
 	bytes, _ := json.Marshal(map[string]interface{}{
 		"blobRoot":       ui.BlobRoot,
 		"searchRoot":     ui.SearchRoot,
 		"jsonSignRoot":   ui.JSONSignRoot,
 		"uploadHelper":   "?camli.mode=uploadhelper", // hack; remove with better javascript
 		"downloadHelper": "./download/",
+		"publishRoots":   pubRoots,
 	})
 	rw.Write(bytes)
 	if inCb {
