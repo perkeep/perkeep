@@ -27,7 +27,6 @@ import (
 	"json"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -65,15 +64,8 @@ type UIHandler struct {
 	SearchRoot   string
 	JSONSignRoot string
 
-	FilesDir string
-
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
-}
-
-func defaultFilesDir() string {
-	dir, _ := filepath.Split(os.Args[0])
-	return filepath.Join(dir, "ui")
 }
 
 func init() {
@@ -86,7 +78,6 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	ui.SearchRoot = conf.OptionalString("searchRoot", "")
 	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
 	cachePrefix := conf.OptionalString("cache", "")
-	ui.FilesDir = conf.OptionalString("staticFiles", defaultFilesDir())
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -126,11 +117,6 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		ui.Cache = bs
 	}
 
-	fi, sterr := os.Stat(ui.FilesDir)
-	if sterr != nil || !fi.IsDirectory() {
-		err = fmt.Errorf("UI handler's \"staticFiles\" of %q is invalid", ui.FilesDir)
-		return
-	}
 	return ui, nil
 }
 
