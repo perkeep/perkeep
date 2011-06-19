@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 9
+const requiredSchemaVersion = 10
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -61,14 +61,26 @@ setattrs VARCHAR(255),
 PRIMARY KEY(fileschemaref, bytesref),
 INDEX (bytesref))`,
 
+		// For index.PermanodeOfSignerAttrValue:
+		// Rows are one per camliType "claim", for claimType "set-attribute" or "add-attribute",
+		// for attribute values that are known (needed to be indexed, e.g. "camliNamedRoot")
+		//
+		// signer is verified GPG KeyId (e.g. "2931A67C26F5ABDA")
+		// attr is e.g. "camliNamedRoot"
+		// value is the claim's "value" field
+		// claimdate is the "claimDate" field.
+		// blobref is the blobref of the claim.
+		// permanode is the claim's "permaNode" field.
 		`CREATE TABLE signerattrvalue (
 signer VARCHAR(128) NOT NULL,
 attr VARCHAR(128) NOT NULL,
 value VARCHAR(255) NOT NULL,
-sigdate VARCHAR(40) NOT NULL,
-INDEX (signer, attr, value, sigdate),
+claimdate VARCHAR(40) NOT NULL,
+INDEX (signer, attr, value, claimdate),
 blobref VARCHAR(128) NOT NULL,
-permanode VARCHAR(128) NOT NULL)`,
+PRIMARY KEY (blobref),
+permanode VARCHAR(128) NOT NULL,
+INDEX (permanode))`,
 
 		`CREATE TABLE meta (
 metakey VARCHAR(255) NOT NULL PRIMARY KEY,

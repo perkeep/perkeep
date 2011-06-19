@@ -89,5 +89,5 @@ type Index interface {
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
 	//
-	//FindPermanode(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
+	//PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 }
