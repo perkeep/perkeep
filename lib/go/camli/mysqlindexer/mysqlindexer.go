@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 
 	"camli/blobref"
@@ -80,6 +81,21 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if !ok {
 		return nil, fmt.Errorf("Failed to connect to MySQL: %v", err)
 	}
+
+	version, err := indexer.SchemaVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
+	}
+	if version != requiredSchemaVersion {
+		if os.Getenv("CAMLI_ADVERTISED_PASSWORD") != "" {
+			// Good signal that we're using the dev-server script, so help out
+			// the user with a more useful tip:
+			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"./dev-server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)
+		}
+		return nil, fmt.Errorf("database schema version is %d; expect %d (need to re-init/upgrade database?)",
+			version, requiredSchemaVersion)
+	}
+
 	return indexer, nil
 }
 
@@ -105,6 +121,34 @@ func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
 	}
 	client.FreeResult()
 	return true, nil
+}
+
+func (mi *Indexer) SchemaVersion() (version int, err os.Error) {
+	var client *mysql.Client
+	client, err = mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	err = client.Query("SELECT value FROM meta WHERE metakey='version'")
+	if err != nil {
+		return
+	}
+	res, err := client.UseResult()
+	if err != nil {
+		return
+	}
+
+	row := res.FetchRow()
+	if row == nil {
+		return 0, nil
+	}
+
+	version, err = strconv.Atoi(row[0].(string))
+
+	client.FreeResult()
+	return
 }
 
 // Get a free cached connection or allocate a new one.

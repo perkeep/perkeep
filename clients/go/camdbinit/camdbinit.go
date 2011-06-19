@@ -22,6 +22,8 @@ import (
 	"os"
 	"strings"
 
+	"camli/mysqlindexer"
+
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
@@ -57,36 +59,11 @@ func main() {
 	}
 	do(db, "CREATE DATABASE "+dbname)
 	do(db, "USE "+dbname)
-	do(db, `CREATE TABLE blobs (
-blobref VARCHAR(128) NOT NULL PRIMARY KEY,
-size INTEGER NOT NULL,
-type VARCHAR(100))`)
-	do(db, `CREATE TABLE claims (
-blobref VARCHAR(128) NOT NULL PRIMARY KEY,
-signer VARCHAR(128) NOT NULL,
-date VARCHAR(40) NOT NULL, 
-INDEX (signer, date),
-unverified CHAR(1) NULL,
-claim VARCHAR(50) NOT NULL,
-permanode VARCHAR(128) NOT NULL,
-INDEX (permanode, signer, date),
-attr VARCHAR(128) NULL,
-value VARCHAR(128) NULL)`)
-	do(db, `CREATE TABLE permanodes (
-blobref VARCHAR(128) NOT NULL PRIMARY KEY,
-unverified CHAR(1) NULL,
-signer VARCHAR(128) NOT NULL DEFAULT '',
-lastmod VARCHAR(40) NOT NULL DEFAULT '',
-INDEX (signer, lastmod))`)
-	do(db, `CREATE TABLE files (
-fileschemaref VARCHAR(128) NOT NULL,
-bytesref VARCHAR(128) NOT NULL,
-size BIGINT,
-filename VARCHAR(255),
-mime VARCHAR(255),
-setattrs VARCHAR(255),
-PRIMARY KEY(fileschemaref, bytesref),
-INDEX (bytesref))`)
+
+	for _, tableSql := range mysqlindexer.SQLCreateTables() {
+		do(db, tableSql)
+	}
+	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysqlindexer.SchemaVersion()))
 }
 
 func do(db *mysql.Client, sql string) {
