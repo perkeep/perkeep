@@ -41,7 +41,7 @@ var (
 	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
 	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
 	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
-	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb", "Path to gitweb's static files.")
+	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb/static", "Path to gitweb's static files.")
 	logDir              = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
 	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
 	pageHtml, errorHtml *template.Template
