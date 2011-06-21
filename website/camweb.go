@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path"
 	"regexp"
@@ -39,11 +38,14 @@ var h1TitlePattern = regexp.MustCompile(`<h1>(.+)</h1>`)
 
 var (
 	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
+	httpsAddr           = flag.String("https", "", "HTTPS service address")
 	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
 	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
 	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb/static", "Path to gitweb's static files.")
 	logDir              = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
 	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
+	tlsCertFile         = flag.String("tlscert", "", "TLS cert file")
+	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -155,7 +157,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if strings.HasPrefix(relPath, "gw/") {
 		path := relPath[3:]
-		http.Redirect(rw, req, "/code/?p=camlistore.git;f=" + path + ";hb=master", http.StatusFound)
+		http.Redirect(rw, req, "/code/?p=camlistore.git;f="+path+";hb=master", http.StatusFound)
 		return
 	}
 
@@ -219,7 +221,7 @@ type noWwwHandler struct {
 func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" {
-		http.Redirect(rw, r, "http://camlistore.org" + r.URL.RawPath, http.StatusFound)
+		http.Redirect(rw, r, "http://camlistore.org"+r.URL.RawPath, http.StatusFound)
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
@@ -260,8 +262,8 @@ func main() {
 		mux.Handle("/code/", &fixUpGitwebUrls{&gitwebHandler{
 			Cgi: &cgi.Handler{
 				Path: *gitwebScript,
-				Root:           "/code/",
-				Env:        env,
+				Root: "/code/",
+				Env:  env,
 			},
 			Static: http.FileServer(*gitwebFiles, "/code/"),
 		}})
@@ -273,35 +275,31 @@ func main() {
 		handler = NewLoggingHandler(handler, *logDir, *logStdout)
 	}
 
-	var listener net.Listener
-	var err os.Error
-	listener, err = net.Listen("tcp", *httpAddr)
-	if err != nil {
-		log.Fatalf("Listen error on %s: %v", *httpAddr, err)
+	errch := make(chan os.Error)
+
+	httpServer := &http.Server{
+		Addr:         *httpAddr,
+		Handler:      handler,
+		ReadTimeout:  connTimeoutNanos,
+		WriteTimeout: connTimeoutNanos,
+	}
+	go func() {
+		errch <- httpServer.ListenAndServe()
+	}()
+
+	if *httpsAddr != "" {
+		httpsServer := new(http.Server)
+		*httpsServer = *httpServer
+		httpsServer.Addr = *httpsAddr
+		go func() {
+			errch <- httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
+		}()
 	}
 
-	listener = &withTimeoutListener{listener, connTimeoutNanos}
-	defer listener.Close()
-
-	if err = http.Serve(listener, handler); err != nil {
-		log.Fatalf("Serve error: %v", err)
-	}
+	log.Fatalf("Serve error: %v", <-errch)
 }
 
 const connTimeoutNanos = 15e9
-
-type withTimeoutListener struct {
-	net.Listener
-	timeoutNanos int64
-}
-
-func (wtl *withTimeoutListener) Accept() (c net.Conn, err os.Error) {
-	c, err = wtl.Listener.Accept()
-	if err == nil {
-		c.SetTimeout(wtl.timeoutNanos)
-	}
-	return
-}
 
 type fixUpGitwebUrls struct {
 	handler http.Handler
