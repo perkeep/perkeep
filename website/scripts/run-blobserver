@@ -3,12 +3,11 @@
 set -e
 Bin=$(dirname $( readlink -f $0))
 
-ROOT=$HOME/blobroot
-if [ ! -d $ROOT ]; then
-    mkdir $ROOT
-fi
-chmod 0700 $ROOT
-
 export CAMLI_PASSWORD=`cat $HOME/.camli/camorg-blobserver.pass`
+export CAMLI_ROOT=$Bin/../blobserver-example/root
 
-$Bin/../../build.pl server/go/camlistored && $Bin/../../server/go/camlistored/camlistored -root=$ROOT -listen=:3179 "$@"
+$Bin/../../build.pl server/go/camlistored && \
+   $Bin/../../server/go/camlistored/camlistored \
+       -configfile=$Bin/../blobserver-example/example-blobserver-config.json \
+       -listen=:3179 "$@"
+
