@@ -245,12 +245,13 @@ func main() {
 	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
 	mux.Handle("/talks/", http.FileServer(path.Join(*root, "talks"), "/talks/"))
 
-	gerritUrl, _ := http.ParseURL("http://127.0.0.1:8000/")
+	gerritUrl, _ := http.ParseURL("http://gerrit-proxy:8000/")
 	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
 	if *httpsAddr != "" {
+		proxyHandler := gerritHandler
 		gerritHandler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if req.TLS != nil {
-				gerritHandler.ServeHTTP(rw, req)
+				proxyHandler.ServeHTTP(rw, req)
 				return
 			}
 			http.Redirect(rw, req, "https://camlistore.org"+req.URL.RawPath, http.StatusFound)
