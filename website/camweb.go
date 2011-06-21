@@ -246,7 +246,17 @@ func main() {
 	mux.Handle("/talks/", http.FileServer(path.Join(*root, "talks"), "/talks/"))
 
 	gerritUrl, _ := http.ParseURL("http://127.0.0.1:8000/")
-	mux.Handle("/r/", http.NewSingleHostReverseProxy(gerritUrl))
+	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
+	if *httpsAddr != "" {
+		gerritHandler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if req.TLS != nil {
+				gerritHandler.ServeHTTP(rw, req)
+				return
+			}
+			http.Redirect(rw, req, "https://camlistore.org"+req.URL.RawPath, http.StatusFound)
+		})
+	}
+	mux.Handle("/r/", gerritHandler)
 
 	testCgi := &cgi.Handler{Path: path.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
