@@ -165,7 +165,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, name string, fs FileSyste
 	// TODO(adg): handle multiple ranges
 	ranges, err := parseRange(r.Header.Get("Range"), size)
 	if err == nil && len(ranges) > 1 {
-		err = os.ErrorString("multiple ranges not supported")
+		err = os.NewError("multiple ranges not supported")
 	}
 	if err != nil {
 		http.Error(w, err.String(), http.StatusRequestedRangeNotSatisfiable)
