@@ -358,7 +358,7 @@ func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 
 func rsyncFromGerrit(dest string) {
 	for {
-		err := exec.Command("rsync", "-avPW", *gerritUser+"@"+*gerritHost+":gerrit/git", dest+"/").Run()
+		err := exec.Command("rsync", "-avPW", *gerritUser+"@"+*gerritHost+":gerrit/git/", dest+"/").Run()
 		if err != nil {
 			log.Printf("rsync from gerrit = %v", err)
 		}
