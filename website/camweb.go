@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"exec"
 	"flag"
 	"fmt"
 	"http"
@@ -26,10 +27,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"template"
+	"time"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -46,6 +48,8 @@ var (
 	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
 	tlsCertFile         = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
+	gerritUser          = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
+	gerritHost          = flag.String("gerrithost", "gerrit-proxy", "Gerrit host, or empty.")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -126,7 +130,7 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 }
 
 func readTemplate(name string) *template.Template {
-	fileName := path.Join(*root, "tmpl", name)
+	fileName := filepath.Join(*root, "tmpl", name)
 	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		log.Fatalf("ReadFile %s: %v", fileName, err)
@@ -161,7 +165,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	absPath := path.Join(*root, "content", relPath)
+	absPath := filepath.Join(*root, "content", relPath)
 	fi, err := os.Lstat(absPath)
 	if err != nil {
 		log.Print(err)
@@ -170,7 +174,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 	if fi.IsDirectory() {
 		relPath += "/index.html"
-		absPath = path.Join(*root, "content", relPath)
+		absPath = filepath.Join(*root, "content", relPath)
 		fi, err = os.Lstat(absPath)
 		if err != nil {
 			log.Print(err)
@@ -227,6 +231,16 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.Handler.ServeHTTP(rw, r)
 }
 
+func fixupGitwebFiles() {
+	fi, err := os.Stat(*gitwebFiles)
+	if err != nil || !fi.IsDirectory() {
+		if *gitwebFiles == "/usr/share/gitweb/static" {
+			// Old Debian/Ubuntu location
+			*gitwebFiles = "/usr/share/gitweb"
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 	readTemplates()
@@ -239,11 +253,19 @@ func main() {
 		}
 	}
 
+	fixupGitwebFiles()
+
+	latestGits := filepath.Join(*root, "latestgits")
+	os.Mkdir(latestGits, 0700)
+	if *gerritHost != "" {
+		go rsyncFromGerrit(latestGits)
+	}
+
 	mux := http.DefaultServeMux
-	mux.Handle("/favicon.ico", http.FileServer(path.Join(*root, "static"), "/"))
-	mux.Handle("/robots.txt", http.FileServer(path.Join(*root, "static"), "/"))
-	mux.Handle("/static/", http.FileServer(path.Join(*root, "static"), "/static/"))
-	mux.Handle("/talks/", http.FileServer(path.Join(*root, "talks"), "/talks/"))
+	mux.Handle("/favicon.ico", http.FileServer(filepath.Join(*root, "static"), "/"))
+	mux.Handle("/robots.txt", http.FileServer(filepath.Join(*root, "static"), "/"))
+	mux.Handle("/static/", http.FileServer(filepath.Join(*root, "static"), "/static/"))
+	mux.Handle("/talks/", http.FileServer(filepath.Join(*root, "talks"), "/talks/"))
 
 	gerritUrl, _ := http.ParseURL("http://gerrit-proxy:8000/")
 	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
@@ -259,7 +281,7 @@ func main() {
 	}
 	mux.Handle("/r/", gerritHandler)
 
-	testCgi := &cgi.Handler{Path: path.Join(*root, "test.cgi"),
+	testCgi := &cgi.Handler{Path: filepath.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
 	}
 	mux.Handle("/test.cgi", testCgi)
@@ -268,8 +290,9 @@ func main() {
 	mux.Handle("/code", http.RedirectHandler("/code/", http.StatusFound))
 	if *gitwebScript != "" {
 		env := os.Environ()
-		env = append(env, "GITWEB_CONFIG="+path.Join(*root, "gitweb-camli.conf"))
-		env = append(env, "CAMWEB_ROOT="+path.Join(*root))
+		env = append(env, "GITWEB_CONFIG="+filepath.Join(*root, "gitweb-camli.conf"))
+		env = append(env, "CAMWEB_ROOT="+filepath.Join(*root))
+		env = append(env, "CAMWEB_GITDIR="+latestGits)
 		mux.Handle("/code/", &fixUpGitwebUrls{&gitwebHandler{
 			Cgi: &cgi.Handler{
 				Path: *gitwebScript,
@@ -331,4 +354,14 @@ func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 	http.Redirect(rw, req, newUrl, http.StatusFound)
+}
+
+func rsyncFromGerrit(dest string) {
+	for {
+		err := exec.Command("rsync", "-avPW", *gerritUser+"@"+*gerritHost+":gerrit/git", dest+"/").Run()
+		if err != nil {
+			log.Printf("rsync from gerrit = %v", err)
+		}
+		time.Sleep(10e9)
+	}
 }
