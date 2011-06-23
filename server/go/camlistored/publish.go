@@ -46,6 +46,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
+	createPermanode := conf.OptionalBool("createPermanodeIfNeeded", false)
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -64,7 +65,11 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	if err != nil {
 		return nil, fmt.Errorf("publish handler's searchRoot of %q error: %v", searchRoot, err)
 	}
-	pub.Search = si.(*search.Handler)
+	pub.Search = si.(*search.Handler)  // TODO: don't crash here if wrong type; return error
+
+	if createPermanode {
+		// ... TODO
+	}
 
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)

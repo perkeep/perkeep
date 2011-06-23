@@ -14,6 +14,7 @@
           "handlerArgs": {
               "rootName": "dev-blog-root",
               "blobRoot": "/bs/",
+              "createPermanodeIfNeeded": true,
               "searchRoot": "/my-search/",
               "cache": "/cache/"
           }
@@ -24,6 +25,7 @@
           "handlerArgs": {
               "rootName": "dev-pics-root",
               "blobRoot": "/bs/",
+              "createPermanodeIfNeeded": true,
               "searchRoot": "/my-search/",
               "cache": "/cache/"
           }
