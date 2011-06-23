@@ -67,6 +67,15 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	}, nil
 }
 
+// TODO: figure out a plan for an owner having multiple active public keys, or public
+// key rotation
+func (h *Handler) Owner() *blobref.BlobRef {
+	return h.owner
+}
+
+func (h *Handler) Index() Index {
+	return h.index
+}
 
 func jsonMap() map[string]interface{} {
 	return make(map[string]interface{})

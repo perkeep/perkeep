@@ -20,10 +20,13 @@ import (
 	"fmt"
 	"html"
 	"http"
+	"log"
 	"os"
 
 	"camli/blobserver"
+	"camli/client" // just for NewUploadHandleFromString.  move elsewhere?
 	"camli/jsonconfig"
+	"camli/schema"
 	"camli/search"
 )
 
@@ -46,7 +49,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
-	createPermanode := conf.OptionalBool("createPermanodeIfNeeded", false)
+	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -65,10 +68,22 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	if err != nil {
 		return nil, fmt.Errorf("publish handler's searchRoot of %q error: %v", searchRoot, err)
 	}
-	pub.Search = si.(*search.Handler)  // TODO: don't crash here if wrong type; return error
+	var ok bool
+	pub.Search, ok = si.(*search.Handler)
+	if !ok {
+		return nil, fmt.Errorf("publish handler's searchRoot of %q is of type %T, expecting a search handler",
+			searchRoot, si)
+	}
 
-	if createPermanode {
-		// ... TODO
+	if bootstrapSignRoot != "" {
+		if t := ld.GetHandlerType(bootstrapSignRoot); t != "jsonsign" {
+			return nil, fmt.Errorf("publish handler's devBootstrapPermanodeUsing must be of type jsonsign")
+		}
+		h, _ := ld.GetHandler(bootstrapSignRoot)
+		jsonSign := h.(*JSONSignHandler)
+		if err := pub.bootstrapPermanode(jsonSign); err != nil {
+			return nil, fmt.Errorf("error bootstrapping permanode: %v", err)
+		}
 	}
 
 	if cachePrefix != "" {
@@ -86,6 +101,45 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 
-	fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q, suffix %q",
-		base, pub.RootName, html.EscapeString(suffix))
+	pn, err := pub.Search.Index().PermanodeOfSignerAttrValue(pub.Search.Owner(), "camliRoot", pub.RootName)
+	if err != nil {
+		rw.WriteHeader(404)
+		fmt.Fprintf(rw, "Error: publish handler at base %q, serving root name %q has no configured permanode",
+			base, pub.RootName)
+		return
+	}
+
+	fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q",
+		base, pub.RootName, pn, html.EscapeString(suffix))
+}
+
+func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) os.Error {
+	if pn, err := pub.Search.Index().PermanodeOfSignerAttrValue(pub.Search.Owner(), "camliRoot", pub.RootName); err == nil {
+		log.Printf("Publish root %q using existing permanode %s", pub.RootName, pn)
+		return nil
+	}
+	log.Printf("Publish root %q needs a permanode + claim", pub.RootName)
+
+	// Step 1: create a permanode
+	pn, err := jsonSign.SignMap(schema.NewUnsignedPermanode())
+	if err != nil {
+		return fmt.Errorf("error creating new permanode: %v", err)
+	}
+	ph := client.NewUploadHandleFromString(pn)
+	_, err = pub.Storage.ReceiveBlob(ph.BlobRef, ph.Contents)
+	if err != nil {
+		return fmt.Errorf("error uploading permanode: %v", err)
+	}
+
+	// Step 2: addd a claim that the new permanode is the desired root.
+	claim, err := jsonSign.SignMap(schema.NewSetAttributeClaim(ph.BlobRef, "camliRoot", pub.RootName))
+	if err != nil {
+                return fmt.Errorf("error creating claim: %v", err)
+        }
+	ch := client.NewUploadHandleFromString(claim)
+	_, err = pub.Storage.ReceiveBlob(ch.BlobRef, ch.Contents)
+        if err != nil {
+                return fmt.Errorf("error uploading claim: %v", err)
+        }
+	return nil
 }

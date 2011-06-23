@@ -14,9 +14,9 @@
           "handlerArgs": {
               "rootName": "dev-blog-root",
               "blobRoot": "/bs/",
-              "createPermanodeIfNeeded": true,
               "searchRoot": "/my-search/",
-              "cache": "/cache/"
+              "cache": "/cache/",
+              "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },
 
@@ -25,9 +25,9 @@
           "handlerArgs": {
               "rootName": "dev-pics-root",
               "blobRoot": "/bs/",
-              "createPermanodeIfNeeded": true,
               "searchRoot": "/my-search/",
-              "cache": "/cache/"
+              "cache": "/cache/",
+              "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },
 

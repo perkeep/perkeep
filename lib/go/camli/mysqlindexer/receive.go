@@ -216,13 +216,14 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 	}
 
 	if verifiedKeyId != "" {
-		// TODO: limit this to only certain attributes (for now, just "camliRoot") once search handler
-		// is working and the UI permits setting camliRoot.
-		if err = execSQL(client, "INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
-			"VALUES (?, ?, ?, ?, ?, ?)",
-			verifiedKeyId, camli.Attribute, camli.Value,
-			camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
-			return
+		switch camli.Attribute {
+		case "camliRoot":
+			if err = execSQL(client, "INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
+				"VALUES (?, ?, ?, ?, ?, ?)",
+				verifiedKeyId, camli.Attribute, camli.Value,
+				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
+				return
+			}
 		}
 	}
 

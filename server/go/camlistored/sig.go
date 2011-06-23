@@ -32,6 +32,7 @@ import (
 	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/jsonsign"
+	"camli/schema"
 )
 
 var _ = log.Printf
@@ -228,4 +229,19 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 	rw.Write([]byte(signedJson))
+}
+
+func (h *JSONSignHandler) SignMap(m map[string]interface{}) (string, os.Error) {
+	m["camliSigner"] = h.pubKeyBlobRef.String()
+	unsigned, err := schema.MapToCamliJson(m)
+	if err != nil {
+		return "", err
+	}
+	sreq := &jsonsign.SignRequest{
+		UnsignedJson:      unsigned,
+		Fetcher:           h.pubKeyFetcher,
+		ServerMode:        true,
+		SecretKeyringPath: h.secretRing,
+	}
+	return sreq.Sign()
 }
