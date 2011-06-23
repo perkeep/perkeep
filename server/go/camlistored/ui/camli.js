@@ -273,7 +273,7 @@ function getQueryParam(key) {
 
 function camliGetRecentlyUpdatedPermanodes(opts) {
     var xhr = camliJsonXhr("camliGetRecentlyUpdatedPermanodes", opts);
-    xhr.open("GET", Camli.config.searchRoot + "camli/search", true);
+    xhr.open("GET", Camli.config.searchRoot + "camli/search/recent", true);
     xhr.send();
 }
 

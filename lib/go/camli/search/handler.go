@@ -82,7 +82,7 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	if req.Method == "GET" {
 		switch suffix {
-		case "camli/search", "camli/search/recent":
+		case "camli/search/recent":
 			sh.serveRecentPermanodes(rw, req)
 			return
 		case "camli/search/describe":
