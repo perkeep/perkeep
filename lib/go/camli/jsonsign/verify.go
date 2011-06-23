@@ -73,7 +73,7 @@ type VerifyRequest struct {
 
 	// set if Verify() returns true:
 	PayloadMap  map[string]interface{} // The JSON values from BPJ
-	SignerKeyId string
+	SignerKeyId string // e.g. "2931A67C26F5ABDA"
 
 	Err os.Error // last error encountered
 }
@@ -204,6 +204,7 @@ func NewVerificationRequest(sjson string, fetcher blobref.StreamingFetcher) (vr 
 	return
 }
 
+// TODO: turn this into (bool, os.Error) return, probably, or *Details, os.Error.
 func (vr *VerifyRequest) Verify() bool {
 	if vr.Err != nil {
 		return false
