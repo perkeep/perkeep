@@ -23,12 +23,14 @@
 use strict;
 use Getopt::Long;
 use FindBin;
+use Cwd;
 
 my $opt_list;
 my $opt_eachclean;
 my $opt_verbose;
 my $opt_test;
 my $opt_deps;
+my $opt_updatego;
 
 chdir($FindBin::Bin) or die "Couldn't chdir to $FindBin::Bin: $!";
 
@@ -37,6 +39,7 @@ GetOptions("list" => \$opt_list,
            "verbose+" => \$opt_verbose,
            "test" => \$opt_test,
            "deps" => \$opt_deps,
+           "updatego" => \$opt_updatego,
     ) or usage();
 
 sub usage {
@@ -54,6 +57,7 @@ Usage:
 Other options:
   --verbose|-v         Verbose
   --test|-t            Run tests where found
+  --updatego           Attempt to update GOROOT to maintainer's go version
 EOM
 ;
 }
@@ -91,6 +95,10 @@ if ($opt_eachclean) {
         build($target);
     }
     exit;
+}
+
+if ($opt_updatego) {
+  update_go();
 }
 
 my $target = shift or usage();
@@ -160,6 +168,34 @@ sub clean {
         print STDERR "Cleaning $target\n";
         system("make", "-C", dir($target), "clean");
     }
+}
+
+# Updates go to maintainer version.
+sub update_go {
+  # Get revision number:
+  my $last = do { open(my $fh, ".last_go_version") or die; local $/; <$fh> };
+  $last =~ s!^[68]g version weekly.[0-9]{4}-[0-9]{2}-[0-9]{2} !!;
+  chomp $last;
+  if ($last !~ /^[0-9]+$/) {
+    print "Failed to obtain maintainer's go revision\n";
+    return;
+  }
+
+  print "Updating go to revision: $last\n";
+  my $prev_cwd = getcwd;
+  if ($ENV{'GOROOT'} eq '') {
+    print "\$GOROOT not set!\n";
+    return;
+  }
+
+  chdir $ENV{'GOROOT'} or die "Chdir to $ENV{'GOROOT'} failed\n";
+  system("hg", "pull") and die "Hg pull failed\n";
+  system("hg", "update", $last) and die "Hg update failed\n";
+  print "Building...\n";
+  chdir "$ENV{'GOROOT'}/src" or die "Chdir to $ENV{'GOROOT'}/src failed\n";
+  system("./all.bash") and die "Go build failed\n";
+
+  chdir $prev_cwd or die "Chdir back to $prev_cwd failed\n";
 }
 
 # Returns a help message on a build failure of a given target.
