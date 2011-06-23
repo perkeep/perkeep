@@ -58,11 +58,6 @@ func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter
 const fetchFailureDelayNs = 200e6 // 200 ms
 const maxJsonSize = 64 * 1024     // should be enough for everyone
 
-func sendUnauthorized(conn http.ResponseWriter) {
-	conn.WriteHeader(http.StatusUnauthorized)
-	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
-}
-
 func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
@@ -75,7 +70,7 @@ func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 		serveBlobRef(conn, req, blobRef, h.Fetcher)
 	case auth.TriedAuthorization(req):
 		log.Printf("Attempted authorization failed on %s", req.URL)
-		sendUnauthorized(conn)
+		auth.SendUnauthorized(conn)
 	default:
 		handleGetViaSharing(conn, req, blobRef, h.Fetcher)
 	}
@@ -221,31 +216,31 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 			file, size, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			defer file.Close()
 			if size > maxJsonSize {
 				log.Printf("Fetch chain 0 of %s too large", br.String())
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			jd := json.NewDecoder(file)
 			m := make(map[string]interface{})
 			if err := jd.Decode(&m); err != nil {
 				log.Printf("Fetch chain 0 of %s wasn't JSON: %v", br.String(), err)
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			if m["camliType"].(string) != "share" {
 				log.Printf("Fetch chain 0 of %s wasn't a share", br.String())
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			if len(fetchChain) > 1 && fetchChain[1].String() != m["target"].(string) {
 				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
 					br.String(), fetchChain[1].String(), m["target"])
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 		case len(fetchChain) - 1:
@@ -256,7 +251,7 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 			file, _, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			defer file.Close()
@@ -264,14 +259,14 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 			slurpBytes, err := ioutil.ReadAll(lr)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 			saught := fetchChain[i+1].String()
 			if bytes.IndexAny(slurpBytes, saught) == -1 {
 				log.Printf("Fetch chain %d of %s failed; no reference to %s",
 					i, br.String(), saught)
-				sendUnauthorized(conn)
+				auth.SendUnauthorized(conn)
 				return
 			}
 		}
