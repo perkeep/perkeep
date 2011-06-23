@@ -42,9 +42,8 @@ func ForbiddenError(conn http.ResponseWriter, errorMessage string, args ...inter
 	fmt.Fprintf(conn, "<h1>Forbidden</h1>")
 }
 
-func RequestEntityTooLargeError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
-	conn.WriteHeader(http.StatusForbidden)
-	log.Printf("Request entity is too large: %s", fmt.Sprintf(errorMessage, args...))
+func RequestEntityTooLargeError(conn http.ResponseWriter) {
+	conn.WriteHeader(http.StatusRequestEntityTooLarge)
 	fmt.Fprintf(conn, "<h1>Request entity is too large</h1>")
 }
 
