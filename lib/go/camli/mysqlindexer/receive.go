@@ -28,11 +28,17 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/jsonsign"
 	"camli/magic"
 	"camli/schema"
 )
 
-const maxSniffSize = 1024 * 16
+// maxSniffSize is how much of a blob to buffer in memory for both
+// MIME sniffing (in which case 1MB is way overkill) and also for
+// holding a schema blob in memory for analysis in later steps (where
+// 1MB is about the max size a claim can be, with about 1023K (of
+// slack space)
+const maxSniffSize = 1024 * 1024
 
 type blobSniffer struct {
 	header   []byte
@@ -55,6 +61,13 @@ func (sn *blobSniffer) Write(d []byte) (int, os.Error) {
 
 func (sn *blobSniffer) IsTruncated() bool {
 	return sn.written > maxSniffSize
+}
+
+func (sn *blobSniffer) Body() (string, os.Error) {
+	if sn.IsTruncated() {
+		return "", os.NewError("was truncated")
+	}
+	return string(sn.header), nil
 }
 
 // returns content type (string) or nil if unknown
@@ -135,7 +148,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	if camli := sniffer.camli; camli != nil {
 		switch camli.Type {
 		case "claim":
-			if err = mi.populateClaim(client, blobRef, camli); err != nil {
+			if err = mi.populateClaim(client, blobRef, camli, sniffer); err != nil {
 				return
 			}
 		case "permanode":
@@ -170,20 +183,42 @@ func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Erro
 	return
 }
 
-func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset, sniffer *blobSniffer) (err os.Error) {
 	pnBlobref := blobref.Parse(camli.Permanode)
 	if pnBlobref == nil {
 		// Skip bogus claim with malformed permanode.
 		return
 	}
 
+	verifiedKeyId := ""
+	if rawJson, err := sniffer.Body(); err == nil {
+		vr := jsonsign.NewVerificationRequest(rawJson, mi.KeyFetcher)
+		if vr.Verify() {
+			verifiedKeyId = vr.SignerKeyId
+			log.Printf("mysqlindex: verified claim %s from %s", blobRef, verifiedKeyId)
+		} else {
+			log.Printf("mysqlindex: verification failure on claim %s: %v", blobRef, vr.Err)
+		}
+	}
+
 	if err = execSQL(client,
-		"INSERT IGNORE INTO claims (blobref, signer, date, unverified, claim, permanode, attr, value) "+
-			"VALUES (?, ?, ?, 'Y', ?, ?, ?, ?)",
-		blobRef.String(), camli.Signer, camli.ClaimDate,
+		"INSERT IGNORE INTO claims (blobref, signer, verifiedkeyid, date, unverified, claim, permanode, attr, value) "+
+			"VALUES (?, ?, ?, ?, 'Y', ?, ?, ?, ?)",
+		blobRef.String(), camli.Signer, verifiedKeyId, camli.ClaimDate,
 		camli.ClaimType, camli.Permanode,
 		camli.Attribute, camli.Value); err != nil {
 		return
+	}
+
+	if verifiedKeyId != "" {
+		// TODO: limit this to only certain attributes (for now, just "camliRoot") once search handler
+		// is working and the UI permits setting camliRoot.
+		if err = execSQL(client, "INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
+			"VALUES (?, ?, ?, ?, ?, ?)",
+			verifiedKeyId, camli.Attribute, camli.Value,
+			camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
+			return
+		}
 	}
 
 	// And update the lastmod on the permanode row.

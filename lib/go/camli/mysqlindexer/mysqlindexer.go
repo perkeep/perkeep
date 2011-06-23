@@ -36,9 +36,7 @@ type Indexer struct {
 	Host, User, Password, Database string
 	Port                           int
 
-	// TODO: does this belong at this layer?
 	KeyFetcher   blobref.StreamingFetcher // for verifying claims
-	OwnerBlobRef *blobref.BlobRef
 
 	// Used for fetching blobs to find the complete sha1 of schema
 	// blobs.
@@ -67,15 +65,13 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	}
 	indexer.BlobSource = sto
 
+	// Good enough, for now:
+	indexer.KeyFetcher = indexer.BlobSource
+
 		//ownerBlobRef = client.SignerPublicKeyBlobref()
 		//if ownerBlobRef == nil {
 		//	log.Fatalf("Public key not configured.")
 		//}
-
-	//KeyFetcher: blobref.NewSerialStreamingFetcher(
-	//			blobref.NewConfigDirFetcher(),
-	//			storage),
-	//}
 
 	ok, err := indexer.IsAlive()
 	if !ok {

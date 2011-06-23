@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 10
+const requiredSchemaVersion = 11
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -35,12 +35,14 @@ type VARCHAR(100))`,
 		`CREATE TABLE claims (
 blobref VARCHAR(128) NOT NULL PRIMARY KEY,
 signer VARCHAR(128) NOT NULL,
+verifiedkeyid VARCHAR(128) NULL,
 date VARCHAR(40) NOT NULL, 
-INDEX (signer, date),
+  INDEX (signer, date),
+  INDEX (verifiedkeyid, date),
 unverified CHAR(1) NULL,
 claim VARCHAR(50) NOT NULL,
 permanode VARCHAR(128) NOT NULL,
-INDEX (permanode, signer, date),
+  INDEX (permanode, signer, date),
 attr VARCHAR(128) NULL,
 value VARCHAR(128) NULL)`,
 
@@ -65,18 +67,18 @@ INDEX (bytesref))`,
 		// Rows are one per camliType "claim", for claimType "set-attribute" or "add-attribute",
 		// for attribute values that are known (needed to be indexed, e.g. "camliNamedRoot")
 		//
-		// signer is verified GPG KeyId (e.g. "2931A67C26F5ABDA")
+		// keyid is verified GPG KeyId (e.g. "2931A67C26F5ABDA")
 		// attr is e.g. "camliNamedRoot"
 		// value is the claim's "value" field
 		// claimdate is the "claimDate" field.
 		// blobref is the blobref of the claim.
 		// permanode is the claim's "permaNode" field.
 		`CREATE TABLE signerattrvalue (
-signer VARCHAR(128) NOT NULL,
+keyid VARCHAR(128) NOT NULL,
 attr VARCHAR(128) NOT NULL,
 value VARCHAR(255) NOT NULL,
 claimdate VARCHAR(40) NOT NULL,
-INDEX (signer, attr, value, claimdate),
+INDEX (keyid, attr, value, claimdate),
 blobref VARCHAR(128) NOT NULL,
 PRIMARY KEY (blobref),
 permanode VARCHAR(128) NOT NULL,
