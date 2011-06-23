@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 11
+const requiredSchemaVersion = 12
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -87,5 +87,13 @@ INDEX (permanode))`,
 		`CREATE TABLE meta (
 metakey VARCHAR(255) NOT NULL PRIMARY KEY,
 value VARCHAR(255) NOT NULL)`,
+
+		// Map from blobref (of ASCII armored public key) to keyid
+		`CREATE TABLE signerkeyid (
+blobref VARCHAR(128) NOT NULL,
+PRIMARY KEY (blobref),
+keyid   VARCHAR(128) NOT NULL,
+INDEX (keyid)
+)`,
 	}
 }

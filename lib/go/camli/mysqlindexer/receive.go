@@ -196,6 +196,11 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 		if vr.Verify() {
 			verifiedKeyId = vr.SignerKeyId
 			log.Printf("mysqlindex: verified claim %s from %s", blobRef, verifiedKeyId)
+
+			if err = execSQL(client, "INSERT IGNORE INTO signerkeyid (blobref, keyid) "+
+				"VALUES (?, ?)", vr.CamliSigner.String(), verifiedKeyId); err != nil {
+				return
+			}
 		} else {
 			log.Printf("mysqlindex: verification failure on claim %s: %v", blobRef, vr.Err)
 		}
