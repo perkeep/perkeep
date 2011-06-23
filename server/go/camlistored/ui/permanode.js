@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
+
 function getPermanodeParam() {
     var blobRef = getQueryParam('p');
     return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
@@ -25,9 +26,9 @@ function handleFormTitleSubmit(e) {
     e.preventDefault();
 
     var inputTitle = document.getElementById("inputTitle");
-    inputTitle.disabled = "disabled";
+    inputTitle.disabled = true;
     var btnSaveTitle = document.getElementById("btnSaveTitle");
-    btnSaveTitle.disabled = "disabled";
+    btnSaveTitle.disabled = true;
 
     var startTime = new Date();
 
@@ -39,14 +40,14 @@ function handleFormTitleSubmit(e) {
             success: function() {
                 var elapsedMs = new Date().getTime() - startTime.getTime();
                 setTimeout(function() {
-                    inputTitle.disabled = null;
-                    btnSaveTitle.disabled = null;
+                    inputTitle.disabled = false;
+                    btnSaveTitle.disabled = false;
                 }, Math.max(250 - elapsedMs, 0));
             },
             fail: function(msg) {
                 alert(msg);
-                inputTitle.disabled = null;
-                btnSaveTitle.disabled = null;
+                inputTitle.disabled = false;
+                btnSaveTitle.disabled = false;
             }
         });
 }
@@ -62,8 +63,8 @@ function handleFormTagsSubmit(e) {
         return;
     }
 
-    input.disabled = "disabled";
-    btn.disabled = "disabled";
+    input.disabled = true;
+    btn.disabled = true;
 
     var startTime = new Date();
 
@@ -75,8 +76,10 @@ function handleFormTagsSubmit(e) {
         if (nRemain == 0) {
             var elapsedMs = new Date().getTime() - startTime.getTime();
             setTimeout(function() {
-                           input.disabled = null;
-                           btn.disabled = null;
+                           input.value = '';
+                           input.disabled = false;
+                           btn.disabled = false;
+                           buildPermanodeUi();
                        }, Math.max(250 - elapsedMs, 0));
         }
     };
@@ -101,9 +104,9 @@ function handleFormAccessSubmit(e) {
     e.preventDefault();
 
     var selectAccess = document.getElementById("selectAccess");
-    selectAccess.disabled = "disabled";
+    selectAccess.disabled = true;
     var btnSaveAccess = document.getElementById("btnSaveAccess");
-    btnSaveAccess.disabled = "disabled";
+    btnSaveAccess.disabled = true;
 
     var operation = camliNewDelAttributeClaim;
     var value = "";
@@ -122,28 +125,28 @@ function handleFormAccessSubmit(e) {
             success: function() {
                 var elapsedMs = new Date().getTime() - startTime.getTime();
                 setTimeout(function() {
-                    selectAccess.disabled = null;
-                    btnSaveAccess.disabled = null;
+                    selectAccess.disabled = false;
+                    btnSaveAccess.disabled = false;
                 }, Math.max(250 - elapsedMs, 0));
             },
             fail: function(msg) {
                 alert(msg);
-                selectAccess.disabled = null;
-                btnSaveAccess.disabled = null;
+                selectAccess.disabled = false;
+                btnSaveAccess.disabled = false;
             }
         });
 }
 
 function deleteTagFunc(tag, strikeEle, removeEle) {
     return function(e) {
-        strikeEle.innerHTML = "<s>" + strikeEle.innerHTML + "</s>";
+        strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
         camliNewDelAttributeClaim(
             getPermanodeParam(),
             "tag",
             tag,
             {
                 success: function() {
-                    removeEle.innerHTML = "";
+                    removeEle.parentNode.removeChild(removeEle);
                 },
                 fail: function(msg) {
                     alert(msg);
@@ -176,7 +179,7 @@ function handleFiles(files) {
 function startFileUpload(file) {
     var dnd = document.getElementById("dnd");
     var up = document.createElement("div");
-    up.setAttribute("class", "fileupload");
+    up.className= 'camli-dnd-item';
     dnd.appendChild(up);
     var info = "name=" + file.name + " size=" + file.size + "; type=" + file.type;
 
@@ -188,18 +191,18 @@ function startFileUpload(file) {
     var contentsRef; // set later
 
     var onFail = function(msg) {
-        up.innerHTML = info + " <b>fail:</b> ";
+        up.innerHTML = info + " <strong>fail:</strong> ";
         up.appendChild(document.createTextNode(msg));
     };
 
     var onGotFileSchemaRef = function(fileref) {
-        setStatus(" <b>fileref: " + fileref + "</b>");
+        setStatus(" <strong>fileref: " + fileref + "</strong>");
         camliCreateNewPermanode(
             {
             success: function(filepn) {
                 var doneWithAll = function() {
                     setStatus("- done");
-                    addMemberDiv(filepn);
+                    buildPermanodeUi();
                 };
                 var addMemberToParent = function() {
                     setStatus("adding member");
@@ -218,7 +221,7 @@ function startFileUpload(file) {
     var fr = new FileReader();
     fr.onload = function() {
         dataurl = fr.result;
-        comma = dataurl.indexOf(",")
+        comma = dataurl.indexOf(",");
         if (comma != -1) {
             b64 = dataurl.substring(comma + 1);
             var arrayBuffer = Base64.decode(b64).buffer;
@@ -226,7 +229,9 @@ function startFileUpload(file) {
 
             contentsRef = "sha1-" + hash;
             setStatus("(checking for dup of " + contentsRef + ")");
-            camliUploadFileHelper(file, contentsRef, { success: onGotFileSchemaRef, fail: onFail });
+            camliUploadFileHelper(file, contentsRef, {
+              success: onGotFileSchemaRef, fail: onFail
+            });
         }
     };
     fr.readAsDataURL(file);
@@ -247,14 +252,21 @@ function setupFilesHandlers(e) {
     document.getElementById("fileForm").addEventListener("submit", onFileFormSubmit);
     document.getElementById("fileInput").addEventListener("change", onFileInputChange);
 
-    stop = function(e) {
+    var stop = function(e) {
+        this.classList && this.classList.add('camli-dnd-over');
         e.stopPropagation();
         e.preventDefault();
     };
     dnd.addEventListener("dragenter", stop, false);
     dnd.addEventListener("dragover", stop, false);
 
-    drop = function(e) {
+
+    dnd.addEventListener("dragleave", function() {
+            this.classList.remove('camli-dnd-over');
+        }, false);
+
+    var drop = function(e) {
+        this.classList.remove('camli-dnd-over');
         stop(e);
         var dt = e.dataTransfer;
         var files = dt.files;
@@ -264,9 +276,29 @@ function setupFilesHandlers(e) {
     dnd.addEventListener("drop", drop, false);
 }
 
+
+// member: child permanode
+function deleteMember(member, strikeEle, removeEle) {
+  return function(e) {
+        strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
+        camliNewDelAttributeClaim(
+            getPermanodeParam(),
+            "camliMember",
+            member,
+            {
+                success: function() {
+                    removeEle.parentNode.removeChild(removeEle);
+                },
+                fail: function(msg) {
+                    alert(msg);
+                }
+            });
+    };
+}
+
 // pn: child permanode
-// jdes: describe response of root permanode
-function addMemberDiv(pn, des) {
+// des: describe response of root permanode
+function addMember(pn, des) {
     var membersDiv = document.getElementById("members");
     var ul;
     if (membersDiv.innerHTML == "") {
@@ -278,10 +310,26 @@ function addMemberDiv(pn, des) {
     }
     var li = document.createElement("li");
     var a = document.createElement("a");
-    li.appendChild(a);
     a.href = "./?p=" + pn;
     a.innerText = camliBlobTitle(pn, des);
+
+    var del = document.createElement("span");
+    del.className = 'camli-del';
+    del.innerText = "x";
+    del.addEventListener("click", deleteMember(pn, a, li));
+
+    li.appendChild(a);
+    li.appendChild(del);
     ul.appendChild(li);
+}
+
+function buildPermanodeUi() {
+    camliDescribeBlob(getPermanodeParam(), {
+        success: onBlobDescribed,
+        failure: function(msg) {
+            alert("failed to get blob description: " + msg);
+        }
+    });
 }
 
 function onBlobDescribed(jres) {
@@ -301,18 +349,19 @@ function onBlobDescribed(jres) {
         (permanodeObject.attr.title && permanodeObject.attr.title.length == 1) ?
         permanodeObject.attr.title[0] :
         "";
-    inputTitle.disabled = null;
+    inputTitle.disabled = false;
 
     var spanTags = document.getElementById("spanTags");
     while (spanTags.firstChild) {
         spanTags.removeChild(spanTags.firstChild);
     }
 
+    document.getElementById('members').innerHTML = '';
     var members = permanodeObject.attr.camliMember;
     if (members && members.length > 0) {
         for (idx in members) {
             var member = members[idx];
-            addMemberDiv(member, jres);
+            addMember(member, jres);
         }
     }
 
@@ -330,36 +379,34 @@ function onBlobDescribed(jres) {
 
     var tags = permanodeObject.attr.tag;
     for (idx in tags) {
-        var tagSpan = document.createElement("span");
-
-        if (idx > 0) {
-            tagSpan.appendChild(document.createTextNode(", "));
-        }
-        var tagLink = document.createElement("i");
         var tag = tags[idx];
-        tagLink.innerText = tags[idx];
-        tagSpan.appendChild(tagLink);
-        tagSpan.appendChild(document.createTextNode(" ["));
-        var delLink = document.createElement("a");
-        delLink.href = '#';
-        delLink.innerText = "X";
-        delLink.addEventListener("click", deleteTagFunc(tag, tagLink, tagSpan));
-        tagSpan.appendChild(delLink);
-        tagSpan.appendChild(document.createTextNode("]"));
 
+        var tagSpan = document.createElement("span");
+        tagSpan.className = 'camli-tag-c';
+        var tagTextEl = document.createElement("span");
+        tagTextEl.className = 'camli-tag-text';
+        tagTextEl.innerText = tag;
+        tagSpan.appendChild(tagTextEl);
+
+        var tagDel = document.createElement("span");
+        tagDel.className = 'camli-del';
+        tagDel.innerText = "x";
+        tagDel.addEventListener("click", deleteTagFunc(tag, tagTextEl, tagSpan));
+
+        tagSpan.appendChild(tagDel);
         spanTags.appendChild(tagSpan);
     }
 
     var selectAccess = document.getElementById("selectAccess");
     var access = permanodeObject.attr.camliAccess;
     selectAccess.value = (access && access.length) ? access[0] : "private";
-    selectAccess.disabled = null;
+    selectAccess.disabled = false;
 
     var btnSaveTitle = document.getElementById("btnSaveTitle");
-    btnSaveTitle.disabled = null;
+    btnSaveTitle.disabled = false;
 
     var btnSaveAccess = document.getElementById("btnSaveAccess");
-    btnSaveAccess.disabled = null;
+    btnSaveAccess.disabled = false;
 }
 
 function handleFormUrlPathSubmit(e) {
@@ -373,8 +420,8 @@ function handleFormUrlPathSubmit(e) {
     }
 
     // var btnSaveUrlPath = document.getElementById("btnSaveUrlPath");
-    // btnSaveUrlPath.disabled = "disabled";
-    // btnSaveUrlPath.disabled = "disabled";
+    // btnSaveUrlPath.disabled = true;
+    // btnSaveUrlPath.disabled = true;
 
     // TODO(bslatkin): Finish this function. Need to call
     // camliNewSetAttributeClaim() here with the root node for the
@@ -402,7 +449,7 @@ function setupUrlPathHandler() {
     formUrlPath.addEventListener("submit", handleFormUrlPathSubmit);
 }
 
-function permanodePageOnLoad (e) {
+function permanodePageOnLoad(e) {
     var permanode = getPermanodeParam();
     if (permanode) {
         document.getElementById('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
@@ -421,11 +468,7 @@ function permanodePageOnLoad (e) {
 
     setupFilesHandlers();
 
-    camliDescribeBlob(permanode,
-                      {
-                          success: onBlobDescribed,
-                          failure: function(msg) { alert("failed to get blob description: " + msg); }
-                      });
+    buildPermanodeUi();
 
     setupUrlPathHandler();
 }

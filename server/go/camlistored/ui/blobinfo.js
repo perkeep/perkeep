@@ -27,7 +27,7 @@ function blobInfoUpdate(bmap) {
     var blobref = getBlobParam();
     if (!blobref) {
         alert("no blobref?");
-        return;        
+        return;
     }
     var binfo = bmap[blobref];
     if (!binfo) {
@@ -42,17 +42,17 @@ function blobInfoUpdate(bmap) {
                 success: function(data) {
                     document.getElementById("blobdata").innerHTML = linkifyBlobRefs(data);
                     if (binfo.camliType == "file") {
-                        try { 
+                        try {
                             finfo = JSON.parse(data);
                             bd.innerHTML = "<a href=''></a>";
                             var fileName = finfo.fileName || blobref;
                             bd.firstChild.href = "./download/" + blobref + "/" + fileName;
                             if (binfo.file.mimeType.indexOf("image/") == 0) {
-                                img = "<img src='./thumbnail/" + blobref + "/" + fileName + "?mw=100&mh=100'/>";
+                                img = "<img src='./thumbnail/" + blobref + "/" + fileName + "?mw=100&mh=100'>";
                                 bd.firstChild.innerHTML = img;
                             } else {
                                 bd.firstChild.innerText = fileName;
-                                bd.innerHTML = "[download: " + bd.innerHTML + "]";
+                                bd.innerHTML = "download: " + bd.innerHTML;
                             }
                         } catch (x) {
                         }
@@ -61,9 +61,9 @@ function blobInfoUpdate(bmap) {
                 fail: alert
             });
     } else {
-        document.getElementById("blobdata").innerHTML = "<i>Unknown/binary data</i>";
+        document.getElementById("blobdata").innerHTML = "<em>Unknown/binary data</em>";
     }
-    bd.innerHTML = "[<a href='" + camliBlobURL(blobref) + "'>download blob</a>]";
+    bd.innerHTML = "<a href='" + camliBlobURL(blobref) + "'>download</a>";
 
     if (binfo.camliType && binfo.camliType == "permanode") {
         document.getElementById("editspan").style.display = "inline";
@@ -92,6 +92,9 @@ function blobInfoOnLoad() {
     }
     var blobmeta = document.getElementById('blobmeta');
     blobmeta.innerText = "(loading)";
+
+    var blobdescribe = document.getElementById('blobdescribe');
+    blobdescribe.innerHTML = "<a href='" + camliDescribeBlogURL(blobref) + "'>describe</a>";
     camliDescribeBlob(
         blobref,
         {
@@ -104,4 +107,3 @@ function blobInfoOnLoad() {
 }
 
 window.addEventListener("load", blobInfoOnLoad);
-                            

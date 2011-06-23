@@ -7,36 +7,28 @@
   <script src="camli.js"></script>
   <script src="index.js"></script>
   <script src="?camli.mode=config&cb=onConfiguration"></script>
-  <style>
-    #btnnew {
-    font-size: 45px;
-    font-family: sans;
-    padding: 0.25em;
-    background: #008aff;
-    color: #fff;
-    }
-
-  </style>
+  <link rel="stylesheet" href="camli.css">
 </head>
-<body>
+<body class="camli-ui-index">
   <h1>Camlistored UI</h1>
-  <p>[<b>Debug:</b>
-<a href="disco.html">discovery</a> |
-<a href="signing.html">signing</a> |
-<a href="search.html">search</a></p>
+  <p class="camli-nav"
+    ><strong>Debug:</strong>
+    <a href="disco.html">discovery</a> |
+    <a href="signing.html">signing</a> |
+    <a href="search.html">search</a></p>
 
-  <input type='button' value='New' id="btnNew" /> - create a new item or collection
+  <button id="btnNew">New</button> - create a new item or collection
 
   <h2>Recent Objects</h2>
-  <ul id='recent'>
-  </ul>
+  <ul id="recent"></ul>
 
-    <h2>Upload</h2>
-    <form method="POST" id='uploadform' enctype="multipart/form-data">
-      <input type="file" id="fileinput" multiple="true" name="file" disabled="true" />
-      <input type="submit" id="filesubmit" value="Upload" disabled="true" />
-      <input type="checkbox" name="rollsum" id="chkrollsum" value="1" /> <label for="chkrollsum">Use rolling checksum for boundaries</label>
-    </form>
+  <h2>Upload</h2>
+  <form method="POST" id="uploadform" enctype="multipart/form-data">
+    <input type="file" id="fileinput" multiple="true" name="file" disabled="true">
+    <input type="submit" id="filesubmit" value="Upload" disabled="true">
+    <input type="checkbox" name="rollsum" id="chkrollsum" value="1">
+    <label for="chkrollsum">Use rolling checksum for boundaries</label>
+  </form>
 
 </body>
 </html>

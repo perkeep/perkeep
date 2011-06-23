@@ -14,12 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var disco = null;
+// Camli namespace.
+var Camli = {};
+
+var disco = null;  // TODO: kill this in favor of Camli.config.
 
 // Method 1 to get discovery information (JSONP style):
-function onConfiguration(conf) {
-    disco = conf;
-    console.log("Got config: " + JSON.stringify(conf));
+function onConfiguration(config) {
+    Camli.config = disco = config;
+    console.log("Got config: " + JSON.stringify(config));
 }
 
 function saneOpts(opts) {
@@ -66,20 +69,22 @@ function camliSigDiscovery(opts) {
     };
     cb.fail = opts.fail;
     var xhr = camliJsonXhr("camliDescribeBlob", cb);
-    xhr.open("GET", disco.jsonSignRoot + "/camli/sig/discovery", true);
+    xhr.open("GET", Camli.config.jsonSignRoot + "/camli/sig/discovery", true);
     xhr.send();
 }
 
 function camliDescribeBlob(blobref, opts) {
     var xhr = camliJsonXhr("camliDescribeBlob", opts);
-    var path = disco.searchRoot + "camli/search/describe?blobref=" + blobref;
+    var path = Camli.config.searchRoot + "camli/search/describe?blobref=" +
+        blobref;
     xhr.open("GET", path, true);
     xhr.send();
 }
 
 function camliGetPermanodeClaims(permanode, opts) {
     var xhr = camliJsonXhr("camliGetPermanodeClaims", opts);
-    var path = disco.searchRoot + "camli/search/claims?permanode=" + permanode;
+    var path = Camli.config.searchRoot + "camli/search/claims?permanode=" +
+        permanode;
     xhr.open("GET", path, true);
     xhr.send();
 }
@@ -100,7 +105,11 @@ function camliGetBlobContents(blobref, opts) {
 }
 
 function camliBlobURL(blobref) {
-    return disco.blobRoot + "camli/" + blobref;
+    return Camli.config.blobRoot + "camli/" + blobref;
+}
+
+function camliDescribeBlogURL(blobref) {
+    return Camli.config.searchRoot + 'camli/search/describe?blobref=' + blobref;
 }
 
 function camliSign(clearObj, opts) {
@@ -115,7 +124,7 @@ function camliSign(clearObj, opts) {
                 }
                 clearObj.camliSigner = sigConf.publicKeyBlobRef;
                 clearText = JSON.stringify(clearObj, null, 2);
-                
+
                 var xhr = new XMLHttpRequest();
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState != 4) { return; }
@@ -141,7 +150,7 @@ function camliSign(clearObj, opts) {
 //       associating with a permanode is caller's job.
 function camliUploadFileHelper(file, contentsBlobRef, opts) {
     opts = saneOpts(opts);
-    if (!disco.uploadHelper) {
+    if (!Camli.config.uploadHelper) {
         opts.fail("no uploadHelper available");
         return
     }
@@ -160,10 +169,10 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
             }
         };
         var xhr = camliJsonXhr("camliUploadFileHelper", uploadCb);
-        xhr.open("POST", disco.uploadHelper);
+        xhr.open("POST", Camli.config.uploadHelper);
         xhr.send(fd);
     };
-    
+
     var dupcheckCb = { fail: opts.fail };
     dupcheckCb.success = function(res) {
         var remain = res.files;
@@ -188,11 +197,11 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
                     console.log("integrity checked passed on " + checkFile);
                     opts.success(checkFile);
                 } else {
-                    checkNext();                 
+                    checkNext();
                 }
             };
             var xhr = camliXhr("headVerifyFile", vcb);
-            xhr.open("HEAD", disco.downloadHelper + checkFile + "/?verifycontents=" + contentsBlobRef, true);
+            xhr.open("HEAD", Camli.config.downloadHelper + checkFile + "/?verifycontents=" + contentsBlobRef, true);
             xhr.send();
         };
         checkNext();
@@ -206,23 +215,23 @@ function camliUploadString(s, opts) {
 
     bb = new WebKitBlobBuilder();
     bb.append(s);
-    
+
     var fd = new FormData();
     fd.append(blobref, bb.getBlob());
-    
+
     var uploadCb = {};
     uploadCb.success = function(resj) {
         // TODO: check resj.received[] array.
         opts.success(blobref);
     };
-    uploadCb.fail = opts.fail; 
+    uploadCb.fail = opts.fail;
     var xhr = camliJsonXhr("camliUploadString", uploadCb);
     // TODO: hack, hard-coding the upload URL here.
     // Change the spec now that App Engine permits 32 MB requests
     // and permit a PUT request on the sha1?  Or at least let us
     // specify the well-known upload URL?  In cases like this, uploading
     // a new permanode, it's silly to even stat.
-    xhr.open("POST", disco.blobRoot + "camli/upload")
+    xhr.open("POST", Camli.config.blobRoot + "camli/upload")
     xhr.send(fd);
 }
 
@@ -264,7 +273,7 @@ function getQueryParam(key) {
 
 function camliGetRecentlyUpdatedPermanodes(opts) {
     var xhr = camliJsonXhr("camliGetRecentlyUpdatedPermanodes", opts);
-    xhr.open("GET", disco.searchRoot + "camli/search", true);
+    xhr.open("GET", Camli.config.searchRoot + "camli/search", true);
     xhr.send();
 }
 
@@ -314,7 +323,8 @@ function camliJsonXhr(name, opts) {
 
 function camliFindExistingFileSchemas(bytesRef, opts) {
     var xhr = camliJsonXhr("camliFindExistingFileSchemas", opts);
-    var path = disco.searchRoot + "camli/search/files?bytesref=" + bytesRef;
+    var path = Camli.config.searchRoot + "camli/search/files?bytesref=" +
+        bytesRef;
     xhr.open("GET", path, true);
     xhr.send();
 }
