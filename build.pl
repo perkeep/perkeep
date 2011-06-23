@@ -176,10 +176,11 @@ sub update_go {
   my $last = do { open(my $fh, ".last_go_version") or die; local $/; <$fh> };
   $last =~ s!^[68]g version weekly.[0-9]{4}-[0-9]{2}-[0-9]{2} !!;
   chomp $last;
-  if ($last !~ /^[0-9]+$/) {
+  unless ($last =~ /^(\d+)\+?\s*$/) {
     print "Failed to obtain maintainer's go revision\n";
     return;
   }
+  my $maintainer_version = $1;
 
   print "Updating go to revision: $last\n";
   my $prev_cwd = getcwd;
@@ -190,7 +191,7 @@ sub update_go {
 
   chdir $ENV{'GOROOT'} or die "Chdir to $ENV{'GOROOT'} failed\n";
   system("hg", "pull") and die "Hg pull failed\n";
-  system("hg", "update", $last) and die "Hg update failed\n";
+  system("hg", "update", $maintainer_version) and die "Hg update failed\n";
   print "Building...\n";
   chdir "$ENV{'GOROOT'}/src" or die "Chdir to $ENV{'GOROOT'}/src failed\n";
   system("./all.bash") and die "Go build failed\n";
