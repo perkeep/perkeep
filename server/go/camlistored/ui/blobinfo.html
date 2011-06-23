@@ -1,24 +1,27 @@
 <html>
 <head>
-  <title>Blob</title>
-  <script type="text/javascript" src="camli.js"></script>
-  <script type="text/javascript" src="?camli.mode=config&cb=onConfiguration"></script>
-  <script type="text/javascript" src="blobinfo.js"></script>
+  <title>Blob info</title>
+  <script src="camli.js"></script>
+  <script src="?camli.mode=config&cb=onConfiguration"></script>
+  <script src="blobinfo.js"></script>
+  <link rel="stylesheet" href="camli.css">
 </head>
-<body>
-  <div>[<a href="./">Home</a>]</div>
+<body class="camli-ui-blobinfo">
+  <div class="camli-nav"><a href="./">Home</a></div>
   <h1>Blob Contents</h1>
 
-  <span id="editspan" style="display: none;">[<a href="#" id="editlink">edit</a>]</span>
-  <span id="blobdownload"></span>
-  <pre id="blobdata" style="overflow: auto; max-width: 800px"></pre>
+  <span id="editspan" class="camli-nav" style="display: none;"><a href="#" id="editlink">edit</a></span>
+  <span id="blobdownload" class="camli-nav"></span>
+  <span id="blobdescribe" class="camli-nav"></span>
+
+  <pre id="blobdata"></pre>
 
   <h1>Indexer Metadata</h1>
   <pre id="blobmeta"></pre>
 
-  <div id="claimsdiv" style='visibility: hidden'>
-  <h1>Mutation Claims</h1>
-  <pre id="claims"></pre>
+  <div id="claimsdiv" style="visibility: hidden">
+    <h1>Mutation Claims</h1>
+    <pre id="claims"></pre>
   </div>
 
 </body>

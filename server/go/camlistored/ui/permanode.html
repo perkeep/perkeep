@@ -2,25 +2,23 @@
 <html>
 <head>
   <title>Permanode</title>
-  <script type="text/javascript" src="base64.js"></script>
-  <script type="text/javascript" src="Crypto.js"></script>
-  <script type="text/javascript" src="SHA1.js"></script>
-  <script type="text/javascript" src="camli.js"></script>
-  <script type="text/javascript" src="?camli.mode=config&cb=onConfiguration"></script>
-  <script type="text/javascript" src="permanode.js"></script>
-<style>
-div.fileupload {
-    margin: 0.25em;
-    border: 1px solid #888;
-    padding: 0.25em;
-}
-</style>
+  <script src="base64.js"></script>
+  <script src="Crypto.js"></script>
+  <script src="SHA1.js"></script>
+  <script src="camli.js"></script>
+  <script src="?camli.mode=config&cb=onConfiguration"></script>
+  <script src="permanode.js"></script>
+  <link rel="stylesheet" href="camli.css">
 </head>
-<body>
-  <div>[<a href="./">Home</a>]</div>
+<body class="camli-ui-permanode">
+  <div class="camli-nav"><a href="./">Home</a></div>
   <h1>Permanode</h1>
 
-  <p>Permalink: <span id="permanode"></span> [<span id="permanodeBlob"></span>]</p>
+  <p>
+    Permalink:
+    <span id="permanode"></span>
+    <span id="permanodeBlob" class="camli-nav"></span>
+  </p>
 
   <form id="formTitle">
     <p>
@@ -33,7 +31,7 @@ div.fileupload {
     <p>
       <label for="inputNewTag">Tags:</label>
       <span id="spanTags"></span>
-      <input id="inputNewTag">
+      <input id="inputNewTag" placeholder="tag1, tag2, tag3">
       <input type="submit" id="btnAddTag" value="Add Tag(s)">
   </form>
 
@@ -51,13 +49,13 @@ div.fileupload {
       <option value="private">Private</option>
       <option value="public">Public</option>
     </select>
-    <input type="submit" id="btnSaveAccess" value="Save" disabled="disabled" />
+    <input type="submit" id="btnSaveAccess" value="Save" disabled="disabled">
 
     ... with URL: <select id="selectPublishRoot">
       <option value="">(unpublished)</option>
       </select>
       <input type="text" id="publishSuffix" size="40">
-      <input type="submit" id="btnSavePublish" value="Set URL" />
+      <input type="submit" id="btnSavePublish" value="Set URL">
   </p>
   </form>
 
@@ -78,12 +76,14 @@ div.fileupload {
   </p>
   </form>
 
-  <div id='dnd' style="border: 2px dashed black; min-height: 250px; padding: 6px">
+  <div id="dnd" class="camli-dnd">
     <form id="fileForm">
       <input type="file" id="fileInput" multiple="true" onchange="">
       <input type="submit" id="fileUploadBtn" value="Upload">
     </form>
-    <p><i>(or drag &amp; drop files here)</i></p>
+    <p>
+      <em>or drag &amp; drop files here</em>
+    </p>
     <pre id="info"></pre>
   </div>
 

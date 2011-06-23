@@ -1,0 +1,68 @@
+/*
+Copyright 2011 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/* General CSS */
+body {
+  font: 16px/1.4 normal Arial, sans-serif;
+}
+.camli-nav:before {
+  content: "[";
+}
+.camli-nav:after {
+  content: "]";
+}
+.camli-del {
+  text-decoration: underline;
+  cursor: pointer;
+  color: darkred;
+  margin-left: .4em;
+  font-size: 80%;
+}
+.camli-tag-c {
+  margin-right: .5em;
+}
+.camli-tag {
+  font-style: italic;
+}
+.camli-dnd {
+  border: 2px dashed black;
+  min-height: 250px;
+  padding: 10px;
+}
+.camli-dnd-item {
+  margin: 0.25em;
+  border: 1px solid #888;
+  padding: 0.25em;
+}
+.camli-dnd-over {
+  background: #eee;
+}
+
+/* Bob info page */
+.camli-ui-blobinfo #blobdata {
+  overflow: auto;
+  max-width: 800px;
+}
+
+/* Index page */
+.camli-ui-index #btnnew {
+  font-size: 45px;
+  font-family: sans-serif;
+  padding: 0.25em;
+  background: #008aff;
+  color: #fff;
+}
+
