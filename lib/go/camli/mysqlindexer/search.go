@@ -27,6 +27,9 @@ import (
 	"camli/search"
 )
 
+// Statically verify that Indexer implements the search.Index interface.
+var _ search.Index = (*Indexer)(nil)
+
 type permaNodeRow struct {
 	blobref string
 	signer  string
@@ -270,4 +273,74 @@ func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (fi *search.FileInfo, e
 		FileName: fileName,
 		MimeType: mimeType,
 	}, nil
+}
+
+func (mi *Indexer) keyIdOfSigner(signer *blobref.BlobRef) (keyid string, err os.Error) {
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	err = client.Query(fmt.Sprintf("SELECT keyid FROM signerkeyid WHERE blobref=%q", signer.String()))
+	if err != nil {
+		return
+	}
+
+	result, err := client.StoreResult()
+	if err != nil {
+		return
+	}
+	defer client.FreeResult()
+
+	row := result.FetchRow()
+	if row == nil {
+		return "", fmt.Errorf("mysqlindexer: failed to find keyid of signer %q", signer.String())
+	}
+
+	return row[0].(string), nil
+}
+
+func (mi *Indexer) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (permanode *blobref.BlobRef, err os.Error) {
+	keyId, err := mi.keyIdOfSigner(signer)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
+	err = client.Query(fmt.Sprintf("SELECT permanode FROM signerattrvalue WHERE keyid=%q AND attr=%q AND value=%q ORDER BY claimdate DESC LIMIT 1",
+		keyId, attr, val))
+	if err != nil {
+		return
+	}
+
+	result, err := client.StoreResult()
+	if err != nil {
+		return
+	}
+	defer client.FreeResult()
+
+	row := result.FetchRow()
+	if row == nil {
+		return nil, os.NewError("mysqlindexer: no signerattrvalue match")
+	}
+	return blobref.Parse(row[0].(string)), nil
 }

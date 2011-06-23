@@ -83,11 +83,8 @@ type Index interface {
 
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error)
 
-	// TODO(bslatkin): This is my magical pony interface.
-	//
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
-	//
-	//PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
+	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 }
