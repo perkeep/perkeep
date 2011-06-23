@@ -94,6 +94,9 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/search/files":
 			sh.serveFiles(rw, req)
 			return
+		case "camli/search/signerattrvalue":
+			sh.serveSignerAttrValue(rw, req)
+			return
 		}
 	}
 
@@ -371,6 +374,43 @@ claimLoop:
 				dr.describe(membr, depth-1)
 			}
 		}
+	}
+}
+
+func mustGet(req *http.Request, param string) string {
+	v := req.FormValue(param)
+	if v == "" {
+		panic(fmt.Sprintf("missing required parameter %q", param))
+	}
+	return v
+}
+
+func setPanicError(m map[string]interface{}) {
+	p := recover()
+	if p == nil {
+		return
+	}
+	m["error"] = p.(string)
+	m["errorType"] = "input"
+}
+
+func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+	defer setPanicError(ret)
+
+	signer := blobref.MustParse(mustGet(req, "signer"))
+	attr := mustGet(req, "attr")
+	value := mustGet(req, "value")
+	pn, err := sh.index.PermanodeOfSignerAttrValue(signer, attr, value)
+	if err != nil {
+		ret["error"] = err.String()
+	} else {
+		ret["permanode"] = pn.String()
+
+		dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+		dr.describe(pn, 2)
+		dr.wg.Wait()
 	}
 }
 
