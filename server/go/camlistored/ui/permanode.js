@@ -412,44 +412,85 @@ function onBlobDescribed(jres) {
     btnSaveAccess.disabled = false;
 }
 
-function handleFormUrlPathSubmit(e) {
-    e.stopPropagation();
-    e.preventDefault();
-
-    var inputUrlPath = document.getElementById("inputUrlPath");
-    if (!inputUrlPath.value) {
-	alert("Please specify a mount path like '/foo/bar/stuff'");
-	return;
+function setupRootsDropdown() {
+    var selRoots = document.getElementById("selectPublishRoot");
+    if (!Camli.config.publishRoots) {
+        console.log("no publish roots");
+        return;
     }
-
-    // var btnSaveUrlPath = document.getElementById("btnSaveUrlPath");
-    // btnSaveUrlPath.disabled = true;
-    // btnSaveUrlPath.disabled = true;
-
-    // TODO(bslatkin): Finish this function. Need to call
-    // camliNewSetAttributeClaim() here with the root node for the
-    // server specified as the target of the claim. See
-    // lib/go/camli/search/search.go:FindPermanode for the general
-    // approach for finding the root permanode by name.
-
-    // camliNewSetAttributeClaim(
-    //   getPermanodeParam(),
-    //   "mount:" + inputUrlPath.value,
-    //   ,
-    //   {
-    // 	  success: oneDone,
-    // 	  fail: function(msg) {
-    // 	      alert(msg);
-    // 	      oneDone();
-    // 	  }
-    //   });
+    for (var rootName in Camli.config.publishRoots) {
+        var opt = document.createElement("option");
+        opt.setAttribute("value", rootName);
+        opt.appendChild(document.createTextNode(Camli.config.publishRoots[rootName].prefix[0]));
+        selRoots.appendChild(opt);
+    }
+    document.getElementById("btnSavePublish").addEventListener("click", onBtnSavePublish);
 }
 
-function setupUrlPathHandler() {
-    var hostName = document.getElementById("urlHostName");
-    hostName.innerHTML = window.location.host;
-    var formUrlPath = document.getElementById("formUrlPath");
-    formUrlPath.addEventListener("submit", handleFormUrlPathSubmit);
+function onBtnSavePublish(e) {
+    var selRoots = document.getElementById("selectPublishRoot");
+    var suffix = document.getElementById("publishSuffix");
+
+    var ourPermanode = getPermanodeParam();
+    if (!ourPermanode) {
+        return;
+    }
+
+    var publishRoot = selRoots.value;
+    if (!publishRoot) {
+        alert("no publish root selected");
+        return;
+    } 
+    var pathSuffix = suffix.value;
+    if (!pathSuffix) {
+        alert("no path suffix specified");
+        return;
+    }
+
+    selRoots.disabled = true;
+    suffix.disabled = true;
+
+    var enabled = function() {
+        selRoots.disabled = false;
+        suffix.disabled = false;
+    };
+
+    // Step 1: resolve selRoots.value -> blobref of the root's permanode.
+    // Step 2: set attribute on the root's permanode, or a sub-permanode
+    // if multiple path components in suffix:
+    //         "camliPath:<suffix>" => permanode-of-ourselves
+
+    var sigcb = {};
+    sigcb.success = function(sigconf) {
+        var savcb = {};
+        savcb.success = function(pnres) {
+            if (!pnres.permanode) {
+                alert("failed to publish root's permanode");
+                enabled();
+                return;
+            }
+            var attrcb = {};
+            attrcb.success = function() {
+                console.log("success.");
+                enabled();
+            };
+            attrcb.fail = function() {
+                alert("failed to set attribute");
+                enabled();
+            };
+            camliNewSetAttributeClaim(pnres.permanode, "camliPath:" + pathSuffix, ourPermanode, attrcb);
+        };
+        savcb.fail = function() {
+            alert("failed to find publish root's permanode");
+            enabled();
+        };
+        camliPermanodeOfSignerAttrValue(sigconf.publicKeyBlobRef, "camliRoot", publishRoot, savcb);
+    };
+    sigcb.fail = function() {
+        alert("sig disco failed");
+        enabled();
+    }
+    camliSigDiscovery(sigcb);
 }
 
 function permanodePageOnLoad(e) {
@@ -469,11 +510,11 @@ function permanodePageOnLoad(e) {
     var selectType = document.getElementById("type");
     selectType.addEventListener("change", onTypeChange);
 
+    setupRootsDropdown();
+
     setupFilesHandlers();
 
     buildPermanodeUi();
-
-    setupUrlPathHandler();
 }
 
 window.addEventListener("load", permanodePageOnLoad);

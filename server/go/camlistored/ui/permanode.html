@@ -35,14 +35,6 @@
       <input type="submit" id="btnAddTag" value="Add Tag(s)">
   </form>
 
-  <form id="formUrlPath">
-    <p>
-      <label for="inputUrlPath">URL:</label>
-      http://<span id="urlHostName">(loading)</span>/<input id="inputUrlPath" size="50" disabled="disabled">
-      <input type="submit" id="btnSetUrlPath" value="Save path" disabled="disabled">
-    </p>
-  </form>
-
   <form id="formAccess">
   <p>Access:
     <select id="selectAccess" disabled="disabled">
@@ -52,7 +44,7 @@
     <input type="submit" id="btnSaveAccess" value="Save" disabled="disabled">
 
     ... with URL: <select id="selectPublishRoot">
-      <option value="">(unpublished)</option>
+      <option value=""></option>
       </select>
       <input type="text" id="publishSuffix" size="40">
       <input type="submit" id="btnSavePublish" value="Set URL">

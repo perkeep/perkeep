@@ -213,8 +213,9 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 
 	pubRoots := map[string]interface{}{}
 	for key, pubh := range ui.PublishRoots {
-		pubRoots[key] = map[string]interface{}{
+		pubRoots[pubh.RootName] = map[string]interface{}{
 			"name": pubh.RootName,
+			"prefix": []string{key},
 			// TODO: include gpg key id
 		}
 	}

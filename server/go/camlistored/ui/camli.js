@@ -81,6 +81,26 @@ function camliDescribeBlob(blobref, opts) {
     xhr.send();
 }
 
+function makeURL(base, map) {
+    for (var key in map) {
+        if (base.indexOf("?") == -1) {
+            base += "?";
+        } else {
+            base += "&";
+        }
+        base += key + "=" + encodeURIComponent(map[key]);
+    }
+    return base;
+}
+
+function camliPermanodeOfSignerAttrValue(signer, attr, value, opts) {
+    var xhr = camliJsonXhr("camliPermanodeOfSignerAttrValue", opts);
+    var path = makeURL(Camli.config.searchRoot + "camli/search/signerattrvalue",
+                       { signer: signer, attr: attr, value: value });
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliGetPermanodeClaims(permanode, opts) {
     var xhr = camliJsonXhr("camliGetPermanodeClaims", opts);
     var path = Camli.config.searchRoot + "camli/search/claims?permanode=" +
