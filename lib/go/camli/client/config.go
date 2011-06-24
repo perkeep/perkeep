@@ -18,18 +18,14 @@ package client
 
 import (
 	"flag"
-	"fmt"
-	"json"
 	"log"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 
 	"camli/blobref"
-	"camli/errorutil"
 	"camli/jsonconfig"
 	"camli/jsonsign"
 	"camli/osutil"
@@ -49,34 +45,12 @@ var config = make(map[string]interface{})
 
 func parseConfig() {
 	configPath := ConfigFilePath()
-	f, err := os.Open(configPath)
-	switch {
-	case err != nil && err.(*os.PathError).Error.(os.Errno) == syscall.ENOENT:
-		// TODO: write empty file?
-		return
-	case err != nil:
-		log.Printf("Error opening config file %q: %v", ConfigFilePath(), err)
-		return
-	}
-	defer f.Close()
-	dj := json.NewDecoder(f)
-	if err := dj.Decode(&config); err != nil {
-		extra := ""
-		if serr, ok := err.(*json.SyntaxError); ok {
-			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
-				log.Fatalf("seek error: %v", serr)
-			}
-			line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
-			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
-				line, col, serr.Offset, highlight)
-		}
-		log.Fatalf("error parsing JSON object in config file %s%s\n%v",
-			ConfigFilePath(), extra, err)
-	}
-	if err := jsonconfig.EvaluateExpressions(config); err != nil {
-		log.Fatalf("error expanding JSON config expressions in %s: %v", configPath, err)
-	}
 
+	var err os.Error
+	if config, err = jsonconfig.ReadFile(configPath); err != nil {
+		log.Fatal(err.String())
+		return
+	}
 }
 
 func cleanServer(server string) string {
