@@ -234,6 +234,9 @@ function startFileUpload(file) {
             });
         }
     };
+    fr.onerror = function() {
+        console.log("FileReader onerror: " + fr.error + " code=" + fr.error.code);
+    };
     fr.readAsDataURL(file);
 }
 
