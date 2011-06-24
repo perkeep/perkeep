@@ -24,14 +24,18 @@ import (
 	"io/ioutil"
 	"json"
 	"log"
+	"mime/multipart"
 	"os"
 	"strings"
 
 	"camli/blobref"
-	"camli/misc"
 )
 
 var _ = log.Printf
+
+// multipartOverhead is how many extra bytes mime/multipart's
+// Writer adds around content
+var multipartOverhead = calculateMultipartOverhead()
 
 type UploadHandle struct {
 	BlobRef  *blobref.BlobRef
@@ -58,6 +62,18 @@ type statResponse struct {
 }
 
 type ResponseFormatError os.Error
+
+func calculateMultipartOverhead() int64 {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	part, _ := w.CreateFormFile("0", "0")
+
+	dummyContents := []byte("0")
+	part.Write(dummyContents)
+
+	w.Close()
+	return int64(b.Len()) - 3 // remove what was added
+}
 
 func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
@@ -267,29 +283,30 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return pr, nil
 	}
 
-	// TODO: use a proper random boundary
-	boundary := "sdf8sd8f7s9df9s7df9sd7sdf9s879vs7d8v7sd8v7sd8v"
+	pipeReader, pipeWriter := io.Pipe()
+	multipartWriter := multipart.NewWriter(pipeWriter)
 
-	// TODO-GO: add a multipart writer class.
-	multiPartHeader := fmt.Sprintf(
-		"--%s\r\nContent-Type: application/octet-stream\r\n"+
-			"Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n\r\n",
-		boundary,
-		h.BlobRef, h.BlobRef)
-	multiPartFooter := "\r\n--" + boundary + "--\r\n"
+	copyResult := make(chan os.Error)
+	go func() {
+		part, err := multipartWriter.CreateFormFile(h.BlobRef.String(), h.BlobRef.String())
+		if err != nil {
+			copyResult <- err
+			return
+		}
+		_, err = io.Copy(part, h.Contents)
+		if err == nil {
+			err = multipartWriter.Close()
+		}
+		copyResult <- err
+	}()
 
 	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
 	req = c.newRequest("POST", stat.uploadUrl)
-	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
-
-	contentsSize := int64(0)
-	req.Body = ioutil.NopCloser(io.MultiReader(
-		strings.NewReader(multiPartHeader),
-		misc.CountingReader{h.Contents, &contentsSize},
-		strings.NewReader(multiPartFooter)))
+	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	req.Body = ioutil.NopCloser(pipeReader)
 
 	if h.Size >= 0 {
-		req.ContentLength = int64(len(multiPartHeader)) + h.Size + int64(len(multiPartFooter))
+		req.ContentLength = multipartOverhead + h.Size + int64(len(h.BlobRef.String()))*2
 	}
 	req.TransferEncoding = nil
 	resp, err = c.httpClient.Do(req)
@@ -297,12 +314,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return error("upload http error: %v", err)
 	}
 
-	if h.Size >= 0 {
-		if contentsSize != h.Size {
-			return error("UploadHandle declared size %d but Contents length was %d", h.Size, contentsSize)
-		}
-	} else {
-		h.Size = contentsSize
+	// check error from earlier copy
+	if err := <-copyResult; err != nil {
+		return error("failed to copy contents into multipart writer: %v", err)
 	}
 
 	// The only valid HTTP responses are 200 and 303.
