@@ -225,6 +225,19 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 				return
 			}
 		}
+		if strings.HasPrefix(camli.Attribute, "camliPath:") {
+			// TODO: deal with set-attribute vs. del-attribute
+			// properly? I think we get it for free when
+			// del-attribute has no Value, but we need to deal
+			// with the case where they explicitly delete the
+			// current value.
+			suffix := camli.Attribute[len("camliPath:"):]
+			if err = execSQL(client, "INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref) "+
+                                "VALUES (?, ?, ?, ?, ?, ?)",
+                                blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value); err != nil {
+                                return
+                        }
+		}
 	}
 
 	// And update the lastmod on the permanode row.

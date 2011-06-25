@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 12
+const requiredSchemaVersion = 14
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -94,6 +94,21 @@ blobref VARCHAR(128) NOT NULL,
 PRIMARY KEY (blobref),
 keyid   VARCHAR(128) NOT NULL,
 INDEX (keyid)
+)`,
+
+
+		// Bi-direction index of camliPath claims
+		`CREATE TABLE path (
+claimref VARCHAR(128) NOT NULL,
+PRIMARY KEY (claimref),
+claimdate VARCHAR(40) NOT NULL,
+keyid VARCHAR(128) NOT NULL,
+baseref VARCHAR(128) NOT NULL,
+suffix VARCHAR(255) NOT NULL,
+targetref VARCHAR(128) NOT NULL,
+INDEX (keyid),
+INDEX (targetref, keyid),
+INDEX (baseref, keyid)
 )`,
 	}
 }
