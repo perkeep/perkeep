@@ -106,6 +106,9 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/search/signerattrvalue":
 			sh.serveSignerAttrValue(rw, req)
 			return
+		case "camli/search/signerpaths":
+			sh.serveSignerPaths(rw, req)
+			return
 		}
 	}
 
@@ -419,6 +422,34 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 
 		dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
 		dr.describe(pn, 2)
+		dr.wg.Wait()
+	}
+}
+
+func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+	defer setPanicError(ret)
+
+	signer := blobref.MustParse(mustGet(req, "signer"))
+	target := blobref.MustParse(mustGet(req, "target"))
+	paths, err := sh.index.PathsOfSignerTarget(signer, target)
+	if err != nil {
+		ret["error"] = err.String()
+	} else {
+		jpaths := []map[string]interface{}{}
+		for _, path := range paths {
+			jpaths = append(jpaths, map[string]interface{}{
+				"claimRef": path.Claim.String(),
+				"baseRef": path.Base.String(),
+				"suffix": path.Suffix,
+			})
+		}
+		ret["paths"] = jpaths
+		dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+		for _, path := range paths {
+			dr.describe(path.Base, 2)
+		}
 		dr.wg.Wait()
 	}
 }

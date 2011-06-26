@@ -473,6 +473,9 @@ function onBtnSavePublish(e) {
             attrcb.success = function() {
                 console.log("success.");
                 enabled();
+                selRoots.value = "";
+                suffix.value = "";
+                buildPathsList();
             };
             attrcb.fail = function() {
                 alert("failed to set attribute");
@@ -489,6 +492,47 @@ function onBtnSavePublish(e) {
     sigcb.fail = function() {
         alert("sig disco failed");
         enabled();
+    }
+    camliSigDiscovery(sigcb);
+}
+
+function buildPathsList() {
+    var ourPermanode = getPermanodeParam();
+    if (!ourPermanode) {
+        return;
+    }
+    var sigcb = {};
+    sigcb.success = function(sigconf) {
+        var findpathcb = {};
+        findpathcb.success = function(jres) { 
+            var div = document.getElementById("existingPaths");
+
+            // TODO: there can be multiple paths in this list, but the HTML
+            // UI only shows one.  The UI should show all, and when adding a new one
+            // prompt users whether they want to add to or replace the existing one.
+            // For now we just update the UI to show one.
+            // alert(JSON.stringify(jres, null, 2));
+            if (jres.paths && jres.paths.length > 0) {
+                div.innerHTML = "Existing paths for this permanode:";
+                var ul = document.createElement("ul");
+                div.appendChild(ul);
+                for (var idx in jres.paths) {
+                    var path = jres.paths[idx];
+                    var li = document.createElement("li");
+                    ul.appendChild(li);
+                    li.innerHTML = "<a></a> - ";
+                    li.firstChild.href = ".?p=" + path.baseRef;
+                    li.firstChild.innerText = path.baseRef;
+                    li.appendChild(document.createTextNode(path.suffix));
+                }
+            } else {
+                div.innerHTML = "";
+            }
+        };
+        camliPathsOfSignerTarget(sigconf.publicKeyBlobRef, ourPermanode, findpathcb);
+    };
+    sigcb.fail = function() {
+        alert("sig disco failed");
     }
     camliSigDiscovery(sigcb);
 }
@@ -515,6 +559,7 @@ function permanodePageOnLoad(e) {
     setupFilesHandlers();
 
     buildPermanodeUi();
+    buildPathsList();
 }
 
 window.addEventListener("load", permanodePageOnLoad);

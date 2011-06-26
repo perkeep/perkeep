@@ -61,6 +61,12 @@ type FileInfo struct {
 	MimeType string
 }
 
+type Path struct {
+	Claim, Base *blobref.BlobRef
+	ClaimDate   string
+	Suffix      string
+}
+
 type Index interface {
 	// dest is closed
 	// limit is <= 0 for default.  smallest possible default is 0
@@ -87,4 +93,6 @@ type Index interface {
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
+
+	PathsOfSignerTarget(signer *blobref.BlobRef, target *blobref.BlobRef) ([]*Path, os.Error)
 }

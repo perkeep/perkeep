@@ -101,6 +101,15 @@ function camliPermanodeOfSignerAttrValue(signer, attr, value, opts) {
     xhr.send();
 }
 
+// Where is the target accessed via? (paths it's at)
+function camliPathsOfSignerTarget(signer, target, opts) {
+    var xhr = camliJsonXhr("camliPathsOfSignerTarget", opts);
+    var path = makeURL(Camli.config.searchRoot + "camli/search/signerpaths",
+                           { signer: signer, target: target });
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliGetPermanodeClaims(permanode, opts) {
     var xhr = camliJsonXhr("camliGetPermanodeClaims", opts);
     var path = Camli.config.searchRoot + "camli/search/claims?permanode=" +

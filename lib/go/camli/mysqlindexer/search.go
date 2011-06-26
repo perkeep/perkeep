@@ -344,3 +344,61 @@ func (mi *Indexer) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val
 	}
 	return blobref.Parse(row[0].(string)), nil
 }
+
+func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*search.Path, err os.Error) {
+	keyId, err := mi.keyIdOfSigner(signer)
+	if err != nil {
+		return
+	}
+
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
+	err = client.Query(fmt.Sprintf("SELECT claimref, claimdate, baseref, suffix FROM path WHERE keyid=%q AND targetref=%q",
+		keyId, target.String()))
+	if err != nil {
+		return
+	}
+
+	result, err := client.StoreResult()
+	if err != nil {
+		return
+	}
+	defer client.FreeResult()
+
+	mostRecent := make(map[string]*search.Path)
+	for {
+		row := result.FetchRow()
+		if row == nil {
+			break
+		}
+		claimRef, claimDate, baseRef, suffix :=
+			blobref.MustParse(row[0].(string)), row[1].(string),
+			blobref.MustParse(row[2].(string)), row[3].(string)
+		key := baseRef.String() + "/" + suffix
+		best, ok := mostRecent[key]
+		if !ok || claimDate > best.ClaimDate {
+			mostRecent[key] = &search.Path{
+				Claim:     claimRef,
+				ClaimDate: claimDate,
+				Base:      baseRef,
+				Suffix:    suffix,
+			}
+		}
+	}
+	paths = make([]*search.Path, 0)
+	for _, v := range mostRecent {
+		paths = append(paths, v)
+	}
+	return paths, nil
+}
