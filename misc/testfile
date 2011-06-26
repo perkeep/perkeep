@@ -1,3 +1,4 @@
 New test file for playing with Gerrit.
 
-What happens if I push without review?
+Testing ref-updated hook.
+
