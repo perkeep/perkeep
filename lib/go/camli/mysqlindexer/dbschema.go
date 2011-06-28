@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 14
+const requiredSchemaVersion = 15
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -106,7 +106,7 @@ keyid VARCHAR(128) NOT NULL,
 baseref VARCHAR(128) NOT NULL,
 suffix VARCHAR(255) NOT NULL,
 targetref VARCHAR(128) NOT NULL,
-INDEX (keyid),
+INDEX (keyid, baseref, suffix),
 INDEX (targetref, keyid),
 INDEX (baseref, keyid)
 )`,

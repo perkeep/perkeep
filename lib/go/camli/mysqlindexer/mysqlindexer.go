@@ -99,6 +99,19 @@ func init() {
 	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
 }
 
+func testClient(client *mysql.Client) os.Error {
+	err := client.Query("SELECT 1 + 1")
+	if err != nil {
+		return err
+	}
+	_, err = client.UseResult()
+	if err != nil {
+		return err
+	}
+	client.FreeResult()
+	return nil
+}
+
 func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
 	var client *mysql.Client
 	client, err = mi.getConnection()
@@ -107,15 +120,9 @@ func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
 	}
 	defer mi.releaseConnection(client)
 
-	err = client.Query("SELECT 1 + 1")
-	if err != nil {
+	if err = testClient(client); err != nil {
 		return
 	}
-	_, err = client.UseResult()
-	if err != nil {
-		return
-	}
-	client.FreeResult()
 	return true, nil
 }
 
@@ -165,6 +172,11 @@ func (mi *Indexer) getConnection() (client *mysql.Client, err os.Error) {
 
 // Release a client to the cached client pool.
 func (mi *Indexer) releaseConnection(client *mysql.Client) {
+	// Test the client before returning it.
+	// TODO: this is overkill probably.
+	if err := testClient(client); err != nil {
+		return
+	}
 	mi.clientLock.Lock()
 	defer mi.clientLock.Unlock()
 	mi.cachedClients = append(mi.cachedClients, client)

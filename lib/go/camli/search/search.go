@@ -62,7 +62,7 @@ type FileInfo struct {
 }
 
 type Path struct {
-	Claim, Base *blobref.BlobRef
+	Claim, Base, Target *blobref.BlobRef
 	ClaimDate   string
 	Suffix      string
 }
@@ -94,5 +94,7 @@ type Index interface {
 	// a corresponding 'set-attribute' claim attached.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 
-	PathsOfSignerTarget(signer *blobref.BlobRef, target *blobref.BlobRef) ([]*Path, os.Error)
+	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error)
+
+	PathLookup(signer, base *blobref.BlobRef, suffix string) ([]*Path, os.Error)
 }

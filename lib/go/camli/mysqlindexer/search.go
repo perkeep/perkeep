@@ -355,13 +355,7 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
+	defer mi.releaseConnection(client)
 
 	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
 	err = client.Query(fmt.Sprintf("SELECT claimref, claimdate, baseref, suffix FROM path WHERE keyid=%q AND targetref=%q",
@@ -401,4 +395,60 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 		paths = append(paths, v)
 	}
 	return paths, nil
+}
+
+func (mi *Indexer) PathLookup(signer, base *blobref.BlobRef, suffix string) (paths []*search.Path, err os.Error) {
+	keyId, err := mi.keyIdOfSigner(signer)
+	if err != nil {
+		return
+	}
+	client, err := mi.getConnection()
+	if err != nil {
+		return
+	}
+	defer mi.releaseConnection(client)
+
+	stmt, err := client.Prepare("SELECT claimref, claimdate, targetref FROM path " +
+		"WHERE keyid=? AND baseref=? AND suffix=?")
+	if err != nil {
+		return
+	}
+
+	err = stmt.BindParams(keyId, base.String(), suffix)
+	if err != nil {
+		return
+	}
+
+	err = stmt.Execute()
+	if err != nil {
+		return
+	}
+
+	var claimref, claimdate, targetref string
+	stmt.BindResult(&claimref, &claimdate, &targetref)
+	defer stmt.Close()
+	for {
+		done, ferr := stmt.Fetch()
+		if ferr != nil {
+			err = ferr
+			return
+		}
+		if done {
+			break
+		}
+		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(claimdate))
+		if err != nil {
+			log.Printf("Skipping bogus path row with bad time: %q", claimref)
+			continue
+		}
+		_ = t // TODO: use this?
+		paths = append(paths, &search.Path{
+			Claim:     blobref.Parse(claimref),
+			ClaimDate: claimdate,
+			Base:      base,
+			Target:    blobref.Parse(targetref),
+			Suffix:    suffix,
+		})
+	}
+	return
 }
