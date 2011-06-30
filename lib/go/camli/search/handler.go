@@ -67,6 +67,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	}, nil
 }
 
+
 // TODO: figure out a plan for an owner having multiple active public keys, or public
 // key rotation
 func (h *Handler) Owner() *blobref.BlobRef {
@@ -129,12 +130,12 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 		errch <- sh.index.GetRecentPermanodes(ch, []*blobref.BlobRef{sh.owner}, 50)
 	}()
 
-	dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+	dr := sh.NewDescribeRequest()
 
 	recent := jsonMapList()
 	for res := range ch {
+		dr.Describe(res.BlobRef, 2)
 		jm := jsonMap()
-		dr.describe(res.BlobRef, 2)
 		jm["blobref"] = res.BlobRef.String()
 		jm["owner"] = res.Signer.String()
 		t := time.SecondsToUTC(res.LastModTime)
@@ -149,8 +150,8 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	dr.wg.Wait()
 	ret["recent"] = recent
+	dr.PopulateJSON(ret)
 }
 
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
@@ -192,17 +193,34 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJson(rw, ret)
 }
 
-type describeRequest struct {
+type DescribeRequest struct {
 	sh *Handler
 
-	lk   sync.Mutex             // protects m
-	m    map[string]interface{} // top-level response JSON
+	lk   sync.Mutex             // protects m & done
+	m    map[string]interface{} // top-level response JSON, TODO: ditch this
 	done map[string]bool        // blobref -> described
 
 	wg *sync.WaitGroup // for load requests
 }
 
-func (dr *describeRequest) blobRefMap(b *blobref.BlobRef) map[string]interface{} {
+func (sh *Handler) NewDescribeRequest() *DescribeRequest {
+	return &DescribeRequest{
+		sh: sh,
+		m:  make(map[string]interface{}), // TODO: ditch this, use Go data structure until the end
+		wg: new(sync.WaitGroup),
+	}
+}
+
+func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
+	dr.wg.Wait()
+	dr.lk.Lock()
+	defer dr.lk.Unlock()
+	for k, v := range dr.m {
+		dest[k] = v
+	}
+}
+
+func (dr *DescribeRequest) blobRefMap(b *blobref.BlobRef) map[string]interface{} {
 	dr.lk.Lock()
 	defer dr.lk.Unlock()
 	bs := b.String()
@@ -214,7 +232,7 @@ func (dr *describeRequest) blobRefMap(b *blobref.BlobRef) map[string]interface{}
 	return m
 }
 
-func (dr *describeRequest) describe(br *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	if depth <= 0 {
 		return
 	}
@@ -234,7 +252,7 @@ func (dr *describeRequest) describe(br *blobref.BlobRef, depth int) {
 	}()
 }
 
-func (dr *describeRequest) describeReally(br *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	mime, size, err := dr.sh.index.GetBlobMimeType(br)
 	if err == os.ENOENT {
 		return
@@ -272,9 +290,9 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
-	dr.describe(br, 4)
-	dr.wg.Wait()
+	dr := sh.NewDescribeRequest()
+	dr.Describe(br, 4)
+	dr.PopulateJSON(ret)
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
@@ -308,7 +326,7 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (dr *describeRequest) populateFileFields(fm map[string]interface{}, fbr *blobref.BlobRef) {
+func (dr *DescribeRequest) populateFileFields(fm map[string]interface{}, fbr *blobref.BlobRef) {
 	fi, err := dr.sh.index.GetFileInfo(fbr)
 	if err != nil {
 		return
@@ -319,7 +337,7 @@ func (dr *describeRequest) populateFileFields(fm map[string]interface{}, fbr *bl
 }
 
 // dmap may be nil, returns the jsonMap to populate into
-func (dr *describeRequest) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, depth int) {
 	//log.Printf("populate permanode %s depth %d", pn, depth)
 	attr := jsonMap()
 	jm["attr"] = attr
@@ -375,7 +393,7 @@ claimLoop:
 	// If the content permanode is now known, look up its type
 	if content, ok := attr["camliContent"].([]string); ok && len(content) > 0 {
 		cbr := blobref.Parse(content[len(content)-1])
-		dr.describe(cbr, depth-1)
+		dr.Describe(cbr, depth-1)
 	}
 
 	// Resolve children
@@ -383,7 +401,7 @@ claimLoop:
 		for _, member := range member {
 			membr := blobref.Parse(member)
 			if membr != nil {
-				dr.describe(membr, depth-1)
+				dr.Describe(membr, depth-1)
 			}
 		}
 	}
@@ -420,9 +438,9 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 	} else {
 		ret["permanode"] = pn.String()
 
-		dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
-		dr.describe(pn, 2)
-		dr.wg.Wait()
+		dr := sh.NewDescribeRequest()
+		dr.Describe(pn, 2)
+		dr.PopulateJSON(ret)
 	}
 }
 
@@ -441,16 +459,16 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 		for _, path := range paths {
 			jpaths = append(jpaths, map[string]interface{}{
 				"claimRef": path.Claim.String(),
-				"baseRef": path.Base.String(),
-				"suffix": path.Suffix,
+				"baseRef":  path.Base.String(),
+				"suffix":   path.Suffix,
 			})
 		}
 		ret["paths"] = jpaths
-		dr := &describeRequest{sh: sh, m: ret, wg: new(sync.WaitGroup)}
+		dr := sh.NewDescribeRequest()
 		for _, path := range paths {
-			dr.describe(path.Base, 2)
+			dr.Describe(path.Base, 2)
 		}
-		dr.wg.Wait()
+		dr.PopulateJSON(ret)
 	}
 }
 
