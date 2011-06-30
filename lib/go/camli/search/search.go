@@ -96,5 +96,10 @@ type Index interface {
 
 	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error)
 
-	PathLookup(signer, base *blobref.BlobRef, suffix string) ([]*Path, os.Error)
+	// All Path claims for (signer, base, suffix)
+	PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*Path, os.Error)
+
+	// Most recent Path claim for (signer, base, suffix) as of
+	// provided time 'at', or most recent if 'at' is nil.
+	PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*Path, os.Error)
 }

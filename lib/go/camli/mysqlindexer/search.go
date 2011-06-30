@@ -397,7 +397,46 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 	return paths, nil
 }
 
-func (mi *Indexer) PathLookup(signer, base *blobref.BlobRef, suffix string) (paths []*search.Path, err os.Error) {
+func (mi *Indexer) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*search.Path, os.Error) {
+	// TODO: pass along the at time to a new helper function to
+	// filter? maybe not worth it, since this list should be
+	// small.
+	paths, err := mi.PathsLookup(signer, base, suffix);
+	if err != nil {
+		return nil, err
+	}
+	var (
+		newest = int64(0)
+		atSeconds = int64(0)
+		best *search.Path
+	)
+	if at != nil {
+		atSeconds = at.Seconds()
+	}
+	for _, path := range paths {
+		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(path.ClaimDate))
+		if err != nil {
+			continue
+		}
+		secs := t.Seconds()
+		if atSeconds != 0 && secs > atSeconds {
+			// Too new
+			continue
+		}
+		if newest > secs {
+			// Too old
+			continue
+		}
+		// Just right
+		newest, best = secs, path
+	}
+	if best == nil {
+		return nil, os.ENOENT
+	}
+	return best, nil
+}
+
+func (mi *Indexer) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths []*search.Path, err os.Error) {
 	keyId, err := mi.keyIdOfSigner(signer)
 	if err != nil {
 		return

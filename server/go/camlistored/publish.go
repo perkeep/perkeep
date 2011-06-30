@@ -111,14 +111,12 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 
 	fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q<hr>",
 		base, pub.RootName, pn, html.EscapeString(suffix))
-	paths, err := pub.Search.Index().PathLookup(pub.Search.Owner(), pn, suffix)
+	path, err := pub.Search.Index().PathLookup(pub.Search.Owner(), pn, suffix, nil)
 	if err != nil {
 		fmt.Fprintf(rw, "<b>Error:</b> %v", err)
 		return
 	}
-	for _, path := range paths {
-		fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
-	}
+	fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
 }
 
 func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) os.Error {
