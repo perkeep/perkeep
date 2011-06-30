@@ -197,18 +197,37 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 type DescribeRequest struct {
 	sh *Handler
 
-	lk   sync.Mutex             // protects m & done
+	lk   sync.Mutex             // protects following:
 	m    map[string]interface{} // top-level response JSON, TODO: ditch this
 	done map[string]bool        // blobref -> described
+	errs map[string]os.Error    // blobref -> error
 
 	wg *sync.WaitGroup // for load requests
 }
 
+type DescribedBlob struct {
+	BlobRef  *blobref.BlobRef
+	MimeType string
+	BlobSize int64 // TODO: just int is probably fine, if we're going to be capping blobs at 32MB?
+
+	PermanodeInfo *DescribedPermanode // if a permanode
+	FileInfo      *DescribedFile      // if a file
+}
+
+type DescribedPermanode struct {
+	// TODO
+}
+
+type DescribedFile struct {
+	// TODO
+}
+
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	return &DescribeRequest{
-		sh: sh,
-		m:  make(map[string]interface{}), // TODO: ditch this, use Go data structure until the end
-		wg: new(sync.WaitGroup),
+		sh:   sh,
+		m:    make(map[string]interface{}), // TODO: ditch this, use Go data structure until the end
+		errs: make(map[string]os.Error),
+		wg:   new(sync.WaitGroup),
 	}
 }
 
@@ -218,6 +237,10 @@ func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
 	defer dr.lk.Unlock()
 	for k, v := range dr.m {
 		dest[k] = v
+	}
+	for k, err := range dr.errs {
+		dest["error"] = "error populating " + k + ": " + err.String()
+		break // TODO: include all?
 	}
 }
 
@@ -261,9 +284,13 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	if err != nil {
 		dr.lk.Lock()
 		defer dr.lk.Unlock()
-		dr.m["error"] = err.String()
+		dr.errs[br.String()] = err
 		return
 	}
+
+	// TODO: convert all this in terms of
+	// DescribedBlob/DescribedPermanode/DescribedFile, not json
+	// maps.  Then add JSON marhsallers to those types. Add tests.
 	m := dr.blobRefMap(br)
 	setMimeType(m, mime)
 	m["size"] = size
