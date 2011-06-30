@@ -51,50 +51,50 @@ type Superset struct {
 	BlobRef *blobref.BlobRef // Not in JSON, but included for
 	// those who want to set it.
 
-	Version int    "camliVersion"
-	Type    string "camliType"
+	Version int    `json:"camliVersion"`
+	Type    string `json:"camliType"`
 
-	Signer string "camliSigner"
-	Sig    string "camliSig"
+	Signer string `json:"camliSigner"`
+	Sig    string `json:"camliSig"`
 
-	ClaimType string "claimType"
-	ClaimDate string "claimDate"
+	ClaimType string `json:"claimType"`
+	ClaimDate string `json:"claimDate"`
 
-	Permanode string "permaNode"
-	Attribute string "attribute"
-	Value     string "value"
+	Permanode string `json:"permaNode"`
+	Attribute string `json:"attribute"`
+	Value     string `json:"value"`
 
 	// TODO: ditch both the FooBytes variants below. a string doesn't have to be UTF-8.
 
-	FileName      string        "fileName"
-	FileNameBytes []interface{} "fileNameBytes" // TODO: needs custom UnmarshalJSON?
+	FileName      string        `json:"fileName"`
+	FileNameBytes []interface{} `json:"fileNameBytes"` // TODO: needs custom UnmarshalJSON?
 
-	SymlinkTarget      string        "symlinkTarget"
-	SymlinkTargetBytes []interface{} "symlinkTargetBytes" // TODO: needs custom UnmarshalJSON?
+	SymlinkTarget      string        `json:"symlinkTarget"`
+	SymlinkTargetBytes []interface{} `json:"symlinkTargetBytes"` // TODO: needs custom UnmarshalJSON?
 
-	UnixPermission string "unixPermission"
-	UnixOwnerId    int    "unixOwnerId"
-	UnixOwner      string "unixOwner"
-	UnixGroupId    int    "unixGroupId"
-	UnixGroup      string "unixGroup"
-	UnixMtime      string "unixMtime"
-	UnixCtime      string "unixCtime"
-	UnixAtime      string "unixAtime"
+	UnixPermission string `json:"unixPermission"`
+	UnixOwnerId    int    `json:"unixOwnerId"`
+	UnixOwner      string `json:"unixOwner"`
+	UnixGroupId    int    `json:"unixGroupId"`
+	UnixGroup      string `json:"unixGroup"`
+	UnixMtime      string `json:"unixMtime"`
+	UnixCtime      string `json:"unixCtime"`
+	UnixAtime      string `json:"unixAtime"`
 
-	Size         uint64         "size" // for files
-	ContentParts []*ContentPart "contentParts"
-	Fragment     bool           "fragment"
+	Size         uint64         `json:"size"` // for files
+	ContentParts []*ContentPart `json:"contentParts"`
+	Fragment     bool           `json:"fragment"`
 
-	Entries string   "entries" // for directories, a blobref to a static-set
-	Members []string "members" // for static sets (for directory static-sets:
+	Entries string   `json:"entries"` // for directories, a blobref to a static-set
+	Members []string `json:"members"` // for static sets (for directory static-sets:
 	// blobrefs to child dirs/files)
 }
 
 type ContentPart struct {
-	BlobRef    *blobref.BlobRef "blobRef"
-	SubBlobRef *blobref.BlobRef "subFileBlobRef"
-	Size       uint64           "size"
-	Offset     uint64           "offset"
+	BlobRef    *blobref.BlobRef `json:"blobRef"`
+	SubBlobRef *blobref.BlobRef `json:"subFileBlobRef"`
+	Size       uint64           `json:"size"`
+	Offset     uint64           `json:"offset"`
 }
 
 func stringFromMixedArray(parts []interface{}) string {

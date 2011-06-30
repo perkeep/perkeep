@@ -71,7 +71,7 @@ func TestSum32(t *testing.T) {
 }
 
 type Foo struct {
-	B *BlobRef "foo"
+	B *BlobRef `json:"foo"`
 }
 
 func TestJsonUnmarshal(t *testing.T) {
