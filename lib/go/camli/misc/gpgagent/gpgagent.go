@@ -38,7 +38,7 @@ var ErrNoData = os.NewError("GPG_ERR_NO_DATA cache miss")
 var ErrCancel = os.NewError("gpgagent: Cancel")
 
 func NewConn() (*Conn, os.Error) {
-	sp := strings.Split(os.Getenv("GPG_AGENT_INFO"), ":", 3)
+	sp := strings.SplitN(os.Getenv("GPG_AGENT_INFO"), ":", 3)
 	if len(sp) == 0 || len(sp[0]) == 0 {
 		return nil, ErrNoAgent
 	}
@@ -153,7 +153,7 @@ func (c *Conn) GetPassphrase(pr *PassphraseRequest) (passphrase string, outerr o
 		}
 		return string(decb), nil
 	}
-	fields := strings.Split(line, " ", -1)
+	fields := strings.Split(line, " ")
 	if len(fields) >= 2 && fields[0] == "ERR" {
 		switch fields[1] {
 		case "67108922":

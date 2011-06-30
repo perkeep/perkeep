@@ -50,7 +50,7 @@ func sendTestBlobs(ch chan blobref.SizedBlobRef, list string) {
 	if list == "" {
 		return
 	}
-	for _, b := range strings.Split(list, ",", -1) {
+	for _, b := range strings.Split(list, ",") {
 		br := blobref.Parse(b)
 		if br == nil {
 			panic("Invalid blobref: " + b)

@@ -235,7 +235,7 @@ func parseRange(s string, size int64) ([]httpRange, os.Error) {
 		return nil, os.NewError("invalid range")
 	}
 	var ranges []httpRange
-	for _, ra := range strings.Split(s[len(b):], ",", -1) {
+	for _, ra := range strings.Split(s[len(b):], ",") {
 		i := strings.Index(ra, "-")
 		if i < 0 {
 			return nil, os.NewError("invalid range")
@@ -290,4 +290,3 @@ func ServeFile(w http.ResponseWriter, r *http.Request, name string) {
 func ServeFileFromFS(w http.ResponseWriter, r *http.Request, fs FileSystem, name string) {
 	serveFile(w, r, name, fs, false)
 }
-

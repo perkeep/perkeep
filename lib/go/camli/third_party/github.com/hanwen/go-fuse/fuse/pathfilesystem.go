@@ -278,7 +278,7 @@ func (me *PathFileSystemConnector) unlinkUpdate(nodeid uint64, name string) {
 // Walk the file system starting from the root.
 func (me *PathFileSystemConnector) findInode(fullPath string) *inodeData {
 	fullPath = strings.TrimLeft(filepath.Clean(fullPath), "/")
-	comps := strings.Split(fullPath, "/", -1)
+	comps := strings.Split(fullPath, "/")
 
 	me.lock.RLock()
 	defer me.lock.RUnlock()

@@ -61,7 +61,7 @@ func IsAuthorized(req *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	userpass := strings.Split(string(decBuf[0:n]), ":", 2)
+	userpass := strings.SplitN(string(decBuf[0:n]), ":", 2)
 	if len(userpass) != 2 {
 		fmt.Println("didn't get two pieces")
 		return false
@@ -72,8 +72,8 @@ func IsAuthorized(req *http.Request) bool {
 
 // requireAuth wraps a function with another function that enforces
 // HTTP Basic Auth.
-func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func (conn http.ResponseWriter, req *http.Request) {
-	return func (conn http.ResponseWriter, req *http.Request) {
+func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func(conn http.ResponseWriter, req *http.Request) {
+	return func(conn http.ResponseWriter, req *http.Request) {
 		if IsAuthorized(req) {
 			handler(conn, req)
 		} else {
@@ -81,4 +81,3 @@ func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func
 		}
 	}
 }
-

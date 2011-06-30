@@ -91,10 +91,10 @@ type Superset struct {
 }
 
 type ContentPart struct {
-	BlobRef          *blobref.BlobRef "blobRef"
-	SubBlobRef       *blobref.BlobRef "subFileBlobRef"
-	Size             uint64 "size"
-	Offset           uint64 "offset"
+	BlobRef    *blobref.BlobRef "blobRef"
+	SubBlobRef *blobref.BlobRef "subFileBlobRef"
+	Size       uint64           "size"
+	Offset     uint64           "offset"
 }
 
 func stringFromMixedArray(parts []interface{}) string {
@@ -418,7 +418,7 @@ func populateMap(m map[int]string, file string) {
 		if err != nil {
 			return
 		}
-		parts := strings.Split(line, ":", 4)
+		parts := strings.SplitN(line, ":", 4)
 		if len(parts) >= 3 {
 			idstr := parts[2]
 			id, err := strconv.Atoi(idstr)

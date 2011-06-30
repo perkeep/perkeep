@@ -197,7 +197,7 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 	}()
 	viaBlobs := make([]*blobref.BlobRef, 0)
 	if via := req.FormValue("via"); via != "" {
-		for _, vs := range strings.Split(via, ",", -1) {
+		for _, vs := range strings.Split(via, ",") {
 			if br := blobref.Parse(vs); br == nil {
 				httputil.BadRequestError(conn, "Malformed blobref in via param")
 				return

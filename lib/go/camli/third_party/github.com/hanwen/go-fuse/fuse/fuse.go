@@ -412,14 +412,14 @@ func (me *MountState) dispatch(req *fuseRequest) {
 	case FUSE_RMDIR:
 		status = fs.Rmdir(h, filename)
 	case FUSE_SYMLINK:
-		filenames := strings.Split(string(req.arg.Bytes()), "\x00", 3)
+		filenames := strings.SplitN(string(req.arg.Bytes()), "\x00", 3)
 		if len(filenames) >= 2 {
 			out, status = fs.Symlink(h, filenames[1], filenames[0])
 		} else {
 			status = EIO
 		}
 	case FUSE_RENAME:
-		filenames := strings.Split(string(req.arg.Bytes()), "\x00", 3)
+		filenames := strings.SplitN(string(req.arg.Bytes()), "\x00", 3)
 		if len(filenames) >= 2 {
 			status = fs.Rename(h, input.(*RenameIn), filenames[0], filenames[1])
 		} else {

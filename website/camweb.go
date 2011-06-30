@@ -262,10 +262,10 @@ func main() {
 	}
 
 	mux := http.DefaultServeMux
-	mux.Handle("/favicon.ico", http.FileServer(filepath.Join(*root, "static"), "/"))
-	mux.Handle("/robots.txt", http.FileServer(filepath.Join(*root, "static"), "/"))
-	mux.Handle("/static/", http.FileServer(filepath.Join(*root, "static"), "/static/"))
-	mux.Handle("/talks/", http.FileServer(filepath.Join(*root, "talks"), "/talks/"))
+	mux.Handle("/favicon.ico", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
+	mux.Handle("/robots.txt", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
+	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 
 	gerritUrl, _ := http.ParseURL("http://gerrit-proxy:8000/")
 	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
@@ -299,7 +299,7 @@ func main() {
 				Root: "/code/",
 				Env:  env,
 			},
-			Static: http.FileServer(*gitwebFiles, "/code/"),
+			Static: http.StripPrefix("/code/", http.FileServer(http.Dir(*gitwebFiles))),
 		}})
 	}
 	mux.HandleFunc("/", mainHandler)

@@ -67,12 +67,12 @@ func main() {
 			log.Printf("Need to fetch %s", br.String())
 		}
 		var (
-			r io.ReadCloser
+			r   io.ReadCloser
 			err os.Error
 		)
 
 		if len(*flagVia) > 0 {
-			vs := strings.Split(*flagVia, ",", -1)
+			vs := strings.Split(*flagVia, ",")
 			abr := make([]*blobref.BlobRef, len(vs))
 			for i, sbr := range vs {
 				abr[i] = blobref.Parse(sbr)

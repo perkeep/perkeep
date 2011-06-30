@@ -65,6 +65,6 @@ func ListXAttr(path string) (attributes [][]byte, errno int) {
 
 	// -1 to drop the final empty slice.
 	dest = dest[:sz-1]
-	attributes = bytes.Split(dest, []byte{0}, -1)
+	attributes = bytes.Split(dest, []byte{0})
 	return attributes, errno
 }
