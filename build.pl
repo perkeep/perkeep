@@ -229,19 +229,26 @@ sub fixit_tip {
 }
 
 my $did_go_check = 0;
+my $gc_bin;
 sub perform_go_check() {
     return if $did_go_check++;
-    if ($ENV{GOROOT}) {
-        die "Your \$GOROOT environment variable isn't a directory.\n" unless -d $ENV{GOROOT};
-        return 1;
+    unless ($ENV{GOROOT}) {
+        if (`which 6g` =~ /\S/ || `which 8g` =~ /\S/) {
+            die "You seem to have Go installed, but you don't have your ".
+                "\$GOROOT environment variable set.\n".
+                "Can't build without it.\n";
+        }
+        die "You don't seem to have Go installed.  See:\n\n   http://golang.org/doc/install.html\n\n";
     }
-    # No GOROOT set; see if they have 8g or 6g
-    if (`which 8g` =~ /\S/ || `which 6g` =~ /\S/) {
-        die "You seem to have Go installed, but you don't have your ".
-            "\$GOROOT environment variable set.\n".
-            "Can't build without it.\n";
+    die "Your \$GOROOT environment variable isn't a directory.\n" unless -d $ENV{GOROOT};
+
+    foreach my $gc ("6g", "8g") {
+        $gc_bin = `which $gc` or next;
+        chomp $gc_bin;
+        last;
     }
-    die "You don't seem to have Go installed.  See:\n\n   http://golang.org/doc/install.html\n\n";
+    die "No 6g or 8g found in your \$PATH.\n" unless -x $gc_bin;
+    return 1;
 }
 
 sub build {
@@ -290,18 +297,6 @@ sub build {
     my $build_command = sub {
         return system("make", @quiet, "-C", dir($target), "install") == 0;
     };
-
-    if ($is_go) {
-        my $make_build = $build_command;
-        $build_command = sub {
-            if ($make_build->()) {
-                return 1;
-            }
-            print STDERR "# Go build failed (linker version skew?) Running 'clean' and re-trying...\n";
-            system("make", @quiet, "-C", dir($target), "clean");
-            return $make_build->();
-        };
-    }
 
     if (!$build_command->()) {
         my $chain = "";
@@ -353,7 +348,7 @@ sub find_go_camli_deps {
 
     # TODO: just stat the files first and keep a cache file of the
     # deps somewhere (the header of the generated Makefile?)  but
-    # maybe it's not worth it.  for now we'll parse all the files
+    # maybe it is not worth it.  for now we'll parse all the files
     # every time to find their deps and also generate the Makefile
     # every time.
     
@@ -448,16 +443,16 @@ sub gen_target_makefile {
     $mfc .= "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
     $mfc .= "\n\n";
     $mfc .= "include \$(GOROOT)/src/Make.inc\n";
+    my $pr = "";
     if (@deps) {
-        my $pr = "";
         foreach my $dep (@deps) {
             my $cam_lib = $dep;
             $cam_lib =~ s!^lib/go/!!;
             $pr .= '$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/' . $cam_lib . ".a\\\n\t";
         }
         chop $pr; chop $pr; chop $pr;
-        $mfc .= "PREREQ=$pr\n";
     }
+    $mfc .= "PREREQ=$gc_bin $pr\n";
     if ($type eq "pkg") {
         my $targ = $target;
         $targ =~ s!^lib/go/!!;
