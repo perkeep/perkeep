@@ -39,6 +39,20 @@ func NewFakeIndex() *FakeIndex {
 	}
 }
 
+//
+// Test methods
+//
+
+func (fi *FakeIndex) AddMeta(blobstr string, mime string, size int64) {
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	fi.mimeType[blobstr] = mime
+	fi.size[blobstr] = size
+}
+
+//
+// Interface implementation
+//
 
 func (fi *FakeIndex) GetRecentPermanodes(dest chan *Result,
 	owner []*blobref.BlobRef,
@@ -51,7 +65,14 @@ func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimLis
 }
 
 func (fi *FakeIndex) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
-	panic("NOIMPL")
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	bs := blob.String()
+	mime, ok := fi.mimeType[bs]
+	if !ok {
+		return "", 0, os.ENOENT
+	}
+	return mime, fi.size[bs], nil
 }
 
 func (fi *FakeIndex) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {

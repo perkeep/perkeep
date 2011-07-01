@@ -17,13 +17,60 @@ limitations under the License.
 package search
 
 import (
+	"bytes"
+	"json"
 	"testing"
 
 	"camli/blobref"
 )
 
+type describeTest struct {
+	setup    func(fi *FakeIndex)
+
+	blob     string  // blobref to describe
+	depth    int
+
+	expect   map[string]interface{}
+}
+
+var describeTests = []describeTest{
+	{
+		func(fi *FakeIndex) {},
+		"abc-555",
+		1,
+		map[string]interface{}{},
+	},
+
+	{
+		func(fi *FakeIndex) {
+			fi.AddMeta("abc-555", "image/jpeg", 999)
+		},
+		"abc-555",
+		1,
+		map[string]interface{}{
+			"abc-555": map[string]interface{}{
+				"blobRef": "abc-555",
+				"mimeType": "image/jpeg",
+				"size": 999,
+			},
+		},
+	},
+}
+
 func TestDescribe(t *testing.T) {
-	idx := NewFakeIndex()
-	h := &Handler{index: idx, owner: blobref.MustParse("abc-123")}
-	_ = h
+	for testn, test := range describeTests {
+		idx := NewFakeIndex()
+		test.setup(idx)
+
+		h := &Handler{index: idx, owner: blobref.MustParse("abc-123")}
+		js := make(map[string]interface{})
+		dr := h.NewDescribeRequest()
+		dr.Describe(blobref.MustParse(test.blob), test.depth)
+		dr.PopulateJSON(js)
+		got, _ := json.MarshalIndent(js, "", "  ")
+		want, _ := json.MarshalIndent(test.expect, "", "  ")
+		if !bytes.Equal(got, want) {
+			t.Errorf("test %d:\nwant: %s\n got: %s", testn, string(want), string(got))
+		}
+	}
 }
