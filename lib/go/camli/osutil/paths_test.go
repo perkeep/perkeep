@@ -19,7 +19,6 @@ package osutil
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"testing"
 )
 
@@ -74,7 +73,7 @@ func TestOpenCamliIncludeCWD(t *testing.T) {
 		t.Errorf("Couldn't create test config file, aborting test: %v", e)
 		return
 	}
-	defer syscall.Remove(path)
+	defer os.Remove(path)
 
 	checkOpen(t, path)
 }
@@ -100,7 +99,7 @@ func TestOpenCamliIncludePath(t *testing.T) {
 		t.Errorf("Couldn't create test config file, aborting test: %v", e)
 		return
 	}
-	defer syscall.Unlink("/tmp/" + name)
+	defer os.Remove("/tmp/" + name)
 	defer os.Setenv("CAMLI_INCLUDE_PATH", "")
 
 	os.Setenv("CAMLI_INCLUDE_PATH", "/tmp")
