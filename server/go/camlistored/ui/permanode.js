@@ -522,13 +522,28 @@ function buildPathsList() {
                     var span = document.createElement("span");
                     li.appendChild(span);
 
-                    var a = document.createElement("a");
-                    a.href = ".?p=" + path.baseRef;
-                    a.innerText = path.baseRef;
-                    span.appendChild(a);
+                    var blobLink = document.createElement("a");
+                    blobLink.href = ".?p=" + path.baseRef;
+                    blobLink.innerText = path.baseRef;
+                    span.appendChild(blobLink);
 
-                    var text = document.createTextNode(" - " + path.suffix);
-                    span.appendChild(text);
+                    span.appendChild(document.createTextNode(" - "));
+
+                    var pathLink = document.createElement("a");
+                    pathLink.href = "";
+                    pathLink.innerText = path.suffix;
+                    for (var key in Camli.config.publishRoots) {
+                        var root = Camli.config.publishRoots[key];
+                        if (root.currentPermanode == path.baseRef) {
+                            // Prefix should include a trailing slash.
+                            pathLink.href = root.prefix[0] + path.suffix;
+                            // TODO: Check if we're the latest permanode
+                            // for this path and display some "old" notice
+                            // if not.
+                            break;
+                        }
+                    }
+                    span.appendChild(pathLink);
 
                     var del = document.createElement("span");
                     del.className = "camli-del";

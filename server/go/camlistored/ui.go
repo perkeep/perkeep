@@ -38,6 +38,7 @@ import (
 	"camli/misc/resize"
 	"camli/misc/vfs" // TODO: ditch this once pkg http gets it
 	"camli/schema"
+	"camli/search"
 	uistatic "camlistore.org/server/uistatic"
 )
 
@@ -68,6 +69,7 @@ type UIHandler struct {
 
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
+	Search  *search.Handler    // or nil
 }
 
 func init() {
@@ -132,6 +134,11 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ui.Cache = bs
+	}
+
+	if ui.SearchRoot != "" {
+		h, _ := ld.GetHandler(ui.SearchRoot)
+		ui.Search = h.(*search.Handler)
 	}
 
 	return ui, nil
@@ -213,11 +220,18 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 
 	pubRoots := map[string]interface{}{}
 	for key, pubh := range ui.PublishRoots {
-		pubRoots[pubh.RootName] = map[string]interface{}{
+		m := map[string]interface{}{
 			"name": pubh.RootName,
 			"prefix": []string{key},
 			// TODO: include gpg key id
 		}
+		if ui.Search != nil {
+			pn, err := ui.Search.Index().PermanodeOfSignerAttrValue(ui.Search.Owner(), "camliRoot", pubh.RootName)
+			if err == nil {
+				m["currentPermanode"] = pn.String()
+			}
+		}
+		pubRoots[pubh.RootName] = m
 	}
 
 	bytes, _ := json.Marshal(map[string]interface{}{
