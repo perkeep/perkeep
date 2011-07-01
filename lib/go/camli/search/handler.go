@@ -88,8 +88,6 @@ func jsonMapList() []map[string]interface{} {
 
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
-
 	_ = req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 
@@ -119,6 +117,7 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// TODO: discovery for the endpoints & better error message with link to discovery info
 	ret["error"] = "Unsupported search path or method"
 	ret["errorType"] = "input"
+	httputil.ReturnJson(rw, ret)
 }
 
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
