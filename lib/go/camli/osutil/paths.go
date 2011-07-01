@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 func HomeDir() string {
@@ -41,5 +42,39 @@ func CamliConfigDir() string {
 
 func UserServerConfigPath() string {
 	return filepath.Join(CamliConfigDir(), "serverconfig")
+}
+
+// Find the correct absolute path corresponding to a relative path, 
+// searching the following sequence of directories:
+// 1. Working Directory
+// 2. CAMLI_CONFIG_DIR (deprecated, will complain if this is on env)
+// 3. (windows only) APPDATA/camli
+// 4. All directories in CAMLI_INCLUDE_PATH (standard PATH form for OS)
+func FindCamliInclude(configFile string) (absPath string, err os.Error) {
+	// Try to open as absolute / relative to CWD
+	_, err = os.Stat(configFile)
+	if err == nil {
+		return configFile, nil;
+	}
+	if filepath.IsAbs(configFile) {
+		// End of the line for absolute path
+		return "", err;
+	}
+
+	// Try the config dir
+	configDir := CamliConfigDir();
+	if _, err = os.Stat(filepath.Join(configDir, configFile)); err == nil {
+		return filepath.Join(configDir, configFile), nil
+	}
+
+	// Finally, search CAMLI_INCLUDE_PATH
+	p := os.Getenv("CAMLI_INCLUDE_PATH");
+	for _, d := range strings.Split(p, string(filepath.ListSeparator)) {
+		if _, err = os.Stat(filepath.Join(d, configFile)); err == nil {
+			return filepath.Join(d, configFile), nil
+		}
+	}
+
+	return "", os.ENOENT
 }
 

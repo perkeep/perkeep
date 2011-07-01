@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"http"
-	"json"
 	"log"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,6 @@ import (
 	"camli/auth"
 	"camli/blobserver"
 	"camli/blobserver/handlers"
-	"camli/errorutil"
 	"camli/httputil"
 	"camli/jsonconfig"
 	"camli/osutil"
@@ -45,7 +43,6 @@ import (
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
 	// Handlers:
 	_ "camli/search"
-
 )
 
 var flagConfigFile = flag.String("configfile", "serverconfig",
@@ -162,35 +159,14 @@ func main() {
 	if !filepath.IsAbs(configPath) {
 		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
 	}
-	f, err := os.Open(configPath)
+
+	config, err := jsonconfig.ReadFile(configPath)
 	if err != nil {
-		exitFailure("error opening %s: %v", configPath, err)
-	}
-	defer f.Close()
-	dj := json.NewDecoder(f)
-	rootjson := make(map[string]interface{})
-	if err = dj.Decode(&rootjson); err != nil {
-		extra := ""
-		if serr, ok := err.(*json.SyntaxError); ok {
-			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
-				log.Fatalf("seek error: %v", serr)
-			}
-			line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
-			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
-				line, col, serr.Offset, highlight)
-		}
-		exitFailure("error parsing JSON object in config file %s%s\n%v",
-			osutil.UserServerConfigPath(), extra, err)
-	}
-	if err := jsonconfig.EvaluateExpressions(rootjson); err != nil {
-		exitFailure("error expanding JSON config expressions in %s: %v", configPath, err)
+		exitFailure("%v", err)
 	}
 
 	ws := webserver.New()
 	baseURL := ws.BaseURL()
-
-	// Root configuration
-	config := jsonconfig.Obj(rootjson)
 
 	{
 		cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
@@ -207,7 +183,7 @@ func main() {
 		baseURL = url
 	}
 	prefixes := config.RequiredObject("prefixes")
-	if err := config.Validate(); err != nil {
+	if err = config.Validate(); err != nil {
 		exitFailure("configuration error in root object's keys in %s: %v", configPath, err)
 	}
 
@@ -227,7 +203,7 @@ func main() {
 		}
 		pmap, ok := vei.(map[string]interface{})
 		if !ok {
-			exitFailure("prefix %q value isn't an object", prefix)
+			exitFailure("prefix %q value is a %T, not an object", prefix,	vei)
 		}
 		pconf := jsonconfig.Obj(pmap)
 		handlerType := pconf.RequiredString("handler")

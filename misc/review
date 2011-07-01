@@ -1,3 +1,23 @@
 #!/bin/sh
+set -e
+
+TOPLEVEL_DIR=$(readlink -f $(dirname $(readlink -f $0))/..)
+HOOK_FILE="$TOPLEVEL_DIR/.git/hooks/commit-msg"
+if ! test -e "$HOOK_FILE"; then
+  cat - <<EOF
+Presubmit hook to add Change-Id to commit messages is missing.
+Downloading to $HOOK_FILE...
+EOF
+  scp -p -P 29418 $USER@camlistore.org:hooks/commit-msg "$HOOK_FILE"
+  cat - <<EOF
+
+Amending last commit to add Change-Id.
+Please re-save description without making changes.
+
+Press Enter to continue.
+EOF
+  read foo
+  git commit --amend
+fi
 
 git push ssh://$USER@camlistore.org:29418/camlistore HEAD:refs/for/master

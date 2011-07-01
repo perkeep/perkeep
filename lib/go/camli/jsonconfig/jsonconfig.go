@@ -27,6 +27,16 @@ import (
 // Obj is a JSON configuration map.
 type Obj map[string]interface{}
 
+// Reads json config data from the specified open file, expanding
+// all expressions 
+func ReadFile(configPath string) (Obj, os.Error) {
+	var c configParser
+	var err os.Error
+	c.touchedFiles = make(map[string]bool)
+	c.RootJson, err = c.recursiveReadJson(configPath)
+	return c.RootJson, err
+}
+
 func (jc Obj) RequiredObject(key string) Obj {
 	return jc.obj(key, false)
 }
