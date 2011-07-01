@@ -17,14 +17,77 @@ limitations under the License.
 package jsonconfig
 
 import (
-	"os"
+	"container/vector"
 	"fmt"
+	"json"
+	"log"
+	"os"
+	"path/filepath"
 	"regexp"
+
+	"camli/errorutil"
+	"camli/osutil"
 )
 
+
+// State for config parsing and expression evalutaion
+type configParser struct {
+	RootJson     Obj
+
+	touchedFiles map[string]bool
+	includeStack vector.StringVector
+}
+
+// Validates variable names for config _env expresssions
 var envPattern = regexp.MustCompile(`\$\{[A-Za-z0-9_]+\}`)
 
-func EvaluateExpressions(m map[string]interface{}) os.Error {
+// Decodes and evaluates a json config file, watching for include cycles.
+func (c *configParser) recursiveReadJson(configPath string) (decodedObject map[string]interface{}, err os.Error) {
+
+	configPath, err = filepath.Abs(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to expand absolute path for %s", configPath)
+	}
+	if c.touchedFiles[configPath] {
+		return nil, fmt.Errorf("configParser include cycle detected reading config: %v",
+			configPath)
+	}
+	c.touchedFiles[configPath] = true
+
+	c.includeStack.Push(configPath)
+	defer c.includeStack.Pop()
+
+	var f *os.File
+	if f, err = os.Open(configPath); err != nil {
+		return nil, fmt.Errorf("Failed to open config: %s, %v", configPath, err)
+	}
+	defer f.Close()
+
+	decodedObject = make(map[string]interface{})
+	dj := json.NewDecoder(f)
+	if err = dj.Decode(&decodedObject); err != nil {
+		extra := ""
+		if serr, ok := err.(*json.SyntaxError); ok {
+			if _, serr := f.Seek(0, os.SEEK_SET); serr != nil {
+				log.Fatalf("seek error: %v", serr)
+			}
+			line, col, highlight := errorutil.HighlightBytePosition(f, serr.Offset)
+			extra = fmt.Sprintf(":\nError at line %d, column %d (file offset %d):\n%s",
+				line, col, serr.Offset, highlight)
+		}
+		return nil, fmt.Errorf("error parsing JSON object in config file %s%s\n%v",
+			f.Name(), extra, err)
+	}
+
+	if err = c.evaluateExpressions(decodedObject); err != nil {
+		return nil, fmt.Errorf("error expanding JSON config expressions in %s:\n%v",
+			f.Name(), err)
+	}
+
+	return decodedObject, nil
+}
+
+func (c *configParser) evaluateExpressions(m map[string]interface{}) os.Error {
 	for k, ei := range m {
 		switch subval := ei.(type) {
 		case string:
@@ -37,24 +100,24 @@ func EvaluateExpressions(m map[string]interface{}) os.Error {
 			if len(subval) == 0 {
 				continue
 			}
-			var expander func(v []interface{}) (interface{}, os.Error)
+			var expander func(c *configParser, v []interface{}) (interface{}, os.Error)
 			if firstString, ok := subval[0].(string); ok {
 				switch firstString {
 				case "_env":
-					expander = expandEnv
-				case "_file":
-					expander = expandFile
+					expander = (*configParser).expandEnv
+				case "_fileobj":
+					expander = (*configParser).expandFile
 				}
 			}
 			if expander != nil {
-				newval, err := expander(subval[1:])
+				newval, err := expander(c, subval[1:])
 				if err != nil {
 					return err
 				}
 				m[k] = newval
 			}
 		case map[string]interface{}:
-			if err := EvaluateExpressions(subval); err != nil {
+			if err := c.evaluateExpressions(subval); err != nil {
 				return err
 			}
 		default:
@@ -67,7 +130,7 @@ func EvaluateExpressions(m map[string]interface{}) os.Error {
 // Permit either:
 //    ["_env", "VARIABLE"] (required to be set)
 // or ["_env", "VARIABLE", "default_value"]
-func expandEnv(v []interface{}) (interface{}, os.Error) {
+func (c *configParser) expandEnv(v []interface{}) (interface{}, os.Error) {
 	hasDefault := false
 	def := ""
 	if len(v) < 1 || len(v) > 2 {
@@ -99,6 +162,18 @@ func expandEnv(v []interface{}) (interface{}, os.Error) {
 	return expanded, err
 }
 
-func expandFile(v []interface{}) (interface{}, os.Error) {
-	return "", os.NewError("_file not implemented")
+func (c *configParser) expandFile(v []interface{}) (exp interface{}, err os.Error) {
+	if len(v) != 1 {
+		return "", fmt.Errorf("_file expansion expected 1 arg, got %d", len(v))
+	}
+	var incPath string
+	if incPath, err = osutil.FindCamliInclude(v[0].(string)); err != nil {
+		return "", fmt.Errorf("Included config does not exist: %v", v[0])
+	}
+	if exp, err = c.recursiveReadJson(incPath); err != nil {
+		return "", fmt.Errorf("In file included from %s:\n%v",
+			c.includeStack.Last(), err)
+	}
+	return exp, nil
 }
+
