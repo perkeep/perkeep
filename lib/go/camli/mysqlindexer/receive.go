@@ -232,9 +232,13 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 			// with the case where they explicitly delete the
 			// current value.
 			suffix := camli.Attribute[len("camliPath:"):]
-			if err = execSQL(client, "INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref) "+
-                                "VALUES (?, ?, ?, ?, ?, ?)",
-                                blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value); err != nil {
+			active := "Y"
+			if camli.ClaimType == "del-attribute" {
+				active = "N"
+			}
+			if err = execSQL(client, "INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref, active) "+
+                                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value, active); err != nil {
                                 return
                         }
 		}

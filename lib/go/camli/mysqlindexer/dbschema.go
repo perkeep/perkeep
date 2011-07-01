@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 15
+const requiredSchemaVersion = 16
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -96,8 +96,8 @@ keyid   VARCHAR(128) NOT NULL,
 INDEX (keyid)
 )`,
 
-
 		// Bi-direction index of camliPath claims
+		// active is "Y" or "N".
 		`CREATE TABLE path (
 claimref VARCHAR(128) NOT NULL,
 PRIMARY KEY (claimref),
@@ -106,6 +106,7 @@ keyid VARCHAR(128) NOT NULL,
 baseref VARCHAR(128) NOT NULL,
 suffix VARCHAR(255) NOT NULL,
 targetref VARCHAR(128) NOT NULL,
+active CHAR(1) NOT NULL,
 INDEX (keyid, baseref, suffix),
 INDEX (targetref, keyid),
 INDEX (baseref, keyid)

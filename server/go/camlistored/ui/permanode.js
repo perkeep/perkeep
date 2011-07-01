@@ -504,7 +504,7 @@ function buildPathsList() {
     var sigcb = {};
     sigcb.success = function(sigconf) {
         var findpathcb = {};
-        findpathcb.success = function(jres) { 
+        findpathcb.success = function(jres) {
             var div = document.getElementById("existingPaths");
 
             // TODO: there can be multiple paths in this list, but the HTML
@@ -519,11 +519,24 @@ function buildPathsList() {
                 for (var idx in jres.paths) {
                     var path = jres.paths[idx];
                     var li = document.createElement("li");
+                    var span = document.createElement("span");
+                    li.appendChild(span);
+
+                    var a = document.createElement("a");
+                    a.href = ".?p=" + path.baseRef;
+                    a.innerText = path.baseRef;
+                    span.appendChild(a);
+
+                    var text = document.createTextNode(" - " + path.suffix);
+                    span.appendChild(text);
+
+                    var del = document.createElement("span");
+                    del.className = "camli-del";
+                    del.innerText = "x";
+                    del.addEventListener("click", deletePathFunc(path.baseRef, path.suffix, span));
+                    span.appendChild(del);
+
                     ul.appendChild(li);
-                    li.innerHTML = "<a></a> - ";
-                    li.firstChild.href = ".?p=" + path.baseRef;
-                    li.firstChild.innerText = path.baseRef;
-                    li.appendChild(document.createTextNode(path.suffix));
                 }
             } else {
                 div.innerHTML = "";
@@ -535,6 +548,24 @@ function buildPathsList() {
         alert("sig disco failed");
     }
     camliSigDiscovery(sigcb);
+}
+
+function deletePathFunc(sourcePermanode, path, strikeEle) {
+    return function(e) {
+        strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
+        camliNewDelAttributeClaim(
+            sourcePermanode,
+            "camliPath:" + path,
+            getPermanodeParam(),
+            {
+                success: function() {
+                    buildPathsList();
+                },
+                fail: function(msg) {
+                    alert(msg);
+                }
+            });
+    };
 }
 
 function permanodePageOnLoad(e) {

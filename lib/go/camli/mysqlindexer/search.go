@@ -358,7 +358,7 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 	defer mi.releaseConnection(client)
 
 	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
-	err = client.Query(fmt.Sprintf("SELECT claimref, claimdate, baseref, suffix FROM path WHERE keyid=%q AND targetref=%q",
+	err = client.Query(fmt.Sprintf("SELECT claimref, claimdate, baseref, suffix, active FROM path WHERE keyid=%q AND targetref=%q",
 		keyId, target.String()))
 	if err != nil {
 		return
@@ -371,22 +371,28 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 	defer client.FreeResult()
 
 	mostRecent := make(map[string]*search.Path)
+	maxClaimDates := make(map[string]string)
 	for {
 		row := result.FetchRow()
 		if row == nil {
 			break
 		}
-		claimRef, claimDate, baseRef, suffix :=
+		claimRef, claimDate, baseRef, suffix, active :=
 			blobref.MustParse(row[0].(string)), row[1].(string),
-			blobref.MustParse(row[2].(string)), row[3].(string)
+			blobref.MustParse(row[2].(string)), row[3].(string), row[4].(string)
 		key := baseRef.String() + "/" + suffix
-		best, ok := mostRecent[key]
-		if !ok || claimDate > best.ClaimDate {
-			mostRecent[key] = &search.Path{
-				Claim:     claimRef,
-				ClaimDate: claimDate,
-				Base:      baseRef,
-				Suffix:    suffix,
+
+		if claimDate > maxClaimDates[key] {
+			maxClaimDates[key] = claimDate
+			if active == "Y" {
+				mostRecent[key] = &search.Path{
+					Claim:     claimRef,
+					ClaimDate: claimDate,
+					Base:      baseRef,
+					Suffix:    suffix,
+				}
+			} else {
+				mostRecent[key] = nil, false
 			}
 		}
 	}
