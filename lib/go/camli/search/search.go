@@ -56,15 +56,15 @@ func (cl ClaimList) Swap(i, j int) {
 }
 
 type FileInfo struct {
-	Size     int64
-	FileName string
-	MimeType string
+	Size     int64  `json:"size"`
+	FileName string `json:"fileName"`
+	MimeType string `json:"mimeType"`
 }
 
 type Path struct {
 	Claim, Base, Target *blobref.BlobRef
-	ClaimDate   string
-	Suffix      string
+	ClaimDate           string
+	Suffix              string
 }
 
 type Index interface {
@@ -76,6 +76,7 @@ type Index interface {
 
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 
+	// os.ENOENT should be returned if the blob isn't known
 	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error)
 
 	// ExistingFileSchemas returns 0 or more blobrefs of file

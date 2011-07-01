@@ -196,35 +196,69 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 type DescribeRequest struct {
 	sh *Handler
 
-	lk   sync.Mutex             // protects following:
-	m    map[string]interface{} // top-level response JSON, TODO: ditch this
-	done map[string]bool        // blobref -> described
-	errs map[string]os.Error    // blobref -> error
+	lk   sync.Mutex // protects following:
+	m    map[string]*DescribedBlob
+	done map[string]bool     // blobref -> described
+	errs map[string]os.Error // blobref -> error
 
 	wg *sync.WaitGroup // for load requests
 }
 
 type DescribedBlob struct {
-	BlobRef  *blobref.BlobRef
-	MimeType string
-	BlobSize int64 // TODO: just int is probably fine, if we're going to be capping blobs at 32MB?
+	BlobRef   *blobref.BlobRef
+	MimeType  string
+	CamliType string
+	// TODO: just int is probably fine, if we're going to be capping blobs at 32MB?
+	Size int64
 
-	PermanodeInfo *DescribedPermanode // if a permanode
-	FileInfo      *DescribedFile      // if a file
+	// if camliType "permanode"
+	Permanode *DescribedPermanode
+
+	// if camliType "file"
+	File *FileInfo
+}
+
+func (b *DescribedBlob) jsonMap() map[string]interface{} {
+	m := jsonMap()
+	m["blobRef"] = b.BlobRef.String()
+	if b.MimeType != "" {
+		m["mimeType"] = b.MimeType
+	}
+	if b.CamliType != "" {
+		m["camliType"] = b.CamliType
+	}
+	m["size"] = b.Size
+	if b.Permanode != nil {
+		m["permanode"] = b.Permanode.jsonMap()
+	}
+	if b.File != nil {
+		m["file"] = b.File
+	}
+	return m
 }
 
 type DescribedPermanode struct {
-	// TODO
+	Attr map[string][]string
 }
 
-type DescribedFile struct {
-	// TODO
-}
+func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
+	m := jsonMap()
 
+	am := jsonMap()
+	m["attr"] = am
+	for k, vv := range dp.Attr {
+		if len(vv) > 0 {
+			vl := make([]string, len(vv))
+			copy(vl[:], vv[:])
+			am[k] = vl
+		}
+	}
+	return m
+}
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	return &DescribeRequest{
 		sh:   sh,
-		m:    make(map[string]interface{}), // TODO: ditch this, use Go data structure until the end
+		m:    make(map[string]*DescribedBlob),
 		errs: make(map[string]os.Error),
 		wg:   new(sync.WaitGroup),
 	}
@@ -235,7 +269,7 @@ func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
 	dr.lk.Lock()
 	defer dr.lk.Unlock()
 	for k, v := range dr.m {
-		dest[k] = v
+		dest[k] = v.jsonMap()
 	}
 	for k, err := range dr.errs {
 		dest["error"] = "error populating " + k + ": " + err.String()
@@ -243,16 +277,16 @@ func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
 	}
 }
 
-func (dr *DescribeRequest) blobRefMap(b *blobref.BlobRef) map[string]interface{} {
+func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
 	dr.lk.Lock()
 	defer dr.lk.Unlock()
 	bs := b.String()
-	if m, ok := dr.m[bs]; ok {
-		return m.(map[string]interface{})
+	if des, ok := dr.m[bs]; ok {
+		return des
 	}
-	m := jsonMap()
-	dr.m[bs] = m
-	return m
+	des := &DescribedBlob{BlobRef: b}
+	dr.m[bs] = des
+	return des
 }
 
 func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
@@ -275,34 +309,43 @@ func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	}()
 }
 
+func (dr *DescribeRequest) addError(br *blobref.BlobRef, err os.Error) {
+	if err == nil {
+		return
+	}
+	dr.lk.Lock()
+	defer dr.lk.Unlock()
+	// TODO: append? meh.
+	dr.errs[br.String()] = err
+}
+
 func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	mime, size, err := dr.sh.index.GetBlobMimeType(br)
 	if err == os.ENOENT {
 		return
 	}
 	if err != nil {
-		dr.lk.Lock()
-		defer dr.lk.Unlock()
-		dr.errs[br.String()] = err
+		dr.addError(br, err)
 		return
 	}
 
 	// TODO: convert all this in terms of
 	// DescribedBlob/DescribedPermanode/DescribedFile, not json
 	// maps.  Then add JSON marhsallers to those types. Add tests.
-	m := dr.blobRefMap(br)
-	setMimeType(m, mime)
-	m["size"] = size
+	des := dr.describedBlob(br)
+	des.setMimeType(mime)
+	des.Size = size
 
-	switch mime {
-	case "application/json; camliType=permanode":
-		pm := jsonMap()
-		m["permanode"] = pm
-		dr.populatePermanodeFields(pm, br, dr.sh.owner, depth)
-	case "application/json; camliType=file":
-		fm := jsonMap()
-		m["file"] = fm
-		dr.populateFileFields(fm, br)
+	switch des.CamliType {
+	case "permanode":
+		des.Permanode = new(DescribedPermanode)
+		dr.populatePermanodeFields(des.Permanode, br, dr.sh.owner, depth)
+	case "file":
+		var err os.Error
+		des.File, err = dr.sh.index.GetFileInfo(br)
+		if err != nil {
+			dr.addError(br, err)
+		}
 	}
 }
 
@@ -353,26 +396,14 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (dr *DescribeRequest) populateFileFields(fm map[string]interface{}, fbr *blobref.BlobRef) {
-	fi, err := dr.sh.index.GetFileInfo(fbr)
-	if err != nil {
-		return
-	}
-	fm["size"] = fi.Size
-	fm["fileName"] = fi.FileName
-	fm["mimeType"] = fi.MimeType
-}
-
-// dmap may be nil, returns the jsonMap to populate into
-func (dr *DescribeRequest) populatePermanodeFields(jm map[string]interface{}, pn, signer *blobref.BlobRef, depth int) {
-	//log.Printf("populate permanode %s depth %d", pn, depth)
-	attr := jsonMap()
-	jm["attr"] = attr
+func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer *blobref.BlobRef, depth int) {
+	pi.Attr = make(map[string][]string)
+	attr := pi.Attr
 
 	claims, err := dr.sh.index.GetOwnerClaims(pn, signer)
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-		jm["error"] = fmt.Sprintf("Error getting claims of %s: %v", pn.String(), err)
+		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
 		return
 	}
 
@@ -384,16 +415,14 @@ claimLoop:
 			if cl.Value == "" {
 				attr[cl.Attr] = nil, false
 			} else {
-				sl, ok := attr[cl.Attr].([]string)
-				if ok {
-					filtered := make([]string, 0, len(sl))
-					for _, val := range sl {
-						if val != cl.Value {
-							filtered = append(filtered, val)
-						}
+				sl := attr[cl.Attr]
+				filtered := make([]string, 0, len(sl))
+				for _, val := range sl {
+					if val != cl.Value {
+						filtered = append(filtered, val)
 					}
-					attr[cl.Attr] = filtered
 				}
+				attr[cl.Attr] = filtered
 			}
 		case "set-attribute":
 			attr[cl.Attr] = nil, false
@@ -402,7 +431,7 @@ claimLoop:
 			if cl.Value == "" {
 				continue
 			}
-			sl, ok := attr[cl.Attr].([]string)
+			sl, ok := attr[cl.Attr]
 			if ok {
 				for _, exist := range sl {
 					if exist == cl.Value {
@@ -418,14 +447,14 @@ claimLoop:
 	}
 
 	// If the content permanode is now known, look up its type
-	if content, ok := attr["camliContent"].([]string); ok && len(content) > 0 {
+	if content, ok := attr["camliContent"]; ok && len(content) > 0 {
 		cbr := blobref.Parse(content[len(content)-1])
 		dr.Describe(cbr, depth-1)
 	}
 
 	// Resolve children
-	if member, ok := attr["camliMember"].([]string); ok && len(member) > 0 {
-		for _, member := range member {
+	if members, ok := attr["camliMember"]; ok {
+		for _, member := range members {
 			membr := blobref.Parse(member)
 			if membr != nil {
 				dr.Describe(membr, depth-1)
@@ -501,9 +530,9 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 
 const camliTypePrefix = "application/json; camliType="
 
-func setMimeType(m map[string]interface{}, mime string) {
-	m["type"] = mime
+func (d *DescribedBlob) setMimeType(mime string) {
+	d.MimeType = mime
 	if strings.HasPrefix(mime, camliTypePrefix) {
-		m["camliType"] = mime[len(camliTypePrefix):]
+		d.CamliType = mime[len(camliTypePrefix):]
 	}
 }

@@ -25,17 +25,22 @@ import (
 )
 
 type FakeIndex struct {
-	lk       sync.Mutex
-	mimeType map[string]string // blobref -> type
-	size     map[string]int64
+	lk          sync.Mutex
+	mimeType    map[string]string // blobref -> type
+	size        map[string]int64
+	ownerClaims map[string]ClaimList // "<permanode>/<owner>" -> ClaimList
+
+	cllk  sync.Mutex
+	clock int64
 }
 
 var _ Index = (*FakeIndex)(nil)
 
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
-		mimeType: make(map[string]string),
-		size:     make(map[string]int64),
+		mimeType:    make(map[string]string),
+		size:        make(map[string]int64),
+		ownerClaims: make(map[string]ClaimList),
 	}
 }
 
@@ -43,11 +48,37 @@ func NewFakeIndex() *FakeIndex {
 // Test methods
 //
 
-func (fi *FakeIndex) AddMeta(blobstr string, mime string, size int64) {
+func (fi *FakeIndex) nextDate() *time.Time {
+	fi.cllk.Lock()
+	fi.clock++
+	clock := fi.clock
+	fi.cllk.Unlock()
+	return time.SecondsToUTC(clock)
+}
+
+func (fi *FakeIndex) AddMeta(blob *blobref.BlobRef, mime string, size int64) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
-	fi.mimeType[blobstr] = mime
-	fi.size[blobstr] = size
+	fi.mimeType[blob.String()] = mime
+	fi.size[blob.String()] = size
+}
+
+func (fi *FakeIndex) AddClaim(owner, permanode *blobref.BlobRef, claimType, attr, value string) {
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	date := fi.nextDate()
+
+	claim := &Claim{
+		Permanode: permanode,
+		Signer:    nil,
+		BlobRef:   nil,
+		Date:      date,
+		Type:      claimType,
+		Attr:      attr,
+		Value:     value,
+	}
+	key := permanode.String() + "/" + owner.String()
+	fi.ownerClaims[key] = append(fi.ownerClaims[key], claim)
 }
 
 //
@@ -55,13 +86,15 @@ func (fi *FakeIndex) AddMeta(blobstr string, mime string, size int64) {
 //
 
 func (fi *FakeIndex) GetRecentPermanodes(dest chan *Result,
-	owner []*blobref.BlobRef,
-	limit int) os.Error {
+owner []*blobref.BlobRef,
+limit int) os.Error {
 	panic("NOIMPL")
 }
 
 func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error) {
-	panic("NOIMPL")
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
 }
 
 func (fi *FakeIndex) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
@@ -98,4 +131,3 @@ func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) (
 func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*Path, os.Error) {
 	panic("NOIMPL")
 }
-
