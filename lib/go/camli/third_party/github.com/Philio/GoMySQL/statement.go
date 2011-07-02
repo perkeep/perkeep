@@ -609,7 +609,7 @@ func (s *Statement) Close() (err os.Error) {
 	// Reset client
 	s.reset()
 	// Send command
-	err = s.c.command(COM_STMT_RESET, s.statementId)
+	err = s.c.command(COM_STMT_CLOSE, s.statementId)
 	return
 }
 
