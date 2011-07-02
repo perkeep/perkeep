@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"html"
 	"http"
+	"json"
 	"log"
 	"os"
 
@@ -117,6 +118,17 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 	fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
+
+	dr := pub.Search.NewDescribeRequest()
+	dr.Describe(path.Target, 3)
+	{
+		jm := make(map[string]interface{})
+		dr.PopulateJSON(jm)
+		fmt.Fprintf(rw, "<pre>")
+		json, _ := json.MarshalIndent(jm, "", "  ")
+		rw.Write(json)
+		fmt.Fprintf(rw, "</pre>")
+	}
 }
 
 func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) os.Error {
@@ -140,12 +152,12 @@ func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) os.Erro
 	// Step 2: addd a claim that the new permanode is the desired root.
 	claim, err := jsonSign.SignMap(schema.NewSetAttributeClaim(ph.BlobRef, "camliRoot", pub.RootName))
 	if err != nil {
-                return fmt.Errorf("error creating claim: %v", err)
-        }
+		return fmt.Errorf("error creating claim: %v", err)
+	}
 	ch := client.NewUploadHandleFromString(claim)
 	_, err = pub.Storage.ReceiveBlob(ch.BlobRef, ch.Contents)
-        if err != nil {
-                return fmt.Errorf("error uploading claim: %v", err)
-        }
+	if err != nil {
+		return fmt.Errorf("error uploading claim: %v", err)
+	}
 	return nil
 }
