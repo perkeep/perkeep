@@ -42,6 +42,7 @@ function handleFormTitleSubmit(e) {
                 setTimeout(function() {
                     inputTitle.disabled = false;
                     btnSaveTitle.disabled = false;
+                    buildPermanodeUi();
                 }, Math.max(250 - elapsedMs, 0));
             },
             fail: function(msg) {
@@ -155,7 +156,7 @@ function deleteTagFunc(tag, strikeEle, removeEle) {
     };
 }
 
-function onTypeChange(e) {
+function onTypeChange() {
     var sel = document.getElementById("type");
     var dnd = document.getElementById("dnd");
 
@@ -347,11 +348,33 @@ function onBlobDescribed(jres) {
         return;
     }
 
+    document.getElementById("debugattrs").innerText = JSON.stringify(permanodeObject.attr, null, 2);
+
+    var attr = function(name) {
+        if (!(name in permanodeObject.attr)) {
+            return null;          
+        }
+        if (permanodeObject.attr[name].length == 0) {
+            return null;
+        }
+        return permanodeObject.attr[name][0];
+    };
+
+    var disablePublish = false;
+
+    var selType = document.getElementById("type");
+    if (attr("camliRoot")) {
+        selType.value = "root";
+        onTypeChange();
+        disablePublish = true;  // can't give a URL to a root with a claim
+    }
+
+    document.getElementById("selectPublishRoot").disabled = disablePublish;
+    document.getElementById("publishSuffix").disabled = disablePublish;
+    document.getElementById("btnSavePublish").disabled = disablePublish;
+
     var inputTitle = document.getElementById("inputTitle");
-    inputTitle.value =
-        (permanodeObject.attr.title && permanodeObject.attr.title.length == 1) ?
-        permanodeObject.attr.title[0] :
-        "";
+    inputTitle.value = attr("title") ? attr("title") : "";
     inputTitle.disabled = false;
 
     var spanTags = document.getElementById("spanTags");
