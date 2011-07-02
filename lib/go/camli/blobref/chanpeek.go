@@ -18,7 +18,7 @@ package blobref
 
 // TODO: use Generics if/when available
 type ChanPeeker struct {
-	Ch     <-chan SizedBlobRef
+	Ch <-chan SizedBlobRef
 
 	// A channel should either have a peek value or be closed:
 	peek   *SizedBlobRef
@@ -57,4 +57,3 @@ func (cp *ChanPeeker) ConsumeAll() {
 		cp.Take()
 	}
 }
-

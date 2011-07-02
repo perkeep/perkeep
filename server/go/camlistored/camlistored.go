@@ -203,7 +203,7 @@ func main() {
 		}
 		pmap, ok := vei.(map[string]interface{})
 		if !ok {
-			exitFailure("prefix %q value is a %T, not an object", prefix,	vei)
+			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
 		}
 		pconf := jsonconfig.Obj(pmap)
 		handlerType := pconf.RequiredString("handler")

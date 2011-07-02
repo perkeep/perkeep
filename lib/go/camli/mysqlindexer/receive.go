@@ -237,10 +237,10 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 				active = "N"
 			}
 			if err = execSQL(client, "INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref, active) "+
-                                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value, active); err != nil {
-                                return
-                        }
+				"VALUES (?, ?, ?, ?, ?, ?, ?)",
+				blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value, active); err != nil {
+				return
+			}
 		}
 	}
 

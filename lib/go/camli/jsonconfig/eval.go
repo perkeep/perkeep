@@ -32,7 +32,7 @@ import (
 
 // State for config parsing and expression evalutaion
 type configParser struct {
-	RootJson     Obj
+	RootJson Obj
 
 	touchedFiles map[string]bool
 	includeStack vector.StringVector
@@ -176,4 +176,3 @@ func (c *configParser) expandFile(v []interface{}) (exp interface{}, err os.Erro
 	}
 	return exp, nil
 }
-

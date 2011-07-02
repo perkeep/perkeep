@@ -36,11 +36,11 @@ type Indexer struct {
 	Host, User, Password, Database string
 	Port                           int
 
-	KeyFetcher   blobref.StreamingFetcher // for verifying claims
+	KeyFetcher blobref.StreamingFetcher // for verifying claims
 
 	// Used for fetching blobs to find the complete sha1 of schema
 	// blobs.
-	BlobSource    blobserver.Storage
+	BlobSource blobserver.Storage
 
 	clientLock    sync.Mutex
 	cachedClients []*mysql.Client
@@ -68,10 +68,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	// Good enough, for now:
 	indexer.KeyFetcher = indexer.BlobSource
 
-		//ownerBlobRef = client.SignerPublicKeyBlobref()
-		//if ownerBlobRef == nil {
-		//	log.Fatalf("Public key not configured.")
-		//}
+	//ownerBlobRef = client.SignerPublicKeyBlobref()
+	//if ownerBlobRef == nil {
+	//	log.Fatalf("Public key not configured.")
+	//}
 
 	ok, err := indexer.IsAlive()
 	if !ok {

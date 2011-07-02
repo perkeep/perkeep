@@ -28,7 +28,7 @@ import (
 // RootHandler handles serving the about/splash page.
 type RootHandler struct {
 	// Don't advertise anything to non-authenticated clients.
-	Stealth    bool
+	Stealth bool
 
 	// Show a setup link?
 	// TODO: figure out details of when/how this will work
@@ -59,5 +59,5 @@ func (rh *RootHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn,
 		"<html><body>This is camlistored, a "+
 			"<a href='http://camlistore.org'>Camlistore</a> server."+
-			"%s</body></html>\n",configLink)
+			"%s</body></html>\n", configLink)
 }

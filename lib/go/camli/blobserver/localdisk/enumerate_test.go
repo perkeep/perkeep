@@ -74,14 +74,14 @@ func TestEnumerate(t *testing.T) {
 			limit, waitSeconds)
 	}()
 	sb, ok = <-ch
-        Assert(t, ok, "got 1st blob, skipping foo")
-        ExpectInt(t, 4, int(sb.Size), "blob size")
-        sb, ok = <-ch
-        Assert(t, ok, "got 2nd blob, skipping foo")
-        ExpectInt(t, 5, int(sb.Size), "blob size")
-        sb, ok = <-ch
-        Assert(t, !ok, "got final nil")
-        ExpectNil(t, <-errCh, "EnumerateBlobs return value")
+	Assert(t, ok, "got 1st blob, skipping foo")
+	ExpectInt(t, 4, int(sb.Size), "blob size")
+	sb, ok = <-ch
+	Assert(t, ok, "got 2nd blob, skipping foo")
+	ExpectInt(t, 5, int(sb.Size), "blob size")
+	sb, ok = <-ch
+	Assert(t, !ok, "got final nil")
+	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
 func TestEnumerateEmpty(t *testing.T) {
@@ -115,15 +115,15 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 			"", limit, waitSeconds)
 	}()
 
-	foo := &testBlob{"foo"}   // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	foo := &testBlob{"foo"} // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
 	go func() {
-		time.Sleep(100e6)  // 100 ms
+		time.Sleep(100e6) // 100 ms
 		foo.ExpectUploadBlob(t, ds)
 	}()
 
 	sb, ok := <-ch
-        Assert(t, ok, "got a blob")
-        ExpectInt(t, 3, int(sb.Size), "blob size")
+	Assert(t, ok, "got a blob")
+	ExpectInt(t, 3, int(sb.Size), "blob size")
 	ExpectString(t, "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", sb.BlobRef.String(), "got the right blob")
 
 	sb, ok = <-ch
@@ -160,19 +160,22 @@ func TestEnumerateIsSorted(t *testing.T) {
 	// enumerate code.
 	fakeDir := ds.root + "/partition/queue-indexer/sha1/1f0/710"
 	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating fakeDir")
-	ExpectNil(t, ioutil.WriteFile(fakeDir + "/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
+	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"), 0644), "writing fake blob")
 
-	var tests = []struct { limit int; after string; }{
-		{ 200, "" },
-		{ blobsToMake, "" },
-		{ 200, "sha1-2" },
-		{ 200, "sha1-3" },
-		{ 200, "sha1-4" },
-		{ 200, "sha1-5" },
-		{ 200, "sha1-e" },
-		{ 200, "sha1-f" },
-		{ 200, "sha1-ff" },
+	var tests = []struct {
+		limit int
+		after string
+	}{
+		{200, ""},
+		{blobsToMake, ""},
+		{200, "sha1-2"},
+		{200, "sha1-3"},
+		{200, "sha1-4"},
+		{200, "sha1-5"},
+		{200, "sha1-e"},
+		{200, "sha1-f"},
+		{200, "sha1-ff"},
 	}
 	for _, test := range tests {
 		limit := uint(test.limit)

@@ -59,7 +59,7 @@ func TestJson(t *testing.T) {
 	if !strings.HasPrefix(json, kExpectedHeader) {
 		t.Errorf("JSON does't start with expected header.")
 	}
-	
+
 }
 
 type rfc3339NanoTest struct {
@@ -74,7 +74,7 @@ func TestRFC3339Nanos(t *testing.T) {
 		{10, "1970-01-01T00:00:00.00000001Z"},
 		{1000, "1970-01-01T00:00:00.000001Z"},
 		{1301114560 * 1e9, "2011-03-26T04:42:40Z"},
-		{1301114560 * 1e9 + 10, "2011-03-26T04:42:40.00000001Z"},
+		{1301114560*1e9 + 10, "2011-03-26T04:42:40.00000001Z"},
 	}
 	for idx, test := range tests {
 		got := RFC3339FromNanos(test.nanos)
@@ -92,7 +92,7 @@ func TestRFC3339Nanos(t *testing.T) {
 func TestRegularFile(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, err := os.Lstat(fileName)
-        AssertNil(t, err, "test-symlink stat")
+	AssertNil(t, err, "test-symlink stat")
 	m := NewCommonFileMap("schema_test.go", fi)
 	json, err := MapToCamliJson(m)
 	if err != nil {

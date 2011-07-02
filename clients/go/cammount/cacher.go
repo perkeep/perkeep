@@ -38,9 +38,9 @@ var _ blobref.SeekFetcher = (*CachingFetcher)(nil)
 
 func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
 	file, size, err = cf.c.Fetch(br)
-        if err == nil {
-                return
-        }
+	if err == nil {
+		return
+	}
 	cf.faultIn(br)
 	return cf.c.Fetch(br)
 }

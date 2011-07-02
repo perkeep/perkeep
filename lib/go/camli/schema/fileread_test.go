@@ -116,7 +116,7 @@ var readTests = []readTest{
 	{parts(
 		all(blobA),
 		filePart(parts(all(blobB), part(blobC, 4, 2)), 4),
-			part(blobA, 5, 5)),
+		part(blobA, 5, 5)),
 		1,
 		"AAAAaaaaa" + "Bbbbbb" + "Cc" + "aaaaa"},
 }

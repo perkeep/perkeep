@@ -27,8 +27,8 @@ import (
 
 func makeGetRequest(url string) *http.Request {
 	req := &http.Request{
-        Method: "GET",
-	RawURL: url,
+		Method: "GET",
+		RawURL: url,
 	}
 	var err os.Error
 	req.URL, err = http.ParseURL(url)
@@ -39,12 +39,13 @@ func makeGetRequest(url string) *http.Request {
 }
 
 type emptyEnumerator struct {
+
 }
 
 func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-        after string,
-        limit uint,
-        waitSeconds int) os.Error {
+after string,
+limit uint,
+waitSeconds int) os.Error {
 	close(dest)
 	return nil
 }
@@ -74,7 +75,7 @@ func TestEnumerateInput(t *testing.T) {
 		wr.Code = 200 // default
 		req := makeGetRequest(test.url)
 		handleEnumerateBlobs(wr, req, enumerator)
-		ExpectInt(t, test.expectedCode, wr.Code, "response code for " + test.name)
-		ExpectString(t, test.expectedBody, wr.Body.String(), "output for " + test.name)
+		ExpectInt(t, test.expectedCode, wr.Code, "response code for "+test.name)
+		ExpectString(t, test.expectedBody, wr.Body.String(), "output for "+test.name)
 	}
 }

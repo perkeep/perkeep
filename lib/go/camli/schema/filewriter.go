@@ -73,9 +73,9 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 
 		size += n
 		parts = append(parts, ContentPart{
-			BlobRef:       br,
-			Size:          uint64(n),
-			Offset:        0, // into BlobRef to read from (not of dest)
+			BlobRef: br,
+			Size:    uint64(n),
+			Offset:  0, // into BlobRef to read from (not of dest)
 		})
 	}
 
@@ -246,14 +246,14 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 					return err
 				}
 				*dst = append(*dst, ContentPart{
-					SubBlobRef:       br,
-					Size:             uint64(childrenSize),
+					SubBlobRef: br,
+					Size:       uint64(childrenSize),
 				})
 			}
 			if sp.from != sp.to {
 				*dst = append(*dst, ContentPart{
-					BlobRef:       sp.br,
-					Size:          uint64(sp.to - sp.from),
+					BlobRef: sp.br,
+					Size:    uint64(sp.to - sp.from),
 				})
 			}
 		}

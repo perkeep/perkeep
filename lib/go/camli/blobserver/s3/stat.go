@@ -38,4 +38,3 @@ func (sto *s3Storage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	}
 	return nil
 }
-

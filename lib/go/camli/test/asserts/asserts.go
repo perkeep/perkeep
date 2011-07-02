@@ -101,4 +101,3 @@ func AssertNil(t *testing.T, v interface{}, what string) {
 	}
 	t.Fatalf("%s: expected nil; got %v", what, v)
 }
-

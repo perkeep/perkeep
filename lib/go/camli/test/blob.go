@@ -27,7 +27,7 @@ import (
 
 // Blob is a utility class for unit tests.
 type Blob struct {
-	Contents string  // the contents of the blob
+	Contents string // the contents of the blob
 }
 
 func (tb *Blob) BlobRef() *blobref.BlobRef {

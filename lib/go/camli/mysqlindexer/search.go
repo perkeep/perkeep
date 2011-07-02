@@ -458,14 +458,14 @@ func (mi *Indexer) PathLookup(signer, base *blobref.BlobRef, suffix string, at *
 	// TODO: pass along the at time to a new helper function to
 	// filter? maybe not worth it, since this list should be
 	// small.
-	paths, err := mi.PathsLookup(signer, base, suffix);
+	paths, err := mi.PathsLookup(signer, base, suffix)
 	if err != nil {
 		return nil, err
 	}
 	var (
-		newest = int64(0)
+		newest    = int64(0)
 		atSeconds = int64(0)
-		best *search.Path
+		best      *search.Path
 	)
 	if at != nil {
 		atSeconds = at.Seconds()

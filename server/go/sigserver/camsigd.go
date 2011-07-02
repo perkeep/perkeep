@@ -43,7 +43,7 @@ func handleRoot(conn http.ResponseWriter, req *http.Request) {
 }
 
 func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
-	handler := func (conn http.ResponseWriter, req *http.Request) {
+	handler := func(conn http.ResponseWriter, req *http.Request) {
 		httputil.BadRequestError(conn, "Unsupported path or method.")
 	}
 

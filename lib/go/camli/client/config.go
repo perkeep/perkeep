@@ -154,7 +154,7 @@ func SignerPublicKeyBlobref() *blobref.BlobRef {
 
 	br := blobref.Sha1FromString(armored)
 
-	pubFile := filepath.Join(selfPubKeyDir, br.String() + ".camli")
+	pubFile := filepath.Join(selfPubKeyDir, br.String()+".camli")
 	log.Printf("key file: %q", pubFile)
 	fi, err = os.Stat(pubFile)
 	if err != nil {

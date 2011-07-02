@@ -74,4 +74,3 @@ func (mi *Indexer) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobR
 	}
 	return nil
 }
-

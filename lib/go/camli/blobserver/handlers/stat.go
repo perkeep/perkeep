@@ -67,7 +67,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 			toStat = append(toStat, ref)
 		}
 	default:
-		httputil.BadRequestError(conn, "Invalid method.");
+		httputil.BadRequestError(conn, "Invalid method.")
 		return
 
 	}

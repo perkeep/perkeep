@@ -36,7 +36,7 @@ type removeResponse struct {
 // remove a blob. Removing a non-existent blob isn't an error.
 func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	url := fmt.Sprintf("%s/camli/remove", c.server)
-	params := make(http.Values)  // "blobN" -> BlobRefStr
+	params := make(http.Values)          // "blobN" -> BlobRefStr
 	needsDelete := make(map[string]bool) // BlobRefStr -> true
 	for n, b := range blobs {
 		if b == nil {

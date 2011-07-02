@@ -39,8 +39,8 @@ func splitIPPort(param, value string) (ip net.IP, port int, reterr os.Error) {
 	addrs, ports, err := net.SplitHostPort(value)
 	if err != nil {
 		reterr = fmt.Errorf("netutil: AddrPairUserid invalid %s value: %v", err)
-                return
-        }
+		return
+	}
 	ip = net.ParseIP(addrs)
 	if ip == nil {
 		reterr = fmt.Errorf("netutil: invalid %s IP %q", param, addrs)
@@ -89,7 +89,7 @@ func AddrPairUserid(lipport, ripport string) (uid int, err os.Error) {
 func reverseIPBytes(b []byte) []byte {
 	rb := make([]byte, len(b))
 	for i, v := range b {
-		rb[len(b) - i - 1] = v
+		rb[len(b)-i-1] = v
 	}
 	return rb
 }
@@ -112,7 +112,7 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 		localHex = fmt.Sprintf("%032X:%04X", []byte(lip.To16()), lport)
 		remoteHex = fmt.Sprintf("%032X:%04X", []byte(rip.To16()), rport)
 	}
-	
+
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
@@ -130,5 +130,3 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 	}
 	panic("unreachable")
 }
-
-

@@ -135,4 +135,3 @@ func (spm *SimpleBlobHubPartitionMap) GetBlobHub() BlobHub {
 	}
 	return spm.hub
 }
-

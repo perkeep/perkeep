@@ -159,7 +159,7 @@ func (br *BlobRef) UnmarshalJSON(d []byte) os.Error {
 	if len(d) < 2 || d[0] != '"' || d[len(d)-1] != '"' {
 		return fmt.Errorf("blobref: expecting a JSON string to unmarshal, got %q", d)
 	}
-	refStr := string(d[1:len(d)-1])
+	refStr := string(d[1 : len(d)-1])
 	p := Parse(refStr)
 	if p == nil {
 		return fmt.Errorf("blobref: invalid blobref %q (%d)", refStr, len(refStr))

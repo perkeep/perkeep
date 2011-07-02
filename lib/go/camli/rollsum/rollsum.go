@@ -21,8 +21,7 @@ limitations under the License.
 // particular is at https://github.com/apenwarr/bup/blob/master/lib/bup/bupsplit.c
 package rollsum
 
-import (
-	)
+import ()
 
 const windowSize = 64
 const charOffset = 31
@@ -45,7 +44,7 @@ func New() *RollSum {
 
 func (rs *RollSum) add(drop, add uint8) {
 	rs.s1 += uint32(add) - uint32(drop)
-	rs.s2 += rs.s1 - uint32(windowSize) * uint32(drop + charOffset)
+	rs.s2 += rs.s1 - uint32(windowSize)*uint32(drop+charOffset)
 }
 
 func (rs *RollSum) Roll(ch byte) {
@@ -55,14 +54,14 @@ func (rs *RollSum) Roll(ch byte) {
 }
 
 func (rs *RollSum) OnSplit() bool {
-	return (rs.s2 & (blobSize-1)) == ((^0) & (blobSize-1))
+	return (rs.s2 & (blobSize - 1)) == ((^0) & (blobSize - 1))
 }
 
 func (rs *RollSum) Bits() int {
 	bits := blobBits
 	rsum := rs.Digest()
-	rsum >>= blobBits;
-	for ; (rsum >> 1) & 1 != 0; bits++ {
+	rsum >>= blobBits
+	for ; (rsum>>1)&1 != 0; bits++ {
 		rsum >>= 1
 	}
 	return bits

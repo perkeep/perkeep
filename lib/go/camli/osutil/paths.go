@@ -54,21 +54,21 @@ func FindCamliInclude(configFile string) (absPath string, err os.Error) {
 	// Try to open as absolute / relative to CWD
 	_, err = os.Stat(configFile)
 	if err == nil {
-		return configFile, nil;
+		return configFile, nil
 	}
 	if filepath.IsAbs(configFile) {
 		// End of the line for absolute path
-		return "", err;
+		return "", err
 	}
 
 	// Try the config dir
-	configDir := CamliConfigDir();
+	configDir := CamliConfigDir()
 	if _, err = os.Stat(filepath.Join(configDir, configFile)); err == nil {
 		return filepath.Join(configDir, configFile), nil
 	}
 
 	// Finally, search CAMLI_INCLUDE_PATH
-	p := os.Getenv("CAMLI_INCLUDE_PATH");
+	p := os.Getenv("CAMLI_INCLUDE_PATH")
 	for _, d := range strings.Split(p, string(filepath.ListSeparator)) {
 		if _, err = os.Stat(filepath.Join(d, configFile)); err == nil {
 			return filepath.Join(d, configFile), nil
@@ -77,4 +77,3 @@ func FindCamliInclude(configFile string) (absPath string, err os.Error) {
 
 	return "", os.ENOENT
 }
-

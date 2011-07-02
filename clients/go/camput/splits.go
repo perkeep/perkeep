@@ -86,9 +86,9 @@ func showSplits() {
 	dumpSpans = func(s []span, indent int) {
 		in := strings.Repeat(" ", indent)
 		for _, sp := range s {
-			fmt.Printf("%sfrom=%d, to=%d (len %d) bits=%d\n", in, sp.from, sp.to, sp.to - sp.from, sp.bits)
+			fmt.Printf("%sfrom=%d, to=%d (len %d) bits=%d\n", in, sp.from, sp.to, sp.to-sp.from, sp.bits)
 			if len(sp.children) > 0 {
-				dumpSpans(sp.children, indent + 4)
+				dumpSpans(sp.children, indent+4)
 			}
 		}
 	}

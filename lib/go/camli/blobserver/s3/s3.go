@@ -63,4 +63,3 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 func init() {
 	blobserver.RegisterStorageConstructor("s3", blobserver.StorageConstructor(newFromConfig))
 }
-

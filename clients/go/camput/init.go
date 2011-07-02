@@ -57,22 +57,22 @@ func doInit() {
 	// unify them into a shared package just for gpg-related stuff?
 	keyBytes, err := exec.Command("gpg", "--export", "--armor", keyId).Output()
 	if err != nil {
-                log.Fatalf("Error running gpg to export public key: %v", err)
-        }
-	
+		log.Fatalf("Error running gpg to export public key: %v", err)
+	}
+
 	hash := sha1.New()
 	hash.Write(keyBytes)
 	bref := blobref.FromHash("sha1", hash)
-	
-	keyBlobPath := path.Join(blobDir, bref.String() + ".camli")
+
+	keyBlobPath := path.Join(blobDir, bref.String()+".camli")
 	if err = ioutil.WriteFile(keyBlobPath, keyBytes, 0644); err != nil {
 		log.Fatalf("Error writing public key blob to %q: %v", keyBlobPath, err)
 	}
-	
+
 	if ok, err := jsonsign.VerifyPublicKeyFile(keyBlobPath, keyId); !ok {
 		log.Fatalf("Error verifying public key at %q: %v", keyBlobPath, err)
 	}
-	
+
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
 
 	_, err = os.Stat(client.ConfigFilePath())
@@ -87,8 +87,8 @@ func doInit() {
 
 		blobPut := make([]map[string]string, 1)
 		blobPut[0] = map[string]string{
-			"alias": "local",
-			"host": "http://localhost:3179/",
+			"alias":    "local",
+			"host":     "http://localhost:3179/",
 			"password": "test",
 		}
 		m["blobPut"] = blobPut
@@ -96,15 +96,14 @@ func doInit() {
 		blobGet := make([]map[string]string, 2)
 		blobGet[0] = map[string]string{
 			"alias": "keyblobs",
-			"path": "$HOME/.camli/keyblobs",
+			"path":  "$HOME/.camli/keyblobs",
 		}
 		blobGet[1] = map[string]string{
-			"alias": "local",
-			"host": "http://localhost:3179/",
+			"alias":    "local",
+			"host":     "http://localhost:3179/",
 			"password": "test",
 		}
 		m["blobGet"] = blobGet
-
 
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {

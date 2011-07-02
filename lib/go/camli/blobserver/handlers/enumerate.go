@@ -51,7 +51,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	formValueAfter := req.FormValue("after")
 
 	var (
-		err os.Error
+		err   os.Error
 		limit uint = defaultEnumerateSize
 	)
 

@@ -24,6 +24,7 @@ import (
 )
 
 type NoImplStorage struct {
+
 }
 
 var _ Storage = (*NoImplStorage)(nil)
@@ -46,15 +47,15 @@ func (nis *NoImplStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (
 }
 
 func (nis *NoImplStorage) Stat(dest chan<- blobref.SizedBlobRef,
-		blobs []*blobref.BlobRef,
-		waitSeconds int) os.Error {
+blobs []*blobref.BlobRef,
+waitSeconds int) os.Error {
 	return os.NewError("Stat not implemented")
 }
 
 func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-		after string,
-		limit uint,
-		waitSeconds int) os.Error {
+after string,
+limit uint,
+waitSeconds int) os.Error {
 	return os.NewError("EnumerateBlobs not implemented")
 }
 

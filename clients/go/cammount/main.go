@@ -29,7 +29,7 @@ import (
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
-func PrintMap(m map[string]float64)  {
+func PrintMap(m map[string]float64) {
 	keys := make([]string, len(m))
 	for k, _ := range m {
 		keys = append(keys, k)

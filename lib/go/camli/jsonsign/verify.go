@@ -73,7 +73,7 @@ type VerifyRequest struct {
 
 	// set if Verify() returns true:
 	PayloadMap  map[string]interface{} // The JSON values from BPJ
-	SignerKeyId string // e.g. "2931A67C26F5ABDA"
+	SignerKeyId string                 // e.g. "2931A67C26F5ABDA"
 
 	Err os.Error // last error encountered
 }

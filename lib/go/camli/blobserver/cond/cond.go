@@ -69,13 +69,13 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserve
 
 	sto.read, err = ld.GetStorage(read)
 	if err != nil {
-                        return
-        }
+		return
+	}
 
 	if remove != "" {
 		sto.remove, err = ld.GetStorage(remove)
 		if err != nil {
-                        return
+			return
 		}
 	}
 	return sto, nil

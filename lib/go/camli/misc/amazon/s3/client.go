@@ -151,9 +151,9 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys uint) (items []
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err os.Error) {
 	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
 	req := newReq(url)
-        c.Auth.SignRequest(req)
+	c.Auth.SignRequest(req)
 	var res *http.Response
-        res, err = c.httpClient().Do(req)
+	res, err = c.httpClient().Do(req)
 	if err != nil {
 		return
 	}
@@ -177,8 +177,8 @@ func (c *Client) Delete(bucket, key string) os.Error {
 	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
 	req := newReq(url)
 	req.Method = "DELETE"
-        c.Auth.SignRequest(req)
-        res, err := c.httpClient().Do(req)
+	c.Auth.SignRequest(req)
+	res, err := c.httpClient().Do(req)
 	if err != nil {
 		return err
 	}

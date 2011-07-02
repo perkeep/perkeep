@@ -39,7 +39,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	mr, err := req.MultipartReader()
 	if err != nil {
 		ret["error"] = "reading body: " + err.String()
-                ret["errorType"] = "server"
+		ret["errorType"] = "server"
 		return
 	}
 
@@ -68,7 +68,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			got = append(got, map[string]interface{}{
 				"filename": part.FileName(),
 				"formname": part.FormName(),
-				"fileref": br.String(),
+				"fileref":  br.String(),
 			})
 		} else {
 			ret["error"] = "writing to blobserver: " + err.String()
@@ -77,4 +77,3 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	}
 	ret["got"] = got
 }
-

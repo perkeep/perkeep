@@ -168,7 +168,7 @@ func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) (*BlobRef, os.E
 
 func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64, err os.Error) {
 	s.lk.Lock()
-        defer s.lk.Unlock()
+	defer s.lk.Unlock()
 	if s.m == nil {
 		return nil, 0, os.ENOENT
 	}

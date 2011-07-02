@@ -36,4 +36,3 @@ func (sto *s3Storage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return reterr
 
 }
-

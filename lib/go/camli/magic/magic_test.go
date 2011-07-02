@@ -34,7 +34,7 @@ var tests = []magicTest{
 func TestGolden(t *testing.T) {
 	for _, test := range tests {
 		data, err := ioutil.ReadFile("testdata/" + test.fileName)
-		AssertNil(t, err, "no error reading " + test.fileName)
+		AssertNil(t, err, "no error reading "+test.fileName)
 		mime := MimeType(data)
 		ExpectString(t, test.expected, mime, test.fileName)
 	}

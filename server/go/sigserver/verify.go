@@ -33,7 +33,7 @@ import (
 	"camli/httputil"
 	"camli/jsonsign"
 	"http"
-	)
+)
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/sig/verify") {
@@ -60,6 +60,6 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 		m["errorMessage"] = errStr
 	}
 
-	conn.WriteHeader(http.StatusOK)  // no HTTP response code fun, error info in JSON
+	conn.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
 	httputil.ReturnJson(conn, m)
 }

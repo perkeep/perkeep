@@ -29,6 +29,7 @@ import (
 var _ = log.Printf
 
 const closedIndex = -1
+
 var errClosed = os.NewError("filereader is closed")
 
 type FileReader struct {

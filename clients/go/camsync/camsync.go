@@ -38,9 +38,9 @@ var flagRemoveSource = flag.Bool("removesrc", false,
 	"remove each blob from the source after syncing to the destination; for queue processing")
 
 type SyncStats struct {
-	BlobsCopied	int
-	BytesCopied	int64
-	ErrorCount	int
+	BlobsCopied int
+	BytesCopied int64
+	ErrorCount  int
 }
 
 func usage(err string) {
