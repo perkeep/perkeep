@@ -145,7 +145,7 @@
      "/indexer/": {
          "handler": "storage-mysqlindexer",
          "handlerArgs": {
-             "database": "devcamlistore",
+             "database": ["_env", "${CAMLI_DBNAME}"],
              "user": "root",
              "password": "root",
              "host": "127.0.0.1",

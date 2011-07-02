@@ -37,7 +37,7 @@ my $suffixdir = sub {
     return $root;
 };
 
-my $DBNAME = "devcamlistore";
+my $DBNAME = "devcamli$ENV{USER}";
 my @opts;
 if ($opt_wipe) {
     push @opts, "-wipe";
@@ -75,6 +75,7 @@ $ENV{CAMLI_ROOT_REPLICA3} = $suffixdir->("r3");
 $ENV{CAMLI_ROOT_CACHE} = $suffixdir->("cache");
 $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
+$ENV{CAMLI_DBNAME} = $DBNAME;
 
 # To use resources from disk, instead of the copies linked into the
 # binary:
