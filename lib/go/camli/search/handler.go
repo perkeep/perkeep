@@ -255,6 +255,10 @@ func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
 	}
 	return m
 }
+
+// NewDescribeRequest returns a new DescribeRequest holding the state
+// of blobs and their summarized descriptions.  Use DescribeBlob
+// one or more times before calling PopulateJSON or Result.
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	return &DescribeRequest{
 		sh:   sh,
@@ -264,6 +268,30 @@ func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	}
 }
 
+type DescribeError map[string]os.Error
+
+func (e DescribeError) String() string {
+	return "one or more errors describing blobs"
+}
+
+// Result waits for all outstanding lookups to complete and
+// returns the map of blobref (strings) to their described
+// results. The returned error is non-nil if any errors
+// occured.
+func (dr *DescribeRequest) Result() (map[string]*DescribedBlob, DescribeError) {
+	dr.wg.Wait()
+	// TODO: set "done" / locked flag, so no more DescribeBlob can
+	// be called.
+	var err DescribeError
+	if len(dr.errs) > 0 {
+		err = DescribeError(dr.errs)
+	}
+	return dr.m, err
+}
+
+// PopulateJSON waits for all outstanding lookups to complete and populates
+// the results into the provided dest map, suitable for marshalling
+// as JSON with the json package.
 func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
 	dr.wg.Wait()
 	dr.lk.Lock()
