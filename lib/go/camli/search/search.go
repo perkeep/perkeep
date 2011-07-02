@@ -74,6 +74,11 @@ type Index interface {
 	owner []*blobref.BlobRef,
 	limit int) os.Error
 
+	// dest is closed
+	GetTaggedPermanodes(dest chan<- *blobref.BlobRef,
+	signer *blobref.BlobRef,
+	tag string) os.Error
+
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 
 	// os.ENOENT should be returned if the blob isn't known

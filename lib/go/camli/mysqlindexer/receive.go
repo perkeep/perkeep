@@ -217,7 +217,7 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 
 	if verifiedKeyId != "" {
 		switch camli.Attribute {
-		case "camliRoot":
+		case "camliRoot", "camliTag":
 			if err = execSQL(client, "INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
 				"VALUES (?, ?, ?, ?, ?, ?)",
 				verifiedKeyId, camli.Attribute, camli.Value,

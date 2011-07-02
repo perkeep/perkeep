@@ -26,13 +26,41 @@ function btnCreateNewPermanode(e) {
         });
 }
 
+function handleFormGetTagged(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var input = document.getElementById("inputTag");
+    var btn = document.getElementById("btnGetTagged");
+
+    if (input.value == "") {
+        return;
+    }
+
+    var tags = input.value.split(/\s*,\s*/);
+
+    var sigcb = {};
+    sigcb.success = function(sigconf) {
+		var tagcb = {};
+		tagcb.success = function(pres) {
+			showTaggedPermanodes(pres);
+		};
+        camliGetTaggedPermanodes(sigconf.publicKeyBlobRef, tags[0], tagcb);
+    };
+    sigcb.fail = function() {
+        alert("sig disco failed");
+    }
+    camliSigDiscovery(sigcb);
+}
+
 function indexOnLoad(e) {
-    var btnNew = document.getElementById("btnNew");
+   var btnNew = document.getElementById("btnNew");
     if (!btnNew) {
         alert("missing btnNew");
     }
     btnNew.addEventListener("click", btnCreateNewPermanode);
     camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes });
+    formTags.addEventListener("submit", handleFormGetTagged);
 
     if (disco && disco.uploadHelper) {
         var uploadForm = document.getElementById("uploadform");
@@ -52,7 +80,20 @@ function indexOnLoad(e) {
                                         }
                                     });
     }
+}
 
+function showTaggedPermanodes(searchRes) {
+    var div = document.getElementById("tagged");
+    div.innerHTML = "";
+    for (var i = 0; i < searchRes.tagged.length; i++) {
+        var result = searchRes.tagged[i];
+        var pdiv = document.createElement("li");
+        var alink = document.createElement("a");
+        alink.href = "./?p=" + result.permanode;
+        alink.innerText = camliBlobTitle(result.permanode, searchRes);
+        pdiv.appendChild(alink);
+        div.appendChild(pdiv);
+    }
 }
 
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {

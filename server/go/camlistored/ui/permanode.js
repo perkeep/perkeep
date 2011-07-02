@@ -87,7 +87,7 @@ function handleFormTagsSubmit(e) {
         var tag = tags[idx];
         camliNewAddAttributeClaim(
             getPermanodeParam(),
-            "tag",
+            "camliTag",
             tag,
             {
                 success: oneDone,
@@ -142,7 +142,7 @@ function deleteTagFunc(tag, strikeEle, removeEle) {
         strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
         camliNewDelAttributeClaim(
             getPermanodeParam(),
-            "tag",
+            "camliTag",
             tag,
             {
                 success: function() {

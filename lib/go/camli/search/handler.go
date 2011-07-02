@@ -32,6 +32,8 @@ import (
 	"camli/httputil"
 )
 
+const buffered = 32 // arbitrary channel buffer size
+
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
 }
@@ -96,6 +98,9 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/search/recent":
 			sh.serveRecentPermanodes(rw, req)
 			return
+		case "camli/search/tag":
+			sh.serveTaggedPermanodes(rw, req)
+			return
 		case "camli/search/describe":
 			sh.serveDescribe(rw, req)
 			return
@@ -146,11 +151,44 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	err := <-errch
 	if err != nil {
 		// TODO: return error status code
-		ret["error"] = fmt.Sprintf("%v", err)
+		ret["error"] = err.String()
 		return
 	}
 
 	ret["recent"] = recent
+	dr.PopulateJSON(ret)
+}
+
+func (sh *Handler) serveTaggedPermanodes(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+
+	signer := blobref.MustParse(mustGet(req, "signer"))
+	value := mustGet(req, "value")
+	ch := make(chan *blobref.BlobRef, buffered)
+	errch := make(chan os.Error)
+	go func() {
+		errch <- sh.index.GetTaggedPermanodes(ch, signer, value)
+	}()
+
+	dr := sh.NewDescribeRequest()
+
+	tagged := jsonMapList()
+	for res := range ch {
+		dr.Describe(res, 2)
+		jm := jsonMap()
+		jm["permanode"] = res.String()
+		tagged = append(tagged, jm)
+	}
+
+	err := <-errch
+	if err != nil {
+		// TODO: return error status code
+		ret["error"] = err.String()
+		return
+	}
+
+	ret["tagged"] = tagged
 	dr.PopulateJSON(ret)
 }
 

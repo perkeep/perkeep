@@ -17,10 +17,20 @@
     <a href="signing.html">signing</a> |
     <a href="search.html">search</a></p>
 
-  <button id="btnNew">New</button> - create a new item or collection
+  <button id="btnNew">New</button> - create a new item or collection 
 
   <h2>Recent Objects</h2>
   <ul id="recent"></ul>
+
+  <form id="formTags">
+    <p>
+      <label for="inputTag">Tag:</label>
+      <input id="inputTag" placeholder="tag1">
+      <input type="submit" id="btnTagged" value="Search"> - get tagged permanodes
+  </form>
+
+  <h2>Tagged Objects</h2>
+  <ul id="tagged"></ul>
 
   <h2>Upload</h2>
   <form method="POST" id="uploadform" enctype="multipart/form-data">

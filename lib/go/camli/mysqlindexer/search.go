@@ -201,6 +201,57 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	return
 }
 
+func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string) os.Error {
+	defer close(dest)
+	keyId, err := mi.keyIdOfSigner(signer)
+	if err != nil {
+		return err
+	}
+
+	client, err := mi.getConnection()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == nil {
+			mi.releaseConnection(client)
+		} else {
+			client.Close()
+		}
+	}()
+
+	stmt, err := client.Prepare("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ?")
+	if err != nil {
+		return err
+	}
+	err = stmt.BindParams(keyId, "camliTag", tag)
+	if err != nil {
+		return err
+	}
+	err = stmt.Execute()
+	if err != nil {
+		return err
+	}
+
+	pn := ""
+	stmt.BindResult(&pn)
+	for {
+		done, err := stmt.Fetch()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+		br := blobref.Parse(pn)
+		if br == nil {
+			continue
+		}
+		dest <- br
+	}
+	return nil
+}
+
 func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
 	client, err := mi.getConnection()
 	if err != nil {

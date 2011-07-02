@@ -306,6 +306,14 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
     xhr.send();
 }
 
+function camliGetTaggedPermanodes(signer, value, opts) {
+    var xhr = camliJsonXhr("camliGetTaggedPermanodes", opts);
+    var path = makeURL(Camli.config.searchRoot + "camli/search/tag",
+                       { signer: signer, value: value });
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliXhr(name, opts) {
     opts = saneOpts(opts);
     var xhr = new XMLHttpRequest();
