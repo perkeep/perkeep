@@ -91,6 +91,12 @@ limit int) os.Error {
 	panic("NOIMPL")
 }
 
+func (fi *FakeIndex) GetTaggedPermanodes(dest chan<- *blobref.BlobRef,
+signer *blobref.BlobRef,
+tag string) os.Error {
+	panic("NOIMPL")
+}
+
 func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
