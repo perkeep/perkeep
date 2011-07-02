@@ -380,7 +380,7 @@ function onBlobDescribed(jres) {
         c.appendChild(a);
     }
 
-    var tags = permanodeObject.attr.tag;
+    var tags = permanodeObject.attr.camliTag;
     for (idx in tags) {
         var tag = tags[idx];
 
