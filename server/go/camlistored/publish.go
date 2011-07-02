@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 
+	"camli/blobref"
 	"camli/blobserver"
 	"camli/client" // just for NewUploadHandleFromString.  move elsewhere?
 	"camli/jsonconfig"
@@ -131,33 +132,33 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 	}
 }
 
-func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) os.Error {
+func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err os.Error) {
 	if pn, err := pub.Search.Index().PermanodeOfSignerAttrValue(pub.Search.Owner(), "camliRoot", pub.RootName); err == nil {
 		log.Printf("Publish root %q using existing permanode %s", pub.RootName, pn)
 		return nil
 	}
 	log.Printf("Publish root %q needs a permanode + claim", pub.RootName)
 
-	// Step 1: create a permanode
-	pn, err := jsonSign.SignMap(schema.NewUnsignedPermanode())
-	if err != nil {
-		return fmt.Errorf("error creating new permanode: %v", err)
-	}
-	ph := client.NewUploadHandleFromString(pn)
-	_, err = pub.Storage.ReceiveBlob(ph.BlobRef, ph.Contents)
-	if err != nil {
-		return fmt.Errorf("error uploading permanode: %v", err)
+	defer func() {
+		if perr := recover(); perr != nil {
+			err = perr.(os.Error)
+		}
+	}()
+	signUpload := func(name string, m map[string]interface{}) *blobref.BlobRef {
+		signed, err := jsonSign.SignMap(m)
+		if err != nil {
+			panic(fmt.Errorf("error signing %s: %v", name, err))
+		}
+		ph := client.NewUploadHandleFromString(signed)
+		_, err = pub.Storage.ReceiveBlob(ph.BlobRef, ph.Contents)
+		if err != nil {
+			panic(fmt.Errorf("error uploading %s: %v", name, err))
+		}
+		return ph.BlobRef
 	}
 
-	// Step 2: addd a claim that the new permanode is the desired root.
-	claim, err := jsonSign.SignMap(schema.NewSetAttributeClaim(ph.BlobRef, "camliRoot", pub.RootName))
-	if err != nil {
-		return fmt.Errorf("error creating claim: %v", err)
-	}
-	ch := client.NewUploadHandleFromString(claim)
-	_, err = pub.Storage.ReceiveBlob(ch.BlobRef, ch.Contents)
-	if err != nil {
-		return fmt.Errorf("error uploading claim: %v", err)
-	}
+	pn := signUpload("permanode", schema.NewUnsignedPermanode())
+	signUpload("set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", pub.RootName))
+	signUpload("set-attr title", schema.NewSetAttributeClaim(pn, "title", "Publish root node for " + pub.RootName))
 	return nil
 }
