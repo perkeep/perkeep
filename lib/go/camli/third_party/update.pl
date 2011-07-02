@@ -29,6 +29,15 @@ my @proj = (
             [ "*.go", "github.com/Philio/GoMySQL" ]
         ],
     },
+    {
+        name => "gomemcache",
+        git => "https://github.com/bradfitz/gomemcache/",
+        worksubdir => "gomemcache",
+        copies => [
+            # File glob => target directory
+            [ "*.go", "github.com/bradfitz/gomemcache" ]
+        ],
+    },
 );
 
 foreach my $p (@proj) {
