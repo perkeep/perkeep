@@ -20,6 +20,7 @@ import (
 	"camli/blobref"
 
 	"os"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,10 @@ type FileInfo struct {
 	Size     int64  `json:"size"`
 	FileName string `json:"fileName"`
 	MimeType string `json:"mimeType"`
+}
+
+func (fi *FileInfo) IsImage() bool {
+	return strings.HasPrefix(fi.MimeType, "image/")
 }
 
 type Path struct {

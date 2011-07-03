@@ -24,6 +24,7 @@ import (
 	"json"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"camli/blobref"
@@ -171,13 +172,24 @@ func (pr *publishRequest) SubresourceType() string {
 	return ""
 }
 
-func (pr *publishRequest) SubresFile(path []*blobref.BlobRef, fileName string) string {
+func (pr *publishRequest) SubresFileURL(path []*blobref.BlobRef, fileName string) string {
+	return pr.SubresThumbnailURL(path, fileName, -1)
+}
+
+func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName string, maxDimen int) string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s%s/camli/res/file", pr.base, pr.suffix)
+	resType := "img"
+	if maxDimen == -1 {
+		resType = "file"
+	}
+	fmt.Fprintf(&buf, "%s%s/camli/res/%s", pr.base, pr.suffix, resType)
 	for _, br := range path {
 		fmt.Fprintf(&buf, "/%s", br)
 	}
 	fmt.Fprintf(&buf, "/%s", http.URLEscape(fileName))
+	if maxDimen != -1 {
+		fmt.Fprintf(&buf, "?mw=%d&mh=%d", maxDimen, maxDimen)
+	}
 	return buf.String()
 }
 
@@ -216,6 +228,8 @@ func (pr *publishRequest) serveHTTP() {
 		// TODO: download a raw blob
 	case "file":
 		pr.serveSubresFileDownload()
+	case "img":
+		pr.serveSubresImage()
 	default:
 		pr.rw.WriteHeader(400)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")
@@ -274,11 +288,16 @@ func (pr *publishRequest) serve() {
 				des = " - " + des
 			}
 			link := "#"
+			thumbnail := ""
 			if path, fileInfo, ok := member.PermanodeFile(); ok {
-				link = pr.SubresFile(path, fileInfo.FileName)
+				link = pr.SubresFileURL(path, fileInfo.FileName)
+				if fileInfo.IsImage() {
+					thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
+				}
 			}
-			pr.pf("  <li><a href='%s'>%s</a>%s</li>\n",
+			pr.pf("  <li><a href='%s'>%s%s</a>%s</li>\n",
 				link,
+				thumbnail,
 				html.EscapeString(member.Title()),
 				des)
 		}
@@ -314,7 +333,22 @@ func (pr *publishRequest) validPathChain(path []*blobref.BlobRef) bool {
 	return true
 }
 
+func (pr *publishRequest) serveSubresImage() {
+	params := pr.req.URL.Query()
+	mw, _ := strconv.Atoi(params.Get("mw"))
+	mh, _ := strconv.Atoi(params.Get("mh"))
+	if des, ok := pr.describeSubresAndValidatePath(); ok {
+		pr.serveScaledImage(des, mw, mh)
+	}
+}
+
 func (pr *publishRequest) serveSubresFileDownload() {
+	if des, ok := pr.describeSubresAndValidatePath(); ok {
+		pr.serveFileDownload(des)
+	}
+}
+
+func (pr *publishRequest) describeSubresAndValidatePath() (des *search.DescribedBlob, ok bool) {
 	path := []*blobref.BlobRef{}
 	parts := strings.Split(pr.subres, "/")
 	if len(parts) < 3 {
@@ -341,14 +375,43 @@ func (pr *publishRequest) serveSubresFileDownload() {
 		http.Error(pr.rw, "describe error", 500)
 		return
 	}
-	pr.serveFileDownload(fileDes)
+	return fileDes, true
+}
+
+func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int) {
+	fileref, _, ok := pr.fileSchemaRefFromBlob(des)
+	if !ok {
+		return
+	}
+	th := &ImageHandler{
+		Fetcher:   pr.ph.Storage,
+		Cache:     pr.ph.Cache,
+		MaxWidth:  maxWidth,
+		MaxHeight: maxHeight,
+	}
+	th.ServeHTTP(pr.rw, pr.req, fileref)
 }
 
 func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
-	var (
-		file *blobref.BlobRef // of schema blob
-		mime = ""
-	)
+	fileref, fileinfo, ok := pr.fileSchemaRefFromBlob(des)
+	if !ok {
+		return
+	}
+	mime := ""
+	if fileinfo != nil && fileinfo.IsImage() {
+		mime = fileinfo.MimeType
+	}
+	dh := &DownloadHandler{
+		Fetcher:   pr.ph.Storage,
+		Cache:     pr.ph.Cache,
+		ForceMime: mime,
+	}
+	dh.ServeHTTP(pr.rw, pr.req, fileref)
+}
+
+// Given a described blob, optionally follows a camliContent and
+// returns the file's schema blobref and its fileinfo (if found).
+func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (fileref *blobref.BlobRef, fileinfo *search.FileInfo, ok bool) {
 	if des == nil {
 		http.NotFound(pr.rw, pr.req)
 		return
@@ -369,18 +432,11 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 			}
 		}
 	}
-	if des.File != nil {
-		file = des.BlobRef
-		if strings.HasPrefix(des.File.MimeType, "image/") {
-			mime = des.File.MimeType
-		}
+	if des.CamliType == "file" {
+		return des.BlobRef, des.File, true
 	}
-	dh := &DownloadHandler{
-		Fetcher:   pr.ph.Storage,
-		Cache:     pr.ph.Cache,
-		ForceMime: mime,
-	}
-	dh.ServeHTTP(pr.rw, pr.req, file)
+	http.Error(pr.rw, "failed to find fileSchemaRefFromBlob", 404)
+	return
 }
 
 func (ph *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err os.Error) {
