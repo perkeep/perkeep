@@ -18,10 +18,13 @@ limitations under the License.
 package memcache
 
 import (
+	"exec"
+	"fmt"
 	"net"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testServer = "localhost:11211"
@@ -37,17 +40,41 @@ func setup(t *testing.T) bool {
 	return true
 }
 
-func TestMemcache(t *testing.T) {
+func TestLocalhost(t *testing.T) {
 	if !setup(t) {
 		return
 	}
+	testWithClient(t, New(testServer))
+}
+
+// Run the memcached binary as a child process and connect to its unix socket.
+func TestUnixSocket(t *testing.T) {
+	sock := fmt.Sprintf("/tmp/test-gomemcache-%d.sock", os.Getpid())
+	cmd := exec.Command("memcached", "-s", sock)
+	if err := cmd.Start(); err != nil {
+		t.Logf("skipping test; couldn't find memcached")
+		return
+	}
+	defer cmd.Wait()
+	defer cmd.Process.Kill()
+
+	// Wait a bit for the socket to appear.
+	for i := 0; i < 10; i++ {
+		if _, err := os.Stat(sock); err == nil {
+			break
+		}
+		time.Sleep(25e6 * int64(i))
+	}
+
+	testWithClient(t, New(sock))
+}
+
+func testWithClient(t *testing.T, c *Client) {
 	checkErr := func(err os.Error, format string, args ...interface{}) {
 		if err != nil {
 			t.Fatalf(format, args...)
 		}
 	}
-
-	c := New(testServer)
 
 	mustSet := func(it *Item) {
 		if err := c.Set(it); err != nil {

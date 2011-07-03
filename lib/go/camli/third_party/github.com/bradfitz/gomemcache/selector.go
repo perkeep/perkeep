@@ -20,6 +20,7 @@ import (
 	"hash/crc32"
 	"os"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -51,11 +52,19 @@ type ServerList struct {
 func (ss *ServerList) SetServers(servers ...string) os.Error {
 	naddr := make([]net.Addr, len(servers))
 	for i, server := range servers {
-		tcpaddr, err := net.ResolveTCPAddr("tcp", server)
-		if err != nil {
-			return err
+		if strings.Contains(server, "/") {
+			addr, err := net.ResolveUnixAddr("unix", server)
+			if err != nil {
+				return err
+			}
+			naddr[i] = addr
+		} else {
+			tcpaddr, err := net.ResolveTCPAddr("tcp", server)
+			if err != nil {
+				return err
+			}
+			naddr[i] = tcpaddr
 		}
-		naddr[i] = tcpaddr
 	}
 
 	ss.lk.Lock()
