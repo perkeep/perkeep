@@ -272,6 +272,20 @@ type DescribedBlob struct {
 	Stub bool // if not loaded, but referenced
 }
 
+// PermanodeFile returns the blobref path from this permanode to its
+// File camliContent, else (nil, false)
+func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, ok bool) {
+	if b == nil || b.Permanode == nil {
+		return
+	}
+	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
+		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.File != nil {
+			return []*blobref.BlobRef{b.BlobRef, cdes.BlobRef}, cdes.File, true
+		}
+	}
+	return
+}
+
 func (b *DescribedBlob) Title() string {
 	if b == nil {
 		return ""

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html"
 	"http"
@@ -126,6 +127,16 @@ func (pr *publishHttpRequest) NoSubresource() bool {
 	return pr.subres == ""
 }
 
+func (pr *publishHttpRequest) SubresFile(path []*blobref.BlobRef, fileName string) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s%s/camli/res/file", pr.base, pr.suffix)
+	for _, br := range path {
+		fmt.Fprintf(&buf, "/%s", br)
+	}
+	fmt.Fprintf(&buf, "/%s", http.URLEscape(fileName))
+	return buf.String()
+}
+
 func NewPublishRequest(req *http.Request) *publishHttpRequest {
 	// splits a path request into its suffix and subresource parts.
 	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
@@ -181,11 +192,13 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	// TODO: serve /camli/res/file/<blobref>/<blobref>/[dummyname] downloads
 	switch {
 	case preq.NoSubresource():
 		pub.serveHtmlDescribe(rw, preq, target)
 	default:
-		rw.WriteHeader(500)
+		rw.WriteHeader(400)
+		fmt.Fprintf(rw, "<p>Invalid or unsupported resource request.</p>")
 	}
 }
 
@@ -226,6 +239,9 @@ func (pub *PublishHandler) serveHtmlDescribe(rw http.ResponseWriter, preq *publi
 				des = " - " + des
 			}
 			link := "#"
+			if path, fileInfo, ok := member.PermanodeFile(); ok {
+				link = preq.SubresFile(path, fileInfo.FileName)
+			}
 			fmt.Fprintf(rw, "  <li><a href='%s'>%s</a>%s</li>\n",
 				link,
 				html.EscapeString(member.Title()),
