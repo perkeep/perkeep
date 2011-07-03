@@ -211,11 +211,11 @@ func (pr *publishRequest) serveHTTP() {
 	// TODO: serve /camli/res/file/<blobref>/<blobref>/[dummyname] downloads
 	switch pr.SubresourceType() {
 	case "":
-		pr.serveHtmlDescribe()
+		pr.serve()
 	case "blob":
 		// TODO: download a raw blob
 	case "file":
-		pr.serveFileDownload()
+		pr.serveSubresFileDownload()
 	default:
 		pr.rw.WriteHeader(400)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")
@@ -226,7 +226,7 @@ func (pr *publishRequest) pf(format string, args ...interface{}) {
 	fmt.Fprintf(pr.rw, format, args...)
 }
 
-func (pr *publishRequest) serveHtmlDescribe() {
+func (pr *publishRequest) serve() {
 	dr := pr.ph.Search.NewDescribeRequest()
 	dr.Describe(pr.subject, 3)
 	res, err := dr.Result()
@@ -237,6 +237,17 @@ func (pr *publishRequest) serveHtmlDescribe() {
 	}
 
 	subdes := res[pr.subject.String()]
+
+	if subdes.CamliType == "file" {
+		pr.serveFileDownload(subdes)
+		return
+	}
+
+	if subdes.Permanode != nil && subdes.Permanode.Attr.Get("camliContent") != "" {
+		pr.serveFileDownload(subdes)
+		return
+	}
+
 	title := subdes.Title()
 
 	// HTML header + Javascript
@@ -275,8 +286,101 @@ func (pr *publishRequest) serveHtmlDescribe() {
 	}
 }
 
-func (pr *publishRequest) serveFileDownload() {
+func (pr *publishRequest) describeSingleBlob(b *blobref.BlobRef) (*search.DescribedBlob, os.Error) {
+	dr := pr.ph.Search.NewDescribeRequest()
+	dr.Describe(b, 1)
+	res, err := dr.Result()
+	if err != nil {
+		return nil, err
+	}
+	return res[b.String()], nil
+}
 
+func (pr *publishRequest) validPathChain(path []*blobref.BlobRef) bool {
+	bi := pr.subject
+	for len(path) > 0 {
+		var next *blobref.BlobRef
+		next, path = path[0], path[1:]
+
+		desi, err := pr.describeSingleBlob(bi)
+		if err != nil {
+			return false
+		}
+		if !desi.HasSecureLinkTo(next) {
+			return false
+		}
+		bi = next
+	}
+	return true
+}
+
+func (pr *publishRequest) serveSubresFileDownload() {
+	path := []*blobref.BlobRef{}
+	parts := strings.Split(pr.subres, "/")
+	if len(parts) < 3 {
+		http.Error(pr.rw, "expected at least 3 parts", 400)
+		return
+	}
+	for _, bstr := range parts[1 : len(parts)-1] {
+		if br := blobref.Parse(bstr); br != nil {
+			path = append(path, br)
+		} else {
+			http.Error(pr.rw, "bogus blobref in chain", 400)
+			return
+		}
+	}
+
+	if !pr.validPathChain(path) {
+		http.Error(pr.rw, "not found or invalid path", 404)
+		return
+	}
+
+	file := path[len(path)-1]
+	fileDes, err := pr.describeSingleBlob(file)
+	if err != nil {
+		http.Error(pr.rw, "describe error", 500)
+		return
+	}
+	pr.serveFileDownload(fileDes)
+}
+
+func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
+	var (
+		file *blobref.BlobRef // of schema blob
+		mime = ""
+	)
+	if des == nil {
+		http.NotFound(pr.rw, pr.req)
+		return
+	}
+	if des.Permanode != nil {
+		// TODO: get "forceMime" attr out of the permanode? or
+		// fileName content-disposition?
+		if cref := des.Permanode.Attr.Get("camliContent"); cref != "" {
+			cbr := blobref.Parse(cref)
+			if cbr == nil {
+				http.Error(pr.rw, "bogus camliContent", 500)
+				return
+			}
+			des = des.PeerBlob(cbr)
+			if des == nil {
+				http.Error(pr.rw, "camliContent not a peer in describe", 500)
+				return
+			}
+		}
+	}
+	if des.File != nil {
+		file = des.BlobRef
+		if strings.HasPrefix(des.File.MimeType, "image/") {
+			mime = des.File.MimeType
+		}
+	}
+	dh := &DownloadHandler{
+		Fetcher:   pr.ph.Storage,
+		Cache:     pr.ph.Cache,
+		ForceMime: mime,
+	}
+	dh.ServeHTTP(pr.rw, pr.req, file)
 }
 
 func (ph *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err os.Error) {

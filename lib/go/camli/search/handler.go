@@ -322,14 +322,14 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 	if b.Permanode != nil {
 		for _, bstr := range b.Permanode.Attr["camliMember"] {
 			if br := blobref.Parse(bstr); br != nil {
-				m = append(m, b.peerBlob(br))
+				m = append(m, b.PeerBlob(br))
 			}
 		}
 	}
 	return m
 }
 
-func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
+func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 	if b.Request == nil {
 		return &DescribedBlob{BlobRef: br, Stub: true}
 	}
@@ -339,6 +339,29 @@ func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
 		return peer
 	}
 	return &DescribedBlob{Request: b.Request, BlobRef: br, Stub: true}
+}
+
+// HasSecureLinkTo returns true if there's a valid link from this blob
+// to the other blob. This is used in access control (hence the
+// somewhat redundant "Secure" in the name) and should be paranoid
+// against e.g. random user/attacker-control attributes making links
+// to other blobs.
+func (b *DescribedBlob) HasSecureLinkTo(other *blobref.BlobRef) bool {
+	if b == nil || other == nil {
+		return false
+	}
+	ostr := other.String()
+	if b.Permanode != nil {
+		if b.Permanode.Attr.Get("camliContent") == ostr {
+			return true
+		}
+		for _, mstr := range b.Permanode.Attr["camliMember"] {
+			if mstr == ostr {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (b *DescribedBlob) jsonMap() map[string]interface{} {

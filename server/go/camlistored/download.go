@@ -29,8 +29,9 @@ import (
 )
 
 type DownloadHandler struct {
-	Fetcher blobref.StreamingFetcher
-	Cache   blobserver.Storage
+	Fetcher   blobref.StreamingFetcher
+	Cache     blobserver.Storage
+	ForceMime string // optional
 }
 
 func (dh *DownloadHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
@@ -56,10 +57,15 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	}
 	defer fr.Close()
 
-	// TODO: fr.FileSchema() and guess a mime type?  For now:
 	schema := fr.FileSchema()
-	rw.Header().Set("Content-Type", "application/octet-stream")
 	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.Size))
+
+	// TODO: fr.FileSchema() and guess a mime type?  For now:
+	mimeType := "application/octet-stream"
+	if dh.ForceMime != "" {
+		mimeType = dh.ForceMime
+	}
+	rw.Header().Set("Content-Type", mimeType)
 
 	if req.Method == "HEAD" {
 		vbr := blobref.Parse(req.FormValue("verifycontents"))
