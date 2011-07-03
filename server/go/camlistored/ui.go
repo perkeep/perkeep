@@ -17,13 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"http"
-	"io"
-	"image"
-	"image/jpeg"
-	"image/png"
 	"json"
 	"log"
 	"os"
@@ -35,9 +30,7 @@ import (
 	"camli/blobserver"
 	"camli/httputil"
 	"camli/jsonconfig"
-	"camli/misc/resize"
 	"camli/misc/vfs" // TODO: ditch this once pkg http gets it
-	"camli/schema"
 	"camli/search"
 	uistatic "camlistore.org/server/uistatic"
 )
@@ -248,10 +241,6 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ui *UIHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
-	return blobref.SeekerFromStreamingFetcher(ui.Storage)
-}
-
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 	if ui.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
@@ -284,12 +273,6 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fetchSeeker, err := ui.storageSeekFetcher()
-	if err != nil {
-		http.Error(rw, err.String(), 500)
-		return
-	}
-
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 	m := thumbnailPattern.FindStringSubmatch(suffix)
 	if m == nil {
@@ -315,74 +298,11 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fr, err := schema.NewFileReader(fetchSeeker, blobref)
-	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.String(), 500)
-		return
+	th := &ImageHandler{
+		Fetcher:   ui.Storage,
+		Cache:     ui.Cache,
+		MaxWidth:  width,
+		MaxHeight: height,
 	}
-
-	var buf bytes.Buffer
-	n, err := io.Copy(&buf, fr)
-	i, format, err := image.Decode(&buf)
-	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.String(), 500)
-		return
-	}
-	b := i.Bounds()
-	// only do downscaling, otherwise just serve the original image
-	if width < b.Dx() || height < b.Dy() {
-		const huge = 2400
-		// If it's gigantic, it's more efficient to downsample first
-		// and then resize; resizing will smooth out the roughness.
-		// (trusting the moustachio guys on that one).
-		if b.Dx() > huge || b.Dy() > huge {
-			w, h := width*2, height*2
-			if b.Dx() > b.Dy() {
-				w = b.Dx() * h / b.Dy()
-			} else {
-				h = b.Dy() * w / b.Dx()
-			}
-			i = resize.Resample(i, i.Bounds(), w, h)
-			b = i.Bounds()
-		}
-		// conserve proportions. use the smallest of the two as the decisive one.
-		if width > height {
-			width = b.Dx() * height / b.Dy()
-		} else {
-			height = b.Dy() * width / b.Dx()
-		}
-		i = resize.Resize(i, b, width, height)
-		// Encode as a new image
-		buf.Reset()
-		switch format {
-		case "jpeg":
-			err = jpeg.Encode(&buf, i, nil)
-		default:
-			err = png.Encode(&buf, i)
-		}
-		if err != nil {
-			http.Error(rw, "Can't serve file: "+err.String(), 500)
-			return
-		}
-	}
-	ct := ""
-	switch format {
-	case "jpeg":
-		ct = "image/jpeg"
-	default:
-		ct = "image/png"
-	}
-	rw.Header().Set("Content-Type", ct)
-	size := buf.Len()
-	rw.Header().Set("Content-Length", fmt.Sprintf("%d", size))
-	n, err = io.Copy(rw, &buf)
-	if err != nil {
-		log.Printf("error serving thumbnail of file schema %s: %v", blobref, err)
-		return
-	}
-	if n != int64(size) {
-		log.Printf("error serving thumbnail of file schema %s: sent %d, expected size of %d",
-			blobref, n, size)
-		return
-	}
+	th.ServeHTTP(rw, req, blobref)
 }
