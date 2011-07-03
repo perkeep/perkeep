@@ -23,6 +23,7 @@ import (
 	"json"
 	"log"
 	"os"
+	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -99,43 +100,97 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	return pub, nil
 }
 
-func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	base := req.Header.Get("X-PrefixHandler-PathBase")
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+func (pub *PublishHandler) rootPermanode() (*blobref.BlobRef, os.Error) {
+	// TODO: caching, but this can change over time (though
+	// probably rare). might be worth a 5 second cache or
+	// something in-memory? better invalidation story first would
+	// be nice.
+	br, err := pub.Search.Index().PermanodeOfSignerAttrValue(pub.Search.Owner(), "camliRoot", pub.RootName)
+	if err != nil {
+		log.Printf("Error: publish handler at serving root name %q has no configured permanode: %v",
+			pub.RootName, err)
+	}
+	return br, err
+}
 
-	pn, err := pub.Search.Index().PermanodeOfSignerAttrValue(pub.Search.Owner(), "camliRoot", pub.RootName)
+// resString is the type of the string that follows "/camli/res/" in publish URLs.
+type resString string
+
+func (s resString) None() bool {
+	return string(s) == ""
+}
+
+// parseRequest splits a path request into its suffix and subresource parts.
+// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
+func (pub *PublishHandler) parseRequest(req *http.Request) (suffix string, subres resString) {
+	suffix, res := req.Header.Get("X-PrefixHandler-PathSuffix"), ""
+	if s := strings.SplitN(suffix, "/camli/res/", 2); len(s) == 2 {
+		suffix, res = s[0], s[1]
+	}
+	return suffix, resString(res)
+}
+
+func (pub *PublishHandler) lookupPathTarget(root *blobref.BlobRef, suffix string) (*blobref.BlobRef, os.Error) {
+	path, err := pub.Search.Index().PathLookup(pub.Search.Owner(), root, suffix, nil /* as of now */ )
+	if err != nil {
+		return nil, err
+	}
+	if path.Target == nil {
+		return nil, os.ENOENT
+	}
+	return path.Target, nil
+}
+
+func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	rootpn, err := pub.rootPermanode()
 	if err != nil {
 		rw.WriteHeader(404)
-		fmt.Fprintf(rw, "Error: publish handler at base %q, serving root name %q has no configured permanode",
-			base, pub.RootName)
 		return
 	}
 
+	suffix, subres := pub.parseRequest(req)
+
 	if req.FormValue("debug") == "1" {
-		fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q<hr>",
-			base, pub.RootName, pn, html.EscapeString(suffix))
+		base := req.Header.Get("X-PrefixHandler-PathBase")
+		fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q, subreq %q<hr>",
+			base, pub.RootName, rootpn, html.EscapeString(suffix), html.EscapeString(string(subres)))
 	}
-	path, err := pub.Search.Index().PathLookup(pub.Search.Owner(), pn, suffix, nil)
+	target, err := pub.lookupPathTarget(rootpn, suffix)
 	if err != nil {
-		fmt.Fprintf(rw, "<b>Error:</b> %v", err)
-		return
-	}
-	if req.FormValue("debug") == "1" {
-		fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
+		if err == os.ENOENT {
+			rw.WriteHeader(404)
+			return
+		}
+		log.Printf("Error looking up %s/%q: %v", rootpn, suffix, err)
+		rw.WriteHeader(500)
 		return
 	}
 
+	if req.FormValue("debug") == "1" {
+		fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", target, target)
+		return
+	}
+
+	switch {
+	case subres.None():
+		pub.serveHtmlDescribe(rw, req, target)
+	default:
+		rw.WriteHeader(500)
+	}
+}
+
+func (pub *PublishHandler) serveHtmlDescribe(rw http.ResponseWriter, req *http.Request, subject *blobref.BlobRef) {
 	dr := pub.Search.NewDescribeRequest()
-	dr.Describe(path.Target, 3)
+	dr.Describe(subject, 3)
 	res, err := dr.Result()
 	if err != nil {
-		log.Printf("Errors loading %s, permanode %s: %v, %#v", req.URL, path.Target, err, err)
+		log.Printf("Errors loading %s, permanode %s: %v, %#v", req.URL, subject, err, err)
 		fmt.Fprintf(rw, "<p>Errors loading.</p>")
 		return
 	}
 
-	subject := res[path.Target.String()]
-	title := subject.Title()
+	subdes := res[subject.String()]
+	title := subdes.Title()
 
 	// HTML header + Javascript
 	{
@@ -153,7 +208,7 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		fmt.Fprintf(rw, "<h1>%s</h1>\n", html.EscapeString(title))
 	}
 
-	if members := subject.Members(); len(members) > 0 {
+	if members := subdes.Members(); len(members) > 0 {
 		fmt.Fprintf(rw, "<ul>\n")
 		for _, member := range members {
 			des := member.Description()
