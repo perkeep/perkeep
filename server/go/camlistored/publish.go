@@ -113,21 +113,32 @@ func (pub *PublishHandler) rootPermanode() (*blobref.BlobRef, os.Error) {
 	return br, err
 }
 
-// resString is the type of the string that follows "/camli/res/" in publish URLs.
-type resString string
-
-func (s resString) None() bool {
-	return string(s) == ""
+type publishHttpRequest struct {
+	httpReq              *http.Request
+	base, suffix, subres string
 }
 
-// parseRequest splits a path request into its suffix and subresource parts.
-// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
-func (pub *PublishHandler) parseRequest(req *http.Request) (suffix string, subres resString) {
+func (pr *publishHttpRequest) Debug() bool {
+	return pr.httpReq.FormValue("debug") == "1"
+}
+
+func (pr *publishHttpRequest) NoSubresource() bool {
+	return pr.subres == ""
+}
+
+func NewPublishRequest(req *http.Request) *publishHttpRequest {
+	// splits a path request into its suffix and subresource parts.
+	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
 	suffix, res := req.Header.Get("X-PrefixHandler-PathSuffix"), ""
 	if s := strings.SplitN(suffix, "/camli/res/", 2); len(s) == 2 {
 		suffix, res = s[0], s[1]
 	}
-	return suffix, resString(res)
+	return &publishHttpRequest{
+		httpReq: req,
+		suffix:  suffix,
+		base:    req.Header.Get("X-PrefixHandler-PathBase"),
+		subres:  res,
+	}
 }
 
 func (pub *PublishHandler) lookupPathTarget(root *blobref.BlobRef, suffix string) (*blobref.BlobRef, os.Error) {
@@ -148,43 +159,42 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	suffix, subres := pub.parseRequest(req)
+	preq := NewPublishRequest(req)
 
-	if req.FormValue("debug") == "1" {
-		base := req.Header.Get("X-PrefixHandler-PathBase")
+	if preq.Debug() {
 		fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q, subreq %q<hr>",
-			base, pub.RootName, rootpn, html.EscapeString(suffix), html.EscapeString(string(subres)))
+			preq.base, pub.RootName, rootpn, html.EscapeString(preq.suffix), html.EscapeString(preq.subres))
 	}
-	target, err := pub.lookupPathTarget(rootpn, suffix)
+	target, err := pub.lookupPathTarget(rootpn, preq.suffix)
 	if err != nil {
 		if err == os.ENOENT {
 			rw.WriteHeader(404)
 			return
 		}
-		log.Printf("Error looking up %s/%q: %v", rootpn, suffix, err)
+		log.Printf("Error looking up %s/%q: %v", rootpn, preq.suffix, err)
 		rw.WriteHeader(500)
 		return
 	}
 
-	if req.FormValue("debug") == "1" {
+	if preq.Debug() {
 		fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", target, target)
 		return
 	}
 
 	switch {
-	case subres.None():
-		pub.serveHtmlDescribe(rw, req, target)
+	case preq.NoSubresource():
+		pub.serveHtmlDescribe(rw, preq, target)
 	default:
 		rw.WriteHeader(500)
 	}
 }
 
-func (pub *PublishHandler) serveHtmlDescribe(rw http.ResponseWriter, req *http.Request, subject *blobref.BlobRef) {
+func (pub *PublishHandler) serveHtmlDescribe(rw http.ResponseWriter, preq *publishHttpRequest, subject *blobref.BlobRef) {
 	dr := pub.Search.NewDescribeRequest()
 	dr.Describe(subject, 3)
 	res, err := dr.Result()
 	if err != nil {
-		log.Printf("Errors loading %s, permanode %s: %v, %#v", req.URL, subject, err, err)
+		log.Printf("Errors loading %s, permanode %s: %v, %#v", preq.httpReq.URL, subject, err, err)
 		fmt.Fprintf(rw, "<p>Errors loading.</p>")
 		return
 	}
