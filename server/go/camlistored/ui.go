@@ -253,23 +253,12 @@ func (ui *UIHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
 }
 
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" && req.Method != "HEAD" {
-		http.Error(rw, "Invalid download method", 400)
-		return
-	}
 	if ui.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
 		return
 	}
 
-	fetchSeeker, err := ui.storageSeekFetcher()
-	if err != nil {
-		http.Error(rw, err.String(), 500)
-		return
-	}
-
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-
 	m := downloadPattern.FindStringSubmatch(suffix)
 	if m == nil {
 		httputil.ErrorRouting(rw, req)
@@ -282,50 +271,11 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	filename := m[2]
-	if len(filename) > 0 {
-		filename = filename[1:] // remove leading slash
+	dh := &DownloadHandler{
+		Fetcher: ui.Storage,
+		Cache:   ui.Cache,
 	}
-
-	fr, err := schema.NewFileReader(fetchSeeker, fbr)
-	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.String(), 500)
-		return
-	}
-	defer fr.Close()
-
-	// TODO: fr.FileSchema() and guess a mime type?  For now:
-	schema := fr.FileSchema()
-	rw.Header().Set("Content-Type", "application/octet-stream")
-	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.Size))
-
-	if req.Method == "HEAD" {
-		vbr := blobref.Parse(req.FormValue("verifycontents"))
-		if vbr == nil {
-			return
-		}
-		hash := vbr.Hash()
-		if hash == nil {
-			return
-		}
-		io.Copy(hash, fr) // ignore errors, caught later
-		if vbr.HashMatches(hash) {
-			rw.Header().Set("X-Camli-Contents", vbr.String())
-		}
-		return
-	}
-
-	n, err := io.Copy(rw, fr)
-	log.Printf("For %q request of %s: copied %d, %v", req.Method, req.URL.RawPath, n, err)
-	if err != nil {
-		log.Printf("error serving download of file schema %s: %v", fbr, err)
-		return
-	}
-	if n != int64(schema.Size) {
-		log.Printf("error serving download of file schema %s: sent %d, expected size of %d",
-			fbr, n, schema.Size)
-		return
-	}
+	dh.ServeHTTP(rw, req, fbr)
 }
 
 func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
@@ -363,11 +313,6 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
-	}
-
-	filename := m[2]
-	if len(filename) > 0 {
-		filename = filename[1:] // remove leading slash
 	}
 
 	fr, err := schema.NewFileReader(fetchSeeker, blobref)
