@@ -365,9 +365,13 @@ function onBlobDescribed(jres) {
     var selType = document.getElementById("type");
     if (attr("camliRoot")) {
         selType.value = "root";
-        onTypeChange();
         disablePublish = true;  // can't give a URL to a root with a claim
+    } else if (attr("camliContent")) {
+        selType.value = "file";
+    } else if (attr("camliMember")) {
+        selType.value = "collection";
     }
+    onTypeChange();
 
     document.getElementById("selectPublishRoot").disabled = disablePublish;
     document.getElementById("publishSuffix").disabled = disablePublish;
@@ -396,7 +400,7 @@ function onBlobDescribed(jres) {
         camliContent = camliContent[camliContent.length-1];
         var c = document.getElementById("content");
         c.innerHTML = "";
-        c.appendChild(document.createTextNode("Content: "));
+        c.appendChild(document.createTextNode("File: "));
         var a = document.createElement("a");
         a.href = "./?b=" + camliContent;
         a.innerText = camliBlobTitle(camliContent, jres);
@@ -624,7 +628,6 @@ function permanodePageOnLoad(e) {
     selectType.addEventListener("change", onTypeChange);
 
     setupRootsDropdown();
-
     setupFilesHandlers();
 
     buildPermanodeUi();
