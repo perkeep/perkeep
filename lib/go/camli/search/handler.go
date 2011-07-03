@@ -17,6 +17,7 @@ limitations under the License.
 package search
 
 import (
+	"bytes"
 	"fmt"
 	"http"
 	"log"
@@ -242,7 +243,20 @@ type DescribeRequest struct {
 	wg *sync.WaitGroup // for load requests
 }
 
+// Given a blobref string returns a Description or nil.
+// dr may be nil itself.
+func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
+	if dr == nil {
+		return nil
+	}
+	dr.lk.Lock()
+	defer dr.lk.Unlock()
+	return dr.m[blobstr]
+}
+
 type DescribedBlob struct {
+	Request *DescribeRequest
+
 	BlobRef   *blobref.BlobRef
 	MimeType  string
 	CamliType string
@@ -254,6 +268,63 @@ type DescribedBlob struct {
 
 	// if camliType "file"
 	File *FileInfo
+
+	Stub bool // if not loaded, but referenced
+}
+
+func (b *DescribedBlob) Title() string {
+	if b == nil {
+		return ""
+	}
+	if b.Permanode != nil {
+		if t := b.Permanode.Attr.Get("title"); t != "" {
+			return t
+		}
+		if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
+			return b.Request.DescribedBlobStr(contentRef).Title()
+		}
+	}
+	if b.File != nil {
+		return b.File.FileName
+	}
+	return ""
+}
+
+func (b *DescribedBlob) Description() string {
+	if b == nil {
+		return ""
+	}
+	if b.Permanode != nil {
+		return b.Permanode.Attr.Get("description")
+	}
+	return ""
+}
+
+func (b *DescribedBlob) Members() []*DescribedBlob {
+	if b == nil {
+		return nil
+	}
+	m := make([]*DescribedBlob, 0)
+	if b.Permanode != nil {
+		for _, bstr := range b.Permanode.Attr["camliMember"] {
+			if br := blobref.Parse(bstr); br != nil {
+				m = append(m, b.peerBlob(br))
+			}
+		}
+	}
+	return m
+}
+
+func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
+	if b.Request == nil {
+		return &DescribedBlob{BlobRef: br, Stub: true}
+	}
+	b.Request.lk.Lock()
+	defer b.Request.lk.Unlock()
+	if peer, ok := b.Request.m[br.String()]; ok {
+		return peer
+	}
+	return &DescribedBlob{Request: b.Request, BlobRef: br, Stub: true}
 }
 
 func (b *DescribedBlob) jsonMap() map[string]interface{} {
@@ -276,7 +347,7 @@ func (b *DescribedBlob) jsonMap() map[string]interface{} {
 }
 
 type DescribedPermanode struct {
-	Attr map[string][]string
+	Attr http.Values // a map[string][]string
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
@@ -308,23 +379,26 @@ func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 
 type DescribeError map[string]os.Error
 
-func (e DescribeError) String() string {
-	return "one or more errors describing blobs"
+func (de DescribeError) String() string {
+	var buf bytes.Buffer
+	for b, err := range de {
+		fmt.Fprintf(&buf, "%s: %v; ", b, err)
+	}
+	return fmt.Sprintf("Errors (%d) describing blobs: %s", len(de), buf.String())
 }
 
 // Result waits for all outstanding lookups to complete and
 // returns the map of blobref (strings) to their described
 // results. The returned error is non-nil if any errors
-// occured.
-func (dr *DescribeRequest) Result() (map[string]*DescribedBlob, DescribeError) {
+// occured, and will be of type DescribeError.
+func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err os.Error) {
 	dr.wg.Wait()
 	// TODO: set "done" / locked flag, so no more DescribeBlob can
 	// be called.
-	var err DescribeError
 	if len(dr.errs) > 0 {
-		err = DescribeError(dr.errs)
+		return dr.m, DescribeError(dr.errs)
 	}
-	return dr.m, err
+	return dr.m, nil
 }
 
 // PopulateJSON waits for all outstanding lookups to complete and populates
@@ -350,7 +424,7 @@ func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
 	if des, ok := dr.m[bs]; ok {
 		return des
 	}
-	des := &DescribedBlob{BlobRef: b}
+	des := &DescribedBlob{Request: dr, BlobRef: b}
 	dr.m[bs] = des
 	return des
 }
@@ -463,7 +537,7 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer *blobref.BlobRef, depth int) {
-	pi.Attr = make(map[string][]string)
+	pi.Attr = make(http.Values)
 	attr := pi.Attr
 
 	claims, err := dr.sh.index.GetOwnerClaims(pn, signer)

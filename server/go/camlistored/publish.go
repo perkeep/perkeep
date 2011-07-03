@@ -111,24 +111,62 @@ func (pub *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q<hr>",
-		base, pub.RootName, pn, html.EscapeString(suffix))
+	if req.FormValue("debug") == "1" {
+		fmt.Fprintf(rw, "I am publish handler at base %q, serving root %q (permanode=%s), suffix %q<hr>",
+			base, pub.RootName, pn, html.EscapeString(suffix))
+	}
 	path, err := pub.Search.Index().PathLookup(pub.Search.Owner(), pn, suffix, nil)
 	if err != nil {
 		fmt.Fprintf(rw, "<b>Error:</b> %v", err)
 		return
 	}
-	fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
+	if req.FormValue("debug") == "1" {
+		fmt.Fprintf(rw, "<p><b>Target:</b> <a href='/ui/?p=%s'>%s</a></p>", path.Target, path.Target)
+		return
+	}
 
 	dr := pub.Search.NewDescribeRequest()
 	dr.Describe(path.Target, 3)
+	res, err := dr.Result()
+	if err != nil {
+		log.Printf("Errors loading %s, permanode %s: %v, %#v", req.URL, path.Target, err, err)
+		fmt.Fprintf(rw, "<p>Errors loading.</p>")
+		return
+	}
+
+	subject := res[path.Target.String()]
+	title := subject.Title()
+
+	// HTML header + Javascript
 	{
 		jm := make(map[string]interface{})
 		dr.PopulateJSON(jm)
-		fmt.Fprintf(rw, "<pre>")
+		fmt.Fprintf(rw, "<html>\n<head>\n <title>%s</title>\n <script>\nvar camliPageMeta = \n",
+			html.EscapeString(title))
 		json, _ := json.MarshalIndent(jm, "", "  ")
 		rw.Write(json)
-		fmt.Fprintf(rw, "</pre>")
+		fmt.Fprintf(rw, ";\n </script>\n</head>\n<body>\n")
+		defer fmt.Fprintf(rw, "</body>\n</html>\n")
+	}
+
+	if title != "" {
+		fmt.Fprintf(rw, "<h1>%s</h1>\n", html.EscapeString(title))
+	}
+
+	if members := subject.Members(); len(members) > 0 {
+		fmt.Fprintf(rw, "<ul>\n")
+		for _, member := range members {
+			des := member.Description()
+			if des != "" {
+				des = " - " + des
+			}
+			link := "#"
+			fmt.Fprintf(rw, "  <li><a href='%s'>%s</a>%s</li>\n",
+				link,
+				html.EscapeString(member.Title()),
+				des)
+		}
+		fmt.Fprintf(rw, "</ul>\n")
 	}
 }
 
@@ -159,6 +197,6 @@ func (pub *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err os
 
 	pn := signUpload("permanode", schema.NewUnsignedPermanode())
 	signUpload("set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", pub.RootName))
-	signUpload("set-attr title", schema.NewSetAttributeClaim(pn, "title", "Publish root node for " + pub.RootName))
+	signUpload("set-attr title", schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+pub.RootName))
 	return nil
 }
