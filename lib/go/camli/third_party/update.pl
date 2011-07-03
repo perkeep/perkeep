@@ -42,6 +42,7 @@ my @proj = (
 
 foreach my $p (@proj) {
     my $name = $p->{name} or die "no name";
+    next if @ARGV && $name !~ /\Q$ARGV[0]\E/;
 
     chdir($workdir) or die;
     $p->{worksubdir} or die "no worksubdir for $name";
