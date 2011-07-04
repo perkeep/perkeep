@@ -423,8 +423,8 @@ function _camliBlobTitleOrThumb(pn, des, w, h) {
     if (d.camliType == "file" && d.file && d.file.fileName) {
         var fileName = d.file.fileName
         if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf("image/") == 0) {
-            var img = "<img src='./thumbnail/" + pn + "/" + fileName + 
-            "?mw=" + w + "&mh=" + h + "'>";
+            var img = "<img src='./thumbnail/" + pn + "/" +
+            fileName.replace(/['"<>\?&]/g, "") + "?mw=" + w + "&mh=" + h + "'>";
             return img;
         }
         return fileName;
