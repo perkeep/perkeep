@@ -30,6 +30,15 @@ my @proj = (
         ],
     },
     {
+        name => "mysqlfork",
+        git => "https://github.com/camlistore/GoMySQL.git",
+        worksubdir => "camli-mysql",
+        copies => [
+            # File glob => target directory
+            [ "*.go", "github.com/camlistore/GoMySQL" ]
+        ],
+    },
+    {
         name => "gomemcache",
         git => "https://github.com/bradfitz/gomemcache/",
         worksubdir => "gomemcache",
