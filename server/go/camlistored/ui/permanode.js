@@ -159,11 +159,14 @@ function deleteTagFunc(tag, strikeEle, removeEle) {
 function onTypeChange() {
     var sel = document.getElementById("type");
     var dnd = document.getElementById("dnd");
+    var btnGallery = document.getElementById("btnGallery");
 
     if (sel.value == "collection" || sel.value == "") {
         dnd.style.display = "block";
+        btnGallery.style.visibility = 'visible';
     } else {
         dnd.style.display = "none";
+        btnGallery.style.visibility = 'hidden';
     }
 }
 
@@ -610,6 +613,13 @@ function deletePathFunc(sourcePermanode, path, strikeEle) {
     };
 }
 
+function btnGoToGallery(e) {
+    var permanode = getPermanodeParam();
+    if (permanode) {
+		window.open('./?g=' + permanode, 'Gallery')
+	}
+}
+
 function permanodePageOnLoad(e) {
     var permanode = getPermanodeParam();
     if (permanode) {
@@ -626,6 +636,8 @@ function permanodePageOnLoad(e) {
 
     var selectType = document.getElementById("type");
     selectType.addEventListener("change", onTypeChange);
+    var btnGallery = document.getElementById("btnGallery");
+    btnGallery.addEventListener("click", btnGoToGallery);
 
     setupRootsDropdown();
     setupFilesHandlers();
