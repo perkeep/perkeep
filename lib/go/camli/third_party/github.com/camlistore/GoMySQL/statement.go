@@ -480,6 +480,10 @@ func (s *Statement) UseResult() (*Result, os.Error) {
 	if !s.prepared {
 		return nil, &ClientError{CR_NO_PREPARE_STMT, CR_NO_PREPARE_STMT_STR}
 	}
+	// Check result
+	if !s.checkResult() {
+		return nil, &ClientError{CR_NO_RESULT_SET, CR_NO_RESULT_SET_STR}
+	}
 	// Check if result already used/stored
 	if s.result.mode != RESULT_UNUSED {
 		return nil, &ClientError{CR_COMMANDS_OUT_OF_SYNC, CR_COMMANDS_OUT_OF_SYNC_STR}
