@@ -17,13 +17,12 @@ limitations under the License.
 package fileembed
 
 import (
+	"http"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"syscall"
-
-	"camli/misc/vfs"
 )
 
 var binaryModTime = statBinaryModTime()
@@ -46,7 +45,7 @@ func (f *Files) Add(filename, body string) {
 	f.file[filename] = body
 }
 
-func (f *Files) Open(filename string) (vfs.File, os.Error) {
+func (f *Files) Open(filename string) (http.File, os.Error) {
 	if e := f.OverrideEnv; e != "" && os.Getenv(e) != "" {
 		return os.Open(filepath.Join(os.Getenv(e), filename))
 	}

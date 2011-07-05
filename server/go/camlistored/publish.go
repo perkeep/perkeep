@@ -42,6 +42,8 @@ type PublishHandler struct {
 	Search   *search.Handler
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
+
+	staticHandler http.Handler
 }
 
 func init() {
@@ -99,6 +101,8 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		ph.Cache = bs
 	}
 
+	ph.staticHandler = http.FileServer(uiFiles)
+
 	return ph, nil
 }
 
@@ -116,6 +120,9 @@ func (ph *PublishHandler) rootPermanode() (*blobref.BlobRef, os.Error) {
 }
 
 func (ph *PublishHandler) lookupPathTarget(root *blobref.BlobRef, suffix string) (*blobref.BlobRef, os.Error) {
+	if suffix == "" {
+		return root, nil
+	}
 	path, err := ph.Search.Index().PathLookup(ph.Search.Owner(), root, suffix, nil /* as of now */ )
 	if err != nil {
 		return nil, err
@@ -135,7 +142,9 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 	// splits a path request into its suffix and subresource parts.
 	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
 	suffix, res := req.Header.Get("X-PrefixHandler-PathSuffix"), ""
-	if s := strings.SplitN(suffix, "/camli/res/", 2); len(s) == 2 {
+	if strings.HasPrefix(suffix, "-/") {
+		suffix, res = "", suffix[2:]
+	} else if s := strings.SplitN(suffix, "/-/", 2); len(s) == 2 {
 		suffix, res = s[0], s[1]
 	}
 	rootpn, _ := ph.rootPermanode()
@@ -182,7 +191,7 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 	if maxDimen == -1 {
 		resType = "file"
 	}
-	fmt.Fprintf(&buf, "%s%s/camli/res/%s", pr.base, pr.suffix, resType)
+	fmt.Fprintf(&buf, "%s%s/-/%s", pr.base, pr.suffix, resType)
 	for _, br := range path {
 		fmt.Fprintf(&buf, "/%s", br)
 	}
@@ -220,7 +229,6 @@ func (pr *publishRequest) serveHTTP() {
 		return
 	}
 
-	// TODO: serve /camli/res/file/<blobref>/<blobref>/[dummyname] downloads
 	switch pr.SubresourceType() {
 	case "":
 		pr.serve()
@@ -230,6 +238,9 @@ func (pr *publishRequest) serveHTTP() {
 		pr.serveSubresFileDownload()
 	case "img":
 		pr.serveSubresImage()
+	case "static":
+		pr.req.URL.Path = pr.subres[len("static"):]
+		pr.ph.staticHandler.ServeHTTP(pr.rw, pr.req)
 	default:
 		pr.rw.WriteHeader(400)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")
@@ -238,6 +249,10 @@ func (pr *publishRequest) serveHTTP() {
 
 func (pr *publishRequest) pf(format string, args ...interface{}) {
 	fmt.Fprintf(pr.rw, format, args...)
+}
+
+func (pr *publishRequest) staticPath(fileName string) string {
+	return pr.base + "-/static/" + fileName
 }
 
 func (pr *publishRequest) serve() {
@@ -268,8 +283,11 @@ func (pr *publishRequest) serve() {
 	{
 		jm := make(map[string]interface{})
 		dr.PopulateJSON(jm)
-		pr.pf("<html>\n<head>\n <title>%s</title>\n <script>\nvar camliPageMeta = \n",
-			html.EscapeString(title))
+		pr.pf("<html>\n<head>\n <title>%s</title>\n ",html.EscapeString(title))
+		pr.pf("<script src='%s'></script>\n", pr.staticPath("camli.js"))
+		pr.pf("<script>\n")
+		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
+		pr.pf("var camliPageMeta = \n")
 		json, _ := json.MarshalIndent(jm, "", "  ")
 		pr.rw.Write(json)
 		pr.pf(";\n </script>\n</head>\n<body>\n")

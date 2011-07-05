@@ -30,7 +30,6 @@ import (
 	"camli/blobserver"
 	"camli/httputil"
 	"camli/jsonconfig"
-	"camli/misc/vfs" // TODO: ditch this once pkg http gets it
 	"camli/search"
 	uistatic "camlistore.org/server/uistatic"
 )
@@ -63,6 +62,8 @@ type UIHandler struct {
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
 	Search  *search.Handler    // or nil
+
+	staticHandler http.Handler
 }
 
 func init() {
@@ -134,6 +135,8 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		ui.Search = h.(*search.Handler)
 	}
 
+	ui.staticHandler = http.FileServer(uiFiles)
+
 	return ui, nil
 }
 
@@ -199,13 +202,14 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			case wantsBlobInfo(req):
 				file = "blobinfo.html"
 			case req.URL.Path == base:
-				file = "index.html"
+				file = "home.html"
 			default:
 				http.Error(rw, "Illegal URL.", 404)
 				return
 			}
 		}
-		vfs.ServeFileFromFS(rw, req, uiFiles, file)
+		req.URL.Path = "/" + file
+		ui.staticHandler.ServeHTTP(rw, req)
 	}
 }
 
