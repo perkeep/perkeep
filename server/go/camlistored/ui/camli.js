@@ -404,15 +404,30 @@ function changeAttribute(permanode, claimType, attribute, value, opts) {
     });
 }
 
+function camliBlobTitle(pn, des) {
+    return _camliBlobTitleOrThumb(pn, des, 0, 0);
+}
+
+function camliBlobThumbnail(pn, des, width, height) {
+    return _camliBlobTitleOrThumb(pn, des, width, height);
+}
+
 // pn: permanode to find a good title of
 // jdes: describe response of root permanode
-function camliBlobTitle(pn, des) {
+// w, h: if both of them are non-zero, returns html of an wxh size <img> thumbnail, not a title.
+function _camliBlobTitleOrThumb(pn, des, w, h) {
     var d = des[pn];
     if (!d) {
         return pn;
     }
     if (d.camliType == "file" && d.file && d.file.fileName) {
-        return d.file.fileName;
+        var fileName = d.file.fileName
+        if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf("image/") == 0) {
+            var img = "<img src='./thumbnail/" + pn + "/" +
+            fileName.replace(/['"<>\?&]/g, "") + "?mw=" + w + "&mh=" + h + "'>";
+            return img;
+        }
+        return fileName;
     }
     if (d.permanode) {
         var attr = d.permanode.attr;
@@ -423,7 +438,7 @@ function camliBlobTitle(pn, des) {
             return attr.title[0];
         }
         if (attr.camliContent) {
-            return camliBlobTitle(attr.camliContent[0], des);
+            return _camliBlobTitleOrThumb(attr.camliContent[0], des, w, h);
         }
     }
     return pn;

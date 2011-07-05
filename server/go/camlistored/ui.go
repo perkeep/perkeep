@@ -164,6 +164,10 @@ func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
 
+func wantsGallery(req *http.Request) bool {
+	return req.Method == "GET" && blobref.Parse(req.FormValue("g")) != nil
+}
+
 func wantsBlobInfo(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("b")) != nil
 }
@@ -190,6 +194,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			switch {
 			case wantsPermanode(req):
 				file = "permanode.html"
+			case wantsGallery(req):
+				file = "gallery.html"
 			case wantsBlobInfo(req):
 				file = "blobinfo.html"
 			case req.URL.Path == base:
