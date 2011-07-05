@@ -19,58 +19,23 @@ package mysqlindexer
 import (
 	"camli/blobref"
 
-	"log"
 	"fmt"
 	"os"
 	"strings"
 )
 
 func (mi *Indexer) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
-	error := func(err os.Error) os.Error {
-		log.Printf("mysqlindexer: stat error: %v", err)
-		return err
-	}
-	// MySQL connection stuff.
-	client, err := mi.getConnection()
-	if err != nil {
-		return error(err)
-	}
-	defer mi.releaseConnection(client)
-
 	quotedBlobRefs := []string{}
 	for _, br := range blobs {
 		quotedBlobRefs = append(quotedBlobRefs, fmt.Sprintf("%q", br.String()))
 	}
 	sql := "SELECT blobref, size FROM blobs WHERE blobref IN (" +
 		strings.Join(quotedBlobRefs, ", ") + ")"
-	log.Printf("Running: [%s]", sql)
-	stmt, err := client.Prepare(sql)
-	if err != nil {
-		return error(err)
-	}
-	err = stmt.Execute()
-	if err != nil {
-		return error(err)
-	}
 
-	var row blobRow
-	stmt.BindResult(&row.blobref, &row.size)
-	for {
-		done, err := stmt.Fetch()
-		if err != nil {
-			return error(err)
-		}
-		if done {
-			break
-		}
-		br := blobref.Parse(row.blobref)
-		if br == nil {
-			continue
-		}
-		dest <- blobref.SizedBlobRef{
-			BlobRef: br,
-			Size:    row.size,
-		}
+	rs, err := mi.db.Query(sql)
+	if err != nil {
+		return err
 	}
-	return nil
+	defer rs.Close()
+	return readBlobRefSizeResults(dest, rs)
 }

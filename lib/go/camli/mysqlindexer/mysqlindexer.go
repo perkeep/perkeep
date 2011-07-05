@@ -21,20 +21,14 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"sync"
 
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonconfig"
-
-	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
 type Indexer struct {
 	*blobserver.SimpleBlobHubPartitionMap
-
-	Host, User, Password, Database string
-	Port                           int
 
 	KeyFetcher blobref.StreamingFetcher // for verifying claims
 
@@ -42,18 +36,20 @@ type Indexer struct {
 	// blobs.
 	BlobSource blobserver.Storage
 
-	clientLock    sync.Mutex
-	cachedClients []*mysql.Client
+	db *MySQLWrapper
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
 	blobPrefix := config.RequiredString("blobSource")
+	db := &MySQLWrapper{
+		Host:     config.OptionalString("host", "localhost"),
+		User:     config.RequiredString("user"),
+		Password: config.OptionalString("password", ""),
+		Database: config.RequiredString("database"),
+	}
 	indexer := &Indexer{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		Host:                      config.OptionalString("host", "localhost"),
-		User:                      config.RequiredString("user"),
-		Password:                  config.OptionalString("password", ""),
-		Database:                  config.RequiredString("database"),
+		db:                        db,
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -67,11 +63,6 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 
 	// Good enough, for now:
 	indexer.KeyFetcher = indexer.BlobSource
-
-	//ownerBlobRef = client.SignerPublicKeyBlobref()
-	//if ownerBlobRef == nil {
-	//	log.Fatalf("Public key not configured.")
-	//}
 
 	ok, err := indexer.IsAlive()
 	if !ok {
@@ -99,87 +90,26 @@ func init() {
 	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
 }
 
-func testClient(client *mysql.Client) os.Error {
-	err := client.Query("SELECT 1 + 1")
-	if err != nil {
-		return err
-	}
-	_, err = client.UseResult()
-	if err != nil {
-		return err
-	}
-	client.FreeResult()
-	return nil
-}
-
 func (mi *Indexer) IsAlive() (ok bool, err os.Error) {
-	var client *mysql.Client
-	client, err = mi.getConnection()
-	if err != nil {
-		return
-	}
-	defer mi.releaseConnection(client)
-
-	if err = testClient(client); err != nil {
-		return
-	}
-	return true, nil
+	err = mi.db.Ping()
+	ok = err == nil
+	return
 }
 
 func (mi *Indexer) SchemaVersion() (version int, err os.Error) {
-	var client *mysql.Client
-	client, err = mi.getConnection()
+	rs, err := mi.db.Query("SELECT value FROM meta WHERE metakey='version'")
 	if err != nil {
 		return
 	}
-	defer mi.releaseConnection(client)
-
-	err = client.Query("SELECT value FROM meta WHERE metakey='version'")
-	if err != nil {
-		return
-	}
-	res, err := client.UseResult()
-	if err != nil {
-		return
-	}
-
-	row := res.FetchRow()
-	if row == nil {
+	defer rs.Close()
+	if !rs.Next() {
 		return 0, nil
 	}
-
-	version, err = strconv.Atoi(row[0].(string))
-
-	client.FreeResult()
-	return
-}
-
-// Get a free cached connection or allocate a new one.
-func (mi *Indexer) getConnection() (client *mysql.Client, err os.Error) {
-	mi.clientLock.Lock()
-	if len(mi.cachedClients) > 0 {
-		defer mi.clientLock.Unlock()
-		client = mi.cachedClients[len(mi.cachedClients)-1]
-		mi.cachedClients = mi.cachedClients[:len(mi.cachedClients)-1]
-		// TODO: Outside the mutex, double check that the client is still good.
+	strVersion := ""
+	if err = rs.Scan(&strVersion); err != nil {
 		return
 	}
-	mi.clientLock.Unlock()
-
-	client, err = mysql.DialTCP(mi.Host, mi.User, mi.Password, mi.Database)
-	return
-}
-
-// Release a client to the cached client pool.
-func (mi *Indexer) releaseConnection(client *mysql.Client) {
-	// Test the client before returning it.
-	// TODO: this is overkill probably.
-	if err := testClient(client); err != nil {
-		return
-	}
-	mi.clientLock.Lock()
-	defer mi.clientLock.Unlock()
-	mi.cachedClients = append(mi.cachedClients, client)
+	return strconv.Atoi(strVersion)
 }
 
 func (mi *Indexer) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, os.Error) {

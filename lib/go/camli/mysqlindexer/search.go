@@ -41,51 +41,35 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 	if len(owner) == 0 {
 		return nil
 	}
+	if len(owner) > 1 {
+		panic("TODO: remove support for more than one owner. push it to caller")
+	}
 
-	// TODO: support multiple
-	user := owner[0]
-
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT blobref, signer, lastmod FROM permanodes WHERE signer = ? AND lastmod <> '' "+
+		"ORDER BY lastmod DESC LIMIT ?",
+		owner[0].String(), limit)
 	if err != nil {
 		return err
 	}
-	defer mi.releaseConnection(client)
+	defer rs.Close()
 
-	stmt, err := client.Prepare("SELECT blobref, signer, lastmod FROM permanodes WHERE signer = ? AND lastmod <> '' ORDER BY lastmod DESC LIMIT ?")
-	if err != nil {
-		return err
-	}
-	err = stmt.BindParams(user.String(), limit) // TODO: more than one owner, verification
-	if err != nil {
-		return err
-	}
-	err = stmt.Execute()
-	if err != nil {
-		return err
-	}
-
-	var row permaNodeRow
-	stmt.BindResult(&row.blobref, &row.signer, &row.lastmod)
-	for {
-		done, err := stmt.Fetch()
-		if err != nil {
+	var blobstr, signerstr, modstr string
+	for rs.Next() {
+		if err := rs.Scan(&blobstr, &signerstr, &modstr); err != nil {
 			return err
 		}
-		if done {
-			break
-		}
-		br := blobref.Parse(row.blobref)
+		br := blobref.Parse(blobstr)
 		if br == nil {
 			continue
 		}
-		signer := blobref.Parse(row.signer)
+		signer := blobref.Parse(signerstr)
 		if signer == nil {
 			continue
 		}
-		row.lastmod = trimRFC3339Subseconds(row.lastmod)
-		t, err := time.Parse(time.RFC3339, row.lastmod)
+		modstr = trimRFC3339Subseconds(modstr)
+		t, err := time.Parse(time.RFC3339, modstr)
 		if err != nil {
-			log.Printf("Skipping; error parsing time %q: %v", row.lastmod, err)
+			log.Printf("Skipping; error parsing time %q: %v", modstr, err)
 			continue
 		}
 		dest <- &search.Result{
@@ -94,7 +78,6 @@ func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobre
 			LastModTime: t.Seconds(),
 		}
 	}
-
 	return nil
 }
 
@@ -109,43 +92,22 @@ type claimsRow struct {
 	blobref, signer, date, claim, unverified, permanode, attr, value string
 }
 
-func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims search.ClaimList, reterr os.Error) {
+func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims search.ClaimList, err os.Error) {
 	claims = make(search.ClaimList, 0)
-	client, err := mi.getConnection()
-	if err != nil {
-		reterr = err
-		return
-	}
-	defer mi.releaseConnection(client)
 
 	// TODO: ignore rows where unverified = 'N'
-	stmt, err := client.Prepare("SELECT blobref, date, claim, attr, value FROM claims WHERE permanode = ? AND signer = ?")
+	rs, err := mi.db.Query("SELECT blobref, date, claim, attr, value FROM claims WHERE permanode = ? AND signer = ?",
+		permanode.String(), owner.String())
 	if err != nil {
-		reterr = err
 		return
 	}
-	err = stmt.BindParams(permanode.String(), owner.String())
-	if err != nil {
-		reterr = err
-		return
-	}
-	err = stmt.Execute()
-	if err != nil {
-		reterr = err
-		return
-	}
+	defer rs.Close()
 
 	var row claimsRow
-	stmt.BindResult(&row.blobref, &row.date, &row.claim, &row.attr, &row.value)
-	defer stmt.Close()
-	for {
-		done, err := stmt.Fetch()
+	for rs.Next() {
+		err = rs.Scan(&row.blobref, &row.date, &row.claim, &row.attr, &row.value)
 		if err != nil {
-			reterr = err
 			return
-		}
-		if done {
-			break
 		}
 		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(row.date))
 		if err != nil {
@@ -166,38 +128,16 @@ func (mi *Indexer) GetOwnerClaims(permanode, owner *blobref.BlobRef) (claims sea
 }
 
 func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT type, size FROM blobs WHERE blobref=?", blob.String())
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err == nil || err == os.ENOENT {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
-
-	err = client.Query(fmt.Sprintf("SELECT type, size FROM blobs WHERE blobref=%q", blob.String()))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
-
-	row := result.FetchRow()
-	if row == nil {
+	defer rs.Close()
+	if !rs.Next() {
 		err = os.ENOENT
 		return
 	}
-
-	//log.Printf("got row: %#v (2 is %T)", row, row[1])
-	mime, _ = row[0].(string)
-	size, _ = row[1].(int64)
+	err = rs.Scan(&mime, &size)
 	return
 }
 
@@ -208,40 +148,17 @@ func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blo
 		return err
 	}
 
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ?",
+		keyId, "camliTag", tag)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
-
-	stmt, err := client.Prepare("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ?")
-	if err != nil {
-		return err
-	}
-	err = stmt.BindParams(keyId, "camliTag", tag)
-	if err != nil {
-		return err
-	}
-	err = stmt.Execute()
-	if err != nil {
-		return err
-	}
+	defer rs.Close()
 
 	pn := ""
-	stmt.BindResult(&pn)
-	for {
-		done, err := stmt.Fetch()
-		if err != nil {
+	for rs.Next() {
+		if err := rs.Scan(&pn); err != nil {
 			return err
-		}
-		if done {
-			break
 		}
 		br := blobref.Parse(pn)
 		if br == nil {
@@ -253,109 +170,49 @@ func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blo
 }
 
 func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT fileschemaref FROM files WHERE bytesref=?", bytesRef.String())
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
+	defer rs.Close()
+
+	ref := ""
+	for rs.Next() {
+		if err := rs.Scan(&ref); err != nil {
+			return nil, err
 		}
-	}()
-
-	err = client.Query(fmt.Sprintf("SELECT fileschemaref FROM files WHERE bytesref=%q", bytesRef.String()))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
-
-	for {
-		row := result.FetchRow()
-		if row == nil {
-			break
-		}
-		files = append(files, blobref.Parse(row[0].(string)))
+		files = append(files, blobref.Parse(ref))
 	}
 	return
 }
 
-func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (fi *search.FileInfo, err os.Error) {
-	client, err := mi.getConnection()
+func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
+	rs, err := mi.db.Query("SELECT size, filename, mime FROM files WHERE fileschemaref=?",
+		fileRef.String())
 	if err != nil {
-		return
+		return nil, err
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
-
-	err = client.Query(fmt.Sprintf("SELECT size, filename, mime FROM files WHERE fileschemaref=%q", fileRef.String()))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
-
-	row := result.FetchRow()
-	if row == nil {
+	defer rs.Close()
+	if !rs.Next() {
 		return nil, os.ENOENT
 	}
-
-	size, _ := row[0].(int64)
-	fileName, _ := row[1].(string)
-	mimeType, _ := row[2].(string)
-
-	return &search.FileInfo{
-		Size:     size,
-		FileName: fileName,
-		MimeType: mimeType,
-	}, nil
+	var fi search.FileInfo
+	err = rs.Scan(&fi.Size, &fi.FileName, &fi.MimeType)
+	return &fi, err
 }
 
 func (mi *Indexer) keyIdOfSigner(signer *blobref.BlobRef) (keyid string, err os.Error) {
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT keyid FROM signerkeyid WHERE blobref=?", signer.String())
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
+	defer rs.Close()
 
-	err = client.Query(fmt.Sprintf("SELECT keyid FROM signerkeyid WHERE blobref=%q", signer.String()))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
-
-	row := result.FetchRow()
-	if row == nil {
+	if !rs.Next() {
 		return "", fmt.Errorf("mysqlindexer: failed to find keyid of signer %q", signer.String())
 	}
-
-	return row[0].(string), nil
+	err = rs.Scan(&keyid)
+	return
 }
 
 func (mi *Indexer) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (permanode *blobref.BlobRef, err os.Error) {
@@ -364,36 +221,21 @@ func (mi *Indexer) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val
 		return nil, err
 	}
 
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid=? AND attr=? AND value=? ORDER BY claimdate DESC LIMIT 1",
+		keyId, attr, val)
 	if err != nil {
 		return
 	}
-	defer func() {
-		if err == nil {
-			mi.releaseConnection(client)
-		} else {
-			client.Close()
-		}
-	}()
+	defer rs.Close()
 
-	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
-	err = client.Query(fmt.Sprintf("SELECT permanode FROM signerattrvalue WHERE keyid=%q AND attr=%q AND value=%q ORDER BY claimdate DESC LIMIT 1",
-		keyId, attr, val))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
-
-	row := result.FetchRow()
-	if row == nil {
+	if !rs.Next() {
 		return nil, os.NewError("mysqlindexer: no signerattrvalue match")
 	}
-	return blobref.Parse(row[0].(string)), nil
+	var blobstr string
+	if err = rs.Scan(&blobstr); err != nil {
+		return
+	}
+	return blobref.Parse(blobstr), nil
 }
 
 func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*search.Path, err os.Error) {
@@ -402,44 +244,30 @@ func (mi *Indexer) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths [
 		return
 	}
 
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT claimref, claimdate, baseref, suffix, active FROM path WHERE keyid=? AND targetref=?",
+		keyId, target.String())
 	if err != nil {
 		return
 	}
-	defer mi.releaseConnection(client)
-
-	// TODO: lame %q quoting not SQL compatible; should use SQL ? bind params
-	err = client.Query(fmt.Sprintf("SELECT claimref, claimdate, baseref, suffix, active FROM path WHERE keyid=%q AND targetref=%q",
-		keyId, target.String()))
-	if err != nil {
-		return
-	}
-
-	result, err := client.StoreResult()
-	if err != nil {
-		return
-	}
-	defer client.FreeResult()
+	defer rs.Close()
 
 	mostRecent := make(map[string]*search.Path)
 	maxClaimDates := make(map[string]string)
-	for {
-		row := result.FetchRow()
-		if row == nil {
-			break
+	var claimRef, claimDate, baseRef, suffix, active string
+	for rs.Next() {
+		if err = rs.Scan(&claimRef, &claimDate, &baseRef, &suffix, &active); err != nil {
+			return
 		}
-		claimRef, claimDate, baseRef, suffix, active :=
-			blobref.MustParse(row[0].(string)), row[1].(string),
-			blobref.MustParse(row[2].(string)), row[3].(string), row[4].(string)
-		key := baseRef.String() + "/" + suffix
+
+		key := baseRef + "/" + suffix
 
 		if claimDate > maxClaimDates[key] {
 			maxClaimDates[key] = claimDate
 			if active == "Y" {
 				mostRecent[key] = &search.Path{
-					Claim:     claimRef,
+					Claim:     blobref.MustParse(claimRef),
 					ClaimDate: claimDate,
-					Base:      baseRef,
+					Base:      blobref.MustParse(baseRef),
 					Suffix:    suffix,
 				}
 			} else {
@@ -498,39 +326,18 @@ func (mi *Indexer) PathsLookup(signer, base *blobref.BlobRef, suffix string) (pa
 	if err != nil {
 		return
 	}
-	client, err := mi.getConnection()
+	rs, err := mi.db.Query("SELECT claimref, claimdate, targetref FROM path "+
+		"WHERE keyid=? AND baseref=? AND suffix=?",
+		keyId, base.String(), suffix)
 	if err != nil {
 		return
 	}
-	defer mi.releaseConnection(client)
-
-	stmt, err := client.Prepare("SELECT claimref, claimdate, targetref FROM path " +
-		"WHERE keyid=? AND baseref=? AND suffix=?")
-	if err != nil {
-		return
-	}
-
-	err = stmt.BindParams(keyId, base.String(), suffix)
-	if err != nil {
-		return
-	}
-
-	err = stmt.Execute()
-	if err != nil {
-		return
-	}
+	defer rs.Close()
 
 	var claimref, claimdate, targetref string
-	stmt.BindResult(&claimref, &claimdate, &targetref)
-	defer stmt.Close()
-	for {
-		done, ferr := stmt.Fetch()
-		if ferr != nil {
-			err = ferr
+	for rs.Next() {
+		if err = rs.Scan(&claimref, &claimdate, &targetref); err != nil {
 			return
-		}
-		if done {
-			break
 		}
 		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(claimdate))
 		if err != nil {

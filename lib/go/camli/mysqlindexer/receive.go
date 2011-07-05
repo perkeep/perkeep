@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 
-	mysql "camli/third_party/github.com/Philio/GoMySQL"
-
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonsign"
@@ -125,65 +123,34 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	mimeType := sniffer.MimeType()
 	log.Printf("mysqlindexer: type=%v; truncated=%v", mimeType, sniffer.IsTruncated())
 
-	var client *mysql.Client
-	if client, err = mi.getConnection(); err != nil {
-		return
-	}
-	defer mi.releaseConnection(client)
-
-	var stmt *mysql.Statement
-	if stmt, err = client.Prepare("INSERT IGNORE INTO blobs (blobref, size, type) VALUES (?, ?, ?)"); err != nil {
-		log.Printf("mysqlindexer: prepare error: %v", err)
-		return
-	}
-	if err = stmt.BindParams(blobRef.String(), written, mimeType); err != nil {
-		log.Printf("mysqlindexer: bind error: %v", err)
-		return
-	}
-	if err = stmt.Execute(); err != nil {
-		log.Printf("mysqlindexer: execute error: %v", err)
-		return
-	}
-
 	if camli := sniffer.camli; camli != nil {
 		switch camli.Type {
 		case "claim":
-			if err = mi.populateClaim(client, blobRef, camli, sniffer); err != nil {
+			if err = mi.populateClaim(blobRef, camli, sniffer); err != nil {
 				return
 			}
 		case "permanode":
-			if err = mi.populatePermanode(client, blobRef, camli); err != nil {
+			if err = mi.populatePermanode(blobRef, camli); err != nil {
 				return
 			}
 		case "file":
-			if err = mi.populateFile(client, blobRef, camli); err != nil {
+			if err = mi.populateFile(blobRef, camli); err != nil {
 				return
 			}
 		}
+	}
+
+	if err = mi.db.Execute("INSERT IGNORE INTO blobs (blobref, size, type) VALUES (?, ?, ?)",
+		blobRef.String(), written, mimeType); err != nil {
+		log.Printf("mysqlindexer: insert into blobs: %v", err)
+		return
 	}
 
 	retsb = blobref.SizedBlobRef{BlobRef: blobRef, Size: written}
 	return
 }
 
-func execSQL(client *mysql.Client, sql string, args ...interface{}) (err os.Error) {
-	var stmt *mysql.Statement
-	if stmt, err = client.Prepare(sql); err != nil {
-		log.Printf("mysqlindexer execSQL prepare: %v", err)
-		return
-	}
-	if err = stmt.BindParams(args...); err != nil {
-		log.Printf("mysqlindexer execSQL bind: %v", err)
-		return
-	}
-	if err = stmt.Execute(); err != nil {
-		log.Printf("mysqlindexer execSQL exe: %v", err)
-		return
-	}
-	return
-}
-
-func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset, sniffer *blobSniffer) (err os.Error) {
+func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superset, sniffer *blobSniffer) (err os.Error) {
 	pnBlobref := blobref.Parse(camli.Permanode)
 	if pnBlobref == nil {
 		// Skip bogus claim with malformed permanode.
@@ -197,7 +164,7 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 			verifiedKeyId = vr.SignerKeyId
 			log.Printf("mysqlindex: verified claim %s from %s", blobRef, verifiedKeyId)
 
-			if err = execSQL(client, "INSERT IGNORE INTO signerkeyid (blobref, keyid) "+
+			if err = mi.db.Execute("INSERT IGNORE INTO signerkeyid (blobref, keyid) "+
 				"VALUES (?, ?)", vr.CamliSigner.String(), verifiedKeyId); err != nil {
 				return
 			}
@@ -206,7 +173,7 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 		}
 	}
 
-	if err = execSQL(client,
+	if err = mi.db.Execute(
 		"INSERT IGNORE INTO claims (blobref, signer, verifiedkeyid, date, unverified, claim, permanode, attr, value) "+
 			"VALUES (?, ?, ?, ?, 'Y', ?, ?, ?, ?)",
 		blobRef.String(), camli.Signer, verifiedKeyId, camli.ClaimDate,
@@ -218,7 +185,7 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 	if verifiedKeyId != "" {
 		switch camli.Attribute {
 		case "camliRoot", "camliTag":
-			if err = execSQL(client, "INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
+			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
 				"VALUES (?, ?, ?, ?, ?, ?)",
 				verifiedKeyId, camli.Attribute, camli.Value,
 				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
@@ -236,7 +203,7 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 			if camli.ClaimType == "del-attribute" {
 				active = "N"
 			}
-			if err = execSQL(client, "INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref, active) "+
+			if err = mi.db.Execute("INSERT IGNORE INTO path (claimref, claimdate, keyid, baseref, suffix, targetref, active) "+
 				"VALUES (?, ?, ?, ?, ?, ?, ?)",
 				blobRef.String(), camli.ClaimDate, verifiedKeyId, camli.Permanode, suffix, camli.Value, active); err != nil {
 				return
@@ -245,12 +212,12 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 	}
 
 	// And update the lastmod on the permanode row.
-	if err = execSQL(client,
+	if err = mi.db.Execute(
 		"INSERT IGNORE INTO permanodes (blobref) VALUES (?)",
 		pnBlobref.String()); err != nil {
 		return
 	}
-	if err = execSQL(client,
+	if err = mi.db.Execute(
 		"UPDATE permanodes SET lastmod=? WHERE blobref=? AND ? > lastmod",
 		camli.ClaimDate, pnBlobref.String(), camli.ClaimDate); err != nil {
 		return
@@ -259,15 +226,15 @@ func (mi *Indexer) populateClaim(client *mysql.Client, blobRef *blobref.BlobRef,
 	return nil
 }
 
-func (mi *Indexer) populatePermanode(client *mysql.Client, blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
-	err = execSQL(client,
+func (mi *Indexer) populatePermanode(blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
+	err = mi.db.Execute(
 		"INSERT IGNORE INTO permanodes (blobref, unverified, signer, lastmod) "+
 			"VALUES (?, 'Y', ?, '')",
 		blobRef.String(), camli.Signer)
 	return
 }
 
-func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
+func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
 	if ss.Fragment {
 		return nil
 	}
@@ -303,7 +270,7 @@ func (mi *Indexer) populateFile(client *mysql.Client, blobRef *blobref.BlobRef, 
 	}
 
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
-	err = execSQL(client,
+	err = mi.db.Execute(
 		"INSERT IGNORE INTO files (fileschemaref, bytesref, size, filename, mime, setattrs) VALUES (?, ?, ?, ?, ?, ?)",
 		blobRef.String(),
 		blobref.FromHash("sha1", sha1).String(),

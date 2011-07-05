@@ -20,58 +20,36 @@ import (
 	"os"
 
 	"camli/blobref"
-
-	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
 
-type blobRow struct {
-	blobref string
-	size    int64
+func (mi *Indexer) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+	defer close(dest)
+	rs, err := mi.db.Query("SELECT blobref, size FROM blobs WHERE blobref > ? ORDER BY blobref LIMIT ?",
+		after, limit)
+	if err != nil {
+		return err
+	}
+	defer rs.Close()
+	return readBlobRefSizeResults(dest, rs)
 }
 
-func (mi *Indexer) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) (err os.Error) {
-	// MySQL connection stuff.
-	var client *mysql.Client
-	client, err = mi.getConnection()
-	if err != nil {
-		return
-	}
-	defer mi.releaseConnection(client)
-
-	var stmt *mysql.Statement
-	stmt, err = client.Prepare("SELECT blobref, size FROM blobs WHERE blobref > ? ORDER BY blobref LIMIT ?")
-	if err != nil {
-		return
-	}
-	err = stmt.BindParams(after, limit)
-	if err != nil {
-		return
-	}
-	err = stmt.Execute()
-	if err != nil {
-		return
-	}
-
-	var row blobRow
-	stmt.BindResult(&row.blobref, &row.size)
-	for {
-		var done bool
-		done, err = stmt.Fetch()
-		if err != nil {
-			return
+func readBlobRefSizeResults(dest chan<- blobref.SizedBlobRef, rs ResultSet) os.Error {
+	var (
+		blobstr string
+		size    int64
+	)
+	for rs.Next() {
+		if err := rs.Scan(&blobstr, &size); err != nil {
+			return err
 		}
-		if done {
-			break
-		}
-		br := blobref.Parse(row.blobref)
+		br := blobref.Parse(blobstr)
 		if br == nil {
 			continue
 		}
 		dest <- blobref.SizedBlobRef{
 			BlobRef: br,
-			Size:    row.size,
+			Size:    size,
 		}
 	}
-	close(dest)
-	return
+	return nil
 }
