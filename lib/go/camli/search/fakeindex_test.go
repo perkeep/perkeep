@@ -93,7 +93,7 @@ limit int) os.Error {
 
 func (fi *FakeIndex) GetTaggedPermanodes(dest chan<- *blobref.BlobRef,
 signer *blobref.BlobRef,
-tag string) os.Error {
+tag string, limit int) os.Error {
 	panic("NOIMPL")
 }
 

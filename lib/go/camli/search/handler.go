@@ -34,6 +34,7 @@ import (
 )
 
 const buffered = 32 // arbitrary channel buffer size
+const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched (by getTagged)
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -169,7 +170,7 @@ func (sh *Handler) serveTaggedPermanodes(rw http.ResponseWriter, req *http.Reque
 	ch := make(chan *blobref.BlobRef, buffered)
 	errch := make(chan os.Error)
 	go func() {
-		errch <- sh.index.GetTaggedPermanodes(ch, signer, value)
+		errch <- sh.index.GetTaggedPermanodes(ch, signer, value, maxPermanodes)
 	}()
 
 	dr := sh.NewDescribeRequest()

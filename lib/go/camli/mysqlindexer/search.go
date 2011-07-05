@@ -141,15 +141,15 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	return
 }
 
-func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string) os.Error {
+func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string, limit int) os.Error {
 	defer close(dest)
 	keyId, err := mi.keyIdOfSigner(signer)
 	if err != nil {
 		return err
 	}
 
-	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ?",
-		keyId, "camliTag", tag)
+	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ? AND claimdate <> '' ORDER BY claimdate DESC LIMIT ?",
+		keyId, "camliTag", tag, limit)
 	if err != nil {
 		return err
 	}
