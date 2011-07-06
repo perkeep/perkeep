@@ -7,6 +7,7 @@ logs
 _obj
 [68].out
 _test
-_testmain.go
+_gotest*
+_testmain*
 _go_.[568]
 _embed_*.go
