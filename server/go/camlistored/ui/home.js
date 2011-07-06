@@ -125,7 +125,7 @@ function showTaggedPermanodes(searchRes) {
         var pdiv = document.createElement("li");
         var alink = document.createElement("a");
         taggedMemb[i] = result.permanode;
-        alink.href = "./?p=" + taggedMemb;
+        alink.href = "./?p=" + taggedMemb[i];
         alink.innerText = camliBlobTitle(taggedMemb[i], searchRes);
         pdiv.appendChild(alink);
         div.appendChild(pdiv);
