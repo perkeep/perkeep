@@ -57,7 +57,7 @@ Usage:
 Other options:
   --verbose|-v         Verbose
   --test|-t            Run tests where found
-  --updatego           Attempt to update GOROOT to maintainer's go version
+  --updatego           Attempt to update GOROOT to maintainer\'s go version
 EOM
 ;
 }
@@ -82,6 +82,9 @@ if ($opt_deps)  {
         find_go_camli_deps($target);
         my $t = $targets{$target} or die;
         print "$target: @{ $t->{deps} }\n";
+        if (@{$t->{testdeps} || []}) {
+            print "$target.test: @{ $t->{testdeps} }\n";
+        }
     }
     exit;
 }
@@ -93,6 +96,7 @@ if ($opt_eachclean) {
         clean();
         %built = ();
         build($target);
+        test($target);
     }
     exit;
 }
@@ -112,7 +116,9 @@ if ($target eq "allfast") {
     my @targets = sort grep { !$targets{$_}{tags}{not_in_all} } keys %targets;
     @targets = filter_os_targets(@targets);
     foreach my $target (@targets) {
+        find_go_camli_deps($target);
         build($target);
+        test($target);
     }
     record_go_version();
     exit;
@@ -122,6 +128,7 @@ if ($target eq "all") {
     my @targets = filter_os_targets(sort keys %targets);
     foreach my $target (@targets) {
         build($target);
+        test($target);
     }
     record_go_version();
     exit;
@@ -251,6 +258,36 @@ sub perform_go_check() {
     return 1;
 }
 
+sub test {
+    my $target = shift;
+    my $t = $targets{$target} or die "Bogus or undeclared test target: $target\n";
+    return if !$opt_test || $t->{tags}{skip_tests};
+    build($target);
+
+    # Make sure testdeps are built too.
+    my @testdeps = @{ $t->{testdeps} || [] };
+    if (@testdeps) {
+        v2("Test deps of '$target' are @testdeps");
+        foreach my $dep (@testdeps) {
+            build($dep);
+        }
+        v2("built testdeps for $target, now can run tests");
+    }
+
+    opendir(my $dh, dir($target)) or die;
+    my @test_files = grep { /_test\.go$/ } readdir($dh);
+    closedir($dh);
+    if (@test_files) {
+        my @quiet = ("--silent");
+        @quiet = () if $opt_verbose;
+        if (system("make", @quiet, "-C", dir($target), "test") != 0) {
+            use Data::Dumper;
+            print Dumper($t);
+            die "Tests failed for $target\n";
+        }
+    }
+}
+
 sub build {
     my @history = @_;
     my $target = $history[0];
@@ -314,17 +351,6 @@ sub build {
         die "\nError building $target$deps\n$help_msg";
     }
     v("Built '$target'");
-
-    if ($opt_test && !$t->{tags}{skip_tests}) {
-        opendir(my $dh, dir($target)) or die;
-        my @test_files = grep { /_test\.go$/ } readdir($dh);
-        closedir($dh);
-        if (@test_files) {
-            if (system("make", @quiet, "-C", dir($target), "test") != 0) {
-                die "Tests failed for $target\n";
-            }
-        }
-    }
 }
 
 sub find_go_camli_deps {
@@ -341,7 +367,6 @@ sub find_go_camli_deps {
 
     my $t = $targets{$target} or die "Bogus or undeclared build target: $target\n";
     my $target_dir = dir($target);
-    v2("Deps of $target in $target_dir");
     opendir(my $dh, $target_dir) or die "Failed to open directory: $target\n";
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
     closedir($dh);
@@ -351,10 +376,12 @@ sub find_go_camli_deps {
     # maybe it is not worth it.  for now we'll parse all the files
     # every time to find their deps and also generate the Makefile
     # every time.
-    
-    my @deps;
-    my %seen;  # $dep -> 1
+
+    my %seendep;     # dep -> 1
+    my %seentestdep; # dep -> 1, for _test.go files
+
     for my $f (@go_files) {
+        my $depref = ($f =~ /_test\.go$/) ? \%seentestdep : \%seendep;
         open(my $fh, "$target_dir/$f") or die "Failed to open $target_dir/$f: $!";
         my $src = do { local $/; <$fh>; };
         if ($src =~ m!^import\b!m) {
@@ -365,20 +392,18 @@ sub find_go_camli_deps {
             my $imports = $1;
             while ($imports =~ m!"(camli\b.+?)"!g) {
                 my $dep = "lib/go/$1";
-                push @deps, $dep unless $seen{$dep}++;
+                $depref->{$dep} = 1;
             }
             while ($imports =~ m!"(camlistore\.org/.+?)"!g) {
                 my $dep = $1;
-                push @deps, $dep unless $seen{$dep}++;
+                $depref->{$dep} = 1;
             }
         }
     }
 
-    foreach my $dep (@deps) {
-        unless (grep { $_ eq $dep } @{$t->{deps}}) {
-            push @{$t->{deps}}, $dep;
-        }
-    }
+    $t->{deps} = [ sort keys %seendep ];
+    $t->{testdeps} = [ sort keys %seentestdep ];
+    v2("Scanned deps of $target in $target_dir, got: [@{$t->{deps}}] test:[@{$t->{testdeps}}]")
 }
 
 sub dir {
