@@ -147,6 +147,7 @@ if (@matches > 1) {
 }
 
 build($matches[0]);
+test($matches[0]);
 
 sub v {
     return unless $opt_verbose;
@@ -278,12 +279,16 @@ sub test {
     my @test_files = grep { /_test\.go$/ } readdir($dh);
     closedir($dh);
     if (@test_files) {
-        my @quiet = ("--silent");
-        @quiet = () if $opt_verbose;
-        if (system("make", @quiet, "-C", dir($target), "test") != 0) {
-            use Data::Dumper;
-            print Dumper($t);
-            die "Tests failed for $target\n";
+        if ($target =~ m!\blib/go\b!) {
+            my @quiet = ("--silent");
+            @quiet = () if $opt_verbose;
+            if (system("make", @quiet, "-C", dir($target), "test") != 0) {
+                die "Tests failed for $target\n";
+            }
+        } else {
+            if (system("cd $target && gotest") != 0) {
+                die "gtest failed for $target\n";
+            }
         }
     }
 }
