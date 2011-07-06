@@ -18,7 +18,9 @@ package test
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +34,7 @@ type FakeIndex struct {
 	size            map[string]int64
 	ownerClaims     map[string]search.ClaimList // "<permanode>/<owner>" -> ClaimList
 	signerAttrValue map[string]*blobref.BlobRef // "<signer>\0<attr>\0<value>" -> blobref
+	path            map[string]*search.Path     // "<signer>\0<base>\0<suffix>" -> path
 
 	cllk  sync.Mutex
 	clock int64
@@ -45,6 +48,7 @@ func NewFakeIndex() *FakeIndex {
 		size:            make(map[string]int64),
 		ownerClaims:     make(map[string]search.ClaimList),
 		signerAttrValue: make(map[string]*blobref.BlobRef),
+		path:            make(map[string]*search.Path),
 	}
 }
 
@@ -83,6 +87,21 @@ func (fi *FakeIndex) AddClaim(owner, permanode *blobref.BlobRef, claimType, attr
 	}
 	key := permanode.String() + "/" + owner.String()
 	fi.ownerClaims[key] = append(fi.ownerClaims[key], claim)
+
+	if claimType == "set-attribute" && strings.HasPrefix(attr, "camliPath:") {
+		suffix := attr[len("camliPath:"):]
+		path := &search.Path{
+			Target: blobref.MustParse(value),
+			Suffix: suffix,
+		}
+		fi.path[fmt.Sprintf("%s\x00%s\x00%s", owner, permanode, suffix)] = path
+	}
+}
+
+func (fi *FakeIndex) AddSignerAttrValue(signer *blobref.BlobRef, attr, val string, latest *blobref.BlobRef) {
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)] = latest
 }
 
 //
@@ -140,5 +159,14 @@ func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) (
 }
 
 func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*search.Path, os.Error) {
-	panic("NOIMPL")
+	if at != nil {
+		panic("PathLookup with non-nil at not supported")
+	}
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	if p, ok := fi.path[fmt.Sprintf("%s\x00%s\x00%s", signer, base, suffix)]; ok {
+		return p, nil
+	}
+	log.Printf("PathLookup miss for signer %q, base %q, suffix %q", signer, base, suffix)
+	return nil, os.ENOENT
 }
