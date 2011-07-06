@@ -14,18 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package search
+package search_test
 
 import (
+	. "camli/search"
+
 	"bytes"
 	"json"
 	"testing"
 
 	"camli/blobref"
+	"camli/test"
 )
 
 type describeTest struct {
-	setup func(fi *FakeIndex)
+	setup func(fi *test.FakeIndex)
 
 	blob  string // blobref to describe
 	depth int
@@ -37,14 +40,14 @@ var owner = blobref.MustParse("abcown-123")
 
 var describeTests = []describeTest{
 	{
-		func(fi *FakeIndex) {},
+		func(fi *test.FakeIndex) {},
 		"abc-555",
 		1,
 		map[string]interface{}{},
 	},
 
 	{
-		func(fi *FakeIndex) {
+		func(fi *test.FakeIndex) {
 			fi.AddMeta(blobref.MustParse("abc-555"), "image/jpeg", 999)
 		},
 		"abc-555",
@@ -59,7 +62,7 @@ var describeTests = []describeTest{
 	},
 
 	{
-		func(fi *FakeIndex) {
+		func(fi *test.FakeIndex) {
 			pn := blobref.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
@@ -101,17 +104,17 @@ var describeTests = []describeTest{
 }
 
 func TestDescribe(t *testing.T) {
-	for testn, test := range describeTests {
-		idx := NewFakeIndex()
-		test.setup(idx)
+	for testn, tt := range describeTests {
+		idx := test.NewFakeIndex()
+		tt.setup(idx)
 
-		h := &Handler{index: idx, owner: owner}
+		h := NewHandler(idx, owner)
 		js := make(map[string]interface{})
 		dr := h.NewDescribeRequest()
-		dr.Describe(blobref.MustParse(test.blob), test.depth)
+		dr.Describe(blobref.MustParse(tt.blob), tt.depth)
 		dr.PopulateJSON(js)
 		got, _ := json.MarshalIndent(js, "", "  ")
-		want, _ := json.MarshalIndent(test.expect, "", "  ")
+		want, _ := json.MarshalIndent(tt.expect, "", "  ")
 		if !bytes.Equal(got, want) {
 			t.Errorf("test %d:\nwant: %s\n got: %s", testn, string(want), string(got))
 		}

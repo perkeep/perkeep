@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package search
+package test
 
 import (
 	"os"
@@ -22,25 +22,26 @@ import (
 	"time"
 
 	"camli/blobref"
+	"camli/search"
 )
 
 type FakeIndex struct {
 	lk          sync.Mutex
 	mimeType    map[string]string // blobref -> type
 	size        map[string]int64
-	ownerClaims map[string]ClaimList // "<permanode>/<owner>" -> ClaimList
+	ownerClaims map[string]search.ClaimList // "<permanode>/<owner>" -> ClaimList
 
 	cllk  sync.Mutex
 	clock int64
 }
 
-var _ Index = (*FakeIndex)(nil)
+var _ search.Index = (*FakeIndex)(nil)
 
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
 		mimeType:    make(map[string]string),
 		size:        make(map[string]int64),
-		ownerClaims: make(map[string]ClaimList),
+		ownerClaims: make(map[string]search.ClaimList),
 	}
 }
 
@@ -68,7 +69,7 @@ func (fi *FakeIndex) AddClaim(owner, permanode *blobref.BlobRef, claimType, attr
 	defer fi.lk.Unlock()
 	date := fi.nextDate()
 
-	claim := &Claim{
+	claim := &search.Claim{
 		Permanode: permanode,
 		Signer:    nil,
 		BlobRef:   nil,
@@ -85,19 +86,15 @@ func (fi *FakeIndex) AddClaim(owner, permanode *blobref.BlobRef, claimType, attr
 // Interface implementation
 //
 
-func (fi *FakeIndex) GetRecentPermanodes(dest chan *Result,
-owner []*blobref.BlobRef,
-limit int) os.Error {
+func (fi *FakeIndex) GetRecentPermanodes(dest chan *search.Result, owner []*blobref.BlobRef, limit int) os.Error {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetTaggedPermanodes(dest chan<- *blobref.BlobRef,
-signer *blobref.BlobRef,
-tag string, limit int) os.Error {
+func (fi *FakeIndex) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string, limit int) os.Error {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error) {
+func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (search.ClaimList, os.Error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
@@ -118,7 +115,7 @@ func (fi *FakeIndex) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error) {
+func (fi *FakeIndex) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
 	panic("NOIMPL")
 }
 
@@ -126,14 +123,14 @@ func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, v
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error) {
+func (fi *FakeIndex) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*search.Path, os.Error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*Path, os.Error) {
+func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*search.Path, os.Error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*Path, os.Error) {
+func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*search.Path, os.Error) {
 	panic("NOIMPL")
 }

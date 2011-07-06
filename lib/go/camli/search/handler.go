@@ -45,6 +45,10 @@ type Handler struct {
 	owner *blobref.BlobRef
 }
 
+func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
+	return &Handler{index, owner}
+}
+
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, os.Error) {
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
 	ownerBlobStr := conf.RequiredString("owner")
