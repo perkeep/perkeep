@@ -286,7 +286,8 @@ sub test {
                 die "Tests failed for $target\n";
             }
         } else {
-            if (system("cd $target && gotest") != 0) {
+            my $testv = $opt_verbose ? "-test.v" : "";
+            if (system("cd $target && gotest $testv") != 0) {
                 die "gtest failed for $target\n";
             }
         }
