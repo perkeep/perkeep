@@ -68,7 +68,7 @@ function camliSigDiscovery(opts) {
       opts.success(sd);
     };
     cb.fail = opts.fail;
-    var xhr = camliJsonXhr("camliDescribeBlob", cb);
+    var xhr = camliJsonXhr("camliSigDiscovery", cb);
     xhr.open("GET", Camli.config.jsonSignRoot + "/camli/sig/discovery", true);
     xhr.send();
 }
