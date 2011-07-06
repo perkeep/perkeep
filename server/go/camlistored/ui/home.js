@@ -41,16 +41,47 @@ function handleFormGetTagged(e) {
 
     var sigcb = {};
     sigcb.success = function(sigconf) {
-		var tagcb = {};
-		tagcb.success = function(pres) {
-			showTaggedPermanodes(pres);
-		};
+        var tagcb = {};
+        tagcb.success = function(pres) {
+            showTaggedPermanodes(pres);
+        };
         camliGetTaggedPermanodes(sigconf.publicKeyBlobRef, tags[0], tagcb);
     };
     sigcb.fail = function() {
         alert("sig disco failed");
     }
     camliSigDiscovery(sigcb);
+}
+
+function createNewCollection(e) {
+    var cnpcb = {};
+    cnpcb.success = function(parent) {
+        var nRemain = taggedMemb.length;
+        var naaccb = {};
+        naaccb.fail = function() {
+            document.getElementById("btnNewCollec").disabled = true;
+            throw("failed to add member to collection");
+        }
+        naaccb.success = function() {
+            nRemain--;
+            if (nRemain == 0) {
+                document.getElementById("btnNewCollec").disabled = true;
+                window.location = "./?g=" + parent;
+            }
+        }
+        try {
+            for (var i = 0; i < taggedMemb.length; i++) {
+                camliNewAddAttributeClaim(parent, "camliMember", taggedMemb[i], naaccb);
+            }
+        } catch(x) {
+            alert(x)
+        }
+    };
+    cnpcb.fail = function() { 
+        document.getElementById("btnNewCollec").disabled = true;
+        alert("failed to create permanode");
+    };
+    camliCreateNewPermanode(cnpcb);
 }
 
 function indexOnLoad(e) {
@@ -61,6 +92,9 @@ function indexOnLoad(e) {
     btnNew.addEventListener("click", btnCreateNewPermanode);
     camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes });
     formTags.addEventListener("submit", handleFormGetTagged);
+    var btnNewGal = document.getElementById("btnNewCollec");
+    btnNewGal.addEventListener("click", createNewCollection);
+    btnNewGal.disabled = true;
 
     if (disco && disco.uploadHelper) {
         var uploadForm = document.getElementById("uploadform");
@@ -85,14 +119,19 @@ function indexOnLoad(e) {
 function showTaggedPermanodes(searchRes) {
     var div = document.getElementById("tagged");
     div.innerHTML = "";
+    taggedMemb = new Array();
     for (var i = 0; i < searchRes.tagged.length; i++) {
         var result = searchRes.tagged[i];
         var pdiv = document.createElement("li");
         var alink = document.createElement("a");
-        alink.href = "./?p=" + result.permanode;
-        alink.innerText = camliBlobTitle(result.permanode, searchRes);
+        taggedMemb[i] = result.permanode;
+        alink.href = "./?p=" + taggedMemb;
+        alink.innerText = camliBlobTitle(taggedMemb[i], searchRes);
         pdiv.appendChild(alink);
         div.appendChild(pdiv);
+    }
+    if (taggedMemb.length > 0) {
+        document.getElementById("btnNewCollec").disabled = false;
     }
 }
 
