@@ -24,6 +24,7 @@ import (
 	"json"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -138,6 +139,21 @@ func (ph *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	preq.serveHTTP()
 }
 
+// publishRequest is the state around a single HTTP request to the
+// publish handler
+type publishRequest struct {
+	ph                   *PublishHandler
+	rw                   http.ResponseWriter
+	req                  *http.Request
+	base, suffix, subres string
+	rootpn               *blobref.BlobRef
+	subject              *blobref.BlobRef
+
+	// A describe request that we can reuse, sharing its map of
+	// blobs already described.
+	dr *search.DescribeRequest
+}
+
 func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) *publishRequest {
 	// splits a path request into its suffix and subresource parts.
 	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
@@ -156,18 +172,8 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 		base:   req.Header.Get("X-PrefixHandler-PathBase"),
 		subres: res,
 		rootpn: rootpn,
+		dr:     ph.Search.NewDescribeRequest(),
 	}
-}
-
-// publishRequest is the state around a single HTTP request to the
-// publish handler
-type publishRequest struct {
-	ph                   *PublishHandler
-	rw                   http.ResponseWriter
-	req                  *http.Request
-	base, suffix, subres string
-	rootpn               *blobref.BlobRef
-	subject              *blobref.BlobRef
 }
 
 func (pr *publishRequest) Debug() bool {
@@ -202,6 +208,37 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 	return buf.String()
 }
 
+var memberRE = regexp.MustCompile(`^/?m([0-9a-f]+)`)
+
+func (pr *publishRequest) findSubject() os.Error {
+	subject, err := pr.ph.lookupPathTarget(pr.rootpn, pr.suffix)
+	if err != nil {
+		return err
+	}
+
+	// Chase /m<xxxxx> members in suffix.
+	for {
+		m := memberRE.FindStringSubmatch(pr.subres)
+		if m == nil {
+			break
+		}
+		match, memberPrefix := m[0], m[1]
+
+		if err != nil {
+			return fmt.Errorf("Error looking up potential member %q in describe of subject %q: %v",
+				memberPrefix, subject, err)
+		}
+		subject, err = pr.ph.Search.ResolveMemberPrefix(subject, memberPrefix)
+		if err != nil {
+			return err
+		}
+		pr.subres = pr.subres[len(match):]
+	}
+
+	pr.subject = subject
+	return nil
+}
+
 func (pr *publishRequest) serveHTTP() {
 	if pr.rootpn == nil {
 		pr.rw.WriteHeader(404)
@@ -212,9 +249,8 @@ func (pr *publishRequest) serveHTTP() {
 		pr.pf("I am publish handler at base %q, serving root %q (permanode=%s), suffix %q, subreq %q<hr>",
 			pr.base, pr.ph.RootName, pr.rootpn, html.EscapeString(pr.suffix), html.EscapeString(pr.subres))
 	}
-	var err os.Error
-	pr.subject, err = pr.ph.lookupPathTarget(pr.rootpn, pr.suffix)
-	if err != nil {
+
+	if err := pr.findSubject(); err != nil {
 		if err == os.ENOENT {
 			pr.rw.WriteHeader(404)
 			return
@@ -231,7 +267,7 @@ func (pr *publishRequest) serveHTTP() {
 
 	switch pr.SubresourceType() {
 	case "":
-		pr.serve()
+		pr.serveSubject()
 	case "blob":
 		// TODO: download a raw blob
 	case "file":
@@ -255,7 +291,14 @@ func (pr *publishRequest) staticPath(fileName string) string {
 	return pr.base + "-/static/" + fileName
 }
 
-func (pr *publishRequest) serve() {
+func (pr *publishRequest) memberPath(member *blobref.BlobRef) string {
+	if strings.Contains(pr.req.URL.Path, "/-/") {
+		return pr.req.URL.Path + "/m" + member.DigestPrefix(10)
+	}
+	return pr.req.URL.Path + "/-/m" + member.DigestPrefix(10)
+}
+
+func (pr *publishRequest) serveSubject() {
 	dr := pr.ph.Search.NewDescribeRequest()
 	dr.Describe(pr.subject, 3)
 	res, err := dr.Result()
@@ -272,18 +315,13 @@ func (pr *publishRequest) serve() {
 		return
 	}
 
-	if subdes.Permanode != nil && subdes.Permanode.Attr.Get("camliContent") != "" {
-		pr.serveFileDownload(subdes)
-		return
-	}
-
 	title := subdes.Title()
 
 	// HTML header + Javascript
 	{
 		jm := make(map[string]interface{})
 		dr.PopulateJSON(jm)
-		pr.pf("<html>\n<head>\n <title>%s</title>\n ",html.EscapeString(title))
+		pr.pf("<html>\n<head>\n <title>%s</title>\n ", html.EscapeString(title))
 		pr.pf("<script src='%s'></script>\n", pr.staticPath("camli.js"))
 		pr.pf("<script>\n")
 		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
@@ -298,6 +336,26 @@ func (pr *publishRequest) serve() {
 		pr.pf("<h1>%s</h1>\n", html.EscapeString(title))
 	}
 
+	if cref, ok := subdes.ContentRef(); ok {
+		des, err := pr.dr.DescribeSync(cref)
+		if err == nil && des.File != nil {
+			path := []*blobref.BlobRef{pr.subject, cref}
+			downloadURL := pr.SubresFileURL(path, des.File.FileName)
+			pr.pf("<div>File: %s, %d bytes, type %s</div>",
+				html.EscapeString(des.File.FileName),
+				des.File.Size,
+				des.File.MimeType)
+			if des.File.IsImage() {
+				pr.pf("<a href='%s'><img border=0 src='%s'></a>",
+					downloadURL,
+					pr.SubresThumbnailURL(path, des.File.FileName, 600))
+			}
+			pr.pf("<div id='%s' class='camlifile'>[<a href='%s'>download</a>]</div>",
+				cref.DomID(),
+				downloadURL)
+		}
+	}
+
 	if members := subdes.Members(); len(members) > 0 {
 		pr.pf("<ul>\n")
 		for _, member := range members {
@@ -305,32 +363,26 @@ func (pr *publishRequest) serve() {
 			if des != "" {
 				des = " - " + des
 			}
-			link := "#"
-			thumbnail := ""
+			var fileLink, thumbnail string
 			if path, fileInfo, ok := member.PermanodeFile(); ok {
-				link = pr.SubresFileURL(path, fileInfo.FileName)
+				fileLink = fmt.Sprintf("<div id='%s' class='camlifile'><a href='%s'>file</a></div>",
+					path[len(path)-1].DomID(),
+					html.EscapeString(pr.SubresFileURL(path, fileInfo.FileName)),
+				)
 				if fileInfo.IsImage() {
 					thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
 				}
 			}
-			pr.pf("  <li><a href='%s'>%s%s</a>%s</li>\n",
-				link,
+			pr.pf("  <li id='%s'><a href='%s'>%s%s</a>%s%s</li>\n",
+				member.DomID(),
+				pr.memberPath(member.BlobRef),
 				thumbnail,
 				html.EscapeString(member.Title()),
-				des)
+				des,
+				fileLink)
 		}
 		pr.pf("</ul>\n")
 	}
-}
-
-func (pr *publishRequest) describeSingleBlob(b *blobref.BlobRef) (*search.DescribedBlob, os.Error) {
-	dr := pr.ph.Search.NewDescribeRequest()
-	dr.Describe(b, 1)
-	res, err := dr.Result()
-	if err != nil {
-		return nil, err
-	}
-	return res[b.String()], nil
 }
 
 func (pr *publishRequest) validPathChain(path []*blobref.BlobRef) bool {
@@ -339,7 +391,7 @@ func (pr *publishRequest) validPathChain(path []*blobref.BlobRef) bool {
 		var next *blobref.BlobRef
 		next, path = path[0], path[1:]
 
-		desi, err := pr.describeSingleBlob(bi)
+		desi, err := pr.dr.DescribeSync(bi)
 		if err != nil {
 			return false
 		}
@@ -388,7 +440,7 @@ func (pr *publishRequest) describeSubresAndValidatePath() (des *search.Described
 	}
 
 	file := path[len(path)-1]
-	fileDes, err := pr.describeSingleBlob(file)
+	fileDes, err := pr.dr.DescribeSync(file)
 	if err != nil {
 		http.Error(pr.rw, "describe error", 500)
 		return

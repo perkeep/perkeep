@@ -33,7 +33,7 @@ import (
 	"camli/httputil"
 )
 
-const buffered = 32 // arbitrary channel buffer size
+const buffered = 32      // arbitrary channel buffer size
 const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched (by getTagged)
 
 func init() {
@@ -287,6 +287,13 @@ func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, 
 	return
 }
 
+func (b *DescribedBlob) DomID() string {
+	if b == nil {
+		return ""
+	}
+	return b.BlobRef.DomID()
+}
+
 func (b *DescribedBlob) Title() string {
 	if b == nil {
 		return ""
@@ -329,6 +336,17 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 	}
 	return m
 }
+
+func (b *DescribedBlob) ContentRef() (br *blobref.BlobRef, ok bool) {
+	if b != nil && b.Permanode != nil {
+		if cref := b.Permanode.Attr.Get("camliContent"); cref != "" {
+			br = blobref.Parse(cref)
+			return br, br != nil
+		}
+	}
+	return
+}
+
 
 func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 	if b.Request == nil {
@@ -415,6 +433,32 @@ func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	}
 }
 
+func (sh *Handler) ResolveMemberPrefix(parent *blobref.BlobRef, prefix string) (child *blobref.BlobRef, err os.Error) {
+	// TODO: this is a linear scan right now. this should be
+	// optimized to use a new database table of members so this is
+	// a quick lookup.  in the meantime it should be in memcached
+	// at least.
+	if len(prefix) < 8 {
+		return nil, fmt.Errorf("Member prefix %q too small", prefix)
+	}
+	dr := sh.NewDescribeRequest()
+	dr.Describe(parent, 1)
+	res, err := dr.Result()
+	if err != nil {
+		return
+	}
+	des, ok := res[parent.String()]
+	if !ok {
+		return nil, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
+	}
+	for _, member := range des.Members() {
+		if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
+			return member.BlobRef, nil
+		}
+	}
+	return nil, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
+}
+
 type DescribeError map[string]os.Error
 
 func (de DescribeError) String() string {
@@ -465,6 +509,15 @@ func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
 	des := &DescribedBlob{Request: dr, BlobRef: b}
 	dr.m[bs] = des
 	return des
+}
+
+func (dr *DescribeRequest) DescribeSync(br *blobref.BlobRef) (*DescribedBlob, os.Error) {
+	dr.Describe(br, 1)
+	res, err := dr.Result()
+	if err != nil {
+		return nil, err
+	}
+	return res[br.String()], nil
 }
 
 func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
