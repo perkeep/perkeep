@@ -103,6 +103,7 @@ type Index interface {
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
+	// Returns os.ENOENT if none is found.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 
 	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error)

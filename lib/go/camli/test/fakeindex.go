@@ -17,6 +17,7 @@ limitations under the License.
 package test
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -26,10 +27,11 @@ import (
 )
 
 type FakeIndex struct {
-	lk          sync.Mutex
-	mimeType    map[string]string // blobref -> type
-	size        map[string]int64
-	ownerClaims map[string]search.ClaimList // "<permanode>/<owner>" -> ClaimList
+	lk              sync.Mutex
+	mimeType        map[string]string // blobref -> type
+	size            map[string]int64
+	ownerClaims     map[string]search.ClaimList // "<permanode>/<owner>" -> ClaimList
+	signerAttrValue map[string]*blobref.BlobRef // "<signer>\0<attr>\0<value>" -> blobref
 
 	cllk  sync.Mutex
 	clock int64
@@ -39,9 +41,10 @@ var _ search.Index = (*FakeIndex)(nil)
 
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
-		mimeType:    make(map[string]string),
-		size:        make(map[string]int64),
-		ownerClaims: make(map[string]search.ClaimList),
+		mimeType:        make(map[string]string),
+		size:            make(map[string]int64),
+		ownerClaims:     make(map[string]search.ClaimList),
+		signerAttrValue: make(map[string]*blobref.BlobRef),
 	}
 }
 
@@ -120,7 +123,12 @@ func (fi *FakeIndex) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os
 }
 
 func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error) {
-	panic("NOIMPL")
+	fi.lk.Lock()
+	defer fi.lk.Unlock()
+	if b, ok := fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)]; ok {
+		return b, nil
+	}
+	return nil, os.ENOENT
 }
 
 func (fi *FakeIndex) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*search.Path, os.Error) {
