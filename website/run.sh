@@ -9,6 +9,4 @@ mkdir -p $LOGDIR
 
 cd $Bin
 echo "Running camweb in $Bin"
-../build.pl website && ./camweb --http=:8080 --https=:4430 --root=$Bin --logdir=$LOGDIR \
-    --tlscert=$HOME/etc/ssl.crt \
-    --tlskey=$HOME/etc/ssl.key
+../build.pl website && ./camweb --http=:8081 --root=$Bin --logdir=$LOGDIR

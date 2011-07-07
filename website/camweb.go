@@ -49,7 +49,7 @@ var (
 	tlsCertFile         = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
 	gerritUser          = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
-	gerritHost          = flag.String("gerrithost", "gerrit-proxy", "Gerrit host, or empty.")
+	gerritHost          = flag.String("gerrithost", "", "Gerrit host, or empty.")
 	pageHtml, errorHtml *template.Template
 )
 
@@ -322,6 +322,7 @@ func main() {
 	}()
 
 	if *httpsAddr != "" {
+		log.Printf("Starting TLS server on %s", *httpsAddr)
 		httpsServer := new(http.Server)
 		*httpsServer = *httpServer
 		httpsServer.Addr = *httpsAddr
