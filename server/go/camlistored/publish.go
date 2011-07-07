@@ -148,6 +148,8 @@ type publishRequest struct {
 	base, suffix, subres string
 	rootpn               *blobref.BlobRef
 	subject              *blobref.BlobRef
+	inSubjectChain       map[string]bool // blobref -> true
+	subjectBasePath      string
 
 	// A describe request that we can reuse, sharing its map of
 	// blobs already described.
@@ -165,14 +167,16 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 	}
 	rootpn, _ := ph.rootPermanode()
 	return &publishRequest{
-		ph:     ph,
-		rw:     rw,
-		req:    req,
-		suffix: suffix,
-		base:   req.Header.Get("X-PrefixHandler-PathBase"),
-		subres: res,
-		rootpn: rootpn,
-		dr:     ph.Search.NewDescribeRequest(),
+		ph:              ph,
+		rw:              rw,
+		req:             req,
+		suffix:          suffix,
+		base:            req.Header.Get("X-PrefixHandler-PathBase"),
+		subres:          res,
+		rootpn:          rootpn,
+		dr:              ph.Search.NewDescribeRequest(),
+		inSubjectChain:  make(map[string]bool),
+		subjectBasePath: "",
 	}
 }
 
@@ -181,8 +185,8 @@ func (pr *publishRequest) Debug() bool {
 }
 
 func (pr *publishRequest) SubresourceType() string {
-	if parts := strings.SplitN(pr.subres, "/", 2); len(parts) > 0 {
-		return parts[0]
+	if len(pr.subres) >= 3 && strings.HasPrefix(pr.subres, "/=") {
+		return pr.subres[2:3]
 	}
 	return ""
 }
@@ -193,14 +197,21 @@ func (pr *publishRequest) SubresFileURL(path []*blobref.BlobRef, fileName string
 
 func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName string, maxDimen int) string {
 	var buf bytes.Buffer
-	resType := "img"
+	resType := "i"
 	if maxDimen == -1 {
-		resType = "file"
+		resType = "f"
 	}
-	fmt.Fprintf(&buf, "%s%s/-/%s", pr.base, pr.suffix, resType)
+	fmt.Fprintf(&buf, "%s", pr.subjectBasePath)
+	if !strings.Contains(pr.subjectBasePath, "/-/") {
+		buf.Write([]byte("/-"))
+	}
 	for _, br := range path {
-		fmt.Fprintf(&buf, "/%s", br)
+		if pr.inSubjectChain[br.String()] {
+			continue
+		}
+		fmt.Fprintf(&buf, "/h%s", br.DigestPrefix(10))
 	}
+	fmt.Fprintf(&buf, "/=%s", resType)
 	fmt.Fprintf(&buf, "/%s", http.URLEscape(fileName))
 	if maxDimen != -1 {
 		fmt.Fprintf(&buf, "?mw=%d&mh=%d", maxDimen, maxDimen)
@@ -208,15 +219,22 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 	return buf.String()
 }
 
-var memberRE = regexp.MustCompile(`^/?m([0-9a-f]+)`)
+var memberRE = regexp.MustCompile(`^/?h([0-9a-f]+)`)
 
 func (pr *publishRequest) findSubject() os.Error {
+	if strings.HasPrefix(pr.suffix, "=s/") {
+		pr.subres = "/" + pr.suffix
+		return nil
+	}
+
 	subject, err := pr.ph.lookupPathTarget(pr.rootpn, pr.suffix)
 	if err != nil {
 		return err
 	}
+	pr.inSubjectChain[subject.String()] = true
+	pr.subjectBasePath = pr.base + pr.suffix
 
-	// Chase /m<xxxxx> members in suffix.
+	// Chase /h<xxxxx> hops in suffix.
 	for {
 		m := memberRE.FindStringSubmatch(pr.subres)
 		if m == nil {
@@ -228,11 +246,14 @@ func (pr *publishRequest) findSubject() os.Error {
 			return fmt.Errorf("Error looking up potential member %q in describe of subject %q: %v",
 				memberPrefix, subject, err)
 		}
-		subject, err = pr.ph.Search.ResolveMemberPrefix(subject, memberPrefix)
+
+		subject, err = pr.ph.Search.ResolvePrefixHop(subject, memberPrefix)
 		if err != nil {
 			return err
 		}
+		pr.inSubjectChain[subject.String()] = true
 		pr.subres = pr.subres[len(match):]
+		pr.subjectBasePath = addPathComponent(pr.subjectBasePath, match)
 	}
 
 	pr.subject = subject
@@ -268,14 +289,14 @@ func (pr *publishRequest) serveHTTP() {
 	switch pr.SubresourceType() {
 	case "":
 		pr.serveSubject()
-	case "blob":
+	case "b":
 		// TODO: download a raw blob
-	case "file":
+	case "f": // file download
 		pr.serveSubresFileDownload()
-	case "img":
+	case "i": // image, scaled
 		pr.serveSubresImage()
-	case "static":
-		pr.req.URL.Path = pr.subres[len("static"):]
+	case "s": // static
+		pr.req.URL.Path = pr.subres[len("/=s"):]
 		pr.ph.staticHandler.ServeHTTP(pr.rw, pr.req)
 	default:
 		pr.rw.WriteHeader(400)
@@ -288,14 +309,21 @@ func (pr *publishRequest) pf(format string, args ...interface{}) {
 }
 
 func (pr *publishRequest) staticPath(fileName string) string {
-	return pr.base + "-/static/" + fileName
+	return pr.base + "=s/" + fileName
+}
+
+func addPathComponent(base, addition string) string {
+	if !strings.HasPrefix(addition, "/") {
+		addition = "/" + addition
+	}
+	if strings.Contains(base, "/-/") {
+		return base + addition
+	}
+	return base + "/-" + addition
 }
 
 func (pr *publishRequest) memberPath(member *blobref.BlobRef) string {
-	if strings.Contains(pr.req.URL.Path, "/-/") {
-		return pr.req.URL.Path + "/m" + member.DigestPrefix(10)
-	}
-	return pr.req.URL.Path + "/-/m" + member.DigestPrefix(10)
+	return addPathComponent(pr.subjectBasePath, "/h"+member.DigestPrefix(10))
 }
 
 func (pr *publishRequest) serveSubject() {
@@ -407,45 +435,21 @@ func (pr *publishRequest) serveSubresImage() {
 	params := pr.req.URL.Query()
 	mw, _ := strconv.Atoi(params.Get("mw"))
 	mh, _ := strconv.Atoi(params.Get("mh"))
-	if des, ok := pr.describeSubresAndValidatePath(); ok {
-		pr.serveScaledImage(des, mw, mh)
+	des, err := pr.dr.DescribeSync(pr.subject)
+	if err != nil {
+		log.Printf("error describing subject %q: %v", pr.subject, err)
+		return
 	}
+	pr.serveScaledImage(des, mw, mh)
 }
 
 func (pr *publishRequest) serveSubresFileDownload() {
-	if des, ok := pr.describeSubresAndValidatePath(); ok {
-		pr.serveFileDownload(des)
-	}
-}
-
-func (pr *publishRequest) describeSubresAndValidatePath() (des *search.DescribedBlob, ok bool) {
-	path := []*blobref.BlobRef{}
-	parts := strings.Split(pr.subres, "/")
-	if len(parts) < 3 {
-		http.Error(pr.rw, "expected at least 3 parts", 400)
-		return
-	}
-	for _, bstr := range parts[1 : len(parts)-1] {
-		if br := blobref.Parse(bstr); br != nil {
-			path = append(path, br)
-		} else {
-			http.Error(pr.rw, "bogus blobref in chain", 400)
-			return
-		}
-	}
-
-	if !pr.validPathChain(path) {
-		http.Error(pr.rw, "not found or invalid path", 404)
-		return
-	}
-
-	file := path[len(path)-1]
-	fileDes, err := pr.dr.DescribeSync(file)
+	des, err := pr.dr.DescribeSync(pr.subject)
 	if err != nil {
-		http.Error(pr.rw, "describe error", 500)
+		log.Printf("error describing subject %q: %v", pr.subject, err)
 		return
 	}
-	return fileDes, true
+	pr.serveFileDownload(des)
 }
 
 func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int) {
@@ -465,6 +469,7 @@ func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, 
 func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 	fileref, fileinfo, ok := pr.fileSchemaRefFromBlob(des)
 	if !ok {
+		log.Printf("Didn't get file schema from described blob %q", des.BlobRef)
 		return
 	}
 	mime := ""

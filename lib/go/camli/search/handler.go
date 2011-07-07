@@ -369,6 +369,9 @@ func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 // somewhat redundant "Secure" in the name) and should be paranoid
 // against e.g. random user/attacker-control attributes making links
 // to other blobs.
+//
+// TODO: don't linear scan here.  rewrite this in terms of ResolvePrefixHop,
+// passing down some policy perhaps?  or maybe that's enough.
 func (b *DescribedBlob) HasSecureLinkTo(other *blobref.BlobRef) bool {
 	if b == nil || other == nil {
 		return false
@@ -437,7 +440,9 @@ func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	}
 }
 
-func (sh *Handler) ResolveMemberPrefix(parent *blobref.BlobRef, prefix string) (child *blobref.BlobRef, err os.Error) {
+// Given a blobref and a few hex characters of the digest of the next hop, return the complete
+// blobref of the prefix, if that's a valid next hop.
+func (sh *Handler) ResolvePrefixHop(parent *blobref.BlobRef, prefix string) (child *blobref.BlobRef, err os.Error) {
 	// TODO: this is a linear scan right now. this should be
 	// optimized to use a new database table of members so this is
 	// a quick lookup.  in the meantime it should be in memcached
@@ -455,9 +460,14 @@ func (sh *Handler) ResolveMemberPrefix(parent *blobref.BlobRef, prefix string) (
 	if !ok {
 		return nil, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
 	}
-	for _, member := range des.Members() {
-		if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
-			return member.BlobRef, nil
+	if des.Permanode != nil {
+		if cr, ok := des.ContentRef(); ok && strings.HasPrefix(cr.Digest(), prefix) {
+			return cr, nil
+		}
+		for _, member := range des.Members() {
+			if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
+				return member.BlobRef, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
