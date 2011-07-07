@@ -36,7 +36,7 @@ import (
 
 const defaultAddr = ":31798" // default webserver address
 
-var h1TitlePattern = regexp.MustCompile(`<h1>(.+)</h1>`)
+var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 
 var (
 	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
