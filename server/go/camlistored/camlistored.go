@@ -226,6 +226,15 @@ func main() {
 	ws.Serve()
 }
 
+func (hl *handlerLoader) FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err os.Error) {
+	for prefix, config := range hl.config {
+		if config.htype == htype {
+			return prefix, hl.handler[prefix], nil
+		}
+	}
+	return "", nil, os.ENOENT
+}
+
 func (hl *handlerLoader) setupAll() {
 	for prefix := range hl.config {
 		hl.setupHandler(prefix)

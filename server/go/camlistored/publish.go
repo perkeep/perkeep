@@ -46,6 +46,7 @@ type PublishHandler struct {
 
 	JSFiles, CSSFiles []string
 
+	bsLoader      blobserver.Loader
 	staticHandler http.Handler
 }
 
@@ -54,7 +55,9 @@ func init() {
 }
 
 func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err os.Error) {
-	ph := &PublishHandler{}
+	ph := &PublishHandler{
+		bsLoader: ld,
+	}
 	ph.RootName = conf.RequiredString("rootName")
 	ph.JSFiles = conf.OptionalList("js")
 	ph.CSSFiles = conf.OptionalList("css")
@@ -138,7 +141,29 @@ func (ph *PublishHandler) lookupPathTarget(root *blobref.BlobRef, suffix string)
 	return path.Target, nil
 }
 
+func (ph *PublishHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
+	if !ph.ViewerIsOwner(req) {
+		discoveryHelper(rw, req, map[string]interface{}{
+			"error": "viewer isn't owner",
+		})
+		return
+	}
+	_, handler, err := ph.bsLoader.FindHandlerByTypeIfLoaded("ui")
+	if err != nil {
+		discoveryHelper(rw, req, map[string]interface{}{
+			"error": "no admin handler running",
+		})
+		return
+	}
+	ui := handler.(*UIHandler)
+	ui.serveDiscovery(rw, req)
+}
+
 func (ph *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.URL.Query().Get("camli.mode") == "config" {
+		ph.serveDiscovery(rw, req)
+		return
+	}
 	preq := ph.NewRequest(rw, req)
 	preq.serveHTTP()
 }
@@ -182,6 +207,16 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 		inSubjectChain:  make(map[string]bool),
 		subjectBasePath: "",
 	}
+}
+
+func (ph *PublishHandler) ViewerIsOwner(req *http.Request) bool {
+	// TODO: better check later
+	return strings.HasPrefix(req.RemoteAddr, "127.") ||
+		strings.HasPrefix(req.RemoteAddr, "localhost:")
+}
+
+func (pr *publishRequest) ViewerIsOwner() bool {
+	return pr.ph.ViewerIsOwner(pr.req)
 }
 
 func (pr *publishRequest) Debug() bool {
@@ -359,8 +394,12 @@ func (pr *publishRequest) serveSubject() {
 		}
 		for _, filename := range pr.ph.JSFiles {
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath(filename))
+			if filename == "camli.js" && pr.ViewerIsOwner() {
+				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&cb=onConfiguration")
+			}
 		}
 		pr.pf(" <script>\n")
+		pr.pf("var camliViewIsOwner = %v;\n", pr.ViewerIsOwner())
 		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
 		pr.pf("var camliPageMeta = \n")
 		json, _ := json.MarshalIndent(jm, "", "  ")

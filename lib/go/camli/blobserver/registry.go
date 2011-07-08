@@ -31,6 +31,8 @@ type Loader interface {
 
 	// Returns either a Storage or an http.Handler
 	GetHandler(prefix string) (interface{}, os.Error)
+
+	FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err os.Error)
 }
 
 type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, os.Error)

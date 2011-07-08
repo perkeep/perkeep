@@ -213,14 +213,21 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
+func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]interface{}) {
 	rw.Header().Set("Content-Type", "text/javascript")
 	inCb := false
 	if cb := req.FormValue("cb"); identPattern.MatchString(cb) {
 		fmt.Fprintf(rw, "%s(", cb)
 		inCb = true
 	}
+	bytes, _ := json.MarshalIndent(m, "", "  ")
+	rw.Write(bytes)
+	if inCb {
+		rw.Write([]byte{')'})
+	}
+}
 
+func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	pubRoots := map[string]interface{}{}
 	for key, pubh := range ui.PublishRoots {
 		m := map[string]interface{}{
@@ -237,7 +244,7 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		pubRoots[pubh.RootName] = m
 	}
 
-	bytes, _ := json.Marshal(map[string]interface{}{
+	discoveryHelper(rw, req, map[string]interface{}{
 		"blobRoot":       ui.BlobRoot,
 		"searchRoot":     ui.SearchRoot,
 		"jsonSignRoot":   ui.JSONSignRoot,
@@ -245,10 +252,6 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		"downloadHelper": "./download/",
 		"publishRoots":   pubRoots,
 	})
-	rw.Write(bytes)
-	if inCb {
-		rw.Write([]byte{')'})
-	}
 }
 
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
