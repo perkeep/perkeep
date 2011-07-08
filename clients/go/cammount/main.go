@@ -35,7 +35,7 @@ func PrintMap(m map[string]float64) {
 		keys = append(keys, k)
 	}
 
-	sort.SortStrings(keys)
+	sort.Strings(keys)
 	for _, k := range keys {
 		if m[k] > 0 {
 			fmt.Println(k, m[k])

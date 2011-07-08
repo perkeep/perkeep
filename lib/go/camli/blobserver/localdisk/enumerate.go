@@ -59,7 +59,7 @@ func readBlobs(opts readBlobRequest) os.Error {
 	if err != nil {
 		return &enumerateError{"localdisk: readdirnames of " + dirFullPath, err}
 	}
-	sort.SortStrings(names)
+	sort.Strings(names)
 	for _, name := range names {
 		if *opts.remain == 0 {
 			return nil

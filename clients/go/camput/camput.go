@@ -122,7 +122,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 			return nil, err
 		}
 		dir.Close()
-		sort.SortStrings(dirNames)
+		sort.Strings(dirNames)
 		// TODO: process dirName entries in parallel
 		for _, dirEntName := range dirNames {
 			pr, err := up.UploadFile(filename + "/" + dirEntName)
