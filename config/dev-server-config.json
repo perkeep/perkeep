@@ -31,6 +31,13 @@
           }
       },
 
+      "/stub-test-disable/": {
+          "handler": "publish",
+          "enabled": false,
+          "handlerArgs": {
+          }
+      },
+
      "/ui/": {
          "handler": "ui",
          "handlerArgs": {

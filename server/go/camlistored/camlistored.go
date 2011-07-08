@@ -206,6 +206,10 @@ func main() {
 			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
 		}
 		pconf := jsonconfig.Obj(pmap)
+		enabled := pconf.OptionalBool("enabled", true)
+		if !enabled {
+			continue
+		}
 		handlerType := pconf.RequiredString("handler")
 		handlerArgs := pconf.OptionalObject("handlerArgs")
 		if err := pconf.Validate(); err != nil {
