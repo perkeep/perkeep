@@ -1,23 +1,28 @@
-#!/bin/sh
-set -e
+#!/usr/bin/perl
 
-TOPLEVEL_DIR=$(readlink -f $(dirname $(readlink -f $0))/..)
-HOOK_FILE="$TOPLEVEL_DIR/.git/hooks/commit-msg"
-if ! test -e "$HOOK_FILE"; then
-  cat - <<EOF
+use strict;
+use FindBin qw($Bin);
+
+my $hook_file = "$Bin/../.git/hooks/commit-msg";
+
+unless (-e $hook_file) {
+    print <<EOF;
 Presubmit hook to add Change-Id to commit messages is missing.
-Downloading to $HOOK_FILE...
+Copying to $hook_file.
 EOF
-  scp -p -P 29418 $USER@camlistore.org:hooks/commit-msg "$HOOK_FILE"
-  cat - <<EOF
 
+system("cp", "-p", "$Bin/commit-msg.githook", $hook_file) and die "cp failed.\n";
+
+    print <<EOF;
 Amending last commit to add Change-Id.
 Please re-save description without making changes.
 
 Press Enter to continue.
 EOF
-  read foo
-  git commit --amend
-fi
 
-git push ssh://$USER@camlistore.org:29418/camlistore HEAD:refs/for/master
+scalar(<STDIN>);
+
+    system("git", "commit", "--amend") and die "git commit --amend fail\n";
+}
+
+exec("git", "push", "ssh://$ENV{USER}\@camlistore.org:29418/camlistore", "HEAD:refs/for/master");
