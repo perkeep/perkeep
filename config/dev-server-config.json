@@ -27,6 +27,8 @@
               "blobRoot": "/bs/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
+              "css": ["pics.css"],
+              "js": ["camli.js", "pics.js"],
               "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },

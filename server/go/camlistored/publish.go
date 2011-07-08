@@ -44,6 +44,8 @@ type PublishHandler struct {
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
 
+	JSFiles, CSSFiles []string
+
 	staticHandler http.Handler
 }
 
@@ -54,6 +56,8 @@ func init() {
 func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err os.Error) {
 	ph := &PublishHandler{}
 	ph.RootName = conf.RequiredString("rootName")
+	ph.JSFiles = conf.OptionalList("js")
+	ph.CSSFiles = conf.OptionalList("css")
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
@@ -349,9 +353,14 @@ func (pr *publishRequest) serveSubject() {
 	{
 		jm := make(map[string]interface{})
 		dr.PopulateJSON(jm)
-		pr.pf("<html>\n<head>\n <title>%s</title>\n ", html.EscapeString(title))
-		pr.pf("<script src='%s'></script>\n", pr.staticPath("camli.js"))
-		pr.pf("<script>\n")
+		pr.pf("<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
+		for _, filename := range pr.ph.CSSFiles {
+			pr.pf(" <link rel='stylesheet' type='text/css' href='%s' />\n", pr.staticPath(filename))
+		}
+		for _, filename := range pr.ph.JSFiles {
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath(filename))
+		}
+		pr.pf(" <script>\n")
 		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
 		pr.pf("var camliPageMeta = \n")
 		json, _ := json.MarshalIndent(jm, "", "  ")
