@@ -464,6 +464,7 @@ func (pr *publishRequest) serveSubresFileDownload() {
 func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int) {
 	fileref, _, ok := pr.fileSchemaRefFromBlob(des)
 	if !ok {
+		log.Printf("scaled image fail; failed to get file schema from des %q", des.BlobRef)
 		return
 	}
 	th := &ImageHandler{

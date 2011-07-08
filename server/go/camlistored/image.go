@@ -68,7 +68,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 
 	var buf bytes.Buffer
 	n, err := io.Copy(&buf, fr)
-	i, format, err := image.Decode(&buf)
+	if err != nil {
+		log.Printf("image resize: error reading image %s: %v", file, err)
+		return
+	}
+	i, format, err := image.Decode(bytes.NewBuffer(buf.Bytes()))
 	if err != nil {
 		http.Error(rw, "Can't serve file: "+err.String(), 500)
 		return
