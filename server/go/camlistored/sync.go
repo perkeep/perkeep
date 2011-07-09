@@ -227,7 +227,7 @@ func (sh *SyncHandler) syncQueueLoop() {
 		}
 
 		if err := <-errch; err != nil {
-			sh.addErrorToLog(fmt.Errorf("replication error for queue %q, enumerate from source: %v", err))
+			sh.addErrorToLog(fmt.Errorf("replication error for queue %q, enumerate from source: %v", sh.fromqName, err))
 			return
 		}
 		if nCopied > 0 {
@@ -263,7 +263,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) os.Error {
 	}
 	defer set(nil)
 
-	error := func(s string, args ...interface{}) os.Error {
+	errorf := func(s string, args ...interface{}) os.Error {
 		// TODO: increment error stats
 		pargs := []interface{}{sh.fromqName, sb.BlobRef}
 		pargs = append(pargs, args...)
@@ -275,10 +275,10 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) os.Error {
 	set(status("sending GET to source"))
 	blobReader, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
 	if err != nil {
-		return error("source fetch: %v", err)
+		return errorf("source fetch: %v", err)
 	}
 	if fromSize != sb.Size {
-		return error("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
+		return errorf("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
 	}
 
 	bytesCopied := int64(0) // accessed without locking; minor, just for status display
@@ -287,15 +287,15 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) os.Error {
 	}))
 	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, misc.CountingReader{blobReader, &bytesCopied})
 	if err != nil {
-		return error("dest write: %v", err)
+		return errorf("dest write: %v", err)
 	}
 	if newsb.Size != sb.Size {
-		return error("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
+		return errorf("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
 	}
 	set(status("copied; removing from queue"))
 	err = sh.fromq.Remove([]*blobref.BlobRef{sb.BlobRef})
 	if err != nil {
-		return error("source queue delete: %v", err)
+		return errorf("source queue delete: %v", err)
 	}
 	return nil
 }

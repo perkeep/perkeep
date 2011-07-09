@@ -217,7 +217,7 @@ func (c *Client) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef
 }
 
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
-	error := func(msg string, arg ...interface{}) (*PutResult, os.Error) {
+	errorf := func(msg string, arg ...interface{}) (*PutResult, os.Error) {
 		err := fmt.Errorf(msg, arg...)
 		c.log.Print(err.String())
 		return nil, err
@@ -244,11 +244,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return error("stat http error: %v", err)
+		return errorf("stat http error: %v", err)
 	}
 
 	if resp.StatusCode != 200 {
-		return error("stat response had http status %d", resp.StatusCode)
+		return errorf("stat response had http status %d", resp.StatusCode)
 	}
 
 	stat, err := parseStatResponse(resp.Body)
@@ -311,39 +311,39 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	req.TransferEncoding = nil
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
-		return error("upload http error: %v", err)
+		return errorf("upload http error: %v", err)
 	}
 
 	// check error from earlier copy
 	if err := <-copyResult; err != nil {
-		return error("failed to copy contents into multipart writer: %v", err)
+		return errorf("failed to copy contents into multipart writer: %v", err)
 	}
 
 	// The only valid HTTP responses are 200 and 303.
 	if resp.StatusCode != 200 && resp.StatusCode != 303 {
-		return error("invalid http response %d in upload response", resp.StatusCode)
+		return errorf("invalid http response %d in upload response", resp.StatusCode)
 	}
 
 	if resp.StatusCode == 303 {
 		otherLocation := resp.Header.Get("Location")
 		if otherLocation == "" {
-			return error("303 without a Location")
+			return errorf("303 without a Location")
 		}
 		baseUrl, _ := http.ParseURL(stat.uploadUrl)
 		absUrl, err := baseUrl.ParseURL(otherLocation)
 		if err != nil {
-			return error("303 Location URL relative resolve error: %v", err)
+			return errorf("303 Location URL relative resolve error: %v", err)
 		}
 		otherLocation = absUrl.String()
 		resp, err = http.Get(otherLocation)
 		if err != nil {
-			return error("error following 303 redirect after upload: %v", err)
+			return errorf("error following 303 redirect after upload: %v", err)
 		}
 	}
 
 	ures, err := c.jsonFromResponse("upload", resp)
 	if err != nil {
-		return error("json parse from upload error: %v", err)
+		return errorf("json parse from upload error: %v", err)
 	}
 
 	errorText, ok := ures["errorText"].(string)
@@ -353,18 +353,18 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	received, ok := ures["received"].([]interface{})
 	if !ok {
-		return error("upload json validity error: no 'received'")
+		return errorf("upload json validity error: no 'received'")
 	}
 
 	for _, rit := range received {
 		it, ok := rit.(map[string]interface{})
 		if !ok {
-			return error("upload json validity error: 'received' is malformed")
+			return errorf("upload json validity error: 'received' is malformed")
 		}
 		if it["blobRef"] == blobRefString {
 			switch size := it["size"].(type) {
 			case nil:
-				return error("upload json validity error: 'received' is missing 'size'")
+				return errorf("upload json validity error: 'received' is missing 'size'")
 			case float64:
 				if int64(size) == h.Size {
 					// Success!
@@ -374,11 +374,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 					c.statsMutex.Unlock()
 					return pr, nil
 				} else {
-					return error("Server got blob, but reports wrong length (%v; expected %d)",
+					return errorf("Server got blob, but reports wrong length (%v; expected %d)",
 						size, h.Size)
 				}
 			default:
-				return error("unsupported type of 'size' in received response")
+				return errorf("unsupported type of 'size' in received response")
 			}
 		}
 	}

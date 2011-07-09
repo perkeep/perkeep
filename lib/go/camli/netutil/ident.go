@@ -38,7 +38,7 @@ func ConnUserid(conn net.Conn) (uid int, err os.Error) {
 func splitIPPort(param, value string) (ip net.IP, port int, reterr os.Error) {
 	addrs, ports, err := net.SplitHostPort(value)
 	if err != nil {
-		reterr = fmt.Errorf("netutil: AddrPairUserid invalid %s value: %v", err)
+		reterr = fmt.Errorf("netutil: AddrPairUserid invalid %s value: %v", param, err)
 		return
 	}
 	ip = net.ParseIP(addrs)
