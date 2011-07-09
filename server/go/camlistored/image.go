@@ -37,10 +37,37 @@ type ImageHandler struct {
 	Fetcher             blobref.StreamingFetcher
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
+	Square              bool
 }
 
 func (ih *ImageHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
 	return blobref.SeekerFromStreamingFetcher(ih.Fetcher) // TODO: pass ih.Cache?
+}
+
+type subImager interface {
+	SubImage(image.Rectangle) image.Image
+}
+
+func squareImage(i image.Image) image.Image {
+	si, ok := i.(subImager)
+	if !ok {
+		log.Fatalf("image %T isn't a subImager", i)
+	}
+	b := i.Bounds()
+	if b.Dx() > b.Dy() {
+		thin := (b.Dx() - b.Dy()) / 2
+		newB := b
+		newB.Min.X += thin
+		newB.Max.X -= thin
+		log.Printf("resizing from %#v to %#v", b, newB)
+		return si.SubImage(newB)
+	}
+	thin := (b.Dy() - b.Dx()) / 2
+	newB := b
+	newB.Min.Y += thin
+	newB.Max.Y -= thin
+		log.Printf("resizing from %#v to %#v", b, newB)
+	return si.SubImage(newB)
 }
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file *blobref.BlobRef) {
@@ -78,8 +105,20 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		return
 	}
 	b := i.Bounds()
+
+	useBytesUnchanged := true
+
+	isSquare := b.Dx() == b.Dy()
+	if ih.Square && !isSquare {
+		useBytesUnchanged = false
+		i = squareImage(i)
+		b = i.Bounds()
+	}
+
 	// only do downscaling, otherwise just serve the original image
 	if mw < b.Dx() || mh < b.Dy() {
+		useBytesUnchanged = false
+
 		const huge = 2400
 		// If it's gigantic, it's more efficient to downsample first
 		// and then resize; resizing will smooth out the roughness.
@@ -100,6 +139,9 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		} else {
 			mh = b.Dy() * mw / b.Dx()
 		}
+	}
+
+	if !useBytesUnchanged {
 		i = resize.Resize(i, b, mw, mh)
 		// Encode as a new image
 		buf.Reset()
@@ -114,14 +156,8 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			return
 		}
 	}
-	ct := ""
-	switch format {
-	case "jpeg":
-		ct = "image/jpeg"
-	default:
-		ct = "image/png"
-	}
-	rw.Header().Set("Content-Type", ct)
+
+	rw.Header().Set("Content-Type", imageContentTypeOfFormat(format))
 	size := buf.Len()
 	rw.Header().Set("Content-Length", fmt.Sprintf("%d", size))
 	n, err = io.Copy(rw, &buf)
@@ -134,4 +170,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			file, n, size)
 		return
 	}
+}
+
+func imageContentTypeOfFormat(format string) string {
+	if format == "jpeg" {
+		return "image/jpeg"
+	}
+	return "image/png"
 }

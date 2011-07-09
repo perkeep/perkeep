@@ -488,7 +488,7 @@ func (pr *publishRequest) serveSubresImage() {
 		log.Printf("error describing subject %q: %v", pr.subject, err)
 		return
 	}
-	pr.serveScaledImage(des, mw, mh)
+	pr.serveScaledImage(des, mw, mh, params.Get("square") == "1")
 }
 
 func (pr *publishRequest) serveSubresFileDownload() {
@@ -500,7 +500,7 @@ func (pr *publishRequest) serveSubresFileDownload() {
 	pr.serveFileDownload(des)
 }
 
-func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int) {
+func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int, square bool) {
 	fileref, _, ok := pr.fileSchemaRefFromBlob(des)
 	if !ok {
 		log.Printf("scaled image fail; failed to get file schema from des %q", des.BlobRef)
@@ -511,6 +511,7 @@ func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, 
 		Cache:     pr.ph.Cache,
 		MaxWidth:  maxWidth,
 		MaxHeight: maxHeight,
+		Square:    square,
 	}
 	th.ServeHTTP(pr.rw, pr.req, fileref)
 }
