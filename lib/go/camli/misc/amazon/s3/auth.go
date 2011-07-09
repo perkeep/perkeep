@@ -110,7 +110,7 @@ func writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request) {
 			vals[lk] = vv
 		}
 	}
-	sort.SortStrings(amzHeaders)
+	sort.Strings(amzHeaders)
 	for _, k := range amzHeaders {
 		buf.WriteString(k)
 		buf.WriteByte(':')

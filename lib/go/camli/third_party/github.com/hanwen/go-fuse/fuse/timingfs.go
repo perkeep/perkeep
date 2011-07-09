@@ -82,7 +82,7 @@ func (me *TimingPathFilesystem) HotPaths(operation string) (paths []string, uniq
 		results = append(results, fmt.Sprintf("% 9d %s", v, k))
 
 	}
-	sort.SortStrings(results)
+	sort.Strings(results)
 	return results, len(counts)
 }
 
