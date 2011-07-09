@@ -388,11 +388,17 @@ func (pr *publishRequest) serveSubject() {
 	{
 		jm := make(map[string]interface{})
 		dr.PopulateJSON(jm)
-		pr.pf("<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
+		pr.pf("<!doctype html>\n<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
 		for _, filename := range pr.ph.CSSFiles {
-			pr.pf(" <link rel='stylesheet' type='text/css' href='%s' />\n", pr.staticPath(filename))
+			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
 		}
 		for _, filename := range pr.ph.JSFiles {
+		  // TODO(bradfitz): Remove this manual dependency hack once Issue 37 is resolved.
+		  if filename == "camli.js" {
+		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
+		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
+		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
+		  }
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath(filename))
 			if filename == "camli.js" && pr.ViewerIsOwner() {
 				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&cb=onConfiguration")
@@ -422,7 +428,7 @@ func (pr *publishRequest) serveSubject() {
 				des.File.Size,
 				des.File.MimeType)
 			if des.File.IsImage() {
-				pr.pf("<a href='%s'><img border=0 src='%s'></a>",
+				pr.pf("<a href='%s'><img src='%s'></a>",
 					downloadURL,
 					pr.SubresThumbnailURL(path, des.File.FileName, 600))
 			}
@@ -449,7 +455,7 @@ func (pr *publishRequest) serveSubject() {
 					thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
 				}
 			}
-			pr.pf("  <li id='%s'><a href='%s'>%s%s</a>%s%s</li>\n",
+			pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
 				member.DomID(),
 				pr.memberPath(member.BlobRef),
 				thumbnail,

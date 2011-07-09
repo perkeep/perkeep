@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 var kBlobRefPattern *regexp.Regexp = regexp.MustCompile(`^([a-z0-9]+)-([a-f0-9]+)$`)
@@ -90,7 +89,7 @@ func (b *BlobRef) DomID() string {
 	if b == nil {
 		return ""
 	}
-	return "camli_" + strings.Replace(b.String(), "-", "_", 1)
+	return "camli-" + b.String()
 }
 
 func (o *BlobRef) Equals(other *BlobRef) bool {
