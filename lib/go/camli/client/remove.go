@@ -29,7 +29,7 @@ import (
 )
 
 type removeResponse struct {
-	Removed []string "removed"
+	Removed []string `json:"removed"`
 }
 
 // Remove the list of blobs. An error is returned if the server failed to
