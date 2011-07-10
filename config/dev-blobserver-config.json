@@ -6,7 +6,7 @@
   "TLSKeyFile": ["_env", "${CAMLI_TLS_KEY_FILE}", ""],
 
   "prefixes": {
-    "/": {
+    "/bs/": {
          "handler": "storage-filesystem",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT}"]
