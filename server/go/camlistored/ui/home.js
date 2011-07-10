@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// CamliHome namespace to contain the global vars
+var CamliHome = {};
+
 function btnCreateNewPermanode(e) {
     camliCreateNewPermanode(
         {
@@ -56,7 +59,7 @@ function handleFormGetTagged(e) {
 function createNewCollection(e) {
     var cnpcb = {};
     cnpcb.success = function(parent) {
-        var nRemain = taggedMemb.length;
+        var nRemain = CamliHome.taggedMemb.length;
         var naaccb = {};
         naaccb.fail = function() {
             document.getElementById("btnNewCollec").disabled = true;
@@ -70,8 +73,8 @@ function createNewCollection(e) {
             }
         }
         try {
-            for (var i = 0; i < taggedMemb.length; i++) {
-                camliNewAddAttributeClaim(parent, "camliMember", taggedMemb[i], naaccb);
+            for (var i = 0; i < CamliHome.taggedMemb.length; i++) {
+                camliNewAddAttributeClaim(parent, "camliMember", CamliHome.taggedMemb[i], naaccb);
             }
         } catch(x) {
             alert(x)
@@ -119,18 +122,18 @@ function indexOnLoad(e) {
 function showTaggedPermanodes(searchRes) {
     var div = document.getElementById("tagged");
     div.innerHTML = "";
-    taggedMemb = new Array();
+    CamliHome.taggedMemb = new Array();
     for (var i = 0; i < searchRes.tagged.length; i++) {
         var result = searchRes.tagged[i];
         var pdiv = document.createElement("li");
         var alink = document.createElement("a");
-        taggedMemb[i] = result.permanode;
-        alink.href = "./?p=" + taggedMemb[i];
-        alink.innerText = camliBlobTitle(taggedMemb[i], searchRes);
+        CamliHome.taggedMemb[i] = result.permanode;
+        alink.href = "./?p=" + CamliHome.taggedMemb[i];
+        alink.innerText = camliBlobTitle(CamliHome.taggedMemb[i], searchRes);
         pdiv.appendChild(alink);
         div.appendChild(pdiv);
     }
-    if (taggedMemb.length > 0) {
+    if (CamliHome.taggedMemb.length > 0) {
         document.getElementById("btnNewCollec").disabled = false;
     }
 }
