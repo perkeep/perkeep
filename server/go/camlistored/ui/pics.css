@@ -62,11 +62,11 @@ li a span {
 li input {
   text-align: right;
 }
-.camliadmin li a span:hover {
-  border: 1px outset #ccc;
-  background: #fff;
-  color: #000;
-  font-weight: normal;
-  text-decoration: none;
-}
 
+a.pics-edit,
+a.pics-edit:hover {
+  font-size: 70%;
+  color: #f00;
+  margin-right: .5em;
+  font-weight: normal;
+}
