@@ -59,14 +59,12 @@ func squareImage(i image.Image) image.Image {
 		newB := b
 		newB.Min.X += thin
 		newB.Max.X -= thin
-		log.Printf("resizing from %#v to %#v", b, newB)
 		return si.SubImage(newB)
 	}
 	thin := (b.Dy() - b.Dx()) / 2
 	newB := b
 	newB.Min.Y += thin
 	newB.Max.Y -= thin
-		log.Printf("resizing from %#v to %#v", b, newB)
 	return si.SubImage(newB)
 }
 
