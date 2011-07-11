@@ -66,14 +66,14 @@ func Resize(m image.Image, r image.Rectangle, w, h int) image.Image {
 			b64 := uint64(b32)
 			a64 := uint64(a32)
 			// Spread the source pixel over 1 or more destination rows.
-			py := uint64(y) * hh
+			py := uint64(y-r.Min.Y) * hh
 			for remy := hh; remy > 0; {
 				qy := dy - (py % dy)
 				if qy > remy {
 					qy = remy
 				}
 				// Spread the source pixel over 1 or more destination columns.
-				px := uint64(x) * ww
+				px := uint64(x-r.Min.X) * ww
 				index := 4 * ((py/dy)*ww + (px / dx))
 				for remx := ww; remx > 0; {
 					qx := dx - (px % dx)
@@ -140,14 +140,14 @@ func resizeYCbCr(m *ycbcr.YCbCr, r image.Rectangle, w, h int) (image.Image, bool
 			g64 := uint64(g8)
 			b64 := uint64(b8)
 			// Spread the source pixel over 1 or more destination rows.
-			py := uint64(y) * hh
+			py := uint64(y-r.Min.Y) * hh
 			for remy := hh; remy > 0; {
 				qy := dy - (py % dy)
 				if qy > remy {
 					qy = remy
 				}
 				// Spread the source pixel over 1 or more destination columns.
-				px := uint64(x) * ww
+				px := uint64(x-r.Min.X) * ww
 				index := 4 * ((py/dy)*ww + (px / dx))
 				for remx := ww; remx > 0; {
 					qx := dx - (px % dx)
@@ -179,23 +179,23 @@ func resizeRGBA(m *image.RGBA, r image.Rectangle, w, h int) image.Image {
 	// See comment in Resize.
 	n, sum := dx*dy, make([]uint64, 4*w*h)
 	for y := r.Min.Y; y < r.Max.Y; y++ {
-		pix := m.Pix[y*m.Stride:]
+		pix := m.Pix[(y-m.Rect.Min.Y)*m.Stride:]
 		for x := r.Min.X; x < r.Max.X; x++ {
 			// Get the source pixel.
-			p := pix[x]
+			p := pix[x-m.Rect.Min.X]
 			r64 := uint64(p.R)
 			g64 := uint64(p.G)
 			b64 := uint64(p.B)
 			a64 := uint64(p.A)
 			// Spread the source pixel over 1 or more destination rows.
-			py := uint64(y) * hh
+			py := uint64(y-r.Min.Y) * hh
 			for remy := hh; remy > 0; {
 				qy := dy - (py % dy)
 				if qy > remy {
 					qy = remy
 				}
 				// Spread the source pixel over 1 or more destination columns.
-				px := uint64(x) * ww
+				px := uint64(x-r.Min.X) * ww
 				index := 4 * ((py/dy)*ww + (px / dx))
 				for remx := ww; remx > 0; {
 					qx := dx - (px % dx)
