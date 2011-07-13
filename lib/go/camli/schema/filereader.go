@@ -63,14 +63,20 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	if ss.Type != "file" {
 		return nil, fmt.Errorf("schema/filereader: expected \"file\" schema blob, got %q", ss.Type)
 	}
-	return ss.NewFileReader(fetcher), nil
+	fr, err := ss.NewFileReader(fetcher)
+	if err != nil {
+		return nil, fmt.Errorf("schema/filereader: creating FileReader for %s: %v", fileBlobRef, err)
+	}
+	return fr, nil
 }
 
-func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) *FileReader {
-	// TODO: return an error if ss isn't a Type "file"
-	//
-	return &FileReader{fetcher: fetcher, ss: ss, remain: int64(ss.Size)}
+func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, os.Error) {
+	if ss.Type != "file" {
+		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\"")
+	}
+	return &FileReader{fetcher: fetcher, ss: ss, remain: int64(ss.Size)}, nil
 }
+
 
 // FileSchema returns the reader's schema superset. Don't mutate it.
 func (fr *FileReader) FileSchema() *Superset {

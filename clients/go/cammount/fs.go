@@ -405,10 +405,15 @@ func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, int(size)))
-	fr := file.ss.NewFileReader(file.fs.fetcher)
+	fr, err := file.ss.NewFileReader(file.fs.fetcher)
+	if err != nil {
+		log.Printf("cammount Read error: %v", err)
+		retst = fuse.EIO
+		return
+	}
 	fr.Skip(offset)
 	lr := io.LimitReader(fr, int64(size))
-	_, err := io.Copy(buf, lr) // TODO: care about n bytes copied?
+	_, err = io.Copy(buf, lr) // TODO: care about n bytes copied?
 	if err == nil {
 		return buf.Bytes(), fuse.OK
 	}

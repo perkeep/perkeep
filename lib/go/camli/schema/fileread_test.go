@@ -128,7 +128,11 @@ func TestReader(t *testing.T) {
 		ss.Version = 1
 		ss.Size = sizeSum(rt.parts)
 		ss.ContentParts = rt.parts
-		fr := ss.NewFileReader(testFetcher)
+		fr, err := ss.NewFileReader(testFetcher)
+		if err != nil {
+			t.Errorf("read error on test %d: %v", idx, err)
+			continue
+		}
 		fr.Skip(rt.skip)
 		all, err := ioutil.ReadAll(fr)
 		if err != nil {
