@@ -45,6 +45,85 @@ type StatHasher interface {
 	Hash(fileName string) (*blobref.BlobRef, os.Error)
 }
 
+type File interface {
+	// .. TODO
+}
+
+type Directory interface {
+	// .. TODO
+}
+
+type Symlink interface {
+	// .. TODO
+}
+
+// DirectoryEntry is a read-only interface to an entry in a (static)
+// directory.
+type DirectoryEntry interface {
+	// CamliType returns the schema blob's "camliType" field.
+	// This may be "file", "directory", "symlink", or other more
+	// obscure types added in the future.
+	CamliType() string
+
+	FileName() string
+	BlobRef() *blobref.BlobRef
+
+	File() File           // if camliType is "file", else nil
+	Directory() Directory // if camliType is "directory", else nil
+	Symlink() Symlink     // if camliType is "symlink", else nil
+}
+
+// dirEntry is the default implementation of DirectoryEntry
+type dirEntry struct {
+	ss Superset
+}
+
+func (de *dirEntry) CamliType() string {
+	return de.ss.Type
+}
+
+func (de *dirEntry) FileName() string {
+	return de.ss.FileNameString()
+}
+
+func (de *dirEntry) BlobRef() *blobref.BlobRef {
+	return de.ss.BlobRef
+}
+
+func (de *dirEntry) File() File {
+	return 0  // TODO
+}
+
+func (de *dirEntry) Directory() Directory {
+	return 0  // TODO
+}
+
+func (de *dirEntry) Symlink() Symlink {
+	return 0  // TODO
+}
+
+// NewDirectoryEntry takes a Superset and returns a DirectoryEntry if
+// the Supserset is valid and represents an entry in a directory.  It
+// must by of type "file", "directory", or "symlink".
+// TODO: "fifo", "socket", "char", "block", probably.  later.
+func NewDirectoryEntry(ss *Superset) (DirectoryEntry, os.Error) {
+	if ss == nil {
+		return nil, os.NewError("ss was nil")
+	}
+	if ss.BlobRef == nil {
+		return nil, os.NewError("ss.BlobRef was nil")
+	}
+	switch ss.Type {
+	case "file", "directory", "symlink":
+		// Okay
+	default:
+		return nil, fmt.Errorf("invalid DirectoryEntry camliType of %q", ss.Type)
+	}
+	de := new(dirEntry)
+	de.ss = *ss // defensive copy
+	return de, nil
+}
+
 // Superset represents the superset of common camlistore JSON schema
 // keys as a convenient json.Unmarshal target
 type Superset struct {
