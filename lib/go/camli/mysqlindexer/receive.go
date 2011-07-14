@@ -244,7 +244,11 @@ func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (
 	}
 
 	sha1 := sha1.New()
-	fr := ss.NewFileReader(seekFetcher)
+	fr, err := ss.NewFileReader(seekFetcher)
+	if err != nil {
+		log.Printf("mysqlindex: error indexing file %s: %v", blobRef, err)
+		return nil
+	}
 	mime, reader := magic.MimeTypeFromReader(fr)
 	n, err := io.Copy(sha1, reader)
 	if err != nil {
