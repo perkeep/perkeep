@@ -10,57 +10,55 @@ unless (-d $workdir) {
     mkdir $workdir, 0755 or die;
 }
 
-my @proj = (
-    {
-        name => "fuse",
+my %proj = (
+    "fuse" => {
         git => "https://github.com/hanwen/go-fuse.git",
-        worksubdir => "go-fuse",
         copies => [
             # File glob => target directory
             [ "fuse/*.go", "github.com/hanwen/go-fuse/fuse" ]
         ],
     },
-    {
-        name => "mysql",
+    "mysql" => {
         git => "https://github.com/Philio/GoMySQL.git",
-        worksubdir => "go-mysql",
         copies => [
             # File glob => target directory
             [ "*.go", "github.com/Philio/GoMySQL" ]
         ],
     },
-    {
-        name => "mysqlfork",
+    "mysqlfork" => {
         git => "https://github.com/camlistore/GoMySQL.git",
-        worksubdir => "camli-mysql",
         copies => [
             # File glob => target directory
             [ "*.go", "github.com/camlistore/GoMySQL" ]
         ],
     },
-    {
-        name => "gomemcache",
+    "gomemcache" => {
         git => "https://github.com/bradfitz/gomemcache/",
-        worksubdir => "gomemcache",
         copies => [
             # File glob => target directory
             [ "*.go", "github.com/bradfitz/gomemcache" ]
         ],
     },
+    "flickr" => {
+        git => "https://github.com/mncaudill/go-flickr.git",
+        copies => [
+            # File glob => target directory
+            [ "*", "github.com/mncaudill/go-flickr" ]
+        ],
+    },
 );
 
-foreach my $p (@proj) {
-    my $name = $p->{name} or die "no name";
+foreach my $name (sort keys %proj) {
     next if @ARGV && $name !~ /\Q$ARGV[0]\E/;
+    my $p = $proj{$name};
 
     chdir($workdir) or die;
-    $p->{worksubdir} or die "no worksubdir for $name";
-    $p->{git} or die "no git for $name";
-    unless (-d $p->{worksubdir}) {
+    $p->{git} or die "no git key defined for $name";
+    unless (-d $name) {
         print STDERR "Cloning $name ...\n";
-        system("git", "clone", $p->{git}, $p->{worksubdir}) and die "git clone failure";
+        system("git", "clone", $p->{git}, $name) and die "git clone failure";
     }
-    chdir($p->{worksubdir}) or die;
+    chdir($name) or die;
     print STDERR "Updating $name ...\n";
     system("git", "pull");
     for my $cp (@{$p->{copies}}) {

@@ -653,6 +653,7 @@ TARGET: lib/go/camli/third_party/github.com/bradfitz/gomemcache
 TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
     =skip_tests
     =only_os_linux
+TARGET: lib/go/camli/third_party/github.com/mncaudill/go-flickr/
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/third_party/github.com/camlistore/GoMySQL
