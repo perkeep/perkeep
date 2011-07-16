@@ -1,7 +1,23 @@
+#include "_cgo_export.h"
+
 typedef struct GoFile GoFile;
 struct GoFile {
   sqlite3_io_methods const *pMethod;  /* Always the first entry */
 };
+
+static int go_vfs_open(sqlite3_vfs* vfs,
+                       const char* zName,
+                       sqlite3_file* file,
+                       int flags,
+                       int* pOutFlags) {
+  struct GoVFSOpen_return r;
+  r = GoVFSOpen((char*) zName, flags);
+  if (r.r0 == -1) {
+    return SQLITE_ERROR;
+  }
+
+  return SQLITE_ERROR;
+}
 
 int sqlite3_os_init(void) {
   static sqlite3_vfs vfs;
@@ -12,6 +28,7 @@ int sqlite3_os_init(void) {
   vfs.pNext = NULL;
   vfs.zName = "go";
   vfs.pAppData = NULL;
+  vfs.xOpen = go_vfs_open;
 #if 0
   int (*xOpen)(sqlite3_vfs*, const char *zName, sqlite3_file*,
                int flags, int *pOutFlags);
