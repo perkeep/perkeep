@@ -1,12 +1,11 @@
-package main
+package sqlite
 
 import (
-	"camdev/sqlite"
 	"testing"
 )
 
 func TestFoo(t *testing.T) {
-	db, err := sqlite.Open("foo.db")
+	db, err := Open("foo.db")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

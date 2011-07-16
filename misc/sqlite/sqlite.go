@@ -9,8 +9,9 @@ package sqlite
 
 #include <stdlib.h>
 
-#undef SQLITE_OS_UNIX
+#define SQLITE_OS_OTHER 1
 #include "sqlite3.c"
+#include "sqlite3_os_go.c"
 
  static int my_bind_text(sqlite3_stmt *stmt, int n, char *p, int np) {
  return sqlite3_bind_text(stmt, n, p, np, SQLITE_TRANSIENT);
