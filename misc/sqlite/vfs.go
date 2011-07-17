@@ -1,8 +1,15 @@
 package sqlite
 
+/*
+#define SKIP_SQLITE_VERSION
+#include "sqlite3.h"
+*/
 import "C"
-import "os"
-import "sync"
+
+import (
+	"os"
+	"sync"
+)
 
 var file_map_mutex sync.Mutex
 var file_map = make(map[int]*os.File)
@@ -25,8 +32,33 @@ func GoFileClose(fd C.int) (int) {
 
 //export GoVFSOpen
 // fd is -1 on error.
-func GoVFSOpen(filename *C.char, flags C.int) (int) {
-	file, err := os.OpenFile(C.GoString(filename), int(flags), 0)
+func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
+	println("opening", C.GoString(filename), "with flags", int(flags))
+
+	goflags := 0
+	if flags & C.SQLITE_OPEN_READONLY != 0 {
+		goflags |= os.O_RDONLY
+	}
+	if flags & C.SQLITE_OPEN_READWRITE != 0 {
+		goflags |= os.O_RDWR
+	}
+	if flags & C.SQLITE_OPEN_CREATE != 0 {
+		goflags |= os.O_RDWR | os.O_CREATE | os.O_TRUNC
+	}
+	if flags & C.SQLITE_OPEN_DELETEONCLOSE != 0 {
+		// TODO: Do something.
+	}
+	if flags & C.SQLITE_OPEN_EXCLUSIVE != 0{
+		goflags |= os.O_EXCL
+	}
+
+	file, err := os.OpenFile(C.GoString(filename), goflags, 0666)
+	defer func() {
+		if err != nil {
+			println("got error:", err.String())
+		}
+		println("returning fd", fd);
+	}()
 	if err != nil {
 		return -1
 	}
