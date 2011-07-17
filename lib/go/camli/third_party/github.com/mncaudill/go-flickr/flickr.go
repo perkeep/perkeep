@@ -1,16 +1,14 @@
 package flickr
 
 import (
-	"io"
-	"os"
-	"fmt"
-	"net"
-	"http"
-	"sort"
-	"bufio"
 	"bytes"
-	"io/ioutil"
 	"crypto/md5"
+	"fmt"
+	"http"
+	"io"
+	"io/ioutil"
+	"os"
+	"sort"
 )
 
 const (
@@ -24,6 +22,7 @@ type Request struct {
 	ApiKey string
 	Method string
 	Args   map[string]string
+	Client *http.Client // if nil, http.DefaultClient is used
 }
 
 type nopCloser struct {
@@ -55,7 +54,7 @@ func (request *Request) Sign(secret string) {
 		sorted_keys[i] = k
 		i++
 	}
-	sort.SortStrings(sorted_keys)
+	sort.Strings(sorted_keys)
 
 	// Build out ordered key-value string prefixed by secret
 	s := secret
@@ -96,7 +95,7 @@ func (request *Request) Execute() (response string, ret os.Error) {
 
 	s := request.URL()
 
-	res, _, err := http.Get(s)
+	res, err := http.Get(s)
 	defer res.Body.Close()
 	if err != nil {
 		return "", err
@@ -187,7 +186,7 @@ func (request *Request) Upload(filename string, filetype string) (response strin
 		return "", err
 	}
 
-	return sendPost(postRequest)
+	return request.sendPost(postRequest)
 }
 
 func (request *Request) Replace(filename string, filetype string) (response string, err os.Error) {
@@ -195,25 +194,24 @@ func (request *Request) Replace(filename string, filetype string) (response stri
 	if err != nil {
 		return "", err
 	}
-	return sendPost(postRequest)
+	return request.sendPost(postRequest)
 }
 
-func sendPost(postRequest *http.Request) (body string, err os.Error) {
-	// Create and use TCP connection (lifted mostly wholesale from http.send)
-	conn, err := net.Dial("tcp", "api.flickr.com:80")
-	defer conn.Close()
-
-	if err != nil {
-		return "", err
+func (r *Request) client() *http.Client {
+	if r.Client != nil {
+		return r.Client
 	}
-	postRequest.Write(conn)
+	return http.DefaultClient
+}
 
-	reader := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(reader, postRequest.Method)
+func (r *Request) sendPost(post *http.Request) (body string, err os.Error) {
+	resp, err := r.client().Do(post)
 	if err != nil {
-		return "", err
+		return
 	}
-	rawBody, _ := ioutil.ReadAll(resp.Body)
-
+	rawBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+                return
+        }
 	return string(rawBody), nil
 }
