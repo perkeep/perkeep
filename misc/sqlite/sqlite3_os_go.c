@@ -6,23 +6,34 @@
 #define SKIP_SQLITE_VERSION
 #include "sqlite3.h"
 
+static sqlite3_io_methods g_file_methods;
+
 typedef struct GoFile GoFile;
 struct GoFile {
   sqlite3_io_methods const *pMethod;  /* Always the first entry */
+  int fd;
 };
+
+static int go_file_close(sqlite3_file* file) {
+  return GoFileClose(((GoFile*) file)->fd) == 0 ? SQLITE_OK : SQLITE_ERROR;
+}
 
 static int go_vfs_open(sqlite3_vfs* vfs,
                        const char* zName,
                        sqlite3_file* file,
                        int flags,
                        int* pOutFlags) {
-  struct GoVFSOpen_return r;
-  r = GoVFSOpen((char*) zName, flags);
-  if (r.r0 == -1) {
+  GoFile* go_file = (GoFile*) file;
+  memset(go_file, 0, sizeof(go_file));
+
+  const int fd = GoVFSOpen((char*) zName, flags);
+  if (fd == -1) {
     return SQLITE_ERROR;
   }
 
-  return SQLITE_ERROR;
+  go_file->pMethod = &g_file_methods;
+  go_file->fd = fd;
+  return SQLITE_OK;
 }
 
 int sqlite3_os_init(void) {
@@ -36,8 +47,6 @@ int sqlite3_os_init(void) {
   vfs.pAppData = NULL;
   vfs.xOpen = go_vfs_open;
 #if 0
-  int (*xOpen)(sqlite3_vfs*, const char *zName, sqlite3_file*,
-               int flags, int *pOutFlags);
   int (*xDelete)(sqlite3_vfs*, const char *zName, int syncDir);
   int (*xAccess)(sqlite3_vfs*, const char *zName, int flags, int *pResOut);
   int (*xFullPathname)(sqlite3_vfs*, const char *zName, int nOut, char *zOut);
@@ -69,6 +78,31 @@ int sqlite3_os_init(void) {
 };
 #endif
   sqlite3_vfs_register(&vfs, 1);
+
+  memset(&g_file_methods, 0, sizeof(g_file_methods));
+  g_file_methods.iVersion = 1;
+  g_file_methods.xClose = go_file_close;
+#if 0
+  int (*xRead)(sqlite3_file*, void*, int iAmt, sqlite3_int64 iOfst);
+  int (*xWrite)(sqlite3_file*, const void*, int iAmt, sqlite3_int64 iOfst);
+  int (*xTruncate)(sqlite3_file*, sqlite3_int64 size);
+  int (*xSync)(sqlite3_file*, int flags);
+  int (*xFileSize)(sqlite3_file*, sqlite3_int64 *pSize);
+  int (*xLock)(sqlite3_file*, int);
+  int (*xUnlock)(sqlite3_file*, int);
+  int (*xCheckReservedLock)(sqlite3_file*, int *pResOut);
+  int (*xFileControl)(sqlite3_file*, int op, void *pArg);
+  int (*xSectorSize)(sqlite3_file*);
+  int (*xDeviceCharacteristics)(sqlite3_file*);
+  /* Methods above are valid for version 1 */
+  int (*xShmMap)(sqlite3_file*, int iPg, int pgsz, int, void volatile**);
+  int (*xShmLock)(sqlite3_file*, int offset, int n, int flags);
+  void (*xShmBarrier)(sqlite3_file*);
+  int (*xShmUnmap)(sqlite3_file*, int deleteFlag);
+  /* Methods above are valid for version 2 */
+  /* Additional methods may be added in future releases */
+#endif
+
   return SQLITE_OK;
 }
 
