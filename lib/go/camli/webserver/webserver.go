@@ -25,7 +25,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -135,24 +134,16 @@ func (s *Server) Serve() {
 }
 
 
-func pipeFromEnvFd(env string) *os.File {
-	fdStr := os.Getenv(env)
-	if fdStr == "" {
-		return nil
-	}
-	fd, err := strconv.Atoi(fdStr)
-	if err != nil {
-		log.Fatalf("Bogus test harness fd '%s': %v", fdStr, err)
-	}
-	return os.NewFile(fd, "testingpipe-"+env)
-}
 
 // Signals the test harness that we've started listening.
 // TODO: write back the port number that we randomly selected?
 // For now just writes back a single byte.
 func runTestHarnessIntegration(listener net.Listener) {
-	writePipe := pipeFromEnvFd("TESTING_PORT_WRITE_FD")
-	readPipe := pipeFromEnvFd("TESTING_CONTROL_READ_FD")
+	writePipe, err := pipeFromEnvFd("TESTING_PORT_WRITE_FD")
+	if err != nil {
+		return
+	}
+	readPipe, _ := pipeFromEnvFd("TESTING_CONTROL_READ_FD")
 
 	if writePipe != nil {
 		writePipe.Write([]byte(listener.Addr().String() + "\n"))

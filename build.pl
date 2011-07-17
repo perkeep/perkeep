@@ -359,6 +359,19 @@ sub build {
     v("Built '$target'");
 }
 
+sub filter_go_os {
+    my @good;
+    my $is_windows = $^O eq "msys" || $^O eq "MSWin32";
+    foreach my $f (@_) {
+        my $for_unix = $f =~ /_unix\.go$/;
+        my $for_windows = $f =~ /_windows\.go$/;
+        next if $for_unix && $is_windows;
+        next if $for_windows && !$is_windows;
+        push @good, $f;
+    }
+    return @good;
+}
+
 sub find_go_camli_deps {
     my $target = shift;
     if ($target =~ /\bthird_party\b/) {
@@ -375,6 +388,7 @@ sub find_go_camli_deps {
     my $target_dir = dir($target);
     opendir(my $dh, $target_dir) or die "Failed to open directory: $target\n";
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } readdir($dh);
+    @go_files = filter_go_os(@go_files);
     closedir($dh);
 
     # TODO: just stat the files first and keep a cache file of the
@@ -439,6 +453,7 @@ sub gen_target_makefile {
     opendir(my $dh, $target_dir) or die;
     my @dir_files = readdir($dh);
     my @go_files = grep { !m!^\.\#! } grep { !/_testmain\.go$/ } grep { /\.go$/ } @dir_files;
+    @go_files = filter_go_os(@go_files);
     closedir($dh);
 
     if ($t->{tags}{fileembed}) {
