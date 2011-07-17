@@ -142,7 +142,9 @@ extern "C" {
 **
 ** See also: [sqlite_version()] and [sqlite_source_id()].
 */
+#ifndef SKIP_SQLITE_VERSION
 SQLITE_API const char sqlite3_version[] = SQLITE_VERSION;
+#endif
 SQLITE_API const char *sqlite3_libversion(void);
 SQLITE_API const char *sqlite3_sourceid(void);
 SQLITE_API int sqlite3_libversion_number(void);

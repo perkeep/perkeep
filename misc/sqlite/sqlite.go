@@ -5,6 +5,7 @@ package sqlite
 #cgo LDFLAGS: -ldl -lpthread
 
 #include <stdlib.h>
+#define SKIP_SQLITE_VERSION 1
 #include "sqlite3.h"
 
  static int my_bind_text(sqlite3_stmt *stmt, int n, char *p, int np) {
