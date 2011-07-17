@@ -1,7 +1,10 @@
-#define _POSIX_C_SOURCE 200809L
+#include <stdlib.h>
+#include <string.h>
+
 #include "_cgo_export.h"
-#define SQLITE_OS_OTHER 1
-#include "sqlite3.c"
+
+#define SKIP_SQLITE_VERSION
+#include "sqlite3.h"
 
 typedef struct GoFile GoFile;
 struct GoFile {
