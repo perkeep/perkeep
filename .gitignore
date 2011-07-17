@@ -1,4 +1,5 @@
 *~
+*.o
 *.pyc
 \#*\#
 .\#*
@@ -11,3 +12,4 @@ _gotest*
 _testmain*
 _go_.[568]
 _embed_*.go
+_cgo*

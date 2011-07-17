@@ -3,6 +3,7 @@ include $(GOROOT)/src/Make.inc
 TARG=camdev/sqlite
 
 CGOFILES=\
-        sqlite.go
+	vfs.go\
+	sqlite.go\
 
 include $(GOROOT)/src/Make.pkg
