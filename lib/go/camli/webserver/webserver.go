@@ -95,7 +95,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(rw, req)
 }
 
-func (s *Server) Serve() {
+func (s *Server) Listen() os.Error {
+	if s.listener != nil {
+		return nil
+	}
+
 	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
 	base := s.BaseURL()
 	if doLog {
@@ -106,10 +110,6 @@ func (s *Server) Serve() {
 	s.listener, err = net.Listen("tcp", *Listen)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
-	}
-
-	if doLog && strings.HasSuffix(base, ":0") {
-		log.Printf("Now listening on %s\n", s.BaseURL())
 	}
 
 	if s.enableTLS {
@@ -125,15 +125,25 @@ func (s *Server) Serve() {
 		}
 		s.listener = tls.NewListener(s.listener, config)
 	}
+
+	if doLog && strings.HasSuffix(base, ":0") {
+		log.Printf("Now listening on %s\n", s.BaseURL())
+	}
+
+	return nil
+}
+
+func (s *Server) Serve() {
+	if err := s.Listen(); err != nil {
+		log.Fatalf("Listen error: %v", err)
+	}
 	go runTestHarnessIntegration(s.listener)
-	err = http.Serve(s.listener, s)
+	err := http.Serve(s.listener, s)
 	if err != nil {
 		log.Printf("Error in http server: %v\n", err)
 		os.Exit(1)
 	}
 }
-
-
 
 // Signals the test harness that we've started listening.
 // TODO: write back the port number that we randomly selected?
