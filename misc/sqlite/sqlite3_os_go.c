@@ -32,6 +32,25 @@ static int go_file_write(sqlite3_file* file, const void* src, int iAmt, sqlite3_
   return 0;
 }
 
+static int go_file_truncate(sqlite3_file* file, sqlite3_int64 size) {
+  // TODO: implement
+  return SQLITE_OK;
+}
+
+static int go_file_sync(sqlite3_file* file, int flags) {
+  // TODO: implement
+  return SQLITE_OK;
+}
+
+static int go_file_file_size(sqlite3_file* file, sqlite3_int64* pSize) {
+  struct GoFileFileSize_return result = GoFileFileSize(((GoFile*) file)->fd);
+  if (result.r0 != 0)
+    return SQLITE_ERROR;
+
+  *pSize = result.r1;
+  return SQLITE_OK;
+}
+
 /* VFS methods */
 
 static int go_vfs_open(sqlite3_vfs* vfs,
@@ -70,6 +89,7 @@ static int go_vfs_full_pathname(sqlite3_vfs* vfs,
                                 const char* zName,
                                 int nOut,
                                 char* zOut) {
+  // TODO: Actually implement this.
   strncpy(zOut, zName, nOut);
   zOut[nOut - 1] = '\0';
   return SQLITE_OK;
@@ -157,10 +177,10 @@ int sqlite3_os_init(void) {
   g_file_methods.xClose = go_file_close;
   g_file_methods.xRead = go_file_read;
   g_file_methods.xWrite = go_file_write;
+  g_file_methods.xTruncate = go_file_truncate;
+  g_file_methods.xSync = go_file_sync;
+  g_file_methods.xFileSize = go_file_file_size;
 #if 0
-  int (*xTruncate)(sqlite3_file*, sqlite3_int64 size);
-  int (*xSync)(sqlite3_file*, int flags);
-  int (*xFileSize)(sqlite3_file*, sqlite3_int64 *pSize);
   int (*xLock)(sqlite3_file*, int);
   int (*xUnlock)(sqlite3_file*, int);
   int (*xCheckReservedLock)(sqlite3_file*, int *pResOut);
