@@ -1,6 +1,8 @@
 package sqlite
 
 /*
+#include <string.h>
+
 #define SKIP_SQLITE_VERSION
 #include "sqlite3.h"
 */
@@ -9,6 +11,7 @@ import "C"
 import (
 	"os"
 	"sync"
+	"unsafe"
 )
 
 var file_map_mutex sync.Mutex
@@ -21,12 +24,47 @@ func GetFile(fd int) (file *os.File) {
 }
 
 //export GoFileClose
-// Returns 0 on success and 1 on error.
+// Returns 0 on success and -1 on error.
 func GoFileClose(fd C.int) (int) {
 	file := GetFile(int(fd))
 	if file.Close() != nil {
-		return 1
+		return -1
 	}
+	return 0
+}
+
+//export GoFileRead
+// Returns 0 on success and -1 on error.
+func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.int) (rv int) {
+	println("reading", n, "bytes at offset", offset, "from fd", fd);
+	defer func() {
+		println("read returning", rv);
+	}()
+
+	file := GetFile(int(fd))
+	if file == nil {
+		return -1
+	}
+
+	buf := make([]byte, n)
+	curbuf := buf
+	for n > 0 {
+		read, err := file.ReadAt(curbuf, int64(offset))
+		curbuf = curbuf[read:]
+		n -= C.int(read)
+		if err == os.EOF {
+			break
+		}
+		if err != nil {
+			return -1
+		}
+	}
+
+	if n != 0 {
+		return -1
+	}
+
+	C.memcpy(unsafe.Pointer(dst), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 	return 0
 }
 
