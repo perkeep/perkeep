@@ -231,10 +231,14 @@ func main() {
 	hl.setupAll()
 	ws.Listen()
 
-	if runtime.GOOS == "windows" && uiPath != "" {
-		// Might be double-clicking an icon with no shell window?
-		// Just open the URL for them.
-		osutil.OpenURL(ws.BaseURL() + uiPath)
+	if uiPath != "" {
+		uiURL := ws.BaseURL() + uiPath
+		log.Printf("UI available at %s", uiURL)
+		if runtime.GOOS == "windows" {
+			// Might be double-clicking an icon with no shell window?
+			// Just open the URL for them.
+			osutil.OpenURL(uiURL)
+		}
 	}
 	ws.Serve()
 }
