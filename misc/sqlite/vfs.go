@@ -35,7 +35,7 @@ func GoFileClose(fd C.int) (int) {
 
 //export GoFileRead
 // Returns 0 on success and -1 on error.
-func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.int) (rv int) {
+func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 	println("reading", n, "bytes at offset", offset, "from fd", fd);
 	defer func() {
 		println("read returning", rv);
@@ -66,6 +66,27 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.int) (rv int) {
 
 	C.memcpy(unsafe.Pointer(dst), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 	return 0
+}
+
+//export GoFileFileSize
+// rv is 0 on success and -1 on error.
+// TODO: size should be C.long, but cgo fails
+func GoFileFileSize(fd C.int) (rv int, size C.int) {
+	println("getting file size for fd", fd);
+	defer func() {
+		println("returning", rv, "with size", size);
+	}()
+
+	file := GetFile(int(fd))
+	if file == nil {
+		return -1, 0
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		return -1, 0
+	}
+	return 0, C.int(info.Size)
 }
 
 //export GoVFSOpen
