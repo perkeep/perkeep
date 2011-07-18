@@ -18,7 +18,9 @@ struct GoFile {
 /* File methods */
 
 static int go_file_close(sqlite3_file* file) {
-  return GoFileClose(((GoFile*) file)->fd) == 0 ? SQLITE_OK : SQLITE_ERROR;
+  int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "go_file_close(%d)\n", fd);
+  return GoFileClose(fd == 0 ? SQLITE_OK : SQLITE_ERROR);
 }
 
 static int go_file_read(sqlite3_file* file, void* dest, int iAmt, sqlite3_int64 iOfst) {
@@ -33,21 +35,42 @@ static int go_file_write(sqlite3_file* file, const void* src, int iAmt, sqlite3_
 }
 
 static int go_file_truncate(sqlite3_file* file, sqlite3_int64 size) {
+  int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_truncate(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
 }
 
 static int go_file_sync(sqlite3_file* file, int flags) {
+  int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_sync(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
 }
 
 static int go_file_file_size(sqlite3_file* file, sqlite3_int64* pSize) {
-  struct GoFileFileSize_return result = GoFileFileSize(((GoFile*) file)->fd);
-  if (result.r0 != 0)
+  int fd = ((GoFile*) file)->fd;
+  struct GoFileFileSize_return result = GoFileFileSize(fd);
+  fprintf(stderr, "go_file_file_size(%d) = %d, %lld", fd, result.r0, result.r1);
+  if (result.r0 != 0) {
     return SQLITE_ERROR;
+  }
 
   *pSize = result.r1;
+  return SQLITE_OK;
+}
+
+static int go_file_lock(sqlite3_file* file, int flags) {
+  int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_lock(%d)\n", fd);
+  // TODO: implement
+  return SQLITE_OK;
+}
+
+static int go_file_unlock(sqlite3_file* file, int flags) {
+  int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_unlock(%d)\n", fd);
+  // TODO: implement
   return SQLITE_OK;
 }
 
@@ -81,7 +104,7 @@ static int go_vfs_access(sqlite3_vfs* vfs,
                          const char* zName,
                          int flags,
                          int* pResOut) {
-  fprintf(stderr, "access: %s\n", zName);
+  fprintf(stderr, "TODO access: %s\n", zName);
   return SQLITE_OK;
 }
 
@@ -89,6 +112,7 @@ static int go_vfs_full_pathname(sqlite3_vfs* vfs,
                                 const char* zName,
                                 int nOut,
                                 char* zOut) {
+  fprintf(stderr, "TODO go_vfs_full_pathname: %s\n", zName);
   // TODO: Actually implement this.
   strncpy(zOut, zName, nOut);
   zOut[nOut - 1] = '\0';
@@ -96,34 +120,42 @@ static int go_vfs_full_pathname(sqlite3_vfs* vfs,
 }
 
 static void* go_vfs_dl_open(sqlite3_vfs* vfs, const char* zFilename) {
+  fprintf(stderr, "go_vfs_dl_open\n");
   return NULL;
 }
 
 static void go_vfs_dl_error(sqlite3_vfs* vfs, int nByte, char *zErrMsg) {
+  fprintf(stderr, "go_vfs_dl_error\n");
 }
 
 static void* go_vfs_dl_sym(sqlite3_vfs* vfs,
                            void* handle,
                            const char* zSymbol) {
+  fprintf(stderr, "go_vfs_dl_sym\n");
   return NULL;
 }
 
 static void go_vfs_dl_close(sqlite3_vfs* vfs, void* handle) {
+  fprintf(stderr, "go_vfs_dl_close\n");
 }
 
 static int go_vfs_randomness(sqlite3_vfs* vfs, int nByte, char *zOut) {
+  fprintf(stderr, "go_vfs_randomness\n");
   return SQLITE_OK;
 }
 
 static int go_vfs_sleep(sqlite3_vfs* vfs, int microseconds) {
+  fprintf(stderr, "go_vfs_sleep\n");
   return SQLITE_OK;
 }
 
 static int go_vfs_current_time(sqlite3_vfs* vfs, double* now) {
+  fprintf(stderr, "go_vfs_current_time\n");
   return SQLITE_OK;
 }
 
 static int go_vfs_get_last_error(sqlite3_vfs* vfs, int foo, char* bar) {
+  fprintf(stderr, "go_vfs_get_last_error\n");
   // Unused, per sqlite3's os_unix.c.
   return SQLITE_OK;
 }
@@ -180,9 +212,9 @@ int sqlite3_os_init(void) {
   g_file_methods.xTruncate = go_file_truncate;
   g_file_methods.xSync = go_file_sync;
   g_file_methods.xFileSize = go_file_file_size;
+  g_file_methods.xLock = go_file_lock;
+  g_file_methods.xUnlock = go_file_unlock;
 #if 0
-  int (*xLock)(sqlite3_file*, int);
-  int (*xUnlock)(sqlite3_file*, int);
   int (*xCheckReservedLock)(sqlite3_file*, int *pResOut);
   int (*xFileControl)(sqlite3_file*, int op, void *pArg);
   int (*xSectorSize)(sqlite3_file*);

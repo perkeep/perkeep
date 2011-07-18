@@ -69,9 +69,9 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 }
 
 //export GoFileFileSize
-// rv is 0 on success and -1 on error.
-// TODO: size should be C.long, but cgo fails
-func GoFileFileSize(fd C.int) (rv int, size C.int) {
+// return[0]: 0 on success and -1 on error.
+// return[1]: size
+func GoFileFileSize(fd C.int) (rv int, size C.long) {
 	println("getting file size for fd", fd);
 	defer func() {
 		println("returning", rv, "with size", size);
@@ -86,7 +86,7 @@ func GoFileFileSize(fd C.int) (rv int, size C.int) {
 	if err != nil {
 		return -1, 0
 	}
-	return 0, C.int(info.Size)
+	return 0, C.long(info.Size)
 }
 
 //export GoVFSOpen
