@@ -22,6 +22,7 @@ import (
 	"http"
 	"log"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"os"
 
@@ -194,6 +195,7 @@ func main() {
 		handler: make(map[string]interface{}),
 	}
 
+	uiPath := ""
 	for prefix, vei := range prefixes {
 		if !strings.HasPrefix(prefix, "/") {
 			exitFailure("prefix %q doesn't start with /", prefix)
@@ -221,8 +223,19 @@ func main() {
 			conf:   handlerArgs,
 		}
 		hl.config[prefix] = h
+
+		if handlerType == "ui" {
+			uiPath = prefix
+		}
 	}
 	hl.setupAll()
+	ws.Listen()
+
+	if runtime.GOOS == "windows" && uiPath != "" {
+		// Might be double-clicking an icon with no shell window?
+		// Just open the URL for them.
+		osutil.OpenURL(ws.BaseURL() + uiPath)
+	}
 	ws.Serve()
 }
 
