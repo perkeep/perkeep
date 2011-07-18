@@ -101,7 +101,7 @@ func average(sum []uint64, w, h int, n uint64) image.Image {
 	ret := image.NewRGBA(w, h)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			i := y*ret.Stride + x
+			i := y*ret.Stride + x*4
 			j := 4 * (y*w + x)
 			ret.Pix[i+0] = uint8(sum[j+0] / n)
 			ret.Pix[i+1] = uint8(sum[j+1] / n)

@@ -9,9 +9,11 @@ sub usage {
 }
 
 my $opt_wipe;
+my $opt_nobuild;
 my $opt_all;  # listen on all interfaces
 GetOptions("wipe" => \$opt_wipe,
            "all" => \$opt_all,
+           "nobuild" => \$opt_nobuild,
     )
     or usage();
 
@@ -19,8 +21,10 @@ my $port = shift;
 $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
-system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
-system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+unless ($opt_nobuild) {
+    system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
+    system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+}
 
 my $root = "/tmp/camliroot/port$port/";
 if ($opt_wipe && -d $root) {
