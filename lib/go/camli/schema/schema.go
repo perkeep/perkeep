@@ -85,9 +85,9 @@ type DirectoryEntry interface {
 	FileName() string
 	BlobRef() *blobref.BlobRef
 
-	File() File           // if camliType is "file", else nil
-	Directory() Directory // if camliType is "directory", else nil
-	Symlink() Symlink     // if camliType is "symlink", else nil
+	File() (File, os.Error)           // if camliType is "file"
+	Directory() (Directory, os.Error) // if camliType is "directory"
+	Symlink() (Symlink, os.Error)     // if camliType is "symlink"
 }
 
 // dirEntry is the default implementation of DirectoryEntry
@@ -110,40 +110,36 @@ func (de *dirEntry) BlobRef() *blobref.BlobRef {
 	return de.ss.BlobRef
 }
 
-func (de *dirEntry) File() File {
-	var err os.Error
-	if de.fr == nil && de.fetcher != nil {
+func (de *dirEntry) File() (File, os.Error) {
+	if de.fr == nil {
 		if de.ss.Type != "file" {
-			log.Printf("invalid DirectoryEntry camliType of %q", de.ss.Type)
-			return nil
+			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "file")
 		}
-		de.fr, err = NewFileReader(de.fetcher, de.ss.BlobRef)
+		fr, err := NewFileReader(de.fetcher, de.ss.BlobRef)
 		if err != nil {
-			log.Printf("creating de.fr: %v\n", err)
-			return nil
+			return nil, err
 		}
+		de.fr = fr
 	}
-	return de.fr
+	return de.fr, nil
 }
 
-func (de *dirEntry) Directory() Directory {
-	var err os.Error
-	if de.dr == nil && de.fetcher != nil {
+func (de *dirEntry) Directory() (Directory, os.Error) {
+	if de.dr == nil {
 		if de.ss.Type != "directory" {
-			log.Printf("invalid DirectoryEntry camliType of %q", de.ss.Type)
-			return nil
+			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "directory")
 		}
-		de.dr, err = NewDirReader(de.fetcher, de.ss.BlobRef)
+		dr, err := NewDirReader(de.fetcher, de.ss.BlobRef)
 		if err != nil {
-			log.Printf("creating de.dr: %v\n", err)
-			return nil
+			return nil, err
 		}
+		de.dr = dr
 	}
-	return de.dr
+	return de.dr, nil
 }
 
-func (de *dirEntry) Symlink() Symlink {
-	return 0 // TODO
+func (de *dirEntry) Symlink() (Symlink, os.Error) {
+	return 0, os.NewError("TODO: Symlink not implemented")
 }
 
 // NewDirectoryEntry takes a Superset and returns a DirectoryEntry if

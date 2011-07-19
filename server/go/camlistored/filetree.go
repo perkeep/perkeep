@@ -45,13 +45,21 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 
 	fetchSeeker, err := fth.storageSeekFetcher()
 	if err != nil {
+		http.Error(rw, "No storageSeekFetcher", 500)
 		log.Printf("getting fetcher: %v\n", err)
 		return
 	}
 
 	de, err := schema.NewDirectoryEntryFromBlobRef(fetchSeeker, fth.file)
-	entries, err := de.Directory().Readdir(-1)
+	dir, err := de.Directory()
 	if err != nil {
+		http.Error(rw, "Error reading directory", 500)
+		log.Printf("Error reading directory from blobref %s: %v\n", fth.file, err)
+		return
+	}
+	entries, err := dir.Readdir(-1)
+	if err != nil {
+		http.Error(rw, "Error reading directory", 500)
 		log.Printf("reading dir from blobref %s: %v\n", fth.file, err)
 		return
 	}

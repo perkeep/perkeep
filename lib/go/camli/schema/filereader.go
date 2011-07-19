@@ -42,7 +42,7 @@ type DirReader struct {
 	current   int
 }
 
-// A NewDirReader creates a new directory reader and prepares to
+// NewDirReader creates a new directory reader and prepares to
 // fetch the static-set entries
 func NewDirReader(fetcher blobref.SeekFetcher, dirBlobRef *blobref.BlobRef) (*DirReader, os.Error) {
 	ss := new(Superset)
