@@ -18,7 +18,7 @@ struct GoFile {
 /* File methods */
 
 static int go_file_close(sqlite3_file* file) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   fprintf(stderr, "go_file_close(%d)\n", fd);
   return GoFileClose(fd == 0 ? SQLITE_OK : SQLITE_ERROR);
 }
@@ -33,21 +33,21 @@ static int go_file_write(sqlite3_file* file, const void* src, int iAmt, sqlite3_
 }
 
 static int go_file_truncate(sqlite3_file* file, sqlite3_int64 size) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   fprintf(stderr, "TODO go_file_truncate(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
 }
 
 static int go_file_sync(sqlite3_file* file, int flags) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   fprintf(stderr, "TODO go_file_sync(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
 }
 
 static int go_file_file_size(sqlite3_file* file, sqlite3_int64* pSize) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   struct GoFileFileSize_return result = GoFileFileSize(fd);
   fprintf(stderr, "go_file_file_size(%d) = %d, %lld\n", fd, result.r0, result.r1);
   if (result.r0 != 0) {
@@ -59,17 +59,45 @@ static int go_file_file_size(sqlite3_file* file, sqlite3_int64* pSize) {
 }
 
 static int go_file_lock(sqlite3_file* file, int flags) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   fprintf(stderr, "TODO go_file_lock(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
 }
 
 static int go_file_unlock(sqlite3_file* file, int flags) {
-  int fd = ((GoFile*) file)->fd;
+  const int fd = ((GoFile*) file)->fd;
   fprintf(stderr, "TODO go_file_unlock(%d)\n", fd);
   // TODO: implement
   return SQLITE_OK;
+}
+
+static int go_file_check_reserved_lock(sqlite3_file* file, int* pResOut) {
+  const int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_check_reserved_lock(%d)\n", fd);
+  // TODO: implement
+  return SQLITE_OK;
+}
+
+static int go_file_file_control(sqlite3_file* file, int op, void* pArg) {
+  const int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_file_control(%d, %d)\n", fd, op);
+  // TODO: implement
+  return SQLITE_OK;
+}
+
+static int go_file_sector_size(sqlite3_file* file) {
+  const int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_sector_size(%d)\n", fd);
+  // TODO: implement
+  return 512;
+}
+
+static int go_file_device_characteristics(sqlite3_file* file) {
+  const int fd = ((GoFile*) file)->fd;
+  fprintf(stderr, "TODO go_file_device_characteristics(%d)\n", fd);
+  // TODO: implement
+  return 0;
 }
 
 /* VFS methods */
@@ -212,11 +240,11 @@ int sqlite3_os_init(void) {
   g_file_methods.xFileSize = go_file_file_size;
   g_file_methods.xLock = go_file_lock;
   g_file_methods.xUnlock = go_file_unlock;
+  g_file_methods.xCheckReservedLock = go_file_check_reserved_lock;
+  g_file_methods.xFileControl = go_file_file_control;
+  g_file_methods.xSectorSize = go_file_sector_size;
+  g_file_methods.xDeviceCharacteristics = go_file_device_characteristics;
 #if 0
-  int (*xCheckReservedLock)(sqlite3_file*, int *pResOut);
-  int (*xFileControl)(sqlite3_file*, int op, void *pArg);
-  int (*xSectorSize)(sqlite3_file*);
-  int (*xDeviceCharacteristics)(sqlite3_file*);
   /* Methods above are valid for version 1 */
   int (*xShmMap)(sqlite3_file*, int iPg, int pgsz, int, void volatile**);
   int (*xShmLock)(sqlite3_file*, int offset, int n, int flags);
