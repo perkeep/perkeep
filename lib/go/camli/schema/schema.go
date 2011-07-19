@@ -46,11 +46,28 @@ type StatHasher interface {
 }
 
 type File interface {
-	// .. TODO
+	Close() os.Error
+	Skip(skipBytes uint64) uint64
+	Read(p []byte) (int, os.Error)
 }
 
+// Directory is a read-only interface to a "directory" schema blob.
 type Directory interface {
-	// .. TODO
+	// Readdir reads the contents of the directory associated with dr
+	// and returns an array of up to n DirectoryEntries structures.
+	// Subsequent calls on the same file will yield further
+	// DirectoryEntries.
+	// If n > 0, Readdir returns at most n DirectoryEntry structures. In
+	// this case, if Readdir returns an empty slice, it will return
+	// a non-nil error explaining why. At the end of a directory,
+	// the error is os.EOF.
+	// If n <= 0, Readdir returns all the DirectoryEntries from the
+	// directory in a single slice. In this case, if Readdir succeeds
+	// (reads all the way to the end of the directory), it returns the
+	// slice and a nil os.Error. If it encounters an error before the
+	// end of the directory, Readdir returns the DirectoryEntry read
+	// until that point and a non-nil error.
+	Readdir(count int) ([]DirectoryEntry, os.Error)
 }
 
 type Symlink interface {
@@ -75,7 +92,10 @@ type DirectoryEntry interface {
 
 // dirEntry is the default implementation of DirectoryEntry
 type dirEntry struct {
-	ss Superset
+	ss      Superset
+	fetcher blobref.SeekFetcher
+	fr      *FileReader // or nil if not a file
+	dr      *DirReader  // or nil if not a directory
 }
 
 func (de *dirEntry) CamliType() string {
@@ -91,22 +111,47 @@ func (de *dirEntry) BlobRef() *blobref.BlobRef {
 }
 
 func (de *dirEntry) File() File {
-	return 0  // TODO
+	var err os.Error
+	if de.fr == nil && de.fetcher != nil {
+		if de.ss.Type != "file" {
+			log.Printf("invalid DirectoryEntry camliType of %q", de.ss.Type)
+			return nil
+		}
+		de.fr, err = NewFileReader(de.fetcher, de.ss.BlobRef)
+		if err != nil {
+			log.Printf("creating de.fr: %v\n", err)
+			return nil
+		}
+	}
+	return de.fr
 }
 
 func (de *dirEntry) Directory() Directory {
-	return 0  // TODO
+	var err os.Error
+	if de.dr == nil && de.fetcher != nil {
+		if de.ss.Type != "directory" {
+			log.Printf("invalid DirectoryEntry camliType of %q", de.ss.Type)
+			return nil
+		}
+		de.dr, err = NewDirReader(de.fetcher, de.ss.BlobRef)
+		if err != nil {
+			log.Printf("creating de.dr: %v\n", err)
+			return nil
+		}
+	}
+	return de.dr
 }
 
 func (de *dirEntry) Symlink() Symlink {
-	return 0  // TODO
+	return 0 // TODO
 }
 
 // NewDirectoryEntry takes a Superset and returns a DirectoryEntry if
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
+// TODO(mpl): symlink
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func NewDirectoryEntry(ss *Superset) (DirectoryEntry, os.Error) {
+func NewDirectoryEntry(fetcher blobref.SeekFetcher, ss *Superset) (DirectoryEntry, os.Error) {
 	if ss == nil {
 		return nil, os.NewError("ss was nil")
 	}
@@ -119,9 +164,21 @@ func NewDirectoryEntry(ss *Superset) (DirectoryEntry, os.Error) {
 	default:
 		return nil, fmt.Errorf("invalid DirectoryEntry camliType of %q", ss.Type)
 	}
-	de := new(dirEntry)
-	de.ss = *ss // defensive copy
+	de := &dirEntry{ss: *ss, fetcher: fetcher} // defensive copy
 	return de, nil
+}
+
+// NewDirectoryEntryFromBlobRef takes a BlobRef and returns a
+// DirectoryEntry if the BlobRef contains a type "file", "directory"
+// or "symlink".
+// TODO: "fifo", "socket", "char", "block", probably.  later.
+func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.BlobRef) (DirectoryEntry, os.Error) {
+	ss := new(Superset)
+	err := ss.setFromBlobRef(fetcher, blobRef)
+	if err != nil {
+		return nil, fmt.Errorf("schema/filereader: can't fill Superset: %v\n", err)
+	}
+	return NewDirectoryEntry(fetcher, ss)
 }
 
 // Superset represents the superset of common camlistore JSON schema
