@@ -49,7 +49,7 @@ static int go_file_sync(sqlite3_file* file, int flags) {
 static int go_file_file_size(sqlite3_file* file, sqlite3_int64* pSize) {
   int fd = ((GoFile*) file)->fd;
   struct GoFileFileSize_return result = GoFileFileSize(fd);
-  fprintf(stderr, "go_file_file_size(%d) = %d, %lld", fd, result.r0, result.r1);
+  fprintf(stderr, "go_file_file_size(%d) = %d, %lld\n", fd, result.r0, result.r1);
   if (result.r0 != 0) {
     return SQLITE_ERROR;
   }
@@ -102,7 +102,7 @@ static int go_vfs_access(sqlite3_vfs* vfs,
                          const char* zName,
                          int flags,
                          int* pResOut) {
-  fprintf(stderr, "TODO access: %s\n", zName);
+  *pResOut = GoVFSAccess(zName, flags);
   return SQLITE_OK;
 }
 

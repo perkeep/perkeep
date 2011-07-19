@@ -130,3 +130,25 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 	file_map[file.Fd()] = file
 	return file.Fd()
 }
+
+//export GoVFSAccess
+func GoVFSAccess(filename *C.char, flags C.int) (rv int) {
+	fi, err := os.Stat(C.GoString(filename))
+	if err != nil {
+		return 0
+	}
+	switch flags {
+	case C.SQLITE_ACCESS_EXISTS:
+		if fi.Size != 0 {
+			return 1
+		} else {
+			return 0
+		}
+	case C.SQLITE_ACCESS_READWRITE:
+		// TODO: compute read/writeability in a manner similar to access()
+		return 1
+	case C.SQLITE_ACCESS_READ:
+		return 1
+	}
+	return 0
+}
