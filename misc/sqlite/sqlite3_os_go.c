@@ -24,9 +24,7 @@ static int go_file_close(sqlite3_file* file) {
 }
 
 static int go_file_read(sqlite3_file* file, void* dest, int iAmt, sqlite3_int64 iOfst) {
-  return GoFileRead(((GoFile*) file)->fd, dest, iAmt, iOfst) == 0 ?
-      SQLITE_OK :
-      SQLITE_ERROR;
+  return GoFileRead(((GoFile*) file)->fd, dest, iAmt, iOfst);
 }
 
 static int go_file_write(sqlite3_file* file, const void* src, int iAmt, sqlite3_int64 iOfst) {

@@ -34,7 +34,10 @@ func GoFileClose(fd C.int) (int) {
 }
 
 //export GoFileRead
-// Returns 0 on success and -1 on error.
+// Returns SQLite error codes to be returned by xRead:
+//   SQLITE_OK: read n bytes
+//   SQLITE_IOERR_READ: got error while reading
+//   SQLITE_IOERR_SHORT_READ: read fewer than n bytes; rest will be zeroed
 func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 	println("reading", n, "bytes at offset", offset, "from fd", fd);
 	defer func() {
@@ -43,7 +46,7 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 
 	file := GetFile(int(fd))
 	if file == nil {
-		return -1
+		return C.SQLITE_IOERR_READ
 	}
 
 	buf := make([]byte, n)
@@ -56,16 +59,16 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 			break
 		}
 		if err != nil {
-			return -1
+			return C.SQLITE_IOERR_READ
 		}
 	}
 
-	if n != 0 {
-		return -1
-	}
-
 	C.memcpy(unsafe.Pointer(dst), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
-	return 0
+
+	if n != 0 {
+		return C.SQLITE_IOERR_SHORT_READ
+	}
+	return C.SQLITE_OK
 }
 
 //export GoFileFileSize
