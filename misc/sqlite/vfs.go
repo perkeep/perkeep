@@ -140,7 +140,7 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 		goflags |= os.O_RDWR
 	}
 	if flags & C.SQLITE_OPEN_CREATE != 0 {
-		goflags |= os.O_RDWR | os.O_CREATE | os.O_TRUNC
+		goflags |= os.O_RDWR | os.O_CREATE
 	}
 	if flags & C.SQLITE_OPEN_DELETEONCLOSE != 0 {
 		// TODO: Do something.
