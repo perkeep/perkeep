@@ -1,11 +1,21 @@
 package sqlite
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestFoo(t *testing.T) {
-	db, err := Open("foo.db")
+	td, err := ioutil.TempDir("", "go-sqlite-test")
+	if err != nil {
+		t.Fatalf("TempDir: %v", err)
+	}
+	dbName := filepath.Join(td, "foo.db")
+	defer os.Remove(dbName)
+
+	db, err := Open(dbName)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -22,9 +32,17 @@ func TestFoo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-
 	err = db.Close()
 	if err != nil {
 		t.Fatalf("close: %v", err)
 	}
+
+	fi, err := os.Stat(dbName)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if fi.Size == 0 {
+		t.Fatalf("FileInfo.Size after writes was 0")
+	}
+	t.Logf("fi.Size = %d", fi.Size)
 }
