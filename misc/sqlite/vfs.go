@@ -15,19 +15,26 @@ import (
 	"unsafe"
 )
 
-var file_map_mutex sync.Mutex
-var file_map = make(map[int]*os.File)
+// Our map of fake fds to our internal *os.File. These aren't
+// actual fd numbers, since those don't exist on Windows.
+// Instead we just make some identifiers up.
+var fmu sync.Mutex
+var fileMap = make(map[int]*os.File) // fake_fd -> *os.File
+var lastFakeFd = 99000 // start high to catch bugs of people using these like real fds
 
 func GetFile(fd int) (file *os.File) {
-	file_map_mutex.Lock()
-	defer file_map_mutex.Unlock()
-	return file_map[fd]
+	fmu.Lock()
+	defer fmu.Unlock()
+	return fileMap[fd]
 }
 
 //export GoFileClose
 // Returns 0 on success and -1 on error.
 func GoFileClose(fd C.int) (int) {
 	file := GetFile(int(fd))
+	fmu.Lock()
+	fileMap[int(fd)] = nil, false
+	fmu.Unlock()
 	if file.Close() != nil {
 		return -1
 	}
@@ -160,10 +167,12 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 		return -1
 	}
 
-	file_map_mutex.Lock()
-	defer file_map_mutex.Unlock()
-	file_map[file.Fd()] = file
-	return file.Fd()
+	fmu.Lock()
+	defer fmu.Unlock()
+	fakeFd := lastFakeFd
+	lastFakeFd++
+	fileMap[fakeFd] = file
+	return fakeFd
 }
 
 //export GoVFSDelete
