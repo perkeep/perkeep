@@ -11,10 +11,20 @@ func TestFoo(t *testing.T) {
 	}
 	err = db.Exec("CREATE TABLE IF NOT EXISTS foo (a INT, b VARCHAR(200))")
 	if err != nil {
-                t.Fatalf("create table: %v", err)
-        }
+		t.Fatalf("create table: %v", err)
+	}
+
 	err = db.Exec("INSERT INTO foo VALUES (1, ?)", "foo")
-        if err != nil {
+	if err != nil {
 		t.Fatalf("insert: %v", err)
+	}
+	err = db.Exec("INSERT INTO foo VALUES (2, DATETIME('now'))")
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	err = db.Close()
+	if err != nil {
+		t.Fatalf("close: %v", err)
 	}
 }

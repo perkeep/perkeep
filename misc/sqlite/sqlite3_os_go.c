@@ -18,9 +18,10 @@ struct GoFile {
 /* File methods */
 
 static int go_file_close(sqlite3_file* file) {
-  const int fd = ((GoFile*) file)->fd;
-  fprintf(stderr, "go_file_close(%d)\n", fd);
-  return GoFileClose(fd == 0 ? SQLITE_OK : SQLITE_ERROR);
+  GoFileClose(((GoFile*) file)->fd);
+  // Matching sqlite3's os_unix.c here.
+  memset(file, 0, sizeof(GoFile));
+  return SQLITE_OK;
 }
 
 static int go_file_read(sqlite3_file* file, void* dest, int iAmt, sqlite3_int64 iOfst) {
@@ -86,16 +87,12 @@ static int go_file_file_control(sqlite3_file* file, int op, void* pArg) {
 }
 
 static int go_file_sector_size(sqlite3_file* file) {
-  const int fd = ((GoFile*) file)->fd;
-  fprintf(stderr, "TODO go_file_sector_size(%d)\n", fd);
-  // TODO: implement
+  // Matching sqlite3's os_unix.c here; this is SQLITE_DEFAULT_SECTOR_SIZE.
   return 512;
 }
 
 static int go_file_device_characteristics(sqlite3_file* file) {
-  const int fd = ((GoFile*) file)->fd;
-  fprintf(stderr, "TODO go_file_device_characteristics(%d)\n", fd);
-  // TODO: implement
+  // Matching sqlite3's os_unix.c here.
   return 0;
 }
 
@@ -180,7 +177,6 @@ static int go_vfs_current_time(sqlite3_vfs* vfs, double* now) {
 }
 
 static int go_vfs_get_last_error(sqlite3_vfs* vfs, int foo, char* bar) {
-  fprintf(stderr, "go_vfs_get_last_error\n");
   // Unused, per sqlite3's os_unix.c.
   return SQLITE_OK;
 }
