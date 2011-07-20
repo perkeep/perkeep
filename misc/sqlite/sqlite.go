@@ -132,7 +132,7 @@ func (c *Conn) Exec(cmd string, args ...interface{}) os.Error {
 		return err
 	}
 	defer s.Finalize()
-	err = s.Exec(args)
+	err = s.Exec(args...)
 	if err != nil {
 		return err
 	}
