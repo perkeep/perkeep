@@ -2,7 +2,7 @@ package sqlite
 
 /*
 #cgo CFLAGS: -D_GNU_SOURCE -D_XOPEN_SOURCE=500
-#cgo LDFLAGS: -ldl -lpthread
+#cgo LDFLAGS: -lpthread
 
 #include <stdlib.h>
 #define SKIP_SQLITE_VERSION 1
