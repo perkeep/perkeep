@@ -34,7 +34,7 @@ func GoFileClose(fd C.int) (int) {
 }
 
 //export GoFileRead
-// Returns SQLite error codes to be returned by xRead:
+// Returns SQLite error code to be returned by xRead:
 //   SQLITE_OK: read n bytes
 //   SQLITE_IOERR_READ: got error while reading
 //   SQLITE_IOERR_SHORT_READ: read fewer than n bytes; rest will be zeroed
@@ -68,6 +68,40 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 	if n != 0 {
 		return C.SQLITE_IOERR_SHORT_READ
 	}
+	return C.SQLITE_OK
+}
+
+//export GoFileWrite
+// Returns SQLite error code to be returned by xWrite:
+//   SQLITE_OK: wrote n bytes
+//   SQLITE_IOERR_WRITE: got error while writing
+//   SQLITE_FULL: partial write
+func GoFileWrite(fd C.int, src *C.char, n C.int, offset C.long) (rv int) {
+	println("writing", n, "bytes at offset", offset, "to fd", fd);
+	defer func() {
+		println("write returning", rv);
+	}()
+
+	file := GetFile(int(fd))
+	if file == nil {
+		return C.SQLITE_IOERR_WRITE
+	}
+
+	// TODO: avoid this copy
+	buf := make([]byte, n)
+	C.memcpy(unsafe.Pointer(&buf[0]), unsafe.Pointer(src), C.size_t(len(buf)))
+
+	nwritten, err := file.WriteAt(buf, int64(offset))
+	if err != nil {
+		if err == os.ENOSPC {
+			return C.SQLITE_FULL
+		}
+		return C.SQLITE_IOERR_WRITE
+	}
+	if nwritten != int(n) {
+		return C.SQLITE_IOERR_WRITE
+	}
+
 	return C.SQLITE_OK
 }
 

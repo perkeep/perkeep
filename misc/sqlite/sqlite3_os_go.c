@@ -28,8 +28,7 @@ static int go_file_read(sqlite3_file* file, void* dest, int iAmt, sqlite3_int64 
 }
 
 static int go_file_write(sqlite3_file* file, const void* src, int iAmt, sqlite3_int64 iOfst) {
-  fprintf(stderr, "write\n");
-  return 0;
+  return GoFileWrite(((GoFile*) file)->fd, src, iAmt, iOfst);
 }
 
 static int go_file_truncate(sqlite3_file* file, sqlite3_int64 size) {
