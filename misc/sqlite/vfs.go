@@ -11,6 +11,7 @@ import "C"
 import (
 	"os"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -165,6 +166,24 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 	return file.Fd()
 }
 
+//export GoVFSDelete
+// Returns SQLite error code to be returned by xWrite:
+//   SQLITE_OK: deleted the file
+//   SQLITE_IOERR_DELETE: failed to delete
+//   SQLITE_IOERR_DIR_FSYNC: failed to fsync dir after deleting
+func GoVFSDelete(filename *C.char, syncDir C.int) (rv int) {
+	println("deleting", C.GoString(filename), "with syncdir", syncDir)
+	if err := os.Remove(C.GoString(filename)); err != nil {
+		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
+			return C.SQLITE_OK
+		}
+		println("delete of", C.GoString(filename), "failed:", err.String())
+		return C.SQLITE_IOERR_DELETE
+	}
+	// TODO: Support syncDir.
+	return C.SQLITE_OK
+}
+
 //export GoVFSAccess
 func GoVFSAccess(filename *C.char, flags C.int) (rv int) {
 	fi, err := os.Stat(C.GoString(filename))
@@ -185,4 +204,11 @@ func GoVFSAccess(filename *C.char, flags C.int) (rv int) {
 		return 1
 	}
 	return 0
+}
+
+//export GoVFSCurrentTimeInt64
+func GoVFSCurrentTimeInt64() (now int64) {
+	// Unix epoch as a Julian Day number times 86_400_000.
+	const unixEpoch = 24405875 * 8640000
+	return unixEpoch + (time.Nanoseconds() / 1000000)
 }

@@ -118,8 +118,7 @@ static int go_vfs_open(sqlite3_vfs* vfs,
 }
 
 static int go_vfs_delete(sqlite3_vfs* vfs, const char* zName, int syncDir) {
-  fprintf(stderr, "delete: %s\n", zName);
-  return SQLITE_OK;
+  return GoVFSDelete(zName, syncDir);
 }
 
 static int go_vfs_access(sqlite3_vfs* vfs,
@@ -142,37 +141,37 @@ static int go_vfs_full_pathname(sqlite3_vfs* vfs,
 }
 
 static void* go_vfs_dl_open(sqlite3_vfs* vfs, const char* zFilename) {
-  fprintf(stderr, "go_vfs_dl_open\n");
+  fprintf(stderr, "TODO go_vfs_dl_open\n");
   return NULL;
 }
 
 static void go_vfs_dl_error(sqlite3_vfs* vfs, int nByte, char *zErrMsg) {
-  fprintf(stderr, "go_vfs_dl_error\n");
+  fprintf(stderr, "TODO go_vfs_dl_error\n");
 }
 
 static void* go_vfs_dl_sym(sqlite3_vfs* vfs,
                            void* handle,
                            const char* zSymbol) {
-  fprintf(stderr, "go_vfs_dl_sym\n");
+  fprintf(stderr, "TODO go_vfs_dl_sym\n");
   return NULL;
 }
 
 static void go_vfs_dl_close(sqlite3_vfs* vfs, void* handle) {
-  fprintf(stderr, "go_vfs_dl_close\n");
+  fprintf(stderr, "TODO go_vfs_dl_close\n");
 }
 
 static int go_vfs_randomness(sqlite3_vfs* vfs, int nByte, char *zOut) {
-  fprintf(stderr, "go_vfs_randomness\n");
+  fprintf(stderr, "TODO go_vfs_randomness\n");
   return SQLITE_OK;
 }
 
 static int go_vfs_sleep(sqlite3_vfs* vfs, int microseconds) {
-  fprintf(stderr, "go_vfs_sleep\n");
+  fprintf(stderr, "TODO go_vfs_sleep\n");
   return SQLITE_OK;
 }
 
 static int go_vfs_current_time(sqlite3_vfs* vfs, double* now) {
-  fprintf(stderr, "go_vfs_current_time\n");
+  *now = GoVFSCurrentTimeInt64() / 86400000.0;
   return SQLITE_OK;
 }
 
@@ -181,10 +180,15 @@ static int go_vfs_get_last_error(sqlite3_vfs* vfs, int foo, char* bar) {
   return SQLITE_OK;
 }
 
+static int go_vfs_current_time_int64(sqlite3_vfs* vfs, sqlite3_int64* now) {
+  *now = GoVFSCurrentTimeInt64();
+  return SQLITE_OK;
+}
+
 int sqlite3_os_init(void) {
   static sqlite3_vfs vfs;
   memset(&vfs, 0, sizeof(vfs));
-  vfs.iVersion = 1;
+  vfs.iVersion = 2;
   vfs.szOsFile = sizeof(GoFile);
   vfs.mxPathname = 512;
   vfs.pNext = NULL;
@@ -203,12 +207,9 @@ int sqlite3_os_init(void) {
   vfs.xSleep = go_vfs_sleep;
   vfs.xCurrentTime = go_vfs_current_time;
   vfs.xGetLastError = go_vfs_get_last_error;
+  /* Version 2 method */
+  vfs.xCurrentTimeInt64 = go_vfs_current_time_int64;
 #if 0
-  /*
-  ** The methods above are in version 1 of the sqlite_vfs object
-  ** definition.  Those that follow are added in version 2 or later
-  */
-  int (*xCurrentTimeInt64)(sqlite3_vfs*, sqlite3_int64*);
   /*
   ** The methods above are in versions 1 and 2 of the sqlite_vfs object.
   ** Those below are for version 3 and greater.
