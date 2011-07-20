@@ -13,7 +13,7 @@ func TestFoo(t *testing.T) {
 		t.Fatalf("TempDir: %v", err)
 	}
 	dbName := filepath.Join(td, "foo.db")
-	defer os.Remove(dbName)
+	defer os.RemoveAll(td)
 
 	db, err := Open(dbName)
 	if err != nil {
