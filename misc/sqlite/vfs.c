@@ -184,7 +184,7 @@ static int go_vfs_current_time_int64(sqlite3_vfs* vfs, sqlite3_int64* now) {
   return SQLITE_OK;
 }
 
-int sqlite3_os_init(void) {
+int go_init_vfs(void) {
   static sqlite3_vfs vfs;
   memset(&vfs, 0, sizeof(vfs));
   vfs.iVersion = 2;
@@ -252,4 +252,7 @@ int sqlite3_os_init(void) {
   return SQLITE_OK;
 }
 
+#if SQLITE_OS_OTHER==1
+int sqlite3_os_init(void) { return SQLITE_OK; }
 int sqlite3_os_end(void) { return SQLITE_OK; }
+#endif

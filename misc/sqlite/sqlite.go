@@ -15,6 +15,8 @@ static int my_bind_blob(sqlite3_stmt *stmt, int n, void *p, int np) {
   return sqlite3_bind_blob(stmt, n, p, np, SQLITE_TRANSIENT);
 }
 
+extern int go_init_vfs();
+
 */
 import "C"
 
@@ -25,6 +27,10 @@ import (
 	"strconv"
 	"unsafe"
 )
+
+func init() {
+	C.go_init_vfs()
+}
 
 type Errno int
 
