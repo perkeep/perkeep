@@ -1,10 +1,10 @@
+#include "go-sqlite.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "_cgo_export.h"
-
-#include "go-sqlite.h"
 
 static sqlite3_io_methods g_file_methods;
 

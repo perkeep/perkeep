@@ -3,9 +3,12 @@ package sqlite
 /*
 #cgo linux CFLAGS: -D_GNU_SOURCE -D_XOPEN_SOURCE=500
 #cgo linux LDFLAGS: -lpthread
+#cgo windows CFLAGS: -D_GNU_SOURCE
+#cgo windows LDFLAGS: -lpthread -lgcc_s -lmingwex -lmsvcrt
+
+#include "go-sqlite.h"
 
 #include <stdlib.h>
-#include "go-sqlite.h"
 
 static int my_bind_text(sqlite3_stmt *stmt, int n, char *p, int np) {
   return sqlite3_bind_text(stmt, n, p, np, SQLITE_TRANSIENT);
