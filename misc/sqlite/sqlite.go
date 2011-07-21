@@ -1,19 +1,19 @@
 package sqlite
 
 /*
-#cgo CFLAGS: -D_GNU_SOURCE -D_XOPEN_SOURCE=500
-#cgo LDFLAGS: -lpthread
+#cgo linux CFLAGS: -D_GNU_SOURCE -D_XOPEN_SOURCE=500
+#cgo linux LDFLAGS: -lpthread
 
 #include <stdlib.h>
-#define SKIP_SQLITE_VERSION 1
-#include "sqlite3.h"
+#include "go-sqlite.h"
 
- static int my_bind_text(sqlite3_stmt *stmt, int n, char *p, int np) {
- return sqlite3_bind_text(stmt, n, p, np, SQLITE_TRANSIENT);
- }
- static int my_bind_blob(sqlite3_stmt *stmt, int n, void *p, int np) {
- return sqlite3_bind_blob(stmt, n, p, np, SQLITE_TRANSIENT);
- }
+static int my_bind_text(sqlite3_stmt *stmt, int n, char *p, int np) {
+  return sqlite3_bind_text(stmt, n, p, np, SQLITE_TRANSIENT);
+}
+
+static int my_bind_blob(sqlite3_stmt *stmt, int n, void *p, int np) {
+  return sqlite3_bind_blob(stmt, n, p, np, SQLITE_TRANSIENT);
+}
 
 */
 import "C"
