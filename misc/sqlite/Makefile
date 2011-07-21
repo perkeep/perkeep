@@ -8,6 +8,6 @@ CGOFILES=\
 
 CGO_OFILES=\
 	sqlite3_obj.o\
-	sqlite3_os_go.o\
+	vfs.o\
 
 include $(GOROOT)/src/Make.pkg

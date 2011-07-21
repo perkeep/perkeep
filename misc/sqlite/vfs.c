@@ -4,8 +4,7 @@
 
 #include "_cgo_export.h"
 
-#define SKIP_SQLITE_VERSION
-#include "sqlite3.h"
+#include "go-sqlite.h"
 
 static sqlite3_io_methods g_file_methods;
 
