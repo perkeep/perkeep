@@ -24,6 +24,27 @@ function getPermanodeParam() {
 	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
+function newPermWithContent(content) {
+	return function(e) {
+		var cnpcb = {};
+		cnpcb.success = function(permanode) {
+			var naaccb = {};
+			naaccb.success = function() {
+				alert("permanode created");
+			}
+			naaccb.fail = function(msg) {
+//TODO(mpl): remove newly created permanode then?
+				alert("set permanode content failed: " + msg);
+			}
+			camliNewAddAttributeClaim(permanode, "camliContent", content, naaccb);
+		}
+		cnpcb.fail = function(msg) {
+			alert("create permanode failed: " + msg);
+		}
+	    camliCreateNewPermanode(cnpcb);
+	}
+}
+
 function getFileTree(blobref, opts) {
 	var xhr = camliJsonXhr("getFileTree", opts);
 	var path = "./tree/" + blobref
@@ -33,7 +54,8 @@ function getFileTree(blobref, opts) {
 
 function insertAfter( referenceNode, newNode )
 {
-	referenceNode.parentNode.insertBefore( newNode, referenceNode.nextSibling );
+	// nextSibling X2 because of the "P" span
+	referenceNode.parentNode.insertBefore( newNode, referenceNode.nextSibling.nextSibling );
 }
 
 function unFold(blobref, depth) {
@@ -51,7 +73,8 @@ function unFold(blobref, depth) {
 
 function fold(nodeid, depth) {
 	var node = document.getElementById(nodeid);
-	node.parentNode.removeChild(node.nextSibling);
+	// nextSibling X2 because of the "P" span
+	node.parentNode.removeChild(node.nextSibling.nextSibling);
 	node.onclick = Function("unFold('" + nodeid + "' , " + depth + "); return false;");
 }
 
@@ -63,43 +86,79 @@ function onChildrenFound(div, depth, jres) {
 		var pdiv = document.createElement("div");
 		var alink = document.createElement("a");
 		alink.style.paddingLeft=indent + "px"
+		alink.id = children[i].blobRef;
 		switch (children[i].type) {
 		case 'directory':
 			alink.innerText = "+ " + children[i].name;
-			alink.id = children[i].blobRef;
 			alink.href = "./?d=" + alink.id;
 			alink.onclick = Function("unFold('" + alink.id + "', " + depth + "); return false;");
 			break;
 		case 'file':
 			alink.innerText = "  " + children[i].name;
-			alink.href = "./?b=" + children[i].blobRef;
+			alink.href = "./?b=" + alink.id;
 			break;
 		default:
 			alert("not a file or dir");
 			break;
 		}
+		var newPerm = document.createElement("span");
+		newPerm.className = "camli-newp";
+		newPerm.innerText = "P";
+		newPerm.addEventListener("click", newPermWithContent(alink.id));
 		pdiv.appendChild(alink);
+		pdiv.appendChild(newPerm);
 		div.appendChild(pdiv);
 	}
 }
 
 function buildTree() {
-	var permanode = getPermanodeParam();
+	var blobref = getPermanodeParam();
 
 	var div = document.getElementById("children");
 	var gftcb = {};
 	gftcb.success = function(jres) { onChildrenFound(div, 0, jres); }
 	gftcb.fail = function() { alert("fail"); }
-	getFileTree(permanode, gftcb)
+	getFileTree(blobref, gftcb)
 }
 
 function treePageOnLoad(e) {
-	var permanode = getPermanodeParam();
-	if (permanode) {
-		document.getElementById('permanodeBlob').innerHTML = "<a href='./?b=" + permanode + "'>" + permanode + "</a>";
+	var blobref = getPermanodeParam();
+	if (blobref) {
+		var dbcb = {};
+		dbcb.success = function(bmap) {
+			var binfo = bmap[blobref];
+			if (!binfo) {
+				alert("Error describing blob " + blobref);
+				return;
+			}
+			if (binfo.camliType != "directory") {
+				alert("Does not contain a directory");
+				return;
+			}
+			var gbccb = {};
+			gbccb.success = function(data) {
+				try {
+					finfo = JSON.parse(data);
+					var fileName = finfo.fileName;
+					var curDir = document.getElementById('curDir');
+					curDir.innerHTML = "<a href='./?b=" + blobref + "'>" + fileName + "</a>";
+					CamliFileTree.indentStep = 20;
+					buildTree();
+				} catch(x) {
+					alert(x);
+					return;
+				}
+			}
+			gbccb.fail = function() {
+				alert("failed to get blobcontents");
+			}
+			camliGetBlobContents(blobref, gbccb);
+		}
+		dbcb.fail = function(msg) {
+			alert("Error describing blob " + blobref + ": " + msg);
+		}
+		camliDescribeBlob(blobref, dbcb);
 	}
-	CamliFileTree.indentStep = 20
-	buildTree();
 }
 
 window.addEventListener("load", treePageOnLoad);

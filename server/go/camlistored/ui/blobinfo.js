@@ -41,6 +41,12 @@ function blobInfoUpdate(bmap) {
             {
                 success: function(data) {
                     document.getElementById("blobdata").innerHTML = linkifyBlobRefs(data);
+                    var bb = document.getElementById('blobbrowse');
+                    if (binfo.camliType != "directory") {
+                        bb.style.visibility = 'hidden';
+                    } else {
+                        bb.innerHTML = "<a href='?d=" + blobref + "'>browse</a>";
+                    }
                     if (binfo.camliType == "file") {
                         try {
                             finfo = JSON.parse(data);
