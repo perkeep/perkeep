@@ -628,6 +628,7 @@ __DATA__
 
 TARGET: clients/go/camdbinit
 TARGET: clients/go/camget
+TARGET: clients/go/camgsinit
 TARGET: clients/go/camput
 TARGET: clients/go/cammount
     =only_os_linux
@@ -636,6 +637,7 @@ TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
 TARGET: lib/go/camli/blobserver
 TARGET: lib/go/camli/blobserver/cond
+TARGET: lib/go/camli/blobserver/googlestorage
 TARGET: lib/go/camli/blobserver/handlers
 TARGET: lib/go/camli/blobserver/localdisk
 TARGET: lib/go/camli/blobserver/remote
@@ -664,6 +666,7 @@ TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
 TARGET: lib/go/camli/test
 TARGET: lib/go/camli/test/asserts
+TARGET: lib/go/camli/third_party/code.google.com/goauth2/oauth
 TARGET: lib/go/camli/third_party/github.com/bradfitz/gomemcache
 TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
     =skip_tests
