@@ -31,6 +31,13 @@ body {
   margin-left: .4em;
   font-size: 80%;
 }
+.camli-newp {
+  text-decoration: underline;
+  cursor: pointer;
+  color: darkgreen;
+  margin-left: .4em;
+  font-size: 80%;
+}
 .camli-tag-c {
   margin-right: .5em;
 }
