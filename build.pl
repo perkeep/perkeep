@@ -645,6 +645,8 @@ TARGET: lib/go/camli/blobserver/replica
 TARGET: lib/go/camli/blobserver/shard
 TARGET: lib/go/camli/blobserver/s3
 TARGET: lib/go/camli/client
+TARGET: lib/go/camli/db
+TARGET: lib/go/camli/db/dbimpl
 TARGET: lib/go/camli/errorutil
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonconfig
