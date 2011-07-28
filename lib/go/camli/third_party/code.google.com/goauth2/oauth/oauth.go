@@ -144,7 +144,7 @@ func (t *Transport) Exchange(code string) (tok *Token, err os.Error) {
 }
 
 // RoundTrip executes a single HTTP transaction using the Transport's
-// Token as authorization headers.
+// Token as authorization headers.  
 func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err os.Error) {
 	if t.Config == nil {
 		return nil, os.NewError("no Config supplied")
@@ -159,18 +159,10 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err os.Er
 		return
 	}
 
-	// Refresh credentials if they're stale and try again
-	if resp.StatusCode == 401 {
-		if err = t.refresh(); err != nil {
-			return
-		}
-		resp, err = t.transport().RoundTrip(req)
-	}
-
 	return
 }
 
-func (t *Transport) refresh() os.Error {
+func (t *Transport) Refresh() os.Error {
 	return t.updateToken(t.Token, http.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {t.RefreshToken},

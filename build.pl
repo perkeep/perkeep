@@ -638,7 +638,7 @@ TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
 TARGET: lib/go/camli/blobserver
 TARGET: lib/go/camli/blobserver/cond
-TARGET: lib/go/camli/blobserver/googlestorage
+TARGET: lib/go/camli/blobserver/google
 TARGET: lib/go/camli/blobserver/handlers
 TARGET: lib/go/camli/blobserver/localdisk
 TARGET: lib/go/camli/blobserver/remote
@@ -651,6 +651,8 @@ TARGET: lib/go/camli/db
 TARGET: lib/go/camli/db/dbimpl
 TARGET: lib/go/camli/errorutil
 TARGET: lib/go/camli/fs
+TARGET: lib/go/camli/googlestorage
+    =skip_tests
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign
