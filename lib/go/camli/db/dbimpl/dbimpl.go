@@ -46,6 +46,7 @@ type Stmt interface {
 	Close()
 	NumInput() int
 	Exec(args []interface{}) (Result, os.Error)
+	Query(args []interface{}) (Rows, os.Error)
 }
 
 type Rows interface {
@@ -60,7 +61,3 @@ type Tx interface {
 	Commit() os.Error
 	Rollback() os.Error
 }
-
-
-
-

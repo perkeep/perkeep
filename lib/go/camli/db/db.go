@@ -14,24 +14,61 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package db provides a generic interface around SQL (or SQL-like)
+// databases.
 package db
 
 import (
+	"fmt"
 	"os"
 
 	"camli/db/dbimpl"
 )
 
-type DB struct {
-	impl dbimpl.Driver
+var drivers = make(map[string]dbimpl.Driver)
+
+func Register(name string, driver dbimpl.Driver) {
+	if driver == nil {
+		panic("db: Register driver is nil")
+	}
+	if _, dup := drivers[name]; dup {
+		panic("db: Register called twice for driver " + name)
+	}
+	drivers[name] = driver
 }
 
-func Open(driver, name string) (*DB, os.Error) {
-	panic("TODO: implement")
+type DB struct {
+	driver dbimpl.Driver
+	dbarg  string
+}
+
+func Open(driverName, database string) (*DB, os.Error) {
+	driver, ok := drivers[driverName]
+	if !ok {
+		return nil, fmt.Errorf("db: unknown driver %q (forgotten import?)", driverName)
+	}
+	return &DB{driver: driver, dbarg: database}, nil
+}
+
+func (db *DB) conn() (dbimpl.Conn, os.Error) {
+	return db.driver.Open(db.dbarg)
 }
 
 func (db *DB) Prepare(query string) (*Stmt, os.Error) {
-	panic("TODO: implement")
+	ci, err := db.conn()
+	if err != nil {
+		return nil, err
+	}
+	si, err := ci.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+	stmt := &Stmt{
+		db: db,
+		ci: ci,
+		si: si,
+	}
+	return stmt, nil
 }
 
 func (db *DB) Exec(query string, args ...interface{}) os.Error {
@@ -42,8 +79,14 @@ func (db *DB) Query(query string, args ...interface{}) (*Rows, os.Error) {
 	panic("TODO: implement")
 }
 
+var ErrNoRows = os.NewError("db: no rows in result set")
+
 func (db *DB) QueryRow(query string, args ...interface{}) *Row {
-	panic("TODO: implement")
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return &Row{err: err}
+	}
+	return &Row{rows: rows}
 }
 
 func (db *DB) Begin() (*Tx, os.Error) {
@@ -53,8 +96,8 @@ func (db *DB) Begin() (*Tx, os.Error) {
 // DriverDatabase returns the database's underlying driver.
 // This is non-portable and should only be used when
 // needed.
-func (db *DB) DriverDatabase() interface{} {
-	return db.impl
+func (db *DB) Driver() dbimpl.Driver {
+	return db.driver
 }
 
 // Tx is an in-progress database transaction.
@@ -87,7 +130,9 @@ func (tx *Tx) QueryRow(query string, args ...interface{}) *Row {
 }
 
 type Stmt struct {
-
+	db *DB         // where we came from
+	ci dbimpl.Conn // owned
+	si dbimpl.Stmt // owned	
 }
 
 func (s *Stmt) Exec(args ...interface{}) os.Error {
@@ -127,12 +172,17 @@ func (rs *Rows) Close() os.Error {
 }
 
 type Row struct {
-	err os.Error
+	// One of these two will be non-nil:
+	err  os.Error // deferred error for easy chaining
+	rows *Rows
 }
 
 func (r *Row) Scan(dest ...interface{}) os.Error {
 	if r.err != nil {
 		return r.err
 	}
-	panic("TODO: implement")
+	if !r.rows.Next() {
+		return ErrNoRows
+	}
+	return r.rows.Scan(dest...)
 }
