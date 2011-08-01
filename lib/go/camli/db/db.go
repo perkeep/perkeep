@@ -72,7 +72,21 @@ func (db *DB) Prepare(query string) (*Stmt, os.Error) {
 }
 
 func (db *DB) Exec(query string, args ...interface{}) os.Error {
-	panic("TODO: implement")
+	conn, err := db.conn()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	// TODO(bradfitz): check to see if conn implements optional
+	// dbimpl.ConnExecer interface and use that instead of
+	// Prepare+Exec
+	stmt, err := conn.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(args)
+	return err
 }
 
 func (db *DB) Query(query string, args ...interface{}) (*Rows, os.Error) {

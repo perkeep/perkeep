@@ -33,7 +33,7 @@ type Driver interface {
 
 type Conn interface {
 	Prepare(query string) (Stmt, os.Error)
-	Close()
+	Close() os.Error
 	Begin() (Tx, os.Error)
 }
 
@@ -43,7 +43,7 @@ type Result interface {
 }
 
 type Stmt interface {
-	Close()
+	Close() os.Error
 	NumInput() int
 	Exec(args []interface{}) (Result, os.Error)
 	Query(args []interface{}) (Rows, os.Error)
