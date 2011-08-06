@@ -29,62 +29,20 @@ function btnCreateNewPermanode(e) {
         });
 }
 
-function handleFormGetTagged(e) {
+function handleFormSearch(e) {
     e.stopPropagation();
     e.preventDefault();
 
-    var input = document.getElementById("inputTag");
-    var btn = document.getElementById("btnGetTagged");
+    var input = document.getElementById("inputSearch");
+    var btn = document.getElementById("btnSearch");
 
     if (input.value == "") {
         return;
     }
 
-    var tags = input.value.split(/\s*,\s*/);
-
-    var sigcb = {};
-    sigcb.success = function(sigconf) {
-        var tagcb = {};
-        tagcb.success = function(pres) {
-            showTaggedPermanodes(pres);
-        };
-        camliGetTaggedPermanodes(sigconf.publicKeyBlobRef, tags[0], tagcb);
-    };
-    sigcb.fail = function() {
-        alert("sig disco failed");
-    }
-    camliSigDiscovery(sigcb);
-}
-
-function createNewCollection(e) {
-    var cnpcb = {};
-    cnpcb.success = function(parent) {
-        var nRemain = CamliHome.taggedMemb.length;
-        var naaccb = {};
-        naaccb.fail = function() {
-            document.getElementById("btnNewCollec").disabled = true;
-            throw("failed to add member to collection");
-        }
-        naaccb.success = function() {
-            nRemain--;
-            if (nRemain == 0) {
-                document.getElementById("btnNewCollec").disabled = true;
-                window.location = "./?g=" + parent;
-            }
-        }
-        try {
-            for (var i = 0; i < CamliHome.taggedMemb.length; i++) {
-                camliNewAddAttributeClaim(parent, "camliMember", CamliHome.taggedMemb[i], naaccb);
-            }
-        } catch(x) {
-            alert(x)
-        }
-    };
-    cnpcb.fail = function() { 
-        document.getElementById("btnNewCollec").disabled = true;
-        alert("failed to create permanode");
-    };
-    camliCreateNewPermanode(cnpcb);
+    var query = input.value.split(/\s*,\s*/);
+//TODO(mpl): process the query (maybe in ui.go) to support other kinds than just tag search
+    window.location = "./search.html?q=" + query[0] + "&t=tag"
 }
 
 function indexOnLoad(e) {
@@ -94,10 +52,7 @@ function indexOnLoad(e) {
     }
     btnNew.addEventListener("click", btnCreateNewPermanode);
     camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes });
-    formTags.addEventListener("submit", handleFormGetTagged);
-    var btnNewGal = document.getElementById("btnNewCollec");
-    btnNewGal.addEventListener("click", createNewCollection);
-    btnNewGal.disabled = true;
+    formSearch.addEventListener("submit", handleFormSearch);
 
     if (disco && disco.uploadHelper) {
         var uploadForm = document.getElementById("uploadform");
@@ -116,25 +71,6 @@ function indexOnLoad(e) {
                                             uploadform.action = disco.uploadHelper;
                                         }
                                     });
-    }
-}
-
-function showTaggedPermanodes(searchRes) {
-    var div = document.getElementById("tagged");
-    div.innerHTML = "";
-    CamliHome.taggedMemb = new Array();
-    for (var i = 0; i < searchRes.tagged.length; i++) {
-        var result = searchRes.tagged[i];
-        var pdiv = document.createElement("li");
-        var alink = document.createElement("a");
-        CamliHome.taggedMemb[i] = result.permanode;
-        alink.href = "./?p=" + CamliHome.taggedMemb[i];
-        alink.innerText = camliBlobTitle(CamliHome.taggedMemb[i], searchRes);
-        pdiv.appendChild(alink);
-        div.appendChild(pdiv);
-    }
-    if (CamliHome.taggedMemb.length > 0) {
-        document.getElementById("btnNewCollec").disabled = false;
     }
 }
 
