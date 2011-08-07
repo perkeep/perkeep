@@ -82,7 +82,8 @@ class CamliOp(object):
                server_address,
                buffer_size=BUFFER_SIZE,
                create_connection=httplib.HTTPConnection,
-               auth=None):
+               auth=None,
+               basepath=False):
     """Initializer.
 
     Args:
@@ -91,6 +92,8 @@ class CamliOp(object):
         client-related operations.
       create_connection: Use for testing.
       auth: Optional. 'username:password' to use for HTTP basic auth.
+      basepath: Optional path suffix. e.g. if the server is at
+            "localhost:3179/bs", the basepath should be "/bs".
     """
     self.server_address = server_address
     self.buffer_size = buffer_size
@@ -99,8 +102,16 @@ class CamliOp(object):
     self._authorization = ''
     if auth:
       if len(auth.split(':')) != 2:
-        logging.fatal('Invalid auth string; should be username:password')
+          # Default to dummy username; current server doesn't care 
+          # TODO(jrabbit): care when necessary
+          auth = "username:" + auth #If username not given use the implicit default, 'username'
       self._authorization = ('Basic ' + base64.encodestring(auth).strip())
+    if basepath:
+      if '/' not in basepath:
+        raise NameError("basepath must be in form '/bs'")
+      if basepath[-1] == '/':
+        basepath = basepath[:-1]
+      self._basepath = basepath
 
   def _setup_connection(self):
     """Sets up the HTTP connection."""
@@ -144,8 +155,12 @@ class CamliOp(object):
     # after that we need to do batching in smaller groups.
 
     self._setup_connection()
+    if self.basepath:
+      fullpath = basepath + '/camli/stat'
+    else:
+      fullpath = '/camli/stat'
     self.connection.request(
-        'POST', '/camli/preupload', urllib.urlencode(preupload),
+        'POST', fullpath, urllib.urlencode(preupload),
         {'Content-Type': 'application/x-www-form-urlencoded',
          'Authorization': self._authorization})
     response = self.connection.getresponse()
@@ -162,9 +177,9 @@ class CamliOp(object):
       raise PayloadError('Server returned bad preupload response: %r' % data)
 
     logging.debug('Parsed preupload response: %r', response_dict)
-    if 'alreadyHave' not in response_dict:
+    if 'stat' not in response_dict:
       raise PayloadError(
-          'Could not find "alreadyHave" in preupload response: %r' %
+          'Could not find "stat" in preupload response: %r' %
           response_dict)
     if 'uploadUrl' not in response_dict:
       raise PayloadError(
@@ -172,7 +187,7 @@ class CamliOp(object):
           response_dict)
 
     already_have_blobrefs = set()
-    for blobref_json in response_dict['alreadyHave']:
+    for blobref_json in response_dict['stat']:
       if 'blobRef' not in blobref_json:
         raise PayloadError(
             'Cannot find "blobRef" in preupload response: %r',
