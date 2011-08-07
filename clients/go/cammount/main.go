@@ -25,7 +25,9 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver/localdisk" // used for the blob cache
+	"camli/cacher"
 	"camli/client"
+	"camli/fs"
 	"camli/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
@@ -73,9 +75,9 @@ func main() {
 	if err != nil {
 		errorf("Error setting up local disk cache: %v", err)
 	}
-	fetcher := NewCachingFetcher(diskcache, client)
+	fetcher := cacher.NewCachingFetcher(diskcache, client)
 
-	fs := NewCamliFileSystem(fetcher, root)
+	fs := fs.NewCamliFileSystem(fetcher, root)
 	timing := fuse.NewTimingPathFilesystem(fs)
 
 	conn := fuse.NewPathFileSystemConnector(timing)
