@@ -27,6 +27,7 @@ function hideAllResThings() {
 	CamliSearch.titleRes.style.visibility = 'hidden';
 	CamliSearch.btnNewCollec.disabled = true;
 	CamliSearch.btnNewCollec.style.visibility = 'hidden';
+	CamliSearch.formAddToCollec.style.visibility = 'hidden';
 }
 
 function handleFormGetTagged(e) {
@@ -112,6 +113,7 @@ function showTaggedPermanodes(searchRes) {
 		CamliSearch.titleRes.style.visibility = 'visible';
 		CamliSearch.btnNewCollec.disabled = false;
 		CamliSearch.btnNewCollec.style.visibility = 'visible';
+		CamliSearch.formAddToCollec.style.visibility = 'visible';
 	} else {
 		hideAllResThings();
 	}
@@ -137,7 +139,17 @@ function checkAll() {
 	}
 }
 
-function createNewCollection(e) {
+function handleCreateNewCollection(e) {
+	addToCollection(true)
+}
+
+function handleAddToCollection(e) {
+    e.stopPropagation();
+    e.preventDefault();
+	addToCollection(false)
+}
+
+function addToCollection(createNew) {
 	var cnpcb = {};
 	cnpcb.success = function(parent) {
 		var nRemain = CamliSearch.tickedMemb.length;
@@ -162,12 +174,25 @@ function createNewCollection(e) {
 		}
 	};
 	cnpcb.fail = function() {
-		CamliSearch.btnNewCollec.disabled = true;
 		alert("failed to create permanode");
 	};
 	getTicked();
 	if (CamliSearch.tickedMemb.length > 0) {
-		camliCreateNewPermanode(cnpcb);
+		if (createNew) {
+			camliCreateNewPermanode(cnpcb);
+		} else {
+			var pn = document.getElementById("inputCollec").value;
+//TODO(mpl): allow a collection title (instead of a hash) as input
+			if (!isPlausibleBlobRef(pn)) {
+				alert("Not a valid collection permanode hash");
+				return;
+			}
+			var returnPn = function(opts) {
+				opts = saneOpts(opts);
+				opts.success(pn);
+			}
+			returnPn(cnpcb);
+		}
 	} else {
 		alert("No selected object")
 	}
@@ -179,7 +204,9 @@ function indexOnLoad(e) {
 	formTags.addEventListener("submit", handleFormGetTagged);
 	CamliSearch.titleRes = document.getElementById("titleRes");
 	CamliSearch.btnNewCollec = document.getElementById("btnNewCollec");
-	CamliSearch.btnNewCollec.addEventListener("click", createNewCollection);
+	CamliSearch.btnNewCollec.addEventListener("click", handleCreateNewCollection);
+	CamliSearch.formAddToCollec = document.getElementById("formAddToCollec");
+	CamliSearch.formAddToCollec.addEventListener("submit", handleAddToCollection);
 	hideAllResThings();
 	getSearchParams();
 	if (CamliSearch.query != "") {
