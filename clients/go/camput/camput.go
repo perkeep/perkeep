@@ -41,7 +41,7 @@ var flagShare = flag.Bool("share", false, "create a camli share by haveref with 
 var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
 var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 var flagName = flag.String("name", "", "Optional name attribute to set on permanode when using -permanode and -file")
-var flagTag = flag.String("tag", "", "Optional tag attribute to set on permanode when using -permanode and -file")
+var flagTag = flag.String("tag", "", "Optional tag attribute to set on permanode when using -permanode and -file. Single value or comma separated ones.")
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
 
 var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
@@ -302,8 +302,13 @@ func main() {
 				handleResult("claim-permanode-name", put, err)
 			}
 			if *flagTag != "" {
-				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliTag", *flagTag))
-				handleResult("claim-permanode-tag", put, err)
+				tags := strings.Split(*flagTag, ",")
+				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliTag", tags[0])
+				for _, tag := range tags {
+					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "camliTag", tag)
+					put, err := up.UploadAndSignMap(m)
+					handleResult("claim-permanode-tag", put, err)
+				}
 			}
 			handleResult("permanode", permaNode, nil)
 		}
