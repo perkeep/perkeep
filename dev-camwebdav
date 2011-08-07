@@ -1,0 +1,3 @@
+#!/bin/sh
+
+./build.pl camwebdav && clients/go/camwebdav/camwebdav --blobserver=http://localhost:3179/bs --davaddr=localhost:8080 --password=pass3179 "$@"
