@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package fs
 
 import (
 	"bytes"
@@ -420,4 +420,8 @@ func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte
 	log.Printf("cammount Read error: %v", err)
 	retst = fuse.EIO
 	return
+}
+
+func (file *CamliFile) GetReader() (io.ReadCloser, os.Error) {
+	return file.ss.NewFileReader(file.fs.fetcher)
 }

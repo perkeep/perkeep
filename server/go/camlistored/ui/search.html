@@ -1,16 +1,34 @@
 <html>
 <head>
   <title>Camlistored UI</title>
+  <script type="text/javascript" src="Crypto.js"></script>
+  <script type="text/javascript" src="SHA1.js"></script>
   <script src="camli.js"></script>
   <script src="?camli.mode=config&cb=onConfiguration"></script>
   <script src="search.js"></script>
+  <link rel="stylesheet" href="camli.css">
 </head>
 <body>
+    <div class="camli-nav"><a href="./">Home</a></div>
 
     <h1>Search</h1>
-    <p><input type="button" id="searchbtn" onclick="search()" value="Do Search" /></p>
-    <div id="searchres" style="border: 2px solid gray">(search results)</div>
 
+    <h2>By Tag</h2>
+    <form id="formTags">
+        <input id="inputTag" placeholder="tag1">
+        <input type="submit" id="btnTagged" value="Search">
+    </form>
+
+    <h3 id="titleRes">Search</h3>
+    <div id="divRes">
+</div>
+    <p>
+    <form id="formAddToCollec">
+        <input id="inputCollec" placeholder="collection's permanode">
+        <input type="submit" id="btnAddToCollec" value="Add to collection"> or
+    </form>
+    <button id="btnNewCollec">Create new collection</button>
+    </p>
 
 </body>
 </html>

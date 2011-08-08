@@ -633,6 +633,7 @@ TARGET: clients/go/camput
 TARGET: clients/go/cammount
     =only_os_linux
 TARGET: clients/go/camsync
+TARGET: clients/go/camwebdav
 TARGET: lib/go/camli/auth
 TARGET: lib/go/camli/blobref
 TARGET: lib/go/camli/blobserver
@@ -644,10 +645,12 @@ TARGET: lib/go/camli/blobserver/remote
 TARGET: lib/go/camli/blobserver/replica
 TARGET: lib/go/camli/blobserver/shard
 TARGET: lib/go/camli/blobserver/s3
+TARGET: lib/go/camli/cacher
 TARGET: lib/go/camli/client
 TARGET: lib/go/camli/db
 TARGET: lib/go/camli/db/dbimpl
 TARGET: lib/go/camli/errorutil
+TARGET: lib/go/camli/fs
 TARGET: lib/go/camli/httputil
 TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign

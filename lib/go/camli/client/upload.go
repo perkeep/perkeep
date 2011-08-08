@@ -200,6 +200,9 @@ func (c *Client) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef
 	if err != nil {
 		return fmt.Errorf("stat HTTP error: %v", err)
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("stat response had http status %d", resp.StatusCode)
@@ -245,6 +248,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return errorf("stat http error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 
 	if resp.StatusCode != 200 {
@@ -312,6 +318,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
 	}
 
 	// check error from earlier copy
