@@ -92,6 +92,7 @@ class CamliOp(object):
         client-related operations.
       create_connection: Use for testing.
       auth: Optional. 'username:password' to use for HTTP basic auth.
+      basepath: Optional. Postfixes the server_address. e.g. localhost:3179 /bs, /bs is a our basepath.
     """
     self.server_address = server_address
     self.buffer_size = buffer_size
@@ -100,7 +101,8 @@ class CamliOp(object):
     self._authorization = ''
     if auth:
       if len(auth.split(':')) != 2:
-          auth = "username:" + auth # Default username is username.
+          # Default to dummy username; current server doesn't care TODO(jrabbit): care when necessary
+          auth = "username:" + auth #If username not given use the implicit default, 'username'
       self._authorization = ('Basic ' + base64.encodestring(auth).strip())
     if basepath:
       if '/' not in basepath:
