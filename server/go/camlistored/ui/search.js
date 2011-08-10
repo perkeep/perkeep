@@ -41,9 +41,7 @@ function handleFormGetTagged(e) {
 	}
 
 	var tags = input.value.split(/\s*,\s*/);
-	CamliSearch.query = tags[0];
-	CamliSearch.type = "tag";
-	doSearch();
+	document.location.href = "search.html?q=" + tags[0] + "&t=tag"
 }
 
 function doSearch() {
@@ -144,8 +142,8 @@ function handleCreateNewCollection(e) {
 }
 
 function handleAddToCollection(e) {
-    e.stopPropagation();
-    e.preventDefault();
+	e.stopPropagation();
+	e.preventDefault();
 	addToCollection(false)
 }
 
