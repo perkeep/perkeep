@@ -21,6 +21,7 @@ package db
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"camli/db/dbimpl"
 )
@@ -40,6 +41,8 @@ func Register(name string, driver dbimpl.Driver) {
 type DB struct {
 	driver dbimpl.Driver
 	dbarg  string
+
+	freeConn []dbimpl.Conn
 }
 
 func Open(driverName, database string) (*DB, os.Error) {
@@ -50,11 +53,44 @@ func Open(driverName, database string) (*DB, os.Error) {
 	return &DB{driver: driver, dbarg: database}, nil
 }
 
+func (db *DB) maxIdleConns() int {
+	const defaultMaxIdleConns = 2
+	// TODO(bradfitz): ask driver, if supported, for its default preference
+	// TODO(bradfitz): let users override?
+	return defaultMaxIdleConns
+}
+
+// conn returns a newly-opened or cached dbimpl.Conn
 func (db *DB) conn() (dbimpl.Conn, os.Error) {
+	if n := len(db.freeConn); n > 0 {
+		conn := db.freeConn[n-1]
+		db.freeConn = db.freeConn[:n-1]
+		return conn, nil
+	}
 	return db.driver.Open(db.dbarg)
 }
 
+func (db *DB) putConn(c dbimpl.Conn) {
+	if n := len(db.freeConn); n < db.maxIdleConns() {
+		db.freeConn = append(db.freeConn, c)
+		return
+	}
+	db.closeConn(c)
+}
+
+func (db *DB) closeConn(c dbimpl.Conn) {
+	// TODO: check to see if we need this Conn for any prepared statements
+	// that are active.
+	c.Close()
+}
+
 func (db *DB) Prepare(query string) (*Stmt, os.Error) {
+	// TODO: check if db.driver supports an optional
+	// dbimpl.Preparer interface and call that instead, if so,
+	// otherwise we make a prepared statement that's bound
+	// to a connection, and to execute this prepared statement
+	// we either need to use this connection (if it's free), else
+	// get a new connection + re-prepare + execute on that one.
 	ci, err := db.conn()
 	if err != nil {
 		return nil, err
@@ -64,33 +100,37 @@ func (db *DB) Prepare(query string) (*Stmt, os.Error) {
 		return nil, err
 	}
 	stmt := &Stmt{
-		db: db,
-		ci: ci,
-		si: si,
+		db:    db,
+		query: query,
+		ci:    ci,
+		si:    si,
 	}
 	return stmt, nil
 }
 
 func (db *DB) Exec(query string, args ...interface{}) os.Error {
+	// TODO(bradfitz): check to see if db.driver implements
+	// optional dbimpl.Execer interface and use that instead of
+	// even asking for a connection.
 	conn, err := db.conn()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
-	// TODO(bradfitz): check to see if conn implements optional
-	// dbimpl.ConnExecer interface and use that instead of
-	// Prepare+Exec
-	stmt, err := conn.Prepare(query)
+	defer db.putConn(conn)
+	// TODO(bradfitz): check to see if db.driver implements
+	// optional dbimpl.ConnExecer interface and use that instead
+	// of Prepare+Exec
+	sti, err := conn.Prepare(query)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
-	_, err = stmt.Exec(args)
+	defer sti.Close()
+	_, err = sti.Exec(args)
 	return err
 }
 
 func (db *DB) Query(query string, args ...interface{}) (*Rows, os.Error) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 var ErrNoRows = os.NewError("db: no rows in result set")
@@ -104,7 +144,7 @@ func (db *DB) QueryRow(query string, args ...interface{}) *Row {
 }
 
 func (db *DB) Begin() (*Tx, os.Error) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 // DriverDatabase returns the database's underlying driver.
@@ -120,49 +160,57 @@ type Tx struct {
 }
 
 func (tx *Tx) Commit() os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (tx *Tx) Rollback() os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (tx *Tx) Prepare(query string) (*Stmt, os.Error) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (tx *Tx) Exec(query string, args ...interface{}) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (tx *Tx) Query(query string, args ...interface{}) (*Rows, os.Error) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (tx *Tx) QueryRow(query string, args ...interface{}) *Row {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 type Stmt struct {
 	db *DB         // where we came from
-	ci dbimpl.Conn // owned
+	ci dbimpl.Conn // the Conn that we're bound to. to execute, we need to wait for this Conn to be free.
 	si dbimpl.Stmt // owned	
+
+	// query is the query that created the Stmt
+	query string
+}
+
+func todo() string {
+	_, file, line, _ := runtime.Caller(1)
+	return fmt.Sprintf("%s:%d: TODO: implement", file, line)
 }
 
 func (s *Stmt) Exec(args ...interface{}) os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (s *Stmt) QueryRow(args ...interface{}) *Row {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (s *Stmt) Close() os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 type Rows struct {
@@ -170,19 +218,19 @@ type Rows struct {
 }
 
 func (rs *Rows) Next() bool {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (rs *Rows) Error() os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (rs *Rows) Scan(dest ...interface{}) os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 func (rs *Rows) Close() os.Error {
-	panic("TODO: implement")
+	panic(todo())
 }
 
 type Row struct {

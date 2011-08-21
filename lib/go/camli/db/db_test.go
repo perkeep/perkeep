@@ -21,12 +21,16 @@ import (
 )
 
 func TestDb(t *testing.T) {
-	db, err := Open("test", "foo")
+	db, err := Open("test", "foo;wipe")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	err = db.Exec("INSERT INTO foo SET col=?", "colval")
+	err = db.Exec("CREATE|t1|name=string,age=int32,dead=bool")
 	if err != nil {
-		t.Logf("Exec: %v", err)
+		t.Errorf("Exec: %v", err)
+	}
+	stmt, err := db.Prepare("INSERT|t1|name=?,age=?")
+	if err != nil {
+		t.Errorf("Stmt, err = %v, %v", stmt, err)
 	}
 }

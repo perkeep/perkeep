@@ -28,12 +28,27 @@ import (
 //   []byte
 
 type Driver interface {
-	Open(name string) (Conn, os.Error)
+	// Open returns a new or cached connection to the database.
+	// The dsn parameter, the Data Source Name, contains a
+	// driver-specific string containing the database name,
+	// connection parameters, authentication parameters, etc.
+	//
+	// The returned connection is only used by one goroutine at a
+	// time.
+	Open(dsn string) (Conn, os.Error)
 }
 
 type Conn interface {
+	// Prepare returns a prepared statement, bound to this connection.
 	Prepare(query string) (Stmt, os.Error)
+
+	// Close invalidates and potentially stops any current
+	// prepared statements and transactions, marking this
+	// connection as no longer in use.  The driver may cache or
+	// close its underlying connection to its database.
 	Close() os.Error
+
+	// Begin starts and returns a new transaction.
 	Begin() (Tx, os.Error)
 }
 
@@ -42,6 +57,7 @@ type Result interface {
 	RowsAffected() (int64, os.Error)
 }
 
+// Stmt is a prepared statement. It is bound to a Conn.
 type Stmt interface {
 	Close() os.Error
 	NumInput() int
@@ -60,4 +76,16 @@ type Rows interface {
 type Tx interface {
 	Commit() os.Error
 	Rollback() os.Error
+}
+
+type ddlSuccess struct{}
+
+var DDLSuccess Result = ddlSuccess{}
+
+func (ddlSuccess) AutoIncrementId() (int64, os.Error) {
+	return 0, os.NewError("no AutoIncrementId available after DDL statement")
+}
+
+func (ddlSuccess) RowsAffected() (int64, os.Error) {
+	return 0, os.NewError("no RowsAffected available after DDL statement")
 }
