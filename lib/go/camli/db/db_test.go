@@ -21,7 +21,10 @@ import (
 )
 
 func TestDb(t *testing.T) {
-	db, err := Open("test", "foo;wipe")
+	db, err := Open("test", "foo")
+	if err := db.Exec("WIPE"); err != nil {
+		t.Fatalf("exec wipe: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -32,5 +35,36 @@ func TestDb(t *testing.T) {
 	stmt, err := db.Prepare("INSERT|t1|name=?,age=?")
 	if err != nil {
 		t.Errorf("Stmt, err = %v, %v", stmt, err)
+	}
+
+	type execTest struct {
+		args    []interface{}
+		wantErr string
+	}
+	execTests := []execTest{
+		// Okay:
+		{[]interface{}{"Brad", 31}, ""},
+		{[]interface{}{"Brad", int64(31)}, ""},
+		{[]interface{}{"Bob", "32"}, ""},
+		{[]interface{}{7, 9}, ""},
+
+		// Invalid conversions:
+		//{[]interface{}{"Brad", int64(0xFFFFFFFF)}, "conversion"},
+		//{[]interface{}{"Brad", "strconv fail"}, "conversion"},
+
+		// Wrong number of args:
+		//{[]interface{}{}, "wrong number of args"},
+		//{[]interface{}{1, 2, 3}, "wrong number of args"},
+	}
+	for n, et := range execTests {
+		err := stmt.Exec(et.args...)
+		errStr := ""
+		if err != nil {
+			errStr = err.String()
+		}
+		if errStr != et.wantErr {
+			t.Errorf("stmt.Execute #%d: for %v, got error %q, want error %q",
+				n, et.args, errStr, et.wantErr)
+		}
 	}
 }

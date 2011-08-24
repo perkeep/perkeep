@@ -56,8 +56,14 @@ type fakeDB struct {
 }
 
 type table struct {
+	mu      sync.Mutex
 	colname []string
 	coltype []string
+	rows    []*row
+}
+
+type row struct {
+	cols []interface{} // must be same size as its table colname + coltype
 }
 
 type fakeConn struct {
@@ -108,15 +114,15 @@ func (d *fakeDriver) Open(dsn string) (dbimpl.Conn, os.Error) {
 		db = &fakeDB{name: name}
 		d.dbs[name] = db
 	}
-	if len(parts) > 1 && parts[1] == "wipe" {
-		db.wipe()
-	}
 	return &fakeConn{db: db}, nil
 }
 
 func (db *fakeDB) wipe() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+	if len(db.tables) != 0 {
+		print("wiped db", db)
+	}
 	db.tables = nil
 }
 
@@ -137,16 +143,33 @@ func (db *fakeDB) createTable(name string, columnNames, columnTypes []string) os
 	return nil
 }
 
+func (db *fakeDB) insert(table string, vals []interface{}) (dbimpl.Result, os.Error) {
+	db.mu.Lock()
+	t, ok := db.table(table)
+	db.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("fakedb: table %q doesn't exist", table)
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.rows = append(t.rows, &row{cols: vals})
+	return dbimpl.RowsAffected(1), nil
+}
+
+// must be called with db.mu lock held
+func (db *fakeDB) table(table string) (*table, bool) {
+	if db.tables == nil {
+		return nil, false
+	}
+	t, ok := db.tables[table]
+	return t, ok
+}
+
 func (db *fakeDB) columnType(table, column string) (typ string, ok bool) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	if db.tables == nil {
-		println("no tables exist")
-		return
-	}
-	t, ok := db.tables[table]
+	t, ok := db.table(table)
 	if !ok {
-		println("table no exist")
 		return
 	}
 	for n, cname := range t.colname {
@@ -191,6 +214,8 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 	cmd := parts[0]
 	stmt := &fakeStmt{q: query, c: c, cmd: cmd}
 	switch cmd {
+	case "WIPE":
+		// Nothing
 	case "CREATE":
 		if len(parts) != 3 {
 			return nil, errf("invalid %q syntax with %d parts; want 3", cmd, len(parts))
@@ -239,12 +264,18 @@ func (s *fakeStmt) Close() os.Error {
 }
 
 func (s *fakeStmt) Exec(args []interface{}) (dbimpl.Result, os.Error) {
+	db := s.c.db
 	switch s.cmd {
+	case "WIPE":
+		db.wipe()
+		return dbimpl.DDLSuccess, nil
 	case "CREATE":
-		if err := s.c.db.createTable(s.table, s.colName, s.colType); err != nil {
+		if err := db.createTable(s.table, s.colName, s.colType); err != nil {
 			return nil, err
 		}
 		return dbimpl.DDLSuccess, nil
+	case "INSERT":
+		return db.insert(s.table, args)
 	}
 	fmt.Printf("EXEC statement, cmd=%q: %#v\n", s.cmd, s)
 	return nil, fmt.Errorf("unimplemented statement Exec command type of %q", s.cmd)

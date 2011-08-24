@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sync"
 
 	"camli/db/dbimpl"
 )
@@ -42,6 +43,7 @@ type DB struct {
 	driver dbimpl.Driver
 	dbarg  string
 
+	mu       sync.Mutex
 	freeConn []dbimpl.Conn
 }
 
@@ -62,12 +64,28 @@ func (db *DB) maxIdleConns() int {
 
 // conn returns a newly-opened or cached dbimpl.Conn
 func (db *DB) conn() (dbimpl.Conn, os.Error) {
+	db.mu.Lock()
 	if n := len(db.freeConn); n > 0 {
 		conn := db.freeConn[n-1]
 		db.freeConn = db.freeConn[:n-1]
+		db.mu.Unlock()
 		return conn, nil
 	}
+	db.mu.Unlock()
 	return db.driver.Open(db.dbarg)
+}
+
+func (db *DB) connIfFree(wanted dbimpl.Conn) (conn dbimpl.Conn, ok bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	for n, conn := range db.freeConn {
+		if conn == wanted {
+			db.freeConn[n] = db.freeConn[len(db.freeConn)-1]
+			db.freeConn = db.freeConn[:n-1]
+			return wanted, true
+		}
+	}
+	return nil, false
 }
 
 func (db *DB) putConn(c dbimpl.Conn) {
@@ -102,8 +120,7 @@ func (db *DB) Prepare(query string) (*Stmt, os.Error) {
 	stmt := &Stmt{
 		db:    db,
 		query: query,
-		ci:    ci,
-		si:    si,
+		css:   []connStmt{{ci, si}},
 	}
 	return stmt, nil
 }
@@ -183,13 +200,19 @@ func (tx *Tx) QueryRow(query string, args ...interface{}) *Row {
 	panic(todo())
 }
 
-type Stmt struct {
-	db *DB         // where we came from
-	ci dbimpl.Conn // the Conn that we're bound to. to execute, we need to wait for this Conn to be free.
-	si dbimpl.Stmt // owned	
+// connStmt is a prepared statement on a particular connection.
+type connStmt struct {
+	ci dbimpl.Conn
+	si dbimpl.Stmt
+}
 
-	// query is the query that created the Stmt
-	query string
+type Stmt struct {
+	// Immutable:
+	db    *DB    // where we came from
+	query string // that created the Sttm
+
+	mu  sync.Mutex
+	css []connStmt // can use any that have idle connections
 }
 
 func todo() string {
@@ -198,7 +221,53 @@ func todo() string {
 }
 
 func (s *Stmt) Exec(args ...interface{}) os.Error {
-	panic(todo())
+	ci, si, err := s.connStmt()
+	if err != nil {
+		return err
+	}
+	defer s.db.putConn(ci)
+	// TODO(bradfitz): convert args from full set (package db) to
+	// restricted set (package dbimpl)
+	resi, err := si.Exec(args)
+	if err != nil {
+		return err
+	}
+	_ = resi // TODO(bradfitz): return these stats, converted to pkg db type
+	return nil
+}
+
+func (s *Stmt) connStmt(args ...interface{}) (dbimpl.Conn, dbimpl.Stmt, os.Error) {
+	s.mu.Lock()
+	var cs connStmt
+	match := false
+	for _, v := range s.css {
+		// TODO(bradfitz): lazily clean up entries in this
+		// list with dead conns while enumerating
+		if _, match = s.db.connIfFree(cs.ci); match {
+			cs = v
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	// Make a new conn if all are busy.
+	// TODO(bradfitz): or wait for one? make configurable later?
+	if !match {
+		ci, err := s.db.conn()
+		if err != nil {
+			return nil, nil, err
+		}
+		si, err := ci.Prepare(s.query)
+		if err != nil {
+			return nil, nil, err
+		}
+		s.mu.Lock()
+		cs = connStmt{ci, si}
+		s.css = append(s.css, cs)
+		s.mu.Unlock()
+	}
+
+	return cs.ci, cs.si, nil
 }
 
 func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {

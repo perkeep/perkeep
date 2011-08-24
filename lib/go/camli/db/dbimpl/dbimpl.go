@@ -57,7 +57,8 @@ type Result interface {
 	RowsAffected() (int64, os.Error)
 }
 
-// Stmt is a prepared statement. It is bound to a Conn.
+// Stmt is a prepared statement. It is bound to a Conn and not
+// used by multiple goroutines concurrently.
 type Stmt interface {
 	Close() os.Error
 	NumInput() int
@@ -76,6 +77,16 @@ type Rows interface {
 type Tx interface {
 	Commit() os.Error
 	Rollback() os.Error
+}
+
+type RowsAffected int64
+
+func (RowsAffected) AutoIncrementId() (int64, os.Error) {
+	return 0, os.NewError("no AutoIncrementId available")
+}
+
+func (v RowsAffected) RowsAffected() (int64, os.Error) {
+	return int64(v), nil
 }
 
 type ddlSuccess struct{}
