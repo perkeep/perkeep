@@ -53,8 +53,8 @@ func TestDb(t *testing.T) {
 		//{[]interface{}{"Brad", "strconv fail"}, "conversion"},
 
 		// Wrong number of args:
-		//{[]interface{}{}, "wrong number of args"},
-		//{[]interface{}{1, 2, 3}, "wrong number of args"},
+		{[]interface{}{}, "fakedb: expected 2 arguments, got 0"},
+		{[]interface{}{1, 2, 3}, "fakedb: expected 2 arguments, got 3"},
 	}
 	for n, et := range execTests {
 		err := stmt.Exec(et.args...)

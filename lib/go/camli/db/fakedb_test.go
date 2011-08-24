@@ -83,9 +83,10 @@ type fakeStmt struct {
 	cmd   string
 	table string
 
-	colName  []string // used by CREATE, INSERT
-	colType  []string // used by CREATE
-	colValue []string // used by INSERT (mix of strings and "?" for bound params)
+	colName      []string // used by CREATE, INSERT
+	colType      []string // used by CREATE
+	colValue     []string // used by INSERT (mix of strings and "?" for bound params)
+	placeholders int      // number of ? params
 }
 
 var driver dbimpl.Driver = &fakeDriver{}
@@ -141,19 +142,6 @@ func (db *fakeDB) createTable(name string, columnNames, columnTypes []string) os
 	}
 	db.tables[name] = &table{colname: columnNames, coltype: columnTypes}
 	return nil
-}
-
-func (db *fakeDB) insert(table string, vals []interface{}) (dbimpl.Result, os.Error) {
-	db.mu.Lock()
-	t, ok := db.table(table)
-	db.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("fakedb: table %q doesn't exist", table)
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.rows = append(t.rows, &row{cols: vals})
-	return dbimpl.RowsAffected(1), nil
 }
 
 // must be called with db.mu lock held
@@ -249,6 +237,8 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 				// pre-bound value type conversion is
 				// valid for this column type
 				_ = ctype
+			} else {
+				stmt.placeholders++
 			}
 			stmt.colName = append(stmt.colName, column)
 			stmt.colValue = append(stmt.colValue, value)
@@ -275,10 +265,31 @@ func (s *fakeStmt) Exec(args []interface{}) (dbimpl.Result, os.Error) {
 		}
 		return dbimpl.DDLSuccess, nil
 	case "INSERT":
-		return db.insert(s.table, args)
+		return s.execInsert(args)
 	}
 	fmt.Printf("EXEC statement, cmd=%q: %#v\n", s.cmd, s)
 	return nil, fmt.Errorf("unimplemented statement Exec command type of %q", s.cmd)
+}
+
+func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
+	db := s.c.db
+	if len(args) != s.placeholders {
+		return nil, fmt.Errorf("fakedb: expected %d arguments, got %d", s.placeholders, len(args))
+	}
+	db.mu.Lock()
+	t, ok := db.table(s.table)
+	db.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("fakedb: table %q doesn't exist", s.table)
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// TODO(bradfitz): type check columns, fill in defaults, etc
+
+	//t.rows = append(t.rows, &row{cols: vals})
+	return dbimpl.RowsAffected(1), nil
 }
 
 func (s *fakeStmt) Query(args []interface{}) (dbimpl.Rows, os.Error) {
