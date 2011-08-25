@@ -246,7 +246,7 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 	// all integers -> int64, etc
 	for n, arg := range args {
 		var err os.Error
-		args[n], err = valueToImpl(arg)
+		args[n], err = dbimpl.SubsetValue(arg)
 		if err != nil {
 			return fmt.Errorf("db: error converting index %d: %v", n, err)
 		}

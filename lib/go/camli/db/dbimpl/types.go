@@ -70,3 +70,37 @@ func (stringType) ConvertValue(v interface{}) (interface{}, os.Error) {
 	}
 	return fmt.Sprintf("%v", v), nil
 }
+
+// SubsetValue converts v to one of the restricted subset types that
+// dbimpl drivers need to support: int64, float64, bool, nil, []byte
+func SubsetValue(v interface{}) (interface{}, os.Error) {
+	if v == nil {
+		return nil, nil
+	}
+	if _, ok := v.([]byte); ok {
+		return v, nil
+	}
+	if _, ok := v.(bool); ok {
+		return v, nil
+	}
+	if s, ok := v.(string); ok {
+		return []byte(s), nil
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return int64(rv.Uint()), nil
+	case reflect.Uint64:
+		u64 := rv.Uint()
+		if u64 >= 1 << 63 {
+			return nil, fmt.Errorf("uint64 values with high bit set are not supported")
+		}
+		return int64(u64), nil
+	case reflect.Float32, reflect.Float64:
+		return rv.Float(), nil
+	}
+	return nil, fmt.Errorf("unsupported type %s", rv.Kind())
+}
