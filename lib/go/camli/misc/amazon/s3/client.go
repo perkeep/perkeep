@@ -27,6 +27,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"url"
 	"xml"
 )
 
@@ -49,8 +50,8 @@ func (c *Client) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
-func newReq(url string) *http.Request {
-	req, err := http.NewRequest("GET", url, nil)
+func newReq(url_ string) *http.Request {
+	req, err := http.NewRequest("GET", url_, nil)
 	if err != nil {
 		panic(fmt.Sprintf("s3 client; invalid URL: %v", err))
 	}
@@ -131,9 +132,9 @@ type listBucketResults struct {
 
 func (c *Client) ListBucket(bucket string, after string, maxKeys uint) (items []*Item, reterr os.Error) {
 	var bres listBucketResults
-	url := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
-		bucket, http.URLEscape(after), maxKeys)
-	req := newReq(url)
+	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
+		bucket, url.QueryEscape(after), maxKeys)
+	req := newReq(url_)
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
 	if res != nil && res.Body != nil {
@@ -149,8 +150,8 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys uint) (items []
 }
 
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err os.Error) {
-	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
-	req := newReq(url)
+	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	req := newReq(url_)
 	c.Auth.SignRequest(req)
 	var res *http.Response
 	res, err = c.httpClient().Do(req)
@@ -174,8 +175,8 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err os
 }
 
 func (c *Client) Delete(bucket, key string) os.Error {
-	url := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
-	req := newReq(url)
+	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	req := newReq(url_)
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)

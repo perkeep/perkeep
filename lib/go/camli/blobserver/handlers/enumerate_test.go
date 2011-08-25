@@ -23,17 +23,18 @@ import (
 	"http/httptest"
 	"os"
 	"testing"
+	"url"
 )
 
-func makeGetRequest(url string) *http.Request {
+func makeGetRequest(url_ string) *http.Request {
 	req := &http.Request{
 		Method: "GET",
-		RawURL: url,
+		RawURL: url_,
 	}
 	var err os.Error
-	req.URL, err = http.ParseURL(url)
+	req.URL, err = url.Parse(url_)
 	if err != nil {
-		panic("Error parsing url: " + url)
+		panic("Error parsing url: " + url_)
 	}
 	return req
 }

@@ -27,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"url"
 	"xml"
 
 	"camli/third_party/code.google.com/goauth2/oauth"
@@ -94,9 +95,9 @@ func (gsa *Client) doRequest(req *http.Request, canResend bool) (resp *http.Resp
 }
 
 // Makes a simple body-less google storage request
-func (gsa *Client) simpleRequest(method, url string) (resp *http.Response, err os.Error) {
+func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err os.Error) {
 	// Construct the request
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, url_, nil)
 	if err != nil {
 		return
 	}
@@ -206,7 +207,7 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit uint) ([]SizedOb
 	// Build url, with query params
 	params := make([]string, 0, 2)
 	if after != "" {
-		params = append(params, "marker="+http.URLEscape(after))
+		params = append(params, "marker="+url.QueryEscape(after))
 	}
 	if limit > 0 {
 		params = append(params, fmt.Sprintf("max-keys=%v", limit))

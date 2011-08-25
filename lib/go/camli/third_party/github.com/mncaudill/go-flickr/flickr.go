@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"url"
 )
 
 const (
@@ -113,12 +114,12 @@ func encodeQuery(args map[string]string) string {
 			s.WriteString("&")
 		}
 		i++
-		s.WriteString(k + "=" + http.URLEscape(v))
+		s.WriteString(k + "=" + url.QueryEscape(v))
 	}
 	return s.String()
 }
 
-func (request *Request) buildPost(url string, filename string, filetype string) (*http.Request, os.Error) {
+func (request *Request) buildPost(url_ string, filename string, filetype string) (*http.Request, os.Error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -169,7 +170,7 @@ func (request *Request) buildPost(url string, filename string, filetype string) 
 
 	postRequest := &http.Request{
 		Method:        "POST",
-		RawURL:        url,
+		RawURL:        url_,
 		Host:          apiHost,
 		Header:        http_header,
 		Body:          r,
@@ -211,7 +212,7 @@ func (r *Request) sendPost(post *http.Request) (body string, err os.Error) {
 	}
 	rawBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-                return
-        }
+		return
+	}
 	return string(rawBody), nil
 }

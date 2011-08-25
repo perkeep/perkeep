@@ -32,6 +32,7 @@ import (
 	"camli/jsonconfig"
 	"camli/search"
 	uistatic "camlistore.org/server/uistatic"
+	"url"
 )
 
 var _ = log.Printf
@@ -144,7 +145,7 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 func camliMode(req *http.Request) string {
 	// TODO-GO: this is too hard to get at the GET Query args on a
 	// POST request.
-	m, err := http.ParseQuery(req.URL.RawQuery)
+	m, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
 		return ""
 	}
@@ -254,13 +255,13 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	discoveryHelper(rw, req, map[string]interface{}{
-		"blobRoot":       ui.BlobRoot,
-		"searchRoot":     ui.SearchRoot,
-		"jsonSignRoot":   ui.JSONSignRoot,
-		"uploadHelper":   "?camli.mode=uploadhelper", // hack; remove with better javascript
-		"downloadHelper": "./download/",
+		"blobRoot":        ui.BlobRoot,
+		"searchRoot":      ui.SearchRoot,
+		"jsonSignRoot":    ui.JSONSignRoot,
+		"uploadHelper":    "?camli.mode=uploadhelper", // hack; remove with better javascript
+		"downloadHelper":  "./download/",
 		"directoryHelper": "./tree/",
-		"publishRoots":   pubRoots,
+		"publishRoots":    pubRoots,
 	})
 }
 
@@ -350,8 +351,8 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	fth := &FileTreeHandler{
-		Fetcher:   ui.Storage,
-		file: blobref,
+		Fetcher: ui.Storage,
+		file:    blobref,
 	}
 	fth.ServeHTTP(rw, req)
 }

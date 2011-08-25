@@ -44,6 +44,7 @@ import (
 	"json"
 	"os"
 	"time"
+	"url"
 )
 
 // Config is the configuration of an OAuth consumer.
@@ -106,23 +107,23 @@ func (t *Transport) transport() http.RoundTripper {
 // AuthCodeURL returns a URL that the end-user should be redirected to,
 // so that they may obtain an authorization code.
 func (c *Config) AuthCodeURL(state string) string {
-	url, err := http.ParseURL(c.AuthURL)
+	url_, err := url.Parse(c.AuthURL)
 	if err != nil {
 		panic("AuthURL malformed: " + err.String())
 	}
-	q := http.Values{
+	q := url.Values{
 		"response_type": {"code"},
 		"client_id":     {c.ClientId},
 		"redirect_uri":  {c.redirectURL()},
 		"scope":         {c.Scope},
 		"state":         {state},
 	}.Encode()
-	if url.RawQuery == "" {
-		url.RawQuery = q
+	if url_.RawQuery == "" {
+		url_.RawQuery = q
 	} else {
-		url.RawQuery += "&" + q
+		url_.RawQuery += "&" + q
 	}
-	return url.String()
+	return url_.String()
 }
 
 // Exchange takes a code and gets access Token from the remote server.
@@ -131,7 +132,7 @@ func (t *Transport) Exchange(code string) (tok *Token, err os.Error) {
 		return nil, os.NewError("no Config supplied")
 	}
 	tok = new(Token)
-	err = t.updateToken(tok, http.Values{
+	err = t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
 		"redirect_uri": {t.redirectURL()},
 		"scope":        {t.Scope},
@@ -163,13 +164,13 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err os.Er
 }
 
 func (t *Transport) Refresh() os.Error {
-	return t.updateToken(t.Token, http.Values{
+	return t.updateToken(t.Token, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {t.RefreshToken},
 	})
 }
 
-func (t *Transport) updateToken(tok *Token, v http.Values) os.Error {
+func (t *Transport) updateToken(tok *Token, v url.Values) os.Error {
 	v.Set("client_id", t.ClientId)
 	v.Set("client_secret", t.ClientSecret)
 	r, err := (&http.Client{Transport: t.transport()}).PostForm(t.TokenURL, v)
