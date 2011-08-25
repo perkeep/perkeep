@@ -32,6 +32,7 @@ import (
 	"strings"
 	"template"
 	"time"
+	"url"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -69,7 +70,6 @@ func htmlFmt(w io.Writer, format string, x ...interface{}) {
 	writeAny(w, true, x[0])
 }
 
-
 // Template formatter for "html-esc" format.
 func htmlEscFmt(w io.Writer, format string, x ...interface{}) {
 	var buf bytes.Buffer
@@ -103,7 +103,6 @@ func writeText(w io.Writer, text []byte, html bool) {
 	}
 	w.Write(text)
 }
-
 
 func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 	var buf bytes.Buffer
@@ -267,7 +266,7 @@ func main() {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 
-	gerritUrl, _ := http.ParseURL("http://gerrit-proxy:8000/")
+	gerritUrl, _ := url.Parse("http://gerrit-proxy:8000/")
 	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
 	if *httpsAddr != "" {
 		proxyHandler := gerritHandler
