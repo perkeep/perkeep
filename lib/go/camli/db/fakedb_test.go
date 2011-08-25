@@ -132,9 +132,6 @@ func (d *fakeDriver) Open(dsn string) (dbimpl.Conn, os.Error) {
 func (db *fakeDB) wipe() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	if len(db.tables) != 0 {
-		print("wiped db", db)
-	}
 	db.tables = nil
 }
 

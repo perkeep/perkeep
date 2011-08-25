@@ -20,18 +20,33 @@ import (
 	"testing"
 )
 
-func TestDb(t *testing.T) {
+func newTestDB(t *testing.T, name string) *DB {
 	db, err := Open("test", "foo")
-	if err := db.Exec("WIPE"); err != nil {
-		t.Fatalf("exec wipe: %v", err)
-	}
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	err = db.Exec("CREATE|t1|name=string,age=int32,dead=bool")
-	if err != nil {
-		t.Errorf("Exec: %v", err)
+	if err := db.Exec("WIPE"); err != nil {
+		t.Fatalf("exec wipe: %v", err)
 	}
+	return db
+}
+
+func exec(t *testing.T, db *DB, query string) {
+	err := db.Exec(query)
+	if err != nil {
+		t.Fatalf("Exec of %q: %v", query, err)
+	}
+}
+
+func TestQuery(t *testing.T) {
+	db := newTestDB(t, "foo")
+	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
+
+}
+
+func TestDb(t *testing.T) {
+	db := newTestDB(t, "foo")
+	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
 	stmt, err := db.Prepare("INSERT|t1|name=?,age=?")
 	if err != nil {
 		t.Errorf("Stmt, err = %v, %v", stmt, err)
