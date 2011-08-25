@@ -314,6 +314,14 @@ function camliGetTaggedPermanodes(signer, value, opts) {
     xhr.send();
 }
 
+function camliGetRequestedPermanodes(signer, attr, value, fuzzy, opts) {
+    var xhr = camliJsonXhr("camliGetRequestedPermanodes", opts);
+    var path = makeURL(Camli.config.searchRoot + "camli/search/request",
+                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy });
+    xhr.open("GET", path, true);
+    xhr.send();
+}
+
 function camliXhr(name, opts) {
     opts = saneOpts(opts);
     var xhr = new XMLHttpRequest();

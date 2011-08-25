@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +36,7 @@ import (
 )
 
 const buffered = 32      // arbitrary channel buffer size
-const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched (by getTagged)
+const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched 
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -106,6 +107,9 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		case "camli/search/tag":
 			sh.serveTaggedPermanodes(rw, req)
+			return
+		case "camli/search/request":
+			sh.serveRequestedPermanodes(rw, req)
 			return
 		case "camli/search/describe":
 			sh.serveDescribe(rw, req)
@@ -189,12 +193,76 @@ func (sh *Handler) serveTaggedPermanodes(rw http.ResponseWriter, req *http.Reque
 
 	err := <-errch
 	if err != nil {
-		// TODO: return error status code
+		// TODO(mpl): return error status code, in addition to the english error code
 		ret["error"] = err.String()
 		return
 	}
 
 	ret["tagged"] = tagged
+	dr.PopulateJSON(ret)
+}
+
+// TODO(mpl): configure and/or document the name of the possible attributes in the http request
+func (sh *Handler) serveRequestedPermanodes(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJson(rw, ret)
+
+	signer := blobref.MustParse(mustGet(req, "signer"))
+	value := mustGet(req, "value")
+	fuzzy := req.FormValue("fuzzy") // exact match if empty
+	fuzzyMatch := false
+	if fuzzy != "" {
+		lowered := strings.ToLower(fuzzy)
+		if lowered == "true" || lowered == "t" {
+			fuzzyMatch = true
+		}
+	}
+	attr := req.FormValue("attr") // all attributes if empty
+	if attr == "" {               // and force fuzzy in that case.
+		fuzzyMatch = true
+	}
+	maxResults := maxPermanodes
+	max := req.FormValue("max")
+	if max != "" {
+		maxR, err := strconv.Atoi(max)
+		if err != nil {
+			log.Printf("Invalid specified max results 'max': " + err.String())
+			return
+		}
+		if maxR < maxResults {
+			maxResults = maxR
+		}
+	}
+
+	ch := make(chan *blobref.BlobRef, buffered)
+	errch := make(chan os.Error)
+	go func() {
+		errch <- sh.index.SearchPermanodes(ch,
+			&PermanodesRequest{Attribute: attr,
+				Query:      value,
+				Signer:     signer,
+				FuzzyMatch: fuzzyMatch,
+				MaxResults: maxResults})
+	}()
+
+	dr := sh.NewDescribeRequest()
+
+	requested := jsonMapList()
+	for res := range ch {
+		dr.Describe(res, 2)
+		jm := jsonMap()
+		jm["permanode"] = res.String()
+		requested = append(requested, jm)
+	}
+
+	err := <-errch
+	if err != nil {
+		// TODO(mpl): return error status code, in addition to the english error code
+		ret["error"] = err.String()
+		return
+	}
+
+	ret["requested"] = requested
 	dr.PopulateJSON(ret)
 }
 

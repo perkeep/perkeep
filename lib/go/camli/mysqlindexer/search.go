@@ -169,6 +169,53 @@ func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blo
 	return nil
 }
 
+func (mi *Indexer) SearchPermanodes(dest chan<- *blobref.BlobRef, request *search.PermanodesRequest) os.Error {
+	defer close(dest)
+	keyId, err := mi.keyIdOfSigner(request.Signer)
+	if err != nil {
+		return err
+	}
+	query := ""
+	var rs ResultSet
+	if request.Attribute == "" {
+		query = "SELECT permanode FROM signerattrvalueft WHERE keyid = ? AND MATCH(value) AGAINST (?) AND claimdate <> '' LIMIT ?"
+		rs, err = mi.db.Query(query, keyId, request.Query, request.MaxResults)
+		if err != nil {
+			return err
+		}
+	} else {
+		if request.FuzzyMatch {
+			query = "SELECT permanode FROM signerattrvalueft WHERE keyid = ? AND attr = ? AND MATCH(value) AGAINST (?) AND claimdate <> '' LIMIT ?"
+			rs, err = mi.db.Query(query, keyId, request.Attribute,
+				request.Query, request.MaxResults)
+			if err != nil {
+				return err
+			}
+		} else {
+			query = "SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ? AND claimdate <> '' ORDER BY claimdate DESC LIMIT ?"
+			rs, err = mi.db.Query(query, keyId, request.Attribute,
+				request.Query, request.MaxResults)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	defer rs.Close()
+
+	pn := ""
+	for rs.Next() {
+		if err := rs.Scan(&pn); err != nil {
+			return err
+		}
+		br := blobref.Parse(pn)
+		if br == nil {
+			continue
+		}
+		dest <- br
+	}
+	return nil
+}
+
 func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
 	rs, err := mi.db.Query("SELECT fileschemaref FROM files WHERE bytesref=?", bytesRef.String())
 	if err != nil {
