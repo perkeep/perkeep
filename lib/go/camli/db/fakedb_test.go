@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -94,7 +95,7 @@ type fakeStmt struct {
 
 	colName      []string // used by CREATE, INSERT
 	colType      []string // used by CREATE
-	colValue     []string // used by INSERT (mix of strings and "?" for bound params)
+	colValue     []interface{} // used by INSERT (mix of strings and "?" for bound params)
 	placeholders int      // number of ? params
 
 	placeholderConverter []dbimpl.ValueConverter // used by INSERT
@@ -240,16 +241,27 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 			if !ok {
 				return nil, errf("INSERT table %q references non-existent column %q", stmt.table, column)
 			}
+			var subsetVal interface{}
 			if value != "?" {
-				// TODO(bradfitz): check that
-				// pre-bound value type conversion is
-				// valid for this column type
+				// Convert to dbimpl subset type
+				switch ctype {
+				case "string":
+					subsetVal = []byte(value)
+				case "int32":
+					i, err := strconv.Atoi(value)
+					if err != nil {
+						return nil, errf("invalid conversion to int32 from %q", value)
+					}
+					subsetVal = int64(i) // int64 is a subset type, but not int32
+				default:
+					return nil, errf("unsupported conversion for pre-bound parameter %q to type %q", value, ctype)
+				}
 			} else {
 				stmt.placeholders++
 				stmt.placeholderConverter = append(stmt.placeholderConverter, converterForType(ctype))
 			}
 			stmt.colName = append(stmt.colName, column)
-			stmt.colValue = append(stmt.colValue, value)
+			stmt.colValue = append(stmt.colValue, subsetVal)
 		}
 	default:
 		return nil, errf("unsupported command type %q", cmd)
@@ -306,7 +318,7 @@ func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
 			return nil, fmt.Errorf("fakedb: column %q doesn't exist or dropped since prepared statement was created", colname)
 		}
 		var val interface{}
-		if s.colValue[n] == "?" {
+		if strvalue, ok := s.colValue[n].(string); ok && strvalue == "?" {
 			val = args[argPos]
 			argPos++
 		} else {

@@ -45,6 +45,19 @@ func TestQuery(t *testing.T) {
 
 }
 
+// just a test of fakedb itself
+func TestBogusPreboundParameters(t *testing.T) {
+	db := newTestDB(t, "foo")
+	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
+	_, err := db.Prepare("INSERT|t1|name=?,age=bogusconversion")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if err.String() != `fakedb: invalid conversion to int32 from "bogusconversion"` {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestDb(t *testing.T) {
 	db := newTestDB(t, "foo")
 	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
