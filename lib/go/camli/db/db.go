@@ -244,7 +244,13 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 	// Then convert everything into the restricted subset
 	// of types that the dbimpl package needs to know about.
 	// all integers -> int64, etc
-	// TODO(bradfitz): ^that
+	for n, arg := range args {
+		var err os.Error
+		args[n], err = valueToImpl(arg)
+		if err != nil {
+			return fmt.Errorf("db: error converting index %d: %v", n, err)
+		}
+	}
 
 	resi, err := si.Exec(args)
 	if err != nil {

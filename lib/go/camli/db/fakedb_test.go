@@ -312,11 +312,6 @@ func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
 		} else {
 			val = s.colValue[n]
 		}
-		valType := fmt.Sprintf("%T", val)
-		if colType := t.coltype[colidx]; valType != colType {
-			return nil, fmt.Errorf("fakedb: column %q value of %v (%v) doesn't match column type of %q",
-				colname, val, valType, colType)
-		}
 		cols[colidx] = val
 	}
 

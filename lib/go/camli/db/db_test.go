@@ -31,8 +31,8 @@ func newTestDB(t *testing.T, name string) *DB {
 	return db
 }
 
-func exec(t *testing.T, db *DB, query string) {
-	err := db.Exec(query)
+func exec(t *testing.T, db *DB, query string, args ...interface{}) {
+	err := db.Exec(query, args...)
 	if err != nil {
 		t.Fatalf("Exec of %q: %v", query, err)
 	}
@@ -41,6 +41,7 @@ func exec(t *testing.T, db *DB, query string) {
 func TestQuery(t *testing.T) {
 	db := newTestDB(t, "foo")
 	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
+	exec(t, db, "INSERT|t1|name=Brad,age=?", 31)
 
 }
 
