@@ -226,8 +226,26 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 		return err
 	}
 	defer s.db.putConn(ci)
-	// TODO(bradfitz): convert args from full set (package db) to
-	// restricted set (package dbimpl)
+
+	if want := si.NumInput(); len(args) != want {
+		return fmt.Errorf("db: expected %d arguments, got %d", want, len(args))
+	}
+
+	// Convert args if the driver knows its own types.
+	if cc, ok := si.(dbimpl.ColumnConverter); ok {
+		for n, arg := range args {
+			args[n], err = cc.ColumnCoverter(n).ConvertValue(arg)
+			if err != nil {
+				return fmt.Errorf("db: converting Exec column index %d: %v", n, err)
+			}
+		}
+	}
+
+	// Then convert everything into the restricted subset
+	// of types that the dbimpl package needs to know about.
+	// all integers -> int64, etc
+	// TODO(bradfitz): ^that
+
 	resi, err := si.Exec(args)
 	if err != nil {
 		return err

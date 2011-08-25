@@ -49,12 +49,12 @@ func TestDb(t *testing.T) {
 		{[]interface{}{7, 9}, ""},
 
 		// Invalid conversions:
-		//{[]interface{}{"Brad", int64(0xFFFFFFFF)}, "conversion"},
-		//{[]interface{}{"Brad", "strconv fail"}, "conversion"},
+		{[]interface{}{"Brad", int64(0xFFFFFFFF)}, "db: converting Exec column index 1: value 4294967295 overflows int32"},
+		{[]interface{}{"Brad", "strconv fail"}, "db: converting Exec column index 1: value \"strconv fail\" can't be converted to int32"},
 
 		// Wrong number of args:
-		{[]interface{}{}, "fakedb: expected 2 arguments, got 0"},
-		{[]interface{}{1, 2, 3}, "fakedb: expected 2 arguments, got 3"},
+		{[]interface{}{}, "db: expected 2 arguments, got 0"},
+		{[]interface{}{1, 2, 3}, "db: expected 2 arguments, got 3"},
 	}
 	for n, et := range execTests {
 		err := stmt.Exec(et.args...)

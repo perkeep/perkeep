@@ -62,6 +62,15 @@ type table struct {
 	rows    []*row
 }
 
+func (t *table) columnIndex(name string) int {
+	for n, nname := range t.colname {
+		if name == nname {
+			return n
+		}
+	}
+	return -1
+}
+
 type row struct {
 	cols []interface{} // must be same size as its table colname + coltype
 }
@@ -87,6 +96,8 @@ type fakeStmt struct {
 	colType      []string // used by CREATE
 	colValue     []string // used by INSERT (mix of strings and "?" for bound params)
 	placeholders int      // number of ? params
+
+	placeholderConverter []dbimpl.ValueConverter // used by INSERT
 }
 
 var driver dbimpl.Driver = &fakeDriver{}
@@ -236,9 +247,9 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 				// TODO(bradfitz): check that
 				// pre-bound value type conversion is
 				// valid for this column type
-				_ = ctype
 			} else {
 				stmt.placeholders++
+				stmt.placeholderConverter = append(stmt.placeholderConverter, converterForType(ctype))
 			}
 			stmt.colName = append(stmt.colName, column)
 			stmt.colValue = append(stmt.colValue, value)
@@ -247,6 +258,10 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 		return nil, errf("unsupported command type %q", cmd)
 	}
 	return stmt, nil
+}
+
+func (s *fakeStmt) ColumnCoverter(idx int) dbimpl.ValueConverter {
+	return s.placeholderConverter[idx]
 }
 
 func (s *fakeStmt) Close() os.Error {
@@ -274,7 +289,7 @@ func (s *fakeStmt) Exec(args []interface{}) (dbimpl.Result, os.Error) {
 func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
 	db := s.c.db
 	if len(args) != s.placeholders {
-		return nil, fmt.Errorf("fakedb: expected %d arguments, got %d", s.placeholders, len(args))
+		panic("error in pkg db; should only get here if size is correct")
 	}
 	db.mu.Lock()
 	t, ok := db.table(s.table)
@@ -286,9 +301,29 @@ func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// TODO(bradfitz): type check columns, fill in defaults, etc
+	cols := make([]interface{}, len(t.colname))
+	argPos := 0
+	for n, colname := range s.colName {
+		colidx := t.columnIndex(colname)
+		if colidx == -1 {
+			return nil, fmt.Errorf("fakedb: column %q doesn't exist or dropped since prepared statement was created", colname)
+		}
+		var val interface{}
+		if s.colValue[n] == "?" {
+			val = args[argPos]
+			argPos++
+		} else {
+			val = s.colValue[n]
+		}
+		valType := fmt.Sprintf("%T", val)
+		if colType := t.coltype[colidx]; valType != colType {
+			return nil, fmt.Errorf("fakedb: column %q value of %v (%v) doesn't match column type of %q",
+				colname, val, valType, colType)
+		}
+		cols[colidx] = val
+	}
 
-	//t.rows = append(t.rows, &row{cols: vals})
+	t.rows = append(t.rows, &row{cols: cols})
 	return dbimpl.RowsAffected(1), nil
 }
 
@@ -299,7 +334,7 @@ func (s *fakeStmt) Query(args []interface{}) (dbimpl.Rows, os.Error) {
 }
 
 func (s *fakeStmt) NumInput() int {
-	return 0
+	return s.placeholders
 }
 
 func (tx *fakeTx) Commit() os.Error {
@@ -310,4 +345,16 @@ func (tx *fakeTx) Commit() os.Error {
 func (tx *fakeTx) Rollback() os.Error {
 	tx.c.currTx = nil
 	return nil
+}
+
+func converterForType(typ string) dbimpl.ValueConverter {
+	switch typ {
+	case "bool":
+		return dbimpl.Bool
+	case "int32":
+		return dbimpl.Int32
+	case "string":
+		return dbimpl.String
+	}
+	panic("invalid fakedb column type of " + typ)
 }

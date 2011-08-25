@@ -66,6 +66,16 @@ type Stmt interface {
 	Query(args []interface{}) (Rows, os.Error)
 }
 
+// ColumnConverter may be optionally implemented by Stmt to signal
+// to the db package to do type conversions.
+type ColumnConverter interface {
+	ColumnCoverter(idx int) ValueConverter
+}
+
+type ValueConverter interface {
+	ConvertValue(v interface{}) (interface{}, os.Error)
+}
+
 type Rows interface {
 	Columns() []string
 	Close() os.Error
