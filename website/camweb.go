@@ -30,7 +30,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"template"
+	"old/template"
 	"time"
 	"url"
 )
