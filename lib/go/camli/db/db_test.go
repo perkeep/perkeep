@@ -141,7 +141,7 @@ func TestDb(t *testing.T) {
 		{[]interface{}{1, 2, 3}, "db: expected 2 arguments, got 3"},
 	}
 	for n, et := range execTests {
-		err := stmt.Exec(et.args...)
+		_, err := stmt.Exec(et.args...)
 		errStr := ""
 		if err != nil {
 			errStr = err.String()

@@ -294,15 +294,15 @@ func todo() string {
 	return fmt.Sprintf("%s:%d: TODO: implement", file, line)
 }
 
-func (s *Stmt) Exec(args ...interface{}) os.Error {
+func (s *Stmt) Exec(args ...interface{}) (Result, os.Error) {
 	ci, si, err := s.connStmt()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer s.db.putConn(ci)
 
 	if want := si.NumInput(); len(args) != want {
-		return fmt.Errorf("db: expected %d arguments, got %d", want, len(args))
+		return nil, fmt.Errorf("db: expected %d arguments, got %d", want, len(args))
 	}
 
 	// Convert args if the driver knows its own types.
@@ -310,7 +310,7 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 		for n, arg := range args {
 			args[n], err = cc.ColumnCoverter(n).ConvertValue(arg)
 			if err != nil {
-				return fmt.Errorf("db: converting Exec column index %d: %v", n, err)
+				return nil, fmt.Errorf("db: converting Exec column index %d: %v", n, err)
 			}
 		}
 	}
@@ -322,16 +322,15 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 		var err os.Error
 		args[n], err = dbimpl.SubsetValue(arg)
 		if err != nil {
-			return fmt.Errorf("db: error converting index %d: %v", n, err)
+			return nil, fmt.Errorf("db: error converting index %d: %v", n, err)
 		}
 	}
 
 	resi, err := si.Exec(args)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_ = resi // TODO(bradfitz): return these stats, converted to pkg db type
-	return nil
+	return result{resi}, nil
 }
 
 func (s *Stmt) connStmt(args ...interface{}) (dbimpl.Conn, dbimpl.Stmt, os.Error) {
@@ -408,9 +407,9 @@ func (s *Stmt) QueryRow(args ...interface{}) *Row {
 
 func (s *Stmt) Close() os.Error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.mu.Unlock()  // TODO(bradfitz): move this unlock after 'closed = true'?
 	if s.closed {
-		return os.NewError("db: statement already closed")
+		return nil
 	}
 	s.closed = true
 	for _, v := range s.css {
