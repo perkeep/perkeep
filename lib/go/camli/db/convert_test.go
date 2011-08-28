@@ -76,3 +76,21 @@ func TestConversions(t *testing.T) {
 		}
 	}
 }
+
+func TestMaybeString(t *testing.T) {
+	var ms MaybeString
+	copyConvert(&ms, []byte("foo"))
+	if !ms.Ok {
+		t.Errorf("expecting ok")
+	}
+	if ms.String != "foo" {
+		t.Errorf("expecting foo; got %q", ms.String)
+	}
+	copyConvert(&ms, nil)
+	if ms.Ok {
+		t.Errorf("expecting not ok on nil")
+	}
+	if ms.String != "" {
+		t.Errorf("expecting blank on nil; got %q", ms.String)
+	}
+}

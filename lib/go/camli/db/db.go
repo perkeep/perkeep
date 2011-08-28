@@ -47,14 +47,23 @@ func Register(name string, driver dbimpl.Driver) {
 // TODO(bradfitz): implement, and add other types.
 type MaybeString struct {
 	String string
-	Ok     bool
+	Ok     bool  // Ok is true if the String is not NULL
 }
 
+func (ms *MaybeString) ScanInto(value interface{}) os.Error {
+	if value == nil {
+		ms.String, ms.Ok = "", false
+		return nil
+	}
+	ms.Ok = true
+	return copyConvert(&ms.String, value)
+}
+
+
 // ScannerInto is an interface used by Scan.
-// TODO(bradfitz): flesh this out?
 type ScannerInto interface {
-	// v is nil for NULL database columns.
-	ScanInto(v interface{}) os.Error
+	// value is nil for NULL database columns.
+	ScanInto(value interface{}) os.Error
 }
 
 // ErrNoRows is returned by Scan when QueryRow doesn't return a

@@ -28,11 +28,7 @@ import (
 // An error is returned if the copy would result in loss of information.
 // dest should be a pointer type.
 func copyConvert(dest, src interface{}) os.Error {
-	dpv := reflect.ValueOf(dest)
-	if dpv.Kind() != reflect.Ptr {
-		return os.NewError("destination not a pointer")
-	}
-
+	// Common cases, without reflect.  Fall through.
 	switch s := src.(type) {
 	case []byte:
 		switch d := dest.(type) {
@@ -43,6 +39,15 @@ func copyConvert(dest, src interface{}) os.Error {
 			*d = s
 			return nil
 		}
+	}
+
+	if scanner, ok := dest.(ScannerInto); ok {
+		return scanner.ScanInto(src)
+	}
+
+	dpv := reflect.ValueOf(dest)
+	if dpv.Kind() != reflect.Ptr {
+		return os.NewError("destination not a pointer")
 	}
 
 	dv := reflect.Indirect(dpv)
