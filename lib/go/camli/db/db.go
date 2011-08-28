@@ -42,15 +42,27 @@ func Register(name string, driver dbimpl.Driver) {
 	drivers[name] = driver
 }
 
-// MaybeString is type representing a string which may be null. A pointer
-// to a MaybeString may be used in scan to test whether a column is null.
-// TODO(bradfitz): implement, and add other types.
-type MaybeString struct {
+// NullableString is type representing a string which may be
+// null. NullableString implements the ScannerInto inteface so can be
+// used as a scan destination:
+//
+//  var s NullableString
+//  err := db.QueryRow("SELECT name FROM foo WHERE id=?", id).Scan(&s)
+//  ...
+//  if !s.Ok {
+//      // NULL value
+//  } else {
+//     // use s.String
+//  }
+//
+// TODO(bradfitz): add other types.
+type NullableString struct {
 	String string
 	Ok     bool // Ok is true if the String is not NULL
 }
 
-func (ms *MaybeString) ScanInto(value interface{}) os.Error {
+// ScanInto implements the ScannerInto interface.
+func (ms *NullableString) ScanInto(value interface{}) os.Error {
 	if value == nil {
 		ms.String, ms.Ok = "", false
 		return nil
