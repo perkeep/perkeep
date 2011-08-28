@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -47,13 +48,22 @@ func TestQuery(t *testing.T) {
 
 	var name string
 	var age int
-	err := db.QueryRow("SELECT|t1|age,name|age=?", 2).Scan(&age, &name)
+
+	err := db.QueryRow("SELECT|t1|age,name|age=?", 3).Scan(&age)
+	if err == nil || !strings.Contains(err.String(), "expected 2 destination arguments") {
+		t.Errorf("expected error from wrong number of arguments; actually got: %v", err)
+	}
+
+	err = db.QueryRow("SELECT|t1|age,name|age=?", 2).Scan(&age, &name)
 	if err != nil {
 		t.Fatalf("QueryRow+Scan: %v", err)
 	}
-	t.Logf("name=%q, age=%d", name, age)
-
-	// TODO(bradfitz): check that name and age are correct.
+	if name != "Bob" {
+		t.Errorf("expected name Bob, got %q", name)
+	}
+	if age != 2 {
+		t.Errorf("expected age 2, got %d", age)
+	}
 }
 
 // just a test of fakedb itself

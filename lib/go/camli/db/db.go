@@ -42,6 +42,21 @@ func Register(name string, driver dbimpl.Driver) {
 	drivers[name] = driver
 }
 
+// MaybeString is type representing a string which may be null. A pointer
+// to a MaybeString may be used in scan to test whether a column is null.
+// TODO(bradfitz): implement, and add other types.
+type MaybeString struct {
+	String string
+	Ok     bool
+}
+
+// ScannerInto is an interface used by Scan.
+// TODO(bradfitz): flesh this out?
+type ScannerInto interface {
+	// v is nil for NULL database columns.
+	ScanInto(v interface{}) os.Error
+}
+
 // ErrNoRows is returned by Scan when QueryRow doesn't return a
 // row. In such a case, QueryRow returns a placeholder *Row value that
 // defers this error until a Scan.
@@ -417,7 +432,21 @@ func (rs *Rows) Scan(dest ...interface{}) os.Error {
 	if rs.closed {
 		return os.NewError("db: Rows closed")
 	}
-	// TODO(bradfitz): XXXXXXXx
+	if rs.lasterr != nil {
+		return rs.lasterr
+	}
+	if rs.lastcols == nil {
+		return os.NewError("db: Scan called without calling Next")
+	}
+	if len(dest) != len(rs.lastcols) {
+		return fmt.Errorf("db: expected %d destination arguments in Scan, not %d", len(rs.lastcols), len(dest))
+	}
+	for i, sv := range rs.lastcols {
+		err := copyConvert(dest[i], sv)
+		if err != nil {
+			return fmt.Errorf("db: Scan error on column index %d: %v", i, err)
+		}
+	}
 	return nil
 }
 
