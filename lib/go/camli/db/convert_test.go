@@ -26,19 +26,21 @@ type conversionTest struct {
 	s, d interface{} // source and destination
 
 	// following are used if they're non-zero
-	wantint    int64
-	wantuint   uint64
-	wantstr string
-	wanterr    string
+	wantint  int64
+	wantuint uint64
+	wantstr  string
+	wanterr  string
 }
 
 // Target variables for scanning into.
 var (
-	scanstr   string
-	scanint   int
-	scanint8  int
-	scanint16 int16
-	scanint32 int32
+	scanstr    string
+	scanint    int
+	scanint8   int8
+	scanint16  int16
+	scanint32  int32
+	scanuint8  uint8
+	scanuint16 uint16
 )
 
 var conversionTests = []conversionTest{
@@ -46,12 +48,31 @@ var conversionTests = []conversionTest{
 	{s: "foo", d: &scanstr, wantstr: "foo"},
 	{s: 123, d: &scanint, wantint: 123},
 
+	// To strings
 	{s: []byte("byteslice"), d: &scanstr, wantstr: "byteslice"},
+	{s: 123, d: &scanstr, wantstr: "123"},
+	{s: int8(123), d: &scanstr, wantstr: "123"},
+	{s: int64(123), d: &scanstr, wantstr: "123"},
+	{s: uint8(123), d: &scanstr, wantstr: "123"},
+	{s: uint16(123), d: &scanstr, wantstr: "123"},
+	{s: uint32(123), d: &scanstr, wantstr: "123"},
+	{s: uint64(123), d: &scanstr, wantstr: "123"},
+	{s: 1.5, d: &scanstr, wantstr: "1.5"},
 
+	// Strings to integers
+	{s: "255", d: &scanuint8, wantuint: 255},
+	{s: "256", d: &scanuint8, wanterr: `string "256" overflows uint8`},
+	{s: "256", d: &scanuint16, wantuint: 256},
+	{s: "-1", d: &scanint, wantint: -1},
+	{s: "foo", d: &scanint, wanterr: `converting string "foo" to a int: parsing "foo": invalid argument`},
 }
 
 func intValue(intptr interface{}) int64 {
 	return reflect.Indirect(reflect.ValueOf(intptr)).Int()
+}
+
+func uintValue(intptr interface{}) uint64 {
+	return reflect.Indirect(reflect.ValueOf(intptr)).Uint()
 }
 
 func TestConversions(t *testing.T) {
@@ -73,6 +94,9 @@ func TestConversions(t *testing.T) {
 		}
 		if ct.wantint != 0 && ct.wantint != intValue(ct.d) {
 			errf("want int %d, got %d", ct.wantint, intValue(ct.d))
+		}
+		if ct.wantuint != 0 && ct.wantuint != uintValue(ct.d) {
+			errf("want uint %d, got %d", ct.wantuint, uintValue(ct.d))
 		}
 	}
 }

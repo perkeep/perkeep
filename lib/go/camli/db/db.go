@@ -47,7 +47,7 @@ func Register(name string, driver dbimpl.Driver) {
 // TODO(bradfitz): implement, and add other types.
 type MaybeString struct {
 	String string
-	Ok     bool  // Ok is true if the String is not NULL
+	Ok     bool // Ok is true if the String is not NULL
 }
 
 func (ms *MaybeString) ScanInto(value interface{}) os.Error {
@@ -58,7 +58,6 @@ func (ms *MaybeString) ScanInto(value interface{}) os.Error {
 	ms.Ok = true
 	return copyConvert(&ms.String, value)
 }
-
 
 // ScannerInto is an interface used by Scan.
 type ScannerInto interface {
