@@ -26,7 +26,7 @@ func newTestDB(t *testing.T, name string) *DB {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if err := db.Exec("WIPE"); err != nil {
+	if _, err := db.Exec("WIPE"); err != nil {
 		t.Fatalf("exec wipe: %v", err)
 	}
 	if name == "people" {
@@ -40,7 +40,7 @@ func newTestDB(t *testing.T, name string) *DB {
 }
 
 func exec(t *testing.T, db *DB, query string, args ...interface{}) {
-	err := db.Exec(query, args...)
+	_, err := db.Exec(query, args...)
 	if err != nil {
 		t.Fatalf("Exec of %q: %v", query, err)
 	}

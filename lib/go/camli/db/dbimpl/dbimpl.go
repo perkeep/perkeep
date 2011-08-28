@@ -31,6 +31,8 @@ import (
 //   nil
 //   []byte
 
+// Driver is the interface that must be implemented by database
+// driver.
 type Driver interface {
 	// Open returns a new or cached connection to the database.
 	// The dsn parameter, the Data Source Name, contains a
@@ -40,6 +42,21 @@ type Driver interface {
 	// The returned connection is only used by one goroutine at a
 	// time.
 	Open(dsn string) (Conn, os.Error)
+}
+
+// Execer is an optional interface that may be implemented by a Driver
+// or a Conn.
+//
+// If not implemented by a Driver, the db package's DB.Exec method
+// first obtains a free connection from its free pool or from the
+// driver's Open method. Execer should only be implemented by drivers
+// which can provide a more effcient implementation.
+//
+// If not implemented by a Conn, the db package's DB.Exec will first
+// prepare a query, execute the statement, and then close the
+// statement.
+type Execer interface {
+	Exec(query string, args []interface{}) (Result, os.Error)
 }
 
 type Conn interface {

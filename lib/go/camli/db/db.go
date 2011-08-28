@@ -177,25 +177,42 @@ func (db *DB) Prepare(query string) (*Stmt, os.Error) {
 	return stmt, nil
 }
 
-func (db *DB) Exec(query string, args ...interface{}) os.Error {
-	// TODO(bradfitz): check to see if db.driver implements
-	// optional dbimpl.Execer interface and use that instead of
-	// even asking for a connection.
+func (db *DB) Exec(query string, args ...interface{}) (Result, os.Error) {
+	// Optional fast path, if the driver implements dbimpl.Execer.
+	if execer, ok := db.driver.(dbimpl.Execer); ok {
+		resi, err := execer.Exec(query, args)
+		if err != nil {
+			return nil, err
+		}
+		return result{resi}, nil
+	}
+
+	// If the driver does not implement dbimpl.Execer, we need
+	// a connection.
 	conn, err := db.conn()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer db.putConn(conn)
-	// TODO(bradfitz): check to see if db.driver implements
-	// optional dbimpl.ConnExecer interface and use that instead
-	// of Prepare+Exec
+
+	if execer, ok := conn.(dbimpl.Execer); ok {
+		resi, err := execer.Exec(query, args)
+                if err != nil {
+                        return nil, err
+                }
+                return result{resi}, nil
+	}
+
 	sti, err := conn.Prepare(query)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer sti.Close()
-	_, err = sti.Exec(args)
-	return err
+	resi, err := sti.Exec(args)
+	if err != nil {
+                return nil, err
+        }
+	return result{resi}, nil
 }
 
 func (db *DB) Query(query string, args ...interface{}) (*Rows, os.Error) {
@@ -379,13 +396,14 @@ func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {
 }
 
 // QueryRow wraps Query, for use in selecting a single row. Any errors
-// are deferred until Row is scanned.
+// are deferred until the returned row is scanned. The returned row is
+// always non-nil.
 func (s *Stmt) QueryRow(args ...interface{}) *Row {
 	rows, err := s.Query(args...)
-        if err != nil {
-                return &Row{err: err}
-        }
-        return &Row{rows: rows}
+	if err != nil {
+		return &Row{err: err}
+	}
+	return &Row{rows: rows}
 }
 
 func (s *Stmt) Close() os.Error {
@@ -512,4 +530,13 @@ func (r *Row) Scan(dest ...interface{}) os.Error {
 		return ErrNoRows
 	}
 	return r.rows.Scan(dest...)
+}
+
+type Result interface {
+	AutoIncrementId() (int64, os.Error)
+	RowsAffected() (int64, os.Error)
+}
+
+type result struct {
+	dbimpl.Result
 }
