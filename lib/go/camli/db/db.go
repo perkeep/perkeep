@@ -261,6 +261,7 @@ type connStmt struct {
 	si dbimpl.Stmt
 }
 
+// Stmt is a prepared statement. Stmt is safe for concurrent use by multiple goroutines.
 type Stmt struct {
 	// Immutable:
 	db    *DB    // where we came from
@@ -353,6 +354,8 @@ func (s *Stmt) connStmt(args ...interface{}) (dbimpl.Conn, dbimpl.Stmt, os.Error
 	return cs.ci, cs.si, nil
 }
 
+// Query executes a prepared statement with the provided placeholder arguments
+// and returns the result.
 func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {
 	ci, si, err := s.connStmt(args...)
 	if err != nil {
@@ -375,8 +378,14 @@ func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {
 	return rows, nil
 }
 
+// QueryRow wraps Query, for use in selecting a single row. Any errors
+// are deferred until Row is scanned.
 func (s *Stmt) QueryRow(args ...interface{}) *Row {
-	panic(todo())
+	rows, err := s.Query(args...)
+        if err != nil {
+                return &Row{err: err}
+        }
+        return &Row{rows: rows}
 }
 
 func (s *Stmt) Close() os.Error {

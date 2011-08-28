@@ -414,12 +414,20 @@ func (s *fakeStmt) Query(args []interface{}) (dbimpl.Rows, os.Error) {
 	mrows := []*row{}
 rows:
 	for _, trow := range t.rows {
+		// Process the where clause, skipping non-match rows. This is lazy
+		// and just uses fmt.Sprintf("%v") to test equality.  Good enough
+		// for test code.
 		for widx, wcol := range s.whereCol {
 			idx := t.columnIndex(wcol)
 			if idx == -1 {
 				return nil, fmt.Errorf("db: invalid where clause column %q", wcol)
 			}
-			if fmt.Sprintf("%v", trow.cols[idx]) != fmt.Sprintf("%v", args[widx]) {
+			tcol := trow.cols[idx]
+			if bs, ok := tcol.([]byte); ok {
+				// lazy hack to avoid sprintf %v on a []byte
+				tcol = string(bs)
+			}
+			if fmt.Sprintf("%v", tcol) != fmt.Sprintf("%v", args[widx]) {
 				continue rows
 			}
 		}
