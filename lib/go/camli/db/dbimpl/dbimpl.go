@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package dbimpl defines interfaces to be implemented by database
+// drivers as used by package db.
+//
+// Code simply using databases should use package db.
 package dbimpl
 
 import (

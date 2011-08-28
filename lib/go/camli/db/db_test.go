@@ -41,8 +41,19 @@ func exec(t *testing.T, db *DB, query string, args ...interface{}) {
 func TestQuery(t *testing.T) {
 	db := newTestDB(t, "foo")
 	exec(t, db, "CREATE|t1|name=string,age=int32,dead=bool")
-	exec(t, db, "INSERT|t1|name=Brad,age=?", 31)
+	exec(t, db, "INSERT|t1|name=Alice,age=?", 1)
+	exec(t, db, "INSERT|t1|name=Bob,age=?", 2)
+	exec(t, db, "INSERT|t1|name=Chris,age=?", 3)
 
+	var name string
+	var age int
+	err := db.QueryRow("SELECT|t1|age,name|age=?", 2).Scan(&age, &name)
+	if err != nil {
+		t.Fatalf("QueryRow+Scan: %v", err)
+	}
+	t.Logf("name=%q, age=%d", name, age)
+
+	// TODO(bradfitz): check that name and age are correct.
 }
 
 // just a test of fakedb itself

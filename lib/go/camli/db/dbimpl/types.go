@@ -95,7 +95,7 @@ func SubsetValue(v interface{}) (interface{}, os.Error) {
 		return int64(rv.Uint()), nil
 	case reflect.Uint64:
 		u64 := rv.Uint()
-		if u64 >= 1 << 63 {
+		if u64 >= 1<<63 {
 			return nil, fmt.Errorf("uint64 values with high bit set are not supported")
 		}
 		return int64(u64), nil

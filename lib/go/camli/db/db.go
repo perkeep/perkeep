@@ -29,6 +29,9 @@ import (
 
 var drivers = make(map[string]dbimpl.Driver)
 
+// Register makes a database driver available by the provided name.
+// It's a fatal error to register the same or different drivers with
+// a duplicate name.
 func Register(name string, driver dbimpl.Driver) {
 	if driver == nil {
 		panic("db: Register driver is nil")
@@ -39,20 +42,33 @@ func Register(name string, driver dbimpl.Driver) {
 	drivers[name] = driver
 }
 
+// ErrNoRows is returned by Scan when QueryRow doesn't return a
+// row. In such a case, QueryRow returns a placeholder *Row value that
+// defers this error until a Scan.
+var ErrNoRows = os.NewError("db: no rows in result set")
+
+// DB is a database handle. It's safe for concurrent use by multiple
+// goroutines.
 type DB struct {
 	driver dbimpl.Driver
-	dbarg  string
+	dsn    string
 
 	mu       sync.Mutex
 	freeConn []dbimpl.Conn
 }
 
-func Open(driverName, database string) (*DB, os.Error) {
+// Open opens a database specified by its database driver name and a
+// driver-specific data source name, usually consisting of at least a
+// database name and connection information.
+//
+// Most users will open a database via a driver-specific connection
+// helper function that returns a *DB.
+func Open(driverName, dataSourceName string) (*DB, os.Error) {
 	driver, ok := drivers[driverName]
 	if !ok {
 		return nil, fmt.Errorf("db: unknown driver %q (forgotten import?)", driverName)
 	}
-	return &DB{driver: driver, dbarg: database}, nil
+	return &DB{driver: driver, dsn: dataSourceName}, nil
 }
 
 func (db *DB) maxIdleConns() int {
@@ -72,7 +88,7 @@ func (db *DB) conn() (dbimpl.Conn, os.Error) {
 		return conn, nil
 	}
 	db.mu.Unlock()
-	return db.driver.Open(db.dbarg)
+	return db.driver.Open(db.dsn)
 }
 
 func (db *DB) connIfFree(wanted dbimpl.Conn) (conn dbimpl.Conn, ok bool) {
@@ -81,7 +97,7 @@ func (db *DB) connIfFree(wanted dbimpl.Conn) (conn dbimpl.Conn, ok bool) {
 	for n, conn := range db.freeConn {
 		if conn == wanted {
 			db.freeConn[n] = db.freeConn[len(db.freeConn)-1]
-			db.freeConn = db.freeConn[:n-1]
+			db.freeConn = db.freeConn[:len(db.freeConn)-1]
 			return wanted, true
 		}
 	}
@@ -113,6 +129,7 @@ func (db *DB) Prepare(query string) (*Stmt, os.Error) {
 	if err != nil {
 		return nil, err
 	}
+	defer db.putConn(ci)
 	si, err := ci.Prepare(query)
 	if err != nil {
 		return nil, err
@@ -147,10 +164,13 @@ func (db *DB) Exec(query string, args ...interface{}) os.Error {
 }
 
 func (db *DB) Query(query string, args ...interface{}) (*Rows, os.Error) {
-	panic(todo())
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	return stmt.Query(args...)
 }
-
-var ErrNoRows = os.NewError("db: no rows in result set")
 
 func (db *DB) QueryRow(query string, args ...interface{}) *Row {
 	rows, err := db.Query(query, args...)
@@ -211,8 +231,9 @@ type Stmt struct {
 	db    *DB    // where we came from
 	query string // that created the Sttm
 
-	mu  sync.Mutex
-	css []connStmt // can use any that have idle connections
+	mu     sync.Mutex
+	closed bool
+	css    []connStmt // can use any that have idle connections
 }
 
 func todo() string {
@@ -262,6 +283,9 @@ func (s *Stmt) Exec(args ...interface{}) os.Error {
 
 func (s *Stmt) connStmt(args ...interface{}) (dbimpl.Conn, dbimpl.Stmt, os.Error) {
 	s.mu.Lock()
+	if s.closed {
+		return nil, nil, os.NewError("db: statement is closed")
+	}
 	var cs connStmt
 	match := false
 	for _, v := range s.css {
@@ -295,7 +319,25 @@ func (s *Stmt) connStmt(args ...interface{}) (dbimpl.Conn, dbimpl.Stmt, os.Error
 }
 
 func (s *Stmt) Query(args ...interface{}) (*Rows, os.Error) {
-	panic(todo())
+	ci, si, err := s.connStmt(args...)
+	if err != nil {
+		return nil, err
+	}
+	if len(args) != si.NumInput() {
+		return nil, fmt.Errorf("db: statement expects %d inputs; got %d", si.NumInput(), len(args))
+	}
+	rowsi, err := si.Query(args)
+	if err != nil {
+		s.db.putConn(ci)
+		return nil, err
+	}
+	// Note: ownership of ci passes to the *Rows
+	rows := &Rows{
+		db:    s.db,
+		ci:    ci,
+		rowsi: rowsi,
+	}
+	return rows, nil
 }
 
 func (s *Stmt) QueryRow(args ...interface{}) *Row {
@@ -303,39 +345,111 @@ func (s *Stmt) QueryRow(args ...interface{}) *Row {
 }
 
 func (s *Stmt) Close() os.Error {
-	panic(todo())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return os.NewError("db: statement already closed")
+	}
+	s.closed = true
+	for _, v := range s.css {
+		if ci, match := s.db.connIfFree(v.ci); match {
+			v.si.Close()
+			s.db.putConn(ci)
+		} else {
+			// TODO(bradfitz): care that we can't close
+			// this statement because the statement's
+			// connection is in use?
+		}
+	}
+	return nil
 }
 
+// Rows is the result of a query. Its cursor starts before the first row
+// of the result set. Use Next to advance through the rows:
+//
+//     rows, err := db.Query("SELECT ...")
+//     ...
+//     for rows.Next() {
+//         var id int
+//         var name string
+//         err = rows.Scan(&id, &name)
+//         ...
+//     }
+//     err = rows.Error() // get any Error encountered during iteration
+//     ...
 type Rows struct {
+	db    *DB
+	ci    dbimpl.Conn // owned; must be returned when Rows is closed
+	rowsi dbimpl.Rows
 
+	closed   bool
+	lastcols []interface{}
+	lasterr  os.Error
 }
 
+// Next advances the Rows' cursor (which starts before the first
+// row). Next returns true if there's another row and the cursor was
+// moved.
 func (rs *Rows) Next() bool {
-	panic(todo())
+	if rs.closed {
+		return false
+	}
+	if rs.lasterr != nil {
+		return false
+	}
+	if rs.lastcols == nil {
+		rs.lastcols = make([]interface{}, len(rs.rowsi.Columns()))
+	}
+	rs.lasterr = rs.rowsi.Next(rs.lastcols)
+	return rs.lasterr == nil
 }
 
+// Error returns the error, if any, that was encountered during iteration.
 func (rs *Rows) Error() os.Error {
-	panic(todo())
+	if rs.lasterr == os.EOF {
+		return nil
+	}
+	return rs.lasterr
 }
 
+// Scan copies the columns in the current row into variables referened in dest.
 func (rs *Rows) Scan(dest ...interface{}) os.Error {
-	panic(todo())
+	if rs.closed {
+		return os.NewError("db: Rows closed")
+	}
+	// TODO(bradfitz): XXXXXXXx
+	return nil
 }
 
+// Close closes the Rows, preventing further enumeration. If the end
+// if encountered normally the Rows are closed automatically. Calling
+// Close is idempotent.
 func (rs *Rows) Close() os.Error {
-	panic(todo())
+	if rs.closed {
+		return nil
+	}
+	rs.closed = true
+	err := rs.rowsi.Close()
+	rs.db.putConn(rs.ci)
+	return err
 }
 
+// Row is the result of calling QueryRow to select a single row. If no
+// matching row was found, an error is deferred until the Scan method
+// is called.
 type Row struct {
 	// One of these two will be non-nil:
 	err  os.Error // deferred error for easy chaining
 	rows *Rows
 }
 
+// Scan copies the columns from the matched row into the variables
+// pointed at in dest. If no row was matched, ErrNoRows is returned.
 func (r *Row) Scan(dest ...interface{}) os.Error {
 	if r.err != nil {
 		return r.err
 	}
+	defer r.rows.Close()
 	if !r.rows.Next() {
 		return ErrNoRows
 	}

@@ -76,6 +76,12 @@ type row struct {
 	cols []interface{} // must be same size as its table colname + coltype
 }
 
+func (r *row) clone() *row {
+	nrow := &row{cols: make([]interface{}, len(r.cols))}
+	copy(nrow.cols, r.cols)
+	return nrow
+}
+
 type fakeConn struct {
 	db *fakeDB // where to return ourselves to
 
@@ -93,10 +99,13 @@ type fakeStmt struct {
 	cmd   string
 	table string
 
-	colName      []string // used by CREATE, INSERT
-	colType      []string // used by CREATE
+	colName      []string      // used by CREATE, INSERT, SELECT (selected columns)
+	colType      []string      // used by CREATE
 	colValue     []interface{} // used by INSERT (mix of strings and "?" for bound params)
-	placeholders int      // number of ? params
+	placeholders int           // used by INSERT/SELECT: number of ? params
+
+	whereCol []string // used by SELECT
+	whereVal []string // used by SELECT (mix of strings and "?" for bound params)
 
 	placeholderConverter []dbimpl.ValueConverter // used by INSERT
 }
@@ -200,6 +209,91 @@ func errf(msg string, args ...interface{}) os.Error {
 	return os.NewError("fakedb: " + fmt.Sprintf(msg, args...))
 }
 
+// parts are table|selectCol1,selectCol2|whereCol=?,whereCol2=val
+func (c *fakeConn) prepareSelect(stmt *fakeStmt, parts []string) (dbimpl.Stmt, os.Error) {
+	if len(parts) != 3 {
+		return nil, errf("invalid SELECT syntax with %d parts; want 3", len(parts))
+	}
+	stmt.table = parts[0]
+	stmt.colName = strings.Split(parts[1], ",")
+	for n, colspec := range strings.Split(parts[2], ",") {
+		nameVal := strings.Split(colspec, "=")
+		if len(nameVal) != 2 {
+			return nil, errf("SELECT table %q has invalid column spec of %q (index %d)", stmt.table, colspec, n)
+		}
+		column, value := nameVal[0], nameVal[1]
+		_, ok := c.db.columnType(stmt.table, column)
+		if !ok {
+			return nil, errf("INSERT table %q references non-existent column %q", stmt.table, column)
+		}
+		stmt.whereCol = append(stmt.whereCol, column)
+		stmt.whereVal = append(stmt.whereVal, value)
+		if value == "?" {
+			stmt.placeholders++
+		}
+
+	}
+	return stmt, nil
+}
+
+// parts are table|col=type,col2=type2
+func (c *fakeConn) prepareCreate(stmt *fakeStmt, parts []string) (dbimpl.Stmt, os.Error) {
+	if len(parts) != 2 {
+		return nil, errf("invalid CREATE syntax with %d parts; want 2", len(parts))
+	}
+	stmt.table = parts[0]
+	for n, colspec := range strings.Split(parts[1], ",") {
+		nameType := strings.Split(colspec, "=")
+		if len(nameType) != 2 {
+			return nil, errf("CREATE table %q has invalid column spec of %q (index %d)", stmt.table, colspec, n)
+		}
+		stmt.colName = append(stmt.colName, nameType[0])
+		stmt.colType = append(stmt.colType, nameType[1])
+	}
+	return stmt, nil
+}
+
+// parts are table|col=?,col2=val
+func (c *fakeConn) prepareInsert(stmt *fakeStmt, parts []string) (dbimpl.Stmt, os.Error) {
+	if len(parts) != 2 {
+		return nil, errf("invalid INSERT syntax with %d parts; want 2", len(parts))
+	}
+	stmt.table = parts[0]
+	for n, colspec := range strings.Split(parts[1], ",") {
+		nameVal := strings.Split(colspec, "=")
+		if len(nameVal) != 2 {
+			return nil, errf("INSERT table %q has invalid column spec of %q (index %d)", stmt.table, colspec, n)
+		}
+		column, value := nameVal[0], nameVal[1]
+		ctype, ok := c.db.columnType(stmt.table, column)
+		if !ok {
+			return nil, errf("INSERT table %q references non-existent column %q", stmt.table, column)
+		}
+		var subsetVal interface{}
+		if value != "?" {
+			// Convert to dbimpl subset type
+			switch ctype {
+			case "string":
+				subsetVal = []byte(value)
+			case "int32":
+				i, err := strconv.Atoi(value)
+				if err != nil {
+					return nil, errf("invalid conversion to int32 from %q", value)
+				}
+				subsetVal = int64(i) // int64 is a subset type, but not int32
+			default:
+				return nil, errf("unsupported conversion for pre-bound parameter %q to type %q", value, ctype)
+			}
+		} else {
+			stmt.placeholders++
+			stmt.placeholderConverter = append(stmt.placeholderConverter, converterForType(ctype))
+		}
+		stmt.colName = append(stmt.colName, column)
+		stmt.colValue = append(stmt.colValue, subsetVal)
+	}
+	return stmt, nil
+}
+
 func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 	if c.db == nil {
 		panic("nil c.db; conn = " + fmt.Sprintf("%#v", c))
@@ -209,60 +303,17 @@ func (c *fakeConn) Prepare(query string) (dbimpl.Stmt, os.Error) {
 		return nil, errf("empty query")
 	}
 	cmd := parts[0]
+	parts = parts[1:]
 	stmt := &fakeStmt{q: query, c: c, cmd: cmd}
 	switch cmd {
 	case "WIPE":
 		// Nothing
+	case "SELECT":
+		return c.prepareSelect(stmt, parts)
 	case "CREATE":
-		if len(parts) != 3 {
-			return nil, errf("invalid %q syntax with %d parts; want 3", cmd, len(parts))
-		}
-		stmt.table = parts[1]
-		for n, colspec := range strings.Split(parts[2], ",") {
-			nameType := strings.Split(colspec, "=")
-			if len(nameType) != 2 {
-				return nil, errf("CREATE table %q has invalid column spec of %q (index %d)", stmt.table, colspec, n)
-			}
-			stmt.colName = append(stmt.colName, nameType[0])
-			stmt.colType = append(stmt.colType, nameType[1])
-		}
+		return c.prepareCreate(stmt, parts)
 	case "INSERT":
-		if len(parts) != 3 {
-			return nil, errf("invalid %q syntax with %d parts; want 3", cmd, len(parts))
-		}
-		stmt.table = parts[1]
-		for n, colspec := range strings.Split(parts[2], ",") {
-			nameVal := strings.Split(colspec, "=")
-			if len(nameVal) != 2 {
-				return nil, errf("INSERT table %q has invalid column spec of %q (index %d)", stmt.table, colspec, n)
-			}
-			column, value := nameVal[0], nameVal[1]
-			ctype, ok := c.db.columnType(stmt.table, column)
-			if !ok {
-				return nil, errf("INSERT table %q references non-existent column %q", stmt.table, column)
-			}
-			var subsetVal interface{}
-			if value != "?" {
-				// Convert to dbimpl subset type
-				switch ctype {
-				case "string":
-					subsetVal = []byte(value)
-				case "int32":
-					i, err := strconv.Atoi(value)
-					if err != nil {
-						return nil, errf("invalid conversion to int32 from %q", value)
-					}
-					subsetVal = int64(i) // int64 is a subset type, but not int32
-				default:
-					return nil, errf("unsupported conversion for pre-bound parameter %q to type %q", value, ctype)
-				}
-			} else {
-				stmt.placeholders++
-				stmt.placeholderConverter = append(stmt.placeholderConverter, converterForType(ctype))
-			}
-			stmt.colName = append(stmt.colName, column)
-			stmt.colValue = append(stmt.colValue, subsetVal)
-		}
+		return c.prepareInsert(stmt, parts)
 	default:
 		return nil, errf("unsupported command type %q", cmd)
 	}
@@ -332,9 +383,45 @@ func (s *fakeStmt) execInsert(args []interface{}) (dbimpl.Result, os.Error) {
 }
 
 func (s *fakeStmt) Query(args []interface{}) (dbimpl.Rows, os.Error) {
-	println("QUERY")
-	fmt.Println(args...)
-	return nil, os.NewError(todo())
+	db := s.c.db
+	if len(args) != s.placeholders {
+		panic("error in pkg db; should only get here if size is correct")
+	}
+
+	db.mu.Lock()
+	t, ok := db.table(s.table)
+	db.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("fakedb: table %q doesn't exist", s.table)
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	colIdx := make(map[string]int) // select column name -> column index in table
+	for _, name := range s.colName {
+		idx := t.columnIndex(name)
+		if idx == -1 {
+			return nil, fmt.Errorf("fakedb: unknown column name %q", name)
+		}
+		colIdx[name] = idx
+	}
+
+	mrows := []*row{}
+	for _, trow := range t.rows {
+		// TODO(bradfitz): where clause matching
+		mrow := &row{cols: make([]interface{}, len(s.colName))}
+		for seli, name := range s.colName {
+			mrow.cols[seli] = trow.cols[colIdx[name]]
+		}
+		mrows = append(mrows, mrow)
+	}
+
+	cursor := &rowsCursor{
+		pos:  -1,
+		rows: mrows,
+		cols: s.colName,
+	}
+	return cursor, nil
 }
 
 func (s *fakeStmt) NumInput() int {
@@ -348,6 +435,45 @@ func (tx *fakeTx) Commit() os.Error {
 
 func (tx *fakeTx) Rollback() os.Error {
 	tx.c.currTx = nil
+	return nil
+}
+
+type rowsCursor struct {
+	cols   []string
+	pos    int
+	rows   []*row
+	closed bool
+}
+
+func (rc *rowsCursor) Close() os.Error {
+	rc.closed = true
+	return nil
+}
+
+func (rc *rowsCursor) Columns() []string {
+	return rc.cols
+}
+
+func (rc *rowsCursor) Next(dest []interface{}) os.Error {
+	if rc.closed {
+		return os.NewError("fakedb: cursor is closed")
+	}
+	rc.pos++
+	if rc.pos >= len(rc.rows) {
+		return os.EOF // per interface spec
+	}
+	println("dest len=", len(dest), "ncols=", len(rc.rows[rc.pos].cols))
+	for i, v := range rc.rows[rc.pos].cols {
+
+		// TODO(bradfitz): convert to subset types? naah, I
+		// think the subset types should only be input to
+		// dbimpl, but the db package should be able to handle
+		// a wider range of types coming out of dbimpl
+		// drivers. all for ease of drivers, and to prevent
+		// drivers from messing up conversions or doing them
+		// differently.
+		dest[i] = v
+	}
 	return nil
 }
 
