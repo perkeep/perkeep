@@ -20,11 +20,12 @@ import (
 	"encoding/hex"
 	"bufio"
 	"fmt"
-	"http"
+
 	"net"
 	"io"
 	"strings"
 	"os"
+	"url"
 )
 
 // A connection to the GPG agent.
@@ -74,7 +75,7 @@ type PassphraseRequest struct {
 }
 
 func (c *Conn) RemoveFromCache(cacheKey string) os.Error {
-	_, err := fmt.Fprintf(c.c, "CLEAR_PASSPHRASE %s\n", http.URLEscape(cacheKey))
+	_, err := fmt.Fprintf(c.c, "CLEAR_PASSPHRASE %s\n", url.QueryEscape(cacheKey))
 	if err != nil {
 		return err
 	}
@@ -129,12 +130,12 @@ func (c *Conn) GetPassphrase(pr *PassphraseRequest) (passphrase string, outerr o
 		if s == "" {
 			return "X"
 		}
-		return http.URLEscape(s)
+		return url.QueryEscape(s)
 	}
 
 	_, err = fmt.Fprintf(c.c, "GET_PASSPHRASE %s%s %s %s %s\n",
 		opts,
-		http.URLEscape(pr.CacheKey),
+		url.QueryEscape(pr.CacheKey),
 		encOrX(pr.Error),
 		encOrX(pr.Prompt),
 		encOrX(pr.Desc))

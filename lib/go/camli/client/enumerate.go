@@ -19,8 +19,9 @@ package client
 import (
 	"camli/blobref"
 	"fmt"
-	"http"
+
 	"os"
+	"url"
 )
 
 type EnumerateOpts struct {
@@ -57,9 +58,9 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts Enumera
 		if after == "" {
 			waitSec = opts.MaxWaitSec
 		}
-		url := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
-			c.server, http.URLEscape(after), enumerateBatchSize, waitSec)
-		req := c.newRequest("GET", url)
+		url_ := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
+			c.server, url.QueryEscape(after), enumerateBatchSize, waitSec)
+		req := c.newRequest("GET", url_)
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return error("http request", err)

@@ -18,10 +18,11 @@ package localdisk
 
 import (
 	"fmt"
-	"http"
+
 	"path/filepath"
 
 	"camli/blobref"
+	"url"
 )
 
 func BlobFileBaseName(b *blobref.BlobRef) string {
@@ -44,5 +45,5 @@ func (ds *DiskStorage) PartitionRoot(partition string) string {
 	if partition == "" {
 		return ds.root
 	}
-	return filepath.Join(ds.root, "partition", http.URLEscape(partition))
+	return filepath.Join(ds.root, "partition", url.QueryEscape(partition))
 }

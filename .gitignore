@@ -13,3 +13,5 @@ _testmain*
 _go_.[568]
 _embed_*.go
 _cgo*
+clients/go/camgsinit/camgsinit
+clients/go/camwebdav/camwebdav

@@ -34,6 +34,7 @@ import (
 	"camli/jsonconfig"
 	"camli/schema"
 	"camli/search"
+	"url"
 )
 
 // PublishHandler publishes your info to the world, if permanodes have
@@ -251,7 +252,7 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 		fmt.Fprintf(&buf, "/h%s", br.DigestPrefix(10))
 	}
 	fmt.Fprintf(&buf, "/=%s", resType)
-	fmt.Fprintf(&buf, "/%s", http.URLEscape(fileName))
+	fmt.Fprintf(&buf, "/%s", url.QueryEscape(fileName))
 	if maxDimen != -1 {
 		fmt.Fprintf(&buf, "?mw=%d&mh=%d", maxDimen, maxDimen)
 	}
@@ -393,12 +394,12 @@ func (pr *publishRequest) serveSubject() {
 			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
 		}
 		for _, filename := range pr.ph.JSFiles {
-		  // TODO(bradfitz): Remove this manual dependency hack once Issue 37 is resolved.
-		  if filename == "camli.js" {
-		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
-		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
-		    pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
-		  }
+			// TODO(bradfitz): Remove this manual dependency hack once Issue 37 is resolved.
+			if filename == "camli.js" {
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
+			}
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath(filename))
 			if filename == "camli.js" && pr.ViewerIsOwner() {
 				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&cb=onConfiguration")

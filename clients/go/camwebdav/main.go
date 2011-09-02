@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"url"
 	"xml"
 
 	"camli/blobref"
@@ -200,12 +201,12 @@ func ls(path string) (paths []string) {
 }
 
 // TODO(rh) settle on an internal format for paths, and a better way to translate between paths and URLs
-func url2path(url *http.URL) string {
-	return strings.Trim(url.Path, "/") // TODO(rh) make not suck
+func url2path(url_ *url.URL) string {
+	return strings.Trim(url_.Path, "/") // TODO(rh) make not suck
 }
 
-func path2url(path string) *http.URL {
-	return &http.URL{Path: "/" + path} // TODO(rh) make not suck
+func path2url(path string) *url.URL {
+	return &url.URL{Path: "/" + path} // TODO(rh) make not suck
 }
 
 func parseprop(x *xmlparser) (props []string) {

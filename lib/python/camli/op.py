@@ -111,7 +111,7 @@ class CamliOp(object):
         raise NameError("basepath must be in form '/bs'")
       if basepath[-1] == '/':
         basepath = basepath[:-1]
-      self._basepath = basepath
+      self.basepath = basepath
 
   def _setup_connection(self):
     """Sets up the HTTP connection."""
@@ -156,7 +156,7 @@ class CamliOp(object):
 
     self._setup_connection()
     if self.basepath:
-      fullpath = basepath + '/camli/stat'
+      fullpath = self.basepath + '/camli/stat'
     else:
       fullpath = '/camli/stat'
     self.connection.request(

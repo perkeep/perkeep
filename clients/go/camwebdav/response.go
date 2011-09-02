@@ -2,10 +2,11 @@ package main
 
 import (
 	"bytes"
-	"exp/template"
+	"template"
 	"fmt"
 	"http"
 	"time"
+	"url"
 )
 
 type xmler interface {
@@ -15,10 +16,10 @@ type xmler interface {
 // See: http://www.webdav.org/specs/rfc4918.html
 
 // 14.7 href XML Element
-type href http.URL
+type href url.URL
 
 func (h *href) XML(b *bytes.Buffer) {
-	b.WriteString("<href>" + template.HTMLEscapeString((*http.URL)(h).String()) + "</href>")
+	b.WriteString("<href>" + template.HTMLEscapeString((*url.URL)(h).String()) + "</href>")
 }
 
 // 14.16 multistatus XML Element

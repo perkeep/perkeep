@@ -31,6 +31,7 @@ import (
 	"camli/blobserver"
 	"camli/jsonconfig"
 	"camli/httputil"
+	"url"
 )
 
 const buffered = 32      // arbitrary channel buffer size
@@ -74,7 +75,6 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		owner: ownerBlobRef,
 	}, nil
 }
-
 
 // TODO: figure out a plan for an owner having multiple active public keys, or public
 // key rotation
@@ -351,7 +351,6 @@ func (b *DescribedBlob) ContentRef() (br *blobref.BlobRef, ok bool) {
 	return
 }
 
-
 func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 	if b.Request == nil {
 		return &DescribedBlob{BlobRef: br, Stub: true}
@@ -410,7 +409,7 @@ func (b *DescribedBlob) jsonMap() map[string]interface{} {
 }
 
 type DescribedPermanode struct {
-	Attr http.Values // a map[string][]string
+	Attr url.Values // a map[string][]string
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
@@ -642,7 +641,7 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer *blobref.BlobRef, depth int) {
-	pi.Attr = make(http.Values)
+	pi.Attr = make(url.Values)
 	attr := pi.Attr
 
 	claims, err := dr.sh.index.GetOwnerClaims(pn, signer)

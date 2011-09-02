@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"camli/blobref"
+	"url"
 )
 
 var _ = log.Printf
@@ -237,9 +238,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 
 	// Pre-upload.  Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
-	url := fmt.Sprintf("%s/camli/stat", c.server)
+	url_ := fmt.Sprintf("%s/camli/stat", c.server)
 	requestBody := "camliversion=1&blob1=" + blobRefString
-	req := c.newRequest("POST", url)
+	req := c.newRequest("POST", url_)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = ioutil.NopCloser(strings.NewReader(requestBody))
 	req.ContentLength = int64(len(requestBody))
@@ -338,8 +339,8 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		if otherLocation == "" {
 			return errorf("303 without a Location")
 		}
-		baseUrl, _ := http.ParseURL(stat.uploadUrl)
-		absUrl, err := baseUrl.ParseURL(otherLocation)
+		baseUrl, _ := url.Parse(stat.uploadUrl)
+		absUrl, err := baseUrl.Parse(otherLocation)
 		if err != nil {
 			return errorf("303 Location URL relative resolve error: %v", err)
 		}

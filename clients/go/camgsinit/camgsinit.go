@@ -23,7 +23,7 @@ import (
 	"os"
 	"strings"
 
-	"camli/blobserver/googlestorage"
+	"camli/blobserver/google"
 	"camli/third_party/code.google.com/goauth2/oauth"
 )
 
@@ -37,7 +37,7 @@ func main() {
 	if clientId, clientSecret, err = getClientInfo(); err != nil {
 		panic(err)
 	}
-	transport := googlestorage.MakeOauthTransport(clientId, clientSecret, "")
+	transport := google.MakeOauthTransport(clientId, clientSecret, "")
 
 	var accessCode string
 	if accessCode, err = getAccessCode(transport.Config); err != nil {
