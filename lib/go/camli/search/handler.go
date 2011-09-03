@@ -105,11 +105,8 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/search/recent":
 			sh.serveRecentPermanodes(rw, req)
 			return
-		case "camli/search/tag":
-			sh.serveTaggedPermanodes(rw, req)
-			return
-		case "camli/search/request":
-			sh.serveRequestedPermanodes(rw, req)
+		case "camli/search/permanodeattr":
+			sh.servePermanodesWithAttr(rw, req)
 			return
 		case "camli/search/describe":
 			sh.serveDescribe(rw, req)
@@ -169,41 +166,8 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	dr.PopulateJSON(ret)
 }
 
-func (sh *Handler) serveTaggedPermanodes(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
-
-	signer := blobref.MustParse(mustGet(req, "signer"))
-	value := mustGet(req, "value")
-	ch := make(chan *blobref.BlobRef, buffered)
-	errch := make(chan os.Error)
-	go func() {
-		errch <- sh.index.GetTaggedPermanodes(ch, signer, value, maxPermanodes)
-	}()
-
-	dr := sh.NewDescribeRequest()
-
-	tagged := jsonMapList()
-	for res := range ch {
-		dr.Describe(res, 2)
-		jm := jsonMap()
-		jm["permanode"] = res.String()
-		tagged = append(tagged, jm)
-	}
-
-	err := <-errch
-	if err != nil {
-		// TODO(mpl): return error status code, in addition to the english error code
-		ret["error"] = err.String()
-		return
-	}
-
-	ret["tagged"] = tagged
-	dr.PopulateJSON(ret)
-}
-
 // TODO(mpl): configure and/or document the name of the possible attributes in the http request
-func (sh *Handler) serveRequestedPermanodes(rw http.ResponseWriter, req *http.Request) {
+func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
 
@@ -237,8 +201,8 @@ func (sh *Handler) serveRequestedPermanodes(rw http.ResponseWriter, req *http.Re
 	ch := make(chan *blobref.BlobRef, buffered)
 	errch := make(chan os.Error)
 	go func() {
-		errch <- sh.index.SearchPermanodes(ch,
-			&PermanodesRequest{Attribute: attr,
+		errch <- sh.index.SearchPermanodesWithAttr(ch,
+			&PermanodeByAttrRequest{Attribute: attr,
 				Query:      value,
 				Signer:     signer,
 				FuzzyMatch: fuzzyMatch,
@@ -247,12 +211,12 @@ func (sh *Handler) serveRequestedPermanodes(rw http.ResponseWriter, req *http.Re
 
 	dr := sh.NewDescribeRequest()
 
-	requested := jsonMapList()
+	withAttr := jsonMapList()
 	for res := range ch {
 		dr.Describe(res, 2)
 		jm := jsonMap()
 		jm["permanode"] = res.String()
-		requested = append(requested, jm)
+		withAttr = append(withAttr, jm)
 	}
 
 	err := <-errch
@@ -262,7 +226,7 @@ func (sh *Handler) serveRequestedPermanodes(rw http.ResponseWriter, req *http.Re
 		return
 	}
 
-	ret["requested"] = requested
+	ret["withAttr"] = withAttr
 	dr.PopulateJSON(ret)
 }
 

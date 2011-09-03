@@ -93,13 +93,13 @@ function doSearch() {
 // TODO(mpl): add other kinds of searches (by filename for ex).
 		switch(CamliSearch.type) {
 		case "tag":
-			camliGetTaggedPermanodes(sigconf.publicKeyBlobRef, CamliSearch.query, tagcb);
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
 			break;
 		case "title":
-			camliGetRequestedPermanodes(sigconf.publicKeyBlobRef, "title", CamliSearch.query, CamliSearch.fuzzy, tagcb);
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
 			break;
 		case "":
-			camliGetRequestedPermanodes(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
 			break;
 		}
 	};
@@ -120,14 +120,7 @@ function showPermanodes(searchRes, type) {
 	while (div.hasChildNodes()) {
 		div.removeChild(div.lastChild);
 	}
-	switch(type) {
-	case "tag":
-		var results = searchRes.tagged;
-		break;
-	default:
-		var results = searchRes.requested;
-		break;
-	}
+	var results = searchRes.withAttr;
 	if (results.length > 0) {
 		var checkall = document.createElement("input");
 		checkall.id = "checkall";

@@ -72,7 +72,7 @@ type Path struct {
 	Suffix              string
 }
 
-type PermanodesRequest struct {
+type PermanodeByAttrRequest struct {
 	Attribute  string // currently supported: "tag", "title"
 	Query      string
 	Signer     *blobref.BlobRef
@@ -87,14 +87,6 @@ type Index interface {
 	owner []*blobref.BlobRef,
 	limit int) os.Error
 
-	// TODO(mpl): ditch this and merge it into SearchPermanodes. 
-	// GetTaggedPermanodes finds permanodes that have a tag which
-	// is an exact match with the given tag.
-	// dest is closed
-	GetTaggedPermanodes(dest chan<- *blobref.BlobRef,
-	signer *blobref.BlobRef,
-	tag string, limit int) os.Error
-
 	// SearchPermanodes finds permanodes matching the provided
 	// request and sends unique permanode blobrefs to dest.
 	// In particular, if request.FuzzyMatch is true, a fulltext
@@ -105,8 +97,8 @@ type Index interface {
 	// restricted  to the named attribute.
 	//
 	// dest is always closed, regardless of the error return value.
-	SearchPermanodes(dest chan<- *blobref.BlobRef,
-	request *PermanodesRequest) os.Error
+	SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
+	request *PermanodeByAttrRequest) os.Error
 
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 

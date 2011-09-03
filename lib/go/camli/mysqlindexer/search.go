@@ -141,35 +141,7 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	return
 }
 
-func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string, limit int) os.Error {
-	defer close(dest)
-	keyId, err := mi.keyIdOfSigner(signer)
-	if err != nil {
-		return err
-	}
-
-	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ? AND claimdate <> '' ORDER BY claimdate DESC LIMIT ?",
-		keyId, "camliTag", tag, limit)
-	if err != nil {
-		return err
-	}
-	defer rs.Close()
-
-	pn := ""
-	for rs.Next() {
-		if err := rs.Scan(&pn); err != nil {
-			return err
-		}
-		br := blobref.Parse(pn)
-		if br == nil {
-			continue
-		}
-		dest <- br
-	}
-	return nil
-}
-
-func (mi *Indexer) SearchPermanodes(dest chan<- *blobref.BlobRef, request *search.PermanodesRequest) os.Error {
+func (mi *Indexer) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
 	defer close(dest)
 	keyId, err := mi.keyIdOfSigner(request.Signer)
 	if err != nil {

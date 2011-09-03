@@ -182,11 +182,9 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 		return
 	}
 
-	// TODO(mpl): revert all "camliTag" to "tag".
-	// Will do in next CL, when we drop GetTaggedPermanodes
 	if verifiedKeyId != "" {
 		switch camli.Attribute {
-		case "camliRoot", "camliTag", "title":
+		case "camliRoot", "tag", "title":
 			// TODO(bradfitz,mpl): these tag names are hard-coded.
 			// we should probably have a config file of attributes
 			// and properties (e.g. which way(s) they're indexed)
@@ -196,7 +194,7 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
 				return
 			}
-			if camli.Attribute == "camliTag" || camli.Attribute == "title" {
+			if camli.Attribute == "tag" || camli.Attribute == "title" {
 				// Identical copy for fulltext searches
 				// TODO(mpl): do the DELETEs as well
 				if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+

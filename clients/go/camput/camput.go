@@ -303,9 +303,9 @@ func main() {
 			}
 			if *flagTag != "" {
 				tags := strings.Split(*flagTag, ",")
-				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliTag", tags[0])
+				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 				for _, tag := range tags {
-					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "camliTag", tag)
+					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 					put, err := up.UploadAndSignMap(m)
 					handleResult("claim-permanode-tag", put, err)
 				}
