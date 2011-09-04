@@ -170,6 +170,7 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
+	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))
 	value := mustGet(req, "value")
@@ -221,8 +222,8 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 
 	err := <-errch
 	if err != nil {
-		// TODO(mpl): return error status code, in addition to the english error code
 		ret["error"] = err.String()
+		ret["errorType"] = "server"
 		return
 	}
 
