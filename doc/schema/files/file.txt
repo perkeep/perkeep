@@ -3,47 +3,11 @@ File schema
 {"camliVersion": 1,
  "camliType": "file",
 
-  //
-  // INCLUDE ALL REQUIRED & ANY OPTIONAL FIELDS FROM file-common.txt
-  //
-
-  // Required:
-  // (redundant with sum of contentParts sizes, but useful.  if different,
-  //  this value is canonical and clients should either truncate the file
-  //  at this point or pad the rest with zeroes, as if there was a missing
-  //  sparse file segment missing from contentParts)
-  "size": 6001034,  // i.e. 1024 + 5000000 + 1000000 + 10 from below
+  // #include "file-common.txt"      # metadata about the file
+  // #include "../bytes.txt"         # describes the bytes of the file
 
   // Optional, if linkcount > 1, for representing hardlinks properly.
-  "inodeRef": "digalg-blobref",   // to "inode" blobref, when linkcount > 1
-
-  // Optional, if the file is a fragment of a larger file (referenced
-  // from a "subFileBlobRef").  If true, this is just a hint to the indexer
-  // not to index its bytes.
-  "fragment": false,
-
-  // Required.  Array of contiguous regions of bytes.  Zero or more elements.
-  // Typically will be just one.
-  //
-  // Each element must have:
-  //    "size": the number of bytes that this element contributes to this file.
-  //            required, and must be greater than zero.
-  //
-  // Optional:
-  //    "blobRef": where to get the raw bytes from.  if this and "subFileBlobRef"
-  //               are missing, the bytes are all zero (e.g. a sparse file hole)
-  //    "subFileBlobRef": alternative to blobRef, where to get the range's bytes
-  //                      from, but pointing at a file schema blob describing the
-  //                      range, recursively. large files are made of these in
-  //                      a hash tree.
-  //    "offset": the number of bytes into blobRef or subFileBlobRef to skip to
-  //              get the necessary bytes for the range. usually zero.
-  "contentParts": [
-    {"blobRef": "digalg-blobref", "size": 1024},
-    {"blobRef": "digalg-blobref", "size": 5000000, "offset": 492 },
-    {"size": 1000000},
-    {"blobRef": "digalg-blobref", "size": 10},
-   ]
+  "inodeRef": "digalg-blobref",   // to "inode" blobref, when the link count > 1
 }
 
 // TODO: Mac/NTFS-style resource forks?  perhaps just a "streams"

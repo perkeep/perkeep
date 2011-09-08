@@ -248,9 +248,6 @@ func (mi *Indexer) populatePermanode(blobRef *blobref.BlobRef, camli *schema.Sup
 }
 
 func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
-	if ss.Fragment {
-		return nil
-	}
 	seekFetcher, err := blobref.SeekerFromStreamingFetcher(mi.BlobSource)
 	if err != nil {
 		return err
