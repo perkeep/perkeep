@@ -242,8 +242,9 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 func (mi *Indexer) populatePermanode(blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
 	err = mi.db.Execute(
 		"INSERT IGNORE INTO permanodes (blobref, unverified, signer, lastmod) "+
-			"VALUES (?, 'Y', ?, '')",
-		blobRef.String(), camli.Signer)
+			"VALUES (?, 'Y', ?, '') "+
+			"ON DUPLICATE KEY UPDATE unverified = 'Y', signer = ?",
+		blobRef.String(), camli.Signer, camli.Signer)
 	return
 }
 
