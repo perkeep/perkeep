@@ -234,7 +234,7 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 
 	// TODO: other types
 	if ss.Type == "file" {
-		fi.Size = int64(ss.Size)
+		fi.Size = int64(ss.SumPartsSize())
 	}
 
 	fi.Mtime_ns = schema.NanosFromRFC3339(ss.UnixMtime)
@@ -280,7 +280,7 @@ func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFil
 		return nil, fuse.EINVAL
 	}
 
-	return &CamliFile{nil, fs, fileblob, ss}, fuse.OK
+	return &CamliFile{fs: fs, blob: fileblob, ss: ss}, fuse.OK
 }
 
 // returns fuse.OK on success; anything else on error
@@ -390,18 +390,27 @@ type CamliFile struct {
 	fs   *CamliFileSystem
 	blob *blobref.BlobRef
 	ss   *schema.Superset
+
+	size uint64 // memoized
+}
+
+func (f *CamliFile) Size() uint64 {
+	if f.size == 0 {
+		f.size = f.ss.SumPartsSize()
+	}
+	return f.size
 }
 
 func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
 	offset := ri.Offset
-	if offset >= file.ss.Size {
+	if offset >= file.Size() {
 		return []byte(""), fuse.OK // TODO: correct status?
 	}
 	size := ri.Size // size of read to do (uint32)
 	endOffset := offset + uint64(size)
-	if endOffset > file.ss.Size {
-		size -= uint32(endOffset - file.ss.Size)
-		endOffset = file.ss.Size
+	if endOffset > file.Size() {
+		size -= uint32(endOffset - file.Size())
+		endOffset = file.Size()
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, int(size)))

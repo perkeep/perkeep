@@ -40,7 +40,7 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 	// Naive for now.  Just in 1MB chunks.
 	// TODO: rolling hash and hash trees.
 
-	parts, size := []ContentPart{}, int64(0)
+	parts, size := []BytesPart{}, int64(0)
 
 	buf := new(bytes.Buffer)
 	for {
@@ -72,15 +72,15 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 		}
 
 		size += n
-		parts = append(parts, ContentPart{
+		parts = append(parts, BytesPart{
 			BlobRef: br,
 			Size:    uint64(n),
 			Offset:  0, // into BlobRef to read from (not of dest)
 		})
 	}
 
-	m := NewCommonFilenameMap(filename)
-	err := PopulateRegularFileMap(m, size, parts)
+	m := NewFileMap(filename)
+	err := PopulateParts(m, size, parts)
 	if err != nil {
 		return nil, err
 	}
@@ -211,21 +211,21 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 		}
 	}
 
-	var addContentParts func(dst *[]ContentPart, s []span) os.Error
+	var addBytesParts func(dst *[]BytesPart, s []span) os.Error
 
 	uploadFile := func(filename string, isFragment bool, fileSize int64, s []span) (*blobref.BlobRef, os.Error) {
-		parts := []ContentPart{}
-		err := addContentParts(&parts, s)
+		parts := []BytesPart{}
+		err := addBytesParts(&parts, s)
 		if err != nil {
 			return nil, err
 		}
-		m := NewCommonFilenameMap(filename)
-		err = PopulateRegularFileMap(m, fileSize, parts)
-		if err != nil {
-			return nil, err
-		}
+		m := NewFileMap(filename)
 		if isFragment {
-			m["fragment"] = true
+			m = NewBytes()
+		}
+		err = PopulateParts(m, fileSize, parts)
+		if err != nil {
+			return nil, err
 		}
 		json, err := MapToCamliJson(m)
 		if err != nil {
@@ -234,7 +234,7 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 		return uploadString(json)
 	}
 
-	addContentParts = func(dst *[]ContentPart, spansl []span) os.Error {
+	addBytesParts = func(dst *[]BytesPart, spansl []span) os.Error {
 		for _, sp := range spansl {
 			if len(sp.children) > 0 {
 				childrenSize := int64(0)
@@ -245,13 +245,13 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 				if err != nil {
 					return err
 				}
-				*dst = append(*dst, ContentPart{
-					SubBlobRef: br,
+				*dst = append(*dst, BytesPart{
+					BytesRef: br,
 					Size:       uint64(childrenSize),
 				})
 			}
 			if sp.from != sp.to {
-				*dst = append(*dst, ContentPart{
+				*dst = append(*dst, BytesPart{
 					BlobRef: sp.br,
 					Size:    uint64(sp.to - sp.from),
 				})

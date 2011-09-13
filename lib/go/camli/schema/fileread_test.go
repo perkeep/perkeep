@@ -38,26 +38,26 @@ func init() {
 }
 
 type readTest struct {
-	parts    []*ContentPart
+	parts    []*BytesPart
 	skip     uint64
 	expected string
 }
 
-func part(blob *test.Blob, offset, size uint64) *ContentPart {
-	return &ContentPart{BlobRef: blob.BlobRef(), Size: size, Offset: offset}
+func part(blob *test.Blob, offset, size uint64) *BytesPart {
+	return &BytesPart{BlobRef: blob.BlobRef(), Size: size, Offset: offset}
 }
 
-// filePart returns a ContentPart that references a file JSON schema
+// filePart returns a BytesPart that references a file JSON schema
 // blob made of the provided content parts.
-func filePart(cps []*ContentPart, skip uint64) *ContentPart {
-	m := NewCommonFilenameMap("")
+func filePart(cps []*BytesPart, skip uint64) *BytesPart {
+	m := NewBytes()
 	fileSize := int64(0)
-	cpl := []ContentPart{}
+	cpl := []BytesPart{}
 	for _, cp := range cps {
 		fileSize += int64(cp.Size)
 		cpl = append(cpl, *cp)
 	}
-	err := PopulateRegularFileMap(m, fileSize, cpl)
+	err := PopulateParts(m, fileSize, cpl)
 	if err != nil {
 		panic(err.String())
 	}
@@ -67,22 +67,22 @@ func filePart(cps []*ContentPart, skip uint64) *ContentPart {
 	}
 	tb := &test.Blob{json}
 	testFetcher.AddBlob(tb)
-	return &ContentPart{SubBlobRef: tb.BlobRef(), Size: uint64(fileSize) - skip, Offset: skip}
+	return &BytesPart{BytesRef: tb.BlobRef(), Size: uint64(fileSize) - skip, Offset: skip}
 }
 
-func all(blob *test.Blob) *ContentPart {
+func all(blob *test.Blob) *BytesPart {
 	return part(blob, 0, uint64(blob.Size()))
 }
 
-func zero(size uint64) *ContentPart {
-	return &ContentPart{Size: size}
+func zero(size uint64) *BytesPart {
+	return &BytesPart{Size: size}
 }
 
-func parts(parts ...*ContentPart) []*ContentPart {
+func parts(parts ...*BytesPart) []*BytesPart {
 	return parts
 }
 
-func sizeSum(parts []*ContentPart) (s uint64) {
+func sizeSum(parts []*BytesPart) (s uint64) {
 	for _, p := range parts {
 		s += uint64(p.Size)
 	}
@@ -126,8 +126,7 @@ func TestReader(t *testing.T) {
 		ss := new(Superset)
 		ss.Type = "file"
 		ss.Version = 1
-		ss.Size = sizeSum(rt.parts)
-		ss.ContentParts = rt.parts
+		ss.Parts = rt.parts
 		fr, err := ss.NewFileReader(testFetcher)
 		if err != nil {
 			t.Errorf("read error on test %d: %v", idx, err)

@@ -58,7 +58,7 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	defer fr.Close()
 
 	schema := fr.FileSchema()
-	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.Size))
+	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.SumPartsSize()))
 
 	// TODO: fr.FileSchema() and guess a mime type?  For now:
 	mimeType := "application/octet-stream"
@@ -89,9 +89,9 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		log.Printf("error serving download of file schema %s: %v", file, err)
 		return
 	}
-	if n != int64(schema.Size) {
+	if size := schema.SumPartsSize(); n != int64(size) {
 		log.Printf("error serving download of file schema %s: sent %d, expected size of %d",
-			file, n, schema.Size)
+			file, n, size)
 		return
 	}
 

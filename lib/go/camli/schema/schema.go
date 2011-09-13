@@ -213,20 +213,23 @@ type Superset struct {
 	UnixCtime      string `json:"unixCtime"`
 	UnixAtime      string `json:"unixAtime"`
 
-	Size         uint64         `json:"size"` // for files
-	ContentParts []*ContentPart `json:"contentParts"`
-	Fragment     bool           `json:"fragment"`
+	Parts []*BytesPart `json:"parts"`
 
 	Entries string   `json:"entries"` // for directories, a blobref to a static-set
 	Members []string `json:"members"` // for static sets (for directory static-sets:
 	// blobrefs to child dirs/files)
 }
 
-type ContentPart struct {
-	BlobRef    *blobref.BlobRef `json:"blobRef"`
-	SubBlobRef *blobref.BlobRef `json:"subFileBlobRef"`
-	Size       uint64           `json:"size"`
-	Offset     uint64           `json:"offset"`
+type BytesPart struct {
+	// Required.
+	Size uint64 `json:"size"`
+
+	// At most one of:
+	BlobRef  *blobref.BlobRef `json:"blobRef,omitempty"`
+	BytesRef *blobref.BlobRef `json:"bytesRef,omitempty"`
+
+	// Optional (default value is zero if unset anyway):
+	Offset uint64 `json:"offset,omitempty"`
 }
 
 func stringFromMixedArray(parts []interface{}) string {
@@ -242,6 +245,13 @@ func stringFromMixedArray(parts []interface{}) string {
 		}
 	}
 	return buf.String()
+}
+
+func (ss *Superset) SumPartsSize() (size uint64) {
+	for _, part := range ss.Parts {
+		size += uint64(part.Size)
+	}
+	return size
 }
 
 func (ss *Superset) SymlinkTargetString() string {
@@ -366,6 +376,12 @@ func MapToCamliJson(m map[string]interface{}) (string, os.Error) {
 	return string(buf.Bytes()), nil
 }
 
+func NewFileMap(fileName string) map[string]interface{} {
+	m := NewCommonFilenameMap(fileName)
+	m["camliType"] = "file"
+	return m
+}
+
 func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	m := newCamliMap(1, "" /* no type yet */ )
 	if fileName != "" {
@@ -409,39 +425,30 @@ func NewCommonFileMap(fileName string, fi *os.FileInfo) map[string]interface{} {
 	return m
 }
 
-type InvalidContentPartsError struct {
-	StatSize   int64
-	SumOfParts int64
-}
-
-func (e *InvalidContentPartsError) String() string {
-	return fmt.Sprintf("Invalid ContentPart slice in PopulateRegularFileMap; file stat size is %d but sum of parts was %d", e.StatSize, e.SumOfParts)
-}
-
-func PopulateRegularFileMap(m map[string]interface{}, size int64, parts []ContentPart) os.Error {
-	m["camliType"] = "file"
-	m["size"] = size
-
-	sumSize := uint64(0)
+func PopulateParts(m map[string]interface{}, size int64, parts []BytesPart) os.Error {
+	sumSize := int64(0)
 	mparts := make([]map[string]interface{}, len(parts))
 	for idx, part := range parts {
 		mpart := make(map[string]interface{})
 		mparts[idx] = mpart
-		if part.BlobRef != nil {
+		switch {
+		case part.BlobRef != nil && part.BytesRef != nil:
+			return os.NewError("schema: part contains both blobRef and bytesRef")
+		case part.BlobRef != nil:
 			mpart["blobRef"] = part.BlobRef.String()
-		} else if part.SubBlobRef != nil {
-			mpart["subFileBlobRef"] = part.SubBlobRef.String()
+		case part.BytesRef != nil:
+			mpart["bytesRef"] = part.BytesRef.String()
 		}
 		mpart["size"] = part.Size
-		sumSize += part.Size
+		sumSize += int64(part.Size)
 		if part.Offset != 0 {
 			mpart["offset"] = part.Offset
 		}
 	}
-	if sumSize != uint64(size) {
-		return &InvalidContentPartsError{size, int64(sumSize)}
+	if sumSize != size {
+		return fmt.Errorf("schema: declared size %d doesn't match sum of parts size %d", size, sumSize)
 	}
-	m["contentParts"] = mparts
+	m["parts"] = mparts
 	return nil
 }
 
@@ -457,6 +464,10 @@ func PopulateSymlinkMap(m map[string]interface{}, fileName string) os.Error {
 		m["symlinkTargetBytes"] = []uint8(target)
 	}
 	return nil
+}
+
+func NewBytes() map[string]interface{} {
+	return newCamliMap(1, "bytes")
 }
 
 func PopulateDirectoryMap(m map[string]interface{}, staticSetRef *blobref.BlobRef) {
