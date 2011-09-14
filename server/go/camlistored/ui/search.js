@@ -19,8 +19,16 @@ var CamliSearch = {};
 function getSearchParams() {
 	CamliSearch.query = "";
 	CamliSearch.type = "";
+	CamliSearch.fuzzy = "";
 	CamliSearch.query = getQueryParam('q');
 	CamliSearch.type = getQueryParam('t');
+	CamliSearch.fuzzy = getQueryParam('f');
+	if (CamliSearch.type == null) {
+		CamliSearch.type = "";
+	}
+	if (CamliSearch.fuzzy == null) {
+		CamliSearch.fuzzy = "";
+	}
 }
 
 function hideAllResThings() {
@@ -44,6 +52,34 @@ function handleFormGetTagged(e) {
 	document.location.href = "search.html?q=" + tags[0] + "&t=tag"
 }
 
+function handleFormGetTitled(e) {
+	e.stopPropagation();
+	e.preventDefault();
+
+	var input = document.getElementById("inputTitle");
+
+	if (input.value == "") {
+		return;
+	}
+
+	var titles = input.value.split(/\s*,\s*/);
+	document.location.href = "search.html?q=" + titles[0] + "&t=title"
+}
+
+function handleFormGetAnyAttr(e) {
+	e.stopPropagation();
+	e.preventDefault();
+
+	var input = document.getElementById("inputAnyAttr");
+
+	if (input.value == "") {
+		return;
+	}
+
+	var any = input.value.split(/\s*,\s*/);
+	document.location.href = "search.html?q=" + any[0]
+}
+
 function doSearch() {
 	var sigcb = {};
 	sigcb.success = function(sigconf) {
@@ -51,12 +87,19 @@ function doSearch() {
 		tagcb.success = function(pres) {
 			showSearchResult(pres, CamliSearch.type);
 		};
-//TODO(mpl): add other kinds of searches (by filename for ex).
+		tagcb.fail = function(msg) {
+			alert(msg);
+		};
+// TODO(mpl): add other kinds of searches (by filename for ex).
 		switch(CamliSearch.type) {
 		case "tag":
-			camliGetTaggedPermanodes(sigconf.publicKeyBlobRef, CamliSearch.query, tagcb);
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
 			break;
-		default:
+		case "title":
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
+			break;
+		case "":
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
 			break;
 		}
 	};
@@ -67,23 +110,18 @@ function doSearch() {
 }
 
 function showSearchResult(pres, type) {
-	switch(type) {
-	case "tag":
-		showTaggedPermanodes(pres);
-		break;
-	default:
-		break;
-	}
+	showPermanodes(pres, type);
 	CamliSearch.query = "";
 	CamliSearch.type = "";
 }
 
-function showTaggedPermanodes(searchRes) {
+function showPermanodes(searchRes, type) {
 	var div = document.getElementById("divRes");
 	while (div.hasChildNodes()) {
 		div.removeChild(div.lastChild);
 	}
-	if (searchRes.tagged.length > 0) {
+	var results = searchRes.withAttr;
+	if (results.length > 0) {
 		var checkall = document.createElement("input");
 		checkall.id = "checkall";
 		checkall.type = "checkbox";
@@ -93,8 +131,8 @@ function showTaggedPermanodes(searchRes) {
 		div.appendChild(checkall);
 		div.appendChild(document.createElement("br"));
 	}
-	for (var i = 0; i < searchRes.tagged.length; i++) {
-		var result = searchRes.tagged[i];
+	for (var i = 0; i < results.length; i++) {
+		var result = results[i];
 		var alink = document.createElement("a");
 		alink.href = "./?p=" + result.permanode;
 		alink.innerText = camliBlobTitle(result.permanode, searchRes);
@@ -106,8 +144,19 @@ function showTaggedPermanodes(searchRes) {
 		div.appendChild(alink);
 		div.appendChild(document.createElement('br'));
 	}
-	if (searchRes.tagged.length > 0) {
-		CamliSearch.titleRes.innerHTML = "Tagged";
+	if (results.length > 0) {
+		switch(type) {
+		case "tag":
+			CamliSearch.titleRes.innerHTML = "Tagged with \"";
+			break;
+		case "title":
+			CamliSearch.titleRes.innerHTML = "Titled with \"";
+			break;
+		case "":
+			CamliSearch.titleRes.innerHTML = "General search for \"";
+			break;
+		}
+		CamliSearch.titleRes.innerHTML += CamliSearch.query + "\"";
 		CamliSearch.titleRes.style.visibility = 'visible';
 		CamliSearch.btnNewCollec.disabled = false;
 		CamliSearch.btnNewCollec.style.visibility = 'visible';
@@ -200,6 +249,10 @@ function indexOnLoad(e) {
 
 	var formTags = document.getElementById("formTags");
 	formTags.addEventListener("submit", handleFormGetTagged);
+	var formTitles = document.getElementById("formTitles");
+	formTitles.addEventListener("submit", handleFormGetTitled);
+	var formAnyAttr = document.getElementById("formAnyAttr");
+	formAnyAttr.addEventListener("submit", handleFormGetAnyAttr);
 	CamliSearch.titleRes = document.getElementById("titleRes");
 	CamliSearch.btnNewCollec = document.getElementById("btnNewCollec");
 	CamliSearch.btnNewCollec.addEventListener("click", handleCreateNewCollection);
@@ -208,7 +261,6 @@ function indexOnLoad(e) {
 	hideAllResThings();
 	getSearchParams();
 	if (CamliSearch.query != "") {
-		document.getElementById("inputTag").value = CamliSearch.query;
 		doSearch();
 	}
 }

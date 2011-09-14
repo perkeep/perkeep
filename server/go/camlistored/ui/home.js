@@ -41,8 +41,7 @@ function handleFormSearch(e) {
     }
 
     var query = input.value.split(/\s*,\s*/);
-//TODO(mpl): process the query (maybe in ui.go) to support other kinds than just tag search
-    window.location = "./search.html?q=" + query[0] + "&t=tag"
+    window.location = "./search.html?q=" + query[0];
 }
 
 function indexOnLoad(e) {

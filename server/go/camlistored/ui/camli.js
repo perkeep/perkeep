@@ -213,8 +213,8 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
             }
             // TODO: verify filename and other file metadata in the
             // file json schema match too, not just the contents
-            var checkFile = remain.shift()
-            console.log("integrity checking reported dup " + checkFile);
+            var checkFile = remain.shift();
+            console.log("integrity checking the reported dup " + checkFile);
 
             var vcb = {};
             vcb.fail = function(xhr) {
@@ -223,7 +223,7 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
             };
             vcb.success = function(xhr) {
                 if (xhr.getResponseHeader("X-Camli-Contents") == contentsBlobRef) {
-                    console.log("integrity checked passed on " + checkFile);
+                    console.log("integrity checked passed on " + checkFile + "; using it.");
                     opts.success(checkFile);
                 } else {
                     checkNext();
@@ -306,10 +306,10 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
     xhr.send();
 }
 
-function camliGetTaggedPermanodes(signer, value, opts) {
-    var xhr = camliJsonXhr("camliGetTaggedPermanodes", opts);
-    var path = makeURL(Camli.config.searchRoot + "camli/search/tag",
-                       { signer: signer, value: value });
+function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, opts) {
+    var xhr = camliJsonXhr("camliGetPermanodesWithAttr", opts);
+    var path = makeURL(Camli.config.searchRoot + "camli/search/permanodeattr",
+                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy });
     xhr.open("GET", path, true);
     xhr.send();
 }
@@ -358,10 +358,10 @@ function camliJsonXhr(name, opts) {
     return xhr;
 }
 
-function camliFindExistingFileSchemas(bytesRef, opts) {
+function camliFindExistingFileSchemas(wholeDigestRef, opts) {
     var xhr = camliJsonXhr("camliFindExistingFileSchemas", opts);
-    var path = Camli.config.searchRoot + "camli/search/files?bytesref=" +
-        bytesRef;
+    var path = Camli.config.searchRoot + "camli/search/files?wholedigest=" +
+        wholeDigestRef;
     xhr.open("GET", path, true);
     xhr.send();
 }

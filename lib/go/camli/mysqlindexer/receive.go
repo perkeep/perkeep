@@ -184,12 +184,25 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 
 	if verifiedKeyId != "" {
 		switch camli.Attribute {
-		case "camliRoot", "camliTag":
+		case "camliRoot", "tag", "title":
+			// TODO(bradfitz,mpl): these tag names are hard-coded.
+			// we should probably have a config file of attributes
+			// and properties (e.g. which way(s) they're indexed)
 			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
 				"VALUES (?, ?, ?, ?, ?, ?)",
 				verifiedKeyId, camli.Attribute, camli.Value,
 				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
 				return
+			}
+			if camli.Attribute == "tag" || camli.Attribute == "title" {
+				// Identical copy for fulltext searches
+				// TODO(mpl): do the DELETEs as well
+				if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+
+					"VALUES (?, ?, ?, ?, ?, ?)",
+					verifiedKeyId, camli.Attribute, camli.Value,
+					camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
+					return
+				}
 			}
 		}
 		if strings.HasPrefix(camli.Attribute, "camliPath:") {
@@ -229,15 +242,13 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 func (mi *Indexer) populatePermanode(blobRef *blobref.BlobRef, camli *schema.Superset) (err os.Error) {
 	err = mi.db.Execute(
 		"INSERT IGNORE INTO permanodes (blobref, unverified, signer, lastmod) "+
-			"VALUES (?, 'Y', ?, '')",
-		blobRef.String(), camli.Signer)
+			"VALUES (?, 'Y', ?, '') "+
+			"ON DUPLICATE KEY UPDATE unverified = 'Y', signer = ?",
+		blobRef.String(), camli.Signer, camli.Signer)
 	return
 }
 
 func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (err os.Error) {
-	if ss.Fragment {
-		return nil
-	}
 	seekFetcher, err := blobref.SeekerFromStreamingFetcher(mi.BlobSource)
 	if err != nil {
 		return err
@@ -262,25 +273,15 @@ func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (
 		return nil
 	}
 
-	attrs := []string{}
-	if ss.UnixPermission != "" {
-		attrs = append(attrs, "perm")
-	}
-	if ss.UnixOwnerId != 0 || ss.UnixOwner != "" || ss.UnixGroupId != 0 || ss.UnixGroup != "" {
-		attrs = append(attrs, "owner")
-	}
-	if ss.UnixMtime != "" || ss.UnixCtime != "" || ss.UnixAtime != "" {
-		attrs = append(attrs, "time")
-	}
-
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
 	err = mi.db.Execute(
-		"INSERT IGNORE INTO files (fileschemaref, bytesref, size, filename, mime, setattrs) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT IGNORE INTO bytesfiles (schemaref, camlitype, wholedigest, size, filename, mime) VALUES (?, ?, ?, ?, ?, ?)",
 		blobRef.String(),
+		"file",
 		blobref.FromHash("sha1", sha1).String(),
 		n,
 		ss.FileNameString(),
 		mime,
-		strings.Join(attrs, ","))
+		)
 	return
 }

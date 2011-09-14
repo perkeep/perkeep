@@ -88,7 +88,7 @@ function handleFormTagsSubmit(e) {
         var tag = tags[idx];
         camliNewAddAttributeClaim(
             getPermanodeParam(),
-            "camliTag",
+            "tag",
             tag,
             {
                 success: oneDone,
@@ -143,7 +143,7 @@ function deleteTagFunc(tag, strikeEle, removeEle) {
         strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
         camliNewDelAttributeClaim(
             getPermanodeParam(),
-            "camliTag",
+            "tag",
             tag,
             {
                 success: function() {
@@ -410,7 +410,7 @@ function onBlobDescribed(jres) {
         c.appendChild(a);
     }
 
-    var tags = permanodeObject.attr.camliTag;
+    var tags = permanodeObject.attr.tag;
     for (idx in tags) {
         var tag = tags[idx];
 

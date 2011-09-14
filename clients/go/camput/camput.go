@@ -100,12 +100,13 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 		if err != nil {
 			return nil, err
 		}
-		parts := []schema.ContentPart{{BlobRef: blobpr.BlobRef, Size: uint64(blobpr.Size)}}
+		parts := []schema.BytesPart{{BlobRef: blobpr.BlobRef, Size: uint64(blobpr.Size)}}
 		if blobpr.Size != fi.Size {
 			// TODO: handle races of file changing while reading it
 			// after the stat.
 		}
-		if err = schema.PopulateRegularFileMap(m, fi.Size, parts); err != nil {
+		m["camliType"] = "file"
+		if err = schema.PopulateParts(m, fi.Size, parts); err != nil {
 			return nil, err
 		}
 	case fi.IsSymlink():
@@ -303,9 +304,9 @@ func main() {
 			}
 			if *flagTag != "" {
 				tags := strings.Split(*flagTag, ",")
-				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliTag", tags[0])
+				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 				for _, tag := range tags {
-					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "camliTag", tag)
+					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 					put, err := up.UploadAndSignMap(m)
 					handleResult("claim-permanode-tag", put, err)
 				}

@@ -112,7 +112,8 @@ func (fi *FakeIndex) GetRecentPermanodes(dest chan *search.Result, owner []*blob
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string, limit int) os.Error {
+// TODO(mpl): write real tests
+func (fi *FakeIndex) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
 	panic("NOIMPL")
 }
 

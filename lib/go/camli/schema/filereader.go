@@ -150,11 +150,13 @@ type FileReader struct {
 	cr   blobref.ReadSeekCloser // cached reader (for blobref chunks)
 	crbr *blobref.BlobRef       // the blobref that cr is for
 
-	csubfr *FileReader  // cached sub blobref reader (for subBlobRef chunks)
-	ccp    *ContentPart // the content part that csubfr is cached for
+	csubfr *FileReader // cached sub blobref reader (for subBlobRef chunks)
+	ccp    *BytesPart  // the content part that csubfr is cached for
 }
 
-// TODO: make this take a blobref.FetcherAt instead?
+// TODO(bradfitz): make this take a blobref.FetcherAt instead?
+// TODO(bradfitz): rename this into bytes reader? but for now it's still
+//                 named FileReader, but can also read a "bytes" schema.
 func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, os.Error) {
 	if fileBlobRef == nil {
 		return nil, os.NewError("schema/filereader: NewFileReader blobref was nil")
@@ -167,8 +169,8 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
 	}
-	if ss.Type != "file" {
-		return nil, fmt.Errorf("schema/filereader: expected \"file\" schema blob, got %q", ss.Type)
+	if ss.Type != "file" && ss.Type != "bytes" {
+		return nil, fmt.Errorf("schema/filereader: expected \"file\" or \"bytes\" schema blob, got %q", ss.Type)
 	}
 	fr, err := ss.NewFileReader(fetcher)
 	if err != nil {
@@ -178,10 +180,10 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 }
 
 func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, os.Error) {
-	if ss.Type != "file" {
-		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\"")
+	if ss.Type != "file" && ss.Type != "bytes" {
+		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
 	}
-	return &FileReader{fetcher: fetcher, ss: ss, remain: int64(ss.Size)}, nil
+	return &FileReader{fetcher: fetcher, ss: ss, remain: int64(ss.SumPartsSize())}, nil
 }
 
 // FileSchema returns the reader's schema superset. Don't mutate it.
@@ -205,8 +207,8 @@ func (fr *FileReader) Skip(skipBytes uint64) uint64 {
 
 	wantedSkipped := skipBytes
 
-	for skipBytes != 0 && fr.ci < len(fr.ss.ContentParts) {
-		cp := fr.ss.ContentParts[fr.ci]
+	for skipBytes != 0 && fr.ci < len(fr.ss.Parts) {
+		cp := fr.ss.Parts[fr.ci]
 		thisChunkSkippable := cp.Size - fr.ccon
 		toSkip := minu64(skipBytes, thisChunkSkippable)
 		fr.ccon += toSkip
@@ -254,11 +256,11 @@ func (fr *FileReader) readerFor(br *blobref.BlobRef, seekTo int64) (r io.Reader,
 	return rsc, nil
 }
 
-func (fr *FileReader) subBlobRefReader(cp *ContentPart) (io.Reader, os.Error) {
+func (fr *FileReader) subBlobRefReader(cp *BytesPart) (io.Reader, os.Error) {
 	if fr.ccp == cp {
 		return fr.csubfr, nil
 	}
-	subfr, err := NewFileReader(fr.fetcher, cp.SubBlobRef)
+	subfr, err := NewFileReader(fr.fetcher, cp.BytesRef)
 	if err == nil {
 		subfr.Skip(cp.Offset)
 		fr.csubfr = subfr
@@ -267,16 +269,16 @@ func (fr *FileReader) subBlobRefReader(cp *ContentPart) (io.Reader, os.Error) {
 	return subfr, err
 }
 
-func (fr *FileReader) currentPart() (*ContentPart, os.Error) {
+func (fr *FileReader) currentPart() (*BytesPart, os.Error) {
 	for {
-		if fr.ci >= len(fr.ss.ContentParts) {
+		if fr.ci >= len(fr.ss.Parts) {
 			fr.closeOpenBlobs()
 			if fr.remain > 0 {
 				return nil, fmt.Errorf("schema: declared file schema size was larger than sum of content parts")
 			}
 			return nil, os.EOF
 		}
-		cp := fr.ss.ContentParts[fr.ci]
+		cp := fr.ss.Parts[fr.ci]
 		thisChunkReadable := cp.Size - fr.ccon
 		if thisChunkReadable == 0 {
 			fr.ci++
@@ -303,7 +305,7 @@ func (fr *FileReader) Read(p []byte) (n int, err os.Error) {
 	}
 
 	br := cp.BlobRef
-	sbr := cp.SubBlobRef
+	sbr := cp.BytesRef
 	if br != nil && sbr != nil {
 		return 0, fmt.Errorf("content part index %d has both blobRef and subFileBlobRef", fr.ci)
 	}

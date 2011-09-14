@@ -18,7 +18,7 @@ package mysqlindexer
 
 import ()
 
-const requiredSchemaVersion = 16
+const requiredSchemaVersion = 18
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -53,15 +53,15 @@ signer VARCHAR(128) NOT NULL DEFAULT '',
 lastmod VARCHAR(40) NOT NULL DEFAULT '',
 INDEX (signer, lastmod))`,
 
-		`CREATE TABLE files (
-fileschemaref VARCHAR(128) NOT NULL,
-bytesref VARCHAR(128) NOT NULL,
-size BIGINT,
+		`CREATE TABLE bytesfiles (
+schemaref VARCHAR(128) NOT NULL,
+camlitype VARCHAR(32) NOT NULL,
+wholedigest VARCHAR(128) NOT NULL,
 filename VARCHAR(255),
+size BIGINT,
 mime VARCHAR(255),
-setattrs VARCHAR(255),
-PRIMARY KEY(fileschemaref, bytesref),
-INDEX (bytesref))`,
+PRIMARY KEY(schemaref, wholedigest),
+INDEX (wholedigest))`,
 
 		// For index.PermanodeOfSignerAttrValue:
 		// Rows are one per camliType "claim", for claimType "set-attribute" or "add-attribute",
@@ -83,6 +83,22 @@ blobref VARCHAR(128) NOT NULL,
 PRIMARY KEY (blobref),
 permanode VARCHAR(128) NOT NULL,
 INDEX (permanode))`,
+
+		// "Shadow" copy of signerattrvalue for fulltext searches.
+		// Kept in sync witch signerattrvalue directly in the go code for now, not with triggers.
+		// As of MySQL 5.5, fulltext search is still only available with MyISAM tables
+		// (see http://dev.mysql.com/doc/refman/5.5/en/fulltext-search.html)
+		`CREATE TABLE signerattrvalueft (
+keyid VARCHAR(128) NOT NULL,
+attr VARCHAR(128) NOT NULL,
+value VARCHAR(255) NOT NULL,
+claimdate VARCHAR(40) NOT NULL,
+INDEX (keyid, attr, value, claimdate),
+blobref VARCHAR(128) NOT NULL,
+PRIMARY KEY (blobref),
+permanode VARCHAR(128) NOT NULL,
+INDEX (permanode),
+FULLTEXT (value)) TYPE=MyISAM`,
 
 		`CREATE TABLE meta (
 metakey VARCHAR(255) NOT NULL PRIMARY KEY,

@@ -1,0 +1,38 @@
+Description of a series of bytes.
+
+A "bytes" is a metadata (JSON) blob to describe blobs.  It's a recursive
+definition that's able to describe a hash tree, describing very large
+blobs (or "files").
+
+A "bytes" blob can be used on its own, but is also used by things like
+a "file" schema blob.
+
+
+{"camliVersion": 1,
+ "camliType": "bytes",
+
+  // Required.  Array of contiguous regions of bytes.  Zero or more elements.
+  //
+  // Each element must have:
+  //    "size": the number of bytes that this element contributes to array of bytes.
+  //            Required, and must be greater than zero.
+  //
+  // At most one of:
+  //    "blobRef": where to get the raw bytes from.  if this and "bytesRef"
+  //               are missing, the bytes are all zero (e.g. a sparse file hole)
+  //    "bytesRef": alternative to blobRef, where to get the range's bytes
+  //                from, but pointing recursively at a "bytes" schema blob
+  //                describing the range, recursively. large files are made of
+  //                these in a hash tree.  it is an error if both "bytesRef"
+  //                and "blobRef" are specified.
+  //
+  // Optional:
+  //    "offset": the number of bytes into blobRef or bytesRef to skip to
+  //              get the necessary bytes for the range. usually zero (unspecified)
+  "parts": [
+    {"blobRef": "digalg-blobref", "size": 1024},
+    {"bytesRef": "digalg-blobref", "size": 5000000, "offset": 492 },
+    {"size": 1000000},
+    {"blobRef": "digalg-blobref", "size": 10},
+   ]
+}

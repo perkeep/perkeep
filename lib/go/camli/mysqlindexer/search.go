@@ -141,17 +141,36 @@ func (mi *Indexer) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int
 	return
 }
 
-func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blobref.BlobRef, tag string, limit int) os.Error {
+func (mi *Indexer) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
 	defer close(dest)
-	keyId, err := mi.keyIdOfSigner(signer)
+	keyId, err := mi.keyIdOfSigner(request.Signer)
 	if err != nil {
 		return err
 	}
-
-	rs, err := mi.db.Query("SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ? AND claimdate <> '' ORDER BY claimdate DESC LIMIT ?",
-		keyId, "camliTag", tag, limit)
-	if err != nil {
-		return err
+	query := ""
+	var rs ResultSet
+	if request.Attribute == "" {
+		query = "SELECT permanode FROM signerattrvalueft WHERE keyid = ? AND MATCH(value) AGAINST (?) AND claimdate <> '' LIMIT ?"
+		rs, err = mi.db.Query(query, keyId, request.Query, request.MaxResults)
+		if err != nil {
+			return err
+		}
+	} else {
+		if request.FuzzyMatch {
+			query = "SELECT permanode FROM signerattrvalueft WHERE keyid = ? AND attr = ? AND MATCH(value) AGAINST (?) AND claimdate <> '' LIMIT ?"
+			rs, err = mi.db.Query(query, keyId, request.Attribute,
+				request.Query, request.MaxResults)
+			if err != nil {
+				return err
+			}
+		} else {
+			query = "SELECT permanode FROM signerattrvalue WHERE keyid = ? AND attr = ? AND value = ? AND claimdate <> '' ORDER BY claimdate DESC LIMIT ?"
+			rs, err = mi.db.Query(query, keyId, request.Attribute,
+				request.Query, request.MaxResults)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	defer rs.Close()
 
@@ -169,8 +188,8 @@ func (mi *Indexer) GetTaggedPermanodes(dest chan<- *blobref.BlobRef, signer *blo
 	return nil
 }
 
-func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
-	rs, err := mi.db.Query("SELECT fileschemaref FROM files WHERE bytesref=?", bytesRef.String())
+func (mi *Indexer) ExistingFileSchemas(wholeDigest *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
+	rs, err := mi.db.Query("SELECT schemaref FROM bytesfiles WHERE wholedigest=?", wholeDigest.String())
 	if err != nil {
 		return
 	}
@@ -187,7 +206,7 @@ func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blob
 }
 
 func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
-	rs, err := mi.db.Query("SELECT size, filename, mime FROM files WHERE fileschemaref=?",
+	rs, err := mi.db.Query("SELECT size, filename, mime FROM bytesfiles WHERE schemaref=?",
 		fileRef.String())
 	if err != nil {
 		return nil, err
