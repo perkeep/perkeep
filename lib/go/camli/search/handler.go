@@ -646,14 +646,9 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJson(rw, ret)
 
-	br := blobref.Parse(req.FormValue("bytesref"))
+	br := blobref.Parse(req.FormValue("wholedigest"))
 	if br == nil {
-		// TODO: formalize how errors are returned And make
-		// ReturnJson set the HTTP status to 400 automatically
-		// in some cases, if errorType is "input"?  Document
-		// this somewhere.  Are there existing JSON
-		// conventions to use?
-		ret["error"] = "Missing or invalid 'bytesref' param"
+		ret["error"] = "Missing or invalid 'wholedigest' param"
 		ret["errorType"] = "input"
 		return
 	}

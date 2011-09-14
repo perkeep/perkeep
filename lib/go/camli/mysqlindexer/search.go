@@ -188,8 +188,8 @@ func (mi *Indexer) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, reques
 	return nil
 }
 
-func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
-	rs, err := mi.db.Query("SELECT fileschemaref FROM files WHERE bytesref=?", bytesRef.String())
+func (mi *Indexer) ExistingFileSchemas(wholeDigest *blobref.BlobRef) (files []*blobref.BlobRef, err os.Error) {
+	rs, err := mi.db.Query("SELECT schemaref FROM bytesfiles WHERE wholedigest=?", wholeDigest.String())
 	if err != nil {
 		return
 	}
@@ -206,7 +206,7 @@ func (mi *Indexer) ExistingFileSchemas(bytesRef *blobref.BlobRef) (files []*blob
 }
 
 func (mi *Indexer) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
-	rs, err := mi.db.Query("SELECT size, filename, mime FROM files WHERE fileschemaref=?",
+	rs, err := mi.db.Query("SELECT size, filename, mime FROM bytesfiles WHERE schemaref=?",
 		fileRef.String())
 	if err != nil {
 		return nil, err

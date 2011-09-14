@@ -273,25 +273,15 @@ func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (
 		return nil
 	}
 
-	attrs := []string{}
-	if ss.UnixPermission != "" {
-		attrs = append(attrs, "perm")
-	}
-	if ss.UnixOwnerId != 0 || ss.UnixOwner != "" || ss.UnixGroupId != 0 || ss.UnixGroup != "" {
-		attrs = append(attrs, "owner")
-	}
-	if ss.UnixMtime != "" || ss.UnixCtime != "" || ss.UnixAtime != "" {
-		attrs = append(attrs, "time")
-	}
-
 	log.Printf("file %s blobref is %s, size %d", blobRef, blobref.FromHash("sha1", sha1), n)
 	err = mi.db.Execute(
-		"INSERT IGNORE INTO files (fileschemaref, bytesref, size, filename, mime, setattrs) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT IGNORE INTO bytesfiles (schemaref, camlitype, wholedigest, size, filename, mime) VALUES (?, ?, ?, ?, ?, ?)",
 		blobRef.String(),
+		"file",
 		blobref.FromHash("sha1", sha1).String(),
 		n,
 		ss.FileNameString(),
 		mime,
-		strings.Join(attrs, ","))
+		)
 	return
 }
