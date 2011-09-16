@@ -1,0 +1,9 @@
+TODO: run mysqld as child process in no-configuration mode?
+
+./bin/mysqld --no-defaults --basedir=/home/bradfitz/mysql  --port=3306
+ ...
+ [list all configuration, don't mess with rest of system]
+
+
+
+
