@@ -74,7 +74,7 @@ INDEX (wholedigest))`,
 		// blobref is the blobref of the claim.
 		// permanode is the claim's "permaNode" field.
 		`CREATE TABLE signerattrvalue (
-keyid VARCHAR(128) NOT NULL,
+keyid VARCHAR(40) NOT NULL,
 attr VARCHAR(128) NOT NULL,
 value VARCHAR(255) NOT NULL,
 claimdate VARCHAR(40) NOT NULL,
@@ -89,7 +89,7 @@ INDEX (permanode))`,
 		// As of MySQL 5.5, fulltext search is still only available with MyISAM tables
 		// (see http://dev.mysql.com/doc/refman/5.5/en/fulltext-search.html)
 		`CREATE TABLE signerattrvalueft (
-keyid VARCHAR(128) NOT NULL,
+keyid VARCHAR(40) NOT NULL,
 attr VARCHAR(128) NOT NULL,
 value VARCHAR(255) NOT NULL,
 claimdate VARCHAR(40) NOT NULL,
@@ -98,7 +98,7 @@ blobref VARCHAR(128) NOT NULL,
 PRIMARY KEY (blobref),
 permanode VARCHAR(128) NOT NULL,
 INDEX (permanode),
-FULLTEXT (value)) TYPE=MyISAM`,
+FULLTEXT (value)) ENGINE=MyISAM`,
 
 		`CREATE TABLE meta (
 metakey VARCHAR(255) NOT NULL PRIMARY KEY,
