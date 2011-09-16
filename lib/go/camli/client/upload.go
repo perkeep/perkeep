@@ -250,9 +250,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	if err != nil {
 		return errorf("stat http error: %v", err)
 	}
-	if resp.Body != nil {
-		defer resp.Body.Close()
-	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return errorf("stat response had http status %d", resp.StatusCode)

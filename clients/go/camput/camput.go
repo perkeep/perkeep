@@ -70,6 +70,13 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error
 	if *flagVerbose {
 		log.Printf("Uploading filename: %s", filename)
 	}
+	fi, err := os.Stat(filename)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.IsRegular() {
+		return nil, fmt.Errorf("%q is not a regular file", filename)
+	}
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
