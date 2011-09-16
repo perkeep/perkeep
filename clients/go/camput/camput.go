@@ -54,6 +54,8 @@ var wereErrors = false
 type Uploader struct {
 	*client.Client
 	entityFetcher jsonsign.EntityFetcher
+
+	filecapc chan bool
 }
 
 func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err os.Error) {
@@ -91,7 +93,18 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error
 	return up.Upload(handle)
 }
 
+func (up *Uploader) beginFileUpload() {
+	up.filecapc <- true
+}
+
+func (up *Uploader) endFileUpload() {
+	<-up.filecapc
+}
+
 func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
+	up.beginFileUpload()
+	defer up.endFileUpload()
+
 	fi, err := os.Lstat(filename)
 	if err != nil {
 		return nil, err
@@ -270,6 +283,8 @@ func main() {
 	}
 	up := &Uploader{
 		Client: cc,
+
+		filecapc: make(chan bool, 10 /* TODO: config option on max files at a time */ ),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
