@@ -36,7 +36,7 @@ type fileInfoPutRes struct {
 // FlatCache is an ugly hack, until leveldb-go is ready
 // (http://code.google.com/p/leveldb-go/)
 type FlatCache struct {
-	mu sync.Mutex
+	mu       sync.Mutex
 	filename string
 	m        map[string]fileInfoPutRes
 	dirty    map[string]fileInfoPutRes
@@ -47,7 +47,7 @@ func NewFlatCache() *FlatCache {
 	fc := &FlatCache{
 		filename: filename,
 		m:        make(map[string]fileInfoPutRes),
-		dirty: make(map[string]fileInfoPutRes),
+		dirty:    make(map[string]fileInfoPutRes),
 	}
 
 	if f, err := os.Open(filename); err == nil {
@@ -61,7 +61,9 @@ func NewFlatCache() *FlatCache {
 			}
 			val.Pr.Skipped = true
 			fc.m[key] = val
+			log.Printf("Read %q: %v", key, val)
 		}
+		log.Printf("Flatcache read %d entries from %s", len(fc.m), filename)
 	}
 	return fc
 }
@@ -73,18 +75,21 @@ var ErrCacheMiss = os.NewError("not in cache")
 // filename may be relative.
 // returns ErrCacheMiss on miss
 func cacheKey(pwd, filename string) string {
-	return pwd + "\x00" + filename
+	return filepath.Clean(pwd) + "\x00" + filepath.Clean(filename)
 }
 
 func (c *FlatCache) CachedPutResult(pwd, filename string, fi *os.FileInfo) (*client.PutResult, os.Error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	val, ok := c.m[cacheKey(pwd, filename)]
+	key := cacheKey(pwd, filename)
+	val, ok := c.m[key]
 	if !ok {
+		log.Printf("cache MISS on %q: not in cache", key)
 		return nil, ErrCacheMiss
 	}
-	if !reflect.DeepEqual(val.Fi, fi) {
+	if !reflect.DeepEqual(&val.Fi, fi) {
+		log.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fi, fi)
 		return nil, ErrCacheMiss
 	}
 	pr := val.Pr
@@ -93,18 +98,23 @@ func (c *FlatCache) CachedPutResult(pwd, filename string, fi *os.FileInfo) (*cli
 
 func (c *FlatCache) AddCachedPutResult(pwd, filename string, fi *os.FileInfo, pr *client.PutResult) {
 	c.mu.Lock()
-        defer c.mu.Unlock()
+	defer c.mu.Unlock()
 	key := cacheKey(pwd, filename)
+	val := fileInfoPutRes{*fi, *pr}
 
-	vprintf("Adding to stat cache %q: %v", filename, pr)
+	vprintf("Adding to stat cache %q: %v", key, val)
 
-	c.dirty[key] = fileInfoPutRes{*fi, *pr}
-	c.m[key] = fileInfoPutRes{*fi, *pr}
+	c.dirty[key] = val
+	c.m[key] = val
 }
 
 func (c *FlatCache) Save() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.dirty) == 0 {
+		vprintf("FlatCache: Save, but nothing dirty")
+		return
+	}
 
 	f, err := os.OpenFile(c.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
@@ -122,4 +132,5 @@ func (c *FlatCache) Save() {
 		write(v)
 	}
 	c.dirty = make(map[string]fileInfoPutRes)
+	log.Printf("FlatCache: saved")
 }

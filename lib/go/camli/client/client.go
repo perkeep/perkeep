@@ -24,6 +24,18 @@ import (
 	"sync"
 )
 
+type Client struct {
+	server   string // URL prefix before "/camli/"
+	password string
+
+	httpClient *http.Client
+
+	statsMutex sync.Mutex
+	stats      Stats
+
+	log *log.Logger // not nil
+}
+
 type Stats struct {
 	// The number of uploads that were requested, but perhaps
 	// not actually performed if the server already had the items.
@@ -36,18 +48,6 @@ type Stats struct {
 
 func (s *Stats) String() string {
 	return "[uploadRequests=" + s.UploadRequests.String() + " uploads=" + s.Uploads.String() + "]"
-}
-
-type Client struct {
-	server   string // URL prefix before "/camli/"
-	password string
-
-	httpClient *http.Client
-
-	statsMutex sync.Mutex
-	stats      Stats
-
-	log *log.Logger // not nil
 }
 
 type ByCountAndBytes struct {

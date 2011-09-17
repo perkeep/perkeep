@@ -20,6 +20,7 @@ import (
 	"crypto/sha1"
 	"flag"
 	"fmt"
+	"http"
 	"io"
 	"log"
 	"os"
@@ -42,7 +43,9 @@ var flagTransitive = flag.Bool("transitive", true, "share the transitive closure
 var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 var flagName = flag.String("name", "", "Optional name attribute to set on permanode when using -permanode and -file")
 var flagTag = flag.String("tag", "", "Optional tag attribute to set on permanode when using -permanode and -file. Single value or comma separated ones.")
+
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
+var flagUseStatCache = flag.Bool("statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 
 var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
 var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
@@ -58,7 +61,7 @@ type Uploader struct {
 	*client.Client
 	entityFetcher jsonsign.EntityFetcher
 
-	pwd           string
+	pwd   string
 	cache UploadCache
 
 	filecapc chan bool
@@ -123,6 +126,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	if up.cache != nil {
 		cachedRes, err := up.cache.CachedPutResult(up.pwd, filename, fi)
 		if err == nil {
+			vprintf("Cache HIT on %q -> %v", filename, cachedRes)
 			return cachedRes, nil
 		}
 		if fi.IsRegular() {
@@ -302,22 +306,29 @@ func main() {
 		cc.SetLogger(nil)
 	}
 
+	transport := new(tinkerTransport)
+	cc.SetHttpClient(&http.Client{Transport: transport})
+
 	pwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("os.Getwd: %v", err)
 	}
-	cache := NewFlatCache()
-	defer cache.Save()
 
 	up := &Uploader{
-		Client: cc,
-		pwd: pwd,
-		cache: cache,
+		Client:   cc,
+		pwd:      pwd,
 		filecapc: make(chan bool, 10 /* TODO: config option on max files at a time */ ),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
 	}
+
+	if *flagUseStatCache {
+		cache := NewFlatCache()
+		defer cache.Save()
+		up.cache = cache
+	}
+
 	switch {
 	case *flagInit:
 		doInit()
@@ -412,6 +423,7 @@ func main() {
 	if *flagVerbose {
 		stats := up.Stats()
 		log.Printf("Client stats: %s", stats.String())
+		log.Printf("  #HTTP reqs: %d", transport.reqs)
 	}
 	if wereErrors {
 		os.Exit(2)
