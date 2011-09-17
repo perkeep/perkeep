@@ -30,6 +30,13 @@ func HomeDir() string {
 	return os.Getenv("HOME")
 }
 
+func CacheDir() string {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		panic("CacheDir not implemented on OS == " + runtime.GOOS)
+	}
+	return filepath.Join(HomeDir(), ".cache")
+}
+
 func CamliConfigDir() string {
 	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
 		return p
