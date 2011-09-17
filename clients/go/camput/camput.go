@@ -45,24 +45,36 @@ var flagName = flag.String("name", "", "Optional name attribute to set on perman
 var flagTag = flag.String("tag", "", "Optional tag attribute to set on permanode when using -permanode and -file. Single value or comma separated ones.")
 
 var flagVerbose = flag.Bool("verbose", false, "be verbose")
+
 var flagUseStatCache = flag.Bool("statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+var flagUseHaveCache = flag.Bool("havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 
 var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
 var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
 
 var wereErrors = false
 
+// UploadCache is the "stat cache" for regular files.  Given a current
+// working directory, possibly relative filename, and stat info,
+// returns what the ultimate put result (the top-level "file" schema
+// blob) for that regular file was.
 type UploadCache interface {
 	CachedPutResult(pwd, filename string, fi *os.FileInfo) (*client.PutResult, os.Error)
 	AddCachedPutResult(pwd, filename string, fi *os.FileInfo, pr *client.PutResult)
+}
+
+type HaveCache interface {
+	BlobExists(br *blobref.BlobRef) bool
+	NoteBlobExists(br *blobref.BlobRef)
 }
 
 type Uploader struct {
 	*client.Client
 	entityFetcher jsonsign.EntityFetcher
 
-	pwd   string
-	cache UploadCache
+	pwd       string
+	statCache UploadCache
+	haveCache HaveCache
 
 	filecapc chan bool
 }
@@ -123,19 +135,17 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		return nil, err
 	}
 
-	if up.cache != nil {
-		cachedRes, err := up.cache.CachedPutResult(up.pwd, filename, fi)
+	if up.statCache != nil && fi.IsRegular() {
+		cachedRes, err := up.statCache.CachedPutResult(up.pwd, filename, fi)
 		if err == nil {
 			vprintf("Cache HIT on %q -> %v", filename, cachedRes)
 			return cachedRes, nil
 		}
-		if fi.IsRegular() {
-			defer func() {
-				if respr != nil && outerr == nil {
-					up.cache.AddCachedPutResult(up.pwd, filename, fi, respr)
-				}
-			}()
-		}
+		defer func() {
+			if respr != nil && outerr == nil {
+				up.statCache.AddCachedPutResult(up.pwd, filename, fi, respr)
+			}
+		}()
 	}
 
 	m := schema.NewCommonFileMap(filename, fi)
@@ -203,17 +213,6 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	return mappr, err
 }
 
-func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.Error) {
-	json, err := schema.MapToCamliJson(m)
-	if err != nil {
-		return nil, err
-	}
-	if *flagVerbose {
-		fmt.Printf("json: %s\n", json)
-	}
-	return up.Upload(client.NewUploadHandleFromString(json))
-}
-
 func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 	camliSigBlobref := up.Client.SignerPublicKeyBlobref()
 	if camliSigBlobref == nil {
@@ -234,12 +233,34 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, os.Error) {
 	return sr.Sign()
 }
 
+func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, os.Error) {
+	json, err := schema.MapToCamliJson(m)
+	if err != nil {
+		return nil, err
+	}
+	vprintf("json: %s\n", json)
+	return up.uploadString(json)
+}
+
 func (up *Uploader) UploadAndSignMap(m map[string]interface{}) (*client.PutResult, os.Error) {
 	signed, err := up.SignMap(m)
 	if err != nil {
 		return nil, err
 	}
-	return up.Upload(client.NewUploadHandleFromString(signed))
+	return up.uploadString(signed)
+}
+
+func (up *Uploader) uploadString(s string) (*client.PutResult, os.Error) {
+	uh := client.NewUploadHandleFromString(s)
+	if c := up.haveCache; c != nil && c.BlobExists(uh.BlobRef) {
+		vprintf("HaveCache HIT for %s / %d", uh.BlobRef, uh.Size)
+		return &client.PutResult{BlobRef: uh.BlobRef, Size: uh.Size, Skipped: true}, nil
+	}
+	pr, err := up.Upload(uh)
+	if err == nil && up.haveCache != nil {
+		up.haveCache.NoteBlobExists(uh.BlobRef)
+	}
+	return pr, err
 }
 
 func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
@@ -324,9 +345,14 @@ func main() {
 	}
 
 	if *flagUseStatCache {
-		cache := NewFlatCache()
+		cache := NewFlatStatCache()
 		defer cache.Save()
-		up.cache = cache
+		up.statCache = cache
+	}
+	if *flagUseHaveCache {
+		cache := NewFlatHaveCache()
+		defer cache.Save()
+		up.haveCache = cache
 	}
 
 	switch {
