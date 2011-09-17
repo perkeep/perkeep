@@ -41,6 +41,19 @@ type BlobRef struct {
 	strValue string // "<hashname>-<digest>"
 }
 
+func (br *BlobRef) GobEncode() ([]byte, os.Error) {
+	return []byte(br.String()), nil
+}
+
+func (br *BlobRef) GobDecode(b []byte) os.Error {
+	dec := Parse(string(b))
+	if dec == nil {
+		return fmt.Errorf("invalid blobref %q", string(b))
+	}
+	*br = *dec
+	return nil
+}
+
 // SizedBlobRef is like a BlobRef but includes because it includes a
 // potentially mutable 'Size', this should be used as a stack value,
 // not a *SizedBlobRef.

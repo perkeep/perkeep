@@ -17,6 +17,8 @@ limitations under the License.
 package blobref
 
 import (
+	"bytes"
+	"gob"
 	"json"
 	"testing"
 	. "camli/test/asserts"
@@ -95,5 +97,26 @@ func TestJsonMarshal(t *testing.T) {
 	}
 	if g, e := string(bs), `{"foo":"def-1234abc"}`; g != e {
 		t.Errorf("got %q, want %q", g, e)
+	}
+}
+
+func TestGobbing(t *testing.T) {
+	br := MustParse("def-1234abc")
+	buf := new(bytes.Buffer)
+
+	e := gob.NewEncoder(buf)
+	err := e.Encode(br)
+	if err != nil {
+		t.Errorf("Encode: %v", err)
+	}
+
+	d := gob.NewDecoder(buf)
+	var got BlobRef
+	err = d.Decode(&got)
+	if err != nil {
+                t.Errorf("Decode: %v", err)
+        }
+	if got.String() != br.String() {
+		t.Errorf("got = %q, want %q", &got, br)
 	}
 }
