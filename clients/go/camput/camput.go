@@ -51,9 +51,17 @@ var flagSplits = flag.Bool("debug-splits", false, "show splits")
 
 var wereErrors = false
 
+type UploadCache interface {
+	CachedPutResult(pwd, filename string, fi *os.FileInfo) (*client.PutResult, os.Error)
+	AddCachedPutResult(pwd, filename string, fi *os.FileInfo, pr *client.PutResult)
+}
+
 type Uploader struct {
 	*client.Client
 	entityFetcher jsonsign.EntityFetcher
+
+	pwd           string
+	cache UploadCache
 
 	filecapc chan bool
 }
@@ -68,10 +76,14 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 	return
 }
 
-func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error) {
+func vprintf(format string, args ...interface{}) {
 	if *flagVerbose {
-		log.Printf("Uploading filename: %s", filename)
+		log.Printf(format, args...)
 	}
+}
+
+func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error) {
+	vprintf("Uploading filename: %s", filename)
 	fi, err := os.Stat(filename)
 	if err != nil {
 		return nil, err
@@ -101,13 +113,27 @@ func (up *Uploader) endFileUpload() {
 	<-up.filecapc
 }
 
-func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
+func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr os.Error) {
 	up.beginFileUpload()
 	defer up.endFileUpload()
 
 	fi, err := os.Lstat(filename)
 	if err != nil {
 		return nil, err
+	}
+
+	if up.cache != nil {
+		cachedRes, err := up.cache.CachedPutResult(up.pwd, filename, fi)
+		if err == nil {
+			return cachedRes, nil
+		}
+		if fi.IsRegular() {
+			defer func() {
+				if respr != nil && outerr == nil {
+					up.cache.AddCachedPutResult(up.pwd, filename, fi, respr)
+				}
+			}()
+		}
 	}
 
 	m := schema.NewCommonFileMap(filename, fi)
@@ -171,6 +197,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, os.Error) {
 	}
 
 	mappr, err := up.UploadMap(m)
+	vprintf("Uploaded map: %v => %v, %v", m, mappr, err)
 	return mappr, err
 }
 
@@ -281,9 +308,18 @@ func main() {
 	if !*flagVerbose {
 		cc.SetLogger(nil)
 	}
+
+	pwd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("os.Getwd: %v", err)
+	}
+	cache := NewFlatCache()
+	defer cache.Save()
+
 	up := &Uploader{
 		Client: cc,
-
+		pwd: pwd,
+		cache: cache,
 		filecapc: make(chan bool, 10 /* TODO: config option on max files at a time */ ),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
