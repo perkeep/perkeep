@@ -47,8 +47,6 @@ var flagVerbose = flag.Bool("verbose", false, "be verbose")
 var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
 var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
 
-var flagSplits = flag.Bool("debug-splits", false, "show splits")
-
 var wereErrors = false
 
 type UploadCache interface {
@@ -291,11 +289,6 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 func main() {
 	jsonsign.AddFlags()
 	flag.Parse()
-
-	if *flagSplits {
-		showSplits()
-		return
-	}
 
 	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove,
 		flagSetAttr, flagAddAttr)

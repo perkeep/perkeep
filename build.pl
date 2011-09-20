@@ -627,6 +627,7 @@ sub generate_embed_file {
 __DATA__
 
 TARGET: clients/go/camdbinit
+TARGET: clients/go/camdebug
 TARGET: clients/go/camget
 TARGET: clients/go/camgsinit
 TARGET: clients/go/camput
