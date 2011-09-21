@@ -260,6 +260,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	if err != nil {
 		return nil, err
 	}
+	resp.Body.Close()
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: h.Size}
 	if _, ok := stat.HaveMap[h.BlobRef.String()]; ok {
@@ -318,9 +319,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	if err != nil {
 		return errorf("upload http error: %v", err)
 	}
-	if resp.Body != nil {
-		defer resp.Body.Close()
-	}
+	defer resp.Body.Close()
 
 	// check error from earlier copy
 	if err := <-copyResult; err != nil {
