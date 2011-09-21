@@ -111,7 +111,7 @@ func TestGobbing(t *testing.T) {
 	}
 
 	d := gob.NewDecoder(buf)
-	var got BlobRef
+	var got *BlobRef
 	err = d.Decode(&got)
 	if err != nil {
                 t.Errorf("Decode: %v", err)
