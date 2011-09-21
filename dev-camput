@@ -13,8 +13,8 @@ $ENV{"CAMLI_SECRET_RING"} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gp
 $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
 
-system("$Bin/clients/go/camput/camput",
-       "--verbose",
-       "--blobserver=http://localhost:3179/bs",
-       "--password=pass3179",
-       @ARGV);
+exec("$Bin/clients/go/camput/camput",
+     "--verbose",
+     "--blobserver=http://localhost:3179/bs",
+     "--password=pass3179",
+     @ARGV);
