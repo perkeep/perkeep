@@ -100,7 +100,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		if err == nil && pfi.IsRegular() {
 			log.Printf("Skipped dup on partition %q", pname)
 		} else {
-			if err = os.Link(fileName, partitionFileName); err != nil {
+			if err = os.Link(fileName, partitionFileName); err != nil && !linkAlreadyExists(err) {
 				log.Fatalf("got link error %T %#v", err, err)
 				return
 			}
@@ -121,4 +121,9 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		mirror.GetBlobHub().NotifyBlobReceived(blobRef)
 	}
 	return
+}
+
+func linkAlreadyExists(err os.Error) bool {
+	le, ok := err.(*os.LinkError)
+	return ok && le.Op == "link" && le.Error == os.EEXIST
 }
