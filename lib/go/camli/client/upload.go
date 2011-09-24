@@ -292,8 +292,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
-	copyResult := make(chan os.Error)
+	copyResult := make(chan os.Error, 1)
 	go func() {
+		defer pipeWriter.Close()
 		part, err := multipartWriter.CreateFormFile(h.BlobRef.String(), h.BlobRef.String())
 		if err != nil {
 			copyResult <- err
