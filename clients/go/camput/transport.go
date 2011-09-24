@@ -25,12 +25,19 @@ import (
 type tinkerTransport struct {
 	mu   sync.Mutex
 	reqs int
+
+	transport http.RoundTripper
 }
 
 func (t *tinkerTransport) RoundTrip(req *http.Request) (resp *http.Response, err os.Error) {
 	t.mu.Lock()
 	t.reqs++
+	rt := t.transport
 	t.mu.Unlock()
 
-	return http.DefaultTransport.RoundTrip(req)
+	if rt == nil {
+		rt = http.DefaultTransport
+	}
+
+	return rt.RoundTrip(req)
 }
