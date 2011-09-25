@@ -79,6 +79,7 @@ func cacheKey(pwd, filename string) string {
 	return filepath.Clean(pwd) + "\x00" + filepath.Clean(filename)
 }
 
+
 func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi *os.FileInfo) (*client.PutResult, os.Error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -86,11 +87,11 @@ func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi *os.FileInfo) (
 	key := cacheKey(pwd, filename)
 	val, ok := c.m[key]
 	if !ok {
-		log.Printf("cache MISS on %q: not in cache", key)
+		cachelog.Printf("cache MISS on %q: not in cache", key)
 		return nil, ErrCacheMiss
 	}
 	if !reflect.DeepEqual(&val.Fi, fi) {
-		log.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fi, fi)
+		cachelog.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fi, fi)
 		return nil, ErrCacheMiss
 	}
 	pr := val.Pr
@@ -103,7 +104,7 @@ func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi *os.FileInfo
 	key := cacheKey(pwd, filename)
 	val := fileInfoPutRes{*fi, *pr}
 
-	vprintf("Adding to stat cache %q: %v", key, val)
+	cachelog.Printf("Adding to stat cache %q: %v", key, val)
 
 	c.dirty[key] = val
 	c.m[key] = val
@@ -113,7 +114,7 @@ func (c *FlatStatCache) Save() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.dirty) == 0 {
-		vprintf("FlatStatCache: Save, but nothing dirty")
+		cachelog.Printf("FlatStatCache: Save, but nothing dirty")
 		return
 	}
 
@@ -133,7 +134,7 @@ func (c *FlatStatCache) Save() {
 		write(v)
 	}
 	c.dirty = make(map[string]fileInfoPutRes)
-	log.Printf("FlatStatCache: saved")
+	cachelog.Printf("FlatStatCache: saved")
 }
 
 type FlatHaveCache struct {
@@ -182,7 +183,7 @@ func (c *FlatHaveCache) Save() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.dirty) == 0 {
-		vprintf("FlatHaveCache: Save, but nothing dirty")
+		cachelog.Printf("FlatHaveCache: Save, but nothing dirty")
 		return
 	}
 
@@ -201,5 +202,5 @@ func (c *FlatHaveCache) Save() {
 		write(k)
 	}
 	c.dirty = make(map[string]bool)
-	log.Printf("FlatHaveCache: saved")
+	cachelog.Printf("FlatHaveCache: saved")
 }
