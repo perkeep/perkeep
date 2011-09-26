@@ -5,7 +5,6 @@
 
 -- Go: ditch our http Range header stuff, get in upstream Go
 
--- camput: keep a digest cache somewhere to speed
 -- camput: support for skipping common cache/temp files
 
 -- camget: finish.  it's barely started.  should be able to cat blobs
