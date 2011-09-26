@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -108,24 +109,47 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 }
 
 func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error) {
-	fi, err := os.Stat(filename)
-	if err != nil {
-		return nil, err
-	}
-	if !fi.IsRegular() {
-		return nil, fmt.Errorf("%q is not a regular file", filename)
-	}
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
+	var (
+		err  os.Error
+		size int64
+		ref  *blobref.BlobRef
+		body io.Reader
+	)
+	if filename == "-" {
+		buf := bytes.NewBuffer(make([]byte, 0))
+		size, err = io.Copy(buf, os.Stdin)
+		if err != nil {
+			return nil, err
+		}
+		// assuming what I did here is not too lame, maybe I should set a limit on how much we accept from the stdin?
+		file := buf.Bytes()
+		s1 := sha1.New()
+		size, err = io.Copy(s1, buf)
+		if err != nil {
+			return nil, err
+		}
+		ref = blobref.FromHash("sha1", s1)
+		body = io.LimitReader(bytes.NewBuffer(file), size)
+	} else {
+		fi, err := os.Stat(filename)
+		if err != nil {
+			return nil, err
+		}
+		if !fi.IsRegular() {
+			return nil, fmt.Errorf("%q is not a regular file", filename)
+		}
+		file, err := os.Open(filename)
+		if err != nil {
+			return nil, err
+		}
+		ref, size, err = blobDetails(file)
+		if err != nil {
+			return nil, err
+		}
+		file.Seek(0, 0)
+		body = io.LimitReader(file, size)
 	}
 
-	ref, size, err := blobDetails(file)
-	if err != nil {
-		return nil, err
-	}
-	file.Seek(0, 0)
-	body := io.LimitReader(file, size)
 	handle := &client.UploadHandle{ref, size, body}
 	return up.Upload(handle)
 }
