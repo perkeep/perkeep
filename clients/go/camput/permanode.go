@@ -17,17 +17,66 @@ limitations under the License.
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
+	"strings"
+
+	"camli/client"
+	"camli/schema"
 )
 
-type permanodeCmd struct{}
+type permanodeCmd struct {
+	flags *flag.FlagSet
 
-func (permanodeCmd) RunCommand(up *Uploader, args []string) os.Error {
-	pr, err := up.UploadNewPermanode()
-	handleResult("permanode", pr, err)
-	//if *flagName != "" {
-	//	put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(pr.BlobRef, "name", *flagName))
-	//handleResult("permanode-name", put, err)
-	//}
+	name string
+	tag  string
+}
+
+func init() {
+	flags := flag.NewFlagSet("permanode options", flag.ContinueOnError)
+	flags.Usage = func() {}
+	cmd := &permanodeCmd{flags: flags}
+
+	flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode")
+	flags.StringVar(&cmd.tag, "tag", "", "Optional tag attribute to set on permanode")
+
+	RegisterCommand("permanode", cmd)
+}
+
+func (c *permanodeCmd) Usage() {
+	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] permanode [permanodeopts] \n\nPermanode options:\n")
+	c.flags.PrintDefaults()
+}
+
+func (c *permanodeCmd) RunCommand(up *Uploader, args []string) os.Error {
+	if err := c.flags.Parse(args); err != nil {
+		return ErrUsage
+	}
+	args = c.flags.Args()
+	if len(args) > 0 {
+		return os.NewError("Permanode command doesn't take any additional arguments")
+	}
+
+	var (
+		permaNode *client.PutResult
+		err       os.Error
+	)
+	permaNode, err = up.UploadNewPermanode()
+	handleResult("permanode", permaNode, err)
+
+	if c.name != "" {
+		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
+		handleResult("claim-permanode-name", put, err)
+	}
+	if c.tag != "" {
+		tags := strings.Split(c.tag, ",")
+		m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
+		for _, tag := range tags {
+			m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+			put, err := up.UploadAndSignMap(m)
+			handleResult("claim-permanode-tag", put, err)
+		}
+	}
 	return nil
 }
