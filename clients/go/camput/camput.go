@@ -481,20 +481,5 @@ func main() {
 			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
 			wereErrors = true
 		}
-	case *flagAddAttr || *flagSetAttr:
-		if flag.NArg() != 3 {
-			log.Fatalf("--set-attr and --add-attr take 3 args: <permanode> <attr> <value>")
-		}
-		pn := blobref.Parse(flag.Arg(0))
-		if pn == nil {
-			log.Fatalf("Error parsing blobref %q", flag.Arg(0))
-		}
-		m := schema.NewSetAttributeClaim(pn, flag.Arg(1), flag.Arg(2))
-		if *flagAddAttr {
-			m = schema.NewAddAttributeClaim(pn, flag.Arg(1), flag.Arg(2))
-		}
-		put, err := up.UploadAndSignMap(m)
-		handleResult(m["claimType"].(string), put, err)
-}
 
 */
