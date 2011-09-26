@@ -37,12 +37,10 @@ import (
 
 var _ = log.Printf
 
-var gpgPath = "/usr/bin/gpg"
 var flagSecretRing = ""
 
 func AddFlags() {
 	defSecRing := filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
-	flag.StringVar(&gpgPath, "gpg-path", "/usr/bin/gpg", "Path to the gpg binary.")
 	flag.StringVar(&flagSecretRing, "secret-keyring", defSecRing,
 		"GnuPG secret keyring file to use.")
 }
