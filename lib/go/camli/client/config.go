@@ -125,7 +125,7 @@ func SignerPublicKeyBlobref() *blobref.BlobRef {
 	key := "keyId"
 	keyId, ok := config[key].(string)
 	if !ok {
-		log.Printf("No key %q in JSON configuration file %q; have you run \"camput --init\"?", key, ConfigFilePath())
+		log.Printf("No key %q in JSON configuration file %q; have you run \"camput init\"?", key, ConfigFilePath())
 		return nil
 	}
 	keyRing, _ := config["secretRing"].(string)

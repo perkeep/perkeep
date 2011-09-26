@@ -25,7 +25,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 
 	"camli/blobref"
 	"camli/client"
@@ -36,15 +35,8 @@ import (
 const buffered = 16 // arbitrary
 
 // Things that can be uploaded.  (at most one of these)
-var flagBlob = flag.Bool("blob", false, "upload a file's bytes as a single blob")
-var flagFile = flag.Bool("file", false, "upload a file's bytes as a blob, as well as its JSON file record")
-var flagPermanode = flag.Bool("permanode", false, "create a new permanode")
-var flagInit = flag.Bool("init", false, "first-time configuration.")
-var flagShare = flag.Bool("share", false, "create a camli share by haveref with the given blobrefs")
-var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
-var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
-var flagName = flag.String("name", "", "Optional name attribute to set on permanode when using -permanode and -file")
-var flagTag = flag.String("tag", "", "Optional tag attribute to set on permanode when using -permanode and -file. Single value or comma separated ones.")
+//var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
+//var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 
 var (
 	flagVerbose  = flag.Bool("verbose", false, "be verbose")
@@ -52,13 +44,31 @@ var (
 )
 
 var (
-flagUseStatCache = flag.Bool("statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
- flagUseHaveCache = flag.Bool("havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+	flagUseStatCache = flag.Bool("statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+	flagUseHaveCache = flag.Bool("havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 )
 
-var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
-var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
+//var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
+//var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
 
+var ErrUsage = os.NewError("invalid command usage")
+
+type CommandRunner interface {
+	Usage()
+	RunCommand(up *Uploader, args []string) os.Error
+}
+
+var modeCommands = make(map[string]CommandRunner)
+
+func RegisterCommand(mode string, cmd CommandRunner) {
+	if _, dup := modeCommands[mode]; dup {
+		log.Fatalf("duplicate command %q registered", mode)
+	}
+	modeCommands[mode] = cmd
+}
+
+// wereErrors gets set to true if any error was encountered, which
+// changes the os.Exit value
 var wereErrors = false
 
 // UploadCache is the "stat cache" for regular files.  Given a current
@@ -79,6 +89,7 @@ type Uploader struct {
 	*client.Client
 	entityFetcher jsonsign.EntityFetcher
 
+	transport *tinkerTransport
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache
@@ -341,12 +352,30 @@ func usage(msg string) {
 		fmt.Println("Error:", msg)
 	}
 	fmt.Println(`
-Usage: camput
+Usage: camput [globalopts] <mode> [commandopts] [commandargs]
 
-  camput --init       # first time configuration
-  camput --blob <filename(s) to upload as blobs>
-  camput --file <filename(s) to upload as blobs + JSON metadata>
-  camput --share <blobref to share via haveref> [--transitive]
+Examples:
+
+  camput init
+
+  camput file [opts] <files/directories>
+
+  camput permanode [opts] (create a new permanode)
+
+  camput share [opts] <blobref to share via haveref>
+
+  camput blob <files>     (raw, without any metadata)
+  camput blob -           (read from stdin)
+
+  camput attr <permanode> <name> <value>         Set attribute
+  camput attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
+  camput attr --del <permanode> <name> [<value>] Deletes named attribute [value]
+
+For mode-specific help:
+
+  camput MODE -help
+
+Global options:
 `)
 	flag.PrintDefaults()
 	os.Exit(1)
@@ -361,17 +390,7 @@ func handleResult(what string, pr *client.PutResult, err os.Error) {
 	fmt.Println(pr.BlobRef.String())
 }
 
-func main() {
-	jsonsign.AddFlags()
-	flag.Parse()
-
-	nOpts := sumSet(flagFile, flagBlob, flagPermanode, flagInit, flagShare, flagRemove,
-		flagSetAttr, flagAddAttr)
-	if !(nOpts == 1 ||
-		(nOpts == 2 && *flagFile && *flagPermanode)) {
-		usage("Conflicting mode options.")
-	}
-
+func makeUploader() *Uploader {
 	cc := client.NewOrFail()
 	if !*flagVerbose {
 		cc.SetLogger(nil)
@@ -387,9 +406,10 @@ func main() {
 	}
 
 	up := &Uploader{
-		Client:   cc,
-		pwd:      pwd,
-		filecapc: make(chan bool, 10 /* TODO: config option on max files at a time */ ),
+		Client:    cc,
+		transport: transport,
+		pwd:       pwd,
+		filecapc:  make(chan bool, 10 /* TODO: config option on max files at a time */ ),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
@@ -405,79 +425,59 @@ func main() {
 		defer cache.Save()
 		up.haveCache = cache
 	}
+	return up
+}
 
-	switch {
-	case *flagInit:
-		doInit()
-		return
-	case *flagFile || *flagBlob:
-		var (
-			permaNode *client.PutResult
-			lastPut   *client.PutResult
-			err       os.Error
-		)
-		if n := flag.NArg(); *flagPermanode {
-			if n != 1 {
-				log.Fatalf("Options --permanode and --file can only be used together when there's exactly one argument")
-			}
-			permaNode, err = up.UploadNewPermanode()
-			if err != nil {
-				log.Fatalf("Error uploading permanode: %v", err)
-			}
-		}
-		for n := 0; n < flag.NArg(); n++ {
-			if *flagBlob {
-				lastPut, err = up.UploadFileBlob(flag.Arg(n))
-				handleResult("blob", lastPut, err)
-			} else {
-				lastPut, err = up.UploadFile(flag.Arg(n))
-				handleResult("file", lastPut, err)
-			}
-		}
-		if permaNode != nil {
-			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
-			handleResult("claim-permanode-content", put, err)
-			if *flagName != "" {
-				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", *flagName))
-				handleResult("claim-permanode-name", put, err)
-			}
-			if *flagTag != "" {
-				tags := strings.Split(*flagTag, ",")
-				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
-				for _, tag := range tags {
-					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-					put, err := up.UploadAndSignMap(m)
-					handleResult("claim-permanode-tag", put, err)
-				}
-			}
-			handleResult("permanode", permaNode, nil)
-		}
-	case *flagPermanode:
-		if flag.NArg() > 0 {
-			log.Fatalf("--permanode doesn't take any additional arguments")
-		}
-		pr, err := up.UploadNewPermanode()
-		handleResult("permanode", pr, err)
-		if *flagName != "" {
-			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(pr.BlobRef, "name", *flagName))
-			handleResult("permanode-name", put, err)
-		}
-	case *flagShare:
-		if flag.NArg() != 1 {
-			log.Fatalf("--share only supports one blobref")
-		}
-		br := blobref.Parse(flag.Arg(0))
-		if br == nil {
-			log.Fatalf("BlobRef is invalid: %q", flag.Arg(0))
-		}
-		pr, err := up.UploadShare(br, *flagTransitive)
-		handleResult("share", pr, err)
-	case *flagRemove:
-		if flag.NArg() == 0 {
-			log.Fatalf("--remove takes one or more blobrefs")
-		}
-		err := up.RemoveBlobs(blobref.ParseMulti(flag.Args()))
-		if err != nil {
+func main() {
+	jsonsign.AddFlags()
+	flag.Parse()
+
+	if flag.NArg() == 0 {
+		usage("No mode given.")
+	}
+
+	mode := flag.Arg(0)
+	cmd, ok := modeCommands[mode]
+	if !ok {
+		usage(fmt.Sprintf("Unknown mode %q", mode))
+	}
+
+	up := makeUploader()
+	err := cmd.RunCommand(up, flag.Args()[1:])
+	if err == ErrUsage {
+		cmd.Usage()
+		os.Exit(1)
+	}
+	if *flagVerbose {
+		stats := up.Stats()
+		log.Printf("Client stats: %s", stats.String())
+		log.Printf("  #HTTP reqs: %d", up.transport.reqs)
+	}
+	if err != nil || wereErrors /* TODO: remove this part */ {
+		log.Printf("Error: %v", err)
+		os.Exit(2)
+	}
+}
+
+// TODO(bradfitz): finish converting these to the new style
+
+/*
+ case *flagShare:
+ if flag.NArg() != 1 {
+ log.Fatalf("--share only supports one blobref")
+ }
+ br := blobref.Parse(flag.Arg(0))
+ if br == nil {
+ log.Fatalf("BlobRef is invalid: %q", flag.Arg(0))
+ }
+ pr, err := up.UploadShare(br, *flagTransitive)
+ handleResult("share", pr, err)
+ case *flagRemove:
+ if flag.NArg() == 0 {
+ log.Fatalf("--remove takes one or more blobrefs")
+ }
+ err := up.RemoveBlobs(blobref.ParseMulti(flag.Args()))
+ if err != nil {
 			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
 			wereErrors = true
 		}
@@ -495,14 +495,6 @@ func main() {
 		}
 		put, err := up.UploadAndSignMap(m)
 		handleResult(m["claimType"].(string), put, err)
-	}
-
-	if *flagVerbose {
-		stats := up.Stats()
-		log.Printf("Client stats: %s", stats.String())
-		log.Printf("  #HTTP reqs: %d", transport.reqs)
-	}
-	if wereErrors {
-		os.Exit(2)
-	}
 }
+
+*/

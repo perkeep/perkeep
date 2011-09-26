@@ -79,7 +79,6 @@ func cacheKey(pwd, filename string) string {
 	return filepath.Clean(pwd) + "\x00" + filepath.Clean(filename)
 }
 
-
 func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi *os.FileInfo) (*client.PutResult, os.Error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -20,6 +20,7 @@ import (
 	"crypto/sha1"
 	"exec"
 	"flag"
+	"fmt"
 	"os"
 	"io/ioutil"
 	"path"
@@ -32,14 +33,44 @@ import (
 	"camli/osutil"
 )
 
-var flagGpgKey = flag.String("gpgkey", "", "(init option only) GPG key to use for signing.")
+type initCmd struct {
+	flags  *flag.FlagSet
+	gpgkey string
+}
 
-func doInit() {
+func init() {
+	flags := flag.NewFlagSet("init options", flag.ContinueOnError)
+	flags.Usage = func() {}
+	c := &initCmd{flags: flags}
+
+	flags.StringVar(&c.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
+
+	RegisterCommand("init", c)
+}
+
+func (c *initCmd) Usage() {
+	fmt.Fprintf(os.Stderr, `Usage: camput init [opts]
+
+Initialize the camput configuration file.
+
+Options:
+`)
+	c.flags.PrintDefaults()
+}
+
+func (c *initCmd) RunCommand(up *Uploader, args []string) os.Error {
+	if err := c.flags.Parse(args); err != nil {
+		return ErrUsage
+	}
+	if c.flags.NArg() > 0 {
+		return ErrUsage
+	}
+
 	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
 	os.Mkdir(osutil.CamliConfigDir(), 0700)
 	os.Mkdir(blobDir, 0700)
 
-	keyId := *flagGpgKey
+	keyId := c.gpgkey
 	if keyId == "" {
 		keyId = os.Getenv("GPGKEY")
 	}
@@ -115,4 +146,5 @@ func doInit() {
 		}
 		log.Printf("Wrote %q; modify as necessary.", client.ConfigFilePath())
 	}
+	return nil
 }
