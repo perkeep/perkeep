@@ -232,8 +232,15 @@ function startFileUpload(file) {
             var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
 
             contentsRef = "sha1-" + hash;
+            var chkRollSum = document.getElementById("chkrollsum");
+            var rollsum = new Boolean();
+            if (chkRollSum.checked) {
+                rollsum = true;
+            } else {
+                rollsum = false;
+            }
             setStatus("(checking for dup of " + contentsRef + ")");
-            camliUploadFileHelper(file, contentsRef, {
+            camliUploadFileHelper(file, contentsRef, rollsum, {
               success: onGotFileSchemaRef, fail: onFail
             });
         }
@@ -616,8 +623,8 @@ function deletePathFunc(sourcePermanode, path, strikeEle) {
 function btnGoToGallery(e) {
     var permanode = getPermanodeParam();
     if (permanode) {
-		window.open('./?g=' + permanode, 'Gallery')
-	}
+foobarfoobarwindow.open('./?g=' + permanode, 'Gallery')
+foobar}
 }
 
 function permanodePageOnLoad(e) {

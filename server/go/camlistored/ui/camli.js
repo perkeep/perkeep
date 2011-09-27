@@ -177,7 +177,7 @@ function camliSign(clearObj, opts) {
 // contentsBlobRef: blob ref of file as sha1'd locally
 // opts: fail(strMsg) success(strFileBlobRef) of the validated (or uploaded + created) file schema blob.
 //       associating with a permanode is caller's job.
-function camliUploadFileHelper(file, contentsBlobRef, opts) {
+function camliUploadFileHelper(file, contentsBlobRef, rollsum, opts) {
     opts = saneOpts(opts);
     if (!Camli.config.uploadHelper) {
         opts.fail("no uploadHelper available");
@@ -198,7 +198,11 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
             }
         };
         var xhr = camliJsonXhr("camliUploadFileHelper", uploadCb);
-        xhr.open("POST", Camli.config.uploadHelper);
+        if (rollsum) {
+            xhr.open("POST", Camli.config.uploadHelper + "&rollsum=1");
+        } else {
+            xhr.open("POST", Camli.config.uploadHelper);
+        }
         xhr.send(fd);
     };
 
