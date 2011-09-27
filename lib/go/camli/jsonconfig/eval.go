@@ -29,7 +29,6 @@ import (
 	"camli/osutil"
 )
 
-
 // State for config parsing and expression evalutaion
 type configParser struct {
 	RootJson Obj

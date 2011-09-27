@@ -114,8 +114,8 @@ func TestGobbing(t *testing.T) {
 	var got *BlobRef
 	err = d.Decode(&got)
 	if err != nil {
-                t.Errorf("Decode: %v", err)
-        }
+		t.Errorf("Decode: %v", err)
+	}
 	if got.String() != br.String() {
 		t.Errorf("got = %q, want %q", &got, br)
 	}

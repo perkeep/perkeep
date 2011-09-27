@@ -215,7 +215,6 @@ func (sto *replicaStorage) Remove(blobs []*blobref.BlobRef) os.Error {
 	return reterr
 }
 
-
 func (sto *replicaStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	// TODO: option to enumerate from one or from all merged.  for
 	// now we'll just do all, even though it's kinda a waste.  at

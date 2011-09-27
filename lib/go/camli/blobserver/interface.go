@@ -37,8 +37,8 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
 	Stat(dest chan<- blobref.SizedBlobRef,
-	blobs []*blobref.BlobRef,
-	waitSeconds int) os.Error
+		blobs []*blobref.BlobRef,
+		waitSeconds int) os.Error
 }
 
 // QueueCreator is implemented by Storage interfaces which support
@@ -68,9 +68,9 @@ type BlobEnumerator interface {
 	// after and waitSeconds can't be used together. One must be
 	// its zero value.
 	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-	after string,
-	limit uint,
-	waitSeconds int) os.Error
+		after string,
+		limit uint,
+		waitSeconds int) os.Error
 }
 
 // Cache is the minimal interface expected of a blob cache.

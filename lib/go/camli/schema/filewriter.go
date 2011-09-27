@@ -247,7 +247,7 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 				}
 				*dst = append(*dst, BytesPart{
 					BytesRef: br,
-					Size:       uint64(childrenSize),
+					Size:     uint64(childrenSize),
 				})
 			}
 			if sp.from != sp.to {

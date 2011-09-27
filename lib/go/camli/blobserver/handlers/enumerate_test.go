@@ -44,9 +44,9 @@ type emptyEnumerator struct {
 }
 
 func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-after string,
-limit uint,
-waitSeconds int) os.Error {
+	after string,
+	limit uint,
+	waitSeconds int) os.Error {
 	close(dest)
 	return nil
 }

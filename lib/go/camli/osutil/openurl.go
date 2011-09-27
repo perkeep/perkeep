@@ -24,7 +24,7 @@ import (
 
 func OpenURL(url string) os.Error {
 	if runtime.GOOS == "windows" {
-		return exec.Command("cmd.exe", "/C", "start " + url).Run()
+		return exec.Command("cmd.exe", "/C", "start "+url).Run()
 	}
 
 	if runtime.GOOS == "darwin" {
@@ -33,4 +33,3 @@ func OpenURL(url string) os.Error {
 
 	return exec.Command("xdg-open", url).Run()
 }
-

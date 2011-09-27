@@ -189,7 +189,6 @@ func (sto *condStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after s
 	return os.NewError("cond: Read not configured")
 }
 
-
 func init() {
 	blobserver.RegisterStorageConstructor("cond", blobserver.StorageConstructor(newFromConfig))
 }

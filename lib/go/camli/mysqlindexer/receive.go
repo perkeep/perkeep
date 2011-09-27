@@ -282,6 +282,6 @@ func (mi *Indexer) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset) (
 		n,
 		ss.FileNameString(),
 		mime,
-		)
+	)
 	return
 }

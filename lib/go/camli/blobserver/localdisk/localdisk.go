@@ -76,7 +76,6 @@ func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
 }
 
-
 var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
 
 func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, os.Error) {

@@ -78,7 +78,7 @@ func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 
 // serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
 func serveBlobRef(conn http.ResponseWriter, req *http.Request,
-blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	file, size, err := fetcher.FetchStreaming(blobRef)
 	switch err {
@@ -181,7 +181,7 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	viaPathOkay := false
 	startTime := time.Nanoseconds()

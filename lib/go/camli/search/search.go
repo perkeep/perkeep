@@ -84,8 +84,8 @@ type Index interface {
 	// dest is closed
 	// limit is <= 0 for default.  smallest possible default is 0
 	GetRecentPermanodes(dest chan *Result,
-	owner []*blobref.BlobRef,
-	limit int) os.Error
+		owner []*blobref.BlobRef,
+		limit int) os.Error
 
 	// SearchPermanodes finds permanodes matching the provided
 	// request and sends unique permanode blobrefs to dest.
@@ -98,7 +98,7 @@ type Index interface {
 	//
 	// dest is always closed, regardless of the error return value.
 	SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
-	request *PermanodeByAttrRequest) os.Error
+		request *PermanodeByAttrRequest) os.Error
 
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, os.Error)
 
