@@ -34,18 +34,15 @@ import (
 )
 
 type initCmd struct {
-	flags  *flag.FlagSet
 	gpgkey string
 }
 
 func init() {
-	flags := flag.NewFlagSet("init options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	c := &initCmd{flags: flags}
-
-	flags.StringVar(&c.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
-
-	RegisterCommand("init", c)
+	RegisterCommand("init", func(flags *flag.FlagSet) CommandRunner {
+		cmd := new(initCmd)
+		flags.StringVar(&cmd.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
+		return cmd
+	})
 }
 
 func (c *initCmd) Usage() {
@@ -53,16 +50,18 @@ func (c *initCmd) Usage() {
 
 Initialize the camput configuration file.
 
-Options:
 `)
-	c.flags.PrintDefaults()
+}
+
+func (c *initCmd) Examples() []string {
+	return []string{
+		"",
+		"--gpgkey=XXXXX",
+	}
 }
 
 func (c *initCmd) RunCommand(up *Uploader, args []string) os.Error {
-	if err := c.flags.Parse(args); err != nil {
-		return ErrUsage
-	}
-	if c.flags.NArg() > 0 {
+	if len(args) > 0 {
 		return ErrUsage
 	}
 

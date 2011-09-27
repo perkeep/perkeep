@@ -17,24 +17,32 @@ limitations under the License.
 package main
 
 import (
-	"log"
+	"flag"
+	"fmt"
+	"os"
+
+	"camli/blobref"
 )
 
-type Logger interface {
-	Printf(format string, args ...interface{})
+type removeCmd struct{}
+
+func init() {
+	RegisterCommand("remove", func(flags *flag.FlagSet) CommandRunner {
+		cmd := new(removeCmd)
+		return cmd
+	})
 }
 
-type flagLogger struct {
-	on *bool
+func (c *removeCmd) Usage() {
+	fmt.Fprintf(os.Stderr, `Usage: camput remove <blobref(s)>
+
+This command is for debugging only.  You're not expected to use it in practice.
+`)
 }
 
-var flagCacheLog *bool
-
-var vlog = &flagLogger{flagVerbose}
-var cachelog = &flagLogger{flagCacheLog}
-
-func (fl *flagLogger) Printf(format string, args ...interface{}) {
-	if fl.on != nil && *fl.on {
-		log.Printf(format, args...)
+func (c *removeCmd) RunCommand(up *Uploader, args []string) os.Error {
+	if len(args) == 0 {
+		return ErrUsage
 	}
+	return up.RemoveBlobs(blobref.ParseMulti(args))
 }

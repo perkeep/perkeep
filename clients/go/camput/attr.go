@@ -26,50 +26,51 @@ import (
 )
 
 type attrCmd struct {
-	flags *flag.FlagSet
-
 	add bool
 	del bool
 }
 
 func init() {
-	flags := flag.NewFlagSet("attr options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	cmd := &attrCmd{flags: flags}
-
-	flags.BoolVar(&cmd.add, "add", false, `Adds attribute (e.g. "tag")`)
-	flags.BoolVar(&cmd.del, "del", false, "Deletes named attribute [value]")
-
-	RegisterCommand("attr", cmd)
+	RegisterCommand("attr", func(flags *flag.FlagSet) CommandRunner {
+		cmd := new(attrCmd)
+		flags.BoolVar(&cmd.add, "add", false, `Adds attribute (e.g. "tag")`)
+		flags.BoolVar(&cmd.del, "del", false, "Deletes named attribute [value]")
+		return cmd
+	})
 }
 
 func (c *attrCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] attr [attroption] <permanode> <name> <value> \n Attr options: \n")
-	c.flags.PrintDefaults()
+	errf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
+}
+
+func (c *attrCmd) Examples() []string {
+	return []string{
+		"<permanode> <name> <value>         Set attribute",
+		"--add <permanode> <name> <value>   Adds attribute (e.g. \"tag\")",
+		"--del <permanode> <name> [<value>] Deletes named attribute [value",
+	}
 }
 
 func (c *attrCmd) RunCommand(up *Uploader, args []string) os.Error {
-	if err := c.flags.Parse(args); err != nil {
-		return ErrUsage
-	}
-	args = c.flags.Args()
 	if len(args) != 3 {
 		return os.NewError("Attr takes 3 args: <permanode> <attr> <value>")
 	}
+	permanode, attr, value := args[0], args[1], args[2]
+
 	var err os.Error
 
-	pn := blobref.Parse(args[0])
+	pn := blobref.Parse(permanode)
 	if pn == nil {
-		return fmt.Errorf("Error parsing blobref %q", args[0])
+		return fmt.Errorf("Error parsing blobref %q", permanode)
 	}
-	m := schema.NewSetAttributeClaim(pn, args[1], args[2])
+	m := schema.NewSetAttributeClaim(pn, attr, value)
 	if c.add {
 		if c.del {
 			return os.NewError("Add and del options are exclusive")
 		}
-		m = schema.NewAddAttributeClaim(pn, args[1], args[2])
+		m = schema.NewAddAttributeClaim(pn, attr, value)
 	} else {
-		// TODO: del
+		// TODO: del, which can make <value> be optional
 		if c.del {
 			return os.NewError("del not yet implemented")
 		}

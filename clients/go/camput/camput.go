@@ -36,36 +36,40 @@ import (
 const buffered = 16 // arbitrary
 
 // Things that can be uploaded.  (at most one of these)
-//var flagTransitive = flag.Bool("transitive", true, "share the transitive closure of the given blobrefs")
 //var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
 
 var (
-	flagVerbose  = flag.Bool("verbose", false, "be verbose")
-	flagCacheLog = flag.Bool("logcache", false, "log caching details")
+	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
 )
-
-var (
-	flagUseStatCache = flag.Bool("statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-	flagUseHaveCache = flag.Bool("havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
-)
-
-//var flagSetAttr = flag.Bool("set-attr", false, "set (replace) an attribute")
-//var flagAddAttr = flag.Bool("add-attr", false, "add an attribute, additional if one already exists")
 
 var ErrUsage = os.NewError("invalid command usage")
+
+type UsageError string
+
+func (ue UsageError) String() string {
+	return "Usage error: " + string(ue)
+}
 
 type CommandRunner interface {
 	Usage()
 	RunCommand(up *Uploader, args []string) os.Error
 }
 
-var modeCommands = make(map[string]CommandRunner)
+type Exampler interface {
+	Examples() []string
+}
 
-func RegisterCommand(mode string, cmd CommandRunner) {
-	if _, dup := modeCommands[mode]; dup {
+var modeCommand = make(map[string]CommandRunner)
+var modeFlags = make(map[string]*flag.FlagSet)
+
+func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunner) {
+	if _, dup := modeCommand[mode]; dup {
 		log.Fatalf("duplicate command %q registered", mode)
 	}
-	modeCommands[mode] = cmd
+	flags := flag.NewFlagSet(mode+" options", flag.ContinueOnError)
+	flags.Usage = func() {}
+	modeFlags[mode] = flags
+	modeCommand[mode] = makeCmd(flags)
 }
 
 // wereErrors gets set to true if any error was encountered, which
@@ -357,11 +361,6 @@ func (up *Uploader) UploadNewPermanode() (*client.PutResult, os.Error) {
 	return up.UploadAndSignMap(unsigned)
 }
 
-func (up *Uploader) UploadShare(target *blobref.BlobRef, transitive bool) (*client.PutResult, os.Error) {
-	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
-	return up.UploadAndSignMap(unsigned)
-}
-
 func sumSet(flags ...*bool) (count int) {
 	for _, f := range flags {
 		if *f {
@@ -371,33 +370,74 @@ func sumSet(flags ...*bool) (count int) {
 	return
 }
 
+type namedMode struct {
+	Name    string
+	Command CommandRunner
+}
+
+func allModes(startModes []string) <-chan namedMode {
+	ch := make(chan namedMode)
+	go func() {
+		defer close(ch)
+		done := map[string]bool{}
+		for _, name := range startModes {
+			done[name] = true
+			cmd := modeCommand[name]
+			if cmd == nil {
+				panic("bogus mode: " + name)
+			}
+			ch <- namedMode{name, cmd}
+		}
+		for name, cmd := range modeCommand {
+			if !done[name] {
+				ch <- namedMode{name, cmd}
+			}
+		}
+	}()
+	return ch
+}
+
+func errf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
 func usage(msg string) {
 	if msg != "" {
-		fmt.Println("Error:", msg)
+		errf("Error: %v\n", msg)
 	}
-	fmt.Println(`
+	errf(`
 Usage: camput [globalopts] <mode> [commandopts] [commandargs]
 
 Examples:
+`)
+	order := []string{"init", "file", "permanode", "blob", "attr"}
+	for mode := range allModes(order) {
+		errf("\n")
+		if ex, ok := mode.Command.(Exampler); ok {
+			for _, example := range ex.Examples() {
+				errf("  camput %s %s\n", mode.Name, example)
+			}
+		} else {
+			errf("  camput %s ...\n", mode.Name)
+		}
+	}
 
-  camput init
+	// TODO(bradfitz): move these to Examples
+	/*
+	  camput share [opts] <blobref to share via haveref>
 
-  camput file [opts] <files/directories>
+	  camput blob <files>     (raw, without any metadata)
+	  camput blob -           (read from stdin)
 
-  camput permanode [opts] (create a new permanode)
+	  camput attr <permanode> <name> <value>         Set attribute
+	  camput attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
+	  camput attr --del <permanode> <name> [<value>] Deletes named attribute [value]
+	*/
 
-  camput share [opts] <blobref to share via haveref>
-
-  camput blob <files>     (raw, without any metadata)
-  camput blob -           (read from stdin)
-
-  camput attr <permanode> <name> <value>         Set attribute
-  camput attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
-  camput attr --del <permanode> <name> [<value>] Deletes named attribute [value]
-
+	errf(`
 For mode-specific help:
 
-  camput MODE -help
+  camput <mode> -help
 
 Global options:
 `)
@@ -438,21 +478,32 @@ func makeUploader() *Uploader {
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
 	}
-
-	if *flagUseStatCache {
-		cache := NewFlatStatCache()
-		defer cache.Save()
-		up.statCache = cache
-	}
-	if *flagUseHaveCache {
-		cache := NewFlatHaveCache()
-		defer cache.Save()
-		up.haveCache = cache
-	}
 	return up
 }
 
+func hasFlags(flags *flag.FlagSet) bool {
+	any := false
+	flags.VisitAll(func(*flag.Flag) {
+		any = true
+	})
+	return any
+}
+
+var saveHooks []func()
+
+func AddSaveHook(fn func()) {
+	saveHooks = append(saveHooks, fn)
+}
+
+func Save() {
+	for _, fn := range saveHooks {
+		fn()
+	}
+	saveHooks = nil
+}
+
 func main() {
+	defer Save()
 	jsonsign.AddFlags()
 	flag.Parse()
 
@@ -461,15 +512,32 @@ func main() {
 	}
 
 	mode := flag.Arg(0)
-	cmd, ok := modeCommands[mode]
+	cmd, ok := modeCommand[mode]
 	if !ok {
 		usage(fmt.Sprintf("Unknown mode %q", mode))
 	}
 
 	up := makeUploader()
-	err := cmd.RunCommand(up, flag.Args()[1:])
-	if err == ErrUsage {
+
+	cmdFlags := modeFlags[mode]
+	err := cmdFlags.Parse(flag.Args()[1:])
+	if err != nil {
+		err = ErrUsage
+	} else {
+		err = cmd.RunCommand(up, cmdFlags.Args())
+	}
+	if ue, isUsage := err.(UsageError); isUsage || err == ErrUsage {
+		if isUsage {
+			errf("%s\n", ue)
+		}
 		cmd.Usage()
+		errf("\nGlobal options:\n")
+		flag.PrintDefaults()
+
+		if hasFlags(cmdFlags) {
+			errf("\nMode-specific options for mode %q:\n", mode)
+			cmdFlags.PrintDefaults()
+		}
 		os.Exit(1)
 	}
 	if *flagVerbose {
@@ -479,31 +547,7 @@ func main() {
 	}
 	if err != nil || wereErrors /* TODO: remove this part */ {
 		log.Printf("Error: %v", err)
+		Save()
 		os.Exit(2)
 	}
 }
-
-// TODO(bradfitz): finish converting these to the new style
-
-/*
- case *flagShare:
- if flag.NArg() != 1 {
- log.Fatalf("--share only supports one blobref")
- }
- br := blobref.Parse(flag.Arg(0))
- if br == nil {
- log.Fatalf("BlobRef is invalid: %q", flag.Arg(0))
- }
- pr, err := up.UploadShare(br, *flagTransitive)
- handleResult("share", pr, err)
- case *flagRemove:
- if flag.NArg() == 0 {
- log.Fatalf("--remove takes one or more blobrefs")
- }
- err := up.RemoveBlobs(blobref.ParseMulti(flag.Args()))
- if err != nil {
-			log.Printf("Error removing blobs %s: %s", strings.Join(flag.Args(), ","), err)
-			wereErrors = true
-		}
-
-*/

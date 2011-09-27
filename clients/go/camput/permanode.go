@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 
@@ -27,33 +26,31 @@ import (
 )
 
 type permanodeCmd struct {
-	flags *flag.FlagSet
-
 	name string
 	tag  string
 }
 
 func init() {
-	flags := flag.NewFlagSet("permanode options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	cmd := &permanodeCmd{flags: flags}
-
-	flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode")
-	flags.StringVar(&cmd.tag, "tag", "", "Optional tag attribute to set on permanode")
-
-	RegisterCommand("permanode", cmd)
+	RegisterCommand("permanode", func(flags *flag.FlagSet) CommandRunner {
+		cmd := new(permanodeCmd)
+		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on new permanode")
+		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on new permanode; comma separated.")
+		return cmd
+	})
 }
 
 func (c *permanodeCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] permanode [permanodeopts] \n\nPermanode options:\n")
-	c.flags.PrintDefaults()
+	errf("Usage: camput [globalopts] permanode [permanodeopts]\n")
+}
+
+func (c *permanodeCmd) Examples() []string {
+	return []string{
+		"                               (create a new permanode)",
+		`-name="Some Name" -tag=foo,bar (with attributes added)`,
+	}
 }
 
 func (c *permanodeCmd) RunCommand(up *Uploader, args []string) os.Error {
-	if err := c.flags.Parse(args); err != nil {
-		return ErrUsage
-	}
-	args = c.flags.Args()
 	if len(args) > 0 {
 		return os.NewError("Permanode command doesn't take any additional arguments")
 	}

@@ -24,28 +24,19 @@ import (
 	"camli/client"
 )
 
-type blobCmd struct {
-	flags *flag.FlagSet
-}
+type blobCmd struct{}
 
 func init() {
-	flags := flag.NewFlagSet("blob options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	cmd := &blobCmd{flags: flags}
-
-	RegisterCommand("blob", cmd)
+	RegisterCommand("blob", func(flags *flag.FlagSet) CommandRunner {
+		return new(blobCmd)
+	})
 }
 
 func (c *blobCmd) Usage() {
 	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
-	c.flags.PrintDefaults()
 }
 
 func (c *blobCmd) RunCommand(up *Uploader, args []string) os.Error {
-	if err := c.flags.Parse(args); err != nil {
-		return ErrUsage
-	}
-	args = c.flags.Args()
 	if len(args) == 0 {
 		return os.NewError("No files given.")
 	}

@@ -27,38 +27,61 @@ import (
 )
 
 type fileCmd struct {
-	flags *flag.FlagSet
-
 	name string
 	tag  string
 
 	makePermanode bool
+
+	havecache, statcache bool
 }
 
 func init() {
-	flags := flag.NewFlagSet("file options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	cmd := &fileCmd{flags: flags}
+	RegisterCommand("file", func(flags *flag.FlagSet) CommandRunner {
+		cmd := new(fileCmd)
+		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
+		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
+		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
 
-	flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
-	flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode and -file")
-	flags.StringVar(&cmd.tag, "tag", "", "Optional tag attribute to set on permanode when using -permanode and -file. Single value or comma separated ones.")
+		flags.BoolVar(&cmd.havecache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 
-	RegisterCommand("file", cmd)
+		flagCacheLog = flags.Bool("logcache", false, "log caching details")
+
+		return cmd
+	})
 }
 
 func (c *fileCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n\nFile options:\n")
-	c.flags.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
+}
+
+func (c *fileCmd) Examples() []string {
+	return []string{
+		"[opts] <file(s)/director(ies)",
+		"--permanode --name='Homedir backup' --tag=backup,homedir $HOME",
+	}
 }
 
 func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
-	if err := c.flags.Parse(args); err != nil {
-		return ErrUsage
-	}
-	args = c.flags.Args()
 	if len(args) == 0 {
-		return os.NewError("No files or directories given.")
+		return UsageError("No files or directories given.")
+	}
+	if c.name != "" && !c.makePermanode {
+		return UsageError("Can't set name without using --permanode")
+	}
+	if c.tag != "" && !c.makePermanode {
+		return UsageError("Can't set tag without using --permanode")
+	}
+
+	if c.statcache {
+		cache := NewFlatStatCache()
+		AddSaveHook(func() { cache.Save() })
+		up.statCache = cache
+	}
+	if c.havecache {
+		cache := NewFlatHaveCache()
+		AddSaveHook(func() { cache.Save() })
+		up.haveCache = cache
 	}
 
 	var (
@@ -77,9 +100,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 	}
 
 	for _, arg := range args {
-		//if *flagBlob {
-		//lastPut, err = up.UploadFileBlob(flag.Arg(n))
-		//		handleResult("blob", lastPut, err)
 		lastPut, err = up.UploadFile(arg)
 		handleResult("file", lastPut, err)
 
