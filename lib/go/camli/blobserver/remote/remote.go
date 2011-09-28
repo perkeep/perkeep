@@ -35,6 +35,10 @@ type remoteStorage struct {
 
 var _ = blobserver.Storage((*remoteStorage)(nil))
 
+func NewFromClient(c *client.Client) blobserver.Storage {
+	return &remoteStorage{client: c}
+}
+
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	url := config.RequiredString("url")
 	password := config.RequiredString("password")
