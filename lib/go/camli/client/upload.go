@@ -190,12 +190,11 @@ func (c *Client) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef
 		fmt.Fprintf(&buf, "&maxwaitsec=%d", waitSeconds)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/camli/stat", c.server), strings.NewReader(buf.String()))
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.ContentLength = int64(buf.Len())
+	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", c.server))
+	bodyStr := buf.String()
+	req.Body = ioutil.NopCloser(strings.NewReader(bodyStr))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.ContentLength = int64(len(bodyStr))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -293,6 +292,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
 	copyResult := make(chan os.Error, 1)
+	copySize := make(chan int64, 1)
 	go func() {
 		defer pipeWriter.Close()
 		part, err := multipartWriter.CreateFormFile(h.BlobRef.String(), h.BlobRef.String())
@@ -300,11 +300,12 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 			copyResult <- err
 			return
 		}
-		_, err = io.Copy(part, h.Contents)
+		n, err := io.Copy(part, h.Contents)
 		if err == nil {
 			err = multipartWriter.Close()
 		}
 		copyResult <- err
+		copySize <- n
 	}()
 
 	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
@@ -364,6 +365,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return errorf("upload json validity error: no 'received'")
 	}
 
+	expectedSize := h.Size
+	if h.Size == -1 {
+		expectedSize = <-copySize
+	}
+
 	for _, rit := range received {
 		it, ok := rit.(map[string]interface{})
 		if !ok {
@@ -374,16 +380,19 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 			case nil:
 				return errorf("upload json validity error: 'received' is missing 'size'")
 			case float64:
-				if int64(size) == h.Size {
+				if int64(size) == expectedSize {
 					// Success!
 					c.statsMutex.Lock()
 					c.stats.Uploads.Blobs++
-					c.stats.Uploads.Bytes += h.Size
+					c.stats.Uploads.Bytes += expectedSize
 					c.statsMutex.Unlock()
+					if pr.Size == -1 {
+						pr.Size = expectedSize
+					}
 					return pr, nil
 				} else {
-					return errorf("Server got blob, but reports wrong length (%v; expected %d)",
-						size, h.Size)
+					return errorf("Server got blob, but reports wrong length (%v; we sent %d)",
+						size, expectedSize)
 				}
 			default:
 				return errorf("unsupported type of 'size' in received response")
