@@ -18,9 +18,11 @@ package blobref
 
 import (
 	"bytes"
+	"fmt"
 	"gob"
 	"json"
 	"testing"
+
 	. "camli/test/asserts"
 )
 
@@ -118,5 +120,34 @@ func TestGobbing(t *testing.T) {
 	}
 	if got.String() != br.String() {
 		t.Errorf("got = %q, want %q", &got, br)
+	}
+}
+
+func TestBlobRefString(t *testing.T) {
+	bp := MustParse("abc-123")
+	e := "abc-123"
+	if g := bp.String(); g != e {
+		t.Errorf("(&BlobRef).String() = %q, want %q", g, e)
+	}
+	if g := fmt.Sprintf("%s", bp); g != e {
+		t.Errorf("fmt %%s &BlobRef = %q, want %q", g, e)
+	}
+}
+
+func TestSizedBlobRefString(t *testing.T) {
+	sbv := SizedBlobRef{BlobRef: MustParse("abc-123"), Size: 456}
+	sbp := &sbv
+	e := "[abc-123; 456 bytes]"
+	if g := sbv.String(); g != e {
+		t.Errorf("SizedBlobRef.String() = %q, want %q", g, e)
+	}
+	if g := sbp.String(); g != e {
+		t.Errorf("(&SizedBlobRef).String() = %q, want %q", g, e)
+	}
+	if g := fmt.Sprintf("%s", sbv); g != e {
+		t.Errorf("fmt %%s SizedBlobRef = %q, want %q", g, e)
+	}
+	if g := fmt.Sprintf("%s", sbp); g != e {
+		t.Errorf("fmt %%s &SizedBlobRef = %q, want %q", g, e)
 	}
 }

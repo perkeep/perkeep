@@ -66,8 +66,8 @@ func (sb *SizedBlobRef) Equal(o SizedBlobRef) bool {
 	return sb.Size == o.Size && sb.BlobRef.String() == o.BlobRef.String()
 }
 
-func (sb *SizedBlobRef) String() string {
-	return fmt.Sprintf("[%s %d bytes]", sb.BlobRef.String(), sb.Size)
+func (sb SizedBlobRef) String() string {
+	return fmt.Sprintf("[%s; %d bytes]", sb.BlobRef.String(), sb.Size)
 }
 
 type ReadSeekCloser interface {
