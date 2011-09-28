@@ -37,9 +37,12 @@ var _ = log.Printf
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
 func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*blobref.BlobRef, os.Error) {
-	// Naive for now.  Just in 1MB chunks.
-	// TODO: rolling hash and hash trees.
+	m := NewFileMap(filename)
+	return WriteFileMap(bs, m, r)
+}
 
+// This is the simple 1MB chunk version. The rolling checksum version is below.
+func WriteFileMap(bs blobserver.Storage, fileMap map[string]interface{}, r io.Reader) (*blobref.BlobRef, os.Error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	buf := new(bytes.Buffer)
@@ -79,13 +82,12 @@ func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*
 		})
 	}
 
-	m := NewFileMap(filename)
-	err := PopulateParts(m, size, parts)
+	err := PopulateParts(fileMap, size, parts)
 	if err != nil {
 		return nil, err
 	}
 
-	json, err := MapToCamliJson(m)
+	json, err := MapToCamliJson(fileMap)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +134,11 @@ func (s *span) size() int64 {
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
 func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
+	m := NewFileMap(filename)
+	return WriteFileMapRolling(bs, m, r)
+}
+
+func WriteFileMapRolling(bs blobserver.Storage, fileMap map[string]interface{}, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
 	bufr := bufio.NewReader(r)
 	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()
@@ -213,13 +220,13 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 
 	var addBytesParts func(dst *[]BytesPart, s []span) os.Error
 
-	uploadFile := func(filename string, isFragment bool, fileSize int64, s []span) (*blobref.BlobRef, os.Error) {
+	uploadFile := func(isFragment bool, fileSize int64, s []span) (*blobref.BlobRef, os.Error) {
 		parts := []BytesPart{}
 		err := addBytesParts(&parts, s)
 		if err != nil {
 			return nil, err
 		}
-		m := NewFileMap(filename)
+		m := fileMap
 		if isFragment {
 			m = NewBytes()
 		}
@@ -241,7 +248,7 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 				for _, cs := range sp.children {
 					childrenSize += cs.size()
 				}
-				br, err := uploadFile("", true, childrenSize, sp.children)
+				br, err := uploadFile(true, childrenSize, sp.children)
 				if err != nil {
 					return err
 				}
@@ -261,5 +268,5 @@ func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Rea
 	}
 
 	// The top-level content parts
-	return uploadFile(filename, false, n, spans)
+	return uploadFile(false, n, spans)
 }
