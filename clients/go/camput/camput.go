@@ -28,6 +28,7 @@ import (
 	"sort"
 
 	"camli/blobref"
+	"camli/blobserver/remote"
 	"camli/client"
 	"camli/schema"
 	"camli/jsonsign"
@@ -166,7 +167,7 @@ func (up *Uploader) releaseUploadToken() {
 	<-up.filecapc
 }
 
-func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr os.Error) {
+func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.PutResult, outerr os.Error) {
 	up.getUploadToken()
 	defer up.releaseUploadToken()
 
@@ -192,20 +193,29 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 
 	switch {
 	case fi.IsRegular():
-		// Put the blob of the file itself.  (TODO: smart boundary chunking)
-		// For now we just store it as one range.
-		blobpr, err := up.UploadFileBlob(filename)
+		file, err := os.Open(filename)
 		if err != nil {
 			return nil, err
 		}
-		parts := []schema.BytesPart{{BlobRef: blobpr.BlobRef, Size: uint64(blobpr.Size)}}
-		if blobpr.Size != fi.Size {
-			// TODO: handle races of file changing while reading it
-			// after the stat.
-		}
+		defer file.Close()
+		storage := remote.NewFromClient(up.Client)
 		m["camliType"] = "file"
-		if err = schema.PopulateParts(m, fi.Size, parts); err != nil {
+		schemaWriteFileMap := schema.WriteFileMap
+		if rollSplits {
+			schemaWriteFileMap = schema.WriteFileMapRolling
+		}
+		blobref, err := schemaWriteFileMap(storage, m, io.LimitReader(file, fi.Size))
+		if err != nil {
 			return nil, err
+		}
+		// TODO(bradfitz): taking a PutResult here is kinda
+		// gross.  should instead make a blobserver.Storage
+		// wrapper type that can track some of this?  or that
+		// updates the client stats directly or something.
+		{
+			json, _ := schema.MapToCamliJson(m)
+			pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
+			return pr, nil
 		}
 	case fi.IsSymlink():
 		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
@@ -248,7 +258,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 			for _, name := range dirNames {
 				rate <- true
 				go func(dirEntName string) {
-					pr, err := up.UploadFile(filename + "/" + dirEntName)
+					pr, err := up.UploadFile(filename + "/" + dirEntName, rollSplits)
 					if pr == nil && err == nil {
 						log.Fatalf("nil/nil from up.UploadFile on %q", filename+"/"+dirEntName)
 					}

@@ -31,6 +31,7 @@ type fileCmd struct {
 	tag  string
 
 	makePermanode bool
+	rollSplits    bool
 
 	havecache, statcache bool
 }
@@ -44,6 +45,7 @@ func init() {
 
 		flags.BoolVar(&cmd.havecache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
@@ -100,7 +102,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 	}
 
 	for _, arg := range args {
-		lastPut, err = up.UploadFile(arg)
+		lastPut, err = up.UploadFile(arg, c.rollSplits)
 		handleResult("file", lastPut, err)
 
 		if permaNode != nil {
