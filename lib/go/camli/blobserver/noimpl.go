@@ -46,7 +46,7 @@ func (nis *NoImplStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (
 	return
 }
 
-func (nis *NoImplStorage) Stat(dest chan<- blobref.SizedBlobRef,
+func (nis *NoImplStorage) StatBlobs(dest chan<- blobref.SizedBlobRef,
 	blobs []*blobref.BlobRef,
 	waitSeconds int) os.Error {
 	return os.NewError("Stat not implemented")
@@ -59,6 +59,6 @@ func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 	return os.NewError("EnumerateBlobs not implemented")
 }
 
-func (nis *NoImplStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (nis *NoImplStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	return os.NewError("Remove not implemented")
 }

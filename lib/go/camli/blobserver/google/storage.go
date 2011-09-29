@@ -62,19 +62,19 @@ func (gs *Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref
 	return blobref.SizedBlobRef{}, nil
 }
 
-func (gs *Storage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (gs *Storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	// TODO: Implement stub
-	return nil
+	return os.NewError("TODO: implement StatBlobs")
 }
 
 func (gs *Storage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, os.Error) {
 	// TODO: Implement stub
-	return nil, 0, nil
+	return nil, 0, os.NewError("TODO: implement FetchStreaming")
 }
 
-func (gs *Storage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (gs *Storage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	// TODO: Implement stub
-	return nil
+	return os.NewError("TODO: implement RemoveBlobs")
 }
 
 func (gs *Storage) GetBlobHub() blobserver.BlobHub {

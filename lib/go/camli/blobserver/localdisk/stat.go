@@ -26,7 +26,7 @@ import (
 
 const maxParallelStats = 20
 
-func (ds *DiskStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (ds *DiskStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if len(blobs) == 0 {
 		return nil
 	}

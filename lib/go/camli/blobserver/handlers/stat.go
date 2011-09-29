@@ -91,7 +91,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		blobch := make(chan blobref.SizedBlobRef)
 		resultch := make(chan os.Error, 1)
 		go func() {
-			err := storage.Stat(blobch, toStat, waitSeconds)
+			err := storage.StatBlobs(blobch, toStat, waitSeconds)
 			close(blobch)
 			resultch <- err
 		}()

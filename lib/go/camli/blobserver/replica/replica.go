@@ -88,7 +88,7 @@ func (sto *replicaStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadClose
 	return
 }
 
-func (sto *replicaStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *replicaStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if waitSeconds > 0 {
 		// TODO: handle waitSeconds in-memory, waiting on the blobhub, not going
 		// to the replicas?
@@ -115,7 +115,7 @@ func (sto *replicaStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobr
 
 	errch := make(chan os.Error, buffered)
 	statReplica := func(s blobserver.Storage) {
-		errch <- s.Stat(ch, blobs, waitSeconds)
+		errch <- s.StatBlobs(ch, blobs, waitSeconds)
 	}
 
 	for _, replica := range sto.replicas {
@@ -189,10 +189,10 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 	return
 }
 
-func (sto *replicaStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (sto *replicaStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	errch := make(chan os.Error, buffered)
 	removeFrom := func(s blobserver.Storage) {
-		errch <- s.Remove(blobs)
+		errch <- s.RemoveBlobs(blobs)
 	}
 	for _, replica := range sto.replicas {
 		go removeFrom(replica)

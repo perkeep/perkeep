@@ -293,7 +293,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) os.Error {
 		return errorf("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
 	}
 	set(status("copied; removing from queue"))
-	err = sh.fromq.Remove([]*blobref.BlobRef{sb.BlobRef})
+	err = sh.fromq.RemoveBlobs([]*blobref.BlobRef{sb.BlobRef})
 	if err != nil {
 		return errorf("source queue delete: %v", err)
 	}

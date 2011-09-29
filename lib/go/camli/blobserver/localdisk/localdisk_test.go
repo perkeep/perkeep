@@ -112,7 +112,7 @@ func TestReceiveStat(t *testing.T) {
 	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, tb.BlobRefSlice(), 0)
+		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), 0)
 		close(ch)
 	}()
 	got := 0
@@ -135,7 +135,7 @@ func TestStatWait(t *testing.T) {
 	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch, tb.BlobRefSlice(), waitSeconds)
+		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), waitSeconds)
 		close(ch)
 	}()
 
@@ -175,7 +175,7 @@ func TestMultiStat(t *testing.T) {
 	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan os.Error, 1)
 	go func() {
-		errch <- ds.Stat(ch,
+		errch <- ds.StatBlobs(ch,
 			[]*blobref.BlobRef{blobfoo.BlobRef(), blobbar.BlobRef()},
 			0)
 		close(ch)

@@ -36,9 +36,14 @@ type BlobStatter interface {
 	// or nil.  Stat() should NOT close the channel.
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
-	Stat(dest chan<- blobref.SizedBlobRef,
+	StatBlobs(dest chan<- blobref.SizedBlobRef,
 		blobs []*blobref.BlobRef,
 		waitSeconds int) os.Error
+}
+
+type StatReceiver interface {
+	BlobReceiver
+	BlobStatter
 }
 
 // QueueCreator is implemented by Storage interfaces which support
@@ -106,7 +111,7 @@ type Storage interface {
 	// Remove 0 or more blobs.  Removal of non-existent items
 	// isn't an error.  Returns failure if any items existed but
 	// failed to be deleted.
-	Remove(blobs []*blobref.BlobRef) os.Error
+	RemoveBlobs(blobs []*blobref.BlobRef) os.Error
 
 	// Returns the blob notification bus
 	GetBlobHub() BlobHub

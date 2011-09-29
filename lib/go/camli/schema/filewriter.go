@@ -36,13 +36,13 @@ var _ = log.Printf
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
-func WriteFileFromReader(bs blobserver.Storage, filename string, r io.Reader) (*blobref.BlobRef, os.Error) {
+func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (*blobref.BlobRef, os.Error) {
 	m := NewFileMap(filename)
 	return WriteFileMap(bs, m, r)
 }
 
 // This is the simple 1MB chunk version. The rolling checksum version is below.
-func WriteFileMap(bs blobserver.Storage, fileMap map[string]interface{}, r io.Reader) (*blobref.BlobRef, os.Error) {
+func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (*blobref.BlobRef, os.Error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	buf := new(bytes.Buffer)
@@ -103,10 +103,10 @@ func WriteFileMap(bs blobserver.Storage, fileMap map[string]interface{}, r io.Re
 	return br, nil
 }
 
-func serverHasBlob(bs blobserver.Storage, br *blobref.BlobRef) (have bool, err os.Error) {
+func serverHasBlob(bs blobserver.BlobStatter, br *blobref.BlobRef) (have bool, err os.Error) {
 	ch := make(chan blobref.SizedBlobRef, 1)
 	go func() {
-		err = bs.Stat(ch, []*blobref.BlobRef{br}, 0)
+		err = bs.StatBlobs(ch, []*blobref.BlobRef{br}, 0)
 		close(ch)
 	}()
 	for _ = range ch {
@@ -133,12 +133,12 @@ func (s *span) size() int64 {
 // WriteFileFromReaderRolling creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
-func WriteFileFromReaderRolling(bs blobserver.Storage, filename string, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
+func WriteFileFromReaderRolling(bs blobserver.StatReceiver, filename string, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
 	m := NewFileMap(filename)
 	return WriteFileMapRolling(bs, m, r)
 }
 
-func WriteFileMapRolling(bs blobserver.Storage, fileMap map[string]interface{}, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
+func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
 	bufr := bufio.NewReader(r)
 	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()

@@ -155,9 +155,9 @@ func (sto *condStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb bl
 	return destSto.ReceiveBlob(b, source)
 }
 
-func (sto *condStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (sto *condStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	if sto.remove != nil {
-		return sto.remove.Remove(blobs)
+		return sto.remove.RemoveBlobs(blobs)
 	}
 	return os.NewError("cond: Remove not configured")
 }
@@ -175,9 +175,9 @@ func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, 
 	return
 }
 
-func (sto *condStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *condStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if sto.read != nil {
-		return sto.read.Stat(dest, blobs, waitSeconds)
+		return sto.read.StatBlobs(dest, blobs, waitSeconds)
 	}
 	return os.NewError("cond: Read not configured")
 }

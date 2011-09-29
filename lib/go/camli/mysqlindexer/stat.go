@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-func (mi *Indexer) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (mi *Indexer) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	quotedBlobRefs := []string{}
 	for _, br := range blobs {
 		quotedBlobRefs = append(quotedBlobRefs, fmt.Sprintf("%q", br.String()))

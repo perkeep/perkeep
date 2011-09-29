@@ -120,7 +120,7 @@ func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int
 	return file, stat.Size, nil
 }
 
-func (ds *DiskStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (ds *DiskStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	for _, blob := range blobs {
 		fileName := ds.blobPath(ds.partition, blob)
 		err := os.Remove(fileName)

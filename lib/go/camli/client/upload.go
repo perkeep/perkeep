@@ -169,7 +169,7 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 	return jmap, nil
 }
 
-func (c *Client) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if len(blobs) == 0 {
 		return nil
 	}

@@ -120,6 +120,6 @@ func (mi *Indexer) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, 
 	return nil, 0, os.NewError("Fetch isn't supported by the MySQL indexer")
 }
 
-func (mi *Indexer) Remove(blobs []*blobref.BlobRef) os.Error {
-	return os.NewError("Remove isn't supported by the MySQL indexer")
+func (mi *Indexer) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
+	return os.NewError("RemoveBlobs isn't supported by the MySQL indexer")
 }

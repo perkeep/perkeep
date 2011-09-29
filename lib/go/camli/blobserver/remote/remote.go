@@ -55,16 +55,16 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	return sto, nil
 }
 
-func (sto *remoteStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (sto *remoteStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	return sto.client.RemoveBlobs(blobs)
 }
 
-func (sto *remoteStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *remoteStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	// TODO: cache the stat response's uploadUrl to save a future
 	// stat later?  otherwise clients will just Stat + Upload, but
 	// Upload will also Stat.  should be smart and make sure we
 	// avoid ReceiveBlob's Stat whenever it would be redundant.
-	return sto.client.Stat(dest, blobs, waitSeconds)
+	return sto.client.StatBlobs(dest, blobs, waitSeconds)
 }
 
 func (sto *remoteStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (outsb blobref.SizedBlobRef, outerr os.Error) {

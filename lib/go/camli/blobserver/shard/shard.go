@@ -102,15 +102,15 @@ func (sto *shardStorage) batchedShards(blobs []*blobref.BlobRef, fn func(blobser
 	return reterr
 }
 
-func (sto *shardStorage) Remove(blobs []*blobref.BlobRef) os.Error {
+func (sto *shardStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) os.Error {
-		return s.Remove(blobs)
+		return s.RemoveBlobs(blobs)
 	})
 }
 
-func (sto *shardStorage) Stat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *shardStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) os.Error {
-		return s.Stat(dest, blobs, waitSeconds)
+		return s.StatBlobs(dest, blobs, waitSeconds)
 	})
 }
 

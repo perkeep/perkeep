@@ -73,7 +73,7 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		toRemoveStr = append(toRemoveStr, ref.String())
 	}
 
-	err := storage.Remove(toRemove)
+	err := storage.RemoveBlobs(toRemove)
 	if err != nil {
 		conn.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)
