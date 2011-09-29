@@ -34,6 +34,9 @@ type fileCmd struct {
 	rollSplits    bool
 
 	havecache, statcache bool
+
+	// Go into in-memory stats mode only; doesn't actually upload.
+	memstats  bool
 }
 
 func init() {
@@ -46,6 +49,7 @@ func init() {
 		flags.BoolVar(&cmd.havecache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
+		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
@@ -73,6 +77,10 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 	}
 	if c.tag != "" && !c.makePermanode {
 		return UsageError("Can't set tag without using --permanode")
+	}
+	if c.memstats {
+		// TODO(bradfitz): implement
+		return os.NewError("TODO(bradfitz): implement")
 	}
 
 	if c.statcache {
