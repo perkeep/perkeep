@@ -28,6 +28,7 @@ import (
 	"sort"
 
 	"camli/blobref"
+	"camli/blobserver"
 	"camli/blobserver/remote"
 	"camli/client"
 	"camli/schema"
@@ -43,7 +44,7 @@ var (
 	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
 )
 
-var ErrUsage = os.NewError("invalid command usage")
+var ErrUsage = UsageError("invalid command usage")
 
 type UsageError string
 
@@ -93,9 +94,15 @@ type HaveCache interface {
 
 type Uploader struct {
 	*client.Client
+
+	// for debugging; normally nil, but overrides Client if set
+	// TODO(bradfitz): clean this up? embed a StatReceiver instead
+	// of a Client?
+	altStatReceiver blobserver.StatReceiver
+
 	entityFetcher jsonsign.EntityFetcher
 
-	transport *tinkerTransport
+	transport *tinkerTransport // for HTTP statistics
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache
@@ -126,7 +133,7 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, os.Error
 		if err != nil {
 			return nil, err
 		}
-		// assuming what I did here is not too lame, maybe I should set a limit on how much we accept from the stdin?
+		// TODO(bradfitz,mpl): limit this buffer size?
 		file := buf.Bytes()
 		s1 := sha1.New()
 		size, err = io.Copy(s1, buf)
@@ -193,18 +200,27 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 
 	switch {
 	case fi.IsRegular():
+		m["camliType"] = "file"
+
 		file, err := os.Open(filename)
 		if err != nil {
 			return nil, err
 		}
 		defer file.Close()
-		storage := remote.NewFromClient(up.Client)
-		m["camliType"] = "file"
+
+		statReceiver := up.altStatReceiver
+		if statReceiver == nil {
+			// TODO(bradfitz): just make Client be a
+			// StatReceiver? move remote's ReceiveBlob ->
+			// Upload wrapper into Client itself?
+			statReceiver = remote.NewFromClient(up.Client)
+		}
+
 		schemaWriteFileMap := schema.WriteFileMap
 		if rollSplits {
 			schemaWriteFileMap = schema.WriteFileMapRolling
 		}
-		blobref, err := schemaWriteFileMap(storage, m, io.LimitReader(file, fi.Size))
+		blobref, err := schemaWriteFileMap(statReceiver, m, io.LimitReader(file, fi.Size))
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +274,7 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 			for _, name := range dirNames {
 				rate <- true
 				go func(dirEntName string) {
-					pr, err := up.UploadFile(filename + "/" + dirEntName, rollSplits)
+					pr, err := up.UploadFile(filename+"/"+dirEntName, rollSplits)
 					if pr == nil && err == nil {
 						log.Fatalf("nil/nil from up.UploadFile on %q", filename+"/"+dirEntName)
 					}
@@ -536,7 +552,7 @@ func main() {
 	} else {
 		err = cmd.RunCommand(up, cmdFlags.Args())
 	}
-	if ue, isUsage := err.(UsageError); isUsage || err == ErrUsage {
+	if ue, isUsage := err.(UsageError); isUsage {
 		if isUsage {
 			errf("%s\n", ue)
 		}

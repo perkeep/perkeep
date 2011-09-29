@@ -19,9 +19,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 
+	"camli/blobref"
 	"camli/client"
 	"camli/schema"
 )
@@ -36,7 +40,7 @@ type fileCmd struct {
 	havecache, statcache bool
 
 	// Go into in-memory stats mode only; doesn't actually upload.
-	memstats  bool
+	memstats bool
 }
 
 func init() {
@@ -79,10 +83,10 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 		return UsageError("Can't set tag without using --permanode")
 	}
 	if c.memstats {
-		// TODO(bradfitz): implement
-		return os.NewError("TODO(bradfitz): implement")
+		sr := new(statsStatReceiver)
+		up.altStatReceiver = sr
+		AddSaveHook(func() { sr.DumpStats() })
 	}
-
 	if c.statcache {
 		cache := NewFlatStatCache()
 		AddSaveHook(func() { cache.Save() })
@@ -109,8 +113,8 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 		}
 	}
 
-	for _, arg := range args {
-		lastPut, err = up.UploadFile(arg, c.rollSplits)
+	for _, filename := range args {
+		lastPut, err = up.UploadFile(filename, c.rollSplits)
 		handleResult("file", lastPut, err)
 
 		if permaNode != nil {
@@ -133,4 +137,51 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 		}
 	}
 	return nil
+}
+
+// statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
+// it just collects statistics.
+type statsStatReceiver struct {
+	mu   sync.Mutex
+	have map[string]int64
+}
+
+func (sr *statsStatReceiver) lock() {
+	sr.mu.Lock()
+	if sr.have == nil {
+		sr.have = make(map[string]int64)
+	}
+}
+
+func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+	n, err := io.Copy(ioutil.Discard, source)
+	if err != nil {
+		return
+	}
+	sr.lock()
+	defer sr.mu.Unlock()
+	sr.have[blob.String()] = n
+	return blobref.SizedBlobRef{blob, n}, nil
+}
+
+func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, _ int) os.Error {
+	sr.lock()
+	defer sr.mu.Unlock()
+	for _, br := range blobs {
+		if size, ok := sr.have[br.String()]; ok {
+			dest <- blobref.SizedBlobRef{br, size}
+		}
+	}
+	return nil
+}
+
+func (sr *statsStatReceiver) DumpStats() {
+	sr.lock()
+	defer sr.mu.Unlock()
+
+	var sum int64
+	for _, size := range sr.have {
+		sum += size
+	}
+	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.have), sum)
 }
