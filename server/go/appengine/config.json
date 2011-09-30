@@ -1,0 +1,13 @@
+{ "_for-emacs": "-*- mode: js2;-*-",
+  "baseURL": "http://localhost:8081",
+  "password": "foo",
+
+  "prefixes": {
+    "/bs/": {
+       "handler": "storage-filesystem",
+       "handlerArgs": {
+          "path": "/tmp/dev_appserver_fail"
+       }
+    }
+  }
+}
