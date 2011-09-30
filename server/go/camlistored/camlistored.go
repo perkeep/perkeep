@@ -147,25 +147,20 @@ type handlerConfig struct {
 }
 
 type handlerLoader struct {
-	ws      *webserver.Server
+	installer HandlerInstaller
 	baseURL string
 	config  map[string]*handlerConfig // prefix -> config
 	handler map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
 }
 
+type HandlerInstaller interface {
+	Handle(path string, handler http.Handler)
+}
+
 func main() {
 	flag.Parse()
 
-	configPath := *flagConfigFile
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
-	}
-
-	config, err := jsonconfig.ReadFile(configPath)
-	if err != nil {
-		exitFailure("%v", err)
-	}
-
+	config, configPath := getConfig()
 	ws := webserver.New()
 	baseURL := ws.BaseURL()
 
@@ -179,23 +174,55 @@ func main() {
 		}
 	}
 
+	uiPath, err := setup(ws, baseURL, config)
+	if err != nil {
+		exitFailure("Error parsing config %s: %v", configPath, err)
+	}
+
+	ws.Listen()
+
+	if uiPath != "" {
+		uiURL := ws.BaseURL() + uiPath
+		log.Printf("UI available at %s", uiURL)
+		if runtime.GOOS == "windows" {
+			// Might be double-clicking an icon with no shell window?
+			// Just open the URL for them.
+			osutil.OpenURL(uiURL)
+		}
+	}
+	ws.Serve()
+}
+
+func getConfig() (config jsonconfig.Obj, configPath string) {
+	configPath = *flagConfigFile
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
+	}
+
+	config, err := jsonconfig.ReadFile(configPath)
+	if err != nil {
+		exitFailure("%v", err)
+	}
+	return config, configPath
+}
+
+func setup(hi HandlerInstaller, baseURL string, config jsonconfig.Obj) (uiPath string, err os.Error) {
 	auth.AccessPassword = config.OptionalString("password", "")
 	if url := config.OptionalString("baseURL", ""); url != "" {
 		baseURL = url
 	}
 	prefixes := config.RequiredObject("prefixes")
-	if err = config.Validate(); err != nil {
-		exitFailure("configuration error in root object's keys in %s: %v", configPath, err)
+	if err := config.Validate(); err != nil {
+		return "", fmt.Errorf("configuration error in root object's keys: %v", err)
 	}
 
 	hl := &handlerLoader{
-		ws:      ws,
+		installer:      hi,
 		baseURL: baseURL,
 		config:  make(map[string]*handlerConfig),
 		handler: make(map[string]interface{}),
 	}
 
-	uiPath := ""
 	for prefix, vei := range prefixes {
 		if !strings.HasPrefix(prefix, "/") {
 			exitFailure("prefix %q doesn't start with /", prefix)
@@ -229,18 +256,8 @@ func main() {
 		}
 	}
 	hl.setupAll()
-	ws.Listen()
 
-	if uiPath != "" {
-		uiURL := ws.BaseURL() + uiPath
-		log.Printf("UI available at %s", uiURL)
-		if runtime.GOOS == "windows" {
-			// Might be double-clicking an icon with no shell window?
-			// Just open the URL for them.
-			osutil.OpenURL(uiURL)
-		}
-	}
-	ws.Serve()
+	return uiPath, nil
 }
 
 func (hl *handlerLoader) FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err os.Error) {
@@ -324,7 +341,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 				h.prefix, stype, err)
 		}
 		hl.handler[h.prefix] = pstorage
-		hl.ws.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
+		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
 		return
 	}
 
@@ -334,5 +351,5 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			h.prefix, h.htype, err)
 	}
 	hl.handler[prefix] = hh
-	hl.ws.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
+	hl.installer.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
 }
