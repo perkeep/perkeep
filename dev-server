@@ -26,7 +26,7 @@ unless ($opt_nobuild) {
     system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
 }
 
-my $root = "/tmp/camliroot/port$port/";
+my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
 if ($opt_wipe && -d $root) {
     print "Wiping $root\n";
     system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
