@@ -672,6 +672,7 @@ TARGET: lib/go/camli/osutil
 TARGET: lib/go/camli/rollsum
 TARGET: lib/go/camli/schema
 TARGET: lib/go/camli/search
+TARGET: lib/go/camli/serverconfig
 TARGET: lib/go/camli/test
 TARGET: lib/go/camli/test/asserts
 TARGET: lib/go/camli/third_party/code.google.com/goauth2/oauth
