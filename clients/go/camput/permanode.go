@@ -63,8 +63,8 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) os.Error {
 	handleResult("permanode", permaNode, err)
 
 	if c.name != "" {
-		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
-		handleResult("claim-permanode-name", put, err)
+		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.name))
+		handleResult("claim-permanode-title", put, err)
 	}
 	if c.tag != "" {
 		tags := strings.Split(c.tag, ",")
