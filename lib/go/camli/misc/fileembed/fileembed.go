@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 )
 
 var binaryModTime = statBinaryModTime()
@@ -108,8 +107,10 @@ func (f *file) Seek(offset int64, whence int) (int64, os.Error) {
 }
 
 func (f *file) Stat() (*os.FileInfo, os.Error) {
+	// Break dependency on syscall module for App Engine.
+	const syscall_S_IFREG = 0x8000
 	fi := &os.FileInfo{
-		Mode:     0444 | syscall.S_IFREG,
+		Mode:     0444 | syscall_S_IFREG,
 		Name:     f.name,
 		Size:     int64(len(f.s)),
 		Atime_ns: binaryModTime,
