@@ -48,7 +48,6 @@ func PrintMap(m map[string]float64) {
 func main() {
 	// Scans the arg list and sets up flags
 	debug := flag.Bool("debug", false, "print debugging messages.")
-	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
 	flag.Parse()
 
 	errorf := func(msg string, args ...interface{}) {
@@ -78,24 +77,19 @@ func main() {
 	fetcher := cacher.NewCachingFetcher(diskcache, client)
 
 	fs := fs.NewCamliFileSystem(fetcher, root)
-	timing := fuse.NewTimingPathFilesystem(fs)
-
-	conn := fuse.NewPathFileSystemConnector(timing)
-	rawTiming := fuse.NewTimingRawFilesystem(conn)
-
-	state := fuse.NewMountState(rawTiming)
-	state.Debug = *debug
 
 	mountPoint := flag.Arg(1)
-	err = state.Mount(mountPoint)
+	state, _, err := fuse.MountPathFileSystem(mountPoint, fs, nil)
+	state.SetRecordStatistics(true)
+
+	state.Debug = *debug
 	if err != nil {
 		fmt.Printf("MountFuse fail: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", root.String(), mountPoint, *threaded, *debug)
-	state.Loop(*threaded)
-	fmt.Println("Finished", state.Stats())
+	fmt.Printf("Mounted %s on %s (debug=%v)\n", root.String(), mountPoint, *debug)
+	state.Loop()
 
 	counts := state.OperationCounts()
 	fmt.Println("Counts: ", counts)
@@ -104,9 +98,4 @@ func main() {
 	fmt.Println("MountState latency (ms):")
 	PrintMap(latency)
 
-	latency = timing.Latencies()
-	fmt.Println("Path ops (ms):", latency)
-
-	latency = rawTiming.Latencies()
-	fmt.Println("Raw FS (ms):", latency)
 }

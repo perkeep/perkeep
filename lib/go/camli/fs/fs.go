@@ -36,14 +36,14 @@ var _ = fmt.Println
 var _ = log.Println
 
 type CamliFileSystem struct {
-	fuse.DefaultPathFilesystem
+	fuse.DefaultFileSystem
 
 	fetcher blobref.SeekFetcher
 	root    *blobref.BlobRef
 
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
-	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
+	nameToAttr   *lru.Cache // ~map[string]*os.FileInfo
 }
 
 func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *CamliFileSystem {
@@ -197,7 +197,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	return nil, fuse.ENOENT
 }
 
-func (fs *CamliFileSystem) Mount(connector *fuse.PathFileSystemConnector) fuse.Status {
+func (fs *CamliFileSystem) Mount(connector *fuse.FileSystemConnector) fuse.Status {
 	log.Printf("cammount: Mount")
 	return fuse.OK
 }
@@ -206,9 +206,9 @@ func (fs *CamliFileSystem) Unmount() {
 	log.Printf("cammount: Unmount.")
 }
 
-func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
+func (fs *CamliFileSystem) GetAttr(name string, _ *fuse.Context) (*os.FileInfo, fuse.Status) {
 	if attr, ok := fs.nameToAttr.Get(name); ok {
-		return attr.(*fuse.Attr), fuse.OK
+		return attr.(*os.FileInfo), fuse.OK
 	}
 
 	blobref, errStatus := fs.blobRefFromName(name)
@@ -223,8 +223,7 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 		return nil, fuse.EIO
 	}
 
-	out := new(fuse.Attr)
-	var fi os.FileInfo
+	fi := new(os.FileInfo)
 
 	fi.Mode = ss.UnixMode()
 
@@ -247,19 +246,18 @@ func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Status) {
 		fi.Ctime_ns = ctime
 	}
 
-	fuse.CopyFileInfo(&fi, out)
-	fs.nameToAttr.Add(name, out)
-	return out, fuse.OK
+	fs.nameToAttr.Add(name, fi)
+	return fi, fuse.OK
 }
 
-func (fs *CamliFileSystem) Access(name string, mode uint32) fuse.Status {
+func (fs *CamliFileSystem) Access(name string, mode uint32, context *fuse.Context) fuse.Status {
 	// TODO: this is called a lot (as are many of the operations).  See
 	// if we can reply to the kernel with a cache expiration time.
 	//log.Printf("cammount: Access(%q, %d)", name, mode)
 	return fuse.OK
 }
 
-func (fs *CamliFileSystem) Open(name string, flags uint32) (file fuse.RawFuseFile, code fuse.Status) {
+func (fs *CamliFileSystem) Open(name string, flags uint32, context *fuse.Context) (file fuse.File, code fuse.Status) {
 	if flags&uint32(os.O_CREATE|os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_TRUNC) != 0 {
 		log.Printf("cammount: Open(%q, %d): denying write access", name, flags)
 		return nil, fuse.EACCES
@@ -313,7 +311,7 @@ func (fs *CamliFileSystem) getSchemaBlobByBlobRefAndType(br *blobref.BlobRef, ex
 	return ss, fuse.OK
 }
 
-func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code fuse.Status) {
+func (fs *CamliFileSystem) OpenDir(name string, context *fuse.Context) (stream chan fuse.DirEntry, code fuse.Status) {
 	defer func() {
 		log.Printf("cammount: OpenDir(%q) = %v", name, code)
 	}()
@@ -373,7 +371,7 @@ func (fs *CamliFileSystem) OpenDir(name string) (stream chan fuse.DirEntry, code
 	return retch, fuse.OK
 }
 
-func (fs *CamliFileSystem) Readlink(name string) (target string, status fuse.Status) {
+func (fs *CamliFileSystem) Readlink(name string, context *fuse.Context) (target string, status fuse.Status) {
 	defer func() {
 		log.Printf("Readlink(%q) = %q, %v", name, target, status)
 	}()
@@ -385,7 +383,7 @@ func (fs *CamliFileSystem) Readlink(name string) (target string, status fuse.Sta
 }
 
 type CamliFile struct {
-	*fuse.DefaultRawFuseFile
+	*fuse.DefaultFile
 
 	fs   *CamliFileSystem
 	blob *blobref.BlobRef
@@ -401,7 +399,7 @@ func (f *CamliFile) Size() uint64 {
 	return f.size
 }
 
-func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
+func (file *CamliFile) Read(ri *fuse.ReadIn, bp fuse.BufferPool) (retbuf []byte, retst fuse.Status) {
 	offset := ri.Offset
 	if offset >= file.Size() {
 		return []byte(""), fuse.OK // TODO: correct status?

@@ -1,26 +1,29 @@
 package fuse
 
-// Compilation test for DummyFuse and DummyPathFuse
+// Make sure library supplied FileSystems support the
+// required interface.
 
 import (
 	"testing"
 )
 
-func TestDummy(t *testing.T) {
-	fs := new(DefaultRawFuseFileSystem)
-	NewMountState(fs)
+func TestRawFs(t *testing.T) {
+	var iface RawFileSystem
 
-	pathFs := new(DefaultPathFilesystem)
+	iface = new(DefaultRawFileSystem)
 
-	NewPathFileSystemConnector(pathFs)
+	_ = iface
+}
+
+func TestPathFs(t *testing.T) {
+	var iface FileSystem
+	iface = new(DefaultFileSystem)
+
+	_ = iface
 }
 
 func TestDummyFile(t *testing.T) {
-	d := new(DefaultRawFuseFile)
-	var filePtr RawFuseFile = d
-
-	d2 := new(DefaultRawFuseDir)
-	var fileDir RawFuseDir = d2
-	_ = fileDir
+	d := new(DefaultFile)
+	var filePtr File = d
 	_ = filePtr
 }
