@@ -87,7 +87,7 @@ func senderr(w http.ResponseWriter) {
 // GET Method
 func get(w http.ResponseWriter, r *http.Request) {
 	defer senderr(w)
-	file, stat := f.Open(url2path(r.URL), uint32(os.O_RDONLY))
+	file, stat := f.Open(url2path(r.URL), uint32(os.O_RDONLY), nil)
 
 	checkerr(stat)
 
@@ -143,7 +143,7 @@ func propfind(w http.ResponseWriter, r *http.Request) {
 	var ms multistatus
 	for _, file := range files {
 		resp := &response{href: (*href)(path2url(file))}
-		attr, stat := f.GetAttr(file) // TODO(rh) better way?
+		attr, stat := f.GetAttr(file, nil) // TODO(rh) better way?
 
 		checkerr(stat)
 
@@ -151,13 +151,13 @@ func propfind(w http.ResponseWriter, r *http.Request) {
 		for _, p := range propsToFind {
 			switch p {
 			case "creationdate":
-				props = append(props, creationdate(attr.Ctime))
+				props = append(props, creationdate(attr.Ctime_ns))
 			case "resourcetype":
 				props = append(props, resourcetype(attr.Mode&fuse.S_IFDIR == fuse.S_IFDIR))
 			case "getcontentlength":
 				props = append(props, getcontentlength(attr.Size))
 			case "getlastmodified":
-				props = append(props, getlastmodified(attr.Mtime))
+				props = append(props, getlastmodified(attr.Mtime_ns))
 			}
 
 			resp.body = propstats{{props, 200}}
@@ -186,7 +186,7 @@ func checkerr(stat fuse.Status) {
 }
 
 func ls(path string) (paths []string) {
-	dirs, err := f.OpenDir(path)
+	dirs, err := f.OpenDir(path, nil)
 
 	checkerr(err)
 
