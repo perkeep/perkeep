@@ -16,7 +16,7 @@ func Resize(m image.Image, r image.Rectangle, w, h int) image.Image {
 		return nil
 	}
 	if w == 0 || h == 0 || r.Dx() <= 0 || r.Dy() <= 0 {
-		return image.NewRGBA64(image.Rect(0, 0, w, h))
+		return image.NewRGBA64(w, h)
 	}
 	switch m := m.(type) {
 	case *image.RGBA:
@@ -98,7 +98,7 @@ func Resize(m image.Image, r image.Rectangle, w, h int) image.Image {
 
 // average convert the sums to averages and returns the result.
 func average(sum []uint64, w, h int, n uint64) image.Image {
-	ret := image.NewRGBA(image.Rect(0, 0, w, h))
+	ret := image.NewRGBA(w, h)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			i := y*ret.Stride + x*4
@@ -225,10 +225,10 @@ func Resample(m image.Image, r image.Rectangle, w, h int) image.Image {
 		return nil
 	}
 	if w == 0 || h == 0 || r.Dx() <= 0 || r.Dy() <= 0 {
-		return image.NewRGBA64(image.Rect(0, 0, w, h))
+		return image.NewRGBA64(w, h)
 	}
 	curw, curh := r.Dx(), r.Dy()
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	img := image.NewRGBA(w, h)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			// Get a source pixel.

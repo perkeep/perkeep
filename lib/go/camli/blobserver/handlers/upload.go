@@ -80,11 +80,19 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			break
 		}
 
-		contentDisposition, params, err := mime.ParseMediaType(mimePart.Header.Get("Content-Disposition"))
-		if err != nil {
-			addError(err.String())
+		//POST-r60:
+		//contentDisposition, params, err := mime.ParseMediaType(mimePart.Header.Get("Content-Disposition"))
+		//if err != nil {
+		//	addError(err.String())
+		//	break
+		//}
+		// r60:
+		contentDisposition, params := mime.ParseMediaType(mimePart.Header.Get("Content-Disposition"))
+		if contentDisposition == "" {
+			addError("invalid Content-Disposition")
 			break
 		}
+
 		if contentDisposition != "form-data" {
 			addError(fmt.Sprintf("Expected Content-Disposition of \"form-data\"; got %q", contentDisposition))
 			break
