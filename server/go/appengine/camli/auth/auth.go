@@ -61,7 +61,7 @@ func IsAuthorized(req *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	userpass := strings.Split(string(decBuf[0:n]), ":", 2)
+	userpass := strings.SplitN(string(decBuf[0:n]), ":", 2)
 	if len(userpass) != 2 {
 		fmt.Println("didn't get two pieces")
 		return false

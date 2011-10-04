@@ -36,7 +36,7 @@ func exitFailure(pattern string, args ...interface{}) {
 }
 
 func init() {
-	config, err := serverconfig.Load("config.json")
+	config, err := serverconfig.Load("./config.json")
 	if err != nil {
 		exitFailure("Could not load server config: %v", err)
 	}
