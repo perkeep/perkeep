@@ -21,7 +21,6 @@ import (
 	"http"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"camli/auth"
@@ -29,7 +28,6 @@ import (
 	"camli/blobserver/handlers"
 	"camli/httputil"
 	"camli/jsonconfig"
-	"camli/osutil"
 )
 
 const camliPrefix = "/camli/"
@@ -240,10 +238,6 @@ type Config struct {
 }
 
 func Load(configPath string) (*Config, os.Error) {
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(osutil.CamliConfigDir(), configPath)
-	}
-
 	obj, err := jsonconfig.ReadFile(configPath)
 	if err != nil {
 		return nil, err

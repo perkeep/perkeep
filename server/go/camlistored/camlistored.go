@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strings"
 	"os"
+	"path/filepath"
 
 	"camli/osutil"
 	"camli/serverconfig"
@@ -54,7 +55,11 @@ func exitFailure(pattern string, args ...interface{}) {
 func main() {
 	flag.Parse()
 
-	config, err := serverconfig.Load(*flagConfigFile)
+	file := *flagConfigFile
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(osutil.CamliConfigDir(), file)
+	}
+	config, err := serverconfig.Load(file)
 	if err != nil {
 		exitFailure("Could not load server config: %v", err)
 	}
