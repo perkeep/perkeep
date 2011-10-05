@@ -4,9 +4,8 @@
 
   "prefixes": {
     "/bs/": {
-       "handler": "storage-filesystem",
+       "handler": "storage-appengine",
        "handlerArgs": {
-          "path": "/tmp/dev_appserver_fail"
        }
     }
   }

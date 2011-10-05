@@ -20,10 +20,9 @@ import (
 	"fmt"
 	"http"
 
+	"camli/blobserver"
 	"camli/serverconfig"
-	// Storage options:
-	_ "camli/blobserver/localdisk"
-	)
+)
 
 var mux = http.NewServeMux()
 
@@ -36,6 +35,8 @@ func exitFailure(pattern string, args ...interface{}) {
 }
 
 func init() {
+	blobserver.RegisterStorageConstructor("appengine", blobserver.StorageConstructor(newFromConfig))
+
 	config, err := serverconfig.Load("./config.json")
 	if err != nil {
 		exitFailure("Could not load server config: %v", err)
