@@ -76,7 +76,7 @@ func FindCamliInclude(configFile string) (absPath string, err os.Error) {
 
 	// Finally, search CAMLI_INCLUDE_PATH
 	p := os.Getenv("CAMLI_INCLUDE_PATH")
-	for _, d := range strings.Split(p, string(filepath.ListSeparator), -1) {
+	for _, d := range strings.Split(p, string(filepath.ListSeparator)) {
 		if _, err = os.Stat(filepath.Join(d, configFile)); err == nil {
 			return filepath.Join(d, configFile), nil
 		}
