@@ -40,8 +40,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		return
 	}
 
-	var tempFile *os.File
-	tempFile, err = ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
+	tempFile, err := ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
 	if err != nil {
 		return
 	}
@@ -55,8 +54,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 	}()
 
 	hash := blobRef.Hash()
-	var written int64
-	written, err = io.Copy(io.MultiWriter(hash, tempFile), source)
+	written, err := io.Copy(io.MultiWriter(hash, tempFile), source)
 	if err != nil {
 		return
 	}
