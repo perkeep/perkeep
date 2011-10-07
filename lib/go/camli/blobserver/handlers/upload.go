@@ -45,6 +45,10 @@ func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) func(http.Respo
 }
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
+	if w, ok := blobReceiver.(blobserver.ContextWrapper); ok {
+		blobReceiver = w.WrapContext(req).(blobserver.BlobReceiveConfiger)
+	}
+
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		log.Printf("Inconfigured handler upload handler")
 		httputil.BadRequestError(conn, "Inconfigured handler.")
@@ -171,6 +175,10 @@ func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseW
 }
 
 func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver) {
+	if w, ok := blobReceiver.(blobserver.ContextWrapper); ok {
+		blobReceiver = w.WrapContext(req)
+	}
+
 	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
 	if blobRef == nil {
 		httputil.BadRequestError(conn, "Malformed PUT URL.")

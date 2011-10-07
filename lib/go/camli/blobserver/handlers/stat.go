@@ -36,6 +36,10 @@ func CreateStatHandler(storage blobserver.Storage) func(http.ResponseWriter, *ht
 const maxStatBlobs = 1000
 
 func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
+	if w, ok := storage.(blobserver.ContextWrapper); ok {
+		storage = w.WrapContext(req)
+	}
+
 	toStat := make([]*blobref.BlobRef, 0)
 	switch req.Method {
 	case "POST":

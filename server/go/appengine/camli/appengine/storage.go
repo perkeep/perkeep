@@ -17,8 +17,11 @@ limitations under the License.
 package appengine
 
 import (
+	"http"
 	"io"
 	"os"
+
+	"appengine"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -27,7 +30,11 @@ import (
 
 type appengineStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
+
+	ctx appengine.Context
 }
+
+var errNoContext = os.NewError("Internal error: no App Engine context is available")
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &appengineStorage{
@@ -39,24 +46,50 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
+var _ blobserver.ContextWrapper = (*appengineStorage)(nil)
+
+func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
+	s2 := new(appengineStorage)
+	*s2 = *sto
+	s2.ctx = appengine.NewContext(req)
+	return s2
+}
+
 func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
-	err = os.EOF
+	if sto.ctx == nil {
+		err = errNoContext
+		return
+	}
+	err = os.NewError("TODO-AppEngine-FetchStreaming")
 	return
 }
 
 func (sto *appengineStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
-	err = os.NewError("TODO")
+	if sto.ctx == nil {
+		err = errNoContext
+		return
+	}
+	err = os.NewError("TODO-AppEngine-ReceiveBlob")
 	return
 }
 
 func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
-	return os.NewError("TODO")
+	if sto.ctx == nil {
+		return errNoContext
+	}
+	return os.NewError("TODO-AppEngine-RemoveBlobs")
 }
 
 func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
-	return os.NewError("TODO")
+	if sto.ctx == nil {
+		return errNoContext
+	}
+	return os.NewError("TODO-AppEngine-StatBlobs")
 }
 
 func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
-	return os.NewError("TODO")
+	if sto.ctx == nil {
+		return errNoContext
+	}
+	return os.NewError("TODO-AppEngine-EnumerateBlobs")
 }

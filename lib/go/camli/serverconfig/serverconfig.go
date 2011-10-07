@@ -44,9 +44,9 @@ type handlerConfig struct {
 
 type handlerLoader struct {
 	installer HandlerInstaller
-	baseURL string
-	config  map[string]*handlerConfig // prefix -> config
-	handler map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
+	baseURL   string
+	config    map[string]*handlerConfig // prefix -> config
+	handler   map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
 }
 
 type HandlerInstaller interface {
@@ -56,6 +56,15 @@ type HandlerInstaller interface {
 type storageAndConfig struct {
 	blobserver.Storage
 	config *blobserver.Config
+}
+
+var _ blobserver.ContextWrapper = (*storageAndConfig)(nil)
+
+func (sc storageAndConfig) WrapContext(req *http.Request) blobserver.Storage {
+	if w, ok := sc.Storage.(blobserver.ContextWrapper); ok {
+		return w.WrapContext(req)
+	}
+	return sc.Storage
 }
 
 func parseCamliPath(path string) (action string, err os.Error) {
@@ -233,8 +242,8 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 
 type Config struct {
 	jsonconfig.Obj
-	UIPath string  // Not valid until after InstallHandlers
-	configPath string  // Filesystem path
+	UIPath     string // Not valid until after InstallHandlers
+	configPath string // Filesystem path
 }
 
 func Load(configPath string) (*Config, os.Error) {
@@ -243,7 +252,7 @@ func Load(configPath string) (*Config, os.Error) {
 		return nil, err
 	}
 	conf := &Config{
-		Obj: obj,
+		Obj:        obj,
 		configPath: configPath,
 	}
 	return conf, nil
@@ -268,10 +277,10 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (oute
 	}
 
 	hl := &handlerLoader{
-		installer:      hi,
-		baseURL: baseURL,
-		config:  make(map[string]*handlerConfig),
-		handler: make(map[string]interface{}),
+		installer: hi,
+		baseURL:   baseURL,
+		config:    make(map[string]*handlerConfig),
+		handler:   make(map[string]interface{}),
 	}
 
 	for prefix, vei := range prefixes {

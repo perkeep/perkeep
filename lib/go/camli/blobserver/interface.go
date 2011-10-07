@@ -17,9 +17,11 @@ limitations under the License.
 package blobserver
 
 import (
-	"camli/blobref"
+	"http"
 	"io"
 	"os"
+
+	"camli/blobref"
 )
 
 var ErrCorruptBlob = os.NewError("corrupt blob; digest doesn't match")
@@ -37,8 +39,8 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
 	StatBlobs(dest chan<- blobref.SizedBlobRef,
-		blobs []*blobref.BlobRef,
-		waitSeconds int) os.Error
+	blobs []*blobref.BlobRef,
+	waitSeconds int) os.Error
 }
 
 type StatReceiver interface {
@@ -73,9 +75,9 @@ type BlobEnumerator interface {
 	// after and waitSeconds can't be used together. One must be
 	// its zero value.
 	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-		after string,
-		limit uint,
-		waitSeconds int) os.Error
+	after string,
+	limit uint,
+	waitSeconds int) os.Error
 }
 
 // Cache is the minimal interface expected of a blob cache.
@@ -120,4 +122,18 @@ type Storage interface {
 type StorageConfiger interface {
 	Storage
 	Configer
+}
+
+// ContextWrapper is an optional interface for App Engine.
+//
+// While Camlistore's internals are separated out into a part which
+// maps http requests to the interfaces in this file
+// (lib/go/camli/blobserver/handlers) and parts which map these
+// interfaces to implementations (localdisk, s3, etc), the App Engine
+// implementation requires access to the original HTTP
+// request. (because a security token is stored on the incoming HTTP
+// request in a magic header).  All the handlers will do an interface
+// check on this type and use the resulting Storage instead.
+type ContextWrapper interface {
+	WrapContext(*http.Request) Storage
 }

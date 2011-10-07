@@ -34,9 +34,14 @@ func CreateRemoveHandler(storage blobserver.Storage) func(http.ResponseWriter, *
 }
 
 func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
+	if w, ok := storage.(blobserver.ContextWrapper); ok {
+		storage = w.WrapContext(req)
+	}
+
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
+
 	configer, ok := storage.(blobserver.Configer)
 	if !ok {
 		conn.WriteHeader(http.StatusForbidden)
