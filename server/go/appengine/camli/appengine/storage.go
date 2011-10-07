@@ -17,11 +17,14 @@ limitations under the License.
 package appengine
 
 import (
+	"bytes"
 	"http"
 	"io"
 	"os"
 
 	"appengine"
+	"appengine/datastore"
+	"appengine/blobstore"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -32,6 +35,13 @@ type appengineStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 
 	ctx appengine.Context
+}
+
+type blobEnt struct {
+	BlobRefStr string
+	Size       int64
+	BlobKey    appengine.BlobKey
+	// TODO(bradfitz): IsCamliSchemaBlob bool
 }
 
 var errNoContext = os.NewError("Internal error: no App Engine context is available")
@@ -64,13 +74,56 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 	return
 }
 
-func (sto *appengineStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
 	if sto.ctx == nil {
 		err = errNoContext
 		return
 	}
-	err = os.NewError("TODO-AppEngine-ReceiveBlob")
-	return
+
+	var b bytes.Buffer
+	hash := br.Hash()
+	written, err := io.Copy(io.MultiWriter(hash, &b), in)
+	if err != nil {
+		return
+	}
+
+	if !br.HashMatches(hash) {
+		err = blobserver.ErrCorruptBlob
+		return
+	}
+	mimeType := "application/octet-stream"
+	bw, err := blobstore.Create(sto.ctx, mimeType)
+	if err != nil {
+		return
+	}
+	written, err = io.Copy(bw, &b)
+	if err != nil {
+		// TODO(bradfitz): try to clean up; close it, see if we can find the key, delete it.
+		return
+	}
+	err = bw.Close()
+	if err != nil {
+		// TODO(bradfitz): try to clean up; see if we can find the key, delete it.
+		return
+	}
+	bkey, err := bw.Key()
+	if err != nil {
+                return
+        }
+
+	var ent blobEnt
+	ent.BlobRefStr = br.String()
+	ent.Size = written
+	ent.BlobKey = bkey
+
+	dkey := datastore.NewKey(sto.ctx, "Blob", br.String(), 0, nil)
+	_, err = datastore.Put(sto.ctx, dkey, &ent)
+	if err != nil {
+		blobstore.Delete(sto.ctx, bkey)  // TODO: insert into task queue on error to try later?
+		return
+	}
+
+	return blobref.SizedBlobRef{br, written}, nil
 }
 
 func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
