@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"http"
 	"io"
+	"log"
 	"os"
 
 	"appengine"
@@ -30,6 +31,10 @@ import (
 	"camli/blobserver"
 	"camli/jsonconfig"
 )
+
+var _ = log.Printf
+
+const blobKind = "Blob"
 
 type appengineStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
@@ -108,18 +113,18 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	}
 	bkey, err := bw.Key()
 	if err != nil {
-                return
-        }
+		return
+	}
 
 	var ent blobEnt
 	ent.BlobRefStr = br.String()
 	ent.Size = written
 	ent.BlobKey = bkey
 
-	dkey := datastore.NewKey(sto.ctx, "Blob", br.String(), 0, nil)
+	dkey := datastore.NewKey(sto.ctx, blobKind, br.String(), 0, nil)
 	_, err = datastore.Put(sto.ctx, dkey, &ent)
 	if err != nil {
-		blobstore.Delete(sto.ctx, bkey)  // TODO: insert into task queue on error to try later?
+		blobstore.Delete(sto.ctx, bkey) // TODO: insert into task queue on error to try later?
 		return
 	}
 
@@ -137,7 +142,38 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 	if sto.ctx == nil {
 		return errNoContext
 	}
-	return os.NewError("TODO-AppEngine-StatBlobs")
+	var (
+		keys = make([]*datastore.Key, 0, len(blobs))
+		out  = make([]interface{}, 0, len(blobs))
+		errs = make([]os.Error, len(blobs))
+	)
+	for _, br := range blobs {
+		keys = append(keys, datastore.NewKey(sto.ctx, blobKind, br.String(), 0, nil))
+		out = append(out, new(blobEnt))
+	}
+	err := datastore.GetMulti(sto.ctx, keys, out)
+	if merr, ok := err.(datastore.ErrMulti); ok {
+		errs = []os.Error(merr)
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	for i, br := range blobs {
+		thisErr := errs[i]
+		if thisErr == datastore.ErrNoSuchEntity {
+			continue
+		}
+		if thisErr != nil {
+			err = errs[i] // just return last one found?
+			continue
+		}
+		ent := out[i].(*blobEnt)
+		if ent.BlobRefStr != "" {
+			dest <- blobref.SizedBlobRef{br, ent.Size}
+		}
+	}
+	return err
 }
 
 func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {

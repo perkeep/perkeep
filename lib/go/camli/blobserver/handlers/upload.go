@@ -157,10 +157,14 @@ func commonUploadResponse(configer blobserver.Configer, req *http.Request) map[s
 	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*. TODO: cut this down, standardize
 	ret["uploadUrlExpirationSeconds"] = 86400
 
-	// TODO: camli/upload isn't part of the spec.  we should pick
-	// something different here just to make it obvious that this
-	// isn't a well-known URL and accidentally encourage lazy clients.
-	ret["uploadUrl"] = configer.Config().URLBase + "/camli/upload"
+	if configer == nil || configer.Config() == nil {
+		ret["uploadUrl"] = "../XXXXXXXXXXXXX/TODO" // TODO: broken case
+	} else {
+		// TODO: camli/upload isn't part of the spec.  we should pick
+		// something different here just to make it obvious that this
+		// isn't a well-known URL and accidentally encourage lazy clients.
+		ret["uploadUrl"] = configer.Config().URLBase + "/camli/upload"
+	}
 	return ret
 }
 
