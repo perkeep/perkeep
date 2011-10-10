@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"http"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -75,8 +76,19 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 		err = errNoContext
 		return
 	}
-	err = os.NewError("TODO-AppEngine-FetchStreaming")
-	return
+
+	key := datastore.NewKey(sto.ctx, blobKind, br.String(), 0, nil)
+	row := new(blobEnt)
+	err = datastore.Get(sto.ctx, key, row)
+	if err == datastore.ErrNoSuchEntity {
+		err = os.ENOENT
+		return
+	}
+	if err != nil {
+		return
+	}
+	reader := blobstore.NewReader(sto.ctx, row.BlobKey)
+	return ioutil.NopCloser(reader), row.Size, nil
 }
 
 func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {

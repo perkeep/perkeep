@@ -62,7 +62,7 @@ var _ blobserver.ContextWrapper = (*storageAndConfig)(nil)
 
 func (sc storageAndConfig) WrapContext(req *http.Request) blobserver.Storage {
 	if w, ok := sc.Storage.(blobserver.ContextWrapper); ok {
-		return w.WrapContext(req)
+		return &storageAndConfig{w.WrapContext(req), sc.config}
 	}
 	return sc.Storage
 }
