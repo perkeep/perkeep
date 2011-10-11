@@ -219,6 +219,21 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	return nil
 }
 
+// Figure out the size of the contents.
+// If the size was provided, trust it.
+// If the size was not provided (-1), slurp.
+func readerAndSize(h *UploadHandle) (io.Reader, int64, os.Error) {
+	if h.Size != -1 {
+		return h.Contents, h.Size, nil
+	}
+	var b bytes.Buffer
+	n, err := io.Copy(&b, h.Contents)
+	if err != nil {
+		return nil, 0, err
+	}
+	return &b, n, nil
+}
+
 func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	errorf := func(msg string, arg ...interface{}) (*PutResult, os.Error) {
 		err := fmt.Errorf(msg, arg...)
@@ -226,19 +241,22 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return nil, err
 	}
 
+	bodyReader, bodySize, err := readerAndSize(h)
+	if err != nil {
+		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
+	}
+
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
-	if h.Size != -1 {
-		c.stats.UploadRequests.Bytes += h.Size
-	}
+	c.stats.UploadRequests.Bytes += bodySize
 	c.statsMutex.Unlock()
 
-	blobRefString := h.BlobRef.String()
+	blobrefStr := h.BlobRef.String()
 
 	// Pre-upload.  Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
 	url_ := fmt.Sprintf("%s/camli/stat", c.server)
-	requestBody := "camliversion=1&blob1=" + blobRefString
+	requestBody := "camliversion=1&blob1=" + blobrefStr
 	req := c.newRequest("POST", url_)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = ioutil.NopCloser(strings.NewReader(requestBody))
@@ -261,29 +279,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	}
 	resp.Body.Close()
 
-	pr := &PutResult{BlobRef: h.BlobRef, Size: h.Size}
-	if _, ok := stat.HaveMap[h.BlobRef.String()]; ok {
+	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
+	if _, ok := stat.HaveMap[blobrefStr]; ok {
 		pr.Skipped = true
-
-		// Consume the buffer that was provided, just for
-		// consistency. But if it's a closer, do that
-		// instead. But if they didn't provide a size,
-		// we consume it anyway just to get the size
-		// for stats.
-		closer, _ := h.Contents.(io.Closer)
-		if h.Size >= 0 && closer != nil {
+		if closer, ok := h.Contents.(io.Closer); ok {
 			closer.Close()
-		} else {
-			n, err := io.Copy(ioutil.Discard, h.Contents)
-			if err != nil {
-				return nil, err
-			}
-			if h.Size == -1 {
-				pr.Size = n
-				c.statsMutex.Lock()
-				c.stats.UploadRequests.Bytes += pr.Size
-				c.statsMutex.Unlock()
-			}
 		}
 		return pr, nil
 	}
@@ -292,30 +292,25 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
 	copyResult := make(chan os.Error, 1)
-	copySize := make(chan int64, 1)
 	go func() {
 		defer pipeWriter.Close()
-		part, err := multipartWriter.CreateFormFile(h.BlobRef.String(), h.BlobRef.String())
+		part, err := multipartWriter.CreateFormFile(blobrefStr, blobrefStr)
 		if err != nil {
 			copyResult <- err
 			return
 		}
-		n, err := io.Copy(part, h.Contents)
+		_, err = io.Copy(part, bodyReader)
 		if err == nil {
 			err = multipartWriter.Close()
 		}
 		copyResult <- err
-		copySize <- n
 	}()
 
 	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
 	req = c.newRequest("POST", stat.uploadUrl)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 	req.Body = ioutil.NopCloser(pipeReader)
-
-	if h.Size >= 0 {
-		req.ContentLength = multipartOverhead + h.Size + int64(len(h.BlobRef.String()))*2
-	}
+	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
 	req.TransferEncoding = nil
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
@@ -365,17 +360,14 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, os.Error) {
 		return errorf("upload json validity error: no 'received'")
 	}
 
-	expectedSize := h.Size
-	if h.Size == -1 {
-		expectedSize = <-copySize
-	}
+	expectedSize := bodySize
 
 	for _, rit := range received {
 		it, ok := rit.(map[string]interface{})
 		if !ok {
 			return errorf("upload json validity error: 'received' is malformed")
 		}
-		if it["blobRef"] == blobRefString {
+		if it["blobRef"] == blobrefStr {
 			switch size := it["size"].(type) {
 			case nil:
 				return errorf("upload json validity error: 'received' is missing 'size'")
