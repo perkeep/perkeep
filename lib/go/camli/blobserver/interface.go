@@ -39,8 +39,8 @@ type BlobStatter interface {
 	// waitSeconds is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
 	StatBlobs(dest chan<- blobref.SizedBlobRef,
-	blobs []*blobref.BlobRef,
-	waitSeconds int) os.Error
+		blobs []*blobref.BlobRef,
+		waitSeconds int) os.Error
 }
 
 type StatReceiver interface {
@@ -75,9 +75,9 @@ type BlobEnumerator interface {
 	// after and waitSeconds can't be used together. One must be
 	// its zero value.
 	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
-	after string,
-	limit uint,
-	waitSeconds int) os.Error
+		after string,
+		limit uint,
+		waitSeconds int) os.Error
 }
 
 // Cache is the minimal interface expected of a blob cache.
@@ -95,6 +95,7 @@ type BlobReceiveConfiger interface {
 type Config struct {
 	Writable, Readable bool
 	IsQueue            bool // supports deletes
+	CanLongPoll        bool
 
 	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
 	URLBase string

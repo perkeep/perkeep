@@ -117,7 +117,11 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 
 	configer, _ := storage.(blobserver.Configer)
 	ret := commonUploadResponse(configer, req)
+	if configer != nil {
+		ret["canLongPoll"] = true
+	} else {
+		ret["canLongPoll"] = configer.Config().CanLongPoll
+	}
 	ret["stat"] = statRes
-	ret["canLongPoll"] = true
 	httputil.ReturnJson(conn, ret)
 }
