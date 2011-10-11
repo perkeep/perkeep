@@ -49,6 +49,7 @@ func main() {
 	// Scans the arg list and sets up flags
 	debug := flag.Bool("debug", false, "print debugging messages.")
 	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
+	client.AddFlags()
 	flag.Parse()
 
 	errorf := func(msg string, args ...interface{}) {

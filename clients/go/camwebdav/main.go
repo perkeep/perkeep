@@ -27,6 +27,7 @@ var (
 
 // TODO(rh): tame copy/paste code from cammount
 func main() {
+	client.AddFlags()
 	flag.Parse()
 	cacheDir, err := ioutil.TempDir("", "camlicache")
 	if err != nil {

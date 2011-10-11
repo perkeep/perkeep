@@ -31,22 +31,25 @@ limitations under the License.
 package main
 
 import (
-	"camli/blobref"
-	"camli/client"
 	"flag"
 	"io"
 	"log"
 	"os"
 	"strings"
+
+	"camli/blobref"
+	"camli/client"
 )
 
-var flagVerbose *bool = flag.Bool("verbose", false, "be verbose")
-
-var flagCheck *bool = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all our present")
-var flagOutput *string = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
-var flagVia *string = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
+var (
+	flagVerbose = flag.Bool("verbose", false, "be verbose")
+	flagCheck   = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all our present")
+	flagOutput  = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
+	flagVia     = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
+)
 
 func main() {
+	client.AddFlags()
 	flag.Parse()
 
 	client := client.NewOrFail()

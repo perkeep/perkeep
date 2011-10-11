@@ -31,10 +31,16 @@ import (
 	"camli/osutil"
 )
 
-// These override the JSON config file ~/.camli/config "server" and
-// "password" keys
-var flagServer *string = flag.String("blobserver", "", "camlistore blob server")
-var flagPassword *string = flag.String("password", "", "password for blob server")
+// These, if set, override the JSON config file ~/.camli/config
+// "server" and "password" keys.
+//
+// A main binary must call AddFlags to expose these.
+var flagServer, flagPassword *string
+
+func AddFlags() {
+	flagServer = flag.String("blobserver", "", "camlistore blob server")
+	flagPassword = flag.String("password", "", "password for blob server")
+}
 
 func ConfigFilePath() string {
 	return filepath.Join(osutil.CamliConfigDir(), "config")
@@ -66,7 +72,7 @@ func cleanServer(server string) string {
 }
 
 func blobServerOrDie() string {
-	if *flagServer != "" {
+	if flagServer != nil && *flagServer != "" {
 		return cleanServer(*flagServer)
 	}
 	configOnce.Do(parseConfig)
@@ -83,7 +89,7 @@ func blobServerOrDie() string {
 }
 
 func passwordOrDie() string {
-	if *flagPassword != "" {
+	if flagPassword != nil && *flagPassword != "" {
 		return *flagPassword
 	}
 	configOnce.Do(parseConfig)

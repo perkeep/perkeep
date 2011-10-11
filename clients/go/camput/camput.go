@@ -531,6 +531,7 @@ func Save() {
 func main() {
 	defer Save()
 	jsonsign.AddFlags()
+	client.AddFlags()
 	flag.Parse()
 
 	if flag.NArg() == 0 {
