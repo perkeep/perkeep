@@ -18,6 +18,7 @@ package appengine
 
 import (
 	"bytes"
+	"fmt"
 	"http"
 	"io"
 	"io/ioutil"
@@ -44,10 +45,19 @@ type appengineStorage struct {
 }
 
 type blobEnt struct {
-	Size    int64             // TODO: make this a []byte so it's unindexed in App Engine
-	BlobKey appengine.BlobKey // TODO: likewise.
+	Size    []byte // an int64 as "%d" to make it unindexed
+	BlobKey []byte // an appengine.BlobKey
 
 	// TODO(bradfitz): IsCamliSchemaBlob bool?
+}
+
+func (b *blobEnt) size() (int64, os.Error) {
+	var size int64
+	n, err := fmt.Fscanf(bytes.NewBuffer(b.Size), "%d", &size)
+	if n != 1 || err != nil {
+		return 0, fmt.Errorf("invalid Size column in datastore: %q", string(b.Size))
+	}
+	return size, nil
 }
 
 var errNoContext = os.NewError("Internal error: no App Engine context is available")
@@ -87,8 +97,12 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 	if err != nil {
 		return
 	}
-	reader := blobstore.NewReader(sto.ctx, row.BlobKey)
-	return ioutil.NopCloser(reader), row.Size, nil
+	size, err = row.size()
+	if err != nil {
+		return
+	}
+	reader := blobstore.NewReader(sto.ctx, appengine.BlobKey(string(row.BlobKey)))
+	return ioutil.NopCloser(reader), size, nil
 }
 
 func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
@@ -129,8 +143,8 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	}
 
 	var ent blobEnt
-	ent.Size = written
-	ent.BlobKey = bkey
+	ent.Size = []byte(fmt.Sprintf("%d", written))
+	ent.BlobKey = []byte(string(bkey))
 
 	dkey := datastore.NewKey(sto.ctx, blobKind, br.String(), 0, nil)
 	_, err = datastore.Put(sto.ctx, dkey, &ent)
@@ -180,7 +194,12 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 			continue
 		}
 		ent := out[i].(*blobEnt)
-		dest <- blobref.SizedBlobRef{br, ent.Size}
+		size, err := ent.size()
+		if err == nil {
+			dest <- blobref.SizedBlobRef{br, size}
+		} else {
+			sto.ctx.Warningf("skipping corrupt blob %s with Size %q during Stat", br, string(ent.Size))
+		}
 	}
 	return err
 }
@@ -205,7 +224,11 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, af
 		if err != nil {
 			return err
 		}
-		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()), ent.Size}
+		size, err := ent.size()
+		if err != nil {
+			return err
+		}
+		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()), size}
 	}
 	return nil
 }
