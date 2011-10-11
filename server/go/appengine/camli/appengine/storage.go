@@ -44,10 +44,10 @@ type appengineStorage struct {
 }
 
 type blobEnt struct {
-	BlobRefStr string
-	Size       int64
-	BlobKey    appengine.BlobKey
-	// TODO(bradfitz): IsCamliSchemaBlob bool
+	Size    int64             // TODO: make this a []byte so it's unindexed in App Engine
+	BlobKey appengine.BlobKey // TODO: likewise.
+
+	// TODO(bradfitz): IsCamliSchemaBlob bool?
 }
 
 var errNoContext = os.NewError("Internal error: no App Engine context is available")
@@ -129,7 +129,6 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	}
 
 	var ent blobEnt
-	ent.BlobRefStr = br.String()
 	ent.Size = written
 	ent.BlobKey = bkey
 
@@ -181,16 +180,32 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 			continue
 		}
 		ent := out[i].(*blobEnt)
-		if ent.BlobRefStr != "" {
-			dest <- blobref.SizedBlobRef{br, ent.Size}
-		}
+		dest <- blobref.SizedBlobRef{br, ent.Size}
 	}
 	return err
 }
 
 func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+	defer close(dest)
 	if sto.ctx == nil {
 		return errNoContext
 	}
-	return os.NewError("TODO-AppEngine-EnumerateBlobs")
+	q := datastore.NewQuery(blobKind).Limit(int(limit))
+	if after != "" {
+		akey := datastore.NewKey(sto.ctx, blobKind, after, 0, nil)
+		q = q.Filter("__key__>", akey)
+	}
+	it := q.Run(sto.ctx)
+	var ent blobEnt
+	for {
+		key, err := it.Next(&ent)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()), ent.Size}
+	}
+	return nil
 }
