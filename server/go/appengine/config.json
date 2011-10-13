@@ -1,5 +1,5 @@
 { "_for-emacs": "-*- mode: js2;-*-",
-  "baseURL": "http://localhost:8080",
+  "baseURL": "*** Populated by runtime. Ignore this.",
   "password": "foo",
 
   "prefixes": {

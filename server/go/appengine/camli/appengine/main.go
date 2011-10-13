@@ -19,6 +19,7 @@ package appengine
 import (
 	"fmt"
 	"http"
+	"sync"
 
 	"camli/blobserver"
 	"camli/serverconfig"
@@ -26,21 +27,45 @@ import (
 
 var mux = http.NewServeMux()
 
+// lazyInit is our root handler for App Engine. We don't have an App Engine
+// context until the first request and we need that context to figure out
+// our serving URL. So we use this to defer setting up our environment until
+// the first request.
+type lazyInit struct {
+	mux http.Handler
+	once sync.Once
+}
+
+func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	li.once.Do(func() {
+		realInit(r)
+	})
+
+	li.mux.ServeHTTP(w, r)
+}
+
+var root = &lazyInit{mux: mux}
+
 func init() {
-	http.Handle("/", mux)
+	http.Handle("/", root)
 }
 
 func exitFailure(pattern string, args ...interface{}) {
 	panic(fmt.Sprintf(pattern, args...))
 }
 
-func init() {
+func realInit(r *http.Request) {
 	blobserver.RegisterStorageConstructor("appengine", blobserver.StorageConstructor(newFromConfig))
 
 	config, err := serverconfig.Load("./config.json")
 	if err != nil {
 		exitFailure("Could not load server config: %v", err)
 	}
+
+	// Update the config to use the URL path derived from the first App Engine request.
+	// TODO(bslatkin): Support hostnames that aren't x.appspot.com
+	// TODO(bslatkin): Support the HTTPS scheme
+	config.Obj["baseURL"] = fmt.Sprintf("http://%s/", r.Header.Get("X-Appengine-Default-Version-Hostname"))
 
 	baseURL := ""
 	err = config.InstallHandlers(mux, baseURL)
