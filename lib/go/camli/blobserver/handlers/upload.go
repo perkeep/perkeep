@@ -44,9 +44,24 @@ func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) func(http.Respo
 	}
 }
 
+func wrapReceiveConfiger(cw blobserver.ContextWrapper,
+	req *http.Request,
+	oldRC blobserver.BlobReceiveConfiger) blobserver.BlobReceiveConfiger {
+
+	newRC := cw.WrapContext(req)
+	if brc, ok := newRC.(blobserver.BlobReceiveConfiger); ok {
+		return brc
+	}
+	type mixAndMatch struct {
+		blobserver.BlobReceiver
+		blobserver.Configer
+	}
+	return &mixAndMatch{newRC, oldRC}
+}
+
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
 	if w, ok := blobReceiver.(blobserver.ContextWrapper); ok {
-		blobReceiver = w.WrapContext(req).(blobserver.BlobReceiveConfiger)
+		blobReceiver = wrapReceiveConfiger(w, req, blobReceiver)
 	}
 
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
