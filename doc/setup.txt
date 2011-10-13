@@ -22,7 +22,7 @@ Instructions for getting the Camlistore build to work on Mac OS X.
       cd ~/camlistore; ./dev-server
   - Upload a file (make sure this works):
       ~/camlistore/dev-camput file ~/camlistore/COPYING
-  - Create a permanode (which needs GPG keys):
+  - Create a permanode:
       ~/camlistore/dev-camput permanode
   - Use the UI: http://localhost:3179/ui/
 
