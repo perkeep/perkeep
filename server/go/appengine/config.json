@@ -7,6 +7,12 @@
        "handler": "storage-appengine",
        "handlerArgs": {
        }
+    },
+    "/bs2/": {
+       "handler": "storage-appengine",
+       "handlerArgs": {
+           "namespace": "two"
+       }
     }
   }
 }
