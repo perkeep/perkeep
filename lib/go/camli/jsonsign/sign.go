@@ -249,21 +249,17 @@ func (sr *SignRequest) Sign() (signedJson string, err os.Error) {
 	trimmedJson = trimmedJson[0 : len(trimmedJson)-1]
 
 	// sign it
-	secring, err := os.Open(sr.secretRingPath())
-	if err != nil {
-		return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
-	}
-	defer secring.Close()
-
 	entityFetcher := sr.EntityFetcher
 	if entityFetcher == nil {
-		file := sr.SecretKeyringPath
-		if file == "" {
-			file = flagSecretRing
-		}
+		file := sr.secretRingPath()
 		if file == "" {
 			return "", os.NewError("jsonsign: no EntityFetcher, SecretKeyringPath, or secret-keyring flag provided")
 		}
+		secring, err := os.Open(sr.secretRingPath())
+		if err != nil {
+			return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
+		}
+		secring.Close() // just opened to see if it's readable
 		entityFetcher = &FileEntityFetcher{File: file}
 	}
 	signer, err := entityFetcher.FetchEntity(pubk.KeyIdString())
