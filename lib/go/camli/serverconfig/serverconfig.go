@@ -60,11 +60,11 @@ type storageAndConfig struct {
 
 var _ blobserver.ContextWrapper = (*storageAndConfig)(nil)
 
-func (sc storageAndConfig) WrapContext(req *http.Request) blobserver.Storage {
+func (sc *storageAndConfig) WrapContext(req *http.Request) blobserver.Storage {
 	if w, ok := sc.Storage.(blobserver.ContextWrapper); ok {
 		return &storageAndConfig{w.WrapContext(req), sc.config}
 	}
-	return sc.Storage
+	return sc
 }
 
 func parseCamliPath(path string) (action string, err os.Error) {
