@@ -15,3 +15,4 @@ _embed_*.go
 _cgo*
 clients/go/camgsinit/camgsinit
 clients/go/camwebdav/camwebdav
+.goroot

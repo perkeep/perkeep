@@ -62,6 +62,8 @@ EOM
 ;
 }
 
+setup_environment_from_goroot_symlink();
+
 my %built;  # target -> bool (was it already built?)
 
 # Note: the target key is usually the directory, but may be overridden.  use
@@ -627,6 +629,16 @@ sub generate_embed_file {
         }
     }
     print $dest "func init() {\n\tFiles.Add(\"$base_file\", \"$escaped\");\n}\n";
+}
+
+sub setup_environment_from_goroot_symlink {
+    return unless -e ".goroot";
+    my $root = readlink ".goroot";
+    unless (-d $root) {
+        die "Optional file $Findbin::Bin/.goroot points to invalid GOROOT directory $root\n";
+    }
+    $ENV{"GOROOT"} = $root;
+    $ENV{"PATH"} = "$root/bin:$ENV{PATH}";
 }
 
 __DATA__
