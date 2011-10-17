@@ -3,6 +3,13 @@
   "password": "foo",
 
   "prefixes": {
+    "/ui/": {
+       "enabled": false, "_comment": "The UI handler isn't yet in its own package.",
+       "handler": "ui",
+       "handlerArgs": {
+           "blobRoot": "/bs/"
+       }
+    },
     "/bs/": {
        "handler": "storage-appengine",
        "handlerArgs": {
