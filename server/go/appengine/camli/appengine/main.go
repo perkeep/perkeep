@@ -21,55 +21,66 @@ import (
 	"http"
 	"sync"
 
+	"appengine"
+
 	"camli/blobserver"
 	"camli/serverconfig"
 )
-
-var mux = http.NewServeMux()
 
 // lazyInit is our root handler for App Engine. We don't have an App Engine
 // context until the first request and we need that context to figure out
 // our serving URL. So we use this to defer setting up our environment until
 // the first request.
 type lazyInit struct {
-	mux http.Handler
-	once sync.Once
+	mu    sync.Mutex
+	ready bool
+	mux   *http.ServeMux
 }
 
 func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	li.once.Do(func() {
-		realInit(r)
-	})
-
-	li.mux.ServeHTTP(w, r)
+	li.mu.Lock()
+	if !li.ready {
+		li.ready = realInit(w, r)
+	}
+	li.mu.Unlock()
+	if li.ready {
+		li.mux.ServeHTTP(w, r)
+	}
 }
 
-var root = &lazyInit{mux: mux}
+var root = new(lazyInit)
 
 func init() {
+	blobserver.RegisterStorageConstructor("appengine", blobserver.StorageConstructor(newFromConfig))
 	http.Handle("/", root)
 }
 
-func exitFailure(pattern string, args ...interface{}) {
-	panic(fmt.Sprintf(pattern, args...))
-}
+func realInit(w http.ResponseWriter, r *http.Request) bool {
+	ctx := appengine.NewContext(r)
 
-func realInit(r *http.Request) {
-	blobserver.RegisterStorageConstructor("appengine", blobserver.StorageConstructor(newFromConfig))
+	errf := func(format string, args ...interface{}) bool {
+		ctx.Errorf("In init: "+format, args...)
+		http.Error(w, fmt.Sprintf(format, args...), 500)
+		return false
+	}
 
 	config, err := serverconfig.Load("./config.json")
 	if err != nil {
-		exitFailure("Could not load server config: %v", err)
+		return errf("Could not load server config: %v", err)
 	}
 
 	// Update the config to use the URL path derived from the first App Engine request.
 	// TODO(bslatkin): Support hostnames that aren't x.appspot.com
 	// TODO(bslatkin): Support the HTTPS scheme
-	config.Obj["baseURL"] = fmt.Sprintf("http://%s/", r.Header.Get("X-Appengine-Default-Version-Hostname"))
+	baseURL := fmt.Sprintf("http://%s/", r.Header.Get("X-Appengine-Default-Version-Hostname"))
+	ctx.Infof("baseurl = %q", baseURL)
+	config.Obj["baseURL"] = baseURL
 
-	baseURL := ""
-	err = config.InstallHandlers(mux, baseURL)
+	root.mux = http.NewServeMux()
+	err = config.InstallHandlers(root.mux, baseURL)
 	if err != nil {
-		exitFailure("Error parsing config: %v", err)
+		return errf("Error installing handlers: %v", err)
 	}
+
+	return true
 }
