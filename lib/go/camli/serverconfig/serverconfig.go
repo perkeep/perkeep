@@ -217,8 +217,13 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	h.settingUp = true
 	defer func() {
 		h.setupDone = true
-		if hl.handler[prefix] == nil {
-			panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
+		r := recover()
+		if r == nil {
+			if hl.handler[prefix] == nil {
+				panic(fmt.Sprintf("setupHandler for %q didn't install a handler", prefix))
+			}
+		} else {
+			panic(r)
 		}
 	}()
 
