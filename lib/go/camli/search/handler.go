@@ -27,12 +27,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonconfig"
 	"camli/httputil"
-	"url"
 )
 
 const buffered = 32      // arbitrary channel buffer size
