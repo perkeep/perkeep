@@ -17,8 +17,9 @@ limitations under the License.
 package fileembed
 
 import (
-	"http"
 	"fmt"
+	"http"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,6 +31,13 @@ type Files struct {
 	// Optional environment variable key to override
 	OverrideEnv string
 
+	// Optional fallback directory to check, if not in memory.
+	DirFallback string
+
+	// SlurpToMemory controls whether on first access the file is
+	// slurped into memory.  It's intended for use with DirFallback.
+	SlurpToMemory bool
+
 	lk   sync.Mutex
 	file map[string]string
 }
@@ -38,6 +46,11 @@ type Files struct {
 func (f *Files) Add(filename, body string) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
+	f.add(filename, body)
+}
+
+// f.lk must be locked
+func (f *Files) add(filename, body string) {
 	if f.file == nil {
 		f.file = make(map[string]string)
 	}
@@ -50,14 +63,33 @@ func (f *Files) Open(filename string) (http.File, os.Error) {
 	}
 	f.lk.Lock()
 	defer f.lk.Unlock()
-	if f.file == nil {
-		return nil, os.ENOENT
-	}
 	s, ok := f.file[filename]
 	if !ok {
-		return nil, os.ENOENT
+		return f.openFallback(filename)
 	}
 	return &file{name: filename, s: s}, nil
+}
+
+// f.lk is held
+func (f *Files) openFallback(filename string) (http.File, os.Error) {
+	if f.DirFallback == "" {
+		return nil, os.ENOENT
+	}
+	of, err := os.Open(filepath.Join(f.DirFallback, filename))
+	switch {
+	case err != nil:
+		return nil, err
+	case f.SlurpToMemory:
+		defer of.Close()
+		bs, err := ioutil.ReadAll(of)
+		if err != nil {
+			return nil, err
+		}
+		s := string(bs)
+		f.add(filename, s)
+		return &file{name: filename, s: s}, nil
+	}
+	return of, nil
 }
 
 type file struct {
