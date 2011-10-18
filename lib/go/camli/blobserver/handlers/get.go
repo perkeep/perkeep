@@ -80,7 +80,7 @@ func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 
 // serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
 func serveBlobRef(conn http.ResponseWriter, req *http.Request,
-blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
 		fetcher = w.WrapContext(req)
@@ -92,7 +92,7 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 		break
 	case os.ENOENT:
 		conn.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(conn, "Object not found.")
+		fmt.Fprintf(conn, "Blob %q not found", blobRef)
 		return
 	default:
 		httputil.ServerError(conn, err)
@@ -187,7 +187,7 @@ blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 
 	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
 		fetcher = w.WrapContext(req)
