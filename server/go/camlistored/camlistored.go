@@ -39,6 +39,7 @@ import (
 	_ "camli/mysqlindexer" // indexer, but uses storage interface
 	// Handlers:
 	_ "camli/search"
+	_ "camli/server" // UI, publish, etc
 )
 
 var flagConfigFile = flag.String("configfile", "serverconfig",
