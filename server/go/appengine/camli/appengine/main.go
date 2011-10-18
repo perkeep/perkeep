@@ -23,8 +23,9 @@ import (
 
 	"appengine"
 
-	"camli/blobserver"
-	"camli/serverconfig"
+	"camli/blobserver"   // storage interface definition
+	"camli/serverconfig" // wiring up the world from a JSON description
+	_ "camli/server"       // handlers: UI, publish, thumbnailing, etc
 )
 
 // lazyInit is our root handler for App Engine. We don't have an App Engine
