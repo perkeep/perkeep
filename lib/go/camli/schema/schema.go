@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"camli/blobref"
@@ -272,6 +271,12 @@ func (ss *Superset) HasFilename(name string) bool {
 	return ss.FileNameString() == name
 }
 
+const (
+	syscall_S_IFDIR = 0x4000
+	syscall_S_IFREG = 0x8000
+	syscall_S_IFLNK = 0xa000
+)
+
 func (ss *Superset) UnixMode() (mode uint32) {
 	m64, err := strconv.Btoui64(ss.UnixPermission, 8)
 	if err == nil {
@@ -281,11 +286,11 @@ func (ss *Superset) UnixMode() (mode uint32) {
 	// TODO: add other types
 	switch ss.Type {
 	case "directory":
-		mode = mode | syscall.S_IFDIR
+		mode = mode | syscall_S_IFDIR
 	case "file":
-		mode = mode | syscall.S_IFREG
+		mode = mode | syscall_S_IFREG
 	case "symlink":
-		mode = mode | syscall.S_IFLNK
+		mode = mode | syscall_S_IFLNK
 	}
 	return
 }
