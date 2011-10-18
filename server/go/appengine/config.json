@@ -4,21 +4,30 @@
 
   "prefixes": {
     "/ui/": {
-       "handler": "ui",
-       "handlerArgs": {
-           "blobRoot": "/bs/"
-       }
+      "handler": "ui",
+      "handlerArgs": {
+        "blobRoot": "/bs/",
+        "jsonSignRoot": "/sighelper/"
+      }
+    },
+    "/sighelper/": {
+      "handler": "jsonsign",
+      "handlerArgs": {
+        "secretRing": "test-secring.gpg",
+        "keyId": "26F5ABDA",
+        "publicKeyDest": "/bs/"
+      }
     },
     "/bs/": {
-       "handler": "storage-appengine",
-       "handlerArgs": {
+      "handler": "storage-appengine",
+      "handlerArgs": {
        }
     },
     "/bs2/": {
-       "handler": "storage-appengine",
-       "handlerArgs": {
-           "namespace": "two"
-       }
+      "handler": "storage-appengine",
+      "handlerArgs": {
+        "namespace": "two"
+      }
     }
   }
 }
