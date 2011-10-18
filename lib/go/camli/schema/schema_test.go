@@ -17,11 +17,12 @@ limitations under the License.
 package schema
 
 import (
-	. "camli/test/asserts"
 	"json"
 	"os"
 	"strings"
 	"testing"
+
+	. "camli/test/asserts"
 )
 
 type isUtf8Test struct {
