@@ -25,7 +25,15 @@ import (
 
 	"camli/blobserver"   // storage interface definition
 	"camli/serverconfig" // wiring up the world from a JSON description
+	_ "camli/blobserver/cond"
+	_ "camli/blobserver/replica"
+	_ "camli/blobserver/shard"
 	_ "camli/server"       // handlers: UI, publish, thumbnailing, etc
+
+	// TODO(bradfitz): uncomment these and deal with symlinks + config setup
+	// Both require an App Engine context to make HTTP requests too.
+	//_ "camli/blobserver/remote"
+	//_ "camli/blobserver/s3"
 )
 
 // lazyInit is our root handler for App Engine. We don't have an App Engine
@@ -52,7 +60,9 @@ func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 var root = new(lazyInit)
 
 func init() {
+	// TODO(bradfitz): rename some of this to be consistent
 	blobserver.RegisterStorageConstructor("appengine", blobserver.StorageConstructor(newFromConfig))
+	blobserver.RegisterStorageConstructor("aeindex", blobserver.StorageConstructor(indexFromConfig))
 	http.Handle("/", root)
 }
 

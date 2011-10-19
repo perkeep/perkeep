@@ -3,13 +3,35 @@
   "password": "foo",
 
   "prefixes": {
+
     "/ui/": {
       "handler": "ui",
       "handlerArgs": {
-        "blobRoot": "/bs/",
+        "blobRoot": "/bs-and-maybe-also-index/",
+        "searchRoot": "/my-search/",
         "jsonSignRoot": "/sighelper/"
       }
     },
+
+    "/bs-and-maybe-also-index/": {
+      "handler": "storage-cond",
+      "handlerArgs": {
+        "write": {
+          "if": "isSchema",
+          "then": "/bs-and-index/",
+          "else": "/bs/"
+        },
+        "read": "/bs/"
+      }
+    },
+
+    "/bs-and-index/": {
+      "handler": "storage-replica",
+      "handlerArgs": {
+        "backends": ["/bs/", "/indexer/"]
+      }
+    },
+
     "/sighelper/": {
       "handler": "jsonsign",
       "handlerArgs": {
@@ -18,16 +40,34 @@
         "publicKeyDest": "/bs/"
       }
     },
+
     "/bs/": {
       "handler": "storage-appengine",
       "handlerArgs": {
        }
     },
+
     "/bs2/": {
       "handler": "storage-appengine",
       "handlerArgs": {
         "namespace": "two"
       }
+    },
+
+    "/indexer/": {
+      "handler": "storage-aeindex",
+      "handlerArgs": {
+        "namespace": "idx1"
+      }
+    },
+
+   "/my-search/": {
+      "handler": "search",
+      "handlerArgs": {
+        "index": "/indexer/",
+        "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+      }
     }
+
   }
 }
