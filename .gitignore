@@ -16,3 +16,4 @@ _cgo*
 clients/go/camgsinit/camgsinit
 clients/go/camwebdav/camwebdav
 .goroot
+appengine-sdk
