@@ -28,7 +28,7 @@ import (
 	_ "camli/blobserver/cond"
 	_ "camli/blobserver/replica"
 	_ "camli/blobserver/shard"
-	_ "camli/server"       // handlers: UI, publish, thumbnailing, etc
+	_ "camli/server" // handlers: UI, publish, thumbnailing, etc
 
 	// TODO(bradfitz): uncomment these and deal with symlinks + config setup
 	// Both require an App Engine context to make HTTP requests too.

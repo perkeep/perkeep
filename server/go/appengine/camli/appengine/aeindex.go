@@ -17,9 +17,7 @@ limitations under the License.
 package appengine
 
 import (
-	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"camli/blobref"
@@ -37,22 +35,13 @@ var _ search.Index = (*appengineIndex)(nil)
 
 func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &appengineIndex{}
-	sto.namespace = config.OptionalString("namespace", "")
+	ns := config.OptionalString("namespace", "")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	// TODO(bradfitz): merge this namespace checking logic with storage.go's copy
-	if strings.Contains(sto.namespace, "|") {
-		return nil, fmt.Errorf("no pipe allowed in namespace %q", sto.namespace)
-	}
-	if strings.Contains(sto.namespace, "\x00") {
-		return nil, fmt.Errorf("no zero byte allowed in namespace %q", sto.namespace)
-	}
-	if sto.namespace == "-" {
-		return nil, fmt.Errorf("reserved namespace %q", sto.namespace)
-	}
-	if sto.namespace == "" {
-		sto.namespace = "-"
+	sto.namespace, err = sanitizeNamespace(ns)
+	if err != nil {
+		return nil, err
 	}
 	return sto, nil
 }
@@ -77,7 +66,6 @@ func (x *appengineIndex) GetBlobMimeType(blob *blobref.BlobRef) (mime string, si
 	err = os.NewError("TODO: GetBlobMimeType")
 	return
 }
-
 
 func (x *appengineIndex) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
 	return nil, os.NewError("TODO: xxx")

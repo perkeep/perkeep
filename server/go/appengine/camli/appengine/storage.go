@@ -119,20 +119,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-
-	if strings.Contains(sto.namespace, "|") {
-		return nil, fmt.Errorf("no pipe allowed in namespace %q", sto.namespace)
+	sto.namespace, err = sanitizeNamespace(sto.namespace)
+	if err != nil {
+		return nil, err
 	}
-	if strings.Contains(sto.namespace, "\x00") {
-		return nil, fmt.Errorf("no zero byte allowed in namespace %q", sto.namespace)
-	}
-	if sto.namespace == "-" {
-		return nil, fmt.Errorf("reserved namespace %q", sto.namespace)
-	}
-	if sto.namespace == "" {
-		sto.namespace = "-"
-	}
-
 	return sto, nil
 }
 
