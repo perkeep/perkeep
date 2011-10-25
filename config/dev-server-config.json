@@ -27,6 +27,7 @@
               "blobRoot": "/bs/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
+              "scaledImage": "lrucache",
               "css": ["pics.css"],
               "js": ["camli.js", "pics.js"],
               "devBootstrapPermanodeUsing": "/sighelper/"
@@ -47,6 +48,7 @@
              "searchRoot": "/my-search/",
              "jsonSignRoot": "/sighelper/",
              "cache": "/cache/",
+             "scaledImage": "lrucache",
              "publishRoots": ["/blog/", "/pics/"]
          }
      },

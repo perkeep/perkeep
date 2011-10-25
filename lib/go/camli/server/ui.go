@@ -64,6 +64,7 @@ type UIHandler struct {
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
 	Search  *search.Handler    // or nil
+	sc      ScaledImage        // cache for scaled images, optional
 
 	staticHandler http.Handler
 }
@@ -78,8 +79,8 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	ui.SearchRoot = conf.OptionalString("searchRoot", "")
 	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
 	pubRoots := conf.OptionalList("publishRoots")
-
 	cachePrefix := conf.OptionalString("cache", "")
+	scType := conf.OptionalString("scaledImage", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -130,6 +131,12 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ui.Cache = bs
+		switch scType {
+		case "lrucache":
+			ui.sc = NewScaledImageLru()
+		default:
+			return nil, fmt.Errorf("unsupported ui handler's scType: %q ", scType)
+		}
 	}
 
 	if ui.SearchRoot != "" {
@@ -327,6 +334,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
+		sc:        ui.sc,
 	}
 	th.ServeHTTP(rw, req, blobref)
 }
