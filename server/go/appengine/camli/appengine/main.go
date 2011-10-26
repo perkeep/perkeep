@@ -88,7 +88,7 @@ func realInit(w http.ResponseWriter, r *http.Request) bool {
 	config.Obj["baseURL"] = baseURL
 
 	root.mux = http.NewServeMux()
-	err = config.InstallHandlers(root.mux, baseURL)
+	err = config.InstallHandlers(root.mux, baseURL, r)
 	if err != nil {
 		return errf("Error installing handlers: %v", err)
 	}

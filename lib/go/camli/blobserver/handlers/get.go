@@ -165,6 +165,7 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 	// to further signal errors.
 	killConnection := func() {
 		if hj, ok := conn.(http.Hijacker); ok {
+			log.Printf("Force-closing TCP connection to signal error sending %q", blobRef)
 			if closer, _, err := hj.Hijack(); err != nil {
 				closer.Close()
 			}

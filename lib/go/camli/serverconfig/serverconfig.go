@@ -47,6 +47,12 @@ type handlerLoader struct {
 	baseURL   string
 	config    map[string]*handlerConfig // prefix -> config
 	handler   map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
+
+	// optional context (for App Engine, the first request that
+	// started up the process).  we may need this if setting up
+	// handlers involves doing datastore/memcache/blobstore
+	// lookups.
+	context *http.Request
 }
 
 type HandlerInstaller interface {
@@ -141,6 +147,10 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.H
 		}
 		handleCamliUsingStorage(conn, req, action, storageConfig)
 	})
+}
+
+func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
+	return hl.context, hl.context != nil
 }
 
 func (hl *handlerLoader) FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err os.Error) {
@@ -267,7 +277,8 @@ func Load(configPath string) (*Config, os.Error) {
 	return conf, nil
 }
 
-func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (outerr os.Error) {
+// context may be nil
+func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (outerr os.Error) {
 	defer func() {
 		err := recover()
 		if err == nil {
@@ -290,6 +301,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (oute
 		baseURL:   baseURL,
 		config:    make(map[string]*handlerConfig),
 		handler:   make(map[string]interface{}),
+		context:   context,
 	}
 
 	for prefix, vei := range prefixes {

@@ -81,9 +81,6 @@ func byteDecSize(b []byte) (int64, os.Error) {
 }
 
 func (b *blobEnt) inNamespace(ns string) (out bool) {
-	defer func() {
-		log.Printf("inNamespace(%q, %q) = %v", string(b.Namespaces), ns, out)
-	}()
 	for _, in := range strings.Split(string(b.Namespaces), "|") {
 		if ns == in {
 			return true

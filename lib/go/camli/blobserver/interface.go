@@ -43,6 +43,20 @@ type BlobStatter interface {
 		waitSeconds int) os.Error
 }
 
+func StatBlob(bs BlobStatter, br *blobref.BlobRef) (sb blobref.SizedBlobRef, err os.Error) {
+	c := make(chan blobref.SizedBlobRef, 1)
+	err = bs.StatBlobs(c, []*blobref.BlobRef{br}, 0)
+	if err != nil {
+		return
+	}
+	select {
+	case sb = <-c:
+	default:
+		err = os.ENOENT
+	}
+	return
+}
+
 type StatReceiver interface {
 	BlobReceiver
 	BlobStatter

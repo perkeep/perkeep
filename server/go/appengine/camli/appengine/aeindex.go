@@ -17,8 +17,13 @@ limitations under the License.
 package appengine
 
 import (
+	"bytes"
+	"http"
+	"io"
 	"os"
 	"time"
+
+	"appengine"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -29,9 +34,18 @@ import (
 type appengineIndex struct {
 	*blobserver.NoImplStorage
 	namespace string
+	ctx       appengine.Context
+}
+
+func (x *appengineIndex) WrapContext(req *http.Request) blobserver.Storage {
+	x2 := new(appengineIndex)
+	*x2 = *x
+	x.ctx = appengine.NewContext(req)
+	return x2
 }
 
 var _ search.Index = (*appengineIndex)(nil)
+var _ blobserver.Storage = (*appengineIndex)(nil)
 
 func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	sto := &appengineIndex{}
@@ -44,6 +58,27 @@ func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobs
 		return nil, err
 	}
 	return sto, nil
+}
+
+func (x *appengineIndex) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+	if x.ctx == nil {
+		err = errNoContext
+		return
+	}
+	var b bytes.Buffer
+	hash := br.Hash()
+	written, err := io.Copy(io.MultiWriter(hash, &b), in)
+	if err != nil {
+		return
+	}
+	if !br.HashMatches(hash) {
+		err = blobserver.ErrCorruptBlob
+		return
+	}
+
+	// TODO(bradfitz): implement
+
+	return blobref.SizedBlobRef{br, written}, nil
 }
 
 func (x *appengineIndex) GetRecentPermanodes(dest chan *search.Result,

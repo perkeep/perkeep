@@ -78,7 +78,7 @@ func main() {
 		}
 	}
 
-	err = config.InstallHandlers(ws, baseURL)
+	err = config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
 		exitFailure("Error parsing config: %v", err)
 	}

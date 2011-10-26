@@ -33,6 +33,11 @@ type Loader interface {
 	GetHandler(prefix string) (interface{}, os.Error)
 
 	FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err os.Error)
+
+	// If we're loading configuration in response to a web request
+	// (as we do with App Engine), then this returns a request and
+	// true.
+	GetRequestContext() (ctx *http.Request, ok bool)
 }
 
 type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, os.Error)

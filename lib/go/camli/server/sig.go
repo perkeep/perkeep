@@ -101,9 +101,18 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 			return nil, err
 		}
 		h.pubKeyDest = sto
-		go h.uploadPublicKey(armoredPublicKey)
+		if sto != nil {
+			if ctxReq, ok := ld.GetRequestContext(); ok {
+				if w, ok := sto.(blobserver.ContextWrapper); ok {
+					sto = w.WrapContext(ctxReq)
+				}
+			}
+			err := h.uploadPublicKey(sto, armoredPublicKey)
+			if err != nil {
+				return nil, fmt.Errorf("Error seeding self public key in storage: %v", err)
+			}
+		}
 	}
-
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
 	h.pubKeyHandler = &handlers.GetHandler{
 		Fetcher:           ms,
@@ -113,15 +122,13 @@ func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	return h, nil
 }
 
-func (h *JSONSignHandler) uploadPublicKey(key string) {
-	if h.pubKeyDest == nil {
-		return
+func (h *JSONSignHandler) uploadPublicKey(sto blobserver.Storage, key string) os.Error {
+	_, err := blobserver.StatBlob(sto, h.pubKeyBlobRef)
+	if err == nil {
+		return nil
 	}
-	// TODO: error check
-	_, err := h.pubKeyDest.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(key))
-	if err != nil {
-		log.Printf("upload public key: %v", err)
-	}
+	_, err = sto.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(key))
+	return err
 }
 
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
