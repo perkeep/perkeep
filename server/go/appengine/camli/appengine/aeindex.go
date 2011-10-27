@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"http"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -61,6 +62,10 @@ func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobs
 }
 
 func (x *appengineIndex) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+	log.Printf("appengineIndex.ReceiveBlob(%q)", br)
+	defer func() {
+		log.Printf("appengineIndex.ReceiveBlob(%q) = %v, %v", br, sb, err)
+	}()
 	if x.ctx == nil {
 		err = errNoContext
 		return
