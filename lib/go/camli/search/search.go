@@ -81,7 +81,7 @@ type PermanodeByAttrRequest struct {
 }
 
 type Index interface {
-	// dest is closed
+	// dest must be closed, even when returning an error.
 	// limit is <= 0 for default.  smallest possible default is 0
 	GetRecentPermanodes(dest chan *Result,
 		owner []*blobref.BlobRef,
