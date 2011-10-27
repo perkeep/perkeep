@@ -19,6 +19,7 @@ package replica
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -159,6 +160,9 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 	upResult := make(chan sizedBlobAndError, nReplicas)
 	uploadToReplica := func(source io.Reader, s blobserver.Storage) {
 		sb, err := s.ReceiveBlob(b, source)
+		if err != nil {
+			io.Copy(ioutil.Discard, source)
+		}
 		upResult <- sizedBlobAndError{sb, err}
 	}
 	for idx, replica := range sto.replicas {
@@ -171,9 +175,10 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 	for idx := range sto.replicas {
 		wpipe[idx].Close()
 	}
-	nSuccess := 0
+	nSuccess, nFailures := 0, 0
 	for _ = range sto.replicas {
-		switch res := <-upResult; {
+		res := <-upResult
+		switch {
 		case res.err == nil && res.sb.Size == size:
 			nSuccess++
 			if nSuccess == sto.minWritesForSuccess {
@@ -181,10 +186,16 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 				return res.sb, nil
 			}
 		case res.err == nil:
+			nFailures++
 			err = fmt.Errorf("replica: upload shard reported size %d, expected %d", res.sb.Size, size)
 		default:
+			nFailures++
 			err = res.err
 		}
+	}
+	if nFailures > 0 {
+		log.Printf("replica: receiving blob, %d successes, %d failures; last error = %v",
+			nSuccess, nFailures, err)
 	}
 	return
 }
