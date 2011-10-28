@@ -152,3 +152,14 @@ type StorageConfiger interface {
 type ContextWrapper interface {
 	WrapContext(*http.Request) Storage
 }
+
+func MaybeWrapContext(sto Storage, req *http.Request) Storage {
+	if req == nil {
+		return sto
+	}
+	w, ok := sto.(ContextWrapper)
+	if !ok {
+		return sto
+	}
+	return w.WrapContext(req)
+}

@@ -41,7 +41,7 @@ type appengineIndex struct {
 func (x *appengineIndex) WrapContext(req *http.Request) blobserver.Storage {
 	x2 := new(appengineIndex)
 	*x2 = *x
-	x.ctx = appengine.NewContext(req)
+	x2.ctx = appengine.NewContext(req)
 	return x2
 }
 
@@ -62,10 +62,6 @@ func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobs
 }
 
 func (x *appengineIndex) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
-	log.Printf("appengineIndex.ReceiveBlob(%q)", br)
-	defer func() {
-		log.Printf("appengineIndex.ReceiveBlob(%q) = %v, %v", br, sb, err)
-	}()
 	if x.ctx == nil {
 		err = errNoContext
 		return

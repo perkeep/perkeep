@@ -18,6 +18,7 @@ package cond
 
 import (
 	"bytes"
+	"http"
 	"fmt"
 	"json"
 	"io"
@@ -42,10 +43,21 @@ type condStorage struct {
 	storageForReceive storageFunc
 	read              blobserver.Storage
 	remove            blobserver.Storage
+
+	ctx *http.Request // optional per-request context
 }
+
+var _ blobserver.ContextWrapper = (*condStorage)(nil)
 
 func (sto *condStorage) GetBlobHub() blobserver.BlobHub {
 	return sto.SimpleBlobHubPartitionMap.GetBlobHub()
+}
+
+func (sto *condStorage) WrapContext(req *http.Request) blobserver.Storage {
+	s2 := new(condStorage)
+        *s2 = *sto
+        s2.ctx = req
+        return s2
 }
 
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
@@ -152,12 +164,14 @@ func (sto *condStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb bl
 	if len(overRead) > 0 {
 		source = io.MultiReader(bytes.NewBuffer(overRead), source)
 	}
+	destSto = blobserver.MaybeWrapContext(destSto, sto.ctx)
 	return destSto.ReceiveBlob(b, source)
 }
 
 func (sto *condStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	if sto.remove != nil {
-		return sto.remove.RemoveBlobs(blobs)
+		rsto := blobserver.MaybeWrapContext(sto.remove, sto.ctx)
+		return rsto.RemoveBlobs(blobs)
 	}
 	return os.NewError("cond: Remove not configured")
 }
@@ -169,7 +183,8 @@ func (sto *condStorage) IsFetcherASeeker() bool {
 
 func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
 	if sto.read != nil {
-		return sto.read.FetchStreaming(b)
+		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
+		return rsto.FetchStreaming(b)
 	}
 	err = os.NewError("cond: Read not configured")
 	return
@@ -177,14 +192,16 @@ func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, 
 
 func (sto *condStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
 	if sto.read != nil {
-		return sto.read.StatBlobs(dest, blobs, waitSeconds)
+		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
+		return rsto.StatBlobs(dest, blobs, waitSeconds)
 	}
 	return os.NewError("cond: Read not configured")
 }
 
 func (sto *condStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	if sto.read != nil {
-		return sto.read.EnumerateBlobs(dest, after, limit, waitSeconds)
+		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
+		return rsto.EnumerateBlobs(dest, after, limit, waitSeconds)
 	}
 	return os.NewError("cond: Read not configured")
 }

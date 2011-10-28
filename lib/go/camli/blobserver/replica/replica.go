@@ -18,6 +18,7 @@ package replica
 
 import (
 	"fmt"
+	"http"
 	"io"
 	"io/ioutil"
 	"log"
@@ -41,10 +42,32 @@ type replicaStorage struct {
 	// Minimum number of writes that must succeed before
 	// acknowledging success to the client.
 	minWritesForSuccess int
+
+	ctx *http.Request // optional per-request context
 }
 
 func (sto *replicaStorage) GetBlobHub() blobserver.BlobHub {
 	return sto.SimpleBlobHubPartitionMap.GetBlobHub()
+}
+
+var _ blobserver.ContextWrapper = (*replicaStorage)(nil)
+
+func (sto *replicaStorage) WrapContext(req *http.Request) blobserver.Storage {
+	s2 := new(replicaStorage)
+	*s2 = *sto
+	s2.ctx = req
+	return s2
+}
+
+func (sto *replicaStorage) wrappedReplicas() []blobserver.Storage {
+	if sto.ctx == nil {
+		return sto.replicas
+	}
+	w := make([]blobserver.Storage, len(sto.replicas))
+	for i, r := range sto.replicas {
+		w[i] = blobserver.MaybeWrapContext(r, sto.ctx)
+	}
+	return w
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
@@ -119,7 +142,7 @@ func (sto *replicaStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*
 		errch <- s.StatBlobs(ch, blobs, waitSeconds)
 	}
 
-	for _, replica := range sto.replicas {
+	for _, replica := range sto.wrappedReplicas() {
 		go statReplica(replica)
 	}
 
@@ -159,13 +182,14 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 	}
 	upResult := make(chan sizedBlobAndError, nReplicas)
 	uploadToReplica := func(source io.Reader, s blobserver.Storage) {
+		s = blobserver.MaybeWrapContext(s, sto.ctx)
 		sb, err := s.ReceiveBlob(b, source)
 		if err != nil {
 			io.Copy(ioutil.Discard, source)
 		}
 		upResult <- sizedBlobAndError{sb, err}
 	}
-	for idx, replica := range sto.replicas {
+	for idx, replica := range sto.wrappedReplicas() {
 		go uploadToReplica(rpipe[idx], replica)
 	}
 	size, err := io.Copy(io.MultiWriter(writer...), source)
@@ -203,6 +227,7 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xx
 func (sto *replicaStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	errch := make(chan os.Error, buffered)
 	removeFrom := func(s blobserver.Storage) {
+		s = blobserver.MaybeWrapContext(s, sto.ctx)
 		errch <- s.RemoveBlobs(blobs)
 	}
 	for _, replica := range sto.replicas {
@@ -231,7 +256,7 @@ func (sto *replicaStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, afte
 	// now we'll just do all, even though it's kinda a waste.  at
 	// least then we don't miss anything if a certain node is
 	// missing some blobs temporarily
-	return blobserver.MergedEnumerate(dest, sto.replicas, after, limit, waitSeconds)
+	return blobserver.MergedEnumerate(dest, sto.wrappedReplicas(), after, limit, waitSeconds)
 }
 
 func init() {
