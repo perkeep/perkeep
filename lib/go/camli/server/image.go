@@ -26,9 +26,11 @@ import (
 	"log"
 	"io"
 	"os"
+	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/magic"
 	"camli/misc/resize"
 	"camli/schema"
 )
@@ -38,6 +40,7 @@ type ImageHandler struct {
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
+	sc                  ScaledImage // optional cache for scaled images
 }
 
 func (ih *ImageHandler) storageSeekFetcher() (blobref.SeekFetcher, os.Error) {
@@ -68,39 +71,96 @@ func squareImage(i image.Image) image.Image {
 	return si.SubImage(newB)
 }
 
-func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file *blobref.BlobRef) {
-	if req.Method != "GET" && req.Method != "HEAD" {
-		http.Error(rw, "Invalid method", 400)
-		return
+func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, os.Error) {
+	br, err := schema.WriteFileFromReaderRolling(ih.Cache, name, tr)
+	if err != nil {
+		return br, os.NewError("failed to cache " + name + ": " + err.String())
 	}
+	log.Printf("Imache Cache: saved as %v\n", br)
+	return br, nil
+}
+
+// CacheScaled saves in the image handler's cache the scaled image read 
+// from tr, and puts its blobref in the scaledImage under the key name.
+func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) os.Error {
+	br, err := ih.cache(tr, name)
+	if err != nil {
+		return err
+	}
+	ih.sc.Put(name, br)
+	return nil
+}
+
+func (ih *ImageHandler) cached(br *blobref.BlobRef) (fr *schema.FileReader, err os.Error) {
+	fetchSeeker, err := blobref.SeekerFromStreamingFetcher(ih.Cache)
+	if err != nil {
+		return nil, err
+	}
+
+	fr, err = schema.NewFileReader(fetchSeeker, br)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Image Cache: hit: %v\n", br)
+	return fr, nil
+}
+
+// Key format: "scaled:" + bref + ":" + width "x" + height
+// where bref is the blobref of the unscaled image.
+func cacheKey(bref string, width int, height int) string {
+	return fmt.Sprintf("scaled:%v:%dx%d", bref, width, height)
+}
+
+// ScaledCached reads the scaled version of the image in file,
+// if it is in cache. On success, the image format is returned.
+func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err os.Error) {
+	name := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
+	br, err := ih.sc.Get(name)
+	if err != nil {
+		return format, fmt.Errorf("%v: %v", name, err)
+	}
+	fr, err := ih.cached(br)
+	if err != nil {
+		return format, fmt.Errorf("No cache hit for %v: %v", br, err)
+	}
+	_, err = io.Copy(buf, fr)
+	if err != nil {
+		return format, fmt.Errorf("error reading cached thumbnail %v: %v", name, err)
+	}
+	mime := magic.MimeType(buf.Bytes())
+	if mime == "" {
+		return format, fmt.Errorf("error with cached thumbnail %v: unknown mime type", name)
+	}
+	pieces := strings.Split(mime, "/")
+	if len(pieces) < 2 {
+		return format, fmt.Errorf("error with cached thumbnail %v: bogus mime type", name)
+	}
+	if pieces[0] != "image" {
+		return format, fmt.Errorf("error with cached thumbnail %v: not an image", name)
+	}
+	return pieces[1], nil
+}
+
+func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err os.Error) {
 	mw, mh := ih.MaxWidth, ih.MaxHeight
-	if mw == 0 || mh == 0 || mw > 2000 || mh > 2000 {
-		http.Error(rw, "bogus dimensions", 400)
-		return
-	}
 
 	fetchSeeker, err := ih.storageSeekFetcher()
 	if err != nil {
-		http.Error(rw, err.String(), 500)
-		return
+		return format, err
 	}
 
 	fr, err := schema.NewFileReader(fetchSeeker, file)
 	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.String(), 500)
-		return
+		return format, err
 	}
 
-	var buf bytes.Buffer
-	n, err := io.Copy(&buf, fr)
+	_, err = io.Copy(buf, fr)
 	if err != nil {
-		log.Printf("image resize: error reading image %s: %v", file, err)
-		return
+		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
 	}
 	i, format, err := image.Decode(bytes.NewBuffer(buf.Bytes()))
 	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.String(), 500)
-		return
+		return format, err
 	}
 	b := i.Bounds()
 
@@ -145,20 +205,61 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		buf.Reset()
 		switch format {
 		case "jpeg":
-			err = jpeg.Encode(&buf, i, nil)
+			err = jpeg.Encode(buf, i, nil)
 		default:
-			err = png.Encode(&buf, i)
+			err = png.Encode(buf, i)
 		}
 		if err != nil {
-			http.Error(rw, "Can't serve file: "+err.String(), 500)
+			return format, err
+		}
+	}
+	return format, nil
+}
+
+func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file *blobref.BlobRef) {
+	if req.Method != "GET" && req.Method != "HEAD" {
+		http.Error(rw, "Invalid method", 400)
+		return
+	}
+	mw, mh := ih.MaxWidth, ih.MaxHeight
+	if mw == 0 || mh == 0 || mw > 2000 || mh > 2000 {
+		http.Error(rw, "bogus dimensions", 400)
+		return
+	}
+
+	var buf bytes.Buffer
+	var err os.Error
+	format := ""
+	cacheHit := false
+	if ih.sc != nil {
+		format, err = ih.scaledCached(&buf, file)
+		if err != nil {
+			log.Printf("image resize: %v", err)
+		} else {
+			cacheHit = true
+		}
+	}
+
+	if !cacheHit {
+		format, err = ih.scaleImage(&buf, file)
+		if err != nil {
+			http.Error(rw, err.String(), 500)
 			return
+		}
+		if ih.sc != nil {
+			name := cacheKey(file.String(), mw, mh)
+			bufcopy := buf.Bytes()
+			err = ih.cacheScaled(bytes.NewBuffer(bufcopy), name)
+			if err != nil {
+				log.Printf("image resize: %v", err)
+			}
 		}
 	}
 
 	rw.Header().Set("Content-Type", imageContentTypeOfFormat(format))
 	size := buf.Len()
 	rw.Header().Set("Content-Length", fmt.Sprintf("%d", size))
-	n, err = io.Copy(rw, &buf)
+	n, err := io.Copy(rw, &buf)
 	if err != nil {
 		log.Printf("error serving thumbnail of file schema %s: %v", file, err)
 		return

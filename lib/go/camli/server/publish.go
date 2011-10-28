@@ -44,6 +44,7 @@ type PublishHandler struct {
 	Search   *search.Handler
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
+	sc       ScaledImage        // cache of scaled images, optional
 
 	JSFiles, CSSFiles []string
 
@@ -65,6 +66,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
+	scType := conf.OptionalString("scaledImage", "")
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	if err = conf.Validate(); err != nil {
 		return
@@ -108,6 +110,13 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 			return nil, fmt.Errorf("publish handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ph.Cache = bs
+		switch scType {
+		case "lrucache":
+			ph.sc = NewScaledImageLru()
+		case "":
+		default:
+			return nil, fmt.Errorf("unsupported publish handler's scType: %q ", scType)
+		}
 	}
 
 	ph.staticHandler = http.FileServer(uiFiles)
@@ -519,6 +528,7 @@ func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, 
 		MaxWidth:  maxWidth,
 		MaxHeight: maxHeight,
 		Square:    square,
+		sc:        pr.ph.sc,
 	}
 	th.ServeHTTP(pr.rw, pr.req, fileref)
 }
