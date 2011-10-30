@@ -422,7 +422,7 @@ sub find_go_camli_deps {
         # Skip third-party stuff.
         return;
     }
-    unless ($target =~ m!lib/go/camli! ||
+    unless ($target =~ m!lib/go\b! ||
             $target =~ m!^camlistore\.org/! ||
             $target =~ m!(server|clients)/go\b!) {
         return;
@@ -454,12 +454,15 @@ sub find_go_camli_deps {
                     "No imports(...) block?  Um, add a fake one.  :)\n";
             }
             my $imports = $1;
-            while ($imports =~ m!"(camli\b.+?)"!g) {
+            while ($imports =~ s!"(camli\b.+?)"!!) {
                 my $dep = "lib/go/$1";
                 $depref->{$dep} = 1;
             }
-            while ($imports =~ m!"(camlistore\.org/.+?)"!g) {
+            while ($imports =~ m!"(.*\.(?:net|com|org)/.+?)"!g) {
                 my $dep = $1;
+                unless ($dep =~ /camlistore\.org/) {  # legacy one, to be cleaned up
+                    $dep = "lib/go/$dep";
+                }
                 $depref->{$dep} = 1;
             }
         }
