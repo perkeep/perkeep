@@ -62,6 +62,7 @@ EOM
 ;
 }
 
+my ($GOOS, $GOARCH, $CAMLIROOT, $CAMPKGDIR);  # initialized by perform_go_check
 setup_environment_from_goroot_symlink();
 
 my %built;  # target -> bool (was it already built?)
@@ -263,6 +264,40 @@ sub perform_go_check() {
         last;
     }
     die "No 6g or 8g found in your \$PATH.\n" unless -x $gc_bin;
+
+    ($GOOS, $GOARCH) = get_os_arch();
+    $CAMLIROOT = "$FindBin::Bin/build/root";
+    $CAMPKGDIR = "$CAMLIROOT/pkg/${GOOS}_${GOARCH}";
+
+    mkdir $CAMLIROOT, 0755;
+    mkdir "$CAMLIROOT/pkg", 0755;
+    mkdir $CAMPKGDIR, 0755;
+    my $realroot = "$ENV{GOROOT}/pkg/${GOOS}_${GOARCH}";
+    make_symlink("$ENV{GOROOT}/src", "$CAMLIROOT/src");
+    if (opendir(my $d, $realroot)) {
+	my @files = grep { /^\w+(\.a)?$/ } readdir($d);
+        my @old_cam_files = grep { /^camli/ } @files;
+        if (@old_cam_files) {
+            die "Camlistore's build system changed and now uses its own \$GOROOT (build/root/*).\n\n" .
+                "To proceed, first remove the following old build artifacts in $realroot: @old_cam_files\n\n";
+        }
+	for my $f (@files) {
+	    my $old = "$realroot/$f";
+	    my $new = "$CAMPKGDIR/$f";
+	    make_symlink($old, $new);
+	}
+    }
+
+    return 1;
+}
+
+sub make_symlink {
+    my ($old, $new) = @_;
+    $old =~ s!/+!/!g;
+    unless (-e $new && readlink($new) eq $old) {
+	unlink($new);
+	symlink($old, $new) or die "failed to symlink $old to $new";
+    }
     return 1;
 }
 
@@ -286,6 +321,8 @@ sub test {
     my @test_files = grep { /_test\.go$/ } readdir($dh);
     closedir($dh);
     if (@test_files) {
+        local $ENV{GOROOT} = $CAMLIROOT;
+
         if ($target =~ m!\blib/go\b!) {
             my @quiet = ("--silent");
             @quiet = () if $opt_verbose;
@@ -495,13 +532,16 @@ sub gen_target_makefile {
     my $mfc = "\n\n";
     $mfc .= "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
     $mfc .= "\n\n";
+    $mfc .= "TARGDIR=$CAMPKGDIR\n";
+    $mfc .= "GCIMPORTS=-I $CAMPKGDIR\n";
+    $mfc .= "LDIMPORTS=-L $CAMPKGDIR\n";
     $mfc .= "include \$(GOROOT)/src/Make.inc\n";
     my $pr = "";
     if (@deps) {
         foreach my $dep (@deps) {
             my $cam_lib = $dep;
             $cam_lib =~ s!^lib/go/!!;
-            $pr .= '$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/' . $cam_lib . ".a\\\n\t";
+            $pr .= $CAMPKGDIR . '/' . $cam_lib . ".a\\\n\t";
         }
         chop $pr; chop $pr; chop $pr;
     }
@@ -639,6 +679,15 @@ sub setup_environment_from_goroot_symlink {
     }
     $ENV{"GOROOT"} = $root;
     $ENV{"PATH"} = "$root/bin:$ENV{PATH}";
+    perform_go_check();
+}
+
+sub get_os_arch {
+    my $out = `make -f $FindBin::Bin/build/print-go-osarch.Make`;
+    die "Failed to find GOOS and GOARCH." unless $out;
+    my ($os) = $out =~ /GOOS=(.+)/ or die "didn't find GOOS";
+    my ($arch) = $out =~ /GOARCH=(.+)/ or die "didn't find GOARCH";
+    return ($os, $arch)
 }
 
 __DATA__
