@@ -479,7 +479,7 @@ sub dir {
 sub gen_target_makefile {
     my $target = shift;
     my $type = "";
-    if ($target =~ m!lib/go/camli!) {
+    if ($target =~ m!lib/go\b!) {
         $type = "pkg";
     } elsif ($target =~ m!(server|clients)/go\b!) {
         $type = "cmd";
@@ -754,6 +754,13 @@ TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
 TARGET: lib/go/camli/third_party/github.com/camlistore/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/crc
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/db
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/memdb
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/table
+TARGET: lib/go/snappy-go.googlecode.com/hg/snappy
+TARGET: lib/go/snappy-go.googlecode.com/hg/varint
+TARGET: lib/go/snappy-go.googlecode.com/hg/varint/zigzag
 TARGET: server/go/camlistored
 TARGET: camlistore.org/server/uistatic
     =fileembed
