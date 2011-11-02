@@ -724,6 +724,7 @@ TARGET: lib/go/camli/fs
 TARGET: lib/go/camli/googlestorage
     =skip_tests
 TARGET: lib/go/camli/httputil
+TARGET: lib/go/camli/index
 TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/lru
