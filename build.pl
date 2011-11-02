@@ -753,6 +753,8 @@ TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
     =only_os_linux
 TARGET: lib/go/camli/third_party/github.com/mncaudill/go-flickr/
     =skip_tests
+TARGET: lib/go/camli/third_party/github.com/mpl/histo
+    =skip_tests
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/third_party/github.com/camlistore/GoMySQL

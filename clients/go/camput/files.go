@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ import (
 	"camli/blobref"
 	"camli/client"
 	"camli/schema"
+
+	"camli/third_party/github.com/mpl/histo"
 )
 
 type fileCmd struct {
@@ -41,6 +44,7 @@ type fileCmd struct {
 
 	// Go into in-memory stats mode only; doesn't actually upload.
 	memstats bool
+	histo    string // optional histogram output filename
 }
 
 func init() {
@@ -54,6 +58,7 @@ func init() {
 		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
 		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
+		flags.StringVar(&cmd.histo, "debug-histogram-file", "", "File where to print the histogram of the blob sizes. Requires debug-memstats.")
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
@@ -82,10 +87,17 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 	if c.tag != "" && !c.makePermanode {
 		return UsageError("Can't set tag without using --permanode")
 	}
+	if c.histo != "" && !c.memstats {
+		return UsageError("Can't use histo without memstats")
+	}
 	if c.memstats {
 		sr := new(statsStatReceiver)
+		if c.histo != "" {
+			num := 100
+			sr.histo = histo.NewHisto(num)
+		}
 		up.altStatReceiver = sr
-		AddSaveHook(func() { sr.DumpStats() })
+		AddSaveHook(func() { sr.DumpStats(c.histo) })
 	}
 	if c.statcache {
 		cache := NewFlatStatCache()
@@ -142,8 +154,9 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) os.Error {
 // statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
 // it just collects statistics.
 type statsStatReceiver struct {
-	mu   sync.Mutex
-	have map[string]int64
+	mu    sync.Mutex
+	have  map[string]int64
+	histo *histo.Histo
 }
 
 func (sr *statsStatReceiver) lock() {
@@ -161,6 +174,9 @@ func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader
 	sr.lock()
 	defer sr.mu.Unlock()
 	sr.have[blob.String()] = n
+	if sr.histo != nil {
+		sr.histo.Add(n)
+	}
 	return blobref.SizedBlobRef{blob, n}, nil
 }
 
@@ -175,7 +191,7 @@ func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 	return nil
 }
 
-func (sr *statsStatReceiver) DumpStats() {
+func (sr *statsStatReceiver) DumpStats(histo string) {
 	sr.lock()
 	defer sr.mu.Unlock()
 
@@ -184,4 +200,23 @@ func (sr *statsStatReceiver) DumpStats() {
 		sum += size
 	}
 	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.have), sum)
+	if histo != "" {
+		sr.bsHisto(histo)
+	}
+}
+
+func (sr *statsStatReceiver) bsHisto(file string) {
+	bars := sr.histo.Bars()
+	if bars == nil {
+		return
+	}
+	f, err := os.Create(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	for _, hb := range bars {
+		fmt.Fprintf(f, "%d	%d\n", hb.Value, hb.Count)
+	}
 }
