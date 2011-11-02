@@ -259,11 +259,56 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	return blobref.SizedBlobRef{br, written}, nil
 }
 
+// NOTE(bslatkin): No fucking clue if this works.
 func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	if sto.ctx == nil {
 		return errNoContext
 	}
-	return os.NewError("TODO-AppEngine-RemoveBlobs")
+
+	tryFunc := func(tc appengine.Context, br *blobref.BlobRef) os.Error {
+		// TODO(bslatkin): Make the DB gets in this a multi-get.
+		// Remove the namespace from the blobEnt
+		row, err := fetchEnt(sto.ctx, br)
+		switch err {
+		case datastore.ErrNoSuchEntity:
+			// Doesn't exist, that means there should be no memEnt, but let's be
+			// paranoid and double check anyways.
+		case nil:
+			// blobEnt exists, remove our namespace from it if possible.
+			newNS := []string{}
+			for _, val := range strings.Split(string(row.Namespaces), "|") {
+				if val != sto.namespace {
+					newNS = append(newNS, val)
+				}
+			}
+			if v := strings.Join(newNS, "|"); v != string(row.Namespaces) {
+				row.Namespaces = []byte(v)
+				_, err = datastore.Put(tc, entKey(tc, br), row)
+				if err != nil {
+					return err
+				}
+			}
+		default:
+			return err
+		}
+
+		// Blindly delete the memEnt.
+		err = datastore.Delete(tc, sto.memKey(tc, br));
+		return err
+	}
+
+	for _, br := range blobs {
+		ret := datastore.RunInTransaction(
+			sto.ctx,
+			func(tc appengine.Context) os.Error {
+				return tryFunc(tc, br)
+			},
+			crossGroupTransaction)
+		if ret != nil {
+			return ret
+		}
+	}
+	return nil
 }
 
 func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
