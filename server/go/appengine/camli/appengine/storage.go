@@ -42,6 +42,8 @@ const (
 	memKind  = "NsBlobMember" // blob membership in a namespace
 )
 
+var _ blobserver.Storage = (*appengineStorage)(nil)
+
 type appengineStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	namespace string // never empty; config initializes to at least "-"

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"http"
 	"io"
-	"log"
 	"os"
 	"time"
 
