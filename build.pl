@@ -342,7 +342,7 @@ sub build {
     my @history = @_;
     my $target = $history[0];
 
-    my $is_go = $target =~ m!/go/!;
+    my $is_go = $target =~ m!/go/! || $target =~ m!^camlistore\.org/!;
     if ($is_go) {
         perform_go_check();
     }
