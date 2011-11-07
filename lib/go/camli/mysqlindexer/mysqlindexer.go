@@ -32,8 +32,8 @@ type Indexer struct {
 
 	KeyFetcher blobref.StreamingFetcher // for verifying claims
 
-	// Used for fetching blobs to find the complete sha1 of schema
-	// blobs.
+	// Used for fetching blobs to find the complete sha1s of file & bytes
+	// schema blobs.
 	BlobSource blobserver.Storage
 
 	db *MySQLWrapper

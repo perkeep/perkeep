@@ -23,11 +23,9 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/search"
-
-	_ "leveldb-go.googlecode.com/hg/leveldb/memdb"
 )
 
-type Storage interface {
+type IndexStorage interface {
 	// ...
 	// Add key/value
 	// Add batch key/values
@@ -35,17 +33,25 @@ type Storage interface {
 }
 
 type Index struct {
-        *blobserver.NoImplStorage
-	s Storage
-	// ...
+	*blobserver.SimpleBlobHubPartitionMap
+	*blobserver.NoImplStorage
+
+	s IndexStorage
+
+	KeyFetcher blobref.StreamingFetcher // for verifying claims
+
+	// Used for fetching blobs to find the complete sha1s of file & bytes
+	// schema blobs.
+	BlobSource blobserver.Storage
 }
 
 var _ blobserver.Storage = (*Index)(nil)
 var _ search.Index = (*Index)(nil)
 
-func New(s Storage) *Index {
+func New(s IndexStorage) *Index {
 	return &Index{
 		s: s,
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 	}
 }
 
