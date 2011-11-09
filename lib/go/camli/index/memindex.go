@@ -18,6 +18,7 @@ package index
 
 import (
 	"os"
+	"sync"
 
 	"camli/blobserver"
 	"camli/jsonconfig"
@@ -30,15 +31,56 @@ func init() {
 	blobserver.RegisterStorageConstructor("memory-only-dev-indexer", blobserver.StorageConstructor(newMemoryIndexFromConfig))
 }
 
+// memKeys is a naive in-memory implementation of IndexStorage for test & development
+// purposes only.
 type memKeys struct {
+	mu sync.Mutex // guards db
 	db db.DB
+}
+
+func (mk *memKeys) Set(key, value string) os.Error {
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	return mk.db.Set([]byte(key), []byte(value))
+}
+
+func (mk *memKeys) Delete(key string) os.Error {
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	return mk.db.Delete([]byte(key))
+}
+
+func (mk *memKeys) BeginBatch() BatchMutation {
+	return &batch{}
+}
+
+func (mk *memKeys) CommitBatch(bm BatchMutation) os.Error {
+	b, ok := bm.(*batch)
+	if !ok {
+		return os.NewError("invalid batch type; not an instance returned by BeginBatch")
+	}
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	for _ ,m := range b.m {
+		if m.delete {
+			if err := mk.db.Delete([]byte(m.key)); err != nil {
+				return err
+			}
+		} else {
+			if err := mk.db.Set([]byte(m.key), []byte(m.value)); err != nil {
+                                return err
+                        }
+		}
+	}
+	return nil
+
 }
 
 func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
 	blobPrefix := config.RequiredString("blobSource")
 
 	db := memdb.New(nil)
-	memStorage := &memKeys{db}
+	memStorage := &memKeys{db: db}
 
 	ix := New(memStorage)
 	if err := config.Validate(); err != nil {

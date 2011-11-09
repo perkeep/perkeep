@@ -26,10 +26,34 @@ import (
 )
 
 type IndexStorage interface {
-	// ...
-	// Add key/value
-	// Add batch key/values
-	// Prefix scan iterator
+	Set(key, value string) os.Error
+	Delete(key string) os.Error
+
+	BeginBatch() BatchMutation
+	CommitBatch(b BatchMutation) os.Error
+}
+
+type BatchMutation interface {
+	Set(key, value string)
+	Delete(key string)
+}
+
+type mutation struct {
+	key    string
+	value  string // used if !delete
+	delete bool   // if to be deleted
+}
+
+type batch struct {
+	m []mutation
+}
+
+func (b *batch) Delete(key string) {
+	b.m = append(b.m, mutation{key: key, delete: true})
+}
+
+func (b *batch) Set(key, value string) {
+	b.m = append(b.m, mutation{key: key, value: value})
 }
 
 type Index struct {
