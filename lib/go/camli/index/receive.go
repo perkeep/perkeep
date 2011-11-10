@@ -17,6 +17,7 @@ limitations under the License.
 package index
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -43,10 +44,31 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 		err = blobserver.ErrCorruptBlob
 		return
 	}
-
 	sniffer.Parse()
+
+	bm := ix.s.BeginBatch()
+
+	err = ix.populateMutation(blobRef, sniffer, bm)
+	if err != nil {
+		return
+	}
+
+	err = ix.s.CommitBatch(bm)
+	if err != nil {
+		return
+	}
+
 	mimeType := sniffer.MimeType()
 	log.Printf("indexer: type=%v; truncated=%v", mimeType, sniffer.IsTruncated())
 
 	return blobref.SizedBlobRef{blobRef, written}, nil
+}
+
+// populateMutation populates keys & values into the provided BatchMutation.
+//
+// the blobref can be trusted at this point (it's been fully consumed
+// and verified to match), and the sniffer has been copied into
+func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm BatchMutation) os.Error {
+	bm.Set("have:"+br.String(), fmt.Sprintf("%d", sniffer.Size()))
+	return nil
 }

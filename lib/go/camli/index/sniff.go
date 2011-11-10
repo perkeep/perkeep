@@ -54,6 +54,10 @@ func (sn *BlobSniffer) Write(d []byte) (int, os.Error) {
 	return len(d), nil
 }
 
+func (sn *BlobSniffer) Size() int64 {
+	return sn.written
+}
+
 func (sn *BlobSniffer) IsTruncated() bool {
 	return sn.written > maxSniffSize
 }
