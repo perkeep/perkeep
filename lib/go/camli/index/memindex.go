@@ -38,6 +38,28 @@ type memKeys struct {
 	db db.DB
 }
 
+// stringIterator converts from leveldb's db.Iterator interface, which
+// operates on []byte, to Camlistore's index.Iterator, which operates
+// on string.
+type stringIterator struct {
+	db.Iterator
+}
+
+func (s stringIterator) Key() string {
+	return string(s.Iterator.Key())
+}
+
+func (s stringIterator) Value() string {
+	return string(s.Iterator.Value())
+}
+
+func (mk *memKeys) Find(key string) Iterator {
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	dit := mk.db.Find([]byte(key))
+	return stringIterator{dit}
+}
+
 func (mk *memKeys) Set(key, value string) os.Error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()

@@ -31,6 +31,42 @@ type IndexStorage interface {
 
 	BeginBatch() BatchMutation
 	CommitBatch(b BatchMutation) os.Error
+
+	// Find returns an iterator positioned before the first key/value pair
+	// whose key is 'greater than or equal to' the given key. There may be no
+	// such pair, in which case the iterator will return false on Next.
+	//
+	// Any error encountered will be implicitly returned via the iterator. An
+	// error-iterator will yield no key/value pairs and closing that iterator
+	// will return that error.
+	Find(key string) Iterator
+}
+
+// Iterator iterates over an index Storage's key/value pairs in key order.
+//
+// An iterator must be closed after use, but it is not necessary to read an
+// iterator until exhaustion.
+//
+// An iterator is not necessarily goroutine-safe, but it is safe to use
+// multiple iterators concurrently, with each in a dedicated goroutine.
+type Iterator interface {
+	// Next moves the iterator to the next key/value pair.
+	// It returns whether the iterator is exhausted.
+	Next() bool
+
+	// Key returns the key of the current key/value pair.
+	// Only valid after a call to Next returns true.
+	Key() string
+
+	// Value returns the value of the current key/value pair.
+	// Only valid after a call to Next returns true.
+	Value() string
+
+	// Close closes the iterator and returns any accumulated error. Exhausting
+	// all the key/value pairs in a table is not considered to be an error.
+	// It is valid to call Close multiple times. Other methods should not be
+	// called after the iterator has been closed.
+	Close() os.Error
 }
 
 type BatchMutation interface {

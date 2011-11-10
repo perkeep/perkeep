@@ -18,14 +18,29 @@ package index
 
 import (
 	"os"
+	"strconv"
+	"strings"
 
 	"camli/blobref"
 )
 
 func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
-	panic("TODO")
-	return nil
+	it := ix.s.Find("have:"+after)
+	n := uint(0)
+	for n < limit && it.Next() {
+		k := it.Key()
+		if !strings.HasPrefix(k, "have:") {
+			break
+		}
+		n++
+		br := blobref.Parse(k[len("have:"):])
+		size, err := strconv.Atoi64(it.Value())
+		if br != nil && err == nil {
+			dest <- blobref.SizedBlobRef{br, size}
+		}
+	}
+	return it.Close()
 }
 
 func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
