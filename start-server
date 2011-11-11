@@ -1,0 +1,92 @@
+#!/usr/bin/perl
+
+use strict;
+use FindBin qw($Bin);
+use Getopt::Long;
+
+sub usage {
+    die "Usage: server [--wipe] <portnumber> -- [other_blobserver_opts]";
+}
+
+my $opt_wipe;
+my $opt_nobuild;
+my $opt_all;  # listen on all interfaces
+GetOptions("wipe" => \$opt_wipe,
+           "all" => \$opt_all,
+           "nobuild" => \$opt_nobuild,
+    )
+    or usage();
+
+my $port = shift;
+$port = "3179" unless defined($port);
+usage() unless $port =~ /^\d+$/;
+
+unless ($opt_nobuild) {
+    system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
+    system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+}
+
+my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
+if ($opt_wipe && -d $root) {
+    print "Wiping $root\n";
+    system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
+}
+
+my $suffixdir = sub {
+    my $suffix = shift;
+    my $root = "$root/$suffix";
+    unless (-d $root) {
+        system("mkdir", "-p", $root) and die "Failed to create $root.\n";
+    }
+    return $root;
+};
+
+my $DBNAME = "devcamli$ENV{USER}";
+my @opts;
+if ($opt_wipe) {
+    push @opts, "-wipe";
+} else {
+    push @opts, "-ignoreexists";
+}
+
+system("./clients/go/camdbinit/camdbinit",
+       "-user=root",
+       "-password=root",
+       "-host=localhost",
+       "-database=$DBNAME",
+       @opts) and die "Failed to run camdbinit.\n";
+
+my $base = "https://localhost:$port";
+my $listen = "127.0.0.1:$port";
+if ($opt_all) {
+    $listen = "0.0.0.0:$port";
+    my $host = `hostname`;
+    chomp $host;
+    $base = "https://$host:$port";
+}
+
+print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
+
+$ENV{CAMLI_BASEURL} = $base;
+$ENV{CAMLI_PASSWORD} = "pass$port";
+# do we simply set that one to empty in non dev, or do we deal with it in auth/auth.go ?
+$ENV{CAMLI_ADVERTISED_PASSWORD} = ""; # public password
+$ENV{CAMLI_ROOT} = $suffixdir->("bs");
+$ENV{CAMLI_ROOT_SHARD1} = $suffixdir->("s1");
+$ENV{CAMLI_ROOT_SHARD2} = $suffixdir->("s2");
+$ENV{CAMLI_ROOT_REPLICA1} = $suffixdir->("r1");
+$ENV{CAMLI_ROOT_REPLICA2} = $suffixdir->("r2");
+$ENV{CAMLI_ROOT_REPLICA3} = $suffixdir->("r3");
+$ENV{CAMLI_ROOT_CACHE} = $suffixdir->("cache");
+$ENV{CAMLI_PORT} = $port;
+$ENV{CAMLI_SECRET_RING} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
+$ENV{CAMLI_DBNAME} = $DBNAME;
+
+# To use resources from disk, instead of the copies linked into the
+# binary:
+$ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/go/camlistored/ui"; # set in server/go/camlistored/ui/fileembed.go
+
+exec("$FindBin::Bin/server/go/camlistored/camlistored",
+     "-configfile=$Bin/config/server-config.json",
+     "-listen=$listen",
+     @ARGV);
