@@ -25,7 +25,13 @@ import (
 	"camli/search"
 )
 
+var ErrNotFound = os.NewError("index: key not found")
+
 type IndexStorage interface {
+	// Get gets the value for the given key. It returns ErrNotFound if the DB
+	// does not contain the key.
+	Get(key string) (string, os.Error)
+
 	Set(key, value string) os.Error
 	Delete(key string) os.Error
 

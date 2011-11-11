@@ -53,6 +53,16 @@ func (s stringIterator) Value() string {
 	return string(s.Iterator.Value())
 }
 
+func (mk *memKeys) Get(key string) (string, os.Error) {
+	mk.mu.Lock()
+	defer mk.mu.Unlock()
+	k, err := mk.db.Get([]byte(key))
+	if err == db.ErrNotFound {
+		return "", ErrNotFound
+	}
+	return string(k), err
+}
+
 func (mk *memKeys) Find(key string) Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()

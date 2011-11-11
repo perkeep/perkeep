@@ -17,6 +17,7 @@ limitations under the License.
 package index
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -44,6 +45,20 @@ func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, 
 }
 
 func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
-	panic("TODO")
+	for _, br := range blobs {
+		key := "have:" + br.String()
+		v, err := ix.s.Get(key)
+		if err == ErrNotFound {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("error looking up key %q: %v", key, err)
+		}
+		size, err := strconv.Atoi64(v)
+		if err != nil {
+			return fmt.Errorf("invalid size for key %q = %q", key, v)
+		}
+		dest <- blobref.SizedBlobRef{br, size}
+	}
 	return nil
 }
