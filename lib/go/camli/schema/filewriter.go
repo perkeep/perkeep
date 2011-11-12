@@ -31,6 +31,8 @@ import (
 	"camli/rollsum"
 )
 
+const MaxBlobSize = 1000000
+
 var _ = log.Printf
 
 // WriteFileFromReader creates and uploads a "file" JSON schema
@@ -139,6 +141,7 @@ func WriteFileFromReaderRolling(bs blobserver.StatReceiver, filename string, r i
 }
 
 func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (outbr *blobref.BlobRef, outerr os.Error) {
+	blobSize := 0
 	bufr := bufio.NewReader(r)
 	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()
@@ -191,10 +194,14 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interfac
 		buf.WriteByte(c)
 
 		n++
+		blobSize++
 		rs.Roll(c)
 		if !rs.OnSplit() {
-			continue
+			if blobSize < MaxBlobSize {
+				continue
+			}
 		}
+		blobSize = 0
 		bits := rs.Bits()
 
 		// Take any spans from the end of the spans slice that
