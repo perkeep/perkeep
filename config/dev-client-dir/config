@@ -14,7 +14,7 @@
     }
   ],
   "blobServer": "http://localhost:3179/bs",
-  "blobServerPassword": "pass3179",
+  "auth": ["_env", "${CAMLI_AUTH}" ],
   
   "selfPubKeyDir": ["_env", "${CAMLI_DEV_KEYBLOBS}" ],
   "secretRing": ["_env", "${CAMLI_SECRET_RING}"],

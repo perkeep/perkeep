@@ -18,6 +18,7 @@ package client
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"io/ioutil"
 	"os"
@@ -35,11 +36,10 @@ import (
 // "server" and "password" keys.
 //
 // A main binary must call AddFlags to expose these.
-var flagServer, flagPassword *string
+var flagServer *string
 
 func AddFlags() {
 	flagServer = flag.String("blobserver", "", "camlistore blob server")
-	flagPassword = flag.String("password", "", "password for blob server")
 }
 
 func ConfigFilePath() string {
@@ -64,9 +64,9 @@ func cleanServer(server string) string {
 	if strings.HasSuffix(server, "/") {
 		server = server[0 : len(server)-1]
 	}
-	// Add "http://" prefix if not present:
-	if !strings.HasPrefix(server, "http") {
-		server = "http://" + server
+	// Default to "https://" when not specified
+	if !strings.HasPrefix(server, "http") && !strings.HasPrefix(server, "https") {
+		server = "https://" + server
 	}
 	return server
 }
@@ -88,27 +88,43 @@ func blobServerOrDie() string {
 	return server
 }
 
-func passwordOrDie() string {
-	if flagPassword != nil && *flagPassword != "" {
-		return *flagPassword
-	}
+func (c *Client) SetupAuth() os.Error {
 	configOnce.Do(parseConfig)
-	value, ok := config["blobServerPassword"]
-	var password string
+	return c.SetupAuthFromConfig(config)
+}
+
+// TODO(mpl): do something more generic for client side akin to camli/auth for server side
+func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) os.Error {
+	value, ok := conf["auth"]
+	authString := ""
 	if ok {
-		password, ok = value.(string)
+		authString, ok = value.(string)
 	}
 	if !ok {
-		log.Fatalf("No --password parameter specified, and no \"blobServerPassword\" defined in %q", ConfigFilePath())
+		// check env vars if auth scheme not in config file
+		authString = os.Getenv("CAMLI_AUTH")
+		if authString == "" {
+			return fmt.Errorf("No CAMLI_AUTH defined, and no \"auth\" defined in %q", ConfigFilePath())
+		}
 	}
-	if password == "" {
+	pieces := strings.Split(authString, ":")
+	if len(pieces) < 2 {
+		return fmt.Errorf("Invalid auth scheme syntax: %d pieces", len(pieces))
+	}
+	c.authType = pieces[0]
+	switch c.authType {
+	case "userpass":
+		c.user = pieces[1]
+		c.password = pieces[2]
+		// just keeping this note here, in case Brad still finds it relevant
 		// TODO: provide way to override warning?
 		// Or make a way to do deferred errors?  A blank password might
 		// be valid, but it might also signal the root cause of an error
 		// in the future.
-		log.Printf("Warning: blank \"blobServerPassword\" defined in %q", ConfigFilePath())
+	default:
+		return fmt.Errorf("Unknown auth scheme %q", c.authType)
 	}
-	return password
+	return nil
 }
 
 // Returns blobref of signer's public key, or nil if unconfigured.

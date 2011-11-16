@@ -64,8 +64,11 @@ func main() {
 		usage("Can't use --loop without --removesrc")
 	}
 
-	sc := client.New(*flagSrc, *flagSrcPass)
-	dc := client.New(*flagDest, *flagDestPass)
+	// TODO(mpl): adapt to the userpass scheme once it has settled
+	sc := client.New(*flagSrc)
+	sc.SetupAuth()
+	dc := client.New(*flagDest)
+	dc.SetupAuth()
 
 	var logger *log.Logger = nil
 	if *flagVerbose {

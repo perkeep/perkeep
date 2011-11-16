@@ -2,8 +2,17 @@
 
 use strict;
 use FindBin qw($Bin);
+use Getopt::Long;
 
 system("$Bin/build.pl", "camput") and die "failed to build camput";
+
+sub usage {
+    die "Usage: dev-camput [--tls] -- camput_args";
+}
+
+my $opt_tls;
+GetOptions("tls" => \$opt_tls)
+    or usage();
 
 # Respected by camli/osutil:
 $ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
@@ -12,9 +21,13 @@ $ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
 $ENV{"CAMLI_SECRET_RING"} = "$Bin/lib/go/camli/jsonsign/testdata/test-secring.gpg";
 $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
+$ENV{CAMLI_AUTH} = "userpass:camlistore:pass3179";
+my $blobserver = "http://localhost:3179/bs";
+if ($opt_tls) {
+	$blobserver =~ s/^http/https/;
+}
 
 exec("$Bin/clients/go/camput/camput",
      "--verbose",
-     "--blobserver=http://localhost:3179/bs",
-     "--password=pass3179",
+     "--blobserver=$blobserver",
      @ARGV);

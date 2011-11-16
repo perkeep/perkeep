@@ -41,13 +41,18 @@ func NewFromClient(c *client.Client) blobserver.Storage {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
 	url := config.RequiredString("url")
-	password := config.RequiredString("password")
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
+	client := client.New(url)
+	err = client.SetupAuthFromConfig(config)
+	if err != nil {
+		return nil, err
+	}
 	sto := &remoteStorage{
-		client: client.New(url, password),
+		client: client,
 	}
 	if !skipStartupCheck {
 		// TODO: do a server stat or something to check password
