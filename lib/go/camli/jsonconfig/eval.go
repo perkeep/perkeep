@@ -17,7 +17,6 @@ limitations under the License.
 package jsonconfig
 
 import (
-	"container/vector"
 	"fmt"
 	"json"
 	"log"
@@ -30,19 +29,35 @@ import (
 	"camli/osutil"
 )
 
+type stringVector struct {
+	v []string
+}
+
+func (v *stringVector) Push(s string) {
+	v.v = append(v.v, s)
+}
+
+func (v *stringVector) Pop() {
+	v.v = v.v[:len(v.v)-1]
+}
+
+func (v *stringVector) Last() string {
+	return v.v[len(v.v)-1]
+}
+
 // State for config parsing and expression evalutaion
 type configParser struct {
 	RootJson Obj
 
 	touchedFiles map[string]bool
-	includeStack vector.StringVector
+	includeStack stringVector
 }
 
 // Validates variable names for config _env expresssions
 var envPattern = regexp.MustCompile(`\$\{[A-Za-z0-9_]+\}`)
 
 // Decodes and evaluates a json config file, watching for include cycles.
-func (c *configParser) recursiveReadJson(configPath string) (decodedObject map[string]interface{}, err os.Error) {
+func (c *configParser) recursiveReadJSON(configPath string) (decodedObject map[string]interface{}, err os.Error) {
 
 	configPath, err = filepath.Abs(configPath)
 	if err != nil {
@@ -207,7 +222,7 @@ func (c *configParser) expandFile(v []interface{}) (exp interface{}, err os.Erro
 	if incPath, err = osutil.FindCamliInclude(v[0].(string)); err != nil {
 		return "", fmt.Errorf("Included config does not exist: %v", v[0])
 	}
-	if exp, err = c.recursiveReadJson(incPath); err != nil {
+	if exp, err = c.recursiveReadJSON(incPath); err != nil {
 		return "", fmt.Errorf("In file included from %s:\n%v",
 			c.includeStack.Last(), err)
 	}
