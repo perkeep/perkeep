@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	"camli/errorutil"
 	"camli/osutil"
@@ -139,10 +140,16 @@ func (c *configParser) expandEnv(v []interface{}) (interface{}, os.Error) {
 	if !ok {
 		return "", fmt.Errorf("Expected a string after _env expansion; got %#v", v[0])
 	}
+	boolDefault, wantsBool := false, false
 	if len(v) == 2 {
 		hasDefault = true
-		def, hasDefault = v[1].(string)
-		if !hasDefault {
+		switch vdef := v[1].(type) {
+		case string:
+			def = vdef
+		case bool:
+			wantsBool = true
+			boolDefault = vdef
+		default:
 			return "", fmt.Errorf("Expected default value in %q _env expansion; got %#v", s, v[1])
 		}
 	}
@@ -158,6 +165,12 @@ func (c *configParser) expandEnv(v []interface{}) (interface{}, os.Error) {
 		}
 		return val
 	})
+	if wantsBool {
+		if expanded == "" {
+			return boolDefault, nil
+		}
+		return strconv.Atob(expanded)
+	}
 	return expanded, err
 }
 

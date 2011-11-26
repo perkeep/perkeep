@@ -1,0 +1,5 @@
+{
+ "str": ["_env", "${TEST_EMPTY}", ""],
+ "false": ["_env", "${TEST_EMPTY}", false],
+ "true": ["_env", "${TEST_TRUE}", false]
+}
