@@ -19,8 +19,33 @@ package jsonconfig
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestIncludes(t *testing.T) {
+	obj, err := ReadFile("testdata/include1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	two := obj.RequiredObject("two")
+	if err := obj.Validate(); err != nil {
+		t.Error(err)
+	}
+	if g, e := two.RequiredString("key"), "value"; g != e {
+		t.Errorf("sub object key = %q; want %q", g, e)
+	}
+}
+
+func TestIncludeLoop(t *testing.T) {
+	_, err := ReadFile("testdata/loop1.json")
+	if err == nil {
+		t.Fatal("expected an error about import cycles.")
+	}
+	if !strings.Contains(err.String(), "include cycle detected"){
+		t.Fatal("expected an error about import cycles; got: %v", err)
+	}
+}
 
 func TestBoolEnvs(t *testing.T) {
 	os.Setenv("TEST_EMPTY", "")
