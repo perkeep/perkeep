@@ -35,7 +35,7 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 	hash := blobRef.Hash()
 	var written int64
 	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
-	log.Printf("mysqlindexer: hashed+sniffed %d bytes; err %v", written, err)
+	log.Printf("indexer: hashed+sniffed %d bytes; err %v", written, err)
 	if err != nil {
 		return
 	}

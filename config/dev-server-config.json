@@ -58,7 +58,7 @@
           "handler": "sync",
           "handlerArgs": {
               "from": "/bs/",
-              "to": "/indexer/"
+              "to": ["_env", "${CAMLI_INDEXER_PATH}"]
           }
       },
 
@@ -74,7 +74,7 @@
       "/bs-and-index/": {
           "handler": "storage-replica",
           "handlerArgs": {
-              "backends": ["/bs/", "/indexer/"]
+              "backends": ["/bs/", ["_env", "${CAMLI_INDEXER_PATH}"]]
           }
       },
 
@@ -154,7 +154,15 @@
           }
      },
 
-     "/indexer/": {
+     "/index-mem/": {
+         "handler": "storage-memory-only-dev-indexer",
+         "handlerArgs": {
+             "blobSource": "/bs/"
+         }
+     },
+
+     "/index-mysql/": {
+         "enabled": ["_env", "${CAMLI_MYSQL_ENABLED}", true],
          "handler": "storage-mysqlindexer",
          "handlerArgs": {
              "database": ["_env", "${CAMLI_DBNAME}"],
@@ -168,7 +176,7 @@
      "/my-search/": {
          "handler": "search",
          "handlerArgs": {
-             "index": "/indexer/",
+             "index": ["_env", "${CAMLI_INDEXER_PATH}"],
              "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
          }
      }

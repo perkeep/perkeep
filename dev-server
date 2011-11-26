@@ -11,9 +11,15 @@ sub usage {
 my $opt_wipe;
 my $opt_nobuild;
 my $opt_all;  # listen on all interfaces
+
+# keep indexes in memory only. often used with --wipe, but not
+# necessarily. if --wipe isn't used, all blobs are re-indexed
+# on start-up.
+my $opt_memory;
 GetOptions("wipe" => \$opt_wipe,
            "all" => \$opt_all,
            "nobuild" => \$opt_nobuild,
+           "memory" => \$opt_memory,
     )
     or usage();
 
@@ -49,12 +55,19 @@ if ($opt_wipe) {
     push @opts, "-ignoreexists";
 }
 
-system("./clients/go/camdbinit/camdbinit",
-       "-user=root",
-       "-password=root",
-       "-host=localhost",
-       "-database=$DBNAME",
-       @opts) and die "Failed to run camdbinit.\n";
+if ($opt_memory) {
+    $ENV{"CAMLI_MYSQL_ENABLED"} = "false";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mem/";
+} else {
+    $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
+    system("./clients/go/camdbinit/camdbinit",
+           "-user=root",
+           "-password=root",
+           "-host=localhost",
+           "-database=$DBNAME",
+           @opts) and die "Failed to run camdbinit.\n";
+}
 
 my $base = "http://localhost:$port";
 my $listen = "127.0.0.1:$port";
