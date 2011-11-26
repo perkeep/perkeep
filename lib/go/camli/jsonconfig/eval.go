@@ -87,6 +87,42 @@ func (c *configParser) recursiveReadJson(configPath string) (decodedObject map[s
 	return decodedObject, nil
 }
 
+type expanderFunc func(c *configParser, v []interface{}) (interface{}, os.Error)
+
+func namedExpander(name string) (expanderFunc, bool) {
+	switch name {
+	case "_env":
+		return expanderFunc((*configParser).expandEnv), true
+	case "_fileobj":
+		return expanderFunc((*configParser).expandFile), true
+	}
+	return nil, false
+}
+
+func (c *configParser) evalValue(v interface{}) (interface{}, os.Error) {
+	sl, ok := v.([]interface{})
+	if !ok {
+		return v, nil
+	}
+	if name, ok := sl[0].(string); ok {
+		if expander, ok := namedExpander(name); ok {
+			newval, err := expander(c, sl[1:])
+			if err != nil {
+				return nil, err
+			}
+			return newval, nil
+		}
+	}
+	for i, oldval := range sl {
+		newval, err := c.evalValue(oldval)
+		if err != nil {
+			return nil, err
+		}
+		sl[i] = newval
+	}
+	return v, nil
+}
+
 func (c *configParser) evaluateExpressions(m map[string]interface{}) os.Error {
 	for k, ei := range m {
 		switch subval := ei.(type) {
@@ -100,21 +136,10 @@ func (c *configParser) evaluateExpressions(m map[string]interface{}) os.Error {
 			if len(subval) == 0 {
 				continue
 			}
-			var expander func(c *configParser, v []interface{}) (interface{}, os.Error)
-			if firstString, ok := subval[0].(string); ok {
-				switch firstString {
-				case "_env":
-					expander = (*configParser).expandEnv
-				case "_fileobj":
-					expander = (*configParser).expandFile
-				}
-			}
-			if expander != nil {
-				newval, err := expander(c, subval[1:])
-				if err != nil {
-					return err
-				}
-				m[k] = newval
+			var err os.Error
+			m[k], err = c.evalValue(subval)
+			if err != nil {
+				return err
 			}
 		case map[string]interface{}:
 			if err := c.evaluateExpressions(subval); err != nil {
