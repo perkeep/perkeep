@@ -32,13 +32,14 @@ func init() {
 		blobserver.StorageConstructor(newMemoryIndexFromConfig))
 }
 
-func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
-	blobPrefix := config.RequiredString("blobSource")
-
+func newMemoryIndex() *Index {
 	db := memdb.New(nil)
 	memStorage := &memKeys{db: db}
+	return New(memStorage)
+}
 
-	ix := New(memStorage)
+func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
+	blobPrefix := config.RequiredString("blobSource")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -46,6 +47,8 @@ func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blob
 	if err != nil {
 		return nil, err
 	}
+
+	ix := newMemoryIndex()
 	ix.BlobSource = sto
 
 	// Good enough, for now:
