@@ -147,7 +147,7 @@ func parseStatResponse(r io.Reader) (sr *statResponse, outerr os.Error) {
 }
 
 func NewUploadHandleFromString(data string) *UploadHandle {
-	bref := blobref.Sha1FromString(data)
+	bref := blobref.SHA1FromString(data)
 	r := strings.NewReader(data)
 	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: r}
 }

@@ -93,7 +93,7 @@ func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r 
 	if err != nil {
 		return nil, err
 	}
-	br := blobref.Sha1FromString(json)
+	br := blobref.SHA1FromString(json)
 	sb, err := bs.ReceiveBlob(br, strings.NewReader(json))
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interfac
 	buf := new(bytes.Buffer)
 
 	uploadString := func(s string) (*blobref.BlobRef, os.Error) {
-		br := blobref.Sha1FromString(s)
+		br := blobref.SHA1FromString(s)
 		hasIt, err := serverHasBlob(bs, br)
 		if err != nil {
 			return nil, err
