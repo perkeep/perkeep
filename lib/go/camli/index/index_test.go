@@ -99,6 +99,13 @@ func TestIndexPopulation(t *testing.T) {
 	id := NewIndexDeps()
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
+	it := id.Index.s.Find("")
+	for it.Next() {
+		t.Logf("  %q = %q", it.Key(), it.Value())
+	}
+	if err := it.Close(); err != nil {
+		t.Fatalf("iterator close = %v", err)
+	}
 }
 
 func TestReverseTimeString(t *testing.T) {
