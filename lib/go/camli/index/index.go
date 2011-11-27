@@ -122,7 +122,7 @@ func New(s IndexStorage) *Index {
 }
 
 func (x *Index) GetRecentPermanodes(dest chan *search.Result,
-	owner []*blobref.BlobRef,
+	owner *blobref.BlobRef,
 	limit int) os.Error {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage

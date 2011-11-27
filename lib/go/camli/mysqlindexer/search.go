@@ -36,18 +36,15 @@ type permaNodeRow struct {
 	lastmod string // "2011-03-13T23:30:19.03946Z"
 }
 
-func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner []*blobref.BlobRef, limit int) os.Error {
+func (mi *Indexer) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) os.Error {
 	defer close(dest)
-	if len(owner) == 0 {
-		return nil
-	}
-	if len(owner) > 1 {
-		panic("TODO: remove support for more than one owner. push it to caller")
+	if owner == nil {
+		panic("nil owner")
 	}
 
 	rs, err := mi.db.Query("SELECT blobref, signer, lastmod FROM permanodes WHERE signer = ? AND lastmod <> '' "+
 		"ORDER BY lastmod DESC LIMIT ?",
-		owner[0].String(), limit)
+		owner.String(), limit)
 	if err != nil {
 		return err
 	}

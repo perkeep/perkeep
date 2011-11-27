@@ -139,7 +139,7 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	ch := make(chan *Result)
 	errch := make(chan os.Error)
 	go func() {
-		errch <- sh.index.GetRecentPermanodes(ch, []*blobref.BlobRef{sh.owner}, 50)
+		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, 50)
 	}()
 
 	dr := sh.NewDescribeRequest()
