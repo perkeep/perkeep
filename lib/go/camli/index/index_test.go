@@ -35,6 +35,11 @@ type IndexDeps struct {
 	SignerBlobRef    *blobref.BlobRef
 }
 
+func (id *IndexDeps) Get(key string) string {
+	v, _ := id.Index.s.Get(key)
+	return v
+}
+
 func (id *IndexDeps) dumpIndex(t *testing.T) {
 	t.Logf("Begin index dump:")
 	it := id.Index.s.Find("")
@@ -77,6 +82,11 @@ func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 	return id.uploadAndSignMap(unsigned)
 }
 
+func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
+	m := schema.NewSetAttributeClaim(permaNode, attr, value)
+	return id.uploadAndSignMap(m)
+}
+
 func NewIndexDeps() *IndexDeps {
 	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -104,14 +114,22 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 		panic("unexpected signer blobref")
 	}
 	id.PublicKeyFetcher.AddBlob(pubKey)
+	id.Index.KeyFetcher = id.PublicKeyFetcher
 	return id
 }
 
-func TestIndexPopulation(t *testing.T) {
+func TestIndex(t *testing.T) {
 	id := NewIndexDeps()
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
+	br1 := id.SetAttribute(pn, "foo", "bar")
+	t.Logf("set attribute %q", br1)
 	id.dumpIndex(t)
+
+	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
+		t.Fatalf("%q = %q, want %q", key, g, e)
+	}
 }
 
 func TestReverseTimeString(t *testing.T) {

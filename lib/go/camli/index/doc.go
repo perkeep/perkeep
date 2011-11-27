@@ -22,11 +22,13 @@ The following keys & values are populated by receiving blobs and queried
 for search operations:
 
 * Recent Permanodes
-  "recpn:<signer-blobref>:<reverse-modtime>:<claim-blobref>" == "<permanode-blobref>"
+  "recpn:<pgp-keyid>:<reverse-modtime>:<claim-blobref>" == "<permanode-blobref>"
    where reverse-modtime flips each digit to '9'-<digit> and prepends "rt" (for reverse time)
           "2011-11-27T01:23:45Z"
     ==> "rt7988-88-72T98:76:54Z"
 
+ * signer blobref of ascii public key -> gpg key id
+   "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007" = "2931A67C26F5ABDA"
 
 */
 package index

@@ -24,6 +24,8 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/jsonsign"
+	"camli/schema"
 )
 
 func (ix *Index) GetBlobHub() blobserver.BlobHub {
@@ -73,22 +75,51 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 
 	if camli, ok := sniffer.Superset(); ok {
 		switch camli.Type {
-		/*
-			case "claim":
-				if err := ix.populateClaim(blobRef, camli, sniffer, bm); err != nil {
-					return err
-				}
-			case "permanode":
-				if err := mi.populatePermanode(blobRef, camli, bm); err != nil {
-					return err
-				}
-			case "file":
-				if err := mi.populateFile(blobRef, camli, bm); err != nil {
-					return err
-				}
+		case "claim":
+			if err := ix.populateClaim(br, camli, sniffer, bm); err != nil {
+				return err
 			}
-		*/
+		case "permanode":
+			//if err := mi.populatePermanode(blobRef, camli, bm); err != nil {
+			//return err
+			//}
+		case "file":
+			// if err := mi.populateFile(blobRef, camli, bm); err != nil {
+			//return err
+			//}
 		}
 	}
+	return nil
+}
+
+func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer *BlobSniffer, bm BatchMutation) os.Error {
+	pnbr := blobref.Parse(ss.Permanode)
+	if pnbr == nil {
+		// Skip bogus claim with malformed permanode.
+		return nil
+	}
+
+	rawJson, err := sniffer.Body()
+	if err != nil {
+		return err
+	}
+
+	vr := jsonsign.NewVerificationRequest(rawJson, ix.KeyFetcher)
+	if !vr.Verify() {
+		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
+		// later if it's not permanent? or maybe do this up a level?
+		if vr.Err != nil {
+			return vr.Err
+		}
+		return os.NewError("index: populateClaim verification failure")
+	}
+	verifiedKeyId := vr.SignerKeyId
+	log.Printf("index: verified claim %s from %s", br, verifiedKeyId)
+
+	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
+
+	recentKey := fmt.Sprintf("recpn:%s:%s:%s", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
+	bm.Set(recentKey, pnbr.String())
+
 	return nil
 }
