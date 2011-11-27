@@ -21,9 +21,14 @@ import (
 )
 
 func TestReverseTimeString(t *testing.T) {
-	got := reverseTimeString("2011-11-27T01:23:45Z")
+	in := "2011-11-27T01:23:45Z"
+	got := reverseTimeString(in)
 	want := "rt7988-88-72T98:76:54Z"
 	if got != want {
-		t.Errorf("reverseTimeString = %q, want %q", got, want)
+		t.Fatalf("reverseTimeString = %q, want %q", got, want)
+	}
+	back := unreverseTimeString(got)
+	if back != in {
+		t.Fatalf("unreverseTimeString = %q, want %q", back, in)
 	}
 }

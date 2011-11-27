@@ -16,12 +16,29 @@ limitations under the License.
 
 package index
 
-import ()
+import (
+	"fmt"
+	"strings"
+)
+
+func unreverseTimeString(s string) string {
+	if !strings.HasPrefix(s, "rt") {
+		panic(fmt.Sprintf("can't unreverse time string: %q", s))
+	}
+	b := make([]byte, 0, len(s)-2)
+	b = appendReverseString(b, s[2:])
+	return string(b)
+}
 
 func reverseTimeString(s string) string {
 	b := make([]byte, 0, len(s)+2)
 	b = append(b, 'r')
 	b = append(b, 't')
+	b = appendReverseString(b, s)
+	return string(b)
+}
+
+func appendReverseString(b []byte, s string) []byte {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c >= '0' && c <= '9' {
@@ -30,5 +47,7 @@ func reverseTimeString(s string) string {
 			b = append(b, c)
 		}
 	}
-	return string(b)
+	return b
 }
+
+
