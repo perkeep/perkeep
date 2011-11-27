@@ -28,7 +28,30 @@ import (
 )
 
 func init() {
-	blobserver.RegisterStorageConstructor("memory-only-dev-indexer", blobserver.StorageConstructor(newMemoryIndexFromConfig))
+	blobserver.RegisterStorageConstructor("memory-only-dev-indexer",
+		blobserver.StorageConstructor(newMemoryIndexFromConfig))
+}
+
+func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
+	blobPrefix := config.RequiredString("blobSource")
+
+	db := memdb.New(nil)
+	memStorage := &memKeys{db: db}
+
+	ix := New(memStorage)
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	sto, err := ld.GetStorage(blobPrefix)
+	if err != nil {
+		return nil, err
+	}
+	ix.BlobSource = sto
+
+	// Good enough, for now:
+	ix.KeyFetcher = ix.BlobSource
+
+	return ix, err
 }
 
 // memKeys is a naive in-memory implementation of IndexStorage for test & development
@@ -105,27 +128,5 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) os.Error {
 		}
 	}
 	return nil
-
 }
 
-func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, os.Error) {
-	blobPrefix := config.RequiredString("blobSource")
-
-	db := memdb.New(nil)
-	memStorage := &memKeys{db: db}
-
-	ix := New(memStorage)
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	sto, err := ld.GetStorage(blobPrefix)
-	if err != nil {
-		return nil, err
-	}
-	ix.BlobSource = sto
-
-	// Good enough, for now:
-	ix.KeyFetcher = ix.BlobSource
-
-	return ix, err
-}

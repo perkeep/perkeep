@@ -67,8 +67,28 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 // populateMutation populates keys & values into the provided BatchMutation.
 //
 // the blobref can be trusted at this point (it's been fully consumed
-// and verified to match), and the sniffer has been copied into
+// and verified to match), and the sniffer has been populated.
 func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm BatchMutation) os.Error {
 	bm.Set("have:"+br.String(), fmt.Sprintf("%d", sniffer.Size()))
+
+	if camli, ok := sniffer.Superset(); ok {
+		switch camli.Type {
+		/*
+			case "claim":
+				if err := ix.populateClaim(blobRef, camli, sniffer, bm); err != nil {
+					return err
+				}
+			case "permanode":
+				if err := mi.populatePermanode(blobRef, camli, bm); err != nil {
+					return err
+				}
+			case "file":
+				if err := mi.populateFile(blobRef, camli, bm); err != nil {
+					return err
+				}
+			}
+		*/
+		}
+	}
 	return nil
 }
