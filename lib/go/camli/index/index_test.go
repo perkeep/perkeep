@@ -35,6 +35,18 @@ type IndexDeps struct {
 	SignerBlobRef    *blobref.BlobRef
 }
 
+func (id *IndexDeps) dumpIndex(t *testing.T) {
+	t.Logf("Begin index dump:")
+	it := id.Index.s.Find("")
+	for it.Next() {
+		t.Logf("  %q = %q", it.Key(), it.Value())
+	}
+	if err := it.Close(); err != nil {
+		t.Fatalf("iterator close = %v", err)
+	}
+	t.Logf("End index dump.")
+}
+
 func (id *IndexDeps) uploadAndSignMap(m map[string]interface{}) *blobref.BlobRef {
 	m["camliSigner"] = id.SignerBlobRef
 	unsigned, err := schema.MapToCamliJson(m)
@@ -99,13 +111,7 @@ func TestIndexPopulation(t *testing.T) {
 	id := NewIndexDeps()
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
-	it := id.Index.s.Find("")
-	for it.Next() {
-		t.Logf("  %q = %q", it.Key(), it.Value())
-	}
-	if err := it.Close(); err != nil {
-		t.Fatalf("iterator close = %v", err)
-	}
+	id.dumpIndex(t)
 }
 
 func TestReverseTimeString(t *testing.T) {
