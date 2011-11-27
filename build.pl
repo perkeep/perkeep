@@ -322,18 +322,9 @@ sub test {
     closedir($dh);
     if (@test_files) {
         local $ENV{GOROOT} = $CAMLIROOT;
-
-        if ($target =~ m!\blib/go\b!) {
-            my @quiet = ("--silent");
-            @quiet = () if $opt_verbose;
-            if (system("make", @quiet, "-C", dir($target), "test") != 0) {
-                die "Tests failed for $target\n";
-            }
-        } else {
-            my $testv = $opt_verbose ? "-test.v" : "";
-            if (system("cd $target && gotest $testv") != 0) {
-                die "gotest failed for $target\n";
-            }
+        my $testv = $opt_verbose ? "-test.v" : "";
+        if (system("cd $target && gotest $testv") != 0) {
+            die "gotest failed for $target\n";
         }
     }
 }
