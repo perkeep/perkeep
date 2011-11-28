@@ -120,6 +120,7 @@ type Index interface {
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
 	// Returns os.ENOENT if none is found.
+	// Only attributes white-listed by IsIndexedAttribute are valid.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 
 	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error)
@@ -131,3 +132,20 @@ type Index interface {
 	// provided time 'at', or most recent if 'at' is nil.
 	PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*Path, os.Error)
 }
+
+func IsIndexedAttribute(attr string) bool {
+	switch attr {
+	case "camliRoot", "tag", "title":
+		return true
+	}
+	return false
+}
+
+func IsFulltextAttribute(attr string) bool {
+	switch attr {
+	case "tag", "title":
+		return true
+	}
+	return false
+}
+

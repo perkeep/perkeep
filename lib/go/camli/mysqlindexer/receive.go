@@ -29,6 +29,7 @@ import (
 	"camli/jsonsign"
 	"camli/magic"
 	"camli/schema"
+	"camli/search"
 )
 
 func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb blobref.SizedBlobRef, err os.Error) {
@@ -110,26 +111,21 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 	}
 
 	if verifiedKeyId != "" {
-		switch camli.Attribute {
-		case "camliRoot", "tag", "title":
-			// TODO(bradfitz,mpl): these tag names are hard-coded.
-			// we should probably have a config file of attributes
-			// and properties (e.g. which way(s) they're indexed)
+		if search.IsIndexedAttribute(camli.Attribute) {
 			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
 				"VALUES (?, ?, ?, ?, ?, ?)",
 				verifiedKeyId, camli.Attribute, camli.Value,
 				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
 				return
 			}
-			if camli.Attribute == "tag" || camli.Attribute == "title" {
-				// Identical copy for fulltext searches
-				// TODO(mpl): do the DELETEs as well
-				if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+
-					"VALUES (?, ?, ?, ?, ?, ?)",
-					verifiedKeyId, camli.Attribute, camli.Value,
-					camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
-					return
-				}
+		}
+		if search.IsFulltextAttribute(camli.Attribute) {
+			// TODO(mpl): do the DELETEs as well
+			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+
+				"VALUES (?, ?, ?, ?, ?, ?)",
+				verifiedKeyId, camli.Attribute, camli.Value,
+				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
+				return
 			}
 		}
 		if strings.HasPrefix(camli.Attribute, "camliPath:") {
