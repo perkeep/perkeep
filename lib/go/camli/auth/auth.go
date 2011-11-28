@@ -28,8 +28,7 @@ import (
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 var (
-	Type string   // how to do auth. currently supported: "userpass"
-	mode AuthMode // the auth logic corresponding to Type
+	mode     AuthMode // the auth logic corresponding to Type
 )
 
 type AuthMode interface {
@@ -45,22 +44,21 @@ func FromConfig(authConfig string) (AuthMode, os.Error) {
 	if len(pieces) < 1 {
 		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)
 	}
-	Type = pieces[0]
-	switch Type {
+	authType := pieces[0]
+
+	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
+		mode = &DevAuth{pw}
+		return mode, nil
+	}
+
+	switch authType {
 	case "userpass":
 		if len(pieces) != 3 {
 			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
 		}
 		mode = &UserPass{pieces[1], pieces[2]}
-	case "":
-		password := os.Getenv("CAMLI_ADVERTISED_PASSWORD")
-		if password != "" {
-			mode = &DevAuth{password}
-		} else {
-			return nil, fmt.Errorf("No auth string provided and no \"CAMLI_ADVERTISED_PASSWORD\" defined")
-		}
 	default:
-		return nil, fmt.Errorf("Unknown auth type: %q", Type)
+		return nil, fmt.Errorf("Unknown auth type: %q", authType)
 	}
 	return mode, nil
 }
@@ -130,8 +128,8 @@ func TriedAuthorization(req *http.Request) bool {
 
 func SendUnauthorized(conn http.ResponseWriter) {
 	realm := "camlistored"
-	if Type == "dev" {
-		realm = "Any username, password is: " + mode.(*DevAuth).Password
+	if devAuth, ok := mode.(*DevAuth); ok {
+		realm = "Any username, password is: " + devAuth.Password
 	}
 	conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
 	conn.WriteHeader(http.StatusUnauthorized)
