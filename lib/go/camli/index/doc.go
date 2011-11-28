@@ -30,5 +30,12 @@ for search operations:
  * signer blobref of ascii public key -> gpg key id
    "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007" = "2931A67C26F5ABDA"
 
+ * PermanodeOfSignerAttrValue:
+   "signerattrvalue:<keyid>:<URLEscape(attr)>:<URLEscape(value)>:<reverse-claimtime>:<claim-blobref>" == "<permanode>"
+    e.g.
+   "signerattrvalue:2931A67C26F5ABDA:camliRoot:rootval:"+
+     "rt7988-88-71T98:67:60.999876543Z:sha1-bf115940641f1aae2e007edcf36b3b18c17256d9" =>
+     "sha1-7a14cce982aa73ab519e63050f82e2a2adfcf039"
+
 */
 package index

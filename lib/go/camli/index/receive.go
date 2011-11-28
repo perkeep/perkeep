@@ -21,11 +21,13 @@ import (
 	"io"
 	"log"
 	"os"
+	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonsign"
 	"camli/schema"
+	"camli/search"
 )
 
 func (ix *Index) GetBlobHub() blobserver.BlobHub {
@@ -121,5 +123,11 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 	recentKey := fmt.Sprintf("recpn:%s:%s:%s", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
 	bm.Set(recentKey, pnbr.String())
 
+	if search.IsIndexedAttribute(ss.Attribute) {
+		savKey := fmt.Sprintf("signerattrvalue:%s:%s:%s:%s:%s",
+			verifiedKeyId, url.QueryEscape(ss.Attribute), url.QueryEscape(ss.Value),
+			reverseTimeString(ss.ClaimDate), br)
+		bm.Set(savKey, pnbr.String())
+	}
 	return nil
 }

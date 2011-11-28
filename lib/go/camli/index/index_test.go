@@ -115,7 +115,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
 		SignerBlobRef: pubKey.BlobRef(),
-		now:           1322443956 * 1e9 + 123456,
+		now:           1322443956*1e9 + 123456,
 	}
 	// Add dev-camput's test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
@@ -135,6 +135,8 @@ func TestIndex(t *testing.T) {
 	t.Logf("set attribute %q", br1)
 	br2 := id.SetAttribute(pn, "foo", "foo2")
 	t.Logf("set attribute %q", br2)
+	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
+	t.Logf("set attribute %q", rootClaim)
 	id.dumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
@@ -150,6 +152,18 @@ func TestIndex(t *testing.T) {
 	key = "recpn:2931A67C26F5ABDA:rt7988-88-71T98:67:61.999876543Z:" + br2.String()
 	if g, e := id.Get(key), pn.String(); g != e {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
+	}
+
+	gotPN, err := id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "rootval")
+	if err != nil {
+		t.Fatalf("id.Index.PermanodeOfSignerAttrValue = %v", err)
+	}
+	if gotPN.String() != pn.String() {
+		t.Errorf("id.Index.PermanodeOfSignerAttrValue = %q, want %q", gotPN, pn)
+	}
+	_, err = id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "MISSING")
+	if err == nil {
+		t.Errorf("expected an error from PermanodeOfSignerAttrValue on missing value")
 	}
 }
 

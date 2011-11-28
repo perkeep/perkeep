@@ -17,13 +17,19 @@ limitations under the License.
 package index
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"strings"
 	"time"
+	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/search"
 )
+
+var _ = log.Printf
 
 var ErrNotFound = os.NewError("index: key not found")
 
@@ -126,43 +132,70 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result,
 	limit int) os.Error {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage
+	log.Printf("index: TODO GetRecentPermanodes")
 	return os.NewError("TODO: GetRecentPermanodes")
 }
 
 func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
 	request *search.PermanodeByAttrRequest) os.Error {
+	log.Printf("index: TODO SearchPermanodesWithAttr")
 	return os.NewError("TODO: SearchPermanodesWithAttr")
 }
 
 func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (search.ClaimList, os.Error) {
+	log.Printf("index: TODO GetOwnerClaims")
 	return nil, os.NewError("TODO: GetOwnerClaims")
 }
 
 func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
 	err = os.NewError("TODO: GetBlobMimeType")
+	log.Printf("index: TODO GetBlobMimeType")
 	return
 }
 
 func (x *Index) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
+	log.Printf("index: TODO ExistingFileSchemas")
 	return nil, os.NewError("TODO: xxx")
 }
 
 func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
+	log.Printf("index: TODO GetFileInfo")
 	return nil, os.NewError("TODO: GetFileInfo")
 }
 
+// maps from blobref of openpgp ascii-armored public key => gpg keyid like "2931A67C26F5ABDA"
+func (x *Index) keyId(signer *blobref.BlobRef) (string, os.Error) {
+	return x.s.Get("signerkeyid:" + signer.String())
+}
+
 func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error) {
-	return nil, os.NewError("TODO: PermanodeOfSignerAttrValue")
+	keyId, err := x.keyId(signer)
+	if err != nil {
+		return nil, os.ENOENT
+	}
+	prefix := fmt.Sprintf("signerattrvalue:%s:%s:%s:",
+		keyId, url.QueryEscape(attr), url.QueryEscape(val))
+	it := x.s.Find(prefix)
+	defer it.Close()
+	if it.Next() {
+		if strings.HasPrefix(it.Key(), prefix) {
+			return blobref.Parse(it.Value()), nil
+		}
+	}
+	return nil, os.ENOENT
 }
 
 func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*search.Path, os.Error) {
+	log.Printf("index: TODO PathsOfSignerTarget")
 	return nil, os.NewError("TODO: PathsOfSignerTarget")
 }
 
 func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*search.Path, os.Error) {
+	log.Printf("index: TODO PathsLookup")
 	return nil, os.NewError("TODO: PathsLookup")
 }
 
 func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*search.Path, os.Error) {
+	log.Printf("index: TODO PathLookup")
 	return nil, os.NewError("TODO: PathLookup")
 }

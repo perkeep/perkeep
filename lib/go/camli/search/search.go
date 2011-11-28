@@ -133,6 +133,8 @@ type Index interface {
 	PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*Path, os.Error)
 }
 
+// TODO(bradfitz): rename this? This is really about signer-attr-value
+// (PermanodeOfSignerAttrValue), and not about indexed attributes in general.
 func IsIndexedAttribute(attr string) bool {
 	switch attr {
 	case "camliRoot", "tag", "title":
