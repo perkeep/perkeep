@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 	"os"
@@ -139,10 +138,7 @@ func main() {
 
 	{
 		cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
-		secure, err := strconv.Atob(config.OptionalString("https", "true"))
-		if err != nil {
-			exitFailure("Could not read boolean string: %v", err)
-		}
+		secure := config.OptionalBool("https", true)
 		if secure {
 			if (cert != "") != (key != "") {
 				exitFailure("TLSCertFile and TLSKeyFile must both be either present or absent")

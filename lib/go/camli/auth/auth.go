@@ -28,17 +28,22 @@ import (
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 var (
-	mode     AuthMode // the auth logic corresponding to Type
+	mode AuthMode // the auth logic depending on the choosen auth mechanism
 )
 
 type AuthMode interface {
-	isAuthorized(req *http.Request) bool
+	IsAuthorized(req *http.Request) bool
 }
 
 func FromEnv() (AuthMode, os.Error) {
 	return FromConfig(os.Getenv("CAMLI_AUTH"))
 }
 
+// FromConfig parses authConfig and accordingly sets up the AuthMode
+// that will be used for all upcoming authentication exchanges. The
+// supported modes are UserPass and DevAuth. UserPass requires an authConfig
+// of the kind "userpass:joe:ponies". If the CAMLI_ADVERTISED_PASSWORD
+// environment variable is defined, the mode will default to DevAuth.
 func FromConfig(authConfig string) (AuthMode, os.Error) {
 	pieces := strings.Split(authConfig, ":")
 	if len(pieces) < 1 {
@@ -56,7 +61,9 @@ func FromConfig(authConfig string) (AuthMode, os.Error) {
 		if len(pieces) != 3 {
 			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
 		}
-		mode = &UserPass{pieces[1], pieces[2]}
+		username := pieces[1]
+		password := pieces[2]
+		mode = &UserPass{username, password}
 	default:
 		return nil, fmt.Errorf("Unknown auth type: %q", authType)
 	}
@@ -92,7 +99,7 @@ type UserPass struct {
 	Username, Password string
 }
 
-func (up *UserPass) isAuthorized(req *http.Request) bool {
+func (up *UserPass) IsAuthorized(req *http.Request) bool {
 	user, pass, err := basicAuth(req)
 	if err != nil {
 		fmt.Printf("basic auth: %q", err)
@@ -101,13 +108,13 @@ func (up *UserPass) isAuthorized(req *http.Request) bool {
 	return user == up.Username && pass == up.Password
 }
 
-// DevAuth is used when no auth string is provided in the config 
-// and the env var CAMLI_ADVERTISED_PASSWORD is defined
+// DevAuth is used when the env var CAMLI_ADVERTISED_PASSWORD
+// is defined
 type DevAuth struct {
 	Password string
 }
 
-func (da *DevAuth) isAuthorized(req *http.Request) bool {
+func (da *DevAuth) IsAuthorized(req *http.Request) bool {
 	_, pass, err := basicAuth(req)
 	if err != nil {
 		fmt.Printf("basic auth: %q", err)
@@ -117,7 +124,7 @@ func (da *DevAuth) isAuthorized(req *http.Request) bool {
 }
 
 func IsAuthorized(req *http.Request) bool {
-	return mode.isAuthorized(req)
+	return mode.IsAuthorized(req)
 }
 
 func TriedAuthorization(req *http.Request) bool {
@@ -140,7 +147,7 @@ func SendUnauthorized(conn http.ResponseWriter) {
 // HTTP Basic Auth.
 func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func(conn http.ResponseWriter, req *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		if mode.isAuthorized(req) {
+		if mode.IsAuthorized(req) {
 			handler(conn, req)
 		} else {
 			SendUnauthorized(conn)
