@@ -24,7 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"http"
-	"os"
+	"log"
 )
 
 var accessPassword string
@@ -62,11 +62,9 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	auth.AccessPassword = os.Getenv("CAMLI_PASSWORD")
-	if len(auth.AccessPassword) == 0 {
-		fmt.Fprintf(os.Stderr,
-			"No CAMLI_PASSWORD environment variable set.\n")
-		os.Exit(1)
+	_, err := auth.FromEnv()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	ws := webserver.New()
