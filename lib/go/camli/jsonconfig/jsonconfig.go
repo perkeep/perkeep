@@ -33,7 +33,7 @@ func ReadFile(configPath string) (Obj, os.Error) {
 	var c configParser
 	var err os.Error
 	c.touchedFiles = make(map[string]bool)
-	c.RootJson, err = c.recursiveReadJson(configPath)
+	c.RootJson, err = c.recursiveReadJSON(configPath)
 	return c.RootJson, err
 }
 

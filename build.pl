@@ -62,6 +62,7 @@ EOM
 ;
 }
 
+my ($GOOS, $GOARCH, $CAMLIROOT, $CAMPKGDIR);  # initialized by perform_go_check
 setup_environment_from_goroot_symlink();
 
 my %built;  # target -> bool (was it already built?)
@@ -263,6 +264,40 @@ sub perform_go_check() {
         last;
     }
     die "No 6g or 8g found in your \$PATH.\n" unless -x $gc_bin;
+
+    ($GOOS, $GOARCH) = get_os_arch();
+    $CAMLIROOT = "$FindBin::Bin/build/root";
+    $CAMPKGDIR = "$CAMLIROOT/pkg/${GOOS}_${GOARCH}";
+
+    mkdir $CAMLIROOT, 0755;
+    mkdir "$CAMLIROOT/pkg", 0755;
+    mkdir $CAMPKGDIR, 0755;
+    my $realroot = "$ENV{GOROOT}/pkg/${GOOS}_${GOARCH}";
+    make_symlink("$ENV{GOROOT}/src", "$CAMLIROOT/src");
+    if (opendir(my $d, $realroot)) {
+	my @files = grep { /^\w+(\.a)?$/ } readdir($d);
+        my @old_cam_files = grep { /^camli/ } @files;
+        if (@old_cam_files) {
+            die "Camlistore's build system changed and now uses its own \$GOROOT (build/root/*).\n\n" .
+                "To proceed, first remove the following old build artifacts in $realroot: @old_cam_files\n\n";
+        }
+	for my $f (@files) {
+	    my $old = "$realroot/$f";
+	    my $new = "$CAMPKGDIR/$f";
+	    make_symlink($old, $new);
+	}
+    }
+
+    return 1;
+}
+
+sub make_symlink {
+    my ($old, $new) = @_;
+    $old =~ s!/+!/!g;
+    unless (-e $new && readlink($new) eq $old) {
+	unlink($new);
+	symlink($old, $new) or die "failed to symlink $old to $new";
+    }
     return 1;
 }
 
@@ -286,17 +321,10 @@ sub test {
     my @test_files = grep { /_test\.go$/ } readdir($dh);
     closedir($dh);
     if (@test_files) {
-        if ($target =~ m!\blib/go\b!) {
-            my @quiet = ("--silent");
-            @quiet = () if $opt_verbose;
-            if (system("make", @quiet, "-C", dir($target), "test") != 0) {
-                die "Tests failed for $target\n";
-            }
-        } else {
-            my $testv = $opt_verbose ? "-test.v" : "";
-            if (system("cd $target && gotest $testv") != 0) {
-                die "gotest failed for $target\n";
-            }
+        local $ENV{GOROOT} = $CAMLIROOT;
+        my $testv = $opt_verbose ? "-test.v" : "";
+        if (system("cd $target && gotest $testv") != 0) {
+            die "gotest failed for $target\n";
         }
     }
 }
@@ -305,7 +333,7 @@ sub build {
     my @history = @_;
     my $target = $history[0];
 
-    my $is_go = $target =~ m!/go/!;
+    my $is_go = $target =~ m!/go/! || $target =~ m!^camlistore\.org/!;
     if ($is_go) {
         perform_go_check();
     }
@@ -385,7 +413,7 @@ sub find_go_camli_deps {
         # Skip third-party stuff.
         return;
     }
-    unless ($target =~ m!lib/go/camli! ||
+    unless ($target =~ m!lib/go\b! ||
             $target =~ m!^camlistore\.org/! ||
             $target =~ m!(server|clients)/go\b!) {
         return;
@@ -417,12 +445,15 @@ sub find_go_camli_deps {
                     "No imports(...) block?  Um, add a fake one.  :)\n";
             }
             my $imports = $1;
-            while ($imports =~ m!"(camli\b.+?)"!g) {
+            while ($imports =~ s!"(camli\b.+?)"!!) {
                 my $dep = "lib/go/$1";
                 $depref->{$dep} = 1;
             }
-            while ($imports =~ m!"(camlistore\.org/.+?)"!g) {
+            while ($imports =~ m!"(.*\.(?:net|com|org)/.+?)"!g) {
                 my $dep = $1;
+                unless ($dep =~ /camlistore\.org/) {  # legacy one, to be cleaned up
+                    $dep = "lib/go/$dep";
+                }
                 $depref->{$dep} = 1;
             }
         }
@@ -442,7 +473,7 @@ sub dir {
 sub gen_target_makefile {
     my $target = shift;
     my $type = "";
-    if ($target =~ m!lib/go/camli!) {
+    if ($target =~ m!lib/go\b!) {
         $type = "pkg";
     } elsif ($target =~ m!(server|clients)/go\b!) {
         $type = "cmd";
@@ -495,13 +526,16 @@ sub gen_target_makefile {
     my $mfc = "\n\n";
     $mfc .= "###### NOTE: THIS IS AUTO-GENERATED FROM build.pl IN THE ROOT; DON'T EDIT\n";
     $mfc .= "\n\n";
+    $mfc .= "TARGDIR=$CAMPKGDIR\n";
+    $mfc .= "GCIMPORTS=-I $CAMPKGDIR\n";
+    $mfc .= "LDIMPORTS=-L $CAMPKGDIR\n";
     $mfc .= "include \$(GOROOT)/src/Make.inc\n";
     my $pr = "";
     if (@deps) {
         foreach my $dep (@deps) {
             my $cam_lib = $dep;
             $cam_lib =~ s!^lib/go/!!;
-            $pr .= '$(QUOTED_GOROOT)/pkg/$(GOOS)_$(GOARCH)/' . $cam_lib . ".a\\\n\t";
+            $pr .= $CAMPKGDIR . '/' . $cam_lib . ".a\\\n\t";
         }
         chop $pr; chop $pr; chop $pr;
     }
@@ -639,6 +673,15 @@ sub setup_environment_from_goroot_symlink {
     }
     $ENV{"GOROOT"} = $root;
     $ENV{"PATH"} = "$root/bin:$ENV{PATH}";
+    perform_go_check();
+}
+
+sub get_os_arch {
+    my $out = `make -f $FindBin::Bin/build/print-go-osarch.Make`;
+    die "Failed to find GOOS and GOARCH." unless $out;
+    my ($os) = $out =~ /GOOS=(.+)/ or die "didn't find GOOS";
+    my ($arch) = $out =~ /GOARCH=(.+)/ or die "didn't find GOARCH";
+    return ($os, $arch)
 }
 
 __DATA__
@@ -672,6 +715,7 @@ TARGET: lib/go/camli/fs
 TARGET: lib/go/camli/googlestorage
     =skip_tests
 TARGET: lib/go/camli/httputil
+TARGET: lib/go/camli/index
 TARGET: lib/go/camli/jsonconfig
 TARGET: lib/go/camli/jsonsign
 TARGET: lib/go/camli/lru
@@ -700,11 +744,20 @@ TARGET: lib/go/camli/third_party/github.com/hanwen/go-fuse/fuse
     =only_os_linux
 TARGET: lib/go/camli/third_party/github.com/mncaudill/go-flickr/
     =skip_tests
+TARGET: lib/go/camli/third_party/github.com/mpl/histo
+    =skip_tests
 TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/third_party/github.com/camlistore/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/crc
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/db
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/memdb
+TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/table
+TARGET: lib/go/snappy-go.googlecode.com/hg/snappy
+TARGET: lib/go/snappy-go.googlecode.com/hg/varint
+TARGET: lib/go/snappy-go.googlecode.com/hg/varint/zigzag
 TARGET: server/go/camlistored
 TARGET: camlistore.org/server/uistatic
     =fileembed

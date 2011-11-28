@@ -108,7 +108,7 @@ func (fi *FakeIndex) AddSignerAttrValue(signer *blobref.BlobRef, attr, val strin
 // Interface implementation
 //
 
-func (fi *FakeIndex) GetRecentPermanodes(dest chan *search.Result, owner []*blobref.BlobRef, limit int) os.Error {
+func (fi *FakeIndex) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) os.Error {
 	panic("NOIMPL")
 }
 

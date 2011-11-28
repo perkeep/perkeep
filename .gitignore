@@ -17,3 +17,4 @@ clients/go/camgsinit/camgsinit
 clients/go/camwebdav/camwebdav
 .goroot
 appengine-sdk
+build/root

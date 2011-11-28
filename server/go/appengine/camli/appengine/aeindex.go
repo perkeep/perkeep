@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"http"
 	"io"
-	"log"
 	"os"
 	"time"
 
@@ -83,7 +82,7 @@ func (x *appengineIndex) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blob
 }
 
 func (x *appengineIndex) GetRecentPermanodes(dest chan *search.Result,
-	owner []*blobref.BlobRef,
+	owner *blobref.BlobRef,
 	limit int) os.Error {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage

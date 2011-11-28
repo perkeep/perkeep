@@ -19,93 +19,21 @@ package mysqlindexer
 import (
 	"crypto/sha1"
 	"io"
-	"json"
 	"log"
 	"os"
 	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/index"
 	"camli/jsonsign"
 	"camli/magic"
 	"camli/schema"
+	"camli/search"
 )
 
-// maxSniffSize is how much of a blob to buffer in memory for both
-// MIME sniffing (in which case 1MB is way overkill) and also for
-// holding a schema blob in memory for analysis in later steps (where
-// 1MB is about the max size a claim can be, with about 1023K (of
-// slack space)
-const maxSniffSize = 1024 * 1024
-
-type blobSniffer struct {
-	header   []byte
-	written  int64
-	camli    *schema.Superset
-	mimeType *string
-}
-
-func (sn *blobSniffer) Write(d []byte) (int, os.Error) {
-	sn.written += int64(len(d))
-	if len(sn.header) < maxSniffSize {
-		n := maxSniffSize - len(sn.header)
-		if len(d) < n {
-			n = len(d)
-		}
-		sn.header = append(sn.header, d[:n]...)
-	}
-	return len(d), nil
-}
-
-func (sn *blobSniffer) IsTruncated() bool {
-	return sn.written > maxSniffSize
-}
-
-func (sn *blobSniffer) Body() (string, os.Error) {
-	if sn.IsTruncated() {
-		return "", os.NewError("was truncated")
-	}
-	return string(sn.header), nil
-}
-
-// returns content type (string) or nil if unknown
-func (sn *blobSniffer) MimeType() interface{} {
-	if sn.mimeType != nil {
-		return *sn.mimeType
-	}
-	return nil
-}
-
-func (sn *blobSniffer) Parse() {
-	// Try to parse it as JSON
-	// TODO: move this into the magic library?  Is the magic library Camli-specific
-	// or to be upstreamed elsewhere?
-	if sn.bufferIsCamliJson() {
-		str := "application/json; camliType=" + sn.camli.Type
-		sn.mimeType = &str
-	}
-
-	if mime := magic.MimeType(sn.header); mime != "" {
-		sn.mimeType = &mime
-	}
-}
-
-func (sn *blobSniffer) bufferIsCamliJson() bool {
-	buf := sn.header
-	if len(buf) < 2 || buf[0] != '{' {
-		return false
-	}
-	camli := new(schema.Superset)
-	err := json.Unmarshal(buf, camli)
-	if err != nil {
-		return false
-	}
-	sn.camli = camli
-	return true
-}
-
 func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb blobref.SizedBlobRef, err os.Error) {
-	sniffer := new(blobSniffer)
+	sniffer := new(index.BlobSniffer)
 	hash := blobRef.Hash()
 	var written int64
 	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
@@ -123,7 +51,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	mimeType := sniffer.MimeType()
 	log.Printf("mysqlindexer: type=%v; truncated=%v", mimeType, sniffer.IsTruncated())
 
-	if camli := sniffer.camli; camli != nil {
+	if camli, ok := sniffer.Superset(); ok {
 		switch camli.Type {
 		case "claim":
 			if err = mi.populateClaim(blobRef, camli, sniffer); err != nil {
@@ -150,7 +78,7 @@ func (mi *Indexer) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (rets
 	return
 }
 
-func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superset, sniffer *blobSniffer) (err os.Error) {
+func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superset, sniffer *index.BlobSniffer) (err os.Error) {
 	pnBlobref := blobref.Parse(camli.Permanode)
 	if pnBlobref == nil {
 		// Skip bogus claim with malformed permanode.
@@ -183,26 +111,21 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 	}
 
 	if verifiedKeyId != "" {
-		switch camli.Attribute {
-		case "camliRoot", "tag", "title":
-			// TODO(bradfitz,mpl): these tag names are hard-coded.
-			// we should probably have a config file of attributes
-			// and properties (e.g. which way(s) they're indexed)
+		if search.IsIndexedAttribute(camli.Attribute) {
 			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalue (keyid, attr, value, claimdate, blobref, permanode) "+
 				"VALUES (?, ?, ?, ?, ?, ?)",
 				verifiedKeyId, camli.Attribute, camli.Value,
 				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
 				return
 			}
-			if camli.Attribute == "tag" || camli.Attribute == "title" {
-				// Identical copy for fulltext searches
-				// TODO(mpl): do the DELETEs as well
-				if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+
-					"VALUES (?, ?, ?, ?, ?, ?)",
-					verifiedKeyId, camli.Attribute, camli.Value,
-					camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
-					return
-				}
+		}
+		if search.IsFulltextAttribute(camli.Attribute) {
+			// TODO(mpl): do the DELETEs as well
+			if err = mi.db.Execute("INSERT IGNORE INTO signerattrvalueft (keyid, attr, value, claimdate, blobref, permanode) "+
+				"VALUES (?, ?, ?, ?, ?, ?)",
+				verifiedKeyId, camli.Attribute, camli.Value,
+				camli.ClaimDate, blobRef.String(), camli.Permanode); err != nil {
+				return
 			}
 		}
 		if strings.HasPrefix(camli.Attribute, "camliPath:") {

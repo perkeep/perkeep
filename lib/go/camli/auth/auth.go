@@ -27,7 +27,98 @@ import (
 
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
-var AccessPassword string
+var (
+	mode     AuthMode // the auth logic corresponding to Type
+)
+
+type AuthMode interface {
+	isAuthorized(req *http.Request) bool
+}
+
+func FromEnv() (AuthMode, os.Error) {
+	return FromConfig(os.Getenv("CAMLI_AUTH"))
+}
+
+func FromConfig(authConfig string) (AuthMode, os.Error) {
+	pieces := strings.Split(authConfig, ":")
+	if len(pieces) < 1 {
+		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)
+	}
+	authType := pieces[0]
+
+	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
+		mode = &DevAuth{pw}
+		return mode, nil
+	}
+
+	switch authType {
+	case "userpass":
+		if len(pieces) != 3 {
+			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
+		}
+		mode = &UserPass{pieces[1], pieces[2]}
+	default:
+		return nil, fmt.Errorf("Unknown auth type: %q", authType)
+	}
+	return mode, nil
+}
+
+func basicAuth(req *http.Request) (string, string, os.Error) {
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
+		return "", "", fmt.Errorf("Missing \"Authorization\" in header")
+	}
+	matches := kBasicAuthPattern.FindStringSubmatch(auth)
+	if len(matches) != 2 {
+		return "", "", fmt.Errorf("Bogus Authorization header")
+	}
+	encoded := matches[1]
+	enc := base64.StdEncoding
+	decBuf := make([]byte, enc.DecodedLen(len(encoded)))
+	n, err := enc.Decode(decBuf, []byte(encoded))
+	if err != nil {
+		return "", "", err
+	}
+	pieces := strings.SplitN(string(decBuf[0:n]), ":", 2)
+	if len(pieces) != 2 {
+		return "", "", fmt.Errorf("didn't get two pieces")
+	}
+	return pieces[0], pieces[1], nil
+}
+
+// UserPass is used when the auth string provided in the config
+// is of the kind "userpass:username:pass"
+type UserPass struct {
+	Username, Password string
+}
+
+func (up *UserPass) isAuthorized(req *http.Request) bool {
+	user, pass, err := basicAuth(req)
+	if err != nil {
+		fmt.Printf("basic auth: %q", err)
+		return false
+	}
+	return user == up.Username && pass == up.Password
+}
+
+// DevAuth is used when no auth string is provided in the config 
+// and the env var CAMLI_ADVERTISED_PASSWORD is defined
+type DevAuth struct {
+	Password string
+}
+
+func (da *DevAuth) isAuthorized(req *http.Request) bool {
+	_, pass, err := basicAuth(req)
+	if err != nil {
+		fmt.Printf("basic auth: %q", err)
+		return false
+	}
+	return pass == da.Password
+}
+
+func IsAuthorized(req *http.Request) bool {
+	return mode.isAuthorized(req)
+}
 
 func TriedAuthorization(req *http.Request) bool {
 	// Currently a simple test just using HTTP basic auth
@@ -37,44 +128,19 @@ func TriedAuthorization(req *http.Request) bool {
 
 func SendUnauthorized(conn http.ResponseWriter) {
 	realm := "camlistored"
-	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
-		realm = "Any username, password is: " + pw
+	if devAuth, ok := mode.(*DevAuth); ok {
+		realm = "Any username, password is: " + devAuth.Password
 	}
 	conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
 	conn.WriteHeader(http.StatusUnauthorized)
 	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
 }
 
-func IsAuthorized(req *http.Request) bool {
-	auth := req.Header.Get("Authorization")
-	if auth == "" {
-		return false
-	}
-	matches := kBasicAuthPattern.FindStringSubmatch(auth)
-	if len(matches) != 2 {
-		return false
-	}
-	encoded := matches[1]
-	enc := base64.StdEncoding
-	decBuf := make([]byte, enc.DecodedLen(len(encoded)))
-	n, err := enc.Decode(decBuf, []byte(encoded))
-	if err != nil {
-		return false
-	}
-	userpass := strings.SplitN(string(decBuf[0:n]), ":", 2)
-	if len(userpass) != 2 {
-		fmt.Println("didn't get two pieces")
-		return false
-	}
-	password := userpass[1] // username at index 0 is currently unused
-	return password != "" && password == AccessPassword
-}
-
 // requireAuth wraps a function with another function that enforces
 // HTTP Basic Auth.
 func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func(conn http.ResponseWriter, req *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		if IsAuthorized(req) {
+		if mode.isAuthorized(req) {
 			handler(conn, req)
 		} else {
 			SendUnauthorized(conn)

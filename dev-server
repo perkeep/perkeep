@@ -5,15 +5,23 @@ use FindBin qw($Bin);
 use Getopt::Long;
 
 sub usage {
-    die "Usage: dev-server [--wipe] <portnumber> -- [other_blobserver_opts]";
+    die "Usage: dev-server [--wipe] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
 my $opt_wipe;
+my $opt_tls;
 my $opt_nobuild;
 my $opt_all;  # listen on all interfaces
+
+# keep indexes in memory only. often used with --wipe, but not
+# necessarily. if --wipe isn't used, all blobs are re-indexed
+# on start-up.
+my $opt_memory;
 GetOptions("wipe" => \$opt_wipe,
+           "tls" => \$opt_tls,
            "all" => \$opt_all,
            "nobuild" => \$opt_nobuild,
+           "memory" => \$opt_memory,
     )
     or usage();
 
@@ -49,12 +57,19 @@ if ($opt_wipe) {
     push @opts, "-ignoreexists";
 }
 
-system("./clients/go/camdbinit/camdbinit",
-       "-user=root",
-       "-password=root",
-       "-host=localhost",
-       "-database=$DBNAME",
-       @opts) and die "Failed to run camdbinit.\n";
+if ($opt_memory) {
+    $ENV{"CAMLI_MYSQL_ENABLED"} = "false";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mem/";
+} else {
+    $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
+    system("./clients/go/camdbinit/camdbinit",
+           "-user=root",
+           "-password=root",
+           "-host=localhost",
+           "-database=$DBNAME",
+           @opts) and die "Failed to run camdbinit.\n";
+}
 
 my $base = "http://localhost:$port";
 my $listen = "127.0.0.1:$port";
@@ -64,11 +79,18 @@ if ($opt_all) {
     chomp $host;
     $base = "http://$host:$port";
 }
+if ($opt_tls) {
+	$base =~ s/^http/https/;
+}
 
 print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
 
+$ENV{CAMLI_TLS} = "false";
+if ($opt_tls) {
+    $ENV{CAMLI_TLS} = "true";
+}
 $ENV{CAMLI_BASEURL} = $base;
-$ENV{CAMLI_PASSWORD} = "pass$port";
+$ENV{CAMLI_AUTH} = "userpass:camlistore:pass$port";
 $ENV{CAMLI_ADVERTISED_PASSWORD} = "pass$port"; # public password
 $ENV{CAMLI_ROOT} = $suffixdir->("bs");
 $ENV{CAMLI_ROOT_SHARD1} = $suffixdir->("s1");

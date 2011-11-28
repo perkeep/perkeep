@@ -162,7 +162,7 @@ func FromHash(hashfunc string, h hash.Hash) *BlobRef {
 	return newBlob(hashfunc, fmt.Sprintf("%x", h.Sum()))
 }
 
-func Sha1FromString(s string) *BlobRef {
+func SHA1FromString(s string) *BlobRef {
 	s1 := sha1.New()
 	s1.Write([]byte(s))
 	return FromHash("sha1", s1)
