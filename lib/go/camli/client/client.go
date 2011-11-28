@@ -25,8 +25,9 @@ import (
 )
 
 type Client struct {
-	server   string // URL prefix before "/camli/"
-	password string
+	server         string // URL prefix before "/camli/"
+	authType       string // first part of the auth string, e.g "userpass"
+	user, password string // only used if authType is "userpass"
 
 	httpClient *http.Client
 
@@ -59,10 +60,9 @@ func (bb *ByCountAndBytes) String() string {
 	return fmt.Sprintf("[blobs=%d bytes=%d]", bb.Blobs, bb.Bytes)
 }
 
-func New(server, password string) *Client {
+func New(server string) *Client {
 	return &Client{
 		server:     server,
-		password:   password,
 		httpClient: http.DefaultClient,
 	}
 }
@@ -73,12 +73,16 @@ func (c *Client) SetHttpClient(client *http.Client) {
 
 func NewOrFail() *Client {
 	log := log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	return &Client{
+	c := &Client{
 		server:     blobServerOrDie(),
-		password:   passwordOrDie(),
 		httpClient: http.DefaultClient,
 		log:        log,
 	}
+	err := c.SetupAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return c
 }
 
 type devNullWriter struct{}
@@ -102,7 +106,7 @@ func (c *Client) Stats() Stats {
 }
 
 func (c *Client) HasAuthCredentials() bool {
-	return c.password != ""
+	return c.authType != ""
 }
 
 func (c *Client) newRequest(method, url string) *http.Request {
@@ -116,6 +120,11 @@ func (c *Client) newRequest(method, url string) *http.Request {
 
 func (c *Client) addAuthHeader(req *http.Request) {
 	if c.HasAuthCredentials() {
-		req.SetBasicAuth("username", c.password)
+		switch c.authType {
+		case "userpass":
+			req.SetBasicAuth(c.user, c.password)
+		default:
+			log.Fatal("Unknown auth mechanism: %q", c.authType)
+		}
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"os"
@@ -79,7 +80,6 @@ func genSelfTLS() os.Error {
 	split := strings.Split(baseurl, ":")
 	hostname := split[1]
 	hostname = hostname[2:len(hostname)]
-	println(hostname)
 
 	template := x509.Certificate{
 		SerialNumber: new(big.Int).SetInt64(0),
@@ -117,6 +117,11 @@ func genSelfTLS() os.Error {
 	return nil
 }
 
+func notExist(err os.Error) bool {
+	pe, ok := err.(*os.PathError)
+	return ok && pe.Error == os.ENOENT
+}
+
 func main() {
 	flag.Parse()
 
@@ -133,17 +138,34 @@ func main() {
 	baseURL := ws.BaseURL()
 
 	{
-		secure := config.OptionalBool("httpsOnly", true)
+		cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
+		secure, err := strconv.Atob(config.OptionalString("https", "true"))
+		if err != nil {
+			exitFailure("Could not read boolean string: %v", err)
+		}
 		if secure {
-			cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
 			if (cert != "") != (key != "") {
 				exitFailure("TLSCertFile and TLSKeyFile must both be either present or absent")
 			}
 
+			if cert == defCert && key == defKey {
+				_, err1 := os.Stat(cert)
+				_, err2 := os.Stat(key)
+				if err1 != nil || err2 != nil {
+					if notExist(err1) || notExist(err2) {
+						err = genSelfTLS()
+						if err != nil {
+							exitFailure("Could not generate self signed creds: %q", err)
+						}
+					} else {
+						exitFailure("Could not stat cert or key: %q, %q", err1, err2)
+					}
+				}
+			}
 			if cert == "" && key == "" {
 				err = genSelfTLS()
 				if err != nil {
-					exitFailure("pb generating the self signed creds: %q", err)
+					exitFailure("Could not generate self signed creds: %q", err)
 				}
 				cert = defCert
 				key = defKey

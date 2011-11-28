@@ -277,6 +277,12 @@ func Load(configPath string) (*Config, os.Error) {
 	return conf, nil
 }
 
+func (config *Config) initAuth() os.Error {
+	authConfig := config.OptionalString("auth", "")
+	_, err := auth.FromConfig(authConfig)
+	return err
+}
+
 // context may be nil
 func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (outerr os.Error) {
 	defer func() {
@@ -287,7 +293,10 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		outerr = fmt.Errorf("%v", err)
 	}()
 
-	auth.AccessPassword = config.OptionalString("password", "")
+	err := config.initAuth()
+	if err != nil {
+		return fmt.Errorf("error while configuring auth: %v", err)
+	}
 	if url := config.OptionalString("baseURL", ""); url != "" {
 		baseURL = url
 	}
