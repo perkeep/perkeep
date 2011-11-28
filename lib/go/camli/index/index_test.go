@@ -33,6 +33,8 @@ type IndexDeps struct {
 	PublicKeyFetcher *test.Fetcher
 	EntityFetcher    jsonsign.EntityFetcher // fetching decrypted openpgp entities
 	SignerBlobRef    *blobref.BlobRef
+
+	now int64 // fake clock, nanos since epoch
 }
 
 func (id *IndexDeps) Get(key string) string {
@@ -82,8 +84,14 @@ func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 	return id.uploadAndSignMap(unsigned)
 }
 
+func (id *IndexDeps) nextTime() string {
+	id.now += 1e9
+	return schema.RFC3339FromNanos(id.now)
+}
+
 func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
 	m := schema.NewSetAttributeClaim(permaNode, attr, value)
+	m["claimDate"] = id.nextTime()
 	return id.uploadAndSignMap(m)
 }
 
@@ -107,6 +115,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
 		SignerBlobRef: pubKey.BlobRef(),
+		now:           1322443956 * 1e9 + 123456,
 	}
 	// Add dev-camput's test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
@@ -122,13 +131,25 @@ func TestIndex(t *testing.T) {
 	id := NewIndexDeps()
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
-	br1 := id.SetAttribute(pn, "foo", "bar")
+	br1 := id.SetAttribute(pn, "foo", "foo1")
 	t.Logf("set attribute %q", br1)
+	br2 := id.SetAttribute(pn, "foo", "foo2")
+	t.Logf("set attribute %q", br2)
 	id.dumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
 		t.Fatalf("%q = %q, want %q", key, g, e)
+	}
+
+	key = "recpn:2931A67C26F5ABDA:rt7988-88-71T98:67:62.999876543Z:" + br1.String()
+	if g, e := id.Get(key), pn.String(); g != e {
+		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
+	}
+
+	key = "recpn:2931A67C26F5ABDA:rt7988-88-71T98:67:61.999876543Z:" + br2.String()
+	if g, e := id.Get(key), pn.String(); g != e {
+		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
 	}
 }
 
