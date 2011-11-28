@@ -279,13 +279,13 @@ func main() {
 		})
 	}
 	mux.Handle("/r/", gerritHandler)
+	mux.HandleFunc("/debugz/ip", ipHandler)
 
 	testCgi := &cgi.Handler{Path: filepath.Join(*root, "test.cgi"),
 		Root: "/test.cgi",
 	}
 	mux.Handle("/test.cgi", testCgi)
 	mux.Handle("/test.cgi/foo", testCgi)
-
 	mux.Handle("/code", http.RedirectHandler("/code/", http.StatusFound))
 	if *gitwebScript != "" {
 		env := os.Environ()
@@ -364,4 +364,20 @@ func rsyncFromGerrit(dest string) {
 		}
 		time.Sleep(10e9)
 	}
+}
+
+func ipHandler(w http.ResponseWriter, r *http.Request) {
+	out, _ := exec.Command("ip", "-f", "inet", "addr", "show", "dev", "eth0").Output()
+	str := string(out)
+	pos := strings.Index(str, "inet ")
+	if pos == -1 {
+		return
+	}
+	str = str[pos + 5:]
+	pos = strings.Index(str, "/")
+	if pos == -1 {
+		return
+	}
+	str = str[:pos]
+	w.Write([]byte(str))
 }
