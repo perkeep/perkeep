@@ -1,3 +1,3 @@
 # *sigh* well-known URLs.  (plug: http://tools.ietf.org/html/rfc5785)
 User-agent: *
-Disallow: /nothing-actually/
+Disallow: /code/
