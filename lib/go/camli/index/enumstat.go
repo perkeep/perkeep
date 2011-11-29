@@ -27,7 +27,7 @@ import (
 
 func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
 	defer close(dest)
-	it := ix.s.Find("have:"+after)
+	it := ix.s.Find("have:" + after)
 	n := uint(0)
 	for n < limit && it.Next() {
 		k := it.Key()

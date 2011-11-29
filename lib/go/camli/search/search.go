@@ -58,6 +58,12 @@ type Claim struct {
 	Attr, Value string
 }
 
+func (c *Claim) String() string {
+	return fmt.Sprintf(
+		"search.Claim{BlobRef: %s, Signer: %s, Permanode: %s, Date: %s, Type: %s, Attr: %s, Value: %s}",
+		c.BlobRef, c.Signer, c.Permanode, c.Date, c.Type, c.Attr, c.Value)
+}
+
 type ClaimList []*Claim
 
 func (cl ClaimList) Len() int {
@@ -71,6 +77,16 @@ func (cl ClaimList) Less(i, j int) bool {
 
 func (cl ClaimList) Swap(i, j int) {
 	cl[i], cl[j] = cl[j], cl[i]
+}
+
+func (cl ClaimList) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "[%d claims: ", len(cl))
+	for _, r := range cl {
+		buf.WriteString(r.String())
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 type FileInfo struct {
@@ -167,4 +183,3 @@ func IsFulltextAttribute(attr string) bool {
 	}
 	return false
 }
-

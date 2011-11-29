@@ -16,6 +16,17 @@ limitations under the License.
 
 package index
 
+import (
+	"url"
+)
+
+var urle = url.QueryEscape
+
+func urld(s string) string {
+	d, _ := url.QueryUnescape(s)
+	return d
+}
+
 type dupSkipper struct {
 	m map[string]bool
 }
@@ -31,4 +42,3 @@ func (s *dupSkipper) Dup(v string) bool {
 	s.m[v] = true
 	return false
 }
-

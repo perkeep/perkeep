@@ -21,6 +21,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"camli/blobref"
 	"camli/jsonsign"
@@ -87,14 +88,18 @@ func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 	return id.uploadAndSignMap(unsigned)
 }
 
-func (id *IndexDeps) nextTime() string {
+func (id *IndexDeps) advanceTime() string {
 	id.now += 1e9
 	return schema.RFC3339FromNanos(id.now)
 }
 
+func (id *IndexDeps) lastTimeNanos() int64 {
+	return id.now
+}
+
 func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
 	m := schema.NewSetAttributeClaim(permaNode, attr, value)
-	m["claimDate"] = id.nextTime()
+	m["claimDate"] = id.advanceTime()
 	return id.uploadAndSignMap(m)
 }
 
@@ -135,10 +140,13 @@ func TestIndex(t *testing.T) {
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "foo", "foo1")
+	br1Time := id.lastTimeNanos()
 	t.Logf("set attribute %q", br1)
 	br2 := id.SetAttribute(pn, "foo", "foo2")
+	br2Time := id.lastTimeNanos()
 	t.Logf("set attribute %q", br2)
 	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
+	rootClaimTime := id.lastTimeNanos()
 	t.Logf("set attribute %q", rootClaim)
 	id.dumpIndex(t)
 
@@ -223,6 +231,48 @@ func TestIndex(t *testing.T) {
 		_, _, err = id.Index.GetBlobMimeType(blobref.Parse("abc-123"))
 		if err != os.ENOENT {
 			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ENOENT", err)
+		}
+	}
+
+	// GetOwnerClaims
+	{
+		claims, err := id.Index.GetOwnerClaims(pn, id.SignerBlobRef)
+		if err != nil {
+			t.Errorf("GetOwnerClaims = %v", err)
+		} else {
+			want := search.ClaimList([]*search.Claim{
+				&search.Claim{
+					BlobRef:   br1,
+					Permanode: pn,
+					Signer:    id.SignerBlobRef,
+					Date:      time.NanosecondsToUTC(br1Time),
+					Type:      "set-attribute",
+					Attr:      "foo",
+					Value:     "foo1",
+				},
+				&search.Claim{
+					BlobRef:   br2,
+					Permanode: pn,
+					Signer:    id.SignerBlobRef,
+					Date:      time.NanosecondsToUTC(br2Time),
+					Type:      "set-attribute",
+					Attr:      "foo",
+					Value:     "foo2",
+				},
+				&search.Claim{
+					BlobRef:   rootClaim,
+					Permanode: pn,
+					Signer:    id.SignerBlobRef,
+					Date:      time.NanosecondsToUTC(rootClaimTime),
+					Type:      "set-attribute",
+					Attr:      "camliRoot",
+					Value:     "rootval",
+				},
+			})
+			if !reflect.DeepEqual(claims, want) {
+				t.Errorf("GetOwnerClaims results differ.\n got: %v\nwant: %v",
+					claims, want)
+			}
 		}
 	}
 }

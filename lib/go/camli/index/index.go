@@ -17,13 +17,11 @@ limitations under the License.
 package index
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -143,7 +141,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 
 	sent := 0
 	var seenPermanode dupSkipper
-	prefix := fmt.Sprintf("recpn|%s|", keyId)
+	prefix := pipes("recpn", keyId, "")
 	it := x.s.Find(prefix)
 	defer it.Close()
 	for it.Next() {
@@ -183,9 +181,43 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	return os.NewError("TODO: SearchPermanodesWithAttr")
 }
 
-func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (search.ClaimList, os.Error) {
-	log.Printf("index: TODO GetOwnerClaims")
-	return nil, os.NewError("TODO: GetOwnerClaims")
+func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.ClaimList, err os.Error) {
+	keyId, err := x.keyId(owner)
+	if err == ErrNotFound {
+		err = nil
+		return
+	}
+	if err != nil {
+		return nil, err
+	}
+	prefix := pipes("claim", permaNode, keyId, "")
+	it := x.s.Find(prefix)
+	defer it.Close()
+	for it.Next() {
+		if !strings.HasPrefix(it.Key(), prefix) {
+			break
+		}
+		keyPart := strings.Split(it.Key(), "|")
+		valPart := strings.Split(it.Value(), "|")
+		if len(keyPart) < 5 || len(valPart) < 3 {
+			continue
+		}
+		claimRef := blobref.Parse(keyPart[4])
+		if claimRef == nil {
+			continue
+		}
+		nanos := schema.NanosFromRFC3339(keyPart[3])
+		cl = append(cl, &search.Claim{
+			BlobRef:   claimRef,
+			Signer:    owner,
+			Permanode: permaNode,
+			Date:      time.NanosecondsToUTC(nanos),
+			Type:      urld(valPart[0]),
+			Attr:      urld(valPart[1]),
+			Value:     urld(valPart[2]),
+		})
+	}
+	return
 }
 
 func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
@@ -225,8 +257,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	if err != nil {
 		return nil, err
 	}
-	prefix := fmt.Sprintf("signerattrvalue:%s:%s:%s:",
-		keyId, url.QueryEscape(attr), url.QueryEscape(val))
+	prefix := pipes("signerattrvalue", keyId, urle(attr), urle(val), "")
 	it := x.s.Find(prefix)
 	defer it.Close()
 	if it.Next() {

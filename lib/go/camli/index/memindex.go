@@ -119,17 +119,16 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) os.Error {
 	}
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	for _ ,m := range b.m {
+	for _, m := range b.m {
 		if m.delete {
 			if err := mk.db.Delete([]byte(m.key)); err != nil {
 				return err
 			}
 		} else {
 			if err := mk.db.Set([]byte(m.key), []byte(m.value)); err != nil {
-                                return err
-                        }
+				return err
+			}
 		}
 	}
 	return nil
 }
-

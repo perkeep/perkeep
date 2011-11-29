@@ -49,5 +49,3 @@ func appendReverseString(b []byte, s string) []byte {
 	}
 	return b
 }
-
-

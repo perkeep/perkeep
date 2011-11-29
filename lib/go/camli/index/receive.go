@@ -17,11 +17,11 @@ limitations under the License.
 package index
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -121,14 +121,33 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 
 	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
-	recentKey := fmt.Sprintf("recpn|%s|%s|%s", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
+	recentKey := pipes("recpn", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
 	bm.Set(recentKey, pnbr.String())
 
+	claimKey := pipes("claim", pnbr, verifiedKeyId, ss.ClaimDate, br)
+	bm.Set(claimKey, pipes(urle(ss.ClaimType), urle(ss.Attribute), urle(ss.Value)))
+
 	if search.IsIndexedAttribute(ss.Attribute) {
-		savKey := fmt.Sprintf("signerattrvalue:%s:%s:%s:%s:%s",
-			verifiedKeyId, url.QueryEscape(ss.Attribute), url.QueryEscape(ss.Value),
+		savKey := pipes("signerattrvalue",
+			verifiedKeyId, urle(ss.Attribute), urle(ss.Value),
 			reverseTimeString(ss.ClaimDate), br)
 		bm.Set(savKey, pnbr.String())
 	}
 	return nil
+}
+
+// pipes returns args separated by pipes
+func pipes(args ...interface{}) string {
+	var buf bytes.Buffer
+	for n, arg := range args {
+		if n > 0 {
+			buf.WriteString("|")
+		}
+		if s, ok := arg.(string); ok {
+			buf.WriteString(s)
+		} else {
+			buf.WriteString(arg.(fmt.Stringer).String())
+		}
+	}
+	return buf.String()
 }
