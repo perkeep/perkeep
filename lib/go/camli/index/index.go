@@ -27,6 +27,7 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/search"
+	"camli/schema"
 )
 
 var _ = log.Printf
@@ -127,13 +128,53 @@ func New(s IndexStorage) *Index {
 	}
 }
 
-func (x *Index) GetRecentPermanodes(dest chan *search.Result,
-	owner *blobref.BlobRef,
-	limit int) os.Error {
+func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) os.Error {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage
-	log.Printf("index: TODO GetRecentPermanodes")
-	return os.NewError("TODO: GetRecentPermanodes")
+
+	keyId, err := x.keyId(owner)
+	if err == ErrNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	sent := 0
+	var seenPermanode dupSkipper
+	prefix := fmt.Sprintf("recpn|%s|", keyId)
+	it := x.s.Find(prefix)
+	defer it.Close()
+	for it.Next() {
+		if !strings.HasPrefix(it.Key(), prefix) {
+			break
+		}
+		permaStr := it.Value()
+		parts := strings.SplitN(it.Key(), "|", 4)
+		if len(parts) != 4 {
+			continue
+		}
+		mTime := unreverseTimeString(parts[2])
+		mTimeNs := schema.NanosFromRFC3339(mTime)
+		mTimeSec := mTimeNs / 1e9
+		permaRef := blobref.Parse(permaStr)
+		if permaRef == nil {
+			continue
+		}
+		if seenPermanode.Dup(permaStr) {
+			continue
+		}
+		dest <- &search.Result{
+			BlobRef:     permaRef,
+			Signer:      owner, // TODO(bradfitz): kinda. usually. for now.
+			LastModTime: mTimeSec,
+		}
+		sent++
+		if sent == limit {
+			break
+		}
+	}
+	return nil
 }
 
 func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
@@ -170,8 +211,11 @@ func (x *Index) keyId(signer *blobref.BlobRef) (string, os.Error) {
 
 func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error) {
 	keyId, err := x.keyId(signer)
-	if err != nil {
+	if err == ErrNotFound {
 		return nil, os.ENOENT
+	}
+	if err != nil {
+		return nil, err
 	}
 	prefix := fmt.Sprintf("signerattrvalue:%s:%s:%s:",
 		keyId, url.QueryEscape(attr), url.QueryEscape(val))

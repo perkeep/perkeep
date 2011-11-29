@@ -120,7 +120,7 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 
 	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
-	recentKey := fmt.Sprintf("recpn:%s:%s:%s", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
+	recentKey := fmt.Sprintf("recpn|%s|%s|%s", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
 	bm.Set(recentKey, pnbr.String())
 
 	if search.IsIndexedAttribute(ss.Attribute) {

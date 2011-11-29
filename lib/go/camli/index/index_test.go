@@ -18,11 +18,13 @@ package index
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"camli/blobref"
 	"camli/jsonsign"
 	"camli/schema"
+	"camli/search"
 	"camli/test"
 )
 
@@ -144,12 +146,12 @@ func TestIndex(t *testing.T) {
 		t.Fatalf("%q = %q, want %q", key, g, e)
 	}
 
-	key = "recpn:2931A67C26F5ABDA:rt7988-88-71T98:67:62.999876543Z:" + br1.String()
+	key = "recpn|2931A67C26F5ABDA|rt7988-88-71T98:67:62.999876543Z|" + br1.String()
 	if g, e := id.Get(key), pn.String(); g != e {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
 	}
 
-	key = "recpn:2931A67C26F5ABDA:rt7988-88-71T98:67:61.999876543Z:" + br2.String()
+	key = "recpn|2931A67C26F5ABDA|rt7988-88-71T98:67:61.999876543Z|" + br2.String()
 	if g, e := id.Get(key), pn.String(); g != e {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
 	}
@@ -164,6 +166,30 @@ func TestIndex(t *testing.T) {
 	_, err = id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "MISSING")
 	if err == nil {
 		t.Errorf("expected an error from PermanodeOfSignerAttrValue on missing value")
+	}
+
+	// GetRecentPermanodes
+	{
+		ch := make(chan *search.Result, 10) // only expect 1 result, but 3 if buggy.
+		err = id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
+		if err != nil {
+			t.Fatalf("GetRecentPermanodes = %v", err)
+		}
+		got := []*search.Result{}
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []*search.Result{
+			&search.Result{
+				BlobRef:     pn,
+				Signer:      id.SignerBlobRef,
+				LastModTime: 1322443959,
+			},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("GetRecentPermanode results differ.\n got: %v\nwant: %v",
+				search.Results(got), search.Results(want))
+		}
 	}
 }
 

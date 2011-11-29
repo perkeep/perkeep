@@ -17,17 +17,34 @@ limitations under the License.
 package search
 
 import (
-	"camli/blobref"
-
+	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"camli/blobref"
 )
 
 type Result struct {
 	BlobRef     *blobref.BlobRef
 	Signer      *blobref.BlobRef // may be nil
 	LastModTime int64            // seconds since epoch
+}
+
+// Results exists mostly for debugging, to provide a String method on
+// a slice of Result.
+type Results []*Result
+
+func (s Results) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "[%d search results: ", len(s))
+	for _, r := range s {
+		fmt.Fprintf(&buf, "{BlobRef: %s, Signer: %s, LastModTime: %d}",
+			r.BlobRef, r.Signer, r.LastModTime)
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 // TODO: move this to schema or something?

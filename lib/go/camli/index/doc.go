@@ -22,7 +22,7 @@ The following keys & values are populated by receiving blobs and queried
 for search operations:
 
 * Recent Permanodes
-  "recpn:<pgp-keyid>:<reverse-modtime>:<claim-blobref>" == "<permanode-blobref>"
+  "recpn|<pgp-keyid>|<reverse-modtime>|<claim-blobref>" == "<permanode-blobref>"
    where reverse-modtime flips each digit to '9'-<digit> and prepends "rt" (for reverse time)
           "2011-11-27T01:23:45Z"
     ==> "rt7988-88-72T98:76:54Z"
