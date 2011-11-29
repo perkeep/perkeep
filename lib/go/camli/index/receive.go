@@ -74,6 +74,7 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 // and verified to match), and the sniffer has been populated.
 func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm BatchMutation) os.Error {
 	bm.Set("have:"+br.String(), fmt.Sprintf("%d", sniffer.Size()))
+	bm.Set("meta:"+br.String(), fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MimeType()))
 
 	if camli, ok := sniffer.Superset(); ok {
 		switch camli.Type {

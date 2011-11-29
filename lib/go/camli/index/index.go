@@ -20,14 +20,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"url"
 
 	"camli/blobref"
 	"camli/blobserver"
-	"camli/search"
 	"camli/schema"
+	"camli/search"
 )
 
 var _ = log.Printf
@@ -177,8 +178,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 	return nil
 }
 
-func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
-	request *search.PermanodeByAttrRequest) os.Error {
+func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
 	log.Printf("index: TODO SearchPermanodesWithAttr")
 	return os.NewError("TODO: SearchPermanodesWithAttr")
 }
@@ -189,8 +189,16 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (search.ClaimL
 }
 
 func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error) {
-	err = os.NewError("TODO: GetBlobMimeType")
-	log.Printf("index: TODO GetBlobMimeType")
+	meta, err := x.s.Get("meta:" + blob.String())
+	if err == ErrNotFound {
+		err = os.ENOENT
+	}
+	if err != nil {
+		return
+	}
+	pos := strings.Index(meta, "|")
+	size, _ = strconv.Atoi64(meta[:pos])
+	mime = meta[pos+1:]
 	return
 }
 

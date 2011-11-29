@@ -18,6 +18,7 @@ package index
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
@@ -146,6 +147,17 @@ func TestIndex(t *testing.T) {
 		t.Fatalf("%q = %q, want %q", key, g, e)
 	}
 
+	key = "have:" + pn.String()
+	pnSizeStr := id.Get(key)
+	if pnSizeStr == "" {
+		t.Fatalf("missing key %q", key)
+	}
+
+	key = "meta:" + pn.String()
+	if g, e := id.Get(key), pnSizeStr+"|application/json; camliType=permanode"; g != e {
+		t.Errorf("key %q = %q, want %q", key, g, e)
+	}
+
 	key = "recpn|2931A67C26F5ABDA|rt7988-88-71T98:67:62.999876543Z|" + br1.String()
 	if g, e := id.Get(key), pn.String(); g != e {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
@@ -156,22 +168,25 @@ func TestIndex(t *testing.T) {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
 	}
 
-	gotPN, err := id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "rootval")
-	if err != nil {
-		t.Fatalf("id.Index.PermanodeOfSignerAttrValue = %v", err)
-	}
-	if gotPN.String() != pn.String() {
-		t.Errorf("id.Index.PermanodeOfSignerAttrValue = %q, want %q", gotPN, pn)
-	}
-	_, err = id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "MISSING")
-	if err == nil {
-		t.Errorf("expected an error from PermanodeOfSignerAttrValue on missing value")
+	// PermanodeOfSignerAttrValue
+	{
+		gotPN, err := id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "rootval")
+		if err != nil {
+			t.Fatalf("id.Index.PermanodeOfSignerAttrValue = %v", err)
+		}
+		if gotPN.String() != pn.String() {
+			t.Errorf("id.Index.PermanodeOfSignerAttrValue = %q, want %q", gotPN, pn)
+		}
+		_, err = id.Index.PermanodeOfSignerAttrValue(id.SignerBlobRef, "camliRoot", "MISSING")
+		if err == nil {
+			t.Errorf("expected an error from PermanodeOfSignerAttrValue on missing value")
+		}
 	}
 
 	// GetRecentPermanodes
 	{
 		ch := make(chan *search.Result, 10) // only expect 1 result, but 3 if buggy.
-		err = id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
+		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
 		if err != nil {
 			t.Fatalf("GetRecentPermanodes = %v", err)
 		}
@@ -189,6 +204,25 @@ func TestIndex(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("GetRecentPermanode results differ.\n got: %v\nwant: %v",
 				search.Results(got), search.Results(want))
+		}
+	}
+
+	// GetBlobMimeType
+	{
+		mime, size, err := id.Index.GetBlobMimeType(pn)
+		if err != nil {
+			t.Errorf("GetBlobMimeType(%q) = %v", pn, err)
+		} else {
+			if e := "application/json; camliType=permanode"; mime != e {
+				t.Errorf("GetBlobMimeType(%q) mime = %q, want %q", pn, mime, e)
+			}
+			if size == 0 {
+				t.Errorf("GetBlobMimeType(%q) size is zero", pn)
+			}
+		}
+		_, _, err = id.Index.GetBlobMimeType(blobref.Parse("abc-123"))
+		if err != os.ENOENT {
+			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ENOENT", err)
 		}
 	}
 }

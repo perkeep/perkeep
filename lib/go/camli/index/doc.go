@@ -37,5 +37,9 @@ for search operations:
      "rt7988-88-71T98:67:60.999876543Z:sha1-bf115940641f1aae2e007edcf36b3b18c17256d9" =>
      "sha1-7a14cce982aa73ab519e63050f82e2a2adfcf039"
 
+ * Other:
+   "meta:<blobref>" == "<size>|<mimetype>"
+   "have:<blobref>" == "<size>" (used for enumeration, which doesn't need mime type)
+
 */
 package index
