@@ -121,6 +121,7 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 
 	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
+	// TODO(bradfitz): use keyRecentPermanode here instead of pipes() with "recpn".
 	recentKey := pipes("recpn", verifiedKeyId, reverseTimeString(ss.ClaimDate), br)
 	bm.Set(recentKey, pnbr.String())
 

@@ -127,6 +127,30 @@ func New(s IndexStorage) *Index {
 	}
 }
 
+type prefixIter struct {
+	Iterator
+	prefix string
+}
+
+func (p *prefixIter) Next() bool {
+	v := p.Iterator.Next()
+	if v && !strings.HasPrefix(p.Key(), p.prefix) {
+		return false
+	}
+	return v
+}
+
+func (x *Index) queryPrefix(key *keyType, args ...interface{}) *prefixIter {
+	return x.queryPrefixString(key.Prefix(args...))
+}
+
+func (x *Index) queryPrefixString(prefix string) *prefixIter {
+	return &prefixIter{
+		prefix:   prefix,
+		Iterator: x.s.Find(prefix),
+	}
+}
+
 func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) os.Error {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage
@@ -141,13 +165,10 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 
 	sent := 0
 	var seenPermanode dupSkipper
-	prefix := pipes("recpn", keyId, "")
-	it := x.s.Find(prefix)
+
+	it := x.queryPrefix(keyRecentPermanode, keyId)
 	defer it.Close()
 	for it.Next() {
-		if !strings.HasPrefix(it.Key(), prefix) {
-			break
-		}
 		permaStr := it.Value()
 		parts := strings.SplitN(it.Key(), "|", 4)
 		if len(parts) != 4 {
@@ -191,12 +212,9 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 		return nil, err
 	}
 	prefix := pipes("claim", permaNode, keyId, "")
-	it := x.s.Find(prefix)
+	it := x.queryPrefixString(prefix)
 	defer it.Close()
 	for it.Next() {
-		if !strings.HasPrefix(it.Key(), prefix) {
-			break
-		}
 		keyPart := strings.Split(it.Key(), "|")
 		valPart := strings.Split(it.Value(), "|")
 		if len(keyPart) < 5 || len(valPart) < 3 {
@@ -257,13 +275,10 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	if err != nil {
 		return nil, err
 	}
-	prefix := pipes("signerattrvalue", keyId, urle(attr), urle(val), "")
-	it := x.s.Find(prefix)
+	it := x.queryPrefixString(pipes("signerattrvalue", keyId, urle(attr), urle(val), ""))
 	defer it.Close()
 	if it.Next() {
-		if strings.HasPrefix(it.Key(), prefix) {
-			return blobref.Parse(it.Value()), nil
-		}
+		return blobref.Parse(it.Value()), nil
 	}
 	return nil, os.ENOENT
 }
