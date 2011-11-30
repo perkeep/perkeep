@@ -80,7 +80,7 @@ if ($opt_all) {
     $base = "http://$host:$port";
 }
 if ($opt_tls) {
-	$base =~ s/^http/https/;
+    $base =~ s/^http/https/;
 }
 
 print "Starting dev server on $base/ui/ with password \"pass$port\"\n";

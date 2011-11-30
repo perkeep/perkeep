@@ -1,7 +1,7 @@
 { "_for-emacs": "-*- mode: js2;-*-",
   "baseURL": ["_env", "${CAMLI_BASEURL}"],
   "auth": ["_env", "${CAMLI_AUTH}"],
-  "https": ["_env", "${CAMLI_TLS}"],
+  "https": ["_env", "${CAMLI_TLS}", false],
   "TLSCertFile": "config/selfgen_cert.pem",
   "TLSKeyFile": "config/selfgen_key.pem",
   "prefixes": {
