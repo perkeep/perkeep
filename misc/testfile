@@ -2,8 +2,4 @@ New test file for playing with Gerrit.
 
 Testing ref-updated hook.
 
-... see if this sends email.
-
-
-
-foo
+Is email broken again?
