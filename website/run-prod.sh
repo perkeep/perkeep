@@ -12,5 +12,4 @@ echo "Running camweb in $Bin"
 ../build.pl website && ./camweb --http=:8080 --https=:4430 --root=$Bin --logdir=$LOGDIR \
     --tlscert=$HOME/etc/ssl.crt \
     --tlskey=$HOME/etc/ssl.key \
-    --gerrithost=gerrit-proxy
-
+    --gerrithost=ec2-107-22-182-135.compute-1.amazonaws.com
