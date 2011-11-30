@@ -63,7 +63,7 @@ func FromConfig(authConfig string) (AuthMode, os.Error) {
 		}
 		username := pieces[1]
 		password := pieces[2]
-		mode = &UserPass{username, password}
+		mode = &UserPass{Username: username, Password: password}
 	default:
 		return nil, fmt.Errorf("Unknown auth type: %q", authType)
 	}
