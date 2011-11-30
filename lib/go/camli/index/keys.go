@@ -27,18 +27,41 @@ type keyType struct {
 }
 
 func (k *keyType) Prefix(args ...interface{}) string {
+	return k.build(true, args...)
+}
+
+func (k *keyType) Key(args ...interface{}) string {
+	return k.build(false, args...)
+}
+
+func (k *keyType) build(finalPipe bool, args ...interface{}) string {
 	var buf bytes.Buffer
 	buf.WriteString(k.name)
-	for _, arg := range args {
+	for i, arg := range args {
 		buf.WriteString("|")
-		// TODO(bradfitz): verify the type matches
-		if s, ok := arg.(string); ok {
-			buf.WriteString(s)
-		} else {
-			buf.WriteString(arg.(fmt.Stringer).String())
+		switch k.parts[i].typ {
+		case typeReverseTime:
+			s, ok := arg.(string)
+			if !ok {
+				s = arg.(fmt.Stringer).String()
+			}
+			const example = "2011-01-23T05:23:12"
+			if len(s) < len(example) || s[4] != '-' && s[10] != 'T' {
+				panic("doesn't look like a time: " + s)
+			}
+			buf.WriteString(reverseTimeString(s))
+		default:
+			// TODO(bradfitz): reverse time and such
+			if s, ok := arg.(string); ok {
+				buf.WriteString(s)
+			} else {
+				buf.WriteString(arg.(fmt.Stringer).String())
+		}
 		}
 	}
-	buf.WriteString("|")
+	if finalPipe {
+		buf.WriteString("|")
+	}
 	return buf.String()
 }
 
