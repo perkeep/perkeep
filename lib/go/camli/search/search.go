@@ -156,6 +156,16 @@ type Index interface {
 	// Only attributes white-listed by IsIndexedAttribute are valid.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error)
 
+	// PathsOfSignerTarget queries the index about "camliPath:"
+	// URL-dispatch attributes.
+	//
+	// It returns a list of all the path claims that have been signed
+	// by the provided signer and point at the given target.
+	//
+	// This is used when editing a permanode, to figure work up
+	// the name resolution tree backwards ultimately to a
+	// camliRoot permanode (which should know its base URL), and
+	// then the complete URL(s) of a target can be found.
 	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, os.Error)
 
 	// All Path claims for (signer, base, suffix)

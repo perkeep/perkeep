@@ -22,29 +22,50 @@ import (
 )
 
 type keyType struct {
-	name  string
-	parts []keyPart
+	name     string
+	keyParts []part
+	valParts []part
 }
 
 func (k *keyType) Prefix(args ...interface{}) string {
-	return k.build(true, args...)
+	return k.build(true, true, k.keyParts, args...)
 }
 
 func (k *keyType) Key(args ...interface{}) string {
-	return k.build(false, args...)
+	return k.build(false, true, k.keyParts, args...)
 }
 
-func (k *keyType) build(finalPipe bool, args ...interface{}) string {
+func (k *keyType) Val(args ...interface{}) string {
+	return k.build(false, false, k.valParts, args...)
+}
+
+func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{}) string {
 	var buf bytes.Buffer
-	buf.WriteString(k.name)
+	if isKey {
+		buf.WriteString(k.name)
+	}
+	if !isPrefix && len(args) != len(parts) {
+		panic("wrong number of arguments")
+	}
+	if len(args) > len(parts) {
+		panic("too many arguments")
+	}
 	for i, arg := range args {
-		buf.WriteString("|")
-		switch k.parts[i].typ {
-		case typeReverseTime:
+		if isKey || i > 0 {
+			buf.WriteString("|")
+		}
+		asStr := func() string {
 			s, ok := arg.(string)
 			if !ok {
 				s = arg.(fmt.Stringer).String()
 			}
+			return s
+		}
+		switch parts[i].typ {
+		case typeStr:
+			buf.WriteString(urle(asStr()))
+		case typeReverseTime:
+			s := asStr()
 			const example = "2011-01-23T05:23:12"
 			if len(s) < len(example) || s[4] != '-' && s[10] != 'T' {
 				panic("doesn't look like a time: " + s)
@@ -56,16 +77,16 @@ func (k *keyType) build(finalPipe bool, args ...interface{}) string {
 				buf.WriteString(s)
 			} else {
 				buf.WriteString(arg.(fmt.Stringer).String())
-		}
+			}
 		}
 	}
-	if finalPipe {
+	if isPrefix {
 		buf.WriteString("|")
 	}
 	return buf.String()
 }
 
-type keyPart struct {
+type part struct {
 	name string
 	typ  partType
 }
@@ -77,15 +98,32 @@ const (
 	typeTime
 	typeReverseTime // time prepended with "rt" + each numeric digit reversed from '9'
 	typeBlobRef
+	typeStr
 )
 
 var (
 	keyRecentPermanode = &keyType{
 		"recpn",
-		[]keyPart{
+		[]part{
 			{"owner", typeKeyId},
 			{"modtime", typeReverseTime},
 			{"claim", typeBlobRef},
+		},
+		nil,
+	}
+
+	keySignerTargetPaths = &keyType{
+		"signertargetpath",
+		[]part{
+			{"signer", typeKeyId},
+			{"target", typeBlobRef},
+			{"claim", typeBlobRef}, // for key uniqueness
+		},
+		[]part{
+			{"claimDate", typeTime},
+			{"base", typeBlobRef},
+			{"active", typeStr}, // 'Y', or 'N' for deleted
+			{"suffix", typeStr},
 		},
 	}
 )

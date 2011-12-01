@@ -22,6 +22,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"camli/blobref"
 	"camli/blobserver"
@@ -126,6 +127,25 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 
 	claimKey := pipes("claim", pnbr, verifiedKeyId, ss.ClaimDate, br)
 	bm.Set(claimKey, pipes(urle(ss.ClaimType), urle(ss.Attribute), urle(ss.Value)))
+
+	if strings.HasPrefix(ss.Attribute, "camliPath:") {
+		targetRef := blobref.Parse(ss.Value)
+		if targetRef != nil {
+			// TODO: deal with set-attribute vs. del-attribute
+			// properly? I think we get it for free when
+			// del-attribute has no Value, but we need to deal
+			// with the case where they explicitly delete the
+			// current value.
+			suffix := ss.Attribute[len("camliPath:"):]
+			active := "Y"
+			if ss.ClaimType == "del-attribute" {
+				active = "N"
+			}
+			stpKey := keySignerTargetPaths.Key(verifiedKeyId, targetRef, br)
+			stpVal := keySignerTargetPaths.Val(ss.ClaimDate, pnbr, active, suffix)
+			bm.Set(stpKey, stpVal)
+		}
+	}
 
 	if search.IsIndexedAttribute(ss.Attribute) {
 		savKey := pipes("signerattrvalue",

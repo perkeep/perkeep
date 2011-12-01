@@ -283,9 +283,55 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	return nil, os.ENOENT
 }
 
-func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*search.Path, os.Error) {
-	log.Printf("index: TODO PathsOfSignerTarget")
-	return nil, os.NewError("TODO: PathsOfSignerTarget")
+func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*search.Path, err os.Error) {
+	paths = []*search.Path{}
+	keyId, err := x.keyId(signer)
+	if err != nil {
+		if err == ErrNotFound {
+			err = nil
+		}
+		return
+	}
+
+	mostRecent := make(map[string]*search.Path)
+	maxClaimDates := make(map[string]string)
+
+	it := x.queryPrefix(keySignerTargetPaths, keyId, target)
+	defer it.Close()
+	for it.Next() {
+		keyPart := strings.Split(it.Key(), "|")
+		valPart := strings.Split(it.Value(), "|")
+		if len(keyPart) < 3 || len(valPart) < 4 {
+			continue
+		}
+		claimRef := blobref.Parse(keyPart[2])
+		baseRef := blobref.Parse(valPart[1])
+		if claimRef == nil || baseRef == nil {
+			continue
+		}
+		claimDate := valPart[0]
+		active := valPart[2]
+		suffix := urld(valPart[3])
+		key := baseRef.String() + "/" + suffix
+
+		if claimDate > maxClaimDates[key] {
+			maxClaimDates[key] = claimDate
+			if active == "Y" {
+				mostRecent[key] = &search.Path{
+					Claim:     claimRef,
+					ClaimDate: claimDate,
+					Base:      baseRef,
+					Suffix:    suffix,
+				}
+			} else {
+				mostRecent[key] = nil, false
+			}
+		}
+	}
+	for _, v := range mostRecent {
+		paths = append(paths, v)
+	}
+	return paths, nil
 }
 
 func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*search.Path, os.Error) {

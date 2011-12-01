@@ -148,6 +148,7 @@ func TestIndex(t *testing.T) {
 	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
 	rootClaimTime := id.lastTimeNanos()
 	t.Logf("set attribute %q", rootClaim)
+
 	id.dumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
@@ -273,6 +274,39 @@ func TestIndex(t *testing.T) {
 				t.Errorf("GetOwnerClaims results differ.\n got: %v\nwant: %v",
 					claims, want)
 			}
+		}
+	}
+}
+
+func TestPathsOfSignerTarget(t *testing.T) {
+	id := NewIndexDeps()
+	pn := id.NewPermanode()
+	t.Logf("uploaded permanode %q", pn)
+
+	claim1 := id.SetAttribute(pn, "camliPath:somedir", "targ-123")
+	claim2 := id.SetAttribute(pn, "camliPath:with|pipe", "targ-124")
+	t.Logf("made path claims %q and %q", claim1, claim2)
+
+	id.dumpIndex(t)
+
+	type test struct {
+		blobref string
+		want int
+	}
+	tests := []test{
+		{"targ-123", 1},
+		{"targ-124", 1},
+		{"targ-125", 0},
+	}
+	for _, tt := range tests {
+		signer := id.SignerBlobRef
+		paths, err := id.Index.PathsOfSignerTarget(signer, blobref.Parse(tt.blobref))
+		if err != nil {
+			t.Fatalf("PathsOfSignerTarget(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsOfSignerTarget(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
 		}
 	}
 }
