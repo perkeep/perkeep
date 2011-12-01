@@ -280,7 +280,7 @@ func main() {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 
-	gerritUrl, _ := url.Parse("http://gerrit-proxy:8000/")
+	gerritUrl, _ := url.Parse(fmt.Sprintf("http://%s:8000/", *gerritHost))
 	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
 	if *httpsAddr != "" {
 		proxyHandler := gerritHandler
