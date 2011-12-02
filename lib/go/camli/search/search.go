@@ -105,6 +105,11 @@ type Path struct {
 	Suffix              string
 }
 
+func (p *Path) String() string {
+	return fmt.Sprintf("Path{Claim: %v, %v; Base: %v + Suffix %q => Target %v}",
+		p.Claim, p.ClaimDate, p.Base, p.Suffix, p.Target)
+}
+
 type PermanodeByAttrRequest struct {
 	Attribute  string // currently supported: "tag", "title"
 	Query      string

@@ -308,6 +308,15 @@ func TestPathsOfSignerTarget(t *testing.T) {
 			t.Fatalf("PathsOfSignerTarget(%q) got %d results; want %d",
 				tt.blobref, len(paths), tt.want)
 		}
+		if tt.blobref == "targ-123" {
+			p := paths[0]
+			want := fmt.Sprintf(
+				"Path{Claim: %s, 2011-11-28T01:32:37.000123456Z; Base: %s + Suffix \"somedir\" => Target targ-123}",
+				claim1, pn)
+			if g := p.String(); g != want {
+				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
+			}
+		}
 	}
 }
 

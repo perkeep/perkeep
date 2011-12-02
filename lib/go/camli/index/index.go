@@ -299,7 +299,7 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 	it := x.queryPrefix(keySignerTargetPaths, keyId, target)
 	defer it.Close()
 	for it.Next() {
-		keyPart := strings.Split(it.Key(), "|")
+		keyPart := strings.Split(it.Key(), "|")[1:]
 		valPart := strings.Split(it.Value(), "|")
 		if len(keyPart) < 3 || len(valPart) < 4 {
 			continue
@@ -322,6 +322,7 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 					ClaimDate: claimDate,
 					Base:      baseRef,
 					Suffix:    suffix,
+					Target:    target,
 				}
 			} else {
 				mostRecent[key] = nil, false
