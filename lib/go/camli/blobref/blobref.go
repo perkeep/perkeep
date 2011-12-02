@@ -105,7 +105,7 @@ func (b *BlobRef) DomID() string {
 	return "camli-" + b.String()
 }
 
-func (o *BlobRef) Equals(other *BlobRef) bool {
+func (o *BlobRef) Equal(other *BlobRef) bool {
 	return o.hashName == other.hashName && o.digest == other.digest
 }
 

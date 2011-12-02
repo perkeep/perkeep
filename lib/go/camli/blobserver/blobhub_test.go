@@ -84,7 +84,7 @@ func TestHubFiring(t *testing.T) {
 	case <-tmr1.C:
 		t.Fatal("timer expired on receiving from ch")
 	case got := <-ch:
-		if !blob.Equals(got) {
+		if !blob.Equal(got) {
 			t.Fatalf("got wrong blob")
 		}
 	}
@@ -93,7 +93,7 @@ func TestHubFiring(t *testing.T) {
 	case <-tmr1.C:
 		t.Fatal("timer expired on receiving from bch")
 	case got := <-bch:
-		if !blob.Equals(got) {
+		if !blob.Equal(got) {
 			t.Fatalf("got wrong blob")
 		}
 	}
