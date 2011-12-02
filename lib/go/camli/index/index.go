@@ -254,7 +254,7 @@ func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64,
 
 func (x *Index) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
 	log.Printf("index: TODO ExistingFileSchemas")
-	return nil, os.NewError("TODO: xxx")
+	return nil, os.NewError("TODO: ExistingFileSchemas")
 }
 
 func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
@@ -296,7 +296,7 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 	mostRecent := make(map[string]*search.Path)
 	maxClaimDates := make(map[string]string)
 
-	it := x.queryPrefix(keySignerTargetPaths, keyId, target)
+	it := x.queryPrefix(keyPathBackward, keyId, target)
 	defer it.Close()
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")[1:]
@@ -335,12 +335,91 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 	return paths, nil
 }
 
-func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*search.Path, os.Error) {
-	log.Printf("index: TODO PathsLookup")
-	return nil, os.NewError("TODO: PathsLookup")
+func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths []*search.Path, err os.Error) {
+	paths = []*search.Path{}
+	keyId, err := x.keyId(signer)
+	if err != nil {
+		if err == ErrNotFound {
+			err = nil
+		}
+		return
+	}
+
+	it := x.queryPrefix(keyPathForward, keyId, base, suffix)
+	defer it.Close()
+	for it.Next() {
+		keyPart := strings.Split(it.Key(), "|")[1:]
+		valPart := strings.Split(it.Value(), "|")
+		if len(keyPart) < 5 || len(valPart) < 2 {
+			continue
+		}
+		claimRef := blobref.Parse(keyPart[4])
+		baseRef := blobref.Parse(keyPart[1])
+		if claimRef == nil || baseRef == nil {
+			continue
+		}
+		claimDate := unreverseTimeString(keyPart[3])
+		suffix := urld(keyPart[2])
+		target := blobref.Parse(valPart[1])
+
+		// TODO(bradfitz): investigate what's up with deleted
+		// forward path claims here.  Needs docs with the
+		// interface too, and tests.
+		active := valPart[0]
+		_ = active
+
+		path := &search.Path{
+			Claim:     claimRef,
+			ClaimDate: claimDate,
+			Base:      baseRef,
+			Suffix:    suffix,
+			Target:    target,
+		}
+		paths = append(paths, path)
+	}
+	return
 }
 
 func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at *time.Time) (*search.Path, os.Error) {
-	log.Printf("index: TODO PathLookup")
-	return nil, os.NewError("TODO: PathLookup")
+	paths, err := x.PathsLookup(signer, base, suffix)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		newest    = int64(0)
+		atSeconds = int64(0)
+		best      *search.Path
+	)
+	if at != nil {
+		atSeconds = at.Seconds()
+	}
+	for _, path := range paths {
+		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(path.ClaimDate))
+		if err != nil {
+			continue
+		}
+		secs := t.Seconds()
+		if atSeconds != 0 && secs > atSeconds {
+			// Too new
+			continue
+		}
+		if newest > secs {
+			// Too old
+			continue
+		}
+		// Just right
+		newest, best = secs, path
+	}
+	if best == nil {
+		return nil, os.ENOENT
+	}
+	return best, nil
+}
+
+// TODO(bradfitz): remove this as of Go 1. shouldn't be needed anymore.
+func trimRFC3339Subseconds(s string) string {
+	if !strings.HasSuffix(s, "Z") || len(s) < 20 || s[19] != '.' {
+		return s
+	}
+	return s[:19] + "Z"
 }

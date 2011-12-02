@@ -291,7 +291,7 @@ func TestPathsOfSignerTarget(t *testing.T) {
 
 	type test struct {
 		blobref string
-		want int
+		want    int
 	}
 	tests := []test{
 		{"targ-123", 1},
@@ -317,6 +317,14 @@ func TestPathsOfSignerTarget(t *testing.T) {
 				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
 			}
 		}
+	}
+
+	path, err := id.Index.PathLookup(id.SignerBlobRef, pn, "with|pipe", nil)
+	if err != nil {
+		t.Fatalf("PathLookup = %v", err)
+	}
+	if g, e := path.Target.String(), "targ-124"; g != e {
+		t.Errorf("PathLookup = %q; want %q", g, e)
 	}
 }
 

@@ -141,9 +141,16 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 			if ss.ClaimType == "del-attribute" {
 				active = "N"
 			}
-			stpKey := keySignerTargetPaths.Key(verifiedKeyId, targetRef, br)
-			stpVal := keySignerTargetPaths.Val(ss.ClaimDate, pnbr, active, suffix)
-			bm.Set(stpKey, stpVal)
+			baseRef := pnbr
+			claimRef := br
+
+			key := keyPathBackward.Key(verifiedKeyId, targetRef, claimRef)
+			val := keyPathBackward.Val(ss.ClaimDate, baseRef, active, suffix)
+			bm.Set(key, val)
+
+			key = keyPathForward.Key(verifiedKeyId, baseRef, suffix, ss.ClaimDate, claimRef)
+			val = keyPathForward.Val(active, targetRef)
+			bm.Set(key, val)
 		}
 	}
 

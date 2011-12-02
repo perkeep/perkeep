@@ -112,7 +112,7 @@ var (
 		nil,
 	}
 
-	keySignerTargetPaths = &keyType{
+	keyPathBackward = &keyType{
 		"signertargetpath",
 		[]part{
 			{"signer", typeKeyId},
@@ -124,6 +124,21 @@ var (
 			{"base", typeBlobRef},
 			{"active", typeStr}, // 'Y', or 'N' for deleted
 			{"suffix", typeStr},
+		},
+	}
+
+	keyPathForward = &keyType{
+		"path",
+		[]part{
+			{"signer", typeKeyId},
+			{"base", typeBlobRef},
+			{"suffix", typeStr},
+			{"claimDate", typeReverseTime},
+			{"claim", typeBlobRef}, // for key uniqueness
+		},
+		[]part{
+			{"active", typeStr}, // 'Y', or 'N' for deleted
+			{"target", typeBlobRef},
 		},
 	}
 )
