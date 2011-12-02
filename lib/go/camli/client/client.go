@@ -22,12 +22,13 @@ import (
 	"log"
 	"os"
 	"sync"
+
+	"camli/auth"
 )
 
 type Client struct {
-	server         string // URL prefix before "/camli/"
-	authType       string // first part of the auth string, e.g "userpass"
-	user, password string // only used if authType is "userpass"
+	server   string // URL prefix before "/camli/"
+	authMode auth.AuthMode
 
 	httpClient *http.Client
 
@@ -105,26 +106,11 @@ func (c *Client) Stats() Stats {
 	return c.stats // copy
 }
 
-func (c *Client) HasAuthCredentials() bool {
-	return c.authType != ""
-}
-
 func (c *Client) newRequest(method, url string) *http.Request {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		panic(err.String())
 	}
-	c.addAuthHeader(req)
+	c.authMode.AddAuthHeader(req)
 	return req
-}
-
-func (c *Client) addAuthHeader(req *http.Request) {
-	if c.HasAuthCredentials() {
-		switch c.authType {
-		case "userpass":
-			req.SetBasicAuth(c.user, c.password)
-		default:
-			log.Fatal("Unknown auth mechanism: %q", c.authType)
-		}
-	}
 }

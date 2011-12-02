@@ -18,7 +18,6 @@ package client
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"io/ioutil"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"camli/auth"
 	"camli/blobref"
 	"camli/jsonconfig"
 	"camli/jsonsign"
@@ -93,38 +93,16 @@ func (c *Client) SetupAuth() os.Error {
 	return c.SetupAuthFromConfig(config)
 }
 
-// TODO(mpl): do something more generic for client side akin to camli/auth for server side
-func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) os.Error {
+func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) (err os.Error) {
 	value, ok := conf["auth"]
 	authString := ""
 	if ok {
 		authString, ok = value.(string)
+		c.authMode, err = auth.FromConfig(authString)
+	} else {
+		c.authMode, err = auth.FromEnv()
 	}
-	if !ok {
-		// check env vars if auth scheme not in config file
-		authString = os.Getenv("CAMLI_AUTH")
-		if authString == "" {
-			return fmt.Errorf("No CAMLI_AUTH defined, and no \"auth\" defined in %q", ConfigFilePath())
-		}
-	}
-	pieces := strings.Split(authString, ":")
-	if len(pieces) < 2 {
-		return fmt.Errorf("Invalid auth scheme syntax: %d pieces", len(pieces))
-	}
-	c.authType = pieces[0]
-	switch c.authType {
-	case "userpass":
-		c.user = pieces[1]
-		c.password = pieces[2]
-		// just keeping this note here, in case Brad still finds it relevant
-		// TODO: provide way to override warning?
-		// Or make a way to do deferred errors?  A blank password might
-		// be valid, but it might also signal the root cause of an error
-		// in the future.
-	default:
-		return fmt.Errorf("Unknown auth scheme %q", c.authType)
-	}
-	return nil
+	return err
 }
 
 // Returns blobref of signer's public key, or nil if unconfigured.
