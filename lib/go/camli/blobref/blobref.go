@@ -106,6 +106,12 @@ func (b *BlobRef) DomID() string {
 }
 
 func (o *BlobRef) Equal(other *BlobRef) bool {
+	if (o == nil) != (other == nil) {
+		return false
+	}
+	if o == nil {
+		return true
+	}
 	return o.hashName == other.hashName && o.digest == other.digest
 }
 
