@@ -62,6 +62,13 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{})
 			return s
 		}
 		switch parts[i].typ {
+		case typeIntStr:
+			switch arg.(type) {
+			case int, int64, uint64:
+				buf.WriteString(fmt.Sprintf("%d", arg))
+			default:
+				panic("bogus int type")
+			}
 		case typeStr:
 			buf.WriteString(urle(asStr()))
 		case typeReverseTime:
@@ -99,6 +106,7 @@ const (
 	typeReverseTime // time prepended with "rt" + each numeric digit reversed from '9'
 	typeBlobRef
 	typeStr
+	typeIntStr // integer as string
 )
 
 var (
@@ -150,6 +158,18 @@ var (
 		},
 		[]part{
 			{"1", typeStr},
+		},
+	}
+
+	keyFileInfo = &keyType{
+		"fileinfo",
+		[]part{
+			{"file", typeBlobRef},
+		},
+		[]part{
+			{"size", typeIntStr},
+			{"filename", typeStr},
+			{"mimetype", typeStr},
 		},
 	}
 )

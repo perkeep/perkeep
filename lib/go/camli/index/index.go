@@ -433,8 +433,27 @@ func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*bl
 }
 
 func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
-	log.Printf("index: TODO GetFileInfo")
-	return nil, os.NewError("TODO: GetFileInfo")
+	key := "fileinfo|" + fileRef.String()
+	v, err := x.s.Get(key)
+	if err == ErrNotFound {
+		return nil, os.ENOENT
+	}
+	valPart := strings.Split(v, "|")
+	if len(valPart) < 3 {
+		log.Printf("index: bogus key %q = %q", key, v)
+		return nil, os.ENOENT
+	}
+	size, err := strconv.Atoi64(valPart[0])
+	if err != nil {
+		log.Printf("index: bogus integer at position 0 in key %q = %q", key, v)
+		return nil, os.ENOENT
+	}
+	fi := &search.FileInfo{
+		Size:     size,
+		FileName: urld(valPart[1]),
+		MimeType: urld(valPart[2]),
+	}
+	return fi, nil
 }
 
 func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {

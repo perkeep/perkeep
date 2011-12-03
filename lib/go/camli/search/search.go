@@ -162,6 +162,7 @@ type Index interface {
 	// all exist on the blob server.
 	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err os.Error)
 
+	// Should return os.ENOENT if not found.
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error)
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,

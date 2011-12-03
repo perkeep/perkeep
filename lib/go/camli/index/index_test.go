@@ -367,22 +367,47 @@ func TestPathsOfSignerTarget(t *testing.T) {
 
 func TestFiles(t *testing.T) {
 	id := NewIndexDeps()
-	fileRef, wholeRef := id.UploadFile("foo.txt", "I am a text file.")
+	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>")
 	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
 	id.dumpIndex(t)
 
-	key := fmt.Sprintf("wholetofile|%s|%s", wholeRef, fileRef)
-	if g, e := id.Get(key), "1"; g != e {
-		t.Fatalf("%q = %q, want %q", key, g, e)
+	// ExistingFileSchemas
+	{
+		key := fmt.Sprintf("wholetofile|%s|%s", wholeRef, fileRef)
+		if g, e := id.Get(key), "1"; g != e {
+			t.Fatalf("%q = %q, want %q", key, g, e)
+		}
+
+		refs, err := id.Index.ExistingFileSchemas(wholeRef)
+		if err != nil {
+			t.Fatalf("ExistingFileSchemas = %v", err)
+		}
+		want := []*blobref.BlobRef{fileRef}
+		if !reflect.DeepEqual(refs, want) {
+			t.Errorf("ExistingFileSchemas got = %#v, want %#v", refs, want)
+		}
 	}
 
-	refs, err := id.Index.ExistingFileSchemas(wholeRef)
-	if err != nil {
-		t.Fatalf("ExistingFileSchemas = %v", err)
-	}
-	want := []*blobref.BlobRef{fileRef}
-	if !reflect.DeepEqual(refs, want) {
-		t.Errorf("ExistingFileSchemas got = %#v, want %#v", refs, want)
+	// FileInfo
+	{
+		key := fmt.Sprintf("fileinfo|%s", fileRef)
+		if g, e := id.Get(key), "31|foo.html|text%2Fhtml"; g != e {
+			t.Fatalf("%q = %q, want %q", key, g, e)
+		}
+
+		fi, err := id.Index.GetFileInfo(fileRef)
+		if err != nil {
+			t.Fatalf("GetFileInfo = %v", err)
+		}
+		if g, e := fi.Size, int64(31); g != e {
+			t.Errorf("Size = %d, want %d", g, e)
+		}
+		if g, e := fi.FileName, "foo.html"; g != e {
+			t.Errorf("FileName = %q, want %q", g, e)
+		}
+		if g, e := fi.MimeType, "text/html"; g != e {
+			t.Errorf("MimeType = %q, want %q", g, e)
+		}
 	}
 }
 

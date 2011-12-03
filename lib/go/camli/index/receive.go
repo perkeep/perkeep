@@ -118,7 +118,7 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 		return nil
 	}
 	mime, reader := magic.MimeTypeFromReader(fr)
-	n, err := io.Copy(sha1, reader)
+	size, err := io.Copy(sha1, reader)
 	if err != nil {
 		// TODO: job scheduling system to retry this spaced
 		// out max n times.  Right now our options are
@@ -131,23 +131,8 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 	}
 
 	wholeRef := blobref.FromHash("sha1", sha1)
-	log.Printf("file %s blobref is %s, size %d, mime %q", blobRef, wholeRef, n, mime)
-
-	wholeToSchema := keyWholeToFileRef.Key(wholeRef, blobRef)
-	bm.Set(wholeToSchema, "1")
-
-	/*
-		err = mi.db.Execute(
-			"INSERT IGNORE INTO bytesfiles (schemaref, camlitype, wholedigest, size, filename, mime) VALUES (?, ?, ?, ?, ?, ?)",
-			blobRef.String(),
-			"file",
-			blobref.FromHash("sha1", sha1).String(),
-			n,
-			ss.FileNameString(),
-			mime,
-		)
-	*/
-
+	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, ss.FileName, mime))
 	return nil
 }
 
