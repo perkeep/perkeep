@@ -18,6 +18,7 @@ package index
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"testing"
@@ -30,8 +31,12 @@ import (
 	"camli/test"
 )
 
+var _ = log.Printf
+
 type IndexDeps struct {
 	Index *Index
+
+	BlobSource *test.Fetcher
 
 	// Following three needed for signing:
 	PublicKeyFetcher *test.Fetcher
@@ -103,6 +108,36 @@ func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string
 	return id.uploadAndSignMap(m)
 }
 
+func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, wholeRef *blobref.BlobRef) {
+	cb := &test.Blob{Contents: contents}
+	id.BlobSource.AddBlob(cb)
+	wholeRef = cb.BlobRef()
+	_, err := id.Index.ReceiveBlob(wholeRef, cb.Reader())
+	if err != nil {
+		panic(err)
+	}
+
+	m := schema.NewFileMap(fileName)
+	schema.PopulateParts(m, int64(len(contents)), []schema.BytesPart{
+		schema.BytesPart{
+			Size:    uint64(len(contents)),
+			BlobRef: wholeRef,
+		}})
+	fjson, err := schema.MapToCamliJson(m)
+	if err != nil {
+		panic(err)
+	}
+	fb := &test.Blob{Contents: fjson}
+	log.Printf("Blob is: %s", fjson)
+	id.BlobSource.AddBlob(fb)
+	fileRef = fb.BlobRef()
+	_, err = id.Index.ReceiveBlob(fileRef, fb.Reader())
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
 func NewIndexDeps() *IndexDeps {
 	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -118,6 +153,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 
 	id := &IndexDeps{
 		Index:            newMemoryIndex(),
+		BlobSource:       new(test.Fetcher),
 		PublicKeyFetcher: new(test.Fetcher),
 		EntityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
@@ -132,6 +168,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 	}
 	id.PublicKeyFetcher.AddBlob(pubKey)
 	id.Index.KeyFetcher = id.PublicKeyFetcher
+	id.Index.BlobSource = id.BlobSource
 	return id
 }
 
@@ -325,6 +362,27 @@ func TestPathsOfSignerTarget(t *testing.T) {
 	}
 	if g, e := path.Target.String(), "targ-124"; g != e {
 		t.Errorf("PathLookup = %q; want %q", g, e)
+	}
+}
+
+func TestFiles(t *testing.T) {
+	id := NewIndexDeps()
+	fileRef, wholeRef := id.UploadFile("foo.txt", "I am a text file.")
+	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
+	id.dumpIndex(t)
+
+	key := fmt.Sprintf("wholetofile|%s|%s", wholeRef, fileRef)
+	if g, e := id.Get(key), "1"; g != e {
+		t.Fatalf("%q = %q, want %q", key, g, e)
+	}
+
+	refs, err := id.Index.ExistingFileSchemas(wholeRef)
+	if err != nil {
+		t.Fatalf("ExistingFileSchemas = %v", err)
+	}
+	want := []*blobref.BlobRef{fileRef}
+	if !reflect.DeepEqual(refs, want) {
+		t.Errorf("ExistingFileSchemas got = %#v, want %#v", refs, want)
 	}
 }
 

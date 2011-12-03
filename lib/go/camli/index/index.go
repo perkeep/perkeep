@@ -114,7 +114,7 @@ type Index struct {
 
 	// Used for fetching blobs to find the complete sha1s of file & bytes
 	// schema blobs.
-	BlobSource blobserver.Storage
+	BlobSource blobref.StreamingFetcher
 }
 
 var _ blobserver.Storage = (*Index)(nil)
@@ -151,7 +151,14 @@ func (x *Index) queryPrefixString(prefix string) *prefixIter {
 	}
 }
 
-func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) os.Error {
+func closeIterator(it Iterator, perr *os.Error) {
+	err := it.Close()
+	if err != nil && *perr == nil {
+		*perr = err
+	}
+}
+
+func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) (err os.Error) {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage
 
@@ -167,7 +174,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 	var seenPermanode dupSkipper
 
 	it := x.queryPrefix(keyRecentPermanode, keyId)
-	defer it.Close()
+	defer closeIterator(it, &err)
 	for it.Next() {
 		permaStr := it.Value()
 		parts := strings.SplitN(it.Key(), "|", 4)
@@ -208,7 +215,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 	}
 	prefix := pipes("claim", permaNode, keyId, "")
 	it := x.queryPrefixString(prefix)
-	defer it.Close()
+	defer closeIterator(it, &err)
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")
 		valPart := strings.Split(it.Value(), "|")
@@ -252,7 +259,7 @@ func (x *Index) keyId(signer *blobref.BlobRef) (string, os.Error) {
 	return x.s.Get("signerkeyid:" + signer.String())
 }
 
-func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, os.Error) {
+func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (permaNode *blobref.BlobRef, err os.Error) {
 	keyId, err := x.keyId(signer)
 	if err == ErrNotFound {
 		return nil, os.ENOENT
@@ -261,7 +268,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 		return nil, err
 	}
 	it := x.queryPrefixString(pipes("signerattrvalue", keyId, urle(attr), urle(val), ""))
-	defer it.Close()
+	defer closeIterator(it, &err)
 	if it.Next() {
 		return blobref.Parse(it.Value()), nil
 	}
@@ -282,7 +289,7 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 	maxClaimDates := make(map[string]string)
 
 	it := x.queryPrefix(keyPathBackward, keyId, target)
-	defer it.Close()
+	defer closeIterator(it, &err)
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")[1:]
 		valPart := strings.Split(it.Value(), "|")
@@ -331,7 +338,7 @@ func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths
 	}
 
 	it := x.queryPrefix(keyPathForward, keyId, base, suffix)
-	defer it.Close()
+	defer closeIterator(it, &err)
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")[1:]
 		valPart := strings.Split(it.Value(), "|")
@@ -409,9 +416,20 @@ func trimRFC3339Subseconds(s string) string {
 	return s[:19] + "Z"
 }
 
-func (x *Index) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
-	log.Printf("index: TODO ExistingFileSchemas")
-	return nil, os.NewError("TODO: ExistingFileSchemas")
+func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err os.Error) {
+	it := x.queryPrefix(keyWholeToFileRef, wholeRef)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		keyPart := strings.Split(it.Key(), "|")[1:]
+		if len(keyPart) < 2 {
+			continue
+		}
+		ref := blobref.Parse(keyPart[1])
+		if ref != nil {
+			schemaRefs = append(schemaRefs, ref)
+		}
+	}
+	return schemaRefs, nil
 }
 
 func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {

@@ -18,6 +18,7 @@ package index
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"io"
 	"log"
@@ -27,6 +28,7 @@ import (
 	"camli/blobref"
 	"camli/blobserver"
 	"camli/jsonsign"
+	"camli/magic"
 	"camli/schema"
 	"camli/search"
 )
@@ -88,11 +90,64 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 			//return err
 			//}
 		case "file":
-			// if err := mi.populateFile(blobRef, camli, bm); err != nil {
-			//return err
-			//}
+			if err := ix.populateFile(br, camli, bm); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+// blobref: of the file or schema blob
+//      ss: the parsed file schema blob
+//      bm: keys to populate
+func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm BatchMutation) os.Error {
+	seekFetcher, err := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
+	if err != nil {
+		return err
+	}
+
+	sha1 := sha1.New()
+	fr, err := ss.NewFileReader(seekFetcher)
+	if err != nil {
+		// TODO(bradfitz): propagate up a transient failure
+		// error type, so we can retry indexing files in the
+		// future if blobs are only temporarily unavailable.
+		// Basically the same as the TODO just below.
+		log.Printf("index: error indexing file, creating NewFileReader %s: %v", blobRef, err)
+		return nil
+	}
+	mime, reader := magic.MimeTypeFromReader(fr)
+	n, err := io.Copy(sha1, reader)
+	if err != nil {
+		// TODO: job scheduling system to retry this spaced
+		// out max n times.  Right now our options are
+		// ignoring this error (forever) or returning the
+		// error and making the indexing try again (likely
+		// forever failing).  Both options suck.  For now just
+		// log and act like all's okay.
+		log.Printf("index: error indexing file %s: %v", blobRef, err)
+		return nil
+	}
+
+	wholeRef := blobref.FromHash("sha1", sha1)
+	log.Printf("file %s blobref is %s, size %d, mime %q", blobRef, wholeRef, n, mime)
+
+	wholeToSchema := keyWholeToFileRef.Key(wholeRef, blobRef)
+	bm.Set(wholeToSchema, "1")
+
+	/*
+		err = mi.db.Execute(
+			"INSERT IGNORE INTO bytesfiles (schemaref, camlitype, wholedigest, size, filename, mime) VALUES (?, ?, ?, ?, ?, ?)",
+			blobRef.String(),
+			"file",
+			blobref.FromHash("sha1", sha1).String(),
+			n,
+			ss.FileNameString(),
+			mime,
+		)
+	*/
+
 	return nil
 }
 

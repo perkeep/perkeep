@@ -141,4 +141,15 @@ var (
 			{"target", typeBlobRef},
 		},
 	}
+
+	keyWholeToFileRef = &keyType{
+		"wholetofile",
+		[]part{
+			{"whole", typeBlobRef},
+			{"schema", typeBlobRef}, // for key uniqueness
+		},
+		[]part{
+			{"1", typeStr},
+		},
+	}
 )
