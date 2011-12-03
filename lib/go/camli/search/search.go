@@ -143,14 +143,24 @@ type Index interface {
 	// os.ENOENT should be returned if the blob isn't known
 	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err os.Error)
 
-	// ExistingFileSchemas returns 0 or more blobrefs of file
-	// schema blobs that represent the bytes of a file given in
-	// bytesRef.  The file schema blobs returned are not
-	// guaranteed to reference chunks that still exist on the
-	// blobservers, though.  It's purely a hint for clients to
-	// avoid uploads if possible.  Before re-using any returned
-	// blobref they should be checked.
-	ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error)
+	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
+	// (TODO(bradfitz): or file?) schema blobs that represent the
+	// bytes of a file given in bytesRef.  The file schema blobs
+	// returned are not guaranteed to reference chunks that still
+	// exist on the blobservers, though.  It's purely a hint for
+	// clients to avoid uploads if possible.  Before re-using any
+	// returned blobref they should be checked.
+	//
+	// Use case: a user drag & drops a large file onto their
+	// browser to upload.  (imagine that "large" means anything
+	// larger than a blobserver's max blob size) JavaScript can
+	// first SHA-1 the large file locally, then send the
+	// wholeFileRef to this call and see if they'd previously
+	// uploaded the same file in the past.  If so, the upload
+	// can be avoided if at least one of the returned schemaRefs
+	// can be validated (with a validating HEAD request) to still
+	// all exist on the blob server.
+	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, os.Error)
 
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error)
 
