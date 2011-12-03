@@ -160,7 +160,7 @@ type Index interface {
 	// can be avoided if at least one of the returned schemaRefs
 	// can be validated (with a validating HEAD request) to still
 	// all exist on the blob server.
-	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, os.Error)
+	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err os.Error)
 
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, os.Error)
 
