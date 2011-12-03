@@ -197,11 +197,6 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 	return nil
 }
 
-func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
-	log.Printf("index: TODO SearchPermanodesWithAttr")
-	return os.NewError("TODO: SearchPermanodesWithAttr")
-}
-
 func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.ClaimList, err os.Error) {
 	keyId, err := x.keyId(owner)
 	if err == ErrNotFound {
@@ -250,16 +245,6 @@ func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64,
 	size, _ = strconv.Atoi64(meta[:pos])
 	mime = meta[pos+1:]
 	return
-}
-
-func (x *Index) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
-	log.Printf("index: TODO ExistingFileSchemas")
-	return nil, os.NewError("TODO: ExistingFileSchemas")
-}
-
-func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
-	log.Printf("index: TODO GetFileInfo")
-	return nil, os.NewError("TODO: GetFileInfo")
 }
 
 // maps from blobref of openpgp ascii-armored public key => gpg keyid like "2931A67C26F5ABDA"
@@ -422,4 +407,19 @@ func trimRFC3339Subseconds(s string) string {
 		return s
 	}
 	return s[:19] + "Z"
+}
+
+func (x *Index) ExistingFileSchemas(bytesRef *blobref.BlobRef) ([]*blobref.BlobRef, os.Error) {
+	log.Printf("index: TODO ExistingFileSchemas")
+	return nil, os.NewError("TODO: ExistingFileSchemas")
+}
+
+func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Error) {
+	log.Printf("index: TODO GetFileInfo")
+	return nil, os.NewError("TODO: GetFileInfo")
+}
+
+func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
+	log.Printf("index: TODO SearchPermanodesWithAttr")
+	return os.NewError("TODO: SearchPermanodesWithAttr")
 }
