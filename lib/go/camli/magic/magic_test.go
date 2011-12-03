@@ -17,25 +17,36 @@ limitations under the License.
 package magic
 
 import (
-	. "camli/test/asserts"
 	"io/ioutil"
+	"os"
 	"testing"
+
+	. "camli/test/asserts"
 )
 
 type magicTest struct {
-	fileName, expected string
+	fileName, data string // one of these set
+	want           string
 }
 
 var tests = []magicTest{
-	{"smile.jpg", "image/jpeg"},
-	{"smile.png", "image/png"},
+	{fileName: "smile.jpg", want: "image/jpeg"},
+	{fileName: "smile.png", want: "image/png"},
+	{data: "<html>foo</html>", want: "text/html"},
+	{data: "\xff", want: ""},
 }
 
-func TestGolden(t *testing.T) {
-	for _, test := range tests {
-		data, err := ioutil.ReadFile("testdata/" + test.fileName)
-		AssertNil(t, err, "no error reading "+test.fileName)
+func TestMagic(t *testing.T) {
+	for i, tt := range tests {
+		var err os.Error
+		data := []byte(tt.data)
+		if tt.fileName != "" {
+			data, err = ioutil.ReadFile("testdata/" + tt.fileName)
+			AssertNil(t, err, "no error reading "+tt.fileName)
+		}
 		mime := MimeType(data)
-		ExpectString(t, test.expected, mime, test.fileName)
+		if mime != tt.want {
+			t.Errorf("%d. got %q; want %q", i, mime, tt.want)
+		}
 	}
 }

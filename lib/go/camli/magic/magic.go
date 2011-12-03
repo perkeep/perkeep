@@ -18,7 +18,9 @@ package magic
 
 import (
 	"bytes"
+	"http"
 	"io"
+	"strings"
 )
 
 type prefixEntry struct {
@@ -43,6 +45,11 @@ func MimeType(hdr []byte) string {
 		if hlen > plen && bytes.Equal(hdr[:plen], pte.prefix) {
 			return pte.mtype
 		}
+	}
+	t := http.DetectContentType(hdr)
+	t = strings.Replace(t, "; charset=utf-8", "", 1)
+	if t != "application/octet-stream" && t != "text/plain" {
+		return t
 	}
 	return ""
 }
