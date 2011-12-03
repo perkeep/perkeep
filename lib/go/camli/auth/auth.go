@@ -32,7 +32,11 @@ var (
 )
 
 type AuthMode interface {
+	// IsAuthorized checks the credentials in req.
 	IsAuthorized(req *http.Request) bool
+	// AddAuthHeader inserts in req the credentials needed
+	// for a client to authenticate. 
+	AddAuthHeader(req *http.Request)
 }
 
 func FromEnv() (AuthMode, os.Error) {
@@ -108,6 +112,10 @@ func (up *UserPass) IsAuthorized(req *http.Request) bool {
 	return user == up.Username && pass == up.Password
 }
 
+func (up *UserPass) AddAuthHeader(req *http.Request) {
+	req.SetBasicAuth(up.Username, up.Password)
+}
+
 // DevAuth is used when the env var CAMLI_ADVERTISED_PASSWORD
 // is defined
 type DevAuth struct {
@@ -121,6 +129,10 @@ func (da *DevAuth) IsAuthorized(req *http.Request) bool {
 		return false
 	}
 	return pass == da.Password
+}
+
+func (da *DevAuth) AddAuthHeader(req *http.Request) {
+	req.SetBasicAuth("", da.Password)
 }
 
 func IsAuthorized(req *http.Request) bool {

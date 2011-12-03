@@ -53,7 +53,7 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 		return fmt.Errorf("Error creating RemoveBlobs POST request: %v", err)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	c.addAuthHeader(req)
+	c.authMode.AddAuthHeader(req)
 	resp, err := c.httpClient.Do(req)
 
 	if err != nil {
