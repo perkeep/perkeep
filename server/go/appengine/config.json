@@ -1,7 +1,6 @@
 { "_for-emacs": "-*- mode: js2;-*-",
   "baseURL": "*** Populated by runtime. Ignore this.",
-  "password": "foo",
-
+  "auth": "userpass:foo:bar",
   "prefixes": {
 
     "/ui/": {
