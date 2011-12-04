@@ -280,7 +280,6 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	defer close(dest)
 	if request.FuzzyMatch {
 		// TODO(bradfitz): remove this for now? figure out how to handle it generically?
-		log.Printf("Got unsupported fuzzy search request: %#v", request)
 		return os.NewError("TODO: SearchPermanodesWithAttr: generic indexer doesn't support FuzzyMatch on PermanodeByAttrRequest")
 	}
 	if request.Attribute == "" {
