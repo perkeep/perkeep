@@ -139,6 +139,11 @@ type StorageConfiger interface {
 	Configer
 }
 
+type StorageQueueCreator interface {
+	Storage
+	QueueCreator
+}
+
 // ContextWrapper is an optional interface for App Engine.
 //
 // While Camlistore's internals are separated out into a part which
