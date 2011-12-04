@@ -5,13 +5,15 @@ use FindBin qw($Bin);
 use Getopt::Long;
 
 sub usage {
-    die "Usage: dev-appengine [--wipe] [-a] -- [other_dev_appserver_opts]";
+    die "Usage: dev-appengine [--wipe] [-a] [-p port] -- [other_dev_appserver_opts]";
 }
 
 my $opt_wipe;
+my $opt_port;
 my $opt_all;  # listen on all interfaces
 GetOptions("wipe" => \$opt_wipe,
            "all" => \$opt_all,
+           "p=i" => \$opt_port,
            ) or usage();
 
 my $sdk = readlink("$Bin/appengine-sdk")
@@ -28,6 +30,11 @@ if ($opt_all) {
 }
 if ($opt_wipe) {
     push @args, "--clear_datastore";
+}
+if ($opt_port) {
+    push @args, "-p $opt_port";
+} else {
+    push @args, "-p 3179";
 }
 push @args, @ARGV;
 
