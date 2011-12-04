@@ -32,9 +32,9 @@ if ($opt_wipe) {
     push @args, "--clear_datastore";
 }
 if ($opt_port) {
-    push @args, "-p $opt_port";
+    push @args, "-p", "$opt_port";
 } else {
-    push @args, "-p 3179";
+    push @args, "-p", "3179";
 }
 push @args, @ARGV;
 
@@ -43,4 +43,3 @@ push @args, "$Bin/server/go/appengine";
 print "\$ @args\n";
 
 exec(@args);
-
