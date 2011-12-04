@@ -41,7 +41,7 @@ function handleFormSearch(e) {
     }
 
     var query = input.value.split(/\s*,\s*/);
-    window.location = "./search.html?q=" + query[0];
+    window.location = "./search.html?q=" + query[0] + "&t=tag";
 }
 
 function indexOnLoad(e) {
