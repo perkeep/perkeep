@@ -111,9 +111,17 @@ func (p *Path) String() string {
 }
 
 type PermanodeByAttrRequest struct {
-	Attribute  string // currently supported: "tag", "title"
-	Query      string
 	Signer     *blobref.BlobRef
+
+	// Attribute to search. currently supported: "tag", "title"
+	// If FuzzyMatch is set, this can be blank to search all
+	// attributes.
+	Attribute  string
+
+	// The attribute value to find exactly (or roughly, if
+	// FuzzyMatch is set)
+	Query      string
+
 	FuzzyMatch bool // by default, an exact match is required
 	MaxResults int  // optional max results
 }

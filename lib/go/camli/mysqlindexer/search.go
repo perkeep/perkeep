@@ -146,6 +146,9 @@ func (mi *Indexer) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, reques
 	}
 	query := ""
 	var rs ResultSet
+	if request.Attribute == "" && !request.FuzzyMatch {
+		return os.NewError("mysqlindexer: Attribute is required if FuzzyMatch is off.")
+	}
 	if request.Attribute == "" {
 		query = "SELECT permanode FROM signerattrvalueft WHERE keyid = ? AND MATCH(value) AGAINST (?) AND claimdate <> '' LIMIT ?"
 		rs, err = mi.db.Query(query, keyId, request.Query, request.MaxResults)
