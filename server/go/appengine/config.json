@@ -53,6 +53,15 @@
       }
     },
 
+    "/sync/": {
+        "enabled": false,
+        "handler": "sync",
+        "handlerArgs": {
+            "from": "/bs/",
+            "to": "/indexer/"
+        }
+    },
+
     "/indexer/": {
       "handler": "storage-aeindex",
       "handlerArgs": {
