@@ -21,9 +21,11 @@ import (
 	"http"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"camli/auth"
+	"camli/blobref"
 )
 
 type Client struct {
@@ -113,4 +115,52 @@ func (c *Client) newRequest(method, url string) *http.Request {
 	}
 	c.authMode.AddAuthHeader(req)
 	return req
+}
+
+func (c *Client) PicsRoot() (*blobref.BlobRef, os.Error) {
+	signer := c.SignerPublicKeyBlobref().String()
+	requrl := "signer=" + signer + "&attr=camliRoot&value=dev-pics-root"
+	skip := 0
+	if strings.Contains(c.server, "http://") {
+		skip = 7
+	} else {
+		if strings.Contains(c.server, "https://") {
+			skip = 8
+		}
+	}
+	idx := strings.Index(c.server[skip:], "/")
+	server := c.server
+	if idx != -1 {
+		server = c.server[0 : skip+idx]
+	}
+	// TODO(mpl): I probably need to do some discovery and not hardcode so much
+	url := fmt.Sprintf("%s/my-search/camli/search/permanodeattr?%s", server, requrl)
+	req := c.newRequest("GET", url)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http GET error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Pics root search: got status code %d", resp.StatusCode)
+	}
+	picsRootMap, err := c.jsonFromResponse("picsroot", resp)
+	if err != nil {
+		return nil, fmt.Errorf("json parse from pics root search error", err)
+	}
+	v, ok := picsRootMap["withAttr"]
+	if !ok {
+		return nil, fmt.Errorf("no withAttr key found in picsroot map")
+	}
+	withAttr := v.([]interface{})
+	if len(withAttr) != 1 {
+		return nil, fmt.Errorf("One pics root expected, found %q", len(withAttr))
+	}
+	answer, ok := withAttr[0].(map[string]interface{})["permanode"]
+	if !ok {
+		return nil, fmt.Errorf("no permanode key found in withAttr map")
+	}
+
+	return blobref.Parse(answer.(string)), nil
 }
