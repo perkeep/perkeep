@@ -195,10 +195,8 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 	}
 
 	if search.IsIndexedAttribute(ss.Attribute) {
-		savKey := pipes("signerattrvalue",
-			verifiedKeyId, urle(ss.Attribute), urle(ss.Value),
-			reverseTimeString(ss.ClaimDate), br)
-		bm.Set(savKey, pnbr.String())
+		key := keySignerAttrValue.Key(verifiedKeyId, ss.Attribute, ss.Value, ss.ClaimDate, br)
+		bm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
 	return nil
 }

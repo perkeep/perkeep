@@ -172,4 +172,18 @@ var (
 			{"mimetype", typeStr},
 		},
 	}
+
+	keySignerAttrValue = &keyType{
+		"signerattrvalue",
+		[]part{
+			{"signer", typeKeyId},
+			{"attr", typeStr},
+			{"value", typeStr},
+			{"claimdate", typeReverseTime},
+			{"claimref", typeBlobRef},
+		},
+		[]part{
+			{"permanode", typeBlobRef},
+		},
+	}
 )

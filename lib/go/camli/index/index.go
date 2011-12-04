@@ -267,12 +267,53 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	if err != nil {
 		return nil, err
 	}
-	it := x.queryPrefixString(pipes("signerattrvalue", keyId, urle(attr), urle(val), ""))
+	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
 	if it.Next() {
 		return blobref.Parse(it.Value()), nil
 	}
 	return nil, os.ENOENT
+}
+
+// This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
+func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) (err os.Error) {
+	defer close(dest)
+	if request.FuzzyMatch {
+		// TODO(bradfitz): remove this for now? figure out how to handle it generically?
+		log.Printf("Got unsupported fuzzy search request: %#v", request)
+		return os.NewError("TODO: SearchPermanodesWithAttr: generic indexer doesn't support FuzzyMatch on PermanodeByAttrRequest")
+	}
+	if request.Attribute == "" {
+		return os.NewError("index: missing Attribute in SearchPermanodesWithAttr")
+	}
+
+	keyId, err := x.keyId(request.Signer)
+	if err == ErrNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]bool)
+	it := x.queryPrefix(keySignerAttrValue, keyId, request.Attribute, request.Query)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		pn := blobref.Parse(it.Value())
+		if pn == nil {
+			continue
+		}
+		pnstr := pn.String()
+		if seen[pnstr] {
+			continue
+		}
+		seen[pnstr] = true
+
+		dest <- pn
+		if len(seen) == request.MaxResults {
+			break
+		}
+	}
+	return nil
 }
 
 func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*search.Path, err os.Error) {
@@ -454,9 +495,4 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, os.Erro
 		MimeType: urld(valPart[2]),
 	}
 	return fi, nil
-}
-
-func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) os.Error {
-	log.Printf("index: TODO SearchPermanodesWithAttr")
-	return os.NewError("TODO: SearchPermanodesWithAttr")
 }
