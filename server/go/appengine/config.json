@@ -1,6 +1,6 @@
 { "_for-emacs": "-*- mode: js2;-*-",
   "baseURL": "*** Populated by runtime. Ignore this.",
-  "auth": "userpass:foo:bar",
+  "auth": "userpass:camlistore:pass3179",
   "prefixes": {
 
     "/ui/": {

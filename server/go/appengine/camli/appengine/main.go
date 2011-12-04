@@ -82,8 +82,12 @@ func realInit(w http.ResponseWriter, r *http.Request) bool {
 
 	// Update the config to use the URL path derived from the first App Engine request.
 	// TODO(bslatkin): Support hostnames that aren't x.appspot.com
-	// TODO(bslatkin): Support the HTTPS scheme
-	baseURL := fmt.Sprintf("http://%s/", r.Header.Get("X-Appengine-Default-Version-Hostname"))
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+
+	baseURL := fmt.Sprintf("%s://%s/", scheme, appengine.DefaultVersionHostname(ctx))
 	ctx.Infof("baseurl = %q", baseURL)
 	config.Obj["baseURL"] = baseURL
 
