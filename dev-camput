@@ -11,6 +11,7 @@ sub usage {
 }
 
 my $opt_tls;
+Getopt::Long::Configure("pass_through");
 GetOptions("tls" => \$opt_tls)
     or usage();
 
