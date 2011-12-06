@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"appengine"
@@ -379,4 +380,29 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, af
 		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()[len(prefix):]), size}
 	}
 	return nil
+}
+
+var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
+
+
+// TODO(bslatkin): This does not work on App Engine yet because there are no
+// background threads to do the sync loop. The plan is to break the
+// syncer code up into two parts: 1) accepts notifications of new blobs to
+// sync, 2) does one unit of work enumerating recent blobs and syncing them.
+// In App Engine land, 1) will result in a task to be enqueued, and 2) will
+// be called from within that queue context.
+
+func (sto *appengineStorage) CreateQueue(name string) (blobserver.Storage, os.Error) {
+	if !validQueueName.MatchString(name) {
+		return nil, fmt.Errorf("invalid queue name %q", name)
+	}
+	if sto.namespace != "" && strings.HasPrefix(sto.namespace, "queue-") {
+		return nil, fmt.Errorf("can't create queue %q on existing queue %q",
+			name, sto.namespace)
+	}
+	q := &appengineStorage{
+		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		namespace: "queue-" + name,
+	}
+	return q, nil
 }

@@ -73,7 +73,11 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	if err != nil {
 		return
 	}
-	synch, err := createSyncHandler(from, to, fromBs, toBs)
+	fromQsc, ok := fromBs.(blobserver.StorageQueueCreator)
+	if !ok {
+		return nil, fmt.Errorf("Prefix %s (type %T) does not support being efficient replication source (queueing)", from, fromBs)
+	}
+	synch, err := createSyncHandler(from, to, fromQsc, toBs)
 	if err != nil {
 		return
 	}
@@ -86,7 +90,7 @@ type timestampedError struct {
 	err os.Error
 }
 
-func createSyncHandler(fromName, toName string, from, to blobserver.Storage) (*SyncHandler, os.Error) {
+func createSyncHandler(fromName, toName string, from blobserver.StorageQueueCreator, to blobserver.Storage) (*SyncHandler, os.Error) {
 	h := &SyncHandler{
 		copierPoolSize: 3,
 		from:           from,
@@ -97,15 +101,9 @@ func createSyncHandler(fromName, toName string, from, to blobserver.Storage) (*S
 		blobStatus:     make(map[string]fmt.Stringer),
 	}
 
-	qc, ok := from.(blobserver.QueueCreator)
-	if !ok {
-		return nil, fmt.Errorf(
-			"Prefix %s (type %T) does not support being efficient replication source (queueing)",
-			fromName, from)
-	}
 	h.fromqName = strings.Replace(strings.Trim(toName, "/"), "/", "-", -1)
 	var err os.Error
-	h.fromq, err = qc.CreateQueue(h.fromqName)
+	h.fromq, err = from.CreateQueue(h.fromqName)
 	if err != nil {
 		return nil, fmt.Errorf("Prefix %s (type %T) failed to create queue %q: %v",
 			fromName, from, h.fromqName, err)
