@@ -113,6 +113,8 @@ func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, os.Error) {
 	return entity, nil
 }
 
+var newlineBytes = []byte("\n")
+
 func ArmoredPublicKey(entity *openpgp.Entity) (string, os.Error) {
 	var buf bytes.Buffer
 	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
@@ -124,5 +126,8 @@ func ArmoredPublicKey(entity *openpgp.Entity) (string, os.Error) {
 		return "", err
 	}
 	wc.Close()
+	if !bytes.HasSuffix(buf.Bytes(), newlineBytes) {
+		buf.WriteString("\n")
+	}
 	return buf.String(), nil
 }
