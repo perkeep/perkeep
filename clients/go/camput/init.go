@@ -21,11 +21,11 @@ import (
 	"exec"
 	"flag"
 	"fmt"
-	"os"
 	"io/ioutil"
-	"path"
 	"json"
 	"log"
+	"os"
+	"path"
 
 	"camli/blobref"
 	"camli/client"

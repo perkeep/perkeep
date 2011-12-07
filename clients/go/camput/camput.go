@@ -31,8 +31,8 @@ import (
 	"camli/blobserver"
 	"camli/blobserver/remote"
 	"camli/client"
-	"camli/schema"
 	"camli/jsonsign"
+	"camli/schema"
 )
 
 const buffered = 16 // arbitrary
