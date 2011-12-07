@@ -1,4 +1,3 @@
-{
-  "camliType": "rating",
-  "stars": "4/5",
-  "camliAuthor": "......."
+{"camliVersion": 1,
+  "camliSigner": "sha1-8616ebc5143efe038528c2ab8fa6582353805a7a",
+  "foo": "bar"

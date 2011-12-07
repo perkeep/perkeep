@@ -69,11 +69,29 @@ SIGNING
 =======
 
 -- start with a JSON object (not an array) to be encoded and signed.
-   we'll call this data structure 'O'.
+   we'll call this data structure 'O'. While this signing technique
+   could be used for applications Camlistore, this document is specifically
+   about Camlistore, which requires that the JSON object 'O' contain
+   the following two key/value pairs:
+     "camliVersion": "1"
+     "camliSigner": "hashalg-xxxxxxxxxxx"  (blobref of ASCII-armored public key)
 
--- serialize it with whatever JSON serialization library you have
-   available.  internal or trailing whitespace doesn't matter.  we'll
-   call the JSON serialization of 'O' (defined in earlier step) 'J'
+-- To find your camliSigner value, you could use GPG like:
+
+   $ gpg --no-default-keyring --keyring=example/test-keyring.gpg --secret-keyring=example/test-secring.gpg \
+         --export --armor 26F5ABDA > example/public-key.txt
+
+   $ sha1sum example/public-key.txt
+   8616ebc5143efe038528c2ab8fa6582353805a7a
+
+   ... so the blobref value for camliSigner is "sha1-8616ebc5143efe038528c2ab8fa6582353805a7a".
+   Clients will use this value in the future to find the public key to verify
+   signtures.
+
+-- serialize in-memory JSON object 'O' with whatever JSON
+   serialization library you have available.  internal or trailing
+   whitespace doesn't matter.  we'll call the JSON serialization of
+   'O' (defined in earlier step) 'J'
    (e.g. doc/example/signing-before-J.camli)
 
 -- now remove any trailing whitespace and exactly and only one '}'
