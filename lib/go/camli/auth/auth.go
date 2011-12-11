@@ -106,7 +106,6 @@ type UserPass struct {
 func (up *UserPass) IsAuthorized(req *http.Request) bool {
 	user, pass, err := basicAuth(req)
 	if err != nil {
-		fmt.Printf("basic auth: %q", err)
 		return false
 	}
 	return user == up.Username && pass == up.Password
@@ -125,7 +124,6 @@ type DevAuth struct {
 func (da *DevAuth) IsAuthorized(req *http.Request) bool {
 	_, pass, err := basicAuth(req)
 	if err != nil {
-		fmt.Printf("basic auth: %q", err)
 		return false
 	}
 	return pass == da.Password
@@ -153,6 +151,18 @@ func SendUnauthorized(conn http.ResponseWriter) {
 	conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
 	conn.WriteHeader(http.StatusUnauthorized)
 	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
+}
+
+type Handler struct {
+	http.Handler
+}
+
+func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if mode.IsAuthorized(r) {
+		h.Handler.ServeHTTP(w, r)
+	} else {
+		SendUnauthorized(w)
+	}
 }
 
 // requireAuth wraps a function with another function that enforces
