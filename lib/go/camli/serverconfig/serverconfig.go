@@ -256,7 +256,21 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			h.prefix, h.htype, err)
 	}
 	hl.handler[prefix] = hh
-	hl.installer.Handle(prefix, &httputil.PrefixHandler{prefix, hh})
+	var wrappedHandler http.Handler = &httputil.PrefixHandler{prefix, hh}
+	if handerTypeWantsAuth(h.htype) {
+		wrappedHandler = auth.Handler{wrappedHandler}
+	}
+	hl.installer.Handle(prefix, wrappedHandler)
+}
+
+func handerTypeWantsAuth(handlerType string) bool {
+	// TODO(bradfitz): ask the handler instead? This is a bit of a
+	// weird spot for this policy maybe?
+	switch handlerType {
+	case "ui", "search", "jsonsign", "sync":
+		return true
+	}
+	return false
 }
 
 type Config struct {
