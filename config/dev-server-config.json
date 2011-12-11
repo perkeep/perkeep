@@ -179,7 +179,7 @@
          "handler": "search",
          "handlerArgs": {
              "index": ["_env", "${CAMLI_INDEXER_PATH}"],
-             "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+             "owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
          }
      }
   }
