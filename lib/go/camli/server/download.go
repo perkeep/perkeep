@@ -25,6 +25,7 @@ import (
 
 	"camli/blobref"
 	"camli/blobserver"
+	"camli/magic"
 	"camli/schema"
 )
 
@@ -60,12 +61,21 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	schema := fr.FileSchema()
 	rw.Header().Set("Content-Length", fmt.Sprintf("%d", schema.SumPartsSize()))
 
-	// TODO: fr.FileSchema() and guess a mime type?  For now:
-	mimeType := "application/octet-stream"
+	mimeType, reader := magic.MimeTypeFromReader(fr)
 	if dh.ForceMime != "" {
 		mimeType = dh.ForceMime
 	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
 	rw.Header().Set("Content-Type", mimeType)
+	if mimeType == "application/octet-stream" {
+		// Chrome seems to silently do nothing on
+		// application/octet-stream unless this is set.
+		// Maybe it's confused by lack of URL it recognizes
+		// along with lack of mime type?
+		rw.Header().Set("Content-Disposition", "attachment; filename=file-" + file.String() + ".dat")
+	}
 
 	if req.Method == "HEAD" {
 		vbr := blobref.Parse(req.FormValue("verifycontents"))
@@ -76,14 +86,14 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		if hash == nil {
 			return
 		}
-		io.Copy(hash, fr) // ignore errors, caught later
+		io.Copy(hash, reader) // ignore errors, caught later
 		if vbr.HashMatches(hash) {
 			rw.Header().Set("X-Camli-Contents", vbr.String())
 		}
 		return
 	}
 
-	n, err := io.Copy(rw, fr)
+	n, err := io.Copy(rw, reader)
 	log.Printf("For %q request of %s: copied %d, %v", req.Method, req.URL.RawPath, n, err)
 	if err != nil {
 		log.Printf("error serving download of file schema %s: %v", file, err)
