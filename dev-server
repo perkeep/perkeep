@@ -5,7 +5,7 @@ use FindBin qw($Bin);
 use Getopt::Long;
 
 sub usage {
-    die "Usage: dev-server [--wipe] [--tls] <portnumber> -- [other_blobserver_opts]";
+    die "Usage: dev-server [--wipe] [--mongo|--memory] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
 my $opt_wipe;
@@ -17,11 +17,13 @@ my $opt_all;  # listen on all interfaces
 # necessarily. if --wipe isn't used, all blobs are re-indexed
 # on start-up.
 my $opt_memory;
+my $opt_mongo;
 GetOptions("wipe" => \$opt_wipe,
            "tls" => \$opt_tls,
            "all" => \$opt_all,
            "nobuild" => \$opt_nobuild,
            "memory" => \$opt_memory,
+           "mongo" => \$opt_mongo,
     )
     or usage();
 
@@ -57,18 +59,30 @@ if ($opt_wipe) {
     push @opts, "-ignoreexists";
 }
 
+$ENV{"CAMLI_MYSQL_ENABLED"} = "false";
+$ENV{"CAMLI_MONGO_ENABLED"} = "false";
 if ($opt_memory) {
-    $ENV{"CAMLI_MYSQL_ENABLED"} = "false";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-mem/";
 } else {
-    $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
-    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-    system("./clients/go/camdbinit/camdbinit",
-           "-user=root",
-           "-password=root",
-           "-host=localhost",
-           "-database=$DBNAME",
-           @opts) and die "Failed to run camdbinit.\n";
+    if ($opt_mongo) {
+        $ENV{"CAMLI_MONGO_ENABLED"} = "true";
+        $ENV{"CAMLI_INDEXER_PATH"} = "/index-mongo/";
+        # TODO(mpl): is this too hackish?
+        if ($opt_wipe) {
+            $ENV{"CAMLI_MONGO_WIPE"} = "true";
+        } else {
+            $ENV{"CAMLI_MONGO_WIPE"} = "false";
+        }
+    } else {
+        $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
+        $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
+        system("./clients/go/camdbinit/camdbinit",
+               "-user=root",
+               "-password=root",
+               "-host=localhost",
+               "-database=$DBNAME",
+               @opts) and die "Failed to run camdbinit.\n";
+    }
 }
 
 my $base = "http://localhost:$port";

@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	"camli/test"
 )
 
-var _ = log.Printf
+var (
+	once              sync.Once
+	mongoNotAvailable bool
+)
 
 type IndexDeps struct {
 	Index *Index
@@ -138,7 +142,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 	return
 }
 
-func NewIndexDeps() *IndexDeps {
+func NewIndexDeps(index *Index) *IndexDeps {
 	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -152,7 +156,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 -----END PGP PUBLIC KEY BLOCK-----`}
 
 	id := &IndexDeps{
-		Index:            newMemoryIndex(),
+		Index:            index,
 		BlobSource:       new(test.Fetcher),
 		PublicKeyFetcher: new(test.Fetcher),
 		EntityFetcher: &jsonsign.CachingEntityFetcher{
@@ -172,8 +176,58 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 	return id
 }
 
-func TestIndex(t *testing.T) {
-	id := NewIndexDeps()
+func checkMongoUp() {
+	mgw := &MongoWrapper{
+		Servers: "localhost",
+	}
+	mongoNotAvailable = !mgw.TestConnection(1e9)
+}
+
+func initMongoIndex() *Index {
+	mgw := &MongoWrapper{
+		Servers:    "localhost",
+		Database:   "camlitest",
+		Collection: "keys",
+	}
+	idx, err := newMongoIndex(mgw)
+	if err != nil {
+		panic(err)
+	}
+	err = idx.s.Delete("")
+	if err != nil {
+		panic(err)
+	}
+	return idx
+}
+
+type indexTester interface {
+	test(t *testing.T, tfn func(*testing.T, *Index))
+}
+
+type mongoTester struct {
+
+}
+
+func (mt *mongoTester) test(t *testing.T, tfn func(*testing.T, func() *Index)) {
+	once.Do(checkMongoUp)
+	if mongoNotAvailable {
+		err := os.NewError("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
+		t.Logf("Mongo not available locally for testing: %v", err)
+		return
+	}
+	tfn(t, initMongoIndex)
+}
+
+func TestIndex_Memory(t *testing.T) {
+	testIndex(t, newMemoryIndex)
+}
+
+func TestIndex_Mongo(t *testing.T) {
+	(&mongoTester{}).test(t, testIndex)
+}
+
+func testIndex(t *testing.T, initIdx func() *Index) {
+	id := NewIndexDeps(initIdx())
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "foo", "foo1")
@@ -315,8 +369,16 @@ func TestIndex(t *testing.T) {
 	}
 }
 
-func TestPathsOfSignerTarget(t *testing.T) {
-	id := NewIndexDeps()
+func TestPathsOfSignerTarget_Memory(t *testing.T) {
+	testPathsOfSignerTarget(t, newMemoryIndex)
+}
+
+func TestPathsOfSignerTarget_Mongo(t *testing.T) {
+	(&mongoTester{}).test(t, testPathsOfSignerTarget)
+}
+
+func testPathsOfSignerTarget(t *testing.T, initIdx func() *Index) {
+	id := NewIndexDeps(initIdx())
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 
@@ -365,8 +427,16 @@ func TestPathsOfSignerTarget(t *testing.T) {
 	}
 }
 
-func TestFiles(t *testing.T) {
-	id := NewIndexDeps()
+func TestFiles_Memory(t *testing.T) {
+	testFiles(t, newMemoryIndex)
+}
+
+func TestFiles_Mongo(t *testing.T) {
+	(&mongoTester{}).test(t, testFiles)
+}
+
+func testFiles(t *testing.T, initIdx func() *Index) {
+	id := NewIndexDeps(initIdx())
 	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>")
 	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
 	id.dumpIndex(t)

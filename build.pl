@@ -751,6 +751,10 @@ TARGET: lib/go/camli/third_party/github.com/Philio/GoMySQL
 TARGET: lib/go/camli/third_party/github.com/camlistore/GoMySQL
     =skip_tests
 TARGET: lib/go/camli/webserver
+TARGET: lib/go/launchpad.net/gobson/bson
+TARGET: lib/go/launchpad.net/gocheck
+TARGET: lib/go/launchpad.net/mgo
+    =skip_tests
 TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/crc
 TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/db
 TARGET: lib/go/leveldb-go.googlecode.com/hg/leveldb/memdb
