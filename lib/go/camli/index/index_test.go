@@ -200,15 +200,9 @@ func initMongoIndex() *Index {
 	return idx
 }
 
-type indexTester interface {
-	test(t *testing.T, tfn func(*testing.T, *Index))
-}
+type mongoTester struct{}
 
-type mongoTester struct {
-
-}
-
-func (mt *mongoTester) test(t *testing.T, tfn func(*testing.T, func() *Index)) {
+func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *Index)) {
 	once.Do(checkMongoUp)
 	if mongoNotAvailable {
 		err := os.NewError("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
@@ -223,7 +217,7 @@ func TestIndex_Memory(t *testing.T) {
 }
 
 func TestIndex_Mongo(t *testing.T) {
-	(&mongoTester{}).test(t, testIndex)
+	mongoTester{}.test(t, testIndex)
 }
 
 func testIndex(t *testing.T, initIdx func() *Index) {
@@ -374,7 +368,7 @@ func TestPathsOfSignerTarget_Memory(t *testing.T) {
 }
 
 func TestPathsOfSignerTarget_Mongo(t *testing.T) {
-	(&mongoTester{}).test(t, testPathsOfSignerTarget)
+	mongoTester{}.test(t, testPathsOfSignerTarget)
 }
 
 func testPathsOfSignerTarget(t *testing.T, initIdx func() *Index) {
@@ -432,7 +426,7 @@ func TestFiles_Memory(t *testing.T) {
 }
 
 func TestFiles_Mongo(t *testing.T) {
-	(&mongoTester{}).test(t, testFiles)
+	mongoTester{}.test(t, testFiles)
 }
 
 func testFiles(t *testing.T, initIdx func() *Index) {
