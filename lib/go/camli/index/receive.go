@@ -148,7 +148,7 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 		return err
 	}
 
-	vr := jsonsign.NewVerificationRequest(rawJson, ix.KeyFetcher)
+	vr := jsonsign.NewVerificationRequest(string(rawJson), ix.KeyFetcher)
 	if !vr.Verify() {
 		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
 		// later if it's not permanent? or maybe do this up a level?

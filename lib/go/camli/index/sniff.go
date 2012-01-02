@@ -62,11 +62,11 @@ func (sn *BlobSniffer) IsTruncated() bool {
 	return sn.written > maxSniffSize
 }
 
-func (sn *BlobSniffer) Body() (string, os.Error) {
+func (sn *BlobSniffer) Body() ([]byte, os.Error) {
 	if sn.IsTruncated() {
-		return "", os.NewError("was truncated")
+		return nil, os.NewError("was truncated")
 	}
-	return string(sn.header), nil
+	return sn.header, nil
 }
 
 // returns content type or empty string if unknown

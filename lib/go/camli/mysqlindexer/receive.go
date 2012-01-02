@@ -87,7 +87,7 @@ func (mi *Indexer) populateClaim(blobRef *blobref.BlobRef, camli *schema.Superse
 
 	verifiedKeyId := ""
 	if rawJson, err := sniffer.Body(); err == nil {
-		vr := jsonsign.NewVerificationRequest(rawJson, mi.KeyFetcher)
+		vr := jsonsign.NewVerificationRequest(string(rawJson), mi.KeyFetcher)
 		if vr.Verify() {
 			verifiedKeyId = vr.SignerKeyId
 			log.Printf("mysqlindex: verified claim %s from %s", blobRef, verifiedKeyId)
