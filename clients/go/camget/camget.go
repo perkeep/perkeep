@@ -37,11 +37,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"camli/blobref"
 	"camli/client"
 	"camli/index"
+	"camli/schema"
 )
 
 var (
@@ -116,10 +119,15 @@ func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err os.Erro
 	return r, err
 }
 
-const sniffSize = 10 * 1024
+// A little less than the sniffer will take, so we don't truncate.
+const sniffSize = 900 * 1024
 
 // smartFetch the things that blobs point to, not just blobs. (wow)
-func smartFetch(cl *client.Client, out string, br *blobref.BlobRef) os.Error {
+func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) os.Error {
+	if *flagVerbose {
+		log.Printf("Fetching %v into %q", br, targ)
+	}
+
 	rc, err := fetch(cl, br)
 	if err != nil {
 		return err
@@ -133,13 +141,13 @@ func smartFetch(cl *client.Client, out string, br *blobref.BlobRef) os.Error {
 	}
 
 	sniffer.Parse()
-	_, ok := sniffer.Superset()
+	sc, ok := sniffer.Superset()
 
 	if !ok {
 		// opaque data - put it in a file
-		f, err := os.Create(out)
+		f, err := os.Create(targ)
 		if err != nil {
-			return err
+			return fmt.Errorf("opaque: %v", err)
 		}
 		defer f.Close()
 		body, _ := sniffer.Body()
@@ -148,7 +156,75 @@ func smartFetch(cl *client.Client, out string, br *blobref.BlobRef) os.Error {
 		return err
 	}
 
-	log.Fatal("camli blob parsing not implemented")
+	sc.BlobRef = br
 
-	return nil
+	switch sc.Type {
+	case "directory":
+		dir := filepath.Join(targ, sc.FileName)
+		if err := os.MkdirAll(dir, sc.UnixMode()); err != nil {
+			return err
+		}
+		if err := setFileMeta(dir, sc); err != nil {
+			log.Print(err)
+		}
+		entries := blobref.Parse(sc.Entries)
+		if entries == nil {
+			return fmt.Errorf("bad entries blobref: %v", sc.Entries)
+		}
+		return smartFetch(cl, dir, entries)
+	case "static-set":
+		// directory entries
+		for _, m := range sc.Members {
+			dref := blobref.Parse(m)
+			if dref == nil {
+				return fmt.Errorf("bad member blobref: %v", m)
+			}
+			if err := smartFetch(cl, targ, dref); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "file":
+		name := filepath.Join(targ, sc.FileName)
+		f, err := os.Create(name)
+		if err != nil {
+			return fmt.Errorf("file type: %v", err)
+		}
+		defer f.Close()
+		for _, p := range sc.Parts {
+			if p.BytesRef != nil {
+				panic("don't know how to handle BytesRef")
+			}
+			rc, err := fetch(cl, p.BlobRef)
+			if err != nil {
+				return err
+			}
+			_, err = io.Copy(f, rc)
+			rc.Close()
+			if err != nil {
+				return err
+			}
+		}
+		if err := setFileMeta(name, sc); err != nil {
+			log.Print(err)
+		}
+		return nil
+	default:
+		return os.NewError("unknown blob type: " + sc.Type)
+	}
+	panic("unreachable")
+}
+
+func setFileMeta(name string, sc *schema.Superset) os.Error {
+	if err := os.Chmod(name, sc.UnixMode()); err != nil {
+		return err
+	}
+	if err := os.Chown(name, sc.UnixOwnerId, sc.UnixGroupId); err != nil {
+		return err
+	}
+	t, err := time.Parse(time.RFC3339, sc.UnixMtime)
+	if err != nil {
+		return nil
+	}
+	return os.Chtimes(name, 0, t.Nanoseconds())
 }
