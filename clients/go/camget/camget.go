@@ -31,7 +31,9 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -39,6 +41,7 @@ import (
 
 	"camli/blobref"
 	"camli/client"
+	"camli/index"
 )
 
 var (
@@ -48,56 +51,104 @@ var (
 	flagVia     = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
 )
 
+var viaRefs []*blobref.BlobRef
+
 func main() {
 	client.AddFlags()
 	flag.Parse()
 
-	client := client.NewOrFail()
-	if *flagCheck {
-		// Simply do HEAD requests checking if the blobs exists.
-		return
+	if len(*flagVia) > 0 {
+		vs := strings.Split(*flagVia, ",")
+		viaRefs = make([]*blobref.BlobRef, len(vs))
+		for i, sbr := range vs {
+			viaRefs[i] = blobref.Parse(sbr)
+			if viaRefs[i] == nil {
+				log.Fatalf("Invalid -via blobref: %q", sbr)
+			}
+			if *flagVerbose {
+				log.Printf("via: %s", sbr)
+			}
+		}
 	}
 
-	var w io.Writer = os.Stdout
+	cl := client.NewOrFail()
 
 	for n := 0; n < flag.NArg(); n++ {
 		arg := flag.Arg(n)
 		br := blobref.Parse(arg)
 		if br == nil {
-			log.Fatalf("Failed to parse argument \"%s\" as a blobref.", arg)
+			log.Fatalf("Failed to parse argument %q as a blobref.", arg)
 		}
-		if *flagVerbose {
-			log.Printf("Need to fetch %s", br.String())
+		if *flagCheck {
+			// TODO: do HEAD requests checking if the blobs exists.
+			log.Fatal("not implemented")
+			return
 		}
-		var (
-			r   io.ReadCloser
-			err os.Error
-		)
-
-		if len(*flagVia) > 0 {
-			vs := strings.Split(*flagVia, ",")
-			abr := make([]*blobref.BlobRef, len(vs))
-			for i, sbr := range vs {
-				abr[i] = blobref.Parse(sbr)
-				if abr[i] == nil {
-					log.Fatalf("Invalid -via blobref: %q", sbr)
-				}
-				if *flagVerbose {
-					log.Printf("via: %s", sbr)
-				}
+		if *flagOutput == "-" {
+			rc, err := fetch(cl, br)
+			if err != nil {
+				log.Fatal(err)
 			}
-			r, _, err = client.FetchVia(br, abr)
-		} else {
-			r, _, err = client.FetchStreaming(br)
+			defer rc.Close()
+			if _, err := io.Copy(os.Stdout, rc); err != nil {
+				log.Fatalf("Failed reading %q: %v", br, err)
+			}
+			return
 		}
-		if err != nil {
-			log.Fatalf("Failed to fetch %q: %s", br, err)
-		}
-		defer r.Close()
-		_, err = io.Copy(w, r)
-		if err != nil {
-			log.Fatalf("Failed transferring %q: %s", br, err)
+		if err := smartFetch(cl, *flagOutput, br); err != nil {
+			log.Fatal(err)
 		}
 	}
+}
 
+func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err os.Error) {
+	if *flagVerbose {
+		log.Printf("Fetching %s", br.String())
+	}
+	if len(viaRefs) > 0 {
+		r, _, err = cl.FetchVia(br, viaRefs)
+	} else {
+		r, _, err = cl.FetchStreaming(br)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch %q: %s", br, err)
+	}
+	return r, err
+}
+
+const sniffSize = 10 * 1024
+
+// smartFetch the things that blobs point to, not just blobs. (wow)
+func smartFetch(cl *client.Client, out string, br *blobref.BlobRef) os.Error {
+	rc, err := fetch(cl, br)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	sniffer := new(index.BlobSniffer)
+	_, err = io.Copyn(sniffer, rc, sniffSize)
+	if err != nil && err != os.EOF {
+		return err
+	}
+
+	sniffer.Parse()
+	_, ok := sniffer.Superset()
+
+	if !ok {
+		// opaque data - put it in a file
+		f, err := os.Create(out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		body, _ := sniffer.Body()
+		r := io.MultiReader(bytes.NewBuffer(body), rc)
+		_, err = io.Copy(f, r)
+		return err
+	}
+
+	log.Fatal("camli blob parsing not implemented")
+
+	return nil
 }
