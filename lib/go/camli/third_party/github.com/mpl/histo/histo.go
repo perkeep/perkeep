@@ -63,6 +63,7 @@ func (h *Histo) distribute() {
 	}
 
 	h.sort()
+
 	max := h.unsorted[len(h.unsorted)-1]
 	min := h.unsorted[0]
 	binWidth := 1 + (max-min)/int64(h.nb)
@@ -72,15 +73,22 @@ func (h *Histo) distribute() {
 	for _, v := range h.unsorted {
 		if v > sup {
 			average /= np
-			h.bar = append(h.bar, &Bar{average, np, sup, sup + binWidth, nil})
+			h.bar = append(h.bar, &Bar{average, np, sup - binWidth, sup, nil})
 			sup += binWidth
 			average = v
 			np = 1
+			for v > sup {
+				// empty bar
+				h.bar = append(h.bar, &Bar{0, 0, sup - binWidth, sup, nil})
+				sup += binWidth
+			}
 		} else {
 			average += v
 			np++
 		}
 	}
+	// last bar
+	h.bar = append(h.bar, &Bar{average / np, np, sup - binWidth, sup, nil})
 	h.unsorted = nil
 }
 
