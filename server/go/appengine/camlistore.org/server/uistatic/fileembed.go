@@ -1,7 +1,7 @@
 package uistatic
 
 import (
-	"camli/misc/fileembed"
+	"camlistore.org/pkg/misc/fileembed"
 
 	"appengine"
 )

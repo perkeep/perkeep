@@ -31,9 +31,9 @@ import (
 	"appengine/datastore"
 	"appengine/blobstore"
 
-	"camli/blobref"
-	"camli/blobserver"
-	"camli/jsonconfig"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/jsonconfig"
 )
 
 var _ = log.Printf

@@ -17,8 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"camli/httputil"
-	"camli/jsonsign"
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/jsonsign"
 	"fmt"
 	"http"
 )

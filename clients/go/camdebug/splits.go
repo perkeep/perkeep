@@ -20,11 +20,12 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"os"
+	"io"
 	"log"
+	"os"
 	"strings"
 
-	"camli/rollsum"
+	"camlistore.org/pkg/rollsum"
 )
 
 type span struct {
@@ -37,7 +38,7 @@ func showSplits() {
 	file := flag.Arg(0)
 	f, err := os.Open(file)
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 	}
 	bufr := bufio.NewReader(f)
 
@@ -49,13 +50,13 @@ func showSplits() {
 	for {
 		c, err := bufr.ReadByte()
 		if err != nil {
-			if err == os.EOF {
+			if err == io.EOF {
 				if n != last {
 					spans = append(spans, span{from: last, to: n})
 				}
 				break
 			}
-			panic(err.String())
+			panic(err.Error())
 		}
 		n++
 		rs.Roll(c)

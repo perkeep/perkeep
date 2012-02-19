@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
-	"template"
 	"fmt"
-	"http"
+	"net/http"
+	"net/url"
+	"text/template"
 	"time"
-	"url"
 )
 
 type xmler interface {
@@ -134,5 +134,5 @@ func (r resourcetype) XML(b *bytes.Buffer) {
 
 // helpers
 func epochToXMLTime(sec int64) string {
-	return template.HTMLEscapeString(time.SecondsToUTC(sec).Format(time.RFC3339))
+	return template.HTMLEscapeString(time.Unix(sec, 0).UTC().Format(time.RFC3339))
 }

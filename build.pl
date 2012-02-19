@@ -62,6 +62,9 @@ EOM
 ;
 }
 
+die "TODO(bradfitz): GO1: this build script hasn't been updated for Go 1.\n" .
+"\nIn general, you should use the `go' command now to build Camlistore.  This script will probably remain in some form, though, to create a fake GOPATH temp dir and symlink to let people build Camlistore without the Camlistore root being inside an existing GOPATH directory.  And also generation of fileembed/uistatic data.  But for now, this script is disabled unless the FORCE_BUILD_PL environment variable is set, but that's not tested.\n" unless $ENV{FORCE_BUILD_PL};
+
 my ($GOOS, $GOARCH, $CAMLIROOT, $CAMPKGDIR);  # initialized by perform_go_check
 setup_environment_from_goroot_symlink();
 

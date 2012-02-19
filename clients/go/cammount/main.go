@@ -23,12 +23,12 @@ import (
 	"os"
 	"sort"
 
-	"camli/blobref"
-	"camli/blobserver/localdisk" // used for the blob cache
-	"camli/cacher"
-	"camli/client"
-	"camli/fs"
-	"camli/third_party/github.com/hanwen/go-fuse/fuse"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
+	"camlistore.org/pkg/cacher"
+	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/fs"
+	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
 func PrintMap(m map[string]float64) {

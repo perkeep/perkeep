@@ -1,0 +1,1 @@
+TODO GO1: these should be moved to $CAMLIROOT/cmd (without a "go" path component), once they build for Go 1.

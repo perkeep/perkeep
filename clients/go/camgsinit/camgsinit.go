@@ -18,18 +18,18 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
-	"json"
 	"os"
 	"strings"
 
-	"camli/blobserver/google"
-	"camli/third_party/code.google.com/goauth2/oauth"
+	"camlistore.org/pkg/blobserver/google"
+	"camlistore.org/third_party/code.google.com/goauth2/oauth"
 )
 
 func main() {
 	var (
-		err          os.Error
+		err          error
 		clientId     string
 		clientSecret string
 	)
@@ -59,7 +59,7 @@ func main() {
 }
 
 // Prompt the user for an input line.  Return the given input.
-func prompt(promptText string) (string, os.Error) {
+func prompt(promptText string) (string, error) {
 	fmt.Print(promptText)
 	input := bufio.NewReader(os.Stdin)
 	line, _, err := input.ReadLine()
@@ -70,7 +70,7 @@ func prompt(promptText string) (string, os.Error) {
 }
 
 // Provide the authorization link, then prompt for the resulting access code
-func getAccessCode(config *oauth.Config) (string, os.Error) {
+func getAccessCode(config *oauth.Config) (string, error) {
 	fmt.Printf("In order to obtain a storage access code, you will need to naviage to the following URL:\n\n")
 	fmt.Printf("https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=%s&response_type=code\n\n",
 		config.ClientId, config.Scope)
@@ -78,11 +78,11 @@ func getAccessCode(config *oauth.Config) (string, os.Error) {
 }
 
 // Prompt for client id / secret
-func getClientInfo() (string, string, os.Error) {
+func getClientInfo() (string, string, error) {
 	fmt.Printf("Please provide the client id and client secret for your google storage account\n")
 	fmt.Printf("(You can find these at http://code.google.com/apis/console > your project > API Access)\n")
 	var (
-		err          os.Error
+		err          error
 		clientId     string
 		clientSecret string
 	)

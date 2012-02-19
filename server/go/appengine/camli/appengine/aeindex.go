@@ -25,10 +25,10 @@ import (
 
 	"appengine"
 
-	"camli/blobref"
-	"camli/blobserver"
-	"camli/jsonconfig"
-	"camli/search"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/search"
 )
 
 type appengineIndex struct {

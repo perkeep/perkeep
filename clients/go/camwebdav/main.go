@@ -2,22 +2,22 @@ package main
 
 import (
 	"bytes"
+	"encoding/xml"
 	"flag"
-	"http"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
-	"url"
-	"xml"
 
-	"camli/blobref"
-	"camli/blobserver/localdisk"
-	"camli/client"
-	"camli/cacher"
-	"camli/fs"
-	"camli/third_party/github.com/hanwen/go-fuse/fuse"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver/localdisk"
+	"camlistore.org/pkg/cacher"
+	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/fs"
+	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
 var (

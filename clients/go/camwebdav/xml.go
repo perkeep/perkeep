@@ -1,21 +1,20 @@
 package main
 
 import (
-	"http"
+	"encoding/xml"
 	"io"
 	"log"
-	"os"
-	"xml"
+	"net/http"
 )
 
 func parsexml(r io.Reader) *xmlparser {
-	x := &xmlparser{p: xml.NewParser(r)}
+	x := &xmlparser{p: xml.NewDecoder(r)}
 	x.next()
 	return x
 }
 
 type xmlparser struct {
-	p   *xml.Parser
+	p   *xml.Decoder
 	cur xml.Token
 }
 
@@ -23,10 +22,10 @@ type xmlparser struct {
 // skipping anything that is not an element
 // in the DAV: namespace
 func (x *xmlparser) next() xml.Token {
-	var err os.Error
+	var err error
 	for {
 		x.cur, err = x.p.Token()
-		if err == os.EOF {
+		if err == io.EOF {
 			return x.cur
 		} else if err != nil {
 			panic(sendHTTPStatus(http.StatusBadRequest))
@@ -35,7 +34,7 @@ func (x *xmlparser) next() xml.Token {
 		case xml.StartElement:
 			if tok.Name.Space != "DAV:" {
 				err = x.p.Skip()
-				if err != nil && err != os.EOF {
+				if err != nil && err != io.EOF {
 					panic(sendHTTPStatus(http.StatusBadRequest))
 				}
 			} else {

@@ -17,12 +17,12 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
-	"camli/mysqlindexer"
+	"camlistore.org/pkg/mysqlindexer"
 
 	mysql "camli/third_party/github.com/Philio/GoMySQL"
 )
@@ -91,7 +91,7 @@ func dbExists(db *mysql.Client, dbname string) bool {
 	return false
 }
 
-func check(err os.Error) {
+func check(err error) {
 	if err == nil {
 		return
 	}

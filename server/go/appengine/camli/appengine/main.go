@@ -23,8 +23,8 @@ import (
 
 	"appengine"
 
-	"camli/blobserver"   // storage interface definition
-	"camli/serverconfig" // wiring up the world from a JSON description
+	"camlistore.org/pkg/blobserver"   // storage interface definition
+	"camlistore.org/pkg/serverconfig" // wiring up the world from a JSON description
 	_ "camli/blobserver/cond"
 	_ "camli/blobserver/replica"
 	_ "camli/blobserver/shard"

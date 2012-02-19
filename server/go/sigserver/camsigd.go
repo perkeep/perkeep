@@ -17,10 +17,10 @@ limitations under the License.
 package main
 
 import (
-	"camli/auth"
-	"camli/blobref"
-	"camli/httputil"
-	"camli/webserver"
+	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/webserver"
 	"flag"
 	"fmt"
 	"http"
