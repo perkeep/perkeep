@@ -48,7 +48,8 @@ type IndexDeps struct {
 	EntityFetcher    jsonsign.EntityFetcher // fetching decrypted openpgp entities
 	SignerBlobRef    *blobref.BlobRef
 
-	now int64 // fake clock, nanos since epoch
+	// TODO(mpl): do better with the times. converting as quickly as possible for now to get it running.
+	now time.Time // fake clock, nanos since epoch
 }
 
 func (id *IndexDeps) Get(key string) string {
@@ -99,11 +100,11 @@ func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 }
 
 func (id *IndexDeps) advanceTime() string {
-	id.now += 1e9
-	return schema.RFC3339FromNanos(id.now)
+	id.now = id.now.Add(1 * time.Second)
+	return schema.RFC3339FromTime(id.now)
 }
 
-func (id *IndexDeps) lastTimeNanos() int64 {
+func (id *IndexDeps) lastTimeNanos() time.Time {
 	return id.now
 }
 
@@ -164,7 +165,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
 		SignerBlobRef: pubKey.BlobRef(),
-		now:           1322443956*1e9 + 123456,
+		now:           time.Unix(0, 1322443956*1e9 + 123456),
 	}
 	// Add dev-camput's test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
@@ -316,7 +317,7 @@ func testIndex(t *testing.T, initIdx func() *Index) {
 			}
 		}
 		_, _, err = id.Index.GetBlobMimeType(blobref.Parse("abc-123"))
-		if err != os.ENOENT {
+		if err != os.ErrNotExist {
 			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ENOENT", err)
 		}
 	}
@@ -332,7 +333,7 @@ func testIndex(t *testing.T, initIdx func() *Index) {
 					BlobRef:   br1,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
-					Date:      time.Unix(0, br1Time).UTC(),
+					Date:      br1Time.UTC(),
 					Type:      "set-attribute",
 					Attr:      "foo",
 					Value:     "foo1",
@@ -341,7 +342,7 @@ func testIndex(t *testing.T, initIdx func() *Index) {
 					BlobRef:   br2,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
-					Date:      time.Unix(0, br2Time).UTC(),
+					Date:      br2Time.UTC(),
 					Type:      "set-attribute",
 					Attr:      "foo",
 					Value:     "foo2",
@@ -350,7 +351,7 @@ func testIndex(t *testing.T, initIdx func() *Index) {
 					BlobRef:   rootClaim,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
-					Date:      time.Unix(0, rootClaimTime).UTC(),
+					Date:      rootClaimTime.UTC(),
 					Type:      "set-attribute",
 					Attr:      "camliRoot",
 					Value:     "rootval",
@@ -413,7 +414,7 @@ func testPathsOfSignerTarget(t *testing.T, initIdx func() *Index) {
 		}
 	}
 
-	path, err := id.Index.PathLookup(id.SignerBlobRef, pn, "with|pipe", nil)
+	path, err := id.Index.PathLookup(id.SignerBlobRef, pn, "with|pipe", time.Now())
 	if err != nil {
 		t.Fatalf("PathLookup = %v", err)
 	}

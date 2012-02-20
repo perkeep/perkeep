@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +build ignore
-
 package index
 
 import (
@@ -24,12 +22,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 
-	"launchpad.net/gobson/bson"
-	"launchpad.net/mgo"
+	"camlistore.org/third_party/launchpad.net/mgo"
+	"camlistore.org/third_party/launchpad.net/mgo/bson"
 )
 
 // We explicitely separate the key and the value in a document,
@@ -51,18 +50,15 @@ type MongoWrapper struct {
 	Collection string
 }
 
-// TODO(mpl): as of 29/12/2011, mgo.Mongo() does not return 
-// a non nil error when the servers are not available. 
-// Gustavo says he'll probably change that soon (and have it 
-// do a ping automatically).
-// Also note that Ping won't work with old (1.2) mongo servers.
+// Note that Ping won't work with old (1.2) mongo servers.
 func (mgw *MongoWrapper) TestConnection(timeout int64) bool {
-	session, err := mgo.Mongo(mgw.Servers)
+	session, err := mgo.Dial(mgw.Servers)
 	if err != nil {
 		return false
 	}
 	defer session.Close()
-	session.SetSyncTimeout(timeout)
+	t := time.Duration(timeout)
+	session.SetSyncTimeout(t)
 	if err = session.Ping(); err != nil {
 		return false
 	}
@@ -71,7 +67,7 @@ func (mgw *MongoWrapper) TestConnection(timeout int64) bool {
 
 func (mgw *MongoWrapper) getConnection() (*mgo.Session, error) {
 	// TODO(mpl): do some "client caching" as in mysql, to avoid systematically dialing?
-	session, err := mgo.Mongo(mgw.Servers)
+	session, err := mgo.Dial(mgw.Servers)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +90,7 @@ func (mgw *MongoWrapper) getCollection() (*mgo.Collection, error) {
 	session.SetSafe(&mgo.Safe{})
 	session.SetMode(mgo.Strong, true)
 	c := session.DB(mgw.Database).C(mgw.Collection)
-	return &c, nil
+	return c, nil
 }
 
 func init() {
