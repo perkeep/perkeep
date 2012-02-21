@@ -46,12 +46,12 @@ func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, siz
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	if tf.m == nil {
-		err = os.ENOENT
+		err = os.ErrNotExist
 		return
 	}
 	tb, ok := tf.m[ref.String()]
 	if !ok {
-		err = os.ENOENT
+		err = os.ErrNotExist
 		return
 	}
 	file = &strReader{tb.Contents, 0}

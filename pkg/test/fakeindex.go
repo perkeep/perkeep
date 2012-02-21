@@ -129,7 +129,7 @@ func (fi *FakeIndex) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size i
 	bs := blob.String()
 	mime, ok := fi.mimeType[bs]
 	if !ok {
-		return "", 0, os.ENOENT
+		return "", 0, os.ErrNotExist
 	}
 	return mime, fi.size[bs], nil
 }
@@ -148,7 +148,7 @@ func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, v
 	if b, ok := fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)]; ok {
 		return b, nil
 	}
-	return nil, os.ENOENT
+	return nil, os.ErrNotExist
 }
 
 func (fi *FakeIndex) PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*search.Path, error) {
@@ -160,8 +160,8 @@ func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) (
 }
 
 func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at time.Time) (*search.Path, error) {
-	if at != nil {
-		panic("PathLookup with non-nil at not supported")
+	if at.IsZero() {
+		panic("PathLookup with non zero at not supported")
 	}
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
@@ -169,5 +169,5 @@ func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at
 		return p, nil
 	}
 	log.Printf("PathLookup miss for signer %q, base %q, suffix %q", signer, base, suffix)
-	return nil, os.ENOENT
+	return nil, os.ErrNotExist
 }

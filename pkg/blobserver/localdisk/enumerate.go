@@ -55,6 +55,12 @@ func readBlobs(opts readBlobRequest) error {
 	defer dir.Close()
 	names, err := dir.Readdirnames(32768)
 	if err == io.EOF {
+		// remove empty blob dir if we are in a queue but not the queue root itself
+		if strings.Contains(dirFullPath, "queue-") &&
+			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
+			// ignoring error since it's most likely a race with a newly added blob
+			os.Remove(dirFullPath)
+		}
 		return nil
 	}
 	if err != nil {

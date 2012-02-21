@@ -20,14 +20,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 )
 
-func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) error {
+func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 	it := ix.s.Find("have:" + after)
-	n := uint(0)
+	n := int(0)
 	for n < limit && it.Next() {
 		k := it.Key()
 		if !strings.HasPrefix(k, "have:") {
@@ -43,7 +44,7 @@ func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, 
 	return it.Close()
 }
 
-func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) error {
+func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)

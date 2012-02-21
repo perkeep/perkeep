@@ -244,7 +244,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error) {
 	meta, err := x.s.Get("meta:" + blob.String())
 	if err == ErrNotFound {
-		err = os.ENOENT
+		err = os.ErrNotExist
 	}
 	if err != nil {
 		return
@@ -263,7 +263,7 @@ func (x *Index) keyId(signer *blobref.BlobRef) (string, error) {
 func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (permaNode *blobref.BlobRef, err error) {
 	keyId, err := x.keyId(signer)
 	if err == ErrNotFound {
-		return nil, os.ENOENT
+		return nil, os.ErrNotExist
 	}
 	if err != nil {
 		return nil, err
@@ -273,7 +273,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	if it.Next() {
 		return blobref.Parse(it.Value()), nil
 	}
-	return nil, os.ENOENT
+	return nil, os.ErrNotExist
 }
 
 // This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
@@ -423,9 +423,11 @@ func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time
 		atSeconds = int64(0)
 		best      *search.Path
 	)
-	if at != nil {
+
+	if !at.IsZero() {
 		atSeconds = at.Unix()
 	}
+
 	for _, path := range paths {
 		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(path.ClaimDate))
 		if err != nil {
@@ -444,7 +446,7 @@ func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time
 		newest, best = secs, path
 	}
 	if best == nil {
-		return nil, os.ENOENT
+		return nil, os.ErrNotExist
 	}
 	return best, nil
 }
@@ -477,17 +479,17 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	key := "fileinfo|" + fileRef.String()
 	v, err := x.s.Get(key)
 	if err == ErrNotFound {
-		return nil, os.ENOENT
+		return nil, os.ErrNotExist
 	}
 	valPart := strings.Split(v, "|")
 	if len(valPart) < 3 {
 		log.Printf("index: bogus key %q = %q", key, v)
-		return nil, os.ENOENT
+		return nil, os.ErrNotExist
 	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
 		log.Printf("index: bogus integer at position 0 in key %q = %q", key, v)
-		return nil, os.ENOENT
+		return nil, os.ErrNotExist
 	}
 	fi := &search.FileInfo{
 		Size:     size,
