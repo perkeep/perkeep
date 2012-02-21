@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"http"
 	"strings"
 	"time"
 )
@@ -12,7 +12,7 @@ import (
 type logRecord struct {
 	http.ResponseWriter
 
-	time                *time.Time
+	time                time.Time
 	ip, method, rawpath string
 	responseBytes       int64
 	responseStatus      int
@@ -47,10 +47,10 @@ func (h *logHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lr := &logRecord{
-		time:           time.UTC(),
+		time:           time.Now().UTC(),
 		ip:             addr,
 		method:         r.Method,
-		rawpath:        r.URL.RawPath,
+		rawpath:        r.URL.RequestURI(),
 		userAgent:      r.UserAgent(),
 		referer:        r.Referer(),
 		responseStatus: http.StatusOK,
@@ -72,19 +72,19 @@ func (h *logHandler) logFromChannel() {
 
 		// [10/Oct/2000:13:55:36 -0700]
 		dateString := fmt.Sprintf("%02d/%s/%04d:%02d:%02d:%02d -0000",
-			lr.time.Day,
-			monthAbbr[lr.time.Month-1],
-			lr.time.Year,
-			lr.time.Hour, lr.time.Minute, lr.time.Second)
+			lr.time.Day(),
+			monthAbbr[lr.time.Month()-1],
+			lr.time.Year(),
+			lr.time.Hour(), lr.time.Minute(), lr.time.Second())
 
 		if h.dir != "" {
 			fileName := fmt.Sprintf("%s/%04d-%02d-%02d%s%02d.log", h.dir,
-				lr.time.Year, lr.time.Month, lr.time.Day, "h", lr.time.Hour)
+				lr.time.Year(), lr.time.Month(), lr.time.Day(), "h", lr.time.Hour())
 			if fileName > lastFileName {
 				if logFile != nil {
 					logFile.Close()
 				}
-				var err os.Error
+				var err error
 				logFile, err = os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 				if err != nil {
 					log.Printf("Error opening %q: %v", fileName, err)
@@ -114,7 +114,7 @@ func (h *logHandler) logFromChannel() {
 	}
 }
 
-func (lr *logRecord) Write(p []byte) (int, os.Error) {
+func (lr *logRecord) Write(p []byte) (int, error) {
 	written, err := lr.ResponseWriter.Write(p)
 	lr.responseBytes += int64(written)
 	return written, err

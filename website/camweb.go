@@ -18,21 +18,22 @@ package main
 
 import (
 	"bytes"
-	"exec"
 	"flag"
 	"fmt"
-	"http"
-	"http/cgi"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/http/cgi"
+	"net/http/httputil"
+	"net/url"
+	"old/template"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"old/template"
 	"time"
-	"url"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -146,7 +147,7 @@ func readTemplates() {
 	errorHtml = readTemplate("error.html")
 }
 
-func serveError(w http.ResponseWriter, r *http.Request, relpath string, err os.Error) {
+func serveError(w http.ResponseWriter, r *http.Request, relpath string, err error) {
 	contents := applyTemplate(errorHtml, "errorHtml", err) // err may contain an absolute path!
 	w.WriteHeader(http.StatusNotFound)
 	servePage(w, "File "+relpath, "", contents)
@@ -171,7 +172,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		serveError(rw, req, relPath, err)
 		return
 	}
-	if fi.IsDirectory() {
+	if fi.IsDir() {
 		relPath += "/index.html"
 		absPath = filepath.Join(*root, "content", relPath)
 		fi, err = os.Lstat(absPath)
@@ -183,7 +184,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	switch {
-	case fi.IsRegular():
+	case !fi.IsDir():
 		serveFile(rw, req, relPath, absPath)
 	}
 }
@@ -209,8 +210,8 @@ type gitwebHandler struct {
 }
 
 func (h *gitwebHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	if r.URL.RawPath == "/code/" ||
-		strings.HasPrefix(r.URL.RawPath, "/code/?") {
+	if r.URL.Path == "/code/" ||
+		strings.HasPrefix(r.URL.Path, "/code/?") {
 		h.Cgi.ServeHTTP(rw, r)
 	} else {
 		h.Static.ServeHTTP(rw, r)
@@ -230,7 +231,7 @@ type noWwwHandler struct {
 func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Some bots (especially Baidu) don't seem to respect robots.txt and swamp gitweb.cgi,
 	// so explicitly protect it from bots.
-	if strings.Contains(r.URL.RawPath, "/code/") && strings.Contains(r.URL.RawPath, "?") && isBot(r) {
+	if ru := r.URL.RequestURI(); strings.Contains(ru, "/code/") && strings.Contains(ru, "?") && isBot(r) {
 		http.Error(rw, "bye", http.StatusUnauthorized)
 		log.Printf("bot denied")
 		return
@@ -238,7 +239,7 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" {
-		http.Redirect(rw, r, "http://camlistore.org"+r.URL.RawPath, http.StatusFound)
+		http.Redirect(rw, r, "http://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
@@ -246,7 +247,7 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func fixupGitwebFiles() {
 	fi, err := os.Stat(*gitwebFiles)
-	if err != nil || !fi.IsDirectory() {
+	if err != nil || !fi.IsDir() {
 		if *gitwebFiles == "/usr/share/gitweb/static" {
 			// Old Debian/Ubuntu location
 			*gitwebFiles = "/usr/share/gitweb"
@@ -259,7 +260,7 @@ func main() {
 	readTemplates()
 
 	if *root == "" {
-		var err os.Error
+		var err error
 		*root, err = os.Getwd()
 		if err != nil {
 			log.Fatalf("Failed to getwd: %v", err)
@@ -281,7 +282,7 @@ func main() {
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 
 	gerritUrl, _ := url.Parse(fmt.Sprintf("http://%s:8000/", *gerritHost))
-	var gerritHandler http.Handler = http.NewSingleHostReverseProxy(gerritUrl)
+	var gerritHandler http.Handler = httputil.NewSingleHostReverseProxy(gerritUrl)
 	if *httpsAddr != "" {
 		proxyHandler := gerritHandler
 		gerritHandler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -289,7 +290,7 @@ func main() {
 				proxyHandler.ServeHTTP(rw, req)
 				return
 			}
-			http.Redirect(rw, req, "https://camlistore.org"+req.URL.RawPath, http.StatusFound)
+			http.Redirect(rw, req, "https://camlistore.org"+req.URL.RequestURI(), http.StatusFound)
 		})
 	}
 	mux.Handle("/r/", gerritHandler)
@@ -322,7 +323,7 @@ func main() {
 		handler = NewLoggingHandler(handler, *logDir, *logStdout)
 	}
 
-	errch := make(chan os.Error)
+	errch := make(chan error)
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -361,7 +362,7 @@ type fixUpGitwebUrls struct {
 // . Doesn't seem to be a bug in the CGI implementation, though, which
 // is what I'd originally suspected.
 func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	oldUrl := req.RawURL
+	oldUrl := req.URL.String()
 	newUrl := strings.Replace(oldUrl, "%3B", ";", -1)
 	if newUrl == oldUrl {
 		fu.handler.ServeHTTP(rw, req)
