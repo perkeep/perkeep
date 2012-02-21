@@ -48,7 +48,6 @@ type IndexDeps struct {
 	EntityFetcher    jsonsign.EntityFetcher // fetching decrypted openpgp entities
 	SignerBlobRef    *blobref.BlobRef
 
-	// TODO(mpl): do better with the times. converting as quickly as possible for now to get it running.
 	now time.Time // fake clock, nanos since epoch
 }
 
@@ -104,7 +103,7 @@ func (id *IndexDeps) advanceTime() string {
 	return schema.RFC3339FromTime(id.now)
 }
 
-func (id *IndexDeps) lastTimeNanos() time.Time {
+func (id *IndexDeps) lastTime() time.Time {
 	return id.now
 }
 
@@ -165,7 +164,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
 		SignerBlobRef: pubKey.BlobRef(),
-		now:           time.Unix(0, 1322443956*1e9 + 123456),
+		now:           time.Unix(1322443956, 123456),
 	}
 	// Add dev-camput's test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
@@ -227,13 +226,13 @@ func testIndex(t *testing.T, initIdx func() *Index) {
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "foo", "foo1")
-	br1Time := id.lastTimeNanos()
+	br1Time := id.lastTime()
 	t.Logf("set attribute %q", br1)
 	br2 := id.SetAttribute(pn, "foo", "foo2")
-	br2Time := id.lastTimeNanos()
+	br2Time := id.lastTime()
 	t.Logf("set attribute %q", br2)
 	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
-	rootClaimTime := id.lastTimeNanos()
+	rootClaimTime := id.lastTime()
 	t.Logf("set attribute %q", rootClaim)
 
 	id.dumpIndex(t)
