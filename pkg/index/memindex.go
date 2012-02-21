@@ -23,8 +23,8 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 
-	"code.google.com/p/leveldb-go/leveldb/db"
-	"code.google.com/p/leveldb-go/leveldb/memdb"
+	"camlistore.org/third_party/code.google.com/p/leveldb-go/leveldb/db"
+	"camlistore.org/third_party/code.google.com/p/leveldb-go/leveldb/memdb"
 )
 
 func init() {
@@ -82,7 +82,7 @@ func (s stringIterator) Value() string {
 func (mk *memKeys) Get(key string) (string, error) {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	k, err := mk.db.Get([]byte(key))
+	k, err := mk.db.Get([]byte(key), nil)
 	if err == db.ErrNotFound {
 		return "", ErrNotFound
 	}
@@ -92,20 +92,20 @@ func (mk *memKeys) Get(key string) (string, error) {
 func (mk *memKeys) Find(key string) Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	dit := mk.db.Find([]byte(key))
+	dit := mk.db.Find([]byte(key), nil)
 	return stringIterator{dit}
 }
 
 func (mk *memKeys) Set(key, value string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	return mk.db.Set([]byte(key), []byte(value))
+	return mk.db.Set([]byte(key), []byte(value), nil)
 }
 
 func (mk *memKeys) Delete(key string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	return mk.db.Delete([]byte(key))
+	return mk.db.Delete([]byte(key), nil)
 }
 
 func (mk *memKeys) BeginBatch() BatchMutation {
@@ -121,11 +121,11 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 	defer mk.mu.Unlock()
 	for _, m := range b.m {
 		if m.delete {
-			if err := mk.db.Delete([]byte(m.key)); err != nil {
+			if err := mk.db.Delete([]byte(m.key), nil); err != nil {
 				return err
 			}
 		} else {
-			if err := mk.db.Set([]byte(m.key), []byte(m.value)); err != nil {
+			if err := mk.db.Set([]byte(m.key), []byte(m.value), nil); err != nil {
 				return err
 			}
 		}

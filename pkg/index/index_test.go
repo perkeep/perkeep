@@ -144,7 +144,9 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 }
 
 func NewIndexDeps(index *Index) *IndexDeps {
-	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
+	// TODO(mpl): figure out why this wrong path wasn't making the mongo tests fail
+//	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
+	secretRingFile := "../jsonsign/testdata/test-secring.gpg"
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsBNBEzgoVsBCAC/56aEJ9BNIGV9FVP+WzenTAkg12k86YqlwJVAB/VwdMlyXxvi
