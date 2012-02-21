@@ -51,14 +51,13 @@ type MongoWrapper struct {
 }
 
 // Note that Ping won't work with old (1.2) mongo servers.
-func (mgw *MongoWrapper) TestConnection(timeout int64) bool {
-	session, err := mgo.Dial(mgw.Servers)
+func (mgw *MongoWrapper) TestConnection(timeout time.Duration) bool {
+	session, err := mgo.DialWithTimeout(mgw.Servers, timeout)
 	if err != nil {
 		return false
 	}
 	defer session.Close()
-	t := time.Duration(timeout)
-	session.SetSyncTimeout(t)
+	session.SetSyncTimeout(timeout)
 	if err = session.Ping(); err != nil {
 		return false
 	}

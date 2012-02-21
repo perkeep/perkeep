@@ -144,8 +144,6 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 }
 
 func NewIndexDeps(index *Index) *IndexDeps {
-	// TODO(mpl): figure out why this wrong path wasn't making the mongo tests fail
-//	secretRingFile := "../../../../lib/go/camli/jsonsign/testdata/test-secring.gpg"
 	secretRingFile := "../jsonsign/testdata/test-secring.gpg"
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -183,7 +181,7 @@ func checkMongoUp() {
 	mgw := &MongoWrapper{
 		Servers: "localhost",
 	}
-	mongoNotAvailable = !mgw.TestConnection(1e9)
+	mongoNotAvailable = !mgw.TestConnection(500 * time.Millisecond)
 }
 
 func initMongoIndex() *Index {
@@ -209,8 +207,7 @@ func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *Index)) {
 	once.Do(checkMongoUp)
 	if mongoNotAvailable {
 		err := errors.New("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
-		t.Logf("Mongo not available locally for testing: %v", err)
-		return
+		t.Fatalf("Mongo not available locally for testing: %v", err)
 	}
 	tfn(t, initMongoIndex)
 }
