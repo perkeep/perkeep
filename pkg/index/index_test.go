@@ -207,7 +207,8 @@ func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *Index)) {
 	once.Do(checkMongoUp)
 	if mongoNotAvailable {
 		err := errors.New("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
-		t.Fatalf("Mongo not available locally for testing: %v", err)
+		t.Logf("Mongo not available locally for testing: %v", err)
+		return
 	}
 	tfn(t, initMongoIndex)
 }
