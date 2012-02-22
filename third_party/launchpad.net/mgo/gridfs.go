@@ -32,7 +32,7 @@ import (
 	"errors"
 	"hash"
 	"io"
-	"launchpad.net/mgo/bson"
+	"camlistore.org/third_party/launchpad.net/mgo/bson"
 	"os"
 	"sync"
 	"time"

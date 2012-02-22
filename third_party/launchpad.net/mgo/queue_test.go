@@ -27,7 +27,7 @@
 package mgo
 
 import (
-	"launchpad.net/gocheck"
+	"camlistore.org/third_party/launchpad.net/gocheck"
 )
 
 type QS struct{}
