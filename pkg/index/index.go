@@ -87,14 +87,40 @@ type BatchMutation interface {
 	Delete(key string)
 }
 
+type Mutation interface {
+	Key() string
+	Value() string
+	IsDelete() bool
+}
+
 type mutation struct {
 	key    string
 	value  string // used if !delete
 	delete bool   // if to be deleted
 }
 
+func (m mutation) Key() string {
+	return m.key
+}
+
+func (m mutation) Value() string {
+	return m.value
+}
+
+func (m mutation) IsDelete() bool {
+	return m.delete
+}
+
+func NewBatchMutation() BatchMutation {
+	return &batch{}
+}
+
 type batch struct {
-	m []mutation
+	m []Mutation
+}
+
+func (b *batch) Mutations() []Mutation {
+	return b.m
 }
 
 func (b *batch) Delete(key string) {
@@ -498,3 +524,5 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	}
 	return fi, nil
 }
+
+func (x *Index) Storage() IndexStorage { return x.s }

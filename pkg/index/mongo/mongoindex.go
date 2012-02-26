@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package index
+package mongo
 
 import (
 	"errors"
@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 
 	"camlistore.org/third_party/launchpad.net/mgo"
@@ -75,10 +76,10 @@ func (mgw *MongoWrapper) getConnection() (*mgo.Session, error) {
 	return session, nil
 }
 
-// TODO(mpl): I'm only calling getCollection at the beginning, and 
+// TODO(mpl): I'm only calling getCollection at the beginning, and
 // keeping the collection around and reusing it everywhere, instead
 // of calling getCollection everytime, because that's the easiest.
-// But I can easily change that. Gustavo says it does not make 
+// But I can easily change that. Gustavo says it does not make
 // much difference either way.
 // Brad, what do you think?
 func (mgw *MongoWrapper) getCollection() (*mgo.Collection, error) {
@@ -97,13 +98,13 @@ func init() {
 		blobserver.StorageConstructor(newMongoIndexFromConfig))
 }
 
-func newMongoIndex(mgw *MongoWrapper) (*Index, error) {
+func newMongoIndex(mgw *MongoWrapper) (*index.Index, error) {
 	db, err := mgw.getCollection()
 	if err != nil {
 		return nil, err
 	}
 	mongoStorage := &mongoKeys{db: db}
-	return New(mongoStorage), nil
+	return index.New(mongoStorage), nil
 }
 
 func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
@@ -136,7 +137,7 @@ func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobs
 			return nil, err
 		}
 		if dowipe {
-			err = ix.s.Delete("")
+			err = ix.Storage().Delete("")
 			if err != nil {
 				return nil, err
 			}
@@ -191,7 +192,7 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	err := q.One(&res)
 	if err != nil {
 		if err == mgo.NotFound {
-			return "", ErrNotFound
+			return "", index.ErrNotFound
 		} else {
 			return "", err
 		}
@@ -199,7 +200,7 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	return res[mgoValue].(string), err
 }
 
-func (mk *mongoKeys) Find(key string) Iterator {
+func (mk *mongoKeys) Find(key string) index.Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	// TODO(mpl): escape other special chars, or maybe replace $regex with something
@@ -227,24 +228,29 @@ func (mk *mongoKeys) Delete(key string) error {
 	return mk.db.Remove(&bson.M{mgoKey: key})
 }
 
-func (mk *mongoKeys) BeginBatch() BatchMutation {
-	return &batch{}
+func (mk *mongoKeys) BeginBatch() index.BatchMutation {
+	return index.NewBatchMutation()
 }
 
-func (mk *mongoKeys) CommitBatch(bm BatchMutation) error {
-	b, ok := bm.(*batch)
+type batch interface {
+	Mutations() []index.Mutation
+}
+
+func (mk *mongoKeys) CommitBatch(bm index.BatchMutation) error {
+	b, ok := bm.(batch)
 	if !ok {
-		return errors.New("invalid batch type; not an instance returned by BeginBatch")
+		return errors.New("invalid batch type")
 	}
+
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	for _, m := range b.m {
-		if m.delete {
-			if err := mk.db.Remove(bson.M{mgoKey: m.key}); err != nil {
+	for _, m := range b.Mutations() {
+		if m.IsDelete() {
+			if err := mk.db.Remove(bson.M{mgoKey: m.Key()}); err != nil {
 				return err
 			}
 		} else {
-			if _, err := mk.db.Upsert(&bson.M{mgoKey: m.key}, &bson.M{mgoKey: m.key, mgoValue: m.value}); err != nil {
+			if _, err := mk.db.Upsert(&bson.M{mgoKey: m.Key()}, &bson.M{mgoKey: m.Key(), mgoValue: m.Value()}); err != nil {
 				return err
 			}
 		}
