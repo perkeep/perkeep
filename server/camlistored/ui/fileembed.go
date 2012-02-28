@@ -16,12 +16,11 @@ limitations under the License.
 
 /*
 #fileembed pattern .+\.(js|html)
-#fileembed target camlistore.org/server/uistatic
 */
 package ui
 
 import (
-	"camlistore.org/pkg/misc/fileembed"
+	"camlistore.org/pkg/fileembed"
 )
 
 var Files = &fileembed.Files{
