@@ -18,7 +18,6 @@ package fileembed
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -27,8 +26,6 @@ import (
 	"sync"
 	"time"
 )
-
-var binaryModTime = statBinaryModTime()
 
 type Files struct {
 	// Optional environment variable key to override
@@ -42,22 +39,32 @@ type Files struct {
 	SlurpToMemory bool
 
 	lk   sync.Mutex
-	file map[string]string
+	file map[string]*staticFile
+}
+
+type staticFile struct {
+	name     string
+	contents string
+	modtime  time.Time
 }
 
 // Add adds a file to the file set.
-func (f *Files) Add(filename, body string) {
+func (f *Files) Add(filename, contents string, modtime time.Time) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
-	f.add(filename, body)
+	f.add(filename, &staticFile{
+		name:     filename,
+		contents: contents,
+		modtime:  modtime,
+	})
 }
 
 // f.lk must be locked
-func (f *Files) add(filename, body string) {
+func (f *Files) add(filename string, sf *staticFile) {
 	if f.file == nil {
-		f.file = make(map[string]string)
+		f.file = make(map[string]*staticFile)
 	}
-	f.file[filename] = body
+	f.file[filename] = sf
 }
 
 func (f *Files) Open(filename string) (http.File, error) {
@@ -66,11 +73,11 @@ func (f *Files) Open(filename string) (http.File, error) {
 	}
 	f.lk.Lock()
 	defer f.lk.Unlock()
-	s, ok := f.file[filename]
+	sf, ok := f.file[filename]
 	if !ok {
 		return f.openFallback(filename)
 	}
-	return &file{name: filename, s: s}, nil
+	return &fileHandle{sf: sf}, nil
 }
 
 // f.lk is held
@@ -88,22 +95,29 @@ func (f *Files) openFallback(filename string) (http.File, error) {
 		if err != nil {
 			return nil, err
 		}
+		fi, err := of.Stat()
+
 		s := string(bs)
-		f.add(filename, s)
-		return &file{name: filename, s: s}, nil
+		sf := &staticFile{
+			name:     filename,
+			contents: s,
+			modtime:  fi.ModTime(),
+		}
+		f.add(filename, sf)
+		return &fileHandle{sf: sf}, nil
 	}
 	return of, nil
 }
 
-type file struct {
-	name string
-	s    string
-
+type fileHandle struct {
+	sf     *staticFile
 	off    int64
 	closed bool
 }
 
-func (f *file) Close() error {
+var _ http.File = (*fileHandle)(nil)
+
+func (f *fileHandle) Close() error {
 	if f.closed {
 		return os.ErrInvalid
 	}
@@ -111,27 +125,27 @@ func (f *file) Close() error {
 	return nil
 }
 
-func (f *file) Read(p []byte) (n int, err error) {
-	if f.off >= int64(len(f.s)) {
+func (f *fileHandle) Read(p []byte) (n int, err error) {
+	if f.off >= int64(len(f.sf.contents)) {
 		return 0, io.EOF
 	}
-	n = copy(p, f.s[f.off:])
+	n = copy(p, f.sf.contents[f.off:])
 	f.off += int64(n)
 	return
 }
 
-func (f *file) Readdir(int) ([]os.FileInfo, error) {
+func (f *fileHandle) Readdir(int) ([]os.FileInfo, error) {
 	return nil, errors.New("not directory")
 }
 
-func (f *file) Seek(offset int64, whence int) (int64, error) {
+func (f *fileHandle) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case os.SEEK_SET:
 		f.off = offset
 	case os.SEEK_CUR:
 		f.off += offset
 	case os.SEEK_END:
-		f.off = int64(len(f.s)) + offset
+		f.off = int64(len(f.sf.contents)) + offset
 	default:
 		return 0, os.ErrInvalid
 	}
@@ -141,31 +155,15 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 	return f.off, nil
 }
 
-type fileInfo struct {
-	name    string
-	size    int64
-	modtime time.Time
+func (f *fileHandle) Stat() (os.FileInfo, error) {
+	return f.sf, nil
 }
 
-func (fi *fileInfo) Name() string       { return fi.name }
-func (fi *fileInfo) Size() int64        { return fi.size }
-func (fi *fileInfo) Mode() os.FileMode  { return 0444 }
-func (fi *fileInfo) ModTime() time.Time { return fi.modtime }
-func (fi *fileInfo) IsDir() bool        { return false }
-func (fi *fileInfo) Sys() interface{}   { return nil }
+var _ os.FileInfo = (*staticFile)(nil)
 
-func (f *file) Stat() (os.FileInfo, error) {
-	return &fileInfo{
-		name:    f.name,
-		size:    int64(len(f.s)),
-		modtime: binaryModTime,
-	}, nil
-}
-
-func statBinaryModTime() time.Time {
-	fi, err := os.Stat(os.Args[0])
-	if err != nil {
-		panic(fmt.Sprintf("Failed to stat binary %q: %v", os.Args[0], err))
-	}
-	return fi.ModTime()
-}
+func (f *staticFile) Name() string       { return f.name }
+func (f *staticFile) Size() int64        { return int64(len(f.contents)) }
+func (f *staticFile) Mode() os.FileMode  { return 0444 }
+func (f *staticFile) ModTime() time.Time { return f.modtime }
+func (f *staticFile) IsDir() bool        { return false }
+func (f *staticFile) Sys() interface{}   { return nil }

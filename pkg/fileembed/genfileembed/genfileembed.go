@@ -49,6 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error parsing %s/fileembed.go: %v", dir, err)
 	}
+
 	for _, fileName := range matchingFiles(filePattern) {
 		embedName := "zembed_" + fileName + ".go"
 		fi, err := os.Stat(fileName)
@@ -68,7 +69,8 @@ func main() {
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
 		fmt.Fprintf(&b, "// DO NOT EDIT.\n")
 		fmt.Fprintf(&b, "package %s\n", pkgName)
-		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %q);\n}\n", fileName, bs)
+		fmt.Fprintf(&b, "import \"time\"\n")
+		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %q, time.Unix(0, %d));\n}\n", fileName, bs, fi.ModTime().UnixNano())
 		if err := ioutil.WriteFile(embedName, b.Bytes(), 0644); err != nil {
 			log.Fatal(err)
 		}
