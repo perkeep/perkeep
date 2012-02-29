@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -67,9 +68,15 @@ func (f *Files) add(filename string, sf *staticFile) {
 	f.file[filename] = sf
 }
 
-func (f *Files) Open(filename string) (http.File, error) {
+var _ http.FileSystem = (*Files)(nil)
+
+func (f *Files) Open(filename string) (hf http.File, err error) {
+	if strings.HasPrefix(filename, "/") {
+		filename = filename[1:]
+	}
 	if e := f.OverrideEnv; e != "" && os.Getenv(e) != "" {
-		return os.Open(filepath.Join(os.Getenv(e), filename))
+		diskPath := filepath.Join(os.Getenv(e), filename)
+		return os.Open(diskPath)
 	}
 	f.lk.Lock()
 	defer f.lk.Unlock()

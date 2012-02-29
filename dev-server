@@ -14,6 +14,7 @@ my $opt_wipe;
 my $opt_tls;
 my $opt_nobuild;
 my $opt_all;  # listen on all interfaces
+my $opt_staticres; # use static resources, not those on disk
 
 # keep indexes in memory only. often used with --wipe, but not
 # necessarily. if --wipe isn't used, all blobs are re-indexed
@@ -28,6 +29,7 @@ GetOptions("wipe" => \$opt_wipe,
            "memory" => \$opt_memory,
            "mongo" => \$opt_mongo,
            "mysql" => \$opt_mysql,
+           "staticres" => \$opt_staticres,
     )
     or usage();
 
@@ -125,7 +127,9 @@ $ENV{CAMLI_DBNAME} = $DBNAME;
 
 # To use resources from disk, instead of the copies linked into the
 # binary:
-$ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/go/camlistored/ui"; # set in server/go/camlistored/ui/fileembed.go
+unless ($opt_staticres) {
+    $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
+}
 
 exec("./gopath/bin/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
