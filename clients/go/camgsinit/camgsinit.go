@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blobserver/google"
-	"camlistore.org/third_party/code.google.com/goauth2/oauth"
+	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
 func main() {
