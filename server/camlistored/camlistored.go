@@ -53,13 +53,17 @@ import (
 	_ "camlistore.org/pkg/server" // UI, publish, etc
 )
 
-const defCert = "config/selfgen_cert.pem"
-const defKey = "config/selfgen_key.pem"
+const (
+	defCert = "config/selfgen_cert.pem"
+	defKey = "config/selfgen_key.pem"
+)
 
-var flagConfigFile = flag.String("configfile", "serverconfig",
-	"Config file to use, relative to camli config dir root, or blank to not use config files.")
+var (
+	flagConfigFile = flag.String("configfile", "serverconfig",
+		"Config file to use, relative to camli config dir root, or blank to not use config files.")
+)
 
-func exitFailure(pattern string, args ...interface{}) {
+func exitf(pattern string, args ...interface{}) {
 	if !strings.HasSuffix(pattern, "\n") {
 		pattern = pattern + "\n"
 	}
@@ -128,7 +132,7 @@ func main() {
 	}
 	config, err := serverconfig.Load(file)
 	if err != nil {
-		exitFailure("Could not load server config: %v", err)
+		exitf("Could not load server config: %v", err)
 	}
 
 	ws := webserver.New()
@@ -139,7 +143,7 @@ func main() {
 		secure := config.OptionalBool("https", true)
 		if secure {
 			if (cert != "") != (key != "") {
-				exitFailure("TLSCertFile and TLSKeyFile must both be either present or absent")
+				exitf("TLSCertFile and TLSKeyFile must both be either present or absent")
 			}
 
 			if cert == defCert && key == defKey {
@@ -149,17 +153,17 @@ func main() {
 					if os.IsNotExist(err1) || os.IsNotExist(err2) {
 						err = genSelfTLS()
 						if err != nil {
-							exitFailure("Could not generate self signed creds: %q", err)
+							exitf("Could not generate self signed creds: %q", err)
 						}
 					} else {
-						exitFailure("Could not stat cert or key: %q, %q", err1, err2)
+						exitf("Could not stat cert or key: %q, %q", err1, err2)
 					}
 				}
 			}
 			if cert == "" && key == "" {
 				err = genSelfTLS()
 				if err != nil {
-					exitFailure("Could not generate self signed creds: %q", err)
+					exitf("Could not generate self signed creds: %q", err)
 				}
 				cert = defCert
 				key = defKey
@@ -170,7 +174,7 @@ func main() {
 
 	err = config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
-		exitFailure("Error parsing config: %v", err)
+		exitf("Error parsing config: %v", err)
 	}
 
 	ws.Listen()
