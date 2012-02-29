@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 /*
-#fileembed pattern .+\.(js|html)
+#fileembed pattern .+\.(js|css|html)
 */
 package ui
 
