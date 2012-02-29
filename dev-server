@@ -8,6 +8,8 @@ sub usage {
     die "Usage: dev-server [--wipe] [--mongo|--memory] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
+chdir $Bin or die;
+
 my $opt_wipe;
 my $opt_tls;
 my $opt_nobuild;
@@ -18,22 +20,26 @@ my $opt_all;  # listen on all interfaces
 # on start-up.
 my $opt_memory;
 my $opt_mongo;
+my $opt_mysql;
 GetOptions("wipe" => \$opt_wipe,
            "tls" => \$opt_tls,
            "all" => \$opt_all,
            "nobuild" => \$opt_nobuild,
            "memory" => \$opt_memory,
            "mongo" => \$opt_mongo,
+           "mysql" => \$opt_mysql,
     )
     or usage();
+
+$opt_memory = 1 unless $opt_memory || $opt_mongo || $opt_mysql;
 
 my $port = shift;
 $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
 unless ($opt_nobuild) {
-    system("./build.pl", "server/go/camlistored") and die "Failed to build camlistored";
-    system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+    system("go", "build", "-o", "./gopath/bin/camlistored", "./server/camlistored") and die "Failed to build camlistored";
+    # TODO-GO1: FIX: system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
 }
 
 my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
@@ -76,7 +82,7 @@ if ($opt_memory) {
     } else {
         $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
         $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-        system("./clients/go/camdbinit/camdbinit",
+        system("./gopath/bin/camdbinit",
                "-user=root",
                "-password=root",
                "-host=localhost",
@@ -121,7 +127,7 @@ $ENV{CAMLI_DBNAME} = $DBNAME;
 # binary:
 $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/go/camlistored/ui"; # set in server/go/camlistored/ui/fileembed.go
 
-exec("$FindBin::Bin/server/go/camlistored/camlistored",
+exec("./gopath/bin/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
      "-listen=$listen",
      @ARGV);
