@@ -294,6 +294,13 @@ sub perform_go_check() {
     return 1;
 }
 
+sub check_gopath {
+    return unless $ENV{GOPATH};
+    my $gopath = "$FindBin::Bin/gopath";
+    print "\$GOPATH not set. Using local gopath of $gopath\n";
+    $ENV{GOPATH} = $gopath;
+}
+
 sub make_symlink {
     my ($old, $new) = @_;
     $old =~ s!/+!/!g;
