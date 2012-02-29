@@ -43,6 +43,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/s3"
 	_ "camlistore.org/pkg/blobserver/shard"
+	_ "camlistore.org/pkg/index"
 
 	// BROKEN TODO GO1
 	// _ "camlistore/pkg/mysqlindexer" // indexer, but uses storage interface
