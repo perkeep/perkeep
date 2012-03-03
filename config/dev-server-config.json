@@ -16,7 +16,7 @@
           "handler": "publish",
           "handlerArgs": {
               "rootName": "dev-blog-root",
-              "blobRoot": "/bs/",
+              "blobRoot": "/bs-and-maybe-also-index/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
               "devBootstrapPermanodeUsing": "/sighelper/"
@@ -27,7 +27,7 @@
           "handler": "publish",
           "handlerArgs": {
               "rootName": "dev-pics-root",
-              "blobRoot": "/bs/",
+              "blobRoot": "/bs-and-maybe-also-index/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
               "scaledImage": "lrucache",
