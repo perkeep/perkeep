@@ -32,8 +32,6 @@ import (
 	"camlistore.org/pkg/schema"
 )
 
-var _ = log.Printf
-
 const buffered = 8
 
 type storageFunc func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error)
@@ -144,7 +142,7 @@ func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 			return
 		}
 		ss := new(schema.Superset)
-		if err = json.NewDecoder(bytes.NewBuffer(buf.Bytes())).Decode(ss); err != nil {
+		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(ss); err != nil {
 			log.Printf("cond: json parse failure => not schema => else")
 			return elseSto, buf.Bytes(), nil
 		}
