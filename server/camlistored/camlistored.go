@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
@@ -55,12 +56,12 @@ import (
 
 const (
 	defCert = "config/selfgen_cert.pem"
-	defKey = "config/selfgen_key.pem"
+	defKey  = "config/selfgen_key.pem"
 )
 
 var (
-	flagConfigFile = flag.String("configfile", "serverconfig",
-		"Config file to use, relative to camli config dir root, or blank to not use config files.")
+	flagConfigFile = flag.String("configfile", "",
+		"Config file to use, relative to camli config dir root, or blank to use the default config.")
 )
 
 func exitf(pattern string, args ...interface{}) {
@@ -123,16 +124,70 @@ func genSelfTLS() error {
 	return nil
 }
 
+// checkConfigFile tests if the given config file is a
+// valid path to an existing file, and returns the same
+// value if yes, an error if not.
+// If file is the empty string, it checks for the existence
+// of a default config and creates it if absent. It returns
+// newfile as the path to that file, or an error if a
+// problem occured.
+func checkConfigFile(file string) (newfile string, err error) {
+	newfile = file
+	if newfile == "" {
+		newfile = osutil.UserServerConfigPath()
+		_, err := os.Stat(newfile)
+		if err != nil {
+			log.Printf("Can't open default conf file, now creating a new one at %s \n", newfile)
+			err = newDefaultConfigFile(newfile)
+			if err != nil {
+				return "", err
+			}
+		}
+		return newfile, nil
+	}
+	if !filepath.IsAbs(newfile) {
+		newfile = filepath.Join(osutil.CamliConfigDir(), newfile)
+	}
+	_, err = os.Stat(newfile)
+	if err != nil {
+		return "", fmt.Errorf("can't stat %s: %q", file, err)
+	}
+	return newfile, nil
+}
+
+func newDefaultConfigFile(path string) error {
+	serverConf :=
+		`{
+   "listen": "localhost:3179",
+   "TLS": false,
+   "blobPath": "%BLOBPATH%",
+   "mysql": "",
+   "mongo": "",
+   "s3": "",
+   "replicateTo": []
+}
+`
+	blobDir := filepath.Join(osutil.HomeDir(), "var", "camlistore", "blobs")
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		return fmt.Errorf("Could not create default blobs directory: %v", err)
+	}
+	serverConf = strings.Replace(serverConf, "%BLOBPATH%", blobDir, 1)
+	if err := ioutil.WriteFile(path, []byte(serverConf), 0700); err != nil {
+		return fmt.Errorf("Could not create or write default server config: %v", err)
+	}
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
-	file := *flagConfigFile
-	if !filepath.IsAbs(file) {
-		file = filepath.Join(osutil.CamliConfigDir(), file)
+	file, err := checkConfigFile(*flagConfigFile)
+	if err != nil {
+		exitf("Problem with config file: %q", err)
 	}
 	config, err := serverconfig.Load(file)
 	if err != nil {
-		exitf("Could not load server config: %v", err)
+		exitf("Could not load server config file %v: %v", file, err)
 	}
 
 	ws := webserver.New()

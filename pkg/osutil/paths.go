@@ -48,7 +48,7 @@ func CamliConfigDir() string {
 }
 
 func UserServerConfigPath() string {
-	return filepath.Join(CamliConfigDir(), "serverconfig")
+	return filepath.Join(CamliConfigDir(), "server-config.json")
 }
 
 // Find the correct absolute path corresponding to a relative path, 
