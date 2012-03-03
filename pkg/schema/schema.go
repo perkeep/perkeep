@@ -19,13 +19,14 @@ package schema
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -340,13 +341,11 @@ func newCamliMap(version int, ctype string) map[string]interface{} {
 func NewUnsignedPermanode() map[string]interface{} {
 	m := newCamliMap(1, "permanode")
 	chars := make([]byte, 20)
-	// Don't need cryptographically secure random here, as this
-	// will be GPG signed anyway.
-	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	for idx, _ := range chars {
-		chars[idx] = byte(32 + rnd.Intn(126-32))
+	_, err := io.ReadFull(rand.Reader, chars)
+	if err != nil {
+		panic("error reading random bytes: " + err.Error())
 	}
-	m["random"] = string(chars)
+	m["random"] = base64.StdEncoding.EncodeToString(chars)
 	return m
 }
 
