@@ -162,7 +162,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 	switch sc.Type {
 	case "directory":
 		dir := filepath.Join(targ, sc.FileName)
-		if err := os.MkdirAll(dir, sc.UnixMode()); err != nil {
+		if err := os.MkdirAll(dir, sc.FileMode()); err != nil {
 			return err
 		}
 		if err := setFileMeta(dir, sc); err != nil {
@@ -217,7 +217,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 }
 
 func setFileMeta(name string, sc *schema.Superset) error {
-	if err := os.Chmod(name, sc.UnixMode()); err != nil {
+	if err := os.Chmod(name, sc.FileMode()); err != nil {
 		return err
 	}
 	if err := os.Chown(name, sc.UnixOwnerId, sc.UnixGroupId); err != nil {
@@ -227,5 +227,5 @@ func setFileMeta(name string, sc *schema.Superset) error {
 	if err != nil {
 		return nil
 	}
-	return os.Chtimes(name, 0, t.Nanoseconds())
+	return os.Chtimes(name, t, t)
 }

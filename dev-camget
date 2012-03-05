@@ -4,7 +4,11 @@ use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
 
-system("$Bin/build.pl", "camget") and die "failed to build camget";
+unless ($ENV{GOPATH}) {
+    $ENV{GOPATH} = "$Bin/gopath"
+}
+
+system("go", "install", "camlistore.org/cmd/camget") and die "failed to build camget";
 
 sub usage {
     die "Usage: dev-camget [--tls] -- camget_args";
@@ -28,7 +32,8 @@ if ($opt_tls) {
 	$blobserver =~ s/^http/https/;
 }
 
-exec("$Bin/clients/go/camget/camget",
+exec("$ENV{GOPATH}/bin/camget",
      "--verbose",
      "--blobserver=$blobserver",
      @ARGV);
+die "Failure running camget: $!";

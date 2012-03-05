@@ -274,28 +274,23 @@ func (ss *Superset) HasFilename(name string) bool {
 	return ss.FileNameString() == name
 }
 
-const (
-	syscall_S_IFDIR = 0x4000
-	syscall_S_IFREG = 0x8000
-	syscall_S_IFLNK = 0xa000
-)
-
-func (ss *Superset) UnixMode() (mode uint32) {
+func (ss *Superset) FileMode() os.FileMode {
+	var mode os.FileMode
 	m64, err := strconv.ParseUint(ss.UnixPermission, 8, 64)
 	if err == nil {
-		mode = mode | uint32(m64)
+		mode = mode | os.FileMode(m64)
 	}
 
-	// TODO: add other types
+	// TODO: add other types (block, char, etc)
 	switch ss.Type {
 	case "directory":
-		mode = mode | syscall_S_IFDIR
+		mode = mode | os.ModeDir
 	case "file":
-		mode = mode | syscall_S_IFREG
+		// No extra bit.
 	case "symlink":
-		mode = mode | syscall_S_IFLNK
+		mode = mode | os.ModeSymlink
 	}
-	return
+	return mode
 }
 
 var DefaultStatHasher = &defaultStatHasher{}
