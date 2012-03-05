@@ -178,6 +178,39 @@ func newDefaultConfigFile(path string) error {
 	return nil
 }
 
+func setupTLS(ws *webserver.Server, config *serverconfig.Config) {
+	cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
+	if !config.OptionalBool("https", true) {
+		return
+	}
+	if (cert != "") != (key != "") {
+		exitf("TLSCertFile and TLSKeyFile must both be either present or absent")
+	}
+
+	if cert == defCert && key == defKey {
+		_, err1 := os.Stat(cert)
+		_, err2 := os.Stat(key)
+		if err1 != nil || err2 != nil {
+			if os.IsNotExist(err1) || os.IsNotExist(err2) {
+				if err := genSelfTLS(); err != nil {
+					exitf("Could not generate self-signed TLS cert: %q", err)
+				}
+			} else {
+				exitf("Could not stat cert or key: %q, %q", err1, err2)
+			}
+		}
+	}
+	if cert == "" && key == "" {
+		err := genSelfTLS()
+		if err != nil {
+			exitf("Could not generate self signed creds: %q", err)
+		}
+		cert = defCert
+		key = defKey
+	}
+	ws.SetTLS(cert, key)
+}
+
 func main() {
 	flag.Parse()
 
@@ -193,39 +226,7 @@ func main() {
 	ws := webserver.New()
 	baseURL := ws.BaseURL()
 
-	{
-		cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
-		secure := config.OptionalBool("https", true)
-		if secure {
-			if (cert != "") != (key != "") {
-				exitf("TLSCertFile and TLSKeyFile must both be either present or absent")
-			}
-
-			if cert == defCert && key == defKey {
-				_, err1 := os.Stat(cert)
-				_, err2 := os.Stat(key)
-				if err1 != nil || err2 != nil {
-					if os.IsNotExist(err1) || os.IsNotExist(err2) {
-						err = genSelfTLS()
-						if err != nil {
-							exitf("Could not generate self signed creds: %q", err)
-						}
-					} else {
-						exitf("Could not stat cert or key: %q, %q", err1, err2)
-					}
-				}
-			}
-			if cert == "" && key == "" {
-				err = genSelfTLS()
-				if err != nil {
-					exitf("Could not generate self signed creds: %q", err)
-				}
-				cert = defCert
-				key = defKey
-			}
-			ws.SetTLS(cert, key)
-		}
-	}
+	setupTLS(ws, config)
 
 	err = config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
