@@ -20,8 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"camlistore.org/pkg/auth"
@@ -335,7 +337,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		if !strings.HasSuffix(prefix, "/") {
 			exitFailure("prefix %q doesn't end with /", prefix)
 		}
-		pmap, ok := vei.(map[string]interface{})
+		pmap, ok := vei.(jsonconfig.Obj)
 		if !ok {
 			exitFailure("prefix %q value is a %T, not an object", prefix, vei)
 		}
@@ -362,4 +364,256 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	}
 	hl.setupAll()
 	return nil
+}
+
+type configPrefixesParams struct {
+	secretRing string
+	indexerPath string
+	mongo bool
+	mysql bool
+	dbname string
+	blobPath string
+}
+
+func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
+	prefixes := jsonconfig.Obj{}
+
+	ob := jsonconfig.Obj{}
+	ob["handler"] = "root"
+	ob["handlerArgs"] = jsonconfig.Obj{"stealth": false}
+	prefixes["/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "publish"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"rootName": "blog",
+		"blobRoot": "/bs-and-maybe-also-index/",
+		"searchRoot": "/my-search/",
+		"cache": "/cache/",
+		"devBootstrapPermanodeUsing": "/sighelper/",
+	}
+	prefixes["/blog/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "publish"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"rootName": "pics",
+		"blobRoot": "/bs-and-maybe-also-index/",
+		"searchRoot": "/my-search/",
+		"cache": "/cache/",
+		"scaledImage": "lrucache",
+		"css": []interface{}{"pics.css"},
+		"js": []interface{}{"camli.js", "pics.js"},
+		"devBootstrapPermanodeUsing": "/sighelper/",
+	}
+	prefixes["/pics/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "ui"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"blobRoot": "/bs-and-maybe-also-index/",
+		"searchRoot": "/my-search/",
+		"jsonSignRoot": "/sighelper/",
+		"cache": "/cache/",
+		"scaledImage": "lrucache",
+		"publishRoots": []interface{}{"/blog/", "/pics/"},
+	}
+	prefixes["/ui/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "sync"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"from": "/bs/",
+		"to": params.indexerPath,
+	}
+	prefixes["/sync/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "jsonsign"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"secretRing": params.secretRing,
+		"keyId": "26F5ABDA",
+		"publicKeyDest": "/bs/",
+	}
+	prefixes["/sighelper/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-replica"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"backends": []interface{}{"/bs/", params.indexerPath},
+	}
+	prefixes["/bs-and-index/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-cond"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"write": jsonconfig.Obj{
+			"if": "isSchema",
+			"then": "/bs-and-index/",
+			"else": "/bs/",
+		},
+		"read": "/bs/",
+	}
+	prefixes["/bs-and-maybe-also-index/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": params.blobPath,
+	}
+	prefixes["/bs/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/cache"),
+	}
+	prefixes["/cache/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-shard"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"backends": []interface{}{"/s1/", "/s2/"},
+	}
+	prefixes["/sharder/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/s1/"),
+	}
+	prefixes["/s1/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/s2/"),
+	}
+	prefixes["/s2/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-replica"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"backends": []interface{}{"/r1/", "/r2/", "/r3/"},
+		"minWritesForSuccess": 2,
+	}
+	prefixes["/repl/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/r1/"),
+	}
+	prefixes["/r1/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/r2/"),
+	}
+	prefixes["/r2/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-filesystem"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"path": filepath.Join(params.blobPath, "/r3/"),
+	}
+	prefixes["/r3/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "storage-memory-only-dev-indexer"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"blobSource": "/bs/",
+	}
+	prefixes["/index-mem/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["enabled"] = params.mongo
+	ob["handler"] = "storage-mongodbindexer"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"servers": "localhost",
+		"database": params.dbname,
+		"blobSource": "/bs/",
+	}
+	prefixes["/index-mongo/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["enabled"] = params.mysql
+	ob["handler"] = "storage-mysqlindexer"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"host": "127.0.0.1",
+		"user": "root",
+		"password": "root",
+		"database": params.dbname,
+		"blobSource": "/bs/",
+	}
+	prefixes["/index-mysql/"] = ob
+
+	ob = jsonconfig.Obj{}
+	ob["handler"] = "search"
+	ob["handlerArgs"] = jsonconfig.Obj{
+		"index": params.indexerPath,
+		"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+	}
+	prefixes["/my-search/"] = ob
+
+	return prefixes
+}
+
+func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
+	obj := jsonconfig.Obj{}
+	baseUrl := conf.RequiredString("listen")
+	if baseUrl == "" {
+		return nil, fmt.Errorf("\"listen\" missing in user config file")
+	}
+	// I move for baseURL to not contain the protocol prefix from now on. you ok with that?
+	_, port, err := net.SplitHostPort(baseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("failed splitting baseUrl: %v", err)
+	}
+	obj["baseURL"] = baseUrl
+	obj["auth"] = "userpass:camlistore:pass" + port
+	tls := conf.RequiredBool("TLS")
+	obj["https"] = tls
+	obj["TLSCertFile"] = "config/selfgen_cert.pem"
+	obj["TLSKeyFile"] = "config/selfgen_key.pem"
+
+	// TODO(mpl): do not use env vars. use default values or derive them from
+	// end user conf. Will do soon.
+/*
+	dbname := os.Getenv("CAMLI_DBNAME")
+	if dbname == "" {
+		exitf("CAMLI_DBNAME not defined")
+	}
+	secretRing := os.Getenv("CAMLI_SECRET_RING")
+	if secretRing == "" {
+		exitf("CAMLI_SECRET_RING not defined")
+	}
+	indexerPath := os.Getenv("CAMLI_INDEXER_PATH")
+	if indexerPath == "" {
+		exitf("CAMLI_INDEXER_PATH not defined")
+	}
+*/
+
+	// TODO(mpl): mkdir all the blobs dirs
+	dbname := "devcamlimpl"
+	secretRing := "/home/mpl/gocode/src/camlistore.org/pkg/jsonsign/testdata/test-secring.gpg"
+	indexerPath := "/index-mem/"
+	blobPath := conf.RequiredString("blobPath")
+	prefixesParams := &configPrefixesParams{
+		secretRing: secretRing,
+		indexerPath: indexerPath,
+		mongo: false,
+		mysql: false,
+		dbname: dbname,
+		blobPath: blobPath,
+	}
+
+	obj["prefixes"] = genDefaultConfigPrefixes(prefixesParams)
+
+	// TODO(mpl): configPath
+	lowLevelConf = &Config{
+		jsonconfig.Obj: obj,
+	}
+	return lowLevelConf, nil
 }

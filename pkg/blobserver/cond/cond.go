@@ -105,7 +105,7 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 		return f, nil
 	}
 
-	conf := jsonconfig.Obj(confOrString.(map[string]interface{}))
+	conf := jsonconfig.Obj(confOrString.(jsonconfig.Obj))
 
 	ifStr := conf.RequiredString("if")
 	// TODO: let 'then' and 'else' point to not just strings but either

@@ -54,7 +54,7 @@ func (jc Obj) obj(key string, optional bool) Obj {
 		jc.appendError(fmt.Errorf("Missing required config key %q (object)", key))
 		return make(Obj)
 	}
-	m, ok := ei.(map[string]interface{})
+	m, ok := ei.(Obj)
 	if !ok {
 		jc.appendError(fmt.Errorf("Expected config key %q to be an object, not %T", key, ei))
 		return make(Obj)
@@ -106,7 +106,7 @@ func (jc Obj) stringOrObject(key string, required bool) interface{} {
 		jc.appendError(fmt.Errorf("Missing required config key %q (string or object)", key))
 		return ""
 	}
-	if _, ok := ei.(map[string]interface{}); ok {
+	if _, ok := ei.(Obj); ok {
 		return ei
 	}
 	if _, ok := ei.(string); ok {
@@ -162,8 +162,13 @@ func (jc Obj) int(key string, def *int) int {
 	}
 	b, ok := ei.(float64)
 	if !ok {
-		jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
-		return 0
+	// TODO(mpl): float or int? or both allowed? use a switch?
+		c, ok := ei.(int)
+		if !ok {
+			jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
+			return 0
+		}
+		return int(c)
 	}
 	return int(b)
 }

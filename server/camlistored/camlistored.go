@@ -217,8 +217,8 @@ func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 		"searchRoot": "/my-search/",
 		"cache": "/cache/",
 		"scaledImage": "lrucache",
-		"css": []string{"pics.css"},
-		"js": []string{"camli.js", "pics.js"},
+		"css": []interface{}{"pics.css"},
+		"js": []interface{}{"camli.js", "pics.js"},
 		"devBootstrapPermanodeUsing": "/sighelper/",
 	}
 	prefixes["/pics/"] = ob
@@ -226,13 +226,12 @@ func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob = jsonconfig.Obj{}
 	ob["handler"] = "ui"
 	ob["handlerArgs"] = jsonconfig.Obj{
-		"rootName": "pics",
 		"blobRoot": "/bs-and-maybe-also-index/",
 		"searchRoot": "/my-search/",
 		"jsonSignRoot": "/sighelper/",
 		"cache": "/cache/",
 		"scaledImage": "lrucache",
-		"publishRoots": []string{"/blog/", "/pics/"},
+		"publishRoots": []interface{}{"/blog/", "/pics/"},
 	}
 	prefixes["/ui/"] = ob
 
@@ -256,12 +255,13 @@ func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob = jsonconfig.Obj{}
 	ob["handler"] = "storage-replica"
 	ob["handlerArgs"] = jsonconfig.Obj{
-		"backends": []string{"/bs/", params.indexerPath},
+		"backends": []interface{}{"/bs/", params.indexerPath},
 	}
 	prefixes["/bs-and-index/"] = ob
 
 	ob = jsonconfig.Obj{}
 	ob["handler"] = "storage-cond"
+// TODO(mpl): fix Obj/map inconsistencies
 	ob["handlerArgs"] = jsonconfig.Obj{
 		"write": jsonconfig.Obj{
 			"if": "isSchema",
@@ -289,7 +289,7 @@ func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob = jsonconfig.Obj{}
 	ob["handler"] = "storage-shard"
 	ob["handlerArgs"] = jsonconfig.Obj{
-		"backends": []string{"/s1/", "/s2/"},
+		"backends": []interface{}{"/s1/", "/s2/"},
 	}
 	prefixes["/sharder/"] = ob
 
@@ -310,7 +310,7 @@ func genDefaultConfigPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob = jsonconfig.Obj{}
 	ob["handler"] = "storage-replica"
 	ob["handlerArgs"] = jsonconfig.Obj{
-		"backends": []string{"/r1/", "/r2/", "/r3/"},
+		"backends": []interface{}{"/r1/", "/r2/", "/r3/"},
 		"minWritesForSuccess": 2,
 	}
 	prefixes["/repl/"] = ob
@@ -396,6 +396,7 @@ func genLowLevelConfig(simpleConf *serverconfig.Config) (conf *serverconfig.Conf
 
 	// TODO(mpl): do not use env vars. use default values or derive them from
 	// end user conf. Will do soon.
+/*
 	dbname := os.Getenv("CAMLI_DBNAME")
 	if dbname == "" {
 		exitf("CAMLI_DBNAME not defined")
@@ -408,11 +409,12 @@ func genLowLevelConfig(simpleConf *serverconfig.Config) (conf *serverconfig.Conf
 	if indexerPath == "" {
 		exitf("CAMLI_INDEXER_PATH not defined")
 	}
-/*
+*/
+
+	// TODO(mpl): mkdir all the blobs dirs
 	dbname := "devcamlimpl"
 	secretRing := "/home/mpl/gocode/src/camlistore.org/pkg/jsonsign/testdata/test-secring.gpg"
 	indexerPath := "/index-mem/"
-*/
 	blobPath := simpleConf.RequiredString("blobPath")
 	prefixesParams := &configPrefixesParams{
 		secretRing: secretRing,
