@@ -8,6 +8,8 @@ sub usage {
     die "Usage: dev-blobserver [--wipe] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
+chdir $Bin or die;
+
 my $opt_wipe;
 my $opt_tls;
 GetOptions(
@@ -19,9 +21,13 @@ my $port = shift;
 $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
-system("./build.pl", "server/go/camlistored") and die "Failed to build.\n";
+unless ($ENV{GOPATH}) {
+    $ENV{GOPATH} = "$Bin/gopath"
+}
 
-my $root = "/tmp/camliroot/port$port/";
+system("go", "install", "./server/camlistored") and die "Failed to build camlistored";
+
+my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
 if ($opt_wipe && -d $root) {
     print "Wiping $root\n";
     system("rm", "-rf", $root) and die "Failed to wipe $root.\n";
@@ -37,8 +43,9 @@ $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_ROOT} = $root;
 $ENV{CAMLI_TLS_CRT_FILE} = $opt_tls ? "$Bin/config/dev-tls.crt" : "";
 $ENV{CAMLI_TLS_KEY_FILE} = $opt_tls ? "$Bin/config/dev-tls.key" : "";
-exec("$FindBin::Bin/server/go/camlistored/camlistored",
+exec("$ENV{GOPATH}/bin/camlistored",
      "-configfile=$Bin/config/dev-blobserver-config.json",
      "-listen=127.0.0.1:$port",
      @ARGV);
 
+die "exec failure: $!\n";

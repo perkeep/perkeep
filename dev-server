@@ -39,8 +39,12 @@ my $port = shift;
 $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
+unless ($ENV{GOPATH}) {
+    $ENV{GOPATH} = "$Bin/gopath"
+}
+
 unless ($opt_nobuild) {
-    system("go", "build", "-o", "./gopath/bin/camlistored", "./server/camlistored") and die "Failed to build camlistored";
+    system("go", "install", "./server/camlistored") and die "Failed to build camlistored";
     # TODO-GO1: FIX: system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
 }
 
@@ -131,7 +135,8 @@ unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
 }
 
-exec("./gopath/bin/camlistored",
+exec("$ENV{GOPATH}/bin/camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
      "-listen=$listen",
      @ARGV);
+die "exec failure: $!\n";
