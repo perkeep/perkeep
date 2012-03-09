@@ -8,20 +8,29 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 )
 
+// umount tries its best to unmount dir.
+func umount(dir string) {
+	err := exec.Command("umount", dir).Run()
+	if err != nil && runtime.GOOS == "linux" {
+		exec.Command("/bin/fusermount", "-u", dir).Run()
+	}
+}
+
 func TestFuse(t *testing.T) {
 	dir := "/tmp/fusetestmnt"
-	exec.Command("umount", dir).Run()
+	umount(dir)
 	os.MkdirAll(dir, 0777)
 
 	c, err := Mount(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer exec.Command("umount", dir).Run()
+	defer umount(dir)
 
 	go c.Serve(testFS{})
 	time.Sleep(1 * time.Second)
