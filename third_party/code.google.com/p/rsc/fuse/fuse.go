@@ -33,7 +33,7 @@
 // such as protocol translators.
 //
 // Servers of synthesized file systems tend to share common bookkeeping
-// that is abstracted away by the second approach, which is to call the Conn's
+// abstracted away by the second approach, which is to call the Conn's
 // Serve method to serve the FUSE protocol using
 // an implementation of the service methods in the interfaces
 // FS (file system), Node (file or directory), and Handle (opened file or directory).
@@ -73,7 +73,7 @@
 //
 // All requests types embed a Header, meaning that the method can inspect
 // req.Pid, req.Uid, and req.Gid as necessary to implement permission checking.
-// Alternately, XXX
+// Alternately, XXX.
 //
 // Mount Options
 //
@@ -88,8 +88,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -99,6 +101,7 @@ import (
 type Conn struct {
 	fd  int
 	buf []byte
+	wio sync.Mutex
 
 	serveConn
 }
@@ -269,8 +272,13 @@ func (c *Conn) ReadRequest() (Request, error) {
 		m.hdr.Len = uint32(n)
 	}
 
+	// OSXFUSE sometimes sends the wrong m.hdr.Len in a FUSE_WRITE message.
+	if m.hdr.Len < uint32(n) && m.hdr.Len >= uint32(unsafe.Sizeof(writeIn{})) && m.hdr.Opcode == opWrite {
+		m.hdr.Len = uint32(n)
+	}
+
 	if m.hdr.Len != uint32(n) {
-		return nil, fmt.Errorf("fuse: read %d but expected %d", n, m.hdr.Len)
+		return nil, fmt.Errorf("fuse: read %d opcode %d but expected %d", n, m.hdr.Opcode, m.hdr.Len)
 	}
 
 	m.off = inHeaderSize
@@ -661,12 +669,19 @@ unrecognized:
 }
 
 func (c *Conn) respond(out *outHeader, n uintptr) {
+	c.wio.Lock()
+	defer c.wio.Unlock()
 	out.Len = uint32(n)
 	msg := (*[1 << 30]byte)(unsafe.Pointer(out))[:n]
-	syscall.Write(c.fd, msg)
+	nn, err := syscall.Write(c.fd, msg)
+	if nn != len(msg) || err != nil {
+		log.Printf("RESPOND WRITE: %d %v", nn, err)
+	}
 }
 
 func (c *Conn) respondData(out *outHeader, n uintptr, data []byte) {
+	c.wio.Lock()
+	defer c.wio.Unlock()
 	// TODO: use writev
 	out.Len = uint32(n + uintptr(len(data)))
 	msg := make([]byte, out.Len)

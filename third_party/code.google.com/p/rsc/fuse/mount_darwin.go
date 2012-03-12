@@ -94,7 +94,8 @@ mountfuse(char *mtpt, char **err)
 		setenv("MOUNT_FUSEFS_DAEMON_PATH",
 			   "/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs", 1);
 		execl("/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs",
-			  "mount_osxfusefs", buf, mtpt, nil);
+			  "mount_osxfusefs",
+			  "-o", "iosize=4096", buf, mtpt, nil);
 		fprintf(stderr, "exec mount_osxfusefs: %s\n", strerror(errno));
 		_exit(1);
 	}

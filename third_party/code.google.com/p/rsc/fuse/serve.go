@@ -18,10 +18,9 @@ import (
 	"time"
 )
 
-//var debugf = log.Printf
-var debugf = nop
+var Debugf = nop
 
-func nop(...interface{}) {}
+func nop(string, ...interface{}) {}
 
 // TODO: FINISH DOCS
 
@@ -313,15 +312,16 @@ func (c *Conn) saveNode(name string, node Node) (id NodeID, gen uint64, sn *serv
 	return
 }
 
-func (c *Conn) saveHandle(handle Handle) (id HandleID) {
+func (c *Conn) saveHandle(handle Handle) (id HandleID, shandle *serveHandle) {
 	c.meta.Lock()
+	shandle = &serveHandle{handle: handle}
 	if n := len(c.freeHandle); n > 0 {
 		id = c.freeHandle[n-1]
 		c.freeHandle = c.freeHandle[:n-1]
-		c.handle[id] = &serveHandle{handle: handle}
+		c.handle[id] = shandle
 	} else {
 		id = HandleID(len(c.handle))
-		c.handle = append(c.handle, &serveHandle{handle: handle})
+		c.handle = append(c.handle, shandle)
 	}
 	c.meta.Unlock()
 	return
@@ -345,7 +345,7 @@ func (c *Conn) serve(fs FS, r Request) {
 	intr := make(Intr)
 	req := &serveRequest{Request: r, Intr: intr}
 
-	debugf("<- %s", req)
+	Debugf("<- %s", req)
 	var node Node
 	var handle Handle
 	var snode *serveNode
@@ -359,7 +359,7 @@ func (c *Conn) serve(fs FS, r Request) {
 		if snode == nil {
 			c.meta.Unlock()
 			println("missing node", id, len(c.node), snode)
-			debugf("-> %#x %v", hdr.ID, ESTALE)
+			Debugf("-> %#x %v", hdr.ID, ESTALE)
 			r.RespondError(ESTALE)
 			return
 		}
@@ -372,7 +372,7 @@ func (c *Conn) serve(fs FS, r Request) {
 		if shandle == nil {
 			println("missing handle", id, len(c.handle), shandle)
 			c.meta.Unlock()
-			debugf("-> %#x %v", hdr.ID, ESTALE)
+			Debugf("-> %#x %v", hdr.ID, ESTALE)
 			r.RespondError(ESTALE)
 			return
 		}
@@ -393,7 +393,7 @@ func (c *Conn) serve(fs FS, r Request) {
 	// After responding is too late: we might get another request
 	// with the same ID and be very confused.
 	done := func(resp interface{}) {
-		debugf("-> %#x %v", hdr.ID, resp)
+		Debugf("-> %#x %v", hdr.ID, resp)
 		c.meta.Lock()
 		c.req[hdr.ID] = nil
 		c.meta.Unlock()
@@ -569,7 +569,7 @@ func (c *Conn) serve(fs FS, r Request) {
 		} else {
 			h2 = node
 		}
-		s.Handle = c.saveHandle(h2)
+		s.Handle, _ = c.saveHandle(h2)
 		done(s)
 		r.Respond(s)
 
@@ -591,7 +591,9 @@ func (c *Conn) serve(fs FS, r Request) {
 			break
 		}
 		c.saveLookup(&s.LookupResponse, snode, r.Name, n2)
-		s.Handle = c.saveHandle(h2)
+		h, shandle := c.saveHandle(h2)
+		s.Handle = h
+		shandle.trunc = true
 		done(s)
 		r.Respond(s)
 

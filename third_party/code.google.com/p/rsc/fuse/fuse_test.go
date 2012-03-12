@@ -5,7 +5,9 @@
 package fuse
 
 import (
+	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -22,6 +24,8 @@ func umount(dir string) {
 }
 
 func TestFuse(t *testing.T) {
+	Debugf = log.Printf
+
 	dir := "/tmp/fusetestmnt"
 	umount(dir)
 	os.MkdirAll(dir, 0777)
@@ -32,7 +36,13 @@ func TestFuse(t *testing.T) {
 	}
 	defer umount(dir)
 
-	go c.Serve(testFS{})
+	go func() {
+		err := c.Serve(testFS{})
+		if err != nil {
+			fmt.Println("SERVE ERROR: %v\n", err)
+		}
+	}()
+
 	time.Sleep(1 * time.Second)
 
 	_, err = os.Stat(dir + "/" + fuseTests[0].name)
@@ -42,6 +52,7 @@ func TestFuse(t *testing.T) {
 	}
 
 	for _, tt := range fuseTests {
+		t.Logf("running %T", tt.node)
 		tt.node.test(dir+"/"+tt.name, t)
 	}
 }
@@ -58,6 +69,9 @@ var fuseTests = []struct {
 	{"writeAll", &writeAll{}},
 	{"writeAll2", &writeAll2{}},
 	{"release", &release{}},
+	{"mkdir1", &mkdir1{}},
+	{"create1", &create1{}},
+	{"create2", &create2{}},
 }
 
 // TO TEST:
@@ -67,9 +81,7 @@ var fuseTests = []struct {
 //	Attr with explicit inode
 //	Setattr(*SetattrRequest, *SetattrResponse)
 //	Access(*AccessRequest)
-//	Mkdir(*MkdirRequest)
 //	Open(*OpenRequest, *OpenResponse)
-//	Create(*CreateRequest, *CreateResponse)
 //	Getxattr, Setxattr, Listxattr, Removexattr
 //	Write(*WriteRequest, *WriteResponse)
 //	Flush(*FlushRequest, *FlushResponse)
@@ -164,6 +176,84 @@ func (w *writeAll2) test(path string, t *testing.T) {
 	}
 	if !w.setattr || string(w.data) != hi || !w.flush {
 		t.Errorf("writeAll = %v, %q, %v, want %v, %q, %v", w.setattr, string(w.data), w.flush, true, hi, true)
+	}
+}
+
+// Test Mkdir.
+
+type mkdir1 struct {
+	dir
+	name string
+}
+
+func (f *mkdir1) Mkdir(req *MkdirRequest, intr Intr) (Node, Error) {
+	f.name = req.Name
+	return &mkdir1{}, nil
+}
+
+func (f *mkdir1) test(path string, t *testing.T) {
+	f.name = ""
+	err := os.Mkdir(path+"/foo", 0777)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if f.name != "foo" {
+		t.Error(err)
+		return
+	}
+}
+
+// Test Create
+
+type create1 struct {
+	dir
+	name string
+	f    *writeAll
+}
+
+func (f *create1) Create(req *CreateRequest, resp *CreateResponse, intr Intr) (Node, Handle, Error) {
+	f.name = req.Name
+	f.f = &writeAll{}
+	return f.f, f.f, nil
+}
+
+func (f *create1) test(path string, t *testing.T) {
+	f.name = ""
+	ff, err := os.Create(path + "/foo")
+	if err != nil {
+		t.Errorf("create1 WriteFile: %v", err)
+		return
+	}
+	ff.Close()
+	if f.name != "foo" {
+		t.Errorf("create1 name=%q want foo", f.name)
+	}
+}
+
+// Test Create + WriteAll
+
+type create2 struct {
+	dir
+	name string
+	f    *writeAll
+}
+
+func (f *create2) Create(req *CreateRequest, resp *CreateResponse, intr Intr) (Node, Handle, Error) {
+	f.name = req.Name
+	f.f = &writeAll{}
+	return f.f, f.f, nil
+}
+
+func (f *create2) test(path string, t *testing.T) {
+	f.name = ""
+	err := ioutil.WriteFile(path+"/foo", []byte(hi), 0666)
+	if err != nil {
+		t.Errorf("create2 WriteFile: %v", err)
+		return
+	}
+	if string(f.f.data) != hi {
+		t.Errorf("create2 writeAll = %q, want %q", f.f.data, hi)
 	}
 }
 
