@@ -818,7 +818,7 @@ func (a *Attr) attr() (out attr) {
 	out.Atime, out.AtimeNsec = unix(a.Atime)
 	out.Mtime, out.MtimeNsec = unix(a.Mtime)
 	out.Ctime, out.CtimeNsec = unix(a.Ctime)
-	out.Crtime, out.CrtimeNsec = unix(a.Crtime)
+	out.SetCrtime(unix(a.Crtime))
 	out.Mode = uint32(a.Mode) & 0777
 	switch {
 	default:
@@ -851,7 +851,7 @@ func (a *Attr) attr() (out attr) {
 	out.Uid = a.Uid
 	out.Gid = a.Gid
 	out.Rdev = a.Rdev
-	out.Flags = a.Flags
+	out.SetFlags(a.Flags)
 
 	return
 }

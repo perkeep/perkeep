@@ -25,9 +25,10 @@ func umount(dir string) {
 
 func TestFuse(t *testing.T) {
 	Debugf = log.Printf
-
-	dir := "/tmp/fusetestmnt"
-	umount(dir)
+	dir, err := ioutil.TempDir("", "fusetest")
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.MkdirAll(dir, 0777)
 
 	c, err := Mount(dir)

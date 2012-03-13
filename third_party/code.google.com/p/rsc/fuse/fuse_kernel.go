@@ -51,26 +51,6 @@ const (
 	rootID             = 1
 )
 
-type attr struct {
-	Ino        uint64
-	Size       uint64
-	Blocks     uint64
-	Atime      uint64
-	Mtime      uint64
-	Ctime      uint64
-	Crtime     uint64 // OS X only
-	AtimeNsec  uint32
-	MtimeNsec  uint32
-	CtimeNsec  uint32
-	CrtimeNsec uint32 // OS X only
-	Mode       uint32
-	Nlink      uint32
-	Uid        uint32
-	Gid        uint32
-	Rdev       uint32
-	Flags      uint32 // OS X only; see chflags(2)
-}
-
 type kstatfs struct {
 	Blocks  uint64
 	Bfree   uint64
