@@ -134,8 +134,9 @@ type write struct {
 	data []byte
 }
 
-func (w *write) Write(data []byte, intr Intr) Error {
-	w.data = append(w.data, data...)
+func (w *write) Write(req *WriteRequest, resp *WriteResponse, intr Intr) Error {
+	w.data = append(w.data, req.Data...)
+	resp.Size = len(req.Data)
 	return nil
 }
 
