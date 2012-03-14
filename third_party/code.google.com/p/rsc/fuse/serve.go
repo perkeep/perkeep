@@ -29,6 +29,8 @@ func nop(string, ...interface{}) {}
 // interrupted.
 type Intr chan struct{}
 
+func (Intr) String() string { return "fuse.Intr" }
+
 // An FS is the interface required of a file system.
 //
 //	Root() (Node, Error)
