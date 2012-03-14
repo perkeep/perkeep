@@ -84,6 +84,11 @@ const (
 	SetattrMtime  SetattrValid = 1 << 5
 	SetattrHandle SetattrValid = 1 << 6 // TODO: What does this mean?
 
+	// Linux only(?)
+	SetattrAtimeNow  SetattrValid = 1 << 7
+	SetattrMtimeNow  SetattrValid = 1 << 8
+	SetattrLockowner SetattrValid = 1 << 9
+
 	// OS X only
 	SetattrCrtime   SetattrValid = 1 << 28
 	SetattrChgtime  SetattrValid = 1 << 29
@@ -125,8 +130,9 @@ var setattrValidNames = []flagName{
 type OpenFlags uint32
 
 const (
-	OpenDirectIO  OpenFlags = 1 << 0 // bypass page cache for this open file
-	OpenKeepCache OpenFlags = 1 << 1 // don't invalidate the data cache on open
+	OpenDirectIO    OpenFlags = 1 << 0 // bypass page cache for this open file
+	OpenKeepCache   OpenFlags = 1 << 1 // don't invalidate the data cache on open
+	OpenNonSeekable OpenFlags = 1 << 2 // (Linux?)
 
 	OpenPurgeAttr OpenFlags = 1 << 30 // OS X
 	OpenPurgeUBC  OpenFlags = 1 << 31 // OS X
@@ -244,6 +250,8 @@ const (
 	opInterrupt   = 36
 	opBmap        = 37
 	opDestroy     = 38
+	opIoctl       = 39 // Linux?
+	opPoll        = 40 // Linux?
 
 	// OS X
 	opSetvolname = 61
@@ -310,12 +318,13 @@ type exchangeIn struct {
 type linkIn struct {
 	Oldnodeid uint64
 }
-type setattrIn struct {
+
+type setattrInCommon struct {
 	Valid     uint32
 	Padding   uint32
 	Fh        uint64
 	Size      uint64
-	Unused1   uint64
+	LockOwner uint64 // unused on OS X?
 	Atime     uint64
 	Mtime     uint64
 	Unused2   uint64
@@ -327,15 +336,6 @@ type setattrIn struct {
 	Uid       uint32
 	Gid       uint32
 	Unused5   uint32
-
-	// OS X only
-	Bkuptime     uint64
-	Chgtime      uint64
-	Crtime       uint64
-	BkuptimeNsec uint32
-	ChgtimeNsec  uint32
-	CrtimeNsec   uint32
-	Flags        uint32 // see chflags(2)
 }
 
 type openIn struct {

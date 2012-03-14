@@ -67,6 +67,7 @@ var fuseTests = []struct {
 }{
 	{"readAll", readAll{}},
 	{"readAll1", &readAll1{}},
+	{"write", &write{}},
 	{"writeAll", &writeAll{}},
 	{"writeAll2", &writeAll2{}},
 	{"release", &release{}},
@@ -123,6 +124,43 @@ func (readAll1) test(path string, t *testing.T) {
 
 // Test Write calling WriteAll.
 
+type write struct {
+	file
+	data []byte
+}
+
+func (w *write) Write(data []byte, intr Intr) Error {
+	w.data = append(w.data, data...)
+	return nil
+}
+
+func (w *write) test(path string, t *testing.T) {
+	log.Printf("pre-write Create")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	log.Printf("pre-write Write")
+	n, err := f.Write([]byte(hi))
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if n != len(hi) {
+		t.Fatalf("short write; n=%d; hi=%d", n, len(hi))
+	}
+	log.Printf("pre-write Close")
+	err = f.Close()
+	if err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	log.Printf("post-write Close")
+	if string(w.data) != hi {
+		t.Errorf("writeAll = %q, want %q", w.data, hi)
+	}
+}
+
+// Test Write calling WriteAll.
+
 type writeAll struct {
 	file
 	data []byte
@@ -136,7 +174,7 @@ func (w *writeAll) WriteAll(data []byte, intr Intr) Error {
 func (w *writeAll) test(path string, t *testing.T) {
 	err := ioutil.WriteFile(path, []byte(hi), 0666)
 	if err != nil {
-		t.Errorf("WriteFile: %v", err)
+		t.Fatalf("WriteFile: %v", err)
 		return
 	}
 	if string(w.data) != hi {

@@ -359,9 +359,9 @@ func (c *Conn) ReadRequest() (Request, error) {
 			Mode:     mode,
 			Uid:      in.Uid,
 			Gid:      in.Gid,
-			Bkuptime: time.Unix(int64(in.Bkuptime), int64(in.BkuptimeNsec)),
-			Chgtime:  time.Unix(int64(in.Chgtime), int64(in.ChgtimeNsec)),
-			Flags:    in.Flags,
+			Bkuptime: in.BkupTime(),
+			Chgtime:  in.Chgtime(),
+			Flags:    in.Flags(),
 		}
 
 	case opReadlink:
@@ -659,6 +659,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 	return req, nil
 
 corrupt:
+	println("malformed message")
 	return nil, fmt.Errorf("fuse: malformed message")
 
 unrecognized:
@@ -676,7 +677,15 @@ func (c *Conn) respond(out *outHeader, n uintptr) {
 	nn, err := syscall.Write(c.fd, msg)
 	if nn != len(msg) || err != nil {
 		log.Printf("RESPOND WRITE: %d %v", nn, err)
+		log.Printf("with stack: %s", stack())
+	} else {
+		log.Printf("respond write okay; n = %d", nn)
 	}
+}
+
+func stack() string {
+	buf := make([]byte, 1024)
+	return string(buf[:runtime.Stack(buf, false)])
 }
 
 func (c *Conn) respondData(out *outHeader, n uintptr, data []byte) {
@@ -1001,6 +1010,7 @@ func (r *LookupRequest) Respond(resp *LookupResponse) {
 		AttrValidNsec:  uint32(resp.AttrValid % time.Second / time.Nanosecond),
 		Attr:           resp.Attr.attr(),
 	}
+	log.Printf("Lookup Response: %#v", out)
 	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 }
 
@@ -1212,8 +1222,7 @@ func (r *ForgetRequest) String() string {
 
 // Respond replies to the request, indicating that the forgetfulness has been recorded.
 func (r *ForgetRequest) Respond() {
-	out := &outHeader{Unique: uint64(r.ID)}
-	r.Conn.respond(out, unsafe.Sizeof(*out))
+	// Don't reply to forget messages.
 }
 
 // A Dirent represents a single directory entry.

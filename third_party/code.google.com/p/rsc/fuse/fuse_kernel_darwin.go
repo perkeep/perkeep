@@ -27,3 +27,28 @@ func (a *attr) SetCrtime(s uint64, ns uint32) {
 func (a *attr) SetFlags(f uint32) {
 	a.Flags_ = f
 }
+
+type setattrIn struct {
+	setattrInCommon
+
+	// OS X only
+	Bkuptime_    uint64
+	Chgtime_     uint64
+	Crtime       uint64
+	BkuptimeNsec uint32
+	ChgtimeNsec  uint32
+	CrtimeNsec   uint32
+	Flags_       uint32 // see chflags(2)
+}
+
+func (in *setattrIn) BkupTime() time.Time {
+	return time.Unix(int64(in.Bkuptime_), int64(in.BkuptimeNsec))
+}
+
+func (in *setattrIn) Chgtime() time.Time {
+	return time.Unix(int64(in.Chgtime_), int64(in.ChgtimeNsec))
+}
+
+func (in *setattrIn) Flags() uint32 {
+	return in.Flags_
+}
