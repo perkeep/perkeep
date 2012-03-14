@@ -1,5 +1,9 @@
 package fuse
 
+import (
+	"time"
+)
+
 type attr struct {
 	Ino        uint64
 	Size       uint64
