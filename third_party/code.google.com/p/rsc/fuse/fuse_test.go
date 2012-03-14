@@ -5,6 +5,7 @@
 package fuse
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,6 +15,8 @@ import (
 	"testing"
 	"time"
 )
+
+var fuseRun = flag.String("fuserun", "", "which fuse test to run. runs all if empty.")
 
 // umount tries its best to unmount dir.
 func umount(dir string) {
@@ -53,8 +56,10 @@ func TestFuse(t *testing.T) {
 	}
 
 	for _, tt := range fuseTests {
-		t.Logf("running %T", tt.node)
-		tt.node.test(dir+"/"+tt.name, t)
+		if *fuseRun == "" || *fuseRun == tt.name {
+			t.Logf("running %T", tt.node)
+			tt.node.test(dir+"/"+tt.name, t)
+		}
 	}
 }
 
