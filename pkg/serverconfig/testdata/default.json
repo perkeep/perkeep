@@ -1,0 +1,11 @@
+{
+	"listen": "localhost:3179",
+	"TLS": false,
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"secring": "~/.camli/secring",
+	"mysql": "",
+	"mongo": "",
+	"s3": "",
+	"replicateTo": []
+}
