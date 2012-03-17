@@ -639,21 +639,6 @@ func (c *Conn) ReadRequest() (Request, error) {
 		panic("opGetxtimes")
 	case opExchange:
 		panic("opExchange")
-
-		/*
-			case opUnlink:
-				if n == 0 || buf[n-1] != '\x00' {
-					goto corrupt
-				}
-				return &Unlink{Header: *hdr, Name: string(buf[:n-1])}, nil
-
-			case opRmdir:
-				if n == 0 || buf[n-1] != '\x00' {
-					goto corrupt
-				}
-				return &Rmdir{Header: *hdr, Name: string(buf[:n-1])}, nil
-			...
-		*/
 	}
 
 	return req, nil
