@@ -81,7 +81,7 @@
 // 
 package fuse
 
-// BUG(rsc): The mount code for FreeBSD and Linux has not been written yet.
+// BUG(rsc): The mount code for FreeBSD has not been written yet.
 
 import (
 	"bytes"
