@@ -312,9 +312,6 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	if err != nil {
 		return fmt.Errorf("error while configuring auth: %v", err)
 	}
-	if url := config.OptionalString("baseURL", ""); url != "" {
-		baseURL = url
-	}
 	prefixes := config.RequiredObject("prefixes")
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("configuration error in root object's keys: %v", err)

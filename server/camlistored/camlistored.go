@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -73,7 +74,7 @@ func exitf(pattern string, args ...interface{}) {
 }
 
 // Mostly copied from $GOROOT/src/pkg/crypto/tls/generate_cert.go
-func genSelfTLS() error {
+func genSelfTLS(listen string) error {
 	priv, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return fmt.Errorf("failed to generate private key: %s", err)
@@ -81,13 +82,10 @@ func genSelfTLS() error {
 
 	now := time.Now()
 
-	baseurl := os.Getenv("CAMLI_BASEURL")
-	if baseurl == "" {
-		return fmt.Errorf("CAMLI_BASEURL is not set")
+	hostname, _, err := net.SplitHostPort(listen)
+	if err != nil {
+		return fmt.Errorf("splitting listen failed: %q", err)
 	}
-	split := strings.Split(baseurl, ":")
-	hostname := split[1]
-	hostname = hostname[2:len(hostname)]
 
 	template := x509.Certificate{
 		SerialNumber: new(big.Int).SetInt64(0),
@@ -155,16 +153,19 @@ func checkConfigFile(file string) (newfile string, err error) {
 	return newfile, nil
 }
 
+// TODO: "auth": "localtcp". See http://code.google.com/p/camlistore/issues/detail?id=50
 func newDefaultConfigFile(path string) error {
 	serverConf :=
 		`{
-   "listen": "localhost:3179",
-   "TLS": false,
-   "blobPath": "%BLOBPATH%",
-   "mysql": "",
-   "mongo": "",
-   "s3": "",
-   "replicateTo": []
+	"listen": "localhost:3179",
+	"TLS": false,
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "%BLOBPATH%",
+	"secring": "%SECRING%",
+	"mysql": "",
+	"mongo": "",
+	"s3": "",
+	"replicateTo": []
 }
 `
 	blobDir := filepath.Join(osutil.HomeDir(), "var", "camlistore", "blobs")
@@ -172,13 +173,16 @@ func newDefaultConfigFile(path string) error {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	serverConf = strings.Replace(serverConf, "%BLOBPATH%", blobDir, 1)
+	secRing := filepath.Join(osutil.HomeDir(), ".camli", "secring.gpg")
+	serverConf = strings.Replace(serverConf, "%SECRING%", secRing, 1)
 	if err := ioutil.WriteFile(path, []byte(serverConf), 0700); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
 	return nil
 }
 
-func setupTLS(ws *webserver.Server, config *serverconfig.Config) {
+
+func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) {
 	cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
 	if !config.OptionalBool("https", true) {
 		return
@@ -192,7 +196,7 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config) {
 		_, err2 := os.Stat(key)
 		if err1 != nil || err2 != nil {
 			if os.IsNotExist(err1) || os.IsNotExist(err2) {
-				if err := genSelfTLS(); err != nil {
+				if err := genSelfTLS(listen); err != nil {
 					exitf("Could not generate self-signed TLS cert: %q", err)
 				}
 			} else {
@@ -201,7 +205,7 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config) {
 		}
 	}
 	if cert == "" && key == "" {
-		err := genSelfTLS()
+		err := genSelfTLS(listen)
 		if err != nil {
 			exitf("Could not generate self signed creds: %q", err)
 		}
@@ -218,22 +222,36 @@ func main() {
 	if err != nil {
 		exitf("Problem with config file: %q", err)
 	}
-	config, err := serverconfig.Load(file)
+	conf, err := serverconfig.Load(file)
 	if err != nil {
 		exitf("Could not load server config file %v: %v", file, err)
 	}
+	config, err := serverconfig.GenLowLevelConfig(conf)
+	if err != nil {
+		exitf("Could not gen low level server config: %v", err)
+	}
 
 	ws := webserver.New()
-	baseURL := ws.BaseURL()
+	baseURL := config.RequiredString("baseURL")
+	listen := *(webserver.Listen)
+	if listen == "" {
+		// if command line was empty, use value in config
+		listen = strings.TrimLeft(baseURL, "http://")
+		listen = strings.TrimLeft(listen, "https://")
+	} else {
+		// else command line takes precedence
+		scheme := strings.Split(baseURL, "://")[0]
+		baseURL = scheme + "://" + listen
+	}
 
-	setupTLS(ws, config)
+	setupTLS(ws, config, listen)
 
 	err = config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
 
-	ws.Listen()
+	ws.Listen(listen)
 
 	if config.UIPath != "" {
 		uiURL := ws.BaseURL() + config.UIPath

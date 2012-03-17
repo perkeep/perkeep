@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -30,7 +31,7 @@ import (
 	"time"
 )
 
-var Listen = flag.String("listen", "0.0.0.0:2856", "host:port to listen on, or :0 to auto-select")
+var Listen = flag.String("listen", "", "host:port to listen on, or :0 to auto-select")
 
 type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
 
@@ -96,21 +97,29 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(rw, req)
 }
 
-func (s *Server) Listen() error {
+// Listen starts listening on the given host:port string.
+// If listen is empty the *Listen flag will be used instead.
+func (s *Server) Listen(listen string) error {
 	if s.listener != nil {
 		return nil
 	}
 
 	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
-	base := s.BaseURL()
-	if doLog {
-		log.Printf("Starting to listen on %s\n", base)
+	if listen == "" {
+		if *Listen == "" {
+			return fmt.Errorf("Cannot start listening: host:port needs to be provided with the -listen flag")
+		}
+		listen = *Listen
 	}
 
 	var err error
-	s.listener, err = net.Listen("tcp", *Listen)
+	s.listener, err = net.Listen("tcp", listen)
 	if err != nil {
-		log.Fatalf("Failed to listen on %s: %v", *Listen, err)
+		log.Fatalf("Failed to listen on %s: %v", listen, err)
+	}
+	base := s.BaseURL()
+	if doLog {
+		log.Printf("Starting to listen on %s\n", base)
 	}
 
 	if s.enableTLS {
@@ -135,7 +144,7 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) Serve() {
-	if err := s.Listen(); err != nil {
+	if err := s.Listen(""); err != nil {
 		log.Fatalf("Listen error: %v", err)
 	}
 	go runTestHarnessIntegration(s.listener)
