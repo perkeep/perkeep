@@ -127,7 +127,7 @@ func (readAll1) test(path string, t *testing.T) {
 	readAll{}.test(path, t)
 }
 
-// Test Write calling WriteAll.
+// Test Write calling basic Write.
 
 type write struct {
 	file

@@ -87,7 +87,7 @@ const (
 	// Linux only(?)
 	SetattrAtimeNow  SetattrValid = 1 << 7
 	SetattrMtimeNow  SetattrValid = 1 << 8
-	SetattrLockowner SetattrValid = 1 << 9
+	SetattrLockOwner SetattrValid = 1 << 9 // http://www.mail-archive.com/git-commits-head@vger.kernel.org/msg27852.html
 
 	// OS X only
 	SetattrCrtime   SetattrValid = 1 << 28
@@ -302,6 +302,7 @@ type mknodIn struct {
 type mkdirIn struct {
 	Mode    uint32
 	Padding uint32
+	// filename follows
 }
 
 type renameIn struct {

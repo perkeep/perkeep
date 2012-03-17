@@ -18,16 +18,14 @@ import (
 	"time"
 )
 
-var Debugf = nop
-
-func nop(string, ...interface{}) {}
-
 // TODO: FINISH DOCS
 
 // An Intr is a channel that signals that a request has been interrupted.
 // Being able to receive from the channel means the request has been
 // interrupted.
 type Intr chan struct{}
+
+func (Intr) String() string { return "fuse.Intr" }
 
 // An FS is the interface required of a file system.
 //
@@ -251,13 +249,14 @@ func (c *Conn) Serve(fs FS) error {
 }
 
 type serveConn struct {
-	meta       sync.Mutex
-	req        map[RequestID]*serveRequest
-	node       []*serveNode
-	handle     []*serveHandle
-	freeNode   []NodeID
-	freeHandle []HandleID
-	nodeGen    uint64
+	meta        sync.Mutex
+	req         map[RequestID]*serveRequest
+	node        []*serveNode
+	handle      []*serveHandle
+	freeNode    []NodeID
+	freeHandle  []HandleID
+	nodeGen     uint64
+	nodeHandles []map[HandleID]bool // open handles for a node; slice index is NodeID
 }
 
 type serveRequest struct {
@@ -293,6 +292,7 @@ type serveHandle struct {
 	readData  []byte
 	trunc     bool
 	writeData []byte
+	nodeID    NodeID
 }
 
 func (c *Conn) saveNode(name string, node Node) (id NodeID, gen uint64, sn *serveNode) {
@@ -312,9 +312,9 @@ func (c *Conn) saveNode(name string, node Node) (id NodeID, gen uint64, sn *serv
 	return
 }
 
-func (c *Conn) saveHandle(handle Handle) (id HandleID, shandle *serveHandle) {
+func (c *Conn) saveHandle(handle Handle, nodeID NodeID) (id HandleID, shandle *serveHandle) {
 	c.meta.Lock()
-	shandle = &serveHandle{handle: handle}
+	shandle = &serveHandle{handle: handle, nodeID: nodeID}
 	if n := len(c.freeHandle); n > 0 {
 		id = c.freeHandle[n-1]
 		c.freeHandle = c.freeHandle[:n-1]
@@ -323,6 +323,16 @@ func (c *Conn) saveHandle(handle Handle) (id HandleID, shandle *serveHandle) {
 		id = HandleID(len(c.handle))
 		c.handle = append(c.handle, shandle)
 	}
+
+	// Update mapping from node ID -> set of open Handle IDs.
+	for len(c.nodeHandles) <= int(nodeID) {
+		c.nodeHandles = append(c.nodeHandles, nil)
+	}
+	if c.nodeHandles[nodeID] == nil {
+		c.nodeHandles[nodeID] = make(map[HandleID]bool)
+	}
+	c.nodeHandles[nodeID][id] = true
+
 	c.meta.Unlock()
 	return
 }
@@ -330,12 +340,17 @@ func (c *Conn) saveHandle(handle Handle) (id HandleID, shandle *serveHandle) {
 func (c *Conn) dropNode(id NodeID) {
 	c.meta.Lock()
 	c.node[id] = nil
+	if len(c.nodeHandles) > int(id) {
+		c.nodeHandles[id] = nil
+	}
 	c.freeNode = append(c.freeNode, id)
 	c.meta.Unlock()
 }
 
 func (c *Conn) dropHandle(id HandleID) {
 	c.meta.Lock()
+	h := c.handle[id]
+	delete(c.nodeHandles[h.nodeID], id)
 	c.handle[id] = nil
 	c.freeHandle = append(c.freeHandle, id)
 	c.meta.Unlock()
@@ -458,13 +473,32 @@ func (c *Conn) serve(fs FS, r Request) {
 
 	case *SetattrRequest:
 		s := &SetattrResponse{}
-		if r.Valid == SetattrSize|SetattrHandle && r.Size == 0 {
-			if _, ok := handle.(interface {
+
+		// Special-case truncation, if no other bits are set
+		// and the open Handles all have a WriteAll method.
+		if r.Valid&SetattrSize != 0 && r.Size == 0 {
+			type writeAll interface {
 				WriteAll([]byte, Intr) Error
-			}); ok {
-				shandle.trunc = true
+			}
+			switch r.Valid {
+			case SetattrLockOwner | SetattrSize, SetattrSize:
+				// Seen on Linux. Handle isn't set.
+				c.meta.Lock()
+				for hid := range c.nodeHandles[hdr.Node] {
+					shandle := c.handle[hid]
+					if _, ok := shandle.handle.(writeAll); ok {
+						shandle.trunc = true
+					}
+				}
+				c.meta.Unlock()
+			case SetattrHandle | SetattrSize:
+				// Seen on OS X; the Handle is provided.
+				if _, ok := handle.(writeAll); ok {
+					shandle.trunc = true
+				}
 			}
 		}
+
 		log.Printf("setattr %v", r)
 		if n, ok := node.(interface {
 			Setattr(*SetattrRequest, *SetattrResponse, Intr) Error
@@ -569,7 +603,7 @@ func (c *Conn) serve(fs FS, r Request) {
 		} else {
 			h2 = node
 		}
-		s.Handle, _ = c.saveHandle(h2)
+		s.Handle, _ = c.saveHandle(h2, hdr.Node)
 		done(s)
 		r.Respond(s)
 
@@ -591,7 +625,7 @@ func (c *Conn) serve(fs FS, r Request) {
 			break
 		}
 		c.saveLookup(&s.LookupResponse, snode, r.Name, n2)
-		h, shandle := c.saveHandle(h2)
+		h, shandle := c.saveHandle(h2, hdr.Node)
 		s.Handle = h
 		shandle.trunc = true
 		done(s)

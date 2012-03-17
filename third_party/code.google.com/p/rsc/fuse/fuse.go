@@ -663,14 +663,7 @@ func (c *Conn) respond(out *outHeader, n uintptr) {
 	if nn != len(msg) || err != nil {
 		log.Printf("RESPOND WRITE: %d %v", nn, err)
 		log.Printf("with stack: %s", stack())
-	} else {
-		log.Printf("respond write okay; n = %d", nn)
 	}
-}
-
-func stack() string {
-	buf := make([]byte, 1024)
-	return string(buf[:runtime.Stack(buf, false)])
 }
 
 func (c *Conn) respondData(out *outHeader, n uintptr, data []byte) {
@@ -1314,6 +1307,8 @@ func (r *SetattrRequest) String() string {
 	}
 	if r.Valid.Handle() {
 		fmt.Fprintf(&buf, " handle=%#x", r.Handle)
+	} else {
+		fmt.Fprintf(&buf, " handle=INVALID-%#x", r.Handle)
 	}
 	if r.Valid.Crtime() {
 		fmt.Fprintf(&buf, " crtime=%v", r.Crtime)
