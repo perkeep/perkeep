@@ -527,7 +527,7 @@ func (c *Conn) serve(fs FS, r Request) {
 			Symlink(*SymlinkRequest, Intr) (Node, Error)
 		})
 		if !ok {
-			done(EIO); // XXX or EPERM like Mkdir?
+			done(EIO) // XXX or EPERM like Mkdir?
 			r.RespondError(EIO)
 			break
 		}
@@ -541,14 +541,32 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(s)
 		r.Respond(s)
 
+	case *ReadlinkRequest:
+		n, ok := node.(interface {
+			Readlink(*ReadlinkRequest, Intr) (string, Error)
+		})
+		if !ok {
+			done(EIO) /// XXX or EPERM?
+			r.RespondError(EIO)
+			break
+		}
+		target, err := n.Readlink(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(target)
+		r.Respond(target)
+
 	/*
-		 case *ReadlinkRequest, *MknodRequest, 
-		 *UnlinkRequest (RemoveRequest), *RmdirRequest (RemoveRequest),
-		 *RenameRequest, *LinkRequest:
-		 // TODO
-		 done(ENOSYS)
-		 r.RespondError(ENOSYS)
-		*/
+	 case *ReadlinkRequest, *MknodRequest, 
+	 *UnlinkRequest (RemoveRequest), *RmdirRequest (RemoveRequest),
+	 *RenameRequest, *LinkRequest:
+	 // TODO
+	 done(ENOSYS)
+	 r.RespondError(ENOSYS)
+	*/
 
 	case *AccessRequest:
 		if n, ok := node.(interface {

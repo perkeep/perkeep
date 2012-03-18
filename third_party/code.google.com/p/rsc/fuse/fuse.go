@@ -365,8 +365,13 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opReadlink:
-		println("OP READLINK")
-		panic("opReadlink")
+		if len(m.bytes()) > 0 {
+			goto corrupt
+		}
+		req = &ReadlinkRequest{
+			Header: m.Header(),
+		}
+
 	case opSymlink:
 		// m.bytes() is "newName\0target\0"
 		names := m.bytes()
@@ -1410,7 +1415,7 @@ func (r *RemoveRequest) Respond() {
 	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
-// A SymlinkRequest xxx
+// A SymlinkRequest is a request to create a symlink making NewName point to Target.
 type SymlinkRequest struct {
 	Header
 	NewName, Target string
@@ -1442,6 +1447,24 @@ func (r *SymlinkRequest) Respond(resp *SymlinkResponse) {
 // A SymlinkResponse is the response to a SymlinkRequest.
 type SymlinkResponse struct {
 	LookupResponse
+}
+
+// A ReadlinkRequest is a request to read a symlink's target.
+type ReadlinkRequest struct {
+	Header
+}
+
+func (r *ReadlinkRequest) String() string {
+	return fmt.Sprintf("Readlink [%s]", &r.Header)
+}
+
+func (r *ReadlinkRequest) handle() HandleID {
+	return 0
+}
+
+func (r *ReadlinkRequest) Respond(target string) {
+	out := &outHeader{Unique: uint64(r.ID)}
+	r.Conn.respondData(out, unsafe.Sizeof(*out), []byte(target))
 }
 
 /*{

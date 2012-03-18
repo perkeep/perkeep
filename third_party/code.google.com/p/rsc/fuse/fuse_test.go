@@ -318,7 +318,7 @@ type symlink1 struct {
 func (f *symlink1) Symlink(req *SymlinkRequest, intr Intr) (Node, Error) {
 	f.newName = req.NewName
 	f.target = req.Target
-	return symlink{}, nil
+	return symlink{target: req.Target}, nil
 }
 
 func (f *symlink1) test(path string, t *testing.T) {
@@ -336,8 +336,6 @@ func (f *symlink1) test(path string, t *testing.T) {
 	if f.target != target {
 		t.Errorf("symlink target = %q; want %q", f.target, target)
 	}
-
-	return // TODO XXX implement rest
 
 	gotName, err := os.Readlink(path + "/symlink.file")
 	if err != nil {
@@ -377,11 +375,17 @@ func (r *release) test(path string, t *testing.T) {
 
 type file struct{}
 type dir struct{}
-type symlink struct{}
+type symlink struct {
+	target string
+}
 
 func (f file) Attr() Attr    { return Attr{Mode: 0666} }
 func (f dir) Attr() Attr     { return Attr{Mode: os.ModeDir | 0777} }
 func (f symlink) Attr() Attr { return Attr{Mode: os.ModeSymlink | 0666} }
+
+func (f symlink) Readlink(*ReadlinkRequest, Intr) (string, Error) {
+	return f.target, nil
+}
 
 type testFS struct{}
 
