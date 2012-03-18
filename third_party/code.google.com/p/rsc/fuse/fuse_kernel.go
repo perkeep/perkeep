@@ -307,6 +307,7 @@ type mkdirIn struct {
 
 type renameIn struct {
 	Newdir uint64
+	// "oldname\x00newname\x00" follows
 }
 
 // OS X 

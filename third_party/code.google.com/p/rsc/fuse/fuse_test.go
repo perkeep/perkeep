@@ -85,6 +85,7 @@ var fuseTests = []struct {
 	{"create1", &create1{}},
 	{"create2", &create2{}},
 	{"symlink1", &symlink1{}},
+	{"rename1", &rename1{}},
 }
 
 // TO TEST:
@@ -370,6 +371,42 @@ func (f *symlink1) test(path string, t *testing.T) {
 	}
 	if gotName != target {
 		t.Errorf("os.Readlink = %q; want %q", gotName, target)
+	}
+}
+
+// Test Rename
+
+type rename1 struct {
+	dir
+	renames int
+}
+
+func (f *rename1) Lookup(name string, intr Intr) (Node, Error) {
+	if name == "old" {
+		return file{}, nil
+	}
+	return nil, ENOENT
+}
+
+func (f *rename1) Rename(r *RenameRequest, newDir Node, intr Intr) Error {
+	if r.OldName == "old" && r.NewName == "new" && newDir == f {
+		f.renames++
+		return nil
+	}
+	return EIO
+}
+
+func (f *rename1) test(path string, t *testing.T) {
+	err := os.Rename(path+"/old", path+"/new")
+	if err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if f.renames != 1 {
+		t.Fatalf("expected rename didn't happen")
+	}
+	err = os.Rename(path+"/old2", path+"/new2")
+	if err == nil {
+		t.Fatal("expected error on second Rename; got nil")
 	}
 }
 

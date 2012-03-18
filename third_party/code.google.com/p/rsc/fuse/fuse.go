@@ -420,7 +420,33 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opRename:
-		panic("opRename")
+		in := (*renameIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		newDirNodeID := NodeID(in.Newdir)
+		oldNew := m.bytes()[unsafe.Sizeof(*in):]
+		// oldNew should be "old\x00new\x00"
+		if len(oldNew) < 4 {
+			goto corrupt
+		}
+		if oldNew[len(oldNew)-1] != '\x00' {
+			goto corrupt
+		}
+		i := bytes.IndexByte(oldNew, '\x00')
+		if i < 0 {
+			goto corrupt
+		}
+		oldName, newName := string(oldNew[:i]), string(oldNew[i+1:len(oldNew)-1])
+		log.Printf("RENAME: newDirNode = %d; old = %q, new = %q", newDirNodeID, oldName, newName)
+
+		req = &RenameRequest{
+			Header:  m.Header(),
+			NewDir:  newDirNodeID,
+			OldName: oldName,
+			NewName: newName,
+		}
+
 	case opLink:
 		panic("opLink")
 
@@ -1465,6 +1491,26 @@ func (r *ReadlinkRequest) handle() HandleID {
 func (r *ReadlinkRequest) Respond(target string) {
 	out := &outHeader{Unique: uint64(r.ID)}
 	r.Conn.respondData(out, unsafe.Sizeof(*out), []byte(target))
+}
+
+// A RenameRequest is a request to rename a file.
+type RenameRequest struct {
+	Header
+	NewDir           NodeID
+	OldName, NewName string
+}
+
+func (r *RenameRequest) handle() HandleID {
+	return 0
+}
+
+func (r *RenameRequest) String() string {
+	return fmt.Sprintf("Rename [%s] from %q to dirnode %d %q", &r.Header, r.OldName, r.NewDir, r.NewName)
+}
+
+func (r *RenameRequest) Respond() {
+	out := &outHeader{Unique: uint64(r.ID)}
+	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
 /*{

@@ -49,8 +49,10 @@ func (Intr) String() string { return "fuse.Intr" }
 //
 // Statfs is called to obtain file system metadata.  It should write that data to resp.
 //
-//	Rename(req *RenameRequest, intr Intr) proto.Error
+//	Rename(req *RenameRequest, intr Intr) Error
 //
+// XXXX this is not implemented like this. Instead, Rename is a method
+// on the source dierctory node, and takes a newDir Node parameter. Fix it like this?
 // Rename is called to rename the file req.OldName in the directory req.OldDir to
 // become the file req.NewName in the directory req.NewDir.
 //
@@ -121,7 +123,7 @@ type FS interface {
 //
 // Link XXX
 //
-//	Lookup(name string, intr Intr) (Node, proto.Error)
+//	Lookup(name string, intr Intr) (Node, Error)
 //
 // Lookup looks up a specific entry in the receiver,
 // which must be a directory.  Lookup should return a Node
@@ -841,8 +843,39 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(nil)
 		r.Respond()
 
-	// TODO:
-	//case *MknodRequest, *RenameRequest, *LinkRequest:
+	case *RenameRequest:
+		c.meta.Lock()
+		var newDirNode *serveNode
+		if int(r.NewDir) < len(c.node) {
+			newDirNode = c.node[r.NewDir]
+		}
+		c.meta.Unlock()
+		if newDirNode == nil {
+			println("RENAME NEW DIR NODE NOT FOUND")
+			done(EIO)
+			r.RespondError(EIO)
+			break
+		}
+		n, ok := node.(interface {
+			Rename(r *RenameRequest, newDir Node, intr Intr) Error
+		})
+		if !ok {
+			log.Printf("Node %T missing Rename method", node)
+			done(EIO) // XXX or EPERM like Mkdir?
+			r.RespondError(EIO)
+			break
+		}
+		err := n.Rename(r, newDirNode.node, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond()
+
+		// TODO:
+		//case *MknodRequest, *LinkRequest:
 
 		/*	case *FsyncRequest, *FsyncdirRequest:
 				done(ENOSYS)
