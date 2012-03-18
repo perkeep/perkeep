@@ -559,14 +559,23 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(target)
 		r.Respond(target)
 
-	/*
-	 case *ReadlinkRequest, *MknodRequest, 
-	 *UnlinkRequest (RemoveRequest), *RmdirRequest (RemoveRequest),
-	 *RenameRequest, *LinkRequest:
-	 // TODO
-	 done(ENOSYS)
-	 r.RespondError(ENOSYS)
-	*/
+	case *RemoveRequest:
+		n, ok := node.(interface {
+			Remove(*RemoveRequest, Intr) Error
+		})
+		if !ok {
+			done(EIO) /// XXX or EPERM?
+			r.RespondError(EIO)
+			break
+		}
+		err := n.Remove(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond()
 
 	case *AccessRequest:
 		if n, ok := node.(interface {
@@ -822,6 +831,19 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(nil)
 		r.Respond()
 
+	case *DestroyRequest:
+		fs, ok := fs.(interface {
+			Destroy()
+		})
+		if ok {
+			fs.Destroy()
+		}
+		done(nil)
+		r.Respond()
+
+	// TODO:
+	//case *MknodRequest, *RenameRequest, *LinkRequest:
+
 		/*	case *FsyncRequest, *FsyncdirRequest:
 				done(ENOSYS)
 				r.RespondError(ENOSYS)
@@ -852,16 +874,6 @@ func (c *Conn) serve(fs FS, r Request) {
 				done(ENOSYS)
 				r.RespondError(ENOSYS)
 		*/
-
-	case *DestroyRequest:
-		fs, ok := fs.(interface {
-			Destroy()
-		})
-		if ok {
-			fs.Destroy()
-		}
-		done(nil)
-		r.Respond()
 	}
 }
 

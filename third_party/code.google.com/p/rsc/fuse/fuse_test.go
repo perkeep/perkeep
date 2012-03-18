@@ -282,12 +282,13 @@ func (f *create1) test(path string, t *testing.T) {
 	}
 }
 
-// Test Create + WriteAll
+// Test Create + WriteAll + Remove
 
 type create2 struct {
 	dir
-	name string
-	f    *writeAll
+	name      string
+	f         *writeAll
+	fooExists bool
 }
 
 func (f *create2) Create(req *CreateRequest, resp *CreateResponse, intr Intr) (Node, Handle, Error) {
@@ -296,15 +297,40 @@ func (f *create2) Create(req *CreateRequest, resp *CreateResponse, intr Intr) (N
 	return f.f, f.f, nil
 }
 
+func (f *create2) Lookup(name string, intr Intr) (Node, Error) {
+	if f.fooExists && name == "foo" {
+		return file{}, nil
+	}
+	return nil, ENOENT
+}
+
+func (f *create2) Remove(r *RemoveRequest, intr Intr) Error {
+	if f.fooExists && r.Name == "foo" && !r.Dir {
+		f.fooExists = false
+		return nil
+	}
+	return ENOENT
+}
+
 func (f *create2) test(path string, t *testing.T) {
 	f.name = ""
 	err := ioutil.WriteFile(path+"/foo", []byte(hi), 0666)
 	if err != nil {
-		t.Errorf("create2 WriteFile: %v", err)
-		return
+		t.Fatalf("create2 WriteFile: %v", err)
 	}
 	if string(f.f.data) != hi {
-		t.Errorf("create2 writeAll = %q, want %q", f.f.data, hi)
+		t.Fatalf("create2 writeAll = %q, want %q", f.f.data, hi)
+	}
+
+	f.fooExists = true
+	log.Printf("pre-Remove")
+	err = os.Remove(path + "/foo")
+	if err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	err = os.Remove(path + "/foo")
+	if err == nil {
+		t.Fatalf("second Remove = nil; want some error")
 	}
 }
 
