@@ -236,6 +236,7 @@ func (c *Conn) Serve(fs FS) error {
 
 	for {
 		req, err := c.ReadRequest()
+		log.Printf("read request = %T, %v", req, err)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -520,12 +521,33 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(s)
 		r.Respond(s)
 
-		/*
-			case *ReadlinkRequest, *SymlinkRequest, *MknodRequest, *MkdirRequest,
-				*UnlinkRequest, *RmdirRequest, *RenameRequest, *LinkRequest:
-				// TODO
-				done(ENOSYS)
-				r.RespondError(ENOSYS)
+	case *SymlinkRequest:
+		s := &SymlinkResponse{}
+		n, ok := node.(interface {
+			Symlink(*SymlinkRequest, Intr) (Node, Error)
+		})
+		if !ok {
+			done(EIO); // XXX or EPERM like Mkdir?
+			r.RespondError(EIO)
+			break
+		}
+		n2, err := n.Symlink(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		c.saveLookup(&s.LookupResponse, snode, r.NewName, n2)
+		done(s)
+		r.Respond(s)
+
+	/*
+		 case *ReadlinkRequest, *MknodRequest, 
+		 *UnlinkRequest (RemoveRequest), *RmdirRequest (RemoveRequest),
+		 *RenameRequest, *LinkRequest:
+		 // TODO
+		 done(ENOSYS)
+		 r.RespondError(ENOSYS)
 		*/
 
 	case *AccessRequest:

@@ -365,9 +365,24 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opReadlink:
+		println("OP READLINK")
 		panic("opReadlink")
 	case opSymlink:
-		panic("opSymlink")
+		// m.bytes() is "newName\0target\0"
+		names := m.bytes()
+		if len(names) == 0 || names[len(names)-1] != 0 {
+			goto corrupt
+		}
+		i := bytes.IndexByte(names, '\x00')
+		if i < 0 {
+			goto corrupt
+		}
+		newName, target := names[0:i], names[i+1:len(names)-1]
+		req = &SymlinkRequest{
+			Header:  m.Header(),
+			NewName: string(newName),
+			Target:  string(target),
+		}
 	case opMknod:
 		panic("opMknod")
 
@@ -1395,6 +1410,40 @@ func (r *RemoveRequest) Respond() {
 	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
+// A SymlinkRequest xxx
+type SymlinkRequest struct {
+	Header
+	NewName, Target string
+}
+
+func (r *SymlinkRequest) String() string {
+	return fmt.Sprintf("Symlink [%s] from %q to target %q", &r.Header, r.NewName, r.Target)
+}
+
+func (r *SymlinkRequest) handle() HandleID {
+	return 0
+}
+
+// Respond replies to the request, indicating that the symlink was created.
+func (r *SymlinkRequest) Respond(resp *SymlinkResponse) {
+	out := &entryOut{
+		outHeader:      outHeader{Unique: uint64(r.ID)},
+		Nodeid:         uint64(resp.Node),
+		Generation:     resp.Generation,
+		EntryValid:     uint64(resp.EntryValid / time.Second),
+		EntryValidNsec: uint32(resp.EntryValid % time.Second / time.Nanosecond),
+		AttrValid:      uint64(resp.AttrValid / time.Second),
+		AttrValidNsec:  uint32(resp.AttrValid % time.Second / time.Nanosecond),
+		Attr:           resp.Attr.attr(),
+	}
+	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
+}
+
+// A SymlinkResponse is the response to a SymlinkRequest.
+type SymlinkResponse struct {
+	LookupResponse
+}
+
 /*{
 
 // A XXXRequest xxx.
@@ -1407,7 +1456,7 @@ func (r *XXXRequest) String() string {
 	return fmt.Sprintf("XXX [%s] xxx", &r.Header)
 }
 
-func (r *XXXRequest) Handle() HandleID {
+func (r *XXXRequest) handle() HandleID {
 	return r.Handle
 }
 
@@ -1429,5 +1478,5 @@ func (r *XXXResponse) String() string {
 	return fmt.Sprintf("XXX %+v", *r)
 }
 
-}
+ }
 */

@@ -47,9 +47,14 @@ func TestFuse(t *testing.T) {
 		}
 	}()
 
+	// TODO: remove hard-coded 1 second here. try repeated from short
+	// to increasingly long timeouts here, waiting for a good Stat.
 	time.Sleep(1 * time.Second)
-
-	_, err = os.Stat(dir + "/" + fuseTests[0].name)
+	probeEntry := *fuseRun
+	if probeEntry == "" {
+		probeEntry = fuseTests[0].name
+	}
+	_, err = os.Stat(dir + "/" + probeEntry)
 	if err != nil {
 		t.Fatalf("mount did not work")
 		return
@@ -79,6 +84,7 @@ var fuseTests = []struct {
 	{"mkdir1", &mkdir1{}},
 	{"create1", &create1{}},
 	{"create2", &create2{}},
+	{"symlink1", &symlink1{}},
 }
 
 // TO TEST:
@@ -302,6 +308,47 @@ func (f *create2) test(path string, t *testing.T) {
 	}
 }
 
+// Test symlink + readlink
+
+type symlink1 struct {
+	dir
+	newName, target string
+}
+
+func (f *symlink1) Symlink(req *SymlinkRequest, intr Intr) (Node, Error) {
+	f.newName = req.NewName
+	f.target = req.Target
+	return symlink{}, nil
+}
+
+func (f *symlink1) test(path string, t *testing.T) {
+	const target = "/some-target"
+
+	err := os.Symlink(target, path+"/symlink.file")
+	if err != nil {
+		t.Errorf("os.Symlink: %v", err)
+		return
+	}
+
+	if f.newName != "symlink.file" {
+		t.Errorf("symlink newName = %q; want %q", f.newName, "symlink.file")
+	}
+	if f.target != target {
+		t.Errorf("symlink target = %q; want %q", f.target, target)
+	}
+
+	return // TODO XXX implement rest
+
+	gotName, err := os.Readlink(path + "/symlink.file")
+	if err != nil {
+		t.Errorf("os.Readlink: %v", err)
+		return
+	}
+	if gotName != target {
+		t.Errorf("os.Readlink = %q; want %q", gotName, target)
+	}
+}
+
 // Test Release.
 
 type release struct {
@@ -330,9 +377,11 @@ func (r *release) test(path string, t *testing.T) {
 
 type file struct{}
 type dir struct{}
+type symlink struct{}
 
-func (f file) Attr() Attr { return Attr{Mode: 0666} }
-func (f dir) Attr() Attr  { return Attr{Mode: os.ModeDir | 0777} }
+func (f file) Attr() Attr    { return Attr{Mode: 0666} }
+func (f dir) Attr() Attr     { return Attr{Mode: os.ModeDir | 0777} }
+func (f symlink) Attr() Attr { return Attr{Mode: os.ModeSymlink | 0666} }
 
 type testFS struct{}
 
@@ -356,7 +405,10 @@ func (testFS) Lookup(name string, intr Intr) (Node, Error) {
 func (testFS) ReadDir(intr Intr) ([]Dirent, Error) {
 	var dirs []Dirent
 	for _, tt := range fuseTests {
-		dirs = append(dirs, Dirent{Name: tt.name})
+		if *fuseRun == "" || *fuseRun == tt.name {
+			log.Printf("Readdir; adding %q", tt.name)
+			dirs = append(dirs, Dirent{Name: tt.name})
+		}
 	}
 	return dirs, nil
 }
