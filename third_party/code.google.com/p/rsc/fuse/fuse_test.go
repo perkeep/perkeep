@@ -85,6 +85,7 @@ var fuseTests = []struct {
 	{"create1", &create1{}},
 	{"create2", &create2{}},
 	{"symlink1", &symlink1{}},
+	{"link1", &link1{}},
 	{"rename1", &rename1{}},
 }
 
@@ -371,6 +372,35 @@ func (f *symlink1) test(path string, t *testing.T) {
 	}
 	if gotName != target {
 		t.Errorf("os.Readlink = %q; want %q", gotName, target)
+	}
+}
+
+// Test link
+
+type link1 struct {
+	dir
+	newName string
+}
+
+func (f *link1) Lookup(name string, intr Intr) (Node, Error) {
+	if name == "old" {
+		return file{}, nil
+	}
+	return nil, ENOENT
+}
+
+func (f *link1) Link(r *LinkRequest, old Node, intr Intr) (Node, Error) {
+	f.newName = r.NewName
+	return file{}, nil
+}
+
+func (f *link1) test(path string, t *testing.T) {
+	err := os.Link(path+"/old", path+"/new")
+	if err != nil {
+		t.Fatalf("Link: %v", err)
+	}
+	if f.newName != "new" {
+		t.Fatalf("saw Link for newName %q; want %q", f.newName, "new")
 	}
 }
 

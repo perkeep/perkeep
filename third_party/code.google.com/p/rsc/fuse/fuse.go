@@ -388,6 +388,23 @@ func (c *Conn) ReadRequest() (Request, error) {
 			NewName: string(newName),
 			Target:  string(target),
 		}
+
+	case opLink:
+		in := (*linkIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		newName := m.bytes()[unsafe.Sizeof(*in):]
+		if len(newName) < 2 || newName[len(newName)-1] != 0 {
+			goto corrupt
+		}
+		newName = newName[:len(newName)-1]
+		req = &LinkRequest{
+			Header:  m.Header(),
+			OldNode: NodeID(in.Oldnodeid),
+			NewName: string(newName),
+		}
+
 	case opMknod:
 		panic("opMknod")
 
@@ -446,9 +463,6 @@ func (c *Conn) ReadRequest() (Request, error) {
 			OldName: oldName,
 			NewName: newName,
 		}
-
-	case opLink:
-		panic("opLink")
 
 	case opOpendir, opOpen:
 		in := (*openIn)(m.data())
@@ -1491,6 +1505,27 @@ func (r *ReadlinkRequest) handle() HandleID {
 func (r *ReadlinkRequest) Respond(target string) {
 	out := &outHeader{Unique: uint64(r.ID)}
 	r.Conn.respondData(out, unsafe.Sizeof(*out), []byte(target))
+}
+
+// A LinkRequest is a request to create a hard link.
+type LinkRequest struct {
+	Header
+	OldNode NodeID
+	NewName string
+}
+
+func (r *LinkRequest) Respond(resp *LookupResponse) {
+	out := &entryOut{
+		outHeader:      outHeader{Unique: uint64(r.ID)},
+		Nodeid:         uint64(resp.Node),
+		Generation:     resp.Generation,
+		EntryValid:     uint64(resp.EntryValid / time.Second),
+		EntryValidNsec: uint32(resp.EntryValid % time.Second / time.Nanosecond),
+		AttrValid:      uint64(resp.AttrValid / time.Second),
+		AttrValidNsec:  uint32(resp.AttrValid % time.Second / time.Nanosecond),
+		Attr:           resp.Attr.attr(),
+	}
+	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 }
 
 // A RenameRequest is a request to rename a file.

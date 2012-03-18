@@ -561,6 +561,39 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(target)
 		r.Respond(target)
 
+	case *LinkRequest:
+		n, ok := node.(interface {
+			Link(r *LinkRequest, old Node, intr Intr) (Node, Error)
+		})
+		if !ok {
+			log.Printf("Node %T doesn't implement fuse Link", node)
+			done(EIO) /// XXX or EPERM?
+			r.RespondError(EIO)
+			break
+		}
+		c.meta.Lock()
+		var oldNode *serveNode
+		if int(r.OldNode) < len(c.node) {
+			oldNode = c.node[r.OldNode]
+		}
+		c.meta.Unlock()
+		if oldNode == nil {
+			log.Printf("In LinkRequest, node %d not found", r.OldNode)
+			done(EIO)
+			r.RespondError(EIO)
+			break
+		}
+		n2, err := n.Link(r, oldNode.node, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		s := &LookupResponse{}
+		c.saveLookup(s, snode, r.NewName, n2)
+		done(s)
+		r.Respond(s)
+
 	case *RemoveRequest:
 		n, ok := node.(interface {
 			Remove(*RemoveRequest, Intr) Error
