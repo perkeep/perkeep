@@ -250,6 +250,37 @@ func (m *message) Header() Header {
 	return Header{Conn: m.conn, ID: RequestID(h.Unique), Node: NodeID(h.Nodeid), Uid: h.Uid, Gid: h.Gid, Pid: h.Pid}
 }
 
+// fileMode returns a Go os.FileMode from a Unix mode.
+func fileMode(unixMode uint32) os.FileMode {
+	mode := os.FileMode(unixMode & 0777)
+	switch unixMode & syscall.S_IFMT {
+	case syscall.S_IFREG:
+		// nothing
+	case syscall.S_IFDIR:
+		mode |= os.ModeDir
+	case syscall.S_IFCHR:
+		mode |= os.ModeCharDevice | os.ModeDevice
+	case syscall.S_IFBLK:
+		mode |= os.ModeDevice
+	case syscall.S_IFIFO:
+		mode |= os.ModeNamedPipe
+	case syscall.S_IFLNK:
+		mode |= os.ModeSymlink
+	case syscall.S_IFSOCK:
+		mode |= os.ModeSocket
+	default:
+		// no idea
+		mode |= os.ModeDevice
+	}
+	if unixMode&syscall.S_ISUID != 0 {
+		mode |= os.ModeSetuid
+	}
+	if unixMode&syscall.S_ISGID != 0 {
+		mode |= os.ModeSetgid
+	}
+	return mode
+}
+
 func (c *Conn) ReadRequest() (Request, error) {
 	// TODO: Some kind of buffer reuse.
 	m := newMessage(c)
@@ -322,33 +353,6 @@ func (c *Conn) ReadRequest() (Request, error) {
 		if m.len() < unsafe.Sizeof(*in) {
 			goto corrupt
 		}
-		mode := os.FileMode(in.Mode & 0777)
-		switch in.Mode & syscall.S_IFMT {
-		case syscall.S_IFREG:
-			// nothing
-		case syscall.S_IFDIR:
-			mode |= os.ModeDir
-		case syscall.S_IFCHR:
-			mode |= os.ModeCharDevice | os.ModeDevice
-		case syscall.S_IFBLK:
-			mode |= os.ModeDevice
-		case syscall.S_IFIFO:
-			mode |= os.ModeNamedPipe
-		case syscall.S_IFLNK:
-			mode |= os.ModeSymlink
-		case syscall.S_IFSOCK:
-			mode |= os.ModeSocket
-		default:
-			// no idea
-			mode |= os.ModeDevice
-		}
-		if in.Mode&syscall.S_ISUID != 0 {
-			mode |= os.ModeSetuid
-		}
-		if in.Mode&syscall.S_ISGID != 0 {
-			mode |= os.ModeSetgid
-		}
-
 		req = &SetattrRequest{
 			Header:   m.Header(),
 			Valid:    SetattrValid(in.Valid),
@@ -356,7 +360,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 			Size:     in.Size,
 			Atime:    time.Unix(int64(in.Atime), int64(in.AtimeNsec)),
 			Mtime:    time.Unix(int64(in.Mtime), int64(in.MtimeNsec)),
-			Mode:     mode,
+			Mode:     fileMode(in.Mode),
 			Uid:      in.Uid,
 			Gid:      in.Gid,
 			Bkuptime: in.BkupTime(),
@@ -406,7 +410,21 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opMknod:
-		panic("opMknod")
+		in := (*mknodIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		name := m.bytes()[unsafe.Sizeof(*in):]
+		if len(name) < 2 || name[len(name)-1] != '\x00' {
+			goto corrupt
+		}
+		name = name[:len(name)-1]
+		req = &MknodRequest{
+			Header: m.Header(),
+			Mode:   fileMode(in.Mode),
+			Rdev:   in.Rdev,
+			Name:   string(name),
+		}
 
 	case opMkdir:
 		in := (*mkdirIn)(m.data())
@@ -1546,6 +1564,31 @@ func (r *RenameRequest) String() string {
 func (r *RenameRequest) Respond() {
 	out := &outHeader{Unique: uint64(r.ID)}
 	r.Conn.respond(out, unsafe.Sizeof(*out))
+}
+
+type MknodRequest struct {
+	Header
+	Name string
+	Mode os.FileMode
+	Rdev uint32
+}
+
+func (r *MknodRequest) String() string {
+	return fmt.Sprintf("Mknod [%s] Name %q mode %v rdev %d", &r.Header, r.Name, r.Mode, r.Rdev)
+}
+
+func (r *MknodRequest) Respond(resp *LookupResponse) {
+	out := &entryOut{
+		outHeader:      outHeader{Unique: uint64(r.ID)},
+		Nodeid:         uint64(resp.Node),
+		Generation:     resp.Generation,
+		EntryValid:     uint64(resp.EntryValid / time.Second),
+		EntryValidNsec: uint32(resp.EntryValid % time.Second / time.Nanosecond),
+		AttrValid:      uint64(resp.AttrValid / time.Second),
+		AttrValidNsec:  uint32(resp.AttrValid % time.Second / time.Nanosecond),
+		Attr:           resp.Attr.attr(),
+	}
+	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 }
 
 /*{

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -87,6 +88,7 @@ var fuseTests = []struct {
 	{"symlink1", &symlink1{}},
 	{"link1", &link1{}},
 	{"rename1", &rename1{}},
+	{"mknod1", &mknod1{}},
 }
 
 // TO TEST:
@@ -466,14 +468,59 @@ func (r *release) test(path string, t *testing.T) {
 	}
 }
 
+// Test mknod
+
+type mknod1 struct {
+	dir
+	gotr *MknodRequest
+}
+
+func (f *mknod1) Mknod(r *MknodRequest, intr Intr) (Node, Error) {
+	f.gotr = r
+	return fifo{}, nil
+}
+
+func (f *mknod1) test(path string, t *testing.T) {
+	if os.Getuid() != 0 {
+		t.Logf("skipping unless root")
+		return
+	}
+	defer syscall.Umask(syscall.Umask(0))
+	err := syscall.Mknod(path+"/node", syscall.S_IFIFO|0666, 123)
+	if err != nil {
+		t.Fatalf("Mknod: %v", err)
+	}
+	if f.gotr == nil {
+		t.Fatalf("no recorded MknodRequest")
+	}
+	if g, e := f.gotr.Name, "node"; g != e {
+		t.Errorf("got Name = %q; want %q", g, e)
+	}
+	if g, e := f.gotr.Rdev, uint32(123); g != e {
+		if runtime.GOOS == "linux" {
+			// Linux fuse doesn't echo back the rdev if the node
+			// isn't a device (we're using a FIFO here, as that
+			// bit is portable.)
+		} else {
+			t.Errorf("got Rdev = %v; want %v", g, e)
+		}
+	}
+	if g, e := f.gotr.Mode, os.FileMode(os.ModeNamedPipe|0666); g != e {
+		t.Errorf("got Mode = %v; want %v", g, e)
+	}
+	t.Logf("Got request: %#v", f.gotr)
+}
+
 type file struct{}
 type dir struct{}
+type fifo struct{}
 type symlink struct {
 	target string
 }
 
 func (f file) Attr() Attr    { return Attr{Mode: 0666} }
 func (f dir) Attr() Attr     { return Attr{Mode: os.ModeDir | 0777} }
+func (f fifo) Attr() Attr    { return Attr{Mode: os.ModeNamedPipe | 0666} }
 func (f symlink) Attr() Attr { return Attr{Mode: os.ModeSymlink | 0666} }
 
 func (f symlink) Readlink(*ReadlinkRequest, Intr) (string, Error) {

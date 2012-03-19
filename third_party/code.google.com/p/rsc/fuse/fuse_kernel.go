@@ -297,6 +297,7 @@ type getxtimesOut struct {
 type mknodIn struct {
 	Mode uint32
 	Rdev uint32
+	// "filename\x00" follows.
 }
 
 type mkdirIn struct {

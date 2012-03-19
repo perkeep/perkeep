@@ -134,9 +134,11 @@ type FS interface {
 //
 //	Mkdir
 //
-// Mkdir creates 
+// Mkdir creates XXX
 //
-//	Mknod
+//	Mknod XXX
+//
+// XXX
 //
 //	Remove
 //
@@ -907,8 +909,26 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(nil)
 		r.Respond()
 
-		// TODO:
-		//case *MknodRequest, *LinkRequest:
+	case *MknodRequest:
+		n, ok := node.(interface {
+			Mknod(r *MknodRequest, intr Intr) (Node, Error)
+		})
+		if !ok {
+			log.Printf("Node %T missing Mknod method", node)
+			done(EIO)
+			r.RespondError(EIO)
+			break
+		}
+		n2, err := n.Mknod(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		s := &LookupResponse{}
+		c.saveLookup(s, snode, r.Name, n2)
+		done(s)
+		r.Respond(s)
 
 		/*	case *FsyncRequest, *FsyncdirRequest:
 				done(ENOSYS)
@@ -917,9 +937,7 @@ func (c *Conn) serve(fs FS, r Request) {
 			case *GetlkRequest, *SetlkRequest, *SetlkwRequest:
 				done(ENOSYS)
 				r.RespondError(ENOSYS)
-		*/
 
-		/*
 			// One of a kind.
 			case *InterruptRequest:
 				c.meta.Lock()
