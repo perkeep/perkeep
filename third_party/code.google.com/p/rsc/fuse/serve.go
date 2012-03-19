@@ -930,7 +930,26 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(s)
 		r.Respond(s)
 
-		/*	case *FsyncRequest, *FsyncdirRequest:
+	case *FsyncRequest:
+		n, ok := node.(interface {
+			Fsync(r *FsyncRequest, intr Intr) Error
+		})
+		if !ok {
+			log.Printf("Node %T missing Fsync method", node)
+			done(EIO)
+			r.RespondError(EIO)
+			break
+		}
+		err := n.Fsync(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond()
+
+		/*	case *FsyncdirRequest:
 				done(ENOSYS)
 				r.RespondError(ENOSYS)
 

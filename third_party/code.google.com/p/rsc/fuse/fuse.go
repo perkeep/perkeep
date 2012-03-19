@@ -545,7 +545,15 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opFsync:
-		panic("opFsync")
+		in := (*fsyncIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		req = &FsyncRequest{
+			Header: m.Header(),
+			Handle: HandleID(in.Fh),
+			Flags:  in.FsyncFlags,
+		}
 
 	case opSetxattr:
 		var size uint32
@@ -1589,6 +1597,21 @@ func (r *MknodRequest) Respond(resp *LookupResponse) {
 		Attr:           resp.Attr.attr(),
 	}
 	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
+}
+
+type FsyncRequest struct {
+	Header
+	Handle HandleID
+	Flags  uint32
+}
+
+func (r *FsyncRequest) String() string {
+	return fmt.Sprintf("Fsync [%s] Handle %v Flags %v", &r.Header, r.Handle, r.Flags)
+}
+
+func (r *FsyncRequest) Respond() {
+	out := &outHeader{Unique: uint64(r.ID)}
+	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
 /*{

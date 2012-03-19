@@ -137,16 +137,22 @@ func (readAll1) test(path string, t *testing.T) {
 	readAll{}.test(path, t)
 }
 
-// Test Write calling basic Write.
+// Test Write calling basic Write, with an fsync thrown in too.
 
 type write struct {
 	file
-	data []byte
+	data     []byte
+	gotfsync bool
 }
 
 func (w *write) Write(req *WriteRequest, resp *WriteResponse, intr Intr) Error {
 	w.data = append(w.data, req.Data...)
 	resp.Size = len(req.Data)
+	return nil
+}
+
+func (w *write) Fsync(r *FsyncRequest, intr Intr) Error {
+	w.gotfsync = true
 	return nil
 }
 
@@ -164,6 +170,15 @@ func (w *write) test(path string, t *testing.T) {
 	if n != len(hi) {
 		t.Fatalf("short write; n=%d; hi=%d", n, len(hi))
 	}
+
+	err = syscall.Fsync(int(f.Fd()))
+	if err != nil {
+		t.Fatalf("Fsync = %v", err)
+	}
+	if !w.gotfsync {
+		t.Errorf("never received expected fsync call")
+	}
+
 	log.Printf("pre-write Close")
 	err = f.Close()
 	if err != nil {
@@ -179,7 +194,13 @@ func (w *write) test(path string, t *testing.T) {
 
 type writeAll struct {
 	file
-	data []byte
+	data     []byte
+	gotfsync bool
+}
+
+func (w *writeAll) Fsync(r *FsyncRequest, intr Intr) Error {
+	w.gotfsync = true
+	return nil
 }
 
 func (w *writeAll) WriteAll(data []byte, intr Intr) Error {
@@ -259,7 +280,7 @@ func (f *mkdir1) test(path string, t *testing.T) {
 	}
 }
 
-// Test Create
+// Test Create (and fsync)
 
 type create1 struct {
 	dir
@@ -280,6 +301,16 @@ func (f *create1) test(path string, t *testing.T) {
 		t.Errorf("create1 WriteFile: %v", err)
 		return
 	}
+
+	err = syscall.Fsync(int(ff.Fd()))
+	if err != nil {
+		t.Fatalf("Fsync = %v", err)
+	}
+
+	if !f.f.gotfsync {
+		t.Errorf("never received expected fsync call")
+	}
+
 	ff.Close()
 	if f.name != "foo" {
 		t.Errorf("create1 name=%q want foo", f.name)
