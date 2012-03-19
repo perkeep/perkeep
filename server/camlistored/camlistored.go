@@ -122,35 +122,30 @@ func genSelfTLS(listen string) error {
 	return nil
 }
 
-// checkConfigFile tests if the given config file is a
-// valid path to an existing file, and returns the same
-// value if yes, an error if not.
-// If file is the empty string, it checks for the existence
-// of a default config and creates it if absent. It returns
-// newfile as the path to that file, or an error if a
-// problem occured.
-func checkConfigFile(file string) (newfile string, err error) {
-	newfile = file
-	if newfile == "" {
-		newfile = osutil.UserServerConfigPath()
-		_, err := os.Stat(newfile)
-		if err != nil {
-			log.Printf("Can't open default conf file, now creating a new one at %s \n", newfile)
-			err = newDefaultConfigFile(newfile)
-			if err != nil {
-				return "", err
-			}
+// findConfigFile returns the absolute path of the user's
+// config file.
+// The provided file may be absolute or relative
+// to the user's configuration directory.
+// If file is empty, a default high-level config is written
+// for the user.
+func findConfigFile(file string) (absPath string, err error) {
+	switch {
+	case file == "":
+		absPath = osutil.UserServerConfigPath()
+		_, err = os.Stat(absPath)
+		if os.IsNotExist(err) {
+			os.MkdirAll(osutil.CamliConfigDir(), 0700)
+			log.Printf("Generating template config file %s", absPath)
+			err = newDefaultConfigFile(absPath)
 		}
-		return newfile, nil
+		return
+	case filepath.IsAbs(file):
+		absPath = file
+	default:
+		absPath = filepath.Join(osutil.CamliConfigDir(), file)
 	}
-	if !filepath.IsAbs(newfile) {
-		newfile = filepath.Join(osutil.CamliConfigDir(), newfile)
-	}
-	_, err = os.Stat(newfile)
-	if err != nil {
-		return "", fmt.Errorf("can't stat %s: %q", file, err)
-	}
-	return newfile, nil
+	_, err = os.Stat(absPath)
+	return
 }
 
 // TODO: "auth": "localtcp". See http://code.google.com/p/camlistore/issues/detail?id=50
@@ -168,12 +163,12 @@ func newDefaultConfigFile(path string) error {
 	"replicateTo": []
 }
 `
-	blobDir := filepath.Join(osutil.HomeDir(), "var", "camlistore", "blobs")
+	blobDir := osutil.CamliBlobRoot()
 	if err := os.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	serverConf = strings.Replace(serverConf, "%BLOBPATH%", blobDir, 1)
-	secRing := filepath.Join(osutil.HomeDir(), ".camli", "secring.gpg")
+	secRing := filepath.Join(osutil.CamliConfigDir(), "secring.gpg")
 	serverConf = strings.Replace(serverConf, "%SECRING%", secRing, 1)
 	if err := ioutil.WriteFile(path, []byte(serverConf), 0700); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
@@ -218,17 +213,14 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 func main() {
 	flag.Parse()
 
-	file, err := checkConfigFile(*flagConfigFile)
+	fileName, err := findConfigFile(*flagConfigFile)
 	if err != nil {
-		exitf("Problem with config file: %q", err)
+		exitf("Error finding config file %q: %v", fileName, err)
 	}
-	conf, err := serverconfig.Load(file)
+	log.Printf("Using config file %s", fileName)
+	config, err := serverconfig.Load(fileName)
 	if err != nil {
-		exitf("Could not load server config file %v: %v", file, err)
-	}
-	config, err := serverconfig.GenLowLevelConfig(conf)
-	if err != nil {
-		exitf("Could not gen low level server config: %v", err)
+		exitf("Could not load server config: %v", err)
 	}
 
 	ws := webserver.New()

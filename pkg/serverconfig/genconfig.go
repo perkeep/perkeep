@@ -166,33 +166,35 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	return prefixes
 }
 
-// TODO(mpl): check the high level config for invalid keywords. with validate maybe?
 func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
-	obj := jsonconfig.Obj{}
-	baseUrl := conf.RequiredString("listen")
-	if baseUrl == "" {
-		return nil, fmt.Errorf("\"listen\" missing in user config file")
-	}
-	tls := conf.RequiredBool("TLS")
-	scheme := "http"
-	if tls {
-		scheme = "https"
-	}
-	auth := conf.RequiredString("auth")
-	if auth == "" {
-		return nil, fmt.Errorf("\"auth\" missing in user config file")
+	var (
+		baseUrl    = conf.RequiredString("listen")
+		tlsOn      = conf.OptionalBool("TLS", false)
+		auth       = conf.RequiredString("auth")
+		dbname     = conf.OptionalString("dbname", "")
+		secretRing = conf.OptionalString("secring", "")
+		blobPath   = conf.RequiredString("blobPath")
+		keyId      = conf.OptionalString("keyid", "")
+		mysql      = conf.OptionalString("mysql", "")
+		mongo      = conf.OptionalString("mongo", "")
+		_          = conf.OptionalList("replicateTo")
+		_          = conf.OptionalString("s3", "")
+	)
+	if err := conf.Validate(); err != nil {
+		return nil, err
 	}
 
-	obj["baseURL"] = scheme + "://" + baseUrl
-	obj["https"] = tls
-	obj["auth"] = auth
-	if tls {
-		// TODO(mpl): probably need other default paths
+	obj := jsonconfig.Obj{}
+	scheme := "http"
+	if tlsOn {
+		scheme = "https"
 		obj["TLSCertFile"] = "config/selfgen_cert.pem"
 		obj["TLSKeyFile"] = "config/selfgen_key.pem"
 	}
+	obj["baseURL"] = scheme + "://" + baseUrl
+	obj["https"] = tlsOn
+	obj["auth"] = auth
 
-	dbname := conf.OptionalString("dbname", "")
 	if dbname == "" {
 		username := os.Getenv("USER")
 		if username == "" {
@@ -201,7 +203,6 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		dbname = "camli" + username
 	}
 
-	secretRing := conf.OptionalString("secring", "")
 	if secretRing == "" {
 		secretRing = filepath.Join(osutil.HomeDir(), ".camli", "secring.gpg")
 		_, err = os.Stat(secretRing)
@@ -210,16 +211,11 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		}
 	}
 
-	keyId := conf.OptionalString("keyid", "")
 	if keyId == "" {
 		// TODO(mpl): where do we get a default keyId from? Brad?
 		keyId = "26F5ABDA"
 	}
 
-	blobPath := conf.RequiredString("blobPath")
-	if blobPath == "" {
-		return nil, fmt.Errorf("\"blobPath\" not defined in config")
-	}
 	indexerPath := "/index-mem/"
 
 	prefixesParams := &configPrefixesParams{
@@ -237,8 +233,6 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	addUiConfig(&prefixes, "/ui/")
 
-	mysql := conf.OptionalString("mysql", "")
-	mongo := conf.OptionalString("mongo", "")
 	if mongo != "" && mysql != "" {
 		return nil, fmt.Errorf("Cannot have both mysql and mongo in config, pick one")
 	}
@@ -254,9 +248,9 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	obj["prefixes"] = (map[string]interface{})(prefixes)
 
-	// TODO(mpl): configPath
 	lowLevelConf = &Config{
 		jsonconfig.Obj: obj,
+		configPath:     conf.configPath,
 	}
 	return lowLevelConf, nil
 }

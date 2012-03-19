@@ -280,15 +280,29 @@ type Config struct {
 	configPath string // Filesystem path
 }
 
-func Load(configPath string) (*Config, error) {
-	obj, err := jsonconfig.ReadFile(configPath)
+// Load returns a low-level "handler config" from the provided filename.
+// If the config file doesn't contain a top-level JSON key of "handlerConfig"
+// with boolean value true, the configuration is assumed to be a high-level
+// "user config" file, and transformed into a low-level config.
+func Load(filename string) (*Config, error) {
+	obj, err := jsonconfig.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 	conf := &Config{
 		Obj:        obj,
-		configPath: configPath,
+		configPath: filename,
 	}
+
+	if lowLevel := obj.OptionalBool("handlerConfig", false); !lowLevel {
+		conf, err = GenLowLevelConfig(conf)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"Failed to transform user config file %q into internal handler configuration: %v",
+				filename, err)
+		}
+	}
+
 	return conf, nil
 }
 
