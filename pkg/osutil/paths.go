@@ -37,14 +37,24 @@ func CacheDir() string {
 	return filepath.Join(HomeDir(), ".cache")
 }
 
+func CamliBlobRoot() string {
+	switch runtime.GOOS {
+	case "windows":
+		return filepath.Join(os.Getenv("APPDATA"), "Camlistore", "blobs")
+	case "darwin":
+		return filepath.Join(HomeDir(), "Library", "Camlistore", "blobs")
+	}
+	return filepath.Join(HomeDir(), "var", "camlistore", "blobs")
+}
+
 func CamliConfigDir() string {
 	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
 		return p
 	}
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "camli")
+		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
 	}
-	return filepath.Join(HomeDir(), ".camli")
+	return filepath.Join(HomeDir(), ".camlistore")
 }
 
 func UserServerConfigPath() string {
