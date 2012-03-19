@@ -204,7 +204,7 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	if secretRing == "" {
-		secretRing = filepath.Join(osutil.HomeDir(), ".camli", "secring.gpg")
+		secretRing = filepath.Join(osutil.CamliConfigDir(), "secring.gpg")
 		_, err = os.Stat(secretRing)
 		if err != nil {
 			return nil, fmt.Errorf("\"secring\" not set in config, and no default secret ring at %s", secretRing)
