@@ -6,12 +6,15 @@ set -e
 DIR=/tmp/cammount-dir
 mkdir -p $DIR
 
-./build.pl cammount
+go install ./cmd/cammount/
 
-(fusermount -u $DIR) || true
-clients/go/cammount/cammount --blobserver=localhost:3179/bs --password=pass3179 $@ $DIR &
+(fusermount -u $DIR) || umount $DIR || umount -f $DIR || true
+
+cammount --blobserver=localhost:3179/bs $@ $DIR &
 sleep 1
 cd $DIR
 bash
 cd /
-fusermount -u $DIR
+
+fusermount -u $DIR || umount $DIR || umount -f $DIR || true
+
