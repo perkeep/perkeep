@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 
@@ -28,7 +29,8 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
-	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
+
+	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
 
 func PrintMap(m map[string]float64) {
@@ -48,7 +50,6 @@ func PrintMap(m map[string]float64) {
 func main() {
 	// Scans the arg list and sets up flags
 	debug := flag.Bool("debug", false, "print debugging messages.")
-	threaded := flag.Bool("threaded", true, "switch off threading; print debugging messages.")
 	client.AddFlags()
 	flag.Parse()
 
@@ -79,35 +80,19 @@ func main() {
 	fetcher := cacher.NewCachingFetcher(diskcache, client)
 
 	fs := fs.NewCamliFileSystem(fetcher, root)
-	timing := fuse.NewTimingPathFilesystem(fs)
-
-	conn := fuse.NewPathFileSystemConnector(timing)
-	rawTiming := fuse.NewTimingRawFilesystem(conn)
-
-	state := fuse.NewMountState(rawTiming)
-	state.Debug = *debug
-
-	mountPoint := flag.Arg(1)
-	err = state.Mount(mountPoint)
-	if err != nil {
-		fmt.Printf("MountFuse fail: %v\n", err)
-		os.Exit(1)
+	if *debug {
+		// TODO: set fs's logger
 	}
 
-	fmt.Printf("Mounted %s on %s (threaded=%v, debug=%v)\n", root.String(), mountPoint, *threaded, *debug)
-	state.Loop(*threaded)
-	fmt.Println("Finished", state.Stats())
+	mountPoint := flag.Arg(1)
 
-	counts := state.OperationCounts()
-	fmt.Println("Counts: ", counts)
-
-	latency := state.Latencies()
-	fmt.Println("MountState latency (ms):")
-	PrintMap(latency)
-
-	latency = timing.Latencies()
-	fmt.Println("Path ops (ms):", latency)
-
-	latency = rawTiming.Latencies()
-	fmt.Println("Raw FS (ms):", latency)
+	conn, err := fuse.Mount(mountPoint)
+	if err != nil {
+		log.Fatalf("Mount: %v", err)
+	}
+	err = conn.Serve(fs)
+	if err != nil {
+		log.Fatalf("Serve: %", err)
+	}
+	log.Printf("fuse process ending.")
 }

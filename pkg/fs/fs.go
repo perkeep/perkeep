@@ -36,6 +36,7 @@ import (
 
 var _ = fmt.Println
 var _ = log.Println
+var _ = bytes.NewReader
 
 var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
@@ -47,6 +48,15 @@ type CamliFileSystem struct {
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
+
+type CamliFile struct {
+	fs   *CamliFileSystem
+	blob *blobref.BlobRef
+	ss   *schema.Superset
+
+	size uint64 // memoized
+}
+
 
 var _ fuse.FS = (*CamliFileSystem)(nil)
 
@@ -206,6 +216,7 @@ func (fs *CamliFileSystem) blobRefFromName(name string) (retbr *blobref.BlobRef,
 	return nil, fuse.ENOENT
 }
 
+/*
 func (fs *CamliFileSystem) GetAttr(name string) (*fuse.Attr, fuse.Error) {
 	if attr, ok := fs.nameToAttr.Get(name); ok {
 		return attr.(*fuse.Attr), nil
@@ -384,14 +395,6 @@ func (fs *CamliFileSystem) Readlink(name string) (target string, status fuse.Err
 	return ss.SymlinkTargetString(), nil
 }
 
-type CamliFile struct {
-	fs   *CamliFileSystem
-	blob *blobref.BlobRef
-	ss   *schema.Superset
-
-	size uint64 // memoized
-}
-
 func (f *CamliFile) Size() uint64 {
 	if f.size == 0 {
 		f.size = f.ss.SumPartsSize()
@@ -428,6 +431,8 @@ func (file *CamliFile) Read(ri *fuse.ReadIn, bp *fuse.BufferPool) (retbuf []byte
 	retst = fuse.EIO
 	return
 }
+
+*/
 
 func (file *CamliFile) GetReader() (io.ReadCloser, error) {
 	return file.ss.NewFileReader(file.fs.fetcher)
