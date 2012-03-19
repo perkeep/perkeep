@@ -20,6 +20,7 @@ package jsonconfig
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -230,6 +231,7 @@ func (jc Obj) lookForUnknownKeys() {
 	if ok {
 		known = ei.(map[string]bool)
 	}
+	var unknown []string
 	for k, _ := range jc {
 		if ok && known[k] {
 			continue
@@ -239,6 +241,10 @@ func (jc Obj) lookForUnknownKeys() {
 			// form of comments.
 			continue
 		}
+		unknown = append(unknown, k)
+	}
+	sort.Strings(unknown)
+	for _, k := range unknown {
 		jc.appendError(fmt.Errorf("Unknown key %q", k))
 	}
 }
