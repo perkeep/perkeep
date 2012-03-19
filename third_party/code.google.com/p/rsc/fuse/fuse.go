@@ -439,7 +439,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		req = &MkdirRequest{
 			Header: m.Header(),
 			Name:   string(name[:i]),
-			Mode:   os.ModeDir | os.FileMode(in.Mode&0777), // XXX
+			Mode:   fileMode(in.Mode) | os.ModeDir,
 		}
 
 	case opUnlink, opRmdir:
@@ -491,7 +491,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 			Header: m.Header(),
 			Dir:    m.hdr.Opcode == opOpendir,
 			Flags:  in.Flags,
-			Mode:   in.Mode,
+			Mode:   fileMode(in.Mode),
 		}
 
 	case opRead, opReaddir:
@@ -696,7 +696,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		req = &CreateRequest{
 			Header: m.Header(),
 			Flags:  in.Flags,
-			Mode:   in.Mode, // XXX
+			Mode:   fileMode(in.Mode),
 			Name:   string(name[:i]),
 		}
 
@@ -1088,11 +1088,11 @@ type OpenRequest struct {
 	Header
 	Dir   bool // is this Opendir?
 	Flags uint32
-	Mode  uint32
+	Mode  os.FileMode
 }
 
 func (r *OpenRequest) String() string {
-	return fmt.Sprintf("Open [%s] dir=%v fl=%v mode=%#x", &r.Header, r.Dir, r.Flags, r.Mode)
+	return fmt.Sprintf("Open [%s] dir=%v fl=%v mode=%v", &r.Header, r.Dir, r.Flags, r.Mode)
 }
 
 // Respond replies to the request with the given response.
@@ -1120,11 +1120,11 @@ type CreateRequest struct {
 	Header
 	Name  string
 	Flags uint32
-	Mode  uint32
+	Mode  os.FileMode
 }
 
 func (r *CreateRequest) String() string {
-	return fmt.Sprintf("Create [%s] %q fl=%v mode=%#x", &r.Header, r.Name, r.Flags, r.Mode)
+	return fmt.Sprintf("Create [%s] %q fl=%v mode=%v", &r.Header, r.Name, r.Flags, r.Mode)
 }
 
 // Respond replies to the request with the given response.
