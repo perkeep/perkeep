@@ -48,18 +48,7 @@ func TestFuse(t *testing.T) {
 		}
 	}()
 
-	// TODO: remove hard-coded 1 second here. try repeated from short
-	// to increasingly long timeouts here, waiting for a good Stat.
-	time.Sleep(1 * time.Second)
-	probeEntry := *fuseRun
-	if probeEntry == "" {
-		probeEntry = fuseTests[0].name
-	}
-	_, err = os.Stat(dir + "/" + probeEntry)
-	if err != nil {
-		t.Fatalf("mount did not work")
-		return
-	}
+	waitForMount(t, dir)
 
 	for _, tt := range fuseTests {
 		if *fuseRun == "" || *fuseRun == tt.name {
@@ -67,6 +56,22 @@ func TestFuse(t *testing.T) {
 			tt.node.test(dir+"/"+tt.name, t)
 		}
 	}
+}
+
+func waitForMount(t *testing.T, dir string) {
+	// Filename to wait for in dir:
+	probeEntry := *fuseRun
+	if probeEntry == "" {
+		probeEntry = fuseTests[0].name
+	}
+	for tries := 0; tries < 100; tries++ {
+		_, err := os.Stat(dir + "/" + probeEntry)
+		if err == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("mount did not work")
 }
 
 var fuseTests = []struct {
