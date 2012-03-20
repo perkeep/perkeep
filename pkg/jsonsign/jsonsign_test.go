@@ -17,12 +17,15 @@ limitations under the License.
 package jsonsign
 
 import (
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/test"
-
+	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
+
+	"camlistore.org/pkg/test"
+	. "camlistore.org/pkg/test/asserts"
+	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
 var unsigned = `{"camliVersion": 1,
@@ -164,10 +167,55 @@ func TestSigning(t *testing.T) {
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
 }
 
+func TestEntityFromSecring(t *testing.T) {
+	ent, err := EntityFromSecring("26F5ABDA", "testdata/test-secring.gpg")
+	if err != nil {
+		t.Fatalf("EntityFromSecring: %v", err)
+	}
+	if ent == nil {
+		t.Fatalf("nil entity")
+	}
+	if _, ok := ent.Identities["Camli Tester <camli-test@example.com>"]; !ok {
+		t.Errorf("missing expected identity")
+	}
+}
+
 func TestWriteKeyRing(t *testing.T) {
-	ent, err := NewEntity()
+	ent, err := EntityFromSecring("26F5ABDA", "testdata/test-secring.gpg")
 	if err != nil {
 		t.Fatalf("NewEntity: %v", err)
 	}
-	_ = ent
+	var buf bytes.Buffer
+	err = WriteKeyRing(&buf, openpgp.EntityList([]*openpgp.Entity{ent}))
+	if err != nil {
+		t.Fatalf("WriteKeyRing: %v", err)
+	}
+
+	el, err := openpgp.ReadKeyRing(&buf)
+	if err != nil {
+		t.Fatalf("ReadKeyRing: %v", err)
+	}
+	if len(el) != 1 {
+		t.Fatalf("ReadKeyRing read %d entities; want 1", len(el))
+	}
+	orig := entityString(ent)
+	got := entityString(el[0])
+	if orig != got {
+		t.Fatalf("original vs. wrote-then-read entities differ:\norig: %s\n got: %s", orig, got)
+	}
+}
+
+// stupid entity stringier for testing.
+func entityString(ent *openpgp.Entity) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "PublicKey=%s", ent.PrimaryKey.KeyIdShortString())
+	var ids []string
+	for k := range ent.Identities {
+		ids = append(ids, k)
+	}
+	sort.Strings(ids)
+	for _, k := range ids {
+		fmt.Fprintf(&buf, " id[%q]", k)
+	}
+	return buf.String()
 }

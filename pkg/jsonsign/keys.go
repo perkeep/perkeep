@@ -145,5 +145,10 @@ func NewEntity() (*openpgp.Entity, error) {
 }
 
 func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
+	for _, ent := range el {
+		if err := ent.SerializePrivate(w); err != nil {
+			return err
+		}
+	}
 	return nil
 }
