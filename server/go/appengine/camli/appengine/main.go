@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// +build appengine
+
 package appengine
 
 import (
@@ -25,15 +27,15 @@ import (
 
 	"camlistore.org/pkg/blobserver"   // storage interface definition
 	"camlistore.org/pkg/serverconfig" // wiring up the world from a JSON description
-	_ "camli/blobserver/cond"
-	_ "camli/blobserver/replica"
-	_ "camli/blobserver/shard"
-	_ "camli/server" // handlers: UI, publish, thumbnailing, etc
+	_ "camlistore.org/pkg/blobserver/cond"
+	_ "camlistore.org/pkg/blobserver/replica"
+	_ "camlistore.org/pkg/blobserver/shard"
+	_ "camlistore.org/pkg/server" // handlers: UI, publish, thumbnailing, etc
 
 	// TODO(bradfitz): uncomment these and deal with symlinks + config setup
 	// Both require an App Engine context to make HTTP requests too.
-	//_ "camli/blobserver/remote"
-	//_ "camli/blobserver/s3"
+	//_ "camlistore.org/pkg/blobserver/remote"
+	//_ "camlistore.org/pkg/blobserver/s3"
 )
 
 // lazyInit is our root handler for App Engine. We don't have an App Engine
