@@ -17,7 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
-	. "camli/test/asserts"
+	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/pkg/blobref"
 
 	"fmt"
@@ -41,8 +41,8 @@ func TestEnumerate(t *testing.T) {
 	bar.ExpectUploadBlob(t, ds)
 	baz.ExpectUploadBlob(t, ds)
 
-	limit := uint(5000)
-	waitSeconds := 0
+	limit := 5000
+	waitSeconds := time.Duration(0)
 	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan error)
 	go func() {
@@ -88,13 +88,12 @@ func TestEnumerateEmpty(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	limit := uint(5000)
-	waitSeconds := 0
+	limit := 5000
+	wait := time.Duration(0)
 	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch,
-			"", limit, waitSeconds)
+		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
 	}()
 
 	_, ok := <-ch
@@ -106,13 +105,12 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	limit := uint(5000)
-	waitSeconds := 1
+	limit := 5000
+	wait := 1 * time.Second
 	ch := make(chan blobref.SizedBlobRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch,
-			"", limit, waitSeconds)
+		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
 	}()
 
 	foo := &testBlob{"foo"} // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
@@ -178,7 +176,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 		{200, "sha1-ff"},
 	}
 	for _, test := range tests {
-		limit := uint(test.limit)
+		limit := test.limit
 		ch := make(chan blobref.SizedBlobRef)
 		errCh := make(chan error)
 		go func() {

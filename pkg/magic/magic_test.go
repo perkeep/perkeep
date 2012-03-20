@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	. "camli/test/asserts"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 type magicTest struct {

@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	. "camli/test/asserts"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 func TestAll(t *testing.T) {

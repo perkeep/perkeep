@@ -17,8 +17,8 @@ limitations under the License.
 package jsonsign
 
 import (
+	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/pkg/test"
-	. "camli/test/asserts"
 
 	"fmt"
 	"strings"

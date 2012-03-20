@@ -17,34 +17,21 @@ limitations under the License.
 package handlers
 
 import (
-	. "camli/test/asserts"
+	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/pkg/blobref"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
+	"time"
 )
-
-func makeGetRequest(url_ string) *http.Request {
-	req := &http.Request{
-		Method: "GET",
-		RawURL: url_,
-	}
-	var err error
-	req.URL, err = url.Parse(url_)
-	if err != nil {
-		panic("Error parsing url: " + url_)
-	}
-	return req
-}
 
 type emptyEnumerator struct {
 }
 
 func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 	after string,
-	limit uint,
-	waitSeconds int) error {
+	limit int,
+	wait time.Duration) error {
 	close(dest)
 	return nil
 }
@@ -72,7 +59,7 @@ func TestEnumerateInput(t *testing.T) {
 	for _, test := range tests {
 		wr := httptest.NewRecorder()
 		wr.Code = 200 // default
-		req := makeGetRequest(test.url)
+		req, _ := http.NewRequest("GET", test.url, nil)
 		handleEnumerateBlobs(wr, req, enumerator)
 		ExpectInt(t, test.expectedCode, wr.Code, "response code for "+test.name)
 		ExpectString(t, test.expectedBody, wr.Body.String(), "output for "+test.name)

@@ -17,7 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
-	. "camli/test/asserts"
+	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"crypto/sha1"
@@ -131,11 +131,11 @@ func TestStatWait(t *testing.T) {
 	tb := &testBlob{"Foo"}
 
 	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
-	const waitSeconds = 2
+	wait := 2 * time.Second
 	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan error, 1)
 	go func() {
-		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), waitSeconds)
+		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), wait)
 		close(ch)
 	}()
 
@@ -199,8 +199,8 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	foo := &testBlob{"foo"}
 
 	blob, _, err := ds.Fetch(foo.BlobRef())
-	if err != os.ENOENT {
-		t.Errorf("expected ENOENT; got %v", err)
+	if err != os.ErrNotExist {
+		t.Errorf("expected ErrNotExist; got %v", err)
 	}
 	if blob != nil {
 		t.Errorf("expected nil blob; got a value")
