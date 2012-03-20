@@ -163,3 +163,11 @@ func TestSigning(t *testing.T) {
 
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
 }
+
+func TestWriteKeyRing(t *testing.T) {
+	ent, err := NewEntity()
+	if err != nil {
+		t.Fatalf("NewEntity: %v", err)
+	}
+	_ = ent
+}

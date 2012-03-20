@@ -18,12 +18,14 @@ package jsonsign
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
@@ -132,4 +134,16 @@ func ArmoredPublicKey(entity *openpgp.Entity) (string, error) {
 		buf.WriteString("\n")
 	}
 	return buf.String(), nil
+}
+
+// NewEntity returns a new OpenPGP entity.
+func NewEntity() (*openpgp.Entity, error) {
+	name := "" // intentionally empty
+	comment := "camlistore"
+	email := "" // intentionally empty
+	return openpgp.NewEntity(rand.Reader, time.Now(), name, comment, email)
+}
+
+func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
+	return nil
 }
