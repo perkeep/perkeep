@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverconfig"
 	"camlistore.org/pkg/webserver"
@@ -53,6 +54,8 @@ import (
 	// Handlers:
 	_ "camlistore.org/pkg/search"
 	_ "camlistore.org/pkg/server" // UI, publish, etc
+
+	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
 const (
@@ -62,7 +65,7 @@ const (
 
 var (
 	flagConfigFile = flag.String("configfile", "",
-		"Config file to use, relative to camli config dir root, or blank to use the default config.")
+		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
 )
 
 func exitf(pattern string, args ...interface{}) {
@@ -148,15 +151,50 @@ func findConfigFile(file string) (absPath string, err error) {
 	return
 }
 
+func keyIdFromRing(filename string) (keyId string, err error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", fmt.Errorf("reading identity secret ring file: %v", err)
+	}
+	defer f.Close()
+	el, err := openpgp.ReadKeyRing(f)
+	if err != nil {
+		return "", fmt.Errorf("reading identity secret ring file %s: %v", filename, err)
+	}
+	if len(el) != 1 {
+		return "", fmt.Errorf("identity secret ring file contained %d identities; expected 1", len(el))
+	}
+	ent := el[0]
+	return ent.PrimaryKey.KeyIdShortString(), nil
+}
+
+func generateNewSecRing(filename string) (keyId string, err error) {
+	ent, err := jsonsign.NewEntity()
+	if err != nil {
+		return "", fmt.Errorf("generating new identity: %v", err)
+	}
+	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	err = jsonsign.WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
+	if err != nil {
+		return "", fmt.Errorf("writing new key ring to %s: %v", filename, err)
+	}
+	return ent.PrimaryKey.KeyIdShortString(), nil
+}
+
 // TODO: "auth": "localtcp". See http://code.google.com/p/camlistore/issues/detail?id=50
 func newDefaultConfigFile(path string) error {
-	serverConf :=
+	conf :=
 		`{
 	"listen": "localhost:3179",
 	"TLS": false,
 	"auth": "userpass:camlistore:pass3179",
+        "identity": "%KEYID%",
+	"identitySecretRing": "%SECRING%",
 	"blobPath": "%BLOBPATH%",
-	"secring": "%SECRING%",
 	"mysql": "",
 	"mongo": "",
 	"s3": "",
@@ -167,15 +205,30 @@ func newDefaultConfigFile(path string) error {
 	if err := os.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
-	serverConf = strings.Replace(serverConf, "%BLOBPATH%", blobDir, 1)
-	secRing := filepath.Join(osutil.CamliConfigDir(), "secring.gpg")
-	serverConf = strings.Replace(serverConf, "%SECRING%", secRing, 1)
-	if err := ioutil.WriteFile(path, []byte(serverConf), 0700); err != nil {
+	conf = strings.Replace(conf, "%BLOBPATH%", blobDir, 1)
+
+	var keyId string
+	secRing := filepath.Join(osutil.CamliConfigDir(), "identity-secring.gpg")
+	_, err := os.Stat(secRing)
+	switch {
+	case err == nil:
+		keyId, err = keyIdFromRing(secRing)
+		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
+	case os.IsNotExist(err):
+		keyId, err = generateNewSecRing(secRing)
+		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
+	}
+	if err != nil {
+		return fmt.Errorf("Secret ring: %v", err)
+	}
+
+	conf = strings.Replace(conf, "%SECRING%", secRing, 1)
+	conf = strings.Replace(conf, "%KEYID%", keyId, 1)
+	if err := ioutil.WriteFile(path, []byte(conf), 0600); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
 	return nil
 }
-
 
 func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) {
 	cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")

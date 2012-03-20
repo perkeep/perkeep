@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/osutil"
 )
 
 // various parameters derived from the high-level user config
@@ -169,12 +168,12 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	var (
 		baseUrl    = conf.RequiredString("listen")
-		tlsOn      = conf.OptionalBool("TLS", false)
 		auth       = conf.RequiredString("auth")
-		dbname     = conf.OptionalString("dbname", "")
-		secretRing = conf.OptionalString("secring", "")
+		keyId      = conf.RequiredString("identity")
+		secretRing = conf.RequiredString("identitySecretRing")
 		blobPath   = conf.RequiredString("blobPath")
-		keyId      = conf.OptionalString("keyid", "")
+		tlsOn      = conf.OptionalBool("TLS", false)
+		dbname     = conf.OptionalString("dbname", "")
 		mysql      = conf.OptionalString("mysql", "")
 		mongo      = conf.OptionalString("mongo", "")
 		_          = conf.OptionalList("replicateTo")
@@ -201,19 +200,6 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			return nil, fmt.Errorf("USER env var not set; needed to define dbname")
 		}
 		dbname = "camli" + username
-	}
-
-	if secretRing == "" {
-		secretRing = filepath.Join(osutil.CamliConfigDir(), "secring.gpg")
-		_, err = os.Stat(secretRing)
-		if err != nil {
-			return nil, fmt.Errorf("\"secring\" not set in config, and no default secret ring at %s", secretRing)
-		}
-	}
-
-	if keyId == "" {
-		// TODO(mpl): where do we get a default keyId from? Brad?
-		keyId = "26F5ABDA"
 	}
 
 	indexerPath := "/index-mem/"

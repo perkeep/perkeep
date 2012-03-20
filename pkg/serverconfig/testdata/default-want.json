@@ -32,8 +32,8 @@
 		"/sighelper/": {
 			"handler": "jsonsign",
 			"handlerArgs": {
-				"secretRing": "~/.camli/secring",
-				"keyId": "26F5ABDA",
+				"secretRing": "/home/foo/.camli/secring",
+				"keyId": "86043920",
 				"publicKeyDest": "/bs/"
 			}
 		},
