@@ -1,4 +1,16 @@
--- Get App Engine blob server up to parity (brett)
+-- Go 1: get mysql indexer converted to new indexing library, and use
+   ziutek mysql library and database/sql from Go 1.
+
+-- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
+   (get cammount and webdav working again)
+
+-- port netutil ident stuff to OS X using shell out to
+   $ lsof -n -i -P
+
+-- read/write fuse.
+
+
+OLD:
 
 -- add CROS support?
    http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
