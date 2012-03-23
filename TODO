@@ -9,6 +9,9 @@
 
 -- read/write fuse.
 
+-- work on runsit more, so I can start using this more often.  runsit should
+   be able to reload itself, and also watch for binaries changing and restart
+   when binaries change.  (or symlinks to binaries)
 
 OLD:
 
