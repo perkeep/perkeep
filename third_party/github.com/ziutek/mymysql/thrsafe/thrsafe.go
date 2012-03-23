@@ -6,8 +6,8 @@ package thrsafe
 import (
 	"sync"
 	//"log"
-	"github.com/ziutek/mymysql/mysql"
-	_ "github.com/ziutek/mymysql/native"
+	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	_ "camlistore.org/third_party/github.com/ziutek/mymysql/native"
 )
 
 type Conn struct {

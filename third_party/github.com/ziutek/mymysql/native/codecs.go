@@ -3,7 +3,7 @@ package native
 import (
 	"bytes"
 	"crypto/sha1"
-	"github.com/ziutek/mymysql/mysql"
+	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
 	"io"
 	"time"
 )
