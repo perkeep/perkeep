@@ -3,6 +3,8 @@
 use strict;
 use FindBin qw($Bin);
 
+die "TODO(bradfitz): update.";
+
 chdir($Bin) or die;
 
 my $workdir = "$Bin/workdir";
