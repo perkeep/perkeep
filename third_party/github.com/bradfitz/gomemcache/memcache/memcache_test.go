@@ -63,7 +63,7 @@ func TestUnixSocket(t *testing.T) {
 		if _, err := os.Stat(sock); err == nil {
 			break
 		}
-		time.Sleep(25e6 * int64(i))
+		time.Sleep(time.Duration(25 * i) * time.Millisecond)
 	}
 
 	testWithClient(t, New(sock))

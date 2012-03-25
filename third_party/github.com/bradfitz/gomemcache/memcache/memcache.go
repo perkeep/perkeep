@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+
 	"strconv"
 	"strings"
 	"sync"
@@ -63,8 +64,8 @@ var (
 	ErrNoServers = errors.New("memcache: no servers configured or available")
 )
 
-// DefaultTimeoutNanos is the default socket read/write timeout, in nanoseconds.
-const DefaultTimeoutNanos = 100e6 // 100 ms
+// DefaultTimeout is the default socket read/write timeout.
+const DefaultTimeout = time.Duration(100) * time.Millisecond
 
 const (
 	buffered            = 8 // arbitrary buffered channel size, for readability
@@ -124,9 +125,9 @@ func NewFromSelector(ss ServerSelector) *Client {
 // Client is a memcache client.
 // It is safe for unlocked use by multiple concurrent goroutines.
 type Client struct {
-	// TimeoutNanos specifies the socket read/write timeout.
-	// If zero, DefaultTimeoutNanos is used.
-	TimeoutNanos int64
+	// Timeout specifies the socket read/write timeout.
+	// If zero, DefaultTimeout is used.
+	Timeout time.Duration
 
 	selector ServerSelector
 
@@ -171,6 +172,10 @@ func (cn *conn) release() {
 	cn.c.putFreeConn(cn.addr, cn)
 }
 
+func (cn *conn) extendDeadline() {
+	cn.nc.SetDeadline(time.Now().Add(cn.c.netTimeout()))
+}
+
 // condRelease releases this connection if the error pointed to by err
 // is is nil (not an error) or is only a protocol level error (e.g. a
 // cache miss).  The purpose is to not recycle TCP connections that
@@ -210,11 +215,11 @@ func (c *Client) getFreeConn(addr net.Addr) (cn *conn, ok bool) {
 	return cn, true
 }
 
-func (c *Client) netTimeoutNs() int64 {
-	if c.TimeoutNanos != 0 {
-		return c.TimeoutNanos
+func (c *Client) netTimeout() time.Duration {
+	if c.Timeout != 0 {
+		return c.Timeout
 	}
-	return DefaultTimeoutNanos
+	return DefaultTimeout
 }
 
 // ConnectTimeoutError is the error type used when it takes
@@ -241,7 +246,7 @@ func (c *Client) dial(addr net.Addr) (net.Conn, error) {
 	select {
 	case ce := <-ch:
 		return ce.cn, ce.err
-	case <-time.After(c.netTimeoutNs()):
+	case <-time.After(c.netTimeout()):
 		// Too slow. Fall through.
 	}
 	// Close the conn if it does end up finally coming in
@@ -257,19 +262,21 @@ func (c *Client) dial(addr net.Addr) (net.Conn, error) {
 func (c *Client) getConn(addr net.Addr) (*conn, error) {
 	cn, ok := c.getFreeConn(addr)
 	if ok {
+		cn.extendDeadline()
 		return cn, nil
 	}
 	nc, err := c.dial(addr)
 	if err != nil {
 		return nil, err
 	}
-	nc.SetTimeout(c.netTimeoutNs())
-	return &conn{
+	cn = &conn{
 		nc:   nc,
 		addr: addr,
 		rw:   bufio.NewReadWriter(bufio.NewReader(nc), bufio.NewWriter(nc)),
 		c:    c,
-	}, nil
+	}
+	cn.extendDeadline()
+	return cn, nil
 }
 
 func (c *Client) onItem(item *Item, fn func(*Client, *bufio.ReadWriter, *Item) error) error {
@@ -456,10 +463,10 @@ func (c *Client) populateOne(rw *bufio.ReadWriter, verb string, item *Item) erro
 	}
 	var err error
 	if verb == "cas" {
-		_, err = fmt.Fprintf(rw, "%s %s %d %d %d %d %d\r\n",
+		_, err = fmt.Fprintf(rw, "%s %s %d %d %d %d\r\n",
 			verb, item.Key, item.Flags, item.Expiration, len(item.Value), item.casid)
 	} else {
-		_, err = fmt.Fprintf(rw, "%s %s %d %d %d %d\r\n",
+		_, err = fmt.Fprintf(rw, "%s %s %d %d %d\r\n",
 			verb, item.Key, item.Flags, item.Expiration, len(item.Value))
 	}
 	if err != nil {
