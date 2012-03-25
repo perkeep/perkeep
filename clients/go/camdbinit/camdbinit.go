@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -24,16 +25,18 @@ import (
 
 	"camlistore.org/pkg/mysqlindexer"
 
-	mysql "camli/third_party/github.com/Philio/GoMySQL"
+	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
 
-var flagUser = flag.String("user", "root", "MySQL admin user")
-var flagPassword = flag.String("password", "(prompt)", "MySQL admin password")
-var flagHost = flag.String("host", "localhost", "MySQ host[:port]")
-var flagDatabase = flag.String("database", "", "MySQL camlistore to wipe/create database")
+var (
+	flagUser     = flag.String("user", "root", "MySQL admin user")
+	flagPassword = flag.String("password", "(prompt)", "MySQL admin password")
+	flagHost     = flag.String("host", "localhost", "MySQ host[:port]")
+	flagDatabase = flag.String("database", "", "MySQL camlistore to wipe/create database")
 
-var flagWipe = flag.Bool("wipe", false, "Wipe the database and re-create it?")
-var flagIgnore = flag.Bool("ignoreexists", false, "Treat existence of the database as okay and exit.")
+	flagWipe   = flag.Bool("wipe", false, "Wipe the database and re-create it?")
+	flagIgnore = flag.Bool("ignoreexists", false, "Treat existence of the database as okay and exit.")
+)
 
 func main() {
 	flag.Parse()
@@ -41,7 +44,7 @@ func main() {
 		exitf("--database flag required")
 	}
 
-	db, err := mysql.DialTCP(*flagHost, *flagUser, *flagPassword, "")
+	db, err := sql.Open("mymysql", *flagDatabase + "/" + *flagUser + "/" + *flagPassword)
 	if err != nil {
 		exitf("Error connecting to database: %v", err)
 	}
@@ -66,25 +69,22 @@ func main() {
 	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysqlindexer.SchemaVersion()))
 }
 
-func do(db *mysql.Client, sql string) {
-	err := db.Query(sql)
+func do(db *sql.DB, sql string) {
+	_, err := db.Exec(sql)
 	if err == nil {
 		return
 	}
 	exitf("Error %v running SQL: %s", err, sql)
 }
 
-func dbExists(db *mysql.Client, dbname string) bool {
-	check(db.Query("SHOW DATABASES"))
-	result, err := db.UseResult()
+func dbExists(db *sql.DB, dbname string) bool {
+	rows, err := db.Query("SHOW DATABASES")
 	check(err)
-	defer result.Free()
-	for {
-		row := result.FetchRow()
-		if row == nil {
-			break
-		}
-		if row[0].(string) == dbname {
+	defer rows.Close()
+	for rows.Next() {
+		var db string
+		check(rows.Scan(&db))
+		if db == dbname {
 			return true
 		}
 	}
