@@ -72,12 +72,16 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-
-	// TODO: connect; set is.db
-	// TODO: ping it; see if it's alive; else return err
+	db, err := sql.Open("mymysql", is.database + "/" + is.user + "/" + is.password)
+	if err != nil {
+		return nil, err
+	}
+	is.db = db
+	if err := is.ping(); err != nil {
+		return nil, err
+	}
 
 	indexer := index.New(is)
-
 	version, err := is.SchemaVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
@@ -99,10 +103,10 @@ func init() {
 	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
 }
 
-func (mi *myIndexStorage) IsAlive() (ok bool, err error) {
+func (mi *myIndexStorage) ping() error {
 	// TODO(bradfitz): something more efficient here?
-	_, err = mi.SchemaVersion()
-	return err == nil, err
+	_, err := mi.SchemaVersion()
+	return err
 }
 
 func (mi *myIndexStorage) SchemaVersion() (version int, err error) {
