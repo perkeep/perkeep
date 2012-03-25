@@ -47,15 +47,18 @@ func (ms *myIndexStorage) CommitBatch(b index.BatchMutation) error {
 }
 
 func (ms *myIndexStorage) Get(key string) (value string, err error) {
-	panic("TODO(bradfitz): implement")
+	err = ms.db.QueryRow("SELECT v FROM rows WHERE k=?", key).Scan(&value)
+	return
 }
 
 func (ms *myIndexStorage) Set(key, value string) error {
-	return errors.New("TODO(bradfitz): implement")
+	_, err := ms.db.Exec("INSERT INTO rows (k, v) VALUES (?, ?)", key, value)
+	return err
 }
 
 func (ms *myIndexStorage) Delete(key string) error {
-	return errors.New("TODO(bradfitz): implement")
+	_, err := ms.db.Exec("DELETE FROM rows WHERE k=?", key)
+	return err
 }
 
 func (ms *myIndexStorage) Find(key string) index.Iterator {
