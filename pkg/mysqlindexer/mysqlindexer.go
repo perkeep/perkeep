@@ -18,7 +18,6 @@ package mysqlindexer
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 
@@ -37,13 +36,42 @@ type myIndexStorage struct {
 
 var _ index.IndexStorage = (*myIndexStorage)(nil)
 
+type batchTx struct {
+	tx  *sql.Tx
+	err error // sticky
+}
+
+func (b *batchTx) Set(key, value string) {
+	if b.err != nil {
+		return
+	}
+	_, b.err = b.tx.Exec("REPLACE INTO rows (k, v) VALUES (?, ?)", key, value)
+}
+
+func (b *batchTx) Delete(key string) {
+	if b.err != nil {
+		return
+	}
+	_, b.err = b.tx.Exec("DELETE FROM rows WHERE k=?", key)
+}
+
 func (ms *myIndexStorage) BeginBatch() index.BatchMutation {
-	// TODO
-	return nil 
+	tx, err := ms.db.Begin()
+	return &batchTx{
+		tx:  tx,
+		err: err,
+	}
 }
 
 func (ms *myIndexStorage) CommitBatch(b index.BatchMutation) error {
-	return errors.New("TODO(bradfitz): implement")
+	bt, ok := b.(*batchTx)
+	if !ok {
+		return fmt.Errorf("wrong BatchMutation type %T", b)
+	}
+	if bt.err != nil {
+		return bt.err
+	}
+	return bt.tx.Commit()
 }
 
 func (ms *myIndexStorage) Get(key string) (value string, err error) {
@@ -52,7 +80,7 @@ func (ms *myIndexStorage) Get(key string) (value string, err error) {
 }
 
 func (ms *myIndexStorage) Set(key, value string) error {
-	_, err := ms.db.Exec("INSERT INTO rows (k, v) VALUES (?, ?)", key, value)
+	_, err := ms.db.Exec("REPLACE INTO rows (k, v) VALUES (?, ?)", key, value)
 	return err
 }
 
@@ -75,7 +103,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("mymysql", is.database + "/" + is.user + "/" + is.password)
+	db, err := sql.Open("mymysql", is.database+"/"+is.user+"/"+is.password)
 	if err != nil {
 		return nil, err
 	}
