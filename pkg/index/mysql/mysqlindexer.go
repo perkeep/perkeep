@@ -165,6 +165,7 @@ func (t *iter) Next() bool {
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	blobPrefix := config.RequiredString("blobSource")
 	is := &myIndexStorage{
 		host:     config.OptionalString("host", "localhost"),
 		user:     config.RequiredString("user"),
@@ -172,6 +173,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		database: config.RequiredString("database"),
 	}
 	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	sto, err := ld.GetStorage(blobPrefix)
+	if err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("mymysql", is.database+"/"+is.user+"/"+is.password)
@@ -183,7 +188,6 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		return nil, err
 	}
 
-	indexer := index.New(is)
 	version, err := is.SchemaVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
@@ -198,7 +202,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 			version, requiredSchemaVersion)
 	}
 
-	return indexer, nil
+	ix := index.New(is)
+	ix.BlobSource = sto
+	// Good enough, for now:
+	ix.KeyFetcher = ix.BlobSource
+
+	return ix, nil
 }
 
 func init() {

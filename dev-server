@@ -3,6 +3,7 @@
 use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
+require "$Bin/misc/devlib.pl";
 
 sub usage {
     die "Usage: dev-server [--wipe] [--mongo|--memory] [--tls] <portnumber> -- [other_blobserver_opts]";
@@ -43,9 +44,14 @@ unless ($ENV{GOPATH}) {
     $ENV{GOPATH} = "$Bin/gopath"
 }
 
-unless ($opt_nobuild) {
-    system("go", "install", "./server/camlistored") and die "Failed to build camlistored";
-    # TODO-GO1: FIX: system("./build.pl", "clients/go/camdbinit") and die "Failed to build camdbinit";
+my $camlistored;
+my $camdbinit;
+if ($opt_nobuild) {
+    $camlistored = find_bin("./server/camlistored");
+    $camdbinit = find_bin("./cmd/camdbinit");
+} else {
+    $camlistored = build_bin("./server/camlistored");
+    $camdbinit = build_bin("./cmd/camdbinit");
 }
 
 my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
@@ -88,7 +94,7 @@ if ($opt_memory) {
     } else {
         $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
         $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-        system("./gopath/bin/camdbinit",
+        system("$camdbinit",
                "-user=root",
                "-password=root",
                "-host=localhost",
@@ -135,7 +141,7 @@ unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
 }
 
-exec("$ENV{GOPATH}/bin/camlistored",
+exec("$camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
      "-listen=$listen",
      @ARGV);

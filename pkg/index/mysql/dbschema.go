@@ -16,9 +16,7 @@ limitations under the License.
 
 package mysqlindexer
 
-import ()
-
-const requiredSchemaVersion = 19
+const requiredSchemaVersion = 20
 
 func SchemaVersion() int {
 	return requiredSchemaVersion

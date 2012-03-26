@@ -182,6 +182,9 @@ func (vr *VerifyRequest) VerifySignature() bool {
 }
 
 func NewVerificationRequest(sjson string, fetcher blobref.StreamingFetcher) (vr *VerifyRequest) {
+	if fetcher == nil {
+		panic("NewVerificationRequest fetcher is nil")
+	}
 	vr = new(VerifyRequest)
 	vr.ba = []byte(sjson)
 	vr.fetcher = fetcher

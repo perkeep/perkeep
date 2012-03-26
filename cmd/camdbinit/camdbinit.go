@@ -44,13 +44,13 @@ func main() {
 		exitf("--database flag required")
 	}
 
-	db, err := sql.Open("mymysql", *flagDatabase + "/" + *flagUser + "/" + *flagPassword)
+	rootdb, err := sql.Open("mymysql", "mysql/" + *flagUser + "/" + *flagPassword)
 	if err != nil {
-		exitf("Error connecting to database: %v", err)
+		exitf("Error connecting to MySQL root database: %v", err)
 	}
 
 	dbname := *flagDatabase
-	exists := dbExists(db, dbname)
+	exists := dbExists(rootdb, dbname)
 	if exists {
 		if *flagIgnore {
 			return
@@ -58,10 +58,14 @@ func main() {
 		if !*flagWipe {
 			exitf("Databases %q already exists, but --wipe not given. Stopping.", dbname)
 		}
-		do(db, "DROP DATABASE "+dbname)
+		do(rootdb, "DROP DATABASE "+dbname)
 	}
-	do(db, "CREATE DATABASE "+dbname)
-	do(db, "USE "+dbname)
+	do(rootdb, "CREATE DATABASE "+dbname)
+
+	db, err := sql.Open("mymysql", dbname + "/" + *flagUser + "/" + *flagPassword)
+	if err != nil {
+		exitf("Error connecting to database: %v", err)
+	}
 
 	for _, tableSql := range mysqlindexer.SQLCreateTables() {
 		do(db, tableSql)
