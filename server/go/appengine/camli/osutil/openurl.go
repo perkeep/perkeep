@@ -17,12 +17,11 @@ limitations under the License.
 package osutil
 
 import (
-	"exec"
+	"os/exec"
 	"runtime"
-	"os"
 )
 
-func OpenURL(url string) os.Error {
+func OpenURL(url string) error {
 	if runtime.GOOS == "windows" {
 		return exec.Command("cmd.exe", "/C", "start "+url).Run()
 	}
