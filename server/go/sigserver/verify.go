@@ -32,7 +32,7 @@ package main
 import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
-	"http"
+	"net/http"
 )
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {
@@ -55,9 +55,8 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 		m["signatureValid"] = 1
 		m["verifiedData"] = vreq.PayloadMap
 	} else {
-		errStr := vreq.Err.String()
 		m["signatureValid"] = 0
-		m["errorMessage"] = errStr
+		m["errorMessage"] = vreq.Err.Error()
 	}
 
 	conn.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON

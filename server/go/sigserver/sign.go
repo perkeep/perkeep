@@ -20,7 +20,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
 	"fmt"
-	"http"
+	"net/http"
 )
 
 const kMaxJsonLength = 1024 * 1024

@@ -23,8 +23,8 @@ import (
 	"camlistore.org/pkg/webserver"
 	"flag"
 	"fmt"
-	"http"
 	"log"
+	"net/http"
 )
 
 var accessPassword string
