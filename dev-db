@@ -1,4 +1,3 @@
 #!/bin/sh
 
-mysql -uroot -proot devcamli$USER
-
+exec mysql -uroot -proot devcamli$USER

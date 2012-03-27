@@ -1,4 +1,11 @@
-#!/bin/sh
+#!/usr/bin/perl
 
-./build.pl camsync && \
-  clients/go/camsync/camsync --verbose --src=http://localhost:3179/bs --srcpassword=pass3179 $@
+use strict;
+use FindBin qw($Bin);
+use Getopt::Long;
+require "$Bin/misc/devlib.pl";
+
+my $camsync = build_bin("./cmd/camsync");
+exec($camsync, "--verbose", "--src=http://localhost:3179/bs", "--srcpassword=pass3179", @ARGV);
+die "Failed to exec camsync.";
+

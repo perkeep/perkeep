@@ -3,6 +3,7 @@
 use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
+require "$Bin/misc/devlib.pl";
 
 unless ($ENV{GOPATH}) {
     $ENV{GOPATH} = "$Bin/gopath"
@@ -19,6 +20,8 @@ Getopt::Long::Configure("pass_through");
 GetOptions("tls" => \$opt_tls)
     or usage();
 
+my $camget = build_bin("./cmd/camget");
+
 # Respected by camli/osutil:
 $ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
 
@@ -32,7 +35,7 @@ if ($opt_tls) {
 	$blobserver =~ s/^http/https/;
 }
 
-exec("$ENV{GOPATH}/bin/camget",
+exec("$camget",
      "--verbose",
      "--blobserver=$blobserver",
      @ARGV);

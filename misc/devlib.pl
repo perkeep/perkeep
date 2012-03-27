@@ -15,8 +15,8 @@ sub build_bin {
 sub find_bin {
     my $target = shift;
     $target =~ s!.+/!!;
-    my $gp = find_arch_gopath();
-    return "$gp/bin/$target";
+    my $bin = find_gobin();
+    return "$bin/$target";
 }
 
 sub find_gobin {

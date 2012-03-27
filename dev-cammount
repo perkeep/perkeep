@@ -1,20 +1,30 @@
-#!/bin/sh
+#!/usr/bin/perl
 
-set -x
-set -e
+use strict;
+use FindBin qw($Bin);
+use Getopt::Long;
+require "$Bin/misc/devlib.pl";
 
-DIR=/tmp/cammount-dir
-mkdir -p $DIR
+my $blobref = shift;
+unless ($blobref && $blobref =~ /^\w+-[0-9a-f]{10,}$/) {
+    die "Usage: dev-cammount [blobref]\n";
+}
+my $cammount = build_bin("./cmd/cammount");
 
-go install ./cmd/cammount/
+my $dir = "/tmp/cammount-dir";
+mkdir $dir, 0700 unless -d $dir;
 
-(fusermount -u $DIR) || umount $DIR || umount -f $DIR || true
+try_unmount();
+print "Mounting on $dir ...\n";
+system("$cammount", "--blobserver=localhost:3179/bs", $blobref, $dir)
+    and warn "cammount failure: $!\n";
+warn "Failed to unmount\n" unless try_unmount();
 
-cammount --blobserver=localhost:3179/bs $@ $DIR &
-sleep 1
-cd $DIR
-bash
-cd /
-
-fusermount -u $DIR || umount $DIR || umount -f $DIR || true
-
+sub try_unmount {
+    if ($^O eq "linux" && system("fusermount", "-u", $dir) == 0) {
+        return 1;
+    }
+    return 1 if system("umount", $dir) == 0;
+    return 1 if system("umount", "-f", $dir) == 0;
+    return 0;
+}
