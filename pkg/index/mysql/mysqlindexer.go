@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 package mysqlindexer
+// TODO(bradfitz): rename this package to be consistent with the directory name.
+// Also, make a script to verify this for all camlistore packages.
 
 import (
 	"database/sql"

@@ -23,7 +23,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/mysqlindexer"
+	"camlistore.org/pkg/index/mysql"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
