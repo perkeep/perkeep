@@ -4,23 +4,10 @@ use FindBin qw($Bin);
 
 sub build_bin {
     my $target = shift;
-
     $ENV{GOBIN} = find_gobin();
     system("go", "install", $target) and die "go install $target failed";
     $target =~ s!.+/!!;
     my $bin = "$ENV{GOBIN}/$target";
-
-    # TODO(bradfitz): workaround for now, until GOBIN bug is fixed.
-    unless (-x $bin) {
-	my $badbin = $ENV{GOPATH};
-	$badbin =~ s/:.*//;
-	$badbin .= "/bin";
-	die "no GOBIN?" unless $badbin && -d $badbin;
-	$bin = "$badbin/$target";
-	system("chmod", "+x", $bin) unless -x $bin;
-	return $bin;
-    }
-
     system("chmod", "+x", $bin) unless -x $bin;
     return $bin;
 }
