@@ -18,19 +18,20 @@ package netutil
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
+	"os/exec"
+	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 )
 
-var _ = log.Printf
-
-// TODO: Linux-specific right now.
-// Returns os.ErrNotExist on not found.
+// ConnUserid returns the uid that owns the given localhost connection.
+// The returned error is os.ErrNotExist if the connection wasn't found.
 func ConnUserid(conn net.Conn) (uid int, err error) {
 	return AddrPairUserid(conn.LocalAddr().String(), conn.RemoteAddr().String())
 }
@@ -74,6 +75,10 @@ func AddrPairUserid(lipport, ripport string) (uid int, err error) {
 			localv4, remotev4)
 	}
 
+	if runtime.GOOS == "darwin" {
+		return uidFromDarwinLsof(lip, lport, rip, rport)
+	}
+
 	file := "/proc/net/tcp"
 	if !localv4 {
 		file = "/proc/net/tcp6"
@@ -92,6 +97,54 @@ func reverseIPBytes(b []byte) []byte {
 		rb[len(b)-i-1] = v
 	}
 	return rb
+}
+
+func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
+	seek := fmt.Sprintf("%s:%d->%s:%d", lip, lport, rip, rport)
+	seekb := []byte(seek)
+
+	cmd := exec.Command("lsof", "-a", "-n", "-i", "-P")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return
+	}
+	defer cmd.Wait()
+	defer stdout.Close()
+	err = cmd.Start()
+	if err != nil {
+		return
+	}
+	defer cmd.Process.Kill()
+	br := bufio.NewReader(stdout)
+	for {
+		line, err := br.ReadSlice('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return -1, err
+		}
+		if !bytes.Contains(line, seekb) {
+			continue
+		}
+		// SystemUIS   276 bradfitz   15u  IPv4 0xffffff801a7c74e0      0t0  TCP 127.0.0.1:56718->127.0.0.1:5204 (ESTABLISHED)
+		f := bytes.Fields(line)
+		if len(f) < 8 {
+			continue
+		}
+		username := string(f[2])
+		if uid := os.Getuid(); uid != 0 && username == os.Getenv("USER") {
+			return uid, nil
+		}
+		u, err := user.Lookup(username)
+		if err == nil {
+			uid, err := strconv.Atoi(u.Uid)
+			return uid, err
+		}
+		return 0, err
+	}
+	return -1, os.ErrNotExist
+
 }
 
 func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
