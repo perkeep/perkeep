@@ -200,6 +200,19 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 	m := schema.NewCommonFileMap(filename, fi)
 	mode := fi.Mode()
 	switch {
+	case mode&os.ModeSymlink != 0:
+		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
+			return nil, err
+		}
+	case mode&os.ModeDevice != 0:
+		// including mode & os.ModeCharDevice
+		fallthrough
+	case mode&os.ModeSocket != 0:
+		fallthrough
+	case mode&os.ModeNamedPipe != 0: // FIFO
+		fallthrough
+	default:
+		return nil, schema.ErrUnimplemented
 	case !fi.IsDir():
 		m["camliType"] = "file"
 
@@ -233,10 +246,6 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 			json, _ := schema.MapToCamliJson(m)
 			pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
 			return pr, nil
-		}
-	case mode&os.ModeSymlink != 0:
-		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
-			return nil, err
 		}
 	case fi.IsDir():
 		ss := new(schema.StaticSet)
@@ -310,15 +319,6 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 			return nil, err
 		}
 		schema.PopulateDirectoryMap(m, sspr.BlobRef)
-	case mode&os.ModeDevice != 0:
-		// including mode & os.ModeCharDevice
-		fallthrough
-	case mode&os.ModeSocket != 0:
-		fallthrough
-	case mode&os.ModeNamedPipe != 0: // FIFO
-		fallthrough
-	default:
-		return nil, schema.ErrUnimplemented
 	}
 
 	mappr, err := up.UploadMap(m)
