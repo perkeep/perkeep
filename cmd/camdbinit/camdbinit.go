@@ -67,10 +67,10 @@ func main() {
 		exitf("Error connecting to database: %v", err)
 	}
 
-	for _, tableSql := range mysqlindexer.SQLCreateTables() {
+	for _, tableSql := range mysql.SQLCreateTables() {
 		do(db, tableSql)
 	}
-	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysqlindexer.SchemaVersion()))
+	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
 }
 
 func do(db *sql.DB, sql string) {
