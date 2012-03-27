@@ -17,26 +17,75 @@ limitations under the License.
 package netutil
 
 import (
-	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 var _ = log.Printf
 
+func TestLocalIPv4(t *testing.T) {
+	// Start listening on localhost IPv4, on some port.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	// Accept a connection, run ConnUserId (what we're testing), and
+	// send its result on c.
+	type uidErr struct {
+		uid int
+		err error
+	}
+	c := make(chan uidErr, 2)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			c <- uidErr{0, err}
+		}
+		uid, err := ConnUserid(conn)
+		c <- uidErr{uid, err}
+	}()
+
+	// Connect to our dummy server. Keep the connection open until
+	// the test is done.
+	donec := make(chan bool)
+	defer close(donec)
+	go func() {
+		c, err := net.Dial("tcp", ln.Addr().String())
+		if err != nil {
+			return
+		}
+		<-donec
+		c.Close()
+	}()
+
+	select {
+	case r := <-c:
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if r.uid != os.Getuid() {
+			t.Errorf("got uid %d; want %d", r.uid, os.Getuid())
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout")
+	}
+}
+
 // TODO: test IPv6.  probably not working.
 
-func TestIdent4(t *testing.T) {
-	lip := net.ParseIP("67.218.110.129")
-	lport := 43436
-	rip := net.ParseIP("207.7.148.195")
-	rport := 80
+func TestParseLinuxTCPStat4(t *testing.T) {
+	lip, lport := net.ParseIP("67.218.110.129"), 43436
+	rip, rport := net.ParseIP("207.7.148.195"), 80
 
 	// 816EDA43:A9AC C39407CF:0050
 	//          43436         80
-	uid, err := uidFromReader(lip, lport, rip, rport, ioutil.NopCloser(strings.NewReader(tcpstat4)))
+	uid, err := uidFromReader(lip, lport, rip, rport, strings.NewReader(tcpstat4))
 	if err != nil {
 		t.Error(err)
 	}
