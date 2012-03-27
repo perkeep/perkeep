@@ -1,5 +1,4 @@
--- Go 1: get mysql indexer converted to new indexing library, and use
-   ziutek mysql library and database/sql from Go 1.
+-- camput file <dir> doesn't work when <dir> contains a symlink?
 
 -- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
    (get cammount and webdav working again)
