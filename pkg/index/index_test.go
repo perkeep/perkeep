@@ -127,18 +127,23 @@ func TestIndexerTestsCompleteness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-Files:
+
 	for _, file := range files {
-		if !file.IsDir() {
+		name := file.Name()
+		if !file.IsDir() || strings.HasPrefix(name, "_") || skipDir(name) {
 			continue
 		}
-		for _, v := range excludedDirs {
-			if file.Name() == v {
-				continue Files
-			}
-		}
-		if err = hasAllRequiredTests(file.Name(), t); err != nil {
-			t.Fatal(err)
+		if err := hasAllRequiredTests(name, t); err != nil {
+			t.Fatalf("dir %q missing tests: %v", err)
 		}
 	}
+}
+
+func skipDir(name string) bool {
+	for _, v := range excludedDirs {
+		if v == name {
+			return true
+		}
+	}
+	return false
 }
