@@ -17,8 +17,12 @@ limitations under the License.
 package netutil
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -33,6 +37,19 @@ func TestLocalIPv4(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	testLocalListener(t, ln)
+}
+
+func TestLocalIPv6(t *testing.T) {
+	ln, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Logf("skipping IPv6 test; not supported on host machine?")
+		return
+	}
+	testLocalListener(t, ln)
+}
+
+func testLocalListener(t *testing.T, ln net.Listener) {
 	defer ln.Close()
 
 	// Accept a connection, run ConnUserId (what we're testing), and
@@ -77,7 +94,31 @@ func TestLocalIPv4(t *testing.T) {
 	}
 }
 
-// TODO: test IPv6.  probably not working.
+func TestHTTPAuth(t *testing.T) {
+	var ts *httptest.Server
+	ts = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		from := r.RemoteAddr
+		to := ts.Listener.Addr().String()
+		uid, err := AddrPairUserid(from, to)
+		if err != nil {
+			fmt.Fprintf(rw, "ERR: %v", err)
+			return
+		}
+		fmt.Fprintf(rw, "uid=%d", uid)
+	}))
+	defer ts.Close()
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, e := string(body), fmt.Sprintf("uid=%d", os.Getuid()); g != e {
+		t.Errorf("got body %q; want %q", g, e)
+	}
+}
 
 func TestParseLinuxTCPStat4(t *testing.T) {
 	lip, lport := net.ParseIP("67.218.110.129"), 43436

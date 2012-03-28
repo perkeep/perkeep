@@ -19,6 +19,7 @@ package netutil
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -91,18 +92,32 @@ func AddrPairUserid(lipport, ripport string) (uid int, err error) {
 	return uidFromReader(lip, lport, rip, rport, f)
 }
 
-func reverseIPBytes(b []byte) []byte {
-	rb := make([]byte, len(b))
-	for i, v := range b {
-		rb[len(b)-i-1] = v
+func toLinuxIPv4Order(b []byte) []byte {
+	binary.BigEndian.PutUint32(b, binary.LittleEndian.Uint32(b))
+	return b
+}
+
+func toLinuxIPv6Order(b []byte) []byte {
+	for i := 0; i < 16; i += 4 {
+		sb := b[i : i+4]
+		binary.BigEndian.PutUint32(sb, binary.LittleEndian.Uint32(sb))
 	}
-	return rb
+	return b
+}
+
+type maybeBrackets net.IP
+
+func (p maybeBrackets) String() string {
+	s := net.IP(p).String()
+	if strings.Contains(s, ":") {
+		return "[" + s + "]"
+	}
+	return s
 }
 
 func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
-	seek := fmt.Sprintf("%s:%d->%s:%d", lip, lport, rip, rport)
+	seek := fmt.Sprintf("%s:%d->%s:%d", maybeBrackets(lip), lport, maybeBrackets(rip), rport)
 	seekb := []byte(seek)
-
 	cmd := exec.Command("lsof", "-a", "-n", "-i", "-P")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -152,18 +167,19 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 
 	localHex := ""
 	remoteHex := ""
-	if lip.To4() != nil {
+	ipv4 := lip.To4() != nil
+	if ipv4 {
 		// In the kernel, the port is run through ntohs(), and
 		// the inet_request_socket in
 		// include/net/inet_socket.h says the "loc_addr" and
 		// "rmt_addr" fields are __be32, but get_openreq4's
 		// printf of them is raw, without byte order
 		// converstion.
-		localHex = fmt.Sprintf("%08X:%04X", reverseIPBytes([]byte(lip.To4())), lport)
-		remoteHex = fmt.Sprintf("%08X:%04X", reverseIPBytes([]byte(rip.To4())), rport)
+		localHex = fmt.Sprintf("%08X:%04X", toLinuxIPv4Order([]byte(lip.To4())), lport)
+		remoteHex = fmt.Sprintf("%08X:%04X", toLinuxIPv4Order([]byte(rip.To4())), rport)
 	} else {
-		localHex = fmt.Sprintf("%032X:%04X", []byte(lip.To16()), lport)
-		remoteHex = fmt.Sprintf("%032X:%04X", []byte(rip.To16()), rport)
+		localHex = fmt.Sprintf("%032X:%04X", toLinuxIPv6Order([]byte(lip.To16())), lport)
+		remoteHex = fmt.Sprintf("%032X:%04X", toLinuxIPv6Order([]byte(rip.To16())), rport)
 	}
 
 	for {
