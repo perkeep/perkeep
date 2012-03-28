@@ -19,10 +19,13 @@ package auth
 import (
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
+
+	"camlistore.org/pkg/netutil"
 )
 
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
@@ -122,6 +125,25 @@ type DevAuth struct {
 }
 
 func (da *DevAuth) IsAuthorized(req *http.Request) bool {
+	// First see if the local TCP port is owned by the same
+	// non-root user as this server.
+	if uid := os.Getuid(); uid > 0 {
+		from := req.RemoteAddr
+		to := req.Host
+		if strings.HasPrefix(to, "localhost:") {
+			toPort := to[len("localhost:"):]
+			if strings.Contains(from, "[") {
+				to = "[::1]:" + toPort
+			} else {
+				to = "127.0.0.1:" + toPort
+			}
+		}
+		owner, err := netutil.AddrPairUserid(from, to)
+		if err == nil && owner == uid {
+			return true
+		}
+	}
+
 	_, pass, err := basicAuth(req)
 	if err != nil {
 		return false
