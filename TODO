@@ -1,9 +1,6 @@
 -- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
    (get cammount and webdav working again)
 
--- port netutil ident stuff to OS X using shell out to
-   $ lsof -n -i -P
-
 -- read/write fuse.
 
 -- work on runsit more, so I can start using this more often.  runsit should
