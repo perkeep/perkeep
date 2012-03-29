@@ -160,8 +160,8 @@ func (fi *FakeIndex) PathsLookup(signer, base *blobref.BlobRef, suffix string) (
 }
 
 func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at time.Time) (*search.Path, error) {
-	if at.IsZero() {
-		panic("PathLookup with non zero at not supported")
+	if !at.IsZero() {
+		panic("PathLookup with non-zero 'at' time not supported")
 	}
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
