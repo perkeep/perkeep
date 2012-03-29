@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/third_party/code.google.com/goauth2/oauth"
+	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
 const testObjectContent = "Google Storage Test\n"
