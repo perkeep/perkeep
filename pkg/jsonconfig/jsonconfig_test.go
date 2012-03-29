@@ -42,7 +42,7 @@ func TestIncludeLoop(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error about import cycles.")
 	}
-	if !strings.Contains(err.String(), "include cycle detected"){
+	if !strings.Contains(err.Error(), "include cycle detected"){
 		t.Fatal("expected an error about import cycles; got: %v", err)
 	}
 }
