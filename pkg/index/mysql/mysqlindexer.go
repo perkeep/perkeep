@@ -79,6 +79,9 @@ func (ms *myIndexStorage) CommitBatch(b index.BatchMutation) error {
 
 func (ms *myIndexStorage) Get(key string) (value string, err error) {
 	err = ms.db.QueryRow("SELECT v FROM rows WHERE k=?", key).Scan(&value)
+	if err == sql.ErrNoRows {
+		err = index.ErrNotFound
+	}
 	return
 }
 
@@ -162,6 +165,20 @@ func (t *iter) Next() bool {
 	t.low = t.key
 	t.seen++
 	return true
+}
+
+// NewStorage returns an IndexStorage implementation of the described MySQL database.
+// This exists mostly for testing and does not initialize the schema.
+func NewStorage(host, user, password, dbname string) (index.IndexStorage, error) {
+	is := &myIndexStorage{
+		host:     host,
+		user:     user,
+		password: password,
+		database: dbname,
+	}
+	db, err := sql.Open("mymysql", is.database+"/"+is.user+"/"+is.password)
+	is.db = db
+	return is, err
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {

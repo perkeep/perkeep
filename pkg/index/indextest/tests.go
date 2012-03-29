@@ -20,7 +20,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,10 +140,34 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 	return
 }
 
+func osSplitChar() string {
+	switch runtime.GOOS {
+	case "windows":
+		return ";"
+	case "plan9":
+		panic("unsupported")
+	}
+	return ":"
+}
+
+func findGoPathPackage(pkg string) string {
+	gp := os.Getenv("GOPATH")
+	if gp == "" {
+		panic("no GOPATH set")
+	}
+	for _, p := range strings.Split(gp, osSplitChar()) {
+		dir := filepath.Join(p, "src", pkg)
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			return dir
+		}
+	}
+	panic(fmt.Sprintf("package %q not found in GOPATH(s) of %q", pkg, gp))
+}
+
 func NewIndexDeps(index *index.Index) *IndexDeps {
 	// TODO(mpl): do better than the quick hack with the testdata symlink when things
 	// have settled regarding the organization of the packages.
-	secretRingFile := "testdata/test-secring.gpg"
+	secretRingFile := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsBNBEzgoVsBCAC/56aEJ9BNIGV9FVP+WzenTAkg12k86YqlwJVAB/VwdMlyXxvi
@@ -269,7 +296,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 		_, _, err = id.Index.GetBlobMimeType(blobref.Parse("abc-123"))
 		if err != os.ErrNotExist {
-			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ENOENT", err)
+			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
 	}
 

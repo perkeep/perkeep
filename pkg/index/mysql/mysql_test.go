@@ -19,12 +19,14 @@ package mysql_test
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"os"
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	_ "camlistore.org/pkg/index/mysql" // TODO: use
+	"camlistore.org/pkg/index/mysql"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
@@ -38,28 +40,52 @@ var (
 func checkDB() {
 	var err error
 	if rootdb, err = sql.Open("mymysql", "mysql/root/root"); err == nil {
-		dbAvailable = true
-		return
-	}
-	if rootdb, err = sql.Open("mymysql", "mysql/root/"); err == nil {
-		dbAvailable = true
-		return
+		var n int
+		err := rootdb.QueryRow("SELECT COUNT(*) FROM user").Scan(&n)
+		if err == nil {
+			dbAvailable = true
+		}
 	}
 }
 
 func makeIndex() *index.Index {
-	panic("TODO")
+	dbname := "camlitest_" + os.Getenv("USER")
+	do(rootdb, "DROP DATABASE IF EXISTS " + dbname)
+	do(rootdb, "CREATE DATABASE " + dbname)
+
+	db, err := sql.Open("mymysql", dbname + "/root/root");
+	if err != nil {
+		panic("opening test database: " + err.Error())
+	}
+	for _, tableSql := range mysql.SQLCreateTables() {
+		do(db, tableSql)
+	}
+
+	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
+	s, err := mysql.NewStorage("localhost", "root", "root", dbname)
+	if err != nil {
+		panic(err)
+	}
+	return index.New(s)
+}
+
+func do(db *sql.DB, sql string) {
+	_, err := db.Exec(sql)
+	if err == nil {
+		return
+	}
+	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
 type mysqlTester struct{}
 
 func (mysqlTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
-	t.Logf("TODO: implement")
-	return
-
 	once.Do(checkDB)
 	if !dbAvailable {
-		err := errors.New("Not running; start a MySQL daemon on the standard port (3306) with root password 'root' or '' (empty).")
+		// TODO(bradfitz): accept somehow other passwords than
+		// 'root', and/or try localhost unix socket
+		// connections rather than using TCP localhost?
+		err := errors.New("Not running; start a MySQL daemon on the standard port (3306) with root password 'root'")
 		t.Fatalf("MySQL not available locally for testing: %v", err)
 	}
 	tfn(t, makeIndex)
