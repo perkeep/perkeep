@@ -17,7 +17,7 @@ limitations under the License.
 package search_test
 
 import (
-	. "camli/search"
+	. "camlistore.org/pkg/search"
 
 	"bytes"
 	"encoding/json"
