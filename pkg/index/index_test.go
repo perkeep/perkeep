@@ -58,7 +58,7 @@ func TestFiles_Memory(t *testing.T) {
 var (
 	// those dirs are not packages implementing indexers,
 	// hence we do not want to check them.
-	excludedDirs = []string{"indextest", "testdata", "mysql"}
+	excludedDirs = []string{"indextest", "testdata"}
 	// A map is used in hasAllRequiredTests to note which required
 	// tests have been found in a package, by setting the corresponding
 	// booleans to true. Those are the keys for this map.
@@ -85,7 +85,7 @@ func hasAllRequiredTests(path string, t *testing.T) error {
 	defer dir.Close()
 
 	for _, name := range names {
-		if !strings.HasSuffix(name, "_test.go") {
+		if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, "_test.go") {
 			continue
 		}
 		fset := token.NewFileSet()
@@ -130,16 +130,19 @@ func TestIndexerTestsCompleteness(t *testing.T) {
 
 	for _, file := range files {
 		name := file.Name()
-		if !file.IsDir() || strings.HasPrefix(name, "_") || skipDir(name) {
+		if !file.IsDir() || skipDir(name) {
 			continue
 		}
 		if err := hasAllRequiredTests(name, t); err != nil {
-			t.Fatalf("dir %q missing tests: %v", err)
+			t.Error(err)
 		}
 	}
 }
 
 func skipDir(name string) bool {
+	if strings.HasPrefix(name, "_") {
+		return true
+	}
 	for _, v := range excludedDirs {
 		if v == name {
 			return true
