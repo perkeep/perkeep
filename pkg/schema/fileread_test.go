@@ -59,11 +59,11 @@ func filePart(cps []*BytesPart, skip uint64) *BytesPart {
 	}
 	err := PopulateParts(m, fileSize, cpl)
 	if err != nil {
-		panic(err.String())
+		panic(err)
 	}
 	json, err := MapToCamliJson(m)
 	if err != nil {
-		panic(err.String())
+		panic(err)
 	}
 	tb := &test.Blob{json}
 	testFetcher.AddBlob(tb)

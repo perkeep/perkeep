@@ -19,7 +19,6 @@ package auth
 import (
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
