@@ -22,10 +22,12 @@ package googlestorage
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/test/testdep"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
@@ -42,6 +44,10 @@ func (b *BufferCloser) Close() error {
 
 // Reads google storage config and creates a Client.  Exits on error.
 func doConfig(t *testing.T) (gsa *Client, bucket string) {
+	if _, err := os.Stat("gstestconfig.json"); os.IsNotExist(err) {
+		testdep.CheckEnv(t)
+		t.Fatalf("Missing config file: %v", err)
+	}
 	cf, err := jsonconfig.ReadFile("testconfig.json")
 	if err != nil {
 		t.Fatalf("Failed to read config: %v", err)
@@ -71,7 +77,6 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 		&oauth.Token{
 			AccessToken:  "",
 			RefreshToken: auth.RequiredString("refresh_token"),
-			TokenExpiry:  0,
 		},
 		nil,
 	})
@@ -132,9 +137,9 @@ func TestStatObject(t *testing.T) {
 func TestPutObject(t *testing.T) {
 	gs, bucket := doConfig(t)
 
-	now := time.Now().UTC()
+	now := time.Now()
 	testKey := fmt.Sprintf("test-put-%v.%v.%v-%v.%v.%v",
-		now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second)
+		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 
 	shouldRetry, err := gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString(testObjectContent)})
@@ -167,9 +172,9 @@ func TestDeleteObject(t *testing.T) {
 	}
 
 	// Create a file, try to delete it
-	now := time.Now().UTC()
+	now := time.Now()
 	testKey := fmt.Sprintf("test-delete-%v.%v.%v-%v.%v.%v",
-		now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second)
+		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 	_, err = gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString("Delete Me")})
 	if err != nil {

@@ -27,6 +27,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/mysql"
+	"camlistore.org/pkg/test/testdep"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
@@ -86,6 +87,7 @@ func (mysqlTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index))
 		// 'root', and/or try localhost unix socket
 		// connections rather than using TCP localhost?
 		err := errors.New("Not running; start a MySQL daemon on the standard port (3306) with root password 'root'")
+		testdep.CheckEnv(t)
 		t.Fatalf("MySQL not available locally for testing: %v", err)
 	}
 	tfn(t, makeIndex)

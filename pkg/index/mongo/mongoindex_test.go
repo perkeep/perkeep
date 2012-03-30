@@ -25,6 +25,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/mongo"
+	"camlistore.org/pkg/test/testdep"
 )
 
 var (
@@ -62,6 +63,7 @@ func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index))
 	once.Do(checkMongoUp)
 	if mongoNotAvailable {
 		err := errors.New("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
+		testdep.CheckEnv(t)
 		t.Fatalf("Mongo not available locally for testing: %v", err)
 	}
 	tfn(t, initMongoIndex)
