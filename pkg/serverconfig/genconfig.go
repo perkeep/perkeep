@@ -105,6 +105,10 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	prefixes["/"] = ob
 
 	ob = map[string]interface{}{}
+	ob["handler"] = "setup"
+	prefixes["/setup/"] = ob
+
+	ob = map[string]interface{}{}
 	ob["handler"] = "sync"
 	ob["handlerArgs"] = map[string]interface{}{
 		"from": "/bs/",

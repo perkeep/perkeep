@@ -44,6 +44,8 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	if err = conf.Validate(); err != nil {
 		return
 	}
+	// TODO(mpl): figure out the condition for that
+	root.OfferSetup = true
 	return root, nil
 }
 
