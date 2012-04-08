@@ -191,7 +191,7 @@ func newDefaultConfigFile(path string) error {
 		`{
 	"listen": "localhost:3179",
 	"TLS": false,
-	"auth": "userpass:camlistore:pass3179",
+	"auth": "userpass:camlistore:pass3179:+localhost",
         "identity": "%KEYID%",
 	"identitySecretRing": "%SECRING%",
 	"blobPath": "%BLOBPATH%",

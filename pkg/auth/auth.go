@@ -64,12 +64,20 @@ func FromConfig(authConfig string) (AuthMode, error) {
 
 	switch authType {
 	case "userpass":
-		if len(pieces) != 3 {
+		if len(pieces) < 3 {
 			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
 		}
 		username := pieces[1]
 		password := pieces[2]
 		mode = &UserPass{Username: username, Password: password}
+		for _, opt := range pieces[3:] {
+			switch opt {
+			case "+localhost":
+				mode.(*UserPass).OrLocalhost = true
+			default:
+				return nil, fmt.Errorf("Unknown userpass option %q", opt)
+			}
+		}
 	default:
 		return nil, fmt.Errorf("Unknown auth type: %q", authType)
 	}
@@ -103,9 +111,13 @@ func basicAuth(req *http.Request) (string, string, error) {
 // is of the kind "userpass:username:pass"
 type UserPass struct {
 	Username, Password string
+	OrLocalhost        bool // if true, allow localhost ident auth too
 }
 
 func (up *UserPass) IsAuthorized(req *http.Request) bool {
+	if up.OrLocalhost && localhostAuthorized(req) {
+		return true
+	}
 	user, pass, err := basicAuth(req)
 	if err != nil {
 		return false
@@ -123,9 +135,7 @@ type DevAuth struct {
 	Password string
 }
 
-func (da *DevAuth) IsAuthorized(req *http.Request) bool {
-	// First see if the local TCP port is owned by the same
-	// non-root user as this server.
+func localhostAuthorized(req *http.Request) bool {
 	if uid := os.Getuid(); uid > 0 {
 		from := req.RemoteAddr
 		to := req.Host
@@ -141,6 +151,15 @@ func (da *DevAuth) IsAuthorized(req *http.Request) bool {
 		if err == nil && owner == uid {
 			return true
 		}
+	}
+	return false
+}
+
+func (da *DevAuth) IsAuthorized(req *http.Request) bool {
+	// First see if the local TCP port is owned by the same
+	// non-root user as this server.
+	if localhostAuthorized(req) {
+		return true
 	}
 
 	_, pass, err := basicAuth(req)
