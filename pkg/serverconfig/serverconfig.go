@@ -17,11 +17,13 @@ limitations under the License.
 package serverconfig
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/auth"
@@ -300,6 +302,10 @@ func Load(filename string) (*Config, error) {
 			return nil, fmt.Errorf(
 				"Failed to transform user config file %q into internal handler configuration: %v",
 				filename, err)
+		}
+		if v, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG_CONFIG")); v {
+			jsconf, _ := json.MarshalIndent(conf.Obj, "", "  ")
+			log.Printf("From high-level config, generated low-level config: %s", jsconf)
 		}
 	}
 
