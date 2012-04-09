@@ -33,4 +33,3 @@ func SQLCreateTables() []string {
  value VARCHAR(255) NOT NULL)`,
 	}
 }
-

@@ -20,9 +20,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
-	"os"
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
@@ -35,7 +35,7 @@ import (
 var (
 	once        sync.Once
 	dbAvailable bool
-	rootdb *sql.DB
+	rootdb      *sql.DB
 )
 
 func checkDB() {
@@ -51,10 +51,10 @@ func checkDB() {
 
 func makeIndex() *index.Index {
 	dbname := "camlitest_" + os.Getenv("USER")
-	do(rootdb, "DROP DATABASE IF EXISTS " + dbname)
-	do(rootdb, "CREATE DATABASE " + dbname)
+	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
+	do(rootdb, "CREATE DATABASE "+dbname)
 
-	db, err := sql.Open("mymysql", dbname + "/root/root");
+	db, err := sql.Open("mymysql", dbname+"/root/root")
 	if err != nil {
 		panic("opening test database: " + err.Error())
 	}
