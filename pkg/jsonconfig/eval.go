@@ -74,7 +74,7 @@ func (c *configParser) recursiveReadJSON(configPath string) (decodedObject map[s
 
 	var f *os.File
 	if f, err = os.Open(configPath); err != nil {
-		return nil, fmt.Errorf("Failed to open config: %s, %v", configPath, err)
+		return nil, fmt.Errorf("Failed to open config: %v", err)
 	}
 	defer f.Close()
 
