@@ -206,7 +206,17 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		dbname = "camli" + username
 	}
 
-	indexerPath := "/index-mem/"
+	var indexerPath string
+	switch {
+	case mongo != "" && mysql != "":
+		return nil, fmt.Errorf("Cannot have both mysql and mongo in config, pick one")
+	case mysql != "":
+		indexerPath = "/index-mysql/"
+	case mongo != "":
+		indexerPath = "/index-mongo/"
+	default:
+		indexerPath = "/index-mem/"
+	}
 
 	prefixesParams := &configPrefixesParams{
 		secretRing:  secretRing,
@@ -223,17 +233,14 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	addUiConfig(&prefixes, "/ui/")
 
-	if mongo != "" && mysql != "" {
-		return nil, fmt.Errorf("Cannot have both mysql and mongo in config, pick one")
-	}
 	if mysql != "" {
 		addMysqlConfig(&prefixes, dbname, mysql)
-	} else {
-		if mongo != "" {
-			addMongoConfig(&prefixes, dbname, mongo)
-		} else {
-			addMemindexConfig(&prefixes)
-		}
+	}
+	if mongo != "" {
+		addMongoConfig(&prefixes, dbname, mongo)
+	}
+	if indexerPath == "/index-mem/" {
+		addMemindexConfig(&prefixes)
 	}
 
 	obj["prefixes"] = (map[string]interface{})(prefixes)
