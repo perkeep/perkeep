@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -44,7 +45,7 @@ func main() {
 		exitf("--database flag required")
 	}
 
-	rootdb, err := sql.Open("mymysql", "mysql/" + *flagUser + "/" + *flagPassword)
+	rootdb, err := sql.Open("mymysql", "mysql/"+*flagUser+"/"+*flagPassword)
 	if err != nil {
 		exitf("Error connecting to MySQL root database: %v", err)
 	}
@@ -62,7 +63,7 @@ func main() {
 	}
 	do(rootdb, "CREATE DATABASE "+dbname)
 
-	db, err := sql.Open("mymysql", dbname + "/" + *flagUser + "/" + *flagPassword)
+	db, err := sql.Open("mymysql", dbname+"/"+*flagUser+"/"+*flagPassword)
 	if err != nil {
 		exitf("Error connecting to database: %v", err)
 	}
@@ -99,7 +100,7 @@ func check(err error) {
 	if err == nil {
 		return
 	}
-	panic(err)
+	log.Fatalf("SQL error: %v", err)
 }
 
 func exitf(format string, args ...interface{}) {
