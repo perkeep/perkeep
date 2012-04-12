@@ -22,7 +22,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign"
 )
 
 // various parameters derived from the high-level user config
@@ -32,6 +34,7 @@ type configPrefixesParams struct {
 	keyId       string
 	indexerPath string
 	blobPath    string
+	searchOwner *blobref.BlobRef
 }
 
 func addUiConfig(prefixes *jsonconfig.Obj, uiPrefix string, published ...interface{}) {
@@ -121,7 +124,7 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob["handlerArgs"] = map[string]interface{}{
 		"secretRing":    params.secretRing,
 		"keyId":         params.keyId,
-		"publicKeyDest": "/bs/",
+		"publicKeyDest": "/bs-and-index/",
 	}
 	prefixes["/sighelper/"] = ob
 
@@ -162,7 +165,7 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	ob["handler"] = "search"
 	ob["handlerArgs"] = map[string]interface{}{
 		"index": params.indexerPath,
-		"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+		"owner": params.searchOwner.String(),
 	}
 	prefixes["/my-search/"] = ob
 
@@ -218,11 +221,21 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		indexerPath = "/index-mem/"
 	}
 
+	entity, err := jsonsign.EntityFromSecring(keyId, secretRing)
+	if err != nil {
+		return nil, err
+	}
+	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
+	if err != nil {
+		return nil, err
+	}
+
 	prefixesParams := &configPrefixesParams{
 		secretRing:  secretRing,
 		keyId:       keyId,
 		indexerPath: indexerPath,
 		blobPath:    blobPath,
+		searchOwner: blobref.SHA1FromString(armoredPublicKey),
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams)
