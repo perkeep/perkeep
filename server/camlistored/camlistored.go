@@ -208,7 +208,7 @@ func newDefaultConfigFile(path string) error {
 	conf = strings.Replace(conf, "%BLOBPATH%", blobDir, 1)
 
 	var keyId string
-	secRing := filepath.Join(osutil.CamliConfigDir(), "identity-secring.gpg")
+	secRing := osutil.IdentitySecretRing()
 	_, err := os.Stat(secRing)
 	switch {
 	case err == nil:
