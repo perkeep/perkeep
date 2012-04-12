@@ -63,6 +63,10 @@ func FromConfig(authConfig string) (AuthMode, error) {
 	}
 
 	switch authType {
+	case "none":
+		return None{}, nil
+	case "localhost":
+		return Localhost{}, nil
 	case "userpass":
 		if len(pieces) < 3 {
 			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
@@ -127,6 +131,24 @@ func (up *UserPass) IsAuthorized(req *http.Request) bool {
 
 func (up *UserPass) AddAuthHeader(req *http.Request) {
 	req.SetBasicAuth(up.Username, up.Password)
+}
+
+type None struct{}
+
+func (None) IsAuthorized(req *http.Request) bool {
+	return true
+}
+
+type Localhost struct {
+	None
+}
+
+func (Localhost) IsAuthorized(req *http.Request) bool {
+	return localhostAuthorized(req)
+}
+
+func (None) AddAuthHeader(req *http.Request) {
+	// Nothing.
 }
 
 // DevAuth is used when the env var CAMLI_ADVERTISED_PASSWORD
