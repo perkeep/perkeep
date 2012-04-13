@@ -128,11 +128,15 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 
 	for _, filename := range args {
 		lastPut, err = up.UploadFile(filename, c.rollSplits)
-		handleResult("file", lastPut, err)
+		if handleResult("file", lastPut, err) != nil {
+			return err
+		}
 
 		if permaNode != nil {
 			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
-			handleResult("claim-permanode-content", put, err)
+			if handleResult("claim-permanode-content", put, err) != nil {
+				return err
+			}
 			if c.name != "" {
 				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
 				handleResult("claim-permanode-name", put, err)
