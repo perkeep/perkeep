@@ -61,7 +61,7 @@ type ConfigParser struct {
 	includeStack stringVector
 
 	// Open optionally specifies an opener function.
-	// TODO(bradfitz): define file.
+	// TODO(bradfitz): export/document the file type.
 	Open func(filename string) (file, error)
 }
 
