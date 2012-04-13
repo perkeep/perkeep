@@ -58,7 +58,7 @@ func TestFiles_Memory(t *testing.T) {
 var (
 	// those dirs are not packages implementing indexers,
 	// hence we do not want to check them.
-	excludedDirs = []string{"indextest", "testdata"}
+	excludedDirs = []string{"indextest", "testdata", "sqlindex"}
 	// A map is used in hasAllRequiredTests to note which required
 	// tests have been found in a package, by setting the corresponding
 	// booleans to true. Those are the keys for this map.
