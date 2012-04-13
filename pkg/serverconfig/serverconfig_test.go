@@ -17,10 +17,14 @@ limitations under the License.
 package serverconfig_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -28,32 +32,40 @@ import (
 	"camlistore.org/pkg/serverconfig"
 )
 
-func prettyPrint(i interface{}, indent int) {
+func sortedKeys(m map[string]interface{}) (keys []string) {
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return
+}
+
+func prettyPrint(w io.Writer, i interface{}, indent int) {
 	switch ei := i.(type) {
 	case jsonconfig.Obj:
-		for k, v := range ei {
-			fmt.Printf("\n")
-			fmt.Printf("%s: ", k)
-			prettyPrint(v, indent)
+		for _, k := range sortedKeys(map[string]interface{}(ei)) {
+			fmt.Fprintf(w, "\n")
+			fmt.Fprintf(w, "%s: ", k)
+			prettyPrint(w, ei[k], indent+1)
 		}
-		fmt.Printf("\n")
+		fmt.Fprintf(w, "\n")
 	case map[string]interface{}:
-		indent++
-		for k, v := range ei {
-			fmt.Printf("\n")
+		for _, k := range sortedKeys(ei) {
+			fmt.Fprintf(w, "\n")
 			for i := 0; i < indent; i++ {
-				fmt.Printf("	")
+				fmt.Fprintf(w, "	")
 			}
-			fmt.Printf("%s: ", k)
-			prettyPrint(v, indent)
+			fmt.Fprintf(w, "%s: ", k)
+			prettyPrint(w, ei[k], indent+1)
 		}
+		fmt.Fprintf(w, "\n")
 	case []interface{}:
-		fmt.Printf("	")
+		fmt.Fprintf(w, "	")
 		for _, v := range ei {
-			prettyPrint(v, indent)
+			prettyPrint(w, v, indent+1)
 		}
 	default:
-		fmt.Printf("%v, ", i)
+		fmt.Fprintf(w, "%v, ", i)
 	}
 }
 
@@ -76,8 +88,35 @@ func TestConfigs(t *testing.T) {
 	}
 }
 
+type namedReadSeeker struct {
+	name string
+	io.ReadSeeker
+}
+
+func (n namedReadSeeker) Name() string { return n.name }
+func (n namedReadSeeker) Close() error { return nil }
+
+func configParser() *jsonconfig.ConfigParser {
+	// Make a custom jsonconfig ConfigParser whose reader rewrites "/path/to/secring" to the absolute
+	// path of the jsonconfig test-secring.gpg file.
+	secRing, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
+	if err != nil {
+		panic(err)
+	}
+	return &jsonconfig.ConfigParser{
+		Open: func(path string) (jsonconfig.File, error) {
+			slurpBytes, err := ioutil.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+			slurp := strings.Replace(string(slurpBytes), "/path/to/secring", secRing, 1)
+			return namedReadSeeker{path, strings.NewReader(slurp)}, nil
+		},
+	}
+}
+
 func testConfig(name string, t *testing.T) {
-	obj, err := jsonconfig.ReadFile("testdata/default.json")
+	obj, err := configParser().ReadFile("testdata/default.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,16 +124,36 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantConf, err := jsonconfig.ReadFile("testdata/default-want.json")
+	wantConf, err := configParser().ReadFile("testdata/default-want.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(lowLevelConf.Obj, wantConf) {
-		fmt.Printf("Configurations differ:\n")
-		fmt.Printf("Generated:")
-		prettyPrint(lowLevelConf.Obj, 0)
-		fmt.Printf("\nWant:")
-		prettyPrint(wantConf, 0)
-		t.Fail()
+	var got, want bytes.Buffer
+	prettyPrint(&got, lowLevelConf.Obj, 0)
+	prettyPrint(&want, wantConf, 0)
+	if got.String() != want.String() {
+		tempGot := tempFile(got.Bytes())
+		tempWant := tempFile(want.Bytes())
+		defer os.Remove(tempGot.Name())
+		defer os.Remove(tempWant.Name())
+		diff, err := exec.Command("diff", "-u", tempWant.Name(), tempGot.Name()).Output()
+		if err != nil {
+			t.Logf("diff failure: %v", err)
+		}
+		t.Errorf("Configurations differ.\nGot:\n%s\nWant:\n%s\nDiff:\n%s",
+			&got, &want, diff)
 	}
+}
+
+func tempFile(b []byte) *os.File {
+	f, err := ioutil.TempFile("", "")
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.Write(b)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+	return f
 }

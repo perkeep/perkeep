@@ -21,7 +21,11 @@
 			}
 		},
 	
-		"/sync/": {
+ 		"/setup/": {
+			"handler": "setup"
+                },
+
+ 		"/sync/": {
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
@@ -32,9 +36,9 @@
 		"/sighelper/": {
 			"handler": "jsonsign",
 			"handlerArgs": {
-				"secretRing": "/home/foo/.camli/secring",
-				"keyId": "86043920",
-				"publicKeyDest": "/bs/"
+				"secretRing": "/path/to/secring",
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs-and-index/"
 			}
 		},
 	
