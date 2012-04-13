@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package errorutil helps make better error messages.
 package errorutil
 
 import (
@@ -24,7 +25,11 @@ import (
 	"strings"
 )
 
-func HighlightBytePosition(f io.Reader, pos int64) (line int, col int, highlight string) {
+// HighlightBytePosition takes a reader and the location in bytes of a parse
+// error (for instance, from json.SyntaxError.Offset) and returns the line, column,
+// and pretty-printed context around the error with an arrow indicating the exact
+// position of the syntax error.
+func HighlightBytePosition(f io.Reader, pos int64) (line, col int, highlight string) {
 	line = 1
 	br := bufio.NewReader(f)
 	lastLine := ""
