@@ -471,13 +471,14 @@ Global options:
 	os.Exit(1)
 }
 
-func handleResult(what string, pr *client.PutResult, err error) {
+func handleResult(what string, pr *client.PutResult, err error) error {
 	if err != nil {
 		log.Printf("Error putting %s: %s", what, err)
 		wereErrors = true
-		return
+		return err
 	}
 	fmt.Println(pr.BlobRef.String())
+	return nil
 }
 
 func makeUploader() *Uploader {
@@ -544,7 +545,10 @@ func main() {
 		usage(fmt.Sprintf("Unknown mode %q", mode))
 	}
 
-	up := makeUploader()
+	var up *Uploader
+	if mode != "init" {
+		up = makeUploader()
+	}
 
 	cmdFlags := modeFlags[mode]
 	err := cmdFlags.Parse(flag.Args()[1:])

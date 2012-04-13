@@ -60,7 +60,9 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
 		err       error
 	)
 	permaNode, err = up.UploadNewPermanode()
-	handleResult("permanode", permaNode, err)
+	if handleResult("permanode", permaNode, err) != nil {
+		return err
+	}
 
 	if c.name != "" {
 		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.name))

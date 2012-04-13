@@ -32,7 +32,7 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-// These, if set, override the JSON config file ~/.camli/config
+// These, if set, override the JSON config file ~/.camlistore/config
 // "server" and "password" keys.
 //
 // A main binary must call AddFlags to expose these.
@@ -116,7 +116,15 @@ func (c *Client) SecretRingFile() string {
 	if ok && keyRing != "" {
 		return keyRing
 	}
+	if keyRing = osutil.IdentitySecretRing(); fileExists(keyRing) {
+		return keyRing
+	}
 	return jsonsign.DefaultSecRingPath()
+}
+
+func fileExists(name string) bool {
+	_, err := os.Stat(name)
+	return err == nil
 }
 
 // TODO: move to config package?
@@ -128,8 +136,17 @@ func SignerPublicKeyBlobref() *blobref.BlobRef {
 		log.Printf("No key %q in JSON configuration file %q; have you run \"camput init\"?", key, ConfigFilePath())
 		return nil
 	}
-	keyRing, _ := config["secretRing"].(string)
-
+	keyRing, hasKeyRing := config["secretRing"].(string)
+	if !hasKeyRing {
+		if fn := osutil.IdentitySecretRing(); fileExists(fn) {
+			keyRing = fn
+		} else if fn := jsonsign.DefaultSecRingPath(); fileExists(fn) {
+			keyRing = fn
+		} else {
+			log.Printf("Couldn't find keyId %q; no 'secretRing' specified in config file, and no standard secret ring files exist.")
+			return nil
+		}
+	}
 	entity, err := jsonsign.EntityFromSecring(keyId, keyRing)
 	if err != nil {
 		log.Printf("Couldn't find keyId %q in secret ring: %v", keyId, err)
