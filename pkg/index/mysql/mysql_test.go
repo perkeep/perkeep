@@ -101,6 +101,6 @@ func TestPathsOfSignerTarget_MySQL(t *testing.T) {
 	mysqlTester{}.test(t, indextest.PathsOfSignerTarget)
 }
 
-func TestFiles_MysQL(t *testing.T) {
+func TestFiles_MySQL(t *testing.T) {
 	mysqlTester{}.test(t, indextest.Files)
 }
