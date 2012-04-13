@@ -46,7 +46,8 @@ func (v *stringVector) Last() string {
 	return v.v[len(v.v)-1]
 }
 
-type file interface {
+// A File is the type returned by ConfigParser.Open.
+type File interface {
 	io.ReadSeeker
 	io.Closer
 	Name() string
@@ -61,11 +62,10 @@ type ConfigParser struct {
 	includeStack stringVector
 
 	// Open optionally specifies an opener function.
-	// TODO(bradfitz): export/document the file type.
-	Open func(filename string) (file, error)
+	Open func(filename string) (File, error)
 }
 
-func (c *ConfigParser) open(filename string) (file, error) {
+func (c *ConfigParser) open(filename string) (File, error) {
 	if c.Open == nil {
 		return os.Open(filename)
 	}
@@ -97,7 +97,7 @@ func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[s
 	c.includeStack.Push(configPath)
 	defer c.includeStack.Pop()
 
-	var f file
+	var f File
 	if f, err = c.open(configPath); err != nil {
 		return nil, fmt.Errorf("Failed to open config: %v", err)
 	}
