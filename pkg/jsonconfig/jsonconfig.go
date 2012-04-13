@@ -30,11 +30,8 @@ type Obj map[string]interface{}
 // Reads json config data from the specified open file, expanding
 // all expressions 
 func ReadFile(configPath string) (Obj, error) {
-	var c configParser
-	var err error
-	c.touchedFiles = make(map[string]bool)
-	c.RootJson, err = c.recursiveReadJSON(configPath)
-	return c.RootJson, err
+	var c ConfigParser
+	return c.ReadFile(configPath)
 }
 
 func (jc Obj) RequiredObject(key string) Obj {

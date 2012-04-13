@@ -19,6 +19,7 @@ package jsonconfig
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -45,26 +46,50 @@ func (v *stringVector) Last() string {
 	return v.v[len(v.v)-1]
 }
 
-// State for config parsing and expression evalutaion
-type configParser struct {
-	RootJson Obj
+type file interface {
+	io.ReadSeeker
+	io.Closer
+	Name() string
+}
+
+// ConfigParser specifies the environment for parsing a config file
+// and evaluating expressions.
+type ConfigParser struct {
+	rootJSON Obj
 
 	touchedFiles map[string]bool
 	includeStack stringVector
+
+	// Open optionally specifies an opener function.
+	// TODO(bradfitz): define file.
+	Open func(filename string) (file, error)
+}
+
+func (c *ConfigParser) open(filename string) (file, error) {
+	if c.Open == nil {
+		return os.Open(filename)
+	}
+	return c.Open(filename)
 }
 
 // Validates variable names for config _env expresssions
 var envPattern = regexp.MustCompile(`\$\{[A-Za-z0-9_]+\}`)
 
+func (c *ConfigParser) ReadFile(path string) (m map[string]interface{}, err error) {
+	c.touchedFiles = make(map[string]bool)
+	c.rootJSON, err = c.recursiveReadJSON(path)
+	return c.rootJSON, err
+}
+
 // Decodes and evaluates a json config file, watching for include cycles.
-func (c *configParser) recursiveReadJSON(configPath string) (decodedObject map[string]interface{}, err error) {
+func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[string]interface{}, err error) {
 
 	configPath, err = filepath.Abs(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to expand absolute path for %s", configPath)
 	}
 	if c.touchedFiles[configPath] {
-		return nil, fmt.Errorf("configParser include cycle detected reading config: %v",
+		return nil, fmt.Errorf("ConfigParser include cycle detected reading config: %v",
 			configPath)
 	}
 	c.touchedFiles[configPath] = true
@@ -72,8 +97,8 @@ func (c *configParser) recursiveReadJSON(configPath string) (decodedObject map[s
 	c.includeStack.Push(configPath)
 	defer c.includeStack.Pop()
 
-	var f *os.File
-	if f, err = os.Open(configPath); err != nil {
+	var f file
+	if f, err = c.open(configPath); err != nil {
 		return nil, fmt.Errorf("Failed to open config: %v", err)
 	}
 	defer f.Close()
@@ -102,19 +127,19 @@ func (c *configParser) recursiveReadJSON(configPath string) (decodedObject map[s
 	return decodedObject, nil
 }
 
-type expanderFunc func(c *configParser, v []interface{}) (interface{}, error)
+type expanderFunc func(c *ConfigParser, v []interface{}) (interface{}, error)
 
 func namedExpander(name string) (expanderFunc, bool) {
 	switch name {
 	case "_env":
-		return expanderFunc((*configParser).expandEnv), true
+		return expanderFunc((*ConfigParser).expandEnv), true
 	case "_fileobj":
-		return expanderFunc((*configParser).expandFile), true
+		return expanderFunc((*ConfigParser).expandFile), true
 	}
 	return nil, false
 }
 
-func (c *configParser) evalValue(v interface{}) (interface{}, error) {
+func (c *ConfigParser) evalValue(v interface{}) (interface{}, error) {
 	sl, ok := v.([]interface{})
 	if !ok {
 		return v, nil
@@ -138,7 +163,7 @@ func (c *configParser) evalValue(v interface{}) (interface{}, error) {
 	return v, nil
 }
 
-func (c *configParser) evaluateExpressions(m map[string]interface{}) error {
+func (c *ConfigParser) evaluateExpressions(m map[string]interface{}) error {
 	for k, ei := range m {
 		switch subval := ei.(type) {
 		case string:
@@ -170,7 +195,7 @@ func (c *configParser) evaluateExpressions(m map[string]interface{}) error {
 // Permit either:
 //    ["_env", "VARIABLE"] (required to be set)
 // or ["_env", "VARIABLE", "default_value"]
-func (c *configParser) expandEnv(v []interface{}) (interface{}, error) {
+func (c *ConfigParser) expandEnv(v []interface{}) (interface{}, error) {
 	hasDefault := false
 	def := ""
 	if len(v) < 1 || len(v) > 2 {
@@ -214,7 +239,7 @@ func (c *configParser) expandEnv(v []interface{}) (interface{}, error) {
 	return expanded, err
 }
 
-func (c *configParser) expandFile(v []interface{}) (exp interface{}, err error) {
+func (c *ConfigParser) expandFile(v []interface{}) (exp interface{}, err error) {
 	if len(v) != 1 {
 		return "", fmt.Errorf("_file expansion expected 1 arg, got %d", len(v))
 	}
