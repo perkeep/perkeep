@@ -384,7 +384,7 @@ func NewFileMap(fileName string) map[string]interface{} {
 }
 
 func NewCommonFilenameMap(fileName string) map[string]interface{} {
-	m := newCamliMap(1, "" /* no type yet */ )
+	m := newCamliMap(1, "" /* no type yet */)
 	if fileName != "" {
 		lastSlash := strings.LastIndex(fileName, "/")
 		baseName := fileName[lastSlash+1:]
@@ -397,12 +397,20 @@ func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	return m
 }
 
+var populateSchemaStat []func(schemaMap map[string]interface{}, fi os.FileInfo)
+
 func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
 	m := NewCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
-	if fi.Mode() & os.ModeSymlink != 0 {
+	if fi.Mode()&os.ModeSymlink != 0 {
 		m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
 	}
+
+	// OS-specific population; defined in schema_posix.go, etc. (not on App Engine)
+	for _, f := range populateSchemaStat {
+		f(m, fi)
+	}
+
 	/**
 	 TODO-GO1(bradfitz): this will need to do fi.Sys().(*syscall....), but
 	 syscall can't run on App Engine, so will need build context tags for
@@ -427,7 +435,7 @@ func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
 	*/
 	if mtime := fi.ModTime(); !mtime.IsZero() {
 		m["unixMtime"] = RFC3339FromTime(mtime)
-        }
+	}
 	return m
 }
 
