@@ -28,6 +28,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -386,8 +387,7 @@ func NewFileMap(fileName string) map[string]interface{} {
 func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	m := newCamliMap(1, "" /* no type yet */)
 	if fileName != "" {
-		lastSlash := strings.LastIndex(fileName, "/")
-		baseName := fileName[lastSlash+1:]
+		baseName := filepath.Base(fileName)
 		if utf8.ValidString(baseName) {
 			m["fileName"] = baseName
 		} else {
