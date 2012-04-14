@@ -6,6 +6,7 @@ package schema
 import (
 	"os"
 	"syscall"
+	"time"
 )
 
 var _ = syscall.Close
@@ -27,13 +28,12 @@ func populateSchemaUnix(m map[string]interface{}, fi os.FileInfo) {
 	if group := getGroupFromGid(int(st.Gid)); group != "" {
 		m["unixGroup"] = group
 	}
-	/**
-	TODO-GO1(bradfitz): port this too.
 
 	// Include the ctime too, if it differs.
-	if ctime := fi.Ctime_ns; ctime != 0 && fi.ModTime() != fi.Ctime_ns {
+	sec, nsec := st.Ctim.Unix()
+	println("ctime", sec, nsec)
+	ctime := time.Unix(sec, nsec)
+	if sec != 0 && !ctime.Equal(fi.ModTime()) {
 		m["unixCtime"] = RFC3339FromTime(ctime)
 	}
-	*/
-
 }
