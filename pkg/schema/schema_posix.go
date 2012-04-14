@@ -31,7 +31,6 @@ func populateSchemaUnix(m map[string]interface{}, fi os.FileInfo) {
 
 	// Include the ctime too, if it differs.
 	sec, nsec := st.Ctim.Unix()
-	println("ctime", sec, nsec)
 	ctime := time.Unix(sec, nsec)
 	if sec != 0 && !ctime.Equal(fi.ModTime()) {
 		m["unixCtime"] = RFC3339FromTime(ctime)
