@@ -133,6 +133,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if c.rollSplits {
 		up.rollSplits = true
 	}
+
 	for _, filename := range args {
 		lastPut, err = up.UploadFile(filename)
 		if handleResult("file", lastPut, err) != nil {

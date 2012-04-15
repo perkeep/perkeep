@@ -110,7 +110,28 @@ type Uploader struct {
 	statCache UploadCache
 	haveCache HaveCache
 
+	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
+
 	filecapc chan bool
+}
+
+func (up *Uploader) stat(path string) (os.FileInfo, error) {
+	if up.fs == nil {
+		return os.Stat(path)
+	}
+	f, err := up.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return f.Stat()
+}
+
+func (up *Uploader) open(path string) (http.File, error) {
+	if up.fs == nil {
+		return os.Open(path)
+	}
+	return up.fs.Open(path)
 }
 
 func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err error) {
@@ -146,14 +167,14 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, error) {
 		ref = blobref.FromHash("sha1", s1)
 		body = io.LimitReader(bytes.NewBuffer(file), size)
 	} else {
-		fi, err := os.Stat(filename)
+		fi, err := up.stat(filename)
 		if err != nil {
 			return nil, err
 		}
 		if fi.Mode()&os.ModeType != 0 {
 			return nil, fmt.Errorf("%q is not a regular file", filename)
 		}
-		file, err := os.Open(filename)
+		file, err := up.open(filename)
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +239,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	case !fi.IsDir():
 		m["camliType"] = "file"
 
-		file, err := os.Open(filename)
+		file, err := up.open(filename)
 		if err != nil {
 			return nil, err
 		}
@@ -251,15 +272,19 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		}
 	case fi.IsDir():
 		ss := new(schema.StaticSet)
-		dir, err := os.Open(filename)
+		dir, err := up.open(filename)
 		if err != nil {
 			return nil, err
 		}
-		dirNames, err := dir.Readdirnames(-1)
+		var dirNames []string
+		fis, err := dir.Readdir(-1)
 		if err != nil {
 			return nil, err
 		}
 		dir.Close()
+		for _, fi := range fis {
+			dirNames = append(dirNames, fi.Name())
+		}
 		sort.Strings(dirNames)
 
 		// Temporarily give up our upload token while we
@@ -286,7 +311,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 			for _, name := range dirNames {
 				rate <- true
 				go func(dirEntName string) {
-					pr, err := up.UploadFile(filename+"/"+dirEntName)
+					pr, err := up.UploadFile(filename + "/" + dirEntName)
 					if pr == nil && err == nil {
 						log.Fatalf("nil/nil from up.UploadFile on %q", filename+"/"+dirEntName)
 					}
