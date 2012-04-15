@@ -128,7 +128,24 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 	}
 	if c.diskUsage {
-		return fmt.Errorf("TODO: implement diskUsage mode")
+		if len(args) != 1 {
+			return fmt.Errorf("The --du flag can only be used with exactly one directory argument")
+		}
+		dir := args[0]
+		fi, err := up.stat(dir)
+		if err != nil {
+			return err
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("%q is not a directory.", dir)
+		}
+		t := up.StartTreeUpload(dir)
+		pr, err := t.Wait()
+		if err != nil {
+			return err
+		}
+		handleResult("tree-upload", pr, err)
+		return nil
 	}
 	if c.rollSplits {
 		up.rollSplits = true
