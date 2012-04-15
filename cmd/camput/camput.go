@@ -183,7 +183,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		fallthrough
 	default:
 		return nil, schema.ErrUnimplemented
-	case !fi.IsDir():
+	case mode&os.ModeType == 0: // regular file
 		m["camliType"] = "file"
 
 		file, err := up.open(filename)
