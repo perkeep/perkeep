@@ -40,7 +40,7 @@ type fileCmd struct {
 
 	makePermanode bool
 	rollSplits    bool
-	diskUsage bool // show "du" disk usage only (dry run mode), don't actually upload
+	diskUsage     bool // show "du" disk usage only (dry run mode), don't actually upload
 
 	havecache, statcache bool
 

@@ -150,7 +150,7 @@ func (c *initCmd) RunCommand(_ *Uploader, args []string) error {
 	if f, err := os.OpenFile(client.ConfigFilePath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
 		m := make(map[string]interface{})
-		m["keyId"] = keyId // TODO(bradfitz): make this 'identity' to match server config?
+		m["keyId"] = keyId                    // TODO(bradfitz): make this 'identity' to match server config?
 		m["publicKeyBlobref"] = bref.String() // TODO(bradfitz): not used anymore?
 		m["blobServer"] = "http://localhost:3179/"
 		m["selfPubKeyDir"] = blobDir

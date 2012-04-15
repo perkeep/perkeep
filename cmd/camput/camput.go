@@ -500,7 +500,7 @@ func makeUploader() *Uploader {
 		Client:    cc,
 		transport: transport,
 		pwd:       pwd,
-		filecapc:  make(chan bool, 10 /* TODO: config option on max files at a time */ ),
+		filecapc:  make(chan bool, 10 /* TODO: config option on max files at a time */),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
