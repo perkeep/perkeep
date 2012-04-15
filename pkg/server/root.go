@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -28,10 +29,6 @@ import (
 type RootHandler struct {
 	// Don't advertise anything to non-authenticated clients.
 	Stealth bool
-
-	// Show a setup link?
-	// TODO: figure out details of when/how this will work
-	OfferSetup bool
 }
 
 func init() {
@@ -44,8 +41,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	if err = conf.Validate(); err != nil {
 		return
 	}
-	// TODO(mpl): figure out the condition for that
-	root.OfferSetup = true
+
 	return root, nil
 }
 
@@ -53,8 +49,9 @@ func (rh *RootHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	if rh.Stealth {
 		return
 	}
+
 	configLink := ""
-	if rh.OfferSetup {
+	if auth.LocalhostAuthorized(req) {
 		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
 	}
 	fmt.Fprintf(conn,

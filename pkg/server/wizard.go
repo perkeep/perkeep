@@ -18,12 +18,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 
+	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -147,7 +149,13 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 }
 
 func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// TODO(mpl): do the auth checking. see the localtcp story
+	if !auth.LocalhostAuthorized(req) {
+		fmt.Fprintf(rw,
+			"<html><body>Setup only allowed from localhost"+
+				"<p><a href='/'>Back</a></p>"+
+				"</body></html>\n")
+		return
+	}
 	if req.Method == "POST" {
 		handleSetupChange(req, rw)
 		return

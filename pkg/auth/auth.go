@@ -177,6 +177,10 @@ func localhostAuthorized(req *http.Request) bool {
 	return false
 }
 
+func LocalhostAuthorized(req *http.Request) bool {
+	return localhostAuthorized(req)
+}
+
 func (da *DevAuth) IsAuthorized(req *http.Request) bool {
 	// First see if the local TCP port is owned by the same
 	// non-root user as this server.
