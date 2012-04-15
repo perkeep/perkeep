@@ -202,6 +202,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	up.getUploadToken()
 	defer up.releaseUploadToken()
 
+	// TODO(bradfitz): use VFS here.
 	fi, err := os.Lstat(filename)
 	if err != nil {
 		return nil, err
@@ -224,6 +225,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	mode := fi.Mode()
 	switch {
 	case mode&os.ModeSymlink != 0:
+		// TODO(bradfitz): use VFS here; PopulateSymlinkMap uses os.Readlink directly.
 		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
 			return nil, err
 		}
