@@ -130,8 +130,11 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if c.diskUsage {
 		return fmt.Errorf("TODO: implement diskUsage mode")
 	}
+	if c.rollSplits {
+		up.rollSplits = true
+	}
 	for _, filename := range args {
-		lastPut, err = up.UploadFile(filename, c.rollSplits)
+		lastPut, err = up.UploadFile(filename)
 		if handleResult("file", lastPut, err) != nil {
 			return err
 		}

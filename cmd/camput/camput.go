@@ -96,6 +96,8 @@ type HaveCache interface {
 type Uploader struct {
 	*client.Client
 
+	rollSplits bool // rolling checksum file splitting
+
 	// for debugging; normally nil, but overrides Client if set
 	// TODO(bradfitz): clean this up? embed a StatReceiver instead
 	// of a Client?
@@ -175,7 +177,7 @@ func (up *Uploader) releaseUploadToken() {
 	<-up.filecapc
 }
 
-func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.PutResult, outerr error) {
+func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {
 	up.getUploadToken()
 	defer up.releaseUploadToken()
 
@@ -231,7 +233,7 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 		}
 
 		schemaWriteFileMap := schema.WriteFileMap
-		if rollSplits {
+		if up.rollSplits {
 			schemaWriteFileMap = schema.WriteFileMapRolling
 		}
 		blobref, err := schemaWriteFileMap(statReceiver, m, io.LimitReader(file, fi.Size()))
@@ -284,7 +286,7 @@ func (up *Uploader) UploadFile(filename string, rollSplits bool) (respr *client.
 			for _, name := range dirNames {
 				rate <- true
 				go func(dirEntName string) {
-					pr, err := up.UploadFile(filename+"/"+dirEntName, rollSplits)
+					pr, err := up.UploadFile(filename+"/"+dirEntName)
 					if pr == nil && err == nil {
 						log.Fatalf("nil/nil from up.UploadFile on %q", filename+"/"+dirEntName)
 					}
