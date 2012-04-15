@@ -26,7 +26,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -113,6 +115,11 @@ type Uploader struct {
 	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
 
 	filecapc chan bool
+}
+
+func (up *Uploader) lstat(path string) (os.FileInfo, error) {
+	// TODO(bradfitz): use VFS
+	return os.Lstat(path)
 }
 
 func (up *Uploader) stat(path string) (os.FileInfo, error) {
@@ -202,8 +209,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	up.getUploadToken()
 	defer up.releaseUploadToken()
 
-	// TODO(bradfitz): use VFS here.
-	fi, err := os.Lstat(filename)
+	fi, err := up.lstat(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -359,70 +365,169 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	return mappr, err
 }
 
-func (up *Uploader) StartTreeUpload(path string) *TreeUpload {
+// StartTreeUpload begins uploading dir and all its children.
+func (up *Uploader) StartTreeUpload(dir string) *TreeUpload {
 	t := &TreeUpload{
-		base:  path,
+		base:  dir,
 		up:    up,
 		donec: make(chan bool),
+		errc:  make(chan error, 1),
+		statc: make(chan *node, buffered),
 	}
-	go t.start()
+	go t.run()
 	return t
 }
 
 type node struct {
+	tu       *TreeUpload
+	fullPath string
 	fi       os.FileInfo
 	children []*node
+}
+
+func (n *node) numDeps() (v int64) {
+	v = 1
+	for _, c := range n.children {
+		v += c.numDeps()
+	}
+	return
 }
 
 type stats struct {
 	files, bytes int64
 }
 
+/*
+A TreeUpload holds the state of an ongoing recursive directory tree
+upload.  Call Wait to get the final result.
+
+Uploading a directory tree involves several concurrent processes, each
+which may involve multiple goroutines:
+
+1) one process stats all files and walks all directories as fast as possible
+   to calculate how much total work there will be.  this goroutine also
+   filters out directories to be skipped. (caches, temp files, skipDirs, etc)
+
+ 2) one process works though the files that were discovered and checks
+    the statcache to see what actually needs to be uploaded.
+    The statcache is
+        full path => {last os.FileInfo signature, put result from last time}
+    and is used to avoid re-reading/digesting the file even locally,
+    trusting that it's already on the server.
+
+ 3) one process uploads files & metadata.  This process checks the "havecache"
+    to see which blobs are already on the server.  For awhile the local havecache
+    (if configured) and the remote blobserver "stat" RPC are raced to determine
+    if the local havecache is even faster. If not, it's not consulted. But if the
+    latency of remote stats is high enough, checking locally is preferred.
+*/
 type TreeUpload struct {
-	base  string
+	// Immutable:
+	base  string // base directory
 	up    *Uploader
-	donec chan bool
+	statc chan *node // from stat-the-world goroutine to run()
+
+	donec chan bool // closed when run() finishes; no values sent
 	err   error
+	errc  chan error // with 1 buffer item
 
+	// Owned by run goroutine:
 	total, toUpload, uploaded stats
-
-	statc chan *node
 }
 
-func (t *TreeUpload) start() {
+// fi is optional (will be statted if nil)
+func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err error) {
+	defer func() {
+		if err == nil && nod != nil {
+			t.statc <- nod
+		}
+	}()
+	if fi == nil {
+		fi, err = t.up.lstat(fullPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	n := &node{
+		tu:       t,
+		fullPath: fullPath,
+		fi:       fi,
+	}
+	if !fi.IsDir() {
+		return n, nil
+	}
+	f, err := t.up.open(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	fis, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	for _, fi := range fis {
+		depn, err := t.statPath(filepath.Join(fullPath, filepath.Base(fi.Name())), fi)
+		if err != nil {
+			return nil, err
+		}
+		n.children = append(n.children, depn)
+	}
+	return n, nil
+}
+
+func (t *TreeUpload) receiveStats() {
+}
+
+func (t *TreeUpload) run() {
 	defer close(t.donec)
-	t.err = fmt.Errorf("TODO: implement")
+	t.err = fmt.Errorf("TODO: finish implementing")
 
-	t.statc = make(chan *node, buffered)
+	// Start the stats.
+	go func() {
+		_, err := t.statPath(t.base, nil)
+		close(t.statc)
+		if err != nil {
+			t.err = err
+			return
+		}
+	}()
 
-	/*
-		Plan:
-			in one goroutine, walk/stat all files as fast as possible
-			(parallel stats/readdirs) and calculate stats / full tree in
-			memory. (future: optional for huge trees?). this one should
-			finish first, but might still take minutes and the other
-			network-bound goroutines should start immediately.
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-			other goroutine calculates which files/dirs need to be
-			uploaded based on the stat cache (not yet digesting the files
-			and doing splits, that would cause that work to be done twice,
-			and it might change in the meantime) for regular files, the
-			stat cache is:
-
-			  path => {last fileinfo size/modtime, put result from last time}
-
-			final goroutine(s) do the actual uploads.
-
-			The idea is that the user can see (console / web) three
-		        progress bars: 1) statting the world and getting one upper
-		        bound on time/bytes/counts, then 2) revised (likely lower)
-		        upper bound on actual counts to upload, and then 3) uploads in
-		        progress.
-	*/
+	var lastPath string
+	statc := t.statc
+	dumpStats := func() {
+		log.Printf("Total: %+v  last: %s", t.total, lastPath)
+	}
+	for {
+		select {
+		case n, ok := <-statc:
+			if !ok {
+				log.Printf("done stattting.")
+				statc = nil
+				continue
+			}
+			lastPath = n.fullPath
+			t.total.files++
+			if !n.fi.IsDir() {
+				t.total.bytes += n.fi.Size()
+			}
+		case <-ticker.C:
+			dumpStats()
+		}
+	}
 }
 
 func (t *TreeUpload) Wait() (*client.PutResult, error) {
 	<-t.donec
+	// If an error is waiting and we don't otherwise have one, use it:
+	if t.err == nil {
+		select {
+		case t.err = <-t.errc:
+		default:
+		}
+	}
 	return nil, t.err
 }
 
