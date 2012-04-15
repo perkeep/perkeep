@@ -40,6 +40,7 @@ type fileCmd struct {
 
 	makePermanode bool
 	rollSplits    bool
+	diskUsage bool // show "du" disk usage only (dry run mode), don't actually upload
 
 	havecache, statcache bool
 
@@ -59,6 +60,7 @@ func init() {
 		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
 		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
+		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
 		flags.StringVar(&cmd.histo, "debug-histogram-file", "", "File where to print the histogram of the blob sizes. Requires debug-memstats.")
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
@@ -125,7 +127,9 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 			return fmt.Errorf("Uploading permanode: %v", err)
 		}
 	}
-
+	if c.diskUsage {
+		return fmt.Errorf("TODO: implement diskUsage mode")
+	}
 	for _, filename := range args {
 		lastPut, err = up.UploadFile(filename, c.rollSplits)
 		if handleResult("file", lastPut, err) != nil {
