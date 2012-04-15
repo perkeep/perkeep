@@ -387,15 +387,6 @@ func (up *Uploader) UploadNewPermanode() (*client.PutResult, error) {
 	return up.UploadAndSignMap(unsigned)
 }
 
-func sumSet(flags ...*bool) (count int) {
-	for _, f := range flags {
-		if *f {
-			count++
-		}
-	}
-	return
-}
-
 type namedMode struct {
 	Name    string
 	Command CommandRunner
