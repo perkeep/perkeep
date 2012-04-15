@@ -17,11 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
+	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
 )
 
@@ -42,13 +46,28 @@ func (c *blobCmd) RunCommand(up *Uploader, args []string) error {
 		return errors.New("No files given.")
 	}
 
-	var (
-		err error
-		put *client.PutResult
-	)
-
 	for _, arg := range args {
-		put, err = up.UploadFileBlob(arg)
+		if arg == "-" {
+			var buf bytes.Buffer
+			size, err := io.Copy(&buf, os.Stdin)
+			if err != nil {
+				return err
+			}
+			// TODO(bradfitz,mpl): limit this buffer size?
+			file := buf.Bytes()
+			s1 := sha1.New()
+			size, err = io.Copy(s1, &buf)
+			if err != nil {
+				return err
+			}
+			ref := blobref.FromHash("sha1", s1)
+			body := io.LimitReader(bytes.NewReader(file), size)
+			handle := &client.UploadHandle{ref, size, body}
+			put, err := up.Upload(handle)
+			handleResult("blob", put, err)
+			continue
+		}
+		put, err := up.UploadFileBlob(arg)
 		handleResult("blob", put, err)
 	}
 	return nil

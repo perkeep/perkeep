@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"errors"
 	"flag"
@@ -152,47 +151,23 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 }
 
 func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, error) {
-	var (
-		err  error
-		size int64
-		ref  *blobref.BlobRef
-		body io.Reader
-	)
-	if filename == "-" {
-		buf := bytes.NewBuffer(make([]byte, 0))
-		size, err = io.Copy(buf, os.Stdin)
-		if err != nil {
-			return nil, err
-		}
-		// TODO(bradfitz,mpl): limit this buffer size?
-		file := buf.Bytes()
-		s1 := sha1.New()
-		size, err = io.Copy(s1, buf)
-		if err != nil {
-			return nil, err
-		}
-		ref = blobref.FromHash("sha1", s1)
-		body = io.LimitReader(bytes.NewBuffer(file), size)
-	} else {
-		fi, err := up.stat(filename)
-		if err != nil {
-			return nil, err
-		}
-		if fi.Mode()&os.ModeType != 0 {
-			return nil, fmt.Errorf("%q is not a regular file", filename)
-		}
-		file, err := up.open(filename)
-		if err != nil {
-			return nil, err
-		}
-		ref, size, err = blobDetails(file)
-		if err != nil {
-			return nil, err
-		}
-		file.Seek(0, 0)
-		body = io.LimitReader(file, size)
+	fi, err := up.stat(filename)
+	if err != nil {
+		return nil, err
 	}
-
+	if fi.Mode()&os.ModeType != 0 {
+		return nil, fmt.Errorf("%q is not a regular file", filename)
+	}
+	file, err := up.open(filename)
+	if err != nil {
+		return nil, err
+	}
+	ref, size, err := blobDetails(file)
+	if err != nil {
+		return nil, err
+	}
+	file.Seek(0, 0)
+	body := io.LimitReader(file, size)
 	handle := &client.UploadHandle{ref, size, body}
 	return up.Upload(handle)
 }
