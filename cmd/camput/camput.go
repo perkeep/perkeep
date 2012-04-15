@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
@@ -138,38 +137,6 @@ func (up *Uploader) open(path string) (http.File, error) {
 		return os.Open(path)
 	}
 	return up.fs.Open(path)
-}
-
-func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err error) {
-	s1 := sha1.New()
-	contents.Seek(0, 0)
-	size, err = io.Copy(s1, contents)
-	if err == nil {
-		bref = blobref.FromHash("sha1", s1)
-	}
-	return
-}
-
-func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, error) {
-	fi, err := up.stat(filename)
-	if err != nil {
-		return nil, err
-	}
-	if fi.Mode()&os.ModeType != 0 {
-		return nil, fmt.Errorf("%q is not a regular file", filename)
-	}
-	file, err := up.open(filename)
-	if err != nil {
-		return nil, err
-	}
-	ref, size, err := blobDetails(file)
-	if err != nil {
-		return nil, err
-	}
-	file.Seek(0, 0)
-	body := io.LimitReader(file, size)
-	handle := &client.UploadHandle{ref, size, body}
-	return up.Upload(handle)
 }
 
 func (up *Uploader) getUploadToken() {
