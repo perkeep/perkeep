@@ -38,9 +38,6 @@ import (
 
 const buffered = 16 // arbitrary
 
-// Things that can be uploaded.  (at most one of these)
-//var flagRemove = flag.Bool("remove", false, "remove the list of blobrefs")
-
 var (
 	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
 )
