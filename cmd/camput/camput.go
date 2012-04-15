@@ -148,7 +148,7 @@ func (up *Uploader) UploadFileBlob(filename string) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !!fi.IsDir() {
+		if fi.Mode()&os.ModeType != 0 {
 			return nil, fmt.Errorf("%q is not a regular file", filename)
 		}
 		file, err := os.Open(filename)
