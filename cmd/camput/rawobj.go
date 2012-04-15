@@ -68,7 +68,7 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("raw-object-signed", put, err)
 		return err
 	}
-	cj, err := schema.MapToCamliJson(m)
+	cj, err := schema.MapToCamliJSON(m)
 	if err != nil {
 		return err
 	}

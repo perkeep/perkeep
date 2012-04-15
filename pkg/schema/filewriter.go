@@ -88,7 +88,7 @@ func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r 
 		return nil, err
 	}
 
-	json, err := MapToCamliJson(fileMap)
+	json, err := MapToCamliJSON(fileMap)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interfac
 		if err != nil {
 			return nil, err
 		}
-		json, err := MapToCamliJson(m)
+		json, err := MapToCamliJSON(m)
 		if err != nil {
 			return nil, err
 		}

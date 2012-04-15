@@ -245,7 +245,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		// wrapper type that can track some of this?  or that
 		// updates the client stats directly or something.
 		{
-			json, _ := schema.MapToCamliJson(m)
+			json, _ := schema.MapToCamliJSON(m)
 			pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
 			return pr, nil
 		}
@@ -340,7 +340,7 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
 	}
 
 	m["camliSigner"] = camliSigBlobref.String()
-	unsigned, err := schema.MapToCamliJson(m)
+	unsigned, err := schema.MapToCamliJSON(m)
 	if err != nil {
 		return "", err
 	}
@@ -353,7 +353,7 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
 }
 
 func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, error) {
-	json, err := schema.MapToCamliJson(m)
+	json, err := schema.MapToCamliJSON(m)
 	if err != nil {
 		return nil, err
 	}

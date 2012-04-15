@@ -361,7 +361,7 @@ func (ss *StaticSet) Map() map[string]interface{} {
 	return m
 }
 
-func MapToCamliJson(m map[string]interface{}) (string, error) {
+func MapToCamliJSON(m map[string]interface{}) (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
 		return "", ErrNoCamliVersion
