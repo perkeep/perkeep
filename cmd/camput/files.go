@@ -138,27 +138,27 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		if handleResult("file", lastPut, err) != nil {
 			return err
 		}
+	}
 
-		if permaNode != nil {
-			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
-			if handleResult("claim-permanode-content", put, err) != nil {
-				return err
-			}
-			if c.name != "" {
-				put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
-				handleResult("claim-permanode-name", put, err)
-			}
-			if c.tag != "" {
-				tags := strings.Split(c.tag, ",")
-				m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
-				for _, tag := range tags {
-					m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-					put, err := up.UploadAndSignMap(m)
-					handleResult("claim-permanode-tag", put, err)
-				}
-			}
-			handleResult("permanode", permaNode, nil)
+	if permaNode != nil {
+		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
+		if handleResult("claim-permanode-content", put, err) != nil {
+			return err
 		}
+		if c.name != "" {
+			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
+			handleResult("claim-permanode-name", put, err)
+		}
+		if c.tag != "" {
+			tags := strings.Split(c.tag, ",")
+			m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
+			for _, tag := range tags {
+				m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+				put, err := up.UploadAndSignMap(m)
+				handleResult("claim-permanode-tag", put, err)
+			}
+		}
+		handleResult("permanode", permaNode, nil)
 	}
 	return nil
 }
