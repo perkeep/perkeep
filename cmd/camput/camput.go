@@ -450,9 +450,6 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 	return n, nil
 }
 
-func (t *TreeUpload) receiveStats() {
-}
-
 func (t *TreeUpload) run() {
 	defer close(t.donec)
 	t.err = fmt.Errorf("TODO: finish implementing")
