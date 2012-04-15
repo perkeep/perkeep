@@ -361,6 +361,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 
 func (up *Uploader) StartTreeUpload(path string) *TreeUpload {
 	t := &TreeUpload{
+		base:  path,
 		up:    up,
 		donec: make(chan bool),
 	}
@@ -368,42 +369,61 @@ func (up *Uploader) StartTreeUpload(path string) *TreeUpload {
 	return t
 }
 
+type node struct {
+	fi       os.FileInfo
+	children []*node
+}
+
+type stats struct {
+	files, bytes int64
+}
+
 type TreeUpload struct {
+	base  string
 	up    *Uploader
 	donec chan bool
+	err   error
+
+	total, toUpload, uploaded stats
+
+	statc chan *node
 }
 
 func (t *TreeUpload) start() {
 	defer close(t.donec)
+	t.err = fmt.Errorf("TODO: implement")
+
+	t.statc = make(chan *node, buffered)
+
 	/*
-Plan:
-	in one goroutine, walk/stat all files as fast as possible
-	(parallel stats/readdirs) and calculate stats / full tree in
-	memory. (future: optional for huge trees?). this one should
-	finish first, but might still take minutes and the other
-	network-bound goroutines should start immediately.
+		Plan:
+			in one goroutine, walk/stat all files as fast as possible
+			(parallel stats/readdirs) and calculate stats / full tree in
+			memory. (future: optional for huge trees?). this one should
+			finish first, but might still take minutes and the other
+			network-bound goroutines should start immediately.
 
-	other goroutine calculates which files/dirs need to be
-	uploaded based on the stat cache (not yet digesting the files
-	and doing splits, that would cause that work to be done twice,
-	and it might change in the meantime) for regular files, the
-	stat cache is:
+			other goroutine calculates which files/dirs need to be
+			uploaded based on the stat cache (not yet digesting the files
+			and doing splits, that would cause that work to be done twice,
+			and it might change in the meantime) for regular files, the
+			stat cache is:
 
-	  path => {last fileinfo size/modtime, put result from last time}
+			  path => {last fileinfo size/modtime, put result from last time}
 
-	final goroutine(s) do the actual uploads.
+			final goroutine(s) do the actual uploads.
 
-	The idea is that the user can see (console / web) three
-        progress bars: 1) statting the world and getting one upper
-        bound on time/bytes/counts, then 2) revised (likely lower)
-        upper bound on actual counts to upload, and then 3) uploads in
-        progress.
-	 */
+			The idea is that the user can see (console / web) three
+		        progress bars: 1) statting the world and getting one upper
+		        bound on time/bytes/counts, then 2) revised (likely lower)
+		        upper bound on actual counts to upload, and then 3) uploads in
+		        progress.
+	*/
 }
 
 func (t *TreeUpload) Wait() (*client.PutResult, error) {
 	<-t.donec
-	return nil, fmt.Errorf("TODO: implement")
+	return nil, t.err
 }
 
 func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
