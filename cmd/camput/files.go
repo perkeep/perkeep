@@ -139,7 +139,9 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		if !fi.IsDir() {
 			return fmt.Errorf("%q is not a directory.", dir)
 		}
-		t := up.StartTreeUpload(dir)
+		t := up.NewTreeUpload(dir)
+		t.DiskUsageMode = true
+		t.Start()
 		pr, err := t.Wait()
 		if err != nil {
 			return err

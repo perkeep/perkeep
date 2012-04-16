@@ -307,16 +307,18 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 }
 
 // StartTreeUpload begins uploading dir and all its children.
-func (up *Uploader) StartTreeUpload(dir string) *TreeUpload {
-	t := &TreeUpload{
+func (up *Uploader) NewTreeUpload(dir string) *TreeUpload {
+	return &TreeUpload{
 		base:  dir,
 		up:    up,
 		donec: make(chan bool, 1),
 		errc:  make(chan error, 1),
 		statc: make(chan *node, buffered),
 	}
+}
+
+func (t *TreeUpload) Start() {
 	go t.run()
-	return t
 }
 
 type node struct {
@@ -345,6 +347,16 @@ func (n *node) numDeps() (v int64) {
 	v = 1
 	for _, c := range n.children {
 		v += c.numDeps()
+	}
+	return
+}
+
+func (n *node) SumBytes() (v int64) {
+	for _, c := range n.children {
+		v += c.SumBytes()
+	}
+	if n.fi.Mode()&os.ModeType == 0 {
+		v += n.fi.Size()
 	}
 	return
 }
@@ -385,6 +397,11 @@ which may involve multiple goroutines:
     latency of remote stats is high enough, checking locally is preferred.
 */
 type TreeUpload struct {
+	// If DiskUsageMode is set true before Start, only
+	// per-directory disk usage stats are output, like the "du"
+	// command.
+	DiskUsageMode bool
+
 	// Immutable:
 	base  string // base directory
 	up    *Uploader
@@ -533,6 +550,8 @@ func (w *nodeWorker) work() {
 	}
 }
 
+var printMu sync.Mutex
+
 func (t *TreeUpload) run() {
 	go t.statWorld()
 
@@ -540,6 +559,14 @@ func (t *TreeUpload) run() {
 	upload := NewNodeWorker(5, func(n *node, ok bool) {
 		if !ok {
 			log.Printf("done with all uploads.")
+			return
+		}
+		if t.DiskUsageMode {
+			if n.fi.IsDir() {
+				printMu.Lock()
+				defer printMu.Unlock()
+				fmt.Printf("%d\t%s\n", n.SumBytes()>>10, n.fullPath)
+			}
 			return
 		}
 		uploadedc <- n
@@ -550,7 +577,11 @@ func (t *TreeUpload) run() {
 			close(upload)
 			return
 		}
-		upload <- n
+		if t.DiskUsageMode {
+			upload <- n
+			return
+		}
+		panic("TODO: implement")
 	})
 
 	ticker := time.NewTicker(500 * time.Millisecond)
