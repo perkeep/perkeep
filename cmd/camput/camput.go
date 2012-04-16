@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"container/list"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -309,7 +311,7 @@ func (up *Uploader) StartTreeUpload(dir string) *TreeUpload {
 	t := &TreeUpload{
 		base:  dir,
 		up:    up,
-		donec: make(chan bool),
+		donec: make(chan bool, 1),
 		errc:  make(chan error, 1),
 		statc: make(chan *node, buffered),
 	}
@@ -322,6 +324,21 @@ type node struct {
 	fullPath string
 	fi       os.FileInfo
 	children []*node
+
+	// cond (and its &mu Lock) guard err and res.
+	cond sync.Cond // with L being &mu
+	mu   sync.Mutex
+	err  error
+	res  *client.PutResult
+}
+
+func (n *node) PutResult() (*client.PutResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for n.err == nil && n.res == nil {
+		n.cond.Wait()
+	}
+	return n.res, n.err
 }
 
 func (n *node) numDeps() (v int64) {
@@ -334,6 +351,13 @@ func (n *node) numDeps() (v int64) {
 
 type stats struct {
 	files, bytes int64
+}
+
+func (s *stats) incr(n *node) {
+	s.files++
+	if !n.fi.IsDir() {
+		s.bytes += n.fi.Size()
+	}
 }
 
 /*
@@ -366,12 +390,13 @@ type TreeUpload struct {
 	up    *Uploader
 	statc chan *node // from stat-the-world goroutine to run()
 
-	donec chan bool // closed when run() finishes; no values sent
+	donec chan bool // closed when run() finishes
 	err   error
 	errc  chan error // with 1 buffer item
 
 	// Owned by run goroutine:
 	total, toUpload, uploaded stats
+	finalPutRes               *client.PutResult // set after run() returns
 }
 
 // fi is optional (will be statted if nil)
@@ -392,6 +417,8 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 		fullPath: fullPath,
 		fi:       fi,
 	}
+	n.cond.L = &n.mu
+
 	if !fi.IsDir() {
 		return n, nil
 	}
@@ -414,19 +441,117 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 	return n, nil
 }
 
-func (t *TreeUpload) run() {
+// statWorld stats everything (generating work for the other
+// processes), then waits on the final (root) node to be done, and
+// closes t.donec.
+//
+// t.err and t.finalPutRes are populated.
+func (t *TreeUpload) statWorld() {
 	defer close(t.donec)
-	t.err = fmt.Errorf("TODO: finish implementing")
+	rootNode, err := t.statPath(t.base, nil)
+	close(t.statc)
+	if err != nil {
+		t.err = err
+		return
+	}
+	log.Printf("Waiting on root node %q", rootNode.fullPath)
+	t.finalPutRes, err = rootNode.PutResult()
+	log.Printf("Waited on root node %q: %v", rootNode.fullPath, t.finalPutRes)
+	if err != nil {
+		t.err = err
+	}
+	t.donec <- true
+}
 
-	// Start the stats.
+type nodeWorker struct {
+	c chan *node
+
+	donec chan bool
+	workc chan *node
+	fn    func(n *node, ok bool)
+	buf   *list.List
+}
+
+// NewNodeWorker starts nWorkers goroutines running fn on incoming
+// nodes sent on the returned channel.  fn may block; writes to the
+// channel will buffer.
+func NewNodeWorker(nWorkers int, fn func(n *node, ok bool)) chan<- *node {
+	w := &nodeWorker{
+		c:     make(chan *node, buffered),
+		workc: make(chan *node, buffered),
+		donec: make(chan bool), // when workers finish
+		fn:    fn,
+		buf:   list.New(),
+	}
+	go w.pump()
+	for i := 0; i < nWorkers; i++ {
+		go w.work()
+	}
 	go func() {
-		_, err := t.statPath(t.base, nil)
-		close(t.statc)
-		if err != nil {
-			t.err = err
+		for i := 0; i < nWorkers; i++ {
+			<-w.donec
+		}
+		fn(nil, false) // final sentinel
+	}()
+	return w.c
+}
+
+func (w *nodeWorker) pump() {
+	inc := w.c
+	for inc != nil || w.buf.Len() > 0 {
+		outc := w.workc
+		var frontNode *node
+		if e := w.buf.Front(); e != nil {
+			frontNode = e.Value.(*node)
+		} else {
+			outc = nil
+		}
+		select {
+		case outc <- frontNode:
+			w.buf.Remove(w.buf.Front())
+		case n, ok := <-inc:
+			if !ok {
+				inc = nil
+				continue
+			}
+			w.buf.PushBack(n)
+		}
+	}
+	close(w.workc)
+}
+
+func (w *nodeWorker) work() {
+	for {
+		select {
+		case n, ok := <-w.workc:
+			if !ok {
+				w.donec <- true
+				return
+			}
+			w.fn(n, true)
+		}
+	}
+}
+
+func (t *TreeUpload) run() {
+	go t.statWorld()
+
+	uploadedc := make(chan *node, buffered) // for stats/progress
+	upload := NewNodeWorker(5, func(n *node, ok bool) {
+		if !ok {
+			log.Printf("done with all uploads.")
 			return
 		}
-	}()
+		uploadedc <- n
+	})
+
+	checkStatCache := NewNodeWorker(10, func(n *node, ok bool) {
+		if !ok {
+			close(upload)
+			return
+		}
+		upload <- n
+	})
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -434,21 +559,25 @@ func (t *TreeUpload) run() {
 	var lastPath string
 	statc := t.statc
 	dumpStats := func() {
-		log.Printf("Total: %+v  last: %s", t.total, lastPath)
+		log.Printf("Total: %+v  Uploaded: %+v  last: %s", t.total, t.uploaded, lastPath)
 	}
 	for {
 		select {
+		case <-t.donec:
+			dumpStats()
+			return
+		case n := <-uploadedc:
+			t.uploaded.incr(n)
 		case n, ok := <-statc:
 			if !ok {
 				log.Printf("done stattting.")
+				close(checkStatCache)
 				statc = nil
 				continue
 			}
 			lastPath = n.fullPath
-			t.total.files++
-			if !n.fi.IsDir() {
-				t.total.bytes += n.fi.Size()
-			}
+			t.total.incr(n)
+			checkStatCache <- n
 		case <-ticker.C:
 			dumpStats()
 		}
@@ -464,7 +593,10 @@ func (t *TreeUpload) Wait() (*client.PutResult, error) {
 		default:
 		}
 	}
-	return nil, t.err
+	if t.err == nil && t.finalPutRes == nil {
+		panic("Nothing ever set t.finalPutRes, but no error set")
+	}
+	return t.finalPutRes, t.err
 }
 
 func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
