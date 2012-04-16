@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strconv"
+	"strings"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
@@ -46,22 +46,58 @@ func newSetupFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	return wizard, nil
 }
 
+func printJson(i interface{}) (s string) {
+	switch ei := i.(type) {
+	case jsonconfig.Obj:
+		s = "{"
+		for k, v := range map[string]interface{}(ei) {
+			s += `"` + k + `": ` + printJson(v) + ", "
+		}
+		s = strings.TrimRight(s, ", ")
+		s += "}"
+	case map[string]interface{}:
+		s = "{"
+		for k, v := range ei {
+			s += `"` + k + `": ` + printJson(v) + ", "
+		}
+		s = strings.TrimRight(s, ", ")
+		s += "}"
+	case []interface{}:
+		s = "["
+		for _, v := range ei {
+			s += printJson(v) + ", "
+		}
+		s = strings.TrimRight(s, ", ")
+		s += "]"
+	case string:
+		return fmt.Sprintf(`"%v"`, i)
+	default:
+		return fmt.Sprintf(`%v`, i)
+	}
+	return s
+}
+
 func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
+	// TODO(mpl): deal with null values 
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
 		httputil.ServerError(rw, err)
 		return
 	}
 
+	funcMap := template.FuncMap{
+		"printJson": printJson,
+	}
+
 	body := `<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">`
-	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printf "%v" $v}}"><br />{{end}}`
+	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printJson $v}}"><br />{{end}}`
 	body += `<input type="submit" form="WizardForm" value="Save"></form>`
 
 	if hasChanged {
 		body += `<p> Configuration succesfully rewritten </p>`
 	}
 
-	tmpl, err := template.New("wizard").Parse(topWizard + body + bottomWizard)
+	tmpl, err := template.New("wizard").Funcs(funcMap).Parse(topWizard + body + bottomWizard)
 	if err != nil {
 		httputil.ServerError(rw, err)
 		return
@@ -100,41 +136,29 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 		return
 	}
 
-	hasChanged := false
+	jsonBytes := []byte("{")
 	for k, v := range req.Form {
 		if _, ok := hilevelConf[k]; !ok {
 			continue
 		}
+		s := `"` + k + `": ` + v[0] + ","
+		jsonBytes = append(jsonBytes, []byte(s)...)
+	}
+	jsonBytes[len(jsonBytes)-1] = '}'
+	obj := map[string]interface{}{}
+	err = json.Unmarshal(jsonBytes, &obj)
+	if err != nil {
+		httputil.ServerError(rw, err)
+		return
+	}
 
-		// TODO(mpl): this only works for single elements (so it actually fails for
-		// replicateTo already because it's supposed to be an array).
-		// so the question is:
-		// Do we allow the high level conf file to get more complicated than that?
-		// i.e, do we allow some fields to be arrays, maps, etc? it looks like we need
-		// that at least for replicateTo, which is an empty array for now. So, we could
-		// 1) only allow fields to be simple elements (bools, ints, or strings), but that 
-		// limits the user's possibilities with that wizard
-		// 2) or allow input fields to be valid json syntax so the user can input arrays
-		// and such. But then it's not such a userfriendly wizard anymore.
-		// 3) lose the genericity and expect the type depending on the key. i.e, I know
-		// I'm supposed to get an array for replicateTo, so I know I'm supposed to get a
-		// comma, or space, or whatever separated list of elements in that field.
-		// 3) something else altogether?
-		var el interface{}
-		if b, err := strconv.ParseBool(v[0]); err == nil {
-			el = b
-		} else {
-			if i, err := strconv.ParseInt(v[0], 0, 32); err == nil {
-				el = i
-			} else {
-				el = v[0]
-			}
-		}
-		if reflect.DeepEqual(hilevelConf[k], el) {
+	hasChanged := false
+	for k, v := range obj {
+		if reflect.DeepEqual(hilevelConf[k], v) {
 			continue
 		}
 		hasChanged = true
-		hilevelConf[k] = el
+		hilevelConf[k] = v
 	}
 
 	if hasChanged {
