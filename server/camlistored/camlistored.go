@@ -185,7 +185,6 @@ func generateNewSecRing(filename string) (keyId string, err error) {
 	return ent.PrimaryKey.KeyIdShortString(), nil
 }
 
-// TODO: "auth": "localtcp". See http://code.google.com/p/camlistore/issues/detail?id=50
 func newDefaultConfigFile(path string) error {
 	conf :=
 		`{
