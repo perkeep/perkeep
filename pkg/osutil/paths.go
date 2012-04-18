@@ -31,7 +31,10 @@ func HomeDir() string {
 }
 
 func CacheDir() string {
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(HomeDir(), "Library", "Caches", "Camlistore")
+	case "windows":
 		panic("CacheDir not implemented on OS == " + runtime.GOOS)
 	}
 	return filepath.Join(HomeDir(), ".cache")
