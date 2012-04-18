@@ -47,7 +47,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/s3"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
-	_ "camlistore.org/pkg/index"    // base indexer + in-memory dev index
+	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
 
@@ -304,6 +304,12 @@ func main() {
 			// Might be double-clicking an icon with no shell window?
 			// Just open the URL for them.
 			osutil.OpenURL(uiURL)
+		}
+	}
+	if *flagConfigFile == "" {
+		err = osutil.OpenURL(baseURL)
+		if err != nil {
+			log.Printf("Failed to open %s in browser: %v", baseURL, err)
 		}
 	}
 	ws.Serve()
