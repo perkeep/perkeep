@@ -556,10 +556,14 @@ func (t *TreeUpload) run() {
 	go t.statWorld()
 
 	uploadedc := make(chan *node, buffered) // for stats/progress
-	upload := NewNodeWorker(5, func(n *node, ok bool) {
+	uploadWorkers := 5
+	if t.DiskUsageMode {
+		uploadWorkers = 1
+	}
+	upload := NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
 		if !ok {
 			log.Printf("done with all uploads.")
-			return
+			os.Exit(0)
 		}
 		if t.DiskUsageMode {
 			if n.fi.IsDir() {
