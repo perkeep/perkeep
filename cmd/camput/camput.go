@@ -332,6 +332,8 @@ type node struct {
 	mu   sync.Mutex
 	err  error
 	res  *client.PutResult
+
+	sumBytes int64 // cached value, if non-zero. also guarded by mu.
 }
 
 func (n *node) PutResult() (*client.PutResult, error) {
@@ -343,21 +345,19 @@ func (n *node) PutResult() (*client.PutResult, error) {
 	return n.res, n.err
 }
 
-func (n *node) numDeps() (v int64) {
-	v = 1
-	for _, c := range n.children {
-		v += c.numDeps()
-	}
-	return
-}
-
 func (n *node) SumBytes() (v int64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sumBytes != 0 {
+		return n.sumBytes
+	}
 	for _, c := range n.children {
 		v += c.SumBytes()
 	}
 	if n.fi.Mode()&os.ModeType == 0 {
 		v += n.fi.Size()
 	}
+	n.sumBytes = v
 	return
 }
 
