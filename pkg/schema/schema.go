@@ -17,7 +17,6 @@ limitations under the License.
 package schema
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
@@ -411,28 +410,6 @@ func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
 		f(m, fi)
 	}
 
-	/**
-	 TODO-GO1(bradfitz): this will need to do fi.Sys().(*syscall....), but
-	 syscall can't run on App Engine, so will need build context tags for
-	 safe/unsafe and seperate helper files?
-
-	if fi.Uid != -1 {
-		m["unixOwnerId"] = fi.Uid
-		if user := getUserFromUid(fi.Uid); user != "" {
-			m["unixOwner"] = user
-		}
-	}
-	if fi.Gid != -1 {
-		m["unixGroupId"] = fi.Gid
-		if group := getGroupFromGid(fi.Gid); group != "" {
-			m["unixGroup"] = group
-		}
-	}
-	// Include the ctime too, if it differs.
-	if ctime := fi.Ctime_ns; ctime != 0 && fi.ModTime() != fi.Ctime_ns {
-		m["unixCtime"] = RFC3339FromTime(ctime)
-	}
-	*/
 	if mtime := fi.ModTime(); !mtime.IsZero() {
 		m["unixMtime"] = RFC3339FromTime(mtime)
 	}
@@ -530,7 +507,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]in
 const ShareHaveRef = "haveref"
 
 func RFC3339FromTime(t time.Time) string {
-	// TODO-GO1: this is now needless complex after the gofix
+	// TODO-GO1: this is now needlessly complex after the gofix
 	// and signature change.
 	epochnanos := t.UnixNano()
 	nanos := epochnanos % 1e9
@@ -565,48 +542,4 @@ func NanosFromRFC3339(timestr string) int64 {
 	}
 	nanos, _ := strconv.ParseInt(nanostr, 10, 64)
 	return t.Unix()*1e9 + nanos
-}
-
-func populateMap(m map[int]string, file string) {
-	f, err := os.Open(file)
-	if err != nil {
-		return
-	}
-	bufr := bufio.NewReader(f)
-	for {
-		line, err := bufr.ReadString('\n')
-		if err != nil {
-			return
-		}
-		parts := strings.SplitN(line, ":", 4)
-		if len(parts) >= 3 {
-			idstr := parts[2]
-			id, err := strconv.Atoi(idstr)
-			if err == nil {
-				m[id] = parts[0]
-			}
-		}
-	}
-}
-
-var uidToUsernameMap map[int]string
-var getUserFromUidOnce sync.Once
-
-func getUserFromUid(uid int) string {
-	getUserFromUidOnce.Do(func() {
-		uidToUsernameMap = make(map[int]string)
-		populateMap(uidToUsernameMap, "/etc/passwd")
-	})
-	return uidToUsernameMap[uid]
-}
-
-var gidToUsernameMap map[int]string
-var getGroupFromGidOnce sync.Once
-
-func getGroupFromGid(uid int) string {
-	getGroupFromGidOnce.Do(func() {
-		gidToUsernameMap = make(map[int]string)
-		populateMap(gidToUsernameMap, "/etc/group")
-	})
-	return gidToUsernameMap[uid]
 }
