@@ -207,7 +207,9 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 
 	mappr, err := up.UploadMap(m)
 	if err == nil {
-		vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, n.fullPath)
+		if !mappr.Skipped {
+			vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, n.fullPath)
+		}
 	} else {
 		vlog.Printf("Error uploading map %v: %v", m, err)
 	}
@@ -351,8 +353,11 @@ type TreeUpload struct {
 	errc  chan error // with 1 buffer item
 
 	// Owned by run goroutine:
-	total, toUpload, uploaded stats
-	finalPutRes               *client.PutResult // set after run() returns
+	total    stats // total bytes on disk
+	skipped  stats // not even tried to upload (trusting stat cache)
+	uploaded stats // uploaded (even if server said it already had it and bytes weren't sent)
+
+	finalPutRes *client.PutResult // set after run() returns
 }
 
 // fi is optional (will be statted if nil)
@@ -396,27 +401,6 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 		n.children = append(n.children, depn)
 	}
 	return n, nil
-}
-
-// statWorld stats everything (generating work for the other
-// processes), then waits on the final (root) node to be done, and
-// closes t.donec.
-//
-// t.err and t.finalPutRes are populated.
-func (t *TreeUpload) statWorld() {
-	defer close(t.donec)
-	rootNode, err := t.statPath(t.base, nil)
-	close(t.stattedc)
-	if err != nil {
-		t.err = err
-		return
-	}
-	log.Printf("Waiting on root node %q", rootNode.fullPath)
-	t.finalPutRes, err = rootNode.PutResult()
-	log.Printf("Waited on root node %q: %v", rootNode.fullPath, t.finalPutRes)
-	if err != nil {
-		t.err = err
-	}
 }
 
 type nodeWorker struct {
@@ -489,56 +473,89 @@ func (w *nodeWorker) work() {
 	}
 }
 
-var printMu sync.Mutex
+const uploadWorkers = 5
 
 func (t *TreeUpload) run() {
-	go t.statWorld()
+	defer close(t.donec)
+
+	// Kick off scanning all files, eventually learning the root
+	// node (which references all its children).
+	var root *node // nil until received and set in loop below.
+	rootc := make(chan *node, 1)
+	go func() {
+		n, err := t.statPath(t.base, nil)
+		if err != nil {
+			log.Fatalf("Error scanning files under %s: %v", t.base, err)
+		}
+		close(t.stattedc)
+		rootc <- n
+	}()
 
 	var lastStat, lastUpload string
 	dumpStats := func() {
-		log.Printf("Total: %+v  Uploaded: %+v  last stat: %s last upload: %s", t.total, t.uploaded, lastStat, lastUpload)
+		statStatus := ""
+		if root == nil {
+			statStatus = fmt.Sprintf("last stat: %s", lastStat)
+		}
+		log.Printf("Total: %+v Skipped: %+v Uploaded: %+v %s last upload: %s", t.total, t.skipped, t.uploaded, statStatus, lastUpload)
 	}
 
-	uploadedc := make(chan *node, buffered) // for stats/progress
-	uploadWorkers := 5
+	// Channels for stats & progress bars. These are never closed:
+	uploadedc := make(chan *node) // at least tried to upload; server might have had blob
+	skippedc := make(chan *node)  // didn't even hit blobserver; trusted our stat cache
+
+	uploadsdonec := make(chan bool)
+	var upload chan<- *node
 	if t.DiskUsageMode {
-		uploadWorkers = 1
-	}
-	upload := NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
-		if !ok {
-			log.Printf("done with all uploads.")
-			return
-		}
-		if t.DiskUsageMode {
+		upload = NewNodeWorker(1, func(n *node, ok bool) {
+			if !ok {
+				uploadsdonec <- true
+				return
+			}
 			if n.fi.IsDir() {
-				printMu.Lock()
-				defer printMu.Unlock()
 				fmt.Printf("%d\t%s\n", n.SumBytes()>>10, n.fullPath)
 			}
-			return
-		}
-
-		put, err := t.up.uploadNode(n)
-		if err != nil {
-			log.Fatalf("Error uploading %s: %v", n.fullPath, err)
-		}
-		n.SetPutResult(put, nil)
-		uploadedc <- n
-	})
+		})
+	} else {
+		upload = NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
+			if !ok {
+				log.Printf("done with all uploads.")
+				uploadsdonec <- true
+				return
+			}
+			put, err := t.up.uploadNode(n)
+			if err != nil {
+				log.Fatalf("Error uploading %s: %v", n.fullPath, err)
+			}
+			n.SetPutResult(put, nil)
+			if c := t.up.statCache; c != nil && !n.fi.IsDir() {
+				c.AddCachedPutResult(t.up.pwd, n.fullPath, n.fi, put)
+			}
+			uploadedc <- n
+		})
+	}
 
 	checkStatCache := NewNodeWorker(10, func(n *node, ok bool) {
 		if !ok {
+			if t.up.statCache != nil {
+				log.Printf("done checking stat cache")
+			}
 			close(upload)
 			return
 		}
 		if t.DiskUsageMode || t.up.statCache == nil {
+			log.Printf("skip cache check %v, %v", t.DiskUsageMode, t.up.statCache)
 			upload <- n
 			return
 		}
-		cachedRes, err := t.up.statCache.CachedPutResult(t.up.pwd, n.fullPath, n.fi)
-		if err == nil {
-			cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
-			return
+		if !n.fi.IsDir() {
+			cachedRes, err := t.up.statCache.CachedPutResult(t.up.pwd, n.fullPath, n.fi)
+			if err == nil {
+				n.SetPutResult(cachedRes, nil)
+				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
+				skippedc <- n
+				return
+			}
 		}
 		upload <- n
 	})
@@ -547,15 +564,18 @@ func (t *TreeUpload) run() {
 	defer ticker.Stop()
 
 	stattedc := t.stattedc
+Loop:
 	for {
 		select {
-		case <-t.donec:
-			log.Printf("tree upload finished. final stats:")
-			dumpStats()
-			return
+		case <-uploadsdonec:
+			break Loop
+		case n := <-rootc:
+			root = n
 		case n := <-uploadedc:
 			t.uploaded.incr(n)
 			lastUpload = n.fullPath
+		case n := <-skippedc:
+			t.skipped.incr(n)
 		case n, ok := <-stattedc:
 			if !ok {
 				log.Printf("done stattting:")
@@ -570,6 +590,20 @@ func (t *TreeUpload) run() {
 		case <-ticker.C:
 			dumpStats()
 		}
+	}
+
+	log.Printf("tree upload finished. final stats:")
+	dumpStats()
+
+	if root == nil {
+		panic("unexpected nil root node")
+	}
+	var err error
+	log.Printf("Waiting on root node %q", root.fullPath)
+	t.finalPutRes, err = root.PutResult()
+	log.Printf("Waited on root node %q: %v", root.fullPath, t.finalPutRes)
+	if err != nil {
+		t.err = err
 	}
 }
 

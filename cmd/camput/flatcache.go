@@ -76,9 +76,8 @@ func NewFlatStatCache() *FlatStatCache {
 			}
 			val.Result.Skipped = true
 			fc.m[key] = val
-			log.Printf("Read %q: %v", key, val)
 		}
-		log.Printf("Flatcache read %d entries from %s", len(fc.m), filename)
+		vlog.Printf("Flatcache read %d entries from %s", len(fc.m), filename)
 	}
 	return fc
 }
@@ -90,6 +89,9 @@ var ErrCacheMiss = errors.New("not in cache")
 // filename may be relative.
 // returns ErrCacheMiss on miss
 func cacheKey(pwd, filename string) string {
+	if filepath.IsAbs(filename) {
+		return filepath.Clean(filename)
+	}
 	return filepath.Join(pwd, filename)
 }
 
