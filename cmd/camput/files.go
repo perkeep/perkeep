@@ -56,8 +56,8 @@ func init() {
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
 
-		flags.BoolVar(&cmd.havecache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-		flags.BoolVar(&cmd.statcache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+		flags.BoolVar(&cmd.statcache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+		flags.BoolVar(&cmd.havecache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
 		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
