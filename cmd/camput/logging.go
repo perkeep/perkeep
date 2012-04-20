@@ -25,16 +25,16 @@ type Logger interface {
 }
 
 type flagLogger struct {
-	on *bool
+	flagPtr **bool
 }
 
 var flagCacheLog *bool
 
-var vlog = &flagLogger{flagVerbose}
-var cachelog = &flagLogger{flagCacheLog}
+var vlog = &flagLogger{&flagVerbose}
+var cachelog = &flagLogger{&flagCacheLog}
 
 func (fl *flagLogger) Printf(format string, args ...interface{}) {
-	if fl.on != nil && *fl.on {
+	if fl.flagPtr != nil && **fl.flagPtr {
 		log.Printf(format, args...)
 	}
 }
