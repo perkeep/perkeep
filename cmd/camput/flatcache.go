@@ -24,15 +24,28 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/osutil"
 )
 
+type statFingerprint struct {
+	Size    int64
+	ModTime time.Time
+	// TODO: add ctime, etc
+}
+
+func fileInfoToFingerprint(fi os.FileInfo) (f statFingerprint) {
+	f.Size = fi.Size()
+	f.ModTime = fi.ModTime()
+	return
+}
+
 type fileInfoPutRes struct {
-	Fi os.FileInfo
-	Pr client.PutResult
+	Fingerprint statFingerprint
+	Result      client.PutResult
 }
 
 // FlatStatCache is an ugly hack, until leveldb-go is ready
@@ -61,7 +74,7 @@ func NewFlatStatCache() *FlatStatCache {
 			if d.Decode(&key) != nil || d.Decode(&val) != nil {
 				break
 			}
-			val.Pr.Skipped = true
+			val.Result.Skipped = true
 			fc.m[key] = val
 			log.Printf("Read %q: %v", key, val)
 		}
@@ -77,12 +90,14 @@ var ErrCacheMiss = errors.New("not in cache")
 // filename may be relative.
 // returns ErrCacheMiss on miss
 func cacheKey(pwd, filename string) string {
-	return filepath.Clean(pwd) + "\x00" + filepath.Clean(filename)
+	return filepath.Join(pwd, filename)
 }
 
 func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*client.PutResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	fp := fileInfoToFingerprint(fi)
 
 	key := cacheKey(pwd, filename)
 	val, ok := c.m[key]
@@ -90,11 +105,11 @@ func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*
 		cachelog.Printf("cache MISS on %q: not in cache", key)
 		return nil, ErrCacheMiss
 	}
-	if !reflect.DeepEqual(&val.Fi, fi) {
-		cachelog.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fi, fi)
+	if !reflect.DeepEqual(val.Fingerprint, fp) {
+		cachelog.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fingerprint, fp)
 		return nil, ErrCacheMiss
 	}
-	pr := val.Pr
+	pr := val.Result
 	return &pr, nil
 }
 
@@ -102,7 +117,7 @@ func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo,
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := cacheKey(pwd, filename)
-	val := fileInfoPutRes{fi, *pr}
+	val := fileInfoPutRes{fileInfoToFingerprint(fi), *pr}
 
 	cachelog.Printf("Adding to stat cache %q: %v", key, val)
 
