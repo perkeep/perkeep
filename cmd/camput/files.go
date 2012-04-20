@@ -154,7 +154,13 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	for _, filename := range args {
-		lastPut, err = up.UploadFile(filename)
+		if fi, err := os.Stat(filename); err == nil && fi.IsDir() {
+			t := up.NewTreeUpload(filename)
+			t.Start()
+			lastPut, err = t.Wait()
+		} else {
+			lastPut, err = up.UploadFile(filename)
+		}
 		if handleResult("file", lastPut, err) != nil {
 			return err
 		}

@@ -110,8 +110,6 @@ type Uploader struct {
 	haveCache HaveCache
 
 	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
-
-	filecapc chan bool
 }
 
 func (up *Uploader) lstat(path string) (os.FileInfo, error) {
@@ -138,42 +136,14 @@ func (up *Uploader) open(path string) (http.File, error) {
 	return up.fs.Open(path)
 }
 
-func (up *Uploader) getUploadToken() {
-	up.filecapc <- true
-}
-
-func (up *Uploader) releaseUploadToken() {
-	<-up.filecapc
-}
-
-func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {
-	up.getUploadToken()
-	defer up.releaseUploadToken()
-
-	fi, err := up.lstat(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	if up.statCache != nil && !fi.IsDir() {
-		cachedRes, err := up.statCache.CachedPutResult(up.pwd, filename, fi)
-		if err == nil {
-			cachelog.Printf("Cache HIT on %q -> %v", filename, cachedRes)
-			return cachedRes, nil
-		}
-		defer func() {
-			if respr != nil && outerr == nil {
-				up.statCache.AddCachedPutResult(up.pwd, filename, fi, respr)
-			}
-		}()
-	}
-
-	m := schema.NewCommonFileMap(filename, fi)
+func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
+	fi := n.fi
+	m := schema.NewCommonFileMap(n.fullPath, fi)
 	mode := fi.Mode()
 	switch {
 	case mode&os.ModeSymlink != 0:
 		// TODO(bradfitz): use VFS here; PopulateSymlinkMap uses os.Readlink directly.
-		if err = schema.PopulateSymlinkMap(m, filename); err != nil {
+		if err := schema.PopulateSymlinkMap(m, n.fullPath); err != nil {
 			return nil, err
 		}
 	case mode&os.ModeDevice != 0:
@@ -188,7 +158,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 	case mode&os.ModeType == 0: // regular file
 		m["camliType"] = "file"
 
-		file, err := up.open(filename)
+		file, err := up.open(n.fullPath)
 		if err != nil {
 			return nil, err
 		}
@@ -221,75 +191,13 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		}
 	case fi.IsDir():
 		ss := new(schema.StaticSet)
-		dir, err := up.open(filename)
-		if err != nil {
-			return nil, err
-		}
-		var dirNames []string
-		fis, err := dir.Readdir(-1)
-		if err != nil {
-			return nil, err
-		}
-		dir.Close()
-		for _, fi := range fis {
-			dirNames = append(dirNames, fi.Name())
-		}
-		sort.Strings(dirNames)
-
-		// Temporarily give up our upload token while we
-		// process all our children.  The defer function makes
-		// sure we re-acquire it (keeping balance in the
-		// world) before we return.
-		up.releaseUploadToken()
-		tokenTookBack := false
-		defer func() {
-			if !tokenTookBack {
-				up.getUploadToken()
+		for _, c := range n.children {
+			pr, err := c.PutResult()
+			if err != nil {
+				return nil, fmt.Errorf("Error populating directory static set for child %q: %v", c.fullPath, err)
 			}
-		}()
-
-		rate := make(chan bool, 100) // max outstanding goroutines, further limited by filecapc
-		type nameResult struct {
-			name   string
-			putres *client.PutResult
-			err    error
+			ss.Add(pr.BlobRef)
 		}
-
-		resc := make(chan nameResult, buffered)
-		go func() {
-			for _, name := range dirNames {
-				rate <- true
-				go func(dirEntName string) {
-					pr, err := up.UploadFile(filename + "/" + dirEntName)
-					if pr == nil && err == nil {
-						log.Fatalf("nil/nil from up.UploadFile on %q", filename+"/"+dirEntName)
-					}
-					resc <- nameResult{dirEntName, pr, err}
-					<-rate
-				}(name)
-			}
-		}()
-		resm := make(map[string]*client.PutResult)
-		var entUploadErr error
-		for _ = range dirNames {
-			r := <-resc
-			if r.err != nil {
-				entUploadErr = fmt.Errorf("error uploading %s: %v", r.name, r.err)
-				continue
-			}
-			resm[r.name] = r.putres
-		}
-		if entUploadErr != nil {
-			return nil, entUploadErr
-		}
-		for _, name := range dirNames {
-			ss.Add(resm[name].BlobRef)
-		}
-
-		// Re-acquire the upload token that we temporarily yielded up above.
-		up.getUploadToken()
-		tokenTookBack = true
-
 		sspr, err := up.UploadMap(ss.Map())
 		if err != nil {
 			return nil, err
@@ -299,21 +207,38 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 
 	mappr, err := up.UploadMap(m)
 	if err == nil {
-		vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, filename)
+		vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, n.fullPath)
 	} else {
 		vlog.Printf("Error uploading map %v: %v", m, err)
 	}
 	return mappr, err
+
+}
+
+func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {
+	fi, err := up.lstat(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if fi.IsDir() {
+		panic("must use UploadTree now for directories")
+	}
+	n := &node{
+		fullPath: filename, // TODO(bradfitz): resolve this to an abspath
+		fi:       fi,
+	}
+	return up.uploadNode(n)
 }
 
 // StartTreeUpload begins uploading dir and all its children.
 func (up *Uploader) NewTreeUpload(dir string) *TreeUpload {
 	return &TreeUpload{
-		base:  dir,
-		up:    up,
-		donec: make(chan bool, 1),
-		errc:  make(chan error, 1),
-		statc: make(chan *node, buffered),
+		base:     dir,
+		up:       up,
+		donec:    make(chan bool, 1),
+		errc:     make(chan error, 1),
+		stattedc: make(chan *node, buffered),
 	}
 }
 
@@ -322,7 +247,7 @@ func (t *TreeUpload) Start() {
 }
 
 type node struct {
-	tu       *TreeUpload
+	tu       *TreeUpload // nil if not doing a tree upload
 	fullPath string
 	fi       os.FileInfo
 	children []*node
@@ -334,6 +259,20 @@ type node struct {
 	res  *client.PutResult
 
 	sumBytes int64 // cached value, if non-zero. also guarded by mu.
+}
+
+func (n *node) String() string {
+	if n == nil {
+		return "<nil *node>"
+	}
+	return fmt.Sprintf("[node %s, isDir=%v, nchild=%d]", n.fullPath, n.fi.IsDir(), len(n.children))
+}
+
+func (n *node) SetPutResult(res *client.PutResult, err error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.res, n.err = res, err
+	n.cond.Signal()
 }
 
 func (n *node) PutResult() (*client.PutResult, error) {
@@ -403,9 +342,9 @@ type TreeUpload struct {
 	DiskUsageMode bool
 
 	// Immutable:
-	base  string // base directory
-	up    *Uploader
-	statc chan *node // from stat-the-world goroutine to run()
+	base     string // base directory
+	up       *Uploader
+	stattedc chan *node // from stat-the-world goroutine to run()
 
 	donec chan bool // closed when run() finishes
 	err   error
@@ -420,7 +359,7 @@ type TreeUpload struct {
 func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err error) {
 	defer func() {
 		if err == nil && nod != nil {
-			t.statc <- nod
+			t.stattedc <- nod
 		}
 	}()
 	if fi == nil {
@@ -448,6 +387,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 	if err != nil {
 		return nil, err
 	}
+	sort.Sort(byFileName(fis))
 	for _, fi := range fis {
 		depn, err := t.statPath(filepath.Join(fullPath, filepath.Base(fi.Name())), fi)
 		if err != nil {
@@ -466,7 +406,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 func (t *TreeUpload) statWorld() {
 	defer close(t.donec)
 	rootNode, err := t.statPath(t.base, nil)
-	close(t.statc)
+	close(t.stattedc)
 	if err != nil {
 		t.err = err
 		return
@@ -477,7 +417,6 @@ func (t *TreeUpload) statWorld() {
 	if err != nil {
 		t.err = err
 	}
-	t.donec <- true
 }
 
 type nodeWorker struct {
@@ -555,6 +494,11 @@ var printMu sync.Mutex
 func (t *TreeUpload) run() {
 	go t.statWorld()
 
+	var lastStat, lastUpload string
+	dumpStats := func() {
+		log.Printf("Total: %+v  Uploaded: %+v  last stat: %s last upload: %s", t.total, t.uploaded, lastStat, lastUpload)
+	}
+
 	uploadedc := make(chan *node, buffered) // for stats/progress
 	uploadWorkers := 5
 	if t.DiskUsageMode {
@@ -563,7 +507,7 @@ func (t *TreeUpload) run() {
 	upload := NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
 		if !ok {
 			log.Printf("done with all uploads.")
-			os.Exit(0)
+			return
 		}
 		if t.DiskUsageMode {
 			if n.fi.IsDir() {
@@ -573,6 +517,12 @@ func (t *TreeUpload) run() {
 			}
 			return
 		}
+
+		put, err := t.up.uploadNode(n)
+		if err != nil {
+			log.Fatalf("Error uploading %s: %v", n.fullPath, err)
+		}
+		n.SetPutResult(put, nil)
 		uploadedc <- n
 	})
 
@@ -581,36 +531,40 @@ func (t *TreeUpload) run() {
 			close(upload)
 			return
 		}
-		if t.DiskUsageMode {
+		if t.DiskUsageMode || t.up.statCache == nil {
 			upload <- n
 			return
 		}
-		panic("TODO: implement")
+		cachedRes, err := t.up.statCache.CachedPutResult(t.up.pwd, n.fullPath, n.fi)
+		if err == nil {
+			cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
+			return
+		}
+		upload <- n
 	})
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	var lastPath string
-	statc := t.statc
-	dumpStats := func() {
-		log.Printf("Total: %+v  Uploaded: %+v  last: %s", t.total, t.uploaded, lastPath)
-	}
+	stattedc := t.stattedc
 	for {
 		select {
 		case <-t.donec:
+			log.Printf("tree upload finished. final stats:")
 			dumpStats()
 			return
 		case n := <-uploadedc:
 			t.uploaded.incr(n)
-		case n, ok := <-statc:
+			lastUpload = n.fullPath
+		case n, ok := <-stattedc:
 			if !ok {
-				log.Printf("done stattting.")
+				log.Printf("done stattting:")
+				dumpStats()
 				close(checkStatCache)
-				statc = nil
+				stattedc = nil
 				continue
 			}
-			lastPath = n.fullPath
+			lastStat = n.fullPath
 			t.total.incr(n)
 			checkStatCache <- n
 		case <-ticker.C:
@@ -795,7 +749,6 @@ func makeUploader() *Uploader {
 		Client:    cc,
 		transport: transport,
 		pwd:       pwd,
-		filecapc:  make(chan bool, 10 /* TODO: config option on max files at a time */),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
 		},
@@ -823,6 +776,12 @@ func Save() {
 	}
 	saveHooks = nil
 }
+
+type byFileName []os.FileInfo
+
+func (s byFileName) Len() int           { return len(s) }
+func (s byFileName) Less(i, j int) bool { return s[i].Name() < s[j].Name() }
+func (s byFileName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func main() {
 	defer Save()

@@ -186,7 +186,7 @@ func (c *FlatHaveCache) Save() {
 		cachelog.Printf("FlatHaveCache: Save, but nothing dirty")
 		return
 	}
-
+	os.Mkdir(osutil.CacheDir(), 0700)
 	f, err := os.OpenFile(c.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		log.Fatalf("FlatHaveCache OpenFile: %v", err)
