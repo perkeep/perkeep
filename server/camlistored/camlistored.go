@@ -297,20 +297,24 @@ func main() {
 
 	ws.Listen(listen)
 
+	urlOpened := false
 	if config.UIPath != "" {
 		uiURL := ws.BaseURL() + config.UIPath
 		log.Printf("UI available at %s", uiURL)
 		if runtime.GOOS == "windows" {
 			// Might be double-clicking an icon with no shell window?
 			// Just open the URL for them.
-			osutil.OpenURL(uiURL)
+			urlOpened = true
+			go osutil.OpenURL(uiURL)
 		}
 	}
-	if *flagConfigFile == "" {
-		err = osutil.OpenURL(baseURL)
-		if err != nil {
-			log.Printf("Failed to open %s in browser: %v", baseURL, err)
-		}
+	if *flagConfigFile == "" && !urlOpened {
+		go func() {
+			err := osutil.OpenURL(baseURL)
+			if err != nil {
+				log.Printf("Failed to open %s in browser: %v", baseURL, err)
+			}
+		}()
 	}
 	ws.Serve()
 }
