@@ -91,6 +91,8 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 			panic("expected partition name")
 		}
 		partitionDir := ds.blobDirectory(pname, blobRef)
+		dirLock := getDirectoryLock(partitionDir) // prevent it from being unlinked by enumerate code
+		defer dirLock.Unlock()
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
 			return
 		}

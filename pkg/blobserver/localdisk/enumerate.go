@@ -59,8 +59,13 @@ func readBlobs(opts readBlobRequest) error {
 		// remove empty blob dir if we are in a queue but not the queue root itself
 		if strings.Contains(dirFullPath, "queue-") &&
 			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
-			// ignoring error since it's most likely a race with a newly added blob
+			// Grab a lock on the directory (to make sure we're not deleting it as another
+			// blob is coming in and creating this directory), then try to delete it,
+			// but ignore any error, because it might just be a new file appearing here
+			// (in the case of the directory already existing, but not being newly made)
+			dirLock := getDirectoryLock(dirFullPath)
 			os.Remove(dirFullPath)
+			dirLock.Unlock()
 		}
 		return nil
 	}
