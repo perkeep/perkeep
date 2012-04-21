@@ -312,7 +312,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		copyResult <- err
 	}()
 
-	c.log.Printf("Uploading to URL: %s", stat.uploadUrl)
+	// TODO(bradfitz): verbosity levels. make this VLOG(2) or something. it's noisy:
+	// c.log.Printf("Uploading %s to URL: %s", blobrefStr, stat.uploadUrl)
+
 	req = c.newRequest("POST", stat.uploadUrl)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 	req.Body = ioutil.NopCloser(pipeReader)
