@@ -587,7 +587,11 @@ func (t *TreeUpload) run() {
 		if root == nil {
 			statStatus = fmt.Sprintf("last stat: %s", lastStat)
 		}
-		log.Printf("Total: %+v Skipped: %+v Uploaded: %+v %s last upload: %s", t.total, t.skipped, t.uploaded, statStatus, lastUpload)
+		blobStats := t.up.Stats()
+		log.Printf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s last upload: %s BLOBS: %s",
+			t.total, t.skipped, t.uploaded,
+			statStatus, lastUpload,
+			blobStats.String())
 	}
 
 	// Channels for stats & progress bars. These are never closed:
@@ -634,7 +638,6 @@ func (t *TreeUpload) run() {
 			return
 		}
 		if t.DiskUsageMode || t.up.statCache == nil {
-			log.Printf("skip cache check %v, %v", t.DiskUsageMode, t.up.statCache)
 			upload <- n
 			return
 		}
