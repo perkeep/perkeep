@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/gob"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -69,10 +70,21 @@ func NewFlatStatCache() *FlatStatCache {
 		defer f.Close()
 		d := gob.NewDecoder(f)
 		for {
-			var key string
-			var val fileInfoPutRes
-			if d.Decode(&key) != nil || d.Decode(&val) != nil {
+			var (
+				key string
+				val fileInfoPutRes
+				err error
+			)
+			err = d.Decode(&key)
+			if err == io.EOF {
 				break
+			}
+			if err != nil {
+				log.Fatalf("stat cache key decode error: %v", err)
+			}
+			err = d.Decode(&val)
+			if err != nil {
+				log.Fatalf("stat cache value decode error: %v", err)
 			}
 			val.Result.Skipped = true
 			fc.m[key] = val
