@@ -21,11 +21,19 @@ import (
 	"log"
 	"net/http"
 
+	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/schema"
 )
+
+// A HaveCache tracks whether a remove blobserver has a blob or not.
+// TODO(bradfitz): add a notion of a per-blobserver unique ID (reset on wipe/generation/config change).
+type HaveCache interface {
+	BlobExists(br *blobref.BlobRef) bool
+	NoteBlobExists(br *blobref.BlobRef)
+}
 
 type Uploader struct {
 	*client.Client
