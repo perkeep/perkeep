@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"container/list"
 	"errors"
 	"flag"
 	"fmt"
@@ -401,76 +400,6 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 		n.children = append(n.children, depn)
 	}
 	return n, nil
-}
-
-type nodeWorker struct {
-	c chan *node
-
-	donec chan bool
-	workc chan *node
-	fn    func(n *node, ok bool)
-	buf   *list.List
-}
-
-// NewNodeWorker starts nWorkers goroutines running fn on incoming
-// nodes sent on the returned channel.  fn may block; writes to the
-// channel will buffer.
-func NewNodeWorker(nWorkers int, fn func(n *node, ok bool)) chan<- *node {
-	w := &nodeWorker{
-		c:     make(chan *node, buffered),
-		workc: make(chan *node, buffered),
-		donec: make(chan bool), // when workers finish
-		fn:    fn,
-		buf:   list.New(),
-	}
-	go w.pump()
-	for i := 0; i < nWorkers; i++ {
-		go w.work()
-	}
-	go func() {
-		for i := 0; i < nWorkers; i++ {
-			<-w.donec
-		}
-		fn(nil, false) // final sentinel
-	}()
-	return w.c
-}
-
-func (w *nodeWorker) pump() {
-	inc := w.c
-	for inc != nil || w.buf.Len() > 0 {
-		outc := w.workc
-		var frontNode *node
-		if e := w.buf.Front(); e != nil {
-			frontNode = e.Value.(*node)
-		} else {
-			outc = nil
-		}
-		select {
-		case outc <- frontNode:
-			w.buf.Remove(w.buf.Front())
-		case n, ok := <-inc:
-			if !ok {
-				inc = nil
-				continue
-			}
-			w.buf.PushBack(n)
-		}
-	}
-	close(w.workc)
-}
-
-func (w *nodeWorker) work() {
-	for {
-		select {
-		case n, ok := <-w.workc:
-			if !ok {
-				w.donec <- true
-				return
-			}
-			w.fn(n, true)
-		}
-	}
 }
 
 const uploadWorkers = 5
