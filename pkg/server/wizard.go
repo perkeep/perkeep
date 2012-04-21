@@ -24,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
@@ -46,6 +47,19 @@ func newSetupFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	return wizard, nil
 }
 
+func jsonPrint(i interface{}) (s string) {
+	switch ei := i.(type) {
+	case []interface{}:
+		for _, v := range ei {
+			s += jsonPrint(v) + ","
+		}
+		s = strings.TrimRight(s, ",")
+	default:
+		return fmt.Sprintf("%v", i)
+	}
+	return s
+}
+
 func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
@@ -53,15 +67,19 @@ func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
 		return
 	}
 
+	funcMap := template.FuncMap{
+		"jsonPrint": jsonPrint,
+	}
+
 	body := `<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">`
-	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printf "%v" $v}}"><br />{{end}}`
+	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{jsonPrint $v}}"><br />{{end}}`
 	body += `<input type="submit" form="WizardForm" value="Save"></form>`
 
 	if hasChanged {
 		body += `<p> Configuration succesfully rewritten </p>`
 	}
 
-	tmpl, err := template.New("wizard").Parse(topWizard + body + bottomWizard)
+	tmpl, err := template.New("wizard").Funcs(funcMap).Parse(topWizard + body + bottomWizard)
 	if err != nil {
 		httputil.ServerError(rw, err)
 		return
@@ -101,34 +119,28 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 	}
 
 	hasChanged := false
+	var el interface{}
 	for k, v := range req.Form {
 		if _, ok := hilevelConf[k]; !ok {
 			continue
 		}
 
-		// TODO(mpl): this only works for single elements (so it actually fails for
-		// replicateTo already because it's supposed to be an array).
-		// so the question is:
-		// Do we allow the high level conf file to get more complicated than that?
-		// i.e, do we allow some fields to be arrays, maps, etc? it looks like we need
-		// that at least for replicateTo, which is an empty array for now. So, we could
-		// 1) only allow fields to be simple elements (bools, ints, or strings), but that 
-		// limits the user's possibilities with that wizard
-		// 2) or allow input fields to be valid json syntax so the user can input arrays
-		// and such. But then it's not such a userfriendly wizard anymore.
-		// 3) lose the genericity and expect the type depending on the key. i.e, I know
-		// I'm supposed to get an array for replicateTo, so I know I'm supposed to get a
-		// comma, or space, or whatever separated list of elements in that field.
-		// 3) something else altogether?
-		var el interface{}
-		if b, err := strconv.ParseBool(v[0]); err == nil {
-			el = b
-		} else {
-			if i, err := strconv.ParseInt(v[0], 0, 32); err == nil {
-				el = i
-			} else {
-				el = v[0]
+		switch k {
+		case "TLS":
+			b, err := strconv.ParseBool(v[0])
+			if err != nil {
+				httputil.ServerError(rw, fmt.Errorf("TLS field expects a boolean value"))
 			}
+			el = b
+		case "replicateTo":
+			els := []string{}
+			if len(v[0]) > 0 {
+				vals := strings.Split(v[0], ",")
+				els = append(els, vals...)
+			}
+			el = els
+		default:
+			el = v[0]
 		}
 		if reflect.DeepEqual(hilevelConf[k], el) {
 			continue
