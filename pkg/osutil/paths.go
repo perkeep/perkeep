@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 func HomeDir() string {
@@ -30,14 +31,25 @@ func HomeDir() string {
 	return os.Getenv("HOME")
 }
 
+var cacheDirOnce sync.Once
+
 func CacheDir() string {
+	cacheDirOnce.Do(makeCacheDir)
+	return cacheDir()
+}
+
+func cacheDir() string {
 	switch runtime.GOOS {
 	case "darwin":
 		return filepath.Join(HomeDir(), "Library", "Caches", "Camlistore")
 	case "windows":
 		panic("CacheDir not implemented on OS == " + runtime.GOOS)
 	}
-	return filepath.Join(HomeDir(), ".cache")
+	return filepath.Join(HomeDir(), ".cache", "camlistore")
+}
+
+func makeCacheDir() {
+	os.Mkdir(cacheDir(), 0700)
 }
 
 func CamliBlobRoot() string {
