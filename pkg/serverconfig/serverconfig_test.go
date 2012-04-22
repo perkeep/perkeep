@@ -116,7 +116,7 @@ func configParser() *jsonconfig.ConfigParser {
 }
 
 func testConfig(name string, t *testing.T) {
-	obj, err := configParser().ReadFile("testdata/default.json")
+	obj, err := configParser().ReadFile(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,8 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantConf, err := configParser().ReadFile("testdata/default-want.json")
+	wantFile := strings.Replace(name, ".json", "-want.json", 1)
+	wantConf, err := configParser().ReadFile(wantFile)
 	if err != nil {
 		t.Fatal(err)
 	}
