@@ -47,17 +47,71 @@ func newSetupFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	return wizard, nil
 }
 
-func jsonPrint(i interface{}) (s string) {
+func printWizard(i interface{}) (s string) {
 	switch ei := i.(type) {
+	case []string:
+		for _, v := range ei {
+			s += printWizard(v) + ","
+		}
+		s = strings.TrimRight(s, ",")
 	case []interface{}:
 		for _, v := range ei {
-			s += jsonPrint(v) + ","
+			s += printWizard(v) + ","
 		}
 		s = strings.TrimRight(s, ",")
 	default:
 		return fmt.Sprintf("%v", i)
 	}
 	return s
+}
+
+// Flatten all published entities as lists and move them at the root 
+// of the conf, to have them displayed individually by the template
+func flattenPublish(config jsonconfig.Obj) error {
+	gallery := []string{}
+	blog := []string{}
+	config["gallery"] = gallery
+	config["blog"] = blog
+	published, ok := config["publish"]
+	if !ok {
+		delete(config, "publish")
+		return nil
+	}
+	pubObj, ok := published.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("Was expecting a map[string]interface{} for \"publish\", got %T", published)
+	}
+	for k, v := range pubObj {
+		pub, ok := v.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("Was expecting a map[string]interface{} for %s, got %T", k, pub)
+		}
+		template, rootPermanode, style := "", "", ""
+		for pk, pv := range pub {
+			val, ok := pv.(string)
+			if !ok {
+				return fmt.Errorf("Was expecting a string for %s, got %T", pk, pv)
+			}
+			switch pk {
+			case "template":
+				template = val
+			case "rootPermanode":
+				rootPermanode = val
+			case "style":
+				style = val
+			default:
+				return fmt.Errorf("Unknown key %q in %s", pk, k)
+			}
+		}
+		if template == "" || rootPermanode == "" {
+			return fmt.Errorf("missing \"template\" key or "rootPermanode\" key in %s", k)
+		}
+		obj := []string{k, rootPermanode, style}
+		config[template] = obj
+	}
+
+	delete(config, "publish")
+	return nil
 }
 
 func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
@@ -67,12 +121,18 @@ func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
 		return
 	}
 
+	err = flattenPublish(config)
+	if err != nil {
+		httputil.ServerError(rw, err)
+		return
+	}
+
 	funcMap := template.FuncMap{
-		"jsonPrint": jsonPrint,
+		"printWizard": printWizard,
 	}
 
 	body := `<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">`
-	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{jsonPrint $v}}"><br />{{end}}`
+	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}"><br />{{end}}`
 	body += `<input type="submit" form="WizardForm" value="Save"></form>`
 
 	if hasChanged {
@@ -120,9 +180,12 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 
 	hasChanged := false
 	var el interface{}
+	publish := jsonconfig.Obj{}
 	for k, v := range req.Form {
 		if _, ok := hilevelConf[k]; !ok {
-			continue
+			if k != "gallery" && k != "blog" {
+				continue
+			}
 		}
 
 		switch k {
@@ -133,12 +196,32 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 			}
 			el = b
 		case "replicateTo":
-			els := []string{}
+			// TODO(mpl): figure out why it is always seen as different from the conf
+			el = []interface{}{}
 			if len(v[0]) > 0 {
+				els := []string{}
 				vals := strings.Split(v[0], ",")
 				els = append(els, vals...)
+				el = els
 			}
-			el = els
+		// TODO(mpl): "handler,rootPermanode[,style]" for each published entity for now.
+		// we will need something more readable later probably
+		case "gallery", "blog":
+			if len(v[0]) > 0 {
+				pub := strings.Split(v[0], ",")
+				if len(pub) < 2 || len(pub) > 3 {
+					// no need to fail loudly for now as we'll probably change this format
+					continue
+				}
+				handler := jsonconfig.Obj{}
+				handler["template"] = k
+				handler["rootPermanode"] = pub[1]
+				if len(pub) > 2 {
+					handler["style"] = pub[2]
+				}
+				publish[pub[0]] = handler
+			}
+			continue
 		default:
 			el = v[0]
 		}
@@ -147,6 +230,11 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 		}
 		hasChanged = true
 		hilevelConf[k] = el
+	}
+	// "publish" wasn't checked yet
+	if !reflect.DeepEqual(hilevelConf["publish"], publish) {
+		hilevelConf["publish"] = publish
+		hasChanged = true
 	}
 
 	if hasChanged {
