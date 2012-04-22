@@ -18,6 +18,7 @@ package client
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -86,15 +87,9 @@ func NewOrFail() *Client {
 	return c
 }
 
-type devNullWriter struct{}
-
-func (_ *devNullWriter) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
 func (c *Client) SetLogger(logger *log.Logger) {
 	if logger == nil {
-		c.log = log.New(&devNullWriter{}, "", 0)
+		c.log = log.New(ioutil.Discard, "", 0)
 	} else {
 		c.log = logger
 	}
