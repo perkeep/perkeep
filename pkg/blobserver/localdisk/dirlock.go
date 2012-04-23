@@ -23,35 +23,66 @@ import (
 var (
 	dirLockMu sync.Mutex // guards rest:
 	locksOut  int64
-	dirLocks  = map[string]*dirLock{}
+	dirLocks  = map[string]*sync.RWMutex{}
 )
 
-type dirLock struct {
-	m sync.Mutex
-}
-
-func (l *dirLock) Unlock() {
-	l.m.Unlock()
+func getDirLock(dir string) *sync.RWMutex {
 	dirLockMu.Lock()
 	defer dirLockMu.Unlock()
-	locksOut--
-	if locksOut == 0 {
-		dirLocks = map[string]*dirLock{}
-	}
-}
-
-// getDirectoryLock locks directory and returns the locked object.
-// Holding the lock prevents the directory from being deleted.
-// The caller must Unlock it when finished.
-func getDirectoryLock(dir string) *dirLock {
-	dirLockMu.Lock()
 	locksOut++
 	l, ok := dirLocks[dir]
 	if !ok {
-		l = new(dirLock)
+		l = new(sync.RWMutex)
 		dirLocks[dir] = l
 	}
-	dirLockMu.Unlock()
-	l.m.Lock()
 	return l
+}
+
+func unlockDirLock() {
+	dirLockMu.Lock()
+        defer dirLockMu.Unlock()
+	locksOut--
+	if locksOut == 0 {
+		dirLocks = map[string]*sync.RWMutex{}
+	}
+}
+
+type unlocker interface {
+	Unlock()
+}
+
+// keepDirectoryLock locks directory and returns the locked object.
+// Holding the lock prevents the directory from being deleted.
+// The caller must Unlock it when finished.
+func keepDirectoryLock(dir string) unlocker {
+	mu := getDirLock(dir)
+	mu.RLock()
+	return keepLock{mu}
+}
+
+type keepLock struct {
+	mu *sync.RWMutex
+}
+
+func (l keepLock) Unlock() {
+	l.mu.RUnlock()
+	unlockDirLock()
+}
+
+// deleteDirectoryLock locks directory and returns the locked object.
+// Holding the lock is necessary while deleting the directory.
+// The caller must Unlock it when finished.
+func deleteDirectoryLock(dir string) unlocker {
+	mu := getDirLock(dir)
+	mu.Lock()
+	return deleteLock{mu}
+}
+
+type deleteLock struct {
+	mu *sync.RWMutex
+}
+
+func (l deleteLock) Unlock() {
+	l.mu.Unlock()
+	unlockDirLock()
 }

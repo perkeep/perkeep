@@ -63,7 +63,7 @@ func readBlobs(opts readBlobRequest) error {
 			// blob is coming in and creating this directory), then try to delete it,
 			// but ignore any error, because it might just be a new file appearing here
 			// (in the case of the directory already existing, but not being newly made)
-			dirLock := getDirectoryLock(dirFullPath)
+			dirLock := deleteDirectoryLock(dirFullPath)
 			os.Remove(dirFullPath)
 			dirLock.Unlock()
 		}

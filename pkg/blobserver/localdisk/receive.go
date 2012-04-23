@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -91,10 +92,15 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 			panic("expected partition name")
 		}
 		partitionDir := ds.blobDirectory(pname, blobRef)
-		dirLock := getDirectoryLock(partitionDir) // prevent it from being unlinked by enumerate code
-		defer dirLock.Unlock()
+
+		// Prevent the directory from being unlinked by
+		// enumerate code, which cleans up.
+		defer keepDirectoryLock(partitionDir).Unlock()
+		defer keepDirectoryLock(filepath.Dir(partitionDir)).Unlock()
+		defer keepDirectoryLock(filepath.Dir(filepath.Dir(partitionDir))).Unlock()
+
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
-			return
+			return blobref.SizedBlobRef{}, fmt.Errorf("localdisk.receive: MkdirAll(%q) after lock on it: %v", partitionDir, err)
 		}
 		partitionFileName := ds.blobPath(pname, blobRef)
 		pfi, err := os.Stat(partitionFileName)
