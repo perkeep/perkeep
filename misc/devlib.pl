@@ -8,6 +8,9 @@ sub build_bin {
     system("go", "install", $target) and die "go install $target failed";
     $target =~ s!.+/!!;
     my $bin = "$ENV{GOBIN}/$target";
+    unless (-e $bin) {
+        die "Expected binary $bin doesn't exist after installing target $target\n";
+    }
     system("chmod", "+x", $bin) unless -x $bin;
     return $bin;
 }
