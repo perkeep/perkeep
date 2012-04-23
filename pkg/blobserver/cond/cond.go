@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -134,23 +133,15 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 
 func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	return func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error) {
-		// TODO: make decision earlier, by parsing JSON as it comes in,
-		// not after we have up to 1 MB.
 		var buf bytes.Buffer
-		_, err = io.CopyN(&buf, src, 1<<20)
-		if err != nil && err != io.EOF {
-			return
-		}
-		ss := new(schema.Superset)
-		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(ss); err != nil {
-			log.Printf("cond: json parse failure => not schema => else")
+		var ss schema.Superset
+		if err = json.NewDecoder(io.TeeReader(src, &buf)).Decode(&ss); err != nil {
 			return elseSto, buf.Bytes(), nil
 		}
 		if ss.Type == "" {
-			log.Printf("cond: json => but not schema => else")
+			// json, but not schema, so use the else path.
 			return elseSto, buf.Bytes(), nil
 		}
-		log.Printf("cond: json => schema => then")
 		return thenSto, buf.Bytes(), nil
 	}
 }
