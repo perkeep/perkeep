@@ -131,7 +131,11 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 }
 
 func linkAlreadyExists(err error) bool {
-	le, ok := err.(*os.LinkError)
-	// TODO(bradfitz): GO1 not tested; is this ErrExist or syscall.EEXIST?
-	return ok && le.Op == "link" && le.Err == os.ErrExist
+	if os.IsExist(err) {
+		return true
+	}
+	if le, ok := err.(*os.LinkError); ok && os.IsExist(le.Err) {
+		return true
+	}
+	return false
 }
