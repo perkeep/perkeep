@@ -111,7 +111,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 				log.Fatalf("got link error %T %#v", err, err)
 				return blobref.SizedBlobRef{}, err
 			}
-			log.Printf("Mirrored to partition %q", pname)
+			log.Printf("Mirrored blob %s to partition %q", blobRef, pname)
 		}
 	}
 

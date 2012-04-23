@@ -147,12 +147,10 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	log.Println("Done reading multipart body.")
 	ret := commonUploadResponse(blobReceiver, req)
 
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
-		log.Printf("Got blob: %v\n", got)
 		blob := make(map[string]interface{})
 		blob["blobRef"] = got.BlobRef.String()
 		blob["size"] = got.Size

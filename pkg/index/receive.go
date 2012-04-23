@@ -42,7 +42,6 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 	hash := blobRef.Hash()
 	var written int64
 	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
-	log.Printf("indexer: hashed+sniffed %d bytes; err %v", written, err)
 	if err != nil {
 		return
 	}
@@ -66,7 +65,7 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 	}
 
 	mimeType := sniffer.MimeType()
-	log.Printf("indexer: type=%v; truncated=%v", mimeType, sniffer.IsTruncated())
+	log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
 	return blobref.SizedBlobRef{blobRef, written}, nil
 }
