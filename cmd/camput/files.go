@@ -104,16 +104,14 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 			sr.histo = histo.NewHisto(num)
 		}
 		up.altStatReceiver = sr
-		AddSaveHook(func() { sr.DumpStats(c.histo) })
+		defer func() { sr.DumpStats(c.histo) }()
 	}
 	if c.statcache {
 		cache := NewFlatStatCache()
-		AddSaveHook(func() { cache.Save() })
 		up.statCache = cache
 	}
 	if c.havecache {
 		cache := NewFlatHaveCache()
-		AddSaveHook(func() { cache.Save() })
 		up.haveCache = cache
 	}
 

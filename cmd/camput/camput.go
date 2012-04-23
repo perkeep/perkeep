@@ -185,21 +185,7 @@ func hasFlags(flags *flag.FlagSet) bool {
 	return any
 }
 
-var saveHooks []func()
-
-func AddSaveHook(fn func()) {
-	saveHooks = append(saveHooks, fn)
-}
-
-func Save() {
-	for _, fn := range saveHooks {
-		fn()
-	}
-	saveHooks = nil
-}
-
 func main() {
-	defer Save()
 	jsonsign.AddFlags()
 	client.AddFlags()
 	flag.Parse()
@@ -247,7 +233,6 @@ func main() {
 	}
 	if err != nil || wereErrors /* TODO: remove this part */ {
 		log.Printf("Error: %v", err)
-		Save()
 		os.Exit(2)
 	}
 }

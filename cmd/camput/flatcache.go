@@ -17,31 +17,27 @@ limitations under the License.
 package main
 
 import (
-	"encoding/gob"
+	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
+	"strconv"
+	"strings"
 	"sync"
-	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/osutil"
 )
 
-type statFingerprint struct {
-	Size    int64
-	ModTime time.Time
-	// TODO: add ctime, etc
-}
+type statFingerprint string
 
-func fileInfoToFingerprint(fi os.FileInfo) (f statFingerprint) {
-	f.Size = fi.Size()
-	f.ModTime = fi.ModTime()
-	return
+func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
+	// TODO: add ctime, etc
+	return statFingerprint(fmt.Sprintf("%dB/%dMOD", fi.Size(), fi.ModTime().UnixNano()))
 }
 
 type fileInfoPutRes struct {
@@ -52,10 +48,10 @@ type fileInfoPutRes struct {
 // FlatStatCache is an ugly hack, until leveldb-go is ready
 // (http://code.google.com/p/leveldb-go/)
 type FlatStatCache struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	filename string
 	m        map[string]fileInfoPutRes
-	dirty    map[string]fileInfoPutRes
+	af       *os.File // for appending
 }
 
 func NewFlatStatCache() *FlatStatCache {
@@ -63,34 +59,52 @@ func NewFlatStatCache() *FlatStatCache {
 	fc := &FlatStatCache{
 		filename: filename,
 		m:        make(map[string]fileInfoPutRes),
-		dirty:    make(map[string]fileInfoPutRes),
 	}
 
-	if f, err := os.Open(filename); err == nil {
-		defer f.Close()
-		d := gob.NewDecoder(f)
-		for {
-			var (
-				key string
-				val fileInfoPutRes
-				err error
-			)
-			err = d.Decode(&key)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Fatalf("stat cache key decode error: %v", err)
-			}
-			err = d.Decode(&val)
-			if err != nil {
-				log.Fatalf("stat cache value decode error: %v", err)
-			}
-			val.Result.Skipped = true
-			fc.m[key] = val
-		}
-		vlog.Printf("Flatcache read %d entries from %s", len(fc.m), filename)
+	f, err := os.Open(filename)
+	if os.IsNotExist(err) {
+		return fc
 	}
+	if err != nil {
+		log.Fatalf("opening camput stat cache: %v", filename, err)
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		ln, err := br.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("Warning: (ignoring) reading stat cache: %v", err)
+			break
+		}
+		ln = strings.TrimSpace(ln)
+		f := strings.Split(ln, "\t")
+		if len(f) < 3 {
+			continue
+		}
+		filename, fp, putres := f[0], statFingerprint(f[1]), f[2]
+		f = strings.Split(putres, "/")
+		if len(f) != 2 {
+			continue
+		}
+		blobrefStr := f[0]
+		blobSize, err := strconv.ParseInt(f[1], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		fc.m[filename] = fileInfoPutRes{
+			Fingerprint: fp,
+			Result: client.PutResult{
+				BlobRef: blobref.Parse(blobrefStr),
+				Size:    blobSize,
+				Skipped: true, // is this used?
+			},
+		}
+	}
+	vlog.Printf("Flatcache read %d entries from %s", len(fc.m), filename)
 	return fc
 }
 
@@ -108,8 +122,8 @@ func cacheKey(pwd, filename string) string {
 }
 
 func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*client.PutResult, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	fp := fileInfoToFingerprint(fi)
 
@@ -119,7 +133,7 @@ func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*
 		cachelog.Printf("cache MISS on %q: not in cache", key)
 		return nil, ErrCacheMiss
 	}
-	if !reflect.DeepEqual(val.Fingerprint, fp) {
+	if val.Fingerprint != fp {
 		cachelog.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fingerprint, fp)
 		return nil, ErrCacheMiss
 	}
@@ -135,42 +149,24 @@ func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo,
 
 	cachelog.Printf("Adding to stat cache %q: %v", key, val)
 
-	c.dirty[key] = val
 	c.m[key] = val
-}
-
-func (c *FlatStatCache) Save() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.dirty) == 0 {
-		cachelog.Printf("FlatStatCache: Save, but nothing dirty")
-		return
-	}
-
-	f, err := os.OpenFile(c.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		log.Fatalf("FlatStatCache OpenFile: %v", err)
-	}
-	defer f.Close()
-	e := gob.NewEncoder(f)
-	write := func(v interface{}) {
-		if err := e.Encode(v); err != nil {
-			panic("Encode: " + err.Error())
+	if c.af == nil {
+		var err error
+		c.af, err = os.OpenFile(c.filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			log.Printf("opening stat cache for append: %v", err)
+			return
 		}
 	}
-	for k, v := range c.dirty {
-		write(k)
-		write(v)
-	}
-	c.dirty = make(map[string]fileInfoPutRes)
-	cachelog.Printf("FlatStatCache: saved")
+	c.af.Seek(0, os.SEEK_END)
+	c.af.Write([]byte(fmt.Sprintf("%s\t%s\t%s/%d\n", key, val.Fingerprint, val.Result.BlobRef.String(), val.Result.Size)))
 }
 
 type FlatHaveCache struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	filename string
 	m        map[string]bool
-	dirty    map[string]bool
+	af *os.File // appending file
 }
 
 func NewFlatHaveCache() *FlatHaveCache {
@@ -178,58 +174,52 @@ func NewFlatHaveCache() *FlatHaveCache {
 	c := &FlatHaveCache{
 		filename: filename,
 		m:        make(map[string]bool),
-		dirty:    make(map[string]bool),
 	}
-	if f, err := os.Open(filename); err == nil {
-		defer f.Close()
-		d := gob.NewDecoder(f)
-		for {
-			var key string
-			if d.Decode(&key) != nil {
-				break
-			}
-			c.m[key] = true
+	f, err := os.Open(filename)
+	if os.IsNotExist(err) {
+		return c
+	}
+	if err != nil {
+		log.Fatalf("opening camput have-cache: %v", filename, err)
+	}
+	br := bufio.NewReader(f)
+	for {
+		ln, err := br.ReadString('\n')
+		if err == io.EOF {
+			break
 		}
+		if err != nil {
+			log.Printf("Warning: (ignoring) reading have-cache: %v", err)
+			break
+		}
+		ln = strings.TrimSpace(ln)
+		c.m[ln] = true
 	}
 	return c
 }
 
 func (c *FlatHaveCache) BlobExists(br *blobref.BlobRef) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.m[br.String()]
 }
 
+// TODO(bradfitz): this is barely ever called. The havecache concept is only used barely within
+// camput itself. It's not pushed down into the client uploader code itself.
 func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	k := br.String()
 	c.m[k] = true
-	c.dirty[k] = true
-}
 
-func (c *FlatHaveCache) Save() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.dirty) == 0 {
-		cachelog.Printf("FlatHaveCache: Save, but nothing dirty")
-		return
-	}
-	os.Mkdir(osutil.CacheDir(), 0700)
-	f, err := os.OpenFile(c.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		log.Fatalf("FlatHaveCache OpenFile: %v", err)
-	}
-	defer f.Close()
-	e := gob.NewEncoder(f)
-	write := func(v interface{}) {
-		if err := e.Encode(v); err != nil {
-			panic("Encode: " + err.Error())
+	if c.af == nil {
+		var err error
+		c.af, err = os.OpenFile(c.filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			log.Printf("opening have-cache for append: %v", err)
+			return
 		}
 	}
-	for k, _ := range c.dirty {
-		write(k)
-	}
-	c.dirty = make(map[string]bool)
-	cachelog.Printf("FlatHaveCache: saved")
+	c.af.Seek(0, os.SEEK_END)
+	c.af.Write([]byte(fmt.Sprintf("%s\n", k)))
 }
