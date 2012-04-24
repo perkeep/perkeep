@@ -1,3 +1,5 @@
+// +build windows
+
 /*
 Copyright 2011 Google Inc.
 
@@ -17,9 +19,10 @@ limitations under the License.
 package webserver
 
 import (
+	"errors"
 	"os"
 )
 
-func pipeFromEnvFd(env string) (*os.File, os.Error) {
-	return nil, os.NewError("not implemented")
+func pipeFromEnvFd(env string) (*os.File, error) {
+	return nil, errors.New("not implemented")
 }
