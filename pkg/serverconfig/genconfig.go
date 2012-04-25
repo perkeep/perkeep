@@ -37,7 +37,66 @@ type configPrefixesParams struct {
 	searchOwner *blobref.BlobRef
 }
 
-func addUiConfig(prefixes *jsonconfig.Obj, uiPrefix string, published ...interface{}) {
+func addPublishedConfig(prefixes *jsonconfig.Obj, published jsonconfig.Obj) ([]interface{}, error) {
+	pubPrefixes := []interface{}{}
+	for k, v := range published {
+		p, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Wrong type for %s; was expecting map[string]interface{}, got %T", k, v)
+		}
+		rootName := strings.Replace(k, "/", "", -1) + "Root"
+		rootPermanode, template, style := "", "", ""
+		for pk, pv := range p {
+			val, ok := pv.(string)
+			if !ok {
+				return nil, fmt.Errorf("Was expecting type string for %s, got %T", pk, pv)
+			}
+			switch pk {
+			case "rootPermanode":
+				rootPermanode = val
+			case "template":
+				template = val
+			case "style":
+				style = val
+			default:
+				return nil, fmt.Errorf("Unexpected key %q in config for %s", pk, k)
+			}
+		}
+		if rootPermanode == "" || template == "" {
+			return nil, fmt.Errorf("Missing key in configuration for %s, need \"rootPermanode\" and \"template\"", k)
+		}
+		ob := map[string]interface{}{}
+		ob["handler"] = "publish"
+		handlerArgs := map[string]interface{}{
+			"rootName":   rootName,
+			"blobRoot":   "/bs-and-maybe-also-index/",
+			"searchRoot": "/my-search/",
+			"cache":      "/cache/",
+			// TODO(mpl): make camli use rootPermanode for published entities 
+			// instead of devBootstrapPermanodeUsing. next CL.
+			"rootPermanode": rootPermanode,
+		}
+		switch template {
+		case "gallery":
+			if style == "" {
+				style = "pics.css"
+			}
+			handlerArgs["css"] = []interface{}{style}
+			handlerArgs["js"] = []interface{}{"camli.js", "pics.js"}
+			handlerArgs["scaledImage"] = "lrucache"
+		case "blog":
+			if style != "" {
+				handlerArgs["css"] = []interface{}{style}
+			}
+		}
+		ob["handlerArgs"] = handlerArgs
+		(*prefixes)[k] = ob
+		pubPrefixes = append(pubPrefixes, k)
+	}
+	return pubPrefixes, nil
+}
+
+func addUIConfig(prefixes *jsonconfig.Obj, uiPrefix string, published []interface{}) {
 	ob := map[string]interface{}{}
 	ob["handler"] = "ui"
 	handlerArgs := map[string]interface{}{
@@ -185,6 +244,7 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		mongo      = conf.OptionalString("mongo", "")
 		_          = conf.OptionalList("replicateTo")
 		_          = conf.OptionalString("s3", "")
+		publish    = conf.OptionalObject("publish")
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -244,7 +304,15 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		return nil, fmt.Errorf("Could not create blobs dir %s: %v", cacheDir, err)
 	}
 
-	addUiConfig(&prefixes, "/ui/")
+	published := []interface{}{}
+	if publish != nil {
+		published, err = addPublishedConfig(&prefixes, publish)
+		if err != nil {
+			return nil, fmt.Errorf("Could not generate config for published: %v", err)
+		}
+	}
+
+	addUIConfig(&prefixes, "/ui/", published)
 
 	if mysql != "" {
 		addMysqlConfig(&prefixes, dbname, mysql)

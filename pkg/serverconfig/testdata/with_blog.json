@@ -8,6 +8,12 @@
 	"mysql": "",
 	"mongo": "",
 	"s3": "",
-	"replicateTo": [],
-	"publish": {}
+	"publish": {
+		"/blog/": {
+			"rootPermanode": "sha1-xxxxx",
+			"template": "blog",
+			"style": "blog-purple.css"
+		}
+	},
+	"replicateTo": []
 }

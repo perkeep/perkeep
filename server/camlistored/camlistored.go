@@ -197,7 +197,8 @@ func newDefaultConfigFile(path string) error {
 	"mysql": "",
 	"mongo": "",
 	"s3": "",
-	"replicateTo": []
+	"replicateTo": [],
+	"publish": {}
 }
 `
 	blobDir := osutil.CamliBlobRoot()
