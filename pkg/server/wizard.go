@@ -104,7 +104,7 @@ func flattenPublish(config jsonconfig.Obj) error {
 			}
 		}
 		if template == "" || rootPermanode == "" {
-			return fmt.Errorf("missing \"template\" key or "rootPermanode\" key in %s", k)
+			return fmt.Errorf("missing \"template\" key or \"rootPermanode\" key in %s", k)
 		}
 		obj := []string{k, rootPermanode, style}
 		config[template] = obj
