@@ -92,7 +92,7 @@ func main() {
 	}
 	err = conn.Serve(fs)
 	if err != nil {
-		log.Fatalf("Serve: %", err)
+		log.Fatalf("Serve: %v", err)
 	}
 	log.Printf("fuse process ending.")
 }
