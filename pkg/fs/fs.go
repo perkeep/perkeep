@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"syscall"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/lru"
@@ -71,14 +72,46 @@ func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *Cam
 type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
+	attr     fuse.Attr
 }
 
 func (n *node) Attr() (attr fuse.Attr) {
-	return
+	return n.attr
+}
+
+func (n *node) populateAttr(ss *schema.Superset) error {
+	// TODO: common stuff:
+	// Uid uint32
+	// Gid uint32
+	// Mtime time.Time
+	// inode?
+
+	switch ss.Type {
+	case "directory":
+		n.attr.Mode = os.ModeDir
+	case "file":
+		n.attr.Size = ss.SumPartsSize()
+		n.attr.Blocks = 0 // TODO: set?
+		n.attr.Mtime = time.Time{} // TODO: set, for sure.
+		n.attr.Mode = 0
+	default:
+		err := fmt.Errorf("unknown attr type %q in populateAttr", ss.Type)
+		log.Print(err.Error())
+		return err
+	}
+	return nil
 }
 
 func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
-	return &node{fs: fs, blobref: fs.root}, nil
+	ss, err := fs.fetchSchemaSuperset(fs.root)
+	if err != nil {
+		// TODO: map these to fuse.Error better
+		log.Printf("Error fetching root: %v", err)
+		return nil, fuse.EIO
+	}
+	n := &node{fs: fs, blobref: fs.root}
+	n.populateAttr(ss)
+	return n, nil
 }
 
 // Errors returned are:
@@ -89,7 +122,6 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 	if ss, ok := fs.blobToSchema.Get(blobStr); ok {
 		return ss.(*schema.Superset), nil
 	}
-	log.Printf("schema cache MISS on %q", blobStr)
 
 	rsc, _, err := fs.fetcher.Fetch(br)
 	if err != nil {
