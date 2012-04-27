@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -31,8 +32,10 @@ import (
 	"strings"
 )
 
+var ErrNotFound = errors.New("netutil: connection not found")
+
 // ConnUserid returns the uid that owns the given localhost connection.
-// The returned error is os.ErrNotExist if the connection wasn't found.
+// The returned error is ErrNotFound if the connection wasn't found.
 func ConnUserid(conn net.Conn) (uid int, err error) {
 	return AddrPairUserid(conn.LocalAddr().String(), conn.RemoteAddr().String())
 }
@@ -58,7 +61,7 @@ func splitIPPort(param, value string) (ip net.IP, port int, reterr error) {
 
 // AddrPairUserid returns the local userid who owns the TCP connection
 // given by the local and remote ip:port (lipport and ripport,
-// respectively).  Returns os.ErrNotExist for the error if the TCP connection
+// respectively).  Returns ErrNotFound for the error if the TCP connection
 // isn't found.
 func AddrPairUserid(lipport, ripport string) (uid int, err error) {
 	lip, lport, err := splitIPPort("lipport", lipport)
@@ -158,7 +161,7 @@ func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, e
 		}
 		return 0, err
 	}
-	return -1, os.ErrNotExist
+	return -1, ErrNotFound
 
 }
 
@@ -185,7 +188,7 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
-			return -1, os.ErrNotExist
+			return -1, ErrNotFound
 		}
 		parts := strings.Fields(strings.TrimSpace(line))
 		if len(parts) < 8 {
