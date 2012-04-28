@@ -72,6 +72,9 @@ type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
 
+	dmu     sync.Mutex    // guards dirents. acquire before mu.
+	dirents []fuse.Dirent // nil until populated once
+
 	mu      sync.Mutex // guards rest
 	attr    fuse.Attr
 	ss      *schema.Superset
@@ -102,6 +105,15 @@ func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		log.Fatalf("Shutting down due to .quitquitquit lookup.")
 	}
 
+	// If we haven't done Readdir yet (dirents isn't set), then force a Readdir
+	// call to populate lookMap.
+	n.dmu.Lock()
+	loaded := n.dirents != nil
+	n.dmu.Unlock()
+	if !loaded {
+		n.ReadDir(nil)
+	}
+
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	ref, ok := n.lookMap[name]
@@ -126,8 +138,27 @@ func (n *node) schema() (*schema.Superset, error) {
 	return ss, err
 }
 
+func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
+	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
+	return &nodeReader{n: n}, nil
+}
+
+type nodeReader struct {
+	n *node
+}
+
+func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+	log.Printf("CAMLI nodeReader READ on %v", nr.n.blobref)
+	return fuse.EIO
+}
+
 func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
-	log.Printf("READDIR on %#v", n.blobref)
+	log.Printf("CAMLI ReadDir on %v", n.blobref)
+	n.dmu.Lock()
+	defer n.dmu.Unlock()
+	if n.dirents != nil {
+		return n.dirents, nil
+	}
 
 	ss, err := n.schema()
 	if err != nil {
@@ -175,7 +206,7 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		}()
 	}
 
-	var ents []fuse.Dirent
+	n.dirents = make([]fuse.Dirent, 0)
 	for _, ch := range ssc {
 		r := <-ch
 		memberRef, mss, err := r.BlobRef, r.Superset, r.error
@@ -184,12 +215,12 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		}
 		if filename := mss.FileNameString(); filename != "" {
 			n.addLookupEntry(filename, memberRef)
-			ents = append(ents, fuse.Dirent{
+			n.dirents = append(n.dirents, fuse.Dirent{
 				Name: mss.FileNameString(),
 			})
 		}
 	}
-	return ents, nil
+	return n.dirents, nil
 }
 
 // populateAttr should only be called once n.ss is known to be set and
