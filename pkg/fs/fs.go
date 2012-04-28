@@ -25,7 +25,6 @@ import (
 	"os"
 	"sync"
 	"syscall"
-	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/lru"
@@ -203,18 +202,18 @@ func (n *node) populateAttr() error {
 	// Mtime time.Time
 	// inode?
 
+	n.attr.Mode = ss.FileMode()
+	n.attr.Mtime = ss.ModTime()
+
 	switch ss.Type {
 	case "directory":
 		n.attr.Mode = os.ModeDir
 	case "file":
 		n.attr.Size = ss.SumPartsSize()
-		n.attr.Blocks = 0          // TODO: set?
-		n.attr.Mtime = time.Time{} // TODO: set, for sure.
-		n.attr.Mode = 0
+		n.attr.Blocks = 0 // TODO: set?
+	case "symlink":
 	default:
-		err := fmt.Errorf("unknown attr type %q in populateAttr", ss.Type)
-		log.Print(err.Error())
-		return err
+		log.Printf("unknown attr ss.Type %q in populateAttr", ss.Type)
 	}
 	return nil
 }
