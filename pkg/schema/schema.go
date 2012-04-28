@@ -293,6 +293,17 @@ func (ss *Superset) FileMode() os.FileMode {
 	return mode
 }
 
+func (ss *Superset) ModTime() time.Time {
+	if ss.UnixMtime == "" {
+		return time.Time{}
+	}
+	nanos := NanosFromRFC3339(ss.UnixMtime)
+	if nanos == -1 {
+		return time.Time{}
+	}
+	return time.Unix(0, nanos)
+}
+
 var DefaultStatHasher = &defaultStatHasher{}
 
 type defaultStatHasher struct{}
@@ -401,7 +412,7 @@ var populateSchemaStat []func(schemaMap map[string]interface{}, fi os.FileInfo)
 func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
 	m := NewCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
-	if fi.Mode()&os.ModeSymlink != 0 {
+	if fi.Mode()&os.ModeSymlink == 0 {
 		m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
 	}
 
