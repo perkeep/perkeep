@@ -122,7 +122,7 @@ if ($opt_tls) {
     $ENV{CAMLI_TLS} = "true";
 }
 $ENV{CAMLI_BASEURL} = $base;
-$ENV{CAMLI_AUTH} = "userpass:camlistore:pass$port";
+$ENV{CAMLI_AUTH} = "userpass:camlistore:pass$port:+localhost";
 $ENV{CAMLI_ADVERTISED_PASSWORD} = "pass$port"; # public password
 $ENV{CAMLI_ROOT} = $suffixdir->("bs");
 $ENV{CAMLI_ROOT_SHARD1} = $suffixdir->("s1");
