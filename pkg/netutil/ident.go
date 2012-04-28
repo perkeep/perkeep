@@ -121,7 +121,15 @@ func (p maybeBrackets) String() string {
 func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
 	seek := fmt.Sprintf("%s:%d->%s:%d", maybeBrackets(lip), lport, maybeBrackets(rip), rport)
 	seekb := []byte(seek)
-	cmd := exec.Command("lsof", "-a", "-n", "-i", "-P")
+	cmd := exec.Command("lsof",
+		"-b",    // avoid system calls that could block
+		"-w",    // and don't warn about cases where -b fails
+		"-n",    // don't resolve network names
+		"-P",    // don't resolve network ports,
+		// TODO(bradfitz): pass down the uid we care about, then do: ?
+		//"-a",  // AND the following together:
+		// "-u", strconv.Itoa(uid)  // just this uid
+		"-itcp") // we only care about TCP connections
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
