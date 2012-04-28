@@ -23,6 +23,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -71,12 +72,29 @@ func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *Cam
 type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
+
+	mu      sync.Mutex // guards rest
 	attr    fuse.Attr
 	ss      *schema.Superset
+	lookMap map[string]*blobref.BlobRef
 }
 
 func (n *node) Attr() (attr fuse.Attr) {
+	_, err := n.schema()
+	if err != nil {
+		// Hm, can't return it. Just log it I guess.
+		log.Printf("error fetching schema superset for %v: %v", n.blobref, err)
+	}
 	return n.attr
+}
+
+func (n *node) addLookupEntry(name string, ref *blobref.BlobRef) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.lookMap == nil {
+		n.lookMap = make(map[string]*blobref.BlobRef)
+	}
+	n.lookMap[name] = ref
 }
 
 func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
@@ -84,27 +102,101 @@ func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		// TODO: only in dev mode
 		log.Fatalf("Shutting down due to .quitquitquit lookup.")
 	}
-	log.Printf("On %v, lookup of %q", n, name)
-	return nil, fuse.ENOSYS
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	ref, ok := n.lookMap[name]
+	if !ok {
+		return nil, fuse.ENOENT
+	}
+	return &node{fs: n.fs, blobref: ref}, nil
+}
+
+func (n *node) schema() (*schema.Superset, error) {
+	// TODO: use singleflight library here instead of a lock?
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.ss != nil {
+		return n.ss, nil
+	}
+	ss, err := n.fs.fetchSchemaSuperset(n.blobref)
+	if err == nil {
+		n.ss = ss
+		n.populateAttr()
+	}
+	return ss, err
 }
 
 func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
-	log.Printf("READDIR on %#v", n.ss)
-	setRef := blobref.Parse(n.ss.Entries)
+	log.Printf("READDIR on %#v", n.blobref)
+
+	ss, err := n.schema()
+	if err != nil {
+		return nil, fuse.EIO
+	}
+	setRef := blobref.Parse(ss.Entries)
 	if setRef == nil {
 		return nil, nil
 	}
 	log.Printf("fetching setref: %v...", setRef)
 	setss, err := n.fs.fetchSchemaSuperset(setRef)
-	log.Printf("set ref: %#v, err = %v", setss, err)
+	if err != nil {
+		log.Printf("fetching %v for readdir on %v: %v", setRef, n.blobref, err)
+		return nil, fuse.EIO
+	}
+	if setss.Type != "static-set" {
+		log.Printf("%v is not a static-set in readdir; is a %q", setRef, setss.Type)
+		return nil, fuse.EIO
+	}
+
+	// res is the result of fetchSchemaSuperset.  the ssc slice of channels keeps them ordered
+	// the same as they're listed in the schema's Members.
+	type res struct {
+		*blobref.BlobRef
+		*schema.Superset
+		error
+	}
+	var ssc []chan res
+	for _, member := range setss.Members {
+		memberRef := blobref.Parse(member)
+		if memberRef == nil {
+			log.Printf("invalid blobref of %q in static set %s", member, setRef)
+			return nil, fuse.EIO
+		}
+		ch := make(chan res, 1)
+		ssc = append(ssc, ch)
+		// TODO: move the cmd/camput/chanworker.go into its own package, and use it here. only
+		// have 10 or so of these loading at once.  for now we do them all. 
+		go func() {
+			mss, err := n.fs.fetchSchemaSuperset(memberRef)
+			if err != nil {
+				log.Printf("error reading entry %v in readdir: %v", memberRef, err)
+			}
+			ch <- res{memberRef, mss, err}
+		}()
+	}
+
 	var ents []fuse.Dirent
-	ents = append(ents, fuse.Dirent{
-		Name: "fake-dir",
-	})
+	for _, ch := range ssc {
+		r := <-ch
+		memberRef, mss, err := r.BlobRef, r.Superset, r.error
+		if err != nil {
+			return nil, fuse.EIO
+		}
+		if filename := mss.FileNameString(); filename != "" {
+			n.addLookupEntry(filename, memberRef)
+			ents = append(ents, fuse.Dirent{
+				Name: mss.FileNameString(),
+			})
+		}
+	}
 	return ents, nil
 }
 
-func (n *node) populateAttr(ss *schema.Superset) error {
+// populateAttr should only be called once n.ss is known to be set and
+// non-nil
+func (n *node) populateAttr() error {
+	ss := n.ss
 	// TODO: common stuff:
 	// Uid uint32
 	// Gid uint32
@@ -135,7 +227,7 @@ func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
 		return nil, fuse.EIO
 	}
 	n := &node{fs: fs, blobref: fs.root, ss: ss}
-	n.populateAttr(ss)
+	n.populateAttr()
 	return n, nil
 }
 
