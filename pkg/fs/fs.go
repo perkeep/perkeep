@@ -56,7 +56,6 @@ type CamliFile struct {
 	size uint64 // memoized
 }
 
-
 var _ fuse.FS = (*CamliFileSystem)(nil)
 
 func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *CamliFileSystem {
@@ -72,11 +71,37 @@ func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *Cam
 type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
-	attr     fuse.Attr
+	attr    fuse.Attr
+	ss      *schema.Superset
 }
 
 func (n *node) Attr() (attr fuse.Attr) {
 	return n.attr
+}
+
+func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	if name == ".quitquitquit" {
+		// TODO: only in dev mode
+		log.Fatalf("Shutting down due to .quitquitquit lookup.")
+	}
+	log.Printf("On %v, lookup of %q", n, name)
+	return nil, fuse.ENOSYS
+}
+
+func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+	log.Printf("READDIR on %#v", n.ss)
+	setRef := blobref.Parse(n.ss.Entries)
+	if setRef == nil {
+		return nil, nil
+	}
+	log.Printf("fetching setref: %v...", setRef)
+	setss, err := n.fs.fetchSchemaSuperset(setRef)
+	log.Printf("set ref: %#v, err = %v", setss, err)
+	var ents []fuse.Dirent
+	ents = append(ents, fuse.Dirent{
+		Name: "fake-dir",
+	})
+	return ents, nil
 }
 
 func (n *node) populateAttr(ss *schema.Superset) error {
@@ -91,7 +116,7 @@ func (n *node) populateAttr(ss *schema.Superset) error {
 		n.attr.Mode = os.ModeDir
 	case "file":
 		n.attr.Size = ss.SumPartsSize()
-		n.attr.Blocks = 0 // TODO: set?
+		n.attr.Blocks = 0          // TODO: set?
 		n.attr.Mtime = time.Time{} // TODO: set, for sure.
 		n.attr.Mode = 0
 	default:
@@ -109,9 +134,21 @@ func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
 		log.Printf("Error fetching root: %v", err)
 		return nil, fuse.EIO
 	}
-	n := &node{fs: fs, blobref: fs.root}
+	n := &node{fs: fs, blobref: fs.root, ss: ss}
 	n.populateAttr(ss)
 	return n, nil
+}
+
+func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsResponse, intr fuse.Intr) fuse.Error {
+	log.Printf("CAMLI StatFS")
+	// Make some stuff up, just to see if it makes "lsof" happy.
+	res.Blocks = 1 << 35
+	res.Bfree = 1 << 34
+	res.Files = 1 << 29
+	res.Ffree = 1 << 28
+	res.Namelen = 2048
+	res.Bsize = 1024
+	return nil
 }
 
 // Errors returned are:

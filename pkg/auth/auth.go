@@ -20,7 +20,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"log"
 	"os"
 	"regexp"
 	"runtime"
