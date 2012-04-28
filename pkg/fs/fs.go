@@ -140,16 +140,42 @@ func (n *node) schema() (*schema.Superset, error) {
 
 func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
 	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
-	return &nodeReader{n: n}, nil
+	ss, err := n.schema()
+	if err != nil {
+		log.Printf("open of %v: %v", n.blobref, err)
+		return nil, fuse.EIO
+	}
+	if ss.Type == "directory" {
+		return n, nil
+	}
+	return &nodeReader{n: n, ss: ss}, nil
 }
 
 type nodeReader struct {
-	n *node
+	n  *node
+	ss *schema.Superset // not nil, always of type "file" or "bytes"
 }
 
 func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
-	log.Printf("CAMLI nodeReader READ on %v", nr.n.blobref)
-	return fuse.EIO
+	log.Printf("CAMLI nodeReader READ on %v: %#v", nr.n.blobref, req)
+
+	// TODO: this isn't incredibly efficient, creating a new
+	// FileReader for each read chunk.  We could do better here
+	// and re-use a locked pool of readers, trying to find the one
+	// with a current offset <= req.Offset first.
+	fr, err := nr.ss.NewFileReader(nr.n.fs.fetcher)
+	if err != nil {
+		panic(err)
+	}
+	fr.Skip(uint64(req.Offset))
+	buf := make([]byte, req.Size)
+	n, err := fr.Read(buf)
+	if err != nil && err != io.EOF {
+		log.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
+		return fuse.EIO
+	}
+	res.Data = buf[:n]
+	return nil
 }
 
 func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
