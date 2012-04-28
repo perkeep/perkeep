@@ -20,8 +20,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"log"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"camlistore.org/pkg/netutil"
@@ -169,12 +171,29 @@ func localhostAuthorized(req *http.Request) bool {
 				to = "127.0.0.1:" + toPort
 			}
 		}
+
+		// TODO(bradfitz): netutil on OS X uses "lsof" to figure out
+		// ownership of tcp connections, but when fuse is mounted and a
+		// request is outstanding (for instance, a fuse request that's
+		// making a request to camlistored and landing in this code
+		// path), lsof then blocks forever waiting on a lock held by the
+		// VFS, leading to a deadlock.  Instead, on darwin, just trust
+		// any localhost connection here, which is kinda lame, but
+		// whatever.  Macs aren't very multi-user anyway.
+		if runtime.GOOS == "darwin" && isLocalhost(from) && isLocalhost(to) {
+			return true
+		}
+
 		owner, err := netutil.AddrPairUserid(from, to)
 		if err == nil && owner == uid {
 			return true
 		}
 	}
 	return false
+}
+
+func isLocalhost(addrPort string) bool {
+	return strings.HasPrefix(addrPort, "127.0.0.1:") || strings.HasPrefix(addrPort, "[::1]:")
 }
 
 func LocalhostAuthorized(req *http.Request) bool {
