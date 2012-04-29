@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"sort"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
@@ -32,20 +31,6 @@ import (
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
-
-func PrintMap(m map[string]float64) {
-	keys := make([]string, len(m))
-	for k, _ := range m {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-	for _, k := range keys {
-		if m[k] > 0 {
-			fmt.Println(k, m[k])
-		}
-	}
-}
 
 func main() {
 	// Scans the arg list and sets up flags
@@ -58,14 +43,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	if flag.NArg() < 2 {
-		errorf("usage: cammount <blobref> <mountpoint>\n")
+	if n := flag.NArg(); n < 1 || n > 2 {
+		errorf("usage: cammount <mountpoint> [<root-blobref>]\n")
 	}
 
-	root := blobref.Parse(flag.Arg(0))
-	if root == nil {
-		errorf("Error parsing root blobref: %q\n", root)
-	}
+	mountPoint := flag.Arg(0)
+
 	client := client.NewOrFail() // automatic from flags
 
 	cacheDir, err := ioutil.TempDir("", "camlicache")
@@ -79,18 +62,31 @@ func main() {
 	}
 	fetcher := cacher.NewCachingFetcher(diskcache, client)
 
-	fs := fs.NewCamliFileSystem(fetcher, root)
+	var camfs *fs.CamliFileSystem
+	if flag.NArg() == 2 {
+		root := blobref.Parse(flag.Arg(1))
+		if root == nil {
+			errorf("Error parsing root blobref: %q\n", root)
+		}
+		var err error
+		camfs, err = fs.NewRootedCamliFileSystem(fetcher, root)
+		if err != nil {
+			errorf("Error creating root with %v: %v", root, err)
+		}
+	} else {
+		camfs = fs.NewCamliFileSystem(fetcher)
+		log.Printf("starting with fs %#v", camfs)
+	}
+
 	if *debug {
 		// TODO: set fs's logger
 	}
-
-	mountPoint := flag.Arg(1)
 
 	conn, err := fuse.Mount(mountPoint)
 	if err != nil {
 		log.Fatalf("Mount: %v", err)
 	}
-	err = conn.Serve(fs)
+	err = conn.Serve(camfs)
 	if err != nil {
 		log.Fatalf("Serve: %v", err)
 	}

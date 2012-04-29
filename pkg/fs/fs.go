@@ -41,7 +41,7 @@ var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
 type CamliFileSystem struct {
 	fetcher blobref.SeekFetcher
-	root    *blobref.BlobRef
+	root    fuse.Node
 
 	// IgnoreOwners, if true, collapses all file ownership to the
 	// uid/gid running the fuse filesystem, and sets all the
@@ -53,26 +53,40 @@ type CamliFileSystem struct {
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
 
-type CamliFile struct {
-	fs   *CamliFileSystem
-	blob *blobref.BlobRef
-	ss   *schema.Superset
-
-	size uint64 // memoized
-}
-
 var _ fuse.FS = (*CamliFileSystem)(nil)
 
-func NewCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) *CamliFileSystem {
+func newCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 	return &CamliFileSystem{
 		fetcher:      fetcher,
 		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?
-		root:         root,
 		nameToBlob:   lru.New(1024), // arbitrary: TODO: tunable/smarter?
 		nameToAttr:   lru.New(1024), // arbitrary: TODO: tunable/smarter?
 	}
 }
 
+func NewCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
+	fs := newCamliFileSystem(fetcher)
+	fs.root = &root{fs: fs} // root.go
+	return fs
+}
+
+// NewRootedCamliFileSystem returns a CamliFileSystem with root as its
+// base.
+func NewRootedCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) (*CamliFileSystem, error) {
+	fs := newCamliFileSystem(fetcher)
+
+	ss, err := fs.fetchSchemaSuperset(root)
+	if err != nil {
+		return nil, err
+	}
+	n := &node{fs: fs, blobref: root, ss: ss}
+	n.populateAttr()
+	fs.root = n
+	return fs, nil
+}
+
+// node implements fuse.Node with a read-only Camli "file" or
+// "directory" blob.
 type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
@@ -290,15 +304,7 @@ func (n *node) populateAttr() error {
 }
 
 func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
-	ss, err := fs.fetchSchemaSuperset(fs.root)
-	if err != nil {
-		// TODO: map these to fuse.Error better
-		log.Printf("Error fetching root: %v", err)
-		return nil, fuse.EIO
-	}
-	n := &node{fs: fs, blobref: fs.root, ss: ss}
-	n.populateAttr()
-	return n, nil
+	return fs.root, nil
 }
 
 func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsResponse, intr fuse.Intr) fuse.Error {
@@ -341,8 +347,4 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 	ss.BlobRef = br
 	fs.blobToSchema.Add(blobStr, ss)
 	return ss, nil
-}
-
-func (file *CamliFile) GetReader() (io.ReadCloser, error) {
-	return file.ss.NewFileReader(file.fs.fetcher)
 }

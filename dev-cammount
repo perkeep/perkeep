@@ -5,10 +5,16 @@ use FindBin qw($Bin);
 use Getopt::Long;
 require "$Bin/misc/devlib.pl";
 
-my $blobref = shift;
-unless ($blobref && $blobref =~ /^\w+-[0-9a-f]{10,}$/) {
-    die "Usage: dev-cammount [blobref]\n";
+my @blobref_arg;
+
+if (@ARGV) {
+    my $blobref = shift;
+    unless ($blobref && $blobref =~ /^\w+-[0-9a-f]{10,}$/) {
+        die "Usage: dev-cammount [<blobref>]\n";
+    }
+    push @blobref_arg, $blobref;
 }
+
 my $cammount = build_bin("./cmd/cammount");
 
 my $dir = "/tmp/cammount-dir";
@@ -16,7 +22,7 @@ mkdir $dir, 0700 unless -d $dir;
 
 try_unmount();
 print "Mounting on $dir ...\n";
-system("$cammount", "--blobserver=http://localhost:3179/bs", $blobref, $dir)
+system("$cammount", "--blobserver=http://localhost:3179/bs", $dir, @blobref_arg)
     and warn "cammount failure: $!\n";
 warn "Failed to unmount\n" unless try_unmount();
 
