@@ -43,6 +43,11 @@ type CamliFileSystem struct {
 	fetcher blobref.SeekFetcher
 	root    *blobref.BlobRef
 
+	// IgnoreOwners, if true, collapses all file ownership to the
+	// uid/gid running the fuse filesystem, and sets all the
+	// permissions to 0600/0700.
+	IgnoreOwners bool
+
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
@@ -253,22 +258,31 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 // non-nil
 func (n *node) populateAttr() error {
 	ss := n.ss
-	// TODO: common stuff:
-	// Uid uint32
-	// Gid uint32
-	// Mtime time.Time
-	// inode?
 
 	n.attr.Mode = ss.FileMode()
+
+	if n.fs.IgnoreOwners {
+		n.attr.Uid = uint32(os.Getuid())
+		n.attr.Gid = uint32(os.Getgid())
+		executeBit := n.attr.Mode & 0100
+		n.attr.Mode = (n.attr.Mode ^ n.attr.Mode.Perm()) & 0400 & executeBit
+	} else {
+		n.attr.Uid = uint32(ss.MapUid())
+		n.attr.Gid = uint32(ss.MapGid())
+	}
+
+	// TODO: inode?
+
 	n.attr.Mtime = ss.ModTime()
 
 	switch ss.Type {
-	case "directory":
-		n.attr.Mode = os.ModeDir
 	case "file":
 		n.attr.Size = ss.SumPartsSize()
 		n.attr.Blocks = 0 // TODO: set?
+	case "directory":
+		// Nothing special? Just prevent default case.
 	case "symlink":
+		// Nothing special? Just prevent default case.
 	default:
 		log.Printf("unknown attr ss.Type %q in populateAttr", ss.Type)
 	}

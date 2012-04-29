@@ -293,6 +293,29 @@ func (ss *Superset) FileMode() os.FileMode {
 	return mode
 }
 
+// MapUid returns the most appropriate mapping from this file's owner
+// to the local machine's owner, trying first a match by name,
+// followed by just mapping the number through directly.
+func (ss *Superset) MapUid() int {
+	if ss.UnixOwner != "" {
+		uid, ok := getUidFromName(ss.UnixOwner)
+		if ok {
+			return uid
+		}
+	}
+	return ss.UnixOwnerId // TODO: will be 0 if unset, which isn't ideal
+}
+
+func (ss *Superset) MapGid() int {
+	if ss.UnixGroup != "" {
+		gid, ok := getGidFromName(ss.UnixGroup)
+		if ok {
+			return gid
+		}
+	}
+	return ss.UnixGroupId // TODO: will be 0 if unset, which isn't ideal
+}
+
 func (ss *Superset) ModTime() time.Time {
 	if ss.UnixMtime == "" {
 		return time.Time{}
