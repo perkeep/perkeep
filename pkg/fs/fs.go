@@ -25,6 +25,7 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/lru"
@@ -36,6 +37,8 @@ import (
 var _ = fmt.Println
 var _ = log.Println
 var _ = bytes.NewReader
+
+var serverStart = time.Now()
 
 var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
