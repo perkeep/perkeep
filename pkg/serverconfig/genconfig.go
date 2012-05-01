@@ -68,13 +68,11 @@ func addPublishedConfig(prefixes *jsonconfig.Obj, published jsonconfig.Obj) ([]i
 		ob := map[string]interface{}{}
 		ob["handler"] = "publish"
 		handlerArgs := map[string]interface{}{
-			"rootName":   rootName,
-			"blobRoot":   "/bs-and-maybe-also-index/",
-			"searchRoot": "/my-search/",
-			"cache":      "/cache/",
-			// TODO(mpl): make camli use rootPermanode for published entities 
-			// instead of devBootstrapPermanodeUsing. next CL.
-			"rootPermanode": rootPermanode,
+			"rootName":      rootName,
+			"blobRoot":      "/bs-and-maybe-also-index/",
+			"searchRoot":    "/my-search/",
+			"cache":         "/cache/",
+			"rootPermanode": []interface{}{"/sighelper/", rootPermanode},
 		}
 		switch template {
 		case "gallery":
