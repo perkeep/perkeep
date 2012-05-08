@@ -240,7 +240,6 @@ func (c *Conn) Serve(fs FS) error {
 
 	for {
 		req, err := c.ReadRequest()
-		log.Printf("read request = %T, %v", req, err)
 		if err != nil {
 			if err == io.EOF {
 				break
