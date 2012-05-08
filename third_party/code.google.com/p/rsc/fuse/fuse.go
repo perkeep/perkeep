@@ -473,8 +473,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 			goto corrupt
 		}
 		oldName, newName := string(oldNew[:i]), string(oldNew[i+1:len(oldNew)-1])
-		log.Printf("RENAME: newDirNode = %d; old = %q, new = %q", newDirNodeID, oldName, newName)
-
+		// log.Printf("RENAME: newDirNode = %d; old = %q, new = %q", newDirNodeID, oldName, newName)
 		req = &RenameRequest{
 			Header:  m.Header(),
 			NewDir:  newDirNodeID,
@@ -1074,7 +1073,6 @@ func (r *LookupRequest) Respond(resp *LookupResponse) {
 		AttrValidNsec:  uint32(resp.AttrValid % time.Second / time.Nanosecond),
 		Attr:           resp.Attr.attr(),
 	}
-	log.Printf("Lookup Response: %#v", out)
 	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 }
 
