@@ -176,6 +176,7 @@ type Index interface {
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
 	// Returns os.ErrNotExist if none is found.
+	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
 	// Only attributes white-listed by IsIndexedAttribute are valid.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, error)
 
