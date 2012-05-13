@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -149,16 +148,7 @@ func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 }
 
 func camliMode(req *http.Request) string {
-	// TODO-GO: this is too hard to get at the GET Query args on a
-	// POST request.
-	m, err := url.ParseQuery(req.URL.RawQuery)
-	if err != nil {
-		return ""
-	}
-	if mode, ok := m["camli.mode"]; ok && len(mode) > 0 {
-		return mode[0]
-	}
-	return ""
+	return req.URL.Query().Get("camli.mode")
 }
 
 func wantsDiscovery(req *http.Request) bool {
