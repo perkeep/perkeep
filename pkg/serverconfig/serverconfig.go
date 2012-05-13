@@ -312,7 +312,7 @@ func Load(filename string) (*Config, error) {
 	return conf, nil
 }
 
-func (config *Config) initAuth() error {
+func (config *Config) checkValidAuth() error {
 	authConfig := config.OptionalString("auth", "")
 	_, err := auth.FromConfig(authConfig)
 	return err
@@ -328,8 +328,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		outerr = fmt.Errorf("%v", err)
 	}()
 
-	err := config.initAuth()
-	if err != nil {
+	if err := config.checkValidAuth(); err != nil {
 		return fmt.Errorf("error while configuring auth: %v", err)
 	}
 	prefixes := config.RequiredObject("prefixes")
