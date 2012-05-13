@@ -47,7 +47,7 @@ func (c *shareCmd) RunCommand(up *Uploader, args []string) error {
 	if len(args) != 1 {
 		return UsageError("share takes exactly one argument, a blobref")
 	}
-	br := blobref.Parse(flag.Arg(0))
+	br := blobref.Parse(args[0])
 	if br == nil {
 		return UsageError("invalid blobref")
 	}
