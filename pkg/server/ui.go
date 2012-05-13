@@ -70,10 +70,10 @@ type UIHandler struct {
 }
 
 func init() {
-	blobserver.RegisterHandlerConstructor("ui", newUiFromConfig)
+	blobserver.RegisterHandlerConstructor("ui", newUIFromConfig)
 }
 
-func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ui := &UIHandler{
 		BlobRoot:     conf.OptionalString("blobRoot", ""),
 		SearchRoot:   conf.OptionalString("searchRoot", ""),
