@@ -29,6 +29,8 @@ import (
 type RootHandler struct {
 	// Don't advertise anything to non-authenticated clients.
 	Stealth bool
+
+	ui *UIHandler // or nil, if none configured
 }
 
 func init() {
@@ -42,10 +44,19 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		return
 	}
 
+	if _, h, err := ld.FindHandlerByType("ui"); err == nil {
+		root.ui = h.(*UIHandler)
+	}
+
 	return root, nil
 }
 
 func (rh *RootHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
+	if rh.ui != nil && camliMode(req) == "config" && auth.IsAuthorized(req) {
+		rh.ui.serveDiscovery(conn, req)
+		return
+	}
+
 	if rh.Stealth {
 		return
 	}
