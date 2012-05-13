@@ -8,7 +8,7 @@
 <h2>Libraries</h2>
 
 <ul>
-<li><a href="/code/?p=camlistore.git;a=tree;f=lib/go/camli/jsonsign;hb=HEAD">Go</a></li>
+<li><a href="/code/?p=camlistore.git;a=tree;f=pkg/jsonsign;hb=HEAD">Go</a></li>
 </ul>
 
 </ul>

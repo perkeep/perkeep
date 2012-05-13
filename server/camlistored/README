@@ -1,6 +1,6 @@
 The Camlistore blob server HTTP server binary.
 
 See also:
- - The storage interface is in lib/go/camli/blobserver/
- - The storage implementations are under that e.g. lib/go/camli/blobserver/localdisk/
- - The HTTP handlers are implemented in lib/go/camli/blobserver/handlers/
+ - The storage interface is in pkg/blobserver/
+ - The storage implementations are under that e.g. pkg/blobserver/localdisk/
+ - The HTTP handlers are implemented in pkg/blobserver/handlers/

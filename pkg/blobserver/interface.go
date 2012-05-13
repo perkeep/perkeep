@@ -150,7 +150,7 @@ type StorageQueueCreator interface {
 //
 // While Camlistore's internals are separated out into a part which
 // maps http requests to the interfaces in this file
-// (lib/go/camli/blobserver/handlers) and parts which map these
+// (pkg/blobserver/handlers) and parts which map these
 // interfaces to implementations (localdisk, s3, etc), the App Engine
 // implementation requires access to the original HTTP
 // request. (because a security token is stored on the incoming HTTP
