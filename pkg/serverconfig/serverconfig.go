@@ -58,6 +58,9 @@ type handlerLoader struct {
 	context *http.Request
 }
 
+// A HandlerInstaller is anything that can register an HTTP Handler at
+// a prefix path.  Both *http.ServeMux and camlistore.org/pkg/webserver.Server
+// implement HandlerInstaller.
 type HandlerInstaller interface {
 	Handle(path string, handler http.Handler)
 }
@@ -318,7 +321,11 @@ func (config *Config) checkValidAuth() error {
 	return err
 }
 
-// context may be nil
+// InstallHandlers creates and registers all the HTTP Handlers needed by config
+// into the provided HandlerInstaller.
+//
+// baseURL is required and specifies the root of this webserver, without trailing slash.
+// context may be nil (used and required by App Engine only)
 func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (outerr error) {
 	defer func() {
 		err := recover()
