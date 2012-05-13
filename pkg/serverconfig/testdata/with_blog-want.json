@@ -16,7 +16,7 @@
 				"rootName": "blogRoot",
 				"blobRoot": "/bs-and-maybe-also-index/",
 				"searchRoot": "/my-search/",
-				"rootPermanode": "sha1-xxxxx",
+				"rootPermanode": ["/sighelper/", "sha1-xxxxx"],
 				"cache": "/cache/",
 				"css": ["blog-purple.css"]
 			}

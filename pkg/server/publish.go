@@ -70,6 +70,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	cachePrefix := conf.OptionalString("cache", "")
 	scType := conf.OptionalString("scaledImage", "")
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
+	rootNode := conf.OptionalList("rootPermanode")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -95,14 +96,30 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 			searchRoot, si)
 	}
 
-	if bootstrapSignRoot != "" {
-		if t := ld.GetHandlerType(bootstrapSignRoot); t != "jsonsign" {
-			return nil, fmt.Errorf("publish handler's devBootstrapPermanodeUsing must be of type jsonsign")
+	if rootNode != nil {
+		if len(rootNode) != 2 {
+			return nil, fmt.Errorf("rootPermanode config must contain the jsonSignerHandler and the permanode hash")
 		}
-		h, _ := ld.GetHandler(bootstrapSignRoot)
+
+		if t := ld.GetHandlerType(rootNode[0]); t != "jsonsign" {
+			return nil, fmt.Errorf("publish handler's rootPermanode first value not a jsonsign")
+		}
+		h, _ := ld.GetHandler(rootNode[0])
 		jsonSign := h.(*JSONSignHandler)
-		if err := ph.bootstrapPermanode(jsonSign); err != nil {
-			return nil, fmt.Errorf("error bootstrapping permanode: %v", err)
+		pn := blobref.Parse(rootNode[1])
+		if err := ph.setRootNode(jsonSign, pn); err != nil {
+			return nil, fmt.Errorf("error setting publish root permanode: %v", err)
+		}
+	} else {
+		if bootstrapSignRoot != "" {
+			if t := ld.GetHandlerType(bootstrapSignRoot); t != "jsonsign" {
+				return nil, fmt.Errorf("publish handler's devBootstrapPermanodeUsing must be of type jsonsign")
+			}
+			h, _ := ld.GetHandler(bootstrapSignRoot)
+			jsonSign := h.(*JSONSignHandler)
+			if err := ph.bootstrapPermanode(jsonSign); err != nil {
+				return nil, fmt.Errorf("error bootstrapping permanode: %v", err)
+			}
 		}
 	}
 
@@ -583,6 +600,28 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 	return
 }
 
+func (ph *PublishHandler) signUpload(jsonSign *JSONSignHandler, name string, m map[string]interface{}) (*blobref.BlobRef, error) {
+	signed, err := jsonSign.SignMap(m)
+	if err != nil {
+		return nil, fmt.Errorf("error signing %s: %v", name, err)
+	}
+	uh := client.NewUploadHandleFromString(signed)
+	_, err = ph.Storage.ReceiveBlob(uh.BlobRef, uh.Contents)
+	if err != nil {
+		return nil, fmt.Errorf("error uploading %s: %v", name, err)
+	}
+	return uh.BlobRef, nil
+}
+
+func (ph *PublishHandler) setRootNode(jsonSign *JSONSignHandler, pn *blobref.BlobRef) (err error) {
+	_, err = ph.signUpload(jsonSign, "set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", ph.RootName))
+	if err != nil {
+		return err
+	}
+	_, err = ph.signUpload(jsonSign, "set-attr title", schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+ph.RootName))
+	return err
+}
+
 func (ph *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err error) {
 	if pn, err := ph.Search.Index().PermanodeOfSignerAttrValue(ph.Search.Owner(), "camliRoot", ph.RootName); err == nil {
 		log.Printf("Publish root %q using existing permanode %s", ph.RootName, pn)
@@ -590,26 +629,10 @@ func (ph *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err err
 	}
 	log.Printf("Publish root %q needs a permanode + claim", ph.RootName)
 
-	defer func() {
-		if perr := recover(); perr != nil {
-			err = perr.(error)
-		}
-	}()
-	signUpload := func(name string, m map[string]interface{}) *blobref.BlobRef {
-		signed, err := jsonSign.SignMap(m)
-		if err != nil {
-			panic(fmt.Errorf("error signing %s: %v", name, err))
-		}
-		uh := client.NewUploadHandleFromString(signed)
-		_, err = ph.Storage.ReceiveBlob(uh.BlobRef, uh.Contents)
-		if err != nil {
-			panic(fmt.Errorf("error uploading %s: %v", name, err))
-		}
-		return uh.BlobRef
+	pn, err := ph.signUpload(jsonSign, "permanode", schema.NewUnsignedPermanode())
+	if err != nil {
+		return err
 	}
-
-	pn := signUpload("permanode", schema.NewUnsignedPermanode())
-	signUpload("set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", ph.RootName))
-	signUpload("set-attr title", schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+ph.RootName))
-	return nil
+	err = ph.setRootNode(jsonSign, pn)
+	return err
 }
