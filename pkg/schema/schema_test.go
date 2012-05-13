@@ -27,7 +27,7 @@ import (
 
 const kExpectedHeader = `{"camliVersion"`
 
-func TestJson(t *testing.T) {
+func TestJSON(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, _ := os.Lstat(fileName)
 	m := NewCommonFileMap(fileName, fi)
