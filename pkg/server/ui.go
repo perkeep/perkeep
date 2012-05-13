@@ -74,10 +74,11 @@ func init() {
 }
 
 func newUiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
-	ui := &UIHandler{}
-	ui.BlobRoot = conf.OptionalString("blobRoot", "")
-	ui.SearchRoot = conf.OptionalString("searchRoot", "")
-	ui.JSONSignRoot = conf.OptionalString("jsonSignRoot", "")
+	ui := &UIHandler{
+		BlobRoot:     conf.OptionalString("blobRoot", ""),
+		SearchRoot:   conf.OptionalString("searchRoot", ""),
+		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
+	}
 	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")
 	scType := conf.OptionalString("scaledImage", "")
