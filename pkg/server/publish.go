@@ -160,7 +160,7 @@ func (ph *PublishHandler) serveDiscovery(rw http.ResponseWriter, req *http.Reque
 		})
 		return
 	}
-	_, handler, err := ph.bsLoader.FindHandlerByTypeIfLoaded("ui")
+	_, handler, err := ph.bsLoader.FindHandlerByType("ui")
 	if err != nil {
 		discoveryHelper(rw, req, map[string]interface{}{
 			"error": "no admin handler running",

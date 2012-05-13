@@ -159,13 +159,13 @@ func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
 	return hl.context, hl.context != nil
 }
 
-func (hl *handlerLoader) FindHandlerByTypeIfLoaded(htype string) (prefix string, handler interface{}, err error) {
+func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
 	for prefix, config := range hl.config {
 		if config.htype == htype {
 			return prefix, hl.handler[prefix], nil
 		}
 	}
-	return "", nil, os.ErrNotExist
+	return "", nil, blobserver.ErrHandlerTypeNotFound
 }
 
 func (hl *handlerLoader) setupAll() {
