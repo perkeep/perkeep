@@ -137,7 +137,10 @@ func findConfigFile(file string) (absPath string, err error) {
 		absPath = osutil.UserServerConfigPath()
 		_, err = os.Stat(absPath)
 		if os.IsNotExist(err) {
-			os.MkdirAll(osutil.CamliConfigDir(), 0700)
+			err = os.MkdirAll(osutil.CamliConfigDir(), 0700)
+			if err != nil {
+				return
+			}
 			log.Printf("Generating template config file %s", absPath)
 			err = newDefaultConfigFile(absPath)
 		}
