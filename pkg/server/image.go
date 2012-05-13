@@ -76,7 +76,7 @@ func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, erro
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
 	}
-	log.Printf("Imache Cache: saved as %v\n", br)
+	log.Printf("Image Cache: saved as %v\n", br)
 	return br, nil
 }
 
