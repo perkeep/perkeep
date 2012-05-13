@@ -144,14 +144,14 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 	}
 	row, err := fetchEnt(sto.ctx, br)
 	if err == datastore.ErrNoSuchEntity {
-		err = os.ENOENT
+		err = os.ErrNotExist
 		return
 	}
 	if err != nil {
 		return
 	}
 	if !row.inNamespace(sto.namespace) {
-		err = os.ENOENT
+		err = os.ErrNotExist
 		return
 	}
 	size, err = row.size()

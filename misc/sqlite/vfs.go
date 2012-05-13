@@ -9,6 +9,7 @@ package sqlite
 import "C"
 
 import (
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -20,7 +21,7 @@ import (
 // Instead we just make some identifiers up.
 var fmu sync.Mutex
 var fileMap = make(map[int]*os.File) // fake_fd -> *os.File
-var lastFakeFd = 99000 // start high to catch bugs of people using these like real fds
+var lastFakeFd = 99000               // start high to catch bugs of people using these like real fds
 
 func GetFile(fd int) (file *os.File) {
 	fmu.Lock()
@@ -30,7 +31,7 @@ func GetFile(fd int) (file *os.File) {
 
 //export GoFileClose
 // Returns 0 on success and -1 on error.
-func GoFileClose(fd C.int) (int) {
+func GoFileClose(fd C.int) int {
 	file := GetFile(int(fd))
 	fmu.Lock()
 	fileMap[int(fd)] = nil, false
@@ -47,9 +48,9 @@ func GoFileClose(fd C.int) (int) {
 //   SQLITE_IOERR_READ: got error while reading
 //   SQLITE_IOERR_SHORT_READ: read fewer than n bytes; rest will be zeroed
 func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
-	println("reading", n, "bytes at offset", offset, "from fd", fd);
+	println("reading", n, "bytes at offset", offset, "from fd", fd)
 	defer func() {
-		println("read returning", rv);
+		println("read returning", rv)
 	}()
 
 	file := GetFile(int(fd))
@@ -63,7 +64,7 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 		read, err := file.ReadAt(curbuf, int64(offset))
 		curbuf = curbuf[read:]
 		n -= C.int(read)
-		if err == os.EOF {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
@@ -85,9 +86,9 @@ func GoFileRead(fd C.int, dst *C.char, n C.int, offset C.long) (rv int) {
 //   SQLITE_IOERR_WRITE: got error while writing
 //   SQLITE_FULL: partial write
 func GoFileWrite(fd C.int, src *C.char, n C.int, offset C.long) (rv int) {
-	println("writing", n, "bytes at offset", offset, "to fd", fd);
+	println("writing", n, "bytes at offset", offset, "to fd", fd)
 	defer func() {
-		println("write returning", rv);
+		println("write returning", rv)
 	}()
 
 	file := GetFile(int(fd))
@@ -117,9 +118,9 @@ func GoFileWrite(fd C.int, src *C.char, n C.int, offset C.long) (rv int) {
 // return[0]: 0 on success and -1 on error.
 // return[1]: size
 func GoFileFileSize(fd C.int) (rv int, size C.long) {
-	println("getting file size for fd", fd);
+	println("getting file size for fd", fd)
 	defer func() {
-		println("returning", rv, "with size", size);
+		println("returning", rv, "with size", size)
 	}()
 
 	file := GetFile(int(fd))
@@ -140,19 +141,19 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 	println("opening", C.GoString(filename), "with flags", int(flags))
 
 	goflags := 0
-	if flags & C.SQLITE_OPEN_READONLY != 0 {
+	if flags&C.SQLITE_OPEN_READONLY != 0 {
 		goflags |= os.O_RDONLY
 	}
-	if flags & C.SQLITE_OPEN_READWRITE != 0 {
+	if flags&C.SQLITE_OPEN_READWRITE != 0 {
 		goflags |= os.O_RDWR
 	}
-	if flags & C.SQLITE_OPEN_CREATE != 0 {
+	if flags&C.SQLITE_OPEN_CREATE != 0 {
 		goflags |= os.O_RDWR | os.O_CREATE
 	}
-	if flags & C.SQLITE_OPEN_DELETEONCLOSE != 0 {
+	if flags&C.SQLITE_OPEN_DELETEONCLOSE != 0 {
 		// TODO: Do something.
 	}
-	if flags & C.SQLITE_OPEN_EXCLUSIVE != 0{
+	if flags&C.SQLITE_OPEN_EXCLUSIVE != 0 {
 		goflags |= os.O_EXCL
 	}
 
@@ -161,7 +162,7 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 		if err != nil {
 			println("got error:", err.String())
 		}
-		println("returning fd", fd);
+		println("returning fd", fd)
 	}()
 	if err != nil {
 		return -1
@@ -183,7 +184,7 @@ func GoVFSOpen(filename *C.char, flags C.int) (fd int) {
 func GoVFSDelete(filename *C.char, syncDir C.int) (rv int) {
 	println("deleting", C.GoString(filename), "with syncdir", syncDir)
 	if err := os.Remove(C.GoString(filename)); err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
+		if os.IsNotExist(err) {
 			return C.SQLITE_OK
 		}
 		println("delete of", C.GoString(filename), "failed:", err.String())

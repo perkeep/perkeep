@@ -147,7 +147,7 @@ type Index interface {
 
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, error)
 
-	// os.ENOENT should be returned if the blob isn't known
+	// os.ErrNotExist should be returned if the blob isn't known
 	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error)
 
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
@@ -169,13 +169,13 @@ type Index interface {
 	// all exist on the blob server.
 	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err error)
 
-	// Should return os.ENOENT if not found.
+	// Should return os.ErrNotExist if not found.
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, error)
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
-	// Returns os.ENOENT if none is found.
+	// Returns os.ErrNotExist if none is found.
 	// Only attributes white-listed by IsIndexedAttribute are valid.
 	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, error)
 

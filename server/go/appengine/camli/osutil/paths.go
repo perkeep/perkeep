@@ -84,5 +84,5 @@ func FindCamliInclude(configFile string) (absPath string, err os.Error) {
 		}
 	}
 
-	return "", os.ENOENT
+	return "", os.ErrNotExist
 }
