@@ -35,18 +35,20 @@ import (
 
 var _ = log.Printf
 
-var staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-var identPattern = regexp.MustCompile(`^[a-zA-Z\_]+$`)
+var (
+	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	identPattern      = regexp.MustCompile(`^[a-zA-Z\_]+$`)
+
+	// Download URL suffix:
+	//   $1: blobref (checked in download handler)
+	//   $2: optional "/filename" to be sent as recommended download name,
+	//       if sane looking
+	downloadPattern  = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
+	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
+)
 
 var uiFiles = uistatic.Files
-
-// Download URL suffix:
-//   $1: blobref (checked in download handler)
-//   $2: optional "/filename" to be sent as recommended download name,
-//       if sane looking
-var downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
-var thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
-var treePattern = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
