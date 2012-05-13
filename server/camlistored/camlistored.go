@@ -281,7 +281,7 @@ func main() {
 
 	ws := webserver.New()
 	baseURL := config.RequiredString("baseURL")
-	listen := *(webserver.Listen)
+	listen := *webserver.Listen
 	if listen == "" {
 		// if command line was empty, use value in config
 		listen = strings.TrimLeft(baseURL, "http://")
