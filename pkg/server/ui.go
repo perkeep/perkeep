@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -61,6 +62,7 @@ type UIHandler struct {
 
 	PublishRoots map[string]*PublishHandler
 
+	prefix  string             // of the UI handler itself
 	Storage blobserver.Storage // of BlobRoot
 	Cache   blobserver.Storage // or nil
 	Search  *search.Handler    // or nil
@@ -75,6 +77,7 @@ func init() {
 
 func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ui := &UIHandler{
+		prefix:       ld.MyPrefix(),
 		BlobRoot:     conf.OptionalString("blobRoot", ""),
 		SearchRoot:   conf.OptionalString("searchRoot", ""),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
@@ -257,9 +260,9 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		"blobRoot":        ui.BlobRoot,
 		"searchRoot":      ui.SearchRoot,
 		"jsonSignRoot":    ui.JSONSignRoot,
-		"uploadHelper":    "?camli.mode=uploadhelper", // hack; remove with better javascript
-		"downloadHelper":  "./download/",
-		"directoryHelper": "./tree/",
+		"uploadHelper":    ui.prefix + "?camli.mode=uploadhelper", // hack; remove with better javascript
+		"downloadHelper":  path.Join(ui.prefix, "download") + "/",
+		"directoryHelper": path.Join(ui.prefix, "tree") + "/",
 		"publishRoots":    pubRoots,
 	})
 }

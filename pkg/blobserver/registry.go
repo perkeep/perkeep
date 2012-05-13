@@ -28,6 +28,9 @@ import (
 var ErrHandlerTypeNotFound = errors.New("requested handler type not loaded")
 
 type Loader interface {
+	// MyPrefix returns the prefix of the handler currently being constructed.
+	MyPrefix() string
+
 	GetStorage(prefix string) (Storage, error)
 	GetHandlerType(prefix string) string // returns "" if unknown
 

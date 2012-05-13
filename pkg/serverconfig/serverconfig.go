@@ -50,6 +50,7 @@ type handlerLoader struct {
 	baseURL   string
 	config    map[string]*handlerConfig // prefix -> config
 	handler   map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
+	curPrefix string
 
 	// optional context (for App Engine, the first request that
 	// started up the process).  we may need this if setting up
@@ -186,6 +187,10 @@ func (hl *handlerLoader) getOrSetup(prefix string) interface{} {
 	return hl.handler[prefix]
 }
 
+func (hl *handlerLoader) MyPrefix() string {
+	return hl.curPrefix
+}
+
 func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, error) {
 	hl.setupHandler(prefix)
 	if s, ok := hl.handler[prefix].(blobserver.Storage); ok {
@@ -242,6 +247,8 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			panic(r)
 		}
 	}()
+
+	hl.curPrefix = prefix
 
 	if strings.HasPrefix(h.htype, "storage-") {
 		stype := h.htype[len("storage-"):]
