@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -320,11 +319,11 @@ func (ss *Superset) ModTime() time.Time {
 	if ss.UnixMtime == "" {
 		return time.Time{}
 	}
-	nanos := NanosFromRFC3339(ss.UnixMtime)
-	if nanos == -1 {
+	t, err := time.Parse(time.RFC3339, ss.UnixMtime)
+	if err != nil {
 		return time.Time{}
 	}
-	return time.Unix(0, nanos)
+	return t
 }
 
 var DefaultStatHasher = &defaultStatHasher{}
@@ -540,40 +539,20 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]in
 // Types of ShareRefs
 const ShareHaveRef = "haveref"
 
+// RFC3339FromTime returns an RFC3339-formatted time in UTC.
+// Fractional seconds are only included if the time has fractional
+// seconds.
 func RFC3339FromTime(t time.Time) string {
-	// TODO-GO1: this is now needlessly complex after the gofix
-	// and signature change.
-	epochnanos := t.UnixNano()
-	nanos := epochnanos % 1e9
-	esec := epochnanos / 1e9
-	t = time.Unix(esec, 0).UTC()
-	timeStr := t.Format(time.RFC3339)
-	if nanos == 0 {
-		return timeStr
+	if t.UnixNano() % 1e9 == 0 {
+		return t.UTC().Format(time.RFC3339)
 	}
-	nanoStr := fmt.Sprintf("%09d", nanos)
-	nanoStr = strings.TrimRight(nanoStr, "0")
-	return timeStr[:len(timeStr)-1] + "." + nanoStr + "Z"
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 func NanosFromRFC3339(timestr string) int64 {
-	dotpos := strings.Index(timestr, ".")
-	simple3339 := timestr
-	nanostr := ""
-	if dotpos != -1 {
-		if !strings.HasSuffix(timestr, "Z") {
-			return -1
-		}
-		simple3339 = timestr[:dotpos] + "Z"
-		nanostr = timestr[dotpos+1 : len(timestr)-1]
-		if needDigits := 9 - len(nanostr); needDigits > 0 {
-			nanostr = nanostr + "000000000"[:needDigits]
-		}
-	}
-	t, err := time.Parse(time.RFC3339, simple3339)
+	t, err := time.Parse(time.RFC3339, timestr)
 	if err != nil {
 		return -1
 	}
-	nanos, _ := strconv.ParseInt(nanostr, 10, 64)
-	return t.Unix()*1e9 + nanos
+	return t.UnixNano()
 }

@@ -26,7 +26,6 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 )
 
@@ -208,9 +207,10 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 		if len(parts) != 4 {
 			continue
 		}
-		mTime := unreverseTimeString(parts[2])
-		mTimeNs := schema.NanosFromRFC3339(mTime)
-		mTimeSec := mTimeNs / 1e9
+		var mTimeSec int64
+		if mTime, err := time.Parse(time.RFC3339, unreverseTimeString(parts[2])); err == nil {
+			mTimeSec = mTime.Unix()
+		}
 		permaRef := blobref.Parse(permaStr)
 		if permaRef == nil {
 			continue
@@ -253,12 +253,12 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 		if claimRef == nil {
 			continue
 		}
-		nanos := schema.NanosFromRFC3339(keyPart[3])
+		date, _ := time.Parse(time.RFC3339, keyPart[3])
 		cl = append(cl, &search.Claim{
 			BlobRef:   claimRef,
 			Signer:    owner,
 			Permanode: permaNode,
-			Date:      time.Unix(0, nanos).UTC(),
+			Date:      date,
 			Type:      urld(valPart[0]),
 			Attr:      urld(valPart[1]),
 			Value:     urld(valPart[2]),

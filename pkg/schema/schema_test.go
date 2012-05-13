@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	. "camlistore.org/pkg/test/asserts"
 )
@@ -87,6 +88,24 @@ func TestStringFromMixedArray(t *testing.T) {
 		got := stringFromMixedArray(v)
 		if got != test.expected {
 			t.Errorf("test %d got %q; expected %q", idx, got, test.expected)
+		}
+	}
+}
+
+func TestRFC3339(t *testing.T) {
+	tests := []string{
+		"2012-05-13T15:02:47Z",
+		"2012-05-13T15:02:47.1234Z",
+		"2012-05-13T15:02:47.123456789Z",
+	}
+	for _, in := range tests {
+		tm, err := time.Parse(time.RFC3339, in)
+		if err != nil {
+			t.Errorf("error parsing %q", in)
+			continue
+		}
+		if out := RFC3339FromTime(tm); in != out {
+			t.Errorf("RFC3339FromTime(%q) = %q; want %q", in, out, in)
 		}
 	}
 }
