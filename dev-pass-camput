@@ -3,19 +3,6 @@
 use strict;
 use FindBin qw($Bin);
 
-system("$Bin/build.pl", "camput") and die "failed to build camput";
-
-# Respected by camli/osutil:
-$ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
-
-# Respected by env expansions in config/dev-client-dir/config
-$ENV{"CAMLI_SECRET_RING"} = "$Bin/lib/go/camli/jsonsign/testdata/password-foo-secring.gpg";
-$ENV{"CAMLI_KEYID"} = "C7C3E176";
-$ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
-
-print "**\n** Note: password is \"foo\"\n**\n";
-system("$Bin/clients/go/camput/camput",
-       "--verbose",
-       "--blobserver=http://localhost:3179/bs",
-       "--password=pass3179",
-       @ARGV);
+$ENV{"CAMLI_WANT_CAMPUT_PASSWORD"} = 1;
+exec("$Bin/dev-camput", @ARGV);
+die "failed to find/run $Bin/dev-camput";
