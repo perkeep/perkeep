@@ -30,6 +30,10 @@ const topWizard =`
 
 const bottomWizard =`
 <p> <a href="/">Back</a> </p>
+<p>
+	<form id="Restart" name="Restart" action="restartCamli" method="post">
+	<input type="submit" form="Restart" value="RestartCamli"></form>
+</p>
 </body>
 </html>
 `
