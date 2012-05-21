@@ -39,8 +39,9 @@ import (
 )
 
 type fileCmd struct {
-	name string
-	tag  string
+	name       string
+	tag        string
+	collection string
 
 	makePermanode bool
 	rollSplits    bool
@@ -59,6 +60,7 @@ func init() {
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
+		flags.StringVar(&cmd.collection, "collection", "", "Add all the argument files as permanodes and as members of the given permanode. Use \"NEW\" if you want camput to create the collection root permanode.")
 
 		flags.BoolVar(&cmd.statcache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 		flags.BoolVar(&cmd.havecache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
@@ -88,6 +90,12 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if len(args) == 0 {
 		return UsageError("No files or directories given.")
 	}
+	if c.collection != "" {
+		if c.makePermanode {
+			return UsageError("--permanode and --collection are mutually exclusive")
+		}
+		// TODO(mpl): add other checks against other options, if any.
+	}
 	if c.name != "" && !c.makePermanode {
 		return UsageError("Can't set name without using --permanode")
 	}
@@ -116,9 +124,11 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	var (
-		permaNode *client.PutResult
-		lastPut   *client.PutResult
-		err       error
+		permaNode  *client.PutResult
+		lastPut    *client.PutResult
+		collecNode *blobref.BlobRef
+		toUndo     []*blobref.BlobRef
+		err        error
 	)
 	if c.makePermanode {
 		if len(args) != 1 {
@@ -155,8 +165,23 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		up.rollSplits = true
 	}
 
+	if c.collection != "" {
+		toUndo = []*blobref.BlobRef{}
+		if c.collection == "NEW" {
+			put, err := up.UploadNewPermanode()
+			if handleResult("Uploading permanode", put, err) != nil {
+				return err
+			}
+			collecNode = put.BlobRef
+			toUndo = append(toUndo, collecNode)
+		} else {
+			collecNode = blobref.Parse(c.collection)
+		}
+	}
 	for _, filename := range args {
 		if fi, err := os.Stat(filename); err == nil && fi.IsDir() {
+			// TODO(mpl): add to the toUndo list all the ones added by the TreeUpload.
+			// Will do when/if brad is ok with this approach.
 			t := up.NewTreeUpload(filename)
 			t.Start()
 			lastPut, err = t.Wait()
@@ -165,6 +190,32 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 		if handleResult("file", lastPut, err) != nil {
 			return err
+		}
+		if c.collection != "" {
+			permaNode, err := up.UploadNewPermanode()
+			if handleResult("Uploading permanode", permaNode, err) != nil {
+				if undoCollec(up, toUndo) != nil {
+					return fmt.Errorf("Failed to rollback after error: %v", err)
+				}
+				return err
+			}
+			toUndo = append(toUndo, permaNode.BlobRef)
+			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
+			if handleResult("claim-permanode-content", put, err) != nil {
+				if undoCollec(up, toUndo) != nil {
+					return fmt.Errorf("Failed to rollback after error: %v", err)
+				}
+				return err
+			}
+			toUndo = append(toUndo, put.BlobRef)
+			put, err = up.UploadAndSignMap(schema.NewAddAttributeClaim(collecNode, "camliMember", permaNode.BlobRef.String()))
+			if handleResult("claim-permanode-member", put, err) != nil {
+				if undoCollec(up, toUndo) != nil {
+					return fmt.Errorf("Failed to rollback after error: %v", err)
+				}
+				return err
+			}
+			toUndo = append(toUndo, put.BlobRef)
 		}
 	}
 
@@ -189,6 +240,10 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("permanode", permaNode, nil)
 	}
 	return nil
+}
+
+func undoCollec(up *Uploader, toUndo []*blobref.BlobRef) (err error) {
+	return up.RemoveBlobs(toUndo)
 }
 
 // statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
