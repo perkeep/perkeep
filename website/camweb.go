@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -27,7 +28,6 @@ import (
 	"net/http/cgi"
 	"net/http/httputil"
 	"net/url"
-	"old/template"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,27 +55,30 @@ var (
 	pageHtml, errorHtml *template.Template
 )
 
-var fmap = template.FormatterMap{
+var fmap = template.FuncMap{
 	"":         textFmt,
 	"html":     htmlFmt,
-	"html-esc": htmlEscFmt,
+	"htmlesc": htmlEscFmt,
 }
 
 // Template formatter for "" (default) format.
-func textFmt(w io.Writer, format string, x ...interface{}) {
+func textFmt(w io.Writer, format string, x ...interface{}) string {
 	writeAny(w, false, x[0])
+	return ""
 }
 
 // Template formatter for "html" format.
-func htmlFmt(w io.Writer, format string, x ...interface{}) {
+func htmlFmt(w io.Writer, format string, x ...interface{}) string {
 	writeAny(w, true, x[0])
+	return ""
 }
 
-// Template formatter for "html-esc" format.
-func htmlEscFmt(w io.Writer, format string, x ...interface{}) {
+// Template formatter for "htmlesc" format.
+func htmlEscFmt(w io.Writer, format string, x ...interface{}) string {
 	var buf bytes.Buffer
 	writeAny(&buf, false, x[0])
 	template.HTMLEscape(w, buf.Bytes())
+	return ""
 }
 
 // Write anything to w; optionally html-escaped.
@@ -117,11 +120,11 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 	d := struct {
 		Title    string
 		Subtitle string
-		Content  []byte
+		Content  template.HTML
 	}{
 		title,
 		subtitle,
-		content,
+		template.HTML(content),
 	}
 
 	if err := pageHtml.Execute(w, &d); err != nil {
@@ -135,7 +138,7 @@ func readTemplate(name string) *template.Template {
 	if err != nil {
 		log.Fatalf("ReadFile %s: %v", fileName, err)
 	}
-	t, err := template.Parse(string(data), fmap)
+	t, err := template.New(name).Funcs(fmap).Parse(string(data))
 	if err != nil {
 		log.Fatalf("%s: %v", fileName, err)
 	}
