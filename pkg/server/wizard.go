@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2012 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"reflect"
@@ -167,11 +168,6 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 }
 
 func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
-	err := req.ParseMultipartForm(10e6)
-	if err != nil {
-		httputil.ServerError(rw, err)
-		return
-	}
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
 		httputil.ServerError(rw, err)
@@ -257,8 +253,21 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if req.Method == "POST" {
-		handleSetupChange(req, rw)
-		return
+		err := req.ParseMultipartForm(10e6)
+		if err != nil {
+			httputil.ServerError(rw, err)
+			return
+		}
+		if len(req.Form) > 0 {
+			handleSetupChange(req, rw)
+			return
+		}
+		if strings.Contains(req.URL.Path, "restartCamli") {
+			err = osutil.RestartProcess()
+			if err != nil {
+				log.Fatal("Failed to restart: " + err.Error())
+			}
+		}
 	}
 
 	sendWizard(req, rw, false)

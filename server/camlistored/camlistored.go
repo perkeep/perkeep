@@ -29,9 +29,11 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"camlistore.org/pkg/jsonsign"
@@ -266,6 +268,28 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 	ws.SetTLS(cert, key)
 }
 
+func handleSignals() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGHUP)
+	for {
+		sig := <-c
+		sysSig, ok := sig.(syscall.Signal)
+		if !ok {
+			log.Fatal("Not a unix signal")
+		}
+		switch sysSig {
+		case syscall.SIGHUP:
+			log.Print("SIGHUP: restarting camli")
+			err := osutil.RestartProcess()
+			if err != nil {
+				log.Fatal("Failed to restart: " + err.Error())
+			}
+		default:
+			log.Fatal("Received another signal, should not happen.")
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -320,5 +344,6 @@ func main() {
 			}
 		}()
 	}
-	ws.Serve()
+	go ws.Serve()
+	handleSignals()
 }
