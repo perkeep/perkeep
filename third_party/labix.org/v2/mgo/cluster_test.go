@@ -29,8 +29,8 @@ package mgo_test
 import (
 	"io"
 	. "camlistore.org/third_party/launchpad.net/gocheck"
-	"camlistore.org/third_party/launchpad.net/mgo"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"strings"
 	"time"
 )
@@ -477,7 +477,7 @@ func (s *S) TestPrimaryShutdownMonotonicWithSlave(c *C) {
 	err = session.Run("isMaster", imresult)
 	c.Assert(err, IsNil)
 	master := ssresult.Host
-	c.Assert(imresult.IsMaster, Equals, true, Bug("%s is not the master", master))
+	c.Assert(imresult.IsMaster, Equals, true, Commentf("%s is not the master", master))
 
 	// Create new monotonic session with an explicit address to ensure
 	// a slave is synchronized before the master, otherwise a connection
@@ -507,7 +507,7 @@ func (s *S) TestPrimaryShutdownMonotonicWithSlave(c *C) {
 	err = session.Run("isMaster", imresult)
 	c.Assert(err, IsNil)
 	slave := ssresult.Host
-	c.Assert(imresult.IsMaster, Equals, false, Bug("%s is not a slave", slave))
+	c.Assert(imresult.IsMaster, Equals, false, Commentf("%s is not a slave", slave))
 
 	c.Assert(master, Not(Equals), slave)
 
@@ -519,7 +519,7 @@ func (s *S) TestPrimaryShutdownMonotonicWithSlave(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(ssresult.Host, Equals, slave,
-		Bug("Monotonic session moved from %s to %s", slave, ssresult.Host))
+		Commentf("Monotonic session moved from %s to %s", slave, ssresult.Host))
 
 	// If we try to insert something, it'll have to hold until the new
 	// master is available to move the connection, and work correctly.
@@ -532,7 +532,7 @@ func (s *S) TestPrimaryShutdownMonotonicWithSlave(c *C) {
 	c.Assert(err, IsNil)
 	err = session.Run("isMaster", imresult)
 	c.Assert(err, IsNil)
-	c.Assert(imresult.IsMaster, Equals, true, Bug("%s is not the master", master))
+	c.Assert(imresult.IsMaster, Equals, true, Commentf("%s is not the master", master))
 
 	// ... which is not the old one, since it's still dead.
 	c.Assert(ssresult.Host, Not(Equals), master)
@@ -788,7 +788,7 @@ func (s *S) TestMonotonicSlaveOkFlagWithMongos(c *C) {
 	err = session.Run("isMaster", imresult)
 	c.Assert(err, IsNil)
 	master := ssresult.Host
-	c.Assert(imresult.IsMaster, Equals, true, Bug("%s is not the master", master))
+	c.Assert(imresult.IsMaster, Equals, true, Commentf("%s is not the master", master))
 
 	// Collect op counters for everyone.
 	opc21a, err := getOpCounters("localhost:40021")
@@ -810,7 +810,7 @@ func (s *S) TestMonotonicSlaveOkFlagWithMongos(c *C) {
 	result := &struct{}{}
 	for i := 0; i != 5; i++ {
 		err := coll.Find(nil).One(result)
-		c.Assert(err, Equals, mgo.NotFound)
+		c.Assert(err, Equals, mgo.ErrNotFound)
 	}
 
 	// Collect op counters for everyone again.
@@ -909,4 +909,49 @@ func (s *S) TestRemovalOfClusterMember(c *C) {
 	if len(live) != 2 {
 		c.Errorf("Removed server still considered live: %#s", live)
 	}
+}
+
+func (s *S) TestSocketLimit(c *C) {
+	if *fast {
+		c.Skip("-fast")
+	}
+	const socketLimit = 64
+	restore := mgo.HackSocketsPerServer(socketLimit)
+	defer restore()
+
+	session, err := mgo.Dial("localhost:40011")
+	c.Assert(err, IsNil)
+	defer session.Close()
+
+	stats := mgo.GetStats()
+	for stats.MasterConns+stats.SlaveConns != 3 {
+		stats = mgo.GetStats()
+		c.Log("Waiting for all connections to be established...")
+		time.Sleep(5e8)
+	}
+	c.Assert(stats.SocketsAlive, Equals, 3)
+
+	// Consume the whole limit for the master.
+	var master []*mgo.Session
+	for i := 0; i < socketLimit; i++ {
+		s := session.Copy()
+		defer s.Close()
+		err := s.Ping()
+		c.Assert(err, IsNil)
+		master = append(master, s)
+	}
+
+	before := time.Now()
+	go func() {
+		time.Sleep(3e9)
+		master[0].Refresh()
+	}()
+
+	// Now a single ping must block, since it would need another
+	// connection to the master, over the limit. Once the goroutine
+	// above releases its socket, it should move on.
+	session.Ping()
+	delay := time.Now().Sub(before)
+	c.Assert(delay > 3e9, Equals, true)
+	c.Assert(delay < 6e9, Equals, true)
 }

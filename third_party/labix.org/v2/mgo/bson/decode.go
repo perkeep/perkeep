@@ -30,6 +30,7 @@ package bson
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"reflect"
 	"sync"
 	"time"
@@ -222,7 +223,41 @@ func (d *decoder) readDocTo(out reflect.Value) {
 	}
 }
 
-func (d *decoder) readArrayDoc(t reflect.Type) interface{} {
+func (d *decoder) readArrayDocTo(out reflect.Value) {
+	end := d.i - 4 + int(d.readInt32())
+	if end <= d.i || end > len(d.in) || d.in[end-1] != '\x00' {
+		corrupted()
+	}
+	i := 0
+	l := out.Len()
+	for d.in[d.i] != '\x00' {
+		if i >= l {
+			panic("Length mismatch on array field")
+		}
+		kind := d.readByte()
+		for d.i < end && d.in[d.i] != '\x00' {
+			d.i++
+		}
+		if d.i >= end {
+			corrupted()
+		}
+		d.i++
+		d.readElemTo(out.Index(i), kind)
+		if d.i >= end {
+			corrupted()
+		}
+		i++
+	}
+	if i != l {
+		panic("Length mismatch on array field")
+	}
+	d.i++ // '\x00'
+	if d.i != end {
+		corrupted()
+	}
+}
+
+func (d *decoder) readSliceDoc(t reflect.Type) interface{} {
 	tmp := make([]reflect.Value, 0, 8)
 	elemType := t.Elem()
 
@@ -343,10 +378,13 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 			outt = outt.Elem()
 		}
 		switch outt.Kind() {
+		case reflect.Array:
+			d.readArrayDocTo(out)
+			return true
 		case reflect.Slice:
-			in = d.readArrayDoc(outt)
+			in = d.readSliceDoc(outt)
 		default:
-			in = d.readArrayDoc(typeSlice)
+			in = d.readSliceDoc(typeSlice)
 		}
 	case 0x05: // Binary
 		b := d.readBinary()
@@ -363,7 +401,12 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 		in = d.readBool()
 	case 0x09: // Timestamp
 		// MongoDB handles timestamps as milliseconds.
-		in = time.Unix(0, d.readInt64() * 1e6)
+		i := d.readInt64()
+		if i == -62135596800000 {
+			in = time.Time{} // In UTC for convenience.
+		} else {
+			in = time.Unix(i/1e3, i%1e3*1e6)
+		}
 	case 0x0A: // Nil
 		in = nil
 	case 0x0B: // RegEx
@@ -548,6 +591,15 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 			return true
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 			panic("Can't happen. No uint types in BSON?")
+		}
+	case reflect.Struct:
+		if outt == typeURL && inv.Kind() == reflect.String {
+			u, err := url.Parse(inv.String())
+			if err != nil {
+				panic(err)
+			}
+			out.Set(reflect.ValueOf(u).Elem())
+			return true
 		}
 	}
 

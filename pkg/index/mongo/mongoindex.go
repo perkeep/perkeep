@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2011 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 
-	"camlistore.org/third_party/launchpad.net/mgo"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 )
 
 // We explicitely separate the key and the value in a document,
@@ -39,8 +39,8 @@ import (
 // only check for their existence with bson.M{$exists: true}).
 const (
 	collectionName = "keys"
-	mgoKey         = "key"
-	mgoValue       = "value"
+	mgoKey         = "k"
+	mgoValue       = "v"
 )
 
 type MongoWrapper struct {
@@ -191,7 +191,7 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	q := mk.db.Find(&bson.M{mgoKey: key})
 	err := q.One(&res)
 	if err != nil {
-		if err == mgo.NotFound {
+		if err == mgo.ErrNotFound {
 			return "", index.ErrNotFound
 		} else {
 			return "", err
@@ -206,7 +206,7 @@ func (mk *mongoKeys) Find(key string) index.Iterator {
 	// TODO(mpl): escape other special chars, or maybe replace $regex with something
 	// more suited if possible.
 	cleanedKey := strings.Replace(key, "|", `\|`, -1)
-	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedKey}}).Sort(&bson.M{mgoKey: 1}).Iter()
+	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedKey}}).Sort(mgoKey).Iter()
 	return mongoStrIterator{res: bson.M{}, Iter: iter}
 }
 
@@ -223,7 +223,8 @@ func (mk *mongoKeys) Delete(key string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	if key == "" {
-		return mk.db.RemoveAll(nil)
+		_, err := mk.db.RemoveAll(nil)
+		return err
 	}
 	return mk.db.Remove(&bson.M{mgoKey: key})
 }

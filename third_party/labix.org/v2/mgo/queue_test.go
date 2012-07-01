@@ -86,7 +86,7 @@ func (s *QS) TestQueueTestLists(c *gocheck.C) {
 		for _, n := range list {
 			if n == -1 {
 				c.Assert(q.Pop(), gocheck.Equals, pop(),
-					gocheck.Bug("With list %#v", list))
+					gocheck.Commentf("With list %#v", list))
 			} else {
 				q.Push(n)
 				push(n)
@@ -95,10 +95,10 @@ func (s *QS) TestQueueTestLists(c *gocheck.C) {
 
 		for n := pop(); n != -1; n = pop() {
 			c.Assert(q.Pop(), gocheck.Equals, n,
-				gocheck.Bug("With list %#v", list))
+				gocheck.Commentf("With list %#v", list))
 		}
 
 		c.Assert(q.Pop(), gocheck.Equals, nil,
-			gocheck.Bug("With list %#v", list))
+			gocheck.Commentf("With list %#v", list))
 	}
 }

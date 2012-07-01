@@ -31,7 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"sync"
 )
 

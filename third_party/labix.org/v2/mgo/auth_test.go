@@ -28,7 +28,7 @@ package mgo_test
 
 import (
 	. "camlistore.org/third_party/launchpad.net/gocheck"
-	"camlistore.org/third_party/launchpad.net/mgo"
+	"camlistore.org/third_party/labix.org/v2/mgo"
 	"sync"
 )
 

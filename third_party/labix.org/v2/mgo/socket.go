@@ -28,7 +28,7 @@ package mgo
 
 import (
 	"errors"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"net"
 	"sync"
 )

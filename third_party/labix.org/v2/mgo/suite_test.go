@@ -31,8 +31,8 @@ import (
 	"flag"
 	"fmt"
 	. "camlistore.org/third_party/launchpad.net/gocheck"
-	"camlistore.org/third_party/launchpad.net/mgo"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"os/exec"
 
 	"strings"

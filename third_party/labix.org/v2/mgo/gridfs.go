@@ -32,7 +32,7 @@ import (
 	"errors"
 	"hash"
 	"io"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"os"
 	"sync"
 	"time"
@@ -158,7 +158,7 @@ func (gfs *GridFS) Create(name string) (file *GridFile, err error) {
 }
 
 // OpenId returns a file with the provided id in case it exists or an error
-// instead.  If the file isn't found, err will be set to mgo.NotFound.
+// instead.  If the file isn't found, err will be set to mgo.ErrNotFound.
 //
 // It's important to Close files whether they are being written to
 // or read from, and to check the err result to ensure the operation
@@ -206,7 +206,7 @@ func (gfs *GridFS) OpenId(id interface{}) (file *GridFile, err error) {
 }
 
 // Open returns the most recent uploaded file with the provided name, or an
-// error instead.  If the file isn't found, err will be set to mgo.NotFound.
+// error instead.  If the file isn't found, err will be set to mgo.ErrNotFound.
 //
 // It's important to Close files whether they are being written to
 // or read from, and to check the err result to ensure the operation
@@ -238,7 +238,7 @@ func (gfs *GridFS) OpenId(id interface{}) (file *GridFile, err error) {
 //
 func (gfs *GridFS) Open(name string) (file *GridFile, err error) {
 	var doc gfsFile
-	err = gfs.Files.Find(bson.M{"filename": name}).Sort(bson.M{"uploadDate": -1}).One(&doc)
+	err = gfs.Files.Find(bson.M{"filename": name}).Sort("-uploadDate").One(&doc)
 	if err != nil {
 		return
 	}
@@ -265,7 +265,7 @@ func (gfs *GridFS) Open(name string) (file *GridFile, err error) {
 // For example:
 //
 //     gfs := db.GridFS("fs")
-//     query := gfs.Find(nil).Sort(bson.M{"filename": 1})
+//     query := gfs.Find(nil).Sort("filename")
 //     iter := query.Iter()
 //     var f *mgo.GridFile
 //     for gfs.OpenNext(iter, &f) {
@@ -317,7 +317,8 @@ func (gfs *GridFS) RemoveId(id interface{}) error {
 	if err != nil {
 		return err
 	}
-	return gfs.Chunks.RemoveAll(bson.M{"files_id": id})
+	_, err = gfs.Chunks.RemoveAll(bson.M{"files_id": id})
+	return err
 }
 
 type gfsDocId struct {
@@ -606,7 +607,7 @@ func (file *GridFile) insertFile() {
 		file.doc.UploadDate = bson.Now()
 		file.doc.MD5 = hexsum
 		file.err = file.gfs.Files.Insert(file.doc)
-		file.gfs.Chunks.EnsureIndexKey([]string{"files_id", "n"})
+		file.gfs.Chunks.EnsureIndexKey("files_id", "n")
 	}
 }
 

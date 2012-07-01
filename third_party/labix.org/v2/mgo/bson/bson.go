@@ -76,7 +76,7 @@ type Getter interface {
 //
 //     type MyString string
 //
-//     func (s *MyString) SetBSON(raw bson.Raw) os.Error {
+//     func (s *MyString) SetBSON(raw bson.Raw) error {
 //         return raw.Unmarshal(s)
 //     }
 //
@@ -527,6 +527,9 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 		tag := field.Tag.Get("bson")
 		if tag == "" && strings.Index(string(field.Tag), ":") < 0 {
 			tag = string(field.Tag)
+		}
+		if tag == "-" {
+			continue
 		}
 
 		// XXX Drop this after a few releases.

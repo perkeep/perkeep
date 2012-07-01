@@ -29,8 +29,8 @@ package mgo_test
 import (
 	"io"
 	. "camlistore.org/third_party/launchpad.net/gocheck"
-	"camlistore.org/third_party/launchpad.net/mgo"
-	"camlistore.org/third_party/launchpad.net/mgo/bson"
+	"camlistore.org/third_party/labix.org/v2/mgo"
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"os"
 	"time"
 )
@@ -79,7 +79,7 @@ func (s *S) TestGridFSCreate(c *C) {
 		"uploadDate": "<timestamp>",
 		"md5":        "1e50210a0202497fb79bc38b6ade6c34",
 	}
-	c.Assert(result, Equals, expected)
+	c.Assert(result, DeepEquals, expected)
 
 	// Check the chunk.
 	result = M{}
@@ -97,13 +97,13 @@ func (s *S) TestGridFSCreate(c *C) {
 		"n":        0,
 		"data":     []byte("some data"),
 	}
-	c.Assert(result, Equals, expected)
+	c.Assert(result, DeepEquals, expected)
 
 	// Check that an index was created.
 	indexes, err := db.C("fs.chunks").Indexes()
 	c.Assert(err, IsNil)
 	c.Assert(len(indexes), Equals, 2)
-	c.Assert(indexes[1].Key, Equals, []string{"files_id", "n"})
+	c.Assert(indexes[1].Key, DeepEquals, []string{"files_id", "n"})
 }
 
 func (s *S) TestGridFSFileDetails(c *C) {
@@ -151,7 +151,7 @@ func (s *S) TestGridFSFileDetails(c *C) {
 
 	err = file.GetMeta(&info)
 	c.Assert(err, IsNil)
-	c.Assert(info, Equals, bson.M{"any": "thing"})
+	c.Assert(info, DeepEquals, bson.M{"any": "thing"})
 
 	err = file.Close()
 	c.Assert(err, IsNil)
@@ -179,7 +179,7 @@ func (s *S) TestGridFSFileDetails(c *C) {
 		"contentType": "text/plain",
 		"metadata":    bson.M{"any": "thing"},
 	}
-	c.Assert(result, Equals, expected)
+	c.Assert(result, DeepEquals, expected)
 }
 
 func (s *S) TestGridFSCreateWithChunking(c *C) {
@@ -236,10 +236,10 @@ func (s *S) TestGridFSCreateWithChunking(c *C) {
 		"uploadDate": "<timestamp>",
 		"md5":        "44a66044834cbe55040089cabfc102d5",
 	}
-	c.Assert(result, Equals, expected)
+	c.Assert(result, DeepEquals, expected)
 
 	// Check the chunks.
-	iter := db.C("fs.chunks").Find(nil).Sort(M{"n": 1}).Iter()
+	iter := db.C("fs.chunks").Find(nil).Sort("n").Iter()
 	dataChunks := []string{"abcde", "fghij", "klmno", "pqrst", "uv"}
 	for i := 0; ; i++ {
 		result = M{}
@@ -259,7 +259,7 @@ func (s *S) TestGridFSCreateWithChunking(c *C) {
 			"n":        i,
 			"data":     []byte(dataChunks[i]),
 		}
-		c.Assert(result, Equals, expected)
+		c.Assert(result, DeepEquals, expected)
 	}
 }
 
@@ -272,11 +272,11 @@ func (s *S) TestGridFSOpenNotFound(c *C) {
 
 	gfs := db.GridFS("fs")
 	file, err := gfs.OpenId("non-existent")
-	c.Assert(err == mgo.NotFound, Equals, true)
+	c.Assert(err == mgo.ErrNotFound, Equals, true)
 	c.Assert(file, IsNil)
 
 	file, err = gfs.Open("non-existent")
-	c.Assert(err == mgo.NotFound, Equals, true)
+	c.Assert(err == mgo.ErrNotFound, Equals, true)
 	c.Assert(file, IsNil)
 }
 
@@ -349,25 +349,25 @@ func (s *S) TestGridFSReadChunking(c *C) {
 	n, err = file.Read(b[:3])
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
-	c.Assert(b[:3], Equals, []byte("abc"))
+	c.Assert(b[:3], DeepEquals, []byte("abc"))
 
 	// Boundary in the middle.
 	n, err = file.Read(b[:4])
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
-	c.Assert(b[:4], Equals, []byte("defg"))
+	c.Assert(b[:4], DeepEquals, []byte("defg"))
 
 	// Boundary at the end.
 	n, err = file.Read(b[:3])
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
-	c.Assert(b[:3], Equals, []byte("hij"))
+	c.Assert(b[:3], DeepEquals, []byte("hij"))
 
 	// Larger than the chunk size, with 3 chunks.
 	n, err = file.Read(b)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 12)
-	c.Assert(b[:12], Equals, []byte("klmnopqrstuv"))
+	c.Assert(b[:12], DeepEquals, []byte("klmnopqrstuv"))
 
 	n, err = file.Read(b)
 	c.Assert(n, Equals, 0)
@@ -438,28 +438,28 @@ func (s *S) TestGridFSSeek(c *C) {
 	c.Assert(o, Equals, int64(3))
 	_, err = file.Read(b)
 	c.Assert(err, IsNil)
-	c.Assert(b, Equals, []byte("defgh"))
+	c.Assert(b, DeepEquals, []byte("defgh"))
 
 	o, err = file.Seek(5, os.SEEK_CUR)
 	c.Assert(err, IsNil)
 	c.Assert(o, Equals, int64(13))
 	_, err = file.Read(b)
 	c.Assert(err, IsNil)
-	c.Assert(b, Equals, []byte("nopqr"))
+	c.Assert(b, DeepEquals, []byte("nopqr"))
 
 	o, err = file.Seek(-10, os.SEEK_END)
 	c.Assert(err, IsNil)
 	c.Assert(o, Equals, int64(12))
 	_, err = file.Read(b)
 	c.Assert(err, IsNil)
-	c.Assert(b, Equals, []byte("mnopq"))
+	c.Assert(b, DeepEquals, []byte("mnopq"))
 
 	o, err = file.Seek(8, os.SEEK_SET)
 	c.Assert(err, IsNil)
 	c.Assert(o, Equals, int64(8))
 	_, err = file.Read(b)
 	c.Assert(err, IsNil)
-	c.Assert(b, Equals, []byte("ijklm"))
+	c.Assert(b, DeepEquals, []byte("ijklm"))
 
 	// Trivial seek forward within same chunk. Already
 	// got the data, shouldn't touch the database.
@@ -470,7 +470,7 @@ func (s *S) TestGridFSSeek(c *C) {
 	c.Assert(mgo.GetStats().SentOps, Equals, sent)
 	_, err = file.Read(b)
 	c.Assert(err, IsNil)
-	c.Assert(b, Equals, []byte("opqrs"))
+	c.Assert(b, DeepEquals, []byte("opqrs"))
 
 	// Try seeking past end of file.
 	file.Seek(3, os.SEEK_SET)
@@ -540,7 +540,7 @@ func (s *S) TestGridFSRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = gfs.Open("myfile.txt")
-	c.Assert(err == mgo.NotFound, Equals, true)
+	c.Assert(err == mgo.ErrNotFound, Equals, true)
 
 	n, err := db.C("fs.chunks").Find(nil).Count()
 	c.Assert(err, IsNil)
@@ -569,7 +569,7 @@ func (s *S) TestGridFSOpenNext(c *C) {
 	var f *mgo.GridFile
 	var b [1]byte
 
-	iter := gfs.Find(nil).Sort(bson.M{"filename": -1}).Iter()
+	iter := gfs.Find(nil).Sort("-filename").Iter()
 
 	ok := gfs.OpenNext(iter, &f)
 	c.Assert(ok, Equals, true)
@@ -589,7 +589,7 @@ func (s *S) TestGridFSOpenNext(c *C) {
 
 	ok = gfs.OpenNext(iter, &f)
 	c.Assert(ok, Equals, false)
-	c.Assert(iter.Err(), Equals, nil)
+	c.Assert(iter.Err(), IsNil)
 	c.Assert(f, IsNil)
 
 	// Do it again with a more restrictive query to make sure
@@ -602,6 +602,6 @@ func (s *S) TestGridFSOpenNext(c *C) {
 
 	ok = gfs.OpenNext(iter, &f)
 	c.Assert(ok, Equals, false)
-	c.Assert(iter.Err(), Equals, nil)
+	c.Assert(iter.Err(), IsNil)
 	c.Assert(f, IsNil)
 }

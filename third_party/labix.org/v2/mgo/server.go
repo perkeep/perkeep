@@ -27,6 +27,7 @@
 package mgo
 
 import (
+	"errors"
 	"net"
 	"sort"
 	"sync"
@@ -67,15 +68,23 @@ func newServer(addr string, sync chan bool) (server *mongoServer, err error) {
 	return
 }
 
+var errSocketLimit = errors.New("per-server connection limit reached")
+
 // AcquireSocket returns a socket for communicating with the server.
 // This will attempt to reuse an old connection, if one is available. Otherwise,
 // it will establish a new one. The returned socket is owned by the call site,
 // and will return to the cache when the socket has its Release method called
 // the same number of times as AcquireSocket + Acquire were called for it.
-func (server *mongoServer) AcquireSocket() (socket *mongoSocket, err error) {
+// If the limit argument is not zero, a socket will only be returned if the
+// number of sockets in use for this server is under the provided limit.
+func (server *mongoServer) AcquireSocket(limit int) (socket *mongoSocket, err error) {
 	for {
 		server.Lock()
 		n := len(server.unusedSockets)
+		if limit > 0 && len(server.liveSockets)-n >= limit {
+			server.Unlock()
+			return nil, errSocketLimit
+		}
 		if n > 0 {
 			socket = server.unusedSockets[n-1]
 			server.unusedSockets[n-1] = nil // Help GC.
@@ -120,6 +129,8 @@ func (server *mongoServer) Connect() (*mongoSocket, error) {
 	return newSocket(server, conn), nil
 }
 
+// Close forces closing all sockets that are alive, whether
+// they're currently in use or not.
 func (server *mongoServer) Close() {
 	server.Lock()
 	server.closed = true
@@ -139,6 +150,7 @@ func (server *mongoServer) Close() {
 	}
 }
 
+// RecycleSocket puts socket back into the unused cache.
 func (server *mongoServer) RecycleSocket(socket *mongoSocket) {
 	server.Lock()
 	if !server.closed {
@@ -160,6 +172,8 @@ func removeSocket(sockets []*mongoSocket, socket *mongoSocket) []*mongoSocket {
 	return sockets
 }
 
+// AbendSocket notifies the server that the given socket has terminated
+// abnormally, and thus should be discarded rather than cached.
 func (server *mongoServer) AbendSocket(socket *mongoSocket) {
 	server.Lock()
 	if server.closed {
@@ -176,6 +190,8 @@ func (server *mongoServer) AbendSocket(socket *mongoSocket) {
 	}
 }
 
+// Merge other into server, which must both be communicating with
+// the same server address.
 func (server *mongoServer) Merge(other *mongoServer) {
 	server.Lock()
 	server.master = other.master
@@ -267,4 +283,39 @@ func (servers *mongoServers) Len() int {
 
 func (servers *mongoServers) Empty() bool {
 	return len(servers.slice) == 0
+}
+
+// MostAvailable returns the best guess of what would be the
+// most interesting server to perform operations on at this
+// point in time.
+func (servers *mongoServers) MostAvailable() *mongoServer {
+	if len(servers.slice) == 0 {
+		panic("MostAvailable: can't be used on empty server list")
+	}
+	var best *mongoServer
+	for i, next := range servers.slice {
+		if i == 0 {
+			best = next
+			best.RLock()
+			continue
+		}
+		next.RLock()
+		swap := false
+		switch {
+		case next.master != best.master:
+			// Prefer slaves.
+			swap = best.master
+		case len(next.liveSockets)-len(next.unusedSockets) < len(best.liveSockets)-len(best.unusedSockets):
+			// Prefer servers with less connections.
+			swap = true
+		}
+		if swap {
+			best.RUnlock()
+			best = next
+		} else {
+			next.RUnlock()
+		}
+	}
+	best.RUnlock()
+	return best
 }
