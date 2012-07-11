@@ -171,8 +171,14 @@ func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler
 
 func (hl *handlerLoader) setupAll() {
 	for prefix := range hl.config {
+		// quickfix to make sure "root" is done after "ui", because the first depends on the latter.
+		// TODO: something smarter if more dependencies occur?
+		if prefix == "/" {
+			continue
+		}
 		hl.setupHandler(prefix)
 	}
+	hl.setupHandler("/")
 }
 
 func (hl *handlerLoader) configType(prefix string) string {
