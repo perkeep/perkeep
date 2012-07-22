@@ -55,7 +55,14 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		client: client,
 	}
 	if !skipStartupCheck {
-		// TODO: do a server stat or something to check password
+		// Do a quick dummy operation to check that our credentials are
+		// correct.
+		// TODO(bradfitz,mpl): skip this operation smartly if it turns out this is annoying/slow for whatever reason.
+		c := make(chan blobref.SizedBlobRef, 1)
+		err = sto.EnumerateBlobs(c, "", 1, 0)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return sto, nil
 }
@@ -94,9 +101,9 @@ func (sto *remoteStorage) MaxEnumerate() int { return 1000 }
 
 func (sto *remoteStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
-		After:      after,
-		MaxWait:    wait,
-		Limit:      limit,
+		After:   after,
+		MaxWait: wait,
+		Limit:   limit,
 	})
 }
 
