@@ -19,15 +19,19 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/schema"
 )
 
 type permanodeCmd struct {
-	name string
-	tag  string
+	name    string
+	tag     string
+	key     string // else random
+	sigTime string
 }
 
 func init() {
@@ -35,6 +39,8 @@ func init() {
 		cmd := new(permanodeCmd)
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on new permanode")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on new permanode; comma separated.")
+		flags.StringVar(&cmd.key, "key", "", "Optional key to create deterministic ('planned') permanodes. Must also use --sigtime.")
+		flags.StringVar(&cmd.sigTime, "sigtime", "", "Optional time to put in the OpenPGP signature packet instead of the current time. Required when producing a deterministic permanode (with --key). In format YYYY-MM-DD HH:MM:SS")
 		return cmd
 	})
 }
@@ -59,7 +65,20 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
 		permaNode *client.PutResult
 		err       error
 	)
-	permaNode, err = up.UploadNewPermanode()
+	if (c.key != "") != (c.sigTime != "") {
+		return errors.New("Both --key and --sigtime must be used to produce deterministic permanodes.")
+	}
+	if c.key == "" {
+		// Normal case, with a random permanode.
+		permaNode, err = up.UploadNewPermanode()
+	} else {
+		const format = "2006-01-02 15:04:05"
+		sigTime, err := time.Parse(format, c.sigTime)
+		if err != nil {
+			return fmt.Errorf("Error parsing time %q; expecting time of form %q", c.sigTime, format)
+		}
+		permaNode, err = up.UploadPlannedPermanode(c.key, sigTime)
+	}
 	if handleResult("permanode", permaNode, err) != nil {
 		return err
 	}

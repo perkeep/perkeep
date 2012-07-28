@@ -29,6 +29,18 @@ type Entity struct {
 	PrivateKey *packet.PrivateKey
 	Identities map[string]*Identity // indexed by Identity.Name
 	Subkeys    []Subkey
+
+	// Clock optionally specifies an alternate clock function to
+	// use when signing or encrypting using this Entity, instead
+	// of time.Now().
+	Clock func() time.Time
+}
+
+func (e *Entity) timeNow() time.Time {
+	if e.Clock != nil {
+		return e.Clock()
+	}
+	return time.Now()
 }
 
 // An Identity represents an identity claimed by an Entity and zero or more

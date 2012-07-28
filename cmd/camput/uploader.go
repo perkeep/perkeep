@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -55,7 +56,9 @@ type Uploader struct {
 	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
 }
 
-func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
+// sigTime optionally specifies the signature time.
+// If zero, the current time is used.
+func (up *Uploader) SignMap(m map[string]interface{}, sigTime time.Time) (string, error) {
 	camliSigBlobref := up.Client.SignerPublicKeyBlobref()
 	if camliSigBlobref == nil {
 		// TODO: more helpful error message
@@ -71,6 +74,7 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
 		UnsignedJSON:  unsigned,
 		Fetcher:       up.Client.GetBlobFetcher(),
 		EntityFetcher: up.entityFetcher,
+		SignatureTime: sigTime,
 	}
 	return sr.Sign()
 }
@@ -84,7 +88,7 @@ func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, erro
 }
 
 func (up *Uploader) UploadAndSignMap(m map[string]interface{}) (*client.PutResult, error) {
-	signed, err := up.SignMap(m)
+	signed, err := up.SignMap(m, time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -110,4 +114,13 @@ func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
 func (up *Uploader) UploadNewPermanode() (*client.PutResult, error) {
 	unsigned := schema.NewUnsignedPermanode()
 	return up.UploadAndSignMap(unsigned)
+}
+
+func (up *Uploader) UploadPlannedPermanode(key string, sigTime time.Time) (*client.PutResult, error) {
+	unsigned := schema.NewPlannedPermanode(key)
+	signed, err := up.SignMap(unsigned, sigTime)
+        if err != nil {
+                return nil, err
+        }
+	return up.uploadString(signed)
 }

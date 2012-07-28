@@ -21,54 +21,61 @@ import (
 // DetachSign signs message with the private key from signer (which must
 // already have been decrypted) and writes the signature to w.
 func DetachSign(w io.Writer, signer *Entity, message io.Reader) error {
-	return detachSign(w, signer, message, packet.SigTypeBinary)
+	return detachSign(w, signer, message, time.Time{}, packet.SigTypeBinary)
 }
 
 // ArmoredDetachSign signs message with the private key from signer (which
 // must already have been decrypted) and writes an armored signature to w.
 func ArmoredDetachSign(w io.Writer, signer *Entity, message io.Reader) (err error) {
-	return armoredDetachSign(w, signer, message, packet.SigTypeBinary)
+	return armoredDetachSign(w, signer, message, time.Time{}, packet.SigTypeBinary)
+}
+
+func ArmoredDetachSignAt(w io.Writer, signer *Entity, sigTime time.Time, message io.Reader) (err error) {
+	return armoredDetachSign(w, signer, message, sigTime, packet.SigTypeBinary)
 }
 
 // DetachSignText signs message (after canonicalising the line endings) with
 // the private key from signer (which must already have been decrypted) and
 // writes the signature to w.
 func DetachSignText(w io.Writer, signer *Entity, message io.Reader) error {
-	return detachSign(w, signer, message, packet.SigTypeText)
+	return detachSign(w, signer, message, time.Time{}, packet.SigTypeText)
 }
 
 // ArmoredDetachSignText signs message (after canonicalising the line endings)
 // with the private key from signer (which must already have been decrypted)
 // and writes an armored signature to w.
 func ArmoredDetachSignText(w io.Writer, signer *Entity, message io.Reader) error {
-	return armoredDetachSign(w, signer, message, packet.SigTypeText)
+	return armoredDetachSign(w, signer, message, time.Time{}, packet.SigTypeText)
 }
 
-func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType) (err error) {
+func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigTime time.Time, sigType packet.SignatureType) (err error) {
 	out, err := armor.Encode(w, SignatureType, nil)
 	if err != nil {
 		return
 	}
-	err = detachSign(out, signer, message, sigType)
+	err = detachSign(out, signer, message, sigTime, sigType)
 	if err != nil {
 		return
 	}
 	return out.Close()
 }
 
-func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType) (err error) {
+func detachSign(w io.Writer, signer *Entity, message io.Reader, sigTime time.Time, sigType packet.SignatureType) (err error) {
 	if signer.PrivateKey == nil {
 		return errors.InvalidArgumentError("signing key doesn't have a private key")
 	}
 	if signer.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
 	}
+	if sigTime.IsZero() {
+		sigTime = time.Now()
+	}
 
 	sig := new(packet.Signature)
 	sig.SigType = sigType
 	sig.PubKeyAlgo = signer.PrivateKey.PubKeyAlgo
 	sig.Hash = crypto.SHA256
-	sig.CreationTime = time.Now()
+	sig.CreationTime = sigTime
 	sig.IssuerKeyId = &signer.PrivateKey.KeyId
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)

@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"camlistore.org/pkg/blobref"
@@ -177,6 +178,9 @@ type SignRequest struct {
 	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
 	ServerMode   bool        // if true, can't use pinentry or gpg-agent, etc.
 
+	// Optional signature time. If zero, time.Now() is used.
+	SignatureTime time.Time
+
 	// Optional function to return an entity (including decrypting
 	// the PrivateKey, if necessary)
 	EntityFetcher EntityFetcher
@@ -269,7 +273,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	}
 
 	var buf bytes.Buffer
-	err = openpgp.ArmoredDetachSign(&buf, signer, strings.NewReader(trimmedJSON))
+	err = openpgp.ArmoredDetachSignAt(&buf, signer, sr.SignatureTime, strings.NewReader(trimmedJSON))
 	if err != nil {
 		return "", err
 	}
