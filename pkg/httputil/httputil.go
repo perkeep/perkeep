@@ -51,7 +51,7 @@ func ServerError(conn http.ResponseWriter, err error) {
 	fmt.Fprintf(conn, "Server error: %s\n", err)
 }
 
-func ReturnJson(conn http.ResponseWriter, data interface{}) {
+func ReturnJSON(conn http.ResponseWriter, data interface{}) {
 	conn.Header().Set("Content-Type", "text/javascript")
 
 	if m, ok := data.(map[string]interface{}); ok {

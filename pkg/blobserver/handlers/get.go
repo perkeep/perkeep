@@ -59,7 +59,7 @@ func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter
 }
 
 const fetchFailureDelayNs = 200e6 // 200 ms
-const maxJsonSize = 64 * 1024     // should be enough for everyone
+const maxJSONSize = 64 * 1024     // should be enough for everyone
 
 func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	blobRef := blobFromUrlPath(req.URL.Path)
@@ -232,7 +232,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				return
 			}
 			defer file.Close()
-			if size > maxJsonSize {
+			if size > maxJSONSize {
 				log.Printf("Fetch chain 0 of %s too large", br.String())
 				auth.SendUnauthorized(conn)
 				return
@@ -267,7 +267,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				return
 			}
 			defer file.Close()
-			lr := io.LimitReader(file, maxJsonSize)
+			lr := io.LimitReader(file, maxJSONSize)
 			slurpBytes, err := ioutil.ReadAll(lr)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)

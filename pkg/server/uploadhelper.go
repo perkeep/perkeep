@@ -28,7 +28,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	rollSum := req.URL.Query().Get("rollsum") == "1"
 
 	ret := make(map[string]interface{})
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 
 	if ui.Storage == nil {
 		ret["error"] = "No BlobRoot configured"

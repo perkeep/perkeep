@@ -173,7 +173,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 }
 
 type SignRequest struct {
-	UnsignedJson string
+	UnsignedJSON string
 	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
 	ServerMode   bool        // if true, can't use pinentry or gpg-agent, etc.
 
@@ -195,8 +195,8 @@ func (sr *SignRequest) secretRingPath() string {
 	return flagSecretRing
 }
 
-func (sr *SignRequest) Sign() (signedJson string, err error) {
-	trimmedJson := strings.TrimRightFunc(sr.UnsignedJson, unicode.IsSpace)
+func (sr *SignRequest) Sign() (signedJSON string, err error) {
+	trimmedJSON := strings.TrimRightFunc(sr.UnsignedJSON, unicode.IsSpace)
 
 	// TODO: make sure these return different things
 	inputfail := func(msg string) (string, error) {
@@ -207,7 +207,7 @@ func (sr *SignRequest) Sign() (signedJson string, err error) {
 	}
 
 	jmap := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(trimmedJson), &jmap); err != nil {
+	if err := json.Unmarshal([]byte(trimmedJSON), &jmap); err != nil {
 		return inputfail("json parse error")
 	}
 
@@ -244,10 +244,10 @@ func (sr *SignRequest) Sign() (signedJson string, err error) {
 
 	// This check should be redundant if the above JSON parse succeeded, but
 	// for explicitness...
-	if len(trimmedJson) == 0 || trimmedJson[len(trimmedJson)-1] != '}' {
+	if len(trimmedJSON) == 0 || trimmedJSON[len(trimmedJSON)-1] != '}' {
 		return inputfail("json parameter lacks trailing '}'")
 	}
-	trimmedJson = trimmedJson[0 : len(trimmedJson)-1]
+	trimmedJSON = trimmedJSON[0 : len(trimmedJSON)-1]
 
 	// sign it
 	entityFetcher := sr.EntityFetcher
@@ -269,7 +269,7 @@ func (sr *SignRequest) Sign() (signedJson string, err error) {
 	}
 
 	var buf bytes.Buffer
-	err = openpgp.ArmoredDetachSign(&buf, signer, strings.NewReader(trimmedJson))
+	err = openpgp.ArmoredDetachSign(&buf, signer, strings.NewReader(trimmedJSON))
 	if err != nil {
 		return "", err
 	}
@@ -284,5 +284,5 @@ func (sr *SignRequest) Sign() (signedJson string, err error) {
 	inner := output[index1+2 : index2]
 	signature := strings.Replace(inner, "\n", "", -1)
 
-	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJson, signature), nil
+	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJSON, signature), nil
 }

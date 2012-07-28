@@ -68,7 +68,7 @@ func (up *Uploader) SignMap(m map[string]interface{}) (string, error) {
 		return "", err
 	}
 	sr := &jsonsign.SignRequest{
-		UnsignedJson:  unsigned,
+		UnsignedJSON:  unsigned,
 		Fetcher:       up.Client.GetBlobFetcher(),
 		EntityFetcher: up.entityFetcher,
 	}

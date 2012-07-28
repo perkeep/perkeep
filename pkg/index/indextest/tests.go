@@ -72,7 +72,7 @@ func (id *IndexDeps) uploadAndSignMap(m map[string]interface{}) *blobref.BlobRef
 		panic("uploadAndSignMap: " + err.Error())
 	}
 	sr := &jsonsign.SignRequest{
-		UnsignedJson:  unsigned,
+		UnsignedJSON:  unsigned,
 		Fetcher:       id.PublicKeyFetcher,
 		EntityFetcher: id.EntityFetcher,
 	}

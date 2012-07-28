@@ -162,7 +162,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		ret["errorText"] = errText
 	}
 
-	httputil.ReturnJson(conn, ret)
+	httputil.ReturnJSON(conn, ret)
 }
 
 func commonUploadResponse(configer blobserver.Configer, req *http.Request) map[string]interface{} {

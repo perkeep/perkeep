@@ -125,5 +125,5 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		}
 	}
 	ret["stat"] = statRes
-	httputil.ReturnJson(conn, ret)
+	httputil.ReturnJSON(conn, ret)
 }

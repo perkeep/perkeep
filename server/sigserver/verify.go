@@ -60,5 +60,5 @@ func handleVerify(conn http.ResponseWriter, req *http.Request) {
 	}
 
 	conn.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
-	httputil.ReturnJson(conn, m)
+	httputil.ReturnJSON(conn, m)
 }

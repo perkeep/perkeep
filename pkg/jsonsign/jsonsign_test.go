@@ -108,19 +108,19 @@ func init() {
 func TestSigningBadInput(t *testing.T) {
 	sr := newRequest(1)
 
-	sr.UnsignedJson = ""
+	sr.UnsignedJSON = ""
 	_, err := sr.Sign()
 	ExpectErrorContains(t, err, "json parse error", "empty input")
 
-	sr.UnsignedJson = "{}"
+	sr.UnsignedJSON = "{}"
 	_, err = sr.Sign()
 	ExpectErrorContains(t, err, "json lacks \"camliSigner\" key", "just braces")
 
-	sr.UnsignedJson = `{"camliSigner": 123}`
+	sr.UnsignedJSON = `{"camliSigner": 123}`
 	_, err = sr.Sign()
 	ExpectErrorContains(t, err, "\"camliSigner\" key is malformed or unsupported", "camliSigner 123")
 
-	sr.UnsignedJson = `{"camliSigner": ""}`
+	sr.UnsignedJSON = `{"camliSigner": ""}`
 	_, err = sr.Sign()
 	ExpectErrorContains(t, err, "\"camliSigner\" key is malformed or unsupported", "empty camliSigner")
 }
@@ -134,7 +134,7 @@ func newRequest(userN int) *SignRequest {
 		suffix = "2.gpg"
 	}
 	return &SignRequest{
-		UnsignedJson:      "",
+		UnsignedJSON:      "",
 		Fetcher:           testFetcher,
 		ServerMode:        true,
 		SecretKeyringPath: "./testdata/test-secring" + suffix,
@@ -143,7 +143,7 @@ func newRequest(userN int) *SignRequest {
 
 func TestSigning(t *testing.T) {
 	sr := newRequest(1)
-	sr.UnsignedJson = fmt.Sprintf(`{"camliVersion": 1, "foo": "fooVal", "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
+	sr.UnsignedJSON = fmt.Sprintf(`{"camliVersion": 1, "foo": "fooVal", "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
 	signed, err := sr.Sign()
 	AssertNil(t, err, "no error signing")
 	Assert(t, strings.Contains(signed, `"camliSig":`), "got a camliSig")

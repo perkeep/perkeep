@@ -88,5 +88,5 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 
 	reply := make(map[string]interface{}, 0)
 	reply["removed"] = toRemoveStr
-	httputil.ReturnJson(conn, reply)
+	httputil.ReturnJSON(conn, reply)
 }

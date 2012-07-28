@@ -40,7 +40,7 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 	ret := make(map[string]interface{})
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 
 	fetchSeeker, err := fth.storageSeekFetcher()
 	if err != nil {

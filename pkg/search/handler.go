@@ -129,12 +129,12 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// TODO: discovery for the endpoints & better error message with link to discovery info
 	ret["error"] = "Unsupported search path or method"
 	ret["errorType"] = "input"
-	httputil.ReturnJson(rw, ret)
+	httputil.ReturnJSON(rw, ret)
 }
 
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 
 	ch := make(chan *Result)
 	errch := make(chan error)
@@ -169,7 +169,7 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 // TODO(mpl): configure and/or document the name of the possible attributes in the http request
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))
@@ -267,7 +267,7 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 		ret["claims"] = jclaims
 	}
 
-	httputil.ReturnJson(rw, ret)
+	httputil.ReturnJSON(rw, ret)
 }
 
 type DescribeRequest struct {
@@ -628,7 +628,7 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 
 	br := blobref.Parse(req.FormValue("blobref"))
 	if br == nil {
@@ -644,7 +644,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 
 	br := blobref.Parse(req.FormValue("wholedigest"))
 	if br == nil {
@@ -754,7 +754,7 @@ func setPanicError(m map[string]interface{}) {
 
 func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))
@@ -774,7 +774,7 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 
 func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	defer httputil.ReturnJson(rw, ret)
+	defer httputil.ReturnJSON(rw, ret)
 	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))

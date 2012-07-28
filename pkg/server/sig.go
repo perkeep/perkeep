@@ -38,7 +38,7 @@ import (
 
 var _ = log.Printf
 
-const kMaxJsonLength = 1024 * 1024
+const kMaxJSONLength = 1024 * 1024
 
 type JSONSignHandler struct {
 	// Optional path to non-standard secret gpg keyring file
@@ -65,10 +65,10 @@ func (h *JSONSignHandler) secretRingPath() string {
 }
 
 func init() {
-	blobserver.RegisterHandlerConstructor("jsonsign", newJsonSignFromConfig)
+	blobserver.RegisterHandlerConstructor("jsonsign", newJSONSignFromConfig)
 }
 
-func newJsonSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
+func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	pubKeyDestPrefix := conf.OptionalString("publicKeyDest", "")
 
 	// either a short form ("26F5ABDA") or one the longer forms.
@@ -159,7 +159,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
 				m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
 			}
-			httputil.ReturnJson(rw, m)
+			httputil.ReturnJSON(rw, m)
 			return
 		}
 	case "POST":
@@ -201,7 +201,7 @@ func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request
 	}
 
 	rw.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
-	httputil.ReturnJson(rw, m)
+	httputil.ReturnJSON(rw, m)
 }
 
 func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) {
@@ -219,24 +219,24 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 		badReq("missing \"json\" parameter")
 		return
 	}
-	if len(jsonStr) > kMaxJsonLength {
+	if len(jsonStr) > kMaxJSONLength {
 		badReq("parameter \"json\" too large")
 		return
 	}
 
 	sreq := &jsonsign.SignRequest{
-		UnsignedJson:      jsonStr,
+		UnsignedJSON:      jsonStr,
 		Fetcher:           h.pubKeyFetcher,
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
 	}
-	signedJson, err := sreq.Sign()
+	signedJSON, err := sreq.Sign()
 	if err != nil {
 		// TODO: some aren't really a "bad request"
 		badReq(fmt.Sprintf("%v", err))
 		return
 	}
-	rw.Write([]byte(signedJson))
+	rw.Write([]byte(signedJSON))
 }
 
 func (h *JSONSignHandler) SignMap(m map[string]interface{}) (string, error) {
@@ -246,7 +246,7 @@ func (h *JSONSignHandler) SignMap(m map[string]interface{}) (string, error) {
 		return "", err
 	}
 	sreq := &jsonsign.SignRequest{
-		UnsignedJson:      unsigned,
+		UnsignedJSON:      unsigned,
 		Fetcher:           h.pubKeyFetcher,
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
