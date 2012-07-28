@@ -377,6 +377,12 @@ func NewUnsignedPermanode() map[string]interface{} {
 	return m
 }
 
+func NewPlannedPermanode(key string) map[string]interface{} {
+	m := newCamliMap(1, "permanode")
+	m["key"] = key
+	return m
+}
+
 // Map returns a Camli map of camliType "static-set"
 func (ss *StaticSet) Map() map[string]interface{} {
 	m := newCamliMap(1, "static-set")
