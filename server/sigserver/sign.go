@@ -43,7 +43,7 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	sreq := &jsonsign.SignRequest{UnsignedJson: jsonStr, Fetcher: pubKeyFetcher}
+	sreq := &jsonsign.SignRequest{UnsignedJSON: jsonStr, Fetcher: pubKeyFetcher}
 	signedJson, err := sreq.Sign()
 	if err != nil {
 		// TODO: some aren't really a "bad request"
