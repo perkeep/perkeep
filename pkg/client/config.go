@@ -127,8 +127,22 @@ func fileExists(name string) bool {
 	return err == nil
 }
 
+var (
+	signerPublicKeyRefOnce sync.Once
+	signerPublicKeyRef *blobref.BlobRef
+)
+
 // TODO: move to config package?
 func SignerPublicKeyBlobref() *blobref.BlobRef {
+	signerPublicKeyRefOnce.Do(initSignerPublicKeyBlobref)
+	return signerPublicKeyRef
+}
+
+func initSignerPublicKeyBlobref() {
+	signerPublicKeyRef = getSignerPublicKeyBlobref()
+}
+
+func getSignerPublicKeyBlobref() *blobref.BlobRef {
 	configOnce.Do(parseConfig)
 	key := "keyId"
 	keyId, ok := config[key].(string)
