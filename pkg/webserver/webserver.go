@@ -29,6 +29,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
 var Listen = flag.String("listen", "", "host:port to listen on, or :0 to auto-select")
@@ -99,23 +101,27 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 // Listen starts listening on the given host:port string.
 // If listen is empty the *Listen flag will be used instead.
-func (s *Server) Listen(listen string) error {
+func (s *Server) Listen(addr string) error {
 	if s.listener != nil {
 		return nil
 	}
 
 	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
-	if listen == "" {
+	if addr == "" {
 		if *Listen == "" {
 			return fmt.Errorf("Cannot start listening: host:port needs to be provided with the -listen flag")
 		}
-		listen = *Listen
+		addr = *Listen
 	}
 
-	var err error
-	s.listener, err = net.Listen("tcp", listen)
+	var laddr listen.Addr
+	err := laddr.Set(addr)
 	if err != nil {
-		log.Fatalf("Failed to listen on %s: %v", listen, err)
+		return err
+	}
+	s.listener, err = laddr.Listen()
+	if err != nil {
+		log.Fatalf("Failed to listen on %s: %v", addr, err)
 	}
 	base := s.BaseURL()
 	if doLog {
