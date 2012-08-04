@@ -1,0 +1,8 @@
+{
+	"listen": "1.2.3.4:80",
+        "baseURL": "http://foo.com/",
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring"
+}

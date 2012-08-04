@@ -124,6 +124,7 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	baseName := strings.Replace(filepath.Base(name), ".json", "", 1)
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)
 	if err != nil {
@@ -133,8 +134,8 @@ func testConfig(name string, t *testing.T) {
 	prettyPrint(&got, lowLevelConf.Obj, 0)
 	prettyPrint(&want, wantConf, 0)
 	if got.String() != want.String() {
-		tempGot := tempFile(got.Bytes())
-		tempWant := tempFile(want.Bytes())
+		tempGot := tempFile(baseName + "-got", got.Bytes())
+		tempWant := tempFile(baseName + "-want", want.Bytes())
 		defer os.Remove(tempGot.Name())
 		defer os.Remove(tempWant.Name())
 		diff, err := exec.Command("diff", "-u", tempWant.Name(), tempGot.Name()).Output()
@@ -146,8 +147,8 @@ func testConfig(name string, t *testing.T) {
 	}
 }
 
-func tempFile(b []byte) *os.File {
-	f, err := ioutil.TempFile("", "")
+func tempFile(prefix string, b []byte) *os.File {
+	f, err := ioutil.TempFile("", prefix + "-")
 	if err != nil {
 		panic(err)
 	}

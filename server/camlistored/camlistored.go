@@ -307,9 +307,14 @@ func main() {
 	baseURL := config.RequiredString("baseURL")
 	listen := *webserver.Listen
 	if listen == "" {
-		// if command line was empty, use value in config
-		listen = strings.TrimLeft(baseURL, "http://")
-		listen = strings.TrimLeft(listen, "https://")
+		// If command-line is empty, try the "listen" value from
+		// the config file, else try to get it from the baseURL.
+		listen = config.OptionalString("listen", "")
+		if listen == "" {
+			// if command line was empty, use value in config
+			listen = strings.TrimLeft(baseURL, "http://")
+			listen = strings.TrimLeft(listen, "https://")
+		}
 	} else {
 		// else command line takes precedence
 		scheme := strings.Split(baseURL, "://")[0]

@@ -1,10 +1,8 @@
 {
-	"listen": "1.2.3.4:443",
-	"baseURL": "https://1.2.3.4:443",
+	"baseURL": "http://foo.com",
+        "listen": "1.2.3.4:80",
 	"auth": "userpass:camlistore:pass3179",
-	"https": true,
-        "TLSCertFile": "/tls.crt",
-        "TLSKeyFile": "/tls.key",
+	"https": false,
 	"prefixes": {
 		"/": {
 			"handler": "root",
@@ -95,3 +93,4 @@
 	}
 
 }
+

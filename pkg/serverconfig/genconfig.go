@@ -232,7 +232,8 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 
 func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	var (
-		baseUrl    = conf.RequiredString("listen")
+		baseURL    = conf.OptionalString("baseURL", "")
+		listen     = conf.RequiredString("listen")
 		auth       = conf.RequiredString("auth")
 		keyId      = conf.RequiredString("identity")
 		secretRing = conf.RequiredString("identitySecretRing")
@@ -266,9 +267,19 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			obj["TLSKeyFile"] = "config/selfgen_key.pem"
 		}
 	}
-	obj["baseURL"] = scheme + "://" + baseUrl
+	if baseURL == "" {
+		baseURL = scheme + "://" + listen
+	}
+	if strings.HasSuffix(baseURL, "/") {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+	obj["baseURL"] = baseURL
 	obj["https"] = tlsOn
 	obj["auth"] = auth
+
+	if listen != "" {
+		obj["listen"] = listen
+	}
 
 	if dbname == "" {
 		username := os.Getenv("USER")
