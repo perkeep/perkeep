@@ -1,0 +1,15 @@
+{
+	"listen": "1.2.3.4:443",
+	"TLS": true,
+	"TLSCert": "/tls.crt",
+        "TLSKey": "/tls.key",
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"mysql": "",
+	"mongo": "",
+	"s3": "",
+	"replicateTo": [],
+	"publish": {}
+}

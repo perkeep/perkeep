@@ -17,6 +17,7 @@ limitations under the License.
 package serverconfig
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -237,6 +238,8 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		secretRing = conf.RequiredString("identitySecretRing")
 		blobPath   = conf.RequiredString("blobPath")
 		tlsOn      = conf.OptionalBool("TLS", false)
+		tlsCert    = conf.OptionalString("TLSCert", "")
+		tlsKey     = conf.OptionalString("TLSKey", "")
 		dbname     = conf.OptionalString("dbname", "")
 		mysql      = conf.OptionalString("mysql", "")
 		mongo      = conf.OptionalString("mongo", "")
@@ -252,8 +255,16 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	scheme := "http"
 	if tlsOn {
 		scheme = "https"
-		obj["TLSCertFile"] = "config/selfgen_cert.pem"
-		obj["TLSKeyFile"] = "config/selfgen_key.pem"
+		if (tlsCert != "") != (tlsKey != "") {
+			return nil, errors.New("Must set both TLSCertFile and TLSKeyFile (or neither to generate a self-signed cert)")
+		}
+		if tlsCert != "" {
+			obj["TLSCertFile"] = tlsCert
+			obj["TLSKeyFile"] = tlsKey
+		} else {
+			obj["TLSCertFile"] = "config/selfgen_cert.pem"
+			obj["TLSKeyFile"] = "config/selfgen_key.pem"
+		}
 	}
 	obj["baseURL"] = scheme + "://" + baseUrl
 	obj["https"] = tlsOn
