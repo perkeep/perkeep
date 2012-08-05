@@ -33,6 +33,8 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/misc/resize"
 	"camlistore.org/pkg/schema"
+
+	_ "image/gif"
 )
 
 type ImageHandler struct {
