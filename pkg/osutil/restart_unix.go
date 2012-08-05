@@ -1,4 +1,4 @@
-// +build linux darwin
+// +build linux darwin freebsd netbsd openbsd
 
 /*
 Copyright 2012 The Camlistore Authors.
