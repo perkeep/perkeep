@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"crypto/sha1"
 	"flag"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"log"
@@ -42,9 +44,10 @@ type fileCmd struct {
 	name string
 	tag  string
 
-	makePermanode bool
-	rollSplits    bool
-	diskUsage     bool // show "du" disk usage only (dry run mode), don't actually upload
+	makePermanode  bool // make new, unique permanode of the root (dir or file)
+	filePermanodes bool // make planned permanodes for each file (based on their digest)
+	rollSplits     bool
+	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
 
 	havecache, statcache bool
 
@@ -57,6 +60,7 @@ func init() {
 	RegisterCommand("file", func(flags *flag.FlagSet) CommandRunner {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
+		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
 
@@ -143,6 +147,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 		t := up.NewTreeUpload(dir)
 		t.DiskUsageMode = true
+		t.FilePermanodes = c.filePermanodes
 		t.Start()
 		pr, err := t.Wait()
 		if err != nil {
@@ -162,6 +167,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 		if fi.IsDir() {
 			t := up.NewTreeUpload(filename)
+			t.FilePermanodes = c.filePermanodes
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
@@ -349,14 +355,44 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 		if up.rollSplits {
 			schemaWriteFileMap = schema.WriteFileMapRolling
 		}
-		blobref, err := schemaWriteFileMap(statReceiver, m, io.LimitReader(file, fi.Size()))
+
+		var fileContents io.Reader = io.LimitReader(file, fi.Size())
+		if n.wantFilePermanode() {
+			fileContents = &trackDigestReader{r: fileContents}
+		}
+		blobref, err := schemaWriteFileMap(statReceiver, m, fileContents)
 		if err != nil {
 			return nil, err
 		}
-		// TODO(bradfitz): taking a PutResult here is kinda
-		// gross.  should instead make a blobserver.Storage
-		// wrapper type that can track some of this?  or that
-		// updates the client stats directly or something.
+
+		if n.wantFilePermanode() {
+			sum := fileContents.(*trackDigestReader).Sum()
+			// Use a fixed time value for signing; not
+			// using modtime so two identical files don't
+			// have different modtimes? TODO(bradfitz):
+			// consider this more?
+			sigTime := time.Unix(0, 0)
+			permaNode, err := up.UploadPlannedPermanode(sum, sigTime)
+			if err != nil {
+				return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
+			}
+			handleResult("node-permanode", permaNode, nil)
+			signer := schema.NewSigner(permaNode.BlobRef)
+			signer.SetTime(sigTime)
+			put, err := up.UploadAndSignMap(signer.NewSetAttributeClaim("camliContent", blobref.String()))
+			if err != nil {
+				return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
+			}
+			handleResult("node-permanode-contentattr", put, nil)
+		} else {
+			panic("not")
+		}
+
+		// TODO(bradfitz): faking a PutResult here to return
+		// is kinda gross.  should instead make a
+		// blobserver.Storage wrapper type (wrapping
+		// statReceiver) that can track some of this?  or make
+		// schemaWriteFileMap return it?
 		{
 			json, _ := schema.MapToCamliJSON(m)
 			pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
@@ -436,6 +472,10 @@ type node struct {
 	sumBytes int64 // cached value, if non-zero. also guarded by mu.
 }
 
+func (n *node) wantFilePermanode() bool {
+	return n.tu != nil && n.tu.FilePermanodes
+}
+
 func (n *node) String() string {
 	if n == nil {
 		return "<nil *node>"
@@ -504,6 +544,10 @@ type TreeUpload struct {
 	// per-directory disk usage stats are output, like the "du"
 	// command.
 	DiskUsageMode bool
+
+	// If FilePermanodes is set true before Start, each
+	// file gets its own content-based planned permanode.
+	FilePermanodes bool
 
 	// Immutable:
 	base     string // base directory
@@ -722,3 +766,22 @@ type byFileName []os.FileInfo
 func (s byFileName) Len() int           { return len(s) }
 func (s byFileName) Less(i, j int) bool { return s[i].Name() < s[j].Name() }
 func (s byFileName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// trackDigestReader is an io.Reader wrapper which records the digest of what it reads.
+type trackDigestReader struct {
+	r io.Reader
+	h hash.Hash
+}
+
+func (t *trackDigestReader) Read(p []byte) (n int, err error) {
+	if t.h == nil {
+		t.h = sha1.New()
+	}
+	n, err = t.r.Read(p)
+	t.h.Write(p[:n])
+	return
+}
+
+func (t *trackDigestReader) Sum() string {
+	return fmt.Sprintf("%x", t.h.Sum(nil))
+}

@@ -513,31 +513,73 @@ func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) map[
 	return m
 }
 
+const (
+	SetAttribute = "set-attribute"
+	AddAttribute = "add-attribute"
+	DelAttribute = "del-attribute"
+)
+
 func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface{} {
+	return NewSigner(permaNode).Base(claimType)
+}
+
+type Signer struct {
+	permaNode *blobref.BlobRef
+	clock     func() time.Time
+}
+
+func (s *Signer) Base(claimType string) map[string]interface{} {
+	return newClaim(s.permaNode, s.now(), claimType)
+}
+
+func (s *Signer) SetTime(t time.Time) {
+	s.clock = func() time.Time { return t }
+}
+
+func (s *Signer) SetClock(c func() time.Time) {
+	s.clock = c
+}
+
+func (s *Signer) now() time.Time {
+	if s.clock == nil {
+		return s.clock()
+	}
+	return time.Now()
+}
+
+func (s *Signer) NewSetAttributeClaim(attr, value string) map[string]interface{} {
+	return newAttrChangeClaim(s.permaNode, s.now(), SetAttribute, attr, value)
+}
+
+func NewSigner(permaNode *blobref.BlobRef) *Signer {
+	return &Signer{permaNode: permaNode}
+}
+
+func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) map[string]interface{} {
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
-	m["claimDate"] = RFC3339FromTime(time.Now())
+	m["claimDate"] = RFC3339FromTime(t)
 	return m
 }
 
-func newAttrChangeClaim(permaNode *blobref.BlobRef, claimType, attr, value string) map[string]interface{} {
-	m := NewClaim(permaNode, claimType)
+func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) map[string]interface{} {
+	m := newClaim(permaNode, t, claimType)
 	m["attribute"] = attr
 	m["value"] = value
 	return m
 }
 
 func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
-	return newAttrChangeClaim(permaNode, "set-attribute", attr, value)
+	return newAttrChangeClaim(permaNode, time.Now(), SetAttribute, attr, value)
 }
 
 func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
-	return newAttrChangeClaim(permaNode, "add-attribute", attr, value)
+	return newAttrChangeClaim(permaNode, time.Now(), AddAttribute, attr, value)
 }
 
 func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]interface{} {
-	m := newAttrChangeClaim(permaNode, "del-attribute", attr, "")
+	m := newAttrChangeClaim(permaNode, time.Now(), DelAttribute, attr, "")
 	delete(m, "value")
 	return m
 }
@@ -549,7 +591,7 @@ const ShareHaveRef = "haveref"
 // Fractional seconds are only included if the time has fractional
 // seconds.
 func RFC3339FromTime(t time.Time) string {
-	if t.UnixNano() % 1e9 == 0 {
+	if t.UnixNano()%1e9 == 0 {
 		return t.UTC().Format(time.RFC3339)
 	}
 	return t.UTC().Format(time.RFC3339Nano)

@@ -119,8 +119,8 @@ func (up *Uploader) UploadNewPermanode() (*client.PutResult, error) {
 func (up *Uploader) UploadPlannedPermanode(key string, sigTime time.Time) (*client.PutResult, error) {
 	unsigned := schema.NewPlannedPermanode(key)
 	signed, err := up.SignMap(unsigned, sigTime)
-        if err != nil {
-                return nil, err
-        }
+	if err != nil {
+		return nil, err
+	}
 	return up.uploadString(signed)
 }
