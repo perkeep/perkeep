@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/rollsum"
 )
 
-const MaxBlobSize = 1 << 20
+const maxBlobSize = 1 << 20
 
 var _ = log.Printf
 
@@ -57,7 +57,7 @@ func WriteFileMap(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobre
 	var buf bytes.Buffer
 	for {
 		buf.Reset()
-		n, err := io.Copy(&buf, io.LimitReader(r, MaxBlobSize))
+		n, err := io.Copy(&buf, io.LimitReader(r, maxBlobSize))
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +203,7 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 		blobSize++
 		rs.Roll(c)
 		if !rs.OnSplit() {
-			if blobSize < MaxBlobSize {
+			if blobSize < maxBlobSize {
 				continue
 			}
 		}

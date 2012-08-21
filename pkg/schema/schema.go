@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package schema manipulates Camlistore schema blobs.
+//
+// A schema blob is a JSON-encoded blob that describes other blobs.
+// See documentation in Camlistore's doc/schema/ directory.
 package schema
 
 import (
@@ -37,6 +41,9 @@ import (
 )
 
 // Map is an unencoded schema blob.
+//
+// A Map is typically used during construction of a new schema blob or
+// claim.
 type Map map[string]interface{}
 
 var _ = log.Printf
@@ -181,8 +188,8 @@ func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.
 	return NewDirectoryEntry(fetcher, ss)
 }
 
-// Superset represents the superset of common camlistore JSON schema
-// keys as a convenient json.Unmarshal target
+// Superset represents the superset of common Camlistore JSON schema
+// keys as a convenient json.Unmarshal target.
 type Superset struct {
 	BlobRef *blobref.BlobRef // Not in JSON, but included for
 	// those who want to set it.
@@ -369,6 +376,7 @@ func newCamliMap(version int, ctype string) Map {
 	return m
 }
 
+// NewUnsignedPermanode returns a new random permanode, not yet signed.
 func NewUnsignedPermanode() Map {
 	m := newCamliMap(1, "permanode")
 	chars := make([]byte, 20)
@@ -380,6 +388,11 @@ func NewUnsignedPermanode() Map {
 	return m
 }
 
+// NewPlannedPermanode returns a permanode with a fixed key.  Like
+// NewUnsignedPermanode, this Map is also not yet signed.  Callers of
+// NewPlannedPermanode must sign the map with a fixed claimDate and
+// GPG date to create consistent JSON encodings of the Map (its
+// blobref), between runs.
 func NewPlannedPermanode(key string) Map {
 	m := newCamliMap(1, "permanode")
 	m["key"] = key
@@ -402,7 +415,12 @@ func (ss *StaticSet) Map() Map {
 	return m
 }
 
-// JSON returns the map m encoded as JSON.
+// JSON returns the map m encoded as JSON in its
+// recommended canonical form. The canonical form is readable with newlines and indentation,
+// and always starts with the header bytes:
+//
+//   {"camliVersion":
+//
 func (m Map) JSON() (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
@@ -414,19 +432,21 @@ func (m Map) JSON() (string, error) {
 		return "", err
 	}
 	m["camliVersion"] = version
-	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "{\"camliVersion\": %v,\n", version)
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "{\"camliVersion\": %v,\n", version)
 	buf.Write(jsonBytes[2:])
-	return string(buf.Bytes()), nil
+	return buf.String(), nil
 }
 
+// NewFileMap returns a new Map of type "file" for the provided fileName.
+// The chunk parts of the file are not populated.
 func NewFileMap(fileName string) Map {
-	m := NewCommonFilenameMap(fileName)
+	m := newCommonFilenameMap(fileName)
 	m["camliType"] = "file"
 	return m
 }
 
-func NewCommonFilenameMap(fileName string) Map {
+func newCommonFilenameMap(fileName string) Map {
 	m := newCamliMap(1, "" /* no type yet */)
 	if fileName != "" {
 		baseName := filepath.Base(fileName)
@@ -442,7 +462,7 @@ func NewCommonFilenameMap(fileName string) Map {
 var populateSchemaStat []func(schemaMap Map, fi os.FileInfo)
 
 func NewCommonFileMap(fileName string, fi os.FileInfo) Map {
-	m := NewCommonFilenameMap(fileName)
+	m := newCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
 	if fi.Mode()&os.ModeSymlink == 0 {
 		m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
@@ -524,7 +544,7 @@ const (
 )
 
 func NewClaim(permaNode *blobref.BlobRef, claimType string) Map {
-	return NewClaimer(permaNode).Base(claimType)
+	return newClaim(permaNode, time.Now(), claimType)
 }
 
 type Claimer struct {
@@ -532,14 +552,13 @@ type Claimer struct {
 	clock     func() time.Time
 }
 
-func (s *Claimer) Base(claimType string) Map {
-	return newClaim(s.permaNode, s.now(), claimType)
-}
-
+// SetTime sets a time at which all claims are made.
 func (s *Claimer) SetTime(t time.Time) {
 	s.clock = func() time.Time { return t }
 }
 
+// SetClock sets the clock function used when creating claims.
+// If c is nil, the system clock is used.
 func (s *Claimer) SetClock(c func() time.Time) {
 	s.clock = c
 }
@@ -599,12 +618,4 @@ func RFC3339FromTime(t time.Time) string {
 		return t.UTC().Format(time.RFC3339)
 	}
 	return t.UTC().Format(time.RFC3339Nano)
-}
-
-func NanosFromRFC3339(timestr string) int64 {
-	t, err := time.Parse(time.RFC3339, timestr)
-	if err != nil {
-		return -1
-	}
-	return t.UnixNano()
 }
