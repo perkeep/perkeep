@@ -379,7 +379,7 @@ func (up *Uploader) statReceiver() blobserver.StatReceiver {
 }
 
 // fileWriterFunc returns the file chunking algorithm to use.
-func (up *Uploader) fileWriterFunc() func(blobserver.StatReceiver, map[string]interface {}, io.Reader) (*blobref.BlobRef, error) {
+func (up *Uploader) fileWriterFunc() func(blobserver.StatReceiver, schema.Map, io.Reader) (*blobref.BlobRef, error) {
 	if up.rollSplits {
 		return schema.WriteFileMapRolling
 	}

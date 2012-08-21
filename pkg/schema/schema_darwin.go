@@ -13,7 +13,7 @@ func init() {
 	populateSchemaStat = append(populateSchemaStat, populateSchemaCtime)
 }
 
-func populateSchemaCtime(m map[string]interface{}, fi os.FileInfo) {
+func populateSchemaCtime(m Map, fi os.FileInfo) {
 	st, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
 		return

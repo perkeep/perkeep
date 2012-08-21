@@ -36,6 +36,9 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
+// Map is an unencoded schema blob.
+type Map map[string]interface{}
+
 var _ = log.Printf
 
 var ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
@@ -359,14 +362,14 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 	ss.refs = append(ss.refs, ref)
 }
 
-func newCamliMap(version int, ctype string) map[string]interface{} {
-	m := make(map[string]interface{})
+func newCamliMap(version int, ctype string) Map {
+	m := make(Map)
 	m["camliVersion"] = version
 	m["camliType"] = ctype
 	return m
 }
 
-func NewUnsignedPermanode() map[string]interface{} {
+func NewUnsignedPermanode() Map {
 	m := newCamliMap(1, "permanode")
 	chars := make([]byte, 20)
 	_, err := io.ReadFull(rand.Reader, chars)
@@ -377,14 +380,14 @@ func NewUnsignedPermanode() map[string]interface{} {
 	return m
 }
 
-func NewPlannedPermanode(key string) map[string]interface{} {
+func NewPlannedPermanode(key string) Map {
 	m := newCamliMap(1, "permanode")
 	m["key"] = key
 	return m
 }
 
 // Map returns a Camli map of camliType "static-set"
-func (ss *StaticSet) Map() map[string]interface{} {
+func (ss *StaticSet) Map() Map {
 	m := newCamliMap(1, "static-set")
 	ss.l.Lock()
 	defer ss.l.Unlock()
@@ -399,7 +402,7 @@ func (ss *StaticSet) Map() map[string]interface{} {
 	return m
 }
 
-func MapToCamliJSON(m map[string]interface{}) (string, error) {
+func MapToCamliJSON(m Map) (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
 		return "", ErrNoCamliVersion
@@ -416,13 +419,13 @@ func MapToCamliJSON(m map[string]interface{}) (string, error) {
 	return string(buf.Bytes()), nil
 }
 
-func NewFileMap(fileName string) map[string]interface{} {
+func NewFileMap(fileName string) Map {
 	m := NewCommonFilenameMap(fileName)
 	m["camliType"] = "file"
 	return m
 }
 
-func NewCommonFilenameMap(fileName string) map[string]interface{} {
+func NewCommonFilenameMap(fileName string) Map {
 	m := newCamliMap(1, "" /* no type yet */)
 	if fileName != "" {
 		baseName := filepath.Base(fileName)
@@ -435,9 +438,9 @@ func NewCommonFilenameMap(fileName string) map[string]interface{} {
 	return m
 }
 
-var populateSchemaStat []func(schemaMap map[string]interface{}, fi os.FileInfo)
+var populateSchemaStat []func(schemaMap Map, fi os.FileInfo)
 
-func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
+func NewCommonFileMap(fileName string, fi os.FileInfo) Map {
 	m := NewCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
 	if fi.Mode()&os.ModeSymlink == 0 {
@@ -455,11 +458,11 @@ func NewCommonFileMap(fileName string, fi os.FileInfo) map[string]interface{} {
 	return m
 }
 
-func PopulateParts(m map[string]interface{}, size int64, parts []BytesPart) error {
+func PopulateParts(m Map, size int64, parts []BytesPart) error {
 	sumSize := int64(0)
-	mparts := make([]map[string]interface{}, len(parts))
+	mparts := make([]Map, len(parts))
 	for idx, part := range parts {
-		mpart := make(map[string]interface{})
+		mpart := make(Map)
 		mparts[idx] = mpart
 		switch {
 		case part.BlobRef != nil && part.BytesRef != nil:
@@ -482,7 +485,7 @@ func PopulateParts(m map[string]interface{}, size int64, parts []BytesPart) erro
 	return nil
 }
 
-func PopulateSymlinkMap(m map[string]interface{}, fileName string) error {
+func PopulateSymlinkMap(m Map, fileName string) error {
 	m["camliType"] = "symlink"
 	target, err := os.Readlink(fileName)
 	if err != nil {
@@ -496,16 +499,16 @@ func PopulateSymlinkMap(m map[string]interface{}, fileName string) error {
 	return nil
 }
 
-func NewBytes() map[string]interface{} {
+func NewBytes() Map {
 	return newCamliMap(1, "bytes")
 }
 
-func PopulateDirectoryMap(m map[string]interface{}, staticSetRef *blobref.BlobRef) {
+func PopulateDirectoryMap(m Map, staticSetRef *blobref.BlobRef) {
 	m["camliType"] = "directory"
 	m["entries"] = staticSetRef.String()
 }
 
-func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) map[string]interface{} {
+func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) Map {
 	m := newCamliMap(1, "share")
 	m["authType"] = authType
 	m["target"] = target.String()
@@ -519,7 +522,7 @@ const (
 	DelAttribute = "del-attribute"
 )
 
-func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface{} {
+func NewClaim(permaNode *blobref.BlobRef, claimType string) Map {
 	return NewClaimer(permaNode).Base(claimType)
 }
 
@@ -528,7 +531,7 @@ type Claimer struct {
 	clock     func() time.Time
 }
 
-func (s *Claimer) Base(claimType string) map[string]interface{} {
+func (s *Claimer) Base(claimType string) Map {
 	return newClaim(s.permaNode, s.now(), claimType)
 }
 
@@ -547,7 +550,7 @@ func (s *Claimer) now() time.Time {
 	return time.Now()
 }
 
-func (s *Claimer) NewSetAttribute(attr, value string) map[string]interface{} {
+func (s *Claimer) NewSetAttribute(attr, value string) Map {
 	return newAttrChangeClaim(s.permaNode, s.now(), SetAttribute, attr, value)
 }
 
@@ -555,7 +558,7 @@ func NewClaimer(permaNode *blobref.BlobRef) *Claimer {
 	return &Claimer{permaNode: permaNode}
 }
 
-func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) map[string]interface{} {
+func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) Map {
 	m := newCamliMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
@@ -563,22 +566,22 @@ func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) map[str
 	return m
 }
 
-func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) map[string]interface{} {
+func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) Map {
 	m := newClaim(permaNode, t, claimType)
 	m["attribute"] = attr
 	m["value"] = value
 	return m
 }
 
-func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
+func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) Map {
 	return newAttrChangeClaim(permaNode, time.Now(), SetAttribute, attr, value)
 }
 
-func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) map[string]interface{} {
+func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) Map {
 	return newAttrChangeClaim(permaNode, time.Now(), AddAttribute, attr, value)
 }
 
-func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) map[string]interface{} {
+func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) Map {
 	m := newAttrChangeClaim(permaNode, time.Now(), DelAttribute, attr, "")
 	delete(m, "value")
 	return m

@@ -51,7 +51,7 @@ func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reade
 // JSON blob.
 //
 // This is the simple 1MB chunk version. The rolling checksum version is below.
-func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (*blobref.BlobRef, error) {
+func WriteFileMap(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobref.BlobRef, error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	var buf bytes.Buffer
@@ -146,7 +146,7 @@ func WriteFileFromReaderRolling(bs blobserver.StatReceiver, filename string, r i
 	return WriteFileMapRolling(bs, m, r)
 }
 
-func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
+func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
 	blobSize := 0
 	bufr := bufio.NewReader(r)
 	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries

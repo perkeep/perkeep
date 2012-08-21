@@ -12,7 +12,7 @@ func init() {
 	populateSchemaStat = append(populateSchemaStat, populateSchemaUnix)
 }
 
-func populateSchemaUnix(m map[string]interface{}, fi os.FileInfo) {
+func populateSchemaUnix(m Map, fi os.FileInfo) {
 	st, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
 		return
