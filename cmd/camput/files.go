@@ -371,15 +371,20 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 			// using modtime so two identical files don't
 			// have different modtimes? TODO(bradfitz):
 			// consider this more?
-			sigTime := time.Unix(0, 0)
-			permaNode, err := up.UploadPlannedPermanode(sum, sigTime)
+			permaNodeSigTime := time.Unix(0, 0)
+			permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
 			if err != nil {
 				return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
 			}
 			handleResult("node-permanode", permaNode, nil)
-			signer := schema.NewSigner(permaNode.BlobRef)
-			signer.SetTime(sigTime)
-			put, err := up.UploadAndSignMap(signer.NewSetAttributeClaim("camliContent", blobref.String()))
+			claimer := schema.NewClaimer(permaNode.BlobRef)
+			claimTime := n.fi.ModTime()
+			claimer.SetTime(claimTime)
+			signed, err := up.SignMap(claimer.NewSetAttribute("camliContent", blobref.String()), claimTime)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
+			}
+			put, err := up.uploadString(signed)
 			if err != nil {
 				return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
 			}

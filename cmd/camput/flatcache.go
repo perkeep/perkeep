@@ -166,7 +166,7 @@ type FlatHaveCache struct {
 	mu       sync.RWMutex
 	filename string
 	m        map[string]bool
-	af *os.File // appending file
+	af       *os.File // appending file
 }
 
 func NewFlatHaveCache() *FlatHaveCache {

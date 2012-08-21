@@ -520,39 +520,39 @@ const (
 )
 
 func NewClaim(permaNode *blobref.BlobRef, claimType string) map[string]interface{} {
-	return NewSigner(permaNode).Base(claimType)
+	return NewClaimer(permaNode).Base(claimType)
 }
 
-type Signer struct {
+type Claimer struct {
 	permaNode *blobref.BlobRef
 	clock     func() time.Time
 }
 
-func (s *Signer) Base(claimType string) map[string]interface{} {
+func (s *Claimer) Base(claimType string) map[string]interface{} {
 	return newClaim(s.permaNode, s.now(), claimType)
 }
 
-func (s *Signer) SetTime(t time.Time) {
+func (s *Claimer) SetTime(t time.Time) {
 	s.clock = func() time.Time { return t }
 }
 
-func (s *Signer) SetClock(c func() time.Time) {
+func (s *Claimer) SetClock(c func() time.Time) {
 	s.clock = c
 }
 
-func (s *Signer) now() time.Time {
-	if s.clock == nil {
+func (s *Claimer) now() time.Time {
+	if s.clock != nil {
 		return s.clock()
 	}
 	return time.Now()
 }
 
-func (s *Signer) NewSetAttributeClaim(attr, value string) map[string]interface{} {
+func (s *Claimer) NewSetAttribute(attr, value string) map[string]interface{} {
 	return newAttrChangeClaim(s.permaNode, s.now(), SetAttribute, attr, value)
 }
 
-func NewSigner(permaNode *blobref.BlobRef) *Signer {
-	return &Signer{permaNode: permaNode}
+func NewClaimer(permaNode *blobref.BlobRef) *Claimer {
+	return &Claimer{permaNode: permaNode}
 }
 
 func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) map[string]interface{} {
