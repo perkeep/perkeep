@@ -525,18 +525,14 @@ func PopulateParts(m Map, size int64, parts []BytesPart) error {
 	return nil
 }
 
-func PopulateSymlinkMap(m Map, fileName string) error {
+// SetSymlinkTarget sets m to be of type "symlink" and sets the symlink's target.
+func (m Map) SetSymlinkTarget(target string) {
 	m["camliType"] = "symlink"
-	target, err := os.Readlink(fileName)
-	if err != nil {
-		return err
-	}
 	if utf8.ValidString(target) {
 		m["symlinkTarget"] = target
 	} else {
 		m["symlinkTargetBytes"] = []uint8(target)
 	}
-	return nil
 }
 
 func newBytes() Map {

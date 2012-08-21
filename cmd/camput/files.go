@@ -325,10 +325,12 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	m := schema.NewCommonFileMap(n.fullPath, fi)
 	switch {
 	case mode&os.ModeSymlink != 0:
-		// TODO(bradfitz): use VFS here; PopulateSymlinkMap uses os.Readlink directly.
-		if err := schema.PopulateSymlinkMap(m, n.fullPath); err != nil {
+		// TODO(bradfitz): use VFS here; not os.Readlink
+		target, err := os.Readlink(n.fullPath)
+		if err != nil {
 			return nil, err
 		}
+		m.SetSymlinkTarget(target)
 	case mode&os.ModeDevice != 0:
 		// including mode & os.ModeCharDevice
 		fallthrough
