@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/blobserver/interface.go
+../../../../../pkg/blobserver/interface.go

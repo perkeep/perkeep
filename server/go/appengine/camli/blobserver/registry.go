@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/blobserver/registry.go
+../../../../../pkg/blobserver/registry.go

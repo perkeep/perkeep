@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/misc/countingreader.go
+../../../../../pkg/misc/countingreader.go

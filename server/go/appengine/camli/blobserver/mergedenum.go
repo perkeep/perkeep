@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/blobserver/mergedenum.go
+../../../../../pkg/blobserver/mergedenum.go
