@@ -50,7 +50,7 @@ func part(blob *test.Blob, offset, size uint64) *BytesPart {
 // filePart returns a BytesPart that references a file JSON schema
 // blob made of the provided content parts.
 func filePart(cps []*BytesPart, skip uint64) *BytesPart {
-	m := NewBytes()
+	m := newBytes()
 	fileSize := int64(0)
 	cpl := []BytesPart{}
 	for _, cp := range cps {
