@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/remote"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/schema"
@@ -317,8 +318,11 @@ func (up *Uploader) open(path string) (http.File, error) {
 
 func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	fi := n.fi
-	m := schema.NewCommonFileMap(n.fullPath, fi)
 	mode := fi.Mode()
+	if mode&os.ModeType == 0 {
+		return up.uploadNodeRegularFile(n)
+	}
+	m := schema.NewCommonFileMap(n.fullPath, fi)
 	switch {
 	case mode&os.ModeSymlink != 0:
 		// TODO(bradfitz): use VFS here; PopulateSymlinkMap uses os.Readlink directly.
@@ -334,79 +338,6 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 		fallthrough
 	default:
 		return nil, schema.ErrUnimplemented
-	case mode&os.ModeType == 0: // regular file
-		m["camliType"] = "file"
-
-		file, err := up.open(n.fullPath)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-
-		statReceiver := up.altStatReceiver
-		if statReceiver == nil {
-			// TODO(bradfitz): just make Client be a
-			// StatReceiver? move remote's ReceiveBlob ->
-			// Upload wrapper into Client itself?
-			statReceiver = remote.NewFromClient(up.Client)
-		}
-
-		schemaWriteFileMap := schema.WriteFileMap
-		if up.rollSplits {
-			schemaWriteFileMap = schema.WriteFileMapRolling
-		}
-
-		var fileContents io.Reader = io.LimitReader(file, fi.Size())
-		if n.wantFilePermanode() {
-			fileContents = &trackDigestReader{r: fileContents}
-		}
-		blobref, err := schemaWriteFileMap(statReceiver, m, fileContents)
-		if err != nil {
-			return nil, err
-		}
-
-		if n.wantFilePermanode() {
-			sum := fileContents.(*trackDigestReader).Sum()
-			// Use a fixed time value for signing; not using modtime
-			// so two identical files don't have different modtimes?
-			// TODO(bradfitz): consider this more?
-			permaNodeSigTime := time.Unix(0, 0)
-			permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
-			if err != nil {
-				return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
-			}
-			handleResult("node-permanode", permaNode, nil)
-			claimer := schema.NewClaimer(permaNode.BlobRef)
-			// claimTime is both the time of the "claimDate" in the
-			// JSON claim, as well as the date in the OpenPGP
-			// header.
-			// TODO(bradfitz): this is a little clumsy to do by hand.
-			// There should probably be a method on *Uploader to do this
-			// from an unsigned schema map. Maybe ditch the schema.Claimer
-			// type and just have the Uploader override the claimDate.
-			claimTime := n.fi.ModTime()
-			claimer.SetTime(claimTime)
-			signed, err := up.SignMap(claimer.NewSetAttribute("camliContent", blobref.String()), claimTime)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
-			}
-			put, err := up.uploadString(signed)
-			if err != nil {
-				return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
-			}
-			handleResult("node-permanode-contentattr", put, nil)
-		}
-
-		// TODO(bradfitz): faking a PutResult here to return
-		// is kinda gross.  should instead make a
-		// blobserver.Storage wrapper type (wrapping
-		// statReceiver) that can track some of this?  or make
-		// schemaWriteFileMap return it?
-		{
-			json, _ := schema.MapToCamliJSON(m)
-			pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
-			return pr, nil
-		}
 	case fi.IsDir():
 		ss := new(schema.StaticSet)
 		for _, c := range n.children {
@@ -433,6 +364,86 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	}
 	return mappr, err
 
+}
+
+// statReceiver returns the StatReceiver used for checking for and uploading blobs.
+func (up *Uploader) statReceiver() blobserver.StatReceiver {
+	statReceiver := up.altStatReceiver
+	if statReceiver == nil {
+		// TODO(bradfitz): just make Client be a
+		// StatReceiver? move remote's ReceiveBlob ->
+		// Upload wrapper into Client itself?
+		statReceiver = remote.NewFromClient(up.Client)
+	}
+	return statReceiver
+}
+
+// fileWriterFunc returns the file chunking algorithm to use.
+func (up *Uploader) fileWriterFunc() func(blobserver.StatReceiver, map[string]interface {}, io.Reader) (*blobref.BlobRef, error) {
+	if up.rollSplits {
+		return schema.WriteFileMapRolling
+	}
+	return schema.WriteFileMap
+}
+
+func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
+	m := schema.NewCommonFileMap(n.fullPath, n.fi)
+	m["camliType"] = "file"
+	file, err := up.open(n.fullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var fileContents io.Reader = io.LimitReader(file, n.fi.Size())
+	if n.wantFilePermanode() {
+		fileContents = &trackDigestReader{r: fileContents}
+	}
+	blobref, err := up.fileWriterFunc()(up.statReceiver(), m, fileContents)
+	if err != nil {
+		return nil, err
+	}
+
+	if n.wantFilePermanode() {
+		sum := fileContents.(*trackDigestReader).Sum()
+		// Use a fixed time value for signing; not using modtime
+		// so two identical files don't have different modtimes?
+		// TODO(bradfitz): consider this more?
+		permaNodeSigTime := time.Unix(0, 0)
+		permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
+		if err != nil {
+			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
+		}
+		handleResult("node-permanode", permaNode, nil)
+		claimer := schema.NewClaimer(permaNode.BlobRef)
+		// claimTime is both the time of the "claimDate" in the
+		// JSON claim, as well as the date in the OpenPGP
+		// header.
+		// TODO(bradfitz): this is a little clumsy to do by hand.
+		// There should probably be a method on *Uploader to do this
+		// from an unsigned schema map. Maybe ditch the schema.Claimer
+		// type and just have the Uploader override the claimDate.
+		claimTime := n.fi.ModTime()
+		claimer.SetTime(claimTime)
+		signed, err := up.SignMap(claimer.NewSetAttribute("camliContent", blobref.String()), claimTime)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
+		}
+		put, err := up.uploadString(signed)
+		if err != nil {
+			return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
+		}
+		handleResult("node-permanode-contentattr", put, nil)
+	}
+
+	// TODO(bradfitz): faking a PutResult here to return
+	// is kinda gross.  should instead make a
+	// blobserver.Storage wrapper type (wrapping
+	// statReceiver) that can track some of this?  or make
+	// schemaWriteFileMap return it?
+	json, _ := schema.MapToCamliJSON(m)
+	pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
+	return pr, nil
 }
 
 func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {

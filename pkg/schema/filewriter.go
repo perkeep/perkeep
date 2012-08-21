@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/rollsum"
 )
 
-const MaxBlobSize = 1000000
+const MaxBlobSize = 1 << 20
 
 var _ = log.Printf
 
@@ -39,18 +39,25 @@ var _ = log.Printf
 // BlobRef is of the JSON file schema blob.
 func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (*blobref.BlobRef, error) {
 	m := NewFileMap(filename)
+	// TODO(bradfitz): switch this to the rolling version by
+	// default at some point, ideally unexporting some subset of
+	// {WriteFileFromReader, WriteFileMap, WriteFileMapRolling}
+	// and making this package simpler.
 	return WriteFileMap(bs, m, r)
 }
 
+// WriteFileMap uploads chunks of r to bs while populating fileMap and
+// finally uploading fileMap. The returned blobref is of fileMap's
+// JSON blob.
+//
 // This is the simple 1MB chunk version. The rolling checksum version is below.
 func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r io.Reader) (*blobref.BlobRef, error) {
 	parts, size := []BytesPart{}, int64(0)
 
-	buf := new(bytes.Buffer)
+	var buf bytes.Buffer
 	for {
 		buf.Reset()
-
-		n, err := io.Copy(buf, io.LimitReader(r, 1<<20))
+		n, err := io.Copy(&buf, io.LimitReader(r, MaxBlobSize))
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +73,7 @@ func WriteFileMap(bs blobserver.StatReceiver, fileMap map[string]interface{}, r 
 			return nil, err
 		}
 		if !hasBlob {
-			sb, err := bs.ReceiveBlob(br, buf)
+			sb, err := bs.ReceiveBlob(br, &buf)
 			if err != nil {
 				return nil, err
 			}
