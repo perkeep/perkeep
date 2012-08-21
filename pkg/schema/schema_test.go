@@ -32,7 +32,7 @@ func TestJSON(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, _ := os.Lstat(fileName)
 	m := NewCommonFileMap(fileName, fi)
-	json, err := MapToCamliJSON(m)
+	json, err := m.JSON()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestRegularFile(t *testing.T) {
 	fi, err := os.Lstat(fileName)
 	AssertNil(t, err, "test-symlink stat")
 	m := NewCommonFileMap("schema_test.go", fi)
-	json, err := MapToCamliJSON(m)
+	json, err := m.JSON()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSymlink(t *testing.T) {
 	fi, err := os.Lstat(fileName)
 	AssertNil(t, err, "test-symlink stat")
 	m := NewCommonFileMap(fileName, fi)
-	json, err := MapToCamliJSON(m)
+	json, err := m.JSON()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

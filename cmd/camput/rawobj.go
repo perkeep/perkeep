@@ -51,7 +51,7 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 		return errors.New("Raw Object command doesn't take any additional arguments")
 	}
 
-	m := make(map[string]interface{})
+	m := make(schema.Map)
 	if c.vals == "" {
 		return errors.New("No values")
 	}
@@ -68,7 +68,7 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("raw-object-signed", put, err)
 		return err
 	}
-	cj, err := schema.MapToCamliJSON(m)
+	cj, err := m.JSON()
 	if err != nil {
 		return err
 	}

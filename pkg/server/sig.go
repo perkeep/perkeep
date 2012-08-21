@@ -239,9 +239,9 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 	rw.Write([]byte(signedJSON))
 }
 
-func (h *JSONSignHandler) SignMap(m map[string]interface{}) (string, error) {
+func (h *JSONSignHandler) SignMap(m schema.Map) (string, error) {
 	m["camliSigner"] = h.pubKeyBlobRef.String()
-	unsigned, err := schema.MapToCamliJSON(m)
+	unsigned, err := m.JSON()
 	if err != nil {
 		return "", err
 	}

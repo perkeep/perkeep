@@ -402,7 +402,8 @@ func (ss *StaticSet) Map() Map {
 	return m
 }
 
-func MapToCamliJSON(m Map) (string, error) {
+// JSON returns the map m encoded as JSON.
+func (m Map) JSON() (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
 		return "", ErrNoCamliVersion

@@ -65,9 +65,9 @@ func (id *IndexDeps) dumpIndex(t *testing.T) {
 	t.Logf("End index dump.")
 }
 
-func (id *IndexDeps) uploadAndSignMap(m map[string]interface{}) *blobref.BlobRef {
+func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 	m["camliSigner"] = id.SignerBlobRef
-	unsigned, err := schema.MapToCamliJSON(m)
+	unsigned, err := m.JSON()
 	if err != nil {
 		panic("uploadAndSignMap: " + err.Error())
 	}
@@ -125,7 +125,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
 		}})
-	fjson, err := schema.MapToCamliJSON(m)
+	fjson, err := m.JSON()
 	if err != nil {
 		panic(err)
 	}

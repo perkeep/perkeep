@@ -61,7 +61,7 @@ func filePart(cps []*BytesPart, skip uint64) *BytesPart {
 	if err != nil {
 		panic(err)
 	}
-	json, err := MapToCamliJSON(m)
+	json, err := m.JSON()
 	if err != nil {
 		panic(err)
 	}

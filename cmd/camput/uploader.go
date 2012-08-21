@@ -58,7 +58,7 @@ type Uploader struct {
 
 // sigTime optionally specifies the signature time.
 // If zero, the current time is used.
-func (up *Uploader) SignMap(m map[string]interface{}, sigTime time.Time) (string, error) {
+func (up *Uploader) SignMap(m schema.Map, sigTime time.Time) (string, error) {
 	camliSigBlobref := up.Client.SignerPublicKeyBlobref()
 	if camliSigBlobref == nil {
 		// TODO: more helpful error message
@@ -66,7 +66,7 @@ func (up *Uploader) SignMap(m map[string]interface{}, sigTime time.Time) (string
 	}
 
 	m["camliSigner"] = camliSigBlobref.String()
-	unsigned, err := schema.MapToCamliJSON(m)
+	unsigned, err := m.JSON()
 	if err != nil {
 		return "", err
 	}
@@ -79,15 +79,15 @@ func (up *Uploader) SignMap(m map[string]interface{}, sigTime time.Time) (string
 	return sr.Sign()
 }
 
-func (up *Uploader) UploadMap(m map[string]interface{}) (*client.PutResult, error) {
-	json, err := schema.MapToCamliJSON(m)
+func (up *Uploader) UploadMap(m schema.Map) (*client.PutResult, error) {
+	json, err := m.JSON()
 	if err != nil {
 		return nil, err
 	}
 	return up.uploadString(json)
 }
 
-func (up *Uploader) UploadAndSignMap(m map[string]interface{}) (*client.PutResult, error) {
+func (up *Uploader) UploadAndSignMap(m schema.Map) (*client.PutResult, error) {
 	signed, err := up.SignMap(m, time.Time{})
 	if err != nil {
 		return nil, err

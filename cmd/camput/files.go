@@ -441,7 +441,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	// blobserver.Storage wrapper type (wrapping
 	// statReceiver) that can track some of this?  or make
 	// schemaWriteFileMap return it?
-	json, _ := schema.MapToCamliJSON(m)
+	json, _ := m.JSON()
 	pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
 	return pr, nil
 }
