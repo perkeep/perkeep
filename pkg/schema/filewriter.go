@@ -241,7 +241,7 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 		}
 		m := fileMap
 		if isFragment {
-			m = NewBytes()
+			m = newBytes()
 		}
 		err = PopulateParts(m, fileSize, parts)
 		if err != nil {

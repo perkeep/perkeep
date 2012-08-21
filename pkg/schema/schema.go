@@ -539,7 +539,7 @@ func PopulateSymlinkMap(m Map, fileName string) error {
 	return nil
 }
 
-func NewBytes() Map {
+func newBytes() Map {
 	return newMap(1, "bytes")
 }
 
