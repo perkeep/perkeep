@@ -367,10 +367,9 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 
 		if n.wantFilePermanode() {
 			sum := fileContents.(*trackDigestReader).Sum()
-			// Use a fixed time value for signing; not
-			// using modtime so two identical files don't
-			// have different modtimes? TODO(bradfitz):
-			// consider this more?
+			// Use a fixed time value for signing; not using modtime
+			// so two identical files don't have different modtimes?
+			// TODO(bradfitz): consider this more?
 			permaNodeSigTime := time.Unix(0, 0)
 			permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
 			if err != nil {
@@ -378,6 +377,13 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 			}
 			handleResult("node-permanode", permaNode, nil)
 			claimer := schema.NewClaimer(permaNode.BlobRef)
+			// claimTime is both the time of the "claimDate" in the
+			// JSON claim, as well as the date in the OpenPGP
+			// header.
+			// TODO(bradfitz): this is a little clumsy to do by hand.
+			// There should probably be a method on *Uploader to do this
+			// from an unsigned schema map. Maybe ditch the schema.Claimer
+			// type and just have the Uploader override the claimDate.
 			claimTime := n.fi.ModTime()
 			claimer.SetTime(claimTime)
 			signed, err := up.SignMap(claimer.NewSetAttribute("camliContent", blobref.String()), claimTime)
@@ -389,8 +395,6 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 				return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
 			}
 			handleResult("node-permanode-contentattr", put, nil)
-		} else {
-			panic("not")
 		}
 
 		// TODO(bradfitz): faking a PutResult here to return
