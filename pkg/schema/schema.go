@@ -46,6 +46,25 @@ import (
 // claim.
 type Map map[string]interface{}
 
+// Type returns the map's "camliType" value.
+func (m Map) Type() string {
+	t, _ := m["camliType"].(string)
+	return t
+}
+
+// SetClaimDate sets the "claimDate" on a claim.
+// It is a fatal error to call SetClaimDate if the Map isn't of Type "claim".
+func (m Map) SetClaimDate(t time.Time) {
+	if t := m.Type(); t != "claim" {
+		// This is a little gross, using panic here, but I
+		// don't want all callers to check errors.  This is
+		// really a programming error, not a runtime error
+		// that would arise from e.g. random user data.
+		panic("SetClaimDate called on non-claim Map; camliType=" + t)
+	}
+	m["claimDate"] = RFC3339FromTime(t)
+}
+
 var _ = log.Printf
 
 var ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
@@ -369,16 +388,16 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 	ss.refs = append(ss.refs, ref)
 }
 
-func newCamliMap(version int, ctype string) Map {
-	m := make(Map)
-	m["camliVersion"] = version
-	m["camliType"] = ctype
-	return m
+func newMap(version int, ctype string) Map {
+	return Map{
+		"camliVersion": version,
+		"camliType": ctype,
+	}
 }
 
 // NewUnsignedPermanode returns a new random permanode, not yet signed.
 func NewUnsignedPermanode() Map {
-	m := newCamliMap(1, "permanode")
+	m := newMap(1, "permanode")
 	chars := make([]byte, 20)
 	_, err := io.ReadFull(rand.Reader, chars)
 	if err != nil {
@@ -394,14 +413,14 @@ func NewUnsignedPermanode() Map {
 // GPG date to create consistent JSON encodings of the Map (its
 // blobref), between runs.
 func NewPlannedPermanode(key string) Map {
-	m := newCamliMap(1, "permanode")
+	m := newMap(1, "permanode")
 	m["key"] = key
 	return m
 }
 
 // Map returns a Camli map of camliType "static-set"
 func (ss *StaticSet) Map() Map {
-	m := newCamliMap(1, "static-set")
+	m := newMap(1, "static-set")
 	ss.l.Lock()
 	defer ss.l.Unlock()
 
@@ -447,7 +466,7 @@ func NewFileMap(fileName string) Map {
 }
 
 func newCommonFilenameMap(fileName string) Map {
-	m := newCamliMap(1, "" /* no type yet */)
+	m := newMap(1, "" /* no type yet */)
 	if fileName != "" {
 		baseName := filepath.Base(fileName)
 		if utf8.ValidString(baseName) {
@@ -521,7 +540,7 @@ func PopulateSymlinkMap(m Map, fileName string) error {
 }
 
 func NewBytes() Map {
-	return newCamliMap(1, "bytes")
+	return newMap(1, "bytes")
 }
 
 func PopulateDirectoryMap(m Map, staticSetRef *blobref.BlobRef) {
@@ -530,7 +549,7 @@ func PopulateDirectoryMap(m Map, staticSetRef *blobref.BlobRef) {
 }
 
 func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) Map {
-	m := newCamliMap(1, "share")
+	m := newMap(1, "share")
 	m["authType"] = authType
 	m["target"] = target.String()
 	m["transitive"] = transitive
@@ -543,46 +562,11 @@ const (
 	DelAttribute = "del-attribute"
 )
 
-func NewClaim(permaNode *blobref.BlobRef, claimType string) Map {
-	return newClaim(permaNode, time.Now(), claimType)
-}
-
-type Claimer struct {
-	permaNode *blobref.BlobRef
-	clock     func() time.Time
-}
-
-// SetTime sets a time at which all claims are made.
-func (s *Claimer) SetTime(t time.Time) {
-	s.clock = func() time.Time { return t }
-}
-
-// SetClock sets the clock function used when creating claims.
-// If c is nil, the system clock is used.
-func (s *Claimer) SetClock(c func() time.Time) {
-	s.clock = c
-}
-
-func (s *Claimer) now() time.Time {
-	if s.clock != nil {
-		return s.clock()
-	}
-	return time.Now()
-}
-
-func (s *Claimer) NewSetAttribute(attr, value string) Map {
-	return newAttrChangeClaim(s.permaNode, s.now(), SetAttribute, attr, value)
-}
-
-func NewClaimer(permaNode *blobref.BlobRef) *Claimer {
-	return &Claimer{permaNode: permaNode}
-}
-
 func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) Map {
-	m := newCamliMap(1, "claim")
+	m := newMap(1, "claim")
 	m["permaNode"] = permaNode.String()
 	m["claimType"] = claimType
-	m["claimDate"] = RFC3339FromTime(t)
+	m.SetClaimDate(t)
 	return m
 }
 

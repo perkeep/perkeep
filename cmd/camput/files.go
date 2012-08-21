@@ -415,7 +415,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
 		}
 		handleResult("node-permanode", permaNode, nil)
-		claimer := schema.NewClaimer(permaNode.BlobRef)
+
 		// claimTime is both the time of the "claimDate" in the
 		// JSON claim, as well as the date in the OpenPGP
 		// header.
@@ -424,8 +424,10 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		// from an unsigned schema map. Maybe ditch the schema.Claimer
 		// type and just have the Uploader override the claimDate.
 		claimTime := n.fi.ModTime()
-		claimer.SetTime(claimTime)
-		signed, err := up.SignMap(claimer.NewSetAttribute("camliContent", blobref.String()), claimTime)
+
+		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", blobref.String())
+		contentAttr.SetClaimDate(claimTime)
+		signed, err := up.SignMap(contentAttr, claimTime)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
 		}
