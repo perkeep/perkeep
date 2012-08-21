@@ -7,6 +7,9 @@
    be able to reload itself, and also watch for binaries changing and restart
    when binaries change.  (or symlinks to binaries)
 
+-- ./dev-server and hitting http://localhost:3179/ shouldn't mention
+   the /setup handler.
+
 OLD:
 
 -- add CROS support?
