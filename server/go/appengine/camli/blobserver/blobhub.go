@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/blobserver/blobhub.go
+../../../../../pkg/blobserver/blobhub.go

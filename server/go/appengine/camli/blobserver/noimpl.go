@@ -1,1 +1,1 @@
-../../../../../lib/go/camli/blobserver/noimpl.go
+../../../../../pkg/blobserver/noimpl.go
