@@ -80,7 +80,7 @@ type StatHasher interface {
 type File interface {
 	// TODO(bradfitz): this should instead be a ReaderAt with a Size() int64 method.
 	// Then a Reader could be built with a SectionReader.
-	
+
 	Close() error
 	Size() int64
 
@@ -414,7 +414,7 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 func newMap(version int, ctype string) Map {
 	return Map{
 		"camliVersion": version,
-		"camliType": ctype,
+		"camliType":    ctype,
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -163,11 +164,12 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	if fileBlobRef == nil {
 		return nil, errors.New("schema/filereader: NewFileReader blobref was nil")
 	}
-	ss := new(Superset)
 	rsc, _, err := fetcher.Fetch(fileBlobRef)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 	}
+	defer rsc.Close()
+	ss := new(Superset)
 	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
 	}
@@ -213,6 +215,8 @@ func (fr *FileReader) Close() error {
 	return nil
 }
 
+// TODO(bradfitz): delete this method entirely once FileReader is a
+// ReaderAtSeekerCloser.
 func (fr *FileReader) Skip(skipBytes uint64) uint64 {
 	if fr.ci == closedIndex {
 		return 0
@@ -309,6 +313,8 @@ var _ interface {
 	io.Closer
 } = (*FileReader)(nil)
 
+// TODO(bradfitz): this is entirely untested. Test exhaustively (all offsets and
+// lengths of each test string) in fileread_test.go.
 func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	if offset < 0 {
 		return 0, errors.New("schema/filereader: negative offset")
@@ -318,17 +324,23 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	want := len(p)
 	for len(p) > 0 && err == nil {
-		panic("TODO: finish implementing")
-		r := fr.readerForOffset(offset)
+		var rc io.ReadCloser
+		rc, err = fr.readerForOffset(offset)
+		if err != nil {
+			return
+		}
 		var n1 int
-		n1, err = r.Read(p)
-		p = p[n1:]
-		if err == io.EOF {
+		n1, err = rc.Read(p)
+		rc.Close()
+		if n1 == len(p) && err == io.EOF {
 			err = nil
 		}
+		p = p[n1:]
 	}
 	if n == want && err == io.EOF {
-		// ReaderAt permits either way, but I like this way.
+		// ReaderAt permits returning either nil or io.EOF at EOF, but
+		// be consistent here (hiding whatever sub-reader returns) and
+		// just always return nil.  Just my personal preference.
 		err = nil
 	}
 	if n < want && err == nil {
@@ -337,10 +349,44 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	return n, err
 }
 
-func (fr *FileReader) readerForOffset(off int64) io.Reader {
-	panic("TODO(bradfitz): implement")
+func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
+	if off < 0 {
+		panic("negative offset")
+	}
+	parts := fr.ss.Parts
+	for len(parts) > 0 {
+		p0 := parts[0]
+		if p0.Size >= uint64(off) {
+			parts = parts[1:]
+			off -= int64(p0.Size)
+			continue
+		}
+		if p0.BlobRef != nil && p0.BytesRef != nil {
+			return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
+		}
+		ref := p0.BlobRef
+		if ref == nil {
+			ref = p0.BytesRef
+		}
+		if ref == nil {
+			return &nZeros{int(p0.Size)}, nil
+		}
+		fr, err := NewFileReader(fr.fetcher, ref)
+		if err != nil {
+			return nil, err
+		}
+		_, err = io.CopyN(ioutil.Discard, fr, off)
+		if err != nil {
+			return nil, err
+		}
+		return fr, nil
+	}
+	return nil, fmt.Errorf("illegal offset %d", off)
 }
 
+// TODO(bradfitz): re-implement Read in terms of the ReaderAt, once the ReaderAt is tested.
+// We could just embed or proxy to a SectionReader of ourselves and then all the meat will
+// only be in ReaderAt.  The SectionReader will maintain the seek offset.
 func (fr *FileReader) Read(p []byte) (n int, err error) {
 	if fr.ci == closedIndex {
 		return 0, errClosed
@@ -396,6 +442,25 @@ func minu64(a, b uint64) uint64 {
 	}
 	return b
 }
+
+// nZeros is a ReadCloser that reads remain zeros before EOF.
+type nZeros struct {
+	remain int
+}
+
+func (z *nZeros) Read(p []byte) (n int, err error) {
+	for len(p) > 0 && z.remain > 0 {
+		p[0] = 0
+		n++
+		z.remain--
+	}
+	if n == 0 && z.remain == 0 {
+		err = io.EOF
+	}
+	return
+}
+
+func (*nZeros) Close() error { return nil }
 
 // zeroReader is a ReadSeekCloser that always reads zero bytes.
 type zeroReader struct{}
