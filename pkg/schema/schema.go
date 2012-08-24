@@ -75,9 +75,18 @@ type StatHasher interface {
 	Hash(fileName string) (*blobref.BlobRef, error)
 }
 
+// File is the interface returned when opening a DirectoryEntry that
+// is a regular file.
 type File interface {
+	// TODO(bradfitz): this should instead be a ReaderAt with a Size() int64 method.
+	// Then a Reader could be built with a SectionReader.
+	
 	Close() error
-	Skip(skipBytes uint64) uint64
+	Size() int64
+
+	// Skip is an efficient way to skip n bytes into 
+	Skip(n uint64) uint64
+
 	Read(p []byte) (int, error)
 }
 
@@ -243,6 +252,8 @@ type Superset struct {
 	UnixCtime      string `json:"unixCtime"`
 	UnixAtime      string `json:"unixAtime"`
 
+	// Parts are references to the data chunks of a regular file (or a "bytes" schema blob).
+	// See doc/schema/bytes.txt and doc/schema/files/file.txt.
 	Parts []*BytesPart `json:"parts"`
 
 	Entries string   `json:"entries"` // for directories, a blobref to a static-set
@@ -250,20 +261,32 @@ type Superset struct {
 	// blobrefs to child dirs/files)
 }
 
+// BytesPart is the type representing one of the "parts" in a "file"
+// or "bytes" JSON schema.
+//
+// See doc/schema/bytes.txt and doc/schema/files/file.txt.
 type BytesPart struct {
-	// Required.
+	// Size is the number of bytes that this part contributes to the overall segment.
 	Size uint64 `json:"size"`
 
-	// At most one of:
+	// At most one of BlobRef or BytesRef must be set, but it's illegal for both to be set.
+	// If neither are set, this BytesPart represents Size zero bytes.
+	// BlobRef refers to raw bytes. BytesRef references a "bytes" schema blob.
 	BlobRef  *blobref.BlobRef `json:"blobRef,omitempty"`
 	BytesRef *blobref.BlobRef `json:"bytesRef,omitempty"`
 
-	// Optional (default value is zero if unset anyway):
+	// Offset optionally specifies the offset into BlobRef to skip
+	// when reading Size bytes.
 	Offset uint64 `json:"offset,omitempty"`
 }
 
+// stringFromMixedArray joins a slice of either strings or float64
+// values (as retrieved from JSON decoding) into a string.  These are
+// used for non-UTF8 filenames in "fileNameBytes" fields.  The strings
+// are UTF-8 segments and the float64s (actually uint8 values) are
+// byte values.
 func stringFromMixedArray(parts []interface{}) string {
-	buf := new(bytes.Buffer)
+	var buf bytes.Buffer
 	for _, part := range parts {
 		if s, ok := part.(string); ok {
 			buf.WriteString(s)
@@ -587,7 +610,10 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) Map {
 	return m
 }
 
-// Types of ShareRefs
+// ShareHaveRef is the a share type specifying that if you "have the
+// reference" (know the blobref to the haveref share blob), then you
+// have access to the referenced object from that share blob.
+// This is the "send a link to a friend" access model.
 const ShareHaveRef = "haveref"
 
 // RFC3339FromTime returns an RFC3339-formatted time in UTC.

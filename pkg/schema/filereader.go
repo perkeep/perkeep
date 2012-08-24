@@ -147,6 +147,7 @@ type FileReader struct {
 	ci     int    // index into contentparts, or -1 on closed
 	ccon   uint64 // bytes into current chunk already consumed
 	remain int64  // bytes remaining
+	size   int64  // total number of bytes
 
 	cr   blobref.ReadSeekCloser // cached reader (for blobref chunks)
 	crbr *blobref.BlobRef       // the blobref that cr is for
@@ -184,7 +185,18 @@ func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, err
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
 	}
-	return &FileReader{fetcher: fetcher, ss: ss, remain: int64(ss.SumPartsSize())}, nil
+	size := int64(ss.SumPartsSize())
+	return &FileReader{
+		fetcher: fetcher,
+		ss:      ss,
+		size:    size,
+		remain:  size,
+	}, nil
+}
+
+// Size returns the size of the file in bytes.
+func (fr *FileReader) Size() int64 {
+	return fr.size
 }
 
 // FileSchema returns the reader's schema superset. Don't mutate it.
@@ -250,7 +262,7 @@ func (fr *FileReader) readerFor(br *blobref.BlobRef, seekTo int64) (r io.Reader,
 		}
 
 	} else {
-		rsc = &zeroReader{}
+		rsc = zeroReader{}
 	}
 	fr.crbr = br
 	fr.cr = rsc
@@ -289,6 +301,44 @@ func (fr *FileReader) currentPart() (*BytesPart, error) {
 		return cp, nil
 	}
 	panic("unreachable")
+}
+
+var _ interface {
+	io.ReaderAt
+	io.Reader
+	io.Closer
+} = (*FileReader)(nil)
+
+func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
+	if offset < 0 {
+		return 0, errors.New("schema/filereader: negative offset")
+	}
+	if offset >= fr.Size() {
+		return 0, io.EOF
+	}
+	want := len(p)
+	for len(p) > 0 && err == nil {
+		panic("TODO: finish implementing")
+		r := fr.readerForOffset(offset)
+		var n1 int
+		n1, err = r.Read(p)
+		p = p[n1:]
+		if err == io.EOF {
+			err = nil
+		}
+	}
+	if n == want && err == io.EOF {
+		// ReaderAt permits either way, but I like this way.
+		err = nil
+	}
+	if n < want && err == nil {
+		err = io.ErrUnexpectedEOF
+	}
+	return n, err
+}
+
+func (fr *FileReader) readerForOffset(off int64) io.Reader {
+	panic("TODO(bradfitz): implement")
 }
 
 func (fr *FileReader) Read(p []byte) (n int, err error) {
@@ -347,20 +397,21 @@ func minu64(a, b uint64) uint64 {
 	return b
 }
 
+// zeroReader is a ReadSeekCloser that always reads zero bytes.
 type zeroReader struct{}
 
-func (*zeroReader) Read(p []byte) (int, error) {
+func (zeroReader) Read(p []byte) (int, error) {
 	for i := range p {
 		p[i] = 0
 	}
 	return len(p), nil
 }
 
-func (*zeroReader) Close() error {
+func (zeroReader) Close() error {
 	return nil
 }
 
-func (*zeroReader) Seek(offset int64, whence int) (newFilePos int64, err error) {
+func (zeroReader) Seek(offset int64, whence int) (newFilePos int64, err error) {
 	// Caller is ignoring our newFilePos return value.
 	return 0, nil
 }
