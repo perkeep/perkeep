@@ -96,7 +96,7 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 		fmt.Fprintf(conn, "Blob %q not found", blobRef)
 		return
 	default:
-		httputil.ServerError(conn, err)
+		httputil.ServerError(conn, req, err)
 		return
 	}
 
@@ -110,7 +110,7 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 		// request.
 		_, err = seeker.Seek(reqRange.SkipBytes(), 0)
 		if err != nil {
-			httputil.ServerError(conn, err)
+			httputil.ServerError(conn, req, err)
 			return
 		}
 	}

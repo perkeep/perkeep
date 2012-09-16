@@ -17,17 +17,18 @@ limitations under the License.
 package handlers
 
 import (
-	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"io"
-
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/httputil"
 )
 
 // We used to require that multipart sections had a content type and
@@ -147,7 +148,10 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	ret := commonUploadResponse(blobReceiver, req)
+	ret, err := commonUploadResponse(blobReceiver, req)
+	if err != nil {
+		httputil.ServerError(conn, req, err)
+	}
 
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
@@ -165,22 +169,32 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 	httputil.ReturnJSON(conn, ret)
 }
 
-func commonUploadResponse(configer blobserver.Configer, req *http.Request) map[string]interface{} {
+func commonUploadResponse(configer blobserver.Configer, req *http.Request) (map[string]interface{}, error) {
 	ret := make(map[string]interface{})
 	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*. TODO: cut this down, standardize
 	ret["uploadUrlExpirationSeconds"] = 86400
 
 	if configer == nil {
-		ret["uploadUrl"] = "(Error: configer is nil)"
+		err := errors.New("Cannot build uploadUrl: configer is nil")
+		log.Printf("%v", err)
+		return nil, err
 	} else if config := configer.Config(); config != nil {
 		// TODO: camli/upload isn't part of the spec.  we should pick
 		// something different here just to make it obvious that this
 		// isn't a well-known URL and accidentally encourage lazy clients.
-		ret["uploadUrl"] = config.URLBase + "/camli/upload"
+		baseURL, err := httputil.BaseURL(config.URLBase, req)
+		if err != nil {
+			errStr := fmt.Sprintf("Cannot build uploadUrl: %v", err)
+			log.Printf(errStr)
+			return ret, fmt.Errorf(errStr)
+		}
+		ret["uploadUrl"] = baseURL + "/camli/upload"
 	} else {
-		ret["uploadUrl"] = "(configer.Config is nil)"
+		err := errors.New("Cannot build uploadUrl: configer.Config is nil")
+		log.Printf("%v", err)
+		return nil, err
 	}
-	return ret
+	return ret, nil
 }
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
@@ -211,7 +225,7 @@ func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobser
 
 	_, err := blobReceiver.ReceiveBlob(blobRef, req.Body)
 	if err != nil {
-		httputil.ServerError(conn, err)
+		httputil.ServerError(conn, req, err)
 		return
 	}
 

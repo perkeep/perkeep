@@ -233,7 +233,7 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	var (
 		baseURL    = conf.OptionalString("baseURL", "")
-		listen     = conf.RequiredString("listen")
+		listen     = conf.OptionalString("listen", "")
 		auth       = conf.RequiredString("auth")
 		keyId      = conf.RequiredString("identity")
 		secretRing = conf.RequiredString("identitySecretRing")
@@ -253,9 +253,7 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	obj := jsonconfig.Obj{}
-	scheme := "http"
 	if tlsOn {
-		scheme = "https"
 		if (tlsCert != "") != (tlsKey != "") {
 			return nil, errors.New("Must set both TLSCertFile and TLSKeyFile (or neither to generate a self-signed cert)")
 		}
@@ -267,19 +265,18 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			obj["TLSKeyFile"] = "config/selfgen_key.pem"
 		}
 	}
-	if baseURL == "" {
-		baseURL = scheme + "://" + listen
-	}
-	if strings.HasSuffix(baseURL, "/") {
-		baseURL = baseURL[:len(baseURL)-1]
-	}
-	obj["baseURL"] = baseURL
-	obj["https"] = tlsOn
-	obj["auth"] = auth
 
+	if baseURL != "" {
+		if strings.HasSuffix(baseURL, "/") {
+			baseURL = baseURL[:len(baseURL)-1]
+		}
+		obj["baseURL"] = baseURL
+	}
 	if listen != "" {
 		obj["listen"] = listen
 	}
+	obj["https"] = tlsOn
+	obj["auth"] = auth
 
 	if dbname == "" {
 		username := os.Getenv("USER")

@@ -20,8 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"path"
+	"strconv"
 	"strings"
+
+	"camlistore.org/pkg/auth"
 )
 
 func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
@@ -46,9 +52,13 @@ func RequestEntityTooLargeError(conn http.ResponseWriter) {
 	fmt.Fprintf(conn, "<h1>Request entity is too large</h1>")
 }
 
-func ServerError(conn http.ResponseWriter, err error) {
+func ServerError(conn http.ResponseWriter, req *http.Request, err error) {
 	conn.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintf(conn, "Server error: %s\n", err)
+	if auth.LocalhostAuthorized(req) {
+		fmt.Fprintf(conn, "Server error: %s\n", err)
+		return
+	}
+	fmt.Fprintf(conn, "An internal error occured, sorry.")
 }
 
 func ReturnJSON(conn http.ResponseWriter, data interface{}) {
@@ -95,4 +105,48 @@ func (p *PrefixHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.Header.Set("X-PrefixHandler-PathBase", p.Prefix)
 	req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[len(p.Prefix):])
 	p.Handler.ServeHTTP(rw, req)
+}
+
+// BaseURL returns the base URL (scheme + host and optional port +
+// blobserver prefix) that should be used for requests (and responses)
+// subsequent to req. The returned URL does not end in a trailing slash.
+// The scheme and host:port are taken from urlStr if present,
+// or derived from req otherwise.
+// The prefix part comes from urlStr.
+func BaseURL(urlStr string, req *http.Request) (string, error) {
+	var baseURL string
+	defaultURL, err := url.Parse(urlStr)
+	if err != nil {
+		return baseURL, err
+	}
+	prefix := path.Clean(defaultURL.Path)
+	scheme := "http"
+	if req.TLS != nil {
+		scheme = "https"
+	}
+	host := req.Host
+	if defaultURL.Host != "" {
+		host = defaultURL.Host
+	}
+	if defaultURL.Scheme != "" {
+		scheme = defaultURL.Scheme
+	}
+	baseURL = scheme + "://" + host + prefix
+	return baseURL, nil
+}
+
+// RequestTargetPort returns the port targetted by the client
+// in req. If not present, it returns 80, or 443 if TLS is used.
+func RequestTargetPort(req *http.Request) int {
+	_, portStr, err := net.SplitHostPort(req.Host)
+	if err == nil && portStr != "" {
+		port, err := strconv.ParseInt(portStr, 0, 64)
+		if err == nil {
+			return int(port)
+		}
+	}
+	if req.TLS != nil {
+		return 443
+	}
+	return 80
 }
