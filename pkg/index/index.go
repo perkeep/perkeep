@@ -18,6 +18,7 @@ package index
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -184,6 +185,33 @@ func closeIterator(it Iterator, perr *error) {
 	}
 }
 
+// isDeleted returns whether br (a blobref or a claim) should be considered deleted.
+func (x *Index) isDeleted(br *blobref.BlobRef) bool {
+	var err error
+	it := x.queryPrefix(keyDeleted, br)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		// parts are ["deleted", br.String(), blobref-of-delete-claim].
+		// see keyDeleted in keys.go
+		parts := strings.SplitN(it.Key(), "|", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		delClaimRef := blobref.Parse(parts[2])
+		if delClaimRef == nil {
+			panic(fmt.Errorf("invalid deleted claim for %v", parts[1]))
+		}
+		// The recursive call on the blobref of the delete claim
+		// checks that the claim itself was not deleted, in which case
+		// br is not considered deleted anymore.
+		// TODO(mpl): Each delete and undo delete adds a level of
+		// recursion so this could recurse far. is there a way to
+		// go faster in a worst case scenario?
+		return !x.isDeleted(delClaimRef)
+	}
+	return false
+}
+
 func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) (err error) {
 	defer close(dest)
 	// TODO(bradfitz): this will need to be a context wrapper too, like storage
@@ -213,6 +241,9 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 		}
 		permaRef := blobref.Parse(permaStr)
 		if permaRef == nil {
+			continue
+		}
+		if x.isDeleted(permaRef) {
 			continue
 		}
 		if seenPermanode.Dup(permaStr) {
@@ -297,7 +328,10 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
 	if it.Next() {
-		return blobref.Parse(it.Value()), nil
+		permaRef := blobref.Parse(it.Value())
+		if permaRef != nil && !x.isDeleted(permaRef) {
+			return permaRef, nil
+		}
 	}
 	return nil, os.ErrNotExist
 }
@@ -326,6 +360,9 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	for it.Next() {
 		pn := blobref.Parse(it.Value())
 		if pn == nil {
+			continue
+		}
+		if x.isDeleted(pn) {
 			continue
 		}
 		pnstr := pn.String()
