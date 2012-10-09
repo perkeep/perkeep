@@ -26,13 +26,13 @@ import (
 )
 
 type EnumerateOpts struct {
-	After      string
-	MaxWait    time.Duration // how long to poll for (second granularity), waiting for any blob, or 0 for no limit
-	Limit      int // if non-zero, the max blobs to return
+	After   string
+	MaxWait time.Duration // how long to poll for (second granularity), waiting for any blob, or 0 for no limit
+	Limit   int           // if non-zero, the max blobs to return
 }
 
 // Note: closes ch.
-func (c *Client) EnumerateBlobs(ch chan<- blobref.SizedBlobRef) error {
+func (c *Client) SimpleEnumerateBlobs(ch chan<- blobref.SizedBlobRef) error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 

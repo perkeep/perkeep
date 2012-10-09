@@ -24,6 +24,7 @@ import (
 	"log"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/readerutil"
 )
 
 var _ = log.Printf
@@ -63,4 +64,21 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadClos
 	}
 
 	return resp.Body, size, nil
+}
+
+func (c *Client) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+	size, ok := readerutil.ReaderSize(source)
+	if !ok {
+		size = -1
+	}
+	h := &UploadHandle{
+		BlobRef:  blob,
+		Size:     size, // -1 if we don't know
+		Contents: source,
+	}
+	pr, err := c.Upload(h)
+	if err != nil {
+		return blobref.SizedBlobRef{}, err
+	}
+	return pr.SizedBlobRef(), nil
 }
