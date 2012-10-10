@@ -45,17 +45,21 @@ function handleFormSearch(e) {
 }
 
 function indexOnLoad(e) {
-   var btnNew = document.getElementById("btnNew");
+    var btnNew = document.getElementById("btnNew");
     if (!btnNew) {
         alert("missing btnNew");
     }
     btnNew.addEventListener("click", btnCreateNewPermanode);
     camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes });
+    var formSearch = document.getElementById("formSearch");
+    if (!formSearch) {
+        alert("missing formSearch");
+    }
     formSearch.addEventListener("submit", handleFormSearch);
 
     if (disco && disco.uploadHelper) {
         var uploadForm = document.getElementById("uploadform");
-        uploadform.action = disco.uploadHelper;
+        uploadForm.action = disco.uploadHelper;
         document.getElementById("fileinput").disabled = false;
         document.getElementById("filesubmit").disabled = false;
         var chkRollSum = document.getElementById("chkrollsum");
