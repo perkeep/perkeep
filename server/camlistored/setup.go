@@ -18,17 +18,17 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"syscall"
 
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/webserver"
 )
 
 func setupHome(rw http.ResponseWriter, req *http.Request) {
-	_, port, _ := net.SplitHostPort(*webserver.Listen)
-	ourAddr := "127.0.0.1:" + port
+	port := httputil.RequestTargetPort(req)
+	ourAddr := fmt.Sprintf("127.0.0.1:%d", port)
+	// TODO(mpl): fix IPv4 assumption
 	uid, err := netutil.AddrPairUserid(req.RemoteAddr, ourAddr)
 
 	fmt.Fprintf(rw, "Hello %q\n", req.RemoteAddr)
