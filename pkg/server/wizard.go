@@ -115,8 +115,7 @@ func flattenPublish(config jsonconfig.Obj) error {
 	return nil
 }
 
-// TODO(mpl): invert args order to respect handler conventien. next CL.
-func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
+func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
 		httputil.ServerError(rw, req, err)
@@ -168,8 +167,7 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 	return err
 }
 
-// TODO(mpl): invert args order to respect handler conventien. next CL.
-func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
+func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
 		httputil.ServerError(rw, req, err)
@@ -242,7 +240,7 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 			return
 		}
 	}
-	sendWizard(req, rw, hasChanged)
+	sendWizard(rw, req, hasChanged)
 	return
 }
 
@@ -261,7 +259,7 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		if len(req.Form) > 0 {
-			handleSetupChange(req, rw)
+			handleSetupChange(rw, req)
 			return
 		}
 		if strings.Contains(req.URL.Path, "restartCamli") {
@@ -272,5 +270,5 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	sendWizard(req, rw, false)
+	sendWizard(rw, req, false)
 }
