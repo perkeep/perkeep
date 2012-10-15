@@ -122,10 +122,10 @@ func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, e
 	seek := fmt.Sprintf("%s:%d->%s:%d", maybeBrackets(lip), lport, maybeBrackets(rip), rport)
 	seekb := []byte(seek)
 	cmd := exec.Command("lsof",
-		"-b",    // avoid system calls that could block
-		"-w",    // and don't warn about cases where -b fails
-		"-n",    // don't resolve network names
-		"-P",    // don't resolve network ports,
+		"-b", // avoid system calls that could block
+		"-w", // and don't warn about cases where -b fails
+		"-n", // don't resolve network names
+		"-P", // don't resolve network ports,
 		// TODO(bradfitz): pass down the uid we care about, then do: ?
 		//"-a",  // AND the following together:
 		// "-u", strconv.Itoa(uid)  // just this uid
@@ -209,4 +209,23 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 		}
 	}
 	panic("unreachable")
+}
+
+// Localhost returns the first address found when
+// doing a lookup on "localhost". It is surrounded
+// by brackets if it contains a colon.
+func Localhost() (string, error) {
+	var addr string
+	addrs, err := net.LookupHost("localhost")
+	if err != nil {
+		return addr, err
+	}
+	if len(addrs) < 1 {
+		return addr, errors.New("Host lookup for localhost returned no result")
+	}
+	addr = addrs[0]
+	if strings.Contains(addr, ":") {
+		addr = "[" + addr + "]"
+	}
+	return addr, nil
 }

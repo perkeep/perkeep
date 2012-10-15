@@ -27,9 +27,15 @@ import (
 
 func setupHome(rw http.ResponseWriter, req *http.Request) {
 	port := httputil.RequestTargetPort(req)
-	ourAddr := fmt.Sprintf("127.0.0.1:%d", port)
-	// TODO(mpl): fix IPv4 assumption
+	localhostAddr, err := netutil.Localhost()
+	if err != nil {
+		httputil.ServerError(rw, req, err)
+	}
+	ourAddr := fmt.Sprintf("%s:%d", localhostAddr, port)
 	uid, err := netutil.AddrPairUserid(req.RemoteAddr, ourAddr)
+	if err != nil {
+		httputil.ServerError(rw, req, err)
+	}
 
 	fmt.Fprintf(rw, "Hello %q\n", req.RemoteAddr)
 	fmt.Fprintf(rw, "<p>uid = %d\n", syscall.Getuid())
