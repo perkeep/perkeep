@@ -82,6 +82,9 @@ func NewRootedCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef
 	if err != nil {
 		return nil, err
 	}
+	if ss.Type != "directory" {
+		return nil, fmt.Errorf("Blobref must be of a directory, got a %v", ss.Type)
+	}
 	n := &node{fs: fs, blobref: root, ss: ss}
 	n.populateAttr()
 	fs.root = n
