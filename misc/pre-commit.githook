@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+
+exitstatus=0
+committed=`git diff-index --cached --name-only HEAD`
+for c in $committed
+do
+	gofile=`echo $c | grep -E '.*\.go$'`
+	if [ -n "$gofile" ]
+	then
+		fmtdiff=`gofmt -d $c 2>&1`
+		if [ -n "$fmtdiff" ]
+		then
+			echo "gofmt needed on "$c
+			exitstatus=1
+		fi
+		trailspace=`git diff-index --cached --check HEAD $c | grep 'trailing whitespace'`
+		if [ -n "$trailspace" ]
+		then
+			echo $trailspace
+			exitstatus=1
+		fi
+	fi
+done
+if [ "$exitstatus" -ne 0 ]
+then
+	echo "You can override this check with 'git commit --no-verify'"
+fi
+
+exit $exitstatus
