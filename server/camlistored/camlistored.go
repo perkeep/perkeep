@@ -195,7 +195,7 @@ func newDefaultConfigFile(path string) error {
 	conf :=
 		`{
 	"listen": ":3179",
-	"TLS": false,
+	"https": false,
 	"auth": "userpass:camlistore:pass3179:+localhost",
         "identity": "%KEYID%",
 	"identitySecretRing": "%SECRING%",
