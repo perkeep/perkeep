@@ -344,8 +344,8 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	obj["prefixes"] = (map[string]interface{})(prefixes)
 
 	lowLevelConf = &Config{
-		jsonconfig.Obj: obj,
-		configPath:     conf.configPath,
+		Obj:        obj,
+		configPath: conf.configPath,
 	}
 	return lowLevelConf, nil
 }
