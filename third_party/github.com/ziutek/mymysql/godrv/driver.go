@@ -6,8 +6,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
-	"camlistore.org/third_party/github.com/ziutek/mymysql/native"
+	"github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/native"
 	"io"
 	"math"
 	"net"
@@ -24,7 +24,7 @@ type conn struct {
 func errFilter(err error) error {
 	if err == io.ErrUnexpectedEOF {
 		return driver.ErrBadConn
-	} else if e, ok := err.(net.Error); ok && e.Temporary() {
+	} else if _, ok := err.(net.Error); ok {
 		return driver.ErrBadConn
 	}
 	return err
@@ -78,13 +78,13 @@ func (s stmt) NumInput() int {
 	return s.my.NumParam()
 }
 
-func (s stmt) run(args []driver.Value) (rowsRes, error) {
+func (s stmt) run(args []driver.Value) (*rowsRes, error) {
 	a := (*[]interface{})(unsafe.Pointer(&args))
 	res, err := s.my.Run(*a...)
 	if err != nil {
-		return rowsRes{nil}, errFilter(err)
+		return nil, errFilter(err)
 	}
-	return rowsRes{res}, nil
+	return &rowsRes{res, res.MakeRow()}, nil
 }
 
 func (s stmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -96,7 +96,8 @@ func (s stmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 type rowsRes struct {
-	my mysql.Result
+	my  mysql.Result
+	row mysql.Row
 }
 
 func (r rowsRes) LastInsertId() (int64, error) {
@@ -119,6 +120,7 @@ func (r rowsRes) Columns() []string {
 func (r rowsRes) Close() error {
 	err := r.my.End()
 	r.my = nil
+	r.row = nil
 	if err != native.READ_AFTER_EOR_ERROR {
 		return errFilter(err)
 	}
@@ -127,14 +129,11 @@ func (r rowsRes) Close() error {
 
 // DATE, DATETIME, TIMESTAMP are treated as they are in Local time zone
 func (r rowsRes) Next(dest []driver.Value) error {
-	row, err := r.my.GetRow()
+	err := r.my.ScanRow(r.row)
 	if err != nil {
 		return errFilter(err)
 	}
-	if row == nil {
-		return io.EOF
-	}
-	for i, col := range row {
+	for i, col := range r.row {
 		if col == nil {
 			dest[i] = nil
 			continue
@@ -235,5 +234,6 @@ func Register(query string) {
 }
 
 func init() {
+	Register("SET NAMES utf8")
 	sql.Register("mymysql", &d)
 }

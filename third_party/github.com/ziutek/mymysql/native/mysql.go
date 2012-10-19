@@ -4,7 +4,7 @@ package native
 import (
 	"bufio"
 	"fmt"
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/mysql"
 	"io"
 	"net"
 	"reflect"
@@ -73,6 +73,20 @@ func New(proto, laddr, raddr, user, passwd string, db ...string) mysql.Conn {
 	return &my
 }
 
+// Creates new (not connected) connection using configuration from current
+// connection.
+func (my *Conn) Clone() mysql.Conn {
+	var c *Conn
+	if my.dbname == "" {
+		c = New(my.proto, my.laddr, my.raddr, my.user, my.passwd).(*Conn)
+	} else {
+		c = New(my.proto, my.laddr, my.raddr, my.user, my.passwd, my.dbname).(*Conn)
+	}
+	c.max_pkt_size = my.max_pkt_size
+	c.Debug = my.Debug
+	return c
+}
+
 // If new_size > 0 sets maximum packet size. Returns old size.
 func (my *Conn) SetMaxPktSize(new_size int) int {
 	old_size := my.max_pkt_size
@@ -100,6 +114,7 @@ func (my *Conn) connect() (err error) {
 			}
 		}
 		if my.net_conn, err = net.DialTCP(my.proto, la, ra); err != nil {
+			my.net_conn = nil
 			return
 		}
 
@@ -116,6 +131,7 @@ func (my *Conn) connect() (err error) {
 			}
 		}
 		if my.net_conn, err = net.DialUnix(my.proto, la, ra); err != nil {
+			my.net_conn = nil
 			return
 		}
 
@@ -129,7 +145,15 @@ func (my *Conn) connect() (err error) {
 	// Initialisation
 	my.init()
 	my.auth()
-	my.getResult(nil)
+	res := my.getResult(nil, nil)
+	if res == nil {
+		// Try old password
+		my.oldPasswd()
+		res = my.getResult(nil, nil)
+		if res == nil {
+			return AUTHENTICATION_ERROR
+		}
+	}
 
 	// Execute all registered commands
 	for _, cmd := range my.init_cmds {
@@ -138,18 +162,15 @@ func (my *Conn) connect() (err error) {
 		// Get command response
 		res := my.getResponse()
 
-		if res.field_count == 0 {
+		if res.StatusOnly() {
 			// No fields in result (OK result)
 			continue
 		}
 		// Read and discard all result rows
-		var row mysql.Row
+		row := res.MakeRow()
 		for {
-			row, err = res.getRow()
-			if err != nil {
-				return
-			}
-			if row == nil {
+			err = res.getRow(row)
+			if err == io.EOF {
 				res, err = res.nextResult()
 				if err != nil {
 					return
@@ -158,6 +179,10 @@ func (my *Conn) connect() (err error) {
 					// No more rows and results from this cmd
 					break
 				}
+				row = res.MakeRow()
+			}
+			if err != nil {
+				return
 			}
 		}
 	}
@@ -254,7 +279,7 @@ func (my *Conn) Use(dbname string) (err error) {
 	// Send command
 	my.sendCmd(_COM_INIT_DB, dbname)
 	// Get server response
-	my.getResult(nil)
+	my.getResult(nil, nil)
 	// Save new database name if no errors
 	my.dbname = dbname
 
@@ -262,14 +287,11 @@ func (my *Conn) Use(dbname string) (err error) {
 }
 
 func (my *Conn) getResponse() (res *Result) {
-	res, ok := my.getResult(nil).(*Result)
-	if !ok {
+	res = my.getResult(nil, nil)
+	if res == nil {
 		panic(BAD_RESULT_ERROR)
 	}
-	if res.field_count != 0 {
-		// This query can return rows (this isn't OK result)
-		my.unreaded_reply = true
-	}
+	my.unreaded_reply = !res.StatusOnly()
 	return
 }
 
@@ -299,47 +321,50 @@ func (my *Conn) Start(sql string, params ...interface{}) (res mysql.Result, err 
 	return
 }
 
-func (res *Result) getRow() (row mysql.Row, err error) {
+func (res *Result) getRow(row mysql.Row) (err error) {
 	defer catchError(&err)
 
-	switch result := res.my.getResult(res).(type) {
-	case mysql.Row:
-		// Row of data
-		row = result
-
-	case *Result:
-		// EOF result
-
-	default:
-		err = BAD_RESULT_ERROR
+	if res.my.getResult(res, row) != nil {
+		return io.EOF
 	}
-	return
+	return nil
 }
 
+// Returns true if more results exixts. You don't have to call it before
+// NextResult method (NextResult returns nil if there is no more results).
 func (res *Result) MoreResults() bool {
 	return res.status&_SERVER_MORE_RESULTS_EXISTS != 0
 }
 
-// Get the data row from server. This method reads one row of result directly
-// from network connection (without rows buffering on client side).
-func (res *Result) GetRow() (row mysql.Row, err error) {
-	if res.eor_returned {
-		err = READ_AFTER_EOR_ERROR
-		return
+// Get the data row from server. This method reads one row of result set
+// directly from network connection (without rows buffering on client side).
+// Returns io.EOF if there is no more rows in current result set.
+func (res *Result) ScanRow(row mysql.Row) error {
+	if row == nil {
+		return ROW_LENGTH_ERROR
 	}
-	if res.field_count == 0 {
+	if res.eor_returned {
+		return READ_AFTER_EOR_ERROR
+	}
+	if res.StatusOnly() {
 		// There is no fields in result (OK result)
 		res.eor_returned = true
-		return
+		return io.EOF
 	}
-	row, err = res.getRow()
-	if err == nil && row == nil {
+	err := res.getRow(row)
+	if err == io.EOF {
 		res.eor_returned = true
 		if !res.MoreResults() {
 			res.my.unreaded_reply = false
 		}
 	}
-	return
+	return err
+}
+
+// Like ScanRow but allocates memory for every row.
+// Returns nil row insted of io.EOF error.
+func (res *Result) GetRow() (mysql.Row, error) {
+	return mysql.GetRow(res)
 }
 
 func (res *Result) nextResult() (next *Result, err error) {
@@ -350,9 +375,16 @@ func (res *Result) nextResult() (next *Result, err error) {
 	return
 }
 
-// This function is used when last query was the multi result query.
-// Return the next result or nil if no more resuts exists.
+// This function is used when last query was the multi result query or
+// procedure call. Returns the next result or nil if no more resuts exists.
+//
+// Statements within the procedure may produce unknown number of result sets.
+// The final result from the procedure is a status result that includes no
+// result set (Result.StatusOnly() == true) .
 func (res *Result) NextResult() (mysql.Result, error) {
+	if !res.MoreResults() {
+		return nil, nil
+	}
 	res, err := res.nextResult()
 	return res, err
 }
@@ -371,7 +403,7 @@ func (my *Conn) Ping() (err error) {
 	// Send command
 	my.sendCmd(_COM_PING)
 	// Get server response
-	my.getResult(nil)
+	my.getResult(nil, nil)
 
 	return
 }
@@ -457,6 +489,7 @@ func (stmt *Stmt) Bind(params ...interface{}) {
 			for ii := 0; ii < stmt.param_count; ii++ {
 				stmt.params[ii] = bindValue(pval.Field(ii))
 			}
+			stmt.binded = true
 			return
 		}
 
@@ -482,6 +515,7 @@ func (stmt *Stmt) Bind(params ...interface{}) {
 		}
 		stmt.params[ii] = bindValue(pval)
 	}
+	stmt.binded = true
 }
 
 // Resets the previous parameter binding
@@ -508,7 +542,7 @@ func (stmt *Stmt) Run(params ...interface{}) (res mysql.Result, err error) {
 	// Bind parameters if any
 	if len(params) != 0 {
 		stmt.Bind(params...)
-	} else if len(stmt.params) != stmt.param_count {
+	} else if stmt.param_count != 0 && !stmt.binded {
 		panic(BIND_COUNT_ERROR)
 	}
 
@@ -565,7 +599,7 @@ func (stmt *Stmt) Reset() (err error) {
 	// Send command
 	stmt.my.sendCmd(_COM_STMT_RESET, stmt.id)
 	// Get result
-	stmt.my.getResult(nil)
+	stmt.my.getResult(nil, nil)
 	return
 }
 
@@ -667,14 +701,44 @@ func (my *Conn) Query(sql string, params ...interface{}) ([]mysql.Row, mysql.Res
 	return mysql.Query(my, sql, params...)
 }
 
+// See mysql.QueryFirst
+func (my *Conn) QueryFirst(sql string, params ...interface{}) (mysql.Row, mysql.Result, error) {
+	return mysql.QueryFirst(my, sql, params...)
+}
+
+// See mysql.QueryLast
+func (my *Conn) QueryLast(sql string, params ...interface{}) (mysql.Row, mysql.Result, error) {
+	return mysql.QueryLast(my, sql, params...)
+}
+
 // See mysql.Exec
 func (stmt *Stmt) Exec(params ...interface{}) ([]mysql.Row, mysql.Result, error) {
 	return mysql.Exec(stmt, params...)
 }
 
+// See mysql.ExecFirst
+func (stmt *Stmt) ExecFirst(params ...interface{}) (mysql.Row, mysql.Result, error) {
+	return mysql.ExecFirst(stmt, params...)
+}
+
+// See mysql.ExecLast
+func (stmt *Stmt) ExecLast(params ...interface{}) (mysql.Row, mysql.Result, error) {
+	return mysql.ExecLast(stmt, params...)
+}
+
 // See mysql.End
 func (res *Result) End() error {
 	return mysql.End(res)
+}
+
+// See mysql.GetFirstRow
+func (res *Result) GetFirstRow() (mysql.Row, error) {
+	return mysql.GetFirstRow(res)
+}
+
+// See mysql.GetLastRow
+func (res *Result) GetLastRow() (mysql.Row, error) {
+	return mysql.GetLastRow(res)
 }
 
 // See mysql.GetRows
@@ -715,6 +779,10 @@ func (tr Transaction) Rollback() error {
 	return err
 }
 
+func (tr Transaction) IsValid() bool {
+	return tr.Conn != nil
+}
+ 
 // Binds statement to the context of transaction. For native engine this is
 // identity function.
 func (tr Transaction) Do(st mysql.Stmt) mysql.Stmt {

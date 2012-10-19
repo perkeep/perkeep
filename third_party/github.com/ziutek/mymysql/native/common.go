@@ -10,13 +10,13 @@ var tab8s = "        "
 func readFull(rd io.Reader, buf []byte) {
 	for nn := 0; nn < len(buf); {
 		kk, err := rd.Read(buf[nn:])
-		nn += kk
 		if err != nil {
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
 			panic(err)
 		}
+		nn += kk
 	}
 }
 

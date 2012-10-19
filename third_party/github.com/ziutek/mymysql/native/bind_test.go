@@ -2,7 +2,7 @@ package native
 
 import (
 	"bytes"
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/mysql"
 	"math"
 	"reflect"
 	"testing"
@@ -28,7 +28,7 @@ var (
 	pTim    *time.Duration
 	pBol    *bool
 
-	raw = mysql.Raw{MYSQL_TYPE_INT24, &[]byte{3, 2, 1}}
+	raw = mysql.Raw{MYSQL_TYPE_INT24, &[]byte{3, 2, 1, 0}}
 
 	Int8   = int8(1)
 	Uint8  = uint8(2)

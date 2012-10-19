@@ -1,7 +1,7 @@
 package native
 
 import (
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/mysql"
 	"io"
 	"time"
 	"unsafe"

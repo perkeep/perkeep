@@ -27,6 +27,7 @@ func TestAll(t *testing.T) {
 	db, err := sql.Open("mymysql", "test/testuser/TestPasswd9")
 	checkErr(t, err)
 	defer db.Close()
+	defer db.Exec("DROP TABLE go")
 
 	db.Exec("DROP TABLE go")
 
@@ -78,6 +79,7 @@ func TestAll(t *testing.T) {
 			t.Fatalf("txt[%d] == '%s' != '%s'", id, txt, data[id-1])
 		}
 	}
+	checkErr(t, rows.Err())
 
 	sql := "select sum(41) as test"
 	row := db.QueryRow(sql)
@@ -92,5 +94,43 @@ func TestAll(t *testing.T) {
 	checkErr(t, row.Scan(&vf))
 	if vf != 4123232323232 {
 		t.Fatal(sql)
+	}
+}
+
+func TestMediumInt(t *testing.T) {
+	db, err := sql.Open("mymysql", "test/testuser/TestPasswd9")
+	checkErr(t, err)
+	defer db.Exec("DROP TABLE mi")
+	defer db.Close()
+
+	db.Exec("DROP TABLE mi")
+
+	_, err = db.Exec(
+		`CREATE TABLE mi (
+			id INT PRIMARY KEY AUTO_INCREMENT,
+			m MEDIUMINT
+		)`)
+	checkErr(t, err)
+
+	const n = 9
+
+	for i := 0; i < n; i++ {
+		_, err = db.Exec("INSERT mi VALUES (0, ?)", i)
+	}
+
+	rows, err := db.Query("SELECT * FROM mi")
+	checkErr(t, err)
+
+	var i int
+	for i = 0; rows.Next(); i++ {
+		var id, m int
+		checkErr(t, rows.Scan(&id, &m))
+		if id != i+1 || m != i {
+			t.Fatalf("i=%d id=%d m=%d", i, id, m)
+		}
+	}
+	checkErr(t, rows.Err())
+	if i != n {
+		t.Fatalf("%d rows read, %d expected", i, n)
 	}
 }

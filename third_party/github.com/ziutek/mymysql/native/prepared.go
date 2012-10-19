@@ -1,7 +1,7 @@
 package native
 
 import (
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/mysql"
 	"log"
 )
 
@@ -13,6 +13,7 @@ type Stmt struct {
 
 	params []*paramValue // Parameters binding
 	rebind bool
+	binded bool
 
 	fields []*mysql.Field
 	fc_map map[string]int // Maps field name to column number

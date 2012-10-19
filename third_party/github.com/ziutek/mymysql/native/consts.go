@@ -4,24 +4,24 @@ import "strconv"
 
 // Client caps - borrowed from GoMySQL
 const (
-	_CLIENT_LONG_PASSWORD = 1 << iota
-	_CLIENT_FOUND_ROWS
-	_CLIENT_LONG_FLAG
-	_CLIENT_CONNECT_WITH_DB
-	_CLIENT_NO_SCHEMA
-	_CLIENT_COMPRESS
-	_CLIENT_ODBC
-	_CLIENT_LOCAL_FILES
-	_CLIENT_IGNORE_SPACE
-	_CLIENT_PROTOCOL_41
-	_CLIENT_INTERACTIVE
-	_CLIENT_SSL
-	_CLIENT_IGNORE_SIGPIPE
-	_CLIENT_TRANSACTIONS
-	_CLIENT_RESERVED
-	_CLIENT_SECURE_CONN
-	_CLIENT_MULTI_STATEMENTS
-	_CLIENT_MULTI_RESULTS
+	_CLIENT_LONG_PASSWORD    = 1 << iota // new more secure passwords
+	_CLIENT_FOUND_ROWS                   // Found instead of affected rows
+	_CLIENT_LONG_FLAG                    // Get all column flags
+	_CLIENT_CONNECT_WITH_DB              // One can specify db on connect
+	_CLIENT_NO_SCHEMA                    // Don't allow database.table.column
+	_CLIENT_COMPRESS                     // Can use compression protocol
+	_CLIENT_ODBC                         // Odbc client
+	_CLIENT_LOCAL_FILES                  // Can use LOAD DATA LOCAL
+	_CLIENT_IGNORE_SPACE                 // Ignore spaces before '('
+	_CLIENT_PROTOCOL_41                  // New 4.1 protocol
+	_CLIENT_INTERACTIVE                  // This is an interactive client
+	_CLIENT_SSL                          // Switch to SSL after handshake
+	_CLIENT_IGNORE_SIGPIPE               // IGNORE sigpipes
+	_CLIENT_TRANSACTIONS                 // Client knows about transactions
+	_CLIENT_RESERVED                     // Old flag for 4.1 protocol
+	_CLIENT_SECURE_CONN                  // New 4.1 authentication
+	_CLIENT_MULTI_STATEMENTS             // Enable/disable multi-stmt support
+	_CLIENT_MULTI_RESULTS                // Enable/disable multi-results
 )
 
 // Commands - borrowed from GoMySQL
@@ -138,7 +138,7 @@ const (
 	OUT_VARBINARY = MYSQL_TYPE_BLOB   // Blob
 
 	// Client receive only, mymysql representation for receive
-	IN_MEDIUMINT  = MYSQL_TYPE_INT24       // int32
+	IN_MEDIUMINT  = MYSQL_TYPE_LONG        // int32
 	IN_YEAR       = MYSQL_TYPE_SHORT       // int16
 	IN_BINARY     = MYSQL_TYPE_STRING      // []byte
 	IN_VARCHAR    = MYSQL_TYPE_VAR_STRING  // []byte

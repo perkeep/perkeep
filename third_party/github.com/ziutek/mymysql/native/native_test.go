@@ -3,7 +3,7 @@ package native
 import (
 	"bytes"
 	"fmt"
-	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
+	"github.com/ziutek/mymysql/mysql"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -117,14 +117,28 @@ func checkErrWarnRows(t *testing.T, res, exp *RowsResErr) {
 
 func checkResult(t *testing.T, res, exp *RowsResErr) {
 	checkErrWarnRows(t, res, exp)
-	if !reflect.DeepEqual(res.res, exp.res) {
+	r, e := res.res.(*Result), exp.res.(*Result)
+	if r.my != e.my || r.binary != e.binary || r.status_only != e.status_only ||
+		r.status&0xdf != e.status || !bytes.Equal(r.message, e.message) ||
+		r.affected_rows != e.affected_rows ||
+		r.eor_returned != e.eor_returned ||
+		!reflect.DeepEqual(res.rows, exp.rows) || res.err != exp.err {
 		t.Fatalf("Bad result:\nres=%+v\nexp=%+v", res.res, exp.res)
 	}
 }
 
 func cmdOK(affected uint64, binary, eor bool) *RowsResErr {
-	return &RowsResErr{res: &Result{my: my.(*Conn), binary: binary, status: 0x2,
-		message: []byte{}, affected_rows: affected, eor_returned: eor}}
+	return &RowsResErr{
+		res: &Result{
+			my:            my.(*Conn),
+			binary:        binary,
+			status_only:   true,
+			status:        0x2,
+			message:       []byte{},
+			affected_rows: affected,
+			eor_returned:  eor,
+		},
+	}
 }
 
 func selectOK(rows []mysql.Row, binary bool) (exp *RowsResErr) {
@@ -975,6 +989,107 @@ func TestDecimal(t *testing.T) {
 
 	checkResult(t, query("drop table D"), cmdOK(0, false, true))
 	myClose(t)
+}
+
+func TestMediumInt(t *testing.T) {
+	myConnect(t, true, 0)
+	query("DROP TABLE mi")
+	checkResult(t,
+		query(
+			`CREATE TABLE mi (
+				id INT PRIMARY KEY AUTO_INCREMENT,
+				m MEDIUMINT
+			)`,
+		),
+		cmdOK(0, false, true),
+	)
+
+	const n = 9
+
+	for i := 0; i < n; i++ {
+		res, err := my.Start("INSERT mi VALUES (0, %d)", i)
+		checkErr(t, err, nil)
+		if res.InsertId() != uint64(i+1) {
+			t.Fatalf("Wrong insert id: %d, expected: %d", res.InsertId(), i+1)
+		}
+	}
+
+	sel, err := my.Prepare("SELECT * FROM mi")
+	checkErr(t, err, nil)
+
+	res, err := sel.Run()
+	checkErr(t, err, nil)
+
+	i := 0
+	for {
+		row, err := res.GetRow()
+		checkErr(t, err, nil)
+		if row == nil {
+			break
+		}
+		id, m := row.Int(0), row.Int(1)
+		if id != i+1 || m != i {
+			t.Fatalf("i=%d id=%d m=%d", i, id, m)
+		}
+		i++
+	}
+	if i != n {
+		t.Fatalf("%d rows read, %d expected", i, n)
+	}
+	checkResult(t, query("drop table mi"), cmdOK(0, false, true))
+}
+
+func TestStoredProcedures(t *testing.T) {
+	myConnect(t, true, 0)
+	query("DROP PROCEDURE pr")
+	query("DROP TABLE p")
+	checkResult(t,
+		query(
+			`CREATE TABLE p (
+				id INT PRIMARY KEY AUTO_INCREMENT,
+				txt VARCHAR(8)	
+			)`,
+		),
+		cmdOK(0, false, true),
+	)
+	_, err := my.Start(
+		`CREATE PROCEDURE pr (IN i INT)
+		BEGIN
+			INSERT p VALUES (0, "aaa");
+			SELECT * FROM p;
+			SELECT i * id FROM p;
+		END`,
+	)
+	checkErr(t, err, nil)
+
+	res, err := my.Start("CALL pr(3)")
+	checkErr(t, err, nil)
+
+	rows, err := res.GetRows()
+	checkErr(t, err, nil)
+	if len(rows) != 1 || len(rows[0]) != 2 || rows[0].Int(0) != 1 || rows[0].Str(1) != "aaa" {
+		t.Fatalf("Bad result set: %+v", rows)
+	}
+
+	res, err = res.NextResult()
+	checkErr(t, err, nil)
+
+	rows, err = res.GetRows()
+	checkErr(t, err, nil)
+	if len(rows) != 1 || len(rows[0]) != 1 || rows[0].Int(0) != 3 {
+		t.Fatalf("Bad result set: %+v", rows)
+	}
+
+	res, err = res.NextResult()
+	checkErr(t, err, nil)
+	if !res.StatusOnly() {
+		t.Fatalf("Result includes resultset at end of procedure: %+v", res)
+	}
+
+	_, err = my.Start("DROP PROCEDURE pr")
+	checkErr(t, err, nil)
+
+	checkResult(t, query("DROP TABLE p"), cmdOK(0, false, true))
 }
 
 // Benchamrks
