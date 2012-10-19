@@ -160,13 +160,8 @@ func (jc Obj) int(key string, def *int) int {
 	}
 	b, ok := ei.(float64)
 	if !ok {
-		// TODO(mpl): float or int? or both allowed? use a switch?
-		c, ok := ei.(int)
-		if !ok {
-			jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
-			return 0
-		}
-		return int(c)
+		jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
+		return 0
 	}
 	return int(b)
 }
