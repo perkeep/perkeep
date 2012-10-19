@@ -3,7 +3,7 @@ package native
 import (
 	"bytes"
 	"fmt"
-	"github.com/ziutek/mymysql/mysql"
+	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
 	"io/ioutil"
 	"os"
 	"reflect"

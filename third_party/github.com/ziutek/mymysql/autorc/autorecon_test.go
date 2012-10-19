@@ -1,7 +1,7 @@
 package autorc
 
 import (
-	_ "github.com/ziutek/mymysql/thrsafe"
+	_ "camlistore.org/third_party/github.com/ziutek/mymysql/thrsafe"
 	"testing"
 )
 
