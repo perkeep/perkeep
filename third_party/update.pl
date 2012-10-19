@@ -20,13 +20,6 @@ my %proj = (
             [ "fuse/*.go", "github.com/hanwen/go-fuse/fuse" ]
         ],
     },
-    "mysql" => {
-        git => "https://github.com/Philio/GoMySQL.git",
-        copies => [
-            # File glob => target directory
-            [ "*.go", "github.com/Philio/GoMySQL" ]
-        ],
-    },
     "mysqlfork" => {
         git => "https://github.com/camlistore/GoMySQL.git",
         copies => [
