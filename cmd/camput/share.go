@@ -43,6 +43,12 @@ func (c *shareCmd) Usage() {
 `)
 }
 
+func (c *shareCmd) Examples() []string {
+	return []string{
+		"[opts] <blobref to share via haveref>",
+	}
+}
+
 func (c *shareCmd) RunCommand(up *Uploader, args []string) error {
 	if len(args) != 1 {
 		return UsageError("share takes exactly one argument, a blobref")

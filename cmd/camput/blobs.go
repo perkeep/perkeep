@@ -41,6 +41,13 @@ func (c *blobCmd) Usage() {
 	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
 }
 
+func (c *blobCmd) Examples() []string {
+	return []string{
+		"<files>     (raw, without any metadata)",
+		"-           (read from stdin)",
+	}
+}
+
 func (c *blobCmd) RunCommand(up *Uploader, args []string) error {
 	if len(args) == 0 {
 		return errors.New("No files given.")

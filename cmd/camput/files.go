@@ -85,6 +85,7 @@ func (c *fileCmd) Examples() []string {
 	return []string{
 		"[opts] <file(s)/director(ies)",
 		"--permanode --name='Homedir backup' --tag=backup,homedir $HOME",
+		"--filenodes /mnt/camera/DCIM",
 	}
 }
 
