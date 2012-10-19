@@ -28,6 +28,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
 type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
@@ -104,7 +106,7 @@ func (s *Server) Listen(addr string) error {
 	}
 
 	var err error
-	s.listener, err = net.Listen("tcp", addr)
+	s.listener, err = listen.Listen(addr)
 	if err != nil {
 		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
 	}
