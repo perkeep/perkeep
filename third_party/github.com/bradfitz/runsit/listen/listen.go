@@ -10,12 +10,22 @@ import (
 	"strings"
 )
 
+// NewFlag returns a flag that implements the flag.Value interface.
 func NewFlag(flagName, defaultValue string, serverType string) *Addr {
 	addr := &Addr{
 		s: defaultValue,
 	}
 	flag.Var(addr, flagName, Usage(serverType))
 	return addr
+}
+
+// Listen is a replacement for net.Listen that also respects runsit
+// listeners: port, :port, ip:port, FD:<fd_num>, ADDR:<name> or <name>
+// named ports.
+// Listeners are always TCP.
+func Listen(addr string) (net.Listener, error) {
+	a := &Addr{s: addr}
+	return a.Listen()
 }
 
 // Usage returns a descriptive usage message for a flag given the name
