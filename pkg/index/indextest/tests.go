@@ -165,8 +165,6 @@ func findGoPathPackage(pkg string) string {
 }
 
 func NewIndexDeps(index *index.Index) *IndexDeps {
-	// TODO(mpl): do better than the quick hack with the testdata symlink when things
-	// have settled regarding the organization of the packages.
 	secretRingFile := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
