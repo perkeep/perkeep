@@ -120,7 +120,7 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{jsonconfig.Obj: obj})
+	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{Obj: obj})
 	if err != nil {
 		t.Fatal(err)
 	}
