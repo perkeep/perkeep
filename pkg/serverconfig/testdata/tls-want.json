@@ -1,6 +1,5 @@
 {
 	"listen": "1.2.3.4:443",
-	"baseURL": "https://1.2.3.4:443",
 	"auth": "userpass:camlistore:pass3179",
 	"https": true,
         "TLSCertFile": "/tls.crt",

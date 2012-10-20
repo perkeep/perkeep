@@ -1,6 +1,6 @@
 {
 	"listen": "localhost:3179",
-	"TLS": false,
+	"https": false,
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",

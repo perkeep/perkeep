@@ -122,13 +122,13 @@ func testConfig(name string, t *testing.T) {
 	}
 	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{Obj: obj})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("test %s: GenLowLevelConfig: %v", name, err)
 	}
 	baseName := strings.Replace(filepath.Base(name), ".json", "", 1)
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("test %s: ReadFile: %v", name, err)
 	}
 	var got, want bytes.Buffer
 	prettyPrint(&got, lowLevelConf.Obj, 0)
@@ -140,10 +140,10 @@ func testConfig(name string, t *testing.T) {
 		defer os.Remove(tempWant.Name())
 		diff, err := exec.Command("diff", "-u", tempWant.Name(), tempGot.Name()).Output()
 		if err != nil {
-			t.Logf("diff failure: %v", err)
+			t.Logf("test %s diff failure: %v", name, err)
 		}
-		t.Errorf("Configurations differ.\nGot:\n%s\nWant:\n%s\nDiff:\n%s",
-			&got, &want, diff)
+		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff:\n%s",
+			name, &got, &want, diff)
 	}
 }
 
