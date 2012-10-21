@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 
 	"camlistore.org/pkg/blobref"
 )
@@ -34,7 +33,7 @@ func init() {
 }
 
 func (c *removeCmd) Usage() {
-	fmt.Fprintf(os.Stderr, `Usage: camput remove <blobref(s)>
+	fmt.Fprintf(stderr, `Usage: camput remove <blobref(s)>
 
 This command is for debugging only.  You're not expected to use it in practice.
 `)

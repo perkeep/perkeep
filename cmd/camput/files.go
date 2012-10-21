@@ -79,7 +79,7 @@ func init() {
 }
 
 func (c *fileCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
+	fmt.Fprintf(stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
 }
 
 func (c *fileCmd) Examples() []string {

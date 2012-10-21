@@ -19,9 +19,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"sort"
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/jsonsign"
@@ -85,17 +87,22 @@ func allModes(startModes []string) <-chan namedMode {
 			}
 			ch <- namedMode{name, cmd}
 		}
-		for name, cmd := range modeCommand {
+		var rest []string
+		for name := range modeCommand {
 			if !done[name] {
-				ch <- namedMode{name, cmd}
+				rest = append(rest, name)
 			}
+		}
+		sort.Strings(rest)
+		for _, name := range rest {
+			ch <- namedMode{name, modeCommand[name]}
 		}
 	}()
 	return ch
 }
 
 func errf(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintf(stderr, format, args...)
 }
 
 func usage(msg string) {
@@ -189,12 +196,23 @@ func main() {
 	jsonsign.AddFlags()
 	client.AddFlags()
 	flag.Parse()
+	camputMain(flag.Args()...)
+}
 
-	if flag.NArg() == 0 {
+// Indirections for replacement by tests:
+var (
+	stderr io.Writer = os.Stderr
+	stdout io.Writer = os.Stdout
+	stdin  io.Reader = os.Stdin
+)
+
+// camputMain is separated from main for testing from camput
+func camputMain(args ...string) {
+	if len(args) == 0 {
 		usage("No mode given.")
 	}
 
-	mode := flag.Arg(0)
+	mode := args[0]
 	cmd, ok := modeCommand[mode]
 	if !ok {
 		usage(fmt.Sprintf("Unknown mode %q", mode))
@@ -206,7 +224,7 @@ func main() {
 	}
 
 	cmdFlags := modeFlags[mode]
-	err := cmdFlags.Parse(flag.Args()[1:])
+	err := cmdFlags.Parse(args[1:])
 	if err != nil {
 		err = ErrUsage
 	} else {

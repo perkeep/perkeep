@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
@@ -39,7 +38,7 @@ func init() {
 }
 
 func (c *shareCmd) Usage() {
-	fmt.Fprintf(os.Stderr, `Usage: camput share [opts] <blobref>
+	fmt.Fprintf(stderr, `Usage: camput share [opts] <blobref>
 `)
 }
 

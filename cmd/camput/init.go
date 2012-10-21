@@ -46,7 +46,7 @@ func init() {
 }
 
 func (c *initCmd) Usage() {
-	fmt.Fprintf(os.Stderr, `Usage: camput init [opts]
+	fmt.Fprintf(stderr, `Usage: camput init [opts]
 
 Initialize the camput configuration file.
 
