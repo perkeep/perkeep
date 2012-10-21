@@ -129,7 +129,7 @@ func fileExists(name string) bool {
 
 var (
 	signerPublicKeyRefOnce sync.Once
-	signerPublicKeyRef *blobref.BlobRef
+	signerPublicKeyRef     *blobref.BlobRef
 )
 
 // TODO: move to config package?

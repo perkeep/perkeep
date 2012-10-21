@@ -1,6 +1,5 @@
 {
 	"listen": "localhost:3179",
-	"baseURL": "http://localhost:3179",
 	"auth": "userpass:camlistore:pass3179",
 	"https": false,
 	"prefixes": {

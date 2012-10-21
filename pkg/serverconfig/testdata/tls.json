@@ -1,8 +1,8 @@
 {
 	"listen": "1.2.3.4:443",
-	"TLS": true,
-	"TLSCertFile": "/tls.crt",
-	"TLSKeyFile": "/tls.key",
+	"https": true,
+	"HTTPSCertFile": "/tls.crt",
+	"HTTPSKeyFile": "/tls.key",
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",

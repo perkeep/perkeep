@@ -52,7 +52,7 @@ func (tr Row) Str(nn int) (str string) {
 	return
 }
 
-const _MAX_INT = int(^uint(0) >> 1)
+const _MAX_INT = int64(int(^uint(0) >> 1))
 const _MIN_INT = -_MAX_INT - 1
 
 // Get the nn-th value and return it as int (0 if NULL). Return error if
@@ -74,13 +74,13 @@ func (tr Row) IntErr(nn int) (val int, err error) {
 	case []byte:
 		val, err = strconv.Atoi(string(data))
 	case int64:
-		if data >= int64(_MIN_INT) && data <= int64(_MAX_INT) {
+		if data >= _MIN_INT && data <= _MAX_INT {
 			val = int(data)
 		} else {
 			err = strconv.ErrRange
 		}
 	case uint32:
-		if data <= uint32(_MAX_INT) {
+		if int64(data) <= _MAX_INT {
 			val = int(data)
 		} else {
 			err = strconv.ErrRange
@@ -114,7 +114,7 @@ func (tr Row) ForceInt(nn int) (val int) {
 	return
 }
 
-const _MAX_UINT = ^uint(0)
+const _MAX_UINT = uint64(^uint(0))
 
 // Get the nn-th value and return it as uint (0 if NULL). Return error if
 // conversion is impossible.
@@ -133,14 +133,14 @@ func (tr Row) UintErr(nn int) (val uint, err error) {
 		v, err = strconv.ParseUint(string(data), 0, 0)
 		val = uint(v)
 	case uint64:
-		if data <= uint64(_MAX_UINT) {
+		if data <= _MAX_UINT {
 			val = uint(data)
 		} else {
 			err = strconv.ErrRange
 		}
 	case int8, int16, int32, int64:
 		v := reflect.ValueOf(data).Int()
-		if v >= 0 && v <= int64(_MAX_UINT) {
+		if v >= 0 && uint64(v) <= _MAX_UINT {
 			val = uint(v)
 		} else {
 			err = strconv.ErrRange

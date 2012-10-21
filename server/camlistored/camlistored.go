@@ -68,6 +68,7 @@ const (
 var (
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
+	listenFlag = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 )
 
 func exitf(pattern string, args ...interface{}) {
@@ -193,8 +194,8 @@ func generateNewSecRing(filename string) (keyId string, err error) {
 func newDefaultConfigFile(path string) error {
 	conf :=
 		`{
-	"listen": "localhost:3179",
-	"TLS": false,
+	"listen": ":3179",
+	"https": false,
 	"auth": "userpass:camlistore:pass3179:+localhost",
         "identity": "%KEYID%",
 	"identitySecretRing": "%SECRING%",
@@ -290,6 +291,22 @@ func handleSignals() {
 	}
 }
 
+// listenAndBaseURL finds the configured, default, or inferred listen address
+// and base URL from the command-line flags and provided config.
+func listenAndBaseURL(config *serverconfig.Config) (listen, baseURL string) {
+	baseURL = config.OptionalString("baseURL", "")
+	listen = *listenFlag
+	listenConfig := config.OptionalString("listen", "")
+	// command-line takes priority over config
+	if listen == "" {
+		listen = listenConfig
+		if listen == "" {
+			exitf("\"listen\" needs to be specified either in the config or on the command line")
+		}
+	}
+	return
+}
+
 func main() {
 	flag.Parse()
 
@@ -304,35 +321,22 @@ func main() {
 	}
 
 	ws := webserver.New()
-	baseURL := config.RequiredString("baseURL")
-	listen := *webserver.Listen
-	if listen == "" {
-		// If command-line is empty, try the "listen" value from
-		// the config file, else try to get it from the baseURL.
-		listen = config.OptionalString("listen", "")
-		if listen == "" {
-			// if command line was empty, use value in config
-			listen = strings.TrimLeft(baseURL, "http://")
-			listen = strings.TrimLeft(listen, "https://")
-		}
-	} else {
-		// else command line takes precedence
-		scheme := strings.Split(baseURL, "://")[0]
-		baseURL = scheme + "://" + listen
-	}
+	listen, baseURL := listenAndBaseURL(config)
 
 	setupTLS(ws, config, listen)
-
 	err = config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
 
-	ws.Listen(listen)
+	err = ws.Listen(listen)
+	if err != nil {
+		exitf("Listen: %v", err)
+	}
 
 	urlOpened := false
 	if config.UIPath != "" {
-		uiURL := ws.BaseURL() + config.UIPath
+		uiURL := ws.ListenURL() + config.UIPath
 		log.Printf("UI available at %s", uiURL)
 		if runtime.GOOS == "windows" {
 			// Might be double-clicking an icon with no shell window?
@@ -343,7 +347,7 @@ func main() {
 	}
 	if *flagConfigFile == "" && !urlOpened {
 		go func() {
-			err := osutil.OpenURL(baseURL)
+			err := osutil.OpenURL(ws.ListenURL())
 			if err != nil {
 				log.Printf("Failed to open %s in browser: %v", baseURL, err)
 			}

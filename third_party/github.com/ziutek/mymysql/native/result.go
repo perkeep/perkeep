@@ -8,8 +8,9 @@ import (
 )
 
 type Result struct {
-	my     *Conn
-	binary bool // Binary result expected
+	my          *Conn
+	status_only bool // true if result doesn't contain result set
+	binary      bool // Binary result expected
 
 	field_count int
 	fields      []*mysql.Field // Fields table
@@ -32,6 +33,12 @@ type Result struct {
 	eor_returned bool
 }
 
+// Returns true if this is status result that includes no result set
+func (res *Result) StatusOnly() bool {
+	return res.status_only
+}
+
+// Returns a table containing descriptions of the columns
 func (res *Result) Fields() []*mysql.Field {
 	return res.fields
 }
@@ -60,7 +67,11 @@ func (res *Result) WarnCount() int {
 	return res.warning_count
 }
 
-func (my *Conn) getResult(res *Result) interface{} {
+func (res *Result) MakeRow() mysql.Row {
+	return make(mysql.Row, res.field_count)
+}
+
+func (my *Conn) getResult(res *Result, row mysql.Row) *Result {
 loop:
 	pr := my.newPktReader() // New reader for next packet
 	pkt0 := readByte(pr)
@@ -81,6 +92,9 @@ loop:
 			res = my.getResSetHeadPacket(pr)
 			// Read next packet
 			goto loop
+		case pkt0 == 254:
+			// EOF packet (without body)
+			return nil
 		}
 	} else {
 		switch {
@@ -102,11 +116,15 @@ loop:
 
 		case pkt0 < 254 && res.field_count == len(res.fields):
 			// Row Data Packet
-			if res.binary {
-				return my.getBinRowPacket(pr, res)
-			} else {
-				return my.getTextRowPacket(pr, res)
+			if len(row) != res.field_count {
+				panic(ROW_LENGTH_ERROR)
 			}
+			if res.binary {
+				my.getBinRowPacket(pr, res, row)
+			} else {
+				my.getTextRowPacket(pr, res, row)
+			}
+			return nil
 		}
 	}
 	panic(UNK_RESULT_PKT_ERROR)
@@ -117,6 +135,7 @@ func (my *Conn) getOkPacket(pr *pktReader) (res *Result) {
 		log.Printf("[%2d ->] OK packet:", my.seq-1)
 	}
 	res = new(Result)
+	res.status_only = true
 	res.my = my
 	// First byte was readed by getResult
 	res.affected_rows = readLCB(pr)
@@ -218,13 +237,12 @@ func (my *Conn) getFieldPacket(pr *pktReader) (field *mysql.Field) {
 	return
 }
 
-func (my *Conn) getTextRowPacket(pr *pktReader, res *Result) mysql.Row {
+func (my *Conn) getTextRowPacket(pr *pktReader, res *Result, row mysql.Row) {
 	if my.Debug {
 		log.Printf("[%2d ->] Text row data packet", my.seq-1)
 	}
 	pr.unreadByte()
 
-	row := make(mysql.Row, res.field_count)
 	for ii := 0; ii < res.field_count; ii++ {
 		bin, null := readNullBin(pr)
 		if null {
@@ -234,11 +252,9 @@ func (my *Conn) getTextRowPacket(pr *pktReader, res *Result) mysql.Row {
 		}
 	}
 	pr.checkEof()
-
-	return row
 }
 
-func (my *Conn) getBinRowPacket(pr *pktReader, res *Result) mysql.Row {
+func (my *Conn) getBinRowPacket(pr *pktReader, res *Result, row mysql.Row) {
 	if my.Debug {
 		log.Printf("[%2d ->] Binary row data packet", my.seq-1)
 	}
@@ -247,7 +263,6 @@ func (my *Conn) getBinRowPacket(pr *pktReader, res *Result) mysql.Row {
 	null_bitmap := make([]byte, (res.field_count+7+2)>>3)
 	readFull(pr, null_bitmap)
 
-	row := make(mysql.Row, res.field_count)
 	for ii, field := range res.fields {
 		null_byte := (ii + 2) >> 3
 		null_mask := byte(1) << uint(2+ii-(null_byte<<3))
@@ -265,41 +280,28 @@ func (my *Conn) getBinRowPacket(pr *pktReader, res *Result) mysql.Row {
 			} else {
 				row[ii] = int8(readByte(pr))
 			}
-
-		case MYSQL_TYPE_SHORT:
+		case MYSQL_TYPE_SHORT, MYSQL_TYPE_YEAR:
 			if unsigned {
 				row[ii] = readU16(pr)
 			} else {
 				row[ii] = int16(readU16(pr))
 			}
-
-		case MYSQL_TYPE_LONG:
+		case MYSQL_TYPE_LONG, MYSQL_TYPE_INT24:
 			if unsigned {
 				row[ii] = readU32(pr)
 			} else {
 				row[ii] = int32(readU32(pr))
 			}
-
 		case MYSQL_TYPE_LONGLONG:
 			if unsigned {
 				row[ii] = readU64(pr)
 			} else {
 				row[ii] = int64(readU64(pr))
 			}
-
-		case MYSQL_TYPE_INT24:
-			if unsigned {
-				row[ii] = readU24(pr)
-			} else {
-				row[ii] = int32(readU24(pr))
-			}
-
 		case MYSQL_TYPE_FLOAT:
 			row[ii] = math.Float32frombits(readU32(pr))
-
 		case MYSQL_TYPE_DOUBLE:
 			row[ii] = math.Float64frombits(readU64(pr))
-
 		case MYSQL_TYPE_DECIMAL, MYSQL_TYPE_NEWDECIMAL:
 			dec := string(readBin(pr))
 			var err error
@@ -307,27 +309,19 @@ func (my *Conn) getBinRowPacket(pr *pktReader, res *Result) mysql.Row {
 			if err != nil {
 				panic("MySQL server returned wrong decimal value: " + dec)
 			}
-
-		case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING,
-			MYSQL_TYPE_VARCHAR, MYSQL_TYPE_BIT, MYSQL_TYPE_BLOB,
-			MYSQL_TYPE_TINY_BLOB, MYSQL_TYPE_MEDIUM_BLOB,
-			MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_SET, MYSQL_TYPE_ENUM:
+		case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_VARCHAR,
+			MYSQL_TYPE_BIT, MYSQL_TYPE_BLOB, MYSQL_TYPE_TINY_BLOB,
+			MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_SET,
+			MYSQL_TYPE_ENUM, MYSQL_TYPE_GEOMETRY:
 			row[ii] = readBin(pr)
-
-		case MYSQL_TYPE_DATE:
+		case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
 			row[ii] = readDate(pr)
-
 		case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
 			row[ii] = readTime(pr)
-
 		case MYSQL_TYPE_TIME:
 			row[ii] = readDuration(pr)
-
-		// TODO: MYSQL_TYPE_NEWDATE, MYSQL_TYPE_NEWDECIMAL, MYSQL_TYPE_GEOMETRY
-
 		default:
 			panic(UNK_MYSQL_TYPE_ERROR)
 		}
 	}
-	return row
 }

@@ -34,7 +34,6 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/remote"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/schema"
 
@@ -86,6 +85,7 @@ func (c *fileCmd) Examples() []string {
 	return []string{
 		"[opts] <file(s)/director(ies)",
 		"--permanode --name='Homedir backup' --tag=backup,homedir $HOME",
+		"--filenodes /mnt/camera/DCIM",
 	}
 }
 
@@ -372,10 +372,9 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 func (up *Uploader) statReceiver() blobserver.StatReceiver {
 	statReceiver := up.altStatReceiver
 	if statReceiver == nil {
-		// TODO(bradfitz): just make Client be a
-		// StatReceiver? move remote's ReceiveBlob ->
-		// Upload wrapper into Client itself?
-		statReceiver = remote.NewFromClient(up.Client)
+		// TODO(mpl): simplify the altStatReceiver situation as well,
+		// see TODO in cmd/camput/uploader.go
+		statReceiver = up.Client
 	}
 	return statReceiver
 }

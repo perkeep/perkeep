@@ -2,7 +2,6 @@ package native
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
 	"io"
 	"time"
@@ -445,34 +444,6 @@ func lenDate(d mysql.Date) int {
 		return 1
 	}
 	return 5
-}
-
-// Borrowed from GoMySQL
-// SHA1(SHA1(SHA1(password)), scramble) XOR SHA1(password)
-func (my *Conn) encryptedPasswd() (out []byte) {
-	// Convert password to byte array
-	passbytes := []byte(my.passwd)
-	// stage1_hash = SHA1(password)
-	// SHA1 encode
-	crypt := sha1.New()
-	crypt.Write(passbytes)
-	stg1Hash := crypt.Sum(nil)
-	// token = SHA1(SHA1(stage1_hash), scramble) XOR stage1_hash
-	// SHA1 encode again
-	crypt.Reset()
-	crypt.Write(stg1Hash)
-	stg2Hash := crypt.Sum(nil)
-	// SHA1 2nd hash and scramble
-	crypt.Reset()
-	crypt.Write(my.info.scramble)
-	crypt.Write(stg2Hash)
-	stg3Hash := crypt.Sum(nil)
-	// XOR with first hash
-	out = make([]byte, len(my.info.scramble))
-	for ii := range my.info.scramble {
-		out[ii] = stg3Hash[ii] ^ stg1Hash[ii]
-	}
-	return
 }
 
 func escapeString(txt string) string {

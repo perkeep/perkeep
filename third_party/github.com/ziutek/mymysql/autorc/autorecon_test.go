@@ -48,16 +48,15 @@ func TestAutoConnectReconnect(t *testing.T) {
 	checkErr(t, err, nil)
 
 	// Kill the connection
-	_, _, err = c.Query("kill %d", c.Raw.ThreadId())
-	checkErr(t, err, nil)
+	c.Query("kill %d", c.Raw.ThreadId())
+	// MySQL 5.5 returns "Query execution was interrupted" after kill command
 
 	// Prepare insert statement
 	ins, err := c.Prepare("insert R values (?,  ?)")
 	checkErr(t, err, nil)
 
 	// Kill the connection
-	_, _, err = c.Query("kill %d", c.Raw.ThreadId())
-	checkErr(t, err, nil)
+	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Bind insert parameters
 	ins.Raw.Bind(1, "jeden")
@@ -66,8 +65,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	checkErr(t, err, nil)
 
 	// Kill the connection
-	_, _, err = c.Query("kill %d", c.Raw.ThreadId())
-	checkErr(t, err, nil)
+	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Bind insert parameters
 	ins.Raw.Bind(2, "dwa")
@@ -76,8 +74,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	checkErr(t, err, nil)
 
 	// Kill the connection
-	_, _, err = c.Query("kill %d", c.Raw.ThreadId())
-	checkErr(t, err, nil)
+	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Select from table
 	rows, res, err := c.Query("select * from R")
@@ -91,8 +88,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	}
 
 	// Kill the connection
-	_, _, err = c.Query("kill %d", c.Raw.ThreadId())
-	checkErr(t, err, nil)
+	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Drop table
 	_, _, err = c.Query("drop table R")

@@ -101,7 +101,7 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 	destErr := make(chan error)
 
 	go func() {
-		srcErr <- sc.EnumerateBlobs(srcBlobs)
+		srcErr <- sc.SimpleEnumerateBlobs(srcBlobs)
 	}()
 	checkSourceError := func() {
 		if err := <-srcErr; err != nil {
@@ -118,7 +118,7 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 	}
 
 	go func() {
-		destErr <- dc.EnumerateBlobs(destBlobs)
+		destErr <- dc.SimpleEnumerateBlobs(destBlobs)
 	}()
 	checkDestError := func() {
 		if err := <-destErr; err != nil {

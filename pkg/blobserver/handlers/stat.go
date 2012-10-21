@@ -96,7 +96,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		blobch := make(chan blobref.SizedBlobRef)
 		resultch := make(chan error, 1)
 		go func() {
-			err := storage.StatBlobs(blobch, toStat, time.Duration(waitSeconds) * time.Second)
+			err := storage.StatBlobs(blobch, toStat, time.Duration(waitSeconds)*time.Second)
 			close(blobch)
 			resultch <- err
 		}()
@@ -117,7 +117,10 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 	}
 
 	configer, _ := storage.(blobserver.Configer)
-	ret := commonUploadResponse(configer, req)
+	ret, err := commonUploadResponse(configer, req)
+	if err != nil {
+		httputil.ServerError(conn, req, err)
+	}
 	ret["canLongPoll"] = false
 	if configer != nil {
 		if conf := configer.Config(); conf != nil {

@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"crypto/rand"
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -32,8 +31,6 @@ import (
 
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
-
-var Listen = flag.String("listen", "", "host:port to listen on, or :0 to auto-select")
 
 type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
 
@@ -59,18 +56,16 @@ func (s *Server) SetTLS(certFile, keyFile string) {
 	s.tlsKeyFile = keyFile
 }
 
-func (s *Server) BaseURL() string {
+func (s *Server) ListenURL() string {
 	scheme := "http"
 	if s.enableTLS {
 		scheme = "https"
 	}
 	if s.listener != nil {
-		return scheme + "://" + s.listener.Addr().String()
+		addr := strings.Replace(s.listener.Addr().String(), "[::]", "localhost", 1)
+		return scheme + "://" + addr
 	}
-	if strings.HasPrefix(*Listen, ":") {
-		return scheme + "://localhost" + *Listen
-	}
-	return scheme + "://" + strings.Replace(*Listen, "0.0.0.0:", "localhost:", 1)
+	return ""
 }
 
 // Register conditional handler-picker functions which get run before
@@ -99,8 +94,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(rw, req)
 }
 
-// Listen starts listening on the given host:port string.
-// If listen is empty the *Listen flag will be used instead.
+// Listen starts listening on the given host:port addr.
 func (s *Server) Listen(addr string) error {
 	if s.listener != nil {
 		return nil
@@ -108,22 +102,15 @@ func (s *Server) Listen(addr string) error {
 
 	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
 	if addr == "" {
-		if *Listen == "" {
-			return fmt.Errorf("Cannot start listening: host:port needs to be provided with the -listen flag")
-		}
-		addr = *Listen
+		return fmt.Errorf("<host>:<port> needs to be provided to start listening")
 	}
 
-	var laddr listen.Addr
-	err := laddr.Set(addr)
+	var err error
+	s.listener, err = listen.Listen(addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
 	}
-	s.listener, err = laddr.Listen()
-	if err != nil {
-		log.Fatalf("Failed to listen on %s: %v", addr, err)
-	}
-	base := s.BaseURL()
+	base := s.ListenURL()
 	if doLog {
 		log.Printf("Starting to listen on %s\n", base)
 	}
@@ -137,13 +124,13 @@ func (s *Server) Listen(addr string) error {
 		config.Certificates = make([]tls.Certificate, 1)
 		config.Certificates[0], err = tls.LoadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 		if err != nil {
-			log.Fatalf("Failed to load TLS cert: %v", err)
+			return fmt.Errorf("Failed to load TLS cert: %v", err)
 		}
 		s.listener = tls.NewListener(s.listener, config)
 	}
 
 	if doLog && strings.HasSuffix(base, ":0") {
-		log.Printf("Now listening on %s\n", s.BaseURL())
+		log.Printf("Now listening on %s\n", s.ListenURL())
 	}
 
 	return nil

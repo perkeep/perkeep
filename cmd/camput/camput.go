@@ -32,6 +32,7 @@ import (
 const buffered = 16 // arbitrary
 
 var (
+	flagHelp    = flag.Bool("help", false, "print usage")
 	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
 )
 
@@ -126,18 +127,6 @@ Examples:
 		}
 	}
 
-	// TODO(bradfitz): move these to Examples
-	/*
-	  camput share [opts] <blobref to share via haveref>
-
-	  camput blob <files>     (raw, without any metadata)
-	  camput blob -           (read from stdin)
-
-	  camput attr <permanode> <name> <value>         Set attribute
-	  camput attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
-	  camput attr --del <permanode> <name> [<value>] Deletes named attribute [value]
-	*/
-
 	errf(`
 For mode-specific help:
 
@@ -208,6 +197,9 @@ var (
 
 // camputMain is separated from main for testing from camput
 func camputMain(args ...string) {
+	if *flagHelp {
+		usage("")
+	}
 	if len(args) == 0 {
 		usage("No mode given.")
 	}

@@ -4,9 +4,14 @@ import (
 	"fmt"
 )
 
-// If function/method returns error you can check returned error type, and if
-// it is *mymy.Error it is error received from MySQL server. Next you can check
-// Code for error number.
+// If a function/method returns error you may check the returned error type via
+// a type assertion. If the type assertion succeeds you can retrieve the MySQL
+// error code as below.
+//
+// Example:
+//     if val, ok := err.(*mysql.Error); ok {
+//         fmt.Println(val.Code)
+//     }
 type Error struct {
 	Code uint16
 	Msg  []byte

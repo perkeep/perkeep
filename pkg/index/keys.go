@@ -186,4 +186,14 @@ var (
 			{"permanode", typeBlobRef},
 		},
 	}
+
+	// TODO(mpl): we might want to add signer/owner
+	keyDeleted = &keyType{
+		"deleted",
+		[]part{
+			{"blobref", typeBlobRef},  // the thing being deleted (a permanode or another claim)
+			{"claimref", typeBlobRef}, // the blobref with the delete claim
+		},
+		nil,
+	}
 )

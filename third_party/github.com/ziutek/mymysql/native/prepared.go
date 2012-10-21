@@ -13,6 +13,7 @@ type Stmt struct {
 
 	params []*paramValue // Parameters binding
 	rebind bool
+	binded bool
 
 	fields []*mysql.Field
 	fc_map map[string]int // Maps field name to column number

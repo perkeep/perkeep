@@ -184,7 +184,6 @@ func (de *dirEntry) Symlink() (Symlink, error) {
 // NewDirectoryEntry takes a Superset and returns a DirectoryEntry if
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
-// TODO(mpl): symlink
 // TODO: "fifo", "socket", "char", "block", probably.  later.
 func NewDirectoryEntry(fetcher blobref.SeekFetcher, ss *Superset) (DirectoryEntry, error) {
 	if ss == nil {

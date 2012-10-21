@@ -1,0 +1,6 @@
+These were just never ported from the pre-Go 1 build system
+(build.pl).
+
+They were used less often, so they've been moved here for now until
+they're needed and fixed again.  They were a distraction at the
+project's root.

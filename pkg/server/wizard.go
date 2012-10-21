@@ -115,16 +115,16 @@ func flattenPublish(config jsonconfig.Obj) error {
 	return nil
 }
 
-func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
+func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
-		httputil.ServerError(rw, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
 
 	err = flattenPublish(config)
 	if err != nil {
-		httputil.ServerError(rw, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
 
@@ -142,12 +142,12 @@ func sendWizard(req *http.Request, rw http.ResponseWriter, hasChanged bool) {
 
 	tmpl, err := template.New("wizard").Funcs(funcMap).Parse(topWizard + body + bottomWizard)
 	if err != nil {
-		httputil.ServerError(rw, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
 	err = tmpl.Execute(rw, config)
 	if err != nil {
-		httputil.ServerError(rw, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
 }
@@ -167,10 +167,10 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 	return err
 }
 
-func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
+func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
-		httputil.ServerError(rw, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
 
@@ -188,7 +188,7 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 		case "TLS":
 			b, err := strconv.ParseBool(v[0])
 			if err != nil {
-				httputil.ServerError(rw, fmt.Errorf("TLS field expects a boolean value"))
+				httputil.ServerError(rw, req, fmt.Errorf("TLS field expects a boolean value"))
 			}
 			el = b
 		case "replicateTo":
@@ -236,11 +236,11 @@ func handleSetupChange(req *http.Request, rw http.ResponseWriter) {
 	if hasChanged {
 		err = rewriteConfig(&hilevelConf, osutil.UserServerConfigPath())
 		if err != nil {
-			httputil.ServerError(rw, err)
+			httputil.ServerError(rw, req, err)
 			return
 		}
 	}
-	sendWizard(req, rw, hasChanged)
+	sendWizard(rw, req, hasChanged)
 	return
 }
 
@@ -255,11 +255,11 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method == "POST" {
 		err := req.ParseMultipartForm(10e6)
 		if err != nil {
-			httputil.ServerError(rw, err)
+			httputil.ServerError(rw, req, err)
 			return
 		}
 		if len(req.Form) > 0 {
-			handleSetupChange(req, rw)
+			handleSetupChange(rw, req)
 			return
 		}
 		if strings.Contains(req.URL.Path, "restartCamli") {
@@ -270,5 +270,5 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	sendWizard(req, rw, false)
+	sendWizard(rw, req, false)
 }
