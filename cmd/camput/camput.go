@@ -135,7 +135,7 @@ For mode-specific help:
 Global options:
 `)
 	flag.PrintDefaults()
-	os.Exit(1)
+	exit(1)
 }
 
 func handleResult(what string, pr *client.PutResult, err error) error {
@@ -188,11 +188,23 @@ func main() {
 	camputMain(flag.Args()...)
 }
 
+func realExit(code int) {
+	os.Exit(code)
+}
+
 // Indirections for replacement by tests:
 var (
 	stderr io.Writer = os.Stderr
 	stdout io.Writer = os.Stdout
 	stdin  io.Reader = os.Stdin
+
+	exit = realExit
+
+	// TODO: abstract out vfs operation. should never call os.Stat, os.Open, os.Create, etc.
+	// Only use fs.Stat, fs.Open, where vs is an interface type.
+
+	// TODO: switch from using the global flag FlagSet and use our own. right now
+	// running "go test -v" dumps the flag usage data to the global stderr.
 )
 
 // camputMain is separated from main for testing from camput
@@ -234,7 +246,7 @@ func camputMain(args ...string) {
 			errf("\nMode-specific options for mode %q:\n", mode)
 			cmdFlags.PrintDefaults()
 		}
-		os.Exit(1)
+		exit(1)
 	}
 	if *flagVerbose {
 		stats := up.Stats()
@@ -243,6 +255,6 @@ func camputMain(args ...string) {
 	}
 	if err != nil || wereErrors /* TODO: remove this part */ {
 		log.Printf("Error: %v", err)
-		os.Exit(2)
+		exit(2)
 	}
 }

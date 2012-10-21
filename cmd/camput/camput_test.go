@@ -17,8 +17,59 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"io"
+	"runtime"
 	"testing"
+	"time"
 )
+
+// env is the environment that a camput test runs within.
+type env struct {
+	// stdin is the standard input, or /dev/null if nil
+	stdin io.Reader
+
+	// TODO(bradfitz): vfs files.
+}
+
+func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
+	outbuf := new(bytes.Buffer)
+	errbuf := new(bytes.Buffer)
+	stdout, stderr = outbuf, errbuf
+	exitc := make(chan int, 1)
+	exit = func(code int) {
+		exitc <- code
+		runtime.Goexit()
+	}
+	go func() {
+		camputMain(args...)
+		exit(0)
+	}()
+	select {
+	case exitCode = <-exitc:
+	case <-time.After(15 * time.Second):
+		panic("timeout running command")
+	}
+	out = outbuf.Bytes()
+	err = errbuf.Bytes()
+	return
+}
+
+// TestUsageOnNoargs tests that we output a usage message when given no args, and return
+// with a non-zero exit status.
+func TestUsageOnNoargs(t *testing.T) {
+	var e env
+	out, err, code := e.Run("")
+	if code != 1 {
+		t.Errorf("exit code = %d; want 1", code)
+	}
+	if len(out) != 0 {
+		t.Errorf("wanted nothing on stdout; got:\n%s", out)
+	}
+	if !bytes.Contains(err, []byte("Usage: camput")) {
+		t.Errorf("stderr doesn't contain usage. Got:\n%s", err)
+	}
+}
 
 func TestUploadingChangingDirectory(t *testing.T) {
 	// TODO(bradfitz):
