@@ -59,7 +59,7 @@ func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 // with a non-zero exit status.
 func TestUsageOnNoargs(t *testing.T) {
 	var e env
-	out, err, code := e.Run("")
+	out, err, code := e.Run()
 	if code != 1 {
 		t.Errorf("exit code = %d; want 1", code)
 	}

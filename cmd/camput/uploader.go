@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -39,7 +40,8 @@ type HaveCache interface {
 type Uploader struct {
 	*client.Client
 
-	rollSplits bool // rolling checksum file splitting
+	rollSplits bool         // rolling checksum file splitting
+	fileOpts   *fileOptions // per-file options; may be nil
 
 	// for debugging; normally nil, but overrides Client if set
 	// TODO(bradfitz): clean this up? embed a StatReceiver instead
@@ -54,6 +56,25 @@ type Uploader struct {
 	haveCache HaveCache
 
 	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
+}
+
+// possible options when uploading a file
+type fileOptions struct {
+	permanode bool // create a content-based permanode for each uploaded file
+	// tag is an optional tag or comma-delimited tags to apply to
+	// the above permanode.
+	tag string
+}
+
+func (o *fileOptions) tags() []string {
+	if o == nil || o.tag == "" {
+		return nil
+	}
+	return strings.Split(o.tag, ",")
+}
+
+func (o *fileOptions) wantFilePermanode() bool {
+	return o != nil && o.permanode
 }
 
 // sigTime optionally specifies the signature time.

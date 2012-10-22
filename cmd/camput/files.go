@@ -62,7 +62,7 @@ func init() {
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
-		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
+		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
 		flags.BoolVar(&cmd.statcache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 		flags.BoolVar(&cmd.havecache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
@@ -96,8 +96,8 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if c.name != "" && !c.makePermanode {
 		return UsageError("Can't set name without using --permanode")
 	}
-	if c.tag != "" && !c.makePermanode {
-		return UsageError("Can't set tag without using --permanode")
+	if c.tag != "" && !c.makePermanode && !c.filePermanodes {
+		return UsageError("Can't set tag without using --permanode or --filenodes")
 	}
 	if c.histo != "" && !c.memstats {
 		return UsageError("Can't use histo without memstats")
@@ -119,6 +119,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		cache := NewFlatHaveCache()
 		up.haveCache = cache
 	}
+	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag}
 
 	var (
 		permaNode *client.PutResult
@@ -148,7 +149,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 		t := up.NewTreeUpload(dir)
 		t.DiskUsageMode = true
-		t.FilePermanodes = c.filePermanodes
 		t.Start()
 		pr, err := t.Wait()
 		if err != nil {
@@ -157,9 +157,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("tree-upload", pr, err)
 		return nil
 	}
-	if c.rollSplits {
-		up.rollSplits = true
-	}
+	up.rollSplits = c.rollSplits
 
 	for _, filename := range args {
 		fi, err := os.Stat(filename)
@@ -168,7 +166,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		}
 		if fi.IsDir() {
 			t := up.NewTreeUpload(filename)
-			t.FilePermanodes = c.filePermanodes
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
@@ -397,7 +394,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	defer file.Close()
 
 	var fileContents io.Reader = io.LimitReader(file, n.fi.Size())
-	if n.wantFilePermanode() {
+	if up.fileOpts.wantFilePermanode() {
 		fileContents = &trackDigestReader{r: fileContents}
 	}
 	blobref, err := up.fileWriterFunc()(up.statReceiver(), m, fileContents)
@@ -405,7 +402,8 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return nil, err
 	}
 
-	if n.wantFilePermanode() {
+	// TODO(mpl): test that none of these claims get uploaded if they've already been done
+	if up.fileOpts.wantFilePermanode() {
 		sum := fileContents.(*trackDigestReader).Sum()
 		// Use a fixed time value for signing; not using modtime
 		// so two identical files don't have different modtimes?
@@ -437,6 +435,23 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
 		}
 		handleResult("node-permanode-contentattr", put, nil)
+		if tags := up.fileOpts.tags(); len(tags) > 0 {
+			// TODO(mpl): do these claims concurrently, not in series
+			for _, tag := range tags {
+				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+				m.SetClaimDate(claimTime)
+				// TODO(mpl): verify that SetClaimDate does modify the GPG signature date of the claim
+				signed, err := up.SignMap(m, claimTime)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
+				}
+				put, err := up.uploadString(signed)
+				if err != nil {
+					return nil, fmt.Errorf("Error uploading permanode's tag attribute %v for node %v: %v", tag, n, err)
+				}
+				handleResult("node-permanode-tag", put, nil)
+			}
+		}
 	}
 
 	// TODO(bradfitz): faking a PutResult here to return
@@ -493,10 +508,6 @@ type node struct {
 	res  *client.PutResult
 
 	sumBytes int64 // cached value, if non-zero. also guarded by mu.
-}
-
-func (n *node) wantFilePermanode() bool {
-	return n.tu != nil && n.tu.FilePermanodes
 }
 
 func (n *node) String() string {
@@ -567,10 +578,6 @@ type TreeUpload struct {
 	// per-directory disk usage stats are output, like the "du"
 	// command.
 	DiskUsageMode bool
-
-	// If FilePermanodes is set true before Start, each
-	// file gets its own content-based planned permanode.
-	FilePermanodes bool
 
 	// Immutable:
 	base     string // base directory
