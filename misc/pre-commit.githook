@@ -1,6 +1,22 @@
 #!/usr/bin/env sh
 
 exitstatus=0
+
+#third_party imports.
+cd third_party
+rewrite=`./rewrite-imports.sh -l`
+cd ..
+if [ -n "$rewrite" ]
+then
+	exitstatus=1
+	for r in $rewrite
+	do
+		echo $r
+	done
+	echo "The above need their imports to be fixed. Use rewrite-imports.sh -w"
+fi
+
+#gofmt and trailing space errors
 committed=`git diff-index --cached --name-only HEAD`
 for c in $committed
 do
