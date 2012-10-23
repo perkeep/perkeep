@@ -23,3 +23,14 @@ import (
 func NewMongoIndex(mgw *MongoWrapper) (*index.Index, error) {
 	return newMongoIndex(mgw)
 }
+
+// AddUser creates a new user in mgw.Database so the mongo indexer
+// tests can be run as authenticated with this user.
+func AddUser(mgw *MongoWrapper, user, password string) error {
+	ses, err := mgw.getConnection()
+	if err != nil {
+		return err
+	}
+	defer ses.Close()
+	return ses.DB(mgw.Database).AddUser(user, password, false)
+}

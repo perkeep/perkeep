@@ -41,6 +41,7 @@ func checkMongoUp() {
 }
 
 func initMongoIndex() *index.Index {
+	// connect without credentials and wipe the database
 	mgw := &mongo.MongoWrapper{
 		Servers:    "localhost",
 		Database:   "camlitest",
@@ -53,6 +54,18 @@ func initMongoIndex() *index.Index {
 	err = idx.Storage().Delete("")
 	if err != nil {
 		panic(err)
+	}
+	// create user and connect with credentials
+	err = mongo.AddUser(mgw, "root", "root")
+	if err != nil {
+		panic(err)
+	}
+	mgw = &mongo.MongoWrapper{
+		Servers:    "localhost",
+		Database:   "camlitest",
+		Collection: "keys",
+		User:       "root",
+		Password:   "root",
 	}
 	return idx
 }
