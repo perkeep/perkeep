@@ -253,8 +253,14 @@ func camputMain(args ...string) {
 		log.Printf("Client stats: %s", stats.String())
 		log.Printf("  #HTTP reqs: %d", up.transport.reqs)
 	}
-	if err != nil || wereErrors /* TODO: remove this part */ {
-		log.Printf("Error: %v", err)
+	previousErrors := wereErrors
+	if err != nil {
+		wereErrors = true
+		if !previousErrors {
+			log.Printf("Error: %v", err)
+		}
+	}
+	if wereErrors {
 		exit(2)
 	}
 }
