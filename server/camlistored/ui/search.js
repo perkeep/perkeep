@@ -90,7 +90,6 @@ function doSearch() {
 		tagcb.fail = function(msg) {
 			alert(msg);
 		};
-// TODO(mpl): add other kinds of searches (by filename for ex).
 		switch(CamliSearch.type) {
 		case "tag":
 			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
