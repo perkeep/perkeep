@@ -166,7 +166,10 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	dr.PopulateJSON(ret)
 }
 
-// TODO(mpl): configure and/or document the name of the possible attributes in the http request
+// servePermanodesWithAttr uses the indexer to search for the permanodes matching
+// the request.
+// The valid values for the "attr" key in the request (i.e the only attributes
+// for a permanode which are actually indexed as such) are "tag" and "title".
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJSON(rw, ret)
