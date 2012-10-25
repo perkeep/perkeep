@@ -185,10 +185,10 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		switch k {
-		case "TLS":
+		case "https":
 			b, err := strconv.ParseBool(v[0])
 			if err != nil {
-				httputil.ServerError(rw, req, fmt.Errorf("TLS field expects a boolean value"))
+				httputil.ServerError(rw, req, fmt.Errorf("https field expects a boolean value"))
 			}
 			el = b
 		case "replicateTo":
