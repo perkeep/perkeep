@@ -241,12 +241,12 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
 function camliUploadString(s, opts) {
     opts = saneOpts(opts);
     var blobref = "sha1-" + Crypto.SHA1(s);
+    var parts = [s];
 
-    bb = new WebKitBlobBuilder();
-    bb.append(s);
+    var bb = new Blob(parts);
 
     var fd = new FormData();
-    fd.append(blobref, bb.getBlob());
+    fd.append(blobref, bb);
 
     var uploadCb = {};
     uploadCb.success = function(resj) {
