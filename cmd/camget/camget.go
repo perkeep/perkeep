@@ -53,6 +53,7 @@ var (
 	flagCheck   = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all our present")
 	flagOutput  = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
 	flagVia     = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
+	flagGraph   = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
 )
 
 var viaRefs []*blobref.BlobRef
@@ -75,6 +76,10 @@ func main() {
 		}
 	}
 
+	if *flagGraph && flag.NArg() != 1 {
+		log.Fatalf("The --graph option requires exactly one parameter.")
+	}
+
 	cl := client.NewOrFail()
 
 	for n := 0; n < flag.NArg(); n++ {
@@ -82,6 +87,10 @@ func main() {
 		br := blobref.Parse(arg)
 		if br == nil {
 			log.Fatalf("Failed to parse argument %q as a blobref.", arg)
+		}
+		if *flagGraph {
+			printGraph(cl, br)
+			return
 		}
 		if *flagCheck {
 			// TODO: do HEAD requests checking if the blobs exists.
