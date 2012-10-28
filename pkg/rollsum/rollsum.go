@@ -26,8 +26,8 @@ import ()
 const windowSize = 64
 const charOffset = 31
 
-const blobBits = 13
-const blobSize = 1 << blobBits // 8k
+const blobBits = 15
+const blobSize = 1 << blobBits // 32k
 
 type RollSum struct {
 	s1, s2 uint32
