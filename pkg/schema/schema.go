@@ -520,6 +520,10 @@ func NewCommonFileMap(fileName string, fi os.FileInfo) Map {
 	return m
 }
 
+// PopulateParts populates the "parts" field of m with the provided
+// parts.  The sum of the sizes of parts must match the provided size
+// or an error is returned.  Also, each BytesPart may only contain either
+// a BytesPart or a BlobRef, but not both.
 func PopulateParts(m Map, size int64, parts []BytesPart) error {
 	sumSize := int64(0)
 	mparts := make([]Map, len(parts))
@@ -528,11 +532,13 @@ func PopulateParts(m Map, size int64, parts []BytesPart) error {
 		mparts[idx] = mpart
 		switch {
 		case part.BlobRef != nil && part.BytesRef != nil:
-			return errors.New("schema: part contains both blobRef and bytesRef")
+			return errors.New("schema: part contains both BlobRef and BytesRef")
 		case part.BlobRef != nil:
 			mpart["blobRef"] = part.BlobRef.String()
 		case part.BytesRef != nil:
 			mpart["bytesRef"] = part.BytesRef.String()
+		default:
+			return errors.New("schema: part must contain either a BlobRef or BytesRef")
 		}
 		mpart["size"] = part.Size
 		sumSize += int64(part.Size)
