@@ -112,13 +112,23 @@ func addUIConfig(prefixes *jsonconfig.Obj, uiPrefix string, published []interfac
 	(*prefixes)[uiPrefix] = ob
 }
 
-// TODO(mpl): add auth info
-func addMongoConfig(prefixes *jsonconfig.Obj, dbname string, servers string) {
+func addMongoConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+	fields := strings.Split(dbinfo, "@")
+	if len(fields) != 2 {
+		exitFailure("Malformed mongo config string. Got \"%v\", want: \"user:password@host\"", dbinfo)
+	}
+	host := fields[1]
+	fields = strings.Split(fields[0], ":")
+	if len(fields) != 2 {
+		exitFailure("Malformed mongo config string. Got \"%v\", want: \"user:password\"", fields[0])
+	}
 	ob := map[string]interface{}{}
 	ob["enabled"] = true
 	ob["handler"] = "storage-mongodbindexer"
 	ob["handlerArgs"] = map[string]interface{}{
-		"servers":    servers,
+		"host":       host,
+		"user":       fields[0],
+		"password":   fields[1],
 		"database":   dbname,
 		"blobSource": "/bs/",
 	}

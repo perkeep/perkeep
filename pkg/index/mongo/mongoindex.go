@@ -51,9 +51,16 @@ type MongoWrapper struct {
 	Collection string
 }
 
+func (mgw *MongoWrapper) url() string {
+	if mgw.User == "" || mgw.Password == "" {
+		return mgw.Servers
+	}
+	return mgw.User + ":" + mgw.Password + "@" + mgw.Servers + "/" + mgw.Database
+}
+
 // Note that Ping won't work with old (1.2) mongo servers.
 func (mgw *MongoWrapper) TestConnection(timeout time.Duration) bool {
-	session, err := mgo.DialWithTimeout(mgw.Servers, timeout)
+	session, err := mgo.DialWithTimeout(mgw.url(), timeout)
 	if err != nil {
 		return false
 	}
@@ -67,7 +74,7 @@ func (mgw *MongoWrapper) TestConnection(timeout time.Duration) bool {
 
 func (mgw *MongoWrapper) getConnection() (*mgo.Session, error) {
 	// TODO(mpl): do some "client caching" as in mysql, to avoid systematically dialing?
-	session, err := mgo.Dial(mgw.Servers)
+	session, err := mgo.Dial(mgw.url())
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +117,10 @@ func newMongoIndex(mgw *MongoWrapper) (*index.Index, error) {
 func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	blobPrefix := config.RequiredString("blobSource")
 	mgw := &MongoWrapper{
-		Servers:    config.OptionalString("servers", "localhost"),
+		Servers:    config.OptionalString("host", "localhost"),
 		Database:   config.RequiredString("database"),
+		User: config.OptionalString("user", ""),
+		Password: config.OptionalString("password", ""),
 		Collection: collectionName,
 	}
 	if err := config.Validate(); err != nil {
