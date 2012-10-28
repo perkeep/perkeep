@@ -57,15 +57,17 @@ func TestSum(t *testing.T) {
 func BenchmarkRollsum(b *testing.B) {
 	bytesSize := int64(1024 * 1024 * 5)
 	rs := New()
-	bits := 0
+	splits := 0
 	for i := 0; i < b.N; i++ {
+		splits = 0
 		for j := int64(0); j < bytesSize; j++ {
 			rs.Roll(byte(rand.Int63() & 0xff))
 			if rs.OnSplit() {
-				bits = rs.Bits()
+				_ = rs.Bits()
+				splits++
 			}
 		}
 	}
 	b.SetBytes(bytesSize)
-	_ = bits
+	b.Logf("num splits = %d; every %d bytes", splits, int(float64(bytesSize) / float64(splits)))
 }
