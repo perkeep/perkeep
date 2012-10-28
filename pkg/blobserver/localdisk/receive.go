@@ -107,8 +107,8 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		if err == nil && !pfi.IsDir() {
 			log.Printf("Skipped dup on partition %q", pname)
 		} else {
-			if err = os.Link(fileName, partitionFileName); err != nil && !linkAlreadyExists(err) {
-				log.Fatalf("got link error %T %#v", err, err)
+			if err = linkOrCopy(fileName, partitionFileName); err != nil && !linkAlreadyExists(err) {
+				log.Fatalf("got link or copy error %T %#v", err, err)
 				return blobref.SizedBlobRef{}, err
 			}
 			log.Printf("Mirrored blob %s to partition %q", blobRef, pname)
