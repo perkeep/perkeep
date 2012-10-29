@@ -129,11 +129,12 @@ func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	}
 
 	funcMap := template.FuncMap{
-		"printWizard": printWizard,
+		"printWizard":    printWizard,
+		"inputIsGallery": func(inputName string) bool { return inputName == "gallery" },
 	}
 
 	body := `<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">`
-	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}"><br />{{end}}`
+	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}" {{if inputIsGallery $k}}placeholder="/pics/,sha1-xxxx,pics.css"{{end}}><br />{{end}}`
 	body += `<input type="submit" form="WizardForm" value="Save"></form>`
 
 	if hasChanged {
