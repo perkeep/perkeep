@@ -66,16 +66,16 @@ function indexOnLoad(e) {
 }
 
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {
-    var div = document.getElementById("recent");
-    div.innerHTML = "";
+    var ul = document.getElementById("recent");
+    ul.innerHTML = "";
     for (var i = 0; i < searchRes.recent.length; i++) {
         var result = searchRes.recent[i];      
-        var pdiv = document.createElement("li");
+        var li = document.createElement("li");
         var alink = document.createElement("a");
         alink.href = "./?p=" + result.blobref;
-        alink.innerText = camliBlobTitle(result.blobref, searchRes);
-        pdiv.appendChild(alink);
-        div.appendChild(pdiv);
+        setTextContent(alink, camliBlobTitle(result.blobref, searchRes));
+        li.appendChild(alink);
+        ul.appendChild(li);
     }
 }
 

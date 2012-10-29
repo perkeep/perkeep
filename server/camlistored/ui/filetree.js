@@ -89,12 +89,12 @@ function onChildrenFound(div, depth, jres) {
 		alink.id = children[i].blobRef;
 		switch (children[i].type) {
 		case 'directory':
-			alink.innerText = "+ " + children[i].name;
+			setTextContent(alink, "+ " + children[i].name);
 			alink.href = "./?d=" + alink.id;
 			alink.onclick = Function("unFold('" + alink.id + "', " + depth + "); return false;");
 			break;
 		case 'file':
-			alink.innerText = "  " + children[i].name;
+			setTextContent(alink, "  " + children[i].name);
 			alink.href = "./?b=" + alink.id;
 			break;
 		default:
@@ -103,7 +103,7 @@ function onChildrenFound(div, depth, jres) {
 		}
 		var newPerm = document.createElement("span");
 		newPerm.className = "camli-newp";
-		newPerm.innerText = "P";
+		setTextContent(newPerm, "P");
 		newPerm.addEventListener("click", newPermWithContent(alink.id));
 		pdiv.appendChild(alink);
 		pdiv.appendChild(newPerm);
