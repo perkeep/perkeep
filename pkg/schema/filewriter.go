@@ -30,7 +30,34 @@ import (
 	"camlistore.org/pkg/rollsum"
 )
 
-const maxBlobSize = 1 << 20
+const (
+	// maxBlobSize is the largest blob we ever make when cutting up
+	// a file.
+	maxBlobSize = 1 << 20
+
+	// firstChunkSize is the ideal size of the first chunk of a
+	// file.  It's kept smaller for the file(1) command, which
+	// likes to read 96 kB on Linux and 256 kB on OS X.  Related
+	// are tools which extract the EXIF metadata from JPEGs,
+	// ID3 from mp3s, etc.  Nautilus, OS X Finder, etc.
+	// The first chunk may be larger than this if cutting the file
+	// here would create a small subsequent chunk (e.g. a file one
+	// byte larger than firstChunkSize)
+	firstChunkSize = 256 << 10
+
+	// bufioReaderSize is an explicit size for our bufio.Reader,
+	// so we don't rely on NewReader's implicit size.
+	// We care about the buffer size because it affects how far
+	// in advance we can detect EOF from an io.Reader that doesn't
+	// know its size.  Detecting an EOF bufioReaderSize bytes early
+	// means we can plan for the final chunk.
+	bufioReaderSize = 32 << 10
+
+	// tooSmallThreshold is the threshold at which rolling checksum
+	// boundaries are ignored if the current chunk being built is
+	// smaller than this.
+	tooSmallThreshold = 64 << 10
+)
 
 var _ = log.Printf
 
@@ -39,19 +66,18 @@ var _ = log.Printf
 // BlobRef is of the JSON file schema blob.
 func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (*blobref.BlobRef, error) {
 	m := NewFileMap(filename)
-	// TODO(bradfitz): switch this to the rolling version by
-	// default at some point, ideally unexporting some subset of
-	// {WriteFileFromReader, WriteFileMap, WriteFileMapRolling}
-	// and making this package simpler.
 	return WriteFileMap(bs, m, r)
 }
 
 // WriteFileMap uploads chunks of r to bs while populating fileMap and
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob.
-//
-// This is the simple 1MB chunk version. The rolling checksum version is below.
 func WriteFileMap(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobref.BlobRef, error) {
+	return writeFileMapRolling(bs, fileMap, r)
+}
+
+// This is the simple 1MB chunk version. The rolling checksum version is below.
+func writeFileMapOld(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobref.BlobRef, error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	var buf bytes.Buffer
@@ -130,6 +156,10 @@ type span struct {
 	children []span
 }
 
+func (s *span) isSingleBlob() bool {
+	return len(s.children) == 0
+}
+
 func (s *span) size() int64 {
 	size := s.to - s.from
 	for _, cs := range s.children {
@@ -138,22 +168,32 @@ func (s *span) size() int64 {
 	return size
 }
 
-// WriteFileFromReaderRolling creates and uploads a "file" JSON schema
-// composed of chunks of r, also uploading the chunks.  The returned
-// BlobRef is of the JSON file schema blob.
-func WriteFileFromReaderRolling(bs blobserver.StatReceiver, filename string, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
-	m := NewFileMap(filename)
-	return WriteFileMapRolling(bs, m, r)
+// noteEOFReader keeps track of when it's seen EOF, but otherwise
+// delegates entirely to r.
+type noteEOFReader struct {
+	r      io.Reader
+	sawEOF bool
 }
 
-func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
-	blobSize := 0
-	bufr := bufio.NewReader(r)
+func (r *noteEOFReader) Read(p []byte) (n int, err error) {
+	n, err = r.r.Read(p)
+	if err == io.EOF {
+		r.sawEOF = true
+	}
+	return
+}
+
+func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
+	src := &noteEOFReader{r: r}
+	blobSize := 0 // of the next blob being built, should be same as buf.Len()
+	bufr := bufio.NewReaderSize(src, bufioReaderSize)
 	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()
 	n := int64(0)
 	last := n
 	buf := new(bytes.Buffer)
+
+	rootFile := func() Map { return fileMap }
 
 	uploadString := func(s string) (*blobref.BlobRef, error) {
 		br := blobref.SHA1FromString(s)
@@ -197,18 +237,29 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 		if err != nil {
 			return nil, err
 		}
-		buf.WriteByte(c)
 
+		buf.WriteByte(c)
 		n++
 		blobSize++
 		rs.Roll(c)
-		if !rs.OnSplit() {
-			if blobSize < maxBlobSize {
-				continue
-			}
+
+		var bits int
+		onRollSplit := rs.OnSplit()
+		switch {
+		case blobSize == maxBlobSize:
+			bits = 20 // arbitrary node weight; 1<<20 == 1MB
+		case src.sawEOF:
+			// Don't split. End is coming soon enough.
+			continue
+		case onRollSplit && n > firstChunkSize && blobSize > tooSmallThreshold:
+			bits = rs.Bits()
+		case n == firstChunkSize:
+			bits = 18 // 1 << 18 == 256KB
+		default:
+			// Don't split.
+			continue
 		}
 		blobSize = 0
-		bits := rs.Bits()
 
 		// Take any spans from the end of the spans slice that
 		// have a smaller 'bits' score and make them children
@@ -233,17 +284,18 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 
 	var addBytesParts func(dst *[]BytesPart, s []span) error
 
-	uploadFile := func(isFragment bool, fileSize int64, s []span) (*blobref.BlobRef, error) {
+	// uploadBytes gets a map from mapSource (of type either "bytes" or
+	// "file", which is a superset of "bytes"), sets it to the provided
+	// size, and populates with provided spans.  The bytes or file schema
+	// blob is uploaded and its blobref is returned.
+	uploadBytes := func(mapSource func() Map, size int64, s []span) (*blobref.BlobRef, error) {
 		parts := []BytesPart{}
 		err := addBytesParts(&parts, s)
 		if err != nil {
 			return nil, err
 		}
-		m := fileMap
-		if isFragment {
-			m = newBytes()
-		}
-		err = PopulateParts(m, fileSize, parts)
+		m := mapSource()
+		err = PopulateParts(m, size, parts)
 		if err != nil {
 			return nil, err
 		}
@@ -256,12 +308,24 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 
 	addBytesParts = func(dst *[]BytesPart, spansl []span) error {
 		for _, sp := range spansl {
+			if len(sp.children) == 1 && sp.children[0].isSingleBlob() {
+				// Remove an occasional useless indirection of
+				// what would become a bytes schema blob
+				// pointing to a single blobref.  Just promote
+				// the blobref child instead.
+				child := sp.children[0]
+				*dst = append(*dst, BytesPart{
+					BlobRef: child.br,
+					Size:    uint64(child.size()),
+				})
+				sp.children = nil
+			}
 			if len(sp.children) > 0 {
 				childrenSize := int64(0)
 				for _, cs := range sp.children {
 					childrenSize += cs.size()
 				}
-				br, err := uploadFile(true, childrenSize, sp.children)
+				br, err := uploadBytes(newBytes, childrenSize, sp.children)
 				if err != nil {
 					return err
 				}
@@ -270,16 +334,17 @@ func WriteFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 					Size:     uint64(childrenSize),
 				})
 			}
-			if sp.from != sp.to {
-				*dst = append(*dst, BytesPart{
-					BlobRef: sp.br,
-					Size:    uint64(sp.to - sp.from),
-				})
+			if sp.from == sp.to {
+				panic("Shouldn't happen. " + fmt.Sprintf("weird span with same from & to: %#v", sp))
 			}
+			*dst = append(*dst, BytesPart{
+				BlobRef: sp.br,
+				Size:    uint64(sp.to - sp.from),
+			})
 		}
 		return nil
 	}
 
 	// The top-level content parts
-	return uploadFile(false, n, spans)
+	return uploadBytes(rootFile, n, spans)
 }

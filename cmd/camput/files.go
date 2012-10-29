@@ -36,8 +36,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/schema"
-
-	"camlistore.org/third_party/github.com/mpl/histo"
 )
 
 type fileCmd struct {
@@ -66,10 +64,9 @@ func init() {
 
 		flags.BoolVar(&cmd.statcache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 		flags.BoolVar(&cmd.havecache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
-		flags.BoolVar(&cmd.rollSplits, "rolling", false, "Use rolling checksum file splits.")
 		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
-		flags.StringVar(&cmd.histo, "debug-histogram-file", "", "File where to print the histogram of the blob sizes. Requires debug-memstats.")
+		flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
@@ -104,10 +101,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 	if c.memstats {
 		sr := new(statsStatReceiver)
-		if c.histo != "" {
-			num := 100
-			sr.histo = histo.NewHisto(num)
-		}
 		up.altStatReceiver = sr
 		defer func() { sr.DumpStats(c.histo) }()
 	}
@@ -157,7 +150,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("tree-upload", pr, err)
 		return nil
 	}
-	up.rollSplits = c.rollSplits
 
 	for _, filename := range args {
 		fi, err := os.Stat(filename)
@@ -204,14 +196,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 type statsStatReceiver struct {
 	mu    sync.Mutex
 	have  map[string]int64
-	histo *histo.Histo
-}
-
-func (sr *statsStatReceiver) lock() {
-	sr.mu.Lock()
-	if sr.have == nil {
-		sr.have = make(map[string]int64)
-	}
 }
 
 func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
@@ -219,17 +203,17 @@ func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader
 	if err != nil {
 		return
 	}
-	sr.lock()
+	sr.mu.Lock()
 	defer sr.mu.Unlock()
-	sr.have[blob.String()] = n
-	if sr.histo != nil {
-		sr.histo.Add(n)
+	if sr.have == nil {
+		sr.have = make(map[string]int64)
 	}
+	sr.have[blob.String()] = n
 	return blobref.SizedBlobRef{blob, n}, nil
 }
 
 func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, _ time.Duration) error {
-	sr.lock()
+	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	for _, br := range blobs {
 		if size, ok := sr.have[br.String()]; ok {
@@ -239,33 +223,26 @@ func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 	return nil
 }
 
-func (sr *statsStatReceiver) DumpStats(histo string) {
-	sr.lock()
+// DumpStats creates the destFile and writes a line per received blob,
+// with its blob size.
+func (sr *statsStatReceiver) DumpStats(destFile string) {
+	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
-	var sum int64
-	for _, size := range sr.have {
-		sum += size
-	}
-	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.have), sum)
-	if histo != "" {
-		sr.bsHisto(histo)
-	}
-}
-
-func (sr *statsStatReceiver) bsHisto(file string) {
-	bars := sr.histo.Bars()
-	if bars == nil {
-		return
-	}
-	f, err := os.Create(file)
+	f, err := os.Create(destFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
 
-	for _, hb := range bars {
-		fmt.Fprintf(f, "%d	%d\n", hb.Value, hb.Count)
+	var sum int64
+	for _, size := range sr.have {
+		fmt.Fprintf(f, "%d\n", size)
+	}
+	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.have), sum)
+
+	err = f.Close()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -376,14 +353,6 @@ func (up *Uploader) statReceiver() blobserver.StatReceiver {
 	return statReceiver
 }
 
-// fileWriterFunc returns the file chunking algorithm to use.
-func (up *Uploader) fileWriterFunc() func(blobserver.StatReceiver, schema.Map, io.Reader) (*blobref.BlobRef, error) {
-	if up.rollSplits {
-		return schema.WriteFileMapRolling
-	}
-	return schema.WriteFileMap
-}
-
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	m := schema.NewCommonFileMap(n.fullPath, n.fi)
 	m["camliType"] = "file"
@@ -393,11 +362,12 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	}
 	defer file.Close()
 
-	var fileContents io.Reader = io.LimitReader(file, n.fi.Size())
+	size := n.fi.Size()
+	var fileContents io.Reader = io.LimitReader(file, size)
 	if up.fileOpts.wantFilePermanode() {
 		fileContents = &trackDigestReader{r: fileContents}
 	}
-	blobref, err := up.fileWriterFunc()(up.statReceiver(), m, fileContents)
+	blobref, err := schema.WriteFileMap(up.statReceiver(), m, fileContents)
 	if err != nil {
 		return nil, err
 	}

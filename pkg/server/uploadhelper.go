@@ -25,8 +25,6 @@ import (
 )
 
 func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
-	rollSum := req.URL.Query().Get("rollsum") == "1"
-
 	ret := make(map[string]interface{})
 	defer httputil.ReturnJSON(rw, ret)
 
@@ -59,9 +57,6 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			continue
 		}
 		writeFn := schema.WriteFileFromReader
-		if rollSum {
-			writeFn = schema.WriteFileFromReaderRolling
-		}
 		br, err := writeFn(ui.Storage, fileName, part)
 
 		if err == nil {

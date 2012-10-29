@@ -74,7 +74,7 @@ func squareImage(i image.Image) image.Image {
 }
 
 func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, error) {
-	br, err := schema.WriteFileFromReaderRolling(ih.Cache, name, tr)
+	br, err := schema.WriteFileFromReader(ih.Cache, name, tr)
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
 	}

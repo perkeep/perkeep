@@ -40,7 +40,6 @@ type HaveCache interface {
 type Uploader struct {
 	*client.Client
 
-	rollSplits bool         // rolling checksum file splitting
 	fileOpts   *fileOptions // per-file options; may be nil
 
 	// for debugging; normally nil, but overrides Client if set
