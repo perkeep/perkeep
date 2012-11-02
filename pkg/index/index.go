@@ -492,7 +492,7 @@ func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time
 	}
 
 	for _, path := range paths {
-		t, err := time.Parse(time.RFC3339, trimRFC3339Subseconds(path.ClaimDate))
+		t, err := time.Parse(time.RFC3339, path.ClaimDate)
 		if err != nil {
 			continue
 		}
@@ -512,14 +512,6 @@ func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time
 		return nil, os.ErrNotExist
 	}
 	return best, nil
-}
-
-// TODO(bradfitz): remove this as of Go 1. shouldn't be needed anymore.
-func trimRFC3339Subseconds(s string) string {
-	if !strings.HasSuffix(s, "Z") || len(s) < 20 || s[19] != '.' {
-		return s
-	}
-	return s[:19] + "Z"
 }
 
 func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err error) {
