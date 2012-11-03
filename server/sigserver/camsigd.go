@@ -17,19 +17,20 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/webserver"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+
+	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/webserver"
 )
 
 var accessPassword string
 
-var flagPubKeyDir *string = flag.String("pubkey-dir", "test/pubkey-blobs",
+var flagPubKeyDir = flag.String("pubkey-dir", "test/pubkey-blobs",
 	"Temporary development hack; directory to dig-xxxx.camli public keys.")
 
 // TODO: for now, the only implementation of the blobref.Fetcher
