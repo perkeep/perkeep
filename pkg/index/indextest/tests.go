@@ -45,6 +45,8 @@ type IndexDeps struct {
 	SignerBlobRef    *blobref.BlobRef
 
 	now time.Time // fake clock, nanos since epoch
+
+	t *testing.T
 }
 
 func (id *IndexDeps) Get(key string) string {
@@ -68,7 +70,7 @@ func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 	m["camliSigner"] = id.SignerBlobRef
 	unsigned, err := m.JSON()
 	if err != nil {
-		panic("uploadAndSignMap: " + err.Error())
+		id.t.Fatal("uploadAndSignMap: " + err.Error())
 	}
 	sr := &jsonsign.SignRequest{
 		UnsignedJSON:  unsigned,
@@ -77,12 +79,12 @@ func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 	}
 	signed, err := sr.Sign()
 	if err != nil {
-		panic("problem signing: " + err.Error())
+		id.t.Fatal("problem signing: " + err.Error())
 	}
 	tb := &test.Blob{Contents: signed}
 	_, err = id.Index.ReceiveBlob(tb.BlobRef(), tb.Reader())
 	if err != nil {
-		panic(fmt.Sprintf("problem indexing blob: %v\nblob was:\n%s", err, signed))
+		id.t.Fatalf("problem indexing blob: %v\nblob was:\n%s", err, signed)
 	}
 	return tb.BlobRef()
 }
@@ -121,7 +123,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 	wholeRef = cb.BlobRef()
 	_, err := id.Index.ReceiveBlob(wholeRef, cb.Reader())
 	if err != nil {
-		panic(err)
+		id.t.Fatal(err)
 	}
 
 	m := schema.NewFileMap(fileName)
@@ -132,7 +134,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 		}})
 	fjson, err := m.JSON()
 	if err != nil {
-		panic(err)
+		id.t.Fatal(err)
 	}
 	fb := &test.Blob{Contents: fjson}
 	id.BlobSource.AddBlob(fb)
@@ -168,7 +170,7 @@ func findGoPathPackage(pkg string) string {
 	panic(fmt.Sprintf("package %q not found in GOPATH(s) of %q", pkg, gp))
 }
 
-func NewIndexDeps(index *index.Index) *IndexDeps {
+func NewIndexDeps(t *testing.T, index *index.Index) *IndexDeps {
 	secretRingFile := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -190,11 +192,12 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 		},
 		SignerBlobRef: pubKey.BlobRef(),
 		now:           time.Unix(1322443956, 123456),
+		t:             t,
 	}
 	// Add dev-camput's test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
-	if id.SignerBlobRef.String() != "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007" {
-		panic("unexpected signer blobref")
+	if g, w := id.SignerBlobRef.String(), "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"; g != w {
+		t.Fatalf("unexpected signer blobref; got signer = %q; want %q", g, w)
 	}
 	id.PublicKeyFetcher.AddBlob(pubKey)
 	id.Index.KeyFetcher = id.PublicKeyFetcher
@@ -203,7 +206,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 }
 
 func Index(t *testing.T, initIdx func() *index.Index) {
-	id := NewIndexDeps(initIdx())
+	id := NewIndexDeps(t, initIdx())
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "foo", "foo1")
@@ -366,7 +369,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 }
 
 func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
-	id := NewIndexDeps(initIdx())
+	id := NewIndexDeps(t, initIdx())
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 
@@ -416,7 +419,7 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 }
 
 func Files(t *testing.T, initIdx func() *index.Index) {
-	id := NewIndexDeps(initIdx())
+	id := NewIndexDeps(t, initIdx())
 	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>")
 	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
 	id.dumpIndex(t)
