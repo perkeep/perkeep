@@ -135,19 +135,19 @@ func addMongoConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
 	(*prefixes)["/index-mongo/"] = ob
 }
 
-func addMysqlConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+func addSQLConfig(rdbms string, prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
 	fields := strings.Split(dbinfo, "@")
 	if len(fields) != 2 {
-		exitFailure("Malformed mysql config string. Want: \"user@host:password\"")
+		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
 	}
 	user := fields[0]
 	fields = strings.Split(fields[1], ":")
 	if len(fields) != 2 {
-		exitFailure("Malformed mysql config string. Want: \"user@host:password\"")
+		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
 	}
 	ob := map[string]interface{}{}
 	ob["enabled"] = true
-	ob["handler"] = "storage-mysqlindexer"
+	ob["handler"] = "storage-" + rdbms + "indexer"
 	ob["handlerArgs"] = map[string]interface{}{
 		"host":       fields[0],
 		"user":       user,
@@ -155,7 +155,15 @@ func addMysqlConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
 		"database":   dbname,
 		"blobSource": "/bs/",
 	}
-	(*prefixes)["/index-mysql/"] = ob
+	(*prefixes)["/index-"+rdbms+"/"] = ob
+}
+
+func addPostgresConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+	addSQLConfig("postgres", prefixes, dbname, dbinfo)
+}
+
+func addMysqlConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+	addSQLConfig("mysql", prefixes, dbname, dbinfo)
 }
 
 func addMemindexConfig(prefixes *jsonconfig.Obj) {
@@ -253,6 +261,7 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
 		dbname     = conf.OptionalString("dbname", "")
 		mysql      = conf.OptionalString("mysql", "")
+		postgres   = conf.OptionalString("postgres", "")
 		mongo      = conf.OptionalString("mongo", "")
 		_          = conf.OptionalList("replicateTo")
 		_          = conf.OptionalString("s3", "")
@@ -298,10 +307,12 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	var indexerPath string
 	switch {
-	case mongo != "" && mysql != "":
-		return nil, fmt.Errorf("Cannot have both mysql and mongo in config, pick one")
+	case mongo != "" && mysql != "" || mongo != "" && postgres != "" || mysql != "" && postgres != "":
+		return nil, fmt.Errorf("You can only pick one of the db engines (mongo, mysql, postgres).")
 	case mysql != "":
 		indexerPath = "/index-mysql/"
+	case postgres != "":
+		indexerPath = "/index-postgres/"
 	case mongo != "":
 		indexerPath = "/index-mongo/"
 	default:
@@ -343,6 +354,9 @@ func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	if mysql != "" {
 		addMysqlConfig(&prefixes, dbname, mysql)
+	}
+	if postgres != "" {
+		addPostgresConfig(&prefixes, dbname, postgres)
 	}
 	if mongo != "" {
 		addMongoConfig(&prefixes, dbname, mongo)

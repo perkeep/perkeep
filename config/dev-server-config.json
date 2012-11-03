@@ -186,6 +186,18 @@
          }
      },
 
+     "/index-postgres/": {
+         "enabled": ["_env", "${CAMLI_POSTGRES_ENABLED}", true],
+         "handler": "storage-postgresindexer",
+         "handlerArgs": {
+             "database": ["_env", "${CAMLI_DBNAME}"],
+             "user": "postgres",
+             "password": "postgres",
+             "host": "127.0.0.1",
+             "blobSource": "/bs/"
+         }
+     },
+
      "/my-search/": {
          "handler": "search",
          "handlerArgs": {

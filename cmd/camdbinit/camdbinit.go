@@ -25,7 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/index/mysql"
+	"camlistore.org/pkg/index/postgres"
 
+	_ "camlistore.org/third_party/github.com/bmizerany/pq"
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
 
@@ -35,6 +37,7 @@ var (
 	flagHost     = flag.String("host", "localhost", "MySQ host[:port]")
 	flagDatabase = flag.String("database", "", "MySQL camlistore to wipe/create database")
 
+	flagType   = flag.String("type", "mysql", "Which RDMS to use; possible values: mysql, postgres")
 	flagWipe   = flag.Bool("wipe", false, "Wipe the database and re-create it?")
 	flagIgnore = flag.Bool("ignoreexists", false, "Treat existence of the database as okay and exit.")
 )
@@ -45,9 +48,20 @@ func main() {
 		exitf("--database flag required")
 	}
 
-	rootdb, err := sql.Open("mymysql", "mysql/"+*flagUser+"/"+*flagPassword)
+	if *flagType != "mysql" && *flagType != "postgres" {
+		exitf("--type flag: wrong value")
+	}
+	var rootdb *sql.DB
+	var err error
+	switch *flagType {
+	case "postgres":
+		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", *flagUser, "postgres", *flagHost, *flagPassword)
+		rootdb, err = sql.Open("postgres", conninfo)
+	case "mysql":
+		rootdb, err = sql.Open("mymysql", "mysql/"+*flagUser+"/"+*flagPassword)
+	}
 	if err != nil {
-		exitf("Error connecting to MySQL root database: %v", err)
+		exitf("Error connecting to the %s database: %v", *flagType, err)
 	}
 
 	dbname := *flagDatabase
@@ -63,15 +77,33 @@ func main() {
 	}
 	do(rootdb, "CREATE DATABASE "+dbname)
 
-	db, err := sql.Open("mymysql", dbname+"/"+*flagUser+"/"+*flagPassword)
+	var db *sql.DB
+	switch *flagType {
+	case "postgres":
+		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", *flagUser, dbname, *flagHost, *flagPassword)
+		db, err = sql.Open("postgres", conninfo)
+	default:
+		db, err = sql.Open("mymysql", dbname+"/"+*flagUser+"/"+*flagPassword)
+	}
 	if err != nil {
-		exitf("Error connecting to database: %v", err)
+		exitf("Error connecting to the %s database: %v", *flagType, err)
 	}
 
-	for _, tableSql := range mysql.SQLCreateTables() {
-		do(db, tableSql)
+	switch *flagType {
+	case "postgres":
+		for _, tableSql := range postgres.SQLCreateTables() {
+			do(db, tableSql)
+		}
+		for _, statement := range postgres.SQLDefineReplace() {
+			do(db, statement)
+		}
+		doQuery(db, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
+	case "mysql":
+		for _, tableSql := range mysql.SQLCreateTables() {
+			do(db, tableSql)
+		}
+		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
 	}
-	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
 }
 
 func do(db *sql.DB, sql string) {
@@ -82,8 +114,24 @@ func do(db *sql.DB, sql string) {
 	exitf("Error %v running SQL: %s", err, sql)
 }
 
+func doQuery(db *sql.DB, sql string) {
+	r, err := db.Query(sql)
+	if err == nil {
+		r.Close()
+		return
+	}
+	exitf("Error %v running SQL: %s", err, sql)
+}
+
 func dbExists(db *sql.DB, dbname string) bool {
-	rows, err := db.Query("SHOW DATABASES")
+	query := "SHOW DATABASES"
+	switch *flagType {
+	case "postgres":
+		query = "SELECT datname FROM pg_database"
+	case "mysql":
+		query = "SHOW DATABASES"
+	}
+	rows, err := db.Query(query)
 	check(err)
 	defer rows.Close()
 	for rows.Next() {

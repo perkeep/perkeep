@@ -22,6 +22,7 @@ my $opt_staticres; # use static resources, not those on disk
 # on start-up.
 my $opt_memory;
 my $opt_mongo;
+my $opt_postgres;
 my $opt_mysql;
 GetOptions("wipe" => \$opt_wipe,
            "tls" => \$opt_tls,
@@ -29,12 +30,13 @@ GetOptions("wipe" => \$opt_wipe,
            "nobuild" => \$opt_nobuild,
            "memory" => \$opt_memory,
            "mongo" => \$opt_mongo,
+           "postgres" => \$opt_postgres,
            "mysql" => \$opt_mysql,
            "staticres" => \$opt_staticres,
     )
     or usage();
 
-$opt_memory = 1 unless $opt_memory || $opt_mongo || $opt_mysql;
+$opt_memory = 1 unless $opt_memory || $opt_mongo || $opt_postgres || $opt_mysql;
 
 my $port = shift;
 $port = "3179" unless defined($port);
@@ -79,28 +81,36 @@ if ($opt_wipe) {
 
 $ENV{"CAMLI_MYSQL_ENABLED"} = "false";
 $ENV{"CAMLI_MONGO_ENABLED"} = "false";
+$ENV{"CAMLI_POSTGRES_ENABLED"} = "false";
 if ($opt_memory) {
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-mem/";
-} else {
-    if ($opt_mongo) {
-        $ENV{"CAMLI_MONGO_ENABLED"} = "true";
-        $ENV{"CAMLI_INDEXER_PATH"} = "/index-mongo/";
-        # TODO(mpl): is this too hackish?
-        if ($opt_wipe) {
-            $ENV{"CAMLI_MONGO_WIPE"} = "true";
-        } else {
-            $ENV{"CAMLI_MONGO_WIPE"} = "false";
-        }
+} elsif ($opt_mongo) {
+    $ENV{"CAMLI_MONGO_ENABLED"} = "true";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mongo/";
+    if ($opt_wipe) {
+        $ENV{"CAMLI_MONGO_WIPE"} = "true";
     } else {
-        $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
-        $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-        system("$camdbinit",
-               "-user=root",
-               "-password=root",
-               "-host=localhost",
-               "-database=$DBNAME",
-               @opts) and die "Failed to run camdbinit.\n";
+        $ENV{"CAMLI_MONGO_WIPE"} = "false";
     }
+} elsif ($opt_postgres) {
+    $ENV{"CAMLI_POSTGRES_ENABLED"} = "true";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-postgres/";
+    system("$camdbinit",
+           "-postgres",
+           "-user=postgres",
+           "-password=postgres",
+           "-host=localhost",
+           "-database=$DBNAME",
+           @opts) and die "Failed to run camdbinit.\n";
+} else {
+    $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
+    $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
+    system("$camdbinit",
+           "-user=root",
+           "-password=root",
+           "-host=localhost",
+           "-database=$DBNAME",
+           @opts) and die "Failed to run camdbinit.\n";
 }
 
 my $base = "http://localhost:$port";

@@ -28,33 +28,68 @@ import (
 
 type Storage struct {
 	DB *sql.DB
+
+	// SetFunc is an optional func to use when REPLACE INTO does not exist
+	SetFunc      func(*sql.DB, string, string) error
+	BatchSetFunc func(*sql.Tx, string, string) error
+
+	// PlaceHolderFunc optionally replaces ? placeholders with the right ones for the rdbms
+	// in use
+	PlaceHolderFunc func(string) string
+}
+
+func (s *Storage) sql(v string) string {
+	if f := s.PlaceHolderFunc; f != nil {
+		return f(v)
+	}
+	return v
 }
 
 type batchTx struct {
 	tx  *sql.Tx
 	err error // sticky
+
+	// SetFunc is an optional func to use when REPLACE INTO does not exist
+	SetFunc func(*sql.Tx, string, string) error
+
+	// PlaceHolderFunc optionally replaces ? placeholders with the right ones for the rdbms
+	// in use
+	PlaceHolderFunc func(string) string
+}
+
+func (b *batchTx) sql(v string) string {
+	if f := b.PlaceHolderFunc; f != nil {
+		return f(v)
+	}
+	return v
 }
 
 func (b *batchTx) Set(key, value string) {
 	if b.err != nil {
 		return
 	}
-	_, b.err = b.tx.Exec("REPLACE INTO rows (k, v) VALUES (?, ?)", key, value)
+	if b.SetFunc != nil {
+		b.err = b.SetFunc(b.tx, key, value)
+		return
+	}
+	_, b.err = b.tx.Exec(b.sql("REPLACE INTO rows (k, v) VALUES (?, ?)"), key, value)
 }
 
 func (b *batchTx) Delete(key string) {
 	if b.err != nil {
 		return
 	}
-	_, b.err = b.tx.Exec("DELETE FROM rows WHERE k=?", key)
+	_, b.err = b.tx.Exec(b.sql("DELETE FROM rows WHERE k=?"), key)
 }
 
 func (s *Storage) BeginBatch() index.BatchMutation {
 
 	tx, err := s.DB.Begin()
 	return &batchTx{
-		tx:  tx,
-		err: err,
+		tx:              tx,
+		err:             err,
+		SetFunc:         s.BatchSetFunc,
+		PlaceHolderFunc: s.PlaceHolderFunc,
 	}
 }
 
@@ -70,7 +105,7 @@ func (s *Storage) CommitBatch(b index.BatchMutation) error {
 }
 
 func (s *Storage) Get(key string) (value string, err error) {
-	err = s.DB.QueryRow("SELECT v FROM rows WHERE k=?", key).Scan(&value)
+	err = s.DB.QueryRow(s.sql("SELECT v FROM rows WHERE k=?"), key).Scan(&value)
 	if err == sql.ErrNoRows {
 		err = index.ErrNotFound
 	}
@@ -78,12 +113,15 @@ func (s *Storage) Get(key string) (value string, err error) {
 }
 
 func (s *Storage) Set(key, value string) error {
-	_, err := s.DB.Exec("REPLACE INTO rows (k, v) VALUES (?, ?)", key, value)
+	if s.SetFunc != nil {
+		return s.SetFunc(s.DB, key, value)
+	}
+	_, err := s.DB.Exec(s.sql("REPLACE INTO rows (k, v) VALUES (?, ?)"), key, value)
 	return err
 }
 
 func (s *Storage) Delete(key string) error {
-	_, err := s.DB.Exec("DELETE FROM rows WHERE k=?", key)
+	_, err := s.DB.Exec(s.sql("DELETE FROM rows WHERE k=?"), key)
 	return err
 }
 
@@ -132,8 +170,8 @@ func (t *iter) Next() bool {
 	if t.rows == nil {
 		const batchSize = 50
 		t.batchSize = batchSize
-		t.rows, t.err = t.s.DB.Query(
-			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k LIMIT "+strconv.Itoa(batchSize),
+		t.rows, t.err = t.s.DB.Query(t.s.sql(
+			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k LIMIT "+strconv.Itoa(batchSize)),
 			t.low)
 		if t.err != nil {
 			log.Printf("unexpected query error: %v", t.err)

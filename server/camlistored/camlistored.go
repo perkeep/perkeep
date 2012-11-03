@@ -53,6 +53,7 @@ import (
 	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
+	_ "camlistore.org/pkg/index/postgres"
 
 	// Handlers:
 	_ "camlistore.org/pkg/search"
