@@ -62,8 +62,12 @@ func (s *Server) ListenURL() string {
 		scheme = "https"
 	}
 	if s.listener != nil {
-		addr := strings.Replace(s.listener.Addr().String(), "[::]", "localhost", 1)
-		return scheme + "://" + addr
+		if taddr, ok := s.listener.Addr().(*net.TCPAddr); ok {
+			if taddr.IP.IsUnspecified() {
+				return fmt.Sprintf("%s://localhost:%d", scheme, taddr.Port)
+			}
+			return fmt.Sprintf("%s://%s", scheme, s.listener.Addr())
+		}
 	}
 	return ""
 }

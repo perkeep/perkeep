@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -191,27 +192,33 @@ func generateNewSecRing(filename string) (keyId string, err error) {
 	return ent.PrimaryKey.KeyIdShortString(), nil
 }
 
-func newDefaultConfigFile(path string) error {
-	conf :=
-		`{
-	"listen": ":3179",
-	"https": false,
-	"auth": "userpass:camlistore:pass3179:+localhost",
-        "identity": "%KEYID%",
-	"identitySecretRing": "%SECRING%",
-	"blobPath": "%BLOBPATH%",
-	"mysql": "",
-	"mongo": "",
-	"s3": "",
-	"replicateTo": [],
-	"publish": {}
+type defaultConfigFile struct {
+	Listen             string        `json:"listen"`
+	HTTPS              bool          `json:"https"`
+	Auth               string        `json:"auth"`
+	Identity           string        `json:"identity"`
+	IdentitySecretRing string        `json:"identitySecretRing"`
+	BlobPath           string        `json:"blobPath"`
+	MySQL              string        `json:"mysql"`
+	Mongo              string        `json:"mongo"`
+	S3                 string        `json:"s3"`
+	ReplicateTo        []interface{} `json:"replicateTo"`
+	Publish            struct{}      `json:"publish"`
 }
-`
+
+func newDefaultConfigFile(path string) error {
+	conf := defaultConfigFile{
+		Listen:      ":3179",
+		HTTPS:       false,
+		Auth:        "userpass:camlistore:pass3179:+localhost",
+		ReplicateTo: make([]interface{}, 0),
+	}
+
 	blobDir := osutil.CamliBlobRoot()
 	if err := os.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
-	conf = strings.Replace(conf, "%BLOBPATH%", blobDir, 1)
+	conf.BlobPath = blobDir
 
 	var keyId string
 	secRing := osutil.IdentitySecretRing()
@@ -227,10 +234,15 @@ func newDefaultConfigFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("Secret ring: %v", err)
 	}
+	conf.Identity = keyId
+	conf.IdentitySecretRing = secRing
 
-	conf = strings.Replace(conf, "%SECRING%", secRing, 1)
-	conf = strings.Replace(conf, "%KEYID%", keyId, 1)
-	if err := ioutil.WriteFile(path, []byte(conf), 0600); err != nil {
+	confData, err := json.MarshalIndent(conf, "", "    ")
+	if err != nil {
+		return fmt.Errorf("Could not json encode config file : %v", err)
+	}
+
+	if err := ioutil.WriteFile(path, confData, 0600); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
 	return nil
