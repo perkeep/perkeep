@@ -37,7 +37,7 @@ type FakeIndex struct {
 	path            map[string]*search.Path     // "<signer>\0<base>\0<suffix>" -> path
 
 	cllk  sync.Mutex
-	clock int64
+	clock int64 // TODO(bradfitz): make this a time.Time
 }
 
 var _ search.Index = (*FakeIndex)(nil)
@@ -58,7 +58,7 @@ func NewFakeIndex() *FakeIndex {
 
 func (fi *FakeIndex) nextDate() time.Time {
 	fi.cllk.Lock()
-	fi.clock++
+	fi.clock++ // TODO: fi.clock.Add(1 * time.Second)
 	clock := fi.clock
 	fi.cllk.Unlock()
 	return time.Unix(clock, 0).UTC()
