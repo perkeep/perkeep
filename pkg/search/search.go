@@ -125,6 +125,18 @@ type PermanodeByAttrRequest struct {
 	MaxResults int  // optional max results
 }
 
+type EdgesToOpts struct {
+	Max int
+	// TODO: filter by type?
+}
+
+type Edge struct {
+	From      *blobref.BlobRef
+	FromType  string // "permanode", "directory", etc
+	FromTitle string // name of source permanode or directory
+	To        *blobref.BlobRef
+}
+
 type Index interface {
 	// dest must be closed, even when returning an error.
 	// limit is <= 0 for default.  smallest possible default is 0
@@ -198,6 +210,17 @@ type Index interface {
 	// Most recent Path claim for (signer, base, suffix) as of
 	// provided time 'at', or most recent if 'at' is nil.
 	PathLookup(signer, base *blobref.BlobRef, suffix string, at time.Time) (*Path, error)
+
+	// EdgesTo finds references to the provided ref.
+	//
+	// For instance, if ref is a permanode, it might find the parent permanodes
+	// that have ref as a member.
+	// Or, if ref is a static file, it might find static directories which contain
+	// that file.
+	// This is a way to go "up" or "back" in a hierarchy.
+	//
+	// opts may be nil to accept the defaults.
+	EdgesTo(ref *blobref.BlobRef, opts *EdgesToOpts) ([]*Edge, error)
 }
 
 // TODO(bradfitz): rename this? This is really about signer-attr-value

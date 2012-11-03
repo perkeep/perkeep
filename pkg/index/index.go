@@ -554,4 +554,9 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	return fi, nil
 }
 
+func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) ([]*search.Edge, error) {
+	// unimplemented.
+	return nil, errors.New("TODO: implement")
+}
+
 func (x *Index) Storage() IndexStorage { return x.s }

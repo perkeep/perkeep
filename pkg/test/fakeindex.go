@@ -171,3 +171,7 @@ func (fi *FakeIndex) PathLookup(signer, base *blobref.BlobRef, suffix string, at
 	log.Printf("PathLookup miss for signer %q, base %q, suffix %q", signer, base, suffix)
 	return nil, os.ErrNotExist
 }
+
+func (fi *FakeIndex) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) ([]*search.Edge, error) {
+	panic("NOIMPL")
+}
