@@ -318,11 +318,11 @@ function addMember(pn, des) {
     var li = document.createElement("li");
     var a = document.createElement("a");
     a.href = "./?p=" + pn;
-    a.innerText = camliBlobTitle(pn, des);
+    setTextContent(a, camliBlobTitle(pn, des));
 
     var del = document.createElement("span");
     del.className = 'camli-del';
-    del.innerText = "x";
+    setTextContent(del, "x");
     del.addEventListener("click", deleteMember(pn, a, li));
 
     li.appendChild(a);
@@ -351,7 +351,7 @@ function onBlobDescribed(jres) {
         return;
     }
 
-    document.getElementById("debugattrs").innerText = JSON.stringify(permanodeObject.attr, null, 2);
+    setTextContent(document.getElementById("debugattrs"), JSON.stringify(permanodeObject.attr, null, 2));
 
     var attr = function(name) {
         if (!(name in permanodeObject.attr)) {
@@ -406,7 +406,7 @@ function onBlobDescribed(jres) {
         c.appendChild(document.createTextNode("File: "));
         var a = document.createElement("a");
         a.href = "./?b=" + camliContent;
-        a.innerText = camliBlobTitle(camliContent, jres);
+        setTextContent(a, camliBlobTitle(camliContent, jres));
         c.appendChild(a);
     }
 
@@ -418,12 +418,12 @@ function onBlobDescribed(jres) {
         tagSpan.className = 'camli-tag-c';
         var tagTextEl = document.createElement("span");
         tagTextEl.className = 'camli-tag-text';
-        tagTextEl.innerText = tag;
+        setTextContent(tagTextEl, tag);
         tagSpan.appendChild(tagTextEl);
 
         var tagDel = document.createElement("span");
         tagDel.className = 'camli-del';
-        tagDel.innerText = "x";
+        setTextContent(tagDel, "x");
         tagDel.addEventListener("click", deleteTagFunc(tag, tagTextEl, tagSpan));
 
         tagSpan.appendChild(tagDel);
@@ -554,14 +554,14 @@ function buildPathsList() {
 
                     var blobLink = document.createElement("a");
                     blobLink.href = ".?p=" + path.baseRef;
-                    blobLink.innerText = path.baseRef;
+                    setTextContent(blobLink, path.baseRef);
                     span.appendChild(blobLink);
 
                     span.appendChild(document.createTextNode(" - "));
 
                     var pathLink = document.createElement("a");
                     pathLink.href = "";
-                    pathLink.innerText = path.suffix;
+                    setTextContent(pathLink, path.suffix);
                     for (var key in Camli.config.publishRoots) {
                         var root = Camli.config.publishRoots[key];
                         if (root.currentPermanode == path.baseRef) {
@@ -577,7 +577,7 @@ function buildPathsList() {
 
                     var del = document.createElement("span");
                     del.className = "camli-del";
-                    del.innerText = "x";
+                    setTextContent(del, "x");
                     del.addEventListener("click", deletePathFunc(path.baseRef, path.suffix, span));
                     span.appendChild(del);
 
@@ -616,8 +616,8 @@ function deletePathFunc(sourcePermanode, path, strikeEle) {
 function btnGoToGallery(e) {
     var permanode = getPermanodeParam();
     if (permanode) {
-		window.open('./?g=' + permanode, 'Gallery')
-	}
+        window.open('./?g=' + permanode, 'Gallery')
+    }
 }
 
 function permanodePageOnLoad(e) {

@@ -58,7 +58,7 @@ function blobInfoUpdate(bmap) {
                             } else {
                                 document.getElementById("thumbnail").innerHTML = "";
                             }
-                            bd.firstChild.innerText = fileName;
+                            setTextContent(bd.firstChild, fileName);
                             bd.innerHTML = "download: " + bd.innerHTML;
                         } catch (x) {
                         }
