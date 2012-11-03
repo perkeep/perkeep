@@ -210,6 +210,18 @@ func IsIndexedAttribute(attr string) bool {
 	return false
 }
 
+// IsBlobReferenceAttribute returns whether attr is an attribute whose
+// value is a blob reference (e.g. camliMember) and thus something the
+// indexers should keep inverted indexes on for parent/child-type
+// relationships.
+func IsBlobReferenceAttribute(attr string) bool {
+	switch attr {
+	case "camliMember":
+		return true
+	}
+	return false
+}
+
 func IsFulltextAttribute(attr string) bool {
 	switch attr {
 	case "tag", "title":

@@ -196,4 +196,24 @@ var (
 		},
 		nil,
 	}
+
+	// Given a blobref (permanode or static file or directory), provide a mapping
+	// to potential parents (they may no longer be parents, in the case of permanodes).
+	// In the case of permanodes, camliMember or camliContent constitutes a forward
+	// edge.  In the case of static directories, the forward path is dir->static set->file,
+	// and that's what's indexed here, inverted.
+	keyEdgeBackward = &keyType{
+		"edgeback",
+		[]part{
+			{"child", typeBlobRef}, // the thing we want to find parent(s) of
+			{"parent", typeBlobRef}, // the parent (e.g. permanode blobref)
+			// the blobref is the blob establishing the relationship
+			// (for a permanode: the claim; for static: often same as parent)
+			{"blobref", typeBlobRef},
+		},
+		[]part{
+			{"parenttype", typeStr}, // either "permanode" or the camliType ("file", "static-set", etc)
+			{"name", typeStr}, // the name, if static.
+		},
+	}
 )

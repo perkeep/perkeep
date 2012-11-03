@@ -197,6 +197,15 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 		key := keySignerAttrValue.Key(verifiedKeyId, ss.Attribute, ss.Value, ss.ClaimDate, br)
 		bm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
+
+	if search.IsBlobReferenceAttribute(ss.Attribute) {
+		targetRef := blobref.Parse(ss.Value)
+		if targetRef != nil {
+			key := keyEdgeBackward.Key(targetRef, pnbr, br)
+			bm.Set(key, keyEdgeBackward.Val("permanode", ""))
+		}
+	}
+
 	return nil
 }
 

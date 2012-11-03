@@ -18,7 +18,6 @@ package indextest
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -110,6 +109,12 @@ func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string
 	return id.uploadAndSignMap(m)
 }
 
+func (id *IndexDeps) AddAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
+	m := schema.NewAddAttributeClaim(permaNode, attr, value)
+	m["claimDate"] = id.advanceTime()
+	return id.uploadAndSignMap(m)
+}
+
 func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, wholeRef *blobref.BlobRef) {
 	cb := &test.Blob{Contents: contents}
 	id.BlobSource.AddBlob(cb)
@@ -130,7 +135,6 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 		panic(err)
 	}
 	fb := &test.Blob{Contents: fjson}
-	log.Printf("Blob is: %s", fjson)
 	id.BlobSource.AddBlob(fb)
 	fileRef = fb.BlobRef()
 	_, err = id.Index.ReceiveBlob(fileRef, fb.Reader())
@@ -212,6 +216,12 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	rootClaimTime := id.lastTime()
 	t.Logf("set attribute %q", rootClaim)
 
+	pnChild := id.NewPermanode()
+	memberRef := id.AddAttribute(pn, "camliMember", pnChild.String())
+	t.Logf("add-attribute claim %q points to member permanode %q", memberRef, pnChild)
+	memberRefTime := id.lastTime()
+
+	lastPermanodeMutation := id.lastTime()
 	id.dumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
@@ -238,6 +248,11 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = "recpn|2931A67C26F5ABDA|rt7988-88-71T98:67:61.999876543Z|" + br2.String()
 	if g, e := id.Get(key), pn.String(); g != e {
 		t.Fatalf("%q = %q, want %q (permanode)", key, g, e)
+	}
+
+	key = fmt.Sprintf("edgeback|%s|%s|%s", pnChild, pn, memberRef)
+	if g, e := id.Get(key), "permanode|"; g != e {
+		t.Fatalf("edgeback row %q = %q, want %q", key, g, e)
 	}
 
 	// PermanodeOfSignerAttrValue
@@ -270,7 +285,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			&search.Result{
 				BlobRef:     pn,
 				Signer:      id.SignerBlobRef,
-				LastModTime: 1322443959,
+				LastModTime: lastPermanodeMutation.Unix(),
 			},
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -331,6 +346,15 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Type:      "set-attribute",
 					Attr:      "camliRoot",
 					Value:     "rootval",
+				},
+				&search.Claim{
+					BlobRef:   memberRef,
+					Permanode: pn,
+					Signer:    id.SignerBlobRef,
+					Date:      memberRefTime.UTC(),
+					Type:      "add-attribute",
+					Attr:      "camliMember",
+					Value:     pnChild.String(),
 				},
 			})
 			if !reflect.DeepEqual(claims, want) {
