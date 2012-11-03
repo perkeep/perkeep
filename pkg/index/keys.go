@@ -205,7 +205,7 @@ var (
 	keyEdgeBackward = &keyType{
 		"edgeback",
 		[]part{
-			{"child", typeBlobRef}, // the thing we want to find parent(s) of
+			{"child", typeBlobRef},  // the thing we want to find parent(s) of
 			{"parent", typeBlobRef}, // the parent (e.g. permanode blobref)
 			// the blobref is the blob establishing the relationship
 			// (for a permanode: the claim; for static: often same as parent)
@@ -213,7 +213,7 @@ var (
 		},
 		[]part{
 			{"parenttype", typeStr}, // either "permanode" or the camliType ("file", "static-set", etc)
-			{"name", typeStr}, // the name, if static.
+			{"name", typeStr},       // the name, if static.
 		},
 	}
 )

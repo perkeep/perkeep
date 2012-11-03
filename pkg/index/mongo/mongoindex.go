@@ -119,8 +119,8 @@ func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobs
 	mgw := &MongoWrapper{
 		Servers:    config.OptionalString("host", "localhost"),
 		Database:   config.RequiredString("database"),
-		User: config.OptionalString("user", ""),
-		Password: config.OptionalString("password", ""),
+		User:       config.OptionalString("user", ""),
+		Password:   config.OptionalString("password", ""),
 		Collection: collectionName,
 	}
 	if err := config.Validate(); err != nil {
