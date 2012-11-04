@@ -64,8 +64,12 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 		return
 	}
 
-	mimeType := sniffer.MimeType()
-	log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
+	// TODO(bradfitz): log levels? These are generally noisy
+	// (especially in tests, like search/handler_test), but I
+	// could see it being useful in production. For now, disabled:
+	//
+	// mimeType := sniffer.MimeType()
+	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
 	return blobref.SizedBlobRef{blobRef, written}, nil
 }
@@ -157,7 +161,6 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 		return errors.New("index: populateClaim verification failure")
 	}
 	verifiedKeyId := vr.SignerKeyId
-	log.Printf("index: verified claim %s from %s", br, verifiedKeyId)
 
 	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 

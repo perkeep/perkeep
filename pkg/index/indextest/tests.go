@@ -18,6 +18,7 @@ package indextest
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,7 +26,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"log"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/index"
@@ -88,6 +88,7 @@ func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 		UnsignedJSON:  unsigned,
 		Fetcher:       id.PublicKeyFetcher,
 		EntityFetcher: id.EntityFetcher,
+		SignatureTime: id.now,
 	}
 	signed, err := sr.Sign()
 	if err != nil {
@@ -105,6 +106,13 @@ func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 // to the index, returning its blobref.
 func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 	unsigned := schema.NewUnsignedPermanode()
+	return id.uploadAndSignMap(unsigned)
+}
+
+// NewPermanode creates (& signs) a new planned permanode and adds it
+// to the index, returning its blobref.
+func (id *IndexDeps) NewPlannedPermanode(key string) *blobref.BlobRef {
+	unsigned := schema.NewPlannedPermanode(key)
 	return id.uploadAndSignMap(unsigned)
 }
 

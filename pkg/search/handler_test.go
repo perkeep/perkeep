@@ -26,8 +26,25 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/test"
 )
+
+// An indexOwnerer is something that knows who owns the index.
+// It is implemented by indexAndOwner for use by TestHandler.
+type indexOwnerer interface {
+	IndexOwner() *blobref.BlobRef
+}
+
+type indexAndOwner struct {
+	Index
+	owner *blobref.BlobRef
+}
+
+func (io indexAndOwner) IndexOwner() *blobref.BlobRef {
+	return io.owner
+}
 
 type handlerTest struct {
 	// setup is responsible for populating the index before the
@@ -45,6 +62,15 @@ type handlerTest struct {
 }
 
 var owner = blobref.MustParse("abcown-123")
+
+func parseJSON(s string) map[string]interface{} {
+	m := make(map[string]interface{})
+	err := json.Unmarshal([]byte(s), &m)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 var handlerTests = []handlerTest{
 	{
@@ -69,7 +95,7 @@ var handlerTests = []handlerTest{
 	},
 
 	{
-	setup: func(fi *test.FakeIndex) Index {
+		setup: func(fi *test.FakeIndex) Index {
 			pn := blobref.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
@@ -108,13 +134,49 @@ var handlerTests = []handlerTest{
 			},
 		},
 	},
+
+	// Test recent permanodes
+	{
+		setup: func(*test.FakeIndex) Index {
+			// Ignore the fakeindex and use the real (but in-memory) implementation,
+			// using IndexDeps to populate it.
+			idx := index.NewMemoryIndex()
+			id := indextest.NewIndexDeps(idx)
+
+			pn := id.NewPlannedPermanode("pn1")
+			id.SetAttribute(pn, "title", "Some title")
+			return indexAndOwner{idx, id.SignerBlobRef}
+		},
+		query: "recent",
+		want: parseJSON(`{
+                "recent": [
+                    {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+                     "modtime": "2011-11-28T01:32:37Z",
+                     "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+                ],
+                "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+		 "camliType": "permanode",
+                 "mimeType": "application/json; camliType=permanode",
+                 "permanode": {
+                   "attr": { "title": [ "Some title" ] }
+                 },
+                 "size": 534
+                }
+               }`),
+	},
 }
 
 func TestHandler(t *testing.T) {
 	for testn, tt := range handlerTests {
 		fakeIndex := test.NewFakeIndex()
 		idx := tt.setup(fakeIndex)
-		h := NewHandler(idx, owner)
+
+		indexOwner := owner
+		if io, ok := idx.(indexOwnerer); ok {
+			indexOwner = io.IndexOwner()
+		}
+		h := NewHandler(idx, indexOwner)
 
 		req, err := http.NewRequest("GET", "/camli/search/"+tt.query, nil)
 		if err != nil {
