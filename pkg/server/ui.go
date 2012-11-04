@@ -309,13 +309,28 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	width, err := strconv.Atoi(query.Get("mw"))
 	if err != nil {
-		http.Error(rw, "Invalid specified max width 'mw': "+err.Error(), 500)
+		http.Error(rw, "Invalid specified max width 'mw'", 500)
 		return
 	}
 	height, err := strconv.Atoi(query.Get("mh"))
 	if err != nil {
-		http.Error(rw, "Invalid specified height 'mh': "+err.Error(), 500)
+		http.Error(rw, "Invalid specified height 'mh'", 500)
 		return
+	}
+
+	// TODO(mpl): delete this; just temporary assistance before EXIF is done
+	rot := query.Get("rot")
+	rotateAngle := 0
+	if rot != "" {
+		rotateAngle, err = strconv.Atoi(rot)
+		if err != nil {
+			http.Error(rw, "Invalid 'rot' param", 500)
+			return
+		}
+		if rotateAngle%90 != 0 {
+			http.Error(rw, "Invalid rotate angle", 500)
+			return
+		}
 	}
 
 	blobref := blobref.Parse(m[1])
@@ -329,6 +344,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
+		Rotate:    rotateAngle,
 		sc:        ui.sc,
 	}
 	th.ServeHTTP(rw, req, blobref)
