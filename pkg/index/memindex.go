@@ -32,7 +32,8 @@ func init() {
 		blobserver.StorageConstructor(newMemoryIndexFromConfig))
 }
 
-func newMemoryIndex() *Index {
+// NewMemoryIndex returns an Index backed only by memory, for use in tests.
+func NewMemoryIndex() *Index {
 	db := memdb.New(nil)
 	memStorage := &memKeys{db: db}
 	return New(memStorage)
@@ -48,7 +49,7 @@ func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blob
 		return nil, err
 	}
 
-	ix := newMemoryIndex()
+	ix := NewMemoryIndex()
 	ix.BlobSource = sto
 
 	// Good enough, for now:

@@ -23,7 +23,3 @@ func ExpReverseTimeString(s string) string {
 func ExpUnreverseTimeString(s string) string {
 	return unreverseTimeString(s)
 }
-
-func ExpNewMemoryIndex() *Index {
-	return newMemoryIndex()
-}

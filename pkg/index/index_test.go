@@ -44,15 +44,15 @@ func TestReverseTimeString(t *testing.T) {
 }
 
 func TestIndex_Memory(t *testing.T) {
-	indextest.Index(t, index.ExpNewMemoryIndex)
+	indextest.Index(t, index.NewMemoryIndex)
 }
 
 func TestPathsOfSignerTarget_Memory(t *testing.T) {
-	indextest.PathsOfSignerTarget(t, index.ExpNewMemoryIndex)
+	indextest.PathsOfSignerTarget(t, index.NewMemoryIndex)
 }
 
 func TestFiles_Memory(t *testing.T) {
-	indextest.Files(t, index.ExpNewMemoryIndex)
+	indextest.Files(t, index.NewMemoryIndex)
 }
 
 var (
