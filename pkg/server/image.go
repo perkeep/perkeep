@@ -41,6 +41,7 @@ type ImageHandler struct {
 	Fetcher             blobref.StreamingFetcher
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
+	Rotate              int // degrees to rotate counter-clockwise: 0, ±90, ±180
 	Square              bool
 	sc                  ScaledImage // optional cache for scaled images
 }
@@ -143,6 +144,43 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 	return pieces[1], nil
 }
 
+// rotate returns the given image rotated by ih.Rotate degrees if it is
+// ±90 or ±180, or the source image otherwise.
+func (ih *ImageHandler) rotate(im image.Image) image.Image {
+	if ih.Rotate == 0 {
+		return im
+	}
+	var rotated *image.NRGBA
+	// trigonometric (i.e counter clock-wise)
+	switch ih.Rotate {
+	case 90:
+		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(newH-1-y, x))
+			}
+		}
+	case -90:
+		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(y, newW-1-x))
+			}
+		}
+	case 180, -180:
+		newW, newH := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(newW-1-x, newH-1-y))
+			}
+		}
+	}
+	return rotated
+}
+
 func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err error) {
 	mw, mh := ih.MaxWidth, ih.MaxHeight
 
@@ -202,7 +240,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	}
 
 	if !useBytesUnchanged {
-		i = resize.Resize(i, b, mw, mh)
+		i = ih.rotate(resize.Resize(i, b, mw, mh))
 		// Encode as a new image
 		buf.Reset()
 		switch format {
