@@ -88,6 +88,8 @@ func ReturnJSON(conn http.ResponseWriter, data interface{}) {
 			"JSON serialization error: %v", err))
 		return
 	}
+
+	conn.Header().Set("Content-Length", strconv.Itoa(len(bytes) + 1))
 	conn.Write(bytes)
 	conn.Write([]byte("\n"))
 }
