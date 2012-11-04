@@ -21,38 +21,45 @@ import (
 
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/test"
 )
 
-type describeTest struct {
-	setup func(fi *test.FakeIndex)
+type handlerTest struct {
+	// setup is responsible for populating the index before the
+	// handler is invoked.
+	//
+	// A FakeIndex is constructed and provided to setup and is
+	// generally then returned as the Index to use, but an
+	// alternate Index may be returned instead, in which case the
+	// FakeIndex is not used.
+	setup func(fi *test.FakeIndex) Index
 
-	blob  string // blobref to describe
-	depth int
+	query string // the HTTP path + optional query suffix after "camli/search/"
 
-	expect map[string]interface{}
+	want map[string]interface{}
 }
 
 var owner = blobref.MustParse("abcown-123")
 
-var describeTests = []describeTest{
+var handlerTests = []handlerTest{
 	{
-		func(fi *test.FakeIndex) {},
-		"abc-555",
-		1,
-		map[string]interface{}{},
+		setup: func(fi *test.FakeIndex) Index { return fi },
+		query: "describe?blobref=eabc-555",
+		want:  map[string]interface{}{},
 	},
 
 	{
-		func(fi *test.FakeIndex) {
+		setup: func(fi *test.FakeIndex) Index {
 			fi.AddMeta(blobref.MustParse("abc-555"), "image/jpeg", 999)
+			return fi
 		},
-		"abc-555",
-		1,
-		map[string]interface{}{
+		query: "describe?blobref=abc-555",
+		want: map[string]interface{}{
 			"abc-555": map[string]interface{}{
 				"blobRef":  "abc-555",
 				"mimeType": "image/jpeg",
@@ -62,7 +69,7 @@ var describeTests = []describeTest{
 	},
 
 	{
-		func(fi *test.FakeIndex) {
+	setup: func(fi *test.FakeIndex) Index {
 			pn := blobref.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
@@ -78,10 +85,10 @@ var describeTests = []describeTest{
 			fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "b")
 			fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "c")
 			fi.AddClaim(owner, pn, "del-attribute", "only-delete-b", "b")
+			return fi
 		},
-		"perma-123",
-		2,
-		map[string]interface{}{
+		query: "describe?blobref=perma-123",
+		want: map[string]interface{}{
 			"foo-232": map[string]interface{}{
 				"blobRef":  "foo-232",
 				"mimeType": "foo/bar",
@@ -103,20 +110,28 @@ var describeTests = []describeTest{
 	},
 }
 
-func TestDescribe(t *testing.T) {
-	for testn, tt := range describeTests {
-		idx := test.NewFakeIndex()
-		tt.setup(idx)
-
+func TestHandler(t *testing.T) {
+	for testn, tt := range handlerTests {
+		fakeIndex := test.NewFakeIndex()
+		idx := tt.setup(fakeIndex)
 		h := NewHandler(idx, owner)
-		js := make(map[string]interface{})
-		dr := h.NewDescribeRequest()
-		dr.Describe(blobref.MustParse(tt.blob), tt.depth)
-		dr.PopulateJSON(js)
-		got, _ := json.MarshalIndent(js, "", "  ")
-		want, _ := json.MarshalIndent(tt.expect, "", "  ")
+
+		req, err := http.NewRequest("GET", "/camli/search/"+tt.query, nil)
+		if err != nil {
+			t.Fatalf("%d: bad query: %v", testn, err)
+		}
+		req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[1:])
+
+		rr := httptest.NewRecorder()
+		rr.Body = new(bytes.Buffer)
+
+		h.ServeHTTP(rr, req)
+
+		got := rr.Body.Bytes()
+		want, _ := json.MarshalIndent(tt.want, "", "  ")
+		want = append(want, '\n')
 		if !bytes.Equal(got, want) {
-			t.Errorf("test %d:\nwant: %s\n got: %s", testn, string(want), string(got))
+			t.Errorf("test %d:\nwant: %s\n got: %s", testn, want, got)
 		}
 	}
 }
