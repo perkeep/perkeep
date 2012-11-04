@@ -28,6 +28,9 @@ import (
 	"camlistore.org/pkg/search"
 )
 
+// A FakeIndex implements parts of search.Index and provides methods
+// to controls the results, such as AddMeta, AddClaim,
+// AddSignerAttrValue.
 type FakeIndex struct {
 	lk              sync.Mutex
 	mimeType        map[string]string // blobref -> type
