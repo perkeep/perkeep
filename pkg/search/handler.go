@@ -461,6 +461,15 @@ func (b *DescribedBlob) isPermanode() bool {
 	return b.Permanode != nil
 }
 
+// returns a path relative to the UI handler.
+func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
+	if thumbSize <= 0 || !b.isPermanode() {
+		return
+	}
+
+	return "node.png", thumbSize, thumbSize, true
+}
+
 func (b *DescribedBlob) jsonMap() map[string]interface{} {
 	m := jsonMap()
 	m["blobRef"] = b.BlobRef.String()
@@ -584,10 +593,10 @@ func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, t
 	for k, desb := range dr.m {
 		m := desb.jsonMap()
 		dest[k] = m
-		if thumbSize != 0 && desb.isPermanode() {
-			m["thumbnailSrc"] = dr.sh.uiPath("node.png")
-			m["thumbnailWidth"] = strconv.Itoa(thumbSize)
-			m["thumbnailHeight"] = strconv.Itoa(thumbSize)
+		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
+			m["thumbnailSrc"] = dr.sh.uiPath(src)
+			m["thumbnailWidth"] = float64(w)
+			m["thumbnailHeight"] = float64(h)
 		}
 	}
 	for k, err := range dr.errs {

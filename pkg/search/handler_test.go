@@ -193,9 +193,9 @@ var handlerTests = []handlerTest{
                    "attr": { "title": [ "Some title" ] }
                  },
                  "size": 534,
-                 "thumbnailHeight": "100",
+                 "thumbnailHeight": 100,
                  "thumbnailSrc": "/node.png",
-                 "thumbnailWidth": "100"
+                 "thumbnailWidth": 100
                 }
                }`),
 	},
