@@ -466,6 +466,28 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	if thumbSize <= 0 || !b.isPermanode() {
 		return
 	}
+	if b.Stub {
+		return "node.png", thumbSize, thumbSize, true
+	}
+	pnAttr := b.Permanode.Attr
+
+	if members := pnAttr["camliMember"]; len(members) > 0 {
+		return "folder.png", thumbSize, thumbSize, true
+	}
+
+	if content, ok := b.ContentRef(); ok {
+		peer := b.PeerBlob(content)
+		if peer.File != nil && peer.File.IsImage() {
+			image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
+				url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
+			// TODO: return the correct thumbSizes here,
+			// once we know from the indexer the
+			// dimensions (after correction for exif
+			// orientation).  For now the thumbnails will
+			// all be stretched fat squares.
+			return image, thumbSize, thumbSize, true
+		}
+	}
 
 	return "node.png", thumbSize, thumbSize, true
 }
