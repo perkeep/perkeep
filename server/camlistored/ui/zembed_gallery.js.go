@@ -1,7 +1,110 @@
 // THIS FILE IS AUTO-GENERATED FROM gallery.js
 // DO NOT EDIT.
 package ui
+
 import "time"
+
 func init() {
-	Files.Add("gallery.js", "/*\nCopyright 2011 Google Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n     http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\n// Gets the |g| query parameter, assuming that it looks like a blobref.\n\nfunction getPermanodeParam() {\n    var blobRef = getQueryParam('g');\n    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n}\n\n// pn: child permanode\n// des: describe response of root permanode\nfunction addMember(pn, des) {\n    var membersDiv = document.getElementById(\"members\");\n    var ul;\n    if (membersDiv.innerHTML == \"\") {\n        membersDiv.appendChild(document.createTextNode(\"Members:\"));\n        ul = document.createElement(\"ul\");\n        membersDiv.appendChild(ul);\n    } else {\n        ul = membersDiv.firstChild.nextSibling;\n    }\n    var li = document.createElement(\"li\");\n    var a = document.createElement(\"a\");\n    a.href = \"./?p=\" + pn;\n    a.innerHTML = camliBlobThumbnail(pn, des, 100, 100);\n\n    li.appendChild(a);\n    ul.appendChild(li);\n}\n\nfunction onMemberDescribed(bmap, jres, member) {\n\taddMember(member, jres)\n}\n\nfunction onBlobDescribed(jres) {\n    var permanode = getPermanodeParam();\n    if (!jres[permanode]) {\n        alert(\"didn't get blob \" + permanode);\n        return;\n    }\n    var permanodeObject = jres[permanode].permanode;\n    if (!permanodeObject) {\n        alert(\"blob \" + permanode + \" isn't a permanode\");\n        return;\n    }\n\n    document.getElementById('members').innerHTML = '';\n    var members = permanodeObject.attr.camliMember;\n    if (members && members.length > 0) {\n        for (idx in members) {\n            var member = members[idx];\n            camliDescribeBlob(\n                member,\n                {\n                    success: addMember(member, jres),\n                    fail: function(msg) {\n                        alert(\"Error describing blob \" + blobref + \": \" + msg);\n                    }\n                }\n            );            \n            \n        }\n    }\n}\n\nfunction buildGallery() {\n    camliDescribeBlob(getPermanodeParam(), {\n        success: onBlobDescribed,\n        failure: function(msg) {\n            alert(\"failed to get blob description: \" + msg);\n        }\n    });\n}\n\nfunction galleryPageOnLoad(e) {\n    var permanode = getPermanodeParam();\n    if (permanode) {\n        document.getElementById('permanode').innerHTML = \"<a href='./?p=\" + permanode + \"'>\" + permanode + \"</a>\";\n        document.getElementById('permanodeBlob').innerHTML = \"<a href='./?b=\" + permanode + \"'>view blob</a>\";\n    }\n\n    buildGallery();\n}\n\nwindow.addEventListener(\"load\", galleryPageOnLoad);\n", time.Unix(0, 1309849899000000000));
+	Files.Add("gallery.js", "/*\n"+
+		"Copyright 2011 Google Inc.\n"+
+		"\n"+
+		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
+		"you may not use this file except in compliance with the License.\n"+
+		"You may obtain a copy of the License at\n"+
+		"\n"+
+		"     http://www.apache.org/licenses/LICENSE-2.0\n"+
+		"\n"+
+		"Unless required by applicable law or agreed to in writing, software\n"+
+		"distributed under the License is distributed on an \"AS IS\" BASIS,\n"+
+		"WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n"+
+		"See the License for the specific language governing permissions and\n"+
+		"limitations under the License.\n"+
+		"*/\n"+
+		"\n"+
+		"// Gets the |g| query parameter, assuming that it looks like a blobref.\n"+
+		"\n"+
+		"function getPermanodeParam() {\n"+
+		"    var blobRef = getQueryParam('g');\n"+
+		"    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"}\n"+
+		"\n"+
+		"// pn: child permanode\n"+
+		"// des: describe response of root permanode\n"+
+		"function addMember(pn, des) {\n"+
+		"    var membersDiv = document.getElementById(\"members\");\n"+
+		"    var ul;\n"+
+		"    if (membersDiv.innerHTML == \"\") {\n"+
+		"        membersDiv.appendChild(document.createTextNode(\"Members:\"));\n"+
+		"        ul = document.createElement(\"ul\");\n"+
+		"        membersDiv.appendChild(ul);\n"+
+		"    } else {\n"+
+		"        ul = membersDiv.firstChild.nextSibling;\n"+
+		"    }\n"+
+		"    var li = document.createElement(\"li\");\n"+
+		"    var a = document.createElement(\"a\");\n"+
+		"    a.href = \"./?p=\" + pn;\n"+
+		"    a.innerHTML = camliBlobThumbnail(pn, des, 100, 100);\n"+
+		"\n"+
+		"    li.appendChild(a);\n"+
+		"    ul.appendChild(li);\n"+
+		"}\n"+
+		"\n"+
+		"function onMemberDescribed(bmap, jres, member) {\n"+
+		"	addMember(member, jres)\n"+
+		"}\n"+
+		"\n"+
+		"function onBlobDescribed(jres) {\n"+
+		"    var permanode = getPermanodeParam();\n"+
+		"    if (!jres[permanode]) {\n"+
+		"        alert(\"didn't get blob \" + permanode);\n"+
+		"        return;\n"+
+		"    }\n"+
+		"    var permanodeObject = jres[permanode].permanode;\n"+
+		"    if (!permanodeObject) {\n"+
+		"        alert(\"blob \" + permanode + \" isn't a permanode\");\n"+
+		"        return;\n"+
+		"    }\n"+
+		"\n"+
+		"    document.getElementById('members').innerHTML = '';\n"+
+		"    var members = permanodeObject.attr.camliMember;\n"+
+		"    if (members && members.length > 0) {\n"+
+		"        for (idx in members) {\n"+
+		"            var member = members[idx];\n"+
+		"            camliDescribeBlob(\n"+
+		"                member,\n"+
+		"                {\n"+
+		"                    success: addMember(member, jres),\n"+
+		"                    fail: function(msg) {\n"+
+		"                        alert(\"Error describing blob \" + blobref + \": \" + msg);\n"+
+		"                    }\n"+
+		"                }\n"+
+		"            );            \n"+
+		"            \n"+
+		"        }\n"+
+		"    }\n"+
+		"}\n"+
+		"\n"+
+		"function buildGallery() {\n"+
+		"    camliDescribeBlob(getPermanodeParam(), {\n"+
+		"        success: onBlobDescribed,\n"+
+		"        failure: function(msg) {\n"+
+		"            alert(\"failed to get blob description: \" + msg);\n"+
+		"        }\n"+
+		"    });\n"+
+		"}\n"+
+		"\n"+
+		"function galleryPageOnLoad(e) {\n"+
+		"    var permanode = getPermanodeParam();\n"+
+		"    if (permanode) {\n"+
+		"        document.getElementById('permanode').innerHTML = \"<a href='./?p=\" + perma"+
+		"node + \"'>\" + permanode + \"</a>\";\n"+
+		"        document.getElementById('permanodeBlob').innerHTML = \"<a href='./?b=\" + p"+
+		"ermanode + \"'>view blob</a>\";\n"+
+		"    }\n"+
+		"\n"+
+		"    buildGallery();\n"+
+		"}\n"+
+		"\n"+
+		"window.addEventListener(\"load\", galleryPageOnLoad);\n"+
+		"", time.Unix(0, 1330389504169976807))
 }

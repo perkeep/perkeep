@@ -1,7 +1,177 @@
 // THIS FILE IS AUTO-GENERATED FROM filetree.js
 // DO NOT EDIT.
 package ui
+
 import "time"
+
 func init() {
-	Files.Add("filetree.js", "/*\nCopyright 2011 Google Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n\t http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\n// CamliFileTree namespace\nvar CamliFileTree = {};\n\n// Gets the |d| query parameter, assuming that it looks like a blobref.\n\nfunction getPermanodeParam() {\n\tvar blobRef = getQueryParam('d');\n\treturn (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n}\n\nfunction newPermWithContent(content) {\n\treturn function(e) {\n\t\tvar cnpcb = {};\n\t\tcnpcb.success = function(permanode) {\n\t\t\tvar naaccb = {};\n\t\t\tnaaccb.success = function() {\n\t\t\t\talert(\"permanode created\");\n\t\t\t}\n\t\t\tnaaccb.fail = function(msg) {\n//TODO(mpl): remove newly created permanode then?\n\t\t\t\talert(\"set permanode content failed: \" + msg);\n\t\t\t}\n\t\t\tcamliNewAddAttributeClaim(permanode, \"camliContent\", content, naaccb);\n\t\t}\n\t\tcnpcb.fail = function(msg) {\n\t\t\talert(\"create permanode failed: \" + msg);\n\t\t}\n\t    camliCreateNewPermanode(cnpcb);\n\t}\n}\n\nfunction getFileTree(blobref, opts) {\n\tvar xhr = camliJsonXhr(\"getFileTree\", opts);\n\tvar path = \"./tree/\" + blobref\n\txhr.open(\"GET\", path, true);\n\txhr.send();\n}\n\nfunction insertAfter( referenceNode, newNode )\n{\n\t// nextSibling X2 because of the \"P\" span\n\treferenceNode.parentNode.insertBefore( newNode, referenceNode.nextSibling.nextSibling );\n}\n\nfunction unFold(blobref, depth) {\n\tvar node = document.getElementById(blobref);\n\tvar div = document.createElement(\"div\");\n\tvar gftcb = {};\n\tgftcb.success = function(jres) {\n\t\tonChildrenFound(div, depth+1, jres);\n\t\tinsertAfter(node, div)\n\t\tnode.onclick = Function(\"fold('\" + blobref + \"' , \" + depth + \"); return false;\");\n\t}\n\tgftcb.fail = function() { alert(\"fail\"); }\n\tgetFileTree(blobref, gftcb);\n}\n\nfunction fold(nodeid, depth) {\n\tvar node = document.getElementById(nodeid);\n\t// nextSibling X2 because of the \"P\" span\n\tnode.parentNode.removeChild(node.nextSibling.nextSibling);\n\tnode.onclick = Function(\"unFold('\" + nodeid + \"' , \" + depth + \"); return false;\");\n}\n\nfunction onChildrenFound(div, depth, jres) {\n\tvar indent = depth * CamliFileTree.indentStep\n\tdiv.innerHTML = \"\";\n\tfor (var i = 0; i < jres.children.length; i++) {\n\t\tvar children = jres.children;\n\t\tvar pdiv = document.createElement(\"div\");\n\t\tvar alink = document.createElement(\"a\");\n\t\talink.style.paddingLeft=indent + \"px\"\n\t\talink.id = children[i].blobRef;\n\t\tswitch (children[i].type) {\n\t\tcase 'directory':\n\t\t\tsetTextContent(alink, \"+ \" + children[i].name);\n\t\t\talink.href = \"./?d=\" + alink.id;\n\t\t\talink.onclick = Function(\"unFold('\" + alink.id + \"', \" + depth + \"); return false;\");\n\t\t\tbreak;\n\t\tcase 'file':\n\t\t\tsetTextContent(alink, \"  \" + children[i].name);\n\t\t\talink.href = \"./?b=\" + alink.id;\n\t\t\tbreak;\n\t\tdefault:\n\t\t\talert(\"not a file or dir\");\n\t\t\tbreak;\n\t\t}\n\t\tvar newPerm = document.createElement(\"span\");\n\t\tnewPerm.className = \"camli-newp\";\n\t\tsetTextContent(newPerm, \"P\");\n\t\tnewPerm.addEventListener(\"click\", newPermWithContent(alink.id));\n\t\tpdiv.appendChild(alink);\n\t\tpdiv.appendChild(newPerm);\n\t\tdiv.appendChild(pdiv);\n\t}\n}\n\nfunction buildTree() {\n\tvar blobref = getPermanodeParam();\n\n\tvar div = document.getElementById(\"children\");\n\tvar gftcb = {};\n\tgftcb.success = function(jres) { onChildrenFound(div, 0, jres); }\n\tgftcb.fail = function() { alert(\"fail\"); }\n\tgetFileTree(blobref, gftcb)\n}\n\nfunction treePageOnLoad(e) {\n\tvar blobref = getPermanodeParam();\n\tif (blobref) {\n\t\tvar dbcb = {};\n\t\tdbcb.success = function(bmap) {\n\t\t\tvar binfo = bmap[blobref];\n\t\t\tif (!binfo) {\n\t\t\t\talert(\"Error describing blob \" + blobref);\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tif (binfo.camliType != \"directory\") {\n\t\t\t\talert(\"Does not contain a directory\");\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tvar gbccb = {};\n\t\t\tgbccb.success = function(data) {\n\t\t\t\ttry {\n\t\t\t\t\tfinfo = JSON.parse(data);\n\t\t\t\t\tvar fileName = finfo.fileName;\n\t\t\t\t\tvar curDir = document.getElementById('curDir');\n\t\t\t\t\tcurDir.innerHTML = \"<a href='./?b=\" + blobref + \"'>\" + fileName + \"</a>\";\n\t\t\t\t\tCamliFileTree.indentStep = 20;\n\t\t\t\t\tbuildTree();\n\t\t\t\t} catch(x) {\n\t\t\t\t\talert(x);\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t}\n\t\t\tgbccb.fail = function() {\n\t\t\t\talert(\"failed to get blobcontents\");\n\t\t\t}\n\t\t\tcamliGetBlobContents(blobref, gbccb);\n\t\t}\n\t\tdbcb.fail = function(msg) {\n\t\t\talert(\"Error describing blob \" + blobref + \": \" + msg);\n\t\t}\n\t\tcamliDescribeBlob(blobref, dbcb);\n\t}\n}\n\nwindow.addEventListener(\"load\", treePageOnLoad);\n", time.Unix(0, 1352107488430325498));
+	Files.Add("filetree.js", "/*\n"+
+		"Copyright 2011 Google Inc.\n"+
+		"\n"+
+		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
+		"you may not use this file except in compliance with the License.\n"+
+		"You may obtain a copy of the License at\n"+
+		"\n"+
+		"	 http://www.apache.org/licenses/LICENSE-2.0\n"+
+		"\n"+
+		"Unless required by applicable law or agreed to in writing, software\n"+
+		"distributed under the License is distributed on an \"AS IS\" BASIS,\n"+
+		"WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n"+
+		"See the License for the specific language governing permissions and\n"+
+		"limitations under the License.\n"+
+		"*/\n"+
+		"\n"+
+		"// CamliFileTree namespace\n"+
+		"var CamliFileTree = {};\n"+
+		"\n"+
+		"// Gets the |d| query parameter, assuming that it looks like a blobref.\n"+
+		"\n"+
+		"function getPermanodeParam() {\n"+
+		"	var blobRef = getQueryParam('d');\n"+
+		"	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"}\n"+
+		"\n"+
+		"function newPermWithContent(content) {\n"+
+		"	return function(e) {\n"+
+		"		var cnpcb = {};\n"+
+		"		cnpcb.success = function(permanode) {\n"+
+		"			var naaccb = {};\n"+
+		"			naaccb.success = function() {\n"+
+		"				alert(\"permanode created\");\n"+
+		"			}\n"+
+		"			naaccb.fail = function(msg) {\n"+
+		"//TODO(mpl): remove newly created permanode then?\n"+
+		"				alert(\"set permanode content failed: \" + msg);\n"+
+		"			}\n"+
+		"			camliNewAddAttributeClaim(permanode, \"camliContent\", content, naaccb);\n"+
+		"		}\n"+
+		"		cnpcb.fail = function(msg) {\n"+
+		"			alert(\"create permanode failed: \" + msg);\n"+
+		"		}\n"+
+		"	    camliCreateNewPermanode(cnpcb);\n"+
+		"	}\n"+
+		"}\n"+
+		"\n"+
+		"function getFileTree(blobref, opts) {\n"+
+		"	var xhr = camliJsonXhr(\"getFileTree\", opts);\n"+
+		"	var path = \"./tree/\" + blobref\n"+
+		"	xhr.open(\"GET\", path, true);\n"+
+		"	xhr.send();\n"+
+		"}\n"+
+		"\n"+
+		"function insertAfter( referenceNode, newNode )\n"+
+		"{\n"+
+		"	// nextSibling X2 because of the \"P\" span\n"+
+		"	referenceNode.parentNode.insertBefore( newNode, referenceNode.nextSibling.nextSi"+
+		"bling );\n"+
+		"}\n"+
+		"\n"+
+		"function unFold(blobref, depth) {\n"+
+		"	var node = document.getElementById(blobref);\n"+
+		"	var div = document.createElement(\"div\");\n"+
+		"	var gftcb = {};\n"+
+		"	gftcb.success = function(jres) {\n"+
+		"		onChildrenFound(div, depth+1, jres);\n"+
+		"		insertAfter(node, div)\n"+
+		"		node.onclick = Function(\"fold('\" + blobref + \"' , \" + depth + \"); return false;"+
+		"\");\n"+
+		"	}\n"+
+		"	gftcb.fail = function() { alert(\"fail\"); }\n"+
+		"	getFileTree(blobref, gftcb);\n"+
+		"}\n"+
+		"\n"+
+		"function fold(nodeid, depth) {\n"+
+		"	var node = document.getElementById(nodeid);\n"+
+		"	// nextSibling X2 because of the \"P\" span\n"+
+		"	node.parentNode.removeChild(node.nextSibling.nextSibling);\n"+
+		"	node.onclick = Function(\"unFold('\" + nodeid + \"' , \" + depth + \"); return false;"+
+		"\");\n"+
+		"}\n"+
+		"\n"+
+		"function onChildrenFound(div, depth, jres) {\n"+
+		"	var indent = depth * CamliFileTree.indentStep\n"+
+		"	div.innerHTML = \"\";\n"+
+		"	for (var i = 0; i < jres.children.length; i++) {\n"+
+		"		var children = jres.children;\n"+
+		"		var pdiv = document.createElement(\"div\");\n"+
+		"		var alink = document.createElement(\"a\");\n"+
+		"		alink.style.paddingLeft=indent + \"px\"\n"+
+		"		alink.id = children[i].blobRef;\n"+
+		"		switch (children[i].type) {\n"+
+		"		case 'directory':\n"+
+		"			setTextContent(alink, \"+ \" + children[i].name);\n"+
+		"			alink.href = \"./?d=\" + alink.id;\n"+
+		"			alink.onclick = Function(\"unFold('\" + alink.id + \"', \" + depth + \"); return fa"+
+		"lse;\");\n"+
+		"			break;\n"+
+		"		case 'file':\n"+
+		"			setTextContent(alink, \"  \" + children[i].name);\n"+
+		"			alink.href = \"./?b=\" + alink.id;\n"+
+		"			break;\n"+
+		"		default:\n"+
+		"			alert(\"not a file or dir\");\n"+
+		"			break;\n"+
+		"		}\n"+
+		"		var newPerm = document.createElement(\"span\");\n"+
+		"		newPerm.className = \"camli-newp\";\n"+
+		"		setTextContent(newPerm, \"P\");\n"+
+		"		newPerm.addEventListener(\"click\", newPermWithContent(alink.id));\n"+
+		"		pdiv.appendChild(alink);\n"+
+		"		pdiv.appendChild(newPerm);\n"+
+		"		div.appendChild(pdiv);\n"+
+		"	}\n"+
+		"}\n"+
+		"\n"+
+		"function buildTree() {\n"+
+		"	var blobref = getPermanodeParam();\n"+
+		"\n"+
+		"	var div = document.getElementById(\"children\");\n"+
+		"	var gftcb = {};\n"+
+		"	gftcb.success = function(jres) { onChildrenFound(div, 0, jres); }\n"+
+		"	gftcb.fail = function() { alert(\"fail\"); }\n"+
+		"	getFileTree(blobref, gftcb)\n"+
+		"}\n"+
+		"\n"+
+		"function treePageOnLoad(e) {\n"+
+		"	var blobref = getPermanodeParam();\n"+
+		"	if (blobref) {\n"+
+		"		var dbcb = {};\n"+
+		"		dbcb.success = function(bmap) {\n"+
+		"			var binfo = bmap[blobref];\n"+
+		"			if (!binfo) {\n"+
+		"				alert(\"Error describing blob \" + blobref);\n"+
+		"				return;\n"+
+		"			}\n"+
+		"			if (binfo.camliType != \"directory\") {\n"+
+		"				alert(\"Does not contain a directory\");\n"+
+		"				return;\n"+
+		"			}\n"+
+		"			var gbccb = {};\n"+
+		"			gbccb.success = function(data) {\n"+
+		"				try {\n"+
+		"					finfo = JSON.parse(data);\n"+
+		"					var fileName = finfo.fileName;\n"+
+		"					var curDir = document.getElementById('curDir');\n"+
+		"					curDir.innerHTML = \"<a href='./?b=\" + blobref + \"'>\" + fileName + \"</a>\";\n"+
+		"					CamliFileTree.indentStep = 20;\n"+
+		"					buildTree();\n"+
+		"				} catch(x) {\n"+
+		"					alert(x);\n"+
+		"					return;\n"+
+		"				}\n"+
+		"			}\n"+
+		"			gbccb.fail = function() {\n"+
+		"				alert(\"failed to get blobcontents\");\n"+
+		"			}\n"+
+		"			camliGetBlobContents(blobref, gbccb);\n"+
+		"		}\n"+
+		"		dbcb.fail = function(msg) {\n"+
+		"			alert(\"Error describing blob \" + blobref + \": \" + msg);\n"+
+		"		}\n"+
+		"		camliDescribeBlob(blobref, dbcb);\n"+
+		"	}\n"+
+		"}\n"+
+		"\n"+
+		"window.addEventListener(\"load\", treePageOnLoad);\n"+
+		"", time.Unix(0, 1352107488430325498))
 }
