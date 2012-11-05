@@ -45,10 +45,13 @@ func init() {
 type Handler struct {
 	index Index
 	owner *blobref.BlobRef
+
+	// TODO: populate this from server config; need to tell search handler where the /ui/ handler is.
+	uiPrefix string
 }
 
 func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
-	return &Handler{index, owner}
+	return &Handler{index: index, owner: owner}
 }
 
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
@@ -93,6 +96,20 @@ func jsonMap() map[string]interface{} {
 
 func jsonMapList() []map[string]interface{} {
 	return make([]map[string]interface{}, 0)
+}
+
+func joinOneSlash(a, b string) string {
+	if strings.HasSuffix(a, "/") {
+		a = a[:len(a)-1]
+	}
+	if strings.HasPrefix(b, "/") {
+		b = b[1:]
+	}
+	return a + "/" + b
+}
+
+func (sh *Handler) thumbnail(suffix string) string {
+	return sh.uiPrefix + "/thumbnail/" + suffix
 }
 
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -167,6 +184,25 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 
 	ret["recent"] = recent
 	dr.PopulateJSON(ret)
+
+	if req.FormValue("thumbnails") != "" {
+		thumbSize := 50
+		if i, _ := strconv.Atoi(req.FormValue("thumbnails")); i >= 25 && i < 800 {
+			thumbSize = i
+		}
+		for k, mi := range ret {
+			br := blobref.Parse(k)
+			if br == nil {
+				continue // e.g. "recent"
+			}
+			m := mi.(map[string]interface{})
+			if m["camliType"].(string) == "permanode" {
+				m["thumbnailSrc"] = sh.thumbnail("xxx")
+				m["thumbnailWidth"] = strconv.Itoa(thumbSize)
+				m["thumbnailHeight"] = strconv.Itoa(thumbSize)
+			}
+		}
+	}
 }
 
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching

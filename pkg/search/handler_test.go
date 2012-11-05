@@ -166,6 +166,40 @@ var handlerTests = []handlerTest{
                }`),
 	},
 
+	// Test recent permanodes with thumbnails
+	{
+		setup: func(*test.FakeIndex) Index {
+			// Ignore the fakeindex and use the real (but in-memory) implementation,
+			// using IndexDeps to populate it.
+			idx := index.NewMemoryIndex()
+			id := indextest.NewIndexDeps(idx)
+
+			pn := id.NewPlannedPermanode("pn1")
+			id.SetAttribute(pn, "title", "Some title")
+			return indexAndOwner{idx, id.SignerBlobRef}
+		},
+		query: "recent?thumbnails=100",
+		want: parseJSON(`{
+                "recent": [
+                    {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+                     "modtime": "2011-11-28T01:32:37Z",
+                     "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+                ],
+                "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+		 "camliType": "permanode",
+                 "mimeType": "application/json; camliType=permanode",
+                 "permanode": {
+                   "attr": { "title": [ "Some title" ] }
+                 },
+                 "size": 534,
+                 "thumbnailHeight": "100",
+                 "thumbnailSrc": "/thumbnail/xxx",
+                 "thumbnailWidth": "100"
+                }
+               }`),
+	},
+
 	// edgeto handler: put a permanode (member) in two parent
 	// permanodes, then delete the second and verify that edges
 	// back from member only reveal the first parent.
