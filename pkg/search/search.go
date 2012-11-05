@@ -137,6 +137,10 @@ type Edge struct {
 	To        *blobref.BlobRef
 }
 
+func (e *Edge) String() string {
+	return fmt.Sprintf("[edge from:%s to:%s type:%s title:%s]", e.From, e.To, e.FromType, e.FromTitle)
+}
+
 type Index interface {
 	// dest must be closed, even when returning an error.
 	// limit is <= 0 for default.  smallest possible default is 0

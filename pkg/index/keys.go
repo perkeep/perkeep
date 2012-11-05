@@ -205,8 +205,8 @@ var (
 	keyEdgeBackward = &keyType{
 		"edgeback",
 		[]part{
-			{"child", typeBlobRef},  // the thing we want to find parent(s) of
-			{"parent", typeBlobRef}, // the parent (e.g. permanode blobref)
+			{"child", typeBlobRef},  // the edge target; thing we want to find parent(s) of
+			{"parent", typeBlobRef}, // the parent / edge source (e.g. permanode blobref)
 			// the blobref is the blob establishing the relationship
 			// (for a permanode: the claim; for static: often same as parent)
 			{"blobref", typeBlobRef},

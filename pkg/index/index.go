@@ -554,9 +554,44 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	return fi, nil
 }
 
-func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) ([]*search.Edge, error) {
-	// unimplemented.
-	return nil, errors.New("TODO: implement")
+func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges []*search.Edge, err error) {
+	it := x.queryPrefix(keyEdgeBackward, ref)
+	defer closeIterator(it, &err)
+	permanodeParents := map[string]*blobref.BlobRef{} // blobref key => blobref set
+	for it.Next() {
+		keyPart := strings.Split(it.Key(), "|")[1:]
+		if len(keyPart) < 2 {
+			continue
+		}
+		parent := keyPart[1]
+		parentRef := blobref.Parse(parent)
+		if parentRef == nil {
+			continue
+		}
+		valPart := strings.Split(it.Value(), "|")
+		if len(valPart) < 2 {
+			continue
+		}
+		parentType, parentName := valPart[0], valPart[1]
+		if parentType == "permanode" {
+			permanodeParents[parent] = parentRef
+		} else {
+			edges = append(edges, &search.Edge{
+				From:      parentRef,
+				FromType:  parentType,
+				FromTitle: parentName,
+				To:        ref,
+			})
+		}
+	}
+	for _, parentRef := range permanodeParents {
+		edges = append(edges, &search.Edge{
+			From:      parentRef,
+			FromType:  "permanode",
+			To:        ref,
+                })
+	}
+	return edges, nil
 }
 
 func (x *Index) Storage() IndexStorage { return x.s }

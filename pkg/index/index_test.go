@@ -55,6 +55,10 @@ func TestFiles_Memory(t *testing.T) {
 	indextest.Files(t, index.NewMemoryIndex)
 }
 
+func TestEdgesTo_Memory(t *testing.T) {
+	indextest.EdgesTo(t, index.NewMemoryIndex)
+}
+
 var (
 	// those dirs are not packages implementing indexers,
 	// hence we do not want to check them.
@@ -62,7 +66,7 @@ var (
 	// A map is used in hasAllRequiredTests to note which required
 	// tests have been found in a package, by setting the corresponding
 	// booleans to true. Those are the keys for this map.
-	requiredTests = []string{"TestIndex_", "TestPathsOfSignerTarget_", "TestFiles_"}
+	requiredTests = []string{"TestIndex_", "TestPathsOfSignerTarget_", "TestFiles_", "TestEdgesTo_"}
 )
 
 // This function checks that all the functions using the tests

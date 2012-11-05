@@ -93,3 +93,7 @@ func TestPathsOfSignerTarget_Mongo(t *testing.T) {
 func TestFiles_Mongo(t *testing.T) {
 	mongoTester{}.test(t, indextest.Files)
 }
+
+func TestEdgesTo_Mongo(t *testing.T) {
+	mongoTester{}.test(t, indextest.EdgesTo)
+}

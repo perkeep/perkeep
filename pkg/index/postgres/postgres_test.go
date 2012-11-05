@@ -142,3 +142,11 @@ func TestFiles_Postgres(t *testing.T) {
 	}
 	postgresTester{}.test(t, indextest.Files)
 }
+
+func TestEdgesTo_Postgres(t *testing.T) {
+	if testing.Short() {
+		t.Logf("skipping test in short mode")
+		return
+	}
+	postgresTester{}.test(t, indextest.EdgesTo)
+}

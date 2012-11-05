@@ -95,3 +95,7 @@ func TestPathsOfSignerTarget_SQLite(t *testing.T) {
 func TestFiles_SQLite(t *testing.T) {
 	sqliteTester{}.test(t, indextest.Files)
 }
+
+func TestEdgesTo_SQLite(t *testing.T) {
+	sqliteTester{}.test(t, indextest.EdgesTo)
+}
