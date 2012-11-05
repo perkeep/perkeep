@@ -108,8 +108,12 @@ func joinOneSlash(a, b string) string {
 	return a + "/" + b
 }
 
+func (sh *Handler) uiPath(suffix string) string {
+	return joinOneSlash(sh.uiPrefix, suffix)
+}
+
 func (sh *Handler) thumbnail(suffix string) string {
-	return sh.uiPrefix + "/thumbnail/" + suffix
+	return sh.uiPath("thumbnail/" + suffix)
 }
 
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -183,26 +187,15 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	}
 
 	ret["recent"] = recent
-	dr.PopulateJSON(ret)
 
+	thumbSize := 0
 	if req.FormValue("thumbnails") != "" {
-		thumbSize := 50
+		thumbSize = 50
 		if i, _ := strconv.Atoi(req.FormValue("thumbnails")); i >= 25 && i < 800 {
 			thumbSize = i
 		}
-		for k, mi := range ret {
-			br := blobref.Parse(k)
-			if br == nil {
-				continue // e.g. "recent"
-			}
-			m := mi.(map[string]interface{})
-			if m["camliType"].(string) == "permanode" {
-				m["thumbnailSrc"] = sh.thumbnail("xxx")
-				m["thumbnailWidth"] = strconv.Itoa(thumbSize)
-				m["thumbnailHeight"] = strconv.Itoa(thumbSize)
-			}
-		}
 	}
+	dr.populateJSONThumbnails(ret, thumbSize)
 }
 
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching
@@ -464,6 +457,10 @@ func (b *DescribedBlob) HasSecureLinkTo(other *blobref.BlobRef) bool {
 	return false
 }
 
+func (b *DescribedBlob) isPermanode() bool {
+	return b.Permanode != nil
+}
+
 func (b *DescribedBlob) jsonMap() map[string]interface{} {
 	m := jsonMap()
 	m["blobRef"] = b.BlobRef.String()
@@ -575,15 +572,27 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 // the results into the provided dest map, suitable for marshalling
 // as JSON with the json package.
 func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
+	dr.populateJSONThumbnails(dest, 0)
+}
+
+// Version of PopulateJSON with also including thumbnails.  thumbSize
+// of zero means to not include them.
+func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, thumbSize int) {
 	dr.wg.Wait()
 	dr.lk.Lock()
 	defer dr.lk.Unlock()
-	for k, v := range dr.m {
-		dest[k] = v.jsonMap()
+	for k, desb := range dr.m {
+		m := desb.jsonMap()
+		dest[k] = m
+		if thumbSize != 0 && desb.isPermanode() {
+			m["thumbnailSrc"] = dr.sh.uiPath("node.png")
+			m["thumbnailWidth"] = strconv.Itoa(thumbSize)
+			m["thumbnailHeight"] = strconv.Itoa(thumbSize)
+		}
 	}
 	for k, err := range dr.errs {
 		dest["error"] = "error populating " + k + ": " + err.Error()
-		break // TODO: include all?
+		return // TODO: include all?
 	}
 }
 
