@@ -137,6 +137,12 @@ func (id *IndexDeps) AddAttribute(permaNode *blobref.BlobRef, attr, value string
 	return id.uploadAndSignMap(m)
 }
 
+func (id *IndexDeps) DelAttribute(permaNode *blobref.BlobRef, attr string) *blobref.BlobRef {
+	m := schema.NewDelAttributeClaim(permaNode, attr)
+	m["claimDate"] = id.advanceTime()
+	return id.uploadAndSignMap(m)
+}
+
 func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, wholeRef *blobref.BlobRef) {
 	cb := &test.Blob{Contents: contents}
 	id.BlobSource.AddBlob(cb)

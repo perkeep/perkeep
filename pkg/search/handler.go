@@ -123,6 +123,9 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/search/signerpaths":
 			sh.serveSignerPaths(rw, req)
 			return
+		case "camli/search/edgesto":
+			sh.serveEdgesTo(rw, req)
+			return
 		}
 	}
 
@@ -773,6 +776,81 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 		dr.Describe(pn, 2)
 		dr.PopulateJSON(ret)
 	}
+}
+
+// Unlike the index interface's EdgesTo method, the "edgesto" Handler
+// here additionally filters out since-deleted permanode edges.
+func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
+	ret := jsonMap()
+	defer httputil.ReturnJSON(rw, ret)
+	defer setPanicError(ret)
+
+	toRef := blobref.MustParse(mustGet(req, "blobref"))
+	toRefStr := toRef.String()
+	blobInfo := jsonMap()
+	ret[toRefStr] = blobInfo
+
+	jsonEdges := jsonMapList()
+
+	edges, err := sh.index.EdgesTo(toRef, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	type mapOrError struct {
+		m   map[string]interface{} // nil if no map
+		err error
+	}
+	resc := make(chan mapOrError)
+	verify := func(edge *Edge) {
+		fromStr := edge.From.String()
+		db, err := sh.NewDescribeRequest().DescribeSync(edge.From)
+		if err != nil {
+			resc <- mapOrError{err: err}
+			return
+		}
+		found := false
+		if db.Permanode != nil {
+			for attr, vv := range db.Permanode.Attr {
+				if IsBlobReferenceAttribute(attr) {
+					for _, v := range vv {
+						if v == toRefStr {
+							found = true
+						}
+					}
+				}
+			}
+		}
+		var em map[string]interface{}
+		if found {
+			em = jsonMap()
+			em["from"] = fromStr
+			em["fromType"] = "permanode"
+		}
+		resc <- mapOrError{m: em}
+	}
+	verifying := 0
+	for _, edge := range edges {
+		if edge.FromType == "permanode" {
+			verifying++
+			go verify(edge)
+			continue
+		}
+		em := jsonMap()
+		em["from"] = edge.From.String()
+		em["fromType"] = edge.FromType
+		jsonEdges = append(jsonEdges, em)
+	}
+	for i := 0; i < verifying; i++ {
+		res := <-resc
+		if res.err != nil {
+			panic(res.err) // caught and put in JSON response
+		}
+		if res.m != nil {
+			jsonEdges = append(jsonEdges, res.m)
+		}
+	}
+	blobInfo["edgesTo"] = jsonEdges
 }
 
 func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {

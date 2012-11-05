@@ -165,6 +165,33 @@ var handlerTests = []handlerTest{
                 }
                }`),
 	},
+
+	// edgeto handler: put a permanode (member) in two parent
+	// permanodes, then delete the second and verify that edges
+	// back from member only reveal the first parent.
+	{
+		setup: func(*test.FakeIndex) Index {
+			// Ignore the fakeindex and use the real (but in-memory) implementation,
+			// using IndexDeps to populate it.
+			idx := index.NewMemoryIndex()
+			id := indextest.NewIndexDeps(idx)
+
+			parent1 := id.NewPlannedPermanode("pn1") // sha1-7ca7743e38854598680d94ef85348f2c48a44513
+			parent2 := id.NewPlannedPermanode("pn2")
+			member := id.NewPlannedPermanode("member") // always sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae
+			id.AddAttribute(parent1, "camliMember", member.String())
+			id.AddAttribute(parent2, "camliMember", member.String())
+			id.DelAttribute(parent2, "camliMember")
+			return indexAndOwner{idx, id.SignerBlobRef}
+		},
+		query: "edgesto?blobref=sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
+		want: parseJSON(`{"sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae": {
+                   "edgesTo": [
+                      {"from": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+                       "fromType": "permanode"}
+                   ]
+                }}`),
+	},
 }
 
 func TestHandler(t *testing.T) {
