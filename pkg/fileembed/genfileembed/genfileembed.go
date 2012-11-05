@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"io/ioutil"
 	"log"
@@ -65,13 +66,63 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		var qb bytes.Buffer // quoted bytes
+		qb.WriteByte('"')
+		run := 0
+		for _, b := range bs {
+			if b == '\n' {
+				qb.WriteString(`\n`)
+			}
+			if b == '\n' || run > 80 {
+				qb.WriteString("\" +\n\t\"")
+				run = 0
+			}
+			if b == '\n' {
+				continue
+			}
+			run++
+			if b == '\\' {
+				qb.WriteString(`\\`)
+				continue
+			}
+			if b == '"' {
+				qb.WriteString(`\"`)
+				continue
+			}
+			if (b >= 32 && b <= 126) || b == '\t' {
+				qb.WriteByte(b)
+				continue
+			}
+			fmt.Fprintf(&qb, "\\x%02x", b)
+		}
+		qb.WriteByte('"')
+
 		var b bytes.Buffer
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
 		fmt.Fprintf(&b, "// DO NOT EDIT.\n")
-		fmt.Fprintf(&b, "package %s\n", pkgName)
-		fmt.Fprintf(&b, "import \"time\"\n")
-		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %q, time.Unix(0, %d));\n}\n", fileName, bs, fi.ModTime().UnixNano())
-		if err := ioutil.WriteFile(embedName, b.Bytes(), 0644); err != nil {
+		fmt.Fprintf(&b, "package %s\n\n", pkgName)
+		fmt.Fprintf(&b, "import \"time\"\n\n")
+
+		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %s, time.Unix(0, %d));\n}\n", fileName, qb.Bytes(), fi.ModTime().UnixNano())
+
+		// gofmt it
+		fset := token.NewFileSet()
+		ast, err := parser.ParseFile(fset, "", b.Bytes(), parser.ParseComments)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var clean bytes.Buffer
+		config := &printer.Config{
+			Mode:     printer.TabIndent | printer.UseSpaces,
+			Tabwidth: 8,
+		}
+		err = config.Fprint(&clean, fset, ast)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err := ioutil.WriteFile(embedName, clean.Bytes(), 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
