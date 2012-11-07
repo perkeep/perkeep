@@ -17,7 +17,7 @@ limitations under the License.
 package server
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -30,7 +30,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/search"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
 
@@ -53,20 +52,21 @@ var uiFiles = uistatic.Files
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
-	// URL prefixes (path or full URL) to the primary blob and
-	// search root.  Only used by the UI and thus necessary if UI
-	// is true.
-	BlobRoot     string
-	SearchRoot   string
+	// JSONSignRoot is the optional path or full URL to the JSON
+	// Signing helper. Only used by the UI and thus necessary if
+	// UI is true.
+	// TODO(bradfitz): also move this up to the root handler,
+	// if we start having clients (like phones) that we want to upload
+	// but don't trust to have private signing keys?
 	JSONSignRoot string
 
 	PublishRoots map[string]*PublishHandler
 
-	prefix  string             // of the UI handler itself
-	Storage blobserver.Storage // of BlobRoot
-	Cache   blobserver.Storage // or nil
-	Search  *search.Handler    // or nil
-	sc      ScaledImage        // cache for scaled images, optional
+	prefix string // of the UI handler itself
+	root   *RootHandler
+
+	Cache blobserver.Storage // or nil
+	sc    ScaledImage        // cache for scaled images, optional
 
 	staticHandler http.Handler
 }
@@ -78,8 +78,6 @@ func init() {
 func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ui := &UIHandler{
 		prefix:       ld.MyPrefix(),
-		BlobRoot:     conf.OptionalString("blobRoot", ""),
-		SearchRoot:   conf.OptionalString("searchRoot", ""),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
 	}
 	pubRoots := conf.OptionalList("publishRoots")
@@ -121,14 +119,6 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		return
 	}
 
-	if ui.BlobRoot != "" {
-		bs, err := ld.GetStorage(ui.BlobRoot)
-		if err != nil {
-			return nil, fmt.Errorf("UI handler's blobRoot of %q error: %v", ui.BlobRoot, err)
-		}
-		ui.Storage = bs
-	}
-
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)
 		if err != nil {
@@ -143,12 +133,18 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		}
 	}
 
-	if ui.SearchRoot != "" {
-		h, _ := ld.GetHandler(ui.SearchRoot)
-		ui.Search = h.(*search.Handler)
-	}
-
 	ui.staticHandler = http.FileServer(uiFiles)
+
+	rootPrefix, _, err := ld.FindHandlerByType("root")
+	if err != nil {
+		return nil, errors.New("No root handler configured, which is necessary for the ui handler")
+	}
+	if h, err := ld.GetHandler(rootPrefix); err == nil {
+		ui.root = h.(*RootHandler)
+		ui.root.registerUIHandler(ui)
+	} else {
+		return nil, errors.New("failed to find the 'root' handler")
+	}
 
 	return ui, nil
 }
@@ -190,7 +186,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Vary", "Accept")
 	switch {
 	case wantsDiscovery(req):
-		ui.serveDiscovery(rw, req)
+		ui.root.serveDiscovery(rw, req)
 	case wantsUploadHelper(req):
 		ui.serveUploadHelper(rw, req)
 	case strings.HasPrefix(suffix, "download/"):
@@ -225,21 +221,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]interface{}) {
-	rw.Header().Set("Content-Type", "text/javascript")
-	inCb := false
-	if cb := req.FormValue("cb"); identPattern.MatchString(cb) {
-		fmt.Fprintf(rw, "%s(", cb)
-		inCb = true
-	}
-	bytes, _ := json.MarshalIndent(m, "", "  ")
-	rw.Write(bytes)
-	if inCb {
-		rw.Write([]byte{')'})
-	}
-}
-
-func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
+func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 	pubRoots := map[string]interface{}{}
 	for key, pubh := range ui.PublishRoots {
 		m := map[string]interface{}{
@@ -247,8 +229,8 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 			"prefix": []string{key},
 			// TODO: include gpg key id
 		}
-		if ui.Search != nil {
-			pn, err := ui.Search.Index().PermanodeOfSignerAttrValue(ui.Search.Owner(), "camliRoot", pubh.RootName)
+		if ui.root.Search != nil {
+			pn, err := ui.root.Search.Index().PermanodeOfSignerAttrValue(ui.root.Search.Owner(), "camliRoot", pubh.RootName)
 			if err == nil {
 				m["currentPermanode"] = pn.String()
 			}
@@ -256,19 +238,23 @@ func (ui *UIHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 		pubRoots[pubh.RootName] = m
 	}
 
-	discoveryHelper(rw, req, map[string]interface{}{
-		"blobRoot":        ui.BlobRoot,
-		"searchRoot":      ui.SearchRoot,
+	uiDisco := map[string]interface{}{
 		"jsonSignRoot":    ui.JSONSignRoot,
 		"uploadHelper":    ui.prefix + "?camli.mode=uploadhelper", // hack; remove with better javascript
 		"downloadHelper":  path.Join(ui.prefix, "download") + "/",
 		"directoryHelper": path.Join(ui.prefix, "tree") + "/",
 		"publishRoots":    pubRoots,
-	})
+	}
+	for k, v := range uiDisco {
+		if _, ok := m[k]; ok {
+			log.Fatalf("Duplicate discovery key %q", k)
+		}
+		m[k] = v
+	}
 }
 
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
-	if ui.Storage == nil {
+	if ui.root.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
 		return
 	}
@@ -287,14 +273,14 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	dh := &DownloadHandler{
-		Fetcher: ui.Storage,
+		Fetcher: ui.root.Storage,
 		Cache:   ui.Cache,
 	}
 	dh.ServeHTTP(rw, req, fbr)
 }
 
 func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
-	if ui.Storage == nil {
+	if ui.root.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
 		return
 	}
@@ -340,7 +326,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	th := &ImageHandler{
-		Fetcher:   ui.Storage,
+		Fetcher:   ui.root.Storage,
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
@@ -351,7 +337,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
-	if ui.Storage == nil {
+	if ui.root.Storage == nil {
 		http.Error(rw, "No BlobRoot configured", 500)
 		return
 	}
@@ -370,7 +356,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	fth := &FileTreeHandler{
-		Fetcher: ui.Storage,
+		Fetcher: ui.root.Storage,
 		file:    blobref,
 	}
 	fth.ServeHTTP(rw, req)

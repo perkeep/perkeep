@@ -185,7 +185,7 @@ func (ph *PublishHandler) serveDiscovery(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 	ui := handler.(*UIHandler)
-	ui.serveDiscovery(rw, req)
+	ui.root.serveDiscovery(rw, req)
 }
 
 func (ph *PublishHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

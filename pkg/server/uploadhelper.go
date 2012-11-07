@@ -28,7 +28,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	ret := make(map[string]interface{})
 	defer httputil.ReturnJSON(rw, ret)
 
-	if ui.Storage == nil {
+	if ui.root.Storage == nil {
 		ret["error"] = "No BlobRoot configured"
 		ret["errorType"] = "server"
 		return
@@ -56,8 +56,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		if fileName == "" {
 			continue
 		}
-		writeFn := schema.WriteFileFromReader
-		br, err := writeFn(ui.Storage, fileName, part)
+		br, err := schema.WriteFileFromReader(ui.root.Storage, fileName, part)
 
 		if err == nil {
 			got = append(got, map[string]interface{}{
