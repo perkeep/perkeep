@@ -39,11 +39,11 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blob
 		switch {
 		case err == nil && !fi.IsDir():
 			dest <- blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size()}
-		case err != nil && appendMissing && errorIsNoEnt(err):
+		case err != nil && appendMissing && os.IsNotExist(err):
 			missingLock.Lock()
 			missing = append(missing, ref)
 			missingLock.Unlock()
-		case err != nil && !errorIsNoEnt(err):
+		case err != nil && !os.IsNotExist(err):
 			return err
 		}
 		return nil

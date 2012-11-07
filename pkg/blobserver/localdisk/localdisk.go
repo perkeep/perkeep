@@ -108,12 +108,12 @@ func (ds *DiskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int
 func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, error) {
 	fileName := ds.blobPath("", blob)
 	stat, err := os.Stat(fileName)
-	if errorIsNoEnt(err) {
+	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
 	}
 	file, err := os.Open(fileName)
 	if err != nil {
-		if errorIsNoEnt(err) {
+		if os.IsNotExist(err) {
 			err = os.ErrNotExist
 		}
 		return nil, 0, err
@@ -128,7 +128,7 @@ func (ds *DiskStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 		switch {
 		case err == nil:
 			continue
-		case errorIsNoEnt(err):
+		case os.IsNotExist(err):
 			log.Printf("Deleting already-deleted file; harmless.")
 			continue
 		default:
