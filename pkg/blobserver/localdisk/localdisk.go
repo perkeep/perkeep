@@ -19,7 +19,6 @@ package localdisk
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"regexp"
 
@@ -141,7 +140,7 @@ func (ds *DiskStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 		case err == nil:
 			continue
 		case os.IsNotExist(err):
-			log.Printf("Deleting already-deleted file; harmless.")
+			// deleting already-deleted file; harmless.
 			continue
 		default:
 			return err

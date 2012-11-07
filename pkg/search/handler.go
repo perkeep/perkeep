@@ -57,8 +57,16 @@ func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
 	ownerBlobStr := conf.RequiredString("owner")
+	devBlockStartupPrefix := conf.OptionalString("devBlockStartupOn", "")
 	if err := conf.Validate(); err != nil {
 		return nil, err
+	}
+
+	if devBlockStartupPrefix != "" {
+		_, err := ld.GetHandler(devBlockStartupPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("search handler references bogus devBlockStartupOn handler %s: %v", devBlockStartupPrefix, err)
+		}
 	}
 
 	indexHandler, err := ld.GetHandler(indexPrefix)

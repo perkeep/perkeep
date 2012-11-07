@@ -61,7 +61,9 @@
           "handler": "sync",
           "handlerArgs": {
               "from": "/bs/",
-              "to": ["_env", "${CAMLI_INDEXER_PATH}"]
+              "to": ["_env", "${CAMLI_INDEXER_PATH}"],
+              "fullSyncOnStart": true,
+              "blockingFullSyncOnStart": true
           }
       },
 
@@ -202,7 +204,8 @@
          "handler": "search",
          "handlerArgs": {
              "index": ["_env", "${CAMLI_INDEXER_PATH}"],
-             "owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
+             "owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+             "devBlockStartupOn": "/sync/"
          }
      }
   }

@@ -62,6 +62,8 @@ func init() {
 func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	from := conf.RequiredString("from")
 	to := conf.RequiredString("to")
+	fullSync := conf.OptionalBool("fullSyncOnStart", false)
+	blockFullSync := conf.OptionalBool("blockingFullSyncOnStart", false)
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -81,6 +83,25 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	if err != nil {
 		return
 	}
+
+	if fullSync || blockFullSync {
+		didFullSync := make(chan bool, 1)
+		go func() {
+			n := synch.runSync("queue", fromQsc, 0)
+			log.Printf("Queue sync copied %d blobs", n)
+			n = synch.runSync("full", fromBs, 0)
+			log.Printf("Full sync copied %d blobs", n)
+			didFullSync <- true
+			synch.syncQueueLoop()
+		}()
+		if blockFullSync {
+			log.Printf("Blocking startup, waiting for full sync from %q to %q", from, to)
+			<-didFullSync
+			log.Printf("Full sync complete.")
+		}
+	} else {
+		go synch.syncQueueLoop()
+	}
 	return synch, nil
 }
 
@@ -99,7 +120,6 @@ func createSyncHandler(fromName, toName string, from blobserver.StorageQueueCrea
 		status:         "not started",
 		blobStatus:     make(map[string]fmt.Stringer),
 	}
-
 	h.fromqName = strings.Replace(strings.Trim(toName, "/"), "/", "-", -1)
 	var err error
 	h.fromq, err = from.CreateQueue(h.fromqName)
@@ -107,9 +127,6 @@ func createSyncHandler(fromName, toName string, from blobserver.StorageQueueCrea
 		return nil, fmt.Errorf("Prefix %s (type %T) failed to create queue %q: %v",
 			fromName, from, h.fromqName, err)
 	}
-
-	go h.syncQueueLoop()
-
 	return h, nil
 }
 
@@ -183,53 +200,56 @@ type copyResult struct {
 	err error
 }
 
+func (sh *SyncHandler) runSync(srcName string, enumSrc blobserver.Storage, longPollWait time.Duration) int {
+	if longPollWait != 0 {
+		sh.setStatus("Idle; waiting for new blobs")
+	}
+	enumch := make(chan blobref.SizedBlobRef)
+	errch := make(chan error, 1)
+	go func() {
+		errch <- enumSrc.EnumerateBlobs(enumch, "", 1000, longPollWait)
+	}()
+
+	nCopied := 0
+	toCopy := 0
+
+	workch := make(chan blobref.SizedBlobRef, 1000)
+	resch := make(chan copyResult, 8)
+	for sb := range enumch {
+		toCopy++
+		workch <- sb
+		if toCopy <= sh.copierPoolSize {
+			go sh.copyWorker(resch, workch)
+		}
+		sh.setStatus("Enumerating queued blobs: %d", toCopy)
+	}
+	close(workch)
+	for i := 0; i < toCopy; i++ {
+		sh.setStatus("Copied %d/%d of batch of queued blobs", nCopied, toCopy)
+		res := <-resch
+		nCopied++
+		sh.lk.Lock()
+		if res.err == nil {
+			sh.totalCopies++
+			sh.totalCopyBytes += res.sb.Size
+			sh.recentCopyTime = time.Now().UTC()
+		} else {
+			sh.totalErrors++
+		}
+		sh.lk.Unlock()
+	}
+
+	if err := <-errch; err != nil {
+		sh.addErrorToLog(fmt.Errorf("replication error for source %q, enumerate from source: %v", srcName, err))
+		return nCopied
+	}
+	return nCopied
+}
+
 func (sh *SyncHandler) syncQueueLoop() {
 	every(queueSyncInterval, func() {
-	Enumerate:
-		sh.setStatus("Idle; waiting for new blobs")
-
-		enumch := make(chan blobref.SizedBlobRef)
-		errch := make(chan error, 1)
-		go func() {
-			errch <- sh.fromq.EnumerateBlobs(enumch, "", 1000, queueSyncInterval)
-		}()
-
-		nCopied := 0
-		toCopy := 0
-
-		workch := make(chan blobref.SizedBlobRef, 1000)
-		resch := make(chan copyResult, 8)
-		for sb := range enumch {
-			toCopy++
-			workch <- sb
-			if toCopy <= sh.copierPoolSize {
-				go sh.copyWorker(resch, workch)
-			}
-			sh.setStatus("Enumerating queued blobs: %d", toCopy)
-		}
-		close(workch)
-		for i := 0; i < toCopy; i++ {
-			sh.setStatus("Copied %d/%d of batch of queued blobs", nCopied, toCopy)
-			res := <-resch
-			nCopied++
-			sh.lk.Lock()
-			if res.err == nil {
-				sh.totalCopies++
-				sh.totalCopyBytes += res.sb.Size
-				sh.recentCopyTime = time.Now().UTC()
-			} else {
-				sh.totalErrors++
-			}
-			sh.lk.Unlock()
-		}
-
-		if err := <-errch; err != nil {
-			sh.addErrorToLog(fmt.Errorf("replication error for queue %q, enumerate from source: %v", sh.fromqName, err))
-			return
-		}
-		if nCopied > 0 {
-			// Don't sleep. More to do probably.
-			goto Enumerate
+		for sh.runSync(sh.fromqName, sh.fromq, queueSyncInterval) > 0 {
+			// Loop, before sleeping.
 		}
 		sh.setStatus("Sleeping briefly before next long poll.")
 	})

@@ -240,6 +240,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	}
 	h.settingUp = true
 	defer func() {
+		// log.Printf("Configured handler %q", prefix)
 		h.setupDone = true
 		r := recover()
 		if r == nil {
