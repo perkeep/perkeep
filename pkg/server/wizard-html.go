@@ -16,7 +16,7 @@ limitations under the License.
 
 package server
 
-const topWizard =`
+const topWizard = `
 <!doctype html>
 <html>
 <head>
@@ -28,7 +28,7 @@ const topWizard =`
 	<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">
 `
 
-const bottomWizard =`
+const bottomWizard = `
 <p> <a href="/">Back</a> </p>
 <p>
 	<form id="Restart" name="Restart" action="restartCamli" method="post">

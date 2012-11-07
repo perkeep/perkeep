@@ -32,6 +32,7 @@ import (
 )
 
 var queueSyncInterval = 5 * time.Second
+
 const maxErrors = 20
 
 var _ = log.Printf
