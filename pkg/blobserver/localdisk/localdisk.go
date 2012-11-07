@@ -17,7 +17,6 @@ limitations under the License.
 package localdisk
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -41,18 +40,28 @@ type DiskStorage struct {
 	mirrorPartitions []*DiskStorage
 }
 
-func New(root string) (storage *DiskStorage, err error) {
+// New returns a new local disk storage implementation, rooted at the provided
+// directory, which must already exist.
+func New(root string) (*DiskStorage, error) {
 	// Local disk.
-	fi, staterr := os.Stat(root)
-	if staterr != nil || !fi.IsDir() {
-		err = errors.New(fmt.Sprintf("Storage root %q doesn't exist or is not a directory.", root))
-		return
+	fi, err := os.Stat(root)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("Storage root %q doesn't exist", root)
 	}
-	storage = &DiskStorage{
+	if err != nil {
+		return nil, err
+	}
+	if !fi.IsDir() {
+		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
+	}
+	ds := &DiskStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		root:                      root,
 	}
-	return
+	if _, _, err := ds.StorageGeneration(); err != nil {
+		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
+	}
+	return ds, nil
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
@@ -69,6 +78,9 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("Path %q isn't a directory", sto.root)
+	}
+	if _, _, err := sto.StorageGeneration(); err != nil {
+		return nil, fmt.Errorf("Error initialization generation for %q: %v", sto.root, err)
 	}
 	return sto, nil
 }

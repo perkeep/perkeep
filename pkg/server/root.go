@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
@@ -107,6 +108,15 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 	m := map[string]interface{}{
 		"blobRoot":        rh.BlobRoot,
 		"searchRoot":      rh.SearchRoot,
+	}
+	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
+		initTime, gen, err := gener.StorageGeneration()
+		if err != nil {
+			m["storageGenerationError"] = err.Error()
+		} else {
+			m["storageInitTime"] = initTime.UTC().Format(time.RFC3339)
+			m["storageGeneration"] = gen
+		}
 	}
 	if rh.ui != nil {
 		rh.ui.populateDiscoveryMap(m)

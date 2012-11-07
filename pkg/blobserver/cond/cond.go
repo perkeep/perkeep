@@ -58,6 +58,21 @@ func (sto *condStorage) WrapContext(req *http.Request) blobserver.Storage {
 	return s2
 }
 
+func (sto *condStorage) StorageGeneration() (initTime time.Time, random string, err error) {
+	if gener, ok := sto.read.(blobserver.Generationer); ok {
+		return gener.StorageGeneration()
+	}
+	err = blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.read))
+	return
+}
+
+func (sto *condStorage) ResetStorageGeneration() error {
+	if gener, ok := sto.read.(blobserver.Generationer); ok {
+		return gener.ResetStorageGeneration()
+	}
+	return blobserver.GenerationNotSupportedError(fmt.Sprintf("blobserver.Generationer not implemented on %T", sto.read))
+}
+
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &condStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},

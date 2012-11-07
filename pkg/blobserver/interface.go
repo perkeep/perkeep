@@ -121,6 +121,40 @@ type Configer interface {
 	Config() *Config
 }
 
+// A GenerationNotSupportedError explains why a Storage
+// value implemented the Generationer interface but failed due
+// to a wrapped Storage value not implementing the interface.
+type GenerationNotSupportedError string
+
+func (s GenerationNotSupportedError) Error() string { return string(s) }
+
+/* 
+The optional Generationer interface is an optimization and paranoia
+facility for clients which can be implemented by Storage
+implementations.
+
+If the client sees the same random string in multiple upload sessions,
+it assumes that the blobserver still has all the same blobs, and also
+it's the same server.  This mechanism is not fundamental to
+Camlistore's operation: the client could also check each blob before
+uploading, or enumerate all blobs from the server too.  This is purely
+an optimization so clients can mix this value into their "is this file
+uploaded?" local cache keys.
+*/
+type Generationer interface {
+	// Generation returns a Storage's initialization time and
+	// and unique random string (or UUID).  Implementations
+	// should call ResetStorageGeneration on demand if no
+	// information is known.
+	// The error will be of type GenerationNotSupportedError if an underlying
+	// storage target doesn't support the Generationer interface.
+	StorageGeneration() (initTime time.Time, random string, err error)
+
+	// ResetGeneration deletes the information returned by Generation
+	// and re-generates it.
+	ResetStorageGeneration() error
+}
+
 type Storage interface {
 	blobref.StreamingFetcher
 	BlobReceiver
