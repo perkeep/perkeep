@@ -248,7 +248,8 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 	return prefixes
 }
 
-func GenLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
+// genLowLevelConfig returns a low-level config from a high-level config.
+func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	var (
 		baseURL    = conf.OptionalString("baseURL", "")
 		listen     = conf.OptionalString("listen", "")

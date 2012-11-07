@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package serverconfig is responsible for mapping from a Camlistore
+// configuration file and instantiating HTTP Handlers for all the
+// necessary endpoints.
 package serverconfig
 
 import (
@@ -63,7 +66,7 @@ type handlerLoader struct {
 // a prefix path.  Both *http.ServeMux and camlistore.org/pkg/webserver.Server
 // implement HandlerInstaller.
 type HandlerInstaller interface {
-	Handle(path string, handler http.Handler)
+	Handle(path string, h http.Handler)
 }
 
 type storageAndConfig struct {
@@ -292,6 +295,9 @@ func handerTypeWantsAuth(handlerType string) bool {
 	return false
 }
 
+// A Config is the wrapper around a Camlistore JSON configuration file.
+// Files on disk can be in either high-level or low-level format, but
+// the Load function always returns the Config in its low-level format.
 type Config struct {
 	jsonconfig.Obj
 	UIPath     string // Not valid until after InstallHandlers
@@ -313,7 +319,7 @@ func Load(filename string) (*Config, error) {
 	}
 
 	if lowLevel := obj.OptionalBool("handlerConfig", false); !lowLevel {
-		conf, err = GenLowLevelConfig(conf)
+		conf, err = genLowLevelConfig(conf)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"Failed to transform user config file %q into internal handler configuration: %v",
@@ -341,11 +347,9 @@ func (config *Config) checkValidAuth() error {
 // context may be nil (used and required by App Engine only)
 func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (outerr error) {
 	defer func() {
-		err := recover()
-		if err == nil {
-			return
+		if err := recover(); err != nil {
+			outerr = fmt.Errorf("%v", err)
 		}
-		outerr = fmt.Errorf("%v", err)
 	}()
 
 	if err := config.checkValidAuth(); err != nil {
