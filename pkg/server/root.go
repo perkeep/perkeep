@@ -51,9 +51,17 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	return root, nil
 }
 
-func (rh *RootHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
-	if rh.ui != nil && camliMode(req) == "config" && auth.IsAuthorized(req) {
-		rh.ui.serveDiscovery(conn, req)
+func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// TODO(bradfitz): discovery should work without a 'ui' handler registered.
+	// It should be part of the root handler, not part of the UI handler.
+	if rh.ui != nil && wantsDiscovery(req) {
+		if auth.IsAuthorized(req) {
+			rh.ui.serveDiscovery(rw, req)
+			return
+		}
+		if !rh.Stealth {
+			http.Error(rw, "Unauthorized", http.StatusUnauthorized)
+		}
 		return
 	}
 
@@ -65,8 +73,7 @@ func (rh *RootHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	if auth.LocalhostAuthorized(req) {
 		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
 	}
-	fmt.Fprintf(conn,
-		"<html><body>This is camlistored, a "+
-			"<a href='http://camlistore.org'>Camlistore</a> server."+
-			"%s</body></html>\n", configLink)
+	fmt.Fprintf(rw, "<html><body>This is camlistored, a "+
+		"<a href='http://camlistore.org'>Camlistore</a> server."+
+		"%s</body></html>\n", configLink)
 }
