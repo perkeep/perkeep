@@ -21,7 +21,12 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"io/ioutil"
 	"log"
 	"strings"
 
@@ -121,7 +126,34 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 		return nil
 	}
 	mime, reader := magic.MimeTypeFromReader(fr)
-	size, err := io.Copy(sha1, reader)
+
+	var copyDest io.Writer = sha1
+	var withCopyErr func(error) // or nil
+	if strings.HasPrefix(mime, "image/") {
+		pr, pw := io.Pipe()
+		copyDest = io.MultiWriter(copyDest, pw)
+		confc := make(chan *image.Config, 1)
+		go func() {
+			conf, _, err := image.DecodeConfig(pr)
+			defer io.Copy(ioutil.Discard, pr)
+			if err == nil {
+				confc <- &conf
+			} else {
+				confc <- nil
+			}
+		}()
+		withCopyErr = func(err error) {
+			pw.CloseWithError(err)
+			if conf := <-confc; conf != nil {
+				bm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
+			}
+		}
+	}
+
+	size, err := io.Copy(copyDest, reader)
+	if f := withCopyErr; f != nil {
+		f(err)
+	}
 	if err != nil {
 		// TODO: job scheduling system to retry this spaced
 		// out max n times.  Right now our options are

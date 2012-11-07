@@ -586,10 +586,10 @@ func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges [
 	}
 	for _, parentRef := range permanodeParents {
 		edges = append(edges, &search.Edge{
-			From:      parentRef,
-			FromType:  "permanode",
-			To:        ref,
-                })
+			From:     parentRef,
+			FromType: "permanode",
+			To:       ref,
+		})
 	}
 	return edges, nil
 }

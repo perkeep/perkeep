@@ -18,6 +18,7 @@ package indextest
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -253,12 +254,41 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	t.Logf("add-attribute claim %q points to member permanode %q", memberRef, pnChild)
 	memberRefTime := id.lastTime()
 
+	// TODO(bradfitz): add EXIF tests here, once that stuff is ready.
+	if false {
+		for i := 1; i <= 8; i++ {
+			fileBase := fmt.Sprintf("f%d-exif.jpg", i)
+			fileName := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "images", "testdata", fileBase)
+			contents, err := ioutil.ReadFile(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id.UploadFile(fileBase, string(contents))
+		}
+	}
+
+	// Upload a basic image.
+	var jpegFileRef *blobref.BlobRef
+	{
+		fileName := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "index", "indextest", "testdata", "dude.jpg")
+		contents, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		jpegFileRef, _ = id.UploadFile("dude.jpg", string(contents))
+	}
+
 	lastPermanodeMutation := id.lastTime()
 	id.dumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
 		t.Fatalf("%q = %q, want %q", key, g, e)
+	}
+
+	key = "imagesize|" + jpegFileRef.String()
+	if g, e := id.Get(key), "50|100"; g != e {
+		t.Errorf("JPEG dude.jpg key %q = %q; want %q", key, g, e)
 	}
 
 	key = "have:" + pn.String()
@@ -519,8 +549,8 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 			t.Fatalf("num edges = %d; want 1", len(edges))
 		}
 		wantEdge := &search.Edge{
-			From: pn1,
-			To: pn2,
+			From:     pn1,
+			To:       pn2,
 			FromType: "permanode",
 		}
 		if got, want := edges[0].String(), wantEdge.String(); got != want {

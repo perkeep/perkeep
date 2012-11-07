@@ -216,4 +216,16 @@ var (
 			{"name", typeStr},       // the name, if static.
 		},
 	}
+
+	// Width and height after any EXIF rotation.
+	keyImageSize = &keyType{
+		"imagesize",
+		[]part{
+			{"fileref", typeBlobRef}, // blobref of "file" schema blob
+		},
+		[]part{
+			{"width", typeStr},
+			{"height", typeStr},
+		},
+	}
 )
