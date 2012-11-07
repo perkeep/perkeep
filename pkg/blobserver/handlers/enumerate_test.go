@@ -17,12 +17,13 @@ limitations under the License.
 package handlers
 
 import (
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/blobref"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"camlistore.org/pkg/blobref"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 type emptyEnumerator struct {

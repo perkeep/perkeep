@@ -95,7 +95,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	blobch := make(chan blobref.SizedBlobRef, 100)
 	resultch := make(chan error, 1)
 	go func() {
-		resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1, time.Duration(waitSeconds) * time.Second)
+		resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1, time.Duration(waitSeconds)*time.Second)
 	}()
 
 	after := ""
