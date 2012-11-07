@@ -366,6 +366,8 @@ func main() {
 			}
 		}()
 	}
+
 	go ws.Serve()
-	handleSignals()
+	go handleSignals()
+	select{}
 }
