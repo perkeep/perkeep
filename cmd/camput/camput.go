@@ -157,7 +157,7 @@ func newUploader() *Uploader {
 	httpStats := &statsTransport{
 		transport:  &http.Transport{DisableKeepAlives: false},
 	}
-	cc.SetHttpClient(&http.Client{Transport: httpStats})
+	cc.SetHTTPClient(&http.Client{Transport: httpStats})
 
 	pwd, err := os.Getwd()
 	if err != nil {

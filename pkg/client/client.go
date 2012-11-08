@@ -69,7 +69,7 @@ func New(server string) *Client {
 	}
 }
 
-func (c *Client) SetHttpClient(client *http.Client) {
+func (c *Client) SetHTTPClient(client *http.Client) {
 	c.httpClient = client
 }
 
