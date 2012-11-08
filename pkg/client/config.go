@@ -93,7 +93,8 @@ func (c *Client) SetupAuth() error {
 	return c.SetupAuthFromConfig(config)
 }
 
-func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) (err error) {
+func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) error {
+	var err error
 	value, ok := conf["auth"]
 	authString := ""
 	if ok {

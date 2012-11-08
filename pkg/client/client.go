@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -37,29 +36,6 @@ type Client struct {
 	stats      Stats
 
 	log *log.Logger // not nil
-}
-
-type Stats struct {
-	// The number of uploads that were requested, but perhaps
-	// not actually performed if the server already had the items.
-	UploadRequests ByCountAndBytes
-
-	// The uploads which were actually sent to the blobserver
-	// due to the server not having the blobs
-	Uploads ByCountAndBytes
-}
-
-func (s *Stats) String() string {
-	return "[uploadRequests=" + s.UploadRequests.String() + " uploads=" + s.Uploads.String() + "]"
-}
-
-type ByCountAndBytes struct {
-	Blobs int
-	Bytes int64
-}
-
-func (bb *ByCountAndBytes) String() string {
-	return fmt.Sprintf("[blobs=%d bytes=%d]", bb.Blobs, bb.Bytes)
 }
 
 func New(server string) *Client {
