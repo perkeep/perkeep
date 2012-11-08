@@ -69,7 +69,12 @@ func New(server string) *Client {
 	}
 }
 
+// SetHTTPClient sets the Camlistore client's HTTP client.
+// If nil, the default HTTP client is used.
 func (c *Client) SetHTTPClient(client *http.Client) {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	c.httpClient = client
 }
 
