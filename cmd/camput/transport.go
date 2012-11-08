@@ -21,14 +21,14 @@ import (
 	"sync"
 )
 
-type tinkerTransport struct {
+type statsTransport struct {
 	mu   sync.Mutex
 	reqs int
 
 	transport http.RoundTripper
 }
 
-func (t *tinkerTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+func (t *statsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	t.mu.Lock()
 	t.reqs++
 	rt := t.transport

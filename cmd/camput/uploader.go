@@ -49,7 +49,7 @@ type Uploader struct {
 
 	entityFetcher jsonsign.EntityFetcher
 
-	transport *tinkerTransport // for HTTP statistics
+	transport *statsTransport // for HTTP statistics
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache

@@ -154,9 +154,10 @@ func newUploader() *Uploader {
 		cc.SetLogger(nil)
 	}
 
-	transport := new(tinkerTransport)
-	transport.transport = &http.Transport{DisableKeepAlives: false}
-	cc.SetHttpClient(&http.Client{Transport: transport})
+	httpStats := &statsTransport{
+		transport:  &http.Transport{DisableKeepAlives: false},
+	}
+	cc.SetHttpClient(&http.Client{Transport: httpStats})
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -165,7 +166,7 @@ func newUploader() *Uploader {
 
 	return &Uploader{
 		Client:    cc,
-		transport: transport,
+		transport: httpStats,
 		pwd:       pwd,
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
