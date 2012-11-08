@@ -37,50 +37,50 @@ var ErrNotFound = errors.New("netutil: connection not found")
 // ConnUserid returns the uid that owns the given localhost connection.
 // The returned error is ErrNotFound if the connection wasn't found.
 func ConnUserid(conn net.Conn) (uid int, err error) {
-	return AddrPairUserid(conn.LocalAddr().String(), conn.RemoteAddr().String())
+	return AddrPairUserid(conn.LocalAddr(), conn.RemoteAddr())
 }
 
-func splitIPPort(param, value string) (ip net.IP, port int, reterr error) {
-	addrs, ports, err := net.SplitHostPort(value)
+// This fonction allows parsing of a TCPAddr without resolving names
+// other than localhost. It will return an error instead of resolving.
+func HostPortToIP(hostport string) (hostaddr *net.TCPAddr, err error) {
+	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {
-		reterr = fmt.Errorf("netutil: AddrPairUserid invalid %s value of %q: %v", param, value, err)
-		return
+		return nil, err
 	}
-	ip = net.ParseIP(addrs)
-	if ip == nil {
-		reterr = fmt.Errorf("netutil: invalid %s IP %q", param, addrs)
-		return
+	iport, err := strconv.Atoi(port)
+	if err != nil || iport < 0 || iport > 0xFFFF {
+		return nil, fmt.Errorf("invalid port %s", iport)
 	}
-	port, err = strconv.Atoi(ports)
-	if err != nil || port <= 0 || port > 65535 {
-		reterr = fmt.Errorf("netutil: invalid port %q", ports)
-		return
+	var addr net.IP
+	if host == "localhost" {
+		addr = net.IPv4(127, 0, 0, 1)
+	} else if addr = net.ParseIP(host); addr == nil {
+		return nil, fmt.Errorf("could not parse IP %s", host)
 	}
-	return
+
+	return &net.TCPAddr{IP: addr, Port: iport}, nil
 }
 
 // AddrPairUserid returns the local userid who owns the TCP connection
 // given by the local and remote ip:port (lipport and ripport,
 // respectively).  Returns ErrNotFound for the error if the TCP connection
 // isn't found.
-func AddrPairUserid(lipport, ripport string) (uid int, err error) {
-	lip, lport, err := splitIPPort("lipport", lipport)
-	if err != nil {
-		return -1, err
+func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
+	lAddr, lOk := local.(*net.TCPAddr)
+	rAddr, rOk := remote.(*net.TCPAddr)
+	if !(lOk && rOk) {
+		return -1, fmt.Errorf("netutil: Could not convert Addr to TCPAddr.")
 	}
-	rip, rport, err := splitIPPort("ripport", ripport)
-	if err != nil {
-		return -1, err
-	}
-	localv4 := (lip.To4() != nil)
-	remotev4 := (rip.To4() != nil)
+
+	localv4 := (lAddr.IP.To4() != nil)
+	remotev4 := (rAddr.IP.To4() != nil)
 	if localv4 != remotev4 {
 		return -1, fmt.Errorf("netutil: address pairs of different families; localv4=%v, remotev4=%v",
 			localv4, remotev4)
 	}
 
 	if runtime.GOOS == "darwin" {
-		return uidFromDarwinLsof(lip, lport, rip, rport)
+		return uidFromDarwinLsof(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
 	}
 
 	file := "/proc/net/tcp"
@@ -92,7 +92,7 @@ func AddrPairUserid(lipport, ripport string) (uid int, err error) {
 		return -1, fmt.Errorf("Error opening %s: %v", file, err)
 	}
 	defer f.Close()
-	return uidFromReader(lip, lport, rip, rport, f)
+	return uidFromReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
 }
 
 func toLinuxIPv4Order(b []byte) []byte {
@@ -212,20 +212,14 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 }
 
 // Localhost returns the first address found when
-// doing a lookup on "localhost". It is surrounded
-// by brackets if it contains a colon.
-func Localhost() (string, error) {
-	var addr string
-	addrs, err := net.LookupHost("localhost")
+// doing a lookup on "localhost".
+func Localhost() (net.IP, error) {
+	ips, err := net.LookupIP("localhost")
 	if err != nil {
-		return addr, err
+		return nil, err
 	}
-	if len(addrs) < 1 {
-		return addr, errors.New("Host lookup for localhost returned no result")
+	if len(ips) < 1 {
+		return nil, errors.New("IP lookup for localhost returned no result")
 	}
-	addr = addrs[0]
-	if strings.Contains(addr, ":") {
-		addr = "[" + addr + "]"
-	}
-	return addr, nil
+	return ips[0], nil
 }
