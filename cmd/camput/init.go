@@ -156,26 +156,6 @@ func (c *initCmd) RunCommand(_ *Uploader, args []string) error {
 		m["selfPubKeyDir"] = blobDir
 		m["auth"] = "none"
 
-		blobPut := make([]map[string]string, 1)
-		blobPut[0] = map[string]string{
-			"alias":    "local",
-			"host":     "http://localhost:3179/",
-			"password": "",
-		}
-		m["blobPut"] = blobPut
-
-		blobGet := make([]map[string]string, 2)
-		blobGet[0] = map[string]string{
-			"alias": "keyblobs",
-			"path":  blobDir,
-		}
-		blobGet[1] = map[string]string{
-			"alias":    "local",
-			"host":     "http://localhost:3179/",
-			"password": "",
-		}
-		m["blobGet"] = blobGet
-
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
 			log.Fatalf("JSON serialization error: %v", err)

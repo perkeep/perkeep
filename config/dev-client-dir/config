@@ -1,21 +1,7 @@
 {
-  "blobGet": [
-    {
-      "alias": "local",
-      "host": "http://localhost:3179/bs",
-      "password": "test"
-    }
-  ],
-  "blobPut": [
-    {
-      "alias": "local",
-      "host": "http://localhost:3179/bs",
-      "password": "test"
-    }
-  ],
   "blobServer": "http://localhost:3179/bs",
+
   "auth": ["_env", "${CAMLI_AUTH}" ],
-  
   "selfPubKeyDir": ["_env", "${CAMLI_DEV_KEYBLOBS}" ],
   "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
   "keyId": ["_env", "${CAMLI_KEYID}"]
