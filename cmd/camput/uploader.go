@@ -40,7 +40,7 @@ type HaveCache interface {
 type Uploader struct {
 	*client.Client
 
-	fileOpts   *fileOptions // per-file options; may be nil
+	fileOpts *fileOptions // per-file options; may be nil
 
 	// for debugging; normally nil, but overrides Client if set
 	// TODO(bradfitz): clean this up? embed a StatReceiver instead

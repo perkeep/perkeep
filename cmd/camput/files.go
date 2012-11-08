@@ -194,8 +194,8 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 // statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
 // it just collects statistics.
 type statsStatReceiver struct {
-	mu    sync.Mutex
-	have  map[string]int64
+	mu   sync.Mutex
+	have map[string]int64
 }
 
 func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
