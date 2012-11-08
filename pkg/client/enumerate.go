@@ -44,6 +44,10 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts Enumera
 	if opts.After != "" && opts.MaxWait != 0 {
 		return errors.New("client error: it's invalid to use enumerate After and MaxWaitSec together")
 	}
+	pfx, err := c.prefix()
+	if err != nil {
+		return err
+	}
 
 	error := func(msg string, e error) error {
 		err := errors.New(fmt.Sprintf("client enumerate error: %s: %v", msg, e))
@@ -65,7 +69,7 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts Enumera
 			}
 		}
 		url_ := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
-			c.server, url.QueryEscape(after), enumerateBatchSize, waitSec)
+			pfx, url.QueryEscape(after), enumerateBatchSize, waitSec)
 		req := c.newRequest("GET", url_)
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

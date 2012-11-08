@@ -17,17 +17,32 @@ limitations under the License.
 package client
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 
 	"camlistore.org/pkg/auth"
 )
 
 type Client struct {
-	server   string // URL prefix before "/camli/"
+	// server is the input from user, pre-discovery.
+	// For example "http://foo.com" or "foo.com:1234".
+	// It is the responsibility of initPrefix to parse
+	// server and set prefix, including doing discovery
+	// to figure out what the proper server-declared
+	// prefix is.
+	server string
+
+	prefixOnce sync.Once
+	prefixv    string // URL prefix before "/camli/"
+	prefixErr  error
+
 	authMode auth.AuthMode
 
 	httpClient *http.Client
@@ -80,6 +95,64 @@ func (c *Client) Stats() Stats {
 	c.statsMutex.Lock()
 	defer c.statsMutex.Unlock()
 	return c.stats // copy
+}
+
+func (c *Client) prefix() (string, error) {
+	c.prefixOnce.Do(func() { c.initPrefix() })
+	if c.prefixErr != nil {
+		return "", c.prefixErr
+	}
+	return c.prefixv, nil
+}
+
+func (c *Client) initPrefix() {
+	s := c.server
+	if !strings.HasPrefix(s, "http") {
+		s = "http://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		c.prefixErr = err
+		return
+	}
+	if len(u.Path) > 1 {
+		c.prefixv = strings.TrimRight(s, "/")
+		return
+	}
+	// If the path is just "" or "/", do discovery against
+	// the URL to see which path we should actually use.
+	req, _ := http.NewRequest("GET", u.String(), nil)
+	req.Header.Set("Accept", "text/x-camli-configuration")
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		c.prefixErr = err
+		return
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		c.prefixErr = fmt.Errorf("Got status %q from blobserver during configuration discovery", res.Status)
+		return
+	}
+	// TODO(bradfitz): little weird in retrospect that we request
+	// text/x-camli-configuration and expect to get back
+	// text/javascript.  Make them consistent.
+	if ct := res.Header.Get("Content-Type"); ct != "text/javascript" {
+		c.prefixErr = fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
+		return
+	}
+	m := make(map[string]interface{})
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		c.prefixErr = err
+		return
+	}
+	blobRoot, ok := m["blobRoot"].(string)
+	if !ok {
+		c.prefixErr = fmt.Errorf("No blobRoot in config discovery response")
+		return
+	}
+	u.Path = blobRoot
+	c.prefixv = strings.TrimRight(u.String(), "/")
+	log.Printf("set prefix to %q", c.prefixv)
 }
 
 func (c *Client) newRequest(method, url string) *http.Request {

@@ -30,7 +30,7 @@ $ENV{"CAMLI_SECRET_RING"} = "$Bin/pkg/jsonsign/testdata/test-secring.gpg";
 $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
 $ENV{"CAMLI_AUTH"} = "userpass:camlistore:pass3179";
-my $blobserver = "http://localhost:3179/bs";
+my $blobserver = "http://localhost:3179/";
 if ($opt_tls) {
 	$blobserver =~ s/^http/https/;
 }

@@ -34,7 +34,11 @@ func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, error
 }
 
 func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadCloser, int64, error) {
-	url := fmt.Sprintf("%s/camli/%s", c.server, b)
+	pfx, err := c.prefix()
+	if err != nil {
+		return nil, 0, err
+	}
+	url := fmt.Sprintf("%s/camli/%s", pfx, b)
 
 	if len(v) > 0 {
 		buf := bytes.NewBufferString(url)

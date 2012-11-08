@@ -196,7 +196,11 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 		fmt.Fprintf(&buf, "&maxwaitsec=%d", secs)
 	}
 
-	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", c.server))
+	pfx, err := c.prefix()
+	if err != nil {
+		return err
+	}
+	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx))
 	bodyStr := buf.String()
 	req.Body = ioutil.NopCloser(strings.NewReader(bodyStr))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -259,9 +263,13 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 
 	blobrefStr := h.BlobRef.String()
 
-	// Pre-upload.  Check whether the blob already exists on the
+	// Pre-upload. Check whether the blob already exists on the
 	// server and if not, the URL to upload it to.
-	url_ := fmt.Sprintf("%s/camli/stat", c.server)
+	pfx, err := c.prefix()
+	if err != nil {
+		return nil, err
+	}
+	url_ := fmt.Sprintf("%s/camli/stat", pfx)
 	requestBody := "camliversion=1&blob1=" + blobrefStr
 	req := c.newRequest("POST", url_)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
