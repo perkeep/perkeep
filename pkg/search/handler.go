@@ -36,7 +36,7 @@ import (
 )
 
 const buffered = 32      // arbitrary channel buffer size
-const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched 
+const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -316,23 +316,12 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 type DescribeRequest struct {
 	sh *Handler
 
-	lk   sync.Mutex // protects following:
+	mu   sync.Mutex // protects following:
 	m    map[string]*DescribedBlob
 	done map[string]bool  // blobref -> described
 	errs map[string]error // blobref -> error
 
 	wg *sync.WaitGroup // for load requests
-}
-
-// Given a blobref string returns a Description or nil.
-// dr may be nil itself.
-func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
-	if dr == nil {
-		return nil
-	}
-	dr.lk.Lock()
-	defer dr.lk.Unlock()
-	return dr.m[blobstr]
 }
 
 type DescribedBlob struct {
@@ -427,12 +416,35 @@ func (b *DescribedBlob) ContentRef() (br *blobref.BlobRef, ok bool) {
 	return
 }
 
+// Given a blobref string returns a Description or nil.
+// dr may be nil itself.
+func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
+	if dr == nil {
+		return nil
+	}
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
+	return dr.m[blobstr]
+}
+
+// PeerBlob returns a DescribedBlob for the provided blobref.
+//
+// Unlike DescribedBlobStr, the returned DescribedBlob is never nil.
+//
+// If the blob was never loaded along with the the receiver (or if the
+// receiver is nil), a stub DescribedBlob is returned with its Stub
+// field set true.
 func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 	if b.Request == nil {
 		return &DescribedBlob{BlobRef: br, Stub: true}
 	}
-	b.Request.lk.Lock()
-	defer b.Request.lk.Unlock()
+	b.Request.mu.Lock()
+	defer b.Request.mu.Unlock()
+	return b.peerBlob(br)
+}
+
+// version of PeerBlob when b.Request.mu is already held.
+func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
 	if peer, ok := b.Request.m[br.String()]; ok {
 		return peer
 	}
@@ -470,6 +482,9 @@ func (b *DescribedBlob) isPermanode() bool {
 }
 
 // returns a path relative to the UI handler.
+//
+// Locking: requires that DescribedRequest is done loading or that
+// Request.mu is held (as it is from populateJSONThumbnails)
 func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
 	if thumbSize <= 0 || !b.isPermanode() {
 		return
@@ -484,7 +499,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	}
 
 	if content, ok := b.ContentRef(); ok {
-		peer := b.PeerBlob(content)
+		peer := b.peerBlob(content)
 		if peer.File != nil && peer.File.IsImage() {
 			image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
 				url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
@@ -618,8 +633,8 @@ func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
 // of zero means to not include them.
 func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, thumbSize int) {
 	dr.wg.Wait()
-	dr.lk.Lock()
-	defer dr.lk.Unlock()
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
 	for k, desb := range dr.m {
 		m := desb.jsonMap()
 		dest[k] = m
@@ -636,8 +651,8 @@ func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, t
 }
 
 func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
-	dr.lk.Lock()
-	defer dr.lk.Unlock()
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
 	bs := b.String()
 	if des, ok := dr.m[bs]; ok {
 		return des
@@ -660,8 +675,8 @@ func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	if depth <= 0 {
 		return
 	}
-	dr.lk.Lock()
-	defer dr.lk.Unlock()
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
 	if dr.done == nil {
 		dr.done = make(map[string]bool)
 	}
@@ -680,8 +695,8 @@ func (dr *DescribeRequest) addError(br *blobref.BlobRef, err error) {
 	if err == nil {
 		return
 	}
-	dr.lk.Lock()
-	defer dr.lk.Unlock()
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
 	// TODO: append? meh.
 	dr.errs[br.String()] = err
 }

@@ -154,7 +154,7 @@ type Index interface {
 	// search is performed (if supported by the attribute(s))
 	// instead of an exact match search.
 	// Additionally, if request.Attribute is blank, all attributes
-	// are searched (as fulltext), otherwise the search is 
+	// are searched (as fulltext), otherwise the search is
 	// restricted  to the named attribute.
 	//
 	// dest is always closed, regardless of the error return value.
