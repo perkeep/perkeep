@@ -45,9 +45,6 @@ func init() {
 type Handler struct {
 	index Index
 	owner *blobref.BlobRef
-
-	// TODO: populate this from server config; need to tell search handler where the /ui/ handler is.
-	uiPrefix string
 }
 
 func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
@@ -104,24 +101,6 @@ func jsonMap() map[string]interface{} {
 
 func jsonMapList() []map[string]interface{} {
 	return make([]map[string]interface{}, 0)
-}
-
-func joinOneSlash(a, b string) string {
-	if strings.HasSuffix(a, "/") {
-		a = a[:len(a)-1]
-	}
-	if strings.HasPrefix(b, "/") {
-		b = b[1:]
-	}
-	return a + "/" + b
-}
-
-func (sh *Handler) uiPath(suffix string) string {
-	return joinOneSlash(sh.uiPrefix, suffix)
-}
-
-func (sh *Handler) thumbnail(suffix string) string {
-	return sh.uiPath("thumbnail/" + suffix)
 }
 
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -639,7 +618,7 @@ func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, t
 		m := desb.jsonMap()
 		dest[k] = m
 		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
-			m["thumbnailSrc"] = dr.sh.uiPath(src)
+			m["thumbnailSrc"] = src
 			m["thumbnailWidth"] = float64(w)
 			m["thumbnailHeight"] = float64(h)
 		}

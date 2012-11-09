@@ -163,6 +163,10 @@ func wantsUploadHelper(req *http.Request) bool {
 	return req.Method == "POST" && camliMode(req) == "uploadhelper"
 }
 
+func wantsRecentPermanodes(req *http.Request) bool {
+	return req.Method == "GET" && req.FormValue("mode") == "thumbnails"
+}
+
 func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
@@ -201,6 +205,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			file = m[1]
 		} else {
 			switch {
+			case wantsRecentPermanodes(req):
+				file = "recent.html"
 			case wantsPermanode(req):
 				file = "permanode.html"
 			case wantsGallery(req):

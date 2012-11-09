@@ -334,8 +334,17 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliGetRecentlyUpdatedPermanodes(opts) {\n"+
+		"    // opts.thumbnails is the maximum size of the thumbnails we want,\n"+
+		"    // or 0 if no thumbnail.\n"+
+		"    var path = \"\";\n"+
+		"    if (opts.thumbnails != null) {\n"+
+		"        path = makeURL(Camli.config.searchRoot + \"camli/search/recent\",\n"+
+		"            {thumbnails: opts.thumbnails});\n"+
+		"    } else {\n"+
+		"        path = makeURL(Camli.config.searchRoot + \"camli/search/recent\");\n"+
+		"    }\n"+
 		"    var xhr = camliJsonXhr(\"camliGetRecentlyUpdatedPermanodes\", opts);\n"+
-		"    xhr.open(\"GET\", Camli.config.searchRoot + \"camli/search/recent\", true);\n"+
+		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
 		"}\n"+
 		"\n"+
@@ -499,5 +508,5 @@ func init() {
 		"    changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
-		"", time.Unix(0, 1352107488430325498))
+		"", time.Unix(0, 1352486005211518273))
 }

@@ -26,6 +26,9 @@ func init() {
 		"  <button id=\"btnNew\">New</button> - create a new item or collection \n"+
 		"\n"+
 		"  <h2>Recent Objects</h2>\n"+
+		"  <p class=\"camli-nav\">\n"+
+		"    <strong>View:</strong>\n"+
+		"    <a href=\"recent.html\">thumbnails</a></p>\n"+
 		"  <ul id=\"recent\"></ul>\n"+
 		"\n"+
 		"  <h2>Search</h2>\n"+
@@ -44,5 +47,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		"", time.Unix(0, 1352107488430325498))
+		"", time.Unix(0, 1352140094545709597))
 }

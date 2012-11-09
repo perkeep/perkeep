@@ -318,8 +318,17 @@ function getQueryParam(key) {
 }
 
 function camliGetRecentlyUpdatedPermanodes(opts) {
+    // opts.thumbnails is the maximum size of the thumbnails we want,
+    // or 0 if no thumbnail.
+    var path = "";
+    if (opts.thumbnails != null) {
+        path = makeURL(Camli.config.searchRoot + "camli/search/recent",
+            {thumbnails: opts.thumbnails});
+    } else {
+        path = makeURL(Camli.config.searchRoot + "camli/search/recent");
+    }
     var xhr = camliJsonXhr("camliGetRecentlyUpdatedPermanodes", opts);
-    xhr.open("GET", Camli.config.searchRoot + "camli/search/recent", true);
+    xhr.open("GET", path, true);
     xhr.send();
 }
 

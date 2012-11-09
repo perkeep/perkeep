@@ -88,5 +88,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352107488430325498))
+		"", time.Unix(0, 1352207874895225020))
 }
