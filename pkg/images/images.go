@@ -17,12 +17,29 @@ limitations under the License.
 package images
 
 import (
+	"bytes"
+	"fmt"
 	"image"
+	"image/draw"
+	"image/jpeg"
 	"io"
+	"log"
 
 	_ "image/gif"
-	_ "image/jpeg"
 	_ "image/png"
+
+	"github.com/camlistore/goexif/exif"
+)
+
+// The FlipDirection type is used by the Flip option in DecodeOpts
+// to indicate in which direction to flip an image.
+type FlipDirection int
+
+// FlipVertical and FlipHorizontal are two possible FlipDirections
+// values to indicate in which direction an image will be flipped.
+const (
+	FlipVertical FlipDirection = 1 << iota
+	FlipHorizontal
 )
 
 type DecodeOpts struct {
@@ -32,6 +49,11 @@ type DecodeOpts struct {
 	// counter clockwise and must be one of 0, 90, -90, 180, or
 	// -180.
 	Rotate interface{}
+
+	// Flip specifies how to flip the image.
+	// If nil, the image is flipped automatically based on EXIF metadata.
+	// Otherwise, Flip is a FlipDirection bitfield indicating how to flip.
+	Flip interface{}
 
 	// MaxWidgth and MaxHeight optionally specify bounds on the
 	// final image's size.
@@ -43,8 +65,160 @@ type DecodeOpts struct {
 	//   Stretch bool
 }
 
+func rotate(im image.Image, angle int) image.Image {
+	var rotated *image.NRGBA
+	// trigonometric (i.e counter clock-wise)
+	switch angle {
+	case 90:
+		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(newH-1-y, x))
+			}
+		}
+	case -90:
+		newH, newW := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(y, newW-1-x))
+			}
+		}
+	case 180, -180:
+		newW, newH := im.Bounds().Dx(), im.Bounds().Dy()
+		rotated = image.NewNRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				rotated.Set(x, y, im.At(newW-1-x, newH-1-y))
+			}
+		}
+	default:
+		return im
+	}
+	return rotated
+}
+
+// flip returns a flipped version of the image im, according to
+// the direction(s) in dir.
+// It may flip the imput im in place and return it, or it may allocate a
+// new NRGBA (if im is an *image.YCbCr).
+func flip(im image.Image, dir FlipDirection) image.Image {
+	if dir == 0 {
+		return im
+	}
+	ycbcr := false
+	var nrgba image.Image
+	dx, dy := im.Bounds().Dx(), im.Bounds().Dy()
+	di, ok := im.(draw.Image)
+	if !ok {
+		if _, ok := im.(*image.YCbCr); !ok {
+			log.Printf("failed to flip image: input does not satisfy draw.Image")
+			return im
+		}
+		// because YCbCr does not implement Set, we replace it with a new NRGBA
+		ycbcr = true
+		nrgba = image.NewNRGBA(image.Rect(0, 0, dx, dy))
+		di, ok = nrgba.(draw.Image)
+		if !ok {
+			log.Print("failed to flip image: could not cast an NRGBA to a draw.Image")
+			return im
+		}
+	}
+	if dir&FlipHorizontal != 0 {
+		for y := 0; y < dy; y++ {
+			for x := 0; x < dx/2; x++ {
+				old := im.At(x, y)
+				di.Set(x, y, im.At(dx-1-x, y))
+				di.Set(dx-1-x, y, old)
+			}
+		}
+	}
+	if dir&FlipVertical != 0 {
+		for y := 0; y < dy/2; y++ {
+			for x := 0; x < dx; x++ {
+				old := im.At(x, y)
+				di.Set(x, y, im.At(x, dy-1-y))
+				di.Set(x, dy-1-y, old)
+			}
+		}
+	}
+	if ycbcr {
+		return nrgba
+	}
+	return im
+}
+
+func (opts *DecodeOpts) forcedRotate() bool {
+	return opts != nil && opts.Rotate != nil
+}
+
+func (opts *DecodeOpts) forcedFlip() bool {
+	return opts != nil && opts.Flip != nil
+}
+
+func (opts *DecodeOpts) useEXIF() bool {
+	return !(opts.forcedRotate() || opts.forcedFlip())
+}
+
 // Decode decodes an image from r using the provided decoding options.
 // If opts is nil, the defaults are used.
 func Decode(r io.Reader, opts *DecodeOpts) (image.Image, error) {
-	panic("TODO(mpl): implement")
+	var buf bytes.Buffer
+	tr := io.TeeReader(io.LimitReader(r, 2<<20), &buf)
+	angle := 0
+	flipMode := FlipDirection(0)
+	if opts.useEXIF() {
+		ex, err := exif.Decode(tr)
+		if err != nil {
+			return nil, err
+		}
+		tag, err := ex.Get(exif.Orientation)
+		if err != nil {
+			return nil, err
+		}
+		orient := tag.Val[1]
+		switch orient {
+		case 1:
+			// do nothing
+		case 2:
+			flipMode = 2
+		case 3:
+			angle = 180
+		case 4:
+			angle = 180
+			flipMode = 2
+		case 5:
+			angle = -90
+			flipMode = 2
+		case 6:
+			angle = -90
+		case 7:
+			angle = 90
+			flipMode = 2
+		case 8:
+			angle = 90
+		}
+	} else {
+		if opts.forcedRotate() {
+			var ok bool
+			angle, ok = opts.Rotate.(int)
+			if !ok {
+				return nil, fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
+			}
+		}
+		if opts.forcedFlip() {
+			var ok bool
+			flipMode, ok = opts.Flip.(FlipDirection)
+			if !ok {
+				return nil, fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
+			}
+		}
+	}
+
+	im, err := jpeg.Decode(io.MultiReader(&buf, r))
+	if err != nil {
+		return nil, err
+	}
+	return flip(rotate(im, angle), flipMode), nil
 }
