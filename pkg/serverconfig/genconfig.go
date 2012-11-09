@@ -99,8 +99,6 @@ func addUIConfig(prefixes *jsonconfig.Obj, uiPrefix string, published []interfac
 	ob := map[string]interface{}{}
 	ob["handler"] = "ui"
 	handlerArgs := map[string]interface{}{
-		"blobRoot":     "/bs-and-maybe-also-index/",
-		"searchRoot":   "/my-search/",
 		"jsonSignRoot": "/sighelper/",
 		"cache":        "/cache/",
 		"scaledImage":  "lrucache",
@@ -180,7 +178,11 @@ func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
 
 	ob := map[string]interface{}{}
 	ob["handler"] = "root"
-	ob["handlerArgs"] = map[string]interface{}{"stealth": false}
+	ob["handlerArgs"] = map[string]interface{}{
+		"stealth":    false,
+		"blobRoot":   "/bs-and-maybe-also-index/",
+		"searchRoot": "/my-search/",
+	}
 	prefixes["/"] = ob
 
 	ob = map[string]interface{}{}
