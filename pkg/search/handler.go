@@ -723,7 +723,14 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(br, 4)
-	dr.PopulateJSON(ret)
+	thumbSize := 0
+	if req.FormValue("thumbnails") != "" {
+		thumbSize = 50
+		if i, _ := strconv.Atoi(req.FormValue("thumbnails")); i >= 25 && i < 800 {
+			thumbSize = i
+		}
+	}
+	dr.populateJSONThumbnails(ret, thumbSize)
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {

@@ -345,6 +345,7 @@ func init() {
 		"\n"+
 		"function buildPermanodeUi() {\n"+
 		"    camliDescribeBlob(getPermanodeParam(), {\n"+
+		"        thumbnails: 200, // requested size\n"+
 		"        success: onBlobDescribed,\n"+
 		"        failure: function(msg) {\n"+
 		"            alert(\"failed to get blob description: \" + msg);\n"+
@@ -420,7 +421,24 @@ func init() {
 		"        c.appendChild(document.createTextNode(\"File: \"));\n"+
 		"        var a = document.createElement(\"a\");\n"+
 		"        a.href = \"./?b=\" + camliContent;\n"+
-		"        setTextContent(a, camliBlobTitle(camliContent, jres));\n"+
+		"        var doThumb = false;\n"+
+		"        var thumbnailSrc = jres[permanode].thumbnailSrc;\n"+
+		"        var contentObject = jres[camliContent];\n"+
+		"        if (thumbnailSrc && contentObject) {\n"+
+		"            var objectFile = contentObject.file;\n"+
+		"            if (objectFile) {\n"+
+		"                if (objectFile.mimeType.indexOf(\"image/\") == 0) {\n"+
+		"                    doThumb = true;\n"+
+		"                }\n"+
+		"            }\n"+
+		"        }\n"+
+		"        if (doThumb) {\n"+
+		"            var img = document.createElement(\"img\");\n"+
+		"            img.src = thumbnailSrc;\n"+
+		"            a.appendChild(img);\n"+
+		"        } else {\n"+
+		"            setTextContent(a, camliBlobTitle(camliContent, jres));\n"+
+		"        }\n"+
 		"        c.appendChild(a);\n"+
 		"    }\n"+
 		"\n"+
@@ -671,5 +689,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		"", time.Unix(0, 1352107488430325498))
+		"", time.Unix(0, 1352502107206351256))
 }

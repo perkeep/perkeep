@@ -101,8 +101,11 @@ func init() {
 		"\n"+
 		"function camliDescribeBlob(blobref, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliDescribeBlob\", opts);\n"+
-		"    var path = Camli.config.searchRoot + \"camli/search/describe?blobref=\" +\n"+
-		"        blobref;\n"+
+		"    var path = Camli.config.searchRoot +\n"+
+		"            \"camli/search/describe?blobref=\" + blobref;\n"+
+		"    if (opts.thumbnails != null) {\n"+
+		"        path = makeURL(path, {thumbnails: opts.thumbnails});\n"+
+		"    }\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
 		"}\n"+
@@ -336,12 +339,9 @@ func init() {
 		"function camliGetRecentlyUpdatedPermanodes(opts) {\n"+
 		"    // opts.thumbnails is the maximum size of the thumbnails we want,\n"+
 		"    // or 0 if no thumbnail.\n"+
-		"    var path = \"\";\n"+
+		"    var path = Camli.config.searchRoot + \"camli/search/recent\";\n"+
 		"    if (opts.thumbnails != null) {\n"+
-		"        path = makeURL(Camli.config.searchRoot + \"camli/search/recent\",\n"+
-		"            {thumbnails: opts.thumbnails});\n"+
-		"    } else {\n"+
-		"        path = makeURL(Camli.config.searchRoot + \"camli/search/recent\");\n"+
+		"        path = makeURL(path, {thumbnails: opts.thumbnails});\n"+
 		"    }\n"+
 		"    var xhr = camliJsonXhr(\"camliGetRecentlyUpdatedPermanodes\", opts);\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
@@ -508,5 +508,5 @@ func init() {
 		"    changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
-		"", time.Unix(0, 1352486005211518273))
+		"", time.Unix(0, 1352496670831866384))
 }

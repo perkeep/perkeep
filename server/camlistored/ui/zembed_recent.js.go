@@ -22,8 +22,8 @@ func init() {
 		"*/\n"+
 		"\n"+
 		"function indexOnLoad(e) {\n"+
-		"	camliGetRecentlyUpdatedPermanodes({ success: indexBuildRecentlyUpdatedPermanodes"+
-		", thumbnails: true});\n"+
+		"	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes,"+
+		" thumbnails: true});\n"+
 		"}\n"+
 		"\n"+
 		"function indexBuildRecentlyUpdatedPermanodes(searchRes) {\n"+
@@ -47,5 +47,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352486501031517614))
+		"", time.Unix(0, 1352494795012737952))
 }

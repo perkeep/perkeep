@@ -332,6 +332,7 @@ function addMember(pn, des) {
 
 function buildPermanodeUi() {
     camliDescribeBlob(getPermanodeParam(), {
+        thumbnails: 200, // requested size
         success: onBlobDescribed,
         failure: function(msg) {
             alert("failed to get blob description: " + msg);
@@ -406,7 +407,24 @@ function onBlobDescribed(jres) {
         c.appendChild(document.createTextNode("File: "));
         var a = document.createElement("a");
         a.href = "./?b=" + camliContent;
-        setTextContent(a, camliBlobTitle(camliContent, jres));
+        var doThumb = false;
+        var thumbnailSrc = jres[permanode].thumbnailSrc;
+        var contentObject = jres[camliContent];
+        if (thumbnailSrc && contentObject) {
+            var objectFile = contentObject.file;
+            if (objectFile) {
+                if (objectFile.mimeType.indexOf("image/") == 0) {
+                    doThumb = true;
+                }
+            }
+        }
+        if (doThumb) {
+            var img = document.createElement("img");
+            img.src = thumbnailSrc;
+            a.appendChild(img);
+        } else {
+            setTextContent(a, camliBlobTitle(camliContent, jres));
+        }
         c.appendChild(a);
     }
 

@@ -92,8 +92,11 @@ function camliSigDiscovery(opts) {
 
 function camliDescribeBlob(blobref, opts) {
     var xhr = camliJsonXhr("camliDescribeBlob", opts);
-    var path = Camli.config.searchRoot + "camli/search/describe?blobref=" +
-        blobref;
+    var path = Camli.config.searchRoot +
+            "camli/search/describe?blobref=" + blobref;
+    if (opts.thumbnails != null) {
+        path = makeURL(path, {thumbnails: opts.thumbnails});
+    }
     xhr.open("GET", path, true);
     xhr.send();
 }
@@ -320,12 +323,9 @@ function getQueryParam(key) {
 function camliGetRecentlyUpdatedPermanodes(opts) {
     // opts.thumbnails is the maximum size of the thumbnails we want,
     // or 0 if no thumbnail.
-    var path = "";
+    var path = Camli.config.searchRoot + "camli/search/recent";
     if (opts.thumbnails != null) {
-        path = makeURL(Camli.config.searchRoot + "camli/search/recent",
-            {thumbnails: opts.thumbnails});
-    } else {
-        path = makeURL(Camli.config.searchRoot + "camli/search/recent");
+        path = makeURL(path, {thumbnails: opts.thumbnails});
     }
     var xhr = camliJsonXhr("camliGetRecentlyUpdatedPermanodes", opts);
     xhr.open("GET", path, true);
