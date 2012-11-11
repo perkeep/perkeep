@@ -1,0 +1,4 @@
+Saturday & Sunday in Paris with Mathieu, meeting for the first time,
+hacking on EXIF rotation, thumbnail indexing, Postgres support, and
+then Monday at Google Paris, working on different parts of the UI
+permanode thumbnail page, and genfileembed problems.
