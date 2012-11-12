@@ -37,6 +37,8 @@ func init() {
 		"		alink.href = \"./?p=\" + br.blobRef;\n"+
 		"		var img = document.createElement(\"img\");\n"+
 		"		img.src = br.thumbnailSrc;\n"+
+		"		img.height = br.thumbnailHeight;\n"+
+		"		img.width =  br.thumbnailWidth;\n"+
 		"		alink.appendChild(img);\n"+
 		"		divperm.appendChild(alink);\n"+
 		"		var title = document.createElement(\"p\");\n"+
@@ -47,5 +49,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352494795012737952))
+		"", time.Unix(0, 1352732421861382276))
 }

@@ -29,6 +29,8 @@ function indexBuildRecentlyUpdatedPermanodes(searchRes) {
 		alink.href = "./?p=" + br.blobRef;
 		var img = document.createElement("img");
 		img.src = br.thumbnailSrc;
+		img.height = br.thumbnailHeight;
+		img.width =  br.thumbnailWidth;
 		alink.appendChild(img);
 		divperm.appendChild(alink);
 		var title = document.createElement("p");
