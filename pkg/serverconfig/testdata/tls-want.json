@@ -8,6 +8,8 @@
 		"/": {
 			"handler": "root",
 			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"searchRoot": "/my-search/",
 				"stealth": false
 			}
 		},
@@ -15,8 +17,6 @@
 		"/ui/": {
 			"handler": "ui",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
-				"searchRoot": "/my-search/",
 				"jsonSignRoot": "/sighelper/",
 				"cache": "/cache/",
 				"scaledImage": "lrucache"
