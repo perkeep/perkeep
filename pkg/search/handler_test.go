@@ -194,7 +194,7 @@ var handlerTests = []handlerTest{
                  },
                  "size": 534,
                  "thumbnailHeight": 100,
-                 "thumbnailSrc": "/node.png",
+                 "thumbnailSrc": "node.png",
                  "thumbnailWidth": 100
                 }
                }`),
