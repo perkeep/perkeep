@@ -19,13 +19,40 @@ limitations under the License.
 package osutil
 
 import (
+	"errors"
 	"os"
+	"runtime"
 	"syscall"
 )
+
+// if non-nil, osSelfPath is used from selfPath.
+var osSelfPath func() (string, error)
+
+func selfPath() (string, error) {
+	if f := osSelfPath; f != nil {
+		return f()
+	}
+	switch runtime.GOOS {
+	case "linux":
+		return "/proc/self/exe", nil
+	case "netbsd":
+		return "/proc/curproc/exe", nil
+	case "openbsd":
+		return "/proc/curproc/file", nil
+	case "darwin":
+		// TODO(mpl): shall we do the whole dance for darwin, which requires modifying the runtime as well, if I understood minux's work correctly?
+		return os.Args[0], nil
+	}
+	return "", errors.New("No restart because selfPath() not implemented for " + runtime.GOOS)
+}
 
 // restartProcess returns an error if things couldn't be
 // restarted.  On success, this function never returns
 // because the process becomes the new process.
 func RestartProcess() error {
-	return syscall.Exec(os.Args[0], os.Args, os.Environ())
+	path, err := selfPath()
+	if err != nil {
+		return err
+	}
+	return syscall.Exec(path, os.Args, os.Environ())
 }
