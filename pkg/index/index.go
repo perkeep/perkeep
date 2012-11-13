@@ -337,6 +337,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val st
 }
 
 // This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
+// If request.Query is "", it is not used in the prefix search.
 func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) (err error) {
 	defer close(dest)
 	if request.FuzzyMatch {
@@ -355,7 +356,13 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 		return err
 	}
 	seen := make(map[string]bool)
-	it := x.queryPrefix(keySignerAttrValue, keyId, request.Attribute, request.Query)
+	var it *prefixIter
+	// TODO(mpl): test this case in particular when making a test for that method.
+	if request.Query == "" {
+		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute)
+	} else {
+		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute, request.Query)
+	}
 	defer closeIterator(it, &err)
 	for it.Next() {
 		pn := blobref.Parse(it.Value())

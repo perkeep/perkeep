@@ -119,6 +119,8 @@ type PermanodeByAttrRequest struct {
 
 	// The attribute value to find exactly (or roughly, if
 	// FuzzyMatch is set)
+	// If blank, the permanodes with Attribute as an attribute
+	// (set to any value) are searched.
 	Query string
 
 	FuzzyMatch bool // by default, an exact match is required
@@ -153,6 +155,9 @@ type Index interface {
 	// In particular, if request.FuzzyMatch is true, a fulltext
 	// search is performed (if supported by the attribute(s))
 	// instead of an exact match search.
+	// If request.Query is blank, the permanodes which have
+	// request.Attribute as an attribute (regardless of its value)
+	// are searched.
 	// Additionally, if request.Attribute is blank, all attributes
 	// are searched (as fulltext), otherwise the search is
 	// restricted  to the named attribute.

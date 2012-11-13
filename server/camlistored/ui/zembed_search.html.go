@@ -20,6 +20,11 @@ func init() {
 		"\n"+
 		"    <h1>Search</h1>\n"+
 		"\n"+
+		"    <h2>Find all roots</h2>\n"+
+		"    <form id=\"formRoots\">\n"+
+		"        <input type=\"submit\" id=\"btnRoots\" value=\"Search\">\n"+
+		"    </form>\n"+
+		"\n"+
 		"    <h2>In all attributes</h2>\n"+
 		"    <form id=\"formAnyAttr\">\n"+
 		"        <input id=\"inputAnyAttr\" placeholder=\"attrValue1\">\n"+
@@ -51,5 +56,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		"", time.Unix(0, 1330389504169976807))
+		"", time.Unix(0, 1352847761019584970))
 }

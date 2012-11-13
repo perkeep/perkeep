@@ -27,15 +27,9 @@ func init() {
 		"	CamliSearch.query = \"\";\n"+
 		"	CamliSearch.type = \"\";\n"+
 		"	CamliSearch.fuzzy = \"\";\n"+
-		"	CamliSearch.query = getQueryParam('q');\n"+
-		"	CamliSearch.type = getQueryParam('t');\n"+
-		"	CamliSearch.fuzzy = getQueryParam('f');\n"+
-		"	if (CamliSearch.type == null) {\n"+
-		"		CamliSearch.type = \"\";\n"+
-		"	}\n"+
-		"	if (CamliSearch.fuzzy == null) {\n"+
-		"		CamliSearch.fuzzy = \"\";\n"+
-		"	}\n"+
+		"	CamliSearch.query = getQueryParam('q') || \"\";\n"+
+		"	CamliSearch.type = getQueryParam('t') || \"\";\n"+
+		"	CamliSearch.fuzzy = getQueryParam('f') || \"\";\n"+
 		"}\n"+
 		"\n"+
 		"function hideAllResThings() {\n"+
@@ -43,6 +37,13 @@ func init() {
 		"	CamliSearch.btnNewCollec.disabled = true;\n"+
 		"	CamliSearch.btnNewCollec.style.visibility = 'hidden';\n"+
 		"	CamliSearch.formAddToCollec.style.visibility = 'hidden';\n"+
+		"}\n"+
+		"\n"+
+		"function handleFormGetRoots(e) {\n"+
+		"	e.stopPropagation();\n"+
+		"	e.preventDefault();\n"+
+		"\n"+
+		"	document.location.href = \"search.html?&t=camliRoot\"\n"+
 		"}\n"+
 		"\n"+
 		"function handleFormGetTagged(e) {\n"+
@@ -106,9 +107,15 @@ func init() {
 		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"title\", CamliSearch.quer"+
 		"y, \"true\", tagcb);\n"+
 		"			break;\n"+
+		"		case \"camliRoot\":\n"+
+		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"camliRoot\", CamliSearch."+
+		"query, \"false\", tagcb);\n"+
+		"			break;\n"+
 		"		case \"\":\n"+
-		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \"t"+
-		"rue\", tagcb);\n"+
+		"			if (CamliSearch.query !== \"\") {\n"+
+		"				camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \""+
+		"true\", tagcb);\n"+
+		"			}\n"+
 		"			break;\n"+
 		"		}\n"+
 		"	};\n"+
@@ -156,16 +163,19 @@ func init() {
 		"	if (results.length > 0) {\n"+
 		"		switch(type) {\n"+
 		"		case \"tag\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"Tagged with \\\"\";\n"+
+		"			CamliSearch.titleRes.innerHTML = \"Tagged with \\\"\" + CamliSearch.query + \"\\\"\";\n"+
 		"			break;\n"+
 		"		case \"title\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"Titled with \\\"\";\n"+
+		"			CamliSearch.titleRes.innerHTML = \"Titled with \\\"\" + CamliSearch.query + \"\\\"\";\n"+
+		"			break;\n"+
+		"		case \"camliRoot\":\n"+
+		"			CamliSearch.titleRes.innerHTML = \"All roots\";\n"+
 		"			break;\n"+
 		"		case \"\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"General search for \\\"\";\n"+
+		"			CamliSearch.titleRes.innerHTML = \"General search for \\\"\" + CamliSearch.query +"+
+		" \"\\\"\";\n"+
 		"			break;\n"+
 		"		}\n"+
-		"		CamliSearch.titleRes.innerHTML += CamliSearch.query + \"\\\"\";\n"+
 		"		CamliSearch.titleRes.style.visibility = 'visible';\n"+
 		"		CamliSearch.btnNewCollec.disabled = false;\n"+
 		"		CamliSearch.btnNewCollec.style.visibility = 'visible';\n"+
@@ -257,6 +267,8 @@ func init() {
 		"\n"+
 		"function indexOnLoad(e) {\n"+
 		"\n"+
+		"	var formRoots = document.getElementById(\"formRoots\");\n"+
+		"	formRoots.addEventListener(\"submit\", handleFormGetRoots);\n"+
 		"	var formTags = document.getElementById(\"formTags\");\n"+
 		"	formTags.addEventListener(\"submit\", handleFormGetTagged);\n"+
 		"	var formTitles = document.getElementById(\"formTitles\");\n"+
@@ -270,11 +282,9 @@ func init() {
 		"	CamliSearch.formAddToCollec.addEventListener(\"submit\", handleAddToCollection);\n"+
 		"	hideAllResThings();\n"+
 		"	getSearchParams();\n"+
-		"	if (CamliSearch.query != \"\") {\n"+
-		"		doSearch();\n"+
-		"	}\n"+
+		"	doSearch();\n"+
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352107488430325498))
+		"", time.Unix(0, 1352847747010347886))
 }
