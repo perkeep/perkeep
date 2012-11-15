@@ -34,8 +34,6 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/misc/resize"
 	"camlistore.org/pkg/schema"
-
-	_ "image/gif"
 )
 
 type ImageHandler struct {
@@ -161,15 +159,15 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	if err != nil {
 		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
 	}
-	i, format, err := images.Decode(bytes.NewBuffer(buf.Bytes()), nil)
+	i, format, err := images.Decode(bytes.NewReader(buf.Bytes()), nil)
 	if err != nil {
 		return format, err
 	}
-	// TODO(mpl): maybe detect if it was rotated and if we need to force repushing
-	// the bytes to buf? If not, it means images that are already smaller than the
-	// requested thumbnail size will not be returned corrected.
 	b := i.Bounds()
 
+	// TODO(mpl): sort the useBytesUnchanged story out,
+	// so that a rotation/flip is not being ignored
+	// when there was no rescaling required.
 	useBytesUnchanged := true
 
 	isSquare := b.Dx() == b.Dy()
