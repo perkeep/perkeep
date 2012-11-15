@@ -310,21 +310,6 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO(mpl): delete this; just temporary assistance before EXIF is done
-	rot := query.Get("rot")
-	rotateAngle := 0
-	if rot != "" {
-		rotateAngle, err = strconv.Atoi(rot)
-		if err != nil {
-			http.Error(rw, "Invalid 'rot' param", 500)
-			return
-		}
-		if rotateAngle%90 != 0 {
-			http.Error(rw, "Invalid rotate angle", 500)
-			return
-		}
-	}
-
 	blobref := blobref.Parse(m[1])
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
@@ -336,7 +321,6 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
-		Rotate:    rotateAngle,
 		sc:        ui.sc,
 	}
 	th.ServeHTTP(rw, req, blobref)

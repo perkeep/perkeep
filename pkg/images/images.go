@@ -162,8 +162,9 @@ func (opts *DecodeOpts) useEXIF() bool {
 }
 
 // Decode decodes an image from r using the provided decoding options.
+// The string returned is the format name returned by image.Decode.
 // If opts is nil, the defaults are used.
-func Decode(r io.Reader, opts *DecodeOpts) (image.Image, error) {
+func Decode(r io.Reader, opts *DecodeOpts) (image.Image, string, error) {
 	var buf bytes.Buffer
 	tr := io.TeeReader(io.LimitReader(r, 2<<20), &buf)
 	angle := 0
@@ -171,11 +172,13 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, error) {
 	if opts.useEXIF() {
 		ex, err := exif.Decode(tr)
 		if err != nil {
-			return nil, err
+			// TODO(mpl): analyse error. for now assume there's just no exif info.
+			// will do tomorrow.
+			return image.Decode(io.MultiReader(&buf, r))
 		}
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		orient := tag.Val[1]
 		switch orient {
@@ -204,21 +207,21 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, error) {
 			var ok bool
 			angle, ok = opts.Rotate.(int)
 			if !ok {
-				return nil, fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
+				return nil, "", fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
 			}
 		}
 		if opts.forcedFlip() {
 			var ok bool
 			flipMode, ok = opts.Flip.(FlipDirection)
 			if !ok {
-				return nil, fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
+				return nil, "", fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
 			}
 		}
 	}
 
 	im, err := jpeg.Decode(io.MultiReader(&buf, r))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return flip(rotate(im, angle), flipMode), nil
+	return flip(rotate(im, angle), flipMode), "jpeg", nil
 }
