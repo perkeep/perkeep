@@ -40,7 +40,8 @@ func selfPath() (string, error) {
 	case "openbsd":
 		return "/proc/curproc/file", nil
 	case "darwin":
-		// TODO(mpl): shall we do the whole dance for darwin, which requires modifying the runtime as well, if I understood minux's work correctly?
+		// TODO(mpl): maybe do the right thing for darwin too, but that may require changes to runtime.
+		// See https://codereview.appspot.com/6736069/
 		return os.Args[0], nil
 	}
 	return "", errors.New("No restart because selfPath() not implemented for " + runtime.GOOS)
