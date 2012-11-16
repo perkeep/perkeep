@@ -20,15 +20,9 @@ function getSearchParams() {
 	CamliSearch.query = "";
 	CamliSearch.type = "";
 	CamliSearch.fuzzy = "";
-	CamliSearch.query = getQueryParam('q');
-	CamliSearch.type = getQueryParam('t');
-	CamliSearch.fuzzy = getQueryParam('f');
-	if (CamliSearch.type == null) {
-		CamliSearch.type = "";
-	}
-	if (CamliSearch.fuzzy == null) {
-		CamliSearch.fuzzy = "";
-	}
+	CamliSearch.query = getQueryParam('q') || "";
+	CamliSearch.type = getQueryParam('t') || "";
+	CamliSearch.fuzzy = getQueryParam('f') || "";
 }
 
 function hideAllResThings() {
@@ -36,6 +30,13 @@ function hideAllResThings() {
 	CamliSearch.btnNewCollec.disabled = true;
 	CamliSearch.btnNewCollec.style.visibility = 'hidden';
 	CamliSearch.formAddToCollec.style.visibility = 'hidden';
+}
+
+function handleFormGetRoots(e) {
+	e.stopPropagation();
+	e.preventDefault();
+
+	document.location.href = "search.html?&t=camliRoot"
 }
 
 function handleFormGetTagged(e) {
@@ -97,8 +98,13 @@ function doSearch() {
 		case "title":
 			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
 			break;
+		case "camliRoot":
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", tagcb);
+			break;
 		case "":
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
+			if (CamliSearch.query !== "") {
+				camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
+			}
 			break;
 		}
 	};
@@ -146,16 +152,18 @@ function showPermanodes(searchRes, type) {
 	if (results.length > 0) {
 		switch(type) {
 		case "tag":
-			CamliSearch.titleRes.innerHTML = "Tagged with \"";
+			CamliSearch.titleRes.innerHTML = "Tagged with \"" + CamliSearch.query + "\"";
 			break;
 		case "title":
-			CamliSearch.titleRes.innerHTML = "Titled with \"";
+			CamliSearch.titleRes.innerHTML = "Titled with \"" + CamliSearch.query + "\"";
+			break;
+		case "camliRoot":
+			CamliSearch.titleRes.innerHTML = "All roots";
 			break;
 		case "":
-			CamliSearch.titleRes.innerHTML = "General search for \"";
+			CamliSearch.titleRes.innerHTML = "General search for \"" + CamliSearch.query + "\"";
 			break;
 		}
-		CamliSearch.titleRes.innerHTML += CamliSearch.query + "\"";
 		CamliSearch.titleRes.style.visibility = 'visible';
 		CamliSearch.btnNewCollec.disabled = false;
 		CamliSearch.btnNewCollec.style.visibility = 'visible';
@@ -246,6 +254,8 @@ function addToCollection(createNew) {
 
 function indexOnLoad(e) {
 
+	var formRoots = document.getElementById("formRoots");
+	formRoots.addEventListener("submit", handleFormGetRoots);
 	var formTags = document.getElementById("formTags");
 	formTags.addEventListener("submit", handleFormGetTagged);
 	var formTitles = document.getElementById("formTitles");
@@ -259,9 +269,7 @@ function indexOnLoad(e) {
 	CamliSearch.formAddToCollec.addEventListener("submit", handleAddToCollection);
 	hideAllResThings();
 	getSearchParams();
-	if (CamliSearch.query != "") {
-		doSearch();
-	}
+	doSearch();
 }
 
 window.addEventListener("load", indexOnLoad);

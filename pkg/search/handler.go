@@ -195,7 +195,7 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))
-	value := mustGet(req, "value")
+	value := req.FormValue("value")
 	fuzzy := req.FormValue("fuzzy") // exact match if empty
 	fuzzyMatch := false
 	if fuzzy != "" {
