@@ -154,7 +154,7 @@ func (c *initCmd) RunCommand(_ *Uploader, args []string) error {
 		m["publicKeyBlobref"] = bref.String() // TODO(bradfitz): not used anymore?
 		m["blobServer"] = "http://localhost:3179/"
 		m["selfPubKeyDir"] = blobDir
-		m["auth"] = "none"
+		m["auth"] = "localhost"
 
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {

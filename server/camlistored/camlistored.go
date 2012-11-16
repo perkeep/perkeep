@@ -211,7 +211,7 @@ func newDefaultConfigFile(path string) error {
 	conf := defaultConfigFile{
 		Listen:      ":3179",
 		HTTPS:       false,
-		Auth:        "userpass:camlistore:pass3179:+localhost",
+		Auth:        "localhost",
 		ReplicateTo: make([]interface{}, 0),
 	}
 
@@ -369,5 +369,5 @@ func main() {
 
 	go ws.Serve()
 	go handleSignals()
-	select{}
+	select {}
 }
