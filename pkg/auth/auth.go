@@ -65,9 +65,9 @@ func FromConfig(authConfig string) (AuthMode, error) {
 
 	switch authType {
 	case "none":
-		return None{}, nil
+		mode = None{}
 	case "localhost":
-		return Localhost{}, nil
+		mode = Localhost{}
 	case "userpass":
 		if len(pieces) < 3 {
 			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
