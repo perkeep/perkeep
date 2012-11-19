@@ -19,6 +19,7 @@ package auth
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -38,7 +39,7 @@ type AuthMode interface {
 	// IsAuthorized checks the credentials in req.
 	IsAuthorized(req *http.Request) bool
 	// AddAuthHeader inserts in req the credentials needed
-	// for a client to authenticate. 
+	// for a client to authenticate.
 	AddAuthHeader(req *http.Request)
 }
 
@@ -159,30 +160,30 @@ type DevAuth struct {
 }
 
 func localhostAuthorized(req *http.Request) bool {
-	if uid := os.Getuid(); uid > 0 {
-		from := req.RemoteAddr
-		to := req.Host
-		if strings.HasPrefix(to, "localhost:") {
-			toPort := to[len("localhost:"):]
-			if strings.Contains(from, "[") {
-				to = "[::1]:" + toPort
-			} else {
-				to = "127.0.0.1:" + toPort
-			}
-		}
+	uid := os.Getuid()
+	from, err := netutil.HostPortToIP(req.RemoteAddr)
+	if err != nil {
+		fmt.Printf("auth: could not resolve the TCPAddr: %v", err)
+	}
+	to, err := netutil.HostPortToIP(req.Host)
+	if err != nil {
+		fmt.Printf("auth: could not resolve the TCPAddr: %v", err)
+	}
 
-		// TODO(bradfitz): netutil on OS X uses "lsof" to figure out
-		// ownership of tcp connections, but when fuse is mounted and a
-		// request is outstanding (for instance, a fuse request that's
-		// making a request to camlistored and landing in this code
-		// path), lsof then blocks forever waiting on a lock held by the
-		// VFS, leading to a deadlock.  Instead, on darwin, just trust
-		// any localhost connection here, which is kinda lame, but
-		// whatever.  Macs aren't very multi-user anyway.
-		if runtime.GOOS == "darwin" && isLocalhost(from) && isLocalhost(to) {
-			return true
-		}
+	// If our OS doesn't support uid.
+	// TODO(bradfitz): netutil on OS X uses "lsof" to figure out
+	// ownership of tcp connections, but when fuse is mounted and a
+	// request is outstanding (for instance, a fuse request that's
+	// making a request to camlistored and landing in this code
+	// path), lsof then blocks forever waiting on a lock held by the
+	// VFS, leading to a deadlock.  Instead, on darwin, just trust
+	// any localhost connection here, which is kinda lame, but
+	// whatever.  Macs aren't very multi-user anyway.
+	if uid == -1 || runtime.GOOS == "darwin" {
+		return from.IP.IsLoopback() && to.IP.IsLoopback()
+	}
 
+	if uid > 0 {
 		owner, err := netutil.AddrPairUserid(from, to)
 		if err == nil && owner == uid {
 			return true
@@ -191,8 +192,8 @@ func localhostAuthorized(req *http.Request) bool {
 	return false
 }
 
-func isLocalhost(addrPort string) bool {
-	return strings.HasPrefix(addrPort, "127.0.0.1:") || strings.HasPrefix(addrPort, "[::1]:")
+func isLocalhost(addrPort net.IP) bool {
+	return addrPort.IsLoopback()
 }
 
 func LocalhostAuthorized(req *http.Request) bool {

@@ -89,7 +89,7 @@ func ReturnJSON(conn http.ResponseWriter, data interface{}) {
 		return
 	}
 
-	conn.Header().Set("Content-Length", strconv.Itoa(len(bytes) + 1))
+	conn.Header().Set("Content-Length", strconv.Itoa(len(bytes)+1))
 	conn.Write(bytes)
 	conn.Write([]byte("\n"))
 }
