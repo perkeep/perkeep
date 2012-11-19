@@ -28,7 +28,7 @@ import (
 	_ "image/gif"
 	_ "image/png"
 
-	"github.com/camlistore/goexif/exif"
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
 // The FlipDirection type is used by the Flip option in DecodeOpts
