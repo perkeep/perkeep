@@ -172,13 +172,13 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, string, error) {
 	if opts.useEXIF() {
 		ex, err := exif.Decode(tr)
 		if err != nil {
-			// TODO(mpl): analyse error. for now assume there's just no exif info.
-			// will do tomorrow.
+			log.Print("No valid EXIF; will not rotate or flip.")
 			return image.Decode(io.MultiReader(&buf, r))
 		}
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
-			return nil, "", err
+			log.Print("No \"Orientation\" tag in EXIF; will not rotate or flip.")
+			return image.Decode(io.MultiReader(&buf, r))
 		}
 		orient := tag.Val[1]
 		switch orient {
