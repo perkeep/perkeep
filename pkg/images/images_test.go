@@ -80,7 +80,7 @@ func TestExifCorrection(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		im, err := Decode(f, nil)
+		im, _, err := Decode(f, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -124,7 +124,7 @@ func TestForcedCorrection(t *testing.T) {
 		case '8':
 			angle = 90
 		}
-		im, err := Decode(f, &DecodeOpts{Rotate: angle, Flip: FlipDirection(flipMode)})
+		im, _, err := Decode(f, &DecodeOpts{Rotate: angle, Flip: FlipDirection(flipMode)})
 		if err != nil {
 			t.Fatal(err)
 		}
