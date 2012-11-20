@@ -145,6 +145,12 @@ $ENV{CAMLI_PORT} = $port;
 $ENV{CAMLI_SECRET_RING} = "$Bin/pkg/jsonsign/testdata/test-secring.gpg";
 $ENV{CAMLI_DBNAME} = $DBNAME;
 
+my $templatedir = "$Bin/dev-server-template";
+if ($opt_wipe && -d $templatedir) {
+    my $blobs = "$ENV{CAMLI_ROOT}/sha1";
+    system("cp", "-a", $templatedir, $blobs) and die "Failed to cp template blobs.\n";
+}
+
 # To use resources from disk, instead of the copies linked into the
 # binary:
 unless ($opt_staticres) {
