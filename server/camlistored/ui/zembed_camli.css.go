@@ -80,5 +80,22 @@ func init() {
 		"  color: #fff;\n"+
 		"}\n"+
 		"\n"+
-		"", time.Unix(0, 1330389504169976807))
+		"/* tiled thumbnails */\n"+
+		".camli-ui-thumb {\n"+
+		"  margin: 0 auto;\n"+
+		"  border: 1px solid gray;\n"+
+		"  padding: 0.5em;\n"+
+		"  border: 0.5em;\n"+
+		"  width: 200px;\n"+
+		"  height: 200px;\n"+
+		"  max-width: 200px;\n"+
+		"  max-height: 200px;\n"+
+		"  float: left;\n"+
+		"  overflow: hidden;\n"+
+		"}\n"+
+		".camli-ui-thumbtitle:hover {\n"+
+		"  border: 2px solid black;\n"+
+		"  background: #999;\n"+
+		"}\n"+
+		"", time.Unix(0, 1353519984757065678))
 }

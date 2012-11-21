@@ -43,11 +43,13 @@ func init() {
 		"		divperm.appendChild(alink);\n"+
 		"		var title = document.createElement(\"p\");\n"+
 		"		setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
+		"		title.className = 'camli-ui-thumbtitle';\n"+
 		"		divperm.appendChild(title);\n"+
+		"		divperm.className = 'camli-ui-thumb';\n"+
 		"		divrecent.appendChild(divperm);\n"+
 		"	}\n"+
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352732421861382276))
+		"", time.Unix(0, 1353518413264563890))
 }

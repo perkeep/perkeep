@@ -35,7 +35,9 @@ function indexBuildRecentlyUpdatedPermanodes(searchRes) {
 		divperm.appendChild(alink);
 		var title = document.createElement("p");
 		setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
+		title.className = 'camli-ui-thumbtitle';
 		divperm.appendChild(title);
+		divperm.className = 'camli-ui-thumb';
 		divrecent.appendChild(divperm);
 	}
 }

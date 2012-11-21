@@ -73,3 +73,20 @@ body {
   color: #fff;
 }
 
+/* tiled thumbnails */
+.camli-ui-thumb {
+  margin: 0 auto;
+  border: 1px solid gray;
+  padding: 0.5em;
+  border: 0.5em;
+  width: 200px;
+  height: 200px;
+  max-width: 200px;
+  max-height: 200px;
+  float: left;
+  overflow: hidden;
+}
+.camli-ui-thumbtitle:hover {
+  border: 2px solid black;
+  background: #999;
+}
