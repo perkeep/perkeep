@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 function indexOnLoad(e) {
-	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: true});
+	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: 150});
 }
 
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {

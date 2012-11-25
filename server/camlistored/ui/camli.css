@@ -74,19 +74,29 @@ body {
 }
 
 /* tiled thumbnails */
+#recent {
+  padding: 0;
+}
+
 .camli-ui-thumb {
-  margin: 0 auto;
+  margin: 0.25em;
   border: 1px solid gray;
   padding: 0.5em;
-  border: 0.5em;
   width: 200px;
   height: 200px;
   max-width: 200px;
   max-height: 200px;
   float: left;
   overflow: hidden;
+  text-align: center;
 }
+
+.camli-ui-thumb:hover {
+  border: 1px solid black;
+  background: #ccc;
+}
+
 .camli-ui-thumbtitle:hover {
-  border: 2px solid black;
+  text-decoration: underline;
   background: #999;
 }
