@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("permanode.js", "/*\n"+
+	Files.Add("permanode.js", 21592, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -689,5 +691,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		"", time.Unix(0, 1352502107206351256))
+		""), time.Unix(0, 1352847035929567305))
 }

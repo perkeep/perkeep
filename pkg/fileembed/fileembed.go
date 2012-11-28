@@ -17,9 +17,12 @@ limitations under the License.
 package fileembed
 
 import (
+	"compress/zlib"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -45,14 +48,47 @@ type Files struct {
 
 type staticFile struct {
 	name     string
-	contents string
+	contents []byte
 	modtime  time.Time
 }
 
+type Opener interface {
+	Open() (io.Reader, error)
+}
+
+type String string
+
+func (s String) Open() (io.Reader, error) {
+	return strings.NewReader(string(s)), nil
+}
+
+// ZlibCompressed is used to store a compressed file
+type ZlibCompressed string
+
+func (zb ZlibCompressed) Open() (io.Reader, error) {
+	rz, err := zlib.NewReader(strings.NewReader(string(zb)))
+	if err != nil {
+		return nil, fmt.Errorf("Could not open ZlibCompressed: %v", err)
+	}
+	return rz, nil
+}
+
 // Add adds a file to the file set.
-func (f *Files) Add(filename, contents string, modtime time.Time) {
+func (f *Files) Add(filename string, size int64, o Opener, modtime time.Time) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
+
+	r, err := o.Open()
+	if err != nil {
+		log.Printf("Could not add file %v: %v", filename, err)
+		return
+	}
+	contents, err := ioutil.ReadAll(r)
+	if err != nil {
+		log.Printf("Could not read contents of file %v: %v", filename, err)
+		return
+	}
+
 	f.add(filename, &staticFile{
 		name:     filename,
 		contents: contents,
@@ -104,10 +140,9 @@ func (f *Files) openFallback(filename string) (http.File, error) {
 		}
 		fi, err := of.Stat()
 
-		s := string(bs)
 		sf := &staticFile{
 			name:     filename,
-			contents: s,
+			contents: bs,
 			modtime:  fi.ModTime(),
 		}
 		f.add(filename, sf)
@@ -152,7 +187,7 @@ func (f *fileHandle) Seek(offset int64, whence int) (int64, error) {
 	case os.SEEK_CUR:
 		f.off += offset
 	case os.SEEK_END:
-		f.off = int64(len(f.sf.contents)) + offset
+		f.off = f.sf.Size() + offset
 	default:
 		return 0, os.ErrInvalid
 	}

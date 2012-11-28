@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("camli.css", "/*\n"+
+	Files.Add("camli.css", 1891, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -81,21 +83,31 @@ func init() {
 		"}\n"+
 		"\n"+
 		"/* tiled thumbnails */\n"+
+		"#recent {\n"+
+		"  padding: 0;\n"+
+		"}\n"+
+		"\n"+
 		".camli-ui-thumb {\n"+
-		"  margin: 0 auto;\n"+
+		"  margin: 0.25em;\n"+
 		"  border: 1px solid gray;\n"+
 		"  padding: 0.5em;\n"+
-		"  border: 0.5em;\n"+
 		"  width: 200px;\n"+
 		"  height: 200px;\n"+
 		"  max-width: 200px;\n"+
 		"  max-height: 200px;\n"+
 		"  float: left;\n"+
 		"  overflow: hidden;\n"+
+		"  text-align: center;\n"+
 		"}\n"+
+		"\n"+
+		".camli-ui-thumb:hover {\n"+
+		"  border: 1px solid black;\n"+
+		"  background: #ccc;\n"+
+		"}\n"+
+		"\n"+
 		".camli-ui-thumbtitle:hover {\n"+
-		"  border: 2px solid black;\n"+
+		"  text-decoration: underline;\n"+
 		"  background: #999;\n"+
 		"}\n"+
-		"", time.Unix(0, 1353519984757065678))
+		""), time.Unix(0, 1354270982755685959))
 }

@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("blobinfo.js", "/*\n"+
+	Files.Add("blobinfo.js", 4308, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -127,5 +129,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", blobInfoOnLoad);\n"+
-		"", time.Unix(0, 1352107488430325498))
+		""), time.Unix(0, 1351526710072999389))
 }

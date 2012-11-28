@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("pics.js", "\n"+
+	Files.Add("pics.js", 3178, fileembed.String("\n"+
 		"// jquery-colorbox browsable photo gallery\n"+
 		"\n"+
 		"function addColorboxen() {\n"+
@@ -121,5 +123,5 @@ func init() {
 		"  document.write('<scr'+'ipt  src=\"//colorpowered.com/colorbox/core/colorbox/jque"+
 		"ry.colorbox.js\" onload=\"addColorboxen()\"></sc'+'ript>');\n"+
 		"}\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494273781341))
 }

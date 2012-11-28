@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("pics.css", "/* Something arbitrary for testing. */\n"+
+	Files.Add("pics.css", 1057, fileembed.String("/* Something arbitrary for testing. */\n"+
 		"body {\n"+
 		"  font: 13px/1.3 normal Verdana, Geneva, sans-serif;\n"+
 		"  background: #000;\n"+
@@ -77,5 +79,5 @@ func init() {
 		"  margin-right: .5em;\n"+
 		"  font-weight: normal;\n"+
 		"}\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494263766450))
 }
