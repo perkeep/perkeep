@@ -36,6 +36,8 @@ import (
 	"camlistore.org/pkg/schema"
 )
 
+const imageDebug = false
+
 type ImageHandler struct {
 	Fetcher             blobref.StreamingFetcher
 	Cache               blobserver.Storage // optional
@@ -77,7 +79,9 @@ func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, erro
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
 	}
-	log.Printf("Image Cache: saved as %v\n", br)
+	if imageDebug {
+		log.Printf("Image Cache: saved as %v\n", br)
+	}
 	return br, nil
 }
 
@@ -102,7 +106,9 @@ func (ih *ImageHandler) cached(br *blobref.BlobRef) (fr *schema.FileReader, err 
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Image Cache: hit: %v\n", br)
+	if imageDebug {
+		log.Printf("Image Cache: hit: %v\n", br)
+	}
 	return fr, nil
 }
 
