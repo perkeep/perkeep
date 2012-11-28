@@ -39,13 +39,17 @@ function divFromResult(searchRes, i) {
         }
     };
     selSetter[i] = setSelected;
+    divperm.addEventListener("mousedown", function(e) {
+       if (e.shiftKey) {
+           e.preventDefault(); // prevent browser range selection
+       }
+    });
     divperm.addEventListener("click", function(e) {
         if (e.ctrlKey) {
             setSelected(!divperm.isSelected);
             return;
         }
         if (e.shiftKey) {
-            e.stopPropagation(); // doesn't work? text is still selected :(
             if (lastSelIndex < 0) {
                 return;
             }
