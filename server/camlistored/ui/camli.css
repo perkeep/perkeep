@@ -81,7 +81,7 @@ body {
 .camli-ui-thumb {
   margin: 0.25em;
   border: 1px solid gray;
-  padding: 0.5em;
+  padding: 8px;
   width: 200px;
   height: 200px;
   max-width: 200px;
@@ -94,6 +94,18 @@ body {
 .camli-ui-thumb:hover {
   border: 1px solid black;
   background: #ccc;
+}
+
+.camli-ui-thumb.selected {
+  border: 3px solid black;
+  background: #ffc;
+  padding: 6px;
+}
+
+.camli-ui-thumb.selected:hover {
+  border: 3px solid black;
+  padding: 6px;
+  background: #e6e6b8;
 }
 
 .camli-ui-thumbtitle:hover {

@@ -18,27 +18,76 @@ function indexOnLoad(e) {
 	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: 150});
 }
 
+var lastSelIndex = 0;
+var selSetter = {};         // numeric index -> func(selected) setter
+var currentlySelected = {}; // currently selected index -> true
+
+function divFromResult(searchRes, i) {
+    var result = searchRes.recent[i];
+    var br = searchRes[result.blobref];
+    var divperm = document.createElement("div");
+    var setSelected = function(selected) {
+        divperm.isSelected = selected;
+        if (selected) {
+            lastSelIndex = i;
+            currentlySelected[i] = true;
+            divperm.attributes.class.value = "camli-ui-thumb selected";
+        } else {
+            delete currentlySelected[selected];
+            lastSelIndex = -1;
+            divperm.attributes.class.value = "camli-ui-thumb";
+        }
+    };
+    selSetter[i] = setSelected;
+    divperm.addEventListener("click", function(e) {
+        if (e.ctrlKey) {
+            setSelected(!divperm.isSelected);
+            return;
+        }
+        if (e.shiftKey) {
+            e.stopPropagation(); // doesn't work? text is still selected :(
+            if (lastSelIndex < 0) {
+                return;
+            }
+            var from = lastSelIndex;
+            var to = i;
+            if (to < from) {
+                from = i;
+                to = lastSelIndex;
+            }
+            for (var j = from; j <= to; j++) {
+                selSetter[j](true);
+            }
+            return;
+        }
+        for (var j in currentlySelected) {
+            if (j != i) {
+                selSetter[j](false);
+            }
+        }
+        setSelected(!divperm.isSelected);
+    });
+    var alink = document.createElement("a");
+    alink.href = "./?p=" + br.blobRef;
+    var img = document.createElement("img");
+    img.src = br.thumbnailSrc;
+    img.height = br.thumbnailHeight;
+    img.width =  br.thumbnailWidth;
+    alink.appendChild(img);
+    divperm.appendChild(alink);
+    var title = document.createElement("p");
+    setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
+    title.className = 'camli-ui-thumbtitle';
+    divperm.appendChild(title);
+    divperm.className = 'camli-ui-thumb';
+    return divperm;
+}
+
 function indexBuildRecentlyUpdatedPermanodes(searchRes) {
 	var divrecent = document.getElementById("recent");
 	divrecent.innerHTML = "";
 	for (var i = 0; i < searchRes.recent.length; i++) {
-		var result = searchRes.recent[i];
-		var br = searchRes[result.blobref];
-		var divperm = document.createElement("div");
-		var alink = document.createElement("a");
-		alink.href = "./?p=" + br.blobRef;
-		var img = document.createElement("img");
-		img.src = br.thumbnailSrc;
-		img.height = br.thumbnailHeight;
-		img.width =  br.thumbnailWidth;
-		alink.appendChild(img);
-		divperm.appendChild(alink);
-		var title = document.createElement("p");
-		setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
-		title.className = 'camli-ui-thumbtitle';
-		divperm.appendChild(title);
-		divperm.className = 'camli-ui-thumb';
-		divrecent.appendChild(divperm);
+                divrecent.appendChild(divFromResult(searchRes, i));
 	}
 }
 
