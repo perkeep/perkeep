@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("base64.js", "/*\n"+
+	Files.Add("base64.js", 5764, fileembed.String("/*\n"+
 		"Copyright (c) 2008 Fred Palmer fred.palmer_at_gmail.com\n"+
 		"\n"+
 		"Permission is hereby granted, free of charge, to any person\n"+
@@ -213,5 +215,5 @@ func init() {
 		"        }\n"+
 		"    }\n"+
 		"};\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494143774804))
 }

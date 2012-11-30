@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("recent.js", "/*\n"+
+	Files.Add("recent.js", 1592, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -23,7 +25,7 @@ func init() {
 		"\n"+
 		"function indexOnLoad(e) {\n"+
 		"	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes,"+
-		" thumbnails: true});\n"+
+		" thumbnails: 150});\n"+
 		"}\n"+
 		"\n"+
 		"function indexBuildRecentlyUpdatedPermanodes(searchRes) {\n"+
@@ -51,5 +53,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1353518413264563890))
+		""), time.Unix(0, 1354270982755685959))
 }

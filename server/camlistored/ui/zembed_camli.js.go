@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("camli.js", "/*\n"+
+	Files.Add("camli.js", 16152, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -508,5 +510,5 @@ func init() {
 		"    changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
-		"", time.Unix(0, 1352496670831866384))
+		""), time.Unix(0, 1352847035929567305))
 }

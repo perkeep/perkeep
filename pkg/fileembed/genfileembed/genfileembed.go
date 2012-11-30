@@ -18,17 +18,26 @@ package main
 
 import (
 	"bytes"
+	"compress/zlib"
 	"flag"
 	"fmt"
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+)
+
+const (
+	maxUncompressed = 50 << 10 // 50KB
+	// Threshold ratio for compression.
+	// Files which don't compress at least as well are kept uncompressed.
+	zRatio = 0.5
 )
 
 func main() {
@@ -62,48 +71,31 @@ func main() {
 			continue
 		}
 		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
-		bs, err := ioutil.ReadFile(fileName)
-		if err != nil {
-			log.Fatal(err)
+
+		zb, fileSize := compressFile(fileName)
+		ratio := float64(len(zb)) / float64(fileSize)
+		var bs []byte
+		byteStreamType := ""
+		if fileSize < maxUncompressed || ratio > zRatio {
+			byteStreamType = "fileembed.String"
+			bs, err = ioutil.ReadFile(fileName)
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			byteStreamType = "fileembed.ZlibCompressed"
+			bs = zb
 		}
-		var qb bytes.Buffer // quoted bytes
-		qb.WriteByte('"')
-		run := 0
-		for _, b := range bs {
-			if b == '\n' {
-				qb.WriteString(`\n`)
-			}
-			if b == '\n' || run > 80 {
-				qb.WriteString("\" +\n\t\"")
-				run = 0
-			}
-			if b == '\n' {
-				continue
-			}
-			run++
-			if b == '\\' {
-				qb.WriteString(`\\`)
-				continue
-			}
-			if b == '"' {
-				qb.WriteString(`\"`)
-				continue
-			}
-			if (b >= 32 && b <= 126) || b == '\t' {
-				qb.WriteByte(b)
-				continue
-			}
-			fmt.Fprintf(&qb, "\\x%02x", b)
-		}
-		qb.WriteByte('"')
+		qb := quote(bs) // quoted bytes
 
 		var b bytes.Buffer
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
 		fmt.Fprintf(&b, "// DO NOT EDIT.\n")
 		fmt.Fprintf(&b, "package %s\n\n", pkgName)
 		fmt.Fprintf(&b, "import \"time\"\n\n")
-
-		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %s, time.Unix(0, %d));\n}\n", fileName, qb.Bytes(), fi.ModTime().UnixNano())
+		fmt.Fprintf(&b, "import \"camlistore.org/pkg/fileembed\"\n\n")
+		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %d, %s(%s), time.Unix(0, %d));\n}\n",
+			fileName, fileSize, byteStreamType, qb, fi.ModTime().UnixNano())
 
 		// gofmt it
 		fset := token.NewFileSet()
@@ -126,6 +118,56 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+}
+
+func compressFile(fileName string) ([]byte, int64) {
+	var zb bytes.Buffer
+	f, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	w := zlib.NewWriter(&zb)
+	n, err := io.Copy(w, f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w.Close()
+	return zb.Bytes(), n
+}
+
+func quote(bs []byte) []byte {
+	var qb bytes.Buffer
+	qb.WriteByte('"')
+	run := 0
+	for _, b := range bs {
+		if b == '\n' {
+			qb.WriteString(`\n`)
+		}
+		if b == '\n' || run > 80 {
+			qb.WriteString("\" +\n\t\"")
+			run = 0
+		}
+		if b == '\n' {
+			continue
+		}
+		run++
+		if b == '\\' {
+			qb.WriteString(`\\`)
+			continue
+		}
+		if b == '"' {
+			qb.WriteString(`\"`)
+			continue
+		}
+		if (b >= 32 && b <= 126) || b == '\t' {
+			qb.WriteByte(b)
+			continue
+		}
+		fmt.Fprintf(&qb, "\\x%02x", b)
+	}
+	qb.WriteByte('"')
+	return qb.Bytes()
 }
 
 func matchingFiles(p *regexp.Regexp) []string {

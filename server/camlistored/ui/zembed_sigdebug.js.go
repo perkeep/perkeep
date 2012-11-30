@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("sigdebug.js", "var sigdisco = null;\n"+
+	Files.Add("sigdebug.js", 2315, fileembed.String("var sigdisco = null;\n"+
 		"\n"+
 		"function discoverJsonSign() {\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
@@ -83,5 +85,5 @@ func init() {
 		"    xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urlencoded\");\n"+
 		"    xhr.send(\"sjson=\" + encodeURIComponent(signedta.value));\n"+
 		"}\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494303779986))
 }

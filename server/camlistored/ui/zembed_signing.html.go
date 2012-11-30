@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("signing.html", "<html>\n"+
+	Files.Add("signing.html", 1236, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
@@ -46,5 +48,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494303779986))
 }
