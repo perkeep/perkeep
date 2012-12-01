@@ -104,12 +104,12 @@ func (my *Conn) connect() (err error) {
 	case "tcp", "tcp4", "tcp6":
 		var la, ra *net.TCPAddr
 		if my.laddr != "" {
-			if la, err = net.ResolveTCPAddr("", my.laddr); err != nil {
+			if la, err = net.ResolveTCPAddr("tcp", my.laddr); err != nil {
 				return
 			}
 		}
 		if my.raddr != "" {
-			if ra, err = net.ResolveTCPAddr("", my.raddr); err != nil {
+			if ra, err = net.ResolveTCPAddr("tcp", my.raddr); err != nil {
 				return
 			}
 		}

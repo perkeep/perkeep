@@ -42,7 +42,8 @@ var _ index.IndexStorage = (*myIndexStorage)(nil)
 // This exists mostly for testing and does not initialize the schema.
 func NewStorage(host, user, password, dbname string) (index.IndexStorage, error) {
 	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
-	db, err := sql.Open("mymysql", dbname+"/"+user+"/"+password)
+	dsn := dbname+"/"+user+"/"+password
+	db, err := sql.Open("mymysql", dsn)
 	if err != nil {
 		return nil, err
 	}
