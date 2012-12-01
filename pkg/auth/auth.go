@@ -163,11 +163,11 @@ func localhostAuthorized(req *http.Request) bool {
 	uid := os.Getuid()
 	from, err := netutil.HostPortToIP(req.RemoteAddr)
 	if err != nil {
-		fmt.Printf("auth: could not resolve the TCPAddr: %v", err)
+		return false
 	}
 	to, err := netutil.HostPortToIP(req.Host)
 	if err != nil {
-		fmt.Printf("auth: could not resolve the TCPAddr: %v", err)
+		return false
 	}
 
 	// If our OS doesn't support uid.
