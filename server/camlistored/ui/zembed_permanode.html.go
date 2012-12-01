@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("permanode.html", "<!doctype html>\n"+
+	Files.Add("permanode.html", 2653, fileembed.String("<!doctype html>\n"+
 		"<html>\n"+
 		"<head>\n"+
 		"  <title>Permanode</title>\n"+
@@ -100,5 +102,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349726992233765780))
 }

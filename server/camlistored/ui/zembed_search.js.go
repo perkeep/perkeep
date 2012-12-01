@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("search.js", "/*\n"+
+	Files.Add("search.js", 7604, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -286,5 +288,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		"", time.Unix(0, 1352847747010347886))
+		""), time.Unix(0, 1353028462610912719))
 }

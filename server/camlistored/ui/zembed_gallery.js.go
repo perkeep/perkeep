@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("gallery.js", "/*\n"+
+	Files.Add("gallery.js", 3012, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -106,5 +108,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", galleryPageOnLoad);\n"+
-		"", time.Unix(0, 1330389504169976807))
+		""), time.Unix(0, 1349725494193783184))
 }

@@ -4,8 +4,10 @@ package ui
 
 import "time"
 
+import "camlistore.org/pkg/fileembed"
+
 func init() {
-	Files.Add("recent.html", "<html>\n"+
+	Files.Add("recent.html", 563, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <div class=\"camli-nav\"><a href=\"./\">Home</a></div>\n"+
 		"  <title>Recent Permanodes</title>\n"+
@@ -23,5 +25,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		"", time.Unix(0, 1352140190905719151))
+		""), time.Unix(0, 1352847035929567305))
 }
