@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,14 +31,16 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
+	newuistatic "camlistore.org/server/camlistored/newui"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
 
 var _ = log.Printf
 
 var (
-	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-	identPattern      = regexp.MustCompile(`^[a-zA-Z\_]+$`)
+	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	static2FilePattern = regexp.MustCompile(`^(new/)([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	identPattern       = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 
 	// Download URL suffix:
 	//   $1: blobref (checked in download handler)
@@ -46,9 +49,11 @@ var (
 	downloadPattern  = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
 	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
+	closurePattern   = regexp.MustCompile(`^(new/closure/)([^/]+)(/.*)?$`)
 )
 
 var uiFiles = uistatic.Files
+var newuiFiles = newuistatic.Files
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
@@ -68,7 +73,9 @@ type UIHandler struct {
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
 
-	staticHandler http.Handler
+	staticHandler  http.Handler
+	staticHandler2 http.Handler // for the new ui
+	closureHandler http.Handler
 }
 
 func init() {
@@ -134,6 +141,10 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	}
 
 	ui.staticHandler = http.FileServer(uiFiles)
+	ui.staticHandler2 = http.FileServer(newuiFiles)
+	// TODO(mpl): figure out camliroot and use an abs path
+	closureDir := filepath.Join("tmp", "closure")
+	ui.closureHandler = http.FileServer(http.Dir(closureDir))
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
 	if err != nil {
@@ -203,6 +214,17 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
+			// TODO(mpl): change the regexp to make it not match the stripped part
+		} else if m := static2FilePattern.FindStringSubmatch(suffix); m != nil {
+			file = strings.Replace(suffix, m[1], "", 1)
+			req.URL.Path = "/" + file
+			ui.staticHandler2.ServeHTTP(rw, req)
+			break
+		} else if m := closurePattern.FindStringSubmatch(suffix); m != nil {
+			file = strings.Replace(suffix, m[1], "", 1)
+			req.URL.Path = "/" + file
+			ui.closureHandler.ServeHTTP(rw, req)
+			break
 		} else {
 			switch {
 			case wantsRecentPermanodes(req):

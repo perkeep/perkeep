@@ -9,6 +9,9 @@ sub usage {
     die "Usage: dev-server [--wipe] [--mongo|--memory] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
+my $closure_rev = "r2322";
+my $closure_svn = "http://closure-library.googlecode.com/svn/trunk/";
+
 chdir $Bin or die;
 
 my $opt_wipe;
@@ -125,8 +128,6 @@ if ($opt_tls) {
     $base =~ s/^http/https/;
 }
 
-print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
-
 $ENV{CAMLI_TLS} = "false";
 if ($opt_tls) {
     $ENV{CAMLI_TLS} = "true";
@@ -155,7 +156,24 @@ if ($opt_wipe && -d $templatedir) {
 # binary:
 unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
+    $ENV{CAMLI_DEV_NEWUI_FILES} = "$FindBin::Bin/server/camlistored/newui"; # set in server/camlistored/newui/fileembed.go
+    my $closure_dir = "tmp/closure";
+    if (-d $closure_dir) {
+        chdir $closure_dir or die;
+        my $local_rev = "r" . `svnversion`;
+        chomp($local_rev);
+        if ($local_rev ne $closure_rev) {
+            system("svn", "update", "-r", $closure_rev)
+            and die "Failed to svn up the closure library: $!\n";
+        }
+        chdir $Bin or die;
+    } else {
+        system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
+        and die "Failed to svn co the closure library: $!\n";
+    }
 }
+
+print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
 
 exec("$camlistored",
      "-configfile=$Bin/config/dev-server-config.json",
