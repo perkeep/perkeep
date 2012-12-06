@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
+	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 
 type Walker struct{}
 
-func (_ Walker) Walk(name string, tag *tiff.Tag) error {
+func (_ Walker) Walk(name exif.FieldName, tag *tiff.Tag) error {
 	data, _ := tag.MarshalJSON()
 	fmt.Printf("%v: %v\n", name, string(data))
 	return nil
