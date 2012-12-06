@@ -6,7 +6,7 @@ use Getopt::Long;
 require "$Bin/misc/devlib.pl";
 
 sub usage {
-    die "Usage: dev-server [--wipe] [--mongo|--memory] [--tls] <portnumber> -- [other_blobserver_opts]";
+    die "Usage: dev-server [--wipe] [--mongo|--mysql|--postgres] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
 
 my $closure_rev = "r2322";
