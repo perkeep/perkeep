@@ -170,10 +170,7 @@ function onTypeChange() {
     }
 }
 
-var lastFiles;
 function handleFiles(files) {
-    lastFiles = files;
-
     for (var i = 0; i < files.length; i++) {
         var file = files[i];
         startFileUpload(file);
@@ -191,8 +188,6 @@ function startFileUpload(file) {
         up.innerHTML = info + " " + status;
     };
     setStatus("(scanning)");
-
-    var contentsRef; // set later
 
     var onFail = function(msg) {
         up.innerHTML = info + " <strong>fail:</strong> ";
