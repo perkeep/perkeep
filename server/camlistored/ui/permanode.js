@@ -254,7 +254,7 @@ function onFileInputChange(e) {
     handleFiles(document.getElementById("fileInput").files);
 }
 
-function setupFilesHandlers(e) {
+function setupFilesHandlers() {
     var dnd = document.getElementById("dnd");
     document.getElementById("fileForm").addEventListener("submit", onFileFormSubmit);
     document.getElementById("fileInput").addEventListener("change", onFileInputChange);
@@ -638,7 +638,7 @@ function btnGoToGallery(e) {
     }
 }
 
-function permanodePageOnLoad(e) {
+function permanodePageOnLoad() {
     var permanode = getPermanodeParam();
     if (permanode) {
         document.getElementById('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
