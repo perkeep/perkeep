@@ -247,11 +247,20 @@ function startFileUpload(file) {
 function onFileFormSubmit(e) {
     e.stopPropagation();
     e.preventDefault();
-    alert("TODO: upload");
+    handleFiles(document.getElementById("fileInput").files);
 }
 
+function $(id) { return document.getElementById(id) }
+
 function onFileInputChange(e) {
-    handleFiles(document.getElementById("fileInput").files);
+    var s = "";
+    var files = $("fileInput").files;
+    for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        s += "<p>" + file.name + "</p>";
+    }
+    var fl = $("filelist");
+    fl.innerHTML = s;
 }
 
 function setupFilesHandlers() {
