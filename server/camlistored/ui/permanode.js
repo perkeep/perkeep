@@ -217,26 +217,13 @@ function startFileUpload(file) {
         });
     };
 
-    var fr = new FileReader();
-    fr.onload = function() {
-        var dataurl = fr.result;
-        var comma = dataurl.indexOf(",");
-        if (comma != -1) {
-            var b64 = dataurl.substring(comma + 1);
-            var arrayBuffer = Base64.decode(b64).buffer;
-            var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
-
-            var contentsRef = "sha1-" + hash;
+    camliUploadFile(file, {
+       onContentsRef: function(contentsRef) {
             setStatus("(checking for dup of " + contentsRef + ")");
-            camliUploadFileHelper(file, contentsRef, {
-                success: onGotFileSchemaRef, fail: onFail
-            });
-        }
-    };
-    fr.onerror = function() {
-        console.log("FileReader onerror: " + fr.error + " code=" + fr.error.code);
-    };
-    fr.readAsDataURL(file);
+       },
+       success: onGotFileSchemaRef, 
+       fail: onFail
+    });
 }
 
 function onFileFormSubmit(e) {

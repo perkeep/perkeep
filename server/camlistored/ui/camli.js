@@ -193,10 +193,53 @@ function camliSign(clearObj, opts) {
         });
 }
 
+// camliUploadFile uploads a file and returns a file schema. It does not create
+// any permanodes.
+//
+// file: File object
+// opts: optional callbacks:
+// opts:
+//   - fail: function(msg)
+//   - success: function(fileBlobRef) of the server-validated or
+//         just-uploaded file schema blob.
+//   - onContentsRef: function(blobref) of contents, once hashed in-browser
+function camliUploadFile(file, opts) {
+    var fr = new FileReader();
+    fr.onload = function() {
+        var dataurl = fr.result;
+        var comma = dataurl.indexOf(",");
+        if (comma != -1) {
+            var b64 = dataurl.substring(comma + 1);
+            var arrayBuffer = Base64.decode(b64).buffer;
+            var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
+
+            var contentsRef = "sha1-" + hash;
+            if (opts.onContentsRef) { opts.onContentsRef(contentsRef); }
+            camliUploadFileHelper(file, contentsRef, {
+                success: opts.success, fail: opts.fail
+            });
+        }
+    };
+    fr.onerror = function() {
+        console.log("FileReader onerror: " + fr.error + " code=" + fr.error.code);
+    };
+    fr.readAsDataURL(file);
+}
+
+// camliUploadFileHelper uploads the provided file with contents blobref contentsBlobRef
+// and returns a blobref of a file blob.  It does not create any permanodes.
+// Most callers will use camliUploadFile instead of this helper.
+//
+// camliUploadFileHelper only uploads chunks of the file if they don't already exist
+// on the server. It starts by assuming the file might already exist on the server
+// and, if so, uses an existing (but re-verified) file schema ref instead.
+//
 // file: File object
 // contentsBlobRef: blob ref of file as sha1'd locally
-// opts: fail(strMsg) success(strFileBlobRef) of the validated (or uploaded + created) file schema blob.
-//       associating with a permanode is caller's job.
+// opts:
+//   - fail: function(msg)
+//   - success: function(fileBlobRef) of the server-validated or
+//         just-uploaded file schema blob.
 function camliUploadFileHelper(file, contentsBlobRef, opts) {
     opts = saneOpts(opts);
     if (!Camli.config.uploadHelper) {
@@ -485,3 +528,10 @@ function camliNewDelAttributeClaim(permanode, attribute, value, opts) {
     changeAttribute(permanode, "del-attribute", attribute, value, opts);
 }
 
+// camliCondCall calls fn, if non-null, with the remaining parameters.
+function camliCondCall(fn) {
+    if (!fn) {
+        return
+    }
+    // TODO
+}
