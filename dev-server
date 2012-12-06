@@ -19,6 +19,7 @@ my $opt_tls;
 my $opt_nobuild;
 my $opt_all;  # listen on all interfaces
 my $opt_staticres; # use static resources, not those on disk
+my $opt_offline;   # don't use the network ("airplane mode")
 
 # keep indexes in memory only. often used with --wipe, but not
 # necessarily. if --wipe isn't used, all blobs are re-indexed
@@ -36,6 +37,7 @@ GetOptions("wipe" => \$opt_wipe,
            "postgres" => \$opt_postgres,
            "mysql" => \$opt_mysql,
            "staticres" => \$opt_staticres,
+           "offline" => \$opt_offline,
     )
     or usage();
 
@@ -158,18 +160,20 @@ unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
     $ENV{CAMLI_DEV_NEWUI_FILES} = "$FindBin::Bin/server/camlistored/newui"; # set in server/camlistored/newui/fileembed.go
     my $closure_dir = "tmp/closure";
-    if (-d $closure_dir) {
-        chdir $closure_dir or die;
-        my $local_rev = "r" . `svnversion`;
-        chomp($local_rev);
-        if ($local_rev ne $closure_rev) {
-            system("svn", "update", "-r", $closure_rev)
-                and die "Failed to svn up the closure library: $!\n";
+    unless ($opt_offline) {
+        if (-d $closure_dir) {
+            chdir $closure_dir or die;
+            my $local_rev = "r" . `svnversion`;
+            chomp($local_rev);
+            if ($local_rev ne $closure_rev) {
+                system("svn", "update", "-r", $closure_rev)
+                    and die "Failed to svn up the closure library: $!\n";
+            }
+            chdir $Bin or die;
+        } else {
+            system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
+                and die "Failed to svn co the closure library: $!\n";
         }
-        chdir $Bin or die;
-    } else {
-        system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
-            and die "Failed to svn co the closure library: $!\n";
     }
 }
 
