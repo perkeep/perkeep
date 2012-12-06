@@ -164,12 +164,12 @@ unless ($opt_staticres) {
         chomp($local_rev);
         if ($local_rev ne $closure_rev) {
             system("svn", "update", "-r", $closure_rev)
-            and die "Failed to svn up the closure library: $!\n";
+                and die "Failed to svn up the closure library: $!\n";
         }
         chdir $Bin or die;
     } else {
         system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
-        and die "Failed to svn co the closure library: $!\n";
+            and die "Failed to svn co the closure library: $!\n";
     }
 }
 
