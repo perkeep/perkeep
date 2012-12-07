@@ -112,3 +112,10 @@ body {
   text-decoration: underline;
   background: #999;
 }
+
+#plusdrop a.plusLink {
+  text-decoration: none;
+  font-size: 40pt;
+  margin-top: 20px;
+  padding: 80px;
+}
