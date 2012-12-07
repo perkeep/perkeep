@@ -214,7 +214,7 @@ function camliUploadFile(file, opts) {
             var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
 
             var contentsRef = "sha1-" + hash;
-            if (opts.onContentsRef) { opts.onContentsRef(contentsRef); }
+            camliCondCall(opts.onContentsRef, contentsRef);
             camliUploadFileHelper(file, contentsRef, {
                 success: opts.success, fail: opts.fail
             });
@@ -529,9 +529,9 @@ function camliNewDelAttributeClaim(permanode, attribute, value, opts) {
 }
 
 // camliCondCall calls fn, if non-null, with the remaining parameters.
-function camliCondCall(fn) {
+function camliCondCall(fn /*, ... */) {
     if (!fn) {
-        return
+        return;
     }
-    // TODO
+    fn.apply(null, Array.prototype.slice.call(arguments, 1));
 }
