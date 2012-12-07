@@ -33,11 +33,11 @@ function divFromResult(searchRes, i) {
 		if (selected) {
 			lastSelIndex = i;
 			currentlySelected[i] = true;
-			divperm.attributes.class.value = "camli-ui-thumb selected";
+			divperm.classList.add("selected");
 		} else {
 			delete currentlySelected[selected];
 			lastSelIndex = -1;
-			divperm.attributes.class.value = "camli-ui-thumb";
+			divperm.classList.remove("selected");
 		}
 	};
 	selSetter[i] = setSelected;
