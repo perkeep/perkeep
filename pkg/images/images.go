@@ -24,6 +24,7 @@ import (
 	"image/jpeg"
 	"io"
 	"log"
+	"os"
 
 	_ "image/gif"
 	_ "image/png"
@@ -61,7 +62,7 @@ type DecodeOpts struct {
 
 	// TODO: consider alternate options if scaled ratio doesn't
 	// match original ratio:
-	//   Crop    bool   
+	//   Crop    bool
 	//   Stretch bool
 }
 
@@ -161,6 +162,12 @@ func (opts *DecodeOpts) useEXIF() bool {
 	return !(opts.forcedRotate() || opts.forcedFlip())
 }
 
+func imageDebug(msg string) {
+	if os.Getenv("CAM_DEBUG_IMAGES") != "" {
+		log.Print(msg)
+	}
+}
+
 // Decode decodes an image from r using the provided decoding options.
 // The string returned is the format name returned by image.Decode.
 // If opts is nil, the defaults are used.
@@ -172,12 +179,12 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, string, error) {
 	if opts.useEXIF() {
 		ex, err := exif.Decode(tr)
 		if err != nil {
-			log.Print("No valid EXIF; will not rotate or flip.")
+			imageDebug("No valid EXIF; will not rotate or flip.")
 			return image.Decode(io.MultiReader(&buf, r))
 		}
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
-			log.Print("No \"Orientation\" tag in EXIF; will not rotate or flip.")
+			imageDebug("No \"Orientation\" tag in EXIF; will not rotate or flip.")
 			return image.Decode(io.MultiReader(&buf, r))
 		}
 		orient := tag.Val[1]
