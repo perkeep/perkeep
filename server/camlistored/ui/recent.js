@@ -103,13 +103,21 @@ function createPlusButton() {
   div.appendChild(plusLink);
 
   var statusDiv = document.createElement("div");
+  statusDiv.innerHTML = "Click or drag & drop files here.";
   // TODO: use statusDiv instead (hidden by default), but put
   // it somewhere users can get to it with a click.
   div.appendChild(statusDiv);
 
   plusLink.addEventListener("click", function(e) {
       e.preventDefault();
-      alert("TODO: file selection dialog. For now just drag & drop files here.");
+      camliCreateNewPermanode({
+            success: function(blobref) {
+               window.location = "./?p=" + blobref;
+            },
+            fail: function(msg) {
+                alert("create permanode failed: " + msg);
+            }
+        });
   });
   
   var stop = function(e) {
