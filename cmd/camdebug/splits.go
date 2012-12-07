@@ -94,4 +94,5 @@ func showSplits() {
 		}
 	}
 	dumpSpans(spans, 0)
+	fmt.Printf("\n\nNOTE NOTE NOTE: the camdebug tool hasn't been updated to use the splitting policy from pkg/schema/filewriter.go.")
 }

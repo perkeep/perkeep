@@ -29,12 +29,15 @@ type prefixEntry struct {
 }
 
 var prefixTable = []prefixEntry{
+	{[]byte("GIF87a"), "image/gif"},
+	{[]byte("GIF89a"), "image/gif"}, // TODO: Others?
 	{[]byte("\xff\xd8\xff\xe2"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xe1"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xe0"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xdb"), "image/jpeg"},
 	{[]byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, "image/png"},
 	{[]byte("-----BEGIN PGP PUBLIC KEY BLOCK---"), "text/x-openpgp-public-key"},
+	// TODO(bradfitz): popular audio & video formats at least
 }
 
 // Returns the emptry string if unknown.

@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2012 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,22 +18,19 @@ package main
 
 import (
 	"flag"
+	"log"
+	"fmt"
+	"os"
+	
+	"camlistore.org/pkg/magic"
 )
 
-var (
-	flagSplits = flag.Bool("splits", false, "show splits of provided filename")
-	flagMIME = flag.Bool("mime", false, "show MIME type of provided file")
-)
-
-func main() {
-	flag.Parse()
-	if *flagMIME {
-		showMIME()
-		return
+func showMIME() {
+	file := flag.Arg(0)
+	f, err := os.Open(file)
+	if err != nil {
+		log.Fatal(err)
 	}
-	if *flagSplits {
-		showSplits()
-		return
-	}
-	flag.Usage()
+	mime, _ := magic.MimeTypeFromReader(f)
+	fmt.Println(mime)
 }
