@@ -479,15 +479,20 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 
 	if content, ok := b.ContentRef(); ok {
 		peer := b.peerBlob(content)
-		if peer.File != nil && peer.File.IsImage() {
-			image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
-				url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
-			// TODO: return the correct thumbSizes here,
-			// once we know from the indexer the
-			// dimensions (after correction for exif
-			// orientation).  For now the thumbnails will
-			// all be stretched fat squares.
-			return image, thumbSize, thumbSize, true
+		if peer.File != nil {
+			if peer.File.IsImage() {
+				image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
+					url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
+				// TODO: return the correct thumbSizes here,
+				// once we know from the indexer the
+				// dimensions (after correction for exif
+				// orientation).  For now the thumbnails will
+				// all be stretched fat squares.
+				return image, thumbSize, thumbSize, true
+			}
+
+			// TODO: different thumbnails based on peer.File.MimeType.
+			return "file.png", thumbSize, thumbSize, true
 		}
 	}
 
