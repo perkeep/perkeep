@@ -22,7 +22,7 @@ function getBlobParam() {
 
 function blobInfoUpdate(bmap) {
     var blobmeta = document.getElementById('blobmeta');
-    var bd = document.getElementById("blobdownload")
+    var bd = document.getElementById("blobdownload");
     bd.innerHTML = "";
     var blobref = getBlobParam();
     if (!blobref) {
@@ -36,9 +36,7 @@ function blobInfoUpdate(bmap) {
     }
     blobmeta.innerHTML = JSON.stringify(binfo, null, 2);
     if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
-        camliGetBlobContents(
-            blobref,
-            {
+        camliGetBlobContents(blobref, {
                 success: function(data) {
                     document.getElementById("blobdata").innerHTML = linkifyBlobRefs(data);
                     var bb = document.getElementById('blobbrowse');
@@ -77,16 +75,14 @@ function blobInfoUpdate(bmap) {
 
         var claims = document.getElementById("claimsdiv");
         claims.style.visibility = "";
-        camliGetPermanodeClaims(
-            blobref,
-            {
+        camliGetPermanodeClaims(blobref, {
                 success: function(data) {
                     document.getElementById("claims").innerHTML = linkifyBlobRefs(JSON.stringify(data, null, 2));
                 },
                 fail: function(msg) {
                     alert(msg);
                 }
-            });
+        });
     }
 
 }
@@ -101,9 +97,7 @@ function blobInfoOnLoad() {
 
     var blobdescribe = document.getElementById('blobdescribe');
     blobdescribe.innerHTML = "<a href='" + camliDescribeBlogURL(blobref) + "'>describe</a>";
-    camliDescribeBlob(
-        blobref,
-        {
+    camliDescribeBlob(blobref, {
             success: blobInfoUpdate,
             fail: function(msg) {
                 alert("Error describing blob " + blobref + ": " + msg);
