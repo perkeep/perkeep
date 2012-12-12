@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 16152, fileembed.String("/*\n"+
+	Files.Add("camli.js", 18039, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -25,6 +25,10 @@ func init() {
 		"\n"+
 		"// Camli namespace.\n"+
 		"var Camli = {};\n"+
+		"\n"+
+		"function $(id) {\n"+
+		"    return document.getElementById(id);\n"+
+		"}\n"+
 		"\n"+
 		"var disco = null;  // TODO: kill this in favor of Camli.config.\n"+
 		"\n"+
@@ -205,11 +209,57 @@ func init() {
 		"        });\n"+
 		"}\n"+
 		"\n"+
+		"// camliUploadFile uploads a file and returns a file schema. It does not create\n"+
+		"// any permanodes.\n"+
+		"//\n"+
+		"// file: File object\n"+
+		"// opts: optional callbacks:\n"+
+		"// opts:\n"+
+		"//   - fail: function(msg)\n"+
+		"//   - success: function(fileBlobRef) of the server-validated or\n"+
+		"//         just-uploaded file schema blob.\n"+
+		"//   - onContentsRef: function(blobref) of contents, once hashed in-browser\n"+
+		"function camliUploadFile(file, opts) {\n"+
+		"    var fr = new FileReader();\n"+
+		"    fr.onload = function() {\n"+
+		"        var dataurl = fr.result;\n"+
+		"        var comma = dataurl.indexOf(\",\");\n"+
+		"        if (comma != -1) {\n"+
+		"            var b64 = dataurl.substring(comma + 1);\n"+
+		"            var arrayBuffer = Base64.decode(b64).buffer;\n"+
+		"            var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));\n"+
+		"\n"+
+		"            var contentsRef = \"sha1-\" + hash;\n"+
+		"            camliCondCall(opts.onContentsRef, contentsRef);\n"+
+		"            camliUploadFileHelper(file, contentsRef, {\n"+
+		"                success: opts.success, fail: opts.fail\n"+
+		"            });\n"+
+		"        }\n"+
+		"    };\n"+
+		"    fr.onerror = function() {\n"+
+		"        console.log(\"FileReader onerror: \" + fr.error + \" code=\" + fr.error.code)"+
+		";\n"+
+		"    };\n"+
+		"    fr.readAsDataURL(file);\n"+
+		"}\n"+
+		"\n"+
+		"// camliUploadFileHelper uploads the provided file with contents blobref contents"+
+		"BlobRef\n"+
+		"// and returns a blobref of a file blob.  It does not create any permanodes.\n"+
+		"// Most callers will use camliUploadFile instead of this helper.\n"+
+		"//\n"+
+		"// camliUploadFileHelper only uploads chunks of the file if they don't already ex"+
+		"ist\n"+
+		"// on the server. It starts by assuming the file might already exist on the serve"+
+		"r\n"+
+		"// and, if so, uses an existing (but re-verified) file schema ref instead.\n"+
+		"//\n"+
 		"// file: File object\n"+
 		"// contentsBlobRef: blob ref of file as sha1'd locally\n"+
-		"// opts: fail(strMsg) success(strFileBlobRef) of the validated (or uploaded + cre"+
-		"ated) file schema blob.\n"+
-		"//       associating with a permanode is caller's job.\n"+
+		"// opts:\n"+
+		"//   - fail: function(msg)\n"+
+		"//   - success: function(fileBlobRef) of the server-validated or\n"+
+		"//         just-uploaded file schema blob.\n"+
 		"function camliUploadFileHelper(file, contentsBlobRef, opts) {\n"+
 		"    opts = saneOpts(opts);\n"+
 		"    if (!Camli.config.uploadHelper) {\n"+
@@ -510,5 +560,12 @@ func init() {
 		"    changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
-		""), time.Unix(0, 1352847035929567305))
+		"// camliCondCall calls fn, if non-null, with the remaining parameters.\n"+
+		"function camliCondCall(fn /*, ... */) {\n"+
+		"    if (!fn) {\n"+
+		"        return;\n"+
+		"    }\n"+
+		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
+		"}\n"+
+		""), time.Unix(0, 1355276661678717406))
 }

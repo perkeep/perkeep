@@ -18,5 +18,4 @@ clients/go/camwebdav/camwebdav
 appengine-sdk
 build/root
 .DS_Store
-tmp/closure
-
+tmp

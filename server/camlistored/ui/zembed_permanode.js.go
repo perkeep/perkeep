@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 21592, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 21256, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -179,10 +179,7 @@ func init() {
 		"    }\n"+
 		"}\n"+
 		"\n"+
-		"var lastFiles;\n"+
 		"function handleFiles(files) {\n"+
-		"    lastFiles = files;\n"+
-		"\n"+
 		"    for (var i = 0; i < files.length; i++) {\n"+
 		"        var file = files[i];\n"+
 		"        startFileUpload(file);\n"+
@@ -201,8 +198,6 @@ func init() {
 		"        up.innerHTML = info + \" \" + status;\n"+
 		"    };\n"+
 		"    setStatus(\"(scanning)\");\n"+
-		"\n"+
-		"    var contentsRef; // set later\n"+
 		"\n"+
 		"    var onFail = function(msg) {\n"+
 		"        up.innerHTML = info + \" <strong>fail:</strong> \";\n"+
@@ -234,40 +229,35 @@ func init() {
 		"        });\n"+
 		"    };\n"+
 		"\n"+
-		"    var fr = new FileReader();\n"+
-		"    fr.onload = function() {\n"+
-		"        dataurl = fr.result;\n"+
-		"        comma = dataurl.indexOf(\",\");\n"+
-		"        if (comma != -1) {\n"+
-		"            b64 = dataurl.substring(comma + 1);\n"+
-		"            var arrayBuffer = Base64.decode(b64).buffer;\n"+
-		"            var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));\n"+
-		"\n"+
-		"            contentsRef = \"sha1-\" + hash;\n"+
+		"    camliUploadFile(file, {\n"+
+		"       onContentsRef: function(contentsRef) {\n"+
 		"            setStatus(\"(checking for dup of \" + contentsRef + \")\");\n"+
-		"            camliUploadFileHelper(file, contentsRef, {\n"+
-		"              success: onGotFileSchemaRef, fail: onFail\n"+
-		"            });\n"+
-		"        }\n"+
-		"    };\n"+
-		"    fr.onerror = function() {\n"+
-		"        console.log(\"FileReader onerror: \" + fr.error + \" code=\" + fr.error.code)"+
-		";\n"+
-		"    };\n"+
-		"    fr.readAsDataURL(file);\n"+
+		"       },\n"+
+		"       success: onGotFileSchemaRef, \n"+
+		"       fail: onFail\n"+
+		"    });\n"+
 		"}\n"+
 		"\n"+
 		"function onFileFormSubmit(e) {\n"+
 		"    e.stopPropagation();\n"+
 		"    e.preventDefault();\n"+
-		"    alert(\"TODO: upload\");\n"+
-		"}\n"+
-		"\n"+
-		"function onFileInputChange(e) {\n"+
 		"    handleFiles(document.getElementById(\"fileInput\").files);\n"+
 		"}\n"+
 		"\n"+
-		"function setupFilesHandlers(e) {\n"+
+		"function $(id) { return document.getElementById(id) }\n"+
+		"\n"+
+		"function onFileInputChange(e) {\n"+
+		"    var s = \"\";\n"+
+		"    var files = $(\"fileInput\").files;\n"+
+		"    for (var i = 0; i < files.length; i++) {\n"+
+		"        var file = files[i];\n"+
+		"        s += \"<p>\" + file.name + \"</p>\";\n"+
+		"    }\n"+
+		"    var fl = $(\"filelist\");\n"+
+		"    fl.innerHTML = s;\n"+
+		"}\n"+
+		"\n"+
+		"function setupFilesHandlers() {\n"+
 		"    var dnd = document.getElementById(\"dnd\");\n"+
 		"    document.getElementById(\"fileForm\").addEventListener(\"submit\", onFileFormSubm"+
 		"it);\n"+
@@ -662,7 +652,7 @@ func init() {
 		"    }\n"+
 		"}\n"+
 		"\n"+
-		"function permanodePageOnLoad(e) {\n"+
+		"function permanodePageOnLoad() {\n"+
 		"    var permanode = getPermanodeParam();\n"+
 		"    if (permanode) {\n"+
 		"        document.getElementById('permanode').innerHTML = \"<a href='./?p=\" + perma"+
@@ -691,5 +681,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1352847035929567305))
+		""), time.Unix(0, 1354837534181168310))
 }

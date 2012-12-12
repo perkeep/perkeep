@@ -1,4 +1,4 @@
-// THIS FILE IS AUTO-GENERATED FROM home.html
+// THIS FILE IS AUTO-GENERATED FROM debug.html
 // DO NOT EDIT.
 package ui
 
@@ -7,21 +7,20 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("home.html", 1256, fileembed.String("<html>\n"+
+	Files.Add("debug.html", 1252, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
 		"  <script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
 		"  <script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
-		"  <script src=\"home.js\"></script>\n"+
+		"  <script src=\"debug.js\"></script>\n"+
 		"  <script src=\"?camli.mode=config&cb=onConfiguration\"></script>\n"+
 		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
 		"</head>\n"+
 		"<body class=\"camli-ui-index\">\n"+
 		"  <h1>Camlistored UI</h1>\n"+
-		"  <p class=\"camli-nav\"\n"+
-		"    ><strong>Debug:</strong>\n"+
+		"  <p class=\"camli-nav\"><strong>Debug:</strong>\n"+
 		"    <a href=\"disco.html\">discovery</a> |\n"+
 		"    <a href=\"signing.html\">signing</a></p>\n"+
 		"\n"+
@@ -49,5 +48,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1352847035929567305))
+		""), time.Unix(0, 1355277461247833805))
 }

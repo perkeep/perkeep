@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.html", 2653, fileembed.String("<!doctype html>\n"+
+	Files.Add("permanode.html", 2667, fileembed.String("<!doctype html>\n"+
 		"<html>\n"+
 		"<head>\n"+
 		"  <title>Permanode</title>\n"+
@@ -91,7 +91,7 @@ func init() {
 		"      <input type=\"file\" id=\"fileInput\" multiple=\"true\" onchange=\"\">\n"+
 		"      <input type=\"submit\" id=\"fileUploadBtn\" value=\"Upload\">\n"+
 		"    </form>\n"+
-		"    <p>\n"+
+		"    <p id='filelist'>\n"+
 		"      <em>or drag &amp; drop files here</em>\n"+
 		"    </p>\n"+
 		"    <pre id=\"info\"></pre>\n"+
@@ -102,5 +102,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1349726992233765780))
+		""), time.Unix(0, 1354832601372888952))
 }

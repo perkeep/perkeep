@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -73,9 +74,8 @@ type UIHandler struct {
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
 
-	staticHandler  http.Handler
-	staticHandler2 http.Handler // for the new ui
-	closureHandler http.Handler
+	newUIStaticHandler http.Handler // for the new ui
+	closureHandler     http.Handler
 }
 
 func init() {
@@ -140,8 +140,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		}
 	}
 
-	ui.staticHandler = http.FileServer(uiFiles)
-	ui.staticHandler2 = http.FileServer(newuiFiles)
+	ui.newUIStaticHandler = http.FileServer(newuiFiles)
 	// TODO(mpl): figure out camliroot and use an abs path
 	closureDir := filepath.Join("tmp", "closure")
 	ui.closureHandler = http.FileServer(http.Dir(closureDir))
@@ -218,7 +217,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		} else if m := static2FilePattern.FindStringSubmatch(suffix); m != nil {
 			file = strings.Replace(suffix, m[1], "", 1)
 			req.URL.Path = "/" + file
-			ui.staticHandler2.ServeHTTP(rw, req)
+			ui.newUIStaticHandler.ServeHTTP(rw, req)
 			break
 		} else if m := closurePattern.FindStringSubmatch(suffix); m != nil {
 			file = strings.Replace(suffix, m[1], "", 1)
@@ -227,8 +226,6 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			break
 		} else {
 			switch {
-			case wantsRecentPermanodes(req):
-				file = "recent.html"
 			case wantsPermanode(req):
 				file = "permanode.html"
 			case wantsGallery(req):
@@ -238,15 +235,29 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			case wantsFileTreePage(req):
 				file = "filetree.html"
 			case req.URL.Path == base:
-				file = "home.html"
+				file = "index.html"
 			default:
 				http.Error(rw, "Illegal URL.", 404)
 				return
 			}
 		}
-		req.URL.Path = "/" + file
-		ui.staticHandler.ServeHTTP(rw, req)
+		serveStaticFile(rw, req, uiFiles, file)
 	}
+}
+
+func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSystem, file string) {
+	f, err := root.Open("/" + file)
+	if err != nil {
+		http.NotFound(rw, req)
+		log.Printf("Failed to open file %q from uiFiles: %v", file, err)
+		return
+	}
+	defer f.Close()
+	var modTime time.Time
+	if fi, err := f.Stat(); err == nil {
+		modTime = fi.ModTime()
+	}
+	http.ServeContent(rw, req, file, modTime, f)
 }
 
 func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {

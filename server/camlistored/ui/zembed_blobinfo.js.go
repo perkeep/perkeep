@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.js", 4308, fileembed.String("/*\n"+
+	Files.Add("blobinfo.js", 4238, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -31,7 +31,7 @@ func init() {
 		"\n"+
 		"function blobInfoUpdate(bmap) {\n"+
 		"    var blobmeta = document.getElementById('blobmeta');\n"+
-		"    var bd = document.getElementById(\"blobdownload\")\n"+
+		"    var bd = document.getElementById(\"blobdownload\");\n"+
 		"    bd.innerHTML = \"\";\n"+
 		"    var blobref = getBlobParam();\n"+
 		"    if (!blobref) {\n"+
@@ -45,9 +45,7 @@ func init() {
 		"    }\n"+
 		"    blobmeta.innerHTML = JSON.stringify(binfo, null, 2);\n"+
 		"    if (binfo.camliType || (binfo.type && binfo.type.indexOf(\"text/\") == 0)) {\n"+
-		"        camliGetBlobContents(\n"+
-		"            blobref,\n"+
-		"            {\n"+
+		"        camliGetBlobContents(blobref, {\n"+
 		"                success: function(data) {\n"+
 		"                    document.getElementById(\"blobdata\").innerHTML = linkifyBlobRe"+
 		"fs(data);\n"+
@@ -91,9 +89,7 @@ func init() {
 		"\n"+
 		"        var claims = document.getElementById(\"claimsdiv\");\n"+
 		"        claims.style.visibility = \"\";\n"+
-		"        camliGetPermanodeClaims(\n"+
-		"            blobref,\n"+
-		"            {\n"+
+		"        camliGetPermanodeClaims(blobref, {\n"+
 		"                success: function(data) {\n"+
 		"                    document.getElementById(\"claims\").innerHTML = linkifyBlobRefs"+
 		"(JSON.stringify(data, null, 2));\n"+
@@ -101,7 +97,7 @@ func init() {
 		"                fail: function(msg) {\n"+
 		"                    alert(msg);\n"+
 		"                }\n"+
-		"            });\n"+
+		"        });\n"+
 		"    }\n"+
 		"\n"+
 		"}\n"+
@@ -117,9 +113,7 @@ func init() {
 		"    var blobdescribe = document.getElementById('blobdescribe');\n"+
 		"    blobdescribe.innerHTML = \"<a href='\" + camliDescribeBlogURL(blobref) + \"'>des"+
 		"cribe</a>\";\n"+
-		"    camliDescribeBlob(\n"+
-		"        blobref,\n"+
-		"        {\n"+
+		"    camliDescribeBlob(blobref, {\n"+
 		"            success: blobInfoUpdate,\n"+
 		"            fail: function(msg) {\n"+
 		"                alert(\"Error describing blob \" + blobref + \": \" + msg);\n"+
@@ -129,5 +123,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", blobInfoOnLoad);\n"+
-		""), time.Unix(0, 1351526710072999389))
+		""), time.Unix(0, 1355268804490766485))
 }

@@ -1,0 +1,30 @@
+#toolbar input[type="button"] {
+    padding: 2px 5px 2px 5px;
+}
+
+#btnList {
+  margin-right: 0;
+  border-right: 1px dashed #000;
+}
+
+#btnThumbs {
+ margin-left: 0;
+ border-left: 0;
+}
+
+#btnSmaller {
+  margin-right: 0;
+  border-right: 1px dashed #000;
+  width: 2em;
+}
+
+#btnBigger {
+ margin-left: 0;
+ border-left: 0;
+ width: 2em;
+}
+
+#btnSearch {
+ margin-left: 0;
+ border-left: 0;
+}
