@@ -113,3 +113,40 @@ func FindCamliInclude(configFile string) (absPath string, err error) {
 
 	return "", os.ErrNotExist
 }
+
+func envVarSplitChar() string {
+	switch runtime.GOOS {
+	case "windows":
+		return ";"
+	case "plan9":
+		panic("unsupported")
+	}
+	return ":"
+}
+
+// GoPackagePath returns the path to the provided Go package's
+// source directory.
+// pkg may be a path prefix without any *.go files.
+// The error is os.ErrNotExist if GOPATH is unset or the directory
+// doesn't exist in any GOPATH component.
+func GoPackagePath(pkg string) (path string, err error) {
+	gp := os.Getenv("GOPATH")
+	if gp == "" {
+		return path, os.ErrNotExist
+	}
+	for _, p := range strings.Split(gp, envVarSplitChar()) {
+		dir := filepath.Join(p, "src", pkg)
+		fi, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if !fi.IsDir() {
+			continue
+		}
+		return dir, nil
+	}
+	return path, os.ErrNotExist
+}

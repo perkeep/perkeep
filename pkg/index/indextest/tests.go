@@ -23,14 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonsign"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
@@ -173,34 +172,14 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 	return
 }
 
-func osSplitChar() string {
-	switch runtime.GOOS {
-	case "windows":
-		return ";"
-	case "plan9":
-		panic("unsupported")
-	}
-	return ":"
-}
-
-func findGoPathPackage(pkg string) string {
-	gp := os.Getenv("GOPATH")
-	if gp == "" {
-		panic("no GOPATH set")
-	}
-	for _, p := range strings.Split(gp, osSplitChar()) {
-		dir := filepath.Join(p, "src", pkg)
-		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
-			return dir
-		}
-	}
-	panic(fmt.Sprintf("package %q not found in GOPATH(s) of %q", pkg, gp))
-}
-
 // NewIndexDeps returns an IndexDeps helper for populating and working
 // with the provided index for tests.
 func NewIndexDeps(index *index.Index) *IndexDeps {
-	secretRingFile := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "jsonsign", "testdata", "test-secring.gpg")
+	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		log.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+	}
+	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsBNBEzgoVsBCAC/56aEJ9BNIGV9FVP+WzenTAkg12k86YqlwJVAB/VwdMlyXxvi
@@ -256,9 +235,13 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// TODO(bradfitz): add EXIF tests here, once that stuff is ready.
 	if false {
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
 		for i := 1; i <= 8; i++ {
 			fileBase := fmt.Sprintf("f%d-exif.jpg", i)
-			fileName := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "images", "testdata", fileBase)
+			fileName := filepath.Join(camliRootPath, "pkg", "images", "testdata", fileBase)
 			contents, err := ioutil.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
@@ -270,7 +253,11 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// Upload a basic image.
 	var jpegFileRef *blobref.BlobRef
 	{
-		fileName := filepath.Join(findGoPathPackage("camlistore.org"), "pkg", "index", "indextest", "testdata", "dude.jpg")
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
+		fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", "dude.jpg")
 		contents, err := ioutil.ReadFile(fileName)
 		if err != nil {
 			t.Fatal(err)

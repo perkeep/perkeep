@@ -32,6 +32,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	newuistatic "camlistore.org/server/camlistored/newui"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
@@ -74,8 +75,8 @@ type UIHandler struct {
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
 
-	newUIStaticHandler http.Handler // for the new ui
-	closureHandler     http.Handler
+	newUIStaticHandler handlerOrNil // for the new ui
+	closureHandler     handlerOrNil
 }
 
 func init() {
@@ -140,10 +141,15 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		}
 	}
 
-	ui.newUIStaticHandler = http.FileServer(newuiFiles)
-	// TODO(mpl): figure out camliroot and use an abs path
-	closureDir := filepath.Join("tmp", "closure")
-	ui.closureHandler = http.FileServer(http.Dir(closureDir))
+	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
+			" Closure will not be used.")
+	} else {
+		closureDir := filepath.Join(camliRootPath, "tmp", "closure")
+		ui.closureHandler = handlerOrNil{http.FileServer(http.Dir(closureDir))}
+		ui.newUIStaticHandler = handlerOrNil{http.FileServer(newuiFiles)}
+	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
 	if err != nil {
@@ -191,6 +197,21 @@ func wantsBlobInfo(req *http.Request) bool {
 
 func wantsFileTreePage(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("d")) != nil
+}
+
+// TODO(mpl): I don't like the name.
+type handlerOrNil struct {
+	h http.Handler
+}
+
+func (hon handlerOrNil) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if hon.h == nil {
+		suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+		log.Printf("%v not served: handler is nil", suffix)
+		http.NotFound(rw, req)
+		return
+	}
+	hon.h.ServeHTTP(rw, req)
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
