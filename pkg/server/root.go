@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/user"
 	"time"
 
 	"camlistore.org/pkg/auth"
@@ -33,6 +34,8 @@ type RootHandler struct {
 	// Stealth determines whether we hide from non-authenticated
 	// clients.
 	Stealth bool
+
+	OwnerName string // for display purposes only
 
 	// URL prefixes (path or full URL) to the primary blob and
 	// search root.
@@ -50,9 +53,14 @@ func init() {
 }
 
 func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+	u, err := user.Current()
+	if err != nil {
+		return
+	}
 	root := &RootHandler{
 		BlobRoot:   conf.OptionalString("blobRoot", ""),
 		SearchRoot: conf.OptionalString("searchRoot", ""),
+		OwnerName:  conf.OptionalString("ownerName", u.Name),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	if err = conf.Validate(); err != nil {
@@ -106,8 +114,9 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	m := map[string]interface{}{
-		"blobRoot":        rh.BlobRoot,
-		"searchRoot":      rh.SearchRoot,
+		"blobRoot":   rh.BlobRoot,
+		"searchRoot": rh.SearchRoot,
+		"ownerName":  rh.OwnerName,
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()

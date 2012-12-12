@@ -9,6 +9,7 @@
      "/": {
          "handler": "root",
          "handlerArgs": {
+             "ownerName": ["_env", "${USER}-dev"],
              "blobRoot": "/bs-and-maybe-also-index/",
              "searchRoot": "/my-search/",
              "stealth": false

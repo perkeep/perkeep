@@ -28,6 +28,8 @@ function indexOnLoad() {
     selGo.addEventListener("change", function(e) {
        window.location = goTargets[selGo.value];
     });
+
+    setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
 }
 
 var lastSelIndex = 0;
