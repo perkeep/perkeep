@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 8945, fileembed.String("/*\n"+
+	Files.Add("index.js", 10831, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -23,7 +23,29 @@ func init() {
 		"limitations under the License.\n"+
 		"*/\n"+
 		"\n"+
-		"var CamliIndexPage = {};\n"+
+		"var CamliIndexPage = {\n"+
+		"    thumbSizes: [25, 50, 75, 100, 150, 200],\n"+
+		"    thumbSizeIdx: 3\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.thumbSize = function() {\n"+
+		"  return CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.thumbBoxSize = function() {\n"+
+		"  return 50 + CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.thumbFontSize = function() {\n"+
+		"  var fontSize = (CamliIndexPage.thumbSize() / 6);\n"+
+		"  if (fontSize < 10) {\n"+
+		"      fontSize = 10;\n"+
+		"  }\n"+
+		"  if (fontSize > 20) {\n"+
+		"      fontSize = 20;\n"+
+		"  }\n"+
+		"  return fontSize + \"px\";\n"+
+		"};\n"+
 		"\n"+
 		"CamliIndexPage.onLoad = function() {\n"+
 		"    CamliIndexPage.startRecentLoading();\n"+
@@ -33,6 +55,8 @@ func init() {
 		"      \"recent\": function() { alert(\"not implemented, but it's already in recent m"+
 		"ode\"); },\n"+
 		"      \"date\": function() { alert(\"TODO: pop up a date selector dialog\"); },\n"+
+		"      \"fromsel\": function() { alert(\"TODO: go forward in time from selected item\""+
+		"); },\n"+
 		"      \"debug:signing\": \"signing.html\", \n"+
 		"      \"debug:disco\": \"disco.html\",\n"+
 		"      \"debug:misc\": \"debug.html\",\n"+
@@ -54,13 +78,26 @@ func init() {
 		"    });\n"+
 		"\n"+
 		"    $(\"formSearch\").addEventListener(\"submit\", CamliIndexPage.onSearchSubmit);\n"+
-		"\n"+
+		"    $(\"btnSmaller\").addEventListener(\"click\", CamliIndexPage.sizeHandler(-1));\n"+
+		"    $(\"btnBigger\").addEventListener(\"click\", CamliIndexPage.sizeHandler(1));\n"+
 		"    setTextContent($(\"topTitle\"), Camli.config.ownerName + \"'s Vault\");\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.sizeHandler = function(idxDelta) {\n"+
+		"    return function(e) { // onclick handler\n"+
+		"        var newSize = CamliIndexPage.thumbSizeIdx + idxDelta;\n"+
+		"        if (newSize < 0 || newSize >= CamliIndexPage.thumbSizes.length) {\n"+
+		"            return;\n"+
+		"        }\n"+
+		"        CamliIndexPage.thumbSizeIdx = newSize;\n"+
+		"        $(\"recent\").innerHTML = \"\";\n"+
+		"        CamliIndexPage.startRecentLoading();\n"+
+		"    };\n"+
 		"};\n"+
 		"\n"+
 		"CamliIndexPage.startRecentLoading = function() {\n"+
 		"    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItem"+
-		"s, thumbnails: 150});\n"+
+		"s, thumbnails: CamliIndexPage.thumbSize()});\n"+
 		"};\n"+
 		"\n"+
 		"CamliIndexPage.onSearchSubmit = function(e) {\n"+
@@ -81,76 +118,88 @@ func init() {
 		"var currentlySelected = {}; // currently selected index -> true\n"+
 		"var itemsSelected = 0;\n"+
 		"\n"+
+		"CamliIndexPage.setThumbBoxStyle = function(div) {\n"+
+		"  div.style.width = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
+		"  div.style.height = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
+		"  div.style.maxWidth = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
+		"  div.style.maxHeight = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
+		"};\n"+
+		"\n"+
 		"// divFromResult converts the |i|th searchResult into\n"+
 		"// a div element, style as a thumbnail tile.\n"+
 		"function divFromResult(searchRes, i) {\n"+
-		"	var result = searchRes.recent[i];\n"+
-		"	var br = searchRes[result.blobref];\n"+
-		"	var divperm = document.createElement(\"div\");\n"+
-		"	var setSelected = function(selected) {\n"+
-		"                if (divperm.isSelected == selected) {\n"+
-		"                   return;\n"+
-		"                }\n"+
-		"		divperm.isSelected = selected;\n"+
-		"		if (selected) {\n"+
-		"			lastSelIndex = i;\n"+
-		"			currentlySelected[i] = true;\n"+
-		"			divperm.classList.add(\"selected\");\n"+
-		"		} else {\n"+
-		"			delete currentlySelected[selected];\n"+
-		"			lastSelIndex = -1;\n"+
-		"			divperm.classList.remove(\"selected\");\n"+
-		"		}\n"+
-		"                itemsSelected += selected ? 1 : -1;\n"+
-		"                $(\"optFromSel\").disabled = (itemsSelected == 0);\n"+
-		"	};\n"+
-		"	selSetter[i] = setSelected;\n"+
-		"	divperm.addEventListener(\"mousedown\", function(e) {\n"+
-		"	   if (e.shiftKey) {\n"+
-		"		   e.preventDefault(); // prevent browser range selection\n"+
-		"	   }\n"+
+		"    var result = searchRes.recent[i];\n"+
+		"    var br = searchRes[result.blobref];\n"+
+		"    var divperm = document.createElement(\"div\");\n"+
+		"    CamliIndexPage.setThumbBoxStyle(divperm);\n"+
+		"\n"+
+		"    var setSelected = function(selected) {\n"+
+		"        if (divperm.isSelected == selected) {\n"+
+		"            return;\n"+
+		"        }\n"+
+		"	divperm.isSelected = selected;\n"+
+		"	if (selected) {\n"+
+		"	    lastSelIndex = i;\n"+
+		"	    currentlySelected[i] = true;\n"+
+		"	    divperm.classList.add(\"selected\");\n"+
+		"	} else {\n"+
+		"	    delete currentlySelected[selected];\n"+
+		"	    lastSelIndex = -1;\n"+
+		"	    divperm.classList.remove(\"selected\");\n"+
+		"	}\n"+
+		"        itemsSelected += selected ? 1 : -1;\n"+
+		"        $(\"optFromSel\").disabled = (itemsSelected == 0);\n"+
+		"    };\n"+
+		"    selSetter[i] = setSelected;\n"+
+		"    divperm.addEventListener(\n"+
+		"        \"mousedown\", function(e) {\n"+
+		"	    if (e.shiftKey) {\n"+
+		"	        e.preventDefault(); // prevent browser range selection\n"+
+		"	    }\n"+
 		"	});\n"+
-		"	divperm.addEventListener(\"click\", function(e) {\n"+
-		"		if (e.ctrlKey) {\n"+
-		"			setSelected(!divperm.isSelected);\n"+
-		"			return;\n"+
-		"		}\n"+
-		"		if (e.shiftKey) {\n"+
-		"			if (lastSelIndex < 0) {\n"+
-		"				return;\n"+
-		"			}\n"+
-		"			var from = lastSelIndex;\n"+
-		"			var to = i;\n"+
-		"			if (to < from) {\n"+
-		"				from = i;\n"+
-		"				to = lastSelIndex;\n"+
-		"			}\n"+
-		"			for (var j = from; j <= to; j++) {\n"+
-		"				selSetter[j](true);\n"+
-		"			}\n"+
-		"			return;\n"+
-		"		}\n"+
-		"		for (var j in currentlySelected) {\n"+
-		"			if (j != i) {\n"+
-		"				selSetter[j](false);\n"+
-		"			}\n"+
-		"		}\n"+
+		"    divperm.addEventListener(\n"+
+		"        \"click\", function(e) {\n"+
+		"	    if (e.ctrlKey) {\n"+
 		"		setSelected(!divperm.isSelected);\n"+
+		"		return;\n"+
+		"	    }\n"+
+		"	    if (e.shiftKey) {\n"+
+		"		if (lastSelIndex < 0) {\n"+
+		"		    return;\n"+
+		"		}\n"+
+		"		var from = lastSelIndex;\n"+
+		"		var to = i;\n"+
+		"		if (to < from) {\n"+
+		"		    from = i;\n"+
+		"		    to = lastSelIndex;\n"+
+		"		}\n"+
+		"		for (var j = from; j <= to; j++) {\n"+
+		"		    selSetter[j](true);\n"+
+		"		}\n"+
+		"		return;\n"+
+		"	    }\n"+
+		"	    for (var j in currentlySelected) {\n"+
+		"		if (j != i) {\n"+
+		"		    selSetter[j](false);\n"+
+		"		}\n"+
+		"	    }\n"+
+		"	    setSelected(!divperm.isSelected);\n"+
 		"	});\n"+
-		"	var alink = document.createElement(\"a\");\n"+
-		"	alink.href = \"./?p=\" + br.blobRef;\n"+
-		"	var img = document.createElement(\"img\");\n"+
-		"	img.src = br.thumbnailSrc;\n"+
-		"	img.height = br.thumbnailHeight;\n"+
-		"	img.width =  br.thumbnailWidth;\n"+
-		"	alink.appendChild(img);\n"+
-		"	divperm.appendChild(alink);\n"+
-		"	var title = document.createElement(\"p\");\n"+
-		"	setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
-		"	title.className = 'camli-ui-thumbtitle';\n"+
-		"	divperm.appendChild(title);\n"+
-		"	divperm.className = 'camli-ui-thumb';\n"+
-		"	return divperm;\n"+
+		"    var alink = document.createElement(\"a\");\n"+
+		"    alink.href = \"./?p=\" + br.blobRef;\n"+
+		"    var img = document.createElement(\"img\");\n"+
+		"    img.src = br.thumbnailSrc;\n"+
+		"    img.height = br.thumbnailHeight;\n"+
+		"    img.width =  br.thumbnailWidth;\n"+
+		"    alink.appendChild(img);\n"+
+		"    divperm.appendChild(alink);\n"+
+		"    var title = document.createElement(\"p\");\n"+
+		"    setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
+		"    title.className = 'camli-ui-thumbtitle';\n"+
+		"    title.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
+		"    divperm.appendChild(title);\n"+
+		"    divperm.className = 'camli-ui-thumb';\n"+
+		"    return divperm;\n"+
 		"}\n"+
 		"\n"+
 		"// createPlusButton returns the div element that is both a button\n"+
@@ -159,15 +208,21 @@ func init() {
 		"  var div = document.createElement(\"div\");\n"+
 		"  div.id = \"plusdrop\";\n"+
 		"  div.className = \"camli-ui-thumb\";\n"+
+		"  CamliIndexPage.setThumbBoxStyle(div);\n"+
 		"\n"+
 		"  var plusLink = document.createElement(\"a\");\n"+
 		"  plusLink.classList.add(\"plusLink\");\n"+
 		"  plusLink.href = '#';\n"+
 		"  plusLink.innerHTML = \"+\";\n"+
+		"\n"+
+		"  plusLink.style.fontSize = (CamliIndexPage.thumbSize() / 4 * 3) + \"px\";\n"+
+		"  plusLink.style.marginTop = (CamliIndexPage.thumbSize() / 4) + \"px\";\n"+
 		"  div.appendChild(plusLink);\n"+
 		"\n"+
 		"  var statusDiv = document.createElement(\"div\");\n"+
 		"  statusDiv.innerHTML = \"Click or drag & drop files here.\";\n"+
+		"  statusDiv.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
+		"\n"+
 		"  // TODO: use statusDiv instead (hidden by default), but put\n"+
 		"  // it somewhere users can get to it with a click.\n"+
 		"  div.appendChild(statusDiv);\n"+
@@ -259,7 +314,7 @@ func init() {
 		"    }\n"+
 		"    if (fails.length > 0) {\n"+
 		"      if (opts.fail) {\n"+
-		"        opts.fail(fails)\n"+
+		"        opts.fail(fails);\n"+
 		"      }\n"+
 		"      return\n"+
 		"    }\n"+
@@ -303,14 +358,14 @@ func init() {
 		"}\n"+
 		"\n"+
 		"CamliIndexPage.onLoadedRecentItems = function (searchRes) {\n"+
-		"	var divrecent = document.getElementById(\"recent\");\n"+
-		"	divrecent.innerHTML = \"\";\n"+
-		"        divrecent.appendChild(createPlusButton());\n"+
-		"	for (var i = 0; i < searchRes.recent.length; i++) {\n"+
-		"		divrecent.appendChild(divFromResult(searchRes, i));\n"+
-		"	}\n"+
+		"    var divrecent = $(\"recent\");\n"+
+		"    divrecent.innerHTML = \"\";\n"+
+		"    divrecent.appendChild(createPlusButton());\n"+
+		"    for (var i = 0; i < searchRes.recent.length; i++) {\n"+
+		"	divrecent.appendChild(divFromResult(searchRes, i));\n"+
+		"    }\n"+
 		"};\n"+
 		"\n"+
 		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
-		""), time.Unix(0, 1355281561309868978))
+		""), time.Unix(0, 1355283166976208867))
 }

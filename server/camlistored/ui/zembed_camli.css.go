@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.css", 2190, fileembed.String("/*\n"+
+	Files.Add("camli.css", 2080, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -91,10 +91,7 @@ func init() {
 		"  margin: 0.25em;\n"+
 		"  border: 1px solid gray;\n"+
 		"  padding: 8px;\n"+
-		"  width: 200px;\n"+
-		"  height: 200px;\n"+
-		"  max-width: 200px;\n"+
-		"  max-height: 200px;\n"+
+		"  max-width: 250px;\n"+
 		"  float: left;\n"+
 		"  overflow: hidden;\n"+
 		"  text-align: center;\n"+
@@ -124,8 +121,5 @@ func init() {
 		"\n"+
 		"#plusdrop a.plusLink {\n"+
 		"  text-decoration: none;\n"+
-		"  font-size: 40pt;\n"+
-		"  margin-top: 20px;\n"+
-		"  padding: 80px;\n"+
-		"}"), time.Unix(0, 1354842364693427527))
+		"}"), time.Unix(0, 1355282571926447470))
 }

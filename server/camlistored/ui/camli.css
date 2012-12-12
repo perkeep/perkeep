@@ -82,10 +82,7 @@ body {
   margin: 0.25em;
   border: 1px solid gray;
   padding: 8px;
-  width: 200px;
-  height: 200px;
-  max-width: 200px;
-  max-height: 200px;
+  max-width: 250px;
   float: left;
   overflow: hidden;
   text-align: center;
@@ -115,7 +112,4 @@ body {
 
 #plusdrop a.plusLink {
   text-decoration: none;
-  font-size: 40pt;
-  margin-top: 20px;
-  padding: 80px;
 }

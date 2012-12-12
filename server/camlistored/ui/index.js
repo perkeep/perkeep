@@ -14,7 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var CamliIndexPage = {};
+var CamliIndexPage = {
+    thumbSizes: [25, 50, 75, 100, 150, 200],
+    thumbSizeIdx: 3
+};
+
+CamliIndexPage.thumbSize = function() {
+  return CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];
+};
+
+CamliIndexPage.thumbBoxSize = function() {
+  return 50 + CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];
+};
+
+CamliIndexPage.thumbFontSize = function() {
+  var fontSize = (CamliIndexPage.thumbSize() / 6);
+  if (fontSize < 10) {
+      fontSize = 10;
+  }
+  if (fontSize > 20) {
+      fontSize = 20;
+  }
+  return fontSize + "px";
+};
 
 CamliIndexPage.onLoad = function() {
     CamliIndexPage.startRecentLoading();
@@ -23,6 +45,7 @@ CamliIndexPage.onLoad = function() {
     var goTargets = {
       "recent": function() { alert("not implemented, but it's already in recent mode"); },
       "date": function() { alert("TODO: pop up a date selector dialog"); },
+      "fromsel": function() { alert("TODO: go forward in time from selected item"); },
       "debug:signing": "signing.html", 
       "debug:disco": "disco.html",
       "debug:misc": "debug.html",
@@ -44,12 +67,25 @@ CamliIndexPage.onLoad = function() {
     });
 
     $("formSearch").addEventListener("submit", CamliIndexPage.onSearchSubmit);
-
+    $("btnSmaller").addEventListener("click", CamliIndexPage.sizeHandler(-1));
+    $("btnBigger").addEventListener("click", CamliIndexPage.sizeHandler(1));
     setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
 };
 
+CamliIndexPage.sizeHandler = function(idxDelta) {
+    return function(e) { // onclick handler
+        var newSize = CamliIndexPage.thumbSizeIdx + idxDelta;
+        if (newSize < 0 || newSize >= CamliIndexPage.thumbSizes.length) {
+            return;
+        }
+        CamliIndexPage.thumbSizeIdx = newSize;
+        $("recent").innerHTML = "";
+        CamliIndexPage.startRecentLoading();
+    };
+};
+
 CamliIndexPage.startRecentLoading = function() {
-    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItems, thumbnails: 150});
+    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItems, thumbnails: CamliIndexPage.thumbSize()});
 };
 
 CamliIndexPage.onSearchSubmit = function(e) {
@@ -70,76 +106,88 @@ var selSetter = {};         // numeric index -> func(selected) setter
 var currentlySelected = {}; // currently selected index -> true
 var itemsSelected = 0;
 
+CamliIndexPage.setThumbBoxStyle = function(div) {
+  div.style.width = CamliIndexPage.thumbBoxSize() + "px";
+  div.style.height = CamliIndexPage.thumbBoxSize() + "px";
+  div.style.maxWidth = CamliIndexPage.thumbBoxSize() + "px";
+  div.style.maxHeight = CamliIndexPage.thumbBoxSize() + "px";
+};
+
 // divFromResult converts the |i|th searchResult into
 // a div element, style as a thumbnail tile.
 function divFromResult(searchRes, i) {
-	var result = searchRes.recent[i];
-	var br = searchRes[result.blobref];
-	var divperm = document.createElement("div");
-	var setSelected = function(selected) {
-                if (divperm.isSelected == selected) {
-                   return;
-                }
-		divperm.isSelected = selected;
-		if (selected) {
-			lastSelIndex = i;
-			currentlySelected[i] = true;
-			divperm.classList.add("selected");
-		} else {
-			delete currentlySelected[selected];
-			lastSelIndex = -1;
-			divperm.classList.remove("selected");
-		}
-                itemsSelected += selected ? 1 : -1;
-                $("optFromSel").disabled = (itemsSelected == 0);
-	};
-	selSetter[i] = setSelected;
-	divperm.addEventListener("mousedown", function(e) {
-	   if (e.shiftKey) {
-		   e.preventDefault(); // prevent browser range selection
-	   }
+    var result = searchRes.recent[i];
+    var br = searchRes[result.blobref];
+    var divperm = document.createElement("div");
+    CamliIndexPage.setThumbBoxStyle(divperm);
+
+    var setSelected = function(selected) {
+        if (divperm.isSelected == selected) {
+            return;
+        }
+	divperm.isSelected = selected;
+	if (selected) {
+	    lastSelIndex = i;
+	    currentlySelected[i] = true;
+	    divperm.classList.add("selected");
+	} else {
+	    delete currentlySelected[selected];
+	    lastSelIndex = -1;
+	    divperm.classList.remove("selected");
+	}
+        itemsSelected += selected ? 1 : -1;
+        $("optFromSel").disabled = (itemsSelected == 0);
+    };
+    selSetter[i] = setSelected;
+    divperm.addEventListener(
+        "mousedown", function(e) {
+	    if (e.shiftKey) {
+	        e.preventDefault(); // prevent browser range selection
+	    }
 	});
-	divperm.addEventListener("click", function(e) {
-		if (e.ctrlKey) {
-			setSelected(!divperm.isSelected);
-			return;
-		}
-		if (e.shiftKey) {
-			if (lastSelIndex < 0) {
-				return;
-			}
-			var from = lastSelIndex;
-			var to = i;
-			if (to < from) {
-				from = i;
-				to = lastSelIndex;
-			}
-			for (var j = from; j <= to; j++) {
-				selSetter[j](true);
-			}
-			return;
-		}
-		for (var j in currentlySelected) {
-			if (j != i) {
-				selSetter[j](false);
-			}
-		}
+    divperm.addEventListener(
+        "click", function(e) {
+	    if (e.ctrlKey) {
 		setSelected(!divperm.isSelected);
+		return;
+	    }
+	    if (e.shiftKey) {
+		if (lastSelIndex < 0) {
+		    return;
+		}
+		var from = lastSelIndex;
+		var to = i;
+		if (to < from) {
+		    from = i;
+		    to = lastSelIndex;
+		}
+		for (var j = from; j <= to; j++) {
+		    selSetter[j](true);
+		}
+		return;
+	    }
+	    for (var j in currentlySelected) {
+		if (j != i) {
+		    selSetter[j](false);
+		}
+	    }
+	    setSelected(!divperm.isSelected);
 	});
-	var alink = document.createElement("a");
-	alink.href = "./?p=" + br.blobRef;
-	var img = document.createElement("img");
-	img.src = br.thumbnailSrc;
-	img.height = br.thumbnailHeight;
-	img.width =  br.thumbnailWidth;
-	alink.appendChild(img);
-	divperm.appendChild(alink);
-	var title = document.createElement("p");
-	setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
-	title.className = 'camli-ui-thumbtitle';
-	divperm.appendChild(title);
-	divperm.className = 'camli-ui-thumb';
-	return divperm;
+    var alink = document.createElement("a");
+    alink.href = "./?p=" + br.blobRef;
+    var img = document.createElement("img");
+    img.src = br.thumbnailSrc;
+    img.height = br.thumbnailHeight;
+    img.width =  br.thumbnailWidth;
+    alink.appendChild(img);
+    divperm.appendChild(alink);
+    var title = document.createElement("p");
+    setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
+    title.className = 'camli-ui-thumbtitle';
+    title.style.fontSize = CamliIndexPage.thumbFontSize();
+    divperm.appendChild(title);
+    divperm.className = 'camli-ui-thumb';
+    return divperm;
 }
 
 // createPlusButton returns the div element that is both a button
@@ -148,15 +196,21 @@ function createPlusButton() {
   var div = document.createElement("div");
   div.id = "plusdrop";
   div.className = "camli-ui-thumb";
+  CamliIndexPage.setThumbBoxStyle(div);
 
   var plusLink = document.createElement("a");
   plusLink.classList.add("plusLink");
   plusLink.href = '#';
   plusLink.innerHTML = "+";
+
+  plusLink.style.fontSize = (CamliIndexPage.thumbSize() / 4 * 3) + "px";
+  plusLink.style.marginTop = (CamliIndexPage.thumbSize() / 4) + "px";
   div.appendChild(plusLink);
 
   var statusDiv = document.createElement("div");
   statusDiv.innerHTML = "Click or drag & drop files here.";
+  statusDiv.style.fontSize = CamliIndexPage.thumbFontSize();
+
   // TODO: use statusDiv instead (hidden by default), but put
   // it somewhere users can get to it with a click.
   div.appendChild(statusDiv);
@@ -248,7 +302,7 @@ function startFileUploads(files, statusDiv, opts) {
     }
     if (fails.length > 0) {
       if (opts.fail) {
-        opts.fail(fails)
+        opts.fail(fails);
       }
       return
     }
@@ -292,12 +346,12 @@ function startFileUploads(files, statusDiv, opts) {
 }
 
 CamliIndexPage.onLoadedRecentItems = function (searchRes) {
-	var divrecent = document.getElementById("recent");
-	divrecent.innerHTML = "";
-        divrecent.appendChild(createPlusButton());
-	for (var i = 0; i < searchRes.recent.length; i++) {
-		divrecent.appendChild(divFromResult(searchRes, i));
-	}
+    var divrecent = $("recent");
+    divrecent.innerHTML = "";
+    divrecent.appendChild(createPlusButton());
+    for (var i = 0; i < searchRes.recent.length; i++) {
+	divrecent.appendChild(divFromResult(searchRes, i));
+    }
 };
 
 window.addEventListener("load", CamliIndexPage.onLoad);
