@@ -17,6 +17,10 @@ limitations under the License.
 // Camli namespace.
 var Camli = {};
 
+function $(id) {
+    return document.getElementById(id);
+}
+
 var disco = null;  // TODO: kill this in favor of Camli.config.
 
 // innerText is not W3C compliant and does not work with firefox.

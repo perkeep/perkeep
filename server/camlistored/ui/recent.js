@@ -15,7 +15,19 @@ limitations under the License.
 */
 
 function indexOnLoad() {
-	camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: 150});
+    camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: 150});
+
+    var selGo = $("selectGo");
+    console.log(selGo);
+    var goTargets = {
+      "debug:signing": "signing.html", 
+      "debug:disco": "disco.html",
+      "debug:misc": "debug.html",
+      "search": "search.html"
+    };
+    selGo.addEventListener("change", function(e) {
+       window.location = goTargets[selGo.value];
+    });
 }
 
 var lastSelIndex = 0;
@@ -153,8 +165,8 @@ function createPlusButton() {
           // large files, we saw the permanodes load in one-at-a-time
           // as the became available.
           indexOnLoad();
-      },
-    })
+      }
+    });
   };
   div.addEventListener("drop", drop, false);
   return div;

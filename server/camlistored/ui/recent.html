@@ -1,6 +1,5 @@
 <html>
 <head>
-  <div class="camli-nav"><a href="./">Home</a></div>
   <title>Recent Permanodes</title>
   <script type="text/javascript" src="base64.js"></script>
   <script type="text/javascript" src="Crypto.js"></script>
@@ -9,12 +8,48 @@
   <script src="recent.js"></script>
   <script src="?camli.mode=config&cb=onConfiguration"></script>
   <link rel="stylesheet" href="camli.css">
+  <link rel="stylesheet" href="recent.css">
 </head>
 <body class="camli-ui-index">
+  <div class="camli-nav">
+    <a href="./">Home</a>
+    <a href="search.html">Search</a>
+    <strong>Debug:</strong>
+       <a href="disco.html">discovery</a>
+       <a href="signing.html">signing</a>
+  </div>
   <h1>Recent Permanodes</h1>
+  <div id='toolbar'>
+    <input type='button' id='btnList' value="list"><input type='button' id='btnThumbs' value="thm">
+
+    <input type='button' id='btnSmaller' value="-"><input type='button' id='btnBigger' value="+">
+
+    <form style="display: inline" id="formSearch">
+      Sort:
+      <select id="selectSort">
+        <option value='recent'>Recent</a>
+        <option value='date'>From &lt;date&gt;...</a>
+      </select>
+    </form>
+
+    <form style="display: inline" id="formGo">
+      Go:
+      <select id="selectGo">
+        <option value=""></a>
+        <option value="search">Old Search</a>
+        <option value="debug:disco">Debug: Discovery</a>
+        <option value="debug:signing">Debug: Signing</a>
+        <option value="debug:misc">Debug: Misc</a>
+      </select>
+    </form>
+
+    <form style="float: right" id="formSearch">
+      <input type="text" id="textSearch" size=15 title="Search"><input type="button" id="btnSearch" value="Srch">
+    </form>
+  </div>
   <ul id="recent"></ul>
 
-  <div style='display: block; clear: both' id="debugstatus"></div>
+  <div style="display: block; clear: both" id="debugstatus"></div>
 
 </body>
 </html>
