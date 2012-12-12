@@ -14,12 +14,16 @@ my $closure_svn = "http://closure-library.googlecode.com/svn/trunk/";
 
 chdir $Bin or die;
 
-my $opt_wipe;
-my $opt_tls;
-my $opt_nobuild;
+my $opt_KBps = 150; # if non-zero, kBps to throttle connections
+my $opt_latency_ms = 90; # added latency in millisecond
+my $opt_fast; # shortcut to disable throttling
+
 my $opt_all;  # listen on all interfaces
-my $opt_staticres; # use static resources, not those on disk
+my $opt_nobuild;
 my $opt_offline;   # don't use the network ("airplane mode")
+my $opt_staticres; # use static resources, not those on disk
+my $opt_tls;
+my $opt_wipe;
 
 # keep indexes in memory only. often used with --wipe, but not
 # necessarily. if --wipe isn't used, all blobs are re-indexed
@@ -38,6 +42,9 @@ GetOptions("wipe" => \$opt_wipe,
            "mysql" => \$opt_mysql,
            "staticres" => \$opt_staticres,
            "offline" => \$opt_offline,
+           "KBps=i" => \$opt_KBps,
+           "latency_ms=i" => \$opt_latency_ms,
+           "fast" => \$opt_fast,
     )
     or usage();
 
@@ -49,6 +56,11 @@ usage() unless $port =~ /^\d+$/;
 
 unless ($ENV{GOPATH}) {
     $ENV{GOPATH} = "$Bin/gopath"
+}
+
+unless ($opt_fast) {
+    $ENV{DEV_THROTTLE_KBPS} = $opt_KBps;
+    $ENV{DEV_THROTTLE_LATENCY_MS} = $opt_latency_ms;
 }
 
 my $camlistored;

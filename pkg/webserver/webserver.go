@@ -26,9 +26,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/throttle"
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
@@ -45,8 +47,7 @@ type Server struct {
 
 func New() *Server {
 	return &Server{
-		premux: make([]HandlerPicker, 0),
-		mux:    http.NewServeMux(),
+		mux: http.NewServeMux(),
 	}
 }
 
@@ -140,12 +141,29 @@ func (s *Server) Listen(addr string) error {
 	return nil
 }
 
+func (s *Server) throttleListener() net.Listener {
+	kBps, _ := strconv.Atoi(os.Getenv("DEV_THROTTLE_KBPS"))
+	ms, _ := strconv.Atoi(os.Getenv("DEV_THROTTLE_LATENCY_MS"))
+	if kBps == 0 && ms == 0 {
+		return s.listener
+	}
+	rate := throttle.Rate{
+		KBps:    kBps,
+		Latency: time.Duration(ms) * time.Millisecond,
+	}
+	return &throttle.Listener{
+		Listener: s.listener,
+		Down:     rate,
+		Up:       rate, // TODO: separate rates?
+	}
+}
+
 func (s *Server) Serve() {
 	if err := s.Listen(""); err != nil {
 		log.Fatalf("Listen error: %v", err)
 	}
 	go runTestHarnessIntegration(s.listener)
-	err := http.Serve(s.listener, s)
+	err := http.Serve(s.throttleListener(), s)
 	if err != nil {
 		log.Printf("Error in http server: %v\n", err)
 		os.Exit(1)
