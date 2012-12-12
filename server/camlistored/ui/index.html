@@ -17,27 +17,23 @@
 
     <input type='button' id='btnSmaller' value="-"><input type='button' id='btnBigger' value="+">
 
-    <form style="display: inline" id="formSearch">
-      Sort:
-      <select id="selectSort">
-        <option value='recent'>Recent</a>
-        <option value='date'>From &lt;date&gt;...</a>
-      </select>
-    </form>
-
-    <form style="display: inline" id="formGo">
-      Go:
-      <select id="selectGo">
-        <option value=""></a>
-        <option value="search">Old Search</a>
-        <option value="debug:disco">Debug: Discovery</a>
-        <option value="debug:signing">Debug: Signing</a>
-        <option value="debug:misc">Debug: Misc</a>
+    <form style="display: inline" id="formView">
+      View:
+      <select id="selectView">
+        <option value="recent">Recent</a>
+        <option value="date">From &lt;date&gt;...</a>
+        <option id="optFromSel" value="fromsel" disabled='true'>From selected item</a>
+        <optiongroup title="Debug">
+          <option value="search">Old Search</a>
+          <option value="debug:disco">Debug: Discovery</a>
+          <option value="debug:signing">Debug: Signing</a>
+          <option value="debug:misc">Debug: Misc</a>
+        </optiongroup>
       </select>
     </form>
 
     <form style="float: right" id="formSearch">
-      <input type="text" id="textSearch" size=15 title="Search"><input type="button" id="btnSearch" value="Srch">
+      <input type="text" id="textSearch" size=15 title="Search"><input type="submit" id="btnSearch" value="Srch">
     </form>
   </div>
   <ul id="recent"></ul>

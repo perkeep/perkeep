@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 7548, fileembed.String("/*\n"+
+	Files.Add("index.js", 8945, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -23,26 +23,63 @@ func init() {
 		"limitations under the License.\n"+
 		"*/\n"+
 		"\n"+
-		"function indexOnLoad() {\n"+
-		"    camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanod"+
-		"es, thumbnails: 150});\n"+
+		"var CamliIndexPage = {};\n"+
 		"\n"+
-		"    var selGo = $(\"selectGo\");\n"+
-		"    console.log(selGo);\n"+
+		"CamliIndexPage.onLoad = function() {\n"+
+		"    CamliIndexPage.startRecentLoading();\n"+
+		"\n"+
+		"    var selView = $(\"selectView\");\n"+
 		"    var goTargets = {\n"+
+		"      \"recent\": function() { alert(\"not implemented, but it's already in recent m"+
+		"ode\"); },\n"+
+		"      \"date\": function() { alert(\"TODO: pop up a date selector dialog\"); },\n"+
 		"      \"debug:signing\": \"signing.html\", \n"+
 		"      \"debug:disco\": \"disco.html\",\n"+
 		"      \"debug:misc\": \"debug.html\",\n"+
 		"      \"search\": \"search.html\"\n"+
 		"    };\n"+
-		"    selGo.addEventListener(\"change\", function(e) {\n"+
-		"       window.location = goTargets[selGo.value];\n"+
+		"    selView.addEventListener(\n"+
+		"        \"change\",\n"+
+		"        function(e) {\n"+
+		"            var target = goTargets[selView.value];\n"+
+		"            if (!target) {\n"+
+		"                return;\n"+
+		"            }\n"+
+		"            if (typeof(target) == \"string\") {\n"+
+		"                window.location = target;\n"+
+		"            }\n"+
+		"            if (typeof(target) == \"function\") {\n"+
+		"                target();\n"+
+		"            }\n"+
 		"    });\n"+
-		"}\n"+
+		"\n"+
+		"    $(\"formSearch\").addEventListener(\"submit\", CamliIndexPage.onSearchSubmit);\n"+
+		"\n"+
+		"    setTextContent($(\"topTitle\"), Camli.config.ownerName + \"'s Vault\");\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.startRecentLoading = function() {\n"+
+		"    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItem"+
+		"s, thumbnails: 150});\n"+
+		"};\n"+
+		"\n"+
+		"CamliIndexPage.onSearchSubmit = function(e) {\n"+
+		"    e.preventDefault();\n"+
+		"    e.stopPropagation();\n"+
+		"    var searchVal = $(\"textSearch\").value;\n"+
+		"    if (searchVal == \"\") {\n"+
+		"        CamliIndexPage.startRecentLoading();\n"+
+		"    } else {\n"+
+		"        // TODO: super lame.  for now.  should just change filter\n"+
+		"        // of existing page, without navigating away.\n"+
+		"        window.location = \"search.html?t=tag&q=\" + searchVal;\n"+
+		"    }\n"+
+		"};\n"+
 		"\n"+
 		"var lastSelIndex = 0;\n"+
 		"var selSetter = {};         // numeric index -> func(selected) setter\n"+
 		"var currentlySelected = {}; // currently selected index -> true\n"+
+		"var itemsSelected = 0;\n"+
 		"\n"+
 		"// divFromResult converts the |i|th searchResult into\n"+
 		"// a div element, style as a thumbnail tile.\n"+
@@ -51,6 +88,9 @@ func init() {
 		"	var br = searchRes[result.blobref];\n"+
 		"	var divperm = document.createElement(\"div\");\n"+
 		"	var setSelected = function(selected) {\n"+
+		"                if (divperm.isSelected == selected) {\n"+
+		"                   return;\n"+
+		"                }\n"+
 		"		divperm.isSelected = selected;\n"+
 		"		if (selected) {\n"+
 		"			lastSelIndex = i;\n"+
@@ -61,6 +101,8 @@ func init() {
 		"			lastSelIndex = -1;\n"+
 		"			divperm.classList.remove(\"selected\");\n"+
 		"		}\n"+
+		"                itemsSelected += selected ? 1 : -1;\n"+
+		"                $(\"optFromSel\").disabled = (itemsSelected == 0);\n"+
 		"	};\n"+
 		"	selSetter[i] = setSelected;\n"+
 		"	divperm.addEventListener(\"mousedown\", function(e) {\n"+
@@ -174,7 +216,7 @@ func init() {
 		"          // it would be cooler if, when uploading a dozen\n"+
 		"          // large files, we saw the permanodes load in one-at-a-time\n"+
 		"          // as the became available.\n"+
-		"          indexOnLoad();\n"+
+		"          CamliIndexPage.startRecentLoading();\n"+
 		"      }\n"+
 		"    });\n"+
 		"  };\n"+
@@ -260,15 +302,15 @@ func init() {
 		"  }\n"+
 		"}\n"+
 		"\n"+
-		"function indexBuildRecentlyUpdatedPermanodes(searchRes) {\n"+
+		"CamliIndexPage.onLoadedRecentItems = function (searchRes) {\n"+
 		"	var divrecent = document.getElementById(\"recent\");\n"+
 		"	divrecent.innerHTML = \"\";\n"+
 		"        divrecent.appendChild(createPlusButton());\n"+
 		"	for (var i = 0; i < searchRes.recent.length; i++) {\n"+
 		"		divrecent.appendChild(divFromResult(searchRes, i));\n"+
 		"	}\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
-		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1355276598889687394))
+		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
+		""), time.Unix(0, 1355281561309868978))
 }

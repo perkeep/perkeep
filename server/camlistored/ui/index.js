@@ -14,27 +14,61 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-function indexOnLoad() {
-    camliGetRecentlyUpdatedPermanodes({success: indexBuildRecentlyUpdatedPermanodes, thumbnails: 150});
+var CamliIndexPage = {};
 
-    var selGo = $("selectGo");
-    console.log(selGo);
+CamliIndexPage.onLoad = function() {
+    CamliIndexPage.startRecentLoading();
+
+    var selView = $("selectView");
     var goTargets = {
+      "recent": function() { alert("not implemented, but it's already in recent mode"); },
+      "date": function() { alert("TODO: pop up a date selector dialog"); },
       "debug:signing": "signing.html", 
       "debug:disco": "disco.html",
       "debug:misc": "debug.html",
       "search": "search.html"
     };
-    selGo.addEventListener("change", function(e) {
-       window.location = goTargets[selGo.value];
+    selView.addEventListener(
+        "change",
+        function(e) {
+            var target = goTargets[selView.value];
+            if (!target) {
+                return;
+            }
+            if (typeof(target) == "string") {
+                window.location = target;
+            }
+            if (typeof(target) == "function") {
+                target();
+            }
     });
 
+    $("formSearch").addEventListener("submit", CamliIndexPage.onSearchSubmit);
+
     setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
-}
+};
+
+CamliIndexPage.startRecentLoading = function() {
+    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItems, thumbnails: 150});
+};
+
+CamliIndexPage.onSearchSubmit = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var searchVal = $("textSearch").value;
+    if (searchVal == "") {
+        CamliIndexPage.startRecentLoading();
+    } else {
+        // TODO: super lame.  for now.  should just change filter
+        // of existing page, without navigating away.
+        window.location = "search.html?t=tag&q=" + searchVal;
+    }
+};
 
 var lastSelIndex = 0;
 var selSetter = {};         // numeric index -> func(selected) setter
 var currentlySelected = {}; // currently selected index -> true
+var itemsSelected = 0;
 
 // divFromResult converts the |i|th searchResult into
 // a div element, style as a thumbnail tile.
@@ -43,6 +77,9 @@ function divFromResult(searchRes, i) {
 	var br = searchRes[result.blobref];
 	var divperm = document.createElement("div");
 	var setSelected = function(selected) {
+                if (divperm.isSelected == selected) {
+                   return;
+                }
 		divperm.isSelected = selected;
 		if (selected) {
 			lastSelIndex = i;
@@ -53,6 +90,8 @@ function divFromResult(searchRes, i) {
 			lastSelIndex = -1;
 			divperm.classList.remove("selected");
 		}
+                itemsSelected += selected ? 1 : -1;
+                $("optFromSel").disabled = (itemsSelected == 0);
 	};
 	selSetter[i] = setSelected;
 	divperm.addEventListener("mousedown", function(e) {
@@ -166,7 +205,7 @@ function createPlusButton() {
           // it would be cooler if, when uploading a dozen
           // large files, we saw the permanodes load in one-at-a-time
           // as the became available.
-          indexOnLoad();
+          CamliIndexPage.startRecentLoading();
       }
     });
   };
@@ -252,13 +291,13 @@ function startFileUploads(files, statusDiv, opts) {
   }
 }
 
-function indexBuildRecentlyUpdatedPermanodes(searchRes) {
+CamliIndexPage.onLoadedRecentItems = function (searchRes) {
 	var divrecent = document.getElementById("recent");
 	divrecent.innerHTML = "";
         divrecent.appendChild(createPlusButton());
 	for (var i = 0; i < searchRes.recent.length; i++) {
 		divrecent.appendChild(divFromResult(searchRes, i));
 	}
-}
+};
 
-window.addEventListener("load", indexOnLoad);
+window.addEventListener("load", CamliIndexPage.onLoad);
