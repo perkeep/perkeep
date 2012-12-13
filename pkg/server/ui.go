@@ -41,7 +41,7 @@ var _ = log.Printf
 
 var (
 	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-	static2FilePattern = regexp.MustCompile(`^(new/)([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	static2FilePattern = regexp.MustCompile(`^new/([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
 	identPattern       = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 
 	// Download URL suffix:
@@ -51,7 +51,7 @@ var (
 	downloadPattern  = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
 	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
-	closurePattern   = regexp.MustCompile(`^(new/closure/)([^/]+)(/.*)?$`)
+	closurePattern   = regexp.MustCompile(`^new/closure/(([^/]+)(/.*)?)$`)
 )
 
 var uiFiles = uistatic.Files
@@ -234,15 +234,12 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
-			// TODO(mpl): change the regexp to make it not match the stripped part
 		} else if m := static2FilePattern.FindStringSubmatch(suffix); m != nil {
-			file = strings.Replace(suffix, m[1], "", 1)
-			req.URL.Path = "/" + file
+			req.URL.Path = "/" + m[1]
 			ui.newUIStaticHandler.ServeHTTP(rw, req)
 			break
 		} else if m := closurePattern.FindStringSubmatch(suffix); m != nil {
-			file = strings.Replace(suffix, m[1], "", 1)
-			req.URL.Path = "/" + file
+			req.URL.Path = "/" + m[1]
 			ui.closureHandler.ServeHTTP(rw, req)
 			break
 		} else {
