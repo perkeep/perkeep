@@ -41,7 +41,7 @@ var _ = log.Printf
 
 var (
 	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-	static2FilePattern = regexp.MustCompile(`^new/([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	static2FilePattern = regexp.MustCompile(`^new/*(/[a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))*$`)
 	identPattern       = regexp.MustCompile(`^[a-zA-Z\_]+$`)
 
 	// Download URL suffix:
@@ -75,8 +75,9 @@ type UIHandler struct {
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
 
-	newUIStaticHandler handlerOrNil // for the new ui
-	closureHandler     handlerOrNil
+	// for the new ui
+	newUIStaticHandler http.Handler // or nil
+	closureHandler     http.Handler // or nil
 }
 
 func init() {
@@ -147,8 +148,8 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 			" Closure will not be used.")
 	} else {
 		closureDir := filepath.Join(camliRootPath, "tmp", "closure")
-		ui.closureHandler = handlerOrNil{http.FileServer(http.Dir(closureDir))}
-		ui.newUIStaticHandler = handlerOrNil{http.FileServer(newuiFiles)}
+		ui.closureHandler = http.FileServer(http.Dir(closureDir))
+		ui.newUIStaticHandler = http.FileServer(newuiFiles)
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
@@ -199,19 +200,13 @@ func wantsFileTreePage(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("d")) != nil
 }
 
-// TODO(mpl): I don't like the name.
-type handlerOrNil struct {
-	h http.Handler
-}
-
-func (hon handlerOrNil) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if hon.h == nil {
+func wantsNewUI(req *http.Request) bool {
+	if req.Method == "GET" {
 		suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-		log.Printf("%v not served: handler is nil", suffix)
-		http.NotFound(rw, req)
-		return
+		return static2FilePattern.MatchString(suffix) ||
+			closurePattern.MatchString(suffix)
 	}
-	hon.h.ServeHTTP(rw, req)
+	return false
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -230,18 +225,12 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveThumbnail(rw, req)
 	case strings.HasPrefix(suffix, "tree/"):
 		ui.serveFileTree(rw, req)
+	case wantsNewUI(req):
+		ui.serveNewUI(rw, req)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
-		} else if m := static2FilePattern.FindStringSubmatch(suffix); m != nil {
-			req.URL.Path = "/" + m[1]
-			ui.newUIStaticHandler.ServeHTTP(rw, req)
-			break
-		} else if m := closurePattern.FindStringSubmatch(suffix); m != nil {
-			req.URL.Path = "/" + m[1]
-			ui.closureHandler.ServeHTTP(rw, req)
-			break
 		} else {
 			switch {
 			case wantsPermanode(req):
@@ -401,4 +390,27 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 		file:    blobref,
 	}
 	fth.ServeHTTP(rw, req)
+}
+
+func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
+	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	if ui.closureHandler == nil || ui.newUIStaticHandler == nil {
+		log.Printf("%v not served: handler is nil", suffix)
+		http.NotFound(rw, req)
+		return
+	}
+	suffix = path.Clean(suffix)
+	m := closurePattern.FindStringSubmatch(suffix)
+	if m != nil {
+		req.URL.Path = "/" + m[1]
+		ui.closureHandler.ServeHTTP(rw, req)
+		return
+	}
+	m = static2FilePattern.FindStringSubmatch(suffix)
+	if m == nil {
+		http.NotFound(rw, req)
+		return
+	}
+	req.URL.Path = "/" + m[1]
+	ui.newUIStaticHandler.ServeHTTP(rw, req)
 }
