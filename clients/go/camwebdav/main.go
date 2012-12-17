@@ -1,3 +1,5 @@
+// +build THIS_IS_BROKEN
+
 package main
 
 import (
@@ -17,7 +19,8 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
-	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
+
+//	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
 )
 
 var (

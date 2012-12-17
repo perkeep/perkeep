@@ -1,3 +1,5 @@
+// +build THIS_IS_BROKEN
+
 package main
 
 import (
