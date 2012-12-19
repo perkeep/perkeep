@@ -435,7 +435,11 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 }
 
 func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {
-	fi, err := up.lstat(filename)
+	fullPath, err := filepath.Abs(filename)
+	if err != nil {
+		return nil, err
+	}
+	fi, err := up.lstat(fullPath)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +448,7 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		panic("must use UploadTree now for directories")
 	}
 	n := &node{
-		fullPath: filename, // TODO(bradfitz): resolve this to an abspath
+		fullPath: fullPath,
 		fi:       fi,
 	}
 	return up.uploadNode(n)
