@@ -44,7 +44,7 @@ type fileCmd struct {
 
 	makePermanode  bool // make new, unique permanode of the root (dir or file)
 	filePermanodes bool // make planned permanodes for each file (based on their digest)
-	rollSplits     bool
+	vivify         bool
 	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
 
 	havecache, statcache bool
@@ -59,6 +59,7 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
+		flags.BoolVar(&cmd.vivify, "vivify", false, "Ask the server to vivify that file for us.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
@@ -112,7 +113,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		cache := NewFlatHaveCache()
 		up.haveCache = cache
 	}
-	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag}
+	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag, vivify: c.vivify}
 
 	var (
 		permaNode *client.PutResult
@@ -367,6 +368,26 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	if up.fileOpts.wantFilePermanode() {
 		fileContents = &trackDigestReader{r: fileContents}
 	}
+
+	if up.fileOpts.wantVivify() {
+		err := schema.WriteFileChunks(up.statReceiver(), m, fileContents)
+		if err != nil {
+			return nil, err
+		}
+		json, err := m.JSON()
+		if err != nil {
+			return nil, err
+		}
+		blobref := blobref.SHA1FromString(json)
+		h := &client.UploadHandle{
+			BlobRef:  blobref,
+			Size:     int64(len(json)),
+			Contents: strings.NewReader(json),
+			Vivify:   true,
+		}
+		return up.Upload(h)
+	}
+
 	blobref, err := schema.WriteFileMap(up.statReceiver(), m, fileContents)
 	if err != nil {
 		return nil, err

@@ -148,6 +148,10 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
+	if req.Header.Get("X-Camlistore-Vivify") == "1" {
+		// TODO(mpl)
+	}
+
 	ret, err := commonUploadResponse(blobReceiver, req)
 	if err != nil {
 		httputil.ServerError(conn, req, err)
