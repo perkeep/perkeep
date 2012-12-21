@@ -173,81 +173,81 @@ func addMemindexConfig(prefixes *jsonconfig.Obj) {
 	(*prefixes)["/index-mem/"] = ob
 }
 
-func genLowLevelPrefixes(params *configPrefixesParams) jsonconfig.Obj {
-	prefixes := map[string]interface{}{}
+func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
+	m = make(jsonconfig.Obj)
 
-	ob := map[string]interface{}{}
-	ob["handler"] = "root"
-	ob["handlerArgs"] = map[string]interface{}{
-		"stealth":    false,
-		"blobRoot":   "/bs-and-maybe-also-index/",
-		"searchRoot": "/my-search/",
-	}
-	prefixes["/"] = ob
-
-	ob = map[string]interface{}{}
-	ob["handler"] = "setup"
-	prefixes["/setup/"] = ob
-
-	ob = map[string]interface{}{}
-	ob["handler"] = "sync"
-	ob["handlerArgs"] = map[string]interface{}{
-		"from": "/bs/",
-		"to":   params.indexerPath,
-	}
-	prefixes["/sync/"] = ob
-
-	ob = map[string]interface{}{}
-	ob["handler"] = "jsonsign"
-	ob["handlerArgs"] = map[string]interface{}{
-		"secretRing":    params.secretRing,
-		"keyId":         params.keyId,
-		"publicKeyDest": "/bs-and-index/",
-	}
-	prefixes["/sighelper/"] = ob
-
-	ob = map[string]interface{}{}
-	ob["handler"] = "storage-replica"
-	ob["handlerArgs"] = map[string]interface{}{
-		"backends": []interface{}{"/bs/", params.indexerPath},
-	}
-	prefixes["/bs-and-index/"] = ob
-
-	ob = map[string]interface{}{}
-	ob["handler"] = "storage-cond"
-	ob["handlerArgs"] = map[string]interface{}{
-		"write": map[string]interface{}{
-			"if":   "isSchema",
-			"then": "/bs-and-index/",
-			"else": "/bs/",
+	m["/"] = map[string]interface{}{
+		"handler": "root",
+		"handlerArgs": map[string]interface{}{
+			"stealth":    false,
+			"blobRoot":   "/bs-and-maybe-also-index/",
+			"searchRoot": "/my-search/",
 		},
-		"read": "/bs/",
 	}
-	prefixes["/bs-and-maybe-also-index/"] = ob
 
-	ob = map[string]interface{}{}
-	ob["handler"] = "storage-filesystem"
-	ob["handlerArgs"] = map[string]interface{}{
-		"path": params.blobPath,
+	m["/setup/"] = map[string]interface{}{
+		"handler": "setup",
 	}
-	prefixes["/bs/"] = ob
 
-	ob = map[string]interface{}{}
-	ob["handler"] = "storage-filesystem"
-	ob["handlerArgs"] = map[string]interface{}{
-		"path": filepath.Join(params.blobPath, "/cache"),
+	m["/sync/"] = map[string]interface{}{
+		"handler": "sync",
+		"handlerArgs": map[string]interface{}{
+			"from": "/bs/",
+			"to":   params.indexerPath,
+		},
 	}
-	prefixes["/cache/"] = ob
 
-	ob = map[string]interface{}{}
-	ob["handler"] = "search"
-	ob["handlerArgs"] = map[string]interface{}{
-		"index": params.indexerPath,
-		"owner": params.searchOwner.String(),
+	m["/sighelper/"] = map[string]interface{}{
+		"handler": "jsonsign",
+		"handlerArgs": map[string]interface{}{
+			"secretRing":    params.secretRing,
+			"keyId":         params.keyId,
+			"publicKeyDest": "/bs-and-index/",
+		},
 	}
-	prefixes["/my-search/"] = ob
 
-	return prefixes
+	m["/bs-and-index/"] = map[string]interface{}{
+		"handler": "storage-replica",
+		"handlerArgs": map[string]interface{}{
+			"backends": []interface{}{"/bs/", params.indexerPath},
+		},
+	}
+
+	m["/bs-and-maybe-also-index/"] = map[string]interface{}{
+		"handler": "storage-cond",
+		"handlerArgs": map[string]interface{}{
+			"write": map[string]interface{}{
+				"if":   "isSchema",
+				"then": "/bs-and-index/",
+				"else": "/bs/",
+			},
+			"read": "/bs/",
+		},
+	}
+
+	m["/bs/"] = map[string]interface{}{
+		"handler": "storage-filesystem",
+		"handlerArgs": map[string]interface{}{
+			"path": params.blobPath,
+		},
+	}
+
+	m["/cache/"] = map[string]interface{}{
+		"handler": "storage-filesystem",
+		"handlerArgs": map[string]interface{}{
+			"path": filepath.Join(params.blobPath, "/cache"),
+		},
+	}
+
+	m["/my-search/"] = map[string]interface{}{
+		"handler": "search",
+		"handlerArgs": map[string]interface{}{
+			"index": params.indexerPath,
+			"owner": params.searchOwner.String(),
+		},
+	}
+
+	return
 }
 
 // genLowLevelConfig returns a low-level config from a high-level config.
