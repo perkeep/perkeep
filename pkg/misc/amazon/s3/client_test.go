@@ -41,3 +41,19 @@ func TestBuckets(t *testing.T) {
 	}
 	tc.Buckets()
 }
+
+func TestMarker(t *testing.T) {
+	tests := []struct{
+		s, want string
+	}{
+		{"", ""},
+		{"abc", "abd"},
+		{"ab\xff", "ac\x00"},
+		{"a\xff\xff", "b\x00\x00"},
+	}
+	for _, tt := range tests {
+		if got := marker(tt.s); got != tt.want {
+			t.Errorf("marker(%q) = %q; want %q", tt.s, got, tt.want)
+		}
+	}
+}

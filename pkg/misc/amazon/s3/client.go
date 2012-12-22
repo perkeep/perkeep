@@ -135,29 +135,69 @@ type Item struct {
 }
 
 type listBucketResults struct {
-	Contents []*Item
+	Contents    []*Item
+	IsTruncated bool
 }
 
-func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*Item, reterr error) {
+// marker returns the string lexically greater than the provided s,
+// if s is not empty.
+func marker(s string) string {
+	if s == "" {
+		return s
+	}
+	b := []byte(s)
+	i := len(b)
+	for i > 0 {
+		i--
+		b[i]++
+		if b[i] != 0 {
+			break
+		}
+	}
+	return string(b)
+}
+
+// ListBucket returns 0 to maxKeys (inclusive) items from the provided
+// bucket.  The items will have keys greater than the provided after, which
+// may be empty.  (Note: this is not greater than or equal to, like the S3
+// API's 'marker' parameter).  If the length of the returned items is equal
+// to maxKeys, there is no indication whether or not the returned list is
+// truncated.
+func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*Item, err error) {
 	if maxKeys < 0 {
-		return nil, errors.New("invalid maxLeys")
+		return nil, errors.New("invalid negative maxKeys")
 	}
-	var bres listBucketResults
-	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
-		bucket, url.QueryEscape(after), maxKeys)
-	req := newReq(url_)
-	c.Auth.SignRequest(req)
-	res, err := c.httpClient().Do(req)
-	if res != nil && res.Body != nil {
-		defer res.Body.Close()
+	const s3APIMaxFetch = 1000
+	for len(items) < maxKeys {
+		fetchN := maxKeys - len(items)
+		if fetchN > s3APIMaxFetch {
+			fetchN = s3APIMaxFetch
+		}
+		var bres listBucketResults
+		url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
+			bucket, url.QueryEscape(marker(after)), fetchN)
+		req := newReq(url_)
+		c.Auth.SignRequest(req)
+		res, err := c.httpClient().Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if err := xml.NewDecoder(res.Body).Decode(&bres); err != nil {
+			return nil, err
+		}
+		res.Body.Close()
+		for _, it := range bres.Contents {
+			if it.Key <= after {
+				return nil, fmt.Errorf("Unexpected response from Amazon: item key %q but wanted greater than %q", it.Key, after)
+			}
+			items = append(items, it)
+			after = it.Key
+		}
+		if !bres.IsTruncated {
+			break
+		}
 	}
-	if err != nil {
-		return nil, err
-	}
-	if err := xml.NewDecoder(res.Body).Decode(&bres); err != nil {
-		return nil, err
-	}
-	return bres.Contents, nil
+	return items, nil
 }
 
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
