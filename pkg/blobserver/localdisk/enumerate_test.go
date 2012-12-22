@@ -17,15 +17,15 @@ limitations under the License.
 package localdisk
 
 import (
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/blobref"
-
 	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
 	"testing"
 	"time"
+
+	. "camlistore.org/pkg/test/asserts"
+	"camlistore.org/pkg/blobref"
 )
 
 func TestEnumerate(t *testing.T) {
@@ -158,6 +158,12 @@ func TestEnumerateIsSorted(t *testing.T) {
 	// enumerate code.
 	fakeDir := ds.root + "/partition/queue-indexer/sha1/1f0/710"
 	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating fakeDir")
+	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
+		[]byte("fake file"), 0644), "writing fake blob")
+
+	// And the same for a "cache" directory, used by the default configuration.
+	fakeDir = ds.root + "/cache/sha1/1f0/710"
+	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating cache fakeDir")
 	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"), 0644), "writing fake blob")
 

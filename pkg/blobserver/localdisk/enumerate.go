@@ -77,7 +77,12 @@ func readBlobs(opts readBlobRequest) error {
 		if *opts.remain == 0 {
 			return nil
 		}
-		if name == "partition" {
+		if name == "partition" || name == "cache" {
+			// "partition" is actually used by this package but
+			// the "cache" directory is just a hack: it's used
+			// by the serverconfig/genconfig code, as a default
+			// location for most users to put their thumbnail
+			// cache.  For now we just also skip it here.
 			continue
 		}
 		fullPath := dirFullPath + "/" + name
