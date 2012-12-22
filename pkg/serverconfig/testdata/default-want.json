@@ -88,6 +88,23 @@
 				"index": "/index-mem/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
 			}
+		},
+
+		"/sto-s3/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key",
+				"aws_secret_access_key": "secret",
+				"bucket": "bucket"
+			}
+		},
+
+                "/sync-to-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/sto-s3/"
+			}
 		}
 	}
 

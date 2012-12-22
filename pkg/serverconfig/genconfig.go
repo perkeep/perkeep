@@ -38,7 +38,7 @@ type configPrefixesParams struct {
 	searchOwner *blobref.BlobRef
 }
 
-func addPublishedConfig(prefixes *jsonconfig.Obj, published jsonconfig.Obj) ([]interface{}, error) {
+func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]interface{}, error) {
 	pubPrefixes := []interface{}{}
 	for k, v := range published {
 		p, ok := v.(map[string]interface{})
@@ -89,13 +89,13 @@ func addPublishedConfig(prefixes *jsonconfig.Obj, published jsonconfig.Obj) ([]i
 			}
 		}
 		ob["handlerArgs"] = handlerArgs
-		(*prefixes)[k] = ob
+		prefixes[k] = ob
 		pubPrefixes = append(pubPrefixes, k)
 	}
 	return pubPrefixes, nil
 }
 
-func addUIConfig(prefixes *jsonconfig.Obj, uiPrefix string, published []interface{}) {
+func addUIConfig(prefixes jsonconfig.Obj, uiPrefix string, published []interface{}) {
 	ob := map[string]interface{}{}
 	ob["handler"] = "ui"
 	handlerArgs := map[string]interface{}{
@@ -107,10 +107,10 @@ func addUIConfig(prefixes *jsonconfig.Obj, uiPrefix string, published []interfac
 		handlerArgs["publishRoots"] = published
 	}
 	ob["handlerArgs"] = handlerArgs
-	(*prefixes)[uiPrefix] = ob
+	prefixes[uiPrefix] = ob
 }
 
-func addMongoConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+func addMongoConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	fields := strings.Split(dbinfo, "@")
 	if len(fields) != 2 {
 		exitFailure("Malformed mongo config string. Got \"%v\", want: \"user:password@host\"", dbinfo)
@@ -130,10 +130,10 @@ func addMongoConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
 		"database":   dbname,
 		"blobSource": "/bs/",
 	}
-	(*prefixes)["/index-mongo/"] = ob
+	prefixes["/index-mongo/"] = ob
 }
 
-func addSQLConfig(rdbms string, prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	fields := strings.Split(dbinfo, "@")
 	if len(fields) != 2 {
 		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
@@ -153,24 +153,53 @@ func addSQLConfig(rdbms string, prefixes *jsonconfig.Obj, dbname string, dbinfo 
 		"database":   dbname,
 		"blobSource": "/bs/",
 	}
-	(*prefixes)["/index-"+rdbms+"/"] = ob
+	prefixes["/index-"+rdbms+"/"] = ob
 }
 
-func addPostgresConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+func addPostgresConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	addSQLConfig("postgres", prefixes, dbname, dbinfo)
 }
 
-func addMysqlConfig(prefixes *jsonconfig.Obj, dbname string, dbinfo string) {
+func addMySQLConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	addSQLConfig("mysql", prefixes, dbname, dbinfo)
 }
 
-func addMemindexConfig(prefixes *jsonconfig.Obj) {
+func addMemindexConfig(prefixes jsonconfig.Obj) {
 	ob := map[string]interface{}{}
 	ob["handler"] = "storage-memory-only-dev-indexer"
 	ob["handlerArgs"] = map[string]interface{}{
 		"blobSource": "/bs/",
 	}
-	(*prefixes)["/index-mem/"] = ob
+	prefixes["/index-mem/"] = ob
+}
+
+// TODO: currently this all assumes that local disk is primary and S3
+// is an optional backup.  We should also handle S3 as primary with no
+// localdisk (e.g. running on EC2)
+func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
+	f := strings.SplitN(s3, ":", 3)
+	if len(f) != 3 {
+		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket"`)
+	}
+	accessKey, secret, bucket := f[0], f[1], f[2]
+
+	s3Prefix := "/sto-s3/"
+	prefixes[s3Prefix] = map[string]interface{}{
+		"handler": "storage-s3",
+		"handlerArgs": map[string]interface{}{
+			"aws_access_key": accessKey,
+			"aws_secret_access_key": secret,
+			"bucket": bucket,
+		},
+	}
+	prefixes["/sync-to-s3/"] = map[string]interface{}{
+		"handler": "sync",
+		"handlerArgs": map[string]interface{}{
+			"from": "/bs/",
+			"to":   s3Prefix,
+		},
+	}
+	return nil
 }
 
 func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
@@ -267,7 +296,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		postgres   = conf.OptionalString("postgres", "")
 		mongo      = conf.OptionalString("mongo", "")
 		_          = conf.OptionalList("replicateTo")
-		_          = conf.OptionalString("s3", "")
+		s3         = conf.OptionalString("s3", "")
 		publish    = conf.OptionalObject("publish")
 	)
 	if err := conf.Validate(); err != nil {
@@ -347,25 +376,30 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 	published := []interface{}{}
 	if publish != nil {
-		published, err = addPublishedConfig(&prefixes, publish)
+		published, err = addPublishedConfig(prefixes, publish)
 		if err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
 	}
 
-	addUIConfig(&prefixes, "/ui/", published)
+	addUIConfig(prefixes, "/ui/", published)
 
 	if mysql != "" {
-		addMysqlConfig(&prefixes, dbname, mysql)
+		addMySQLConfig(prefixes, dbname, mysql)
 	}
 	if postgres != "" {
-		addPostgresConfig(&prefixes, dbname, postgres)
+		addPostgresConfig(prefixes, dbname, postgres)
 	}
 	if mongo != "" {
-		addMongoConfig(&prefixes, dbname, mongo)
+		addMongoConfig(prefixes, dbname, mongo)
+	}
+	if s3 != "" {
+		if err := addS3Config(prefixes, s3); err != nil {
+			return nil, err
+		}
 	}
 	if indexerPath == "/index-mem/" {
-		addMemindexConfig(&prefixes)
+		addMemindexConfig(prefixes)
 	}
 
 	obj["prefixes"] = (map[string]interface{})(prefixes)

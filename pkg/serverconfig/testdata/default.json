@@ -7,7 +7,7 @@
 	"identitySecretRing": "/path/to/secring",
 	"mysql": "",
 	"mongo": "",
-	"s3": "",
+	"s3": "key:secret:bucket",
 	"replicateTo": [],
 	"publish": {}
 }
