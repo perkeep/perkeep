@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
@@ -107,7 +108,7 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 	}()
 	checkSourceError := func() {
 		if err := <-srcErr; err != nil {
-			retErr = errors.New(fmt.Sprintf("Enumerate error from source: %v", err))
+			retErr = fmt.Errorf("Enumerate error from source: %v", err)
 		}
 	}
 
@@ -129,7 +130,11 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 	}
 
 	destNotHaveBlobs := make(chan blobref.SizedBlobRef, 100)
-	go client.ListMissingDestinationBlobs(destNotHaveBlobs, srcBlobs, destBlobs)
+	readSrcBlobs := srcBlobs
+	if *flagVerbose {
+		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
+	}
+	go client.ListMissingDestinationBlobs(destNotHaveBlobs, readSrcBlobs, destBlobs)
 	for sb := range destNotHaveBlobs {
 		fmt.Printf("Destination needs blob: %s\n", sb)
 
@@ -170,4 +175,21 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 		retErr = errors.New(fmt.Sprintf("%d errors during sync", stats.ErrorCount))
 	}
 	return stats, retErr
+}
+
+func loggingBlobRefChannel(ch <-chan blobref.SizedBlobRef) chan blobref.SizedBlobRef {
+	ch2 := make(chan blobref.SizedBlobRef)
+	go func() {
+		defer close(ch2)
+		var last time.Time
+		for v := range ch {
+			ch2 <- v
+			now := time.Now()
+			if last.IsZero() || now.After(last.Add(1*time.Second)) {
+				last = now
+				log.Printf("At source blob %v", v)
+			}
+		}
+	}()
+	return ch2
 }
