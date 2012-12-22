@@ -24,7 +24,7 @@ import (
 // enumerations of blobs from two blob servers) and sends to
 // 'destMissing' any blobs which appear on the source but not at the
 // destination.  destMissing is closed at the end.
-func ListMissingDestinationBlobs(destMissing, srcch, dstch chan blobref.SizedBlobRef) {
+func ListMissingDestinationBlobs(destMissing chan<- blobref.SizedBlobRef, srcch, dstch <-chan blobref.SizedBlobRef) {
 	defer close(destMissing)
 
 	src := &blobref.ChanPeeker{Ch: srcch}
