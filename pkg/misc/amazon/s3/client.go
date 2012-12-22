@@ -67,9 +67,16 @@ func (c *Client) Buckets() ([]*Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
-	slurp, _ := ioutil.ReadAll(res.Body)
-	res.Body.Close()
-	log.Printf("got: %q", string(slurp))
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("s3: Unexpected status code %d fetching bucket list", res.StatusCode)
+	}
+	slurp, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("s3: Error reading Buckets response: %v", err)
+	}
+	// TODO: parse this XML
+	log.Printf("s3: TODO: parse bucket list: %q", slurp)
 	return nil, nil
 }
 
