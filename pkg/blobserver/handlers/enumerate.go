@@ -56,7 +56,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	formValueAfter := req.FormValue("after")
 
 	maxEnumerate := defaultMaxEnumerate
-	if config, ok := storage.(blobserver.MaxEnumerateConfig); ok {
+	if config, ok := blobserver.Unwrap(storage).(blobserver.MaxEnumerateConfig); ok {
 		maxEnumerate = config.MaxEnumerate() - 1 // Since we'll add one below.
 	}
 

@@ -21,11 +21,14 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
 )
 
 var _ = log.Printf
 
-func (sto *s3Storage) MaxEnumerate() uint { return 1000 }
+var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
+
+func (sto *s3Storage) MaxEnumerate() int { return 1000 }
 
 func (sto *s3Storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)

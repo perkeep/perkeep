@@ -100,6 +100,12 @@ func (s *storageAndConfig) Config() *blobserver.Config {
 	return s.config
 }
 
+// GetStorage returns the unwrapped blobserver.Storage interface value for
+// callers to type-assert optional interface implementations on. (e.g. EnumeratorConfig)
+func (s *storageAndConfig) GetStorage() blobserver.Storage {
+	return s.Storage
+}
+
 func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, storage blobserver.StorageConfiger) {
 	handler := unsupportedHandler
 	switch req.Method {

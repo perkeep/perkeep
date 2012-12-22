@@ -204,3 +204,14 @@ func MaybeWrapContext(sto Storage, req *http.Request) Storage {
 	}
 	return w.WrapContext(req)
 }
+
+// Unwrap returns the wrapped Storage interface, if wrapped, else returns sto.
+func Unwrap(sto interface{}) interface{} {
+	type get interface {
+		GetStorage() Storage
+	}
+	if g, ok := sto.(get); ok {
+		return Unwrap(g.GetStorage())
+	}
+	return sto
+}
