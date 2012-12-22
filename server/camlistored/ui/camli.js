@@ -68,7 +68,7 @@ function dateToRfc3339String(dateVal) {
             numStr = "0" + numStr;
         }
         return numStr;
-    }
+    };
     return dateVal.getUTCFullYear() + "-" + pad(dateVal.getUTCMonth() + 1, 2) + "-" + pad(dateVal.getUTCDate(), 2) + "T" +
            pad(dateVal.getUTCHours(), 2) + ":" + pad(dateVal.getUTCMinutes(), 2) + ":" + pad(dateVal.getUTCSeconds(), 2) + "Z";
 }
