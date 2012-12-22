@@ -17,26 +17,28 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/client"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/client"
 )
 
-// Things that can be uploaded.  (at most one of these)
-var flagLoop = flag.Bool("loop", false, "sync in a loop once done; requires --removesrc")
-var flagVerbose = flag.Bool("verbose", false, "be verbose")
+var (
+	flagLoop    = flag.Bool("loop", false, "sync in a loop once done; requires --removesrc")
+	flagVerbose = flag.Bool("verbose", false, "be verbose")
 
-var flagSrc = flag.String("src", "", "Source blobserver prefix (generally a mirrored queue partition)")
-var flagSrcPass = flag.String("srcpassword", "", "Source password")
-var flagDest = flag.String("dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout")
-var flagDestPass = flag.String("destpassword", "", "Destination password")
+	flagSrc      = flag.String("src", "", "Source blobserver prefix (generally a mirrored queue partition)")
+	flagSrcPass  = flag.String("srcpassword", "", "Source password")
+	flagDest     = flag.String("dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout")
+	flagDestPass = flag.String("destpassword", "", "Destination password")
 
-var flagRemoveSource = flag.Bool("removesrc", false,
-	"remove each blob from the source after syncing to the destination; for queue processing")
+	flagRemoveSource = flag.Bool("removesrc", false,
+		"remove each blob from the source after syncing to the destination; for queue processing")
+)
 
 type SyncStats struct {
 	BlobsCopied int
