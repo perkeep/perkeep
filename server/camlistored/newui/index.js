@@ -9,7 +9,8 @@ goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
-
+goog.require('camlistore.BlobItemContainer');
+goog.require('camlistore.ServerConnection');
 
 
 /**
@@ -28,6 +29,19 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    * @private
    */
   this.config_ = config;
+
+  /**
+   * @type {camlistore.ServerConnection}
+   * @private
+   */
+  this.connection_ = new camlistore.ServerConnection(config);
+
+  /**
+   * @type {camlistore.BlobItemContainer}
+   * @private
+   */
+  this.blobItemContainer_ = new camlistore.BlobItemContainer(
+      this.connection_);
 
   /**
    * @type {goog.events.EventHandler}
@@ -59,8 +73,9 @@ camlistore.IndexPage.prototype.decorateInternal = function(element) {
 
   var titleEl = this.dom_.createDom('h1', 'cam-index-page-title');
   this.dom_.setTextContent(titleEl, this.config_.ownerName + '\'s Vault');
-
   this.dom_.appendChild(el, titleEl);
+
+  this.addChild(this.blobItemContainer_, true);
 };
 
 

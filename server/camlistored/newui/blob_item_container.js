@@ -14,13 +14,22 @@ goog.require('camlistore.BlobItem');
 
 
 /**
+ * @param {camlistore.ServerConnection} connection Connection to the server
+ *   for fetching blobrefs and other queries.
  * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
  *
  * @extends {goog.ui.Container}
  * @constructor
  */
-camlistore.BlobItemContainer = function(opt_domHelper) {
+camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   goog.base(this, opt_domHelper);
+
+  /**
+   * @type {camlistore.ServerConnection}
+   * @private
+   */
+  this.connection_ = connection;
+
   /**
    * @type {goog.events.EventHandler}
    * @private
@@ -63,7 +72,10 @@ camlistore.BlobItemContainer.prototype.disposeInternal = function() {
  */
 camlistore.BlobItemContainer.prototype.enterDocument = function() {
   camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
-  // Add event handlers here
+
+  this.eh_.listen(this.getElement(), goog.events.EventType.CLICK, function() {
+    console.log('Printing from connection: ' + this.connection_.stupidHello());
+  });
 };
 
 
@@ -73,5 +85,5 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
  */
 camlistore.BlobItemContainer.prototype.exitDocument = function() {
   camlistore.BlobItemContainer.superClass_.exitDocument.call(this);
-  // Clear event handlers here
+  this.eh_.removeAll();
 };
