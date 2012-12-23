@@ -474,7 +474,7 @@ func runCmd(tsk string) (string, error) {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("error with %v: %v\n", getCurrentTask().Cmd, stderr.String())
+		return "", fmt.Errorf("%v: %v\n", stdout.String(), stderr.String())
 	}
 	return stdout.String(), nil
 }
@@ -1220,7 +1220,9 @@ var taskHTML = `
 {{end}}
 {{if .Err}}
 	<h2>Error:</h2>
-	<p>{{.Err}}</p>
+	<pre>
+	{{.Err}}
+	</pre>
 {{end}}
 	</body>
 </html>
