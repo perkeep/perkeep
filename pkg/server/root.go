@@ -139,7 +139,7 @@ func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]int
 		fmt.Fprintf(rw, "%s(", cb)
 		defer rw.Write([]byte(");\n"))
 	} else if v := req.FormValue("var"); identOrDotPattern.MatchString(v) {
-		fmt.Fprintf(rw, "var %s = ", v)
+		fmt.Fprintf(rw, "%s = ", v)
 		defer rw.Write([]byte(";\n"))
 	}
 	bytes, _ := json.MarshalIndent(m, "", "  ")
