@@ -25,9 +25,19 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/readerutil"
+	"camlistore.org/pkg/schema"
 )
 
 var _ = log.Printf
+
+func (c *Client) FetchMap(b *blobref.BlobRef) (schema.Map, error) {
+	rc, _, err := c.FetchStreaming(b)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return schema.MapFromReader(rc)
+}
 
 func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, error) {
 	return c.FetchVia(b, nil)

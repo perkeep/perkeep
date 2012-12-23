@@ -615,6 +615,15 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) Map {
 	return m
 }
 
+// MapFromReader parses a JSON schema map from the provided reader r.
+func MapFromReader(r io.Reader) (Map, error) {
+	m := make(Map)
+	if err := json.NewDecoder(io.LimitReader(r, 1 << 20)).Decode(&m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ShareHaveRef is the a share type specifying that if you "have the
 // reference" (know the blobref to the haveref share blob), then you
 // have access to the referenced object from that share blob.

@@ -371,18 +371,62 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 	return blobref.MustParse(td.Sum()), nil
 }
 
-//
+// fileMapFromDuplicate queries the server's search interface for an
+// existing file with an entire contents of sum (a blobref string).
+// If the server has it, it's validated, and then fileMap (which must
+// already be partially populated) has its "parts" field populated,
+// and then fileMap is uploaded (if necessary) and its blobref is
+// returned.  If there's any problem, or a dup doesn't exist, ok is
+// false.
 func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap schema.Map, sum string) (fileSchema *blobref.BlobRef, ok bool) {
-	searchRoot, err := up.Client.SearchRoot()
+	_, err := up.Client.SearchRoot()
 	if err != nil {
 		return
 	}
-	// TODO(bradfitz): implement.
-	// Then, if any results, verfiy them all like camli.js, and
-	// then populate fileMap, and then upload fileMap and returns
-	// its blobref.
-	_ = searchRoot
-	return
+	dupFileRef, err := up.Client.SearchExistingFileSchema(blobref.MustParse(sum))
+	if err != nil {
+		log.Printf("Warning: error searching for already-uploaded copy of %s: %v", sum, err)
+		return nil, false
+	}
+	if dupFileRef == nil {
+		return nil, false
+	}
+	dupMap, err := up.Client.FetchMap(dupFileRef)
+	if err != nil {
+		log.Printf("Warning: error fetching %v: %v", dupFileRef, err)
+		return nil, false
+	}
+	parts, ok := dupMap["parts"].([]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	fileMap["parts"] = parts // safe, since dupMap never escapes, so sharing parts is okay
+
+	// Hack: convert all the parts' float64 to int64, so they encode as e.g. "1000035"
+	// and not "1.000035e+06".  Perhaps we should work in *schema.SuperSets here, and not
+	// JSON maps.
+	// TODO(bradfitz): clean up?
+	for _, p := range parts {
+		pm := p.(map[string]interface{})
+		pm["size"] = int64(pm["size"].(float64))
+	}
+
+	json, err := fileMap.JSON()
+	if err != nil {
+		return nil, false
+	}
+	uh := client.NewUploadHandleFromString(json)
+	if uh.BlobRef.Equal(dupFileRef) {
+		// Unchanged (same filename, modtime, JSON serialization, etc)
+		return dupFileRef, true
+	}
+	pr, err := up.uploadHandle(uh)
+	if err != nil {
+		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", sum, err)
+		return nil, false
+	}
+	return pr.BlobRef, true
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
