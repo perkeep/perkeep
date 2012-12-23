@@ -85,11 +85,11 @@ func main() {
 	for {
 		passNum++
 		stats, err := doPass(sc, dc, passNum)
-		if err != nil {
-			log.Fatalf("sync failed: %v", err)
-		}
 		if *flagVerbose {
 			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
+		}
+		if err != nil {
+			log.Fatalf("sync failed: %v", err)
 		}
 		if !*flagLoop {
 			break
@@ -182,14 +182,18 @@ func loggingBlobRefChannel(ch <-chan blobref.SizedBlobRef) chan blobref.SizedBlo
 	go func() {
 		defer close(ch2)
 		var last time.Time
+		var nblob, nbyte int64
 		for v := range ch {
 			ch2 <- v
+			nblob++
+			nbyte += v.Size
 			now := time.Now()
 			if last.IsZero() || now.After(last.Add(1*time.Second)) {
 				last = now
-				log.Printf("At source blob %v", v)
+				log.Printf("At source blob %v (%d blobs, %d bytes)", v.BlobRef, nblob, nbyte)
 			}
 		}
+		log.Printf("Total blobs: %d, %d bytes", nblob, nbyte)
 	}()
 	return ch2
 }
