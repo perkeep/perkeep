@@ -112,6 +112,11 @@ camlistore.BlobItemContainer.prototype.showRecent_ = function() {
  * @param {Object} result JSON response to this request.
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
-  console.log('Done getting blobs');
-  console.log(result);
+  this.removeChildren(true);
+
+  for (var i = 0, n = result.recent.length; i < n; i++) {
+    var blobRef = result.recent[i].blobref;
+    var item = new camlistore.BlobItem(blobRef, result);
+    this.addChild(item, true);
+  }
 };
