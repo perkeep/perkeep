@@ -1,0 +1,3 @@
+.cam-blobitemcontainer {
+  outline: 0;  /* Do not show an outline when container has focus. */
+}
