@@ -129,42 +129,56 @@ func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) 
 		}
 	}
 
-	destNotHaveBlobs := make(chan blobref.SizedBlobRef, 100)
+	destNotHaveBlobs := make(chan blobref.SizedBlobRef)
+	sizeMismatch := make(chan *blobref.BlobRef)
 	readSrcBlobs := srcBlobs
 	if *flagVerbose {
 		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
 	}
-	go client.ListMissingDestinationBlobs(destNotHaveBlobs, readSrcBlobs, destBlobs)
-	for sb := range destNotHaveBlobs {
-		fmt.Printf("Destination needs blob: %s\n", sb)
+	mismatches := []*blobref.BlobRef{}
+	go client.ListMissingDestinationBlobs(destNotHaveBlobs, sizeMismatch, readSrcBlobs, destBlobs)
+For:
+	for {
+		select {
+		case br := <-sizeMismatch:
+			// TODO(bradfitz): check both sides and repair, carefully.  For now, fail.
+			log.Printf("WARNING: blobref %v has differing sizes on source and est", br)
+			stats.ErrorCount++
+			mismatches = append(mismatches, br)
+		case sb, ok := <-destNotHaveBlobs:
+			if !ok {
+				break For
+			}
+			fmt.Printf("Destination needs blob: %s\n", sb)
 
-		blobReader, size, err := sc.FetchStreaming(sb.BlobRef)
-		if err != nil {
-			stats.ErrorCount++
-			log.Printf("Error fetching %s: %v", sb.BlobRef, err)
-			continue
-		}
-		if size != sb.Size {
-			stats.ErrorCount++
-			log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
-				sb.Size, sb.BlobRef, size)
-			continue
-		}
-		uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
-		pr, err := dc.Upload(uh)
-		if err != nil {
-			stats.ErrorCount++
-			log.Printf("Upload of %s to destination blobserver failed: %v", sb.BlobRef, err)
-			continue
-		}
-		if !pr.Skipped {
-			stats.BlobsCopied++
-			stats.BytesCopied += pr.Size
-		}
-		if *flagRemoveSource {
-			if err = sc.RemoveBlob(sb.BlobRef); err != nil {
+			blobReader, size, err := sc.FetchStreaming(sb.BlobRef)
+			if err != nil {
 				stats.ErrorCount++
-				log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
+				log.Printf("Error fetching %s: %v", sb.BlobRef, err)
+				continue
+			}
+			if size != sb.Size {
+				stats.ErrorCount++
+				log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
+					sb.Size, sb.BlobRef, size)
+				continue
+			}
+			uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
+			pr, err := dc.Upload(uh)
+			if err != nil {
+				stats.ErrorCount++
+				log.Printf("Upload of %s to destination blobserver failed: %v", sb.BlobRef, err)
+				continue
+			}
+			if !pr.Skipped {
+				stats.BlobsCopied++
+				stats.BytesCopied += pr.Size
+			}
+			if *flagRemoveSource {
+				if err = sc.RemoveBlob(sb.BlobRef); err != nil {
+					stats.ErrorCount++
+					log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
+				}
 			}
 		}
 	}

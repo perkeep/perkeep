@@ -24,7 +24,8 @@ import (
 // enumerations of blobs from two blob servers) and sends to
 // 'destMissing' any blobs which appear on the source but not at the
 // destination.  destMissing is closed at the end.
-func ListMissingDestinationBlobs(destMissing chan<- blobref.SizedBlobRef, srcch, dstch <-chan blobref.SizedBlobRef) {
+// sizeMismatch is never closed.
+func ListMissingDestinationBlobs(destMissing chan<- blobref.SizedBlobRef, sizeMismatch chan<- *blobref.BlobRef, srcch, dstch <-chan blobref.SizedBlobRef) {
 	defer close(destMissing)
 
 	src := &blobref.ChanPeeker{Ch: srcch}
@@ -44,8 +45,11 @@ func ListMissingDestinationBlobs(destMissing chan<- blobref.SizedBlobRef, srcch,
 		switch {
 		case srcStr == dstStr:
 			// Skip both
-			src.Take()
-			dst.Take()
+			sb := src.Take()
+			db := dst.Take()
+			if sb.Size != db.Size {
+				sizeMismatch <- sb.BlobRef
+			}
 		case srcStr < dstStr:
 			destMissing <- *(src.Take())
 		case srcStr > dstStr:
