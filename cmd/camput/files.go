@@ -354,6 +354,37 @@ func (up *Uploader) statReceiver() blobserver.StatReceiver {
 	return statReceiver
 }
 
+// wholeFileDigest returns the sha1 digest of the regular file's absolute
+// path given in fullPath.
+func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
+	// TODO(bradfitz): cache this.
+	file, err := up.open(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	td := &trackDigestReader{r: file}
+	_, err = io.Copy(ioutil.Discard, td)
+	if err != nil {
+		return nil, err
+	}
+	return blobref.MustParse(td.Sum()), nil
+}
+
+//
+func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap schema.Map, sum string) (fileSchema *blobref.BlobRef, ok bool) {
+	searchRoot, err := up.Client.SearchRoot()
+	if err != nil {
+		return
+	}
+	// TODO(bradfitz): implement.
+	// Then, if any results, verfiy them all like camli.js, and
+	// then populate fileMap, and then upload fileMap and returns
+	// its blobref.
+	_ = searchRoot
+	return
+}
+
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	m := schema.NewCommonFileMap(n.fullPath, n.fi)
 	m["camliType"] = "file"
@@ -364,10 +395,8 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	defer file.Close()
 
 	size := n.fi.Size()
+
 	var fileContents io.Reader = io.LimitReader(file, size)
-	if up.fileOpts.wantFilePermanode() {
-		fileContents = &trackDigestReader{r: fileContents}
-	}
 
 	if up.fileOpts.wantVivify() {
 		err := schema.WriteFileChunks(up.statReceiver(), m, fileContents)
@@ -388,14 +417,37 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return up.Upload(h)
 	}
 
-	blobref, err := schema.WriteFileMap(up.statReceiver(), m, fileContents)
-	if err != nil {
-		return nil, err
+	var (
+		blobref *blobref.BlobRef // of file schemaref
+		sum     string           // "sha1-xxxxx"
+	)
+
+	const dupCheckThreshold = 256 << 10
+	if size > dupCheckThreshold {
+		sumRef, err := up.wholeFileDigest(n.fullPath)
+		if err == nil {
+			sum = sumRef.String()
+			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(), m, sum); ok {
+				blobref = ref
+			}
+		}
+	}
+
+	if blobref == nil {
+		if sum == "" && up.fileOpts.wantFilePermanode() {
+			fileContents = &trackDigestReader{r: fileContents}
+		}
+		blobref, err = schema.WriteFileMap(up.statReceiver(), m, fileContents)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO(mpl): test that none of these claims get uploaded if they've already been done
 	if up.fileOpts.wantFilePermanode() {
-		sum := fileContents.(*trackDigestReader).Sum()
+		if td, ok := fileContents.(*trackDigestReader); ok {
+			sum = td.Sum()
+		}
 		// Use a fixed time value for signing; not using modtime
 		// so two identical files don't have different modtimes?
 		// TODO(bradfitz): consider this more?
@@ -808,5 +860,5 @@ func (t *trackDigestReader) Read(p []byte) (n int, err error) {
 }
 
 func (t *trackDigestReader) Sum() string {
-	return fmt.Sprintf("%x", t.h.Sum(nil))
+	return fmt.Sprintf("sha1-%x", t.h.Sum(nil))
 }

@@ -18,6 +18,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -95,6 +96,14 @@ func (c *Client) Stats() Stats {
 	c.statsMutex.Lock()
 	defer c.statsMutex.Unlock()
 	return c.stats // copy
+}
+
+// ErrNoSearchRoot is returned by SearchRoot if the server doesn't support search.
+var ErrNoSearchRoot = errors.New("client: server doesn't support search")
+
+func (c *Client) SearchRoot() (string, error) {
+	// TODO(bradfitz): implement.  do discovery, like in initPrefix(), merging the prefix discovery.
+	return "", errors.New("TODO: implement searchRoot discovery")
 }
 
 func (c *Client) prefix() (string, error) {
