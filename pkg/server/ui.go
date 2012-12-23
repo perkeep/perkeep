@@ -76,7 +76,6 @@ type UIHandler struct {
 	sc    ScaledImage        // cache for scaled images, optional
 
 	// for the new ui
-	newUIStaticHandler http.Handler // or nil
 	closureHandler     http.Handler // or nil
 }
 
@@ -149,7 +148,6 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	} else {
 		closureDir := filepath.Join(camliRootPath, "tmp", "closure")
 		ui.closureHandler = http.FileServer(http.Dir(closureDir))
-		ui.newUIStaticHandler = http.FileServer(newuiFiles)
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
@@ -394,23 +392,32 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 
 func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-	if ui.closureHandler == nil || ui.newUIStaticHandler == nil {
+	if ui.closureHandler == nil {
 		log.Printf("%v not served: handler is nil", suffix)
 		http.NotFound(rw, req)
 		return
 	}
 	suffix = path.Clean(suffix)
+
 	m := closurePattern.FindStringSubmatch(suffix)
 	if m != nil {
 		req.URL.Path = "/" + m[1]
 		ui.closureHandler.ServeHTTP(rw, req)
 		return
 	}
-	m = static2FilePattern.FindStringSubmatch(suffix)
-	if m == nil {
+
+	var file string
+	if suffix == "new" {
+		file = "index.html"
+	} else {
+		m := static2FilePattern.FindStringSubmatch(suffix)
+		if m != nil {
+			file = m[1]
+		}
+	}
+	if file == "" {
 		http.NotFound(rw, req)
 		return
 	}
-	req.URL.Path = "/" + m[1]
-	ui.newUIStaticHandler.ServeHTTP(rw, req)
+	serveStaticFile(rw, req, newuiFiles, file)
 }
