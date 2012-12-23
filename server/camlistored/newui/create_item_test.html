@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+	<head>
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script>
+			goog.require('camlistore.CreateItem');
+		</script>
+		<link rel="stylesheet" href="blob_item.css" type="text/css">
+		<link rel="stylesheet" href="create_item.css" type="text/css">
+	</head>
+	<body>
+		<script>
+			var x = new camlistore.CreateItem();
+			x.render(document.body);
+		</script>
+	</body>
+</html>
