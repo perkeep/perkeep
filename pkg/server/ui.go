@@ -17,15 +17,20 @@ limitations under the License.
 package server
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -76,7 +81,7 @@ type UIHandler struct {
 	sc    ScaledImage        // cache for scaled images, optional
 
 	// for the new ui
-	closureHandler     http.Handler // or nil
+	closureHandler http.Handler // or nil
 }
 
 func init() {
@@ -419,5 +424,122 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		http.NotFound(rw, req)
 		return
 	}
+	if file == "/deps.js" {
+		ui.serveDepsJS(rw, req)
+		return
+	}
 	serveStaticFile(rw, req, newuiFiles, file)
+}
+
+// serveDepsJS serves an auto-generated Closure deps.js file.
+func (ui *UIHandler) serveDepsJS(rw http.ResponseWriter, req *http.Request) {
+	envVar := newuiFiles.OverrideEnv
+	if envVar == "" {
+		log.Printf("No newuiFiles.OverrideEnv set; can't generate deps.js")
+		http.NotFound(rw, req)
+		return
+	}
+	dir := os.Getenv(envVar)
+	if dir == "" {
+		log.Printf("The %q environment variable is not set; can't generate deps.js", envVar)
+		http.NotFound(rw, req)
+		return
+	}
+	fi, err := os.Stat(dir)
+	if err != nil || !fi.IsDir() {
+		log.Printf("The %q environment variable points to non-directory %s; can't generate deps.js", envVar, dir)
+		http.NotFound(rw, req)
+		return
+	}
+	var buf bytes.Buffer
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !strings.HasSuffix(path, ".js") {
+			return nil
+		}
+		suffix := path[len(dir)+1:]
+		prov, req, err := parseProvidesRequires(info, path)
+		if err != nil {
+			return err
+		}
+		if len(prov) > 0 {
+			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", "../../"+suffix, jsList(prov), jsList(req))
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error walking %d generating deps.js: %v", dir, err)
+		http.Error(rw, "Server error", 500)
+		return
+	}
+	rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	io.Copy(rw, &buf)
+}
+
+var provReqRx = regexp.MustCompile(`^goog\.(provide|require)\(['"]([\w\.]+)['"]\)`)
+
+type depCacheItem struct {
+	modTime            time.Time
+	provides, requires []string
+}
+
+var (
+	depCacheMu sync.Mutex
+	depCache   = map[string]depCacheItem{}
+)
+
+func parseProvidesRequires(fi os.FileInfo, path string) (provides, requires []string, err error) {
+	mt := fi.ModTime()
+	depCacheMu.Lock()
+	defer depCacheMu.Unlock()
+	if ci := depCache[path]; ci.modTime.Equal(mt) {
+		return ci.provides, ci.requires, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		l, err := br.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if !strings.HasPrefix(l, "goog.") {
+			continue
+		}
+		m := provReqRx.FindStringSubmatch(l)
+		if m != nil {
+			if m[1] == "provide" {
+				provides = append(provides, m[2])
+			} else {
+				requires = append(requires, m[2])
+			}
+		}
+	}
+	depCache[path] = depCacheItem{provides: provides, requires: requires, modTime: mt}
+	return provides, requires, nil
+}
+
+// jsList prints a list of strings as JavaScript list.
+type jsList []string
+
+func (s jsList) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('[')
+	for i, v := range s {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		fmt.Fprintf(&buf, "%q", v)
+	}
+	buf.WriteByte(']')
+	return buf.String()
 }
