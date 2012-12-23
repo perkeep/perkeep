@@ -3,9 +3,11 @@
  *
  */
 goog.provide('camlistore.BlobItemContainer');
+goog.provide('camlistore.BlobItemContainer.EventType');
 
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
+goog.require('goog.events.Event');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Container');
@@ -38,6 +40,13 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 
+
+/**
+ * @enum {string}
+ */
+camlistore.BlobItemContainer.EventType = {
+  SHOW_RECENT: 'Camlistore_BlobInfoContainer_ShowRecent'
+};
 
 
 /**
@@ -73,9 +82,9 @@ camlistore.BlobItemContainer.prototype.disposeInternal = function() {
 camlistore.BlobItemContainer.prototype.enterDocument = function() {
   camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
-  this.eh_.listen(this.getElement(), goog.events.EventType.CLICK, function() {
-    console.log('Printing from connection: ' + this.connection_.stupidHello());
-  });
+  this.eh_.listen(
+      this, camlistore.BlobItemContainer.EventType.SHOW_RECENT,
+      this.showRecent_);
 };
 
 
@@ -86,4 +95,23 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
 camlistore.BlobItemContainer.prototype.exitDocument = function() {
   camlistore.BlobItemContainer.superClass_.exitDocument.call(this);
   this.eh_.removeAll();
+};
+
+
+/**
+ * Show recent blobs.
+ */
+camlistore.BlobItemContainer.prototype.showRecent_ = function() {
+  this.connection_.getRecentlyUpdatedPermanodes(
+      goog.bind(this.showRecentDone_, this),
+      100);  // TODO(bslatkin): Use instance variable for thumbnail size
+};
+
+
+/**
+ * @param {Object} result JSON response to this request.
+ */
+camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
+  console.log('Done getting blobs');
+  console.log(result);
 };

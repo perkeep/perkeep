@@ -4,7 +4,10 @@
 		<script src="closure/goog/base.js"></script>
 		<script src="./deps.js"></script>
 		<script>
+			goog.require('goog.testing.net.XhrIo');
+			goog.require('camlistore.ServerConnection');
 			goog.require('camlistore.BlobItemContainer');
+			goog.require('camlistore.BlobItemContainer.EventType');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
 	</head>
@@ -39,11 +42,28 @@
 			  }
 			};
 
-			var container = new camlistore.BlobItemContainer();
+			var connection = new camlistore.ServerConnection(
+				{
+					'searchRoot': '/my/test/search'
+				},
+				goog.testing.net.XhrIo.send
+			);
+
+			var container = new camlistore.BlobItemContainer(connection);
 			container.render(document.body);
 			for (var i = 0; i < 10; i++) {
 				container.addChild(new camlistore.BlobItem(blobRef, metaBag), true);
 			}
+
+			goog.events.dispatchEvent(
+					container, camlistore.BlobItemContainer.EventType.SHOW_RECENT);
+
+			var request = goog.testing.net.XhrIo.getSendInstances().pop();
+			request.simulateResponse(
+				200,
+				JSON.stringify({
+					foo: 123
+				}));
 		</script>
 	</body>
 </html>
