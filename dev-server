@@ -55,6 +55,7 @@ $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
 unless ($ENV{GOPATH}) {
+    warn "WARNING: Your GOPATH isn't set; attempting workaround, but you should really set a GOPATH. See https://plus.google.com/106356964679457436995/posts/ftJaqe9sbS2 and make your working directory be \$GOPATH/src/camlistore.org for best results.\n";
     $ENV{GOPATH} = "$Bin/gopath"
 }
 
