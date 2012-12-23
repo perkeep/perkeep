@@ -32,9 +32,9 @@ func (lt *lmdbTest) run(t *testing.T) {
 	sendTestBlobs(srcBlobs, lt.source)
 	sendTestBlobs(destBlobs, lt.dest)
 
-	missing := make(chan blobref.SizedBlobRef, 100)
+	missing := make(chan blobref.SizedBlobRef)
 	got := make([]string, 0)
-	go ListMissingDestinationBlobs(missing, srcBlobs, destBlobs)
+	go ListMissingDestinationBlobs(missing, nil, srcBlobs, destBlobs)
 	for sb := range missing {
 		got = append(got, sb.BlobRef.String())
 	}
