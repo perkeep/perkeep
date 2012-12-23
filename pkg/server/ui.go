@@ -48,6 +48,7 @@ var (
 	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
 	static2FilePattern = regexp.MustCompile(`^new/*(/[a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))*$`)
 	identPattern       = regexp.MustCompile(`^[a-zA-Z\_]+$`)
+	identOrDotPattern  = regexp.MustCompile(`^[a-zA-Z\_]+[a-zA-Z\_\.]*$`)
 
 	// Download URL suffix:
 	//   $1: blobref (checked in download handler)

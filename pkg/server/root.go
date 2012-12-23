@@ -135,14 +135,13 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 
 func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]interface{}) {
 	rw.Header().Set("Content-Type", "text/javascript")
-	inCb := false
 	if cb := req.FormValue("cb"); identPattern.MatchString(cb) {
 		fmt.Fprintf(rw, "%s(", cb)
-		inCb = true
+		defer rw.Write([]byte(");\n"))
+	} else if v := req.FormValue("var"); identOrDotPattern.MatchString(v) {
+		fmt.Fprintf(rw, "var %s = ", v)
+		defer rw.Write([]byte(";\n"))
 	}
 	bytes, _ := json.MarshalIndent(m, "", "  ")
 	rw.Write(bytes)
-	if inCb {
-		rw.Write([]byte{')'})
-	}
 }
