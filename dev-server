@@ -178,11 +178,13 @@ unless ($opt_staticres) {
             my $local_rev = "r" . `svnversion`;
             chomp($local_rev);
             if ($local_rev ne $closure_rev) {
+                die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
                 system("svn", "update", "-r", $closure_rev)
                     and die "Failed to svn up the closure library: $!\n";
             }
             chdir $Bin or die;
         } else {
+            die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
             system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
                 and die "Failed to svn co the closure library: $!\n";
         }
