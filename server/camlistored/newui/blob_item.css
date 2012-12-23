@@ -1,0 +1,37 @@
+/* Tile view of BlobItem */
+.cam-blobitem {
+  margin: 0.25em;
+  border: 1px solid gray;
+  padding: 8px;
+  max-width: 250px;
+  float: left;
+  overflow: hidden;
+  text-align: center;
+}
+
+.cam-blobitem-150 {
+	width: 150px;
+	height: 150px;
+}
+
+.cam-blobitem:hover {
+  border: 1px solid black;
+  background: #ccc;
+}
+
+.cam-blobitem.selected {
+  border: 3px solid black;
+  background: #ffc;
+  padding: 6px;
+}
+
+.cam-blobitem.selected:hover {
+  border: 3px solid black;
+  padding: 6px;
+  background: #e6e6b8;
+}
+
+.cam-blobitem-thumbtitle:hover {
+  text-decoration: underline;
+  background: #999;
+}

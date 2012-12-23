@@ -116,6 +116,7 @@ CamliIndexPage.setThumbBoxStyle = function(div) {
 // divFromResult converts the |i|th searchResult into
 // a div element, style as a thumbnail tile.
 function divFromResult(searchRes, i) {
+    console.log(JSON.stringify(searchRes));
     var result = searchRes.recent[i];
     var br = searchRes[result.blobref];
     var divperm = document.createElement("div");
