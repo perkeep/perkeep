@@ -44,6 +44,7 @@ type UploadHandle struct {
 	BlobRef  *blobref.BlobRef
 	Size     int64 // or -1 if size isn't known
 	Contents io.Reader
+	Vivify   bool
 }
 
 type PutResult struct {
@@ -325,6 +326,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 
 	req = c.newRequest("POST", stat.uploadUrl)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	if h.Vivify {
+		req.Header.Add("X-Camlistore-Vivify", "1")
+	}
 	req.Body = ioutil.NopCloser(pipeReader)
 	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
 	req.TransferEncoding = nil

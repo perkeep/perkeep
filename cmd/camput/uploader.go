@@ -63,6 +63,7 @@ type fileOptions struct {
 	// tag is an optional tag or comma-delimited tags to apply to
 	// the above permanode.
 	tag string
+	vivify bool
 }
 
 func (o *fileOptions) tags() []string {
@@ -74,6 +75,10 @@ func (o *fileOptions) tags() []string {
 
 func (o *fileOptions) wantFilePermanode() bool {
 	return o != nil && o.permanode
+}
+
+func (o *fileOptions) wantVivify() bool {
+	return o != nil && o.vivify
 }
 
 // sigTime optionally specifies the signature time.

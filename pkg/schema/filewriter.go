@@ -183,38 +183,134 @@ func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+func uploadString(bs blobserver.StatReceiver, s string) (*blobref.BlobRef, error) {
+	br := blobref.SHA1FromString(s)
+	hasIt, err := serverHasBlob(bs, br)
+	if err != nil {
+		return nil, err
+	}
+	if hasIt {
+		return br, nil
+	}
+	_, err = bs.ReceiveBlob(br, strings.NewReader(s))
+	if err != nil {
+		return nil, err
+	}
+	return br, nil
+}
+
+// uploadBytes gets a map from mapSource (of type either "bytes" or
+// "file", which is a superset of "bytes"), sets it to the provided
+// size, and populates with provided spans.  The bytes or file schema
+// blob is uploaded and its blobref is returned.
+func uploadBytes(bs blobserver.StatReceiver, mapSource func() Map, size int64, s []span) (*blobref.BlobRef, error) {
+	parts := []BytesPart{}
+	err := addBytesParts(bs, &parts, s)
+	if err != nil {
+		return nil, err
+	}
+	m := mapSource()
+	err = PopulateParts(m, size, parts)
+	if err != nil {
+		return nil, err
+	}
+	json, err := m.JSON()
+	if err != nil {
+		return nil, err
+	}
+	return uploadString(bs, json)
+}
+
+// addBytesParts uploads the provided spans to bs, appending elements to *dst.
+func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span) error {
+	for _, sp := range spans {
+		if len(sp.children) == 1 && sp.children[0].isSingleBlob() {
+			// Remove an occasional useless indirection of
+			// what would become a bytes schema blob
+			// pointing to a single blobref.  Just promote
+			// the blobref child instead.
+			child := sp.children[0]
+			*dst = append(*dst, BytesPart{
+				BlobRef: child.br,
+				Size:    uint64(child.size()),
+			})
+			sp.children = nil
+		}
+		if len(sp.children) > 0 {
+			childrenSize := int64(0)
+			for _, cs := range sp.children {
+				childrenSize += cs.size()
+			}
+			br, err := uploadBytes(bs, newBytes, childrenSize, sp.children)
+			if err != nil {
+				return err
+			}
+			*dst = append(*dst, BytesPart{
+				BytesRef: br,
+				Size:     uint64(childrenSize),
+			})
+		}
+		if sp.from == sp.to {
+			panic("Shouldn't happen. " + fmt.Sprintf("weird span with same from & to: %#v", sp))
+		}
+		*dst = append(*dst, BytesPart{
+			BlobRef: sp.br,
+			Size:    uint64(sp.to - sp.from),
+		})
+	}
+	return nil
+}
+
+// writeFileMap uploads chunks of r to bs while populating fileMap and
+// finally uploading fileMap. The returned blobref is of fileMap's
+// JSON blob. It uses rolling checksum for the chunks sizes.
 func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
+	rootFile := func() Map { return fileMap }
+	n, spans, err := writeFileChunks(bs, fileMap, r)
+	if err != nil {
+		return nil, err
+	}
+	// The top-level content parts
+	return uploadBytes(bs, rootFile, n, spans)
+}
+
+// WriteFileChunks uploads chunks of r to bs while populating fileMap.
+// It does not upload fileMap.
+func WriteFileChunks(bs blobserver.StatReceiver, fileMap Map, r io.Reader) error {
+	rootFile := func() Map { return fileMap }
+
+	n, spans, err := writeFileChunks(bs, fileMap, r)
+	if err != nil {
+		return err
+	}
+	topLevel := func(mapSource func() Map, size int64, s []span) error {
+		parts := []BytesPart{}
+		err := addBytesParts(bs, &parts, s)
+		if err != nil {
+			return err
+		}
+		m := mapSource()
+		err = PopulateParts(m, size, parts)
+		return err
+	}
+
+	// The top-level content parts
+	return topLevel(rootFile, n, spans)
+}
+
+func writeFileChunks(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (n int64, spans []span, outerr error) {
 	src := &noteEOFReader{r: r}
 	blobSize := 0 // of the next blob being built, should be same as buf.Len()
 	bufr := bufio.NewReaderSize(src, bufioReaderSize)
-	spans := []span{} // the tree of spans, cut on interesting rollsum boundaries
+	spans = []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()
-	n := int64(0)
 	last := n
 	buf := new(bytes.Buffer)
-
-	rootFile := func() Map { return fileMap }
-
-	uploadString := func(s string) (*blobref.BlobRef, error) {
-		br := blobref.SHA1FromString(s)
-		hasIt, err := serverHasBlob(bs, br)
-		if err != nil {
-			return nil, err
-		}
-		if hasIt {
-			return br, nil
-		}
-		_, err = bs.ReceiveBlob(br, strings.NewReader(s))
-		if err != nil {
-			return nil, err
-		}
-		return br, nil
-	}
 
 	// TODO: keep multiple of these in-flight at a time.
 	uploadLastSpan := func() bool {
 		defer buf.Reset()
-		br, err := uploadString(buf.String())
+		br, err := uploadString(bs, buf.String())
 		if err != nil {
 			outerr = err
 			return false
@@ -235,7 +331,7 @@ func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 			break
 		}
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 
 		buf.WriteByte(c)
@@ -282,69 +378,6 @@ func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 		}
 	}
 
-	var addBytesParts func(dst *[]BytesPart, s []span) error
+	return n, spans, nil
 
-	// uploadBytes gets a map from mapSource (of type either "bytes" or
-	// "file", which is a superset of "bytes"), sets it to the provided
-	// size, and populates with provided spans.  The bytes or file schema
-	// blob is uploaded and its blobref is returned.
-	uploadBytes := func(mapSource func() Map, size int64, s []span) (*blobref.BlobRef, error) {
-		parts := []BytesPart{}
-		err := addBytesParts(&parts, s)
-		if err != nil {
-			return nil, err
-		}
-		m := mapSource()
-		err = PopulateParts(m, size, parts)
-		if err != nil {
-			return nil, err
-		}
-		json, err := m.JSON()
-		if err != nil {
-			return nil, err
-		}
-		return uploadString(json)
-	}
-
-	addBytesParts = func(dst *[]BytesPart, spansl []span) error {
-		for _, sp := range spansl {
-			if len(sp.children) == 1 && sp.children[0].isSingleBlob() {
-				// Remove an occasional useless indirection of
-				// what would become a bytes schema blob
-				// pointing to a single blobref.  Just promote
-				// the blobref child instead.
-				child := sp.children[0]
-				*dst = append(*dst, BytesPart{
-					BlobRef: child.br,
-					Size:    uint64(child.size()),
-				})
-				sp.children = nil
-			}
-			if len(sp.children) > 0 {
-				childrenSize := int64(0)
-				for _, cs := range sp.children {
-					childrenSize += cs.size()
-				}
-				br, err := uploadBytes(newBytes, childrenSize, sp.children)
-				if err != nil {
-					return err
-				}
-				*dst = append(*dst, BytesPart{
-					BytesRef: br,
-					Size:     uint64(childrenSize),
-				})
-			}
-			if sp.from == sp.to {
-				panic("Shouldn't happen. " + fmt.Sprintf("weird span with same from & to: %#v", sp))
-			}
-			*dst = append(*dst, BytesPart{
-				BlobRef: sp.br,
-				Size:    uint64(sp.to - sp.from),
-			})
-		}
-		return nil
-	}
-
-	// The top-level content parts
-	return uploadBytes(rootFile, n, spans)
 }
