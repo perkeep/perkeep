@@ -82,9 +82,6 @@ func (c *Client) Buckets() ([]*Bucket, error) {
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
 func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
-	defer func() {
-		log.Printf("s3 client: Stat(%q, %q) = %d, %v", name, bucket, size, reterr)
-	}()
 	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
