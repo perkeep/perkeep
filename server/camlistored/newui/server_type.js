@@ -6,6 +6,33 @@ goog.provide('camlistore.ServerType');
 
 /**
  * @typedef {{
+ *   currentPermanode: string,
+ *   name: string,
+ *   prefix: Array.<string>,
+ * }}
+ */
+camlistore.ServerType.DiscoveryRoot;
+
+
+/**
+ * @typedef {{
+ *   blobRoot: string,
+ *   directoryHelper: string,
+ *   downloadHelper: string,
+ *   jsonSignRoot: string,
+ *   ownerName: string,
+ *   publishRoots: Array.<camlistore.ServerType.DiscoveryRoot>,
+ *   searchRoot: string,
+ *   storageGeneration: string,
+ *   storageInitTime: string,
+ *   uploadHelper: string,
+ * }}
+ */
+camlistore.ServerType.DiscoveryDocument;
+
+
+/**
+ * @typedef {{
  *   fileName: string,
  *   mimeType: string,
  *   size: number,

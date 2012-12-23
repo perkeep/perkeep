@@ -1,3 +1,18 @@
-<html><body>I am newui index.html.  Hi.</body></html>
-
-
+<!doctype html>
+<html>
+	<head>
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
+		<script>
+			goog.require('camlistore.IndexPage');
+		</script>
+		<link rel="stylesheet" href="blob_item.css" type="text/css">
+	</head>
+	<body>
+		<script>
+			var page = new camlistore.IndexPage(window.CAMLISTORE_CONFIG);
+			page.render(document.body);
+		</script>
+	</body>
+</html>
