@@ -3,18 +3,16 @@
 	<head>
 		<script src="closure/goog/base.js"></script>
 		<script src="./deps.js"></script>
-		<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
 		<script>
-			goog.require('camlistore.IndexPage');
+			goog.require('camlistore.CreateItem');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
 		<link rel="stylesheet" href="create_item.css" type="text/css">
-		<link rel="stylesheet" href="index.css" type="text/css">
 	</head>
 	<body>
 		<script>
-			var page = new camlistore.IndexPage(window.CAMLISTORE_CONFIG);
-			page.decorate(document.body);
+			var x = new camlistore.CreateItem();
+			x.render(document.body);
 		</script>
 	</body>
 </html>
