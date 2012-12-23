@@ -10,6 +10,7 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
 goog.require('camlistore.BlobItemContainer');
+goog.require('camlistore.BlobItemContainer.EventType');
 goog.require('camlistore.ServerConnection');
 
 
@@ -91,7 +92,10 @@ camlistore.IndexPage.prototype.disposeInternal = function() {
  */
 camlistore.IndexPage.prototype.enterDocument = function() {
   camlistore.IndexPage.superClass_.enterDocument.call(this);
-  // Add event handlers here
+
+  goog.events.dispatchEvent(
+      this.blobItemContainer_,
+      camlistore.BlobItemContainer.EventType.SHOW_RECENT);
 };
 
 
