@@ -4,7 +4,7 @@
   border: 1px solid gray;
   padding: 8px;
   max-width: 250px;
-  float: left;
+  display: inline-block;
   overflow: hidden;
   text-align: center;
 }

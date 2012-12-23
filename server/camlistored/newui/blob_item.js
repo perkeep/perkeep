@@ -8,7 +8,7 @@ goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
-goog.require('goog.ui.Component');
+goog.require('goog.ui.Control');
 
 
 
@@ -60,7 +60,7 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
    */
   this.eh_ = new goog.events.EventHandler(this);
 };
-goog.inherits(camlistore.BlobItem, goog.ui.Component);
+goog.inherits(camlistore.BlobItem, goog.ui.Control);
 
 
 /**

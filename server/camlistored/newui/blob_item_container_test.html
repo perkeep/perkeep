@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+	<head>
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script>
+			goog.require('camlistore.BlobItemContainer');
+		</script>
+		<link rel="stylesheet" href="blob_item.css" type="text/css">
+	</head>
+	<body>
+		<script>
+			var blobRef = 'sha1-5660088af0aa0d4f2294088f41284002a1baaa29';
+			var metaBag = {
+				'sha1-5660088af0aa0d4f2294088f41284002a1baaa29': {
+			    'blobRef': 'sha1-5660088af0aa0d4f2294088f41284002a1baaa29',
+			    'camliType': 'permanode',
+			    'mimeType': 'application/json; camliType=permanode',
+			    'permanode': {
+			      'attr': {
+			        'camliContent': ['sha1-c2379bcf77848c90d2c83709aaf7f628a21ff725']
+			      }
+			    },
+			    'size': 556,
+			    'thumbnailHeight': 100,
+			    'thumbnailSrc': 'thumbnail/sha1-c2379bcf77848c90d2c83709aaf7f628a21ff725/leisure-suit-tony.gif?mw=100&mh=100',
+			    'thumbnailWidth': 100
+			  },
+			  'sha1-c2379bcf77848c90d2c83709aaf7f628a21ff725': {
+			    'blobRef': 'sha1-c2379bcf77848c90d2c83709aaf7f628a21ff725',
+			    'camliType': 'file',
+			    'file': {
+			      'size': 37741,
+			      'fileName': 'leisure-suit-tony.gif',
+			      'mimeType': 'image/gif'
+			    },
+			    'mimeType': 'application/json; camliType=file',
+			    'size': 198
+			  }
+			};
+
+			var container = new camlistore.BlobItemContainer();
+			container.render(document.body);
+			for (var i = 0; i < 10; i++) {
+				container.addChild(new camlistore.BlobItem(blobRef, metaBag), true);
+			}
+		</script>
+	</body>
+</html>
