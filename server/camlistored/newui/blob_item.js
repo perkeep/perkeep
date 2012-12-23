@@ -46,7 +46,7 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
   /**
    * Metadata for the underlying blobref for this item; for example, this
    * would be the blobref that is currently the content for the permanode
-   * specified by 'blobRef'. TODO: Handle more permanode types.
+   * specified by 'blobRef'.
    *
    * @type {camlistore.ServerType.IndexerMeta}
    * @private
@@ -63,11 +63,32 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
 goog.inherits(camlistore.BlobItem, goog.ui.Component);
 
 
+/**
+ * TODO: Handle more permanode types.
+ *
+ * @param {string} blobRef string BlobRef to resolve.
+ * @param {camlistore.ServerType.IndexerMetaBag} metaBag Metadata bag to use
+ *   for resolving the blobref.
+ * @return {camlistore.ServerType.IndexerMeta}
+ */
 camlistore.BlobItem.resolve = function(blobRef, metaBag) {
+  var metaData = metaBag[blobRef];
+  if (metaData.camliType == 'permanode' && !!metaData.permanode &&
+      !!metaData.permanode.attr && !!metaData.permanode.attr.camliContent) {
+    var content = metaData.permanode.attr.camliContent;
+    if (content.length == 1) {
+      return metaBag[content[0]];
+    }
+  }
+
   return null;
+
 };
 
 
+/**
+ * @return {string}
+ */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
   // TODO(bslatkin): Make this prefix configured by globals, discovered by
   // the page at initialization.
@@ -75,18 +96,31 @@ camlistore.BlobItem.prototype.getThumbSrc_ = function() {
 };
 
 
+/**
+ * @return {number}
+ */
 camlistore.BlobItem.prototype.getThumbHeight_ = function() {
   return this.metaData_.thumbnailHeight;
 };
 
 
+/**
+ * @return {number}
+ */
 camlistore.BlobItem.prototype.getThumbWidth_ = function() {
   return this.metaData_.thumbnailWidth;
 };
 
 
+/**
+ * @return {string}
+ */
 camlistore.BlobItem.prototype.getTitle_ = function() {
-  return 'No title yet';
+  if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'file' &&
+      !!this.resolvedMetaData_.file) {
+    return this.resolvedMetaData_.file.fileName;
+  }
+  return 'Unknown title';
 };
 
 
@@ -132,6 +166,7 @@ camlistore.BlobItem.prototype.disposeInternal = function() {
  */
 camlistore.BlobItem.prototype.enterDocument = function() {
   camlistore.BlobItem.superClass_.enterDocument.call(this);
+  // Add event handlers here
 };
 
 
@@ -141,4 +176,5 @@ camlistore.BlobItem.prototype.enterDocument = function() {
  */
 camlistore.BlobItem.prototype.exitDocument = function() {
   camlistore.BlobItem.superClass_.exitDocument.call(this);
+  // Clear event handlers here
 };
