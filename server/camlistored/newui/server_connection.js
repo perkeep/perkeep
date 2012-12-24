@@ -73,3 +73,15 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodesDone_ =
   }
   success(result);
 };
+
+/**
+ * @param {function(string)} success Success callback, called with permanode blobref.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.createPermanode = function(success, opt_fail) {
+  // TODO: stop depending on camli.js.  For now, cheating:
+  camliCreateNewPermanode({
+      success: success,
+      fail: opt_fail
+  });
+};

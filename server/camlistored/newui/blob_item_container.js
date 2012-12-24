@@ -13,6 +13,7 @@ goog.require('goog.events.EventType');
 goog.require('goog.ui.Container');
 goog.require('camlistore.BlobItem');
 goog.require('camlistore.CreateItem');
+goog.require('camlistore.ServerConnection');
 
 
 /**
@@ -138,7 +139,12 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
     this.eh_.listen(
       createItem.getElement(), goog.events.EventType.CLICK,
       function() {
-        console.log('Clicked');
+        this.connection_.createPermanode(function(p) {
+          window.location = "../?p=" + p;
+        });
+      },
+      function(failMsg) {
+        console.log("Failed to create permanode: " + failMsg);
       });
   }
 }
