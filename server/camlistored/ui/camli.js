@@ -21,8 +21,6 @@ function $(id) {
     return document.getElementById(id);
 }
 
-var disco = null;  // TODO: kill this in favor of Camli.config.
-
 // innerText is not W3C compliant and does not work with firefox.
 // textContent does not work with IE.
 // setTextContent should work with all browsers.
@@ -42,7 +40,7 @@ function setTextContent(ele, text) {
 
 // Method 1 to get discovery information (JSONP style):
 function onConfiguration(config) {
-    Camli.config = disco = config;
+    Camli.config = config;
 }
 
 function saneOpts(opts) {

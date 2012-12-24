@@ -57,9 +57,9 @@ function indexOnLoad(e) {
     }
     formSearch.addEventListener("submit", handleFormSearch);
 
-    if (disco && disco.uploadHelper) {
+    if (Camli && Camli.config && Camli.config.uploadHelper) {
         var uploadForm = document.getElementById("uploadform");
-        uploadForm.action = disco.uploadHelper;
+        uploadForm.action = Camli.config.uploadHelper;
         document.getElementById("fileinput").disabled = false;
         document.getElementById("filesubmit").disabled = false;
     }
