@@ -72,7 +72,8 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   camlistore.BlobItemContainer.superClass_.decorateInternal.call(this, element);
 
   var el = this.getElement();
-  goog.dom.classes.add(el, 'cam-blobitemcontainer');
+  goog.dom.classes.add(
+      el, 'cam-blobitemcontainer', 'cam-blobitemcontainer-150');
 };
 
 

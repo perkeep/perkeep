@@ -140,7 +140,7 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   camlistore.BlobItem.superClass_.decorateInternal.call(this, element);
 
   var el = this.getElement();
-  goog.dom.classes.add(el, 'cam-blobitem', 'cam-blobitem-150');
+  goog.dom.classes.add(el, 'cam-blobitem');
 
   var linkEl = this.dom_.createDom('a');
   
