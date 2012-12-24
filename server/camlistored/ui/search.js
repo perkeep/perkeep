@@ -20,9 +20,9 @@ function getSearchParams() {
 	CamliSearch.query = "";
 	CamliSearch.type = "";
 	CamliSearch.fuzzy = "";
-	CamliSearch.query = getQueryParam('q') || "";
-	CamliSearch.type = getQueryParam('t') || "";
-	CamliSearch.fuzzy = getQueryParam('f') || "";
+	CamliSearch.query = Camli.getQueryParam('q') || "";
+	CamliSearch.type = Camli.getQueryParam('t') || "";
+	CamliSearch.fuzzy = Camli.getQueryParam('f') || "";
 }
 
 function hideAllResThings() {
@@ -237,12 +237,12 @@ function addToCollection(createNew) {
 		} else {
 			var pn = document.getElementById("inputCollec").value;
 //TODO(mpl): allow a collection title (instead of a hash) as input
-			if (!isPlausibleBlobRef(pn)) {
+			if (!Camli.isPlausibleBlobRef(pn)) {
 				alert("Not a valid collection permanode hash");
 				return;
 			}
 			var returnPn = function(opts) {
-				opts = saneOpts(opts);
+				opts = Camli.saneOpts(opts);
 				opts.success(pn);
 			}
 			returnPn(cnpcb);

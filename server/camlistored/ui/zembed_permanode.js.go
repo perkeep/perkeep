@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 21256, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 21268, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -26,8 +26,8 @@ func init() {
 		"// Gets the |p| query parameter, assuming that it looks like a blobref.\n"+
 		"\n"+
 		"function getPermanodeParam() {\n"+
-		"    var blobRef = getQueryParam('p');\n"+
-		"    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"    var blobRef = Camli.getQueryParam('p');\n"+
+		"    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
 		"}\n"+
 		"\n"+
 		"function handleFormTitleSubmit(e) {\n"+
@@ -681,5 +681,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1354837534181168310))
+		""), time.Unix(0, 1356312773000000000))
 }

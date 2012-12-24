@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.js", 2615, fileembed.String("/*\n"+
+	Files.Add("debug.js", 2645, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -67,9 +67,9 @@ func init() {
 		"    }\n"+
 		"    formSearch.addEventListener(\"submit\", handleFormSearch);\n"+
 		"\n"+
-		"    if (disco && disco.uploadHelper) {\n"+
+		"    if (Camli && Camli.config && Camli.config.uploadHelper) {\n"+
 		"        var uploadForm = document.getElementById(\"uploadform\");\n"+
-		"        uploadForm.action = disco.uploadHelper;\n"+
+		"        uploadForm.action = Camli.config.uploadHelper;\n"+
 		"        document.getElementById(\"fileinput\").disabled = false;\n"+
 		"        document.getElementById(\"filesubmit\").disabled = false;\n"+
 		"    }\n"+
@@ -90,5 +90,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1355269608387953882))
+		""), time.Unix(0, 1356311931000000000))
 }

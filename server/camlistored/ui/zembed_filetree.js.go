@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("filetree.js", 4703, fileembed.String("/*\n"+
+	Files.Add("filetree.js", 4715, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -29,8 +29,8 @@ func init() {
 		"// Gets the |d| query parameter, assuming that it looks like a blobref.\n"+
 		"\n"+
 		"function getPermanodeParam() {\n"+
-		"	var blobRef = getQueryParam('d');\n"+
-		"	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"	var blobRef = Camli.getQueryParam('d');\n"+
+		"	return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
 		"}\n"+
 		"\n"+
 		"function newPermWithContent(content) {\n"+
@@ -175,5 +175,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", treePageOnLoad);\n"+
-		""), time.Unix(0, 1351526710072999389))
+		""), time.Unix(0, 1356312762000000000))
 }

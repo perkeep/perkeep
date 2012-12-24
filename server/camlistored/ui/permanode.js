@@ -17,8 +17,8 @@ limitations under the License.
 // Gets the |p| query parameter, assuming that it looks like a blobref.
 
 function getPermanodeParam() {
-    var blobRef = getQueryParam('p');
-    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
+    var blobRef = Camli.getQueryParam('p');
+    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
 function handleFormTitleSubmit(e) {
