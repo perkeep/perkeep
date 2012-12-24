@@ -1,3 +1,6 @@
+-- index: static directory recursive sizes: search: ask to see biggest directories?
+
+-- index: index dates in filenames ("yyyy-mm-dd-Foo-Trip", "yyyy-mm blah", etc).
 
 -- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
    (get cammount and webdav working again)
