@@ -11,10 +11,52 @@
   cursor: default;
 }
 
-.cam-blobitemcontainer-150 .cam-blobitem {
+.cam-blobitemcontainer-25 .cam-blobitem {
+  width: 50px;
+  height: 50px;
+}
+.cam-blobitemcontainer-25 .cam-blobitem-thumbtitle {
+  font-size: 8px;
+}
+
+.cam-blobitemcontainer-50 .cam-blobitem {
+  width: 100px;
+  height: 100px;
+}
+.cam-blobitemcontainer-50 .cam-blobitem-thumbtitle {
+  font-size: 10px;
+}
+
+.cam-blobitemcontainer-75 .cam-blobitem {
+  width: 125px;
+  height: 125px;
+}
+.cam-blobitemcontainer-75 .cam-blobitem-thumbtitle {
+  font-size: 12px;
+}
+
+.cam-blobitemcontainer-100 .cam-blobitem {
   width: 150px;
   height: 150px;
-  max-width: 250px;
+}
+.cam-blobitemcontainer-100 .cam-blobitem-thumbtitle {
+  font-size: 14px;
+}
+
+.cam-blobitemcontainer-150 .cam-blobitem {
+  width: 200px;
+  height: 200px;
+}
+.cam-blobitemcontainer-150 .cam-blobitem-thumbtitle {
+  font-size: 16px;
+}
+
+.cam-blobitemcontainer-200 .cam-blobitem {
+  width: 250px;
+  height: 250px;
+}
+.cam-blobitemcontainer-200 .cam-blobitem-thumbtitle {
+  font-size: 18px;
 }
 
 .cam-blobitem:hover {

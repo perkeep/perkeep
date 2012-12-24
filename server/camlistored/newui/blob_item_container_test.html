@@ -8,7 +8,6 @@
       goog.require('goog.testing.net.XhrIo');
       goog.require('camlistore.ServerConnection');
       goog.require('camlistore.BlobItemContainer');
-      goog.require('camlistore.BlobItemContainer.EventType');
     </script>
     <link rel="stylesheet" href="blob_item.css" type="text/css">
     <link rel="stylesheet" href="blob_item_container.css" type="text/css">
@@ -112,8 +111,7 @@
       var container = new camlistore.BlobItemContainer(connection);
       container.render(document.body);
 
-      goog.events.dispatchEvent(
-          container, camlistore.BlobItemContainer.EventType.SHOW_RECENT);
+      container.showRecent();
 
       var request = goog.testing.net.XhrIo.getSendInstances().pop();
       request.simulateResponse(200, JSON.stringify(recentBlobResponse));

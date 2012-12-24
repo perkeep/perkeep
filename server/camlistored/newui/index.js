@@ -10,7 +10,6 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
 goog.require('camlistore.BlobItemContainer');
-goog.require('camlistore.BlobItemContainer.EventType');
 goog.require('camlistore.ServerConnection');
 goog.require('camlistore.Toolbar');
 goog.require('camlistore.Toolbar.EventType');
@@ -103,9 +102,23 @@ camlistore.IndexPage.prototype.disposeInternal = function() {
 camlistore.IndexPage.prototype.enterDocument = function() {
   camlistore.IndexPage.superClass_.enterDocument.call(this);
 
-  goog.events.dispatchEvent(
-      this.blobItemContainer_,
-      camlistore.BlobItemContainer.EventType.SHOW_RECENT);
+  this.eh_.listen(
+    this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
+    function() {
+      if (this.blobItemContainer_.bigger()) {
+        this.blobItemContainer_.showRecent();
+      }
+    });
+
+  this.eh_.listen(
+    this.toolbar_, camlistore.Toolbar.EventType.SMALLER,
+    function() {
+      if (this.blobItemContainer_.smaller()) {
+        this.blobItemContainer_.showRecent();
+      }
+    });
+
+  this.blobItemContainer_.showRecent();
 };
 
 

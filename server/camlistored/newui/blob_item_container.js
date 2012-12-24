@@ -3,7 +3,6 @@
  *
  */
 goog.provide('camlistore.BlobItemContainer');
-goog.provide('camlistore.BlobItemContainer.EventType');
 
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
@@ -41,18 +40,47 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 
 
+camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
+
+
+camlistore.BlobItemContainer.prototype.thumbnailSize_ = 100;
+
 camlistore.BlobItemContainer.prototype.hasCreateItem_ = false;
 
-camlistore.BlobItemContainer.prototype.setHasCreateItem = function(v) {
-  this.hasCreateItem_ = v;
+
+camlistore.BlobItemContainer.prototype.smaller = function() {
+  var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
+      this.thumbnailSize_);
+  if (index == 0) {
+    return false;
+  }
+  var el = this.getElement();
+  goog.dom.classes.remove(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+  this.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[index-1];
+  goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+  return true;
+};
+
+
+camlistore.BlobItemContainer.prototype.bigger = function() {
+  var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
+      this.thumbnailSize_);
+  if (index == camlistore.BlobItemContainer.THUMBNAIL_SIZES_.length - 1) {
+    return false;
+  }
+  var el = this.getElement();
+  goog.dom.classes.remove(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+  this.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[index+1];
+  goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+  return true;
 };
 
 
 /**
- * @enum {string}
+ * @param {boolean} v
  */
-camlistore.BlobItemContainer.EventType = {
-  SHOW_RECENT: 'Camlistore_BlobInfoContainer_ShowRecent'
+camlistore.BlobItemContainer.prototype.setHasCreateItem = function(v) {
+  this.hasCreateItem_ = v;
 };
 
 
@@ -72,8 +100,8 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   camlistore.BlobItemContainer.superClass_.decorateInternal.call(this, element);
 
   var el = this.getElement();
-  goog.dom.classes.add(
-      el, 'cam-blobitemcontainer', 'cam-blobitemcontainer-150');
+  goog.dom.classes.add(el, 'cam-blobitemcontainer');
+  goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
 };
 
 
@@ -91,9 +119,6 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
   camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
   this.resetChildren_();
-  this.eh_.listen(
-      this, camlistore.BlobItemContainer.EventType.SHOW_RECENT,
-      this.showRecent_);
 };
 
 
@@ -110,10 +135,10 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
 /**
  * Show recent blobs.
  */
-camlistore.BlobItemContainer.prototype.showRecent_ = function() {
+camlistore.BlobItemContainer.prototype.showRecent = function() {
   this.connection_.getRecentlyUpdatedPermanodes(
       goog.bind(this.showRecentDone_, this),
-      100);  // TODO(bslatkin): Use instance variable for thumbnail size
+      this.thumbnailSize_);
 };
 
 
@@ -130,6 +155,9 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
 };
 
 
+/**
+ * Clears all children from this container, reseting to the default state.
+ */
 camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
   this.removeChildren(true);
   if (this.hasCreateItem_) {
@@ -141,4 +169,4 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
         console.log('Clicked');
       });
   }
-}
+};
