@@ -12,6 +12,8 @@ goog.require('goog.ui.Component');
 goog.require('camlistore.BlobItemContainer');
 goog.require('camlistore.BlobItemContainer.EventType');
 goog.require('camlistore.ServerConnection');
+goog.require('camlistore.Toolbar');
+goog.require('camlistore.Toolbar.EventType');
 
 
 /**
@@ -42,8 +44,14 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    * @private
    */
   this.blobItemContainer_ = new camlistore.BlobItemContainer(
-      this.connection_);
+      this.connection_, opt_domHelper);
   this.blobItemContainer_.setHasCreateItem(true);
+
+  /**
+   * @type {camlistore.Toolbar}
+   * @private
+   */
+  this.toolbar_ = new camlistore.Toolbar(opt_domHelper);
 
   /**
    * @type {goog.events.EventHandler}
@@ -77,6 +85,7 @@ camlistore.IndexPage.prototype.decorateInternal = function(element) {
   this.dom_.setTextContent(titleEl, this.config_.ownerName + '\'s Vault');
   this.dom_.appendChild(el, titleEl);
 
+  this.addChild(this.toolbar_, true);
   this.addChild(this.blobItemContainer_, true);
 };
 
