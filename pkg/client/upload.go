@@ -83,15 +83,13 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
 }
 
-// TODO-GO: if outerr is replaced by a "_", gotest(!) fails with a 6g error.
-func parseStatResponse(r io.Reader) (sr *statResponse, outerr error) {
+func parseStatResponse(r io.Reader) (sr *statResponse, err error) {
 	var (
 		ok   bool
-		err  error
 		s    = &statResponse{HaveMap: make(map[string]blobref.SizedBlobRef)}
 		jmap = make(map[string]interface{})
 	)
-	if err = json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
 		return nil, ResponseFormatError(err)
 	}
 	defer func() {
@@ -289,10 +287,10 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}
 
 	stat, err := parseStatResponse(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
 	if _, ok := stat.HaveMap[blobrefStr]; ok {
