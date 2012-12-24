@@ -1,9 +1,3 @@
--- add dev-server flag and support in camlistore.org/pkg/webserver to
-   control latency & bandwidth, to simulate slow connections (phones,
-   etc).  can just wrap the net.Listener interface and that we're
-   already giving to http.Server with one that returns wrapped slow
-   net.Conns with variable latency and such.  no need to plumb through
-   flags or variables to pkg/webserver... can just use environ vars.
 
 -- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
    (get cammount and webdav working again)
