@@ -43,6 +43,7 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    */
   this.blobItemContainer_ = new camlistore.BlobItemContainer(
       this.connection_);
+  this.blobItemContainer_.setHasCreateItem(true);
 
   /**
    * @type {goog.events.EventHandler}

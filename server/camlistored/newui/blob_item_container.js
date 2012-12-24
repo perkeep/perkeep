@@ -12,7 +12,7 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Container');
 goog.require('camlistore.BlobItem');
-
+goog.require('camlistore.CreateItem');
 
 
 /**
@@ -39,6 +39,13 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   this.eh_ = new goog.events.EventHandler(this);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
+
+
+camlistore.BlobItemContainer.prototype.hasCreateItem_ = false;
+
+camlistore.BlobItemContainer.prototype.setHasCreateItem = function(v) {
+  this.hasCreateItem_ = v;
+};
 
 
 /**
@@ -82,6 +89,7 @@ camlistore.BlobItemContainer.prototype.disposeInternal = function() {
 camlistore.BlobItemContainer.prototype.enterDocument = function() {
   camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
+  this.resetChildren_();
   this.eh_.listen(
       this, camlistore.BlobItemContainer.EventType.SHOW_RECENT,
       this.showRecent_);
@@ -107,13 +115,18 @@ camlistore.BlobItemContainer.prototype.showRecent_ = function() {
       100);  // TODO(bslatkin): Use instance variable for thumbnail size
 };
 
+camlistore.BlobItemContainer.prototype.resetChildren_ = function(result) {
+  this.removeChildren(true);
+  if (this.hasCreateItem_) {
+    this.addChild(new camlistore.CreateItem(), true);
+  }
+}
 
 /**
  * @param {Object} result JSON response to this request.
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
-  this.removeChildren(true);
-
+  this.resetChildren_();
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
     var item = new camlistore.BlobItem(blobRef, result);
