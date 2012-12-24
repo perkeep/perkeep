@@ -44,11 +44,23 @@ goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
 
 
+/**
+ * @type {number}
+ * @private
+ */
 camlistore.BlobItemContainer.prototype.thumbnailSize_ = 100;
 
+
+/**
+ * @type {boolean}
+ * @private
+ */
 camlistore.BlobItemContainer.prototype.hasCreateItem_ = false;
 
 
+/**
+ * @return {boolean}
+ */
 camlistore.BlobItemContainer.prototype.smaller = function() {
   var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
       this.thumbnailSize_);
@@ -63,6 +75,9 @@ camlistore.BlobItemContainer.prototype.smaller = function() {
 };
 
 
+/**
+ * @return {boolean}
+ */
 camlistore.BlobItemContainer.prototype.bigger = function() {
   var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
       this.thumbnailSize_);
