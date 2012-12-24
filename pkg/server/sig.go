@@ -132,6 +132,19 @@ func (h *JSONSignHandler) uploadPublicKey(sto blobserver.Storage, key string) er
 	return err
 }
 
+func (h *JSONSignHandler) discoveryMap(base string) map[string]interface{} {
+	m := map[string]interface{}{
+		"publicKeyId":   h.entity.PrimaryKey.KeyIdString(),
+		"signHandler":   base + "camli/sig/sign",
+		"verifyHandler": base + "camli/sig/verify",
+	}
+	if h.pubKeyBlobRef != nil {
+		m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
+		m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
+	}
+	return m
+}
+
 func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	subPath := req.Header.Get("X-PrefixHandler-PathSuffix")
@@ -150,16 +163,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "POST required", 400)
 			return
 		case "camli/sig/discovery":
-			m := map[string]interface{}{
-				"publicKeyId":   h.entity.PrimaryKey.KeyIdString(),
-				"signHandler":   base + "camli/sig/sign",
-				"verifyHandler": base + "camli/sig/verify",
-			}
-			if h.pubKeyBlobRef != nil {
-				m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
-				m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
-			}
-			httputil.ReturnJSON(rw, m)
+			httputil.ReturnJSON(rw, h.discoveryMap(base))
 			return
 		}
 	case "POST":

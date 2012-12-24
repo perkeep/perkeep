@@ -77,6 +77,7 @@ type UIHandler struct {
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
+	sigh   *JSONSignHandler // or nil
 
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
@@ -99,6 +100,13 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	scType := conf.OptionalString("scaledImage", "")
 	if err = conf.Validate(); err != nil {
 		return
+	}
+
+	if ui.JSONSignRoot != "" {
+		h, _ := ld.GetHandler(ui.JSONSignRoot)
+		if sigh, ok := h.(*JSONSignHandler); ok {
+			ui.sigh = sigh
+		}
 	}
 
 	ui.PublishRoots = make(map[string]*PublishHandler)
@@ -294,6 +302,9 @@ func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 		"downloadHelper":  path.Join(ui.prefix, "download") + "/",
 		"directoryHelper": path.Join(ui.prefix, "tree") + "/",
 		"publishRoots":    pubRoots,
+	}
+	if ui.sigh != nil {
+		uiDisco["signing"] = ui.sigh.discoveryMap(ui.JSONSignRoot)
 	}
 	for k, v := range uiDisco {
 		if _, ok := m[k]; ok {
