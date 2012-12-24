@@ -117,7 +117,7 @@ var Cmds = []string{
 	"make presubmit",
 	"./dev-server --wipe --mysql",
 	"http://localhost:3179/ui/",
-	"http://localhost:3179/ui/new/home.html",
+	"http://localhost:3179/ui/new/",
 	"./dev-camput file --permanode " + testFile,
 	"./dev-camget ",
 	"./dev-camget ",
