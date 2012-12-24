@@ -2,6 +2,7 @@
   font-size: 40pt;
   text-decoration: none;
 }
+
 .cam-createitem {
-  cursor: pointer;;
+  cursor: pointer !important;
 }

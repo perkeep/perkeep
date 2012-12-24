@@ -51,7 +51,7 @@ camlistore.CreateItem.prototype.decorateInternal = function(element) {
   goog.dom.classes.add(el, 'cam-blobitem', 'cam-createitem');
 
   var plusEl = this.dom_.createDom('a', 'cam-createitem-link');
-  plusEl.href = '#';
+  plusEl.href = 'javascript:void(0)';
   this.dom_.setTextContent(plusEl, "+")
   this.dom_.appendChild(el, plusEl);
 

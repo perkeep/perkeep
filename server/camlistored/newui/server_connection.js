@@ -71,7 +71,5 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodesDone_ =
     }
     return;
   }
-
-  // TODO(bslatkin): Rewrite thumbnail URLs to be absolute.
   success(result);
 };

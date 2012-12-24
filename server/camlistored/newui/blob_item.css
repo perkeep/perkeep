@@ -7,6 +7,8 @@
   overflow: hidden;
   text-align: center;
   vertical-align: top;
+  outline: 0;
+  cursor: default;
 }
 
 .cam-blobitemcontainer-150 .cam-blobitem {
