@@ -36,6 +36,8 @@ import (
 
 var _ = log.Printf
 
+var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
+
 // multipartOverhead is how many extra bytes mime/multipart's
 // Writer adds around content
 var multipartOverhead = calculateMultipartOverhead()
@@ -299,6 +301,10 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 			closer.Close()
 		}
 		return pr, nil
+	}
+
+	if debugUploads {
+		log.Printf("Uploading: %s (%d bytes)", blobrefStr, bodySize)
 	}
 
 	pipeReader, pipeWriter := io.Pipe()
