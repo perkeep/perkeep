@@ -58,7 +58,7 @@ func (cf *CachingFetcher) faultIn(br *blobref.BlobRef) error {
 	if err != nil {
 		return err
 	}
-
+	defer sblob.Close()
 	_, err = cf.c.ReceiveBlob(br, sblob)
 	return err
 }

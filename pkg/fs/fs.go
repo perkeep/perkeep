@@ -192,6 +192,7 @@ func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr f
 	if err != nil {
 		panic(err)
 	}
+	defer fr.Close()
 	fr.Skip(uint64(req.Offset))
 	buf := make([]byte, req.Size)
 	n, err := fr.Read(buf)

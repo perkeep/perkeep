@@ -69,9 +69,11 @@ func (w *FetcherToSeekerWrapper) Fetch(b *BlobRef) (file ReadSeekCloser, size in
 }
 
 type StreamingFetcher interface {
-	// Fetch returns a blob.  If the blob is not found then
+	// FetchStreaming returns a blob.  If the blob is not found then
 	// os.ErrNotExist should be returned for the error (not a wrapped
 	// error with a ErrNotExist inside)
+	//
+	// The caller should close the file.
 	FetchStreaming(*BlobRef) (file io.ReadCloser, size int64, err error)
 }
 
