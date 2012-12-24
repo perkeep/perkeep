@@ -34,6 +34,7 @@ const buffered = 16 // arbitrary
 var (
 	flagHelp    = flag.Bool("help", false, "print usage")
 	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
+	flagHTTP    = flag.Bool("verbose_http", false, "show HTTP request summaries")
 )
 
 var ErrUsage = UsageError("invalid command usage")

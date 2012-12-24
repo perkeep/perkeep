@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -354,6 +355,8 @@ func (up *Uploader) statReceiver() blobserver.StatReceiver {
 	return statReceiver
 }
 
+var atomicDigestOps int64 // number of files digested
+
 // wholeFileDigest returns the sha1 digest of the regular file's absolute
 // path given in fullPath.
 func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
@@ -365,6 +368,7 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 	defer file.Close()
 	td := &trackDigestReader{r: file}
 	_, err = io.Copy(ioutil.Discard, td)
+	atomic.AddInt64(&atomicDigestOps, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -390,6 +394,9 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap sch
 	}
 	if dupFileRef == nil {
 		return nil, false
+	}
+	if *flagVerbose {
+		log.Printf("Found dup of contents %s in file schema %s", sum, dupFileRef)
 	}
 	dupMap, err := up.Client.FetchMap(dupFileRef)
 	if err != nil {
@@ -755,10 +762,12 @@ func (t *TreeUpload) run() {
 			statStatus = fmt.Sprintf("last stat: %s", lastStat)
 		}
 		blobStats := t.up.Stats()
-		log.Printf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s last upload: %s BLOBS: %s",
+		log.Printf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s BLOBS: %s Digested: %d last upload: %s",
 			t.total, t.skipped, t.uploaded,
-			statStatus, lastUpload,
-			blobStats.String())
+			statStatus, 
+			blobStats.String(),
+			atomic.LoadInt64(&atomicDigestOps),
+			lastUpload)
 	}
 
 	// Channels for stats & progress bars. These are never closed:

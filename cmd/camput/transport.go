@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"log"
 	"net/http"
 	"sync"
 )
@@ -33,6 +34,10 @@ func (t *statsTransport) RoundTrip(req *http.Request) (resp *http.Response, err 
 	t.reqs++
 	rt := t.transport
 	t.mu.Unlock()
+
+	if *flagHTTP {
+		log.Printf("%s %s", req.Method, req.URL)
+	}
 
 	if rt == nil {
 		rt = http.DefaultTransport
