@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <script src="closure/goog/base.js"></script>
+    <script src="./deps.js"></script>
+    <script>
+      goog.require('goog.events');
+      goog.require('camlistore.Toolbar');
+      goog.require('camlistore.Toolbar.EventType');
+    </script>
+    <link rel="stylesheet" href="toolbar.css" type="text/css">
+    <link rel="stylesheet" href="closure/goog/css/common.css" type="text/css">
+    <link rel="stylesheet" href="closure/goog/css/toolbar.css" type="text/css">
+  </head>
+  <body>
+    <script>
+      var x = new camlistore.Toolbar();
+      x.render(document.body);
+
+      goog.events.listen(
+          x, camlistore.Toolbar.EventType.BIGGER, function() {
+            console.log('Bigger');
+          });
+
+      goog.events.listen(
+          x, camlistore.Toolbar.EventType.SMALLER, function() {
+            console.log('Smaller');
+          });
+    </script>
+  </body>
+</html>

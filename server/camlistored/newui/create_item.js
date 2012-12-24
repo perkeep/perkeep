@@ -12,9 +12,6 @@ goog.require('goog.ui.Control');
 
 
 /**
- * @param {string} blobRef BlobRef for the item.
- * @param {camlistore.ServerType.IndexerMetaBag} metaBag Maps blobRefs to
- *   metadata for this blob and related blobs.
  * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
  *
  * @extends {goog.ui.Component}
@@ -52,11 +49,11 @@ camlistore.CreateItem.prototype.decorateInternal = function(element) {
 
   var plusEl = this.dom_.createDom('a', 'cam-createitem-link');
   plusEl.href = 'javascript:void(0)';
-  this.dom_.setTextContent(plusEl, "+")
+  this.dom_.setTextContent(plusEl, '+')
   this.dom_.appendChild(el, plusEl);
 
   var titleEl = this.dom_.createDom('p', 'cam-createitem-thumbtitle');
-  this.dom_.setTextContent(titleEl, "Drag & drop files or click");
+  this.dom_.setTextContent(titleEl, 'Drag & drop files or click');
   this.dom_.appendChild(el, titleEl);
 };
 
@@ -73,7 +70,6 @@ camlistore.CreateItem.prototype.disposeInternal = function() {
  */
 camlistore.CreateItem.prototype.enterDocument = function() {
   camlistore.CreateItem.superClass_.enterDocument.call(this);
-  // Add event handlers here
 };
 
 
@@ -83,5 +79,5 @@ camlistore.CreateItem.prototype.enterDocument = function() {
  */
 camlistore.CreateItem.prototype.exitDocument = function() {
   camlistore.CreateItem.superClass_.exitDocument.call(this);
-  // Clear event handlers here
+  this.eh_.removeAll();
 };
