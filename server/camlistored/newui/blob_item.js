@@ -90,8 +90,8 @@ camlistore.BlobItem.resolve = function(blobRef, metaBag) {
  * @return {string}
  */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
-  // TODO(bslatkin): Make this prefix configured by globals, discovered by
-  // the page at initialization.
+  // TODO(bslatkin): Remove the '../' once we move the new UI to the right
+  // handler, or change the server side to return an absolute URL.
   return '../' + this.metaData_.thumbnailSrc;
 };
 
@@ -109,6 +109,16 @@ camlistore.BlobItem.prototype.getThumbHeight_ = function() {
  */
 camlistore.BlobItem.prototype.getThumbWidth_ = function() {
   return this.metaData_.thumbnailWidth;
+};
+
+
+/**
+ * @return {string}
+ */
+camlistore.BlobItem.prototype.getLink_ = function() {
+  // TODO(bslatkin): Remove the '../' once we move the new UI to the right
+  // handler, or change the server side to return an absolute URL.
+  return '../?p=' + this.blobRef_;
 };
 
 
@@ -140,16 +150,18 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   camlistore.BlobItem.superClass_.decorateInternal.call(this, element);
 
   var el = this.getElement();
-  goog.dom.classes.add(el, 'cam-blobitem', 'cam-blobitem-150');
+  goog.dom.classes.add(el, 'cam-blobitem');
 
   var linkEl = this.dom_.createDom('a');
-  
+  linkEl.href = this.getLink_();
 
   var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
   thumbEl.src = this.getThumbSrc_();
   thumbEl.height = this.getThumbHeight_();
   thumbEl.width = this.getThumbWidth_();
-  this.dom_.appendChild(el, thumbEl);
+
+  this.dom_.appendChild(linkEl, thumbEl);
+  this.dom_.appendChild(el, linkEl);
 
   var titleEl = this.dom_.createDom('p', 'cam-blobitem-thumbtitle');
   this.dom_.setTextContent(titleEl, this.getTitle_());

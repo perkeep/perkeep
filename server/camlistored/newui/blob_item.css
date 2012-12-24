@@ -3,16 +3,18 @@
   margin: 0.25em;
   border: 1px solid gray;
   padding: 8px;
-  max-width: 250px;
   display: inline-block;
   overflow: hidden;
   text-align: center;
   vertical-align: top;
+  outline: 0;
+  cursor: default;
 }
 
-.cam-blobitem-150 {
+.cam-blobitemcontainer-150 .cam-blobitem {
   width: 150px;
   height: 150px;
+  max-width: 250px;
 }
 
 .cam-blobitem:hover {

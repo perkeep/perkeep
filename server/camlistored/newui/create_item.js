@@ -48,12 +48,10 @@ camlistore.CreateItem.prototype.decorateInternal = function(element) {
   camlistore.CreateItem.superClass_.decorateInternal.call(this, element);
 
   var el = this.getElement();
-  // TODO(bslatkin): Put cam-blobitem-150 on the parent container.
-  goog.dom.classes.add(el, 'cam-blobitem', 'cam-blobitem-150',
-    'cam-createitem');
+  goog.dom.classes.add(el, 'cam-blobitem', 'cam-createitem');
 
   var plusEl = this.dom_.createDom('a', 'cam-createitem-link');
-  plusEl.href = '#';
+  plusEl.href = 'javascript:void(0)';
   this.dom_.setTextContent(plusEl, "+")
   this.dom_.appendChild(el, plusEl);
 

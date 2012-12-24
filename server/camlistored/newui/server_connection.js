@@ -71,6 +71,5 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodesDone_ =
     }
     return;
   }
-
   success(result);
 };
