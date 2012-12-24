@@ -367,5 +367,5 @@ func init() {
 		"};\n"+
 		"\n"+
 		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
-		""), time.Unix(0, 1355283166976208867))
+		""), time.Unix(0, 1356311255000000000))
 }

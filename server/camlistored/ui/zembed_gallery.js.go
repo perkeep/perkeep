@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("gallery.js", 3012, fileembed.String("/*\n"+
+	Files.Add("gallery.js", 3024, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -26,8 +26,8 @@ func init() {
 		"// Gets the |g| query parameter, assuming that it looks like a blobref.\n"+
 		"\n"+
 		"function getPermanodeParam() {\n"+
-		"    var blobRef = getQueryParam('g');\n"+
-		"    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"    var blobRef = Camli.getQueryParam('g');\n"+
+		"    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
 		"}\n"+
 		"\n"+
 		"// pn: child permanode\n"+
@@ -108,5 +108,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", galleryPageOnLoad);\n"+
-		""), time.Unix(0, 1349725494193783184))
+		""), time.Unix(0, 1356312768000000000))
 }

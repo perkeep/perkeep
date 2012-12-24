@@ -20,8 +20,8 @@ var CamliFileTree = {};
 // Gets the |d| query parameter, assuming that it looks like a blobref.
 
 function getPermanodeParam() {
-	var blobRef = getQueryParam('d');
-	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
+	var blobRef = Camli.getQueryParam('d');
+	return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
 function newPermWithContent(content) {

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 18039, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17153, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -24,13 +24,13 @@ func init() {
 		"*/\n"+
 		"\n"+
 		"// Camli namespace.\n"+
-		"var Camli = {};\n"+
+		"if (!window.Camli) {\n"+
+		"   window.Camli = {};\n"+
+		"}\n"+
 		"\n"+
 		"function $(id) {\n"+
 		"    return document.getElementById(id);\n"+
 		"}\n"+
-		"\n"+
-		"var disco = null;  // TODO: kill this in favor of Camli.config.\n"+
 		"\n"+
 		"// innerText is not W3C compliant and does not work with firefox.\n"+
 		"// textContent does not work with IE.\n"+
@@ -51,11 +51,10 @@ func init() {
 		"\n"+
 		"// Method 1 to get discovery information (JSONP style):\n"+
 		"function onConfiguration(config) {\n"+
-		"    Camli.config = disco = config;\n"+
-		"    console.log(\"Got config: \" + JSON.stringify(config));\n"+
+		"    Camli.config = config;\n"+
 		"}\n"+
 		"\n"+
-		"function saneOpts(opts) {\n"+
+		"Camli.saneOpts = function(opts) {\n"+
 		"    if (!opts) {\n"+
 		"        opts = {}\n"+
 		"    }\n"+
@@ -66,7 +65,7 @@ func init() {
 		"        opts.fail = function() {};\n"+
 		"    }\n"+
 		"    return opts;\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"// Format |dateVal| as specified by RFC 3339.\n"+
 		"function dateToRfc3339String(dateVal) {\n"+
@@ -77,32 +76,11 @@ func init() {
 		"            numStr = \"0\" + numStr;\n"+
 		"        }\n"+
 		"        return numStr;\n"+
-		"    }\n"+
+		"    };\n"+
 		"    return dateVal.getUTCFullYear() + \"-\" + pad(dateVal.getUTCMonth() + 1, 2) + \""+
 		"-\" + pad(dateVal.getUTCDate(), 2) + \"T\" +\n"+
 		"           pad(dateVal.getUTCHours(), 2) + \":\" + pad(dateVal.getUTCMinutes(), 2) "+
 		"+ \":\" + pad(dateVal.getUTCSeconds(), 2) + \"Z\";\n"+
-		"}\n"+
-		"\n"+
-		"var cachedCamliSigDiscovery;\n"+
-		"\n"+
-		"// opts.success called with discovery object\n"+
-		"// opts.fail called with error text\n"+
-		"function camliSigDiscovery(opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
-		"    if (cachedCamliSigDiscovery) {\n"+
-		"        opts.success(cachedCamliSigDiscovery);\n"+
-		"        return;\n"+
-		"    }\n"+
-		"    var cb = {};\n"+
-		"    cb.success = function(sd) {\n"+
-		"      cachedCamliSigDiscovery = sd;\n"+
-		"      opts.success(sd);\n"+
-		"    };\n"+
-		"    cb.fail = opts.fail;\n"+
-		"    var xhr = camliJsonXhr(\"camliSigDiscovery\", cb);\n"+
-		"    xhr.open(\"GET\", Camli.config.jsonSignRoot + \"/camli/sig/discovery\", true);\n"+
-		"    xhr.send();\n"+
 		"}\n"+
 		"\n"+
 		"function camliDescribeBlob(blobref, opts) {\n"+
@@ -110,13 +88,13 @@ func init() {
 		"    var path = Camli.config.searchRoot +\n"+
 		"            \"camli/search/describe?blobref=\" + blobref;\n"+
 		"    if (opts.thumbnails != null) {\n"+
-		"        path = makeURL(path, {thumbnails: opts.thumbnails});\n"+
+		"        path = Camli.makeURL(path, {thumbnails: opts.thumbnails});\n"+
 		"    }\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
 		"}\n"+
 		"\n"+
-		"function makeURL(base, map) {\n"+
+		"Camli.makeURL = function(base, map) {\n"+
 		"    for (var key in map) {\n"+
 		"        if (base.indexOf(\"?\") == -1) {\n"+
 		"            base += \"?\";\n"+
@@ -126,11 +104,12 @@ func init() {
 		"        base += key + \"=\" + encodeURIComponent(map[key]);\n"+
 		"    }\n"+
 		"    return base;\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"function camliPermanodeOfSignerAttrValue(signer, attr, value, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliPermanodeOfSignerAttrValue\", opts);\n"+
-		"    var path = makeURL(Camli.config.searchRoot + \"camli/search/signerattrvalue\",\n"+
+		"    var path = Camli.makeURL(Camli.config.searchRoot + \"camli/search/signerattrva"+
+		"lue\",\n"+
 		"                       { signer: signer, attr: attr, value: value });\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
@@ -154,7 +133,7 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliGetBlobContents(blobref, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
 		"    xhr.onreadystatechange = function() {\n"+
 		"        if (xhr.readyState != 4) { return; }\n"+
@@ -177,36 +156,28 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliSign(clearObj, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
+		"    var sigConf = Camli.config.signing;\n"+
+		"    if (!sigConf || !sigConf.publicKeyBlobRef) {\n"+
+		"       camliCondCall(opts.fail, \"Missing Camli.config.signing.publicKeyBlobRef\");\n"+
+		"       return;\n"+
+		"    }\n"+
 		"\n"+
-		"    camliSigDiscovery(\n"+
-		"        {\n"+
-		"            success: function(sigConf) {\n"+
-		"                if (!sigConf.publicKeyBlobRef) {\n"+
-		"                    opts.fail(\"Missing sigConf.publicKeyBlobRef\");\n"+
-		"                    return;\n"+
-		"                }\n"+
-		"                clearObj.camliSigner = sigConf.publicKeyBlobRef;\n"+
-		"                clearText = JSON.stringify(clearObj, null, 2);\n"+
+		"    clearObj.camliSigner = sigConf.publicKeyBlobRef;\n"+
+		"    clearText = JSON.stringify(clearObj, null, 2);\n"+
 		"\n"+
-		"                var xhr = new XMLHttpRequest();\n"+
-		"                xhr.onreadystatechange = function() {\n"+
-		"                    if (xhr.readyState != 4) { return; }\n"+
-		"                    if (xhr.status != 200) {\n"+
-		"                        opts.fail(\"got status \" + xhr.status);\n"+
-		"                        return;\n"+
-		"                    }\n"+
-		"                    opts.success(xhr.responseText);\n"+
-		"                };\n"+
-		"                xhr.open(\"POST\", sigConf.signHandler, true);\n"+
-		"                xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urle"+
-		"ncoded\");\n"+
-		"                xhr.send(\"json=\" + encodeURIComponent(clearText));\n"+
-		"            },\n"+
-		"            fail: function(errMsg) {\n"+
-		"                opts.fail(errMsg);\n"+
-		"            }\n"+
-		"        });\n"+
+		"    var xhr = new XMLHttpRequest();\n"+
+		"    xhr.onreadystatechange = function() {\n"+
+		"       if (xhr.readyState != 4) { return; }\n"+
+		"       if (xhr.status != 200) {\n"+
+		"          opts.fail(\"got status \" + xhr.status);\n"+
+		"          return;\n"+
+		"       }\n"+
+		"       opts.success(xhr.responseText);\n"+
+		"    };\n"+
+		"    xhr.open(\"POST\", sigConf.signHandler, true);\n"+
+		"    xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urlencoded\");\n"+
+		"    xhr.send(\"json=\" + encodeURIComponent(clearText));\n"+
 		"}\n"+
 		"\n"+
 		"// camliUploadFile uploads a file and returns a file schema. It does not create\n"+
@@ -261,7 +232,7 @@ func init() {
 		"//   - success: function(fileBlobRef) of the server-validated or\n"+
 		"//         just-uploaded file schema blob.\n"+
 		"function camliUploadFileHelper(file, contentsBlobRef, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    if (!Camli.config.uploadHelper) {\n"+
 		"        opts.fail(\"no uploadHelper available\");\n"+
 		"        return\n"+
@@ -327,7 +298,7 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliUploadString(s, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    var blobref = \"sha1-\" + Crypto.SHA1(s);\n"+
 		"    var parts = [s];\n"+
 		"\n"+
@@ -353,7 +324,7 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliCreateNewPermanode(opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"     var json = {\n"+
 		"         \"camliVersion\": 1,\n"+
 		"         \"camliType\": \"permanode\",\n"+
@@ -378,7 +349,7 @@ func init() {
 		"\n"+
 		"// Returns the first value from the query string corresponding to |key|.\n"+
 		"// Returns null if the key isn't present.\n"+
-		"function getQueryParam(key) {\n"+
+		"Camli.getQueryParam = function(key) {\n"+
 		"    var params = document.location.search.substring(1).split('&');\n"+
 		"    for (var i = 0; i < params.length; ++i) {\n"+
 		"        var parts = params[i].split('=');\n"+
@@ -386,14 +357,14 @@ func init() {
 		"            return decodeURIComponent(parts[1]);\n"+
 		"    }\n"+
 		"    return null;\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"function camliGetRecentlyUpdatedPermanodes(opts) {\n"+
 		"    // opts.thumbnails is the maximum size of the thumbnails we want,\n"+
 		"    // or 0 if no thumbnail.\n"+
 		"    var path = Camli.config.searchRoot + \"camli/search/recent\";\n"+
 		"    if (opts.thumbnails != null) {\n"+
-		"        path = makeURL(path, {thumbnails: opts.thumbnails});\n"+
+		"        path = Camli.makeURL(path, {thumbnails: opts.thumbnails});\n"+
 		"    }\n"+
 		"    var xhr = camliJsonXhr(\"camliGetRecentlyUpdatedPermanodes\", opts);\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
@@ -402,7 +373,8 @@ func init() {
 		"\n"+
 		"function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliGetPermanodesWithAttr\", opts);\n"+
-		"    var path = makeURL(Camli.config.searchRoot + \"camli/search/permanodeattr\",\n"+
+		"    var path = Camli.makeURL(Camli.config.searchRoot + \"camli/search/permanodeatt"+
+		"r\",\n"+
 		"                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy }"+
 		");\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
@@ -410,7 +382,7 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliXhr(name, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
 		"    xhr.onreadystatechange = function() {\n"+
 		"        if (xhr.readyState != 4) { return; }\n"+
@@ -425,7 +397,7 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function camliJsonXhr(name, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
 		"    xhr.onreadystatechange = function() {\n"+
 		"        if (xhr.readyState != 4) { return; }\n"+
@@ -466,19 +438,19 @@ func init() {
 		"}\n"+
 		"\n"+
 		"// Returns true if the passed-in string might be a blobref.\n"+
-		"function isPlausibleBlobRef(blobRef) {\n"+
+		"Camli.isPlausibleBlobRef = function(blobRef) {\n"+
 		"    return /^\\w+-[a-f0-9]+$/.test(blobRef);\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
-		"function linkifyBlobRefs(schemaBlob) {\n"+
+		"Camli.linkifyBlobRefs = function(schemaBlob) {\n"+
 		"    var re = /(\\w{3,6}-[a-f0-9]{30,})/g;\n"+
 		"    return schemaBlob.replace(re, \"<a href='./?b=$1'>$1</a>\");\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"// Helper function for camliNewSetAttributeClaim() (and eventually, for\n"+
 		"// similar functions to add or delete attributes).\n"+
 		"function changeAttribute(permanode, claimType, attribute, value, opts) {\n"+
-		"    opts = saneOpts(opts);\n"+
+		"    opts = Camli.saneOpts(opts);\n"+
 		"    var json = {\n"+
 		"        \"camliVersion\": 1,\n"+
 		"        \"camliType\": \"claim\",\n"+
@@ -567,5 +539,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1355276661678717406))
+		""), time.Unix(0, 1356312734000000000))
 }

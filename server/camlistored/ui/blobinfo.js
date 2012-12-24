@@ -16,8 +16,8 @@ limitations under the License.
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
 function getBlobParam() {
-    var blobRef = getQueryParam('b');
-    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
+    var blobRef = Camli.getQueryParam('b');
+    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
 function blobInfoUpdate(bmap) {
@@ -38,7 +38,7 @@ function blobInfoUpdate(bmap) {
     if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
         camliGetBlobContents(blobref, {
                 success: function(data) {
-                    document.getElementById("blobdata").innerHTML = linkifyBlobRefs(data);
+                    document.getElementById("blobdata").innerHTML = Camli.linkifyBlobRefs(data);
                     var bb = document.getElementById('blobbrowse');
                     if (binfo.camliType != "directory") {
                         bb.style.visibility = 'hidden';
@@ -77,7 +77,7 @@ function blobInfoUpdate(bmap) {
         claims.style.visibility = "";
         camliGetPermanodeClaims(blobref, {
                 success: function(data) {
-                    document.getElementById("claims").innerHTML = linkifyBlobRefs(JSON.stringify(data, null, 2));
+                    document.getElementById("claims").innerHTML = Camli.linkifyBlobRefs(JSON.stringify(data, null, 2));
                 },
                 fail: function(msg) {
                     alert(msg);

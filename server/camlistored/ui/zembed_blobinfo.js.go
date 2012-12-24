@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.js", 4238, fileembed.String("/*\n"+
+	Files.Add("blobinfo.js", 4262, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -25,8 +25,8 @@ func init() {
 		"\n"+
 		"// Gets the |p| query parameter, assuming that it looks like a blobref.\n"+
 		"function getBlobParam() {\n"+
-		"    var blobRef = getQueryParam('b');\n"+
-		"    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
+		"    var blobRef = Camli.getQueryParam('b');\n"+
+		"    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;\n"+
 		"}\n"+
 		"\n"+
 		"function blobInfoUpdate(bmap) {\n"+
@@ -47,8 +47,8 @@ func init() {
 		"    if (binfo.camliType || (binfo.type && binfo.type.indexOf(\"text/\") == 0)) {\n"+
 		"        camliGetBlobContents(blobref, {\n"+
 		"                success: function(data) {\n"+
-		"                    document.getElementById(\"blobdata\").innerHTML = linkifyBlobRe"+
-		"fs(data);\n"+
+		"                    document.getElementById(\"blobdata\").innerHTML = Camli.linkify"+
+		"BlobRefs(data);\n"+
 		"                    var bb = document.getElementById('blobbrowse');\n"+
 		"                    if (binfo.camliType != \"directory\") {\n"+
 		"                        bb.style.visibility = 'hidden';\n"+
@@ -91,8 +91,8 @@ func init() {
 		"        claims.style.visibility = \"\";\n"+
 		"        camliGetPermanodeClaims(blobref, {\n"+
 		"                success: function(data) {\n"+
-		"                    document.getElementById(\"claims\").innerHTML = linkifyBlobRefs"+
-		"(JSON.stringify(data, null, 2));\n"+
+		"                    document.getElementById(\"claims\").innerHTML = Camli.linkifyBl"+
+		"obRefs(JSON.stringify(data, null, 2));\n"+
 		"                },\n"+
 		"                fail: function(msg) {\n"+
 		"                    alert(msg);\n"+
@@ -123,5 +123,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", blobInfoOnLoad);\n"+
-		""), time.Unix(0, 1355268804490766485))
+		""), time.Unix(0, 1356312744000000000))
 }

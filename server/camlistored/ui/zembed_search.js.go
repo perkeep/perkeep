@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 7604, fileembed.String("/*\n"+
+	Files.Add("search.js", 7634, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -29,9 +29,9 @@ func init() {
 		"	CamliSearch.query = \"\";\n"+
 		"	CamliSearch.type = \"\";\n"+
 		"	CamliSearch.fuzzy = \"\";\n"+
-		"	CamliSearch.query = getQueryParam('q') || \"\";\n"+
-		"	CamliSearch.type = getQueryParam('t') || \"\";\n"+
-		"	CamliSearch.fuzzy = getQueryParam('f') || \"\";\n"+
+		"	CamliSearch.query = Camli.getQueryParam('q') || \"\";\n"+
+		"	CamliSearch.type = Camli.getQueryParam('t') || \"\";\n"+
+		"	CamliSearch.fuzzy = Camli.getQueryParam('f') || \"\";\n"+
 		"}\n"+
 		"\n"+
 		"function hideAllResThings() {\n"+
@@ -252,12 +252,12 @@ func init() {
 		"		} else {\n"+
 		"			var pn = document.getElementById(\"inputCollec\").value;\n"+
 		"//TODO(mpl): allow a collection title (instead of a hash) as input\n"+
-		"			if (!isPlausibleBlobRef(pn)) {\n"+
+		"			if (!Camli.isPlausibleBlobRef(pn)) {\n"+
 		"				alert(\"Not a valid collection permanode hash\");\n"+
 		"				return;\n"+
 		"			}\n"+
 		"			var returnPn = function(opts) {\n"+
-		"				opts = saneOpts(opts);\n"+
+		"				opts = Camli.saneOpts(opts);\n"+
 		"				opts.success(pn);\n"+
 		"			}\n"+
 		"			returnPn(cnpcb);\n"+
@@ -288,5 +288,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1353028462610912719))
+		""), time.Unix(0, 1356312785000000000))
 }

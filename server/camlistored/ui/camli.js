@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 // Camli namespace.
-var Camli = {};
+if (!window.Camli) {
+   window.Camli = {};
+}
 
 function $(id) {
     return document.getElementById(id);
@@ -43,7 +45,7 @@ function onConfiguration(config) {
     Camli.config = config;
 }
 
-function saneOpts(opts) {
+Camli.saneOpts = function(opts) {
     if (!opts) {
         opts = {}
     }
@@ -54,7 +56,7 @@ function saneOpts(opts) {
         opts.fail = function() {};
     }
     return opts;
-}
+};
 
 // Format |dateVal| as specified by RFC 3339.
 function dateToRfc3339String(dateVal) {
@@ -75,13 +77,13 @@ function camliDescribeBlob(blobref, opts) {
     var path = Camli.config.searchRoot +
             "camli/search/describe?blobref=" + blobref;
     if (opts.thumbnails != null) {
-        path = makeURL(path, {thumbnails: opts.thumbnails});
+        path = Camli.makeURL(path, {thumbnails: opts.thumbnails});
     }
     xhr.open("GET", path, true);
     xhr.send();
 }
 
-function makeURL(base, map) {
+Camli.makeURL = function(base, map) {
     for (var key in map) {
         if (base.indexOf("?") == -1) {
             base += "?";
@@ -91,11 +93,11 @@ function makeURL(base, map) {
         base += key + "=" + encodeURIComponent(map[key]);
     }
     return base;
-}
+};
 
 function camliPermanodeOfSignerAttrValue(signer, attr, value, opts) {
     var xhr = camliJsonXhr("camliPermanodeOfSignerAttrValue", opts);
-    var path = makeURL(Camli.config.searchRoot + "camli/search/signerattrvalue",
+    var path = Camli.makeURL(Camli.config.searchRoot + "camli/search/signerattrvalue",
                        { signer: signer, attr: attr, value: value });
     xhr.open("GET", path, true);
     xhr.send();
@@ -119,7 +121,7 @@ function camliGetPermanodeClaims(permanode, opts) {
 }
 
 function camliGetBlobContents(blobref, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
@@ -142,7 +144,7 @@ function camliDescribeBlogURL(blobref) {
 }
 
 function camliSign(clearObj, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var sigConf = Camli.config.signing;
     if (!sigConf || !sigConf.publicKeyBlobRef) {
        camliCondCall(opts.fail, "Missing Camli.config.signing.publicKeyBlobRef");
@@ -214,7 +216,7 @@ function camliUploadFile(file, opts) {
 //   - success: function(fileBlobRef) of the server-validated or
 //         just-uploaded file schema blob.
 function camliUploadFileHelper(file, contentsBlobRef, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     if (!Camli.config.uploadHelper) {
         opts.fail("no uploadHelper available");
         return
@@ -275,7 +277,7 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
 }
 
 function camliUploadString(s, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var blobref = "sha1-" + Crypto.SHA1(s);
     var parts = [s];
 
@@ -301,7 +303,7 @@ function camliUploadString(s, opts) {
 }
 
 function camliCreateNewPermanode(opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
      var json = {
          "camliVersion": 1,
          "camliType": "permanode",
@@ -326,7 +328,7 @@ function camliCreateNewPermanode(opts) {
 
 // Returns the first value from the query string corresponding to |key|.
 // Returns null if the key isn't present.
-function getQueryParam(key) {
+Camli.getQueryParam = function(key) {
     var params = document.location.search.substring(1).split('&');
     for (var i = 0; i < params.length; ++i) {
         var parts = params[i].split('=');
@@ -334,14 +336,14 @@ function getQueryParam(key) {
             return decodeURIComponent(parts[1]);
     }
     return null;
-}
+};
 
 function camliGetRecentlyUpdatedPermanodes(opts) {
     // opts.thumbnails is the maximum size of the thumbnails we want,
     // or 0 if no thumbnail.
     var path = Camli.config.searchRoot + "camli/search/recent";
     if (opts.thumbnails != null) {
-        path = makeURL(path, {thumbnails: opts.thumbnails});
+        path = Camli.makeURL(path, {thumbnails: opts.thumbnails});
     }
     var xhr = camliJsonXhr("camliGetRecentlyUpdatedPermanodes", opts);
     xhr.open("GET", path, true);
@@ -350,14 +352,14 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
 
 function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, opts) {
     var xhr = camliJsonXhr("camliGetPermanodesWithAttr", opts);
-    var path = makeURL(Camli.config.searchRoot + "camli/search/permanodeattr",
+    var path = Camli.makeURL(Camli.config.searchRoot + "camli/search/permanodeattr",
                        { signer: signer, attr: attr, value: value, fuzzy: fuzzy });
     xhr.open("GET", path, true);
     xhr.send();
 }
 
 function camliXhr(name, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
@@ -371,7 +373,7 @@ function camliXhr(name, opts) {
 }
 
 function camliJsonXhr(name, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState != 4) { return; }
@@ -409,19 +411,19 @@ function camliFindExistingFileSchemas(wholeDigestRef, opts) {
 }
 
 // Returns true if the passed-in string might be a blobref.
-function isPlausibleBlobRef(blobRef) {
+Camli.isPlausibleBlobRef = function(blobRef) {
     return /^\w+-[a-f0-9]+$/.test(blobRef);
-}
+};
 
-function linkifyBlobRefs(schemaBlob) {
+Camli.linkifyBlobRefs = function(schemaBlob) {
     var re = /(\w{3,6}-[a-f0-9]{30,})/g;
     return schemaBlob.replace(re, "<a href='./?b=$1'>$1</a>");
-}
+};
 
 // Helper function for camliNewSetAttributeClaim() (and eventually, for
 // similar functions to add or delete attributes).
 function changeAttribute(permanode, claimType, attribute, value, opts) {
-    opts = saneOpts(opts);
+    opts = Camli.saneOpts(opts);
     var json = {
         "camliVersion": 1,
         "camliType": "claim",

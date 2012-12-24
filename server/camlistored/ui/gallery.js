@@ -17,8 +17,8 @@ limitations under the License.
 // Gets the |g| query parameter, assuming that it looks like a blobref.
 
 function getPermanodeParam() {
-    var blobRef = getQueryParam('g');
-    return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
+    var blobRef = Camli.getQueryParam('g');
+    return (blobRef && Camli.isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
 // pn: child permanode
