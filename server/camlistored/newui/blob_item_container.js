@@ -115,12 +115,6 @@ camlistore.BlobItemContainer.prototype.showRecent_ = function() {
       100);  // TODO(bslatkin): Use instance variable for thumbnail size
 };
 
-camlistore.BlobItemContainer.prototype.resetChildren_ = function(result) {
-  this.removeChildren(true);
-  if (this.hasCreateItem_) {
-    this.addChild(new camlistore.CreateItem(), true);
-  }
-}
 
 /**
  * @param {Object} result JSON response to this request.
@@ -133,3 +127,17 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
     this.addChild(item, true);
   }
 };
+
+
+camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
+  this.removeChildren(true);
+  if (this.hasCreateItem_) {
+    var createItem = new camlistore.CreateItem();
+    this.addChild(createItem, true);
+    this.eh_.listen(
+      createItem.getElement(), goog.events.EventType.CLICK,
+      function() {
+        console.log('Clicked');
+      });
+  }
+}

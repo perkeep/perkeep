@@ -142,6 +142,9 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem', 'cam-blobitem-150');
 
+  var linkEl = this.dom_.createDom('a');
+  
+
   var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
   thumbEl.src = this.getThumbSrc_();
   thumbEl.height = this.getThumbHeight_();

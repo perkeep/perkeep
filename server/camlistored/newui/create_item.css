@@ -1,4 +1,7 @@
 .cam-createitem-link {
- font-size: 40pt;
- text-decoration: none;
+  font-size: 40pt;
+  text-decoration: none;
+}
+.cam-createitem {
+  cursor: pointer;;
 }
