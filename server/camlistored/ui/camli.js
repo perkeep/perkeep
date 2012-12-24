@@ -43,7 +43,6 @@ function setTextContent(ele, text) {
 // Method 1 to get discovery information (JSONP style):
 function onConfiguration(config) {
     Camli.config = disco = config;
-    console.log("Got config: " + JSON.stringify(config));
 }
 
 function saneOpts(opts) {
@@ -71,27 +70,6 @@ function dateToRfc3339String(dateVal) {
     };
     return dateVal.getUTCFullYear() + "-" + pad(dateVal.getUTCMonth() + 1, 2) + "-" + pad(dateVal.getUTCDate(), 2) + "T" +
            pad(dateVal.getUTCHours(), 2) + ":" + pad(dateVal.getUTCMinutes(), 2) + ":" + pad(dateVal.getUTCSeconds(), 2) + "Z";
-}
-
-var cachedCamliSigDiscovery;
-
-// opts.success called with discovery object
-// opts.fail called with error text
-function camliSigDiscovery(opts) {
-    opts = saneOpts(opts);
-    if (cachedCamliSigDiscovery) {
-        opts.success(cachedCamliSigDiscovery);
-        return;
-    }
-    var cb = {};
-    cb.success = function(sd) {
-      cachedCamliSigDiscovery = sd;
-      opts.success(sd);
-    };
-    cb.fail = opts.fail;
-    var xhr = camliJsonXhr("camliSigDiscovery", cb);
-    xhr.open("GET", Camli.config.jsonSignRoot + "/camli/sig/discovery", true);
-    xhr.send();
 }
 
 function camliDescribeBlob(blobref, opts) {
@@ -167,34 +145,27 @@ function camliDescribeBlogURL(blobref) {
 
 function camliSign(clearObj, opts) {
     opts = saneOpts(opts);
+    var sigConf = Camli.config.signing;
+    if (!sigConf || !sigConf.publicKeyBlobRef) {
+       camliCondCall(opts.fail, "Missing Camli.config.signing.publicKeyBlobRef");
+       return;
+    }
 
-    camliSigDiscovery(
-        {
-            success: function(sigConf) {
-                if (!sigConf.publicKeyBlobRef) {
-                    opts.fail("Missing sigConf.publicKeyBlobRef");
-                    return;
-                }
-                clearObj.camliSigner = sigConf.publicKeyBlobRef;
-                clearText = JSON.stringify(clearObj, null, 2);
+    clearObj.camliSigner = sigConf.publicKeyBlobRef;
+    clearText = JSON.stringify(clearObj, null, 2);
 
-                var xhr = new XMLHttpRequest();
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState != 4) { return; }
-                    if (xhr.status != 200) {
-                        opts.fail("got status " + xhr.status);
-                        return;
-                    }
-                    opts.success(xhr.responseText);
-                };
-                xhr.open("POST", sigConf.signHandler, true);
-                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                xhr.send("json=" + encodeURIComponent(clearText));
-            },
-            fail: function(errMsg) {
-                opts.fail(errMsg);
-            }
-        });
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+       if (xhr.readyState != 4) { return; }
+       if (xhr.status != 200) {
+          opts.fail("got status " + xhr.status);
+          return;
+       }
+       opts.success(xhr.responseText);
+    };
+    xhr.open("POST", sigConf.signHandler, true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.send("json=" + encodeURIComponent(clearText));
 }
 
 // camliUploadFile uploads a file and returns a file schema. It does not create
