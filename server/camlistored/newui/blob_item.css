@@ -7,6 +7,7 @@
   display: inline-block;
   overflow: hidden;
   text-align: center;
+  vertical-align: top;
 }
 
 .cam-blobitem-150 {
