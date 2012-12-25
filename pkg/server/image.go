@@ -46,7 +46,7 @@ type ImageHandler struct {
 	sc                  ScaledImage // optional cache for scaled images
 }
 
-func (ih *ImageHandler) storageSeekFetcher() (blobref.SeekFetcher, error) {
+func (ih *ImageHandler) storageSeekFetcher() blobref.SeekFetcher {
 	return blobref.SeekerFromStreamingFetcher(ih.Fetcher) // TODO: pass ih.Cache?
 }
 
@@ -97,11 +97,7 @@ func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 }
 
 func (ih *ImageHandler) cached(br *blobref.BlobRef) (fr *schema.FileReader, err error) {
-	fetchSeeker, err := blobref.SeekerFromStreamingFetcher(ih.Cache)
-	if err != nil {
-		return nil, err
-	}
-
+	fetchSeeker := blobref.SeekerFromStreamingFetcher(ih.Cache)
 	fr, err = schema.NewFileReader(fetchSeeker, br)
 	if err != nil {
 		return nil, err
@@ -151,12 +147,7 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err error) {
 	mw, mh := ih.MaxWidth, ih.MaxHeight
 
-	fetchSeeker, err := ih.storageSeekFetcher()
-	if err != nil {
-		return format, err
-	}
-
-	fr, err := schema.NewFileReader(fetchSeeker, file)
+	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), file)
 	if err != nil {
 		return format, err
 	}

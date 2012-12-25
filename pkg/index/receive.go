@@ -110,12 +110,7 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 //      ss: the parsed file schema blob
 //      bm: keys to populate
 func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm BatchMutation) error {
-	seekFetcher, err := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
-	if err != nil {
-		return err
-	}
-
-	sha1 := sha1.New()
+	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
 	fr, err := ss.NewFileReader(seekFetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
@@ -127,6 +122,7 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 	}
 	mime, reader := magic.MimeTypeFromReader(fr)
 
+	sha1 := sha1.New()
 	var copyDest io.Writer = sha1
 	var withCopyErr func(error) // or nil
 	if strings.HasPrefix(mime, "image/") {

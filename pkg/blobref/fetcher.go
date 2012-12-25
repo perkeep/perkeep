@@ -187,19 +187,14 @@ func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64
 
 // SeekerFromStreamingFetcher returns the most efficient implementation of a seeking fetcher
 // from a provided streaming fetcher.
-func SeekerFromStreamingFetcher(f StreamingFetcher) (SeekFetcher, error) {
-	// TODO(bradfitz): this never returns errors now, so update signature and fix callers.
-	seeker, ok := f.(SeekFetcher)
-	if ok {
-		return seeker, nil
+func SeekerFromStreamingFetcher(f StreamingFetcher) SeekFetcher {
+	if sk, ok := f.(SeekFetcher); ok {
+		return sk
 	}
-	tester, ok := f.(SeekTester)
-	if ok {
-		if tester.IsFetcherASeeker() {
-			return &fetcherToSeekerWrapper{f}, nil
-		}
+	if tester, ok := f.(SeekTester); ok && tester.IsFetcherASeeker() {
+		return &fetcherToSeekerWrapper{f}
 	}
-	return bufferingSeekFetcherWrapper{f}, nil
+	return bufferingSeekFetcherWrapper{f}
 }
 
 // bufferingSeekFetcherWrapper is a SeekFetcher that implements

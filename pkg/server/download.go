@@ -34,7 +34,7 @@ type DownloadHandler struct {
 	ForceMime string // optional
 }
 
-func (dh *DownloadHandler) storageSeekFetcher() (blobref.SeekFetcher, error) {
+func (dh *DownloadHandler) storageSeekFetcher() blobref.SeekFetcher {
 	return blobref.SeekerFromStreamingFetcher(dh.Fetcher) // TODO: pass dh.Cache?
 }
 
@@ -44,13 +44,7 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	fetchSeeker, err := dh.storageSeekFetcher()
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
-		return
-	}
-
-	fr, err := schema.NewFileReader(fetchSeeker, file)
+	fr, err := schema.NewFileReader(dh.storageSeekFetcher(), file)
 	if err != nil {
 		http.Error(rw, "Can't serve file: "+err.Error(), 500)
 		return

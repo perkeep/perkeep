@@ -106,7 +106,7 @@ func main() {
 			var rc io.ReadCloser
 			var err error
 			if *flagContents {
-				seekFetcher, _ := blobref.SeekerFromStreamingFetcher(cl)
+				seekFetcher := blobref.SeekerFromStreamingFetcher(cl)
 				rc, err = schema.NewFileReader(seekFetcher, br)
 			} else {
 				rc, err = fetch(cl, br)
@@ -213,7 +213,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 			return fmt.Errorf("file type: %v", err)
 		}
 		defer f.Close()
-		seekFetcher, _ := blobref.SeekerFromStreamingFetcher(cl)
+		seekFetcher := blobref.SeekerFromStreamingFetcher(cl)
 		fr, err := schema.NewFileReader(seekFetcher, br)
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)
