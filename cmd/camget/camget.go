@@ -1,3 +1,24 @@
+// The camget tool fetches blobs, files, and directories.
+//
+// Examples
+//
+// Writes to stdout by default:
+//
+//   camget <blobref>                 // dump raw blob
+//   camget -contents <file-blobref>  // dump file contents
+//
+// Like curl, lets you set output file/directory with -o:
+//
+//   camget -o <dir> <blobref>
+//     (if <dir> exists and is directory, <blobref> must be a directory;
+//      use -f to overwrite any files)
+//
+//   camget -o <filename> <file-blobref>
+//
+// TODO(bradfitz): camget isn't very fleshed out. In general, using 'cammount' to just
+// mount a tree is an easier way to get files back.
+package main
+
 /*
 Copyright 2011 Google Inc.
 
@@ -14,22 +35,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Usage:
-//
-// Writes to stdout by default:
-//   camget BLOBREF
-//
-// Like curl, lets you set output file/directory with -o:
-//   camget -o dir BLOBREF     (if dir exists and is directory, BLOBREF must be a directory, and -f to overwrite any files)
-//   camget -o file  BLOBREF   
-//
-// Should be possible to get a directory JSON blob without recursively
-// fetching an entire directory.  Likewise with files.  But default
-// should be sensitive on the type of the listed blob.  Maybe --blob
-// just to get the blob?  Seems consistent.
-
-package main
-
 import (
 	"bytes"
 	"errors"
@@ -40,7 +45,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
@@ -49,11 +53,12 @@ import (
 )
 
 var (
-	flagVerbose = flag.Bool("verbose", false, "be verbose")
-	flagCheck   = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all our present")
-	flagOutput  = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
-	flagVia     = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
-	flagGraph   = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
+	flagVerbose  = flag.Bool("verbose", false, "be verbose")
+	flagCheck    = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
+	flagOutput   = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
+	flagVia      = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
+	flagGraph    = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
+	flagContents = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
 )
 
 var viaRefs []*blobref.BlobRef
@@ -98,7 +103,14 @@ func main() {
 			return
 		}
 		if *flagOutput == "-" {
-			rc, err := fetch(cl, br)
+			var rc io.ReadCloser
+			var err error
+			if *flagContents {
+				seekFetcher, _ := blobref.SeekerFromStreamingFetcher(cl)
+				rc, err = schema.NewFileReader(seekFetcher, br)
+			} else {
+				rc, err = fetch(cl, br)
+			}
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -132,7 +144,7 @@ func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err error) 
 // A little less than the sniffer will take, so we don't truncate.
 const sniffSize = 900 * 1024
 
-// smartFetch the things that blobs point to, not just blobs. (wow)
+// smartFetch the things that blobs point to, not just blobs.
 func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 	if *flagVerbose {
 		log.Printf("Fetching %v into %q", br, targ)
@@ -201,20 +213,13 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 			return fmt.Errorf("file type: %v", err)
 		}
 		defer f.Close()
-		for _, p := range sc.Parts {
-			if p.BytesRef != nil {
-				panic("don't know how to handle BytesRef")
-			}
-			rc, err := fetch(cl, p.BlobRef)
-			if err != nil {
-				return err
-			}
-			_, err = io.Copy(f, rc)
-			rc.Close()
-			if err != nil {
-				return err
-			}
+		seekFetcher, _ := blobref.SeekerFromStreamingFetcher(cl)
+		fr, err := schema.NewFileReader(seekFetcher, br)
+		if err != nil {
+			return fmt.Errorf("NewFileReader: %v", err)
 		}
+		defer fr.Close()
+
 		if err := setFileMeta(name, sc); err != nil {
 			log.Print(err)
 		}
@@ -226,15 +231,17 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 }
 
 func setFileMeta(name string, sc *schema.Superset) error {
-	if err := os.Chmod(name, sc.FileMode()); err != nil {
-		return err
+	err1 := os.Chmod(name, sc.FileMode())
+	var err2 error
+	if mt := sc.ModTime(); !mt.IsZero() {
+		err2 = os.Chtimes(name, mt, mt)
 	}
-	if err := os.Chown(name, sc.UnixOwnerId, sc.UnixGroupId); err != nil {
-		return err
+	err3 := os.Chown(name, sc.UnixOwnerId, sc.UnixGroupId)
+	// Return first non-nil error for logging.
+	for _, err := range []error{err1, err2, err3} {
+		if err != nil {
+			return err
+		}
 	}
-	t, err := time.Parse(time.RFC3339, sc.UnixMtime)
-	if err != nil {
-		return nil
-	}
-	return os.Chtimes(name, t, t)
+	return nil
 }
