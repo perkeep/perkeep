@@ -183,7 +183,7 @@ type StorageQueueCreator interface {
 // ContextWrapper is an optional interface for App Engine.
 //
 // While Camlistore's internals are separated out into a part which
-// maps http requests to the interfaces in this file
+// maps HTTP requests to the interfaces in this file
 // (pkg/blobserver/handlers) and parts which map these
 // interfaces to implementations (localdisk, s3, etc), the App Engine
 // implementation requires access to the original HTTP

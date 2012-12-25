@@ -17,6 +17,7 @@ limitations under the License.
 package blobref
 
 import (
+	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -42,7 +43,9 @@ type SeekFetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
 	// os.ErrNotExist should be returned for the error (not a wrapped
 	// error with a ErrNotExist inside)
-	Fetch(*BlobRef) (file ReadSeekCloser, size int64, err error)
+	//
+	// The caller should close blob.
+	Fetch(*BlobRef) (blob ReadSeekCloser, size int64, err error)
 }
 
 // SeekTester is the interface implemented by storage implementations that don't
@@ -52,14 +55,14 @@ type SeekTester interface {
 	IsFetcherASeeker() bool
 }
 
-// FetcherToSeekerWrapper wraps a StreamingFetcher and convert it into
-// a SeekFetcher if SeekTester has confirmed the inteface conversion
+// fetcherToSeekerWrapper wraps a StreamingFetcher and converts it into
+// a SeekFetcher if SeekTester has confirmed the interface conversion
 // is safe.
-type FetcherToSeekerWrapper struct {
+type fetcherToSeekerWrapper struct {
 	StreamingFetcher
 }
 
-func (w *FetcherToSeekerWrapper) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err error) {
+func (w *fetcherToSeekerWrapper) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err error) {
 	rc, size, err := w.StreamingFetcher.FetchStreaming(b)
 	if err != nil {
 		return
@@ -73,8 +76,8 @@ type StreamingFetcher interface {
 	// os.ErrNotExist should be returned for the error (not a wrapped
 	// error with a ErrNotExist inside)
 	//
-	// The caller should close the file.
-	FetchStreaming(*BlobRef) (file io.ReadCloser, size int64, err error)
+	// The caller should close blob.
+	FetchStreaming(*BlobRef) (blob io.ReadCloser, size int64, err error)
 }
 
 func NewSerialFetcher(fetchers ...SeekFetcher) SeekFetcher {
@@ -182,7 +185,10 @@ func (s *MemoryStore) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64
 	return ioutil.NopCloser(strings.NewReader(str)), int64(len(str)), nil
 }
 
+// SeekerFromStreamingFetcher returns the most efficient implementation of a seeking fetcher
+// from a provided streaming fetcher.
 func SeekerFromStreamingFetcher(f StreamingFetcher) (SeekFetcher, error) {
+	// TODO(bradfitz): this never returns errors now, so update signature and fix callers.
 	seeker, ok := f.(SeekFetcher)
 	if ok {
 		return seeker, nil
@@ -190,8 +196,47 @@ func SeekerFromStreamingFetcher(f StreamingFetcher) (SeekFetcher, error) {
 	tester, ok := f.(SeekTester)
 	if ok {
 		if tester.IsFetcherASeeker() {
-			return &FetcherToSeekerWrapper{f}, nil
+			return &fetcherToSeekerWrapper{f}, nil
 		}
 	}
-	return nil, fmt.Errorf("bloref: TODO: SeekerFromStreamingFetcher: %T %v doesn't support seeking. TODO: wrap in a write-to-disk-and-read wrapper and/or cache", f, f)
+	return bufferingSeekFetcherWrapper{f}, nil
+}
+
+// bufferingSeekFetcherWrapper is a SeekFetcher that implements
+// seeking on a wrapped streaming-only fetcher by buffering the
+// content into memory, optionally spilling to disk if local disk is
+// available.  In practice, most blobs will be "small" (able to fit in
+// memory).
+type bufferingSeekFetcherWrapper struct {
+	sf StreamingFetcher
+}
+
+func (b bufferingSeekFetcherWrapper) Fetch(br *BlobRef) (rsc ReadSeekCloser, size int64, err error) {
+	rc, size, err := b.sf.FetchStreaming(br)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rc.Close()
+
+	const tryDiskThreshold = 32 << 20
+	if size > tryDiskThreshold {
+		// TODO(bradfitz): disk spilling, if a temp file can be made
+	}
+
+	// Buffer all to memory
+	var buf bytes.Buffer
+	n, err := io.Copy(&buf, rc)
+	if err != nil {
+		return nil, 0, fmt.Errorf("Error reading blob %s: %v", br, err)
+	}
+	if n != size {
+		return nil, 0, fmt.Errorf("Read %d bytes of %s; expected %s", n, br, size)
+	}
+	return struct {
+		io.ReadSeeker
+		io.Closer
+	}{
+		ReadSeeker: io.NewSectionReader(bytes.NewReader(buf.Bytes()), 0, size),
+		Closer:     ioutil.NopCloser(nil),
+	}, size, nil
 }
