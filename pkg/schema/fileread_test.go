@@ -17,10 +17,13 @@ limitations under the License.
 package schema
 
 import (
-	"camlistore.org/pkg/test"
+	"bytes"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"testing"
+
+	"camlistore.org/pkg/test"
 )
 
 var _ = log.Printf
@@ -142,4 +145,31 @@ func TestReader(t *testing.T) {
 			t.Errorf("test %d\nwant %q\n got %q", idx, e, g)
 		}
 	}
+}
+
+func TestReaderSeekStress(t *testing.T) {
+	const fileSize = 750<<10 + 123
+	bigFile := make([]byte, fileSize)
+	rnd := rand.New(rand.NewSource(1))
+	for i := range bigFile {
+		bigFile[i] = byte(rnd.Intn(256))
+	}
+	sto := new(test.Fetcher) // in-memory blob storage
+	fileMap := NewFileMap("testfile")
+	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	if err != nil {
+		t.Fatalf("WriteFileMap: %v", err)
+	}
+	t.Logf("file ref = %v", fileref)
+	c, ok := sto.BlobContents(fileref)
+	if !ok {
+		t.Fatal("expected file contents to be present")
+	}
+	t.Logf("Contents: %s", c)
+
+	// TODO(bradfitz): for all (or most) seek offsets and sizes,
+	// make a FileReader, ReadAll, and verify contents match
+	// bigFile.
+	//
+	// ....
 }

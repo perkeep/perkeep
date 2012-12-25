@@ -195,8 +195,8 @@ func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr f
 	defer fr.Close()
 	fr.Skip(uint64(req.Offset))
 	buf := make([]byte, req.Size)
-	n, err := fr.Read(buf)
-	if err != nil && err != io.EOF {
+	n, err := io.ReadFull(fr, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		log.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
 		return fuse.EIO
 	}

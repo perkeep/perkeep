@@ -17,9 +17,12 @@ limitations under the License.
 package test
 
 import (
+	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 )
@@ -57,6 +60,49 @@ func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, siz
 	file = &strReader{tb.Contents, 0}
 	size = int64(len(tb.Contents))
 	return
+}
+
+func (tf *Fetcher) BlobContents(br *blobref.BlobRef) (contents string, ok bool) {
+	tf.l.Lock()
+        defer tf.l.Unlock()
+	b, ok := tf.m[br.String()]
+	if !ok {
+		return
+	}
+	return b.Contents, true
+}
+
+func (tf *Fetcher) ReceiveBlob(br *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+	sb := blobref.SizedBlobRef{}
+	h := br.Hash()
+	if h == nil {
+		return sb, fmt.Errorf("Unsupported blobref hash for %s", br)
+	}
+	all, err := ioutil.ReadAll(io.TeeReader(source, h))
+	if err != nil {
+		return sb, err
+	}
+	if !br.HashMatches(h) {
+		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
+	}
+	blob := &Blob{Contents: string(all)}
+	tf.AddBlob(blob)
+	return blobref.SizedBlobRef{br, int64(len(all))}, nil
+}
+
+func (tf *Fetcher) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+	if wait != 0 {
+		panic("non-zero Wait on test.Fetcher.StatBlobs not supported")
+	}
+	for _, br := range blobs {
+		tf.l.Lock()
+		b, ok := tf.m[br.String()]
+		tf.l.Unlock()
+		if ok {
+			dest <- blobref.SizedBlobRef{br, int64(len(b.Contents))}
+		}
+	}
+	return nil
 }
 
 type strReader struct {
