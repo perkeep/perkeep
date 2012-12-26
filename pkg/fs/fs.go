@@ -173,34 +173,45 @@ func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Int
 	if ss.Type == "directory" {
 		return n, nil
 	}
-	return &nodeReader{n: n, ss: ss}, nil
+	fr, err := ss.NewFileReader(n.fs.fetcher)
+	if err != nil {
+		// Will only happen if ss.Type != "file" or "bytes"
+		log.Printf("NewFileReader(%s) = %v", n.blobref, err)
+		return nil, fuse.EIO
+	}
+	return &nodeReader{n: n, fr: fr}, nil
 }
 
 type nodeReader struct {
 	n  *node
-	ss *schema.Superset // not nil, always of type "file" or "bytes"
+	fr *schema.FileReader
 }
 
 func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
 	log.Printf("CAMLI nodeReader READ on %v: %#v", nr.n.blobref, req)
-
-	// TODO: this isn't incredibly efficient, creating a new
-	// FileReader for each read chunk.  We could do better here
-	// and re-use a locked pool of readers, trying to find the one
-	// with a current offset <= req.Offset first.
-	fr, err := nr.ss.NewFileReader(nr.n.fs.fetcher)
-	if err != nil {
-		panic(err)
+	if req.Offset >= nr.fr.Size() {
+		return nil
 	}
-	defer fr.Close()
-	fr.Skip(uint64(req.Offset))
-	buf := make([]byte, req.Size)
-	n, err := io.ReadFull(fr, buf)
-	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+	size := req.Size
+	if int64(size) + req.Offset >= nr.fr.Size() {
+		size -= int((int64(size) + req.Offset) - nr.fr.Size())
+	}
+	buf := make([]byte, size)
+	n, err := nr.fr.ReadAt(buf, req.Offset)
+	if err == io.EOF {
+		err = nil
+	}
+	if err != nil {
 		log.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
 		return fuse.EIO
 	}
 	res.Data = buf[:n]
+	return nil
+}
+
+func (nr *nodeReader) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.Error {
+	log.Printf("CAMLI nodeReader RELEASE on %v", nr.n.blobref)
+	nr.fr.Close()
 	return nil
 }
 
@@ -259,7 +270,8 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	}
 
 	n.dirents = make([]fuse.Dirent, 0)
-	for _, ch := range ssc {
+	for i, ch := range ssc {
+		log.Printf("CAMLI dir %v set %v, waiting on entry %d/%d", n.blobref, setRef, i+1, len(ssc))
 		r := <-ch
 		memberRef, mss, err := r.BlobRef, r.Superset, r.error
 		if err != nil {

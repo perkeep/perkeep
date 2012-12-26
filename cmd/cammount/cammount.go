@@ -22,6 +22,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
@@ -81,6 +83,13 @@ func main() {
 	if *debug {
 		// TODO: set fs's logger
 	}
+
+	// This doesn't appear to work on OS X:
+	sigc := make(chan os.Signal, 1)
+	go func() {
+		log.Fatalf("Signal %s received, shutting down.", <-sigc)
+	}()
+	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
 
 	conn, err := fuse.Mount(mountPoint)
 	if err != nil {
