@@ -145,15 +145,18 @@ func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.B
 	}
 	var buf bytes.Buffer
 	body := io.TeeReader(io.LimitReader(res.Body, 1<<20), &buf)
+	type justWriter struct {
+		io.Writer
+	}
 	if res.StatusCode != 200 {
-		io.Copy(struct{ io.Writer }{ioutil.Discard}, body) // golang.org/issue/4589
+		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
 		return nil, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
 	}
 	var ress struct {
 		Files []*blobref.BlobRef `json:"files"`
 	}
 	if err := json.NewDecoder(body).Decode(&ress); err != nil {
-		io.Copy(struct{ io.Writer }{ioutil.Discard}, body) // golang.org/issue/4589
+		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
 		return nil, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
 	}
 	if len(ress.Files) == 0 {
