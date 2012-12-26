@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +46,8 @@ func (tf *Fetcher) FetchStreaming(ref *blobref.BlobRef) (file io.ReadCloser, siz
 	return tf.Fetch(ref)
 }
 
+var dummyCloser = ioutil.NopCloser(nil)
+
 func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err error) {
 	tf.l.Lock()
 	defer tf.l.Unlock()
@@ -57,9 +60,14 @@ func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, siz
 		err = os.ErrNotExist
 		return
 	}
-	file = &strReader{tb.Contents, 0}
 	size = int64(len(tb.Contents))
-	return
+	return struct {
+		*io.SectionReader
+		io.Closer
+	}{
+		io.NewSectionReader(strings.NewReader(tb.Contents), 0, size),
+		dummyCloser,
+	}, size, nil
 }
 
 func (tf *Fetcher) BlobContents(br *blobref.BlobRef) (contents string, ok bool) {
@@ -103,38 +111,4 @@ func (tf *Fetcher) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.
 		}
 	}
 	return nil
-}
-
-type strReader struct {
-	s   string
-	pos int
-}
-
-func (sr *strReader) Close() error { return nil }
-
-func (sr *strReader) Seek(offset int64, whence int) (ret int64, err error) {
-	// Note: ignoring 64-bit offsets.  test data should be tiny.
-	switch whence {
-	case 0:
-		sr.pos = int(offset)
-	case 1:
-		sr.pos += int(offset)
-	case 2:
-		sr.pos = len(sr.s) + int(offset)
-	}
-	ret = int64(sr.pos)
-	return
-}
-
-func (sr *strReader) Read(p []byte) (n int, err error) {
-	if sr.pos >= len(sr.s) {
-		err = io.EOF
-		return
-	}
-	n = copy(p, sr.s[sr.pos:])
-	if n == 0 {
-		err = io.EOF
-	}
-	sr.pos += n
-	return
 }

@@ -84,7 +84,8 @@ type File interface {
 	Close() error
 	Size() int64
 
-	// Skip is an efficient way to skip n bytes into 
+	// Skip is an efficient way to skip n bytes of the file.
+	// It returns the number of bytes skipped.
 	Skip(n uint64) uint64
 
 	Read(p []byte) (int, error)

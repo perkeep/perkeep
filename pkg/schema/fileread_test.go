@@ -18,6 +18,7 @@ package schema
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -154,22 +155,62 @@ func TestReaderSeekStress(t *testing.T) {
 	for i := range bigFile {
 		bigFile[i] = byte(rnd.Intn(256))
 	}
+
 	sto := new(test.Fetcher) // in-memory blob storage
 	fileMap := NewFileMap("testfile")
 	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
 	if err != nil {
 		t.Fatalf("WriteFileMap: %v", err)
 	}
-	t.Logf("file ref = %v", fileref)
 	c, ok := sto.BlobContents(fileref)
 	if !ok {
 		t.Fatal("expected file contents to be present")
 	}
-	t.Logf("Contents: %s", c)
+	const debug = false
+	if debug {
+		t.Logf("Fileref %s: %s", fileref, c)
+	}
 
-	// TODO(bradfitz): for all (or most) seek offsets and sizes,
-	// make a FileReader, ReadAll, and verify contents match
-	// bigFile.
-	//
-	// ....
+	// Test a bunch of reads at different offsets, making sure we always
+	// get the same results.
+	skipBy := int64(999)
+	if testing.Short() {
+		skipBy += 10 << 10
+	}
+	for off := int64(0); off < fileSize; off += skipBy {
+		fr, err := NewFileReader(sto, fileref)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fr.Skip(uint64(off))
+		got, err := ioutil.ReadAll(fr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := bigFile[off:]
+		if !bytes.Equal(got, want) {
+			t.Errorf("Incorrect read at offset %d:\n  got: %s\n want: %s", off, summary(got), summary(want))
+			off := 0
+			for len(got) > 0 && len(want) > 0 && got[0] == want[0] {
+				off++
+				got = got[1:]
+				want = want[1:]
+			}
+			t.Errorf("  differences start at offset %d:\n    got: %s\n   want: %s\n", off, summary(got), summary(want))
+			break
+		}
+		fr.Close()
+	}
+}
+
+type summary []byte
+
+func (s summary) String() string {
+	const prefix = 10
+	plen := prefix
+	if len(s) < plen {
+		plen = len(s)
+	}
+	return fmt.Sprintf("%d bytes, starting with %q", len(s), []byte(s[:plen]))
 }

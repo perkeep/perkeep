@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"camlistore.org/pkg/blobref"
 )
@@ -141,26 +142,23 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	return entries, err
 }
 
+// A FileReader reads the bytes of "file" and "bytes" schema blobrefs.
 type FileReader struct {
+	*io.SectionReader
+
 	fetcher blobref.SeekFetcher
 	ss      *Superset
 
-	ci     int    // index into contentparts, or -1 on closed
-	ccon   uint64 // bytes into current chunk already consumed
-	remain int64  // bytes remaining
-	size   int64  // total number of bytes
-
-	cr   blobref.ReadSeekCloser // cached reader (for blobref chunks)
-	crbr *blobref.BlobRef       // the blobref that cr is for
-
-	csubfr *FileReader // cached sub blobref reader (for subBlobRef chunks)
-	ccp    *BytesPart  // the content part that csubfr is cached for
+	size int64 // total number of bytes
 }
 
-// TODO(bradfitz): make this take a blobref.FetcherAt instead?
-// TODO(bradfitz): rename this into bytes reader? but for now it's still
-//                 named FileReader, but can also read a "bytes" schema.
+// NewFileReader returns a new FileReader reading the contents of fileBlobRef,
+// fetching blobs from fetcher.  The fileBlobRef must be of a "bytes" or "file"
+// schema blob.
 func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, error) {
+	// TODO(bradfitz): make this take a blobref.FetcherAt instead?
+	// TODO(bradfitz): rename this into bytes reader? but for now it's still
+	//                 named FileReader, but can also read a "bytes" schema.
 	if fileBlobRef == nil {
 		return nil, errors.New("schema/filereader: NewFileReader blobref was nil")
 	}
@@ -188,17 +186,13 @@ func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, err
 		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
 	}
 	size := int64(ss.SumPartsSize())
-	return &FileReader{
+	fr := &FileReader{
 		fetcher: fetcher,
 		ss:      ss,
 		size:    size,
-		remain:  size,
-	}, nil
-}
-
-// Size returns the size of the file in bytes.
-func (fr *FileReader) Size() int64 {
-	return fr.size
+	}
+	fr.SectionReader = io.NewSectionReader(fr, 0, size)
+	return fr, nil
 }
 
 // FileSchema returns the reader's schema superset. Don't mutate it.
@@ -207,114 +201,45 @@ func (fr *FileReader) FileSchema() *Superset {
 }
 
 func (fr *FileReader) Close() error {
-	if fr.ci == closedIndex {
-		return errClosed
-	}
-	fr.closeOpenBlobs()
-	fr.ci = closedIndex
+	// TODO: close cached blobs?
 	return nil
 }
 
-// TODO(bradfitz): delete this method entirely once FileReader is a
-// ReaderAtSeekerCloser.
+// Skip skips past skipBytes of the file.
+// It is equivalent to but more efficient than:
+//
+//   io.CopyN(ioutil.Discard, fr, skipBytes)
+//
+// It returns the number of bytes skipped.
+//
+// TODO(bradfitz): delete this. Legacy interface; callers should just Seek now.
 func (fr *FileReader) Skip(skipBytes uint64) uint64 {
-	if fr.ci == closedIndex {
-		return 0
+	oldOff, err := fr.Seek(0, os.SEEK_CUR)
+	if err != nil {
+		panic("Failed to seek")
 	}
-
-	wantedSkipped := skipBytes
-
-	for skipBytes != 0 && fr.ci < len(fr.ss.Parts) {
-		cp := fr.ss.Parts[fr.ci]
-		thisChunkSkippable := cp.Size - fr.ccon
-		toSkip := minu64(skipBytes, thisChunkSkippable)
-		fr.ccon += toSkip
-		fr.remain -= int64(toSkip)
-		if fr.ccon == cp.Size {
-			fr.ci++
-			fr.ccon = 0
-		}
-		skipBytes -= toSkip
+	remain := fr.size - oldOff
+	if int64(skipBytes) > remain {
+		skipBytes = uint64(remain)
 	}
-
-	return wantedSkipped - skipBytes
-}
-
-func (fr *FileReader) closeOpenBlobs() {
-	if fr.cr != nil {
-		fr.cr.Close()
-		fr.cr = nil
-		fr.crbr = nil
+	newOff, err := fr.Seek(int64(skipBytes), os.SEEK_CUR)
+	if err != nil {
+		panic("Failed to seek")
 	}
-}
-
-func (fr *FileReader) readerFor(br *blobref.BlobRef, seekTo int64) (r io.Reader, err error) {
-	if fr.crbr == br {
-		return fr.cr, nil
+	skipped := newOff - oldOff
+	if skipped < 0 {
+		panic("")
 	}
-	fr.closeOpenBlobs()
-	var rsc blobref.ReadSeekCloser
-	if br != nil {
-		rsc, _, err = fr.fetcher.Fetch(br)
-		if err != nil {
-			return
-		}
-
-		_, serr := rsc.Seek(int64(seekTo), os.SEEK_SET)
-		if serr != nil {
-			return nil, fmt.Errorf("schema: FileReader.Read seek error on blob %s: %v", br, serr)
-		}
-
-	} else {
-		rsc = zeroReader{}
-	}
-	fr.crbr = br
-	fr.cr = rsc
-	return rsc, nil
-}
-
-func (fr *FileReader) subBlobRefReader(cp *BytesPart) (io.Reader, error) {
-	if fr.ccp == cp {
-		return fr.csubfr, nil
-	}
-	subfr, err := NewFileReader(fr.fetcher, cp.BytesRef)
-	if err == nil {
-		subfr.Skip(cp.Offset)
-		fr.csubfr = subfr
-		fr.ccp = cp
-	}
-	return subfr, err
-}
-
-func (fr *FileReader) currentPart() (*BytesPart, error) {
-	for {
-		if fr.ci >= len(fr.ss.Parts) {
-			fr.closeOpenBlobs()
-			if fr.remain > 0 {
-				return nil, fmt.Errorf("schema: declared file schema size was larger than sum of content parts")
-			}
-			return nil, io.EOF
-		}
-		cp := fr.ss.Parts[fr.ci]
-		thisChunkReadable := cp.Size - fr.ccon
-		if thisChunkReadable == 0 {
-			fr.ci++
-			fr.ccon = 0
-			continue
-		}
-		return cp, nil
-	}
-	panic("unreachable")
+	return uint64(skipped)
 }
 
 var _ interface {
 	io.ReaderAt
 	io.Reader
 	io.Closer
+	Size() int64
 } = (*FileReader)(nil)
 
-// TODO(bradfitz): this is entirely untested. Test exhaustively (all offsets and
-// lengths of each test string) in fileread_test.go.
 func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	if offset < 0 {
 		return 0, errors.New("schema/filereader: negative offset")
@@ -329,19 +254,18 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 		if err != nil {
 			return
 		}
-		var n1 int
-		n1, err = rc.Read(p)
+		var n1 int64 // never bigger than an int
+		n1, err = io.CopyN(&sliceWriter{p}, rc, int64(len(p)))
 		rc.Close()
-		if n1 == len(p) && err == io.EOF {
+		if err == io.EOF {
 			err = nil
 		}
+		if n1 == 0 {
+			break
+		}
 		p = p[n1:]
-	}
-	if n == want && err == io.EOF {
-		// ReaderAt permits returning either nil or io.EOF at EOF, but
-		// be consistent here (hiding whatever sub-reader returns) and
-		// just always return nil.  Just my personal preference.
-		err = nil
+		offset += int64(n1)
+		n += int(n1)
 	}
 	if n < want && err == nil {
 		err = io.ErrUnexpectedEOF
@@ -349,98 +273,70 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	return n, err
 }
 
+type sliceWriter struct {
+	dst []byte
+}
+
+func (sw *sliceWriter) Write(p []byte) (n int, err error) {
+	n = copy(sw.dst, p)
+	sw.dst = sw.dst[n:]
+	return n, nil
+}
+
+var eofReader io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
+
+// readerForOffset returns a ReadCloser that reads some number of bytes and then EOF
+// from the provided offset.  Seeing EOF doesn't mean the end of the whole file; just the
+// chunk at that offset.  The caller must close the ReadCloser when done reading.
 func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	if off < 0 {
 		panic("negative offset")
 	}
+	if off >= fr.size {
+		return eofReader, nil
+	}
+	offRemain := off
 	parts := fr.ss.Parts
-	for len(parts) > 0 {
-		p0 := parts[0]
-		if p0.Size >= uint64(off) {
-			parts = parts[1:]
-			off -= int64(p0.Size)
-			continue
-		}
-		if p0.BlobRef != nil && p0.BytesRef != nil {
-			return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
-		}
-		ref := p0.BlobRef
-		if ref == nil {
-			ref = p0.BytesRef
-		}
-		if ref == nil {
-			return &nZeros{int(p0.Size)}, nil
-		}
-		fr, err := NewFileReader(fr.fetcher, ref)
-		if err != nil {
-			return nil, err
-		}
-		_, err = io.CopyN(ioutil.Discard, fr, off)
-		if err != nil {
-			return nil, err
-		}
-		return fr, nil
+	for len(parts) > 0 && parts[0].Size <= uint64(offRemain) {
+		offRemain -= int64(parts[0].Size)
+		parts = parts[1:]
 	}
-	return nil, fmt.Errorf("illegal offset %d", off)
-}
-
-// TODO(bradfitz): re-implement Read in terms of the ReaderAt, once the ReaderAt is tested.
-// We could just embed or proxy to a SectionReader of ourselves and then all the meat will
-// only be in ReaderAt.  The SectionReader will maintain the seek offset.
-func (fr *FileReader) Read(p []byte) (n int, err error) {
-	if fr.ci == closedIndex {
-		return 0, errClosed
+	if len(parts) == 0 {
+		return eofReader, nil
 	}
-
-	cp, err := fr.currentPart()
+	p0 := parts[0]
+	var rsc blobref.ReadSeekCloser
+	var err error
+	switch {
+	case p0.BlobRef != nil && p0.BytesRef != nil:
+		return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
+	case p0.BlobRef == nil && p0.BytesRef == nil:
+		return &nZeros{int(p0.Size - uint64(offRemain))}, nil
+	case p0.BlobRef != nil:
+		rsc, _, err = fr.fetcher.Fetch(p0.BlobRef)
+	case p0.BytesRef != nil:
+		rsc, err = NewFileReader(fr.fetcher, p0.BytesRef)
+	}
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-
-	if cp.Size == 0 {
-		return 0, fmt.Errorf("blobref content part contained illegal size 0")
-	}
-
-	br := cp.BlobRef
-	sbr := cp.BytesRef
-	if br != nil && sbr != nil {
-		return 0, fmt.Errorf("content part index %d has both blobRef and subFileBlobRef", fr.ci)
-	}
-
-	var r io.Reader
-
-	if sbr != nil {
-		r, err = fr.subBlobRefReader(cp)
+	offRemain += int64(p0.Offset)
+	if offRemain > 0 {
+		newPos, err := rsc.Seek(offRemain, os.SEEK_SET)
 		if err != nil {
-			return 0, fmt.Errorf("schema: FileReader.Read error fetching sub file %s: %v", sbr, err)
+			return nil, err
 		}
-	} else {
-		seekTo := cp.Offset + fr.ccon
-		r, err = fr.readerFor(br, int64(seekTo))
-		if err != nil {
-			return 0, fmt.Errorf("schema: FileReader.Read error fetching blob %s: %v", br, err)
+		if newPos != offRemain {
+			panic("Seek didn't work")
 		}
 	}
-
-	readSize := cp.Size - fr.ccon
-	if readSize < uint64(len(p)) {
-		p = p[:int(readSize)]
-	}
-
-	n, err = r.Read(p)
-	fr.ccon += uint64(n)
-	fr.remain -= int64(n)
-	if fr.remain < 0 {
-		err = fmt.Errorf("schema: file schema was invalid; content parts sum to over declared size")
-	}
-	return
-}
-
-func minu64(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		io.LimitReader(rsc, int64(p0.Size)),
+		rsc,
+	}, nil
 }
 
 // nZeros is a ReadCloser that reads remain zeros before EOF.
@@ -461,22 +357,3 @@ func (z *nZeros) Read(p []byte) (n int, err error) {
 }
 
 func (*nZeros) Close() error { return nil }
-
-// zeroReader is a ReadSeekCloser that always reads zero bytes.
-type zeroReader struct{}
-
-func (zeroReader) Read(p []byte) (int, error) {
-	for i := range p {
-		p[i] = 0
-	}
-	return len(p), nil
-}
-
-func (zeroReader) Close() error {
-	return nil
-}
-
-func (zeroReader) Seek(offset int64, whence int) (newFilePos int64, err error) {
-	// Caller is ignoring our newFilePos return value.
-	return 0, nil
-}
