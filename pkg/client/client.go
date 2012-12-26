@@ -144,16 +144,16 @@ func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.B
 		return nil, err
 	}
 	var buf bytes.Buffer
-	body := io.TeeReader(io.LimitReader(res.Body, 1 << 20), &buf)
+	body := io.TeeReader(io.LimitReader(res.Body, 1<<20), &buf)
 	if res.StatusCode != 200 {
-		io.Copy(ioutil.Discard, body)
+		io.Copy(struct{ io.Writer }{ioutil.Discard}, body) // golang.org/issue/4589
 		return nil, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
 	}
 	var ress struct {
 		Files []*blobref.BlobRef `json:"files"`
 	}
 	if err := json.NewDecoder(body).Decode(&ress); err != nil {
-		io.Copy(ioutil.Discard, body)
+		io.Copy(struct{ io.Writer }{ioutil.Discard}, body) // golang.org/issue/4589
 		return nil, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
 	}
 	if len(ress.Files) == 0 {
@@ -178,7 +178,7 @@ func (c *Client) FileHasContents(f, wholeRef *blobref.BlobRef) bool {
 	if c.downloadHelper == "" {
 		return false
 	}
-	req := c.newRequest("HEAD", c.downloadHelper + f.String() + "/?verifycontents=" + wholeRef.String())
+	req := c.newRequest("HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		log.Printf("download helper HEAD error: %v", err)
