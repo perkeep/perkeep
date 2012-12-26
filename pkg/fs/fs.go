@@ -67,6 +67,8 @@ func newCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 	}
 }
 
+// NewCamliFileSystem returns a filesystem with a generic base, from which users
+// can navigate by blobref, tag, date, etc.
 func NewCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 	fs := newCamliFileSystem(fetcher)
 	fs.root = &root{fs: fs} // root.go
@@ -241,6 +243,13 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		log.Printf("%v is not a static-set in readdir; is a %q", setRef, setss.Type)
 		return nil, fuse.EIO
 	}
+
+	// TODO(bradfitz): push down information to the fetcher
+	// (cachingfetcher -> remote client http) that we're going to load a
+	// bunch, so the HTTP client (if not using SPDY) can do discovery
+	// and see if the server supports a batch handler, then get them all
+	// in one round-trip, rather than attacking the server with hundreds
+	// of parallel TLS setups.
 
 	// res is the result of fetchSchemaSuperset.  the ssc slice of channels keeps them ordered
 	// the same as they're listed in the schema's Members.
