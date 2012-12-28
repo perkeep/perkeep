@@ -18,8 +18,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"log"
 	"os"
@@ -37,8 +39,16 @@ import (
 type statFingerprint string
 
 func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
-	// TODO: add ctime, etc
-	return statFingerprint(fmt.Sprintf("%dB/%dMOD", fi.Size(), fi.ModTime().UnixNano()))
+	// We calculate the CRC32 of the underlying system stat structure to get
+	// ctime, owner, group, etc.  This is overkill (e.g. we don't care about
+	// the inode or device number probably), but works.
+	sysHash := uint32(0)
+	if sys := fi.Sys(); sys != nil {
+		var buf bytes.Buffer
+		fmt.Fprintf(&buf, "%#v", sys)
+		sysHash = crc32.ChecksumIEEE(buf.Bytes())
+	}
+	return statFingerprint(fmt.Sprintf("%dB/%dMOD/sys-%d", fi.Size(), fi.ModTime().UnixNano(), sysHash))
 }
 
 type fileInfoPutRes struct {
@@ -116,10 +126,9 @@ func NewFlatStatCache(gen string) *FlatStatCache {
 
 var _ UploadCache = (*FlatStatCache)(nil)
 
-var ErrCacheMiss = errors.New("not in cache")
+var errCacheMiss = errors.New("not in cache")
 
-// filename may be relative.
-// returns ErrCacheMiss on miss
+// cacheKey returns the cleaned absolute path of joining pwd and filename.
 func cacheKey(pwd, filename string) string {
 	if filepath.IsAbs(filename) {
 		return filepath.Clean(filename)
@@ -137,11 +146,11 @@ func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*
 	val, ok := c.m[key]
 	if !ok {
 		cachelog.Printf("cache MISS on %q: not in cache", key)
-		return nil, ErrCacheMiss
+		return nil, errCacheMiss
 	}
 	if val.Fingerprint != fp {
 		cachelog.Printf("cache MISS on %q: stats not equal:\n%#v\n%#v", key, val.Fingerprint, fp)
-		return nil, ErrCacheMiss
+		return nil, errCacheMiss
 	}
 	pr := val.Result
 	return &pr, nil
