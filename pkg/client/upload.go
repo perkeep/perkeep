@@ -207,7 +207,7 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.ContentLength = int64(len(bodyStr))
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doReq(req)
 	if err != nil {
 		return fmt.Errorf("stat HTTP error: %v", err)
 	}
@@ -278,7 +278,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	req.ContentLength = int64(len(requestBody))
 	req.TransferEncoding = nil
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doReq(req)
 	if err != nil {
 		return errorf("stat http error: %v", err)
 	}
@@ -336,7 +336,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	req.Body = ioutil.NopCloser(pipeReader)
 	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
 	req.TransferEncoding = nil
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.doReq(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)
 	}

@@ -60,8 +60,11 @@ type Client struct {
 	statsMutex sync.Mutex
 	stats      Stats
 
-	log *log.Logger // not nil
+	log     *log.Logger // not nil
+	reqGate chan bool
 }
+
+const maxParallelHTTP = 5
 
 // New returns a new Camlistore Client.
 // The provided server is either "host:port" (assumed http, not https) or a
@@ -71,6 +74,7 @@ func New(server string) *Client {
 	return &Client{
 		server:     server,
 		httpClient: http.DefaultClient,
+		reqGate:    make(chan bool, maxParallelHTTP),
 	}
 }
 
@@ -84,12 +88,8 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 }
 
 func NewOrFail() *Client {
-	log := log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	c := &Client{
-		server:     blobServerOrDie(),
-		httpClient: http.DefaultClient,
-		log:        log,
-	}
+	c := New(blobServerOrDie())
+	c.log = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	err := c.SetupAuth()
 	if err != nil {
 		log.Fatal(err)
@@ -139,10 +139,11 @@ func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.B
 	}
 	url := sr + "camli/search/files?wholedigest=" + wholeRef.String()
 	req := c.newRequest("GET", url)
-	res, err := c.httpClient.Do(req)
+	res, err := c.doReq(req)
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 	var buf bytes.Buffer
 	body := io.TeeReader(io.LimitReader(res.Body, 1<<20), &buf)
 	type justWriter struct {
@@ -182,7 +183,7 @@ func (c *Client) FileHasContents(f, wholeRef *blobref.BlobRef) bool {
 		return false
 	}
 	req := c.newRequest("HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
-	res, err := c.httpClient.Do(req)
+	res, err := c.doReq(req)
 	if err != nil {
 		log.Printf("download helper HEAD error: %v", err)
 		return false
@@ -240,7 +241,7 @@ func (c *Client) doDiscovery() {
 	req, _ := http.NewRequest("GET", c.discoRoot(), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	c.authMode.AddAuthHeader(req)
-	res, err := c.httpClient.Do(req)
+	res, err := c.doReq(req)
 	if err != nil {
 		c.discoErr = err
 		return
@@ -302,4 +303,12 @@ func (c *Client) newRequest(method, url string) *http.Request {
 	}
 	c.authMode.AddAuthHeader(req)
 	return req
+}
+
+func (c *Client) doReq(req *http.Request) (*http.Response, error) {
+	c.reqGate <- true
+	defer func() {
+		<-c.reqGate
+	}()
+	return c.httpClient.Do(req)
 }
