@@ -27,7 +27,19 @@ import (
 
 var ErrHandlerTypeNotFound = errors.New("requested handler type not loaded")
 
+type FindHandlerByTyper interface {
+	// FindHandlerByType finds a handler by its handlerType and
+	// returns its prefix and handler if it's loaded.  If it's not
+	// loaded, the error will be ErrHandlerTypeNotFound.
+	//
+	// This is used by handler constructors to find siblings (such as the "ui" type handler)
+	// which might have more knowledge about the configuration for discovery, etc.
+	FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error)
+}
+
 type Loader interface {
+	FindHandlerByTyper
+
 	// MyPrefix returns the prefix of the handler currently being constructed.
 	MyPrefix() string
 
@@ -36,14 +48,6 @@ type Loader interface {
 
 	// Returns either a Storage or an http.Handler
 	GetHandler(prefix string) (interface{}, error)
-
-	// FindHandlerByType finds a handler by its handlerType and
-	// returns its prefix and handler if it's loaded.  If it's not
-	// loaded, the error will be ErrHandlerTypeNotFound.
-	//
-	// This is used by handler constructors to find siblings (such as the "ui" type handler)
-	// which might have more knowledge about the configuration for discovery, etc.
-	FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error)
 
 	// If we're loading configuration in response to a web request
 	// (as we do with App Engine), then this returns a request and

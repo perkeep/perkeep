@@ -60,7 +60,11 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
-		flags.BoolVar(&cmd.vivify, "vivify", false, "Ask the server to vivify that file for us.")
+		// TODO(mpl): check against possibly conflicting flags
+		flags.BoolVar(&cmd.vivify, "vivify", false,
+			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
+				" file. This permits the server to have your signing key. Used mostly with untrusted"+
+				" or at-risk clients, such as phones.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
@@ -453,9 +457,9 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		blobref := blobref.SHA1FromString(json)
+		bref := blobref.SHA1FromString(json)
 		h := &client.UploadHandle{
-			BlobRef:  blobref,
+			BlobRef:  bref,
 			Size:     int64(len(json)),
 			Contents: strings.NewReader(json),
 			Vivify:   true,

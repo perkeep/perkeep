@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -116,7 +117,7 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 		case "stat":
 			handler = auth.RequireAuth(handlers.CreateStatHandler(storage))
 		default:
-			handler = handlers.CreateGetHandler(storage)
+			handler = gethandler.CreateGetHandler(storage)
 		}
 	case "POST":
 		switch action {
@@ -134,7 +135,7 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 }
 
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
-func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.Handler {
+func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blobserver.FindHandlerByTyper) http.Handler {
 	if !strings.HasSuffix(prefix, "/") {
 		panic("expected prefix to end in slash")
 	}
@@ -146,11 +147,12 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage) http.H
 	storageConfig := &storageAndConfig{
 		storage,
 		&blobserver.Config{
-			Writable:    true,
-			Readable:    true,
-			IsQueue:     false,
-			URLBase:     baseURL + prefix[:len(prefix)-1],
-			CanLongPoll: canLongPoll,
+			Writable:      true,
+			Readable:      true,
+			IsQueue:       false,
+			URLBase:       baseURL + prefix[:len(prefix)-1],
+			CanLongPoll:   canLongPoll,
+			HandlerFinder: hf,
 		},
 	}
 	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
@@ -169,6 +171,8 @@ func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
 	return hl.context, hl.context != nil
 }
 
+// TODO(mpl): investigate bug: when I used it to find /sighelper/ within
+// makeCamliHandler, it returned "/sighelper", nil, nil.
 func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
 	for prefix, config := range hl.config {
 		if config.htype == htype {
@@ -269,7 +273,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 				h.prefix, stype, err)
 		}
 		hl.handler[h.prefix] = pstorage
-		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage))
+		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
 		return
 	}
 
