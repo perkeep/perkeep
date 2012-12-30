@@ -23,19 +23,11 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/schema"
 )
-
-// A HaveCache tracks whether a remove blobserver has a blob or not.
-// TODO(bradfitz): add a notion of a per-blobserver unique ID (reset on wipe/generation/config change).
-type HaveCache interface {
-	BlobExists(br *blobref.BlobRef) bool
-	NoteBlobExists(br *blobref.BlobRef)
-}
 
 type Uploader struct {
 	*client.Client
@@ -62,7 +54,7 @@ type fileOptions struct {
 	permanode bool // create a content-based permanode for each uploaded file
 	// tag is an optional tag or comma-delimited tags to apply to
 	// the above permanode.
-	tag string
+	tag    string
 	vivify bool
 }
 

@@ -259,15 +259,6 @@ func (s *stats) incr(n *node) {
 	}
 }
 
-// UploadCache is the "stat cache" for regular files.  Given a current
-// working directory, possibly relative filename, and stat info,
-// returns what the ultimate put result (the top-level "file" schema
-// blob) for that regular file was.
-type UploadCache interface {
-	CachedPutResult(pwd, filename string, fi os.FileInfo) (*client.PutResult, error)
-	AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult)
-}
-
 func (up *Uploader) lstat(path string) (os.FileInfo, error) {
 	// TODO(bradfitz): use VFS
 	return os.Lstat(path)
@@ -768,7 +759,7 @@ func (t *TreeUpload) run() {
 		blobStats := t.up.Stats()
 		log.Printf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s BLOBS: %s Digested: %d last upload: %s",
 			t.total, t.skipped, t.uploaded,
-			statStatus, 
+			statStatus,
 			blobStats.String(),
 			atomic.LoadInt64(&atomicDigestOps),
 			lastUpload)
