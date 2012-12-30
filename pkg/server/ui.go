@@ -37,6 +37,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	newuistatic "camlistore.org/server/camlistored/newui"
 	uistatic "camlistore.org/server/camlistored/ui"
@@ -77,7 +78,7 @@ type UIHandler struct {
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
-	sigh   *JSONSignHandler // or nil
+	sigh   *signhandler.Handler // or nil
 
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
@@ -104,7 +105,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 
 	if ui.JSONSignRoot != "" {
 		h, _ := ld.GetHandler(ui.JSONSignRoot)
-		if sigh, ok := h.(*JSONSignHandler); ok {
+		if sigh, ok := h.(*signhandler.Handler); ok {
 			ui.sigh = sigh
 		}
 	}
@@ -304,7 +305,7 @@ func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 		"publishRoots":    pubRoots,
 	}
 	if ui.sigh != nil {
-		uiDisco["signing"] = ui.sigh.discoveryMap(ui.JSONSignRoot)
+		uiDisco["signing"] = ui.sigh.DiscoveryMap(ui.JSONSignRoot)
 	}
 	for k, v := range uiDisco {
 		if _, ok := m[k]; ok {

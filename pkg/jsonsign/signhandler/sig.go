@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package server
+package signhandler
 
 import (
 	"crypto"
@@ -27,7 +27,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/handlers"
+	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
@@ -40,7 +40,7 @@ var _ = log.Printf
 
 const kMaxJSONLength = 1024 * 1024
 
-type JSONSignHandler struct {
+type Handler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
 
@@ -57,7 +57,7 @@ type JSONSignHandler struct {
 	entity *openpgp.Entity
 }
 
-func (h *JSONSignHandler) secretRingPath() string {
+func (h *Handler) secretRingPath() string {
 	if h.secretRing != "" {
 		return h.secretRing
 	}
@@ -74,7 +74,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	// either a short form ("26F5ABDA") or one the longer forms.
 	keyId := conf.RequiredString("keyId")
 
-	h := &JSONSignHandler{
+	h := &Handler{
 		secretRing: conf.OptionalString("secretRing", ""),
 	}
 	var err error
@@ -115,7 +115,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		}
 	}
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
-	h.pubKeyHandler = &handlers.GetHandler{
+	h.pubKeyHandler = &gethandler.Handler{
 		Fetcher:           ms,
 		AllowGlobalAccess: true, // just public keys
 	}
@@ -123,7 +123,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	return h, nil
 }
 
-func (h *JSONSignHandler) uploadPublicKey(sto blobserver.Storage, key string) error {
+func (h *Handler) uploadPublicKey(sto blobserver.Storage, key string) error {
 	_, err := blobserver.StatBlob(sto, h.pubKeyBlobRef)
 	if err == nil {
 		return nil
@@ -132,7 +132,7 @@ func (h *JSONSignHandler) uploadPublicKey(sto blobserver.Storage, key string) er
 	return err
 }
 
-func (h *JSONSignHandler) discoveryMap(base string) map[string]interface{} {
+func (h *Handler) DiscoveryMap(base string) map[string]interface{} {
 	m := map[string]interface{}{
 		"publicKeyId":   h.entity.PrimaryKey.KeyIdString(),
 		"signHandler":   base + "camli/sig/sign",
@@ -145,7 +145,7 @@ func (h *JSONSignHandler) discoveryMap(base string) map[string]interface{} {
 	return m
 }
 
-func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	base := req.Header.Get("X-PrefixHandler-PathBase")
 	subPath := req.Header.Get("X-PrefixHandler-PathSuffix")
 	switch req.Method {
@@ -163,7 +163,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "POST required", 400)
 			return
 		case "camli/sig/discovery":
-			httputil.ReturnJSON(rw, h.discoveryMap(base))
+			httputil.ReturnJSON(rw, h.DiscoveryMap(base))
 			return
 		}
 	case "POST":
@@ -179,7 +179,7 @@ func (h *JSONSignHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	http.Error(rw, "Unsupported path or method.", http.StatusBadRequest)
 }
 
-func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) handleVerify(rw http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	sjson := req.FormValue("sjson")
 	if sjson == "" {
@@ -208,7 +208,7 @@ func (h *JSONSignHandler) handleVerify(rw http.ResponseWriter, req *http.Request
 	httputil.ReturnJSON(rw, m)
 }
 
-func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 
 	badReq := func(s string) {
@@ -243,7 +243,7 @@ func (h *JSONSignHandler) handleSign(rw http.ResponseWriter, req *http.Request) 
 	rw.Write([]byte(signedJSON))
 }
 
-func (h *JSONSignHandler) SignMap(m schema.Map) (string, error) {
+func (h *Handler) SignMap(m schema.Map) (string, error) {
 	m["camliSigner"] = h.pubKeyBlobRef.String()
 	unsigned, err := m.JSON()
 	if err != nil {

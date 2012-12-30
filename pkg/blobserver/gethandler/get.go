@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package handlers
+package gethandler
 
 import (
 	"bufio"
@@ -41,13 +41,13 @@ import (
 
 var kGetPattern *regexp.Regexp = regexp.MustCompile(`/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
-type GetHandler struct {
+type Handler struct {
 	Fetcher           blobref.StreamingFetcher
 	AllowGlobalAccess bool
 }
 
 func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter, *http.Request) {
-	gh := &GetHandler{Fetcher: fetcher}
+	gh := &Handler{Fetcher: fetcher}
 	return func(conn http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
 			// Test handler.
@@ -61,7 +61,7 @@ func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter
 const fetchFailureDelayNs = 200e6 // 200 ms
 const maxJSONSize = 64 * 1024     // should be enough for everyone
 
-func (h *GetHandler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		http.Error(conn, "Malformed GET URL.", 400)
