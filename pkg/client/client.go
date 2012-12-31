@@ -57,6 +57,7 @@ type Client struct {
 	authMode auth.AuthMode
 
 	httpClient *http.Client
+	haveCache  HaveCache
 
 	statsMutex sync.Mutex
 	stats      Stats
@@ -76,7 +77,18 @@ func New(server string) *Client {
 		server:     server,
 		httpClient: http.DefaultClient,
 		reqGate:    make(chan bool, maxParallelHTTP),
+		haveCache:  noHaveCache{},
 	}
+}
+
+func NewOrFail() *Client {
+	c := New(blobServerOrDie())
+	c.log = log.New(os.Stderr, "", log.Ldate|log.Ltime)
+	err := c.SetupAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return c
 }
 
 // SetHTTPClient sets the Camlistore client's HTTP client.
@@ -88,14 +100,26 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 	c.httpClient = client
 }
 
-func NewOrFail() *Client {
-	c := New(blobServerOrDie())
-	c.log = log.New(os.Stderr, "", log.Ldate|log.Ltime)
-	err := c.SetupAuth()
-	if err != nil {
-		log.Fatal(err)
+// A HaveCache caches whether a remote blobserver has a blob.
+type HaveCache interface {
+	BlobExists(*blobref.BlobRef) bool
+	NoteBlobExists(*blobref.BlobRef)
+
+	// TODO: make this into a stat cache (that knows the size of
+	// the blob, not just its existence), so it can be used by the
+	// Stat method too, and then fix camput.
+}
+
+type noHaveCache struct{}
+
+func (noHaveCache) BlobExists(*blobref.BlobRef) bool { return false }
+func (noHaveCache) NoteBlobExists(*blobref.BlobRef)  {}
+
+func (c *Client) SetHaveCache(cache HaveCache) {
+	if cache == nil {
+		cache = noHaveCache{}
 	}
-	return c
+	c.haveCache = cache
 }
 
 func (c *Client) SetLogger(logger *log.Logger) {

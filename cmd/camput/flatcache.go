@@ -23,6 +23,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -54,8 +55,13 @@ type FlatStatCache struct {
 	af       *os.File // for appending
 }
 
-func NewFlatStatCache() *FlatStatCache {
-	filename := filepath.Join(osutil.CacheDir(), "camput.statcache")
+func escapeGen(gen string) string {
+	// Good enough:
+	return url.QueryEscape(gen)
+}
+
+func NewFlatStatCache(gen string) *FlatStatCache {
+	filename := filepath.Join(osutil.CacheDir(), "camput.statcache." + escapeGen(gen))
 	fc := &FlatStatCache{
 		filename: filename,
 		m:        make(map[string]fileInfoPutRes),
@@ -169,8 +175,8 @@ type FlatHaveCache struct {
 	af       *os.File // appending file
 }
 
-func NewFlatHaveCache() *FlatHaveCache {
-	filename := filepath.Join(osutil.CacheDir(), "camput.havecache")
+func NewFlatHaveCache(gen string) *FlatHaveCache {
+	filename := filepath.Join(osutil.CacheDir(), "camput.havecache." + escapeGen(gen))
 	c := &FlatHaveCache{
 		filename: filename,
 		m:        make(map[string]bool),
@@ -204,8 +210,6 @@ func (c *FlatHaveCache) BlobExists(br *blobref.BlobRef) bool {
 	return c.m[br.String()]
 }
 
-// TODO(bradfitz): this is barely ever called. The havecache concept is only used barely within
-// camput itself. It's not pushed down into the client uploader code itself.
 func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

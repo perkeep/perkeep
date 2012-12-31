@@ -262,6 +262,12 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	c.stats.UploadRequests.Bytes += bodySize
 	c.statsMutex.Unlock()
 
+	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
+	if c.haveCache.BlobExists(h.BlobRef) {
+		pr.Skipped = true
+		return pr, nil
+	}
+
 	blobrefStr := h.BlobRef.String()
 
 	// Pre-upload. Check whether the blob already exists on the
@@ -294,10 +300,13 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return nil, err
 	}
 
-	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
 	if _, ok := stat.HaveMap[blobrefStr]; ok {
 		pr.Skipped = true
 		if closer, ok := h.Contents.(io.Closer); ok {
+			// TODO(bradfitz): I did this
+			// Close-if-possible thing early on, before I
+			// knew better.  Fix the callers instead, and
+			// fix the docs.
 			closer.Close()
 		}
 		return pr, nil
@@ -405,6 +414,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 					if pr.Size == -1 {
 						pr.Size = expectedSize
 					}
+					c.haveCache.NoteBlobExists(pr.BlobRef)
 					return pr, nil
 				} else {
 					return errorf("Server got blob, but reports wrong length (%v; we sent %d)",

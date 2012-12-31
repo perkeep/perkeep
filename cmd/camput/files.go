@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -68,11 +69,17 @@ func init() {
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
-		flags.BoolVar(&cmd.statcache, "statcache", false, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-		flags.BoolVar(&cmd.havecache, "havecache", false, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
-		flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
-		flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+
+		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+			flags.BoolVar(&cmd.statcache, "statcache", true, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+			flags.BoolVar(&cmd.havecache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
+			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+		} else {
+			cmd.havecache = true
+			cmd.statcache = true
+		}
 
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
@@ -110,13 +117,22 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		up.altStatReceiver = sr
 		defer func() { sr.DumpStats(c.histo) }()
 	}
-	if c.statcache {
-		cache := NewFlatStatCache()
-		up.statCache = cache
-	}
-	if c.havecache {
-		cache := NewFlatHaveCache()
-		up.haveCache = cache
+	if c.statcache || c.havecache {
+		gen, err := up.StorageGeneration()
+		log.Printf("gen/err = %v, %v", gen, err)
+		if err != nil {
+			log.Printf("WARNING: not using local caches; failed to retrieve server's storage generation: %v", err)
+		} else {
+			if c.statcache {
+				cache := NewFlatStatCache(gen)
+				up.statCache = cache
+			}
+			if c.havecache {
+				cache := NewFlatHaveCache(gen)
+				up.haveCache = cache
+				up.Client.SetHaveCache(cache)
+			}
+		}
 	}
 	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag, vivify: c.vivify}
 
@@ -557,7 +573,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	return pr, nil
 }
 
-func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr error) {
+func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
 	fullPath, err := filepath.Abs(filename)
 	if err != nil {
 		return nil, err
@@ -574,7 +590,19 @@ func (up *Uploader) UploadFile(filename string) (respr *client.PutResult, outerr
 		fullPath: fullPath,
 		fi:       fi,
 	}
-	return up.uploadNode(n)
+
+	if up.statCache != nil {
+		if cachedRes, err := up.statCache.CachedPutResult(up.pwd, n.fullPath, n.fi); err == nil {
+			return cachedRes, nil
+		}
+	}
+
+	pr, err := up.uploadNode(n)
+	if err == nil && up.statCache != nil {
+		up.statCache.AddCachedPutResult(up.pwd, n.fullPath, n.fi, pr)
+	}
+
+	return pr, err
 }
 
 // StartTreeUpload begins uploading dir and all its children.

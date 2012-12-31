@@ -24,8 +24,6 @@ import (
 )
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.
-// TODO(bradfitz): expand this interface to include the discovered
-// per-blobserver unique ID (which is reset on wipe/generation/config change).
 type HaveCache interface {
 	BlobExists(br *blobref.BlobRef) bool
 	NoteBlobExists(br *blobref.BlobRef)
