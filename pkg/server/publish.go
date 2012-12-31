@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"net/url"
@@ -105,7 +106,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 			return nil, fmt.Errorf("publish handler's rootPermanode first value not a jsonsign")
 		}
 		h, _ := ld.GetHandler(rootNode[0])
-		jsonSign := h.(*JSONSignHandler)
+		jsonSign := h.(*signhandler.Handler)
 		pn := blobref.Parse(rootNode[1])
 		if err := ph.setRootNode(jsonSign, pn); err != nil {
 			return nil, fmt.Errorf("error setting publish root permanode: %v", err)
@@ -116,7 +117,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 				return nil, fmt.Errorf("publish handler's devBootstrapPermanodeUsing must be of type jsonsign")
 			}
 			h, _ := ld.GetHandler(bootstrapSignRoot)
-			jsonSign := h.(*JSONSignHandler)
+			jsonSign := h.(*signhandler.Handler)
 			if err := ph.bootstrapPermanode(jsonSign); err != nil {
 				return nil, fmt.Errorf("error bootstrapping permanode: %v", err)
 			}
@@ -600,7 +601,7 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 	return
 }
 
-func (ph *PublishHandler) signUpload(jsonSign *JSONSignHandler, name string, m map[string]interface{}) (*blobref.BlobRef, error) {
+func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string, m map[string]interface{}) (*blobref.BlobRef, error) {
 	signed, err := jsonSign.SignMap(m)
 	if err != nil {
 		return nil, fmt.Errorf("error signing %s: %v", name, err)
@@ -613,7 +614,7 @@ func (ph *PublishHandler) signUpload(jsonSign *JSONSignHandler, name string, m m
 	return uh.BlobRef, nil
 }
 
-func (ph *PublishHandler) setRootNode(jsonSign *JSONSignHandler, pn *blobref.BlobRef) (err error) {
+func (ph *PublishHandler) setRootNode(jsonSign *signhandler.Handler, pn *blobref.BlobRef) (err error) {
 	_, err = ph.signUpload(jsonSign, "set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", ph.RootName))
 	if err != nil {
 		return err
@@ -622,7 +623,7 @@ func (ph *PublishHandler) setRootNode(jsonSign *JSONSignHandler, pn *blobref.Blo
 	return err
 }
 
-func (ph *PublishHandler) bootstrapPermanode(jsonSign *JSONSignHandler) (err error) {
+func (ph *PublishHandler) bootstrapPermanode(jsonSign *signhandler.Handler) (err error) {
 	if pn, err := ph.Search.Index().PermanodeOfSignerAttrValue(ph.Search.Owner(), "camliRoot", ph.RootName); err == nil {
 		log.Printf("Publish root %q using existing permanode %s", ph.RootName, pn)
 		return nil

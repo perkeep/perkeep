@@ -28,10 +28,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -39,6 +41,8 @@ import (
 
 	"camlistore.org/pkg/blobref"
 )
+
+var sha1Type = reflect.TypeOf(sha1.New())
 
 // Map is an unencoded schema blob.
 //
@@ -441,6 +445,15 @@ func NewPlannedPermanode(key string) Map {
 	return m
 }
 
+// NewHashPlannedPermanode returns a planned permanode with the sum
+// of the hash, prefixed with "sha1-", as the key.
+func NewHashPlannedPermanode(h hash.Hash) Map {
+	if reflect.TypeOf(h) != sha1Type {
+		panic("Hash not supported. Only sha1 for now.")
+	}
+	return NewPlannedPermanode(fmt.Sprintf("sha1-%x", h.Sum(nil)))
+}
+
 // Map returns a Camli map of camliType "static-set"
 func (ss *StaticSet) Map() Map {
 	m := newMap(1, "static-set")
@@ -619,7 +632,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) Map {
 // MapFromReader parses a JSON schema map from the provided reader r.
 func MapFromReader(r io.Reader) (Map, error) {
 	m := make(Map)
-	if err := json.NewDecoder(io.LimitReader(r, 1 << 20)).Decode(&m); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&m); err != nil {
 		return nil, err
 	}
 	return m, nil

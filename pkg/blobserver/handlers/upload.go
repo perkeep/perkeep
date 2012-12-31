@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -25,10 +26,13 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/jsonsign/signhandler"
+	"camlistore.org/pkg/schema"
 )
 
 // We used to require that multipart sections had a content type and
@@ -58,6 +62,81 @@ func wrapReceiveConfiger(cw blobserver.ContextWrapper,
 		blobserver.Configer
 	}
 	return &mixAndMatch{newRC, oldRC}
+}
+
+// vivify verifies that all the chunks for the file described by fileblob are on the blobserver.
+// It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
+// on that permanode for fileblob, signs it, and uploads it to the blobserver.
+func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedBlobRef) error {
+	sf, ok := blobReceiver.(blobref.StreamingFetcher)
+	if !ok {
+		return fmt.Errorf("BlobReceiver is not a StreamingFetcher")
+	}
+	fetcher := blobref.SeekerFromStreamingFetcher(sf)
+	fr, err := schema.NewFileReader(fetcher, fileblob.BlobRef)
+	if err != nil {
+		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.BlobRef.String(), err)
+	}
+	defer fr.Close()
+
+	h := sha1.New()
+	n, err := io.Copy(h, fr)
+	if err != nil {
+		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.BlobRef.String(), err)
+	}
+	if n != fr.Size() {
+		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.BlobRef.String(), fr.Size(), n)
+	}
+
+	config := blobReceiver.Config()
+	if config == nil {
+		return errors.New("blobReceiver has no config")
+	}
+	hf := config.HandlerFinder
+	if hf == nil {
+		return errors.New("blobReceiver config has no HandlerFinder")
+	}
+	JSONSignRoot, sh, err := hf.FindHandlerByType("jsonsign")
+	// TODO(mpl): second check should not be necessary, and yet it happens. Figure it out.
+	if err != nil || sh == nil {
+		return errors.New("jsonsign handler not found")
+	}
+	sigHelper, ok := sh.(*signhandler.Handler)
+	if !ok {
+		return errors.New("handler is not a JSON signhandler")
+	}
+	discoMap := sigHelper.DiscoveryMap(JSONSignRoot)
+	publicKeyBlobRef, ok := discoMap["publicKeyBlobRef"].(string)
+	if !ok {
+		return fmt.Errorf("Discovery: json decoding error: %v", err)
+	}
+
+	unsigned := schema.NewHashPlannedPermanode(h)
+	unsigned["camliSigner"] = publicKeyBlobRef
+	signed, err := sigHelper.SignMap(unsigned)
+	if err != nil {
+		return fmt.Errorf("Signing permanode %v: %v", signed, err)
+	}
+	signedPerm := blobref.SHA1FromString(signed)
+	_, err = blobReceiver.ReceiveBlob(signedPerm, strings.NewReader(signed))
+	if err != nil {
+		return fmt.Errorf("While uploading signed permanode %v: %v", signed, err)
+	}
+
+	contentAttr := schema.NewSetAttributeClaim(signedPerm, "camliContent", fileblob.BlobRef.String())
+	claimDate, err := time.Parse(time.RFC3339, fr.FileSchema().UnixMtime)
+	contentAttr.SetClaimDate(claimDate)
+	contentAttr["camliSigner"] = publicKeyBlobRef
+	signed, err = sigHelper.SignMap(contentAttr)
+	if err != nil {
+		return fmt.Errorf("Signing camliContent claim: %v", err)
+	}
+	signedClaim := blobref.SHA1FromString(signed)
+	_, err = blobReceiver.ReceiveBlob(signedClaim, strings.NewReader(signed))
+	if err != nil {
+		return fmt.Errorf("While uploading signed camliContent claim %v: %v", signed, err)
+	}
+	return nil
 }
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
@@ -148,10 +227,6 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	if req.Header.Get("X-Camlistore-Vivify") == "1" {
-		// TODO(mpl)
-	}
-
 	ret, err := commonUploadResponse(blobReceiver, req)
 	if err != nil {
 		httputil.ServerError(conn, req, err)
@@ -165,6 +240,17 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		received = append(received, blob)
 	}
 	ret["received"] = received
+
+	if req.Header.Get("X-Camlistore-Vivify") == "1" {
+		for _, got := range receivedBlobs {
+			err := vivify(blobReceiver, got)
+			if err != nil {
+				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.BlobRef.String(), err))
+			} else {
+				conn.Header().Add("X-Camlistore-Vivified", got.BlobRef.String())
+			}
+		}
+	}
 
 	if errText != "" {
 		ret["errorText"] = errText

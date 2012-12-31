@@ -114,7 +114,8 @@ type Config struct {
 	CanLongPoll        bool
 
 	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
-	URLBase string
+	URLBase       string
+	HandlerFinder FindHandlerByTyper
 }
 
 type Configer interface {
