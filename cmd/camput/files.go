@@ -119,7 +119,6 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 	if c.statcache || c.havecache {
 		gen, err := up.StorageGeneration()
-		log.Printf("gen/err = %v, %v", gen, err)
 		if err != nil {
 			log.Printf("WARNING: not using local caches; failed to retrieve server's storage generation: %v", err)
 		} else {
