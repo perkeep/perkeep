@@ -52,6 +52,7 @@ type Client struct {
 	discoErr       error
 	searchRoot     string // Handler prefix, or "" if none
 	downloadHelper string // or "" if none
+	storageGen     string // storage generation, or "" if not reported
 
 	authMode auth.AuthMode
 
@@ -114,6 +115,13 @@ func (c *Client) Stats() Stats {
 // ErrNoSearchRoot is returned by SearchRoot if the server doesn't support search.
 var ErrNoSearchRoot = errors.New("client: server doesn't support search")
 
+// ErrNoStorageGeneration is returned by StorageGeneration if the
+// server doesn't report a storage generation value.
+var ErrNoStorageGeneration = errors.New("client: server doesn't report a storage generation")
+
+// SearchRoot returns the server's search handler.
+// If the server isn't running an index and search handler, the error
+// will be ErrNoSearchRoot.
 func (c *Client) SearchRoot() (string, error) {
 	c.condDiscovery()
 	if c.discoErr != nil {
@@ -123,6 +131,26 @@ func (c *Client) SearchRoot() (string, error) {
 		return "", ErrNoSearchRoot
 	}
 	return c.searchRoot, nil
+}
+
+// StorageGeneration returns the server's unique ID for its storage
+// generation, reset whenever storage is reset, moved, or partially
+// lost.
+//
+// This is a value that can be used in client cache keys to add
+// certainty that they're talking to the same instance as previously.
+//
+// If the server doesn't return such a value, the error will be
+// ErrNoStorageGeneration.
+func (c *Client) StorageGeneration() (string, error) {
+	c.condDiscovery()
+	if c.discoErr != nil {
+		return "", c.discoErr
+	}
+	if c.storageGen == "" {
+		return "", ErrNoStorageGeneration
+	}
+	return c.storageGen, nil
 }
 
 // SearchExistingFileSchema does a search query looking for an
@@ -282,6 +310,8 @@ func (c *Client) doDiscovery() {
 		}
 		c.downloadHelper = u.String()
 	}
+
+	c.storageGen, _ = m["storageGeneration"].(string)
 
 	blobRoot, ok := m["blobRoot"].(string)
 	if !ok {
