@@ -137,7 +137,7 @@ Commands:
                     default='',
                     help='username:pasword for HTTP basic authentication')
   parser.add_option('-s', '--server', dest='server',
-                    default='localhost:8080',
+                    default='localhost:3179',
                     help='hostname:port to connect to')
   parser.add_option('-d', '--debug', dest='debug',
                     action='store_true',
@@ -159,7 +159,7 @@ Commands:
   if opts.debug:
     logging.getLogger().setLevel(logging.DEBUG)
 
-  op = camli.op.CamliOp(opts.server, auth=opts.auth)
+  op = camli.op.CamliOp(opts.server, auth=opts.auth, basepath="/bs")
   command = args[0].lower()
 
   if command == 'putdir':

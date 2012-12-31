@@ -83,7 +83,7 @@ class CamliOp(object):
                buffer_size=BUFFER_SIZE,
                create_connection=httplib.HTTPConnection,
                auth=None,
-               basepath=False):
+               basepath=""):
     """Initializer.
 
     Args:
@@ -100,6 +100,7 @@ class CamliOp(object):
     self._create_connection = create_connection
     self._connection = None
     self._authorization = ''
+    self.basepath = ""
     if auth:
       if len(auth.split(':')) != 2:
           # Default to dummy username; current server doesn't care 
@@ -348,7 +349,11 @@ class CamliOp(object):
 
     for blobref in blobref_list:
       logging.debug('Getting blobref=%s', blobref)
-      self.connection.request('GET', '/camli/' + blobref)
+      if self.basepath:
+          fullpath = self.basepath + '/camli/'
+      else:
+          fullpath = '/camli/'
+      self.connection.request('GET', fullpath + blobref)
       response = self.connection.getresponse()
       if response.status == 404:
         logging.debug('Server does not have blobref=%s', blobref)

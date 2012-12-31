@@ -17,5 +17,5 @@ chomp $sha1;
 $sha1 =~ s/\s.+//;
 
 system("curl", "-u", "foo:foo", "-F", "sha1-$sha1=\@$file",
-       "http://127.0.0.1:3179/camli/upload") and die "upload failed.";
-print "Uploaded http://127.0.0.1:3179/camli/sha1-$sha1\n";
+       "http://127.0.0.1:3179/bs/camli/upload") and die "upload failed.";
+print "Uploaded http://127.0.0.1:3179/bs/camli/sha1-$sha1\n";

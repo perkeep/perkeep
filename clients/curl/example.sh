@@ -3,7 +3,7 @@
 # Example client accesses to blob server using curl.
 
 # Configuration variables here:
-BSHOST=localhost:8080
+BSHOST=localhost:3179/bs
 BSUSER=user
 BSPASS=foo
 
