@@ -173,6 +173,7 @@ func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo,
 			return
 		}
 	}
+	// TODO: flocking. see leveldb-go.
 	c.af.Seek(0, os.SEEK_END)
 	c.af.Write([]byte(fmt.Sprintf("%s\t%s\t%s/%d\n", key, val.Fingerprint, val.Result.BlobRef.String(), val.Result.Size)))
 }
@@ -233,6 +234,7 @@ func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef) {
 			return
 		}
 	}
+	// TODO: flocking. see leveldb-go.
 	c.af.Seek(0, os.SEEK_END)
 	c.af.Write([]byte(fmt.Sprintf("%s\n", k)))
 }
