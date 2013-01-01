@@ -263,15 +263,11 @@ func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blobref.Siz
 
 type statusFunc func() string
 
-func (sf statusFunc) String() string {
-	return sf()
-}
+func (sf statusFunc) String() string { return sf() }
 
 type status string
 
-func (s status) String() string {
-	return string(s)
-}
+func (s status) String() string { return string(s) }
 
 func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 	key := sb.BlobRef.String()
@@ -290,19 +286,20 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 	}
 
 	set(status("sending GET to source"))
-	blobReader, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
+	rc, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
 	if err != nil {
 		return errorf("source fetch: %v", err)
 	}
+	defer rc.Close()
 	if fromSize != sb.Size {
 		return errorf("source fetch size mismatch: get=%d, enumerate=%d", fromSize, sb.Size)
 	}
 
-	bytesCopied := int64(0) // accessed without locking; minor, just for status display
+	bytesCopied := int64(0) // TODO: data race, accessed without locking in statusFunc below.
 	set(statusFunc(func() string {
 		return fmt.Sprintf("copying: %d/%d bytes", bytesCopied, sb.Size)
 	}))
-	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, misc.CountingReader{blobReader, &bytesCopied})
+	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, misc.CountingReader{rc, &bytesCopied})
 	if err != nil {
 		return errorf("dest write: %v", err)
 	}
