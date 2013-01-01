@@ -590,7 +590,10 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
 		fi:       fi,
 	}
 
-	if up.statCache != nil {
+	if up.statCache != nil && !up.fileOpts.wantVivify() {
+		// Note: ignoring cache hits if wantVivify, otherwise
+		// a non-vivify put followed by a vivify one wouldn't
+		// end up doing the vivify.
 		if cachedRes, err := up.statCache.CachedPutResult(up.pwd, n.fullPath, n.fi); err == nil {
 			return cachedRes, nil
 		}
