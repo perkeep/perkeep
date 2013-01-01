@@ -211,6 +211,9 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			}
 		}
 
+		// TODO: wrap the mimePart reader in a LimitReader-ish
+		// wrapper, setting an error flag after reading
+		// blobserver.MaxBlobSize+1 bytes, then failing.
 		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart)
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
@@ -254,7 +257,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 func commonUploadResponse(configer blobserver.Configer, req *http.Request) (map[string]interface{}, error) {
 	ret := make(map[string]interface{})
-	ret["maxUploadSize"] = 2147483647 // 2GB.. *shrug*. TODO: cut this down, standardize
+	ret["maxUploadSize"] = blobserver.MaxBlobSize
 	ret["uploadUrlExpirationSeconds"] = 86400
 
 	if configer == nil {
@@ -281,7 +284,7 @@ func commonUploadResponse(configer blobserver.Configer, req *http.Request) (map[
 }
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
-var kPutPattern *regexp.Regexp = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
+var kPutPattern = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
 
 // NOTE: not part of the spec at present.  old.  might be re-introduced.
 func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {

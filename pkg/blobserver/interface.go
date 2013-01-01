@@ -26,6 +26,13 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
+// MaxBlobSize is the size of a single blob in Camlistore.
+//
+// TODO: formalize this in the specs. This value of 16 MB is less than
+// App Engine's 32 MB request limit, much more than Venti's limit, and
+// much more than the ~64 KB & 256 KB chunks that the FileWriter make
+const MaxBlobSize = 16 << 20
+
 var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 
 type BlobReceiver interface {

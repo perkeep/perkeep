@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
@@ -117,10 +116,6 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 
 	blobGot = blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size()}
 	success = true
-
-	if os.Getenv("CAMLI_HACK_OPEN_IMAGES") == "1" {
-		exec.Command("eog", fileName).Run()
-	}
 
 	hub := ds.GetBlobHub()
 	hub.NotifyBlobReceived(blobRef)
