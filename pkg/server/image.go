@@ -96,14 +96,16 @@ func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 	return nil
 }
 
-func (ih *ImageHandler) cached(br *blobref.BlobRef) (fr *schema.FileReader, err error) {
+// cached returns a FileReader for the given file schema blobref.
+// The FileReader should be closed when done reading.
+func (ih *ImageHandler) cached(fileRef *blobref.BlobRef) (*schema.FileReader, error) {
 	fetchSeeker := blobref.SeekerFromStreamingFetcher(ih.Cache)
-	fr, err = schema.NewFileReader(fetchSeeker, br)
+	fr, err := schema.NewFileReader(fetchSeeker, fileRef)
 	if err != nil {
 		return nil, err
 	}
 	if imageDebug {
-		log.Printf("Image Cache: hit: %v\n", br)
+		log.Printf("Image Cache: hit: %v\n", fileRef)
 	}
 	return fr, nil
 }
@@ -126,6 +128,7 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 	if err != nil {
 		return format, fmt.Errorf("No cache hit for %v: %v", br, err)
 	}
+	defer fr.Close()
 	_, err = io.Copy(buf, fr)
 	if err != nil {
 		return format, fmt.Errorf("error reading cached thumbnail %v: %v", name, err)
@@ -151,6 +154,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	if err != nil {
 		return format, err
 	}
+	defer fr.Close()
 
 	_, err = io.Copy(buf, fr)
 	if err != nil {

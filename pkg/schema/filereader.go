@@ -155,6 +155,8 @@ type FileReader struct {
 // NewFileReader returns a new FileReader reading the contents of fileBlobRef,
 // fetching blobs from fetcher.  The fileBlobRef must be of a "bytes" or "file"
 // schema blob.
+//
+// The caller should call Close on the FileReader when done reading.
 func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, error) {
 	// TODO(bradfitz): make this take a blobref.FetcherAt instead?
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still

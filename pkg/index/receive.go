@@ -120,6 +120,7 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 		log.Printf("index: error indexing file, creating NewFileReader %s: %v", blobRef, err)
 		return nil
 	}
+	defer fr.Close()
 	mime, reader := magic.MimeTypeFromReader(fr)
 
 	sha1 := sha1.New()
