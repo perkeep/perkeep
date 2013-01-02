@@ -102,18 +102,14 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 
 // A HaveCache caches whether a remote blobserver has a blob.
 type HaveCache interface {
-	BlobExists(*blobref.BlobRef) bool
-	NoteBlobExists(*blobref.BlobRef)
-
-	// TODO: make this into a stat cache (that knows the size of
-	// the blob, not just its existence), so it can be used by the
-	// Stat method too, and then fix camput.
+	StatBlobCache(br *blobref.BlobRef) (size int64, ok bool)
+	NoteBlobExists(br *blobref.BlobRef, size int64)
 }
 
 type noHaveCache struct{}
 
-func (noHaveCache) BlobExists(*blobref.BlobRef) bool { return false }
-func (noHaveCache) NoteBlobExists(*blobref.BlobRef)  {}
+func (noHaveCache) StatBlobCache(*blobref.BlobRef) (int64, bool) { return 0, false }
+func (noHaveCache) NoteBlobExists(*blobref.BlobRef, int64)       {}
 
 func (c *Client) SetHaveCache(cache HaveCache) {
 	if cache == nil {
@@ -350,10 +346,21 @@ func (c *Client) doDiscovery() {
 	c.prefixv = strings.TrimRight(u.String(), "/")
 }
 
-func (c *Client) newRequest(method, url string) *http.Request {
-	req, err := http.NewRequest(method, url, nil)
+func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
+	var bodyR io.Reader
+	if len(body) > 0 {
+		bodyR = body[0]
+	}
+	if len(body) > 1 {
+		panic("too many body arguments")
+	}
+	req, err := http.NewRequest(method, url, bodyR)
 	if err != nil {
 		panic(err.Error())
+	}
+	// not done by http.NewRequest in Go 1.0:
+	if br, ok := bodyR.(*bytes.Reader); ok {
+		req.ContentLength = int64(br.Len())
 	}
 	c.authMode.AddAuthHeader(req)
 	return req

@@ -18,7 +18,6 @@ package main
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -113,23 +112,7 @@ func (up *Uploader) UploadAndSignMap(m schema.Map) (*client.PutResult, error) {
 }
 
 func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
-	uh := client.NewUploadHandleFromString(s)
-	return up.uploadHandle(uh)
-}
-
-func (up *Uploader) uploadHandle(uh *client.UploadHandle) (*client.PutResult, error) {
-	if c := up.haveCache; c != nil && c.BlobExists(uh.BlobRef) {
-		cachelog.Printf("HaveCache HIT for %s / %d", uh.BlobRef, uh.Size)
-		return &client.PutResult{BlobRef: uh.BlobRef, Size: uh.Size, Skipped: true}, nil
-	}
-	pr, err := up.Upload(uh)
-	if err == nil && up.haveCache != nil {
-		up.haveCache.NoteBlobExists(uh.BlobRef)
-	}
-	if pr == nil && err == nil {
-		log.Fatalf("Got nil/nil in uploadString while uploading %v", uh)
-	}
-	return pr, err
+	return up.Upload(client.NewUploadHandleFromString(s))
 }
 
 func (up *Uploader) UploadNewPermanode() (*client.PutResult, error) {

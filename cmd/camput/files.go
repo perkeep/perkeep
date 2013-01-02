@@ -442,7 +442,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap sch
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return dupFileRef, true
 	}
-	pr, err := up.uploadHandle(uh)
+	pr, err := up.Upload(uh)
 	if err != nil {
 		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", sum, err)
 		return nil, false

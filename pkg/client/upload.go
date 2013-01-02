@@ -182,11 +182,20 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	// 400 error, per the blob-stat-protocol.txt document.
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "camliversion=1")
-	for n, blob := range blobs {
+	needed := 0
+	for _, blob := range blobs {
 		if blob == nil {
 			panic("nil blob")
 		}
-		fmt.Fprintf(&buf, "&blob%d=%s", n+1, blob)
+		if size, ok := c.haveCache.StatBlobCache(blob); ok {
+			dest <- blobref.SizedBlobRef{blob, size}
+			continue
+		}
+		needed++
+		fmt.Fprintf(&buf, "&blob%d=%s", needed, blob)
+	}
+	if needed == 0 {
+		return nil
 	}
 
 	if wait > 0 {
@@ -201,11 +210,8 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	if err != nil {
 		return err
 	}
-	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx))
-	bodyStr := buf.String()
-	req.Body = ioutil.NopCloser(strings.NewReader(bodyStr))
+	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx), &buf)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.ContentLength = int64(len(bodyStr))
 
 	resp, err := c.doReq(req)
 	if err != nil {
@@ -263,7 +269,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	c.statsMutex.Unlock()
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
-	if c.haveCache.BlobExists(h.BlobRef) {
+	if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
 		pr.Skipped = true
 		return pr, nil
 	}
@@ -277,12 +283,8 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return nil, err
 	}
 	url_ := fmt.Sprintf("%s/camli/stat", pfx)
-	requestBody := "camliversion=1&blob1=" + blobrefStr
-	req := c.newRequest("POST", url_)
+	req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1=" + blobrefStr))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Body = ioutil.NopCloser(strings.NewReader(requestBody))
-	req.ContentLength = int64(len(requestBody))
-	req.TransferEncoding = nil
 
 	resp, err := c.doReq(req)
 	if err != nil {
@@ -299,7 +301,9 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	for _, sbr := range stat.HaveMap {
+		c.haveCache.NoteBlobExists(sbr.BlobRef, sbr.Size)
+	}
 	if _, ok := stat.HaveMap[blobrefStr]; ok {
 		pr.Skipped = true
 		if closer, ok := h.Contents.(io.Closer); ok {
@@ -344,7 +348,6 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}
 	req.Body = ioutil.NopCloser(pipeReader)
 	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
-	req.TransferEncoding = nil
 	resp, err = c.doReq(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)
@@ -414,7 +417,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 					if pr.Size == -1 {
 						pr.Size = expectedSize
 					}
-					c.haveCache.NoteBlobExists(pr.BlobRef)
+					c.haveCache.NoteBlobExists(pr.BlobRef, expectedSize)
 					return pr, nil
 				} else {
 					return errorf("Server got blob, but reports wrong length (%v; we sent %d)",

@@ -24,8 +24,8 @@ import (
 	"hash/crc32"
 	"io"
 	"log"
-	"os"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -181,15 +181,15 @@ func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo,
 type FlatHaveCache struct {
 	mu       sync.RWMutex
 	filename string
-	m        map[string]bool
-	af       *os.File // appending file
+	m        map[string]int64 // blobref string -> size
+	af       *os.File         // appending file
 }
 
 func NewFlatHaveCache(gen string) *FlatHaveCache {
-	filename := filepath.Join(osutil.CacheDir(), "camput.havecache." + escapeGen(gen))
+	filename := filepath.Join(osutil.CacheDir(), "camput.havecache."+escapeGen(gen))
 	c := &FlatHaveCache{
 		filename: filename,
-		m:        make(map[string]bool),
+		m:        make(map[string]int64),
 	}
 	f, err := os.Open(filename)
 	if os.IsNotExist(err) {
@@ -208,23 +208,36 @@ func NewFlatHaveCache(gen string) *FlatHaveCache {
 			log.Printf("Warning: (ignoring) reading have-cache: %v", err)
 			break
 		}
-		ln = strings.TrimSpace(ln)
-		c.m[ln] = true
+		f := strings.Fields(strings.TrimSpace(ln))
+		if len(f) == 2 {
+			br, sizea := f[0], f[1]
+			if size, err := strconv.ParseInt(sizea, 10, 64); err == nil && size >= 0 {
+				c.m[br] = size
+			}
+		}
 	}
 	return c
 }
 
-func (c *FlatHaveCache) BlobExists(br *blobref.BlobRef) bool {
+func (c *FlatHaveCache) StatBlobCache(br *blobref.BlobRef) (size int64, ok bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.m[br.String()]
+	size, ok = c.m[br.String()]
+	return
 }
 
-func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef) {
+func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef, size int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if size < 0 {
+		panic("negative size")
+	}
 	k := br.String()
-	c.m[k] = true
+	if c.m[k] == size {
+		// dup
+		return
+	}
+	c.m[k] = size
 
 	if c.af == nil {
 		var err error
@@ -236,5 +249,5 @@ func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef) {
 	}
 	// TODO: flocking. see leveldb-go.
 	c.af.Seek(0, os.SEEK_END)
-	c.af.Write([]byte(fmt.Sprintf("%s\n", k)))
+	c.af.Write([]byte(fmt.Sprintf("%s %d\n", k, size)))
 }

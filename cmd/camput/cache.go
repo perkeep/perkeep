@@ -25,8 +25,8 @@ import (
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.
 type HaveCache interface {
-	BlobExists(br *blobref.BlobRef) bool
-	NoteBlobExists(br *blobref.BlobRef)
+	StatBlobCache(br *blobref.BlobRef) (size int64, ok bool)
+	NoteBlobExists(br *blobref.BlobRef, size int64)
 }
 
 // UploadCache is the "stat cache" for regular files.  Given a current
