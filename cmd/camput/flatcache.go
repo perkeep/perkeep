@@ -38,12 +38,20 @@ import (
 
 type statFingerprint string
 
+var cleanSysStat func(v interface{}) interface{}
+
 func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
 	// We calculate the CRC32 of the underlying system stat structure to get
 	// ctime, owner, group, etc.  This is overkill (e.g. we don't care about
 	// the inode or device number probably), but works.
 	sysHash := uint32(0)
 	if sys := fi.Sys(); sys != nil {
+		if clean := cleanSysStat; clean != nil {
+			// TODO: don't clean bad fields, but provide a
+			// portable way to extract all good fields.
+			// This is a Linux+Mac-specific hack for now.
+			sys = clean(sys)
+		}
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "%#v", sys)
 		sysHash = crc32.ChecksumIEEE(buf.Bytes())
