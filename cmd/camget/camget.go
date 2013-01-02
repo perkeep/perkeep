@@ -203,13 +203,32 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 
 		// directory entries
+		const numWorkers = 10
+		type work struct {
+			br *blobref.BlobRef
+			errc chan<- error
+		}
+		workc := make(chan work)
+		defer close(workc)
+		for i := 0; i < numWorkers; i++ {
+			go func() {
+				for wi := range workc {
+					wi.errc <- smartFetch(cl, targ, wi.br)
+				}
+			}()
+		}
+		var errcs []<-chan error
 		for _, m := range sc.Members {
-			// TODO: do n at a time
 			dref := blobref.Parse(m)
 			if dref == nil {
 				return fmt.Errorf("bad member blobref: %v", m)
 			}
-			if err := smartFetch(cl, targ, dref); err != nil {
+			errc := make(chan error, 1)
+			errcs = append(errcs, errc)
+			workc <- work{dref, errc}
+		}
+		for _, errc := range errcs {
+			if err := <-errc; err != nil {
 				return err
 			}
 		}
