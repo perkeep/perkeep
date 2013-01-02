@@ -173,7 +173,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 		defer f.Close()
 		body, _ := sniffer.Body()
-		r := io.MultiReader(bytes.NewBuffer(body), rc)
+		r := io.MultiReader(bytes.NewReader(body), rc)
 		_, err = io.Copy(f, r)
 		return err
 	}
