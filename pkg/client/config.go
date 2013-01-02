@@ -90,6 +90,13 @@ func blobServerOrDie() string {
 
 func (c *Client) SetupAuth() error {
 	configOnce.Do(parseConfig)
+	if flagServer != nil && *flagServer != "" {
+		// If using an explicit blobserver, don't use auth
+		// configured from the config file, so we don't send
+		// our password to a friend's blobserver.
+		c.authMode = auth.None{}
+		return nil
+	}
 	return c.SetupAuthFromConfig(config)
 }
 
