@@ -113,23 +113,24 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage), auth.OpGet)
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage), auth.OpAll)
 		default:
 			handler = gethandler.CreateGetHandler(storage)
 		}
 	case "POST":
 		switch action {
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateStatHandler(storage), auth.OpStat)
 		case "upload":
-			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage), auth.OpUpload)
 		case "remove":
-			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage))
+			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage), auth.OpAll)
 		}
+	// TODO: delete. Replaced with upload helper endpoint.
 	case "PUT": // no longer part of spec
-		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage))
+		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage), auth.OpAll)
 	}
 	handler(conn, req)
 }

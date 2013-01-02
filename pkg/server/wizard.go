@@ -246,7 +246,7 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if !auth.LocalhostAuthorized(req) {
+	if !auth.IsLocalhost(req) {
 		fmt.Fprintf(rw,
 			"<html><body>Setup only allowed from localhost"+
 				"<p><a href='/'>Back</a></p>"+

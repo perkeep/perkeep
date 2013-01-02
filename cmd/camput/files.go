@@ -61,7 +61,6 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
-		// TODO(mpl): check against possibly conflicting flags
 		flags.BoolVar(&cmd.vivify, "vivify", false,
 			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
@@ -103,6 +102,11 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if len(args) == 0 {
 		return UsageError("No files or directories given.")
 	}
+	if c.vivify {
+		if c.makePermanode || c.filePermanodes || c.tag != "" || c.name != "" {
+			return UsageError("--vivify excludes any other option")
+		}
+	}
 	if c.name != "" && !c.makePermanode {
 		return UsageError("Can't set name without using --permanode")
 	}
@@ -131,6 +135,12 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 				up.haveCache = cache
 				up.Client.SetHaveCache(cache)
 			}
+		}
+	}
+	if c.makePermanode || c.filePermanodes {
+		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
+		if testSigBlobRef == nil {
+			return UsageError("A gpg key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
 	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag, vivify: c.vivify}
@@ -178,6 +188,10 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 			return err
 		}
 		if fi.IsDir() {
+			if up.fileOpts.wantVivify() {
+				vlog.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
+				continue
+			}
 			t := up.NewTreeUpload(filename)
 			t.Start()
 			lastPut, err = t.Wait()

@@ -69,7 +69,7 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 	}
 
 	switch {
-	case h.AllowGlobalAccess || auth.IsAuthorized(req):
+	case h.AllowGlobalAccess || auth.Allowed(req, auth.OpGet):
 		serveBlobRef(conn, req, blobRef, h.Fetcher)
 	case auth.TriedAuthorization(req):
 		log.Printf("Attempted authorization failed on %s", req.URL)
