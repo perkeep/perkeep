@@ -42,6 +42,14 @@ func AddFlags() {
 	flagServer = flag.String("blobserver", "", "camlistore blob server")
 }
 
+// ExplicitServer returns the blobserver given in the flags, if any.
+func ExplicitServer() string {
+	if flagServer != nil {
+		return *flagServer
+	}
+	return ""
+}
+
 func ConfigFilePath() string {
 	return filepath.Join(osutil.CamliConfigDir(), "config")
 }

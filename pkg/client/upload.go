@@ -283,7 +283,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return nil, err
 	}
 	url_ := fmt.Sprintf("%s/camli/stat", pfx)
-	req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1=" + blobrefStr))
+	req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.doReq(req)

@@ -44,7 +44,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
@@ -56,43 +55,48 @@ var (
 	flagVerbose  = flag.Bool("verbose", false, "be verbose")
 	flagCheck    = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
 	flagOutput   = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
-	flagVia      = flag.String("via", "", "Fetch the blob via the given comma-separated sharerefs (dev only).")
 	flagGraph    = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
 	flagContents = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
+	flagShared   = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
 )
-
-var viaRefs []*blobref.BlobRef
 
 func main() {
 	client.AddFlags()
 	flag.Parse()
 
-	if len(*flagVia) > 0 {
-		vs := strings.Split(*flagVia, ",")
-		viaRefs = make([]*blobref.BlobRef, len(vs))
-		for i, sbr := range vs {
-			viaRefs[i] = blobref.Parse(sbr)
-			if viaRefs[i] == nil {
-				log.Fatalf("Invalid -via blobref: %q", sbr)
-			}
-			if *flagVerbose {
-				log.Printf("via: %s", sbr)
-			}
-		}
-	}
-
 	if *flagGraph && flag.NArg() != 1 {
 		log.Fatalf("The --graph option requires exactly one parameter.")
 	}
 
-	cl := client.NewOrFail()
+	var cl *client.Client
+	var items []*blobref.BlobRef
 
-	for n := 0; n < flag.NArg(); n++ {
-		arg := flag.Arg(n)
-		br := blobref.Parse(arg)
-		if br == nil {
-			log.Fatalf("Failed to parse argument %q as a blobref.", arg)
+	if *flagShared != "" {
+		if client.ExplicitServer() != "" {
+			log.Fatal("Can't use --shared with an explicit blobserver; blobserver is implicit from the --shared URL.")
 		}
+		if flag.NArg() != 0 {
+			log.Fatal("No arguments permitted when using --shared")
+		}
+		cl1, target, err := client.NewFromShareRoot(*flagShared)
+		if err != nil {
+			log.Fatal(err)
+		}
+		cl = cl1
+		items = append(items, target)
+	} else {
+		cl = client.NewOrFail()
+		for n := 0; n < flag.NArg(); n++ {
+			arg := flag.Arg(n)
+			br := blobref.Parse(arg)
+			if br == nil {
+				log.Fatalf("Failed to parse argument %q as a blobref.", arg)
+			}
+			items = append(items, br)
+		}
+	}
+
+	for _, br := range items {
 		if *flagGraph {
 			printGraph(cl, br)
 			return
@@ -130,13 +134,9 @@ func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err error) 
 	if *flagVerbose {
 		log.Printf("Fetching %s", br.String())
 	}
-	if len(viaRefs) > 0 {
-		r, _, err = cl.FetchVia(br, viaRefs)
-	} else {
-		r, _, err = cl.FetchStreaming(br)
-	}
+	r, _, err = cl.FetchStreaming(br)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch %q: %s", br, err)
+		return nil, fmt.Errorf("Failed to fetch %s: %s", br, err)
 	}
 	return r, err
 }

@@ -24,7 +24,11 @@ import (
 	"regexp"
 )
 
-var kBlobRefPattern *regexp.Regexp = regexp.MustCompile(`^([a-z0-9]+)-([a-f0-9]+)$`)
+// Pattern is the regular expression which matches a blobref.
+// It does not contain ^ or $.
+const Pattern = `\b([a-z0-9]+)-([a-f0-9]+)\b`
+
+var kBlobRefPattern = regexp.MustCompile("^" + Pattern + "$")
 
 var supportedDigests = map[string]func() hash.Hash{
 	"sha1": func() hash.Hash {

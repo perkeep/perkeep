@@ -27,11 +27,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/schema"
 )
 
 // A Client provides access to a Camlistore server.
@@ -62,6 +64,11 @@ type Client struct {
 	statsMutex sync.Mutex
 	stats      Stats
 
+	// via maps the access path from a share root to a desired target.
+	// It is non-nil when in "sharing" mode, where the Client is fetching
+	// a share.
+	via map[string]string // target => via (target is referenced from via)
+
 	log     *log.Logger // not nil
 	reqGate chan bool
 }
@@ -89,6 +96,43 @@ func NewOrFail() *Client {
 		log.Fatal(err)
 	}
 	return c
+}
+
+var shareURLRx = regexp.MustCompile(`^(.+)/camli/(` + blobref.Pattern + ")")
+
+func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, err error) {
+	var root string
+	if m := shareURLRx.FindStringSubmatch(shareBlobURL); m == nil {
+		return nil, nil, fmt.Errorf("Unkown URL base; doesn't contain /camli/")
+	} else {
+		c = New(m[1])
+		c.discoOnce.Do(func() { /* nothing */
+		})
+		c.prefixOnce.Do(func() { /* nothing */
+		})
+		c.prefixv = m[1]
+		c.authMode = auth.None{}
+		c.via = make(map[string]string)
+		root = m[2]
+	}
+	res, err := http.Get(shareBlobURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
+	}
+	defer res.Body.Close()
+	ss, err := schema.ParseSuperset(res.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
+	}
+	if ss.AuthType != "haveref" {
+		return nil, nil, fmt.Errorf("Unknown share authType of %q", ss.AuthType)
+	}
+	if ss.Target == nil {
+		return nil, nil, fmt.Errorf("No target.")
+	}
+	c.via[ss.Target.String()] = root
+	// TODO(bradfitz): send via in requests, populate via as we fetch more things
+	return c, ss.Target, nil
 }
 
 // SetHTTPClient sets the Camlistore client's HTTP client.

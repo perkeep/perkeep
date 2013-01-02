@@ -223,8 +223,9 @@ func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.
 // Superset represents the superset of common Camlistore JSON schema
 // keys as a convenient json.Unmarshal target.
 type Superset struct {
-	BlobRef *blobref.BlobRef // Not in JSON, but included for
-	// those who want to set it.
+	// BlobRef isn't for a particular metadata blob field, but included
+	// for convenience.
+	BlobRef *blobref.BlobRef
 
 	Version int    `json:"camliVersion"`
 	Type    string `json:"camliType"`
@@ -261,8 +262,21 @@ type Superset struct {
 	Parts []*BytesPart `json:"parts"`
 
 	Entries string   `json:"entries"` // for directories, a blobref to a static-set
-	Members []string `json:"members"` // for static sets (for directory static-sets:
-	// blobrefs to child dirs/files)
+	Members []string `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
+
+	// Target is a "share" blob's target (the thing being shared)
+	Target *blobref.BlobRef
+	// Transitive is a property of a "share" blob.
+	Transitive bool
+	// AuthType is a "share" blob's authentication type that is required.
+	// Currently (2013-01-02) just "haveref" (if you know the share's blobref,
+	// you get access: the secret URL model)
+	AuthType string
+}
+
+func ParseSuperset(r io.Reader) (*Superset, error) {
+	var ss Superset
+	return &ss, json.NewDecoder(io.LimitReader(r, 1 << 20)).Decode(&ss)
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
