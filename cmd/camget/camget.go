@@ -146,10 +146,6 @@ const sniffSize = 900 * 1024
 
 // smartFetch the things that blobs point to, not just blobs.
 func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
-	if *flagVerbose {
-		log.Printf("Fetching %v into %q", br, targ)
-	}
-
 	rc, err := fetch(cl, br)
 	if err != nil {
 		return err
@@ -166,6 +162,10 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 	sc, ok := sniffer.Superset()
 
 	if !ok {
+		if *flagVerbose {
+			log.Printf("Fetching opaque data %v into %q", br, targ)
+		}
+
 		// opaque data - put it in a file
 		f, err := os.Create(targ)
 		if err != nil {
@@ -183,6 +183,9 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 	switch sc.Type {
 	case "directory":
 		dir := filepath.Join(targ, sc.FileName)
+		if *flagVerbose {
+			log.Printf("Fetching directory %v into %s", br, dir)
+		}
 		if err := os.MkdirAll(dir, sc.FileMode()); err != nil {
 			return err
 		}
@@ -195,8 +198,13 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 		return smartFetch(cl, dir, entries)
 	case "static-set":
+		if *flagVerbose {
+			log.Printf("Fetching directory entries %v into %s", br, targ)
+		}
+
 		// directory entries
 		for _, m := range sc.Members {
+			// TODO: do n at a time
 			dref := blobref.Parse(m)
 			if dref == nil {
 				return fmt.Errorf("bad member blobref: %v", m)
@@ -207,12 +215,6 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 		return nil
 	case "file":
-		name := filepath.Join(targ, sc.FileName)
-		f, err := os.Create(name)
-		if err != nil {
-			return fmt.Errorf("file type: %v", err)
-		}
-		defer f.Close()
 		seekFetcher := blobref.SeekerFromStreamingFetcher(cl)
 		fr, err := schema.NewFileReader(seekFetcher, br)
 		if err != nil {
@@ -220,6 +222,27 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 		defer fr.Close()
 
+		name := filepath.Join(targ, sc.FileName)
+
+		if fi, err := os.Stat(name); err == nil && fi.Size() == fi.Size() {
+			if *flagVerbose {
+				log.Printf("Skipping %s; already exists.", name)
+				return nil
+			}
+		}
+
+		if *flagVerbose {
+			log.Printf("Writing %s to %s ...", br, name)
+		}
+
+		f, err := os.Create(name)
+		if err != nil {
+			return fmt.Errorf("file type: %v", err)
+		}
+		defer f.Close()
+		if _, err := io.Copy(f, fr); err != nil {
+			return fmt.Errorf("Copying %s to %s: %v", br, name, err)
+		}
 		if err := setFileMeta(name, sc); err != nil {
 			log.Print(err)
 		}
