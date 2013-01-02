@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/readerutil"
@@ -40,8 +41,31 @@ func (c *Client) FetchMap(b *blobref.BlobRef) (schema.Map, error) {
 }
 
 func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, error) {
-	return c.FetchVia(b, nil)
+	return c.FetchVia(b, c.viaPathTo(b))
 }
+
+func (c *Client) viaPathTo(b *blobref.BlobRef) (path []*blobref.BlobRef) {
+	if c.via == nil {
+		return nil
+	}
+	it := b.String()
+	// Append path backwards first,
+	for {
+		v := c.via[it]
+		if v == "" {
+			break
+		}
+		path = append(path, blobref.MustParse(v))
+		it = v
+	}
+	// Then reverse it
+	for i := 0; i < len(path)/2; i++ {
+		path[i], path[len(path)-i-1] = path[len(path)-i-1], path[i]
+	}
+	return
+}
+
+var blobsRx = regexp.MustCompile(blobref.Pattern)
 
 func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadCloser, int64, error) {
 	pfx, err := c.prefix()
@@ -77,7 +101,30 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadClos
 		return nil, 0, errors.New("blobserver didn't return a Content-Length for blob")
 	}
 
-	return resp.Body, size, nil
+	if c.via == nil {
+		// Not in sharing mode, so return immediately.
+		return resp.Body, size, nil
+	}
+
+	// Slurp 1 MB to find references to other blobrefs for the via path.
+	const maxSlurp = 1 << 20
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, io.LimitReader(resp.Body, maxSlurp))
+	if err != nil {
+		return nil, 0, err
+	}
+	// If it looks like a JSON schema blob (starts with '{')
+	if schema.LikelySchemaBlob(buf.Bytes()) {
+		for _, blobstr := range blobsRx.FindAllString(buf.String(), -1) {
+			c.via[blobstr] = b.String()
+		}
+	}
+	// Read from the multireader, but close the HTTP response body.
+	type rc struct {
+		io.Reader
+		io.Closer
+	}
+	return rc{io.MultiReader(&buf, resp.Body), resp.Body}, size, nil
 }
 
 func (c *Client) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {

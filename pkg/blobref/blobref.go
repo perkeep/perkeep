@@ -26,8 +26,9 @@ import (
 
 // Pattern is the regular expression which matches a blobref.
 // It does not contain ^ or $.
-const Pattern = `\b([a-z0-9]+)-([a-f0-9]+)\b`
+const Pattern = `\b([a-z][a-z0-9]*)-([a-f0-9]+)\b`
 
+// whole blobref pattern
 var kBlobRefPattern = regexp.MustCompile("^" + Pattern + "$")
 
 var supportedDigests = map[string]func() hash.Hash{

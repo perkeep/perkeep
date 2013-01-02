@@ -265,18 +265,18 @@ type Superset struct {
 	Members []string `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
 
 	// Target is a "share" blob's target (the thing being shared)
-	Target *blobref.BlobRef
+	Target *blobref.BlobRef `json:"target"`
 	// Transitive is a property of a "share" blob.
-	Transitive bool
+	Transitive bool `json:"transitive"`
 	// AuthType is a "share" blob's authentication type that is required.
 	// Currently (2013-01-02) just "haveref" (if you know the share's blobref,
 	// you get access: the secret URL model)
-	AuthType string
+	AuthType string `json:"authType"`
 }
 
 func ParseSuperset(r io.Reader) (*Superset, error) {
 	var ss Superset
-	return &ss, json.NewDecoder(io.LimitReader(r, 1 << 20)).Decode(&ss)
+	return &ss, json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss)
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
@@ -666,4 +666,15 @@ func RFC3339FromTime(t time.Time) string {
 		return t.UTC().Format(time.RFC3339)
 	}
 	return t.UTC().Format(time.RFC3339Nano)
+}
+
+var bytesCamliVersion = []byte("camliVersion")
+
+// LikelySchemaBlob returns quickly whether buf likely contains (or is
+// the prefix of) a schema blob.
+func LikelySchemaBlob(buf []byte) bool {
+	if len(buf) == 0 || buf[0] != '{' {
+		return false
+	}
+	return bytes.Contains(buf, bytesCamliVersion)
 }
