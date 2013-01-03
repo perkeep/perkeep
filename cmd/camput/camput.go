@@ -26,6 +26,7 @@ import (
 	"sort"
 
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
 )
 
@@ -155,8 +156,8 @@ func newUploader() *Uploader {
 		cc.SetLogger(nil)
 	}
 
-	httpStats := &statsTransport{
-		transport: &http.Transport{DisableKeepAlives: false},
+	httpStats := &httputil.StatsTransport{
+		VerboseLog: *flagHTTP,
 	}
 	cc.SetHTTPClient(&http.Client{Transport: httpStats})
 
@@ -253,7 +254,7 @@ func camputMain(args ...string) {
 	if *flagVerbose {
 		stats := up.Stats()
 		log.Printf("Client stats: %s", stats.String())
-		log.Printf("  #HTTP reqs: %d", up.transport.reqs)
+		log.Printf("  #HTTP reqs: %d", up.transport.Requests())
 	}
 	previousErrors := wereErrors
 	if err != nil {

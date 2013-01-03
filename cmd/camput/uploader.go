@@ -24,6 +24,7 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/schema"
 )
@@ -40,7 +41,7 @@ type Uploader struct {
 
 	entityFetcher jsonsign.EntityFetcher
 
-	transport *statsTransport // for HTTP statistics
+	transport *httputil.StatsTransport // for HTTP statistics
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package httputil
 
 import (
 	"log"
@@ -22,26 +22,37 @@ import (
 	"sync"
 )
 
-type statsTransport struct {
+// StatsTransport wraps another RoundTripper (or uses the default one) and
+// counts the number of HTTP requests performed.
+type StatsTransport struct {
 	mu   sync.Mutex
 	reqs int
 
-	transport http.RoundTripper
+	// Transport optionally specifies the transport to use.
+	// If nil, http.DefaultTransport is used.
+	Transport http.RoundTripper
+
+	// If VerboseLog is true, HTTP request summaries are logged.
+	VerboseLog bool
 }
 
-func (t *statsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+func (t *StatsTransport) Requests() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.reqs
+}
+
+func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	t.mu.Lock()
 	t.reqs++
-	rt := t.transport
 	t.mu.Unlock()
 
-	if *flagHTTP {
-		log.Printf("%s %s", req.Method, req.URL)
-	}
-
+	rt := t.Transport
 	if rt == nil {
 		rt = http.DefaultTransport
 	}
-
+	if t.VerboseLog {
+		log.Printf("%s %s", req.Method, req.URL)
+	}
 	return rt.RoundTrip(req)
 }

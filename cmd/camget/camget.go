@@ -42,17 +42,20 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/schema"
 )
 
 var (
 	flagVerbose  = flag.Bool("verbose", false, "be verbose")
+	flagHTTP     = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagCheck    = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
 	flagOutput   = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
 	flagGraph    = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
@@ -96,6 +99,11 @@ func main() {
 		}
 	}
 
+	httpStats := &httputil.StatsTransport{
+		VerboseLog: *flagHTTP,
+	}
+	cl.SetHTTPClient(&http.Client{Transport: httpStats})
+
 	for _, br := range items {
 		if *flagGraph {
 			printGraph(cl, br)
@@ -122,11 +130,15 @@ func main() {
 			if _, err := io.Copy(os.Stdout, rc); err != nil {
 				log.Fatalf("Failed reading %q: %v", br, err)
 			}
-			return
+		} else {
+			if err := smartFetch(cl, *flagOutput, br); err != nil {
+				log.Fatal(err)
+			}
 		}
-		if err := smartFetch(cl, *flagOutput, br); err != nil {
-			log.Fatal(err)
-		}
+	}
+
+	if *flagVerbose {
+		log.Printf("HTTP requests: %d\n", httpStats.Requests())
 	}
 }
 
@@ -205,7 +217,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		// directory entries
 		const numWorkers = 10
 		type work struct {
-			br *blobref.BlobRef
+			br   *blobref.BlobRef
 			errc chan<- error
 		}
 		workc := make(chan work)
