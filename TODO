@@ -1,3 +1,10 @@
+-- should a "share" claim be not a claim but its own permanode, so it
+   can be rescinded?  right now you can't really unshare a "haveref"
+   claim.  or rather, TODO: verify we support "delete" claims to
+   delete any claim, and verify the share system and indexer all
+   support it.  I think the indexer might, but not the share system.
+   Also TODO: "camput delete" or "rescind" subcommand.
+
 -- make the -transitive flag for "camput share -transitive" be a tri-state:
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
