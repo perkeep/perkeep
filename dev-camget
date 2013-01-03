@@ -35,8 +35,13 @@ if ($opt_tls) {
 	$blobserver =~ s/^http/https/;
 }
 
+my @args;
+unless (grep { /^--?shared\b/ } @ARGV) {
+    push @args, "--blobserver=$blobserver";
+}
+push @args, @ARGV;
+
 exec("$camget",
      "--verbose",
-     "--blobserver=$blobserver",
-     @ARGV);
+     @args);
 die "Failure running camget: $!";
