@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/schema"
 )
@@ -74,7 +73,7 @@ func (n *node) displayName() string {
 
 func (n *node) load() {
 	defer n.g.wg.Done()
-	rc, err := fetch(n.g.c, n.br)
+	rc, err := fetch(n.g.src, n.br)
 	check(err)
 	defer rc.Close()
 	sniff := new(index.BlobSniffer)
@@ -101,7 +100,7 @@ func (n *node) addEdge(dst *blobref.BlobRef) {
 }
 
 type graph struct {
-	c    *client.Client
+	src  blobref.StreamingFetcher
 	root *blobref.BlobRef
 
 	mu sync.Mutex // guards n
@@ -126,9 +125,9 @@ func (g *graph) startLoadNode(br *blobref.BlobRef) {
 	go n.load()
 }
 
-func printGraph(c *client.Client, root *blobref.BlobRef) {
+func printGraph(src blobref.StreamingFetcher, root *blobref.BlobRef) {
 	g := &graph{
-		c:    c,
+		src:  src,
 		root: root,
 		n:    make(map[string]*node),
 	}

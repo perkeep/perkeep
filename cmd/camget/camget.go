@@ -41,12 +41,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
+	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
@@ -104,9 +107,24 @@ func main() {
 	}
 	cl.SetHTTPClient(&http.Client{Transport: httpStats})
 
+	// Put a local disk cache in front of the HTTP client.
+	// TODO: this could be better about proactively cleaning things.
+	// Fetching 2 TB shouldn't write 2 TB to /tmp before it's done.
+	// Maybe the cache needs an LRU/size cap.
+	cacheDir, err := ioutil.TempDir("", "camlicache")
+	if err != nil {
+		log.Fatalf("Error creating temp cache directory: %v\n", err)
+	}
+	defer os.RemoveAll(cacheDir)
+	diskcache, err := localdisk.New(cacheDir)
+	if err != nil {
+		log.Fatalf("Error setting up local disk cache: %v", err)
+	}
+	fetcher := cacher.NewCachingFetcher(diskcache, cl)
+
 	for _, br := range items {
 		if *flagGraph {
-			printGraph(cl, br)
+			printGraph(fetcher, br)
 			return
 		}
 		if *flagCheck {
@@ -118,10 +136,10 @@ func main() {
 			var rc io.ReadCloser
 			var err error
 			if *flagContents {
-				seekFetcher := blobref.SeekerFromStreamingFetcher(cl)
+				seekFetcher := blobref.SeekerFromStreamingFetcher(fetcher)
 				rc, err = schema.NewFileReader(seekFetcher, br)
 			} else {
-				rc, err = fetch(cl, br)
+				rc, err = fetch(fetcher, br)
 			}
 			if err != nil {
 				log.Fatal(err)
@@ -131,7 +149,7 @@ func main() {
 				log.Fatalf("Failed reading %q: %v", br, err)
 			}
 		} else {
-			if err := smartFetch(cl, *flagOutput, br); err != nil {
+			if err := smartFetch(fetcher, *flagOutput, br); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -142,11 +160,11 @@ func main() {
 	}
 }
 
-func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err error) {
+func fetch(src blobref.StreamingFetcher, br *blobref.BlobRef) (r io.ReadCloser, err error) {
 	if *flagVerbose {
 		log.Printf("Fetching %s", br.String())
 	}
-	r, _, err = cl.FetchStreaming(br)
+	r, _, err = src.FetchStreaming(br)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch %s: %s", br, err)
 	}
@@ -157,8 +175,8 @@ func fetch(cl *client.Client, br *blobref.BlobRef) (r io.ReadCloser, err error) 
 const sniffSize = 900 * 1024
 
 // smartFetch the things that blobs point to, not just blobs.
-func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
-	rc, err := fetch(cl, br)
+func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) error {
+	rc, err := fetch(src, br)
 	if err != nil {
 		return err
 	}
@@ -208,7 +226,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		if entries == nil {
 			return fmt.Errorf("bad entries blobref: %v", sc.Entries)
 		}
-		return smartFetch(cl, dir, entries)
+		return smartFetch(src, dir, entries)
 	case "static-set":
 		if *flagVerbose {
 			log.Printf("Fetching directory entries %v into %s", br, targ)
@@ -225,7 +243,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		for i := 0; i < numWorkers; i++ {
 			go func() {
 				for wi := range workc {
-					wi.errc <- smartFetch(cl, targ, wi.br)
+					wi.errc <- smartFetch(src, targ, wi.br)
 				}
 			}()
 		}
@@ -246,7 +264,7 @@ func smartFetch(cl *client.Client, targ string, br *blobref.BlobRef) error {
 		}
 		return nil
 	case "file":
-		seekFetcher := blobref.SeekerFromStreamingFetcher(cl)
+		seekFetcher := blobref.SeekerFromStreamingFetcher(src)
 		fr, err := schema.NewFileReader(seekFetcher, br)
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)

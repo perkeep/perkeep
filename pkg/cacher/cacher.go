@@ -23,7 +23,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 )
 
-func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) blobref.SeekFetcher {
+func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) *CachingFetcher {
 	return &CachingFetcher{cacheTarget, sfetcher}
 }
 
