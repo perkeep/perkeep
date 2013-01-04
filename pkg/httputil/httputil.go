@@ -54,7 +54,7 @@ func RequestEntityTooLargeError(conn http.ResponseWriter) {
 
 func ServerError(conn http.ResponseWriter, req *http.Request, err error) {
 	conn.WriteHeader(http.StatusInternalServerError)
-	if auth.LocalhostAuthorized(req) {
+	if auth.IsLocalhost(req) {
 		fmt.Fprintf(conn, "Server error: %s\n", err)
 		return
 	}

@@ -29,6 +29,21 @@ import (
 	"camlistore.org/pkg/netutil"
 )
 
+// Operation represents a bitmask of operations. See the OpX constants.
+type Operation int
+
+const (
+	OpUpload Operation = 1 << iota
+	OpStat
+	OpGet
+	OpEnumerate
+	OpRemove
+	OpRead   = OpEnumerate | OpStat | OpGet
+	OpRW     = OpUpload | OpEnumerate | OpStat | OpGet // Not Remove
+	OpVivify = OpUpload | OpStat | OpGet
+	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet
+)
+
 var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 var (
@@ -36,8 +51,9 @@ var (
 )
 
 type AuthMode interface {
-	// IsAuthorized checks the credentials in req.
-	IsAuthorized(req *http.Request) bool
+	// AllowedAccess returns a bitmask of all operations
+	// this user/request is allowed to do.
+	AllowedAccess(req *http.Request) Operation
 	// AddAuthHeader inserts in req the credentials needed
 	// for a client to authenticate.
 	AddAuthHeader(req *http.Request)
@@ -60,7 +76,8 @@ func FromConfig(authConfig string) (AuthMode, error) {
 	authType := pieces[0]
 
 	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
-		mode = &DevAuth{pw}
+		// the vivify mode password is automatically set to "vivi" + Password
+		mode = &DevAuth{pw, "vivi" + pw}
 		return mode, nil
 	}
 
@@ -77,9 +94,12 @@ func FromConfig(authConfig string) (AuthMode, error) {
 		password := pieces[2]
 		mode = &UserPass{Username: username, Password: password}
 		for _, opt := range pieces[3:] {
-			switch opt {
-			case "+localhost":
+			switch {
+			case opt == "+localhost":
 				mode.(*UserPass).OrLocalhost = true
+			case strings.HasPrefix(opt, "vivify="):
+				// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
+				mode.(*UserPass).VivifyPass = strings.Replace(opt, "vivify=", "", -1)
 			default:
 				return nil, fmt.Errorf("Unknown userpass option %q", opt)
 			}
@@ -115,20 +135,35 @@ func basicAuth(req *http.Request) (string, string, error) {
 
 // UserPass is used when the auth string provided in the config
 // is of the kind "userpass:username:pass"
+// Possible options appended to the config string are
+// "+localhost" and "vivify=pass", where pass will be the
+// alternative password which only allows the vivify operation.
 type UserPass struct {
 	Username, Password string
 	OrLocalhost        bool // if true, allow localhost ident auth too
+	// Alternative password used (only) for the vivify operation.
+	// It is checked when uploading, but Password takes precedence.
+	VivifyPass string
 }
 
-func (up *UserPass) IsAuthorized(req *http.Request) bool {
+func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 	if up.OrLocalhost && localhostAuthorized(req) {
-		return true
+		return OpAll
 	}
+
 	user, pass, err := basicAuth(req)
 	if err != nil {
-		return false
+		return 0
 	}
-	return user == up.Username && pass == up.Password
+	if user == up.Username {
+		if pass == up.Password {
+			return OpAll
+		}
+		if pass == up.VivifyPass {
+			return OpVivify
+		}
+	}
+	return 0
 }
 
 func (up *UserPass) AddAuthHeader(req *http.Request) {
@@ -137,26 +172,55 @@ func (up *UserPass) AddAuthHeader(req *http.Request) {
 
 type None struct{}
 
-func (None) IsAuthorized(req *http.Request) bool {
-	return true
-}
-
-type Localhost struct {
-	None
-}
-
-func (Localhost) IsAuthorized(req *http.Request) bool {
-	return localhostAuthorized(req)
+func (None) AllowedAccess(req *http.Request) Operation {
+	return OpAll
 }
 
 func (None) AddAuthHeader(req *http.Request) {
 	// Nothing.
 }
 
+type Localhost struct {
+	None
+}
+
+func (Localhost) AllowedAccess(req *http.Request) Operation {
+	if localhostAuthorized(req) {
+		return OpAll
+	}
+	return 0
+}
+
 // DevAuth is used when the env var CAMLI_ADVERTISED_PASSWORD
 // is defined
 type DevAuth struct {
 	Password string
+	// Password for the vivify mode, automatically set to "vivi" + Password
+	VivifyPass string
+}
+
+func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
+	// First see if the local TCP port is owned by the same
+	// non-root user as this server.
+	if localhostAuthorized(req) {
+		return OpAll
+	}
+
+	_, pass, err := basicAuth(req)
+	if err != nil {
+		return 0
+	}
+	if pass == da.Password {
+		return OpAll
+	}
+	if pass == da.VivifyPass {
+		return OpVivify
+	}
+	return 0
+}
+
+func (da *DevAuth) AddAuthHeader(req *http.Request) {
+	req.SetBasicAuth("", da.Password)
 }
 
 func localhostAuthorized(req *http.Request) bool {
@@ -196,30 +260,21 @@ func isLocalhost(addrPort net.IP) bool {
 	return addrPort.IsLoopback()
 }
 
-func LocalhostAuthorized(req *http.Request) bool {
+func IsLocalhost(req *http.Request) bool {
 	return localhostAuthorized(req)
 }
 
-func (da *DevAuth) IsAuthorized(req *http.Request) bool {
-	// First see if the local TCP port is owned by the same
-	// non-root user as this server.
-	if localhostAuthorized(req) {
-		return true
+// TODO(mpl): if/when we ever need it:
+// func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool
+
+// Allowed returns whether the given request
+// has access to perform all the operations in op.
+func Allowed(req *http.Request, op Operation) bool {
+	if op|OpUpload != 0 {
+		// upload (at least from camput) requires stat and get too
+		op = op | OpVivify
 	}
-
-	_, pass, err := basicAuth(req)
-	if err != nil {
-		return false
-	}
-	return pass == da.Password
-}
-
-func (da *DevAuth) AddAuthHeader(req *http.Request) {
-	req.SetBasicAuth("", da.Password)
-}
-
-func IsAuthorized(req *http.Request) bool {
-	return mode.IsAuthorized(req)
+	return mode.AllowedAccess(req)&op == op
 }
 
 func TriedAuthorization(req *http.Request) bool {
@@ -242,8 +297,14 @@ type Handler struct {
 	http.Handler
 }
 
+// ServeHTTP serves only if this request and auth mode are allowed all Operations.
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if mode.IsAuthorized(r) {
+	h.serveHTTPForOp(w, r, OpAll)
+}
+
+// serveHTTPForOp serves only if op is allowed for this request and auth mode.
+func (h Handler) serveHTTPForOp(w http.ResponseWriter, r *http.Request, op Operation) {
+	if Allowed(r, op) {
 		h.Handler.ServeHTTP(w, r)
 	} else {
 		SendUnauthorized(w)
@@ -251,10 +312,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // requireAuth wraps a function with another function that enforces
-// HTTP Basic Auth.
-func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request)) func(conn http.ResponseWriter, req *http.Request) {
+// HTTP Basic Auth and checks if the operations in op are all permitted.
+func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request), op Operation) func(conn http.ResponseWriter, req *http.Request) {
 	return func(conn http.ResponseWriter, req *http.Request) {
-		if mode.IsAuthorized(req) {
+		if Allowed(req, op) {
 			handler(conn, req)
 		} else {
 			SendUnauthorized(conn)

@@ -89,7 +89,9 @@ func (rh *RootHandler) registerUIHandler(h *UIHandler) {
 
 func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if wantsDiscovery(req) {
-		if auth.IsAuthorized(req) {
+		// TODO(mpl): an OpDiscovery would be more to the point,
+		//  but OpGet is similar/good enough for now.
+		if auth.Allowed(req, auth.OpGet) {
 			rh.serveDiscovery(rw, req)
 			return
 		}
@@ -104,7 +106,7 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	configLink := ""
-	if auth.LocalhostAuthorized(req) {
+	if auth.IsLocalhost(req) {
 		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
 	}
 	fmt.Fprintf(rw, "<html><body>This is camlistored, a "+
