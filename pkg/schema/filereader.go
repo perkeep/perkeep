@@ -80,6 +80,7 @@ func (ss *Superset) setFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref
 	if err != nil {
 		return fmt.Errorf("schema/filereader: fetching schema blob %s: %v", blobRef, err)
 	}
+	defer rsc.Close()
 	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
 		return fmt.Errorf("schema/filereader: decoding schema blob %s: %v", blobRef, err)
 	}
@@ -99,8 +100,8 @@ func (dr *DirReader) StaticSet() ([]*blobref.BlobRef, error) {
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
-	ss := new(Superset)
-	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
+	ss, err := ParseSuperset(rsc)
+	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding schema blob %s: %v", staticSetBlobref, err)
 	}
 	if ss.Type != "static-set" {
@@ -169,8 +170,8 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 	}
 	defer rsc.Close()
-	ss := new(Superset)
-	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
+	ss, err := ParseSuperset(rsc)
+	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
 	}
 	if ss.Type != "file" && ss.Type != "bytes" {

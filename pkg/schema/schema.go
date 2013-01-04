@@ -275,6 +275,7 @@ type Superset struct {
 }
 
 func ParseSuperset(r io.Reader) (*Superset, error) {
+	// TODO: rename either this or MapFromReader to be named similarly?
 	var ss Superset
 	return &ss, json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss)
 }
