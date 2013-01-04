@@ -52,7 +52,7 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 	case "POST":
 		switch req.URL.Path {
 		case "/camli/sig/sign":
-			handler = auth.RequireAuth(handleSign)
+			handler = auth.RequireAuth(handleSign, auth.OpSign)
 		case "/camli/sig/verify":
 			handler = handleVerify
 		}
