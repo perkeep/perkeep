@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
 	"testing"
 
 	"camlistore.org/pkg/test"
@@ -125,6 +126,26 @@ var readTests = []readTest{
 		"AAAAaaaaa" + "Bbbbbb" + "Cc" + "aaaaa"},
 }
 
+func skipBytes(fr *FileReader, skipBytes uint64) uint64 {
+	oldOff, err := fr.Seek(0, os.SEEK_CUR)
+	if err != nil {
+		panic("Failed to seek")
+	}
+	remain := fr.size - oldOff
+	if int64(skipBytes) > remain {
+		skipBytes = uint64(remain)
+	}
+	newOff, err := fr.Seek(int64(skipBytes), os.SEEK_CUR)
+	if err != nil {
+		panic("Failed to seek")
+	}
+	skipped := newOff - oldOff
+	if skipped < 0 {
+		panic("")
+	}
+	return uint64(skipped)
+}
+
 func TestReader(t *testing.T) {
 	for idx, rt := range readTests {
 		ss := new(Superset)
@@ -136,7 +157,7 @@ func TestReader(t *testing.T) {
 			t.Errorf("read error on test %d: %v", idx, err)
 			continue
 		}
-		fr.Skip(rt.skip)
+		skipBytes(fr, rt.skip)
 		all, err := ioutil.ReadAll(fr)
 		if err != nil {
 			t.Errorf("read error on test %d: %v", idx, err)
@@ -183,7 +204,7 @@ func TestReaderSeekStress(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fr.Skip(uint64(off))
+		skipBytes(fr, uint64(off))
 		got, err := ioutil.ReadAll(fr)
 		if err != nil {
 			t.Fatal(err)

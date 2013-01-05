@@ -99,34 +99,6 @@ func (fr *FileReader) Close() error {
 	return nil
 }
 
-// Skip skips past skipBytes of the file.
-// It is equivalent to but more efficient than:
-//
-//   io.CopyN(ioutil.Discard, fr, skipBytes)
-//
-// It returns the number of bytes skipped.
-//
-// TODO(bradfitz): delete this. Legacy interface; callers should just Seek now.
-func (fr *FileReader) Skip(skipBytes uint64) uint64 {
-	oldOff, err := fr.Seek(0, os.SEEK_CUR)
-	if err != nil {
-		panic("Failed to seek")
-	}
-	remain := fr.size - oldOff
-	if int64(skipBytes) > remain {
-		skipBytes = uint64(remain)
-	}
-	newOff, err := fr.Seek(int64(skipBytes), os.SEEK_CUR)
-	if err != nil {
-		panic("Failed to seek")
-	}
-	skipped := newOff - oldOff
-	if skipped < 0 {
-		panic("")
-	}
-	return uint64(skipped)
-}
-
 var _ interface {
 	io.ReaderAt
 	io.Reader
