@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"camlistore.org/pkg/atomics"
 	"camlistore.org/pkg/blobref"
 )
 
@@ -42,6 +43,8 @@ type FileReader struct {
 	ss      *Superset
 
 	size int64 // total number of bytes
+
+	readAll atomics.Bool // whether to preload aggressively
 }
 
 // NewFileReader returns a new FileReader reading the contents of fileBlobRef,
@@ -75,6 +78,14 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	return fr, nil
 }
 
+// NewFileReader returns a new FileReader, reading bytes and blobs
+// from the provided fetcher.
+//
+// NewFileReader does no fetch operation on the fetcher itself.  The
+// fetcher is only used in subsequent read operations.
+//
+// An error is only returned if the type of the Superset is not either
+// "file" or "bytes".
 func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, error) {
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
@@ -137,6 +148,17 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 		err = io.ErrUnexpectedEOF
 	}
 	return n, err
+}
+
+func (fr *FileReader) WriteTo(w io.Writer) (n int64, err error) {
+	// WriteTo is called by io.Copy. Use this as a signal that we're going to want
+	// to read the rest of the file and go into an aggressive read-ahead mode.
+	fr.readAll.Set(true)
+
+	// TODO: actually use readAll somehow.
+
+	// Now just do a normal copy, but hide fr's WriteTo method from io.Copy:
+	return io.Copy(w, struct{ io.Reader }{fr})
 }
 
 type sliceWriter struct {
