@@ -82,17 +82,10 @@ type StatHasher interface {
 // File is the interface returned when opening a DirectoryEntry that
 // is a regular file.
 type File interface {
-	// TODO(bradfitz): this should instead be a ReaderAt with a Size() int64 method.
-	// Then a Reader could be built with a SectionReader.
-
-	Close() error
+	io.Closer
+	io.ReaderAt
+	io.Reader
 	Size() int64
-
-	// Skip is an efficient way to skip n bytes of the file.
-	// It returns the number of bytes skipped.
-	Skip(n uint64) uint64
-
-	Read(p []byte) (int, error)
 }
 
 // Directory is a read-only interface to a "directory" schema blob.
