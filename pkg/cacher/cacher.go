@@ -40,7 +40,9 @@ func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadClose
 	if err == nil {
 		return
 	}
-	cf.faultIn(br)
+	if err = cf.faultIn(br); err != nil {
+		return
+	}
 	return cf.c.Fetch(br)
 }
 
@@ -49,7 +51,9 @@ func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file blobref.ReadSeekClose
 	if err == nil {
 		return
 	}
-	cf.faultIn(br)
+	if err = cf.faultIn(br); err != nil {
+		return
+	}
 	return cf.c.Fetch(br)
 }
 
