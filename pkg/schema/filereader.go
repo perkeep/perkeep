@@ -173,6 +173,16 @@ func (sw *sliceWriter) Write(p []byte) (n int, err error) {
 
 var eofReader io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
 
+func (fr *FileReader) getSuperset(br *blobref.BlobRef) (*Superset, error) {
+	// TODO: cache this. use a new pkg/cacher type.
+	rsc, _, err := fr.fetcher.Fetch(br)
+	if err != nil {
+		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
+	}
+	defer rsc.Close()
+	return ParseSuperset(rsc)
+}
+
 // readerForOffset returns a ReadCloser that reads some number of bytes and then EOF
 // from the provided offset.  Seeing EOF doesn't mean the end of the whole file; just the
 // chunk at that offset.  The caller must close the ReadCloser when done reading.
@@ -203,7 +213,16 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	case p0.BlobRef != nil:
 		rsc, _, err = fr.fetcher.Fetch(p0.BlobRef)
 	case p0.BytesRef != nil:
-		rsc, err = NewFileReader(fr.fetcher, p0.BytesRef)
+		var ss *Superset
+		ss, err = fr.getSuperset(p0.BytesRef)
+		if err != nil {
+			return nil, err
+		}
+		rsc, err = ss.NewFileReader(fr.fetcher)
+		if err == nil && fr.readAll.Get() {
+			rsc.(*FileReader).readAll.Set(true)
+			// TODO: tell it to start faulting everything in
+		}
 	}
 	if err != nil {
 		return nil, err
