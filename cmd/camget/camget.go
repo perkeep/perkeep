@@ -247,7 +247,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 			br   *blobref.BlobRef
 			errc chan<- error
 		}
-		workc := make(chan work)
+		workc := make(chan work, len(sc.Members))
 		defer close(workc)
 		for i := 0; i < numWorkers; i++ {
 			go func() {
