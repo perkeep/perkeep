@@ -61,10 +61,11 @@ func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err 
 	}
 	resp, err = rt.RoundTrip(req)
 	if t.VerboseLog {
-		td := time.Since(t0)
+		t1 := time.Now()
+		td := t1.Sub(t1)
 		if err == nil {
 			log.Printf("(%d) %s %s = status %d (in %v)", n, req.Method, req.URL, resp.StatusCode, td)
-			resp.Body = &logBody{body: resp.Body, n: n}
+			resp.Body = &logBody{body: resp.Body, n: n, t0: t0, t1: t1}
 		} else {
 			log.Printf("(%d) %s %s = error: %v (in %v)", n, req.Method, req.URL, err, td)
 		}
@@ -75,6 +76,7 @@ func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err 
 type logBody struct {
 	body      io.ReadCloser
 	n         int
+	t0, t1    time.Time
 	readOnce  sync.Once
 	closeOnce sync.Once
 }
@@ -88,7 +90,8 @@ func (b *logBody) Read(p []byte) (n int, err error) {
 
 func (b *logBody) Close() error {
 	b.closeOnce.Do(func() {
-		log.Printf("(%d) Close body", b.n)
+		t := time.Now()
+		log.Printf("(%d) Close body (%v tot, %v post-header)", b.n, t.Sub(b.t0), t.Sub(b.t1))
 	})
 	return b.body.Close()
 }
