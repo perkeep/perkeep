@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // StatsTransport wraps another RoundTripper (or uses the default one) and
@@ -45,14 +46,26 @@ func (t *StatsTransport) Requests() int {
 func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	t.mu.Lock()
 	t.reqs++
+	n := t.reqs
 	t.mu.Unlock()
 
 	rt := t.Transport
 	if rt == nil {
 		rt = http.DefaultTransport
 	}
+	var t0 time.Time
 	if t.VerboseLog {
-		log.Printf("%s %s", req.Method, req.URL)
+		t0 = time.Now()
+		log.Printf("(%d) %s %s ...", n, req.Method, req.URL)
 	}
-	return rt.RoundTrip(req)
+	resp, err = rt.RoundTrip(req)
+	if t.VerboseLog {
+		td := time.Since(t0)
+		if err == nil {
+			log.Printf("(%d) %s %s = status %d (in %v)", n, req.Method, req.URL, resp.StatusCode, td)
+		} else {
+			log.Printf("(%d) %s %s = error: %v (in %v)", n, req.Method, req.URL, err, td)
+		}
+	}
+	return
 }
