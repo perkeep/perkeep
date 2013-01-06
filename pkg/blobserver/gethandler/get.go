@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
@@ -37,8 +38,9 @@ import (
 	"camlistore.org/pkg/misc/httprange" // TODO: delete this package, use http.ServeContent
 )
 
-var kGetPattern *regexp.Regexp = regexp.MustCompile(`/camli/([a-z0-9]+)-([a-f0-9]+)$`)
+var kGetPattern = regexp.MustCompile(`/camli/` + blobref.Pattern + `$`)
 
+// Handler is the HTTP handler for serving GET requests of blobs.
 type Handler struct {
 	Fetcher           blobref.StreamingFetcher
 	AllowGlobalAccess bool
@@ -124,11 +126,27 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 		remainBytes = reqRange.LimitBytes()
 	}
 
+	conn.Header().Set("Content-Type", "application/octet-stream")
 	if reqRange.IsWholeFile() {
 		conn.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+		// If it's small and all UTF-8, assume it's text and
+		// just render it in the browser.  This is more for
+		// demos/debuggability than anything else.  It isn't
+		// part of the spec.
+		if size <= 32<<10 {
+			var buf bytes.Buffer
+			_, err := io.Copy(&buf, input)
+			if err != nil {
+				httputil.ServerError(conn, req, err)
+				return
+			}
+			if utf8.Valid(buf.Bytes()) {
+				conn.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			}
+			input = &buf
+		}
 	}
 
-	conn.Header().Set("Content-Type", "application/octet-stream")
 	if !reqRange.IsWholeFile() {
 		conn.Header().Set("Content-Range",
 			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes(),
