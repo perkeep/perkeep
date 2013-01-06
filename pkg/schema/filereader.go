@@ -26,7 +26,6 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/atomics"
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/singleflight"
 )
@@ -50,8 +49,6 @@ type FileReader struct {
 	ss      *Superset
 
 	size int64 // total number of bytes
-
-	readAll atomics.Bool // whether to preload aggressively
 }
 
 // NewFileReader returns a new FileReader reading the contents of fileBlobRef,
@@ -108,6 +105,24 @@ func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, err
 	return fr, nil
 }
 
+// LoadAllChunks causes all chunks of the file to be loaded as quickly
+// as possible.  The contents are immediately discarded, so it is
+// assumed that the fetcher is a caching fetcher.
+func (fr *FileReader) LoadAllChunks() {
+	offsetc := make(chan int64, 16)
+	go func() {
+		for off := range offsetc {
+			go func(off int64) {
+				rc, err := fr.readerForOffset(off)
+				if err == nil {
+					rc.Close()
+				}
+			}(off)
+		}
+	}()
+	go fr.GetChunkOffsets(offsetc)
+}
+
 // FileSchema returns the reader's schema superset. Don't mutate it.
 func (fr *FileReader) FileSchema() *Superset {
 	return fr.ss
@@ -158,15 +173,49 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	return n, err
 }
 
-func (fr *FileReader) WriteTo(w io.Writer) (n int64, err error) {
-	// WriteTo is called by io.Copy. Use this as a signal that we're going to want
-	// to read the rest of the file and go into an aggressive read-ahead mode.
-	fr.readAll.Set(true)
+// GetChunkOffsets sends c each of the file's chunk offsets.
+// The offsets are not necessarily sent in order, and all ranges of the file
+// are not necessarily represented if the file contains zero holes.
+// The channel c is closed before the function returns, regardless of error.
+func (fr *FileReader) GetChunkOffsets(c chan<- int64) error {
+	defer close(c)
+	return fr.sendPartsChunks(c, 0, fr.ss.Parts)
+}
 
-	// TODO: actually use readAll somehow.
-
-	// Now just do a normal copy, but hide fr's WriteTo method from io.Copy:
-	return io.Copy(w, struct{ io.Reader }{fr})
+func (fr *FileReader) sendPartsChunks(c chan<- int64, off int64, parts []*BytesPart) error {
+	var errcs []chan error
+	for _, p := range parts {
+		switch {
+		case p.BlobRef != nil && p.BytesRef != nil:
+			return fmt.Errorf("part illegally contained both a blobRef and bytesRef")
+		case p.BlobRef == nil && p.BytesRef == nil:
+			// Don't send
+			break
+		case p.BlobRef != nil:
+			c <- off
+		case p.BytesRef != nil:
+			errc := make(chan error, 1)
+			errcs = append(errcs, errc)
+			br := p.BytesRef
+			offNow := off
+			go func() {
+				ss, err := fr.getSuperset(br)
+				if err != nil {
+					errc <- err
+					return
+				}
+				fr.sendPartsChunks(c, offNow, ss.Parts)
+				errc <- nil
+			}()
+		}
+		off += int64(p.Size)
+	}
+	for _, errc := range errcs {
+		if err := <-errc; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type sliceWriter struct {
@@ -242,10 +291,6 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 			return nil, err
 		}
 		rsc, err = ss.NewFileReader(fr.fetcher)
-		if err == nil && fr.readAll.Get() {
-			rsc.(*FileReader).readAll.Set(true)
-			// TODO: tell it to start faulting everything in
-		}
 	}
 	if err != nil {
 		return nil, err

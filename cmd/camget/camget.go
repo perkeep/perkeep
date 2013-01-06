@@ -147,6 +147,9 @@ func main() {
 			if *flagContents {
 				seekFetcher := blobref.SeekerFromStreamingFetcher(fetcher)
 				rc, err = schema.NewFileReader(seekFetcher, br)
+				if err == nil {
+					rc.(*schema.FileReader).LoadAllChunks()
+				}
 			} else {
 				rc, err = fetch(fetcher, br)
 			}
@@ -278,6 +281,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)
 		}
+		fr.LoadAllChunks()
 		defer fr.Close()
 
 		name := filepath.Join(targ, sc.FileName)
