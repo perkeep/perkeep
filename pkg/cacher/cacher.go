@@ -21,15 +21,18 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/singleflight"
 )
 
 func NewCachingFetcher(cacheTarget blobserver.Cache, sfetcher blobref.StreamingFetcher) *CachingFetcher {
-	return &CachingFetcher{cacheTarget, sfetcher}
+	return &CachingFetcher{c: cacheTarget, sf: sfetcher}
 }
 
 type CachingFetcher struct {
 	c  blobserver.Cache
 	sf blobref.StreamingFetcher
+
+	g singleflight.Group
 }
 
 var _ blobref.StreamingFetcher = (*CachingFetcher)(nil)
@@ -58,11 +61,14 @@ func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file blobref.ReadSeekClose
 }
 
 func (cf *CachingFetcher) faultIn(br *blobref.BlobRef) error {
-	sblob, _, err := cf.sf.FetchStreaming(br)
-	if err != nil {
-		return err
-	}
-	defer sblob.Close()
-	_, err = cf.c.ReceiveBlob(br, sblob)
+	_, err := cf.g.Do(br.String(), func() (interface{}, error) {
+		sblob, _, err := cf.sf.FetchStreaming(br)
+		if err != nil {
+			return nil, err
+		}
+		defer sblob.Close()
+		_, err = cf.c.ReceiveBlob(br, sblob)
+		return nil, err
+	})
 	return err
 }
