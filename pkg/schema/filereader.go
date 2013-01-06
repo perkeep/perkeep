@@ -24,9 +24,11 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"camlistore.org/pkg/atomics"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/singleflight"
 )
 
 var _ = log.Printf
@@ -38,6 +40,11 @@ var errClosed = errors.New("filereader is closed")
 // A FileReader reads the bytes of "file" and "bytes" schema blobrefs.
 type FileReader struct {
 	*io.SectionReader
+
+	ssmmu sync.Mutex           // guards ssm
+	ssm   map[string]*Superset // blobref -> superset
+
+	sfg singleflight.Group // for loading blobrefs for ssm
 
 	fetcher blobref.SeekFetcher
 	ss      *Superset
@@ -95,6 +102,7 @@ func (ss *Superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, err
 		fetcher: fetcher,
 		ss:      ss,
 		size:    size,
+		ssm:     make(map[string]*Superset),
 	}
 	fr.SectionReader = io.NewSectionReader(fr, 0, size)
 	return fr, nil
@@ -174,13 +182,28 @@ func (sw *sliceWriter) Write(p []byte) (n int, err error) {
 var eofReader io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
 
 func (fr *FileReader) getSuperset(br *blobref.BlobRef) (*Superset, error) {
-	// TODO: cache this. use a new pkg/cacher type.
-	rsc, _, err := fr.fetcher.Fetch(br)
-	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
+	brStr := br.String()
+
+	// Check cache first.
+	fr.ssmmu.Lock()
+	ss, ok := fr.ssm[brStr]
+	fr.ssmmu.Unlock()
+	if ok {
+		return ss, nil
 	}
-	defer rsc.Close()
-	return ParseSuperset(rsc)
+
+	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
+		rsc, _, err := fr.fetcher.Fetch(br)
+		if err != nil {
+			return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
+		}
+		defer rsc.Close()
+		return ParseSuperset(rsc)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ssi.(*Superset), nil
 }
 
 // readerForOffset returns a ReadCloser that reads some number of bytes and then EOF
