@@ -17,7 +17,6 @@ limitations under the License.
 package gethandler
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -30,13 +29,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/misc/httprange"
+	"camlistore.org/pkg/misc/httprange" // TODO: delete this package, use http.ServeContent
 )
 
 var kGetPattern *regexp.Regexp = regexp.MustCompile(`/camli/([a-z0-9]+)-([a-f0-9]+)$`)
@@ -126,31 +124,11 @@ func serveBlobRef(conn http.ResponseWriter, req *http.Request,
 		remainBytes = reqRange.LimitBytes()
 	}
 
-	// Assume this generic content type by default.  For better
-	// demos we'll try to sniff and guess the "right" MIME type in
-	// certain cases (no Range requests, etc) but this isn't part
-	// of the Camli spec at all.  We just do it to ease demos.
-	contentType := "application/octet-stream"
 	if reqRange.IsWholeFile() {
-		const peekSize = 1024
-		bufReader := bufio.NewReaderSize(input, peekSize)
-		header, _ := bufReader.Peek(peekSize)
-		if len(header) >= 8 {
-			switch {
-			case utf8.Valid(header):
-				contentType = "text/plain; charset=utf-8"
-			case bytes.HasPrefix(header, []byte{0xff, 0xd8, 0xff, 0xe2}):
-				contentType = "image/jpeg"
-			case bytes.HasPrefix(header, []byte{0x89, 0x50, 0x4e, 0x47, 0xd, 0xa, 0x1a, 0xa}):
-				contentType = "image/png"
-			}
-		}
-		input = bufReader
-
 		conn.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 	}
 
-	conn.Header().Set("Content-Type", contentType)
+	conn.Header().Set("Content-Type", "application/octet-stream")
 	if !reqRange.IsWholeFile() {
 		conn.Header().Set("Content-Range",
 			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes(),
