@@ -17,6 +17,7 @@ limitations under the License.
 package httputil
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -63,9 +64,31 @@ func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err 
 		td := time.Since(t0)
 		if err == nil {
 			log.Printf("(%d) %s %s = status %d (in %v)", n, req.Method, req.URL, resp.StatusCode, td)
+			resp.Body = &logBody{body: resp.Body, n: n}
 		} else {
 			log.Printf("(%d) %s %s = error: %v (in %v)", n, req.Method, req.URL, err, td)
 		}
 	}
 	return
+}
+
+type logBody struct {
+	body      io.ReadCloser
+	n         int
+	readOnce  sync.Once
+	closeOnce sync.Once
+}
+
+func (b *logBody) Read(p []byte) (n int, err error) {
+	b.readOnce.Do(func() {
+		log.Printf("(%d) Read body", b.n)
+	})
+	return b.body.Read(p)
+}
+
+func (b *logBody) Close() error {
+	b.closeOnce.Do(func() {
+		log.Printf("(%d) Close body", b.n)
+	})
+	return b.body.Close()
 }
