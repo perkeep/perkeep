@@ -232,22 +232,26 @@ var eofReader io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
 
 func (fr *FileReader) getSuperset(br *blobref.BlobRef) (*Superset, error) {
 	brStr := br.String()
-
-	// Check cache first.
-	fr.ssmmu.Lock()
-	ss, ok := fr.ssm[brStr]
-	fr.ssmmu.Unlock()
-	if ok {
-		return ss, nil
-	}
-
 	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
+		fr.ssmmu.Lock()
+		ss, ok := fr.ssm[brStr]
+		fr.ssmmu.Unlock()
+		if ok {
+			return ss, nil
+		}
 		rsc, _, err := fr.fetcher.Fetch(br)
 		if err != nil {
 			return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 		}
 		defer rsc.Close()
-		return ParseSuperset(rsc)
+		ss, err = ParseSuperset(rsc)
+		if err != nil {
+			return nil, err
+		}
+		fr.ssmmu.Lock()
+		defer fr.ssmmu.Unlock()
+		fr.ssm[brStr] = ss
+		return ss, nil
 	})
 	if err != nil {
 		return nil, err
