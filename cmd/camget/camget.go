@@ -129,6 +129,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error setting up local disk cache: %v", err)
 	}
+	if *flagVerbose {
+		log.Printf("Using temp blob cache directory %s", cacheDir)
+	}
 	fetcher := cacher.NewCachingFetcher(diskcache, cl)
 
 	for _, br := range items {
