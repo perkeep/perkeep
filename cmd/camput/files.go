@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/sha1"
+	"errors"
 	"flag"
 	"fmt"
 	"hash"
@@ -47,6 +48,7 @@ type fileCmd struct {
 	makePermanode  bool // make new, unique permanode of the root (dir or file)
 	filePermanodes bool // make planned permanodes for each file (based on their digest)
 	vivify         bool
+	exifTime       bool // use metadata (such as in EXIF) to find the creation time of the file
 	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
 
 	havecache, statcache bool
@@ -65,6 +67,7 @@ func init() {
 			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
 				" or at-risk clients, such as phones.")
+		flags.BoolVar(&cmd.exifTime, "exiftime", false, "Try to use metadata (such as EXIF) to get a stable creation time. If found, used as the replacement for the modtime. Mainly useful with vivify or filenodes.")
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
@@ -143,7 +146,12 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 			return UsageError("A gpg key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
-	up.fileOpts = &fileOptions{permanode: c.filePermanodes, tag: c.tag, vivify: c.vivify}
+	up.fileOpts = &fileOptions{
+		permanode: c.filePermanodes,
+		tag:       c.tag,
+		vivify:    c.vivify,
+		exifTime:  c.exifTime,
+	}
 
 	var (
 		permaNode *client.PutResult
@@ -472,9 +480,20 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return nil, err
 	}
 	defer file.Close()
+	if up.fileOpts.exifTime {
+		ra, ok := file.(io.ReaderAt)
+		if !ok {
+			return nil, errors.New("Error asserting local file to io.ReaderAt")
+		}
+		modtime, err := schema.FileTime(ra)
+		if err != nil {
+			log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
+		} else {
+			m["unixMtime"] = schema.RFC3339FromTime(modtime)
+		}
+	}
 
 	size := n.fi.Size()
-
 	var fileContents io.Reader = io.LimitReader(file, size)
 
 	if up.fileOpts.wantVivify() {
@@ -544,8 +563,10 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		// There should probably be a method on *Uploader to do this
 		// from an unsigned schema map. Maybe ditch the schema.Claimer
 		// type and just have the Uploader override the claimDate.
-		claimTime := n.fi.ModTime()
-
+		claimTime, err := time.Parse(time.RFC3339, m["unixMtime"].(string))
+		if err != nil {
+			return nil, fmt.Errorf("While parsing modtime for file %v: %v", n.fullPath, err)
+		}
 		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", blobref.String())
 		contentAttr.SetClaimDate(claimTime)
 		signed, err := up.SignMap(contentAttr, claimTime)

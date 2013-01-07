@@ -40,6 +40,7 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
 var sha1Type = reflect.TypeOf(sha1.New())
@@ -671,4 +672,55 @@ func LikelySchemaBlob(buf []byte) bool {
 		return false
 	}
 	return bytes.Contains(buf, bytesCamliVersion)
+}
+
+// findSize checks if v is an *os.File or if it has
+// a Size() int64 method, to find its size.
+// It returns 0, false otherwise.
+func findSize(v interface{}) (size int64, ok bool) {
+	if fi, ok := v.(*os.File); ok {
+		v, _ = fi.Stat()
+	}
+	if sz, ok := v.(interface {
+		Size() int64
+	}); ok {
+		return sz.Size(), true
+	}
+	return 0, false
+}
+
+// FileTime returns the best guess of the file's creation time (or modtime).
+// If the file doesn't have its own metadata indication the creation time (such as in EXIF),
+// FileTime uses the modification time from the file system.
+// It there was a valid EXIF but an error while trying to get a date from it,
+// it logs the error and tries the other methods.
+func FileTime(f io.ReaderAt) (time.Time, error) {
+	var ct time.Time
+	defaultTime := func() (time.Time, error) {
+		if osf, ok := f.(*os.File); ok {
+			fi, err := osf.Stat()
+			if err != nil {
+				return ct, fmt.Errorf("Failed to find a modtime: lstat: %v", err)
+			}
+			return fi.ModTime(), nil
+		}
+		return ct, errors.New("All methods failed to find a creation time or modtime.")
+	}
+
+	size, ok := findSize(f)
+	if !ok {
+		size = 256 << 10 // enough to get the EXIF
+	}
+	r := io.NewSectionReader(f, 0, size)
+	ex, err := exif.Decode(r)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		return defaultTime()
+	}
+	ct, err = ex.DateTime()
+	if err != nil {
+		log.Printf("Error with DateTime in EXIF: %v", err)
+		return defaultTime()
+	}
+	return ct, nil
 }
