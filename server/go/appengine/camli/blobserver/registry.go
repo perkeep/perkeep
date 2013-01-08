@@ -1,1 +1,0 @@
-../../../../../pkg/blobserver/registry.go

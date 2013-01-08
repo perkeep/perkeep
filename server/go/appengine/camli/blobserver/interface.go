@@ -1,1 +1,0 @@
-../../../../../pkg/blobserver/interface.go
