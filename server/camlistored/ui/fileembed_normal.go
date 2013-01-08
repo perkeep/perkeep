@@ -1,4 +1,4 @@
-// +build appengine
+// +build !appengine
 
 /*
 Copyright 2011 Google Inc.
@@ -16,24 +16,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appengine
+package ui
 
 import (
-	"fmt"
-	"strings"
+	"camlistore.org/pkg/fileembed"
 )
 
-func sanitizeNamespace(ns string) (outns string, err error) {
-	outns = ns
-	switch {
-	case strings.Contains(ns, "|"):
-		err = fmt.Errorf("no pipe allowed in namespace %q", ns)
-	case strings.Contains(ns, "\x00"):
-		err = fmt.Errorf("no zero byte allowed in namespace %q", ns)
-	case ns == "-":
-		err = fmt.Errorf("reserved namespace %q", ns)
-	case ns == "":
-		outns = "-"
+func init() {
+	Files = &fileembed.Files{
+		OverrideEnv: "CAMLI_DEV_UI_FILES",
 	}
-	return
 }
+

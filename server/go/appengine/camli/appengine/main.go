@@ -20,7 +20,7 @@ package appengine
 
 import (
 	"fmt"
-	"http"
+	"net/http"
 	"sync"
 
 	"appengine"

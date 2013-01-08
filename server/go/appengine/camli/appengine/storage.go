@@ -20,14 +20,16 @@ package appengine
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"http"
+	"net/http"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"appengine"
 	"appengine/datastore"
@@ -68,15 +70,15 @@ type memEnt struct {
 	Size []byte // an int64 as "%d" to make it unindexed
 }
 
-func (b *blobEnt) size() (int64, os.Error) {
+func (b *blobEnt) size() (int64, error) {
 	return byteDecSize(b.Size)
 }
 
-func (m *memEnt) size() (int64, os.Error) {
+func (m *memEnt) size() (int64, error) {
 	return byteDecSize(m.Size)
 }
 
-func byteDecSize(b []byte) (int64, os.Error) {
+func byteDecSize(b []byte) (int64, error) {
 	var size int64
 	n, err := fmt.Fscanf(bytes.NewBuffer(b), "%d", &size)
 	if n != 1 || err != nil {
@@ -102,7 +104,7 @@ func (s *appengineStorage) memKey(c appengine.Context, br *blobref.BlobRef) *dat
 	return datastore.NewKey(c, memKind, fmt.Sprintf("%s|%s", s.namespace, br.String()), 0, nil)
 }
 
-func fetchEnt(c appengine.Context, br *blobref.BlobRef) (*blobEnt, os.Error) {
+func fetchEnt(c appengine.Context, br *blobref.BlobRef) (*blobEnt, error) {
 	row := new(blobEnt)
 	err := datastore.Get(c, entKey(c, br), row)
 	if err != nil {
@@ -111,9 +113,9 @@ func fetchEnt(c appengine.Context, br *blobref.BlobRef) (*blobEnt, os.Error) {
 	return row, nil
 }
 
-var errNoContext = os.NewError("Internal error: no App Engine context is available")
+var errNoContext = errors.New("Internal error: no App Engine context is available")
 
-func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err os.Error) {
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &appengineStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 	}
@@ -137,7 +139,7 @@ func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
 	return s2
 }
 
-func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err os.Error) {
+func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
 	if sto.ctx == nil {
 		err = errNoContext
 		return
@@ -164,7 +166,7 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 
 var crossGroupTransaction = &datastore.TransactionOptions{XG: true}
 
-func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err os.Error) {
+func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err error) {
 	if sto.ctx == nil {
 		err = errNoContext
 		return
@@ -185,7 +187,7 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	var bkey appengine.BlobKey
 
 	// uploadBlob uploads the blob, unless it's already been done.
-	uploadBlob := func(ctx appengine.Context) os.Error {
+	uploadBlob := func(ctx appengine.Context) error {
 		if len(bkey) > 0 {
 			return nil // already done in previous transaction attempt
 		}
@@ -212,7 +214,7 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 		return err
 	}
 
-	tryFunc := func(tc appengine.Context) os.Error {
+	tryFunc := func(tc appengine.Context) error {
 		row, err := fetchEnt(sto.ctx, br)
 		switch err {
 		case datastore.ErrNoSuchEntity:
@@ -263,12 +265,12 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 }
 
 // NOTE(bslatkin): No fucking clue if this works.
-func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
+func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	if sto.ctx == nil {
 		return errNoContext
 	}
 
-	tryFunc := func(tc appengine.Context, br *blobref.BlobRef) os.Error {
+	tryFunc := func(tc appengine.Context, br *blobref.BlobRef) error {
 		// TODO(bslatkin): Make the DB gets in this a multi-get.
 		// Remove the namespace from the blobEnt
 		row, err := fetchEnt(sto.ctx, br)
@@ -303,7 +305,7 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	for _, br := range blobs {
 		ret := datastore.RunInTransaction(
 			sto.ctx,
-			func(tc appengine.Context) os.Error {
+			func(tc appengine.Context) error {
 				return tryFunc(tc, br)
 			},
 			crossGroupTransaction)
@@ -314,22 +316,22 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) os.Error {
 	return nil
 }
 
-func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, waitSeconds int) os.Error {
+func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
 	if sto.ctx == nil {
 		return errNoContext
 	}
 	var (
 		keys = make([]*datastore.Key, 0, len(blobs))
 		out  = make([]interface{}, 0, len(blobs))
-		errs = make([]os.Error, len(blobs))
+		errs = make([]error, len(blobs))
 	)
 	for _, br := range blobs {
 		keys = append(keys, sto.memKey(sto.ctx, br))
 		out = append(out, new(memEnt))
 	}
 	err := datastore.GetMulti(sto.ctx, keys, out)
-	if merr, ok := err.(datastore.ErrMulti); ok {
-		errs = []os.Error(merr)
+	if merr, ok := err.(appengine.MultiError); ok {
+		errs = []error(merr)
 		err = nil
 	}
 	if err != nil {
@@ -355,7 +357,7 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 	return err
 }
 
-func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit uint, waitSeconds int) os.Error {
+func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 	if sto.ctx == nil {
 		return errNoContext
@@ -394,7 +396,7 @@ var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
 // In App Engine land, 1) will result in a task to be enqueued, and 2) will
 // be called from within that queue context.
 
-func (sto *appengineStorage) CreateQueue(name string) (blobserver.Storage, os.Error) {
+func (sto *appengineStorage) CreateQueue(name string) (blobserver.Storage, error) {
 	if !validQueueName.MatchString(name) {
 		return nil, fmt.Errorf("invalid queue name %q", name)
 	}

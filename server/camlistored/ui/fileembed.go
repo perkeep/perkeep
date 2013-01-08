@@ -23,6 +23,4 @@ import (
 	"camlistore.org/pkg/fileembed"
 )
 
-var Files = &fileembed.Files{
-	OverrideEnv: "CAMLI_DEV_UI_FILES",
-}
+var Files *fileembed.Files

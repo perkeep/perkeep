@@ -16,24 +16,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appengine
+package ui
 
 import (
-	"fmt"
-	"strings"
+	"camlistore.org/pkg/fileembed"
+
+	"appengine"
 )
 
-func sanitizeNamespace(ns string) (outns string, err error) {
-	outns = ns
-	switch {
-	case strings.Contains(ns, "|"):
-		err = fmt.Errorf("no pipe allowed in namespace %q", ns)
-	case strings.Contains(ns, "\x00"):
-		err = fmt.Errorf("no zero byte allowed in namespace %q", ns)
-	case ns == "-":
-		err = fmt.Errorf("reserved namespace %q", ns)
-	case ns == "":
-		outns = "-"
+func init() {
+	Files = &fileembed.Files{
+		DirFallback: "uistatic",
+
+		// In dev_appserver, allow edit-and-reload without
+		// restarting. In production, though, it's faster to just
+		// slurp it in.
+		SlurpToMemory: !appengine.IsDevAppServer(),
 	}
-	return
 }
