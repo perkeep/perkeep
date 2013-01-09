@@ -19,32 +19,86 @@ limitations under the License.
 package appengine
 
 import (
-	"camlistore.org/pkg/index"
+	"errors"
+
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+
+	"appengine"
+	"appengine/datastore"
 )
 
+var (
+	indexRowKind = "IndexRow"
+)
+
+// A row of the index.  Keyed by "<namespace>|<keyname>"
+type indexRowEnt struct {
+	value []byte
+}
+
+type indexStorage struct {
+	ns string
+}
+
+func (is *indexStorage) key(c appengine.Context, key string) *datastore.Key {
+	return datastore.NewKey(c, indexRowKind, is.ns + "|" + key, 0, nil)
+}
+
+func (is *indexStorage) BeginBatch() index.BatchMutation {
+	panic("TODO: impl")
+}
+
+func (is *indexStorage) CommitBatch(bm index.BatchMutation) error {
+	return errors.New("TODO: impl")
+}
+
+func (is *indexStorage) Get(key string) (string, error) {
+	c := getContext()
+	defer putContext(c)
+
+	panic("TODO: impl")
+}
+
+func (is *indexStorage) Set(key, value string) error {
+	c := getContext()
+	defer putContext(c)
+
+	panic("TODO: impl")
+}
+
+func (is *indexStorage) Delete(key string) error {
+	c := getContext()
+	defer putContext(c)
+
+	panic("TODO: impl")
+}
+
+func (is *indexStorage) Find(key string) index.Iterator {
+	panic("TODO: impl")
+}
+
 func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
-	//sto := &appengineIndexStorage{}
-	ns := config.OptionalString("namespace", "")
+	is := &indexStorage{}
+	var (
+		blobPrefix = config.RequiredString("blobSource")
+		ns         = config.OptionalString("namespace", "")
+	)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	_ = ns
-
-	var sto index.IndexStorage
-	// TODO
-        ix := index.New(sto)
-	return ix, nil
-
-	/*
-        ix.BlobSource = sto
-	// Good enough, for now:
-	ix.KeyFetcher = ix.BlobSource
-	sto.namespace, err = sanitizeNamespace(ns)
+	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
 	}
-	return sto, nil
-	 */
+	is.ns, err = sanitizeNamespace(ns)
+	if err != nil {
+		return nil, err
+	}
+
+	ix := index.New(is)
+	ix.BlobSource = sto
+	ix.KeyFetcher = ix.BlobSource // TODO(bradfitz): global search? something else?
+	return ix, nil
 }

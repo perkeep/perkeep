@@ -32,7 +32,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/shard"
 	_ "camlistore.org/pkg/server" // handlers: UI, publish, thumbnailing, etc
 
-	// TODO(bradfitz): uncomment these and deal with symlinks + config setup
+	// TODO(bradfitz): uncomment these config setup
 	// Both require an App Engine context to make HTTP requests too.
 	//_ "camlistore.org/pkg/blobserver/remote"
 	//_ "camlistore.org/pkg/blobserver/s3"
@@ -57,6 +57,16 @@ func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if li.ready {
 		li.mux.ServeHTTP(w, r)
 	}
+}
+
+var ctxPool ContextPool
+
+func getContext() appengine.Context {
+	return ctxPool.Get()
+}
+
+func putContext(c appengine.Context) {
+	ctxPool.Put(c)
 }
 
 var root = new(lazyInit)

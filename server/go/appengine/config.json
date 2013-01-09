@@ -73,7 +73,8 @@
     "/indexer/": {
       "handler": "storage-aeindex",
       "handlerArgs": {
-        "namespace": "idx1"
+        "namespace": "idx1",
+        "blobSource": "/bs/"
       }
     },
 
