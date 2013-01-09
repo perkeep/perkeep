@@ -82,36 +82,30 @@ function handleFormGetAnyAttr(e) {
 }
 
 function doSearch() {
-	var sigcb = {};
-	sigcb.success = function(sigconf) {
-		var tagcb = {};
-		tagcb.success = function(pres) {
-			showSearchResult(pres, CamliSearch.type);
-		};
-		tagcb.fail = function(msg) {
-			alert(msg);
-		};
-		switch(CamliSearch.type) {
-		case "tag":
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
-			break;
-		case "title":
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
-			break;
-		case "camliRoot":
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", tagcb);
-			break;
-		case "":
-			if (CamliSearch.query !== "") {
-				camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
-			}
-			break;
-		}
+	var sigconf = Camli.config.signing;
+	var tagcb = {};
+	tagcb.success = function(pres) {
+		showSearchResult(pres, CamliSearch.type);
 	};
-	sigcb.fail = function() {
-		alert("sig disco failed");
+	tagcb.fail = function(msg) {
+		alert(msg);
+	};
+	switch(CamliSearch.type) {
+	case "tag":
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
+		break;
+	case "title":
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
+		break;
+	case "camliRoot":
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", tagcb);
+		break;
+	case "":
+		if (CamliSearch.query !== "") {
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
+		}
+		break;
 	}
-	camliSigDiscovery(sigcb);
 }
 
 function showSearchResult(pres, type) {

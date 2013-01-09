@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 21268, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 20694, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -516,42 +516,35 @@ func init() {
 		"    // if multiple path components in suffix:\n"+
 		"    //         \"camliPath:<suffix>\" => permanode-of-ourselves\n"+
 		"\n"+
-		"    var sigcb = {};\n"+
-		"    sigcb.success = function(sigconf) {\n"+
-		"        var savcb = {};\n"+
-		"        savcb.success = function(pnres) {\n"+
-		"            if (!pnres.permanode) {\n"+
-		"                alert(\"failed to publish root's permanode\");\n"+
-		"                enabled();\n"+
-		"                return;\n"+
-		"            }\n"+
-		"            var attrcb = {};\n"+
-		"            attrcb.success = function() {\n"+
-		"                console.log(\"success.\");\n"+
-		"                enabled();\n"+
-		"                selRoots.value = \"\";\n"+
-		"                suffix.value = \"\";\n"+
-		"                buildPathsList();\n"+
-		"            };\n"+
-		"            attrcb.fail = function() {\n"+
-		"                alert(\"failed to set attribute\");\n"+
-		"                enabled();\n"+
-		"            };\n"+
-		"            camliNewSetAttributeClaim(pnres.permanode, \"camliPath:\" + pathSuffix,"+
-		" ourPermanode, attrcb);\n"+
+		"    var sigconf = Camli.config.signing;\n"+
+		"    var savcb = {};\n"+
+		"    savcb.success = function(pnres) {\n"+
+		"        if (!pnres.permanode) {\n"+
+		"            alert(\"failed to publish root's permanode\");\n"+
+		"            enabled();\n"+
+		"            return;\n"+
+		"        }\n"+
+		"        var attrcb = {};\n"+
+		"        attrcb.success = function() {\n"+
+		"            console.log(\"success.\");\n"+
+		"            enabled();\n"+
+		"            selRoots.value = \"\";\n"+
+		"            suffix.value = \"\";\n"+
+		"            buildPathsList();\n"+
 		"        };\n"+
-		"        savcb.fail = function() {\n"+
-		"            alert(\"failed to find publish root's permanode\");\n"+
+		"        attrcb.fail = function() {\n"+
+		"            alert(\"failed to set attribute\");\n"+
 		"            enabled();\n"+
 		"        };\n"+
-		"        camliPermanodeOfSignerAttrValue(sigconf.publicKeyBlobRef, \"camliRoot\", pu"+
-		"blishRoot, savcb);\n"+
+		"        camliNewSetAttributeClaim(pnres.permanode, \"camliPath:\" + pathSuffix, our"+
+		"Permanode, attrcb);\n"+
 		"    };\n"+
-		"    sigcb.fail = function() {\n"+
-		"        alert(\"sig disco failed\");\n"+
+		"    savcb.fail = function() {\n"+
+		"        alert(\"failed to find publish root's permanode\");\n"+
 		"        enabled();\n"+
-		"    }\n"+
-		"    camliSigDiscovery(sigcb);\n"+
+		"    };\n"+
+		"    camliPermanodeOfSignerAttrValue(sigconf.publicKeyBlobRef, \"camliRoot\", publis"+
+		"hRoot, savcb);\n"+
 		"}\n"+
 		"\n"+
 		"function buildPathsList() {\n"+
@@ -559,72 +552,64 @@ func init() {
 		"    if (!ourPermanode) {\n"+
 		"        return;\n"+
 		"    }\n"+
-		"    var sigcb = {};\n"+
-		"    sigcb.success = function(sigconf) {\n"+
-		"        var findpathcb = {};\n"+
-		"        findpathcb.success = function(jres) {\n"+
-		"            var div = document.getElementById(\"existingPaths\");\n"+
+		"    var sigconf = Camli.config.signing;\n"+
 		"\n"+
-		"            // TODO: there can be multiple paths in this list, but the HTML\n"+
-		"            // UI only shows one.  The UI should show all, and when adding a new "+
-		"one\n"+
-		"            // prompt users whether they want to add to or replace the existing o"+
-		"ne.\n"+
-		"            // For now we just update the UI to show one.\n"+
-		"            // alert(JSON.stringify(jres, null, 2));\n"+
-		"            if (jres.paths && jres.paths.length > 0) {\n"+
-		"                div.innerHTML = \"Existing paths for this permanode:\";\n"+
-		"                var ul = document.createElement(\"ul\");\n"+
-		"                div.appendChild(ul);\n"+
-		"                for (var idx in jres.paths) {\n"+
-		"                    var path = jres.paths[idx];\n"+
-		"                    var li = document.createElement(\"li\");\n"+
-		"                    var span = document.createElement(\"span\");\n"+
-		"                    li.appendChild(span);\n"+
+		"    var findpathcb = {};\n"+
+		"    findpathcb.success = function(jres) {\n"+
+		"        var div = document.getElementById(\"existingPaths\");\n"+
 		"\n"+
-		"                    var blobLink = document.createElement(\"a\");\n"+
-		"                    blobLink.href = \".?p=\" + path.baseRef;\n"+
-		"                    setTextContent(blobLink, path.baseRef);\n"+
-		"                    span.appendChild(blobLink);\n"+
+		"        // TODO: there can be multiple paths in this list, but the HTML\n"+
+		"        // UI only shows one.  The UI should show all, and when adding a new one\n"+
+		"        // prompt users whether they want to add to or replace the existing one.\n"+
+		"        // For now we just update the UI to show one.\n"+
+		"        // alert(JSON.stringify(jres, null, 2));\n"+
+		"        if (jres.paths && jres.paths.length > 0) {\n"+
+		"            div.innerHTML = \"Existing paths for this permanode:\";\n"+
+		"            var ul = document.createElement(\"ul\");\n"+
+		"            div.appendChild(ul);\n"+
+		"            for (var idx in jres.paths) {\n"+
+		"                var path = jres.paths[idx];\n"+
+		"                var li = document.createElement(\"li\");\n"+
+		"                var span = document.createElement(\"span\");\n"+
+		"                li.appendChild(span);\n"+
 		"\n"+
-		"                    span.appendChild(document.createTextNode(\" - \"));\n"+
+		"                var blobLink = document.createElement(\"a\");\n"+
+		"                blobLink.href = \".?p=\" + path.baseRef;\n"+
+		"                setTextContent(blobLink, path.baseRef);\n"+
+		"                span.appendChild(blobLink);\n"+
 		"\n"+
-		"                    var pathLink = document.createElement(\"a\");\n"+
-		"                    pathLink.href = \"\";\n"+
-		"                    setTextContent(pathLink, path.suffix);\n"+
-		"                    for (var key in Camli.config.publishRoots) {\n"+
-		"                        var root = Camli.config.publishRoots[key];\n"+
-		"                        if (root.currentPermanode == path.baseRef) {\n"+
-		"                            // Prefix should include a trailing slash.\n"+
-		"                            pathLink.href = root.prefix[0] + path.suffix;\n"+
-		"                            // TODO: Check if we're the latest permanode\n"+
-		"                            // for this path and display some \"old\" notice\n"+
-		"                            // if not.\n"+
-		"                            break;\n"+
-		"                        }\n"+
+		"                span.appendChild(document.createTextNode(\" - \"));\n"+
+		"\n"+
+		"                var pathLink = document.createElement(\"a\");\n"+
+		"                pathLink.href = \"\";\n"+
+		"                setTextContent(pathLink, path.suffix);\n"+
+		"                for (var key in Camli.config.publishRoots) {\n"+
+		"                    var root = Camli.config.publishRoots[key];\n"+
+		"                    if (root.currentPermanode == path.baseRef) {\n"+
+		"                        // Prefix should include a trailing slash.\n"+
+		"                        pathLink.href = root.prefix[0] + path.suffix;\n"+
+		"                        // TODO: Check if we're the latest permanode\n"+
+		"                        // for this path and display some \"old\" notice\n"+
+		"                        // if not.\n"+
+		"                        break;\n"+
 		"                    }\n"+
-		"                    span.appendChild(pathLink);\n"+
-		"\n"+
-		"                    var del = document.createElement(\"span\");\n"+
-		"                    del.className = \"camli-del\";\n"+
-		"                    setTextContent(del, \"x\");\n"+
-		"                    del.addEventListener(\"click\", deletePathFunc(path.baseRef, pa"+
-		"th.suffix, span));\n"+
-		"                    span.appendChild(del);\n"+
-		"\n"+
-		"                    ul.appendChild(li);\n"+
 		"                }\n"+
-		"            } else {\n"+
-		"                div.innerHTML = \"\";\n"+
+		"                span.appendChild(pathLink);\n"+
+		"\n"+
+		"                var del = document.createElement(\"span\");\n"+
+		"                del.className = \"camli-del\";\n"+
+		"                setTextContent(del, \"x\");\n"+
+		"                del.addEventListener(\"click\", deletePathFunc(path.baseRef, path.s"+
+		"uffix, span));\n"+
+		"                span.appendChild(del);\n"+
+		"\n"+
+		"                ul.appendChild(li);\n"+
 		"            }\n"+
-		"        };\n"+
-		"        camliPathsOfSignerTarget(sigconf.publicKeyBlobRef, ourPermanode, findpath"+
-		"cb);\n"+
+		"        } else {\n"+
+		"            div.innerHTML = \"\";\n"+
+		"        }\n"+
 		"    };\n"+
-		"    sigcb.fail = function() {\n"+
-		"        alert(\"sig disco failed\");\n"+
-		"    }\n"+
-		"    camliSigDiscovery(sigcb);\n"+
+		"    camliPathsOfSignerTarget(sigconf.publicKeyBlobRef, ourPermanode, findpathcb);\n"+
 		"}\n"+
 		"\n"+
 		"function deletePathFunc(sourcePermanode, path, strikeEle) {\n"+
@@ -681,5 +666,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1356312773000000000))
+		""), time.Unix(0, 1357701478000000000))
 }

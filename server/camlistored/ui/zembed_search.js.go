@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 7634, fileembed.String("/*\n"+
+	Files.Add("search.js", 7504, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -91,40 +91,34 @@ func init() {
 		"}\n"+
 		"\n"+
 		"function doSearch() {\n"+
-		"	var sigcb = {};\n"+
-		"	sigcb.success = function(sigconf) {\n"+
-		"		var tagcb = {};\n"+
-		"		tagcb.success = function(pres) {\n"+
-		"			showSearchResult(pres, CamliSearch.type);\n"+
-		"		};\n"+
-		"		tagcb.fail = function(msg) {\n"+
-		"			alert(msg);\n"+
-		"		};\n"+
-		"		switch(CamliSearch.type) {\n"+
-		"		case \"tag\":\n"+
-		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"tag\", CamliSearch.query,"+
-		" CamliSearch.fuzzy, tagcb);\n"+
-		"			break;\n"+
-		"		case \"title\":\n"+
-		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"title\", CamliSearch.quer"+
-		"y, \"true\", tagcb);\n"+
-		"			break;\n"+
-		"		case \"camliRoot\":\n"+
-		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"camliRoot\", CamliSearch."+
-		"query, \"false\", tagcb);\n"+
-		"			break;\n"+
-		"		case \"\":\n"+
-		"			if (CamliSearch.query !== \"\") {\n"+
-		"				camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \""+
-		"true\", tagcb);\n"+
-		"			}\n"+
-		"			break;\n"+
-		"		}\n"+
+		"	var sigconf = Camli.config.signing;\n"+
+		"	var tagcb = {};\n"+
+		"	tagcb.success = function(pres) {\n"+
+		"		showSearchResult(pres, CamliSearch.type);\n"+
 		"	};\n"+
-		"	sigcb.fail = function() {\n"+
-		"		alert(\"sig disco failed\");\n"+
+		"	tagcb.fail = function(msg) {\n"+
+		"		alert(msg);\n"+
+		"	};\n"+
+		"	switch(CamliSearch.type) {\n"+
+		"	case \"tag\":\n"+
+		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"tag\", CamliSearch.query, "+
+		"CamliSearch.fuzzy, tagcb);\n"+
+		"		break;\n"+
+		"	case \"title\":\n"+
+		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"title\", CamliSearch.query"+
+		", \"true\", tagcb);\n"+
+		"		break;\n"+
+		"	case \"camliRoot\":\n"+
+		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"camliRoot\", CamliSearch.q"+
+		"uery, \"false\", tagcb);\n"+
+		"		break;\n"+
+		"	case \"\":\n"+
+		"		if (CamliSearch.query !== \"\") {\n"+
+		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \"t"+
+		"rue\", tagcb);\n"+
+		"		}\n"+
+		"		break;\n"+
 		"	}\n"+
-		"	camliSigDiscovery(sigcb);\n"+
 		"}\n"+
 		"\n"+
 		"function showSearchResult(pres, type) {\n"+
@@ -288,5 +282,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1356312785000000000))
+		""), time.Unix(0, 1357701388000000000))
 }

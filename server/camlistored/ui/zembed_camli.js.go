@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 17153, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17159, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -118,7 +118,8 @@ func init() {
 		"// Where is the target accessed via? (paths it's at)\n"+
 		"function camliPathsOfSignerTarget(signer, target, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliPathsOfSignerTarget\", opts);\n"+
-		"    var path = makeURL(Camli.config.searchRoot + \"camli/search/signerpaths\",\n"+
+		"    var path = Camli.makeURL(Camli.config.searchRoot + \"camli/search/signerpaths\""+
+		",\n"+
 		"                           { signer: signer, target: target });\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
@@ -539,5 +540,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1356312734000000000))
+		""), time.Unix(0, 1357701658000000000))
 }

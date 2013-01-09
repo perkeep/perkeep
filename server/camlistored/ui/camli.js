@@ -106,7 +106,7 @@ function camliPermanodeOfSignerAttrValue(signer, attr, value, opts) {
 // Where is the target accessed via? (paths it's at)
 function camliPathsOfSignerTarget(signer, target, opts) {
     var xhr = camliJsonXhr("camliPathsOfSignerTarget", opts);
-    var path = makeURL(Camli.config.searchRoot + "camli/search/signerpaths",
+    var path = Camli.makeURL(Camli.config.searchRoot + "camli/search/signerpaths",
                            { signer: signer, target: target });
     xhr.open("GET", path, true);
     xhr.send();

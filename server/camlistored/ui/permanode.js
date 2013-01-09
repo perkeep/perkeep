@@ -499,40 +499,33 @@ function onBtnSavePublish(e) {
     // if multiple path components in suffix:
     //         "camliPath:<suffix>" => permanode-of-ourselves
 
-    var sigcb = {};
-    sigcb.success = function(sigconf) {
-        var savcb = {};
-        savcb.success = function(pnres) {
-            if (!pnres.permanode) {
-                alert("failed to publish root's permanode");
-                enabled();
-                return;
-            }
-            var attrcb = {};
-            attrcb.success = function() {
-                console.log("success.");
-                enabled();
-                selRoots.value = "";
-                suffix.value = "";
-                buildPathsList();
-            };
-            attrcb.fail = function() {
-                alert("failed to set attribute");
-                enabled();
-            };
-            camliNewSetAttributeClaim(pnres.permanode, "camliPath:" + pathSuffix, ourPermanode, attrcb);
+    var sigconf = Camli.config.signing;
+    var savcb = {};
+    savcb.success = function(pnres) {
+        if (!pnres.permanode) {
+            alert("failed to publish root's permanode");
+            enabled();
+            return;
+        }
+        var attrcb = {};
+        attrcb.success = function() {
+            console.log("success.");
+            enabled();
+            selRoots.value = "";
+            suffix.value = "";
+            buildPathsList();
         };
-        savcb.fail = function() {
-            alert("failed to find publish root's permanode");
+        attrcb.fail = function() {
+            alert("failed to set attribute");
             enabled();
         };
-        camliPermanodeOfSignerAttrValue(sigconf.publicKeyBlobRef, "camliRoot", publishRoot, savcb);
+        camliNewSetAttributeClaim(pnres.permanode, "camliPath:" + pathSuffix, ourPermanode, attrcb);
     };
-    sigcb.fail = function() {
-        alert("sig disco failed");
+    savcb.fail = function() {
+        alert("failed to find publish root's permanode");
         enabled();
-    }
-    camliSigDiscovery(sigcb);
+    };
+    camliPermanodeOfSignerAttrValue(sigconf.publicKeyBlobRef, "camliRoot", publishRoot, savcb);
 }
 
 function buildPathsList() {
@@ -540,68 +533,63 @@ function buildPathsList() {
     if (!ourPermanode) {
         return;
     }
-    var sigcb = {};
-    sigcb.success = function(sigconf) {
-        var findpathcb = {};
-        findpathcb.success = function(jres) {
-            var div = document.getElementById("existingPaths");
+    var sigconf = Camli.config.signing;
 
-            // TODO: there can be multiple paths in this list, but the HTML
-            // UI only shows one.  The UI should show all, and when adding a new one
-            // prompt users whether they want to add to or replace the existing one.
-            // For now we just update the UI to show one.
-            // alert(JSON.stringify(jres, null, 2));
-            if (jres.paths && jres.paths.length > 0) {
-                div.innerHTML = "Existing paths for this permanode:";
-                var ul = document.createElement("ul");
-                div.appendChild(ul);
-                for (var idx in jres.paths) {
-                    var path = jres.paths[idx];
-                    var li = document.createElement("li");
-                    var span = document.createElement("span");
-                    li.appendChild(span);
+    var findpathcb = {};
+    findpathcb.success = function(jres) {
+        var div = document.getElementById("existingPaths");
 
-                    var blobLink = document.createElement("a");
-                    blobLink.href = ".?p=" + path.baseRef;
-                    setTextContent(blobLink, path.baseRef);
-                    span.appendChild(blobLink);
+        // TODO: there can be multiple paths in this list, but the HTML
+        // UI only shows one.  The UI should show all, and when adding a new one
+        // prompt users whether they want to add to or replace the existing one.
+        // For now we just update the UI to show one.
+        // alert(JSON.stringify(jres, null, 2));
+        if (jres.paths && jres.paths.length > 0) {
+            div.innerHTML = "Existing paths for this permanode:";
+            var ul = document.createElement("ul");
+            div.appendChild(ul);
+            for (var idx in jres.paths) {
+                var path = jres.paths[idx];
+                var li = document.createElement("li");
+                var span = document.createElement("span");
+                li.appendChild(span);
 
-                    span.appendChild(document.createTextNode(" - "));
+                var blobLink = document.createElement("a");
+                blobLink.href = ".?p=" + path.baseRef;
+                setTextContent(blobLink, path.baseRef);
+                span.appendChild(blobLink);
 
-                    var pathLink = document.createElement("a");
-                    pathLink.href = "";
-                    setTextContent(pathLink, path.suffix);
-                    for (var key in Camli.config.publishRoots) {
-                        var root = Camli.config.publishRoots[key];
-                        if (root.currentPermanode == path.baseRef) {
-                            // Prefix should include a trailing slash.
-                            pathLink.href = root.prefix[0] + path.suffix;
-                            // TODO: Check if we're the latest permanode
-                            // for this path and display some "old" notice
-                            // if not.
-                            break;
-                        }
+                span.appendChild(document.createTextNode(" - "));
+
+                var pathLink = document.createElement("a");
+                pathLink.href = "";
+                setTextContent(pathLink, path.suffix);
+                for (var key in Camli.config.publishRoots) {
+                    var root = Camli.config.publishRoots[key];
+                    if (root.currentPermanode == path.baseRef) {
+                        // Prefix should include a trailing slash.
+                        pathLink.href = root.prefix[0] + path.suffix;
+                        // TODO: Check if we're the latest permanode
+                        // for this path and display some "old" notice
+                        // if not.
+                        break;
                     }
-                    span.appendChild(pathLink);
-
-                    var del = document.createElement("span");
-                    del.className = "camli-del";
-                    setTextContent(del, "x");
-                    del.addEventListener("click", deletePathFunc(path.baseRef, path.suffix, span));
-                    span.appendChild(del);
-
-                    ul.appendChild(li);
                 }
-            } else {
-                div.innerHTML = "";
+                span.appendChild(pathLink);
+
+                var del = document.createElement("span");
+                del.className = "camli-del";
+                setTextContent(del, "x");
+                del.addEventListener("click", deletePathFunc(path.baseRef, path.suffix, span));
+                span.appendChild(del);
+
+                ul.appendChild(li);
             }
-        };
-        camliPathsOfSignerTarget(sigconf.publicKeyBlobRef, ourPermanode, findpathcb);
+        } else {
+            div.innerHTML = "";
+        }
     };
-    sigcb.fail = function() {
-        alert("sig disco failed");
-    }
-    camliSigDiscovery(sigcb);
+    camliPathsOfSignerTarget(sigconf.publicKeyBlobRef, ourPermanode, findpathcb);
 }
 
 function deletePathFunc(sourcePermanode, path, strikeEle) {
