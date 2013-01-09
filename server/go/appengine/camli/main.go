@@ -25,12 +25,12 @@ import (
 
 	"appengine"
 
-	"camlistore.org/pkg/blobserver"   // storage interface definition
-	"camlistore.org/pkg/serverconfig" // wiring up the world from a JSON description
+	"camlistore.org/pkg/blobserver" // storage interface definition
 	_ "camlistore.org/pkg/blobserver/cond"
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/shard"
-	_ "camlistore.org/pkg/server" // handlers: UI, publish, thumbnailing, etc
+	_ "camlistore.org/pkg/server"     // handlers: UI, publish, thumbnailing, etc
+	"camlistore.org/pkg/serverconfig" // wiring up the world from a JSON description
 
 	// TODO(bradfitz): uncomment these config setup
 	// Both require an App Engine context to make HTTP requests too.
@@ -49,6 +49,10 @@ type lazyInit struct {
 }
 
 func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	ctxPool.HandlerBegin(c)
+	defer ctxPool.HandlerEnd(c)
+
 	li.mu.Lock()
 	if !li.ready {
 		li.ready = realInit(w, r)
@@ -60,14 +64,6 @@ func (li *lazyInit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 var ctxPool ContextPool
-
-func getContext() appengine.Context {
-	return ctxPool.Get()
-}
-
-func putContext(c appengine.Context) {
-	ctxPool.Put(c)
-}
 
 var root = new(lazyInit)
 

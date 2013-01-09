@@ -43,7 +43,7 @@ type indexStorage struct {
 }
 
 func (is *indexStorage) key(c appengine.Context, key string) *datastore.Key {
-	return datastore.NewKey(c, indexRowKind, is.ns + "|" + key, 0, nil)
+	return datastore.NewKey(c, indexRowKind, is.ns+"|"+key, 0, nil)
 }
 
 func (is *indexStorage) BeginBatch() index.BatchMutation {
@@ -55,22 +55,22 @@ func (is *indexStorage) CommitBatch(bm index.BatchMutation) error {
 }
 
 func (is *indexStorage) Get(key string) (string, error) {
-	c := getContext()
-	defer putContext(c)
+	c := ctxPool.Get()
+	defer c.Return()
 
 	panic("TODO: impl")
 }
 
 func (is *indexStorage) Set(key, value string) error {
-	c := getContext()
-	defer putContext(c)
+	c := ctxPool.Get()
+	defer c.Return()
 
 	panic("TODO: impl")
 }
 
 func (is *indexStorage) Delete(key string) error {
-	c := getContext()
-	defer putContext(c)
+	c := ctxPool.Get()
+	defer c.Return()
 
 	panic("TODO: impl")
 }
