@@ -19,7 +19,7 @@ limitations under the License.
 package appengine
 
 import (
-	"errors"
+	"io"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
@@ -29,7 +29,7 @@ import (
 	"appengine/datastore"
 )
 
-var _ = errors.New
+const indexDebug = false
 
 var (
 	indexRowKind = "IndexRow"
@@ -90,7 +90,11 @@ func (is *indexStorage) Get(key string) (string, error) {
 	c := ctxPool.Get()
 	defer c.Return()
 	row := new(indexRowEnt)
-	if err := datastore.Get(c, is.key(c, key), row); err != nil {
+	err := datastore.Get(c, is.key(c, key), row)
+	if indexDebug {
+		c.Infof("indexStorage.Get(%q) = %q, %v", key, row.Value, err)
+	}
+	if err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			err = index.ErrNotFound
 		}
@@ -116,8 +120,71 @@ func (is *indexStorage) Delete(key string) error {
 }
 
 func (is *indexStorage) Find(key string) index.Iterator {
-	panic("TODO: impl")
+	c := ctxPool.Get()
+	if indexDebug {
+		c.Infof("IndexStorage Find(%q)", key)
+	}
+	it := &iter{
+		is:    is,
+		cl:    c,
+		after: key,
+		nsk:   datastore.NewKey(c, indexRowKind, is.ns, 0, nil),
+	}
+	it.Closer = &onceCloser{fn: func() {
+		c.Return()
+		it.nsk = nil
+	}}
+	return it
 }
+
+type iter struct {
+	cl    ContextLoan
+	after string
+	io.Closer
+	nsk *datastore.Key
+	is  *indexStorage
+
+	it *datastore.Iterator
+	n  int // rows seen for this batch
+
+	key, value string
+	end        bool
+}
+
+func (it *iter) Next() bool {
+	if it.nsk == nil {
+		// already closed
+		return false
+	}
+	if it.it == nil {
+		q := datastore.NewQuery(indexRowKind).Limit(50).Filter("__key__>", it.is.key(it.cl, it.after))
+		it.it = q.Run(it.cl)
+		it.n = 0
+	}
+	var ent indexRowEnt
+	key, err := it.it.Next(&ent)
+	if indexDebug {
+		it.cl.Infof("For after %q; key = %#v, err = %v", it.after, key, err)
+	}
+	if err == datastore.Done {
+		if it.n == 0 {
+			return false
+		}
+		return it.Next()
+	}
+	if err != nil {
+		it.cl.Warningf("Error iterating over index after %q: %v", it.after, err)
+		return false
+	}
+	it.n++
+	it.key = key.StringID()
+	it.value = string(ent.Value)
+	it.after = it.key
+	return true
+}
+
+func (it *iter) Key() string   { return it.key }
+func (it *iter) Value() string { return it.value }
 
 func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	is := &indexStorage{}
