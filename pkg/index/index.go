@@ -299,7 +299,8 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 }
 
 func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error) {
-	meta, err := x.s.Get("meta:" + blob.String())
+	key := "meta:" + blob.String()
+	meta, err := x.s.Get(key)
 	if err == ErrNotFound {
 		err = os.ErrNotExist
 	}
@@ -307,6 +308,9 @@ func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64,
 		return
 	}
 	pos := strings.Index(meta, "|")
+	if pos < 0 {
+		panic(fmt.Sprintf("Bogus index row for key %q: got value %q", key, meta))
+	}
 	size, _ = strconv.ParseInt(meta[:pos], 10, 64)
 	mime = meta[pos+1:]
 	return

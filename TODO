@@ -1,3 +1,8 @@
+-- we used to be able live-edit js/css files in server/camlistored/ui when
+   running under the App Engine dev_appserver.py.  That's now broken with my
+   latest efforts to revive it.  The place to start looking is:
+        server/camlistored/ui/fileembed_appengine.go
+
 -- unify cammount and camget's blob caching.  move their init code to
    pkg/cacher, and add an LRU and optional upper bound size limit in
    pkg/cacher too.

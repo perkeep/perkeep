@@ -29,13 +29,15 @@ import (
 	"appengine/datastore"
 )
 
+var _ = errors.New
+
 var (
 	indexRowKind = "IndexRow"
 )
 
 // A row of the index.  Keyed by "<namespace>|<keyname>"
 type indexRowEnt struct {
-	value []byte
+	Value []byte
 }
 
 type indexStorage struct {
@@ -47,11 +49,41 @@ func (is *indexStorage) key(c appengine.Context, key string) *datastore.Key {
 }
 
 func (is *indexStorage) BeginBatch() index.BatchMutation {
-	panic("TODO: impl")
+	return index.NewBatchMutation()
 }
 
 func (is *indexStorage) CommitBatch(bm index.BatchMutation) error {
-	return errors.New("TODO: impl")
+	type mutationser interface {
+		Mutations() []index.Mutation
+	}
+	var muts []index.Mutation
+	if m, ok := bm.(mutationser); ok {
+		muts = m.Mutations()
+	} else {
+		panic("unexpected type")
+	}
+	tryFunc := func(c appengine.Context) error {
+		for _, m := range muts {
+			dk := is.key(c, m.Key())
+			if m.IsDelete() {
+				if err := datastore.Delete(c, dk); err != nil {
+					return err
+				}
+			} else {
+				// A put.
+				ent := &indexRowEnt{
+					Value: []byte(m.Value()),
+				}
+				if _, err := datastore.Put(c, dk, ent); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	c := ctxPool.Get()
+	defer c.Return()
+	return datastore.RunInTransaction(c, tryFunc, crossGroupTransaction)
 }
 
 func (is *indexStorage) Get(key string) (string, error) {
@@ -64,7 +96,7 @@ func (is *indexStorage) Get(key string) (string, error) {
 		}
 		return "", err
 	}
-	return string(row.value), nil
+	return string(row.Value), nil
 }
 
 func (is *indexStorage) Set(key, value string) error {

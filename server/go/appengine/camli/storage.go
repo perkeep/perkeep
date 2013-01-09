@@ -20,7 +20,6 @@ package appengine
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,6 +28,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"appengine"
@@ -113,8 +113,6 @@ func fetchEnt(c appengine.Context, br *blobref.BlobRef) (*blobEnt, error) {
 	return row, nil
 }
 
-var errNoContext = errors.New("Internal error: no App Engine context is available")
-
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &appengineStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
@@ -130,8 +128,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
+// TODO(bradfitz): delete all this context wrapper stuff
 var _ blobserver.ContextWrapper = (*appengineStorage)(nil)
 
+// TODO(bradfitz): delete all this context wrapper stuff
 func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
 	s2 := new(appengineStorage)
 	*s2 = *sto
@@ -139,12 +139,22 @@ func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
 	return s2
 }
 
+var dummyCloser = ioutil.NopCloser(strings.NewReader(""))
+
 func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
-	if sto.ctx == nil {
-		err = errNoContext
-		return
+	ctx := sto.ctx
+	var loan ContextLoan
+	if ctx == nil {
+		loan = ctxPool.Get()
+		ctx = loan
+		defer func() {
+			if loan != nil {
+				loan.Return()
+			}
+		}()
 	}
-	row, err := fetchEnt(sto.ctx, br)
+
+	row, err := fetchEnt(ctx, br)
 	if err == datastore.ErrNoSuchEntity {
 		err = os.ErrNotExist
 		return
@@ -160,16 +170,40 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 	if err != nil {
 		return
 	}
-	reader := blobstore.NewReader(sto.ctx, appengine.BlobKey(string(row.BlobKey)))
-	return ioutil.NopCloser(reader), size, nil
+	var c io.Closer
+	if loan != nil {
+		closeLoan := loan
+		c = &onceCloser{fn: func() { closeLoan.Return() }}
+		loan = nil // take it, so it's not defer-closed
+	} else {
+		c = dummyCloser
+	}
+	reader := blobstore.NewReader(ctx, appengine.BlobKey(string(row.BlobKey)))
+	type readCloser struct {
+		io.Reader
+		io.Closer
+	}
+	return readCloser{reader, c}, size, nil
+}
+
+type onceCloser struct {
+	once sync.Once
+	fn   func()
+}
+
+func (oc *onceCloser) Close() error {
+	oc.once.Do(oc.fn)
+	return nil
 }
 
 var crossGroupTransaction = &datastore.TransactionOptions{XG: true}
 
 func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err error) {
-	if sto.ctx == nil {
-		err = errNoContext
-		return
+	ctx := sto.ctx
+	if ctx == nil {
+		loan := ctxPool.Get()
+		defer loan.Return()
+		ctx = loan
 	}
 
 	var b bytes.Buffer
@@ -215,10 +249,10 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 	}
 
 	tryFunc := func(tc appengine.Context) error {
-		row, err := fetchEnt(sto.ctx, br)
+		row, err := fetchEnt(tc, br)
 		switch err {
 		case datastore.ErrNoSuchEntity:
-			if err := uploadBlob(sto.ctx); err != nil {
+			if err := uploadBlob(tc); err != nil {
 				tc.Errorf("uploadBlob failed: %v", err)
 				return err
 			}
@@ -251,13 +285,13 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 		})
 		return err
 	}
-	err = datastore.RunInTransaction(sto.ctx, tryFunc, crossGroupTransaction)
+	err = datastore.RunInTransaction(ctx, tryFunc, crossGroupTransaction)
 	if err != nil {
 		if len(bkey) > 0 {
 			// If we just created this blob but we
 			// ultimately failed, try our best to delete
 			// it so it's not orphaned.
-			blobstore.Delete(sto.ctx, bkey)
+			blobstore.Delete(ctx, bkey)
 		}
 		return
 	}
@@ -266,14 +300,17 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 
 // NOTE(bslatkin): No fucking clue if this works.
 func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
-	if sto.ctx == nil {
-		return errNoContext
+	ctx := sto.ctx
+	if ctx == nil {
+		loan := ctxPool.Get()
+		defer loan.Return()
+		ctx = loan
 	}
 
 	tryFunc := func(tc appengine.Context, br *blobref.BlobRef) error {
 		// TODO(bslatkin): Make the DB gets in this a multi-get.
 		// Remove the namespace from the blobEnt
-		row, err := fetchEnt(sto.ctx, br)
+		row, err := fetchEnt(tc, br)
 		switch err {
 		case datastore.ErrNoSuchEntity:
 			// Doesn't exist, that means there should be no memEnt, but let's be
@@ -304,7 +341,7 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 
 	for _, br := range blobs {
 		ret := datastore.RunInTransaction(
-			sto.ctx,
+			ctx,
 			func(tc appengine.Context) error {
 				return tryFunc(tc, br)
 			},
@@ -317,19 +354,23 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 }
 
 func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	if sto.ctx == nil {
-		return errNoContext
+	ctx := sto.ctx
+	if ctx == nil {
+		loan := ctxPool.Get()
+		defer loan.Return()
+		ctx = loan
 	}
+
 	var (
 		keys = make([]*datastore.Key, 0, len(blobs))
 		out  = make([]interface{}, 0, len(blobs))
 		errs = make([]error, len(blobs))
 	)
 	for _, br := range blobs {
-		keys = append(keys, sto.memKey(sto.ctx, br))
+		keys = append(keys, sto.memKey(ctx, br))
 		out = append(out, new(memEnt))
 	}
-	err := datastore.GetMulti(sto.ctx, keys, out)
+	err := datastore.GetMulti(ctx, keys, out)
 	if merr, ok := err.(appengine.MultiError); ok {
 		errs = []error(merr)
 		err = nil
@@ -351,7 +392,7 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 		if err == nil {
 			dest <- blobref.SizedBlobRef{br, size}
 		} else {
-			sto.ctx.Warningf("skipping corrupt blob %s: %v", br, err)
+			ctx.Warningf("skipping corrupt blob %s: %v", br, err)
 		}
 	}
 	return err
@@ -359,15 +400,20 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 
 func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
-	if sto.ctx == nil {
-		return errNoContext
+
+	ctx := sto.ctx
+	if ctx == nil {
+		loan := ctxPool.Get()
+		defer loan.Return()
+		ctx = loan
 	}
+
 	prefix := sto.namespace + "|"
-	keyBegin := datastore.NewKey(sto.ctx, memKind, prefix+after, 0, nil)
-	keyEnd := datastore.NewKey(sto.ctx, memKind, sto.namespace+"~", 0, nil)
+	keyBegin := datastore.NewKey(ctx, memKind, prefix+after, 0, nil)
+	keyEnd := datastore.NewKey(ctx, memKind, sto.namespace+"~", 0, nil)
 
 	q := datastore.NewQuery(memKind).Limit(int(limit)).Filter("__key__>", keyBegin).Filter("__key__<", keyEnd)
-	it := q.Run(sto.ctx)
+	it := q.Run(ctx)
 	var row memEnt
 	for {
 		key, err := it.Next(&row)
