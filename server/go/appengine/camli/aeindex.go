@@ -112,8 +112,7 @@ func (is *indexStorage) Set(key, value string) error {
 func (is *indexStorage) Delete(key string) error {
 	c := ctxPool.Get()
 	defer c.Return()
-
-	panic("TODO: impl")
+	return datastore.Delete(c, is.key(c, key))
 }
 
 func (is *indexStorage) Find(key string) index.Iterator {
