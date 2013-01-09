@@ -91,7 +91,6 @@ func realInit(w http.ResponseWriter, r *http.Request) bool {
 
 	baseURL := fmt.Sprintf("%s://%s/", scheme, appengine.DefaultVersionHostname(ctx))
 	ctx.Infof("baseurl = %q", baseURL)
-	config.Obj["baseURL"] = baseURL
 
 	root.mux = http.NewServeMux()
 	err = config.InstallHandlers(root.mux, baseURL, r)
