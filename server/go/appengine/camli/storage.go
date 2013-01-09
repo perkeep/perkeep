@@ -57,9 +57,9 @@ type appengineStorage struct {
 
 // blobEnt is stored once per unique blob, keyed by blobref.
 type blobEnt struct {
-	Size       []byte // an int64 as "%d" to make it unindexed
-	BlobKey    []byte // an appengine.BlobKey
-	Namespaces []byte // |-separated string of namespaces
+	Size       int64             `datastore:"Size,noindex"`
+	BlobKey    appengine.BlobKey `datastore:"BlobKey,noindex"`
+	Namespaces string            `datastore:"Namespaces,noindex"` // |-separated string of namespaces
 
 	// TODO(bradfitz): IsCamliSchemaBlob bool? ... probably want
 	// on enumeration (memEnt) too.
@@ -67,15 +67,7 @@ type blobEnt struct {
 
 // memEnt is stored once per blob in a namespace, keyed by "ns|blobref"
 type memEnt struct {
-	Size []byte // an int64 as "%d" to make it unindexed
-}
-
-func (b *blobEnt) size() (int64, error) {
-	return byteDecSize(b.Size)
-}
-
-func (m *memEnt) size() (int64, error) {
-	return byteDecSize(m.Size)
+	Size int64 `datastore:"Size,noindex"`
 }
 
 func byteDecSize(b []byte) (int64, error) {
@@ -88,7 +80,7 @@ func byteDecSize(b []byte) (int64, error) {
 }
 
 func (b *blobEnt) inNamespace(ns string) (out bool) {
-	for _, in := range strings.Split(string(b.Namespaces), "|") {
+	for _, in := range strings.Split(b.Namespaces, "|") {
 		if ns == in {
 			return true
 		}
@@ -166,10 +158,6 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 		err = os.ErrNotExist
 		return
 	}
-	size, err = row.size()
-	if err != nil {
-		return
-	}
 	var c io.Closer
 	if loan != nil {
 		closeLoan := loan
@@ -183,7 +171,7 @@ func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCl
 		io.Reader
 		io.Closer
 	}
-	return readCloser{reader, c}, size, nil
+	return readCloser{reader, c}, row.Size, nil
 }
 
 type onceCloser struct {
@@ -257,9 +245,9 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 				return err
 			}
 			row = &blobEnt{
-				Size:       []byte(fmt.Sprintf("%d", written)),
-				BlobKey:    []byte(string(bkey)),
-				Namespaces: []byte(sto.namespace),
+				Size:       written,
+				BlobKey:    bkey,
+				Namespaces: sto.namespace,
 			}
 			_, err = datastore.Put(tc, entKey(tc, br), row)
 			if err != nil {
@@ -270,7 +258,7 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 				// Nothing to do
 				return nil
 			}
-			row.Namespaces = []byte(string(row.Namespaces) + "|" + sto.namespace)
+			row.Namespaces = row.Namespaces + "|" + sto.namespace
 			_, err = datastore.Put(tc, entKey(tc, br), row)
 			if err != nil {
 				return err
@@ -281,7 +269,7 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 
 		// Add membership row
 		_, err = datastore.Put(tc, sto.memKey(tc, br), &memEnt{
-			Size: []byte(fmt.Sprintf("%d", written)),
+			Size: written,
 		})
 		return err
 	}
@@ -323,8 +311,8 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 					newNS = append(newNS, val)
 				}
 			}
-			if v := strings.Join(newNS, "|"); v != string(row.Namespaces) {
-				row.Namespaces = []byte(v)
+			if v := strings.Join(newNS, "|"); v != row.Namespaces {
+				row.Namespaces = v
 				_, err = datastore.Put(tc, entKey(tc, br), row)
 				if err != nil {
 					return err
@@ -388,12 +376,7 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 			continue
 		}
 		ent := out[i].(*memEnt)
-		size, err := ent.size()
-		if err == nil {
-			dest <- blobref.SizedBlobRef{br, size}
-		} else {
-			ctx.Warningf("skipping corrupt blob %s: %v", br, err)
-		}
+		dest <- blobref.SizedBlobRef{br, ent.Size}
 	}
 	return err
 }
@@ -423,11 +406,7 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, af
 		if err != nil {
 			return err
 		}
-		size, err := row.size()
-		if err != nil {
-			return err
-		}
-		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()[len(prefix):]), size}
+		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()[len(prefix):]), row.Size}
 	}
 	return nil
 }
