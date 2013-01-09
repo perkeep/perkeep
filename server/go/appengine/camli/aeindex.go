@@ -57,8 +57,14 @@ func (is *indexStorage) CommitBatch(bm index.BatchMutation) error {
 func (is *indexStorage) Get(key string) (string, error) {
 	c := ctxPool.Get()
 	defer c.Return()
-
-	panic("TODO: impl")
+	row := new(indexRowEnt)
+	if err := datastore.Get(c, is.key(c, key), row); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			err = index.ErrNotFound
+		}
+		return "", err
+	}
+	return string(row.value), nil
 }
 
 func (is *indexStorage) Set(key, value string) error {
