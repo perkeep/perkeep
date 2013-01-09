@@ -1,3 +1,5 @@
+-- rename the index.IndexStorage interface stutter to index.Storage
+
 -- we used to be able live-edit js/css files in server/camlistored/ui when
    running under the App Engine dev_appserver.py.  That's now broken with my
    latest efforts to revive it.  The place to start looking is:
