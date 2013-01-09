@@ -22,18 +22,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net/http"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"appengine"
-	"appengine/datastore"
 	"appengine/blobstore"
+	"appengine/datastore"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -298,7 +298,7 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 		}
 
 		// Blindly delete the memEnt.
-		err = datastore.Delete(tc, sto.memKey(tc, br));
+		err = datastore.Delete(tc, sto.memKey(tc, br))
 		return err
 	}
 
@@ -388,7 +388,6 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, af
 
 var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
 
-
 // TODO(bslatkin): This does not work on App Engine yet because there are no
 // background threads to do the sync loop. The plan is to break the
 // syncer code up into two parts: 1) accepts notifications of new blobs to
@@ -406,7 +405,7 @@ func (sto *appengineStorage) CreateQueue(name string) (blobserver.Storage, error
 	}
 	q := &appengineStorage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		namespace: "queue-" + name,
+		namespace:                 "queue-" + name,
 	}
 	return q, nil
 }
