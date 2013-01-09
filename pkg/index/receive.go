@@ -101,6 +101,10 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 			if err := ix.populateFile(br, camli, bm); err != nil {
 				return err
 			}
+		case "directory":
+			if err := ix.populateDir(br, camli, bm); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -165,6 +169,29 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 	wholeRef := blobref.FromHash("sha1", sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, ss.FileName, mime))
+	return nil
+}
+
+// blobref: of the file or schema blob
+//      ss: the parsed file schema blob
+//      bm: keys to populate
+func (ix *Index) populateDir(blobRef *blobref.BlobRef, ss *schema.Superset, bm BatchMutation) error {
+	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
+	dr, err := ss.NewDirReader(seekFetcher)
+	if err != nil {
+		// TODO(bradfitz): propagate up a transient failure
+		// error type, so we can retry indexing files in the
+		// future if blobs are only temporarily unavailable.
+		log.Printf("index: error indexing directory, creating NewDirReader %s: %v", blobRef, err)
+		return nil
+	}
+	sts, err := dr.StaticSet()
+	if err != nil {
+		log.Printf("index: error indexing directory: can't get StaticSet: %v\n", err)
+		return nil
+	}
+
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), ss.FileName, ""))
 	return nil
 }
 

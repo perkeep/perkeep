@@ -466,12 +466,16 @@ function _camliBlobTitleOrThumb(pn, des, w, h) {
     }
     if (d.camliType == "file" && d.file && d.file.fileName) {
         var fileName = d.file.fileName
+        // TODO(mpl): check whether this is ever used anywhere, now that search requests directly give the thumbnailSrc.
         if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf("image/") == 0) {
             var img = "<img src='./thumbnail/" + pn + "/" +
             fileName.replace(/['"<>\?&]/g, "") + "?mw=" + w + "&mh=" + h + "'>";
             return img;
         }
         return fileName;
+    }
+    if (d.camliType == "directory" && d.dir && d.dir.fileName) {
+        return d.dir.fileName
     }
     if (d.permanode) {
         var attr = d.permanode.attr;

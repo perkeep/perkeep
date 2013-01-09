@@ -91,7 +91,8 @@ func (cl ClaimList) String() string {
 type FileInfo struct {
 	Size     int64  `json:"size"`
 	FileName string `json:"fileName"`
-	MimeType string `json:"mimeType"`
+	// MimeType may be set for files, but never for directories.
+	MimeType string `json:"mimeType,omitempty"`
 }
 
 func (fi *FileInfo) IsImage() bool {

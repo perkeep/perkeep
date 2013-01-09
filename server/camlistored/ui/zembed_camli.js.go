@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 17159, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17381, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -495,6 +495,8 @@ func init() {
 		"    }\n"+
 		"    if (d.camliType == \"file\" && d.file && d.file.fileName) {\n"+
 		"        var fileName = d.file.fileName\n"+
+		"        // TODO(mpl): check whether this is ever used anywhere, now that search r"+
+		"equests directly give the thumbnailSrc.\n"+
 		"        if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf(\"image"+
 		"/\") == 0) {\n"+
 		"            var img = \"<img src='./thumbnail/\" + pn + \"/\" +\n"+
@@ -502,6 +504,9 @@ func init() {
 		"            return img;\n"+
 		"        }\n"+
 		"        return fileName;\n"+
+		"    }\n"+
+		"    if (d.camliType == \"directory\" && d.dir && d.dir.fileName) {\n"+
+		"        return d.dir.fileName\n"+
 		"    }\n"+
 		"    if (d.permanode) {\n"+
 		"        var attr = d.permanode.attr;\n"+
@@ -540,5 +545,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1357701658000000000))
+		""), time.Unix(0, 1357746813011715782))
 }

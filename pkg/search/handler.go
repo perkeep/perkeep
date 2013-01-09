@@ -317,6 +317,8 @@ type DescribedBlob struct {
 
 	// if camliType "file"
 	File *FileInfo
+	// if camliType "directory"
+	Dir *FileInfo
 
 	Stub bool // if not loaded, but referenced
 }
@@ -356,6 +358,9 @@ func (b *DescribedBlob) Title() string {
 	}
 	if b.File != nil {
 		return b.File.FileName
+	}
+	if b.Dir != nil {
+		return b.Dir.FileName
 	}
 	return ""
 }
@@ -494,6 +499,9 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 			// TODO: different thumbnails based on peer.File.MimeType.
 			return "file.png", thumbSize, thumbSize, true
 		}
+		if peer.Dir != nil {
+			return "folder.png", thumbSize, thumbSize, true
+		}
 	}
 
 	return "node.png", thumbSize, thumbSize, true
@@ -514,6 +522,9 @@ func (b *DescribedBlob) jsonMap() map[string]interface{} {
 	}
 	if b.File != nil {
 		m["file"] = b.File
+	}
+	if b.Dir != nil {
+		m["dir"] = b.Dir
 	}
 	return m
 }
@@ -709,6 +720,12 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	case "file":
 		var err error
 		des.File, err = dr.sh.index.GetFileInfo(br)
+		if err != nil {
+			dr.addError(br, err)
+		}
+	case "directory":
+		var err error
+		des.Dir, err = dr.sh.index.GetFileInfo(br)
 		if err != nil {
 			dr.addError(br, err)
 		}
