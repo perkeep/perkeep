@@ -45,7 +45,7 @@ type indexStorage struct {
 }
 
 func (is *indexStorage) key(c appengine.Context, key string) *datastore.Key {
-	return datastore.NewKey(c, indexRowKind, is.ns+"|"+key, 0, nil)
+	return datastore.NewKey(c, indexRowKind, key, 0, datastore.NewKey(c, indexRowKind, is.ns, 0, nil))
 }
 
 func (is *indexStorage) BeginBatch() index.BatchMutation {
@@ -102,8 +102,11 @@ func (is *indexStorage) Get(key string) (string, error) {
 func (is *indexStorage) Set(key, value string) error {
 	c := ctxPool.Get()
 	defer c.Return()
-
-	panic("TODO: impl")
+	row := &indexRowEnt{
+		Value: []byte(value),
+	}
+	_, err := datastore.Put(c, is.key(c, key), row)
+	return err
 }
 
 func (is *indexStorage) Delete(key string) error {
