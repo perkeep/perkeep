@@ -64,7 +64,7 @@ type IndexStorage interface {
 // multiple iterators concurrently, with each in a dedicated goroutine.
 type Iterator interface {
 	// Next moves the iterator to the next key/value pair.
-	// It returns whether the iterator is exhausted.
+	// It returns false when the iterator is exhausted.
 	Next() bool
 
 	// Key returns the key of the current key/value pair.
@@ -214,13 +214,14 @@ func (x *Index) isDeleted(br *blobref.BlobRef) bool {
 
 func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) (err error) {
 	defer close(dest)
-	// TODO(bradfitz): this will need to be a context wrapper too, like storage
 
 	keyId, err := x.keyId(owner)
 	if err == ErrNotFound {
+		log.Printf("No recent permanodes because keyId for owner %v not found", owner)
 		return nil
 	}
 	if err != nil {
+		log.Printf("Error fetching keyId for owner %v: %v", owner, err)
 		return err
 	}
 
