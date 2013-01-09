@@ -48,7 +48,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("Storage root %q doesn't exist", root)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %v", sto.root, err)
+		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
