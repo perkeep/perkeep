@@ -1,0 +1,96 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"searchRoot": "/my-search/",
+				"stealth": false
+			}
+		},
+
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"jsonSignRoot": "/sighelper/",
+				"cache": "/cache/",
+				"scaledImage": "lrucache"
+			}
+		},
+	
+ 		"/setup/": {
+			"handler": "setup"
+                },
+
+ 		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/index-sqlite/"
+			}
+		},
+	
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"secretRing": "/path/to/secring",
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs-and-index/"
+			}
+		},
+	
+		"/bs-and-index/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": ["/bs/", "/index-sqlite/"]
+			}
+		},
+	
+		"/bs-and-maybe-also-index/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"write": {
+					"if": "isSchema",
+					"then": "/bs-and-index/",
+					"else": "/bs/"
+				},
+				"read": "/bs/"
+			}
+		},
+	
+		"/bs/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs"
+			}
+		},
+	
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/cache"
+			}
+		},
+	
+		"/index-sqlite/": {
+			"handler": "storage-sqlite",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"file": "/tmp/camli.db"
+			}
+		},
+	
+		"/my-search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index-sqlite/",
+				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
+			}
+		}
+
+	}
+
+}

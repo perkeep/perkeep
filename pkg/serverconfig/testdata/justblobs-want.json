@@ -1,0 +1,43 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"stealth": false
+			}
+		},
+
+ 		"/setup/": {
+			"handler": "setup"
+                },
+
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"secretRing": "/path/to/secring",
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs/"
+			}
+		},
+	
+		"/bs/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs"
+			}
+		},
+	
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/cache"
+			}
+		}
+
+	}
+
+}

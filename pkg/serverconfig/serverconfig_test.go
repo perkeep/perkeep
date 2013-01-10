@@ -18,6 +18,7 @@ package serverconfig_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -120,10 +121,24 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{Obj: obj})
-	if err != nil {
-		t.Fatalf("test %s: GenLowLevelConfig: %v", name, err)
+	wantedError := func() error {
+		slurp, err := ioutil.ReadFile(strings.Replace(name, ".json", ".err", 1))
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			t.Fatalf("Error reading .err file: %v", err)
+		}
+		return errors.New(string(slurp))
 	}
+	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{Obj: obj})
+	if g, w := strings.TrimSpace(fmt.Sprint(err)), strings.TrimSpace(fmt.Sprint(wantedError())); g != w {
+		t.Fatalf("test %s: got GenLowLevelConfig error %q; want %q", name, g, w)
+	}
+	if err != nil {
+		return
+	}
+
 	baseName := strings.Replace(filepath.Base(name), ".json", "", 1)
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)

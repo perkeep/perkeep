@@ -5,14 +5,5 @@
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-	"memIndex": true,
-	"s3": "",
-	"publish": {
-		"/pics/": {
-			"rootPermanode": "sha1-xxxxx",
-			"template": "gallery",
-			"style": "pics.css"
-		}
-	},
-	"replicateTo": []
+        "runIndex": false
 }

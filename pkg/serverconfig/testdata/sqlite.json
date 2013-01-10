@@ -4,8 +4,6 @@
 	"auth": "userpass:camlistore:pass3179",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-	"memIndex": true,
-	"s3": "key:secret:bucket",
-	"replicateTo": [],
-	"publish": {}
+	"blobPath": "/tmp/blobs",
+	"sqlite": "/tmp/camli.db"
 }

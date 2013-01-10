@@ -3,6 +3,7 @@
         "baseURL": "http://foo.com/",
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
+        "memIndex": true,
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring"
 }

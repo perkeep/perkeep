@@ -1,0 +1,7 @@
+{
+	"listen": "localhost:3179",
+	"auth": "localhost",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"blobPath": "/var/blobs"
+}

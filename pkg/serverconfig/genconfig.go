@@ -173,6 +173,16 @@ func addMemindexConfig(prefixes jsonconfig.Obj) {
 	prefixes["/index-mem/"] = ob
 }
 
+func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
+	ob := map[string]interface{}{}
+	ob["handler"] = "storage-sqlite"
+	ob["handlerArgs"] = map[string]interface{}{
+		"blobSource": "/bs/",
+		"file":       file,
+	}
+	prefixes["/index-sqlite/"] = ob
+}
+
 func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	f := strings.SplitN(s3, ":", 3)
 	if len(f) != 3 {
@@ -222,25 +232,27 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 	m = make(jsonconfig.Obj)
 
+	haveIndex := params.indexerPath != ""
+	root := "/bs/"
+	pubKeyDest := root
+	if haveIndex {
+		root = "/bs-and-maybe-also-index/"
+		pubKeyDest = "/bs-and-index/"
+	}
+
 	m["/"] = map[string]interface{}{
 		"handler": "root",
 		"handlerArgs": map[string]interface{}{
-			"stealth":    false,
-			"blobRoot":   "/bs-and-maybe-also-index/",
-			"searchRoot": "/my-search/",
+			"stealth":  false,
+			"blobRoot": root,
 		},
+	}
+	if haveIndex {
+		setMap(m, "/", "handlerArgs", "searchRoot", "/my-search/")
 	}
 
 	m["/setup/"] = map[string]interface{}{
 		"handler": "setup",
-	}
-
-	m["/sync/"] = map[string]interface{}{
-		"handler": "sync",
-		"handlerArgs": map[string]interface{}{
-			"from": "/bs/",
-			"to":   params.indexerPath,
-		},
 	}
 
 	m["/sighelper/"] = map[string]interface{}{
@@ -248,26 +260,7 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		"handlerArgs": map[string]interface{}{
 			"secretRing":    params.secretRing,
 			"keyId":         params.keyId,
-			"publicKeyDest": "/bs-and-index/",
-		},
-	}
-
-	m["/bs-and-index/"] = map[string]interface{}{
-		"handler": "storage-replica",
-		"handlerArgs": map[string]interface{}{
-			"backends": []interface{}{"/bs/", params.indexerPath},
-		},
-	}
-
-	m["/bs-and-maybe-also-index/"] = map[string]interface{}{
-		"handler": "storage-cond",
-		"handlerArgs": map[string]interface{}{
-			"write": map[string]interface{}{
-				"if":   "isSchema",
-				"then": "/bs-and-index/",
-				"else": "/bs/",
-			},
-			"read": "/bs/",
+			"publicKeyDest": pubKeyDest,
 		},
 	}
 
@@ -287,12 +280,41 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		}
 	}
 
-	m["/my-search/"] = map[string]interface{}{
-		"handler": "search",
-		"handlerArgs": map[string]interface{}{
-			"index": params.indexerPath,
-			"owner": params.searchOwner.String(),
-		},
+	if haveIndex {
+		m["/sync/"] = map[string]interface{}{
+			"handler": "sync",
+			"handlerArgs": map[string]interface{}{
+				"from": "/bs/",
+				"to":   params.indexerPath,
+			},
+		}
+
+		m["/bs-and-index/"] = map[string]interface{}{
+			"handler": "storage-replica",
+			"handlerArgs": map[string]interface{}{
+				"backends": []interface{}{"/bs/", params.indexerPath},
+			},
+		}
+
+		m["/bs-and-maybe-also-index/"] = map[string]interface{}{
+			"handler": "storage-cond",
+			"handlerArgs": map[string]interface{}{
+				"write": map[string]interface{}{
+					"if":   "isSchema",
+					"then": "/bs-and-index/",
+					"else": "/bs/",
+				},
+				"read": "/bs/",
+			},
+		}
+
+		m["/my-search/"] = map[string]interface{}{
+			"handler": "search",
+			"handlerArgs": map[string]interface{}{
+				"index": params.indexerPath,
+				"owner": params.searchOwner.String(),
+			},
+		}
 	}
 
 	return
@@ -306,17 +328,25 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		auth       = conf.RequiredString("auth")
 		keyId      = conf.RequiredString("identity")
 		secretRing = conf.RequiredString("identitySecretRing")
-		blobPath   = conf.OptionalString("blobPath", "")
 		tlsOn      = conf.OptionalBool("https", false)
 		tlsCert    = conf.OptionalString("HTTPSCertFile", "")
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
-		dbname     = conf.OptionalString("dbname", "")
+
+		// Blob storage options
+		blobPath = conf.OptionalString("blobPath", "")
+		s3       = conf.OptionalString("s3", "") // "access_key_id:secret_access_key:bucket"
+
+		// Index options
+		runIndex   = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
+		dbname     = conf.OptionalString("dbname", "")   // for mysql, postgres, mongo
 		mysql      = conf.OptionalString("mysql", "")
 		postgres   = conf.OptionalString("postgres", "")
+		memIndex   = conf.OptionalBool("memIndex", false)
 		mongo      = conf.OptionalString("mongo", "")
-		_          = conf.OptionalList("replicateTo")
-		s3         = conf.OptionalString("s3", "")
-		publish    = conf.OptionalObject("publish")
+		sqliteFile = conf.OptionalString("sqlite", "")
+
+		_       = conf.OptionalList("replicateTo")
+		publish = conf.OptionalObject("publish")
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -357,16 +387,23 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	var indexerPath string
+	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, memIndex)
 	switch {
-	case mongo != "" && mysql != "" || mongo != "" && postgres != "" || mysql != "" && postgres != "":
-		return nil, errors.New("You can only pick one of the db engines (mongo, mysql, postgres).")
+	case runIndex && numIndexers == 0:
+		return nil, fmt.Errorf("Unless wantIndex is set to false, you must specify an index option (mongo, mysql, postgres, sqlite, memIndex).")
+	case runIndex && numIndexers != 1:
+		return nil, fmt.Errorf("With wantIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, memIndex).")
+	case !runIndex && numIndexers != 0:
+		return nil, fmt.Errorf("With wantIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite, memIndex.")
 	case mysql != "":
 		indexerPath = "/index-mysql/"
 	case postgres != "":
 		indexerPath = "/index-postgres/"
 	case mongo != "":
 		indexerPath = "/index-mongo/"
-	default:
+	case sqliteFile != "":
+		indexerPath = "/index-sqlite/"
+	case memIndex:
 		indexerPath = "/index-mem/"
 	}
 
@@ -408,14 +445,19 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	published := []interface{}{}
-	if publish != nil {
+	if len(publish) > 0 {
+		if !runIndex {
+			return nil, fmt.Errorf("publishing requires an index")
+		}
 		published, err = addPublishedConfig(prefixes, publish)
 		if err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
 	}
 
-	addUIConfig(prefixes, "/ui/", published)
+	if runIndex {
+		addUIConfig(prefixes, "/ui/", published)
+	}
 
 	if mysql != "" {
 		addMySQLConfig(prefixes, dbname, mysql)
@@ -425,6 +467,9 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 	if mongo != "" {
 		addMongoConfig(prefixes, dbname, mongo)
+	}
+	if sqliteFile != "" {
+		addSQLiteConfig(prefixes, sqliteFile)
 	}
 	if s3 != "" {
 		if err := addS3Config(prefixes, s3); err != nil {
@@ -442,4 +487,33 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		configPath: conf.configPath,
 	}
 	return lowLevelConf, nil
+}
+
+func numSet(vv ...interface{}) (num int) {
+	for _, vi := range vv {
+		switch v := vi.(type) {
+		case string:
+			if v != "" {
+				num++
+			}
+		case bool:
+			if v {
+				num++
+			}
+		default:
+			panic("unknown type")
+		}
+	}
+	return
+}
+
+func setMap(m map[string]interface{}, v ...interface{}) {
+	if len(v) < 2 {
+		panic("too few args")
+	}
+	if len(v) == 2 {
+		m[v[0].(string)] = v[1]
+		return
+	}
+	setMap(m[v[0].(string)].(map[string]interface{}), v[1:]...)
 }

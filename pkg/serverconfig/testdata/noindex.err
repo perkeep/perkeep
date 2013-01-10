@@ -1,0 +1,1 @@
+Unless wantIndex is set to false, you must specify an index option (mongo, mysql, postgres, sqlite, memIndex).
