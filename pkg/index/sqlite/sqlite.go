@@ -18,6 +18,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 
@@ -25,8 +26,6 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
-
-	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
 
 type storage struct {
@@ -38,9 +37,22 @@ type storage struct {
 
 var _ index.IndexStorage = (*storage)(nil)
 
+var compiled = false
+
+// CompiledIn returns whether SQLite support is compiled in.
+// If it returns false, the build tag "with_sqlite" was not specified.
+func CompiledIn() bool {
+	return compiled
+}
+
+var ErrNotCompiled = errors.New("camlistored was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite.")
+
 // NewStorage returns an IndexStorage implementation of the described SQLite database.
 // This exists mostly for testing and does not initialize the schema.
 func NewStorage(file string) (index.IndexStorage, error) {
+	if !compiled {
+		return nil, ErrNotCompiled
+	}
 	db, err := sql.Open("sqlite3", file)
 	if err != nil {
 		return nil, err
