@@ -173,9 +173,6 @@ func addMemindexConfig(prefixes jsonconfig.Obj) {
 	prefixes["/index-mem/"] = ob
 }
 
-// TODO: currently this all assumes that local disk is primary and S3
-// is an optional backup.  We should also handle S3 as primary with no
-// localdisk (e.g. running on EC2)
 func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	f := strings.SplitN(s3, ":", 3)
 	if len(f) != 3 {
@@ -183,21 +180,41 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	}
 	accessKey, secret, bucket := f[0], f[1], f[2]
 
-	s3Prefix := "/sto-s3/"
+	isPrimary := false
+	if _, ok := prefixes["/bs/"]; !ok {
+		isPrimary = true
+	}
+	s3Prefix := ""
+	if isPrimary {
+		s3Prefix = "/bs/"
+	} else {
+		s3Prefix = "/sto-s3/"
+	}
 	prefixes[s3Prefix] = map[string]interface{}{
 		"handler": "storage-s3",
 		"handlerArgs": map[string]interface{}{
-			"aws_access_key": accessKey,
+			"aws_access_key":        accessKey,
 			"aws_secret_access_key": secret,
-			"bucket": bucket,
+			"bucket":                bucket,
 		},
 	}
-	prefixes["/sync-to-s3/"] = map[string]interface{}{
-		"handler": "sync",
-		"handlerArgs": map[string]interface{}{
-			"from": "/bs/",
-			"to":   s3Prefix,
-		},
+	if isPrimary {
+		// TODO(mpl): s3CacheBucket
+		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		prefixes["/cache/"] = map[string]interface{}{
+			"handler": "storage-filesystem",
+			"handlerArgs": map[string]interface{}{
+				"path": filepath.Join(os.TempDir(), "camli-cache"),
+			},
+		}
+	} else {
+		prefixes["/sync-to-s3/"] = map[string]interface{}{
+			"handler": "sync",
+			"handlerArgs": map[string]interface{}{
+				"from": "/bs/",
+				"to":   s3Prefix,
+			},
+		}
 	}
 	return nil
 }
@@ -254,18 +271,20 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		},
 	}
 
-	m["/bs/"] = map[string]interface{}{
-		"handler": "storage-filesystem",
-		"handlerArgs": map[string]interface{}{
-			"path": params.blobPath,
-		},
-	}
+	if params.blobPath != "" {
+		m["/bs/"] = map[string]interface{}{
+			"handler": "storage-filesystem",
+			"handlerArgs": map[string]interface{}{
+				"path": params.blobPath,
+			},
+		}
 
-	m["/cache/"] = map[string]interface{}{
-		"handler": "storage-filesystem",
-		"handlerArgs": map[string]interface{}{
-			"path": filepath.Join(params.blobPath, "/cache"),
-		},
+		m["/cache/"] = map[string]interface{}{
+			"handler": "storage-filesystem",
+			"handlerArgs": map[string]interface{}{
+				"path": filepath.Join(params.blobPath, "/cache"),
+			},
+		}
 	}
 
 	m["/my-search/"] = map[string]interface{}{
@@ -287,7 +306,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		auth       = conf.RequiredString("auth")
 		keyId      = conf.RequiredString("identity")
 		secretRing = conf.RequiredString("identitySecretRing")
-		blobPath   = conf.RequiredString("blobPath")
+		blobPath   = conf.OptionalString("blobPath", "")
 		tlsOn      = conf.OptionalBool("https", false)
 		tlsCert    = conf.OptionalString("HTTPSCertFile", "")
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
@@ -340,7 +359,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	var indexerPath string
 	switch {
 	case mongo != "" && mysql != "" || mongo != "" && postgres != "" || mysql != "" && postgres != "":
-		return nil, fmt.Errorf("You can only pick one of the db engines (mongo, mysql, postgres).")
+		return nil, errors.New("You can only pick one of the db engines (mongo, mysql, postgres).")
 	case mysql != "":
 		indexerPath = "/index-mysql/"
 	case postgres != "":
@@ -360,6 +379,11 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		return nil, err
 	}
 
+	nolocaldisk := blobPath == ""
+	if nolocaldisk && s3 == "" {
+		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 configured for a blobserver.")
+	}
+
 	prefixesParams := &configPrefixesParams{
 		secretRing:  secretRing,
 		keyId:       keyId,
@@ -369,9 +393,18 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams)
-	cacheDir := filepath.Join(blobPath, "/cache")
+	var cacheDir string
+	if nolocaldisk {
+		// Whether camlistored is run from EC2 or not, we use
+		// a temp dir as the cache when primary storage is S3.
+		// TODO(mpl): s3CacheBucket
+		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		cacheDir = filepath.Join(os.TempDir(), "camli-cache")
+	} else {
+		cacheDir = filepath.Join(blobPath, "/cache")
+	}
 	if err := os.MkdirAll(cacheDir, 0700); err != nil {
-		return nil, fmt.Errorf("Could not create blobs dir %s: %v", cacheDir, err)
+		return nil, fmt.Errorf("Could not create blobs cache dir %s: %v", cacheDir, err)
 	}
 
 	published := []interface{}{}
