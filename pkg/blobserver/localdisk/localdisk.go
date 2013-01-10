@@ -64,10 +64,11 @@ func New(root string) (*DiskStorage, error) {
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
+  path := config.RequiredString("path")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return New(config.RequiredString("path"))
+	return New(path)
 }
 
 func init() {
