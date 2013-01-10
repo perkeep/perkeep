@@ -6,6 +6,7 @@ const (
 	ImageWidth  FieldName = "ImageWidth"
 	ImageLength FieldName = "ImageLength" // height
 	Orientation FieldName = "Orientation"
+	DateTime    FieldName = "DateTime"
 )
 
 var fields = map[FieldName]uint16{

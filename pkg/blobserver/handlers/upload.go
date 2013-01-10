@@ -125,6 +125,9 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 
 	contentAttr := schema.NewSetAttributeClaim(signedPerm, "camliContent", fileblob.BlobRef.String())
 	claimDate, err := time.Parse(time.RFC3339, fr.FileSchema().UnixMtime)
+	if err != nil {
+		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileSchema().FileName, err)
+	}
 	contentAttr.SetClaimDate(claimDate)
 	contentAttr["camliSigner"] = publicKeyBlobRef
 	signed, err = sigHelper.SignMap(contentAttr)

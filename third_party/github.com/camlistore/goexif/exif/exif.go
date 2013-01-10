@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
@@ -138,6 +140,29 @@ func (x *Exif) Walk(w Walker) error {
 		}
 	}
 	return nil
+}
+
+// DateTime returns the EXIF's "DateTime" field, which is
+// the creation time of the photo.
+// The error will be TagNotPresentErr if the DateTime tag
+// was not found, or a generic error if the tag value was
+// not a string, or the error returned by time.Parse.
+func (x *Exif) DateTime() (time.Time, error) {
+	// TODO(mpl): investigate the time zone question. exif -l
+	// shows a TimeZoneOffset field, but it's empty for the test
+	// pic I've used, and wikipedia says there's no time zone
+	// info in EXIF...
+	var dt time.Time
+	tag, err := x.Get(DateTime)
+	if err != nil {
+		return dt, err
+	}
+	if tag.Format() != tiff.StringVal {
+		return dt, errors.New("DateTime not in string format")
+	}
+	exifTimeLayout := "2006:01:02 15:04:05"
+	dateStr := strings.TrimRight(string(tag.Val), "\x00")
+	return time.Parse(exifTimeLayout, dateStr)
 }
 
 // String returns a pretty text representation of the decoded exif data.
