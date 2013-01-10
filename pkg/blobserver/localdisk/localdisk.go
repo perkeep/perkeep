@@ -67,9 +67,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	sto, err := New(config.RequiredString("path"))
-
-	return sto, nil
+	return New(config.RequiredString("path"))
 }
 
 func init() {
