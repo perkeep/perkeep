@@ -176,7 +176,7 @@ func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
 // makeCamliHandler, it returned "/sighelper", nil, nil.
 func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
 	for prefix, config := range hl.config {
-		if config.htype == htype {
+		if config.htype == htype && hl.handler[prefix] != nil {
 			return prefix, hl.handler[prefix], nil
 		}
 	}
