@@ -26,6 +26,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -225,7 +226,6 @@ func (hl *handlerLoader) GetHandler(prefix string) (interface{}, error) {
 }
 
 func (hl *handlerLoader) GetHandlerType(prefix string) string {
-	hl.setupHandler(prefix)
 	return hl.configType(prefix)
 }
 
@@ -247,7 +247,9 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		return
 	}
 	if h.settingUp {
-		exitFailure("loop in configuration graph; %q tried to load itself indirectly", prefix)
+		buf := make([]byte, 1024)
+		buf = buf[:runtime.Stack(buf, false)]
+		exitFailure("loop in configuration graph; %q tried to load itself indirectly. Stack:\n%s", prefix, buf)
 	}
 	h.settingUp = true
 	defer func() {

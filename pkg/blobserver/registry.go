@@ -32,8 +32,15 @@ type FindHandlerByTyper interface {
 	// returns its prefix and handler if it's loaded.  If it's not
 	// loaded, the error will be ErrHandlerTypeNotFound.
 	//
-	// This is used by handler constructors to find siblings (such as the "ui" type handler)
+	// This is used by handlers to find siblings (such as the "ui" type handler)
 	// which might have more knowledge about the configuration for discovery, etc.
+	//
+	// Note that if this is called during handler construction
+	// time, only the prefix may be returned with a nil handler
+	// and nil err.  Unlike GetHandler and GetStorage, this does
+	// not cause the prefix to load immediately. At runtime (after
+	// construction of all handlers), then prefix and handler will
+	// both be non-nil when err is nil.
 	FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error)
 }
 
@@ -43,11 +50,18 @@ type Loader interface {
 	// MyPrefix returns the prefix of the handler currently being constructed.
 	MyPrefix() string
 
-	GetStorage(prefix string) (Storage, error)
+	// GetHandlerType returns the handler's configured type, but does
+	// not force it to start being loaded yet.
 	GetHandlerType(prefix string) string // returns "" if unknown
 
-	// Returns either a Storage or an http.Handler
+	// GetHandler returns either a Storage or an http.Handler.
+	// It forces the handler to be loaded and returns an error if
+	// a cycle is created.
 	GetHandler(prefix string) (interface{}, error)
+
+	// GetStorage is like GetHandler but requires that the Handler be
+	// a storage Handler.
+	GetStorage(prefix string) (Storage, error)
 
 	// If we're loading configuration in response to a web request
 	// (as we do with App Engine), then this returns a request and
