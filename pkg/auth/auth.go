@@ -45,12 +45,14 @@ const (
 	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign
 )
 
-var kBasicAuthPattern *regexp.Regexp = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
+var kBasicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 var (
 	mode AuthMode // the auth logic depending on the choosen auth mechanism
 )
 
+// An AuthMode is the interface implemented by diffent authentication
+// schemes.
 type AuthMode interface {
 	// AllowedAccess returns a bitmask of all operations
 	// this user/request is allowed to do.
@@ -60,8 +62,64 @@ type AuthMode interface {
 	AddAuthHeader(req *http.Request)
 }
 
+// UnauthorizedSender may be implemented by AuthModes which want to
+// handle sending unauthorized.
+type UnauthorizedSender interface {
+	// SendUnauthorized sends an unauthorized response,
+	// and returns whether it handled it.
+	SendUnauthorized(http.ResponseWriter, *http.Request) (handled bool)
+}
+
 func FromEnv() (AuthMode, error) {
 	return FromConfig(os.Getenv("CAMLI_AUTH"))
+}
+
+// An AuthConfigParser parses a registered authentication type's option
+// and returns an AuthMode.
+type AuthConfigParser func(arg string) (AuthMode, error)
+
+var authConstructor = map[string]AuthConfigParser{
+	"none":      newNoneAuth,
+	"localhost": newLocalhostAuth,
+	"userpass":  newUserPassAuth,
+}
+
+// RegisterAuth registers a new authentication scheme.
+func RegisterAuth(name string, ctor AuthConfigParser) {
+	if _, dup := authConstructor[name]; dup {
+		panic("Dup registration of auth mode " + name)
+	}
+	authConstructor[name] = ctor
+}
+
+func newNoneAuth(string) (AuthMode, error) {
+	return None{}, nil
+}
+
+func newLocalhostAuth(string) (AuthMode, error) {
+	return None{}, nil
+}
+
+func newUserPassAuth(arg string) (AuthMode, error) {
+	pieces := strings.Split(arg, ":")
+	if len(pieces) < 2 {
+		return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
+	}
+	username := pieces[0]
+	password := pieces[1]
+	mode := &UserPass{Username: username, Password: password}
+	for _, opt := range pieces[2:] {
+		switch {
+		case opt == "+localhost":
+			mode.OrLocalhost = true
+		case strings.HasPrefix(opt, "vivify="):
+			// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
+			mode.VivifyPass = strings.Replace(opt, "vivify=", "", -1)
+		default:
+			return nil, fmt.Errorf("Unknown userpass option %q", opt)
+		}
+	}
+	return mode, nil
 }
 
 // FromConfig parses authConfig and accordingly sets up the AuthMode
@@ -70,7 +128,7 @@ func FromEnv() (AuthMode, error) {
 // of the kind "userpass:joe:ponies". If the CAMLI_ADVERTISED_PASSWORD
 // environment variable is defined, the mode will default to DevAuth.
 func FromConfig(authConfig string) (AuthMode, error) {
-	pieces := strings.Split(authConfig, ":")
+	pieces := strings.SplitN(authConfig, ":", 2)
 	if len(pieces) < 1 {
 		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)
 	}
@@ -78,37 +136,23 @@ func FromConfig(authConfig string) (AuthMode, error) {
 
 	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
 		// the vivify mode password is automatically set to "vivi" + Password
-		mode = &DevAuth{pw, "vivi" + pw}
+		mode := &DevAuth{pw, "vivi" + pw}
 		return mode, nil
 	}
 
-	switch authType {
-	case "none":
-		mode = None{}
-	case "localhost":
-		mode = Localhost{}
-	case "userpass":
-		if len(pieces) < 3 {
-			return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
+	if fn, ok := authConstructor[authType]; ok {
+		arg := ""
+		if len(pieces) == 2 {
+			arg = pieces[1]
 		}
-		username := pieces[1]
-		password := pieces[2]
-		mode = &UserPass{Username: username, Password: password}
-		for _, opt := range pieces[3:] {
-			switch {
-			case opt == "+localhost":
-				mode.(*UserPass).OrLocalhost = true
-			case strings.HasPrefix(opt, "vivify="):
-				// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
-				mode.(*UserPass).VivifyPass = strings.Replace(opt, "vivify=", "", -1)
-			default:
-				return nil, fmt.Errorf("Unknown userpass option %q", opt)
-			}
-		}
-	default:
-		return nil, fmt.Errorf("Unknown auth type: %q", authType)
+		return fn(arg)
 	}
-	return mode, nil
+	return nil, fmt.Errorf("Unknown auth type: %q", authType)
+}
+
+// SetMode sets the authentication mode for future requests.
+func SetMode(m AuthMode) {
+	mode = m
 }
 
 func basicAuth(req *http.Request) (string, string, error) {
@@ -284,14 +328,19 @@ func TriedAuthorization(req *http.Request) bool {
 	return req.Header.Get("Authorization") != ""
 }
 
-func SendUnauthorized(conn http.ResponseWriter) {
+func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
+	if us, ok := mode.(UnauthorizedSender); ok {
+		if us.SendUnauthorized(rw, req) {
+			return
+		}
+	}
 	realm := "camlistored"
 	if devAuth, ok := mode.(*DevAuth); ok {
 		realm = "Any username, password is: " + devAuth.Password
 	}
-	conn.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
-	conn.WriteHeader(http.StatusUnauthorized)
-	fmt.Fprintf(conn, "<h1>Unauthorized</h1>")
+	rw.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
+	rw.WriteHeader(http.StatusUnauthorized)
+	fmt.Fprintf(rw, "<html><body><h1>Unauthorized</h1>")
 }
 
 type Handler struct {
@@ -308,18 +357,18 @@ func (h Handler) serveHTTPForOp(w http.ResponseWriter, r *http.Request, op Opera
 	if Allowed(r, op) {
 		h.Handler.ServeHTTP(w, r)
 	} else {
-		SendUnauthorized(w)
+		SendUnauthorized(w, r)
 	}
 }
 
 // requireAuth wraps a function with another function that enforces
 // HTTP Basic Auth and checks if the operations in op are all permitted.
-func RequireAuth(handler func(conn http.ResponseWriter, req *http.Request), op Operation) func(conn http.ResponseWriter, req *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
+func RequireAuth(handler func(http.ResponseWriter, *http.Request), op Operation) func(http.ResponseWriter, *http.Request) {
+	return func(rw http.ResponseWriter, req *http.Request) {
 		if Allowed(req, op) {
-			handler(conn, req)
+			handler(rw, req)
 		} else {
-			SendUnauthorized(conn)
+			SendUnauthorized(rw, req)
 		}
 	}
 }

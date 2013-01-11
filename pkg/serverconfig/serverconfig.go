@@ -342,7 +342,10 @@ func Load(filename string) (*Config, error) {
 
 func (config *Config) checkValidAuth() error {
 	authConfig := config.OptionalString("auth", "")
-	_, err := auth.FromConfig(authConfig)
+	mode, err := auth.FromConfig(authConfig)
+	if err == nil {
+		auth.SetMode(mode)
+	}
 	return err
 }
 

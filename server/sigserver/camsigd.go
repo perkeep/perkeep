@@ -14,6 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(bradfitz): as of 2012-01-10 this is very old and superceded by
+// the general server and pkg/serverconfig.  We should just make it
+// possible to configure a signing-only server with
+// serverconfig/genconfig.go.  I think we basically already can. Then
+// we can delete this.
+
 package main
 
 import (
@@ -63,10 +69,11 @@ func handleCamliSig(conn http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	_, err := auth.FromEnv()
+	mode, err := auth.FromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
+	auth.SetMode(mode)
 
 	ws := webserver.New()
 	ws.HandleFunc("/", handleRoot)

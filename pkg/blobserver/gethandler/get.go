@@ -73,7 +73,7 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 		serveBlobRef(conn, req, blobRef, h.Fetcher)
 	case auth.TriedAuthorization(req):
 		log.Printf("Attempted authorization failed on %s", req.URL)
-		auth.SendUnauthorized(conn)
+		auth.SendUnauthorized(conn, req)
 	default:
 		handleGetViaSharing(conn, req, blobRef, h.Fetcher)
 	}
@@ -224,31 +224,31 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			file, size, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			defer file.Close()
 			if size > maxJSONSize {
 				log.Printf("Fetch chain 0 of %s too large", br.String())
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			jd := json.NewDecoder(file)
 			m := make(map[string]interface{})
 			if err := jd.Decode(&m); err != nil {
 				log.Printf("Fetch chain 0 of %s wasn't JSON: %v", br.String(), err)
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			if m["camliType"].(string) != "share" {
 				log.Printf("Fetch chain 0 of %s wasn't a share", br.String())
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			if len(fetchChain) > 1 && fetchChain[1].String() != m["target"].(string) {
 				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
 					br.String(), fetchChain[1].String(), m["target"])
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 		case len(fetchChain) - 1:
@@ -259,7 +259,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			file, _, err := fetcher.FetchStreaming(br)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			defer file.Close()
@@ -267,14 +267,14 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			slurpBytes, err := ioutil.ReadAll(lr)
 			if err != nil {
 				log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 			saught := fetchChain[i+1].String()
 			if bytes.IndexAny(slurpBytes, saught) == -1 {
 				log.Printf("Fetch chain %d of %s failed; no reference to %s",
 					i, br.String(), saught)
-				auth.SendUnauthorized(conn)
+				auth.SendUnauthorized(conn, req)
 				return
 			}
 		}

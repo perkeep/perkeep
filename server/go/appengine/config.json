@@ -1,6 +1,6 @@
 { "_for-emacs": "-*- mode: js2;-*-",
   "handlerConfig": true,
-  "auth": "userpass:camlistore:pass3179",
+  "auth": "appengine_app_owner:userpass:camlistore:pass3179",
   "prefixes": {
 
      "/": {

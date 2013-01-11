@@ -1,3 +1,5 @@
+-- delete mostly-obsolete camsigd.  see big TODO in camsigd.go.
+
 -- rename the index.IndexStorage interface stutter to index.Storage
 
 -- we used to be able live-edit js/css files in server/camlistored/ui when
