@@ -17,3 +17,7 @@ limitations under the License.
 package serverconfig
 
 var GenLowLevelConfig = genLowLevelConfig
+
+func SetTempDirFunc(f func() string) {
+	tempDir = f
+}

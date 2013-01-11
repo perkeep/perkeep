@@ -33,6 +33,11 @@ import (
 	"camlistore.org/pkg/serverconfig"
 )
 
+func init() {
+	// Avoid Linux vs. OS X differences in tests.
+	serverconfig.SetTempDirFunc(func() string { return "/tmp" })
+}
+
 func sortedKeys(m map[string]interface{}) (keys []string) {
 	for k := range m {
 		keys = append(keys, k)

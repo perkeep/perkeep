@@ -38,6 +38,8 @@ type configPrefixesParams struct {
 	searchOwner *blobref.BlobRef
 }
 
+var tempDir = os.TempDir
+
 func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]interface{}, error) {
 	pubPrefixes := []interface{}{}
 	for k, v := range published {
@@ -214,7 +216,7 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 		prefixes["/cache/"] = map[string]interface{}{
 			"handler": "storage-filesystem",
 			"handlerArgs": map[string]interface{}{
-				"path": filepath.Join(os.TempDir(), "camli-cache"),
+				"path": filepath.Join(tempDir(), "camli-cache"),
 			},
 		}
 	} else {
@@ -436,7 +438,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
 		// See http://code.google.com/p/camlistore/issues/detail?id=85
-		cacheDir = filepath.Join(os.TempDir(), "camli-cache")
+		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
 		cacheDir = filepath.Join(blobPath, "/cache")
 	}
