@@ -132,8 +132,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		if ct == "" {
 			err = fmt.Errorf("UI handler's %q references non-existant %q", key, v)
 		} else if ct != htype {
-			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v,
-				ct, htype)
+			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
 		}
 	}
 	checkType("searchRoot", "search")
