@@ -102,6 +102,20 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	} else {
 		go synch.syncQueueLoop()
 	}
+
+	rootPrefix, _, err := ld.FindHandlerByType("root")
+	switch err {
+	case blobserver.ErrHandlerTypeNotFound:
+		// ignore; okay to not have a root handler.
+	case nil:
+		h, err := ld.GetHandler(rootPrefix)
+		if err != nil {
+			return nil, err
+		}
+		h.(*RootHandler).registerSyncHandler(synch)
+	default:
+		return nil, fmt.Errorf("Error looking for root handler: %v", err)
+	}
 	return synch, nil
 }
 
@@ -128,6 +142,14 @@ func createSyncHandler(fromName, toName string, from blobserver.StorageQueueCrea
 			fromName, from, h.fromqName, err)
 	}
 	return h, nil
+}
+
+func (sh *SyncHandler) discoveryMap() map[string]interface{} {
+	// TODO(mpl): more status info
+	return map[string]interface{}{
+		"from": sh.fromName,
+		"to":   sh.toName,
+	}
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
