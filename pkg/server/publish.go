@@ -51,7 +51,7 @@ type PublishHandler struct {
 
 	JSFiles, CSSFiles []string
 
-	bsLoader      blobserver.Loader
+	handlerFinder blobserver.FindHandlerByTyper
 	staticHandler http.Handler
 }
 
@@ -61,7 +61,7 @@ func init() {
 
 func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ph := &PublishHandler{
-		bsLoader: ld,
+		handlerFinder: ld,
 	}
 	ph.RootName = conf.RequiredString("rootName")
 	ph.JSFiles = conf.OptionalList("js")
@@ -178,7 +178,7 @@ func (ph *PublishHandler) serveDiscovery(rw http.ResponseWriter, req *http.Reque
 		})
 		return
 	}
-	_, handler, err := ph.bsLoader.FindHandlerByType("ui")
+	_, handler, err := ph.handlerFinder.FindHandlerByType("ui")
 	if err != nil {
 		discoveryHelper(rw, req, map[string]interface{}{
 			"error": "no admin handler running",
