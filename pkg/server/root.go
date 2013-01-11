@@ -19,8 +19,10 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os/user"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/auth"
@@ -43,9 +45,17 @@ type RootHandler struct {
 	SearchRoot string
 
 	Storage blobserver.Storage // of BlobRoot, or nil
-	Search  *search.Handler    // of SearchRoot, or nil
+
+	searchInitOnce sync.Once // runs searchInit, which populates searchHandler
+	searchInit     func()
+	searchHandler  *search.Handler // of SearchRoot, or nil
 
 	ui *UIHandler // or nil, if none configured
+}
+
+func (rh *RootHandler) SearchHandler() (h *search.Handler, ok bool) {
+	rh.searchInitOnce.Do(rh.searchInit)
+	return rh.searchHandler, rh.searchHandler != nil
 }
 
 func init() {
@@ -75,9 +85,23 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		root.Storage = bs
 	}
 
+	root.searchInit = func() {}
 	if root.SearchRoot != "" {
-		h, _ := ld.GetHandler(root.SearchRoot)
-		root.Search = h.(*search.Handler)
+		prefix := root.SearchRoot
+		if t := ld.GetHandlerType(prefix); t != "search" {
+			if t == "" {
+				return nil, fmt.Errorf("root handler's searchRoot of %q is invalid and doesn't refer to a declared handler", prefix)
+			}
+			return nil, fmt.Errorf("root handler's searchRoot of %q is of type %q, not %q", prefix, t, "search")
+		}
+		root.searchInit = func() {
+			h, err := ld.GetHandler(prefix)
+			if err != nil {
+				log.Fatalf("Error fetching SearchRoot at %q: %v", prefix, err)
+			}
+			root.searchHandler = h.(*search.Handler)
+			root.searchInit = nil
+		}
 	}
 
 	return root, nil

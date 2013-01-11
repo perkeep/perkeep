@@ -287,8 +287,8 @@ func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 			"prefix": []string{key},
 			// TODO: include gpg key id
 		}
-		if ui.root.Search != nil {
-			pn, err := ui.root.Search.Index().PermanodeOfSignerAttrValue(ui.root.Search.Owner(), "camliRoot", pubh.RootName)
+		if sh, ok := ui.root.SearchHandler(); ok {
+			pn, err := sh.Index().PermanodeOfSignerAttrValue(sh.Owner(), "camliRoot", pubh.RootName)
 			if err == nil {
 				m["currentPermanode"] = pn.String()
 			}
