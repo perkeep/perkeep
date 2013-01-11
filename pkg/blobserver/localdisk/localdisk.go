@@ -48,7 +48,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("Storage root %q doesn't exist", root)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
@@ -64,24 +64,11 @@ func New(root string) (*DiskStorage, error) {
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
-	sto := &DiskStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		root:                      config.RequiredString("path"),
-	}
+  path := config.RequiredString("path")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	fi, err := os.Stat(sto.root)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %v", sto.root, err)
-	}
-	if !fi.IsDir() {
-		return nil, fmt.Errorf("Path %q isn't a directory", sto.root)
-	}
-	if _, _, err := sto.StorageGeneration(); err != nil {
-		return nil, fmt.Errorf("Error initialization generation for %q: %v", sto.root, err)
-	}
-	return sto, nil
+	return New(path)
 }
 
 func init() {
