@@ -37,17 +37,6 @@ var (
 	rootdb      *sql.DB
 )
 
-func checkDB() {
-	var err error
-	if rootdb, err = sql.Open("mymysql", "mysql/root/root"); err == nil {
-		var n int
-		err := rootdb.QueryRow("SELECT COUNT(*) FROM user").Scan(&n)
-		if err == nil {
-			dbAvailable = true
-		}
-	}
-}
-
 func do(db *sql.DB, sql string) {
 	_, err := db.Exec(sql)
 	if err == nil {
@@ -59,7 +48,6 @@ func do(db *sql.DB, sql string) {
 type sqliteTester struct{}
 
 func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
-	once.Do(checkDB)
 	f, err := ioutil.TempFile("", "sqlite-test")
 	if err != nil {
 		t.Fatal(err)

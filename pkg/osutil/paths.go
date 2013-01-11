@@ -52,14 +52,18 @@ func makeCacheDir() {
 	os.Mkdir(cacheDir(), 0700)
 }
 
-func CamliBlobRoot() string {
+func CamliVarDir() string {
 	switch runtime.GOOS {
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "Camlistore", "blobs")
+		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
 	case "darwin":
-		return filepath.Join(HomeDir(), "Library", "Camlistore", "blobs")
+		return filepath.Join(HomeDir(), "Library", "Camlistore")
 	}
-	return filepath.Join(HomeDir(), "var", "camlistore", "blobs")
+	return filepath.Join(HomeDir(), "var", "camlistore")
+}
+
+func CamliBlobRoot() string {
+	return filepath.Join(CamliVarDir(), "blobs")
 }
 
 func CamliConfigDir() string {

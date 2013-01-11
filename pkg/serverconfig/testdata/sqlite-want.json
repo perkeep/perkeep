@@ -76,7 +76,7 @@
 		},
 	
 		"/index-sqlite/": {
-			"handler": "storage-sqlite",
+			"handler": "storage-sqliteindexer",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"file": "/tmp/camli.db"

@@ -175,7 +175,7 @@ func addMemindexConfig(prefixes jsonconfig.Obj) {
 
 func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
 	ob := map[string]interface{}{}
-	ob["handler"] = "storage-sqlite"
+	ob["handler"] = "storage-sqliteindexer"
 	ob["handlerArgs"] = map[string]interface{}{
 		"blobSource": "/bs/",
 		"file":       file,

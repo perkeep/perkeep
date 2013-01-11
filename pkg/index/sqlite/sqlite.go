@@ -45,7 +45,14 @@ func CompiledIn() bool {
 	return compiled
 }
 
-var ErrNotCompiled = errors.New("camlistored was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite.")
+var ErrNotCompiled = errors.New("camlistored was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite " + compileHint())
+
+func compileHint() string {
+	if _, err := os.Stat("/etc/apt"); err == nil {
+		return " (Required: apt-get install libsqlite3-dev)"
+	}
+	return ""
+}
 
 // NewStorage returns an IndexStorage implementation of the described SQLite database.
 // This exists mostly for testing and does not initialize the schema.

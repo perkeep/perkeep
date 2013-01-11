@@ -36,6 +36,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"database/sql"
 
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -54,6 +55,7 @@ import (
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
 	_ "camlistore.org/pkg/index/postgres"
+	"camlistore.org/pkg/index/sqlite"
 
 	// Handlers:
 	_ "camlistore.org/pkg/search"
@@ -202,6 +204,7 @@ type defaultConfigFile struct {
 	BlobPath           string        `json:"blobPath"`
 	MySQL              string        `json:"mysql"`
 	Mongo              string        `json:"mongo"`
+	SQLite             string        `json:"sqlite"`
 	S3                 string        `json:"s3"`
 	ReplicateTo        []interface{} `json:"replicateTo"`
 	Publish            struct{}      `json:"publish"`
@@ -214,12 +217,12 @@ func newDefaultConfigFile(path string) error {
 		Auth:        "localhost",
 		ReplicateTo: make([]interface{}, 0),
 	}
-
 	blobDir := osutil.CamliBlobRoot()
 	if err := os.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	conf.BlobPath = blobDir
+	conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
 
 	var keyId string
 	secRing := osutil.IdentitySecretRing()
@@ -246,7 +249,32 @@ func newDefaultConfigFile(path string) error {
 	if err := ioutil.WriteFile(path, confData, 0600); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
+
+	if sqlite.CompiledIn() {
+		if fi, err := os.Stat(conf.SQLite); os.IsNotExist(err) || (fi != nil && fi.Size() == 0) {
+			if err := initSQLiteDB(conf.SQLite); err != nil {
+				log.Printf("Error initializing DB %s: %v", conf.SQLite, err)
+			}
+		}
+	} else {
+		log.Printf("Wrote config file assuming SQLite, but SQLite is not available. Recompile with SQLite or modify %s and pick an index type.", path)
+	}
 	return nil
+}
+
+func initSQLiteDB(path string) error {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, tableSql := range sqlite.SQLCreateTables() {
+		if _, err := db.Exec(tableSql); err != nil {
+			return err
+		}
+	}
+	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
+	return err
 }
 
 func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) {
