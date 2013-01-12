@@ -28,6 +28,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/throttle"
@@ -40,14 +41,19 @@ type Server struct {
 	premux   []HandlerPicker
 	mux      *http.ServeMux
 	listener net.Listener
+	verbose  bool // log HTTP requests and response codes
 
 	enableTLS               bool
 	tlsCertFile, tlsKeyFile string
+
+	mu   sync.Mutex
+	reqs int64
 }
 
 func New() *Server {
 	return &Server{
-		mux: http.NewServeMux(),
+		mux:     http.NewServeMux(),
+		verbose: os.Getenv("CAM_HTTP_DEBUG") == "1",
 	}
 }
 
@@ -89,14 +95,50 @@ func (s *Server) Handle(pattern string, handler http.Handler) {
 }
 
 func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	var n int64
+	if s.verbose {
+		s.mu.Lock()
+		s.reqs++
+		n = s.reqs
+		s.mu.Unlock()
+		log.Printf("Request #%d: %s %s ...", n, req.Method, req.RequestURI)
+		rw = &trackResponseWriter{ResponseWriter: rw}
+	}
+	done := false
 	for _, hp := range s.premux {
 		handler, ok := hp(req)
 		if ok {
 			handler(rw, req)
-			return
+			done = true
+			break
 		}
 	}
-	s.mux.ServeHTTP(rw, req)
+	if !done {
+		s.mux.ServeHTTP(rw, req)
+	}
+	if s.verbose {
+		tw := rw.(*trackResponseWriter)
+		log.Printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)
+	}
+}
+
+type trackResponseWriter struct {
+	http.ResponseWriter
+	code    int
+	resSize int64
+}
+
+func (tw *trackResponseWriter) WriteHeader(code int) {
+	tw.code = code
+	tw.ResponseWriter.WriteHeader(code)
+}
+
+func (tw *trackResponseWriter) Write(p []byte) (int, error) {
+	if tw.code == 0 {
+		tw.code = 200
+	}
+	tw.resSize += int64(len(p))
+	return tw.ResponseWriter.Write(p)
 }
 
 // Listen starts listening on the given host:port addr.
