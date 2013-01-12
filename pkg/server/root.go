@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os/user"
+	"sort"
 	"sync"
 	"time"
 
@@ -50,7 +51,8 @@ type RootHandler struct {
 	searchInit     func()
 	searchHandler  *search.Handler // of SearchRoot, or nil
 
-	ui *UIHandler // or nil, if none configured
+	ui   *UIHandler     // or nil, if none configured
+	sync []*SyncHandler // list of configured sync handlers, for discovery.
 }
 
 func (rh *RootHandler) SearchHandler() (h *search.Handler, ok bool) {
@@ -111,10 +113,14 @@ func (rh *RootHandler) registerUIHandler(h *UIHandler) {
 	rh.ui = h
 }
 
+func (rh *RootHandler) registerSyncHandler(h *SyncHandler) {
+	rh.sync = append(rh.sync, h)
+	sort.Sort(byFromTo(rh.sync))
+}
+
 func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if wantsDiscovery(req) {
-		// TODO(mpl): an OpDiscovery would be more to the point,
-		//  but OpGet is similar/good enough for now.
+		// TODO(mpl): OpDiscovery
 		if auth.Allowed(req, auth.OpGet) {
 			rh.serveDiscovery(rw, req)
 			return
@@ -138,6 +144,17 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		"%s</body></html>\n", configLink)
 }
 
+type byFromTo []*SyncHandler
+
+func (b byFromTo) Len() int      { return len(b) }
+func (b byFromTo) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byFromTo) Less(i, j int) bool {
+	if b[i].fromName < b[j].fromName {
+		return true
+	}
+	return b[i].fromName == b[j].fromName && b[i].toName < b[j].toName
+}
+
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	m := map[string]interface{}{
 		"blobRoot":   rh.BlobRoot,
@@ -155,6 +172,13 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 	}
 	if rh.ui != nil {
 		rh.ui.populateDiscoveryMap(m)
+	}
+	if len(rh.sync) > 0 {
+		var syncHandlers []map[string]interface{}
+		for _, sh := range rh.sync {
+			syncHandlers = append(syncHandlers, sh.discoveryMap())
+		}
+		m["syncHandlers"] = syncHandlers
 	}
 	discoveryHelper(rw, req, m)
 }
