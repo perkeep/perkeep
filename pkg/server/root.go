@@ -134,6 +134,10 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if rh.Stealth {
 		return
 	}
+	if req.URL.Path == "/favicon.ico" {
+		serveStaticFile(rw, req, Files, "favicon.ico")
+		return
+	}
 
 	configLink := ""
 	if auth.IsLocalhost(req) {
