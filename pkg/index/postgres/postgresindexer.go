@@ -36,7 +36,7 @@ type myIndexStorage struct {
 	db                             *sql.DB
 }
 
-var _ index.IndexStorage = (*myIndexStorage)(nil)
+var _ index.Storage = (*myIndexStorage)(nil)
 
 // postgres does not have REPLACE INTO (upsert), so we use that custom
 // one for Set operations instead
@@ -70,9 +70,9 @@ var replacePlaceHolders = func(query string) string {
 	return string(qmark.ReplaceAllFunc([]byte(query), dollarInc))
 }
 
-// NewStorage returns an IndexStorage implementation of the described PostgreSQL database.
+// NewStorage returns an index.Storage implementation of the described PostgreSQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (index.IndexStorage, error) {
+func NewStorage(host, user, password, dbname string) (index.Storage, error) {
 	conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", user, dbname, host, password)
 	db, err := sql.Open("postgres", conninfo)
 	if err != nil {

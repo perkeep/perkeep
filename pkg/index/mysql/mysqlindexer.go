@@ -36,11 +36,11 @@ type myIndexStorage struct {
 	db                             *sql.DB
 }
 
-var _ index.IndexStorage = (*myIndexStorage)(nil)
+var _ index.Storage = (*myIndexStorage)(nil)
 
-// NewStorage returns an IndexStorage implementation of the described MySQL database.
+// NewStorage returns an index.Storage implementation of the described MySQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (index.IndexStorage, error) {
+func NewStorage(host, user, password, dbname string) (index.Storage, error) {
 	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
 	dsn := dbname+"/"+user+"/"+password
 	db, err := sql.Open("mymysql", dsn)

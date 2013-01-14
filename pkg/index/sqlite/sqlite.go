@@ -35,7 +35,7 @@ type storage struct {
 	db   *sql.DB
 }
 
-var _ index.IndexStorage = (*storage)(nil)
+var _ index.Storage = (*storage)(nil)
 
 var compiled = false
 
@@ -54,9 +54,9 @@ func compileHint() string {
 	return ""
 }
 
-// NewStorage returns an IndexStorage implementation of the described SQLite database.
+// NewStorage returns an index.Storage implementation of the described SQLite database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(file string) (index.IndexStorage, error) {
+func NewStorage(file string) (index.Storage, error) {
 	if !compiled {
 		return nil, ErrNotCompiled
 	}

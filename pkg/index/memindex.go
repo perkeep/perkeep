@@ -58,7 +58,7 @@ func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blob
 	return ix, err
 }
 
-// memKeys is a naive in-memory implementation of IndexStorage for test & development
+// memKeys is a naive in-memory implementation of index.Storage for test & development
 // purposes only.
 type memKeys struct {
 	mu sync.Mutex // guards db

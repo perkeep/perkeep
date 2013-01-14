@@ -187,7 +187,7 @@ func (s mongoStrIterator) Close() error {
 	return nil
 }
 
-// Implementation of IndexStorage
+// Implementation of index.Storage
 type mongoKeys struct {
 	mu sync.Mutex // guards db
 	db *mgo.Collection
