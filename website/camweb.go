@@ -52,12 +52,14 @@ var (
 	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
 	gerritUser          = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
 	gerritHost          = flag.String("gerrithost", "", "Gerrit host, or empty.")
+	buildbotBackend     = flag.String("buildbot_backend", "", "Build bot status backend.")
+	buildbotHost        = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	pageHtml, errorHtml *template.Template
 )
 
 var fmap = template.FuncMap{
-	"":         textFmt,
-	"html":     htmlFmt,
+	"":        textFmt,
+	"html":    htmlFmt,
 	"htmlesc": htmlEscFmt,
 }
 
@@ -320,6 +322,16 @@ func main() {
 		}})
 	}
 	mux.HandleFunc("/", mainHandler)
+
+	if *buildbotHost != "" && *buildbotBackend != "" {
+		buildbotUrl, err := url.Parse(*buildbotBackend)
+		if err != nil {
+			log.Fatalf("Failed to parse %v as a URL: %v", *buildbotBackend, err)
+		}
+		buildbotHandler := httputil.NewSingleHostReverseProxy(buildbotUrl)
+		bbhpattern := strings.TrimRight(*buildbotHost, "/") + "/"
+		mux.Handle(bbhpattern, buildbotHandler)
+	}
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
