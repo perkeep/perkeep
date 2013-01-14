@@ -78,7 +78,7 @@ func TestStringFromMixedArray(t *testing.T) {
 		{`["brad"]`, "brad"},
 		{`["brad", 32, 70]`, "brad F"},
 		{`["brad", "fitz"]`, "bradfitz"},
-		{`["../foo/Am", 233, "lie.jpg"]`, "../foo/Am\xe9lie.jpg"},
+		{`["Am", 233, "lie.jpg"]`, "Am\xe9lie.jpg"},
 	}
 	for idx, test := range tests {
 		var v []interface{}

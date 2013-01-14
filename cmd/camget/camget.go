@@ -227,7 +227,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 
 	switch sc.Type {
 	case "directory":
-		dir := filepath.Join(targ, sc.FileName)
+		dir := filepath.Join(targ, sc.FileNameString())
 		if *flagVerbose {
 			log.Printf("Fetching directory %v into %s", br, dir)
 		}
@@ -287,7 +287,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		fr.LoadAllChunks()
 		defer fr.Close()
 
-		name := filepath.Join(targ, sc.FileName)
+		name := filepath.Join(targ, sc.FileNameString())
 
 		if fi, err := os.Stat(name); err == nil && fi.Size() == fi.Size() {
 			if *flagVerbose {

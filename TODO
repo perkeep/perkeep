@@ -20,10 +20,6 @@
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
 
--- make camget and/or pkg/schema sanity-check all the "file" and "directory"
-   names, to make sure they don't have path separators in them, "..", etc.
-   Use Basename/Clean/etc.
-
 -- rename sha1.New() to blobref.NewHash() and
    blobref.SHA1FromString(string) to blobref.FromString(string), and
    add blobref.FromHash(hash.Hash) (using reflect.TypeOf to find

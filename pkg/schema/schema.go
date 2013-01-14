@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -234,8 +235,10 @@ type Superset struct {
 	Attribute string `json:"attribute"`
 	Value     string `json:"value"`
 
-	// TODO: ditch both the FooBytes variants below. a string doesn't have to be UTF-8.
-
+	// FileName and FileNameBytes represent one of the two
+	// representations of file names in schema blobs.  They should
+	// not be accessed directly.  Use the FileNameString accessor
+	// instead, which also sanitizes malicious values.
 	FileName      string        `json:"fileName"`
 	FileNameBytes []interface{} `json:"fileNameBytes"` // TODO: needs custom UnmarshalJSON?
 
@@ -271,7 +274,10 @@ type Superset struct {
 func ParseSuperset(r io.Reader) (*Superset, error) {
 	// TODO: rename either this or MapFromReader to be named similarly?
 	var ss Superset
-	return &ss, json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss)
+	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss); err != nil {
+		return nil, err
+	}
+	return &ss, nil
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
@@ -327,11 +333,26 @@ func (ss *Superset) SymlinkTargetString() string {
 	return stringFromMixedArray(ss.SymlinkTargetBytes)
 }
 
+// FileNameString returns the schema blob's base filename.
+//
+// If the fileName field of the blob accidentally or maliciously
+// contains a slash, this function returns an empty string instead.
 func (ss *Superset) FileNameString() string {
-	if ss.FileName != "" {
-		return ss.FileName
+	v := ss.FileName
+	if v == "" {
+		v = stringFromMixedArray(ss.FileNameBytes)
 	}
-	return stringFromMixedArray(ss.FileNameBytes)
+	if v != "" {
+		if strings.Index(v, "/") != -1 {
+			// Bogus schema blob; ignore.
+			return ""
+		}
+		if strings.Index(v, "\\") != -1 {
+			// Bogus schema blob; ignore.
+			return ""
+		}
+	}
+	return v
 }
 
 func (ss *Superset) HasFilename(name string) bool {

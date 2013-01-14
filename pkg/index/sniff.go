@@ -17,7 +17,7 @@ limitations under the License.
 package index
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 
 	"camlistore.org/pkg/magic"
@@ -96,11 +96,10 @@ func (sn *BlobSniffer) bufferIsCamliJson() bool {
 	if len(buf) < 2 || buf[0] != '{' {
 		return false
 	}
-	camli := new(schema.Superset)
-	err := json.Unmarshal(buf, camli)
+	ss, err := schema.ParseSuperset(bytes.NewReader(buf))
 	if err != nil {
 		return false
 	}
-	sn.camli = camli
+	sn.camli = ss
 	return true
 }
