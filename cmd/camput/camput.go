@@ -251,7 +251,7 @@ func camputMain(args ...string) {
 		}
 		exit(1)
 	}
-	if *flagVerbose {
+	if *flagVerbose && up != nil {
 		stats := up.Stats()
 		log.Printf("Client stats: %s", stats.String())
 		log.Printf("  #HTTP reqs: %d", up.transport.Requests())

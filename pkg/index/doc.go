@@ -16,7 +16,7 @@ limitations under the License.
 
 /*
 Package index provides a generic indexing system on top of an abstract
-index storage system (IndexStorage).
+index storage system (Storage).
 
 The following keys & values are populated by receiving blobs and queried
 for search operations:

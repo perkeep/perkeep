@@ -34,7 +34,7 @@ var _ = log.Printf
 
 var ErrNotFound = errors.New("index: key not found")
 
-type IndexStorage interface {
+type Storage interface {
 	// Get gets the value for the given key. It returns ErrNotFound if the DB
 	// does not contain the key.
 	Get(key string) (string, error)
@@ -135,7 +135,7 @@ type Index struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	*blobserver.NoImplStorage
 
-	s IndexStorage
+	s Storage
 
 	KeyFetcher blobref.StreamingFetcher // for verifying claims
 
@@ -147,7 +147,7 @@ type Index struct {
 var _ blobserver.Storage = (*Index)(nil)
 var _ search.Index = (*Index)(nil)
 
-func New(s IndexStorage) *Index {
+func New(s Storage) *Index {
 	return &Index{
 		s: s,
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
@@ -606,4 +606,4 @@ func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges [
 	return edges, nil
 }
 
-func (x *Index) Storage() IndexStorage { return x.s }
+func (x *Index) Storage() Storage { return x.s }

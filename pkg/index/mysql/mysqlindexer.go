@@ -29,18 +29,18 @@ import (
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
 
-type myIndexStorage struct {
+type myStorage struct {
 	*sqlindex.Storage
 
 	host, user, password, database string
 	db                             *sql.DB
 }
 
-var _ index.IndexStorage = (*myIndexStorage)(nil)
+var _ index.Storage = (*myStorage)(nil)
 
-// NewStorage returns an IndexStorage implementation of the described MySQL database.
+// NewStorage returns an Storage implementation of the described MySQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (index.IndexStorage, error) {
+func NewStorage(host, user, password, dbname string) (index.Storage, error) {
 	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
 	dsn := dbname+"/"+user+"/"+password
 	db, err := sql.Open("mymysql", dsn)
@@ -48,7 +48,7 @@ func NewStorage(host, user, password, dbname string) (index.IndexStorage, error)
 		return nil, err
 	}
 	// TODO(bradfitz): ping db, check that it's reachable.
-	return &myIndexStorage{
+	return &myStorage{
 		db: db,
 		Storage: &sqlindex.Storage{
 			DB: db,
@@ -79,7 +79,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
-	is := isto.(*myIndexStorage)
+	is := isto.(*myStorage)
 	if err := is.ping(); err != nil {
 		return nil, err
 	}
@@ -110,13 +110,13 @@ func init() {
 	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
 }
 
-func (mi *myIndexStorage) ping() error {
+func (mi *myStorage) ping() error {
 	// TODO(bradfitz): something more efficient here?
 	_, err := mi.SchemaVersion()
 	return err
 }
 
-func (mi *myIndexStorage) SchemaVersion() (version int, err error) {
+func (mi *myStorage) SchemaVersion() (version int, err error) {
 	err = mi.db.QueryRow("SELECT value FROM meta WHERE metakey='version'").Scan(&version)
 	return
 }
