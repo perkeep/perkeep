@@ -49,6 +49,8 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts Enumera
 		return err
 	}
 
+	// TODO(mpl): investigate panic originating from here.
+	// to reproduce: camsync with a wrong src blobserver.
 	error := func(msg string, e error) error {
 		err := errors.New(fmt.Sprintf("client enumerate error: %s: %v", msg, e))
 		c.log.Print(err.Error())

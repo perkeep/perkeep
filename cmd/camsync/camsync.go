@@ -31,11 +31,10 @@ import (
 var (
 	flagLoop    = flag.Bool("loop", false, "sync in a loop once done; requires --removesrc")
 	flagVerbose = flag.Bool("verbose", false, "be verbose")
+	flagAll     = flag.Bool("all", false, "Discover all sync destinations configured on the source server and run them.")
 
-	flagSrc      = flag.String("src", "", "Source blobserver prefix (generally a mirrored queue partition)")
-	flagSrcPass  = flag.String("srcpassword", "", "Source password")
-	flagDest     = flag.String("dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout")
-	flagDestPass = flag.String("destpassword", "", "Destination password")
+	flagSrc  = flag.String("src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], or blank to use the Camlistore client config's default host.")
+	flagDest = flag.String("dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout")
 
 	flagRemoveSource = flag.Bool("removesrc", false,
 		"remove each blob from the source after syncing to the destination; for queue processing")
@@ -55,21 +54,70 @@ func usage(err string) {
 	os.Exit(2)
 }
 
+func syncAll() error {
+	if *flagLoop {
+		usage("--all can not be used with --loop")
+	}
+
+	dc := discoClient()
+	syncHandlers, err := dc.SyncHandlers()
+	if err != nil {
+		log.Fatalf("sync handlers discovery failed: %v", err)
+	}
+	for _, sh := range syncHandlers {
+		from := client.New(sh.From)
+		from.SetupAuth()
+		to := client.New(sh.To)
+		to.SetupAuth()
+		stats, err := doPass(from, to)
+		if *flagVerbose {
+			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// discoClient returns a client initialized with a server
+// based from --src or from the configuration file if --src
+// is blank. The returned client can then be used to discover
+// the blobRoot and syncHandlers.
+func discoClient() *client.Client {
+	var cl *client.Client
+	if *flagSrc == "" {
+		cl = client.NewOrFail()
+	} else {
+		cl = client.New(*flagSrc)
+	}
+	cl.SetupAuth()
+	return cl
+}
+
 func main() {
 	flag.Parse()
 
-	if *flagSrc == "" {
-		usage("No --src specified.")
+	if *flagLoop && !*flagRemoveSource {
+		usage("Can't use --loop without --removesrc")
+	}
+	if *flagAll {
+		err := syncAll()
+		if err != nil {
+			log.Fatalf("sync all failed: %v", err)
+		}
+		return
 	}
 	if *flagDest == "" {
 		usage("No --dest specified.")
 	}
-	if *flagLoop && !*flagRemoveSource {
-		usage("Can't use --loop without --removesrc")
+
+	src, err := discoClient().BlobRoot()
+	if err != nil {
+		log.Fatalf("Failed to get blob source: %v", err)
 	}
 
-	// TODO(mpl): adapt to the userpass scheme once it has settled
-	sc := client.New(*flagSrc)
+	sc := client.New(src)
 	sc.SetupAuth()
 	dc := client.New(*flagDest)
 	dc.SetupAuth()
@@ -84,7 +132,7 @@ func main() {
 	passNum := 0
 	for {
 		passNum++
-		stats, err := doPass(sc, dc, passNum)
+		stats, err := doPass(sc, dc)
 		if *flagVerbose {
 			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
 		}
@@ -97,7 +145,7 @@ func main() {
 	}
 }
 
-func doPass(sc, dc *client.Client, passNum int) (stats SyncStats, retErr error) {
+func doPass(sc, dc *client.Client) (stats SyncStats, retErr error) {
 	srcBlobs := make(chan blobref.SizedBlobRef, 100)
 	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan error)

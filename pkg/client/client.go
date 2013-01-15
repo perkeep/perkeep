@@ -52,9 +52,10 @@ type Client struct {
 
 	discoOnce      sync.Once
 	discoErr       error
-	searchRoot     string // Handler prefix, or "" if none
-	downloadHelper string // or "" if none
-	storageGen     string // storage generation, or "" if not reported
+	searchRoot     string      // Handler prefix, or "" if none
+	downloadHelper string      // or "" if none
+	storageGen     string      // storage generation, or "" if not reported
+	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
 
 	authMode auth.AuthMode
 
@@ -183,6 +184,21 @@ var ErrNoSearchRoot = errors.New("client: server doesn't support search")
 // server doesn't report a storage generation value.
 var ErrNoStorageGeneration = errors.New("client: server doesn't report a storage generation")
 
+// ErrNoSync is returned by SyncHandlers if the server does not advertise syncs.
+var ErrNoSync = errors.New("client: server has no sync handlers")
+
+// BlobRoot returns the server's blobroot URL prefix.
+// If the client was constructed with an explicit path,
+// that path is used. Otherwise the server's
+// default advertised blobRoot is used.
+func (c *Client) BlobRoot() (string, error) {
+	prefix, err := c.prefix()
+	if err != nil {
+		return "", err
+	}
+	return prefix + "/", nil
+}
+
 // SearchRoot returns the server's search handler.
 // If the server isn't running an index and search handler, the error
 // will be ErrNoSearchRoot.
@@ -215,6 +231,28 @@ func (c *Client) StorageGeneration() (string, error) {
 		return "", ErrNoStorageGeneration
 	}
 	return c.storageGen, nil
+}
+
+// SyncInfo holds the data that were acquired with a discovery
+// and that are relevant to a syncHandler.
+type SyncInfo struct {
+	From string
+	To   string
+}
+
+// SyncHandlers returns the server's sync handlers "from" and
+// "to" prefix URLs.
+// If the server isn't running any sync handler, the error
+// will be ErrNoSync.
+func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
+	c.condDiscovery()
+	if c.discoErr != nil {
+		return nil, c.discoErr
+	}
+	if c.syncHandlers == nil {
+		return nil, ErrNoSync
+	}
+	return c.syncHandlers, nil
 }
 
 // SearchExistingFileSchema does a search query looking for an
@@ -303,6 +341,10 @@ func (c *Client) discoRoot() string {
 	return s
 }
 
+// initPrefix uses the user provided server URL to define the URL
+// prefix to the blobserver root. If the server URL has a path
+// component then it is directly used, otherwise the blobRoot
+// from the discovery is used as the path.
 func (c *Client) initPrefix() {
 	root := c.discoRoot()
 	u, err := url.Parse(root)
@@ -388,6 +430,27 @@ func (c *Client) doDiscovery() {
 		return
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
+
+	syncHandlers, ok := m["syncHandlers"].([]interface{})
+	if ok {
+		for _, v := range syncHandlers {
+			vmap := v.(map[string]interface{})
+			from := vmap["from"].(string)
+			ufrom, err := root.Parse(from)
+			if err != nil {
+				c.discoErr = fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", from)
+				return
+			}
+			to := vmap["to"].(string)
+			uto, err := root.Parse(to)
+			if err != nil {
+				c.discoErr = fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
+				return
+			}
+			c.syncHandlers = append(c.syncHandlers,
+				&SyncInfo{From: ufrom.String(), To: uto.String()})
+		}
+	}
 }
 
 func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
