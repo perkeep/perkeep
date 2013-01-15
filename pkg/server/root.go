@@ -120,8 +120,7 @@ func (rh *RootHandler) registerSyncHandler(h *SyncHandler) {
 
 func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if wantsDiscovery(req) {
-		// TODO(mpl): OpDiscovery
-		if auth.Allowed(req, auth.OpGet) {
+		if auth.Allowed(req, auth.OpDiscovery) {
 			rh.serveDiscovery(rw, req)
 			return
 		}

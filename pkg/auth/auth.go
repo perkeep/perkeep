@@ -39,10 +39,11 @@ const (
 	OpEnumerate
 	OpRemove
 	OpSign
-	OpRead   = OpEnumerate | OpStat | OpGet
+	OpDiscovery
+	OpRead   = OpEnumerate | OpStat | OpGet | OpDiscovery
 	OpRW     = OpUpload | OpEnumerate | OpStat | OpGet // Not Remove
-	OpVivify = OpUpload | OpStat | OpGet
-	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign
+	OpVivify = OpUpload | OpStat | OpGet | OpDiscovery
+	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign | OpDiscovery
 )
 
 var kBasicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
