@@ -36,14 +36,19 @@ function addMember(pn, des) {
     var li = document.createElement("li");
     var a = document.createElement("a");
     a.href = "./?p=" + pn;
-    a.innerHTML = camliBlobThumbnail(pn, des, 100, 100);
-
+    var br = des[pn];
+    var img = document.createElement("img");
+    img.src = br.thumbnailSrc;
+    img.height = br.thumbnailHeight;
+    img.width =  br.thumbnailWidth;
+    a.appendChild(img);
     li.appendChild(a);
+    var title = document.createElement("p");
+    setTextContent(title, camliBlobTitle(br.blobRef, des));
+    title.className = 'camli-ui-thumbtitle';
+    li.appendChild(title);
+    li.className = 'camli-ui-thumb';
     ul.appendChild(li);
-}
-
-function onMemberDescribed(bmap, jres, member) {
-	addMember(member, jres)
 }
 
 function onBlobDescribed(jres) {
@@ -79,6 +84,7 @@ function onBlobDescribed(jres) {
 
 function buildGallery() {
     camliDescribeBlob(getPermanodeParam(), {
+        thumbnails: 100, // requested size
         success: onBlobDescribed,
         failure: function(msg) {
             alert("failed to get blob description: " + msg);

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 20694, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 20432, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -410,28 +410,19 @@ func init() {
 		"        camliContent = camliContent[camliContent.length-1];\n"+
 		"        var c = document.getElementById(\"content\");\n"+
 		"        c.innerHTML = \"\";\n"+
-		"        c.appendChild(document.createTextNode(\"File: \"));\n"+
-		"        var a = document.createElement(\"a\");\n"+
-		"        a.href = \"./?b=\" + camliContent;\n"+
-		"        var doThumb = false;\n"+
-		"        var thumbnailSrc = jres[permanode].thumbnailSrc;\n"+
-		"        var contentObject = jres[camliContent];\n"+
-		"        if (thumbnailSrc && contentObject) {\n"+
-		"            var objectFile = contentObject.file;\n"+
-		"            if (objectFile) {\n"+
-		"                if (objectFile.mimeType.indexOf(\"image/\") == 0) {\n"+
-		"                    doThumb = true;\n"+
-		"                }\n"+
-		"            }\n"+
-		"        }\n"+
-		"        if (doThumb) {\n"+
-		"            var img = document.createElement(\"img\");\n"+
-		"            img.src = thumbnailSrc;\n"+
-		"            a.appendChild(img);\n"+
-		"        } else {\n"+
-		"            setTextContent(a, camliBlobTitle(camliContent, jres));\n"+
-		"        }\n"+
-		"        c.appendChild(a);\n"+
+		"        var alink = document.createElement(\"a\");\n"+
+		"        alink.href = \"./?b=\" + camliContent;\n"+
+		"        var img = document.createElement(\"img\");\n"+
+		"        var br = jres[permanode];\n"+
+		"        img.src = br.thumbnailSrc;\n"+
+		"        img.height = br.thumbnailHeight;\n"+
+		"        img.width =  br.thumbnailWidth;\n"+
+		"        alink.appendChild(img);\n"+
+		"        c.appendChild(alink);\n"+
+		"        var title = document.createElement(\"p\");\n"+
+		"        setTextContent(title, camliBlobTitle(br.blobRef, jres));\n"+
+		"        title.className = 'camli-ui-thumbtitle';\n"+
+		"        c.appendChild(title);\n"+
 		"    }\n"+
 		"\n"+
 		"    var tags = permanodeObject.attr.tag;\n"+
@@ -666,5 +657,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1357701478000000000))
+		""), time.Unix(0, 1358517650721254458))
 }

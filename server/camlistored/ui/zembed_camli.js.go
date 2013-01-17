@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 17381, fileembed.String("/*\n"+
+	Files.Add("camli.js", 16632, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -476,37 +476,18 @@ func init() {
 		"    });\n"+
 		"}\n"+
 		"\n"+
-		"function camliBlobTitle(pn, des) {\n"+
-		"    return _camliBlobTitleOrThumb(pn, des, 0, 0);\n"+
-		"}\n"+
-		"\n"+
-		"function camliBlobThumbnail(pn, des, width, height) {\n"+
-		"    return _camliBlobTitleOrThumb(pn, des, width, height);\n"+
-		"}\n"+
-		"\n"+
 		"// pn: permanode to find a good title of\n"+
 		"// jdes: describe response of root permanode\n"+
-		"// w, h: if both of them are non-zero, returns html of an wxh size <img> thumbnai"+
-		"l, not a title.\n"+
-		"function _camliBlobTitleOrThumb(pn, des, w, h) {\n"+
+		"function camliBlobTitle(pn, des) {\n"+
 		"    var d = des[pn];\n"+
 		"    if (!d) {\n"+
 		"        return pn;\n"+
 		"    }\n"+
 		"    if (d.camliType == \"file\" && d.file && d.file.fileName) {\n"+
-		"        var fileName = d.file.fileName\n"+
-		"        // TODO(mpl): check whether this is ever used anywhere, now that search r"+
-		"equests directly give the thumbnailSrc.\n"+
-		"        if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf(\"image"+
-		"/\") == 0) {\n"+
-		"            var img = \"<img src='./thumbnail/\" + pn + \"/\" +\n"+
-		"            fileName.replace(/['\"<>\\?&]/g, \"\") + \"?mw=\" + w + \"&mh=\" + h + \"'>\";\n"+
-		"            return img;\n"+
-		"        }\n"+
-		"        return fileName;\n"+
+		"        return d.file.fileName;\n"+
 		"    }\n"+
 		"    if (d.camliType == \"directory\" && d.dir && d.dir.fileName) {\n"+
-		"        return d.dir.fileName\n"+
+		"        return d.dir.fileName;\n"+
 		"    }\n"+
 		"    if (d.permanode) {\n"+
 		"        var attr = d.permanode.attr;\n"+
@@ -517,7 +498,7 @@ func init() {
 		"            return attr.title[0];\n"+
 		"        }\n"+
 		"        if (attr.camliContent) {\n"+
-		"            return _camliBlobTitleOrThumb(attr.camliContent[0], des, w, h);\n"+
+		"            return camliBlobTitle(attr.camliContent[0], des);\n"+
 		"        }\n"+
 		"    }\n"+
 		"    return pn;\n"+
@@ -545,5 +526,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1357746813011715782))
+		""), time.Unix(0, 1358469142262506742))
 }

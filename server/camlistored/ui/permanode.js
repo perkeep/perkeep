@@ -395,28 +395,19 @@ function onBlobDescribed(jres) {
         camliContent = camliContent[camliContent.length-1];
         var c = document.getElementById("content");
         c.innerHTML = "";
-        c.appendChild(document.createTextNode("File: "));
-        var a = document.createElement("a");
-        a.href = "./?b=" + camliContent;
-        var doThumb = false;
-        var thumbnailSrc = jres[permanode].thumbnailSrc;
-        var contentObject = jres[camliContent];
-        if (thumbnailSrc && contentObject) {
-            var objectFile = contentObject.file;
-            if (objectFile) {
-                if (objectFile.mimeType.indexOf("image/") == 0) {
-                    doThumb = true;
-                }
-            }
-        }
-        if (doThumb) {
-            var img = document.createElement("img");
-            img.src = thumbnailSrc;
-            a.appendChild(img);
-        } else {
-            setTextContent(a, camliBlobTitle(camliContent, jres));
-        }
-        c.appendChild(a);
+        var alink = document.createElement("a");
+        alink.href = "./?b=" + camliContent;
+        var img = document.createElement("img");
+        var br = jres[permanode];
+        img.src = br.thumbnailSrc;
+        img.height = br.thumbnailHeight;
+        img.width =  br.thumbnailWidth;
+        alink.appendChild(img);
+        c.appendChild(alink);
+        var title = document.createElement("p");
+        setTextContent(title, camliBlobTitle(br.blobRef, jres));
+        title.className = 'camli-ui-thumbtitle';
+        c.appendChild(title);
     }
 
     var tags = permanodeObject.attr.tag;
