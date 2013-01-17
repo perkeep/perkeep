@@ -40,6 +40,8 @@ var (
 		"remove each blob from the source after syncing to the destination; for queue processing")
 )
 
+var logger *log.Logger = nil
+
 type SyncStats struct {
 	BlobsCopied int
 	BytesCopied int64
@@ -60,14 +62,17 @@ func syncAll() error {
 	}
 
 	dc := discoClient()
+	dc.SetLogger(logger)
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
 		log.Fatalf("sync handlers discovery failed: %v", err)
 	}
 	for _, sh := range syncHandlers {
 		from := client.New(sh.From)
+		from.SetLogger(logger)
 		from.SetupAuth()
 		to := client.New(sh.To)
+		to.SetLogger(logger)
 		to.SetupAuth()
 		stats, err := doPass(from, to)
 		if *flagVerbose {
@@ -101,6 +106,9 @@ func main() {
 	if *flagLoop && !*flagRemoveSource {
 		usage("Can't use --loop without --removesrc")
 	}
+	if *flagVerbose {
+		logger = log.New(os.Stderr, "", 0)
+	}
 	if *flagAll {
 		err := syncAll()
 		if err != nil {
@@ -112,7 +120,9 @@ func main() {
 		usage("No --dest specified.")
 	}
 
-	src, err := discoClient().BlobRoot()
+	discl := discoClient()
+	discl.SetLogger(logger)
+	src, err := discl.BlobRoot()
 	if err != nil {
 		log.Fatalf("Failed to get blob source: %v", err)
 	}
@@ -122,10 +132,6 @@ func main() {
 	dc := client.New(*flagDest)
 	dc.SetupAuth()
 
-	var logger *log.Logger = nil
-	if *flagVerbose {
-		logger = log.New(os.Stderr, "", 0)
-	}
 	sc.SetLogger(logger)
 	dc.SetLogger(logger)
 
