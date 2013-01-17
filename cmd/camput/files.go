@@ -579,20 +579,34 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		}
 		handleResult("node-permanode-contentattr", put, nil)
 		if tags := up.fileOpts.tags(); len(tags) > 0 {
-			// TODO(mpl): do these claims concurrently, not in series
+			errch := make(chan error)
 			for _, tag := range tags {
-				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-				m.SetClaimDate(claimTime)
-				// TODO(mpl): verify that SetClaimDate does modify the GPG signature date of the claim
-				signed, err := up.SignMap(m, claimTime)
-				if err != nil {
-					return nil, fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
+				go func(tag string) {
+					m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+					m.SetClaimDate(claimTime)
+					// TODO(mpl): verify that SetClaimDate does modify the GPG signature date of the claim
+					signed, err := up.SignMap(m, claimTime)
+					if err != nil {
+						errch <- fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
+						return
+					}
+					put, err := up.uploadString(signed)
+					if err != nil {
+						errch <- fmt.Errorf("Error uploading permanode's tag attribute %v for node %v: %v", tag, n, err)
+						return
+					}
+					handleResult("node-permanode-tag", put, nil)
+					errch <- nil
+				}(tag)
+			}
+
+			for _ = range tags {
+				if e := <-errch; e != nil && err == nil {
+					err = e
 				}
-				put, err := up.uploadString(signed)
-				if err != nil {
-					return nil, fmt.Errorf("Error uploading permanode's tag attribute %v for node %v: %v", tag, n, err)
-				}
-				handleResult("node-permanode-tag", put, nil)
+			}
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
