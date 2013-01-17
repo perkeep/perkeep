@@ -129,9 +129,6 @@ func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action
 		case "remove":
 			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage), auth.OpAll)
 		}
-	// TODO: delete. Replaced with upload helper endpoint.
-	case "PUT": // no longer part of spec
-		handler = auth.RequireAuth(handlers.CreateNonStandardPutHandler(storage), auth.OpAll)
 	}
 	handler(conn, req)
 }

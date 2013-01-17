@@ -24,7 +24,6 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -284,39 +283,4 @@ func commonUploadResponse(configer blobserver.Configer, req *http.Request) (map[
 		return nil, err
 	}
 	return ret, nil
-}
-
-// NOTE: not part of the spec at present.  old.  might be re-introduced.
-var kPutPattern = regexp.MustCompile(`^/camli/([a-z0-9]+)-([a-f0-9]+)$`)
-
-// NOTE: not part of the spec at present.  old.  might be re-introduced.
-func CreateNonStandardPutHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
-		handlePut(conn, req, storage)
-	}
-}
-
-func handlePut(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver) {
-	if w, ok := blobReceiver.(blobserver.ContextWrapper); ok {
-		blobReceiver = w.WrapContext(req)
-	}
-
-	blobRef := blobref.FromPattern(kPutPattern, req.URL.Path)
-	if blobRef == nil {
-		httputil.BadRequestError(conn, "Malformed PUT URL.")
-		return
-	}
-
-	if !blobRef.IsSupported() {
-		httputil.BadRequestError(conn, "unsupported object hash function")
-		return
-	}
-
-	_, err := blobReceiver.ReceiveBlob(blobRef, req.Body)
-	if err != nil {
-		httputil.ServerError(conn, req, err)
-		return
-	}
-
-	fmt.Fprint(conn, "OK")
 }
