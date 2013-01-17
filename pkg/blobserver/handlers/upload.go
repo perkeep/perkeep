@@ -96,7 +96,6 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 		return errors.New("blobReceiver config has no HandlerFinder")
 	}
 	JSONSignRoot, sh, err := hf.FindHandlerByType("jsonsign")
-	// TODO(mpl): second check should not be necessary, and yet it happens. Figure it out.
 	if err != nil || sh == nil {
 		return errors.New("jsonsign handler not found")
 	}

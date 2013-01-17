@@ -170,8 +170,6 @@ func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
 	return hl.context, hl.context != nil
 }
 
-// TODO(mpl): investigate bug: when I used it to find /sighelper/ within
-// makeCamliHandler, it returned "/sighelper", nil, nil.
 func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
 	for prefix, config := range hl.config {
 		if config.htype == htype {
