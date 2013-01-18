@@ -160,16 +160,13 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	if err != nil {
 		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
 	}
-	i, format, err := images.Decode(bytes.NewReader(buf.Bytes()), nil)
+	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()), nil)
 	if err != nil {
 		return format, err
 	}
 	b := i.Bounds()
 
-	// TODO(mpl): sort the useBytesUnchanged story out,
-	// so that a rotation/flip is not being ignored
-	// when there was no rescaling required.
-	useBytesUnchanged := true
+	useBytesUnchanged := !imConfig.Modified
 
 	isSquare := b.Dx() == b.Dy()
 	if ih.Square && !isSquare {
