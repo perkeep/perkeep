@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("gallery.js", 3024, fileembed.String("/*\n"+
+	Files.Add("gallery.js", 3338, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -45,14 +45,19 @@ func init() {
 		"    var li = document.createElement(\"li\");\n"+
 		"    var a = document.createElement(\"a\");\n"+
 		"    a.href = \"./?p=\" + pn;\n"+
-		"    a.innerHTML = camliBlobThumbnail(pn, des, 100, 100);\n"+
-		"\n"+
+		"	var br = des[pn];\n"+
+		"    var img = document.createElement(\"img\");\n"+
+		"    img.src = br.thumbnailSrc;\n"+
+		"    img.height = br.thumbnailHeight;\n"+
+		"    img.width =  br.thumbnailWidth;\n"+
+		"    a.appendChild(img);\n"+
 		"    li.appendChild(a);\n"+
+		"    var title = document.createElement(\"p\");\n"+
+		"    setTextContent(title, camliBlobTitle(br.blobRef, des));\n"+
+		"    title.className = 'camli-ui-thumbtitle';\n"+
+		"    li.appendChild(title);\n"+
+		"    li.className = 'camli-ui-thumb';\n"+
 		"    ul.appendChild(li);\n"+
-		"}\n"+
-		"\n"+
-		"function onMemberDescribed(bmap, jres, member) {\n"+
-		"	addMember(member, jres)\n"+
 		"}\n"+
 		"\n"+
 		"function onBlobDescribed(jres) {\n"+
@@ -88,6 +93,7 @@ func init() {
 		"\n"+
 		"function buildGallery() {\n"+
 		"    camliDescribeBlob(getPermanodeParam(), {\n"+
+		"        thumbnails: 100, // requested size\n"+
 		"        success: onBlobDescribed,\n"+
 		"        failure: function(msg) {\n"+
 		"            alert(\"failed to get blob description: \" + msg);\n"+
@@ -108,5 +114,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", galleryPageOnLoad);\n"+
-		""), time.Unix(0, 1356312768000000000))
+		""), time.Unix(0, 1358468476756308669))
 }

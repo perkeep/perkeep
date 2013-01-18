@@ -448,34 +448,18 @@ function changeAttribute(permanode, claimType, attribute, value, opts) {
     });
 }
 
-function camliBlobTitle(pn, des) {
-    return _camliBlobTitleOrThumb(pn, des, 0, 0);
-}
-
-function camliBlobThumbnail(pn, des, width, height) {
-    return _camliBlobTitleOrThumb(pn, des, width, height);
-}
-
 // pn: permanode to find a good title of
 // jdes: describe response of root permanode
-// w, h: if both of them are non-zero, returns html of an wxh size <img> thumbnail, not a title.
-function _camliBlobTitleOrThumb(pn, des, w, h) {
+function camliBlobTitle(pn, des) {
     var d = des[pn];
     if (!d) {
         return pn;
     }
     if (d.camliType == "file" && d.file && d.file.fileName) {
-        var fileName = d.file.fileName
-        // TODO(mpl): check whether this is ever used anywhere, now that search requests directly give the thumbnailSrc.
-        if (w != 0 && h != 0 && d.file.mimeType && d.file.mimeType.indexOf("image/") == 0) {
-            var img = "<img src='./thumbnail/" + pn + "/" +
-            fileName.replace(/['"<>\?&]/g, "") + "?mw=" + w + "&mh=" + h + "'>";
-            return img;
-        }
-        return fileName;
+        return d.file.fileName;
     }
     if (d.camliType == "directory" && d.dir && d.dir.fileName) {
-        return d.dir.fileName
+        return d.dir.fileName;
     }
     if (d.permanode) {
         var attr = d.permanode.attr;
@@ -486,7 +470,7 @@ function _camliBlobTitleOrThumb(pn, des, w, h) {
             return attr.title[0];
         }
         if (attr.camliContent) {
-            return _camliBlobTitleOrThumb(attr.camliContent[0], des, w, h);
+            return camliBlobTitle(attr.camliContent[0], des);
         }
     }
     return pn;
