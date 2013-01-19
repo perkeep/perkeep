@@ -73,6 +73,13 @@ type Config struct {
 	Modified      bool // true if Decode actually rotated or flipped the image.
 }
 
+func (c *Config) setBounds(im image.Image) {
+	if im != nil {
+		c.Width = im.Bounds().Dx()
+		c.Height = im.Bounds().Dy()
+	}
+}
+
 func rotate(im image.Image, angle int) image.Image {
 	var rotated *image.NRGBA
 	// trigonometric (i.e counter clock-wise)
@@ -181,6 +188,7 @@ func imageDebug(msg string) {
 // image was actually flipped or rotated.
 // If opts is nil, the defaults are used.
 func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
+	var c Config
 	var buf bytes.Buffer
 	tr := io.TeeReader(io.LimitReader(r, 2<<20), &buf)
 	angle := 0
@@ -190,24 +198,16 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 		if err != nil {
 			imageDebug("No valid EXIF; will not rotate or flip.")
 			im, format, err := image.Decode(io.MultiReader(&buf, r))
-			c := Config{
-				Width:    im.Bounds().Dx(),
-				Height:   im.Bounds().Dy(),
-				Format:   format,
-				Modified: false,
-			}
+			c.Format = format
+			c.setBounds(im)
 			return im, c, err
 		}
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
 			imageDebug("No \"Orientation\" tag in EXIF; will not rotate or flip.")
 			im, format, err := image.Decode(io.MultiReader(&buf, r))
-			c := Config{
-				Width:    im.Bounds().Dx(),
-				Height:   im.Bounds().Dy(),
-				Format:   format,
-				Modified: false,
-			}
+			c.Format = format
+			c.setBounds(im)
 			return im, c, err
 		}
 		orient := tag.Val[1]
@@ -237,32 +237,29 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 			var ok bool
 			angle, ok = opts.Rotate.(int)
 			if !ok {
-				return nil, Config{}, fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
+				return nil, c, fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
 			}
 		}
 		if opts.forcedFlip() {
 			var ok bool
 			flipMode, ok = opts.Flip.(FlipDirection)
 			if !ok {
-				return nil, Config{}, fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
+				return nil, c, fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
 			}
 		}
 	}
 
 	im, err := jpeg.Decode(io.MultiReader(&buf, r))
 	if err != nil {
-		return nil, Config{}, err
+		return nil, c, err
 	}
 	im = flip(rotate(im, angle), flipMode)
 	modified := true
 	if angle == 0 && flipMode == 0 {
 		modified = false
 	}
-	c := Config{
-		Width:    im.Bounds().Dx(),
-		Height:   im.Bounds().Dy(),
-		Format:   "jpeg",
-		Modified: modified,
-	}
+	c.Format = "jpeg"
+	c.Modified = modified
+	c.setBounds(im)
 	return im, c, nil
 }
