@@ -218,10 +218,10 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	id.Fataler = t
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
-	br1 := id.SetAttribute(pn, "foo", "foo1")
+	br1 := id.SetAttribute(pn, "tag", "foo1")
 	br1Time := id.lastTime()
 	t.Logf("set attribute %q", br1)
-	br2 := id.SetAttribute(pn, "foo", "foo2")
+	br2 := id.SetAttribute(pn, "tag", "foo2")
 	br2Time := id.lastTime()
 	t.Logf("set attribute %q", br2)
 	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
@@ -229,6 +229,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	t.Logf("set attribute %q", rootClaim)
 
 	pnChild := id.NewPermanode()
+	br3 := id.SetAttribute(pnChild, "tag", "bar")
+	br3Time := id.lastTime()
+	t.Logf("set attribute %q", br3)
 	memberRef := id.AddAttribute(pn, "camliMember", pnChild.String())
 	t.Logf("add-attribute claim %q points to member permanode %q", memberRef, pnChild)
 	memberRefTime := id.lastTime()
@@ -319,9 +322,63 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
+	// SearchPermanodesWithAttr - match attr type "tag" and value "foo1"
+	{
+		ch := make(chan *blobref.BlobRef, 10)
+		req := &search.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []*blobref.BlobRef
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []*blobref.BlobRef{pn}
+		if len(got) < 1 || got[0].String() != want[0].String() {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
+
+	// SearchPermanodesWithAttr - match all with attr type "tag"
+	{
+		ch := make(chan *blobref.BlobRef, 10)
+		req := &search.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []*blobref.BlobRef
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []*blobref.BlobRef{pn, pnChild}
+		if len(got) != len(want) {
+			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
+				got, want)
+		}
+		for _, w := range want {
+			found := false
+			for _, g := range got {
+				if g.String() == w.String() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("SearchPermanodesWithAttr: %v was not found.\n", w)
+			}
+		}
+	}
+
 	// GetRecentPermanodes
 	{
-		ch := make(chan *search.Result, 10) // only expect 1 result, but 3 if buggy.
+		ch := make(chan *search.Result, 10) // expect 2 results, but maybe more if buggy.
 		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
 		if err != nil {
 			t.Fatalf("GetRecentPermanodes = %v", err)
@@ -336,10 +393,28 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 				Signer:      id.SignerBlobRef,
 				LastModTime: lastPermanodeMutation.Unix(),
 			},
+			&search.Result{
+				BlobRef:     pnChild,
+				Signer:      id.SignerBlobRef,
+				LastModTime: br3Time.Unix(),
+			},
 		}
-		if !reflect.DeepEqual(got, want) {
+		if len(got) != len(want) {
 			t.Errorf("GetRecentPermanode results differ.\n got: %v\nwant: %v",
 				search.Results(got), search.Results(want))
+		}
+		for _, w := range want {
+			found := false
+			for _, g := range got {
+				if reflect.DeepEqual(g, w) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("GetRecentPermanode: %v was not found.\n got: %v\nwant: %v",
+					w, search.Results(got), search.Results(want))
+			}
 		}
 	}
 
@@ -375,7 +450,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Signer:    id.SignerBlobRef,
 					Date:      br1Time.UTC(),
 					Type:      "set-attribute",
-					Attr:      "foo",
+					Attr:      "tag",
 					Value:     "foo1",
 				},
 				&search.Claim{
@@ -384,7 +459,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Signer:    id.SignerBlobRef,
 					Date:      br2Time.UTC(),
 					Type:      "set-attribute",
-					Attr:      "foo",
+					Attr:      "tag",
 					Value:     "foo2",
 				},
 				&search.Claim{

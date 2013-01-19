@@ -362,7 +362,6 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	}
 	seen := make(map[string]bool)
 	var it *prefixIter
-	// TODO(mpl): test this case in particular when making a test for that method.
 	if request.Query == "" {
 		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute)
 	} else {
