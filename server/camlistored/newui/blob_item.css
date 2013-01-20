@@ -64,13 +64,13 @@
   background: #ccc;
 }
 
-.cam-blobitem.selected {
+.cam-blobitem.goog-control-checked {
   border: 3px solid black;
   background: #ffc;
   padding: 6px;
 }
 
-.cam-blobitem.selected:hover {
+.cam-blobitem.goog-control-checked:hover {
   border: 3px solid black;
   padding: 6px;
   background: #e6e6b8;
