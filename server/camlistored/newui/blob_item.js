@@ -61,6 +61,14 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
    * @private
    */
   this.eh_ = new goog.events.EventHandler(this);
+
+  // Blob items support the CHECKED state.
+  this.setSupportedState(goog.ui.Component.State.CHECKED, true);
+
+  // Blob items dispatch state when checked.
+  this.setDispatchTransitionEvents(
+      goog.ui.Component.State.CHECKED,
+      true);
 };
 goog.inherits(camlistore.BlobItem, goog.ui.Control);
 

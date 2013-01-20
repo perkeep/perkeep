@@ -29,6 +29,12 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   goog.base(this, opt_domHelper);
 
   /**
+   * @type {Array.<camlistore.BlobItem>}
+   * @private
+   */
+  this.checkedBlobItems_ = [];
+
+  /**
    * @type {camlistore.ServerConnection}
    * @private
    */
@@ -43,10 +49,14 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 
 
+/**
+ * @type {Array.<number>}
+ */
 camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
 
 
 /**
+<<<<<<< HEAD
  * @type {goog.events.FileDropHandler}
  * @private
  */
@@ -65,6 +75,15 @@ camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
  * @private
  */
 camlistore.BlobItemContainer.prototype.dragDepth_ = 0;
+
+
+/**
+ * Constants for events fired by BlobItemContainer
+ * @enum {string}
+ */
+camlistore.BlobItemContainer.EventType = {
+  BLOB_ITEMS_CHOSEN: 'Camlistore_BlobItemContainer_BlobItems_Chosen'
+};
 
 
 /**
@@ -166,6 +185,7 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
   camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
   this.resetChildren_();
+  this.listenToBlobItemEvents_();
 
   this.fileDropHandler_ = new goog.events.FileDropHandler(
       this.getElement());
@@ -206,7 +226,110 @@ camlistore.BlobItemContainer.prototype.showRecent = function() {
 
 
 /**
+ * @return {Array.<camlistore.BlobItem>}
+ */
+camlistore.BlobItemContainer.prototype.getCheckedBlobItems = function() {
+  return this.checkedBlobItems_;
+};
+
+
+/**
+ * Subscribes to events dispatched by blob items.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.listenToBlobItemEvents_ = function() {
+  var doc = goog.dom.getOwnerDocument(this.element_);
+  this.eh_.
+      listen(this, goog.ui.Component.EventType.CHECK,
+             this.handleBlobItemChecked_).
+      listen(this, goog.ui.Component.EventType.UNCHECK,
+             this.handleBlobItemChecked_).
+      listen(doc,
+             goog.events.EventType.KEYDOWN,
+             this.handleKeyDownEvent_).
+      listen(doc,
+             goog.events.EventType.KEYUP,
+             this.handleKeyUpEvent_);
+};
+
+
+/**
+ * @type {Boolean}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.isShiftKeyDown_ = false;
+
+
+/**
+ * Sets state for whether or not the shift key is down.
+ * @param {goog.events.KeyHandler.EventType.KEY} e A key event.
+ */
+camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
+  this.isShiftKeyDown_ = e.keyCode == goog.events.KeyCodes.SHIFT;
+};
+
+
+/**
+ * Sets state for whether or not the shift key is down.
+ * @param {goog.events.KeyHandler.EventType.KEY} e A key event.
+ */
+camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
+  this.isShiftKeyDown_ = false;
+};
+
+
+/**
+ * @param {goog.events.Event} e An event.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
+  // Because the CHECK/UNCHECK event dispatches before isChecked is set.
+  var blobItem = e.target;
+  var isCheckingItem = !blobItem.isChecked();
+  var isMultiSelect = this.isShiftKeyDown_;
+
+  if (isMultiSelect) {
+    var lastChildSelected =
+        this.checkedBlobItems_[this.checkedBlobItems_.length - 1];
+    var lastChosenIndex = this.indexOfChild(lastChildSelected);
+    var thisIndex = this.indexOfChild(blobItem);
+    var startIndex, endIndex;
+    if (thisIndex > lastChosenIndex) {
+      startIndex = lastChosenIndex;
+      endIndex = thisIndex;
+    } else {
+      startIndex = thisIndex;
+      endIndex = lastChosenIndex;
+    }
+    for (var i = startIndex; i <= endIndex; i++) {
+      var item = this.getChildAt(i);
+      // Don't need to set the item chosen's checked state manually.
+      if (i != thisIndex) {
+        item.setState(goog.ui.Component.State.CHECKED, true);
+      }
+      if (!goog.array.contains(this.checkedBlobItems_, item)) {
+        this.checkedBlobItems_.push(item);
+      }
+    }
+
+  } else {
+    // unselect all chosen items.
+    goog.array.forEach(this.checkedBlobItems_, function(item) {
+      item.setState(goog.ui.Component.State.CHECKED, false);
+    });
+    if (isCheckingItem) {
+      this.checkedBlobItems_ = [blobItem];
+    } else {
+      this.checkedBlobItems_ = [];
+    }
+  }
+  this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
+};
+
+
+/**
  * @param {Object} result JSON response to this request.
+ * @private
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
   this.resetChildren_();
@@ -229,12 +352,13 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
     this.eh_.listen(
       createItem.getElement(), goog.events.EventType.CLICK,
       function() {
-        this.connection_.createPermanode(function(p) {
-          window.location = "../?p=" + p;
-        });
-      },
-      function(failMsg) {
-        console.log("Failed to create permanode: " + failMsg);
+        this.connection_.createPermanode(
+            function(p) {
+              window.location = "../?p=" + p;
+            },
+            function(failMsg) {
+              console.log("Failed to create permanode: " + failMsg);
+            });
       });
   }
 };

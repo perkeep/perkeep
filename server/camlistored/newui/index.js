@@ -103,20 +103,35 @@ camlistore.IndexPage.prototype.enterDocument = function() {
   camlistore.IndexPage.superClass_.enterDocument.call(this);
 
   this.eh_.listen(
-    this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
-    function() {
-      if (this.blobItemContainer_.bigger()) {
-        this.blobItemContainer_.showRecent();
-      }
-    });
+      this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
+      function() {
+        if (this.blobItemContainer_.bigger()) {
+          this.blobItemContainer_.showRecent();
+        }
+      });
 
   this.eh_.listen(
-    this.toolbar_, camlistore.Toolbar.EventType.SMALLER,
-    function() {
-      if (this.blobItemContainer_.smaller()) {
-        this.blobItemContainer_.showRecent();
-      }
-    });
+      this.toolbar_, camlistore.Toolbar.EventType.SMALLER,
+      function() {
+        if (this.blobItemContainer_.smaller()) {
+          this.blobItemContainer_.showRecent();
+        }
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.createNewSetWithItems_(blobItems);
+      });
+
+  this.eh_.listen(
+      this.blobItemContainer_,
+      camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+      });
 
   this.blobItemContainer_.showRecent();
 };
@@ -129,4 +144,20 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 camlistore.IndexPage.prototype.exitDocument = function() {
   camlistore.IndexPage.superClass_.exitDocument.call(this);
   // Clear event handlers here
+};
+
+
+/**
+ * @type {Array.<camlistore.BlobItem>}
+ * @private
+ */
+camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {
+  /*this.connection_.createPermanode(
+      function(p) {
+
+      },
+      function(failMsg) {
+        alert('Failed to create permanode' + failMsg);
+      });
+  */
 };
