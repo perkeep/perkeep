@@ -1,5 +1,5 @@
 /**
- * @fileoverview TODO
+ * @fileoverview Toolbar for manipulating the display of the blob index page.
  *
  */
 goog.provide('camlistore.Toolbar');
