@@ -1,3 +1,9 @@
 .cam-blobitemcontainer {
   outline: 0;  /* Do not show an outline when container has focus. */
+  border-width: 2px;
+  border-color: rgba(0, 0, 0, 0);
+  border-style: dashed;
+}
+.cam-blobitemcontainer-dropactive {
+  border-color: #acf;
 }
