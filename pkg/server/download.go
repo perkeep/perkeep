@@ -87,7 +87,6 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	}
 
 	n, err := io.Copy(rw, reader)
-	log.Printf("For %q request of %s: copied %d, %v", req.Method, req.URL.Path, n, err)
 	if err != nil {
 		log.Printf("error serving download of file schema %s: %v", file, err)
 		return
