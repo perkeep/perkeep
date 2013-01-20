@@ -23,8 +23,8 @@
 
 -- index: index dates in filenames ("yyyy-mm-dd-Foo-Trip", "yyyy-mm blah", etc).
 
--- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
-   (get cammount and webdav working again)
+-- get webdav server working again, for mounting on Windows.  This worked before Go 1
+   but bitrot when we moved pkg/fs to use the rsc/fuse.
 
 -- read/write fuse.
 
