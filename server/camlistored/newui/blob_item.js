@@ -75,11 +75,18 @@ goog.inherits(camlistore.BlobItem, goog.ui.Control);
  */
 camlistore.BlobItem.resolve = function(blobRef, metaBag) {
   var metaData = metaBag[blobRef];
-  if (metaData.camliType == 'permanode' && !!metaData.permanode &&
-      !!metaData.permanode.attr && !!metaData.permanode.attr.camliContent) {
-    var content = metaData.permanode.attr.camliContent;
-    if (content.length == 1) {
-      return metaBag[content[0]];
+  if (metaData.camliType == 'permanode' &&
+      !!metaData.permanode &&
+      !!metaData.permanode.attr) {
+    if (!!metaData.permanode.attr.camliContent) {
+      // Permanode is pointing at another blob.
+      var content = metaData.permanode.attr.camliContent;
+      if (content.length == 1) {
+        return metaBag[content[0]];
+      }
+    } else {
+      // Permanode is its own content.
+      return metaData;
     }
   }
 
@@ -128,9 +135,16 @@ camlistore.BlobItem.prototype.getLink_ = function() {
  * @return {string}
  */
 camlistore.BlobItem.prototype.getTitle_ = function() {
-  if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'file' &&
-      !!this.resolvedMetaData_.file) {
-    return this.resolvedMetaData_.file.fileName;
+  if (this.resolvedMetaData_) {
+    if (this.resolvedMetaData_.camliType == 'file' &&
+        !!this.resolvedMetaData_.file) {
+      return this.resolvedMetaData_.file.fileName;
+    } else if (this.resolvedMetaData_.camliType == 'permanode' &&
+               !!this.resolvedMetaData_.permanode &&
+               !!this.resolvedMetaData_.permanode.attr &&
+               !!this.resolvedMetaData_.permanode.attr.title) {
+      return this.resolvedMetaData_.permanode.attr.title;
+    }
   }
   return 'Unknown title';
 };

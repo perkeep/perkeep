@@ -221,7 +221,7 @@ function startFileUpload(file) {
        onContentsRef: function(contentsRef) {
             setStatus("(checking for dup of " + contentsRef + ")");
        },
-       success: onGotFileSchemaRef, 
+       success: onGotFileSchemaRef,
        fail: onFail
     });
 }
@@ -347,7 +347,7 @@ function onBlobDescribed(jres) {
 
     var attr = function(name) {
         if (!(name in permanodeObject.attr)) {
-            return null;          
+            return null;
         }
         if (permanodeObject.attr[name].length == 0) {
             return null;
@@ -470,7 +470,7 @@ function onBtnSavePublish(e) {
     if (!publishRoot) {
         alert("no publish root selected");
         return;
-    } 
+    }
     var pathSuffix = suffix.value;
     if (!pathSuffix) {
         alert("no path suffix specified");

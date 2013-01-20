@@ -141,6 +141,14 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitemcontainer');
   goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+
+  var dropMessageEl = this.dom_.createDom(
+      'div', 'cam-blobitemcontainer-drag-message',
+      'Drag & drop item to upload.');
+  var dropIndicatorEl = this.dom_.createDom(
+      'div', 'cam-blobitemcontainer-drag-indicator');
+  this.dom_.appendChild(dropIndicatorEl, dropMessageEl);
+  this.dom_.appendChild(el, dropIndicatorEl);
 };
 
 
