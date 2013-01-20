@@ -1,3 +1,9 @@
+-- rethink the directory schema so it can a) represent directories
+   with millions of files (without making a >1MB or >16MB schema blob),
+   probably forming a tree, similar to files. but rather than rolling checksum,
+   just split lexically when nodes get too big. also, maybe denormalize
+   the fileinfo a big?
+
 -- delete mostly-obsolete camsigd.  see big TODO in camsigd.go.
 
 -- we used to be able live-edit js/css files in server/camlistored/ui when
