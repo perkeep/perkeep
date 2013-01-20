@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.html", 1252, fileembed.String("<html>\n"+
+	Files.Add("debug.html", 1258, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
@@ -15,7 +15,7 @@ func init() {
 		"  <script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
 		"  <script src=\"debug.js\"></script>\n"+
-		"  <script src=\"?camli.mode=config&cb=onConfiguration\"></script>\n"+
+		"  <script src=\"?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
 		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
 		"</head>\n"+
 		"<body class=\"camli-ui-index\">\n"+
@@ -48,5 +48,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1355277461247833805))
+		""), time.Unix(0, 1358714643000000000))
 }

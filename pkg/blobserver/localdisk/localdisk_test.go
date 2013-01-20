@@ -61,7 +61,7 @@ type testBlob struct {
 func (tb *testBlob) BlobRef() *blobref.BlobRef {
 	h := sha1.New()
 	h.Write([]byte(tb.val))
-	return blobref.FromHash("sha1", h)
+	return blobref.FromHash(h)
 }
 
 func (tb *testBlob) BlobRefSlice() []*blobref.BlobRef {

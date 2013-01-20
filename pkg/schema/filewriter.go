@@ -19,7 +19,6 @@ package schema
 import (
 	"bufio"
 	"bytes"
-	"crypto"
 	"fmt"
 	"io"
 	"log"
@@ -91,9 +90,9 @@ func writeFileMapOld(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blo
 			break
 		}
 
-		hash := crypto.SHA1.New()
-		io.Copy(hash, bytes.NewBuffer(buf.Bytes()))
-		br := blobref.FromHash("sha1", hash)
+		hash := blobref.NewHash()
+		io.Copy(hash, bytes.NewReader(buf.Bytes()))
+		br := blobref.FromHash(hash)
 		hasBlob, err := serverHasBlob(bs, br)
 		if err != nil {
 			return nil, err

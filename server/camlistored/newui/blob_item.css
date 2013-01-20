@@ -76,6 +76,10 @@
   background: #e6e6b8;
 }
 
+.cam-blobitem-thumbtitle {
+  overflow: hidden;
+  text-overflow: ellipsis
+}
 .cam-blobitem-thumbtitle:hover {
   text-decoration: underline;
   background: #999;

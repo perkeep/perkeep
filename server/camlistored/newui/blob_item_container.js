@@ -10,6 +10,7 @@ goog.require('goog.dom.classes');
 goog.require('goog.events.Event');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
+goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Container');
 goog.require('camlistore.BlobItem');
 goog.require('camlistore.CreateItem');
@@ -61,6 +62,27 @@ camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
 camlistore.BlobItemContainer.EventType = {
   BLOB_ITEMS_CHOSEN: 'Camlistore_BlobItemContainer_BlobItems_Chosen'
 };
+
+
+/**
+ * @type {goog.events.FileDropHandler}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.fileDropHandler_ = null;
+
+
+/**
+ * @type {Element}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
+
+
+/**
+ * @type {number}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.dragDepth_ = 0;
 
 
 /**
@@ -137,6 +159,14 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitemcontainer');
   goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
+
+  var dropMessageEl = this.dom_.createDom(
+      'div', 'cam-blobitemcontainer-drag-message',
+      'Drag & drop item to upload.');
+  var dropIndicatorEl = this.dom_.createDom(
+      'div', 'cam-blobitemcontainer-drag-indicator');
+  this.dom_.appendChild(dropIndicatorEl, dropMessageEl);
+  this.dom_.appendChild(el, dropIndicatorEl);
 };
 
 
@@ -155,6 +185,22 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
 
   this.resetChildren_();
   this.listenToBlobItemEvents_();
+
+  this.fileDropHandler_ = new goog.events.FileDropHandler(
+      this.getElement());
+  this.registerDisposable(this.fileDropHandler_);
+  this.eh_.listen(
+      this.fileDropHandler_,
+      goog.events.FileDropHandler.EventType.DROP,
+      this.handleFileDrop_);
+  this.eh_.listen(
+      this.getElement(),
+      goog.events.EventType.DRAGENTER,
+      this.handleFileDragEnter_);
+  this.eh_.listen(
+      this.getElement(),
+      goog.events.EventType.DRAGLEAVE,
+      this.handleFileDragLeave_);
 };
 
 
@@ -313,5 +359,105 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
               console.log("Failed to create permanode: " + failMsg);
             });
       });
+  }
+};
+
+
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
+  this.resetDragState_();
+
+  var files = e.getBrowserEvent().dataTransfer.files;
+  for (var i = 0, n = files.length; i < n; i++) {
+    var file = files[i];
+    // TODO(bslatkin): Add an uploading item placeholder while the upload
+    // is in progress. Somehow pipe through the POST progress.
+    this.connection_.uploadFile(
+        file, goog.bind(this.handleUploadSuccess_, this, file));
+  }
+};
+
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
+    function(file, blobRef) {
+  this.connection_.createPermanode(
+      goog.bind(this.handleCreatePermanodeSuccess_, this, file, blobRef));
+};
+
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
+    function(file, blobRef, permanode) {
+  this.connection_.newSetAttributeClaim(
+      permanode, 'camliContent', blobRef,
+      goog.bind(this.handleSetAttributeSuccess_, this,
+                file, blobRef, permanode));
+};
+
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
+    function(file, blobRef, permanode) {
+  this.connection_.describeWithThumbnails(
+      permanode,
+      this.thumbnailSize_,
+      goog.bind(this.handleDescribeSuccess_, this, permanode));
+};
+
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
+  function(permanode, metaBag) {
+  var item = new camlistore.BlobItem(permanode, metaBag);
+  this.addChildAt(item, this.hasCreateItem_ ? 1 : 0, true);
+};
+
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.resetDragState_ = function() {
+  goog.dom.classes.remove(this.getElement(),
+                          'cam-blobitemcontainer-dropactive');
+  this.dragActiveElement_ = null;
+  this.dragDepth_ = 0;
+};
+
+
+/**
+ * @param {goog.events.Event} e The drag enter event.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleFileDragEnter_ = function(e) {
+  if (this.dragActiveElement_ == null) {
+    goog.dom.classes.add(this.getElement(), 'cam-blobitemcontainer-dropactive');
+  }
+  this.dragDepth_ += 1;
+  this.dragActiveElement_ = e.target;
+};
+
+
+/**
+ * @param {goog.events.Event} e The drag leave event.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleFileDragLeave_ = function(e) {
+  this.dragDepth_ -= 1;
+  if (this.dragActiveElement_ === this.getElement() &&
+      e.target == this.getElement() ||
+      this.dragDepth_ == 0) {
+    this.resetDragState_();
   }
 };

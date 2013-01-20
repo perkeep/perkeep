@@ -1,0 +1,7 @@
+New UI:
+- Replace "create item" link with dialog that lets you create a new collection or select a file to upload using the standard file finding dialog.
+- Show a placeholder item while an upload is in progress.
+- Hook through upload progress percentage from the camli javascript API to the upload placeholder item.
+- Fix smaller/larger magnify to clear all children before refectching recent list, otherwise it does this weird two-step resizing thing, where the thumbnails are too big for half a second.
+- When a list of items is selected, have a toolbar option or button to add them into one of the collections; have that pop up a blob container that shows just container type blobs.
+- Have a way to disable drag/drop on a blob item container and prevent uploads.

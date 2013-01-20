@@ -77,13 +77,60 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodesDone_ =
 };
 
 /**
- * @param {function(string)} success Success callback, called with permanode blobref.
+ * @param {function(string)} success Success callback, called with permanode
+ *   blobref.
  * @param {Function=} opt_fail Optional fail callback.
  */
-camlistore.ServerConnection.prototype.createPermanode = function(success, opt_fail) {
+camlistore.ServerConnection.prototype.createPermanode =
+    function(success, opt_fail) {
   // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
   camliCreateNewPermanode({
       success: success,
       fail: opt_fail
   });
 };
+
+
+/**
+ * @param {File} file File to be uploaded.
+ * @param {function(string)} success Success callback, called with blobref of
+ *   uploaded file.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.uploadFile =
+    function(file, success, opt_fail) {
+  // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
+  camliUploadFile(file, {
+    success: success,
+    fail: opt_fail
+  });
+};
+
+
+/**
+ * @param {string} permanode Permanode blobref.
+ * @param {string} attribute Name of the attribute to set.
+ * @param {string} value Value to set the attribute to.
+ * @param {function(string)} success Success callback, called with blobref of
+ *   uploaded file.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.newSetAttributeClaim =
+    function(permanode, attribute, value, success, opt_fail) {
+  // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
+  camliNewSetAttributeClaim(permanode, attribute, value, {
+    success: success,
+    fail: opt_fail
+  });
+};
+
+
+camlistore.ServerConnection.prototype.describeWithThumbnails =
+    function(blobref, thumbnailSize, success, opt_fail) {
+  // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
+  camliDescribeBlob(blobref, {
+    thumbnails: thumbnailSize,
+    success: success,
+    fail: opt_fail
+  });
+}

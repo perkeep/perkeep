@@ -24,6 +24,7 @@ my $opt_offline;   # don't use the network ("airplane mode")
 my $opt_staticres; # use static resources, not those on disk
 my $opt_tls;
 my $opt_wipe;
+my $opt_verbose;
 
 # keep indexes in memory only. often used with --wipe, but not
 # necessarily. if --wipe isn't used, all blobs are re-indexed
@@ -45,6 +46,7 @@ GetOptions("wipe" => \$opt_wipe,
            "KBps=i" => \$opt_KBps,
            "latency_ms=i" => \$opt_latency_ms,
            "fast" => \$opt_fast,
+           "verbose" => \$opt_verbose,
     )
     or usage();
 
@@ -64,14 +66,16 @@ unless ($opt_fast) {
     $ENV{DEV_THROTTLE_LATENCY_MS} = $opt_latency_ms;
 }
 
+$ENV{CAM_HTTP_DEBUG} = 1 if $opt_verbose;
+
 my $camlistored;
-my $camdbinit;
+my $camdbinit; # closure to return path
 if ($opt_nobuild) {
     $camlistored = find_bin("./server/camlistored");
-    $camdbinit = find_bin("./cmd/camdbinit");
+    $camdbinit = sub { scalar find_bin("./cmd/camdbinit") };
 } else {
     $camlistored = build_bin("./server/camlistored");
-    $camdbinit = build_bin("./cmd/camdbinit");
+    $camdbinit = sub { scalar  build_bin("./cmd/camdbinit") };
 }
 
 my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
@@ -113,7 +117,7 @@ if ($opt_memory) {
 } elsif ($opt_postgres) {
     $ENV{"CAMLI_POSTGRES_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-postgres/";
-    system("$camdbinit",
+    system($camdbinit->(),
            "-postgres",
            "-user=postgres",
            "-password=postgres",
@@ -123,7 +127,7 @@ if ($opt_memory) {
 } else {
     $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-    system("$camdbinit",
+    system($camdbinit->(),
            "-user=root",
            "-password=root",
            "-host=localhost",

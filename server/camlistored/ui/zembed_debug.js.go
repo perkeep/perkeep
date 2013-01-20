@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.js", 2645, fileembed.String("/*\n"+
+	Files.Add("debug.js", 2651, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -83,12 +83,12 @@ func init() {
 		"        var li = document.createElement(\"li\");\n"+
 		"        var alink = document.createElement(\"a\");\n"+
 		"        alink.href = \"./?p=\" + result.blobref;\n"+
-		"        setTextContent(alink, camliBlobTitle(result.blobref, searchRes));\n"+
+		"        Camli.setTextContent(alink, camliBlobTitle(result.blobref, searchRes));\n"+
 		"        li.appendChild(alink);\n"+
 		"        ul.appendChild(li);\n"+
 		"    }\n"+
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1356311931000000000))
+		""), time.Unix(0, 1358715350000000000))
 }

@@ -16,23 +16,15 @@
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
 
--- rename sha1.New() to blobref.NewHash() and
-   blobref.SHA1FromString(string) to blobref.FromString(string), and
-   add blobref.FromHash(hash.Hash) (using reflect.TypeOf to find
-   "sha1" prefix) to move current, ephemeral sha1 usage out to one
-   place that's easily fixed in the future.
-
--- clean up gethandler and its Range stuff. http package does much/all of that now.
-   Use ServeContent instead?
-
 -- index: static directory recursive sizes: search: ask to see biggest directories?
 
 -- index: index dates in filenames ("yyyy-mm-dd-Foo-Trip", "yyyy-mm blah", etc).
 
--- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
-   (get cammount and webdav working again)
+-- get webdav server working again, for mounting on Windows.  This worked before Go 1
+   but bitrot when we moved pkg/fs to use the rsc/fuse.
 
--- read/write fuse.
+-- read/write fuse.  using search / camliMember, permanode per inode
+   (https://github.com/hanwen/go-fuse + Go camlistore client == easy?)
 
 -- work on runsit more, so I can start using this more often.  runsit should
    be able to reload itself, and also watch for binaries changing and restart
@@ -46,25 +38,19 @@
 -- BUG: osutil paths.go on OS X: should use Library everywhere instead of mix of
    Library and ~/.camlistore?
 
+-- camput: support for skipping common cache/temp files (most of the support is
+   there now, just need to modify cmd/camput/files.go)
+
 OLD:
 
 -- add CROS support?
    http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
 
--- Go: ditch our http Range header stuff, get in upstream Go
-
--- camput: support for skipping common cache/temp files
-
--- camget: finish.  it's barely started.  should be able to cat blobs
-   or restore filesytems from backup.
-
--- fuse read/write support using search / camliMember, permanode per inode
-   (https://github.com/hanwen/go-fuse + Go camlistore client == easy?)
-
 -- brackup integration, perhaps sans GPG? (requires Perl client?)
 
 -- blobserver test suite: flesh it out.  (bs-test.pl ... it's pretty good
    so far, but not done)
+
 -- blobserver: clean up channel-closing consistency in blobserver interface
    (most close, one doesn't.  all should probably close)
 
@@ -82,8 +68,8 @@ Android:
 
 Client libraries:
 
-[X] Go (Brad)
-[/] JavaScript (Brad)
+[X] Go
+[X] JavaScript
 [/] Python (Brett)
 [ ] Perl
 [ ] Ruby

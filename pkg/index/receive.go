@@ -166,7 +166,7 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 		return nil
 	}
 
-	wholeRef := blobref.FromHash("sha1", sha1)
+	wholeRef := blobref.FromHash(sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, ss.FileName, mime))
 	return nil

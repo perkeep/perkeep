@@ -134,7 +134,7 @@ function showPermanodes(searchRes, type) {
 		var result = results[i];
 		var alink = document.createElement("a");
 		alink.href = "./?p=" + result.permanode;
-		setTextContent(alink, camliBlobTitle(result.permanode, searchRes));
+		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes));
 		var cbox = document.createElement('input');
 		cbox.type = "checkbox";
 		cbox.name = "checkbox";

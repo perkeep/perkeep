@@ -56,7 +56,7 @@ function blobInfoUpdate(bmap) {
                             } else {
                                 document.getElementById("thumbnail").innerHTML = "";
                             }
-                            setTextContent(bd.firstChild, fileName);
+                            Camli.setTextContent(bd.firstChild, fileName);
                             bd.innerHTML = "download: " + bd.innerHTML;
                         } catch (x) {
                         }

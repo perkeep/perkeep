@@ -73,7 +73,7 @@ function indexBuildRecentlyUpdatedPermanodes(searchRes) {
         var li = document.createElement("li");
         var alink = document.createElement("a");
         alink.href = "./?p=" + result.blobref;
-        setTextContent(alink, camliBlobTitle(result.blobref, searchRes));
+        Camli.setTextContent(alink, camliBlobTitle(result.blobref, searchRes));
         li.appendChild(alink);
         ul.appendChild(li);
     }
