@@ -52,8 +52,16 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		// TODO: skip this check if a file
 		// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +
 		// secret key)") exists and has recent time?
-		if _, err := client.Buckets(); err != nil {
+		buckets, err := client.Buckets()
+		if err != nil {
 			return nil, fmt.Errorf("Failed to get bucket list from S3: %v", err)
+		}
+		haveBucket := make(map[string]bool)
+		for _, b := range buckets {
+			haveBucket[b.Name] = true
+		}
+		if !haveBucket[sto.bucket] {
+			return nil, fmt.Errorf("S3 bucket %q doesn't exist. Create it first at https://console.aws.amazon.com/s3/home")
 		}
 	}
 	return sto, nil

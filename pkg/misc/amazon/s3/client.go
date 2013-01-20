@@ -71,13 +71,20 @@ func (c *Client) Buckets() ([]*Bucket, error) {
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("s3: Unexpected status code %d fetching bucket list", res.StatusCode)
 	}
-	slurp, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("s3: Error reading Buckets response: %v", err)
+	return parseListAllMyBuckets(res.Body)
+}
+
+func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
+	type allMyBuckets struct {
+		Buckets struct {
+			Bucket []*Bucket
+		}
 	}
-	// TODO: parse this XML
-	log.Printf("s3: TODO: parse bucket list: %q", slurp)
-	return nil, nil
+	var res allMyBuckets
+	if err := xml.NewDecoder(r).Decode(&res); err != nil {
+		return nil, err
+	}
+	return res.Buckets.Bucket, nil
 }
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
