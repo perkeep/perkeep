@@ -26,7 +26,7 @@ function $(id) {
 // innerText is not W3C compliant and does not work with firefox.
 // textContent does not work with IE.
 // setTextContent should work with all browsers.
-function setTextContent(ele, text) {
+Camli.setTextContent = function(ele, text) {
     if ("textContent" in ele) {
         ele.textContent = text;
         return;
@@ -35,10 +35,11 @@ function setTextContent(ele, text) {
         ele.innerText = text;
         return;
     }
-    while (element.firstChild!==null)
+    while (element.firstChild !== null) {
         element.removeChild(element.firstChild);
+    }
     element.appendChild(document.createTextNode(text));
-}
+};
 
 // Method 1 to get discovery information (JSONP style):
 Camli.onConfiguration = function(config) {

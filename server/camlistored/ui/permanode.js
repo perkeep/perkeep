@@ -309,11 +309,11 @@ function addMember(pn, des) {
     var li = document.createElement("li");
     var a = document.createElement("a");
     a.href = "./?p=" + pn;
-    setTextContent(a, camliBlobTitle(pn, des));
+    Camli.setTextContent(a, camliBlobTitle(pn, des));
 
     var del = document.createElement("span");
     del.className = 'camli-del';
-    setTextContent(del, "x");
+    Camli.setTextContent(del, "x");
     del.addEventListener("click", deleteMember(pn, a, li));
 
     li.appendChild(a);
@@ -343,7 +343,7 @@ function onBlobDescribed(jres) {
         return;
     }
 
-    setTextContent(document.getElementById("debugattrs"), JSON.stringify(permanodeObject.attr, null, 2));
+    Camli.setTextContent(document.getElementById("debugattrs"), JSON.stringify(permanodeObject.attr, null, 2));
 
     var attr = function(name) {
         if (!(name in permanodeObject.attr)) {
@@ -405,7 +405,7 @@ function onBlobDescribed(jres) {
         alink.appendChild(img);
         c.appendChild(alink);
         var title = document.createElement("p");
-        setTextContent(title, camliBlobTitle(br.blobRef, jres));
+        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres));
         title.className = 'camli-ui-thumbtitle';
         c.appendChild(title);
     }
@@ -418,12 +418,12 @@ function onBlobDescribed(jres) {
         tagSpan.className = 'camli-tag-c';
         var tagTextEl = document.createElement("span");
         tagTextEl.className = 'camli-tag-text';
-        setTextContent(tagTextEl, tag);
+        Camli.setTextContent(tagTextEl, tag);
         tagSpan.appendChild(tagTextEl);
 
         var tagDel = document.createElement("span");
         tagDel.className = 'camli-del';
-        setTextContent(tagDel, "x");
+        Camli.setTextContent(tagDel, "x");
         tagDel.addEventListener("click", deleteTagFunc(tag, tagTextEl, tagSpan));
 
         tagSpan.appendChild(tagDel);
@@ -547,14 +547,14 @@ function buildPathsList() {
 
                 var blobLink = document.createElement("a");
                 blobLink.href = ".?p=" + path.baseRef;
-                setTextContent(blobLink, path.baseRef);
+                Camli.setTextContent(blobLink, path.baseRef);
                 span.appendChild(blobLink);
 
                 span.appendChild(document.createTextNode(" - "));
 
                 var pathLink = document.createElement("a");
                 pathLink.href = "";
-                setTextContent(pathLink, path.suffix);
+                Camli.setTextContent(pathLink, path.suffix);
                 for (var key in Camli.config.publishRoots) {
                     var root = Camli.config.publishRoots[key];
                     if (root.currentPermanode == path.baseRef) {
@@ -570,7 +570,7 @@ function buildPathsList() {
 
                 var del = document.createElement("span");
                 del.className = "camli-del";
-                setTextContent(del, "x");
+                Camli.setTextContent(del, "x");
                 del.addEventListener("click", deletePathFunc(path.baseRef, path.suffix, span));
                 span.appendChild(del);
 

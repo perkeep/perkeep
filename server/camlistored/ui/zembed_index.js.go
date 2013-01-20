@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 10831, fileembed.String("/*\n"+
+	Files.Add("index.js", 10843, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -80,7 +80,7 @@ func init() {
 		"    $(\"formSearch\").addEventListener(\"submit\", CamliIndexPage.onSearchSubmit);\n"+
 		"    $(\"btnSmaller\").addEventListener(\"click\", CamliIndexPage.sizeHandler(-1));\n"+
 		"    $(\"btnBigger\").addEventListener(\"click\", CamliIndexPage.sizeHandler(1));\n"+
-		"    setTextContent($(\"topTitle\"), Camli.config.ownerName + \"'s Vault\");\n"+
+		"    Camli.setTextContent($(\"topTitle\"), Camli.config.ownerName + \"'s Vault\");\n"+
 		"};\n"+
 		"\n"+
 		"CamliIndexPage.sizeHandler = function(idxDelta) {\n"+
@@ -194,7 +194,7 @@ func init() {
 		"    alink.appendChild(img);\n"+
 		"    divperm.appendChild(alink);\n"+
 		"    var title = document.createElement(\"p\");\n"+
-		"    setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
+		"    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
 		"    title.className = 'camli-ui-thumbtitle';\n"+
 		"    title.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
 		"    divperm.appendChild(title);\n"+
@@ -367,5 +367,5 @@ func init() {
 		"};\n"+
 		"\n"+
 		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
-		""), time.Unix(0, 1356311255000000000))
+		""), time.Unix(0, 1358715374000000000))
 }

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 16683, fileembed.String("/*\n"+
+	Files.Add("camli.js", 16702, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -35,7 +35,7 @@ func init() {
 		"// innerText is not W3C compliant and does not work with firefox.\n"+
 		"// textContent does not work with IE.\n"+
 		"// setTextContent should work with all browsers.\n"+
-		"function setTextContent(ele, text) {\n"+
+		"Camli.setTextContent = function(ele, text) {\n"+
 		"    if (\"textContent\" in ele) {\n"+
 		"        ele.textContent = text;\n"+
 		"        return;\n"+
@@ -44,10 +44,11 @@ func init() {
 		"        ele.innerText = text;\n"+
 		"        return;\n"+
 		"    }\n"+
-		"    while (element.firstChild!==null)\n"+
+		"    while (element.firstChild !== null) {\n"+
 		"        element.removeChild(element.firstChild);\n"+
+		"    }\n"+
 		"    element.appendChild(document.createTextNode(text));\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"// Method 1 to get discovery information (JSONP style):\n"+
 		"Camli.onConfiguration = function(config) {\n"+
@@ -526,5 +527,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1358715034000000000))
+		""), time.Unix(0, 1358715291000000000))
 }

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("filetree.js", 4715, fileembed.String("/*\n"+
+	Files.Add("filetree.js", 4733, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -101,13 +101,13 @@ func init() {
 		"		alink.id = children[i].blobRef;\n"+
 		"		switch (children[i].type) {\n"+
 		"		case 'directory':\n"+
-		"			setTextContent(alink, \"+ \" + children[i].name);\n"+
+		"			Camli.setTextContent(alink, \"+ \" + children[i].name);\n"+
 		"			alink.href = \"./?d=\" + alink.id;\n"+
 		"			alink.onclick = Function(\"unFold('\" + alink.id + \"', \" + depth + \"); return fa"+
 		"lse;\");\n"+
 		"			break;\n"+
 		"		case 'file':\n"+
-		"			setTextContent(alink, \"  \" + children[i].name);\n"+
+		"			Camli.setTextContent(alink, \"  \" + children[i].name);\n"+
 		"			alink.href = \"./?b=\" + alink.id;\n"+
 		"			break;\n"+
 		"		default:\n"+
@@ -116,7 +116,7 @@ func init() {
 		"		}\n"+
 		"		var newPerm = document.createElement(\"span\");\n"+
 		"		newPerm.className = \"camli-newp\";\n"+
-		"		setTextContent(newPerm, \"P\");\n"+
+		"		Camli.setTextContent(newPerm, \"P\");\n"+
 		"		newPerm.addEventListener(\"click\", newPermWithContent(alink.id));\n"+
 		"		pdiv.appendChild(alink);\n"+
 		"		pdiv.appendChild(newPerm);\n"+
@@ -175,5 +175,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", treePageOnLoad);\n"+
-		""), time.Unix(0, 1356312762000000000))
+		""), time.Unix(0, 1358715357000000000))
 }
