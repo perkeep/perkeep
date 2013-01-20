@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.js", 4262, fileembed.String("/*\n"+
+	Files.Add("blobinfo.js", 4268, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -69,7 +69,7 @@ func init() {
 		"                                document.getElementById(\"thumbnail\").innerHTML = "+
 		"\"\";\n"+
 		"                            }\n"+
-		"                            setTextContent(bd.firstChild, fileName);\n"+
+		"                            Camli.setTextContent(bd.firstChild, fileName);\n"+
 		"                            bd.innerHTML = \"download: \" + bd.innerHTML;\n"+
 		"                        } catch (x) {\n"+
 		"                        }\n"+
@@ -123,5 +123,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", blobInfoOnLoad);\n"+
-		""), time.Unix(0, 1356312744000000000))
+		""), time.Unix(0, 1358715340000000000))
 }

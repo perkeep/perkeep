@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 20432, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 20486, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -323,11 +323,11 @@ func init() {
 		"    var li = document.createElement(\"li\");\n"+
 		"    var a = document.createElement(\"a\");\n"+
 		"    a.href = \"./?p=\" + pn;\n"+
-		"    setTextContent(a, camliBlobTitle(pn, des));\n"+
+		"    Camli.setTextContent(a, camliBlobTitle(pn, des));\n"+
 		"\n"+
 		"    var del = document.createElement(\"span\");\n"+
 		"    del.className = 'camli-del';\n"+
-		"    setTextContent(del, \"x\");\n"+
+		"    Camli.setTextContent(del, \"x\");\n"+
 		"    del.addEventListener(\"click\", deleteMember(pn, a, li));\n"+
 		"\n"+
 		"    li.appendChild(a);\n"+
@@ -357,8 +357,8 @@ func init() {
 		"        return;\n"+
 		"    }\n"+
 		"\n"+
-		"    setTextContent(document.getElementById(\"debugattrs\"), JSON.stringify(permanod"+
-		"eObject.attr, null, 2));\n"+
+		"    Camli.setTextContent(document.getElementById(\"debugattrs\"), JSON.stringify(pe"+
+		"rmanodeObject.attr, null, 2));\n"+
 		"\n"+
 		"    var attr = function(name) {\n"+
 		"        if (!(name in permanodeObject.attr)) {\n"+
@@ -420,7 +420,7 @@ func init() {
 		"        alink.appendChild(img);\n"+
 		"        c.appendChild(alink);\n"+
 		"        var title = document.createElement(\"p\");\n"+
-		"        setTextContent(title, camliBlobTitle(br.blobRef, jres));\n"+
+		"        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres));\n"+
 		"        title.className = 'camli-ui-thumbtitle';\n"+
 		"        c.appendChild(title);\n"+
 		"    }\n"+
@@ -433,12 +433,12 @@ func init() {
 		"        tagSpan.className = 'camli-tag-c';\n"+
 		"        var tagTextEl = document.createElement(\"span\");\n"+
 		"        tagTextEl.className = 'camli-tag-text';\n"+
-		"        setTextContent(tagTextEl, tag);\n"+
+		"        Camli.setTextContent(tagTextEl, tag);\n"+
 		"        tagSpan.appendChild(tagTextEl);\n"+
 		"\n"+
 		"        var tagDel = document.createElement(\"span\");\n"+
 		"        tagDel.className = 'camli-del';\n"+
-		"        setTextContent(tagDel, \"x\");\n"+
+		"        Camli.setTextContent(tagDel, \"x\");\n"+
 		"        tagDel.addEventListener(\"click\", deleteTagFunc(tag, tagTextEl, tagSpan));\n"+
 		"\n"+
 		"        tagSpan.appendChild(tagDel);\n"+
@@ -566,14 +566,14 @@ func init() {
 		"\n"+
 		"                var blobLink = document.createElement(\"a\");\n"+
 		"                blobLink.href = \".?p=\" + path.baseRef;\n"+
-		"                setTextContent(blobLink, path.baseRef);\n"+
+		"                Camli.setTextContent(blobLink, path.baseRef);\n"+
 		"                span.appendChild(blobLink);\n"+
 		"\n"+
 		"                span.appendChild(document.createTextNode(\" - \"));\n"+
 		"\n"+
 		"                var pathLink = document.createElement(\"a\");\n"+
 		"                pathLink.href = \"\";\n"+
-		"                setTextContent(pathLink, path.suffix);\n"+
+		"                Camli.setTextContent(pathLink, path.suffix);\n"+
 		"                for (var key in Camli.config.publishRoots) {\n"+
 		"                    var root = Camli.config.publishRoots[key];\n"+
 		"                    if (root.currentPermanode == path.baseRef) {\n"+
@@ -589,7 +589,7 @@ func init() {
 		"\n"+
 		"                var del = document.createElement(\"span\");\n"+
 		"                del.className = \"camli-del\";\n"+
-		"                setTextContent(del, \"x\");\n"+
+		"                Camli.setTextContent(del, \"x\");\n"+
 		"                del.addEventListener(\"click\", deletePathFunc(path.baseRef, path.s"+
 		"uffix, span));\n"+
 		"                span.appendChild(del);\n"+
@@ -657,5 +657,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1358517650721254458))
+		""), time.Unix(0, 1358715383000000000))
 }

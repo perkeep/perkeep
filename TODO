@@ -16,12 +16,6 @@
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
 
--- rename sha1.New() to blobref.NewHash() and
-   blobref.SHA1FromString(string) to blobref.FromString(string), and
-   add blobref.FromHash(hash.Hash) (using reflect.TypeOf to find
-   "sha1" prefix) to move current, ephemeral sha1 usage out to one
-   place that's easily fixed in the future.
-
 -- clean up gethandler and its Range stuff. http package does much/all of that now.
    Use ServeContent instead?
 
@@ -29,8 +23,8 @@
 
 -- index: index dates in filenames ("yyyy-mm-dd-Foo-Trip", "yyyy-mm blah", etc).
 
--- Go 1: convert all the fuse code & camlistore.org/pkg/fs to use rsc/fuse
-   (get cammount and webdav working again)
+-- get webdav server working again, for mounting on Windows.  This worked before Go 1
+   but bitrot when we moved pkg/fs to use the rsc/fuse.
 
 -- read/write fuse.
 

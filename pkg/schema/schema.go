@@ -431,7 +431,7 @@ func (d *defaultStatHasher) Hash(fileName string) (*blobref.BlobRef, error) {
 	if err != nil {
 		return nil, err
 	}
-	return blobref.FromHash("sha1", s1), nil
+	return blobref.FromHash(s1), nil
 }
 
 type StaticSet struct {

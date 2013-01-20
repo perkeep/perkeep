@@ -33,7 +33,7 @@ type Blob struct {
 func (tb *Blob) BlobRef() *blobref.BlobRef {
 	h := sha1.New()
 	h.Write([]byte(tb.Contents))
-	return blobref.FromHash("sha1", h)
+	return blobref.FromHash(h)
 }
 
 func (tb *Blob) BlobRefSlice() []*blobref.BlobRef {

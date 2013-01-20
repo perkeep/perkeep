@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 16632, fileembed.String("/*\n"+
+	Files.Add("camli.js", 16702, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -35,7 +35,7 @@ func init() {
 		"// innerText is not W3C compliant and does not work with firefox.\n"+
 		"// textContent does not work with IE.\n"+
 		"// setTextContent should work with all browsers.\n"+
-		"function setTextContent(ele, text) {\n"+
+		"Camli.setTextContent = function(ele, text) {\n"+
 		"    if (\"textContent\" in ele) {\n"+
 		"        ele.textContent = text;\n"+
 		"        return;\n"+
@@ -44,15 +44,16 @@ func init() {
 		"        ele.innerText = text;\n"+
 		"        return;\n"+
 		"    }\n"+
-		"    while (element.firstChild!==null)\n"+
+		"    while (element.firstChild !== null) {\n"+
 		"        element.removeChild(element.firstChild);\n"+
+		"    }\n"+
 		"    element.appendChild(document.createTextNode(text));\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"// Method 1 to get discovery information (JSONP style):\n"+
-		"function onConfiguration(config) {\n"+
+		"Camli.onConfiguration = function(config) {\n"+
 		"    Camli.config = config;\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"Camli.saneOpts = function(opts) {\n"+
 		"    if (!opts) {\n"+
@@ -68,7 +69,7 @@ func init() {
 		"};\n"+
 		"\n"+
 		"// Format |dateVal| as specified by RFC 3339.\n"+
-		"function dateToRfc3339String(dateVal) {\n"+
+		"Camli.dateToRfc3339String = function(dateVal) {\n"+
 		"    // Return a string containing |num| zero-padded to |length| digits.\n"+
 		"    var pad = function(num, length) {\n"+
 		"        var numStr = \"\" + num;\n"+
@@ -81,7 +82,7 @@ func init() {
 		"-\" + pad(dateVal.getUTCDate(), 2) + \"T\" +\n"+
 		"           pad(dateVal.getUTCHours(), 2) + \":\" + pad(dateVal.getUTCMinutes(), 2) "+
 		"+ \":\" + pad(dateVal.getUTCSeconds(), 2) + \"Z\";\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"function camliDescribeBlob(blobref, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliDescribeBlob\", opts);\n"+
@@ -450,14 +451,14 @@ func init() {
 		"\n"+
 		"// Helper function for camliNewSetAttributeClaim() (and eventually, for\n"+
 		"// similar functions to add or delete attributes).\n"+
-		"function changeAttribute(permanode, claimType, attribute, value, opts) {\n"+
+		"Camli.changeAttribute = function(permanode, claimType, attribute, value, opts) {\n"+
 		"    opts = Camli.saneOpts(opts);\n"+
 		"    var json = {\n"+
 		"        \"camliVersion\": 1,\n"+
 		"        \"camliType\": \"claim\",\n"+
 		"        \"permaNode\": permanode,\n"+
 		"        \"claimType\": claimType,\n"+
-		"        \"claimDate\": dateToRfc3339String(new Date()),\n"+
+		"        \"claimDate\": Camli.dateToRfc3339String(new Date()),\n"+
 		"        \"attribute\": attribute,\n"+
 		"        \"value\": value\n"+
 		"    };\n"+
@@ -474,7 +475,7 @@ func init() {
 		"            opts.fail(\"sign \" + claimType + \" fail: \" + msg);\n"+
 		"        }\n"+
 		"    });\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"// pn: permanode to find a good title of\n"+
 		"// jdes: describe response of root permanode\n"+
@@ -506,17 +507,17 @@ func init() {
 		"\n"+
 		"// Create and upload a new set-attribute claim.\n"+
 		"function camliNewSetAttributeClaim(permanode, attribute, value, opts) {\n"+
-		"    changeAttribute(permanode, \"set-attribute\", attribute, value, opts);\n"+
+		"    Camli.changeAttribute(permanode, \"set-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
 		"// Create and upload a new add-attribute claim.\n"+
 		"function camliNewAddAttributeClaim(permanode, attribute, value, opts) {\n"+
-		"    changeAttribute(permanode, \"add-attribute\", attribute, value, opts);\n"+
+		"    Camli.changeAttribute(permanode, \"add-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
 		"// Create and upload a new del-attribute claim.\n"+
 		"function camliNewDelAttributeClaim(permanode, attribute, value, opts) {\n"+
-		"    changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
+		"    Camli.changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
 		"// camliCondCall calls fn, if non-null, with the remaining parameters.\n"+
@@ -526,5 +527,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1358469142262506742))
+		""), time.Unix(0, 1358715291000000000))
 }

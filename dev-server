@@ -65,13 +65,13 @@ unless ($opt_fast) {
 }
 
 my $camlistored;
-my $camdbinit;
+my $camdbinit; # closure to return path
 if ($opt_nobuild) {
     $camlistored = find_bin("./server/camlistored");
-    $camdbinit = find_bin("./cmd/camdbinit");
+    $camdbinit = sub { scalar find_bin("./cmd/camdbinit") };
 } else {
     $camlistored = build_bin("./server/camlistored");
-    $camdbinit = build_bin("./cmd/camdbinit");
+    $camdbinit = sub { scalar  build_bin("./cmd/camdbinit") };
 }
 
 my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
@@ -113,7 +113,7 @@ if ($opt_memory) {
 } elsif ($opt_postgres) {
     $ENV{"CAMLI_POSTGRES_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-postgres/";
-    system("$camdbinit",
+    system($camdbinit->(),
            "-postgres",
            "-user=postgres",
            "-password=postgres",
@@ -123,7 +123,7 @@ if ($opt_memory) {
 } else {
     $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-    system("$camdbinit",
+    system($camdbinit->(),
            "-user=root",
            "-password=root",
            "-host=localhost",

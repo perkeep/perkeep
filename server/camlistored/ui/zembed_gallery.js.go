@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("gallery.js", 3338, fileembed.String("/*\n"+
+	Files.Add("gallery.js", 3347, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -45,7 +45,7 @@ func init() {
 		"    var li = document.createElement(\"li\");\n"+
 		"    var a = document.createElement(\"a\");\n"+
 		"    a.href = \"./?p=\" + pn;\n"+
-		"	var br = des[pn];\n"+
+		"    var br = des[pn];\n"+
 		"    var img = document.createElement(\"img\");\n"+
 		"    img.src = br.thumbnailSrc;\n"+
 		"    img.height = br.thumbnailHeight;\n"+
@@ -53,7 +53,7 @@ func init() {
 		"    a.appendChild(img);\n"+
 		"    li.appendChild(a);\n"+
 		"    var title = document.createElement(\"p\");\n"+
-		"    setTextContent(title, camliBlobTitle(br.blobRef, des));\n"+
+		"    Camli.setTextContent(title, camliBlobTitle(br.blobRef, des));\n"+
 		"    title.className = 'camli-ui-thumbtitle';\n"+
 		"    li.appendChild(title);\n"+
 		"    li.className = 'camli-ui-thumb';\n"+
@@ -114,5 +114,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", galleryPageOnLoad);\n"+
-		""), time.Unix(0, 1358468476756308669))
+		""), time.Unix(0, 1358715367000000000))
 }

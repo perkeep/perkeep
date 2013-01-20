@@ -5,7 +5,8 @@ use FindBin qw($Bin);
 sub build_bin {
     my $target = shift;
     $ENV{GOBIN} = find_gobin();
-    system("go", "install", $target) and die "go install $target failed";
+    print STDERR "Building $target ...\n";
+    system("go", "install", "-v", $target) and die "go install $target failed";
     $target =~ s!.+/!!;
     my $bin = "$ENV{GOBIN}/$target";
     unless (-e $bin) {

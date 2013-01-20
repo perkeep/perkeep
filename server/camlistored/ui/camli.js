@@ -26,7 +26,7 @@ function $(id) {
 // innerText is not W3C compliant and does not work with firefox.
 // textContent does not work with IE.
 // setTextContent should work with all browsers.
-function setTextContent(ele, text) {
+Camli.setTextContent = function(ele, text) {
     if ("textContent" in ele) {
         ele.textContent = text;
         return;
@@ -35,15 +35,16 @@ function setTextContent(ele, text) {
         ele.innerText = text;
         return;
     }
-    while (element.firstChild!==null)
+    while (element.firstChild !== null) {
         element.removeChild(element.firstChild);
+    }
     element.appendChild(document.createTextNode(text));
-}
+};
 
 // Method 1 to get discovery information (JSONP style):
-function onConfiguration(config) {
+Camli.onConfiguration = function(config) {
     Camli.config = config;
-}
+};
 
 Camli.saneOpts = function(opts) {
     if (!opts) {
@@ -59,7 +60,7 @@ Camli.saneOpts = function(opts) {
 };
 
 // Format |dateVal| as specified by RFC 3339.
-function dateToRfc3339String(dateVal) {
+Camli.dateToRfc3339String = function(dateVal) {
     // Return a string containing |num| zero-padded to |length| digits.
     var pad = function(num, length) {
         var numStr = "" + num;
@@ -70,7 +71,7 @@ function dateToRfc3339String(dateVal) {
     };
     return dateVal.getUTCFullYear() + "-" + pad(dateVal.getUTCMonth() + 1, 2) + "-" + pad(dateVal.getUTCDate(), 2) + "T" +
            pad(dateVal.getUTCHours(), 2) + ":" + pad(dateVal.getUTCMinutes(), 2) + ":" + pad(dateVal.getUTCSeconds(), 2) + "Z";
-}
+};
 
 function camliDescribeBlob(blobref, opts) {
     var xhr = camliJsonXhr("camliDescribeBlob", opts);
@@ -422,14 +423,14 @@ Camli.linkifyBlobRefs = function(schemaBlob) {
 
 // Helper function for camliNewSetAttributeClaim() (and eventually, for
 // similar functions to add or delete attributes).
-function changeAttribute(permanode, claimType, attribute, value, opts) {
+Camli.changeAttribute = function(permanode, claimType, attribute, value, opts) {
     opts = Camli.saneOpts(opts);
     var json = {
         "camliVersion": 1,
         "camliType": "claim",
         "permaNode": permanode,
         "claimType": claimType,
-        "claimDate": dateToRfc3339String(new Date()),
+        "claimDate": Camli.dateToRfc3339String(new Date()),
         "attribute": attribute,
         "value": value
     };
@@ -446,7 +447,7 @@ function changeAttribute(permanode, claimType, attribute, value, opts) {
             opts.fail("sign " + claimType + " fail: " + msg);
         }
     });
-}
+};
 
 // pn: permanode to find a good title of
 // jdes: describe response of root permanode
@@ -478,17 +479,17 @@ function camliBlobTitle(pn, des) {
 
 // Create and upload a new set-attribute claim.
 function camliNewSetAttributeClaim(permanode, attribute, value, opts) {
-    changeAttribute(permanode, "set-attribute", attribute, value, opts);
+    Camli.changeAttribute(permanode, "set-attribute", attribute, value, opts);
 }
 
 // Create and upload a new add-attribute claim.
 function camliNewAddAttributeClaim(permanode, attribute, value, opts) {
-    changeAttribute(permanode, "add-attribute", attribute, value, opts);
+    Camli.changeAttribute(permanode, "add-attribute", attribute, value, opts);
 }
 
 // Create and upload a new del-attribute claim.
 function camliNewDelAttributeClaim(permanode, attribute, value, opts) {
-    changeAttribute(permanode, "del-attribute", attribute, value, opts);
+    Camli.changeAttribute(permanode, "del-attribute", attribute, value, opts);
 }
 
 // camliCondCall calls fn, if non-null, with the remaining parameters.

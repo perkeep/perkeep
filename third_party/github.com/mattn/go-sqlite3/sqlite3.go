@@ -1,3 +1,6 @@
+// Camlistore-specific addition:
+// +build with_sqlite
+
 package sqlite
 
 /*

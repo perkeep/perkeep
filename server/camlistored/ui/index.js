@@ -69,7 +69,7 @@ CamliIndexPage.onLoad = function() {
     $("formSearch").addEventListener("submit", CamliIndexPage.onSearchSubmit);
     $("btnSmaller").addEventListener("click", CamliIndexPage.sizeHandler(-1));
     $("btnBigger").addEventListener("click", CamliIndexPage.sizeHandler(1));
-    setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
+    Camli.setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
 };
 
 CamliIndexPage.sizeHandler = function(idxDelta) {
@@ -182,7 +182,7 @@ function divFromResult(searchRes, i) {
     alink.appendChild(img);
     divperm.appendChild(alink);
     var title = document.createElement("p");
-    setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
+    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
     title.className = 'camli-ui-thumbtitle';
     title.style.fontSize = CamliIndexPage.thumbFontSize();
     divperm.appendChild(title);

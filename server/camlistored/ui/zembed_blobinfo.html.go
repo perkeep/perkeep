@@ -7,11 +7,11 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.html", 849, fileembed.String("<html>\n"+
+	Files.Add("blobinfo.html", 855, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Blob info</title>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
-		"  <script src=\"?camli.mode=config&cb=onConfiguration\"></script>\n"+
+		"  <script src=\"?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
 		"  <script src=\"blobinfo.js\"></script>\n"+
 		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
 		"</head>\n"+
@@ -38,5 +38,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1355268929464816599))
+		""), time.Unix(0, 1358714598000000000))
 }

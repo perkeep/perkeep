@@ -44,7 +44,7 @@ function addMember(pn, des) {
     a.appendChild(img);
     li.appendChild(a);
     var title = document.createElement("p");
-    setTextContent(title, camliBlobTitle(br.blobRef, des));
+    Camli.setTextContent(title, camliBlobTitle(br.blobRef, des));
     title.className = 'camli-ui-thumbtitle';
     li.appendChild(title);
     li.className = 'camli-ui-thumb';
