@@ -1,5 +1,6 @@
 /**
- * @fileoverview TODO
+ * @fileoverview Contains a set of BlobItems. Knows how to fetch items from
+ * the server side. Is preconfigured with common queries like "recent" blobs.
  *
  */
 goog.provide('camlistore.BlobItemContainer');

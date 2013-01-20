@@ -1,5 +1,5 @@
 /**
- * @fileoverview TODO
+ * @fileoverview Entry point for the blob browser UI.
  *
  */
 goog.provide('camlistore.IndexPage');

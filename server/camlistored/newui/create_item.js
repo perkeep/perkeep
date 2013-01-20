@@ -1,5 +1,6 @@
 /**
- * @fileoverview TODO
+ * @fileoverview Placeholder BlobItem in a BlobItemContainer that lets the
+ * user upload new blobs to the server.
  *
  */
 goog.provide('camlistore.CreateItem');

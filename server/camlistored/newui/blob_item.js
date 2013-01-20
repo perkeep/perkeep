@@ -1,5 +1,7 @@
 /**
- * @fileoverview TODO
+ * @fileoverview An item showing in a blob item container; represents a blob
+ * that has already been uploaded in the system, or acts as a placeholder
+ * for a new blob.
  *
  */
 goog.provide('camlistore.BlobItem');
@@ -64,7 +66,7 @@ goog.inherits(camlistore.BlobItem, goog.ui.Control);
 
 
 /**
- * TODO: Handle more permanode types.
+ * TODO(bslatkin): Handle more permanode types.
  *
  * @param {string} blobRef string BlobRef to resolve.
  * @param {camlistore.ServerType.IndexerMetaBag} metaBag Metadata bag to use
