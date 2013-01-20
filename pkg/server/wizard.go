@@ -207,8 +207,8 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 			if len(v[0]) > 0 {
 				pub := strings.Split(v[0], ",")
 				if len(pub) < 2 || len(pub) > 3 {
-					// no need to fail loudly for now as we'll probably change this format
-					continue
+					httputil.ServerError(rw, req, fmt.Errorf("%s must be of the format ROOT,TEMPLATE,STYLESHEET", k))
+					return
 				}
 				handler := jsonconfig.Obj{}
 				handler["template"] = k
