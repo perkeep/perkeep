@@ -408,10 +408,16 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
+	base := req.Header.Get("X-PrefixHandler-PathBase")
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 	if ui.closureHandler == nil {
 		log.Printf("%v not served: handler is nil", suffix)
 		http.NotFound(rw, req)
+		return
+	}
+	if suffix == "new" {
+		// Add a trailing slash.
+		http.Redirect(rw, req, base + "new/", http.StatusFound)
 		return
 	}
 	suffix = path.Clean(suffix)
