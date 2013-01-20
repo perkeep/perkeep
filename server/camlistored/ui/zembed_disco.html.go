@@ -7,12 +7,12 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("disco.html", 1232, fileembed.String("<html>\n"+
+	Files.Add("disco.html", 1238, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
 		"  <script src=\"sigdebug.js\"></script>\n"+
-		"  <script src=\"./?camli.mode=config&cb=onConfiguration\"></script>\n"+
+		"  <script src=\"./?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
 		"<script>\n"+
 		"\n"+
 		"// Or get configuration info like this:\n"+
@@ -51,5 +51,5 @@ func init() {
 		"  </form>\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1349725494183767525))
+		""), time.Unix(0, 1358714649000000000))
 }

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.html", 1620, fileembed.String("<html>\n"+
+	Files.Add("index.html", 1626, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Recent Permanodes</title>\n"+
 		"  <script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
@@ -15,7 +15,7 @@ func init() {
 		"  <script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
 		"  <script src=\"index.js\"></script>\n"+
-		"  <script src=\"?camli.mode=config&cb=onConfiguration\"></script>\n"+
+		"  <script src=\"?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
 		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
 		"  <link rel=\"stylesheet\" href=\"index.css\">\n"+
 		"</head>\n"+
@@ -55,5 +55,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1355281087518096739))
+		""), time.Unix(0, 1358714562000000000))
 }

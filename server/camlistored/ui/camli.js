@@ -41,9 +41,9 @@ function setTextContent(ele, text) {
 }
 
 // Method 1 to get discovery information (JSONP style):
-function onConfiguration(config) {
+Camli.onConfiguration = function(config) {
     Camli.config = config;
-}
+};
 
 Camli.saneOpts = function(opts) {
     if (!opts) {

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 16632, fileembed.String("/*\n"+
+	Files.Add("camli.js", 16641, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -50,9 +50,9 @@ func init() {
 		"}\n"+
 		"\n"+
 		"// Method 1 to get discovery information (JSONP style):\n"+
-		"function onConfiguration(config) {\n"+
+		"Camli.onConfiguration = function(config) {\n"+
 		"    Camli.config = config;\n"+
-		"}\n"+
+		"};\n"+
 		"\n"+
 		"Camli.saneOpts = function(opts) {\n"+
 		"    if (!opts) {\n"+
@@ -526,5 +526,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1358469142262506742))
+		""), time.Unix(0, 1358714551000000000))
 }
