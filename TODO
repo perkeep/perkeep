@@ -16,9 +16,6 @@
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
 
--- clean up gethandler and its Range stuff. http package does much/all of that now.
-   Use ServeContent instead?
-
 -- index: static directory recursive sizes: search: ask to see biggest directories?
 
 -- index: index dates in filenames ("yyyy-mm-dd-Foo-Trip", "yyyy-mm blah", etc).
@@ -44,8 +41,6 @@ OLD:
 
 -- add CROS support?
    http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
-
--- Go: ditch our http Range header stuff, get in upstream Go
 
 -- camput: support for skipping common cache/temp files
 

@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -35,7 +34,6 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/misc/httprange" // TODO: delete this package, use http.ServeContent
 )
 
 var kGetPattern = regexp.MustCompile(`/camli/` + blobref.Pattern + `$`)
@@ -80,108 +78,55 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 }
 
 // serveBlobRef sends 'blobref' to 'conn' as directed by the Range header in 'req'
-func serveBlobRef(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
-
+func serveBlobRef(rw http.ResponseWriter, req *http.Request, blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
 	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
 		fetcher = w.WrapContext(req)
 	}
+	seekFetcher := blobref.SeekerFromStreamingFetcher(fetcher)
 
-	file, size, err := fetcher.FetchStreaming(blobRef)
+	file, size, err := seekFetcher.Fetch(blobRef)
 	switch err {
 	case nil:
 		break
 	case os.ErrNotExist:
-		conn.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(conn, "Blob %q not found", blobRef)
+		rw.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(rw, "Blob %q not found", blobRef)
 		return
 	default:
-		httputil.ServerError(conn, req, err)
+		httputil.ServerError(rw, req, err)
 		return
 	}
-
 	defer file.Close()
+	var content io.ReadSeeker = file
 
-	seeker, isSeeker := file.(io.Seeker)
-	reqRange := httprange.FromRequest(req)
-	if reqRange.SkipBytes() != 0 && isSeeker {
-		// TODO: set the Range-specific response headers too,
-		// acknowledging that we honored the content range
-		// request.
-		_, err = seeker.Seek(reqRange.SkipBytes(), 0)
-		if err != nil {
-			httputil.ServerError(conn, req, err)
-			return
-		}
-	}
-
-	var input io.Reader = file
-	if reqRange.LimitBytes() != -1 {
-		input = io.LimitReader(file, reqRange.LimitBytes())
-	}
-
-	remainBytes := size - reqRange.SkipBytes()
-	if reqRange.LimitBytes() != -1 &&
-		reqRange.LimitBytes() < remainBytes {
-		remainBytes = reqRange.LimitBytes()
-	}
-
-	conn.Header().Set("Content-Type", "application/octet-stream")
-	if reqRange.IsWholeFile() {
-		conn.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	rw.Header().Set("Content-Type", "application/octet-stream")
+	if req.Header.Get("Range") == "" {
 		// If it's small and all UTF-8, assume it's text and
 		// just render it in the browser.  This is more for
 		// demos/debuggability than anything else.  It isn't
 		// part of the spec.
 		if size <= 32<<10 {
 			var buf bytes.Buffer
-			_, err := io.Copy(&buf, input)
+			_, err := io.Copy(&buf, file)
 			if err != nil {
-				httputil.ServerError(conn, req, err)
+				httputil.ServerError(rw, req, err)
 				return
 			}
 			if utf8.Valid(buf.Bytes()) {
-				conn.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			}
-			input = &buf
+			content = bytes.NewReader(buf.Bytes())
 		}
 	}
 
-	if !reqRange.IsWholeFile() {
-		conn.Header().Set("Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d", reqRange.SkipBytes(),
-				reqRange.SkipBytes()+remainBytes,
-				size))
-		conn.WriteHeader(http.StatusPartialContent)
-	}
-	bytesCopied, err := io.Copy(conn, input)
-
-	// If there's an error at this point, it's too late to tell the client,
-	// as they've already been receiving bytes.  But they should be smart enough
-	// to verify the digest doesn't match.  But we close the (chunked) response anyway,
-	// to further signal errors.
-	killConnection := func() {
-		if hj, ok := conn.(http.Hijacker); ok {
-			log.Printf("Force-closing TCP connection to signal error sending %q", blobRef)
-			if closer, _, err := hj.Hijack(); err != nil {
-				closer.Close()
-			}
-		}
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, err=%v\n", blobRef, err)
-		killConnection()
-		return
-	}
-
-	if bytesCopied != remainBytes {
-		fmt.Fprintf(os.Stderr, "Error sending file: %v, copied=%d, not %d\n", blobRef,
-			bytesCopied, remainBytes)
-		killConnection()
-		return
-	}
+	http.ServeContent(rw, req, "", dummyModTime, content)
 }
+
+// dummyModTime is an arbitrary point in time that we send as fake modtimes for blobs.
+// Because blobs are content-addressable, they can never change, so it's better to send
+// *some* modtime and let clients do "If-Modified-Since" requests for it.
+// This time is the first commit of the Camlistore project.
+var dummyModTime = time.Unix(1276213335, 0)
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
