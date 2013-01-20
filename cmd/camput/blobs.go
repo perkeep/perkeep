@@ -81,13 +81,13 @@ func stdinBlobHandle() (uh *client.UploadHandle, err error) {
 	}
 	// TODO(bradfitz,mpl): limit this buffer size?
 	file := buf.Bytes()
-	s1 := sha1.New()
-	size, err = io.Copy(s1, &buf)
+	h := blobref.NewHash()
+	size, err = io.Copy(h, bytes.NewReader(file))
 	if err != nil {
 		return
 	}
 	return &client.UploadHandle{
-		BlobRef:  blobref.FromHash("sha1", s1),
+		BlobRef:  blobref.FromHash(h),
 		Size:     size,
 		Contents: io.LimitReader(bytes.NewReader(file), size),
 	}, nil
@@ -121,7 +121,7 @@ func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err
 	contents.Seek(0, 0)
 	size, err = io.Copy(s1, contents)
 	if err == nil {
-		bref = blobref.FromHash("sha1", s1)
+		bref = blobref.FromHash(s1)
 	}
 	contents.Seek(0, 0)
 	return

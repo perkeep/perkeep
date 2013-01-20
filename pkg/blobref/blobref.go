@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"reflect"
 	"regexp"
 )
 
@@ -155,9 +156,11 @@ var kExpectedDigestSize = map[string]int{
 
 func newBlob(hashName, digest string) *BlobRef {
 	strValue := fmt.Sprintf("%s-%s", hashName, digest)
-	return &BlobRef{strValue[0:len(hashName)],
-		strValue[len(hashName)+1:],
-		strValue}
+	return &BlobRef{
+		hashName: strValue[0:len(hashName)],
+		digest:   strValue[len(hashName)+1:],
+		strValue: strValue,
+	}
 }
 
 func blobIfValid(hashname, digest string) *BlobRef {
@@ -168,14 +171,28 @@ func blobIfValid(hashname, digest string) *BlobRef {
 	return newBlob(hashname, digest)
 }
 
-func FromHash(hashfunc string, h hash.Hash) *BlobRef {
-	return newBlob(hashfunc, fmt.Sprintf("%x", h.Sum(nil)))
+// NewHash returns a new hash.Hash of the currently recommended hash type.
+// Currently this is just SHA-1, but will likely change within the next
+// year or so.
+func NewHash() hash.Hash {
+	return sha1.New()
 }
 
+var sha1Type = reflect.TypeOf(sha1.New())
+
+// FromHash returns a BlobRef representing the given hash.
+func FromHash(h hash.Hash) *BlobRef {
+	if reflect.TypeOf(h) == sha1Type {
+		return newBlob("sha1", fmt.Sprintf("%x", h.Sum(nil)))
+	}
+	panic(fmt.Sprintf("Currently-unsupported hash type %T", h))
+}
+
+// SHA1FromString returns a SHA-1 blobref of the provided string.
 func SHA1FromString(s string) *BlobRef {
 	s1 := sha1.New()
 	s1.Write([]byte(s))
-	return FromHash("sha1", s1)
+	return FromHash(s1)
 }
 
 // FromPattern takes a pattern and if it matches 's' with two exactly two valid
