@@ -24,6 +24,7 @@ my $opt_offline;   # don't use the network ("airplane mode")
 my $opt_staticres; # use static resources, not those on disk
 my $opt_tls;
 my $opt_wipe;
+my $opt_verbose;
 
 # keep indexes in memory only. often used with --wipe, but not
 # necessarily. if --wipe isn't used, all blobs are re-indexed
@@ -45,6 +46,7 @@ GetOptions("wipe" => \$opt_wipe,
            "KBps=i" => \$opt_KBps,
            "latency_ms=i" => \$opt_latency_ms,
            "fast" => \$opt_fast,
+           "verbose" => \$opt_verbose,
     )
     or usage();
 
@@ -63,6 +65,8 @@ unless ($opt_fast) {
     $ENV{DEV_THROTTLE_KBPS} = $opt_KBps;
     $ENV{DEV_THROTTLE_LATENCY_MS} = $opt_latency_ms;
 }
+
+$ENV{CAM_HTTP_DEBUG} = 1 if $opt_verbose;
 
 my $camlistored;
 my $camdbinit; # closure to return path
