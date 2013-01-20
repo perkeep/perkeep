@@ -210,7 +210,7 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 			c.setBounds(im)
 			return im, c, err
 		}
-		orient := tag.Val[1]
+		orient := tag.Int(0)
 		switch orient {
 		case 1:
 			// do nothing
