@@ -56,7 +56,6 @@ camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
 
 
 /**
-<<<<<<< HEAD
  * @type {goog.events.FileDropHandler}
  * @private
  */
