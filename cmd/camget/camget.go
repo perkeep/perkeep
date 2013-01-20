@@ -41,7 +41,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -49,7 +48,6 @@ import (
 	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
@@ -116,27 +114,18 @@ func main() {
 	}
 	cl.SetHTTPClient(&http.Client{Transport: httpStats})
 
-	// Put a local disk cache in front of the HTTP client.
-	// TODO: this could be better about proactively cleaning things.
-	// Fetching 2 TB shouldn't write 2 TB to /tmp before it's done.
-	// Maybe the cache needs an LRU/size cap.
-	cacheDir, err := ioutil.TempDir("", "camlicache")
-	if err != nil {
-		log.Fatalf("Error creating temp cache directory: %v\n", err)
-	}
-	defer os.RemoveAll(cacheDir)
-	diskcache, err := localdisk.New(cacheDir)
+	diskCacheFetcher, err := cacher.NewDiskCache(cl)
 	if err != nil {
 		log.Fatalf("Error setting up local disk cache: %v", err)
 	}
+	defer diskCacheFetcher.Clean()
 	if *flagVerbose {
-		log.Printf("Using temp blob cache directory %s", cacheDir)
+		log.Printf("Using temp blob cache directory %s", diskCacheFetcher.Root)
 	}
-	fetcher := cacher.NewCachingFetcher(diskcache, cl)
 
 	for _, br := range items {
 		if *flagGraph {
-			printGraph(fetcher, br)
+			printGraph(diskCacheFetcher, br)
 			return
 		}
 		if *flagCheck {
@@ -148,13 +137,12 @@ func main() {
 			var rc io.ReadCloser
 			var err error
 			if *flagContents {
-				seekFetcher := blobref.SeekerFromStreamingFetcher(fetcher)
-				rc, err = schema.NewFileReader(seekFetcher, br)
+				rc, err = schema.NewFileReader(diskCacheFetcher, br)
 				if err == nil {
 					rc.(*schema.FileReader).LoadAllChunks()
 				}
 			} else {
-				rc, err = fetch(fetcher, br)
+				rc, err = fetch(diskCacheFetcher, br)
 			}
 			if err != nil {
 				log.Fatal(err)
@@ -164,7 +152,7 @@ func main() {
 				log.Fatalf("Failed reading %q: %v", br, err)
 			}
 		} else {
-			if err := smartFetch(fetcher, *flagOutput, br); err != nil {
+			if err := smartFetch(diskCacheFetcher, *flagOutput, br); err != nil {
 				log.Fatal(err)
 			}
 		}

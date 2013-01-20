@@ -5,10 +5,6 @@
    latest efforts to revive it.  The place to start looking is:
         server/camlistored/ui/fileembed_appengine.go
 
--- unify cammount and camget's blob caching.  move their init code to
-   pkg/cacher, and add an LRU and optional upper bound size limit in
-   pkg/cacher too.
-
 -- should a "share" claim be not a claim but its own permanode, so it
    can be rescinded?  right now you can't really unshare a "haveref"
    claim.  or rather, TODO: verify we support "delete" claims to

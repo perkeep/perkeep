@@ -19,14 +19,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/blobserver/localdisk" // used for the blob cache
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
@@ -53,16 +51,11 @@ func main() {
 
 	client := client.NewOrFail() // automatic from flags
 
-	cacheDir, err := ioutil.TempDir("", "camlicache")
-	if err != nil {
-		errorf("Error creating temp cache directory: %v\n", err)
-	}
-	defer os.RemoveAll(cacheDir)
-	diskcache, err := localdisk.New(cacheDir)
+	diskCacheFetcher, err := cacher.NewDiskCache(client)
 	if err != nil {
 		errorf("Error setting up local disk cache: %v", err)
 	}
-	fetcher := cacher.NewCachingFetcher(diskcache, client)
+	defer diskCacheFetcher.Clean()
 
 	var camfs *fs.CamliFileSystem
 	if flag.NArg() == 2 {
@@ -71,12 +64,12 @@ func main() {
 			errorf("Error parsing root blobref: %q\n", root)
 		}
 		var err error
-		camfs, err = fs.NewRootedCamliFileSystem(fetcher, root)
+		camfs, err = fs.NewRootedCamliFileSystem(diskCacheFetcher, root)
 		if err != nil {
 			errorf("Error creating root with %v: %v", root, err)
 		}
 	} else {
-		camfs = fs.NewCamliFileSystem(fetcher)
+		camfs = fs.NewCamliFileSystem(diskCacheFetcher)
 		log.Printf("starting with fs %#v", camfs)
 	}
 
