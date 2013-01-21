@@ -1,3 +1,10 @@
+-- newui: add a Makefile rule (like "make embeds") to actually run the
+   Closure Compiler on the newui code, and show errors/warnings, and
+   generate new z*_embed.js file(s). (we can do rolling checksum splits
+   of it later. TODO also: figure out if we can compile in non-minifying
+   mode for now, to increase chances of rolling checksums splitting
+   predictably)
+
 -- sharing: make camget work with permanode sets too, not just
    "directory" and "file" things.
 
