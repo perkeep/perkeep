@@ -1,8 +1,15 @@
+-- sharing: make camget work with permanode sets too, not just
+   "directory" and "file" things.
+
+-- sharing: when hitting e.g. http://myserver/share/sha1-xxxxx, if
+   a web browser and not a smart client (Accept header? User-Agent?)
+   then redirect or render a cutesy gallery or file browser instead,
+   still with machine-readable data for slurping.
+
 -- rethink the directory schema so it can a) represent directories
    with millions of files (without making a >1MB or >16MB schema blob),
    probably forming a tree, similar to files. but rather than rolling checksum,
-   just split lexically when nodes get too big. also, maybe denormalize
-   the fileinfo a big?
+   just split lexically when nodes get too big.
 
 -- delete mostly-obsolete camsigd.  see big TODO in camsigd.go.
 
