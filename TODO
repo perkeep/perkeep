@@ -1,3 +1,22 @@
+-- encryption blobserver.Storage wrapper (like cond & replicate)
+   putting encrypted metadata in one blobserver.Storage and encrypted
+   blobs in another blobserver.Storage.  the metadata one will
+   occasionally be scanned and small (single record) items be combined
+   into larger metadata blobs with the small ones removed.
+   enumeration comes from opening all metadata blobs and merge-sorting
+   them all.  the metadata blobs are themselves blobs (content-addressed and all),
+   containing encrypted data of:
+   (plaintext-blobref plaintext-size encrypted-blobref that-enc-blob-IV)
+   Using AES and crypto/cipher (re-consult agl on specifics)
+
+-- peer-to-peer server and blobserver target to store encrypted blobs
+   on stranger's hardrives.  server will be open source so groups of
+   friends/family can run their own for small circles, or some company
+   could run a huge instance.  spray encrypted backup chunks across
+   friends' machines, and have central server(s) present challenges to
+   the replicas to have them verify what they have and how big, and
+   also occasionally say what the SHA-1("challenge" + blob-data) is.
+
 -- newui: add a Makefile rule (like "make embeds") to actually run the
    Closure Compiler on the newui code, and show errors/warnings, and
    generate new z*_embed.js file(s). (we can do rolling checksum splits
