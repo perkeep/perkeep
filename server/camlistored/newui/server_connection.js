@@ -125,6 +125,24 @@ camlistore.ServerConnection.prototype.newSetAttributeClaim =
 };
 
 
+/**
+ * @param {string} permanode Permanode blobref.
+ * @param {string} attribute Name of the attribute to set.
+ * @param {string} value Value to set the attribute to.
+ * @param {function(string)} success Success callback, called with blobref of
+ *   uploaded file.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.newAddAttributeClaim =
+    function(permanode, attribute, value, success, opt_fail) {
+  // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
+  camliNewAddAttributeClaim(permanode, attribute, value, {
+    success: success,
+    fail: opt_fail
+  });
+};
+
+
 camlistore.ServerConnection.prototype.describeWithThumbnails =
     function(blobref, thumbnailSize, success, opt_fail) {
   // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
