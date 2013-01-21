@@ -4,6 +4,7 @@
  */
 goog.provide('camlistore.IndexPage');
 
+goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
@@ -148,16 +149,44 @@ camlistore.IndexPage.prototype.exitDocument = function() {
 
 
 /**
- * @type {Array.<camlistore.BlobItem>}
+ * @param {Array.<camlistore.BlobItem>}
  * @private
  */
 camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {
-  /*this.connection_.createPermanode(
-      function(p) {
+  this.connection_.createPermanode(
+      goog.bind(this.createPermanodeDone_, this, blobItems));
+};
 
-      },
-      function(failMsg) {
-        alert('Failed to create permanode' + failMsg);
-      });
-  */
+
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @param {string} permanode Node to add the items to.
+ * @private
+ */
+camlistore.IndexPage.prototype.createPermanodeDone_ =
+    function(blobItems, permanode) {
+  var deferredList = [];
+  var complete = goog.bind(this.addItemsToSetDone_, this, permanode);
+  var callback = function() {
+    deferredList.push(1);
+    if (deferredList.length == blobItems.length + 1) {
+      complete();
+    }
+  };
+
+  this.connection_.newAddAttributeClaim(
+        permanode, 'title', 'My new set', callback);
+  goog.array.forEach(blobItems, function(blobItem, index) {
+    this.connection_.newAddAttributeClaim(
+        permanode, 'camliMember', blobItem.getBlobRef(), callback);
+  }, this);
+};
+
+
+/**
+ * @param {string} permanode Node to which the items were added.
+ * @private
+ */
+camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
+  this.blobItemContainer_.showRecent();
 };

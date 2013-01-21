@@ -383,6 +383,8 @@ camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
 
 
 /**
+ * @param {File} file File to upload.
+ * @param {string} blobRef BlobRef for the uploaded file.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
@@ -393,6 +395,9 @@ camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
 
 
 /**
+ * @param {File} file File to upload.
+ * @param {string} blobRef BlobRef for the uploaded file.
+ * @param {string} permanode Permanode this blobRef is now the content of.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
@@ -405,6 +410,9 @@ camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
 
 
 /**
+ * @param {File} file File to upload.
+ * @param {string} blobRef BlobRef for the uploaded file.
+ * @param {string} permanode Permanode this blobRef is now the content of.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
@@ -417,6 +425,8 @@ camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
 
 
 /**
+ * @param {string} permanode Node to describe.
+ * @param {Object} metaBag Object of properties for the node.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =

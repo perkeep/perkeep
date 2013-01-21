@@ -106,6 +106,14 @@ camlistore.BlobItem.resolve = function(blobRef, metaBag) {
 /**
  * @return {string}
  */
+camlistore.BlobItem.prototype.getBlobRef = function() {
+  return this.blobRef_;
+};
+
+
+/**
+ * @return {string}
+ */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
   // TODO(bslatkin): Remove the '../' once we move the new UI to the right
   // handler, or change the server side to return an absolute URL.
