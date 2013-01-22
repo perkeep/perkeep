@@ -113,7 +113,7 @@ var Cmds = []string{
 	"git pull",
 	"git rev-parse HEAD",
 	"./make.bash",
-	"make",
+	"make full",
 	"make presubmit",
 	"./dev-server --wipe --mysql",
 	"http://localhost:3179/ui/",
