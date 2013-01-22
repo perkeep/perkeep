@@ -411,6 +411,13 @@ func (ss *Superset) FileMode() os.FileMode {
 // MapUid returns the most appropriate mapping from this file's owner
 // to the local machine's owner, trying first a match by name,
 // followed by just mapping the number through directly.
+func (b *Blob) MapUid() int { return b.ss.MapUid() }
+
+// MapGid returns the most appropriate mapping from this file's group
+// to the local machine's group, trying first a match by name,
+// followed by just mapping the number through directly.
+func (b *Blob) MapGid() int { return b.ss.MapGid() }
+
 func (ss *Superset) MapUid() int {
 	if ss.UnixOwner != "" {
 		uid, ok := getUidFromName(ss.UnixOwner)

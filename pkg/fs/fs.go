@@ -18,7 +18,6 @@ package fs
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -51,7 +50,7 @@ type CamliFileSystem struct {
 	// permissions to 0600/0700.
 	IgnoreOwners bool
 
-	blobToSchema *lru.Cache // ~map[blobstring]*schema.Superset
+	blobToSchema *lru.Cache // ~map[blobstring]*schema.Blob
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
@@ -80,14 +79,14 @@ func NewCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 func NewRootedCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) (*CamliFileSystem, error) {
 	fs := newCamliFileSystem(fetcher)
 
-	ss, err := fs.fetchSchemaSuperset(root)
+	blob, err := fs.fetchSchemaMeta(root)
 	if err != nil {
 		return nil, err
 	}
-	if ss.Type != "directory" {
-		return nil, fmt.Errorf("Blobref must be of a directory, got a %v", ss.Type)
+	if blob.Type() != "directory" {
+		return nil, fmt.Errorf("Blobref must be of a directory, got a %v", blob.Type())
 	}
-	n := &node{fs: fs, blobref: root, ss: ss}
+	n := &node{fs: fs, blobref: root, meta: blob}
 	n.populateAttr()
 	fs.root = n
 	return fs, nil
@@ -104,7 +103,7 @@ type node struct {
 
 	mu      sync.Mutex // guards rest
 	attr    fuse.Attr
-	ss      *schema.Superset
+	meta    *schema.Blob
 	lookMap map[string]*blobref.BlobRef
 }
 
@@ -150,19 +149,19 @@ func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	return &node{fs: n.fs, blobref: ref}, nil
 }
 
-func (n *node) schema() (*schema.Superset, error) {
+func (n *node) schema() (*schema.Blob, error) {
 	// TODO: use singleflight library here instead of a lock?
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.ss != nil {
-		return n.ss, nil
+	if n.meta != nil {
+		return n.meta, nil
 	}
-	ss, err := n.fs.fetchSchemaSuperset(n.blobref)
+	blob, err := n.fs.fetchSchemaMeta(n.blobref)
 	if err == nil {
-		n.ss = ss
+		n.meta = blob
 		n.populateAttr()
 	}
-	return ss, err
+	return blob, err
 }
 
 func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
@@ -172,7 +171,7 @@ func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Int
 		log.Printf("open of %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	if ss.Type == "directory" {
+	if ss.Type() == "directory" {
 		return n, nil
 	}
 	fr, err := ss.NewFileReader(n.fs.fetcher)
@@ -229,18 +228,18 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	if err != nil {
 		return nil, fuse.EIO
 	}
-	setRef := blobref.Parse(ss.Entries)
+	setRef := ss.DirectoryEntries()
 	if setRef == nil {
 		return nil, nil
 	}
 	log.Printf("fetching setref: %v...", setRef)
-	setss, err := n.fs.fetchSchemaSuperset(setRef)
+	setss, err := n.fs.fetchSchemaMeta(setRef)
 	if err != nil {
 		log.Printf("fetching %v for readdir on %v: %v", setRef, n.blobref, err)
 		return nil, fuse.EIO
 	}
-	if setss.Type != "static-set" {
-		log.Printf("%v is not a static-set in readdir; is a %q", setRef, setss.Type)
+	if setss.Type() != "static-set" {
+		log.Printf("%v is not a static-set in readdir; is a %q", setRef, setss.Type())
 		return nil, fuse.EIO
 	}
 
@@ -251,26 +250,21 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	// in one round-trip, rather than attacking the server with hundreds
 	// of parallel TLS setups.
 
-	// res is the result of fetchSchemaSuperset.  the ssc slice of channels keeps them ordered
+	// res is the result of fetchSchemaMeta.  the ssc slice of channels keeps them ordered
 	// the same as they're listed in the schema's Members.
 	type res struct {
 		*blobref.BlobRef
-		*schema.Superset
+		*schema.Blob
 		error
 	}
 	var ssc []chan res
-	for _, member := range setss.Members {
-		memberRef := blobref.Parse(member)
-		if memberRef == nil {
-			log.Printf("invalid blobref of %q in static set %s", member, setRef)
-			return nil, fuse.EIO
-		}
+	for _, memberRef := range setss.StaticSetMembers() {
 		ch := make(chan res, 1)
 		ssc = append(ssc, ch)
 		// TODO: move the cmd/camput/chanworker.go into its own package, and use it here. only
 		// have 10 or so of these loading at once.  for now we do them all. 
 		go func() {
-			mss, err := n.fs.fetchSchemaSuperset(memberRef)
+			mss, err := n.fs.fetchSchemaMeta(memberRef)
 			if err != nil {
 				log.Printf("error reading entry %v in readdir: %v", memberRef, err)
 			}
@@ -282,14 +276,14 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	for i, ch := range ssc {
 		log.Printf("CAMLI dir %v set %v, waiting on entry %d/%d", n.blobref, setRef, i+1, len(ssc))
 		r := <-ch
-		memberRef, mss, err := r.BlobRef, r.Superset, r.error
+		memberRef, mss, err := r.BlobRef, r.Blob, r.error
 		if err != nil {
 			return nil, fuse.EIO
 		}
-		if filename := mss.FileNameString(); filename != "" {
+		if filename := mss.FileName(); filename != "" {
 			n.addLookupEntry(filename, memberRef)
 			n.dirents = append(n.dirents, fuse.Dirent{
-				Name: mss.FileNameString(),
+				Name: mss.FileName(),
 			})
 		}
 	}
@@ -299,9 +293,9 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 // populateAttr should only be called once n.ss is known to be set and
 // non-nil
 func (n *node) populateAttr() error {
-	ss := n.ss
+	meta := n.meta
 
-	n.attr.Mode = ss.FileMode()
+	n.attr.Mode = meta.FileMode()
 
 	if n.fs.IgnoreOwners {
 		n.attr.Uid = uint32(os.Getuid())
@@ -309,24 +303,24 @@ func (n *node) populateAttr() error {
 		executeBit := n.attr.Mode & 0100
 		n.attr.Mode = (n.attr.Mode ^ n.attr.Mode.Perm()) & 0400 & executeBit
 	} else {
-		n.attr.Uid = uint32(ss.MapUid())
-		n.attr.Gid = uint32(ss.MapGid())
+		n.attr.Uid = uint32(meta.MapUid())
+		n.attr.Gid = uint32(meta.MapGid())
 	}
 
 	// TODO: inode?
 
-	n.attr.Mtime = ss.ModTime()
+	n.attr.Mtime = meta.ModTime()
 
-	switch ss.Type {
+	switch meta.Type() {
 	case "file":
-		n.attr.Size = ss.SumPartsSize()
+		n.attr.Size = uint64(meta.PartsSize())
 		n.attr.Blocks = 0 // TODO: set?
 	case "directory":
 		// Nothing special? Just prevent default case.
 	case "symlink":
 		// Nothing special? Just prevent default case.
 	default:
-		log.Printf("unknown attr ss.Type %q in populateAttr", ss.Type)
+		log.Printf("unknown attr ss.Type %q in populateAttr", meta.Type())
 	}
 	return nil
 }
@@ -350,10 +344,10 @@ func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsRespo
 // Errors returned are:
 //    os.ErrNotExist -- blob not found
 //    os.ErrInvalid -- not JSON or a camli schema blob
-func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Superset, error) {
+func (fs *CamliFileSystem) fetchSchemaMeta(br *blobref.BlobRef) (*schema.Blob, error) {
 	blobStr := br.String()
-	if ss, ok := fs.blobToSchema.Get(blobStr); ok {
-		return ss.(*schema.Superset), nil
+	if blob, ok := fs.blobToSchema.Get(blobStr); ok {
+		return blob.(*schema.Blob), nil
 	}
 
 	rsc, _, err := fs.fetcher.Fetch(br)
@@ -361,18 +355,15 @@ func (fs *CamliFileSystem) fetchSchemaSuperset(br *blobref.BlobRef) (*schema.Sup
 		return nil, err
 	}
 	defer rsc.Close()
-	jd := json.NewDecoder(rsc)
-	ss := new(schema.Superset)
-	err = jd.Decode(ss)
+	blob, err := schema.BlobFromReader(br, rsc)
 	if err != nil {
 		log.Printf("Error parsing %s as schema blob: %v", br, err)
 		return nil, os.ErrInvalid
 	}
-	if ss.Type == "" {
+	if blob.Type() == "" {
 		log.Printf("blob %s is JSON but lacks camliType", br)
 		return nil, os.ErrInvalid
 	}
-	ss.BlobRef = br
-	fs.blobToSchema.Add(blobStr, ss)
-	return ss, nil
+	fs.blobToSchema.Add(blobStr, blob)
+	return blob, nil
 }
