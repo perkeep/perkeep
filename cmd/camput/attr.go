@@ -75,7 +75,7 @@ func (c *attrCmd) RunCommand(up *Uploader, args []string) error {
 			return errors.New("del not yet implemented")
 		}
 	}
-	put, err := up.UploadAndSignMap(m)
+	put, err := up.UploadAndSignBlob(m)
 	handleResult(m["claimType"].(string), put, err)
 	return nil
 }

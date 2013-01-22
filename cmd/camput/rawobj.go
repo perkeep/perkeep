@@ -51,6 +51,7 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 		return errors.New("Raw Object command doesn't take any additional arguments")
 	}
 
+	// TODO: replace this with a schema.BlobBuilder or something.
 	m := make(schema.Map)
 	if c.vals == "" {
 		return errors.New("No values")
@@ -64,7 +65,7 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	if c.signed {
-		put, err := up.UploadAndSignMap(m)
+		put, err := up.UploadAndSignBlob(m)
 		handleResult("raw-object-signed", put, err)
 		return err
 	}

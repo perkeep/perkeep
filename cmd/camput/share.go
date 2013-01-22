@@ -63,5 +63,5 @@ func (c *shareCmd) RunCommand(up *Uploader, args []string) error {
 
 func (up *Uploader) UploadShare(target *blobref.BlobRef, transitive bool) (*client.PutResult, error) {
 	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
-	return up.UploadAndSignMap(unsigned)
+	return up.UploadAndSignBlob(unsigned)
 }

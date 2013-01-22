@@ -84,7 +84,7 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	if c.name != "" {
-		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.name))
+		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.name))
 		handleResult("claim-permanode-title", put, err)
 	}
 	if c.tag != "" {
@@ -92,7 +92,7 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
 		m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 		for _, tag := range tags {
 			m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-			put, err := up.UploadAndSignMap(m)
+			put, err := up.UploadAndSignBlob(m)
 			handleResult("claim-permanode-tag", put, err)
 		}
 	}

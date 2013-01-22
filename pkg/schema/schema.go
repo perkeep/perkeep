@@ -58,6 +58,35 @@ func (m Map) Type() string {
 	return t
 }
 
+// TODO(bradfitz): delete this, once Map is deleted.
+func (m Map) Blob() *Blob {
+	return MapToBlob(m)
+}
+
+func (m Map) Builder() *Builder {
+	return &Builder{clone(m).(map[string]interface{})}
+}
+
+func clone(i interface{}) interface{} {
+	switch t := i.(type) {
+	case map[string]interface{}:
+		m2 := make(map[string]interface{})
+		for k, v := range t {
+			m2[k] = clone(v)
+		}
+		return m2
+	case string, int, int64, float64:
+		return t
+	case []interface{}:
+		s2 := make([]interface{}, len(t))
+		for i, v := range t {
+			s2[i] = clone(v)
+		}
+		return s2
+	}
+	panic(fmt.Sprintf("unsupported clone type %T", i))
+}
+
 // SetClaimDate sets the "claimDate" on a claim.
 // It is a fatal error to call SetClaimDate if the Map isn't of Type "claim".
 func (m Map) SetClaimDate(t time.Time) {
@@ -217,6 +246,7 @@ func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.
 
 // Superset represents the superset of common Camlistore JSON schema
 // keys as a convenient json.Unmarshal target.
+// TODO(bradfitz): unexport this type. Getting too gross. Move to schema.Blob
 type Superset struct {
 	// BlobRef isn't for a particular metadata blob field, but included
 	// for convenience.

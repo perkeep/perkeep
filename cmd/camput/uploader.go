@@ -77,20 +77,16 @@ func (o *fileOptions) wantVivify() bool {
 
 // sigTime optionally specifies the signature time.
 // If zero, the current time is used.
-func (up *Uploader) SignMap(m schema.Map, sigTime time.Time) (string, error) {
+func (up *Uploader) SignBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
 	camliSigBlobref := up.Client.SignerPublicKeyBlobref()
 	if camliSigBlobref == nil {
 		// TODO: more helpful error message
 		return "", errors.New("No public key configured.")
 	}
 
-	m["camliSigner"] = camliSigBlobref.String()
-	unsigned, err := m.JSON()
-	if err != nil {
-		return "", err
-	}
+	b := bb.Builder().SetSigner(camliSigBlobref).Blob()
 	sr := &jsonsign.SignRequest{
-		UnsignedJSON:  unsigned,
+		UnsignedJSON:  b.JSON(),
 		Fetcher:       up.Client.GetBlobFetcher(),
 		EntityFetcher: up.entityFetcher,
 		SignatureTime: sigTime,
@@ -98,20 +94,18 @@ func (up *Uploader) SignMap(m schema.Map, sigTime time.Time) (string, error) {
 	return sr.Sign()
 }
 
-func (up *Uploader) UploadMap(m schema.Map) (*client.PutResult, error) {
-	json, err := m.JSON()
-	if err != nil {
-		return nil, err
-	}
-	return up.uploadString(json)
-}
-
-func (up *Uploader) UploadAndSignMap(m schema.Map) (*client.PutResult, error) {
-	signed, err := up.SignMap(m, time.Time{})
+func (up *Uploader) UploadAndSignBlob(b schema.AnyBlob) (*client.PutResult, error) {
+	signed, err := up.SignBlob(b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
 	return up.uploadString(signed)
+}
+
+func (up *Uploader) UploadBlob(b schema.AnyBlob) (*client.PutResult, error) {
+	// TODO(bradfitz): ask the blob for its own blobref, rather
+	// than changing the hash function with uploadString?
+	return up.uploadString(b.Blob().JSON())
 }
 
 func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
@@ -120,12 +114,12 @@ func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
 
 func (up *Uploader) UploadNewPermanode() (*client.PutResult, error) {
 	unsigned := schema.NewUnsignedPermanode()
-	return up.UploadAndSignMap(unsigned)
+	return up.UploadAndSignBlob(unsigned)
 }
 
 func (up *Uploader) UploadPlannedPermanode(key string, sigTime time.Time) (*client.PutResult, error) {
 	unsigned := schema.NewPlannedPermanode(key)
-	signed, err := up.SignMap(unsigned, sigTime)
+	signed, err := up.SignBlob(unsigned, sigTime)
 	if err != nil {
 		return nil, err
 	}

@@ -212,12 +212,12 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	if permaNode != nil {
-		put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
+		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
 		}
 		if c.name != "" {
-			put, err := up.UploadAndSignMap(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
+			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
 			handleResult("claim-permanode-name", put, err)
 		}
 		if c.tag != "" {
@@ -225,7 +225,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 			m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 			for _, tag := range tags {
 				m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-				put, err := up.UploadAndSignMap(m)
+				put, err := up.UploadAndSignBlob(m)
 				handleResult("claim-permanode-tag", put, err)
 			}
 		}
@@ -357,14 +357,14 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 			}
 			ss.Add(pr.BlobRef)
 		}
-		sspr, err := up.UploadMap(ss.Map())
+		sspr, err := up.UploadBlob(ss.Map())
 		if err != nil {
 			return nil, err
 		}
 		schema.PopulateDirectoryMap(m, sspr.BlobRef)
 	}
 
-	mappr, err := up.UploadMap(m)
+	mappr, err := up.UploadBlob(m)
 	if err == nil {
 		if !mappr.Skipped {
 			vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, n.fullPath)
@@ -569,7 +569,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		}
 		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", blobref.String())
 		contentAttr.SetClaimDate(claimTime)
-		signed, err := up.SignMap(contentAttr, claimTime)
+		signed, err := up.SignBlob(contentAttr, claimTime)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
 		}
@@ -585,7 +585,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 					m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 					m.SetClaimDate(claimTime)
 					// TODO(mpl): verify that SetClaimDate does modify the GPG signature date of the claim
-					signed, err := up.SignMap(m, claimTime)
+					signed, err := up.SignBlob(m, claimTime)
 					if err != nil {
 						errch <- fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
 						return
