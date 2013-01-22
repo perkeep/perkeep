@@ -18,7 +18,6 @@ package cond
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -146,15 +145,15 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 	return nil, fmt.Errorf("cond: unsupported 'if' type of %q", ifStr)
 }
 
+// dummyRef is just a dummy reference to give to BlobFromReader.
+var dummyRef = blobref.MustParse("sha1-829c3804401b0727f70f73d4415e162400cbe57b")
+
 func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	return func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error) {
 		var buf bytes.Buffer
-		var ss schema.Superset
-		if err = json.NewDecoder(io.TeeReader(src, &buf)).Decode(&ss); err != nil {
-			return elseSto, buf.Bytes(), nil
-		}
-		if ss.Type == "" {
-			// json, but not schema, so use the else path.
+		tee := io.TeeReader(src, &buf)
+		blob, err := schema.BlobFromReader(dummyRef, tee)
+		if err != nil || blob.Type() == "" {
 			return elseSto, buf.Bytes(), nil
 		}
 		return thenSto, buf.Bytes(), nil
