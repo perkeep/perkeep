@@ -68,15 +68,15 @@ func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reade
 	return WriteFileMap(bs, m, r)
 }
 
-// WriteFileMap uploads chunks of r to bs while populating fileMap and
-// finally uploading fileMap. The returned blobref is of fileMap's
+// WriteFileMap uploads chunks of r to bs while populating file and
+// finally uploading file's Blob. The returned blobref is of file's
 // JSON blob.
-func WriteFileMap(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobref.BlobRef, error) {
-	return writeFileMapRolling(bs, fileMap, r)
+func WriteFileMap(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*blobref.BlobRef, error) {
+	return writeFileMapRolling(bs, file, r)
 }
 
 // This is the simple 1MB chunk version. The rolling checksum version is below.
-func writeFileMapOld(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blobref.BlobRef, error) {
+func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*blobref.BlobRef, error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	var buf bytes.Buffer
@@ -115,12 +115,12 @@ func writeFileMapOld(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (*blo
 		})
 	}
 
-	err := PopulateParts(fileMap, size, parts)
+	err := file.PopulateParts(size, parts)
 	if err != nil {
 		return nil, err
 	}
 
-	json, err := fileMap.JSON()
+	json := file.Blob().JSON()
 	if err != nil {
 		return nil, err
 	}
@@ -202,21 +202,18 @@ func uploadString(bs blobserver.StatReceiver, s string) (*blobref.BlobRef, error
 // "file", which is a superset of "bytes"), sets it to the provided
 // size, and populates with provided spans.  The bytes or file schema
 // blob is uploaded and its blobref is returned.
-func uploadBytes(bs blobserver.StatReceiver, mapSource func() Map, size int64, s []span) (*blobref.BlobRef, error) {
+func uploadBytes(bs blobserver.StatReceiver, source func() *Builder, size int64, s []span) (*blobref.BlobRef, error) {
 	parts := []BytesPart{}
 	err := addBytesParts(bs, &parts, s)
 	if err != nil {
 		return nil, err
 	}
-	m := mapSource()
-	err = PopulateParts(m, size, parts)
+	bb := source()
+	err = bb.PopulateParts(size, parts)
 	if err != nil {
 		return nil, err
 	}
-	json, err := m.JSON()
-	if err != nil {
-		return nil, err
-	}
+	json := bb.Blob().JSON()
 	return uploadString(bs, json)
 }
 
@@ -263,9 +260,9 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span) e
 // writeFileMap uploads chunks of r to bs while populating fileMap and
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob. It uses rolling checksum for the chunks sizes.
-func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
-	rootFile := func() Map { return fileMap }
-	n, spans, err := writeFileChunks(bs, fileMap, r)
+func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
+	rootFile := func() *Builder { return file }
+	n, spans, err := writeFileChunks(bs, file, r)
 	if err != nil {
 		return nil, err
 	}
@@ -275,29 +272,27 @@ func writeFileMapRolling(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (
 
 // WriteFileChunks uploads chunks of r to bs while populating fileMap.
 // It does not upload fileMap.
-func WriteFileChunks(bs blobserver.StatReceiver, fileMap Map, r io.Reader) error {
-	rootFile := func() Map { return fileMap }
+func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) error {
+	rootFile := func() *Builder { return file }
 
-	n, spans, err := writeFileChunks(bs, fileMap, r)
+	n, spans, err := writeFileChunks(bs, file, r)
 	if err != nil {
 		return err
 	}
-	topLevel := func(mapSource func() Map, size int64, s []span) error {
+	topLevel := func(source func() *Builder, size int64, s []span) error {
 		parts := []BytesPart{}
 		err := addBytesParts(bs, &parts, s)
 		if err != nil {
 			return err
 		}
-		m := mapSource()
-		err = PopulateParts(m, size, parts)
-		return err
+		return source().PopulateParts(size, parts)
 	}
 
 	// The top-level content parts
 	return topLevel(rootFile, n, spans)
 }
 
-func writeFileChunks(bs blobserver.StatReceiver, fileMap Map, r io.Reader) (n int64, spans []span, outerr error) {
+func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
 	src := &noteEOFReader{r: r}
 	blobSize := 0 // of the next blob being built, should be same as buf.Len()
 	bufr := bufio.NewReaderSize(src, bufioReaderSize)

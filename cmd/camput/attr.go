@@ -63,19 +63,19 @@ func (c *attrCmd) RunCommand(up *Uploader, args []string) error {
 	if pn == nil {
 		return fmt.Errorf("Error parsing blobref %q", permanode)
 	}
-	m := schema.NewSetAttributeClaim(pn, attr, value)
+	bb := schema.NewSetAttributeClaim(pn, attr, value)
 	if c.add {
 		if c.del {
 			return errors.New("Add and del options are exclusive")
 		}
-		m = schema.NewAddAttributeClaim(pn, attr, value)
+		bb = schema.NewAddAttributeClaim(pn, attr, value)
 	} else {
 		// TODO: del, which can make <value> be optional
 		if c.del {
 			return errors.New("del not yet implemented")
 		}
 	}
-	put, err := up.UploadAndSignBlob(m)
-	handleResult(m["claimType"].(string), put, err)
+	put, err := up.UploadAndSignBlob(bb)
+	handleResult(bb.Type(), put, err)
 	return nil
 }

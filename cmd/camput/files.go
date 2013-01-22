@@ -330,7 +330,7 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	if mode&os.ModeType == 0 {
 		return up.uploadNodeRegularFile(n)
 	}
-	m := schema.NewCommonFileMap(n.fullPath, fi)
+	bb := schema.NewCommonFileMap(n.fullPath, fi)
 	switch {
 	case mode&os.ModeSymlink != 0:
 		// TODO(bradfitz): use VFS here; not os.Readlink
@@ -338,7 +338,7 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		m.SetSymlinkTarget(target)
+		bb.SetSymlinkTarget(target)
 	case mode&os.ModeDevice != 0:
 		// including mode & os.ModeCharDevice
 		fallthrough
@@ -347,7 +347,7 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	case mode&os.ModeNamedPipe != 0: // FIFO
 		fallthrough
 	default:
-		return nil, schema.ErrUnimplemented
+		return nil, fmt.Errorf("camput.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case fi.IsDir():
 		ss := new(schema.StaticSet)
 		for _, c := range n.children {
@@ -357,20 +357,20 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 			}
 			ss.Add(pr.BlobRef)
 		}
-		sspr, err := up.UploadBlob(ss.Map())
+		sspr, err := up.UploadBlob(ss)
 		if err != nil {
 			return nil, err
 		}
-		schema.PopulateDirectoryMap(m, sspr.BlobRef)
+		bb.PopulateDirectoryMap(sspr.BlobRef)
 	}
 
-	mappr, err := up.UploadBlob(m)
+	mappr, err := up.UploadBlob(bb)
 	if err == nil {
 		if !mappr.Skipped {
-			vlog.Printf("Uploaded %q, %s for %s", m["camliType"], mappr.BlobRef, n.fullPath)
+			vlog.Printf("Uploaded %q, %s for %s", bb.Type(), mappr.BlobRef, n.fullPath)
 		}
 	} else {
-		vlog.Printf("Error uploading map %v: %v", m, err)
+		vlog.Printf("Error uploading map for %s (%s, %s): %v", n.fullPath, bb.Type(), bb.Blob().BlobRef(), err)
 	}
 	return mappr, err
 
@@ -418,7 +418,7 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 // and then fileMap is uploaded (if necessary) and its blobref is
 // returned.  If there's any problem, or a dup doesn't exist, ok is
 // false.
-func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap schema.Map, sum string) (fileSchema *blobref.BlobRef, ok bool) {
+func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (fileSchema *blobref.BlobRef, ok bool) {
 	_, err := up.Client.SearchRoot()
 	if err != nil {
 		return
@@ -434,26 +434,13 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap sch
 	if *flagVerbose {
 		log.Printf("Found dup of contents %s in file schema %s", sum, dupFileRef)
 	}
-	dupMap, err := up.Client.FetchMap(dupFileRef)
+	dupMap, err := up.Client.FetchSchemaBlob(dupFileRef)
 	if err != nil {
 		log.Printf("Warning: error fetching %v: %v", dupFileRef, err)
 		return nil, false
 	}
-	parts, ok := dupMap["parts"].([]interface{})
-	if !ok {
-		return nil, false
-	}
 
-	fileMap["parts"] = parts // safe, since dupMap never escapes, so sharing parts is okay
-
-	// Hack: convert all the parts' float64 to int64, so they encode as e.g. "1000035"
-	// and not "1.000035e+06".  Perhaps we should work in *schema.SuperSets here, and not
-	// JSON maps.
-	// TODO(bradfitz): clean up?
-	for _, p := range parts {
-		pm := p.(map[string]interface{})
-		pm["size"] = int64(pm["size"].(float64))
-	}
+	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
 
 	json, err := fileMap.JSON()
 	if err != nil {
@@ -473,8 +460,8 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap sch
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
-	m := schema.NewCommonFileMap(n.fullPath, n.fi)
-	m["camliType"] = "file"
+	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
+	filebb.SetType("file")
 	file, err := up.open(n.fullPath)
 	if err != nil {
 		return nil, err
@@ -489,7 +476,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
 		} else {
-			m["unixMtime"] = schema.RFC3339FromTime(modtime)
+			filebb.SetModTime(modtime)
 		}
 	}
 
@@ -497,11 +484,11 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	var fileContents io.Reader = io.LimitReader(file, size)
 
 	if up.fileOpts.wantVivify() {
-		err := schema.WriteFileChunks(up.statReceiver(), m, fileContents)
+		err := schema.WriteFileChunks(up.statReceiver(), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
-		json, err := m.JSON()
+		json, err := filebb.JSON()
 		if err != nil {
 			return nil, err
 		}
@@ -525,7 +512,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		sumRef, err := up.wholeFileDigest(n.fullPath)
 		if err == nil {
 			sum = sumRef.String()
-			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(), m, sum); ok {
+			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(), filebb, sum); ok {
 				blobref = ref
 			}
 		}
@@ -535,7 +522,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if sum == "" && up.fileOpts.wantFilePermanode() {
 			fileContents = &trackDigestReader{r: fileContents}
 		}
-		blobref, err = schema.WriteFileMap(up.statReceiver(), m, fileContents)
+		blobref, err = schema.WriteFileMap(up.statReceiver(), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -563,9 +550,9 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		// There should probably be a method on *Uploader to do this
 		// from an unsigned schema map. Maybe ditch the schema.Claimer
 		// type and just have the Uploader override the claimDate.
-		claimTime, err := time.Parse(time.RFC3339, m["unixMtime"].(string))
-		if err != nil {
-			return nil, fmt.Errorf("While parsing modtime for file %v: %v", n.fullPath, err)
+		claimTime, ok := filebb.ModTime()
+		if !ok {
+			return nil, fmt.Errorf("couldn't get modtime back for file %v", n.fullPath)
 		}
 		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", blobref.String())
 		contentAttr.SetClaimDate(claimTime)
@@ -616,7 +603,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	// blobserver.Storage wrapper type (wrapping
 	// statReceiver) that can track some of this?  or make
 	// schemaWriteFileMap return it?
-	json, _ := m.JSON()
+	json, _ := filebb.JSON()
 	pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
 	return pr, nil
 }

@@ -110,8 +110,8 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 	}
 
 	unsigned := schema.NewHashPlannedPermanode(h)
-	unsigned["camliSigner"] = publicKeyBlobRef
-	signed, err := sigHelper.SignMap(unsigned)
+	unsigned.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	signed, err := sigHelper.Sign(unsigned)
 	if err != nil {
 		return fmt.Errorf("Signing permanode %v: %v", signed, err)
 	}
@@ -127,8 +127,8 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileSchema().FileName, err)
 	}
 	contentAttr.SetClaimDate(claimDate)
-	contentAttr["camliSigner"] = publicKeyBlobRef
-	signed, err = sigHelper.SignMap(contentAttr)
+	contentAttr.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	signed, err = sigHelper.Sign(contentAttr)
 	if err != nil {
 		return fmt.Errorf("Signing camliContent claim: %v", err)
 	}

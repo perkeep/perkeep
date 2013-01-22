@@ -31,13 +31,13 @@ import (
 
 var _ = log.Printf
 
-func (c *Client) FetchMap(b *blobref.BlobRef) (schema.Map, error) {
+func (c *Client) FetchSchemaBlob(b *blobref.BlobRef) (*schema.Blob, error) {
 	rc, _, err := c.FetchStreaming(b)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	return schema.MapFromReader(rc)
+	return schema.BlobFromReader(b, rc)
 }
 
 func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, error) {

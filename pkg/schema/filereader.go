@@ -39,12 +39,12 @@ var errClosed = errors.New("filereader is closed")
 // A FileReader reads the bytes of "file" and "bytes" schema blobrefs.
 type FileReader struct {
 	// Immutable stuff:
-	*io.SectionReader   // provides Read, etc.
-	parent  *FileReader // or nil for sub-region readers to find the ssm map in getSuperset
-	rootOff int64       // this FileReader's offset from the root
-	fetcher blobref.SeekFetcher
-	ss      *Superset
-	size    int64 // total number of bytes
+	*io.SectionReader             // provides Read, etc.
+	parent            *FileReader // or nil for sub-region readers to find the ssm map in getSuperset
+	rootOff           int64       // this FileReader's offset from the root
+	fetcher           blobref.SeekFetcher
+	ss                *Superset
+	size              int64 // total number of bytes
 
 	sfg singleflight.Group // for loading blobrefs for ssm
 
@@ -277,7 +277,7 @@ var debug = os.Getenv("CAMLI_DEBUG") != ""
 // chunk at that offset.  The caller must close the ReadCloser when done reading.
 func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	if debug {
-		log.Printf("(%p) readerForOffset %d + %d = %d", fr, fr.rootOff, off, fr.rootOff + off)
+		log.Printf("(%p) readerForOffset %d + %d = %d", fr, fr.rootOff, off, fr.rootOff+off)
 	}
 	if off < 0 {
 		panic("negative offset")

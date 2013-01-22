@@ -243,9 +243,9 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 	rw.Write([]byte(signedJSON))
 }
 
-func (h *Handler) SignMap(m schema.Map) (string, error) {
-	m["camliSigner"] = h.pubKeyBlobRef.String()
-	unsigned, err := m.JSON()
+func (h *Handler) Sign(bb *schema.Builder) (string, error) {
+	bb.SetSigner(h.pubKeyBlobRef)
+	unsigned, err := bb.JSON()
 	if err != nil {
 		return "", err
 	}

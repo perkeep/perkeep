@@ -51,25 +51,22 @@ func (c *rawCmd) RunCommand(up *Uploader, args []string) error {
 		return errors.New("Raw Object command doesn't take any additional arguments")
 	}
 
-	// TODO: replace this with a schema.BlobBuilder or something.
-	m := make(schema.Map)
 	if c.vals == "" {
 		return errors.New("No values")
 	}
+
+	bb := schema.NewBuilder()
 	for _, kv := range strings.Split(c.vals, "|") {
 		kv := strings.SplitN(kv, "=", 2)
-		m[kv[0]] = kv[1]
-	}
-	if _, ok := m["camliVersion"]; !ok {
-		m["camliVersion"] = "1"
+		bb.SetRawStringField(kv[0], kv[1])
 	}
 
 	if c.signed {
-		put, err := up.UploadAndSignBlob(m)
+		put, err := up.UploadAndSignBlob(bb)
 		handleResult("raw-object-signed", put, err)
 		return err
 	}
-	cj, err := m.JSON()
+	cj, err := bb.JSON()
 	if err != nil {
 		return err
 	}

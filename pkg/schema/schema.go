@@ -32,13 +32,11 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
@@ -46,64 +44,9 @@ import (
 
 var sha1Type = reflect.TypeOf(sha1.New())
 
-// Map is an unencoded schema blob.
-//
-// A Map is typically used during construction of a new schema blob or
-// claim.
-type Map map[string]interface{}
-
-// Type returns the map's "camliType" value.
-func (m Map) Type() string {
-	t, _ := m["camliType"].(string)
-	return t
-}
-
-// TODO(bradfitz): delete this, once Map is deleted.
-func (m Map) Blob() *Blob {
-	return MapToBlob(m)
-}
-
-func (m Map) Builder() *Builder {
-	return &Builder{clone(m).(map[string]interface{})}
-}
-
-func clone(i interface{}) interface{} {
-	switch t := i.(type) {
-	case map[string]interface{}:
-		m2 := make(map[string]interface{})
-		for k, v := range t {
-			m2[k] = clone(v)
-		}
-		return m2
-	case string, int, int64, float64:
-		return t
-	case []interface{}:
-		s2 := make([]interface{}, len(t))
-		for i, v := range t {
-			s2[i] = clone(v)
-		}
-		return s2
-	}
-	panic(fmt.Sprintf("unsupported clone type %T", i))
-}
-
-// SetClaimDate sets the "claimDate" on a claim.
-// It is a fatal error to call SetClaimDate if the Map isn't of Type "claim".
-func (m Map) SetClaimDate(t time.Time) {
-	if t := m.Type(); t != "claim" {
-		// This is a little gross, using panic here, but I
-		// don't want all callers to check errors.  This is
-		// really a programming error, not a runtime error
-		// that would arise from e.g. random user data.
-		panic("SetClaimDate called on non-claim Map; camliType=" + t)
-	}
-	m["claimDate"] = RFC3339FromTime(t)
-}
-
-var _ = log.Printf
-
-var ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
-var ErrUnimplemented = errors.New("schema: unimplemented")
+var (
+	ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
+)
 
 type StatHasher interface {
 	Lstat(fileName string) (os.FileInfo, error)
@@ -302,12 +245,23 @@ type Superset struct {
 }
 
 func ParseSuperset(r io.Reader) (*Superset, error) {
-	// TODO: rename either this or MapFromReader to be named similarly?
 	var ss Superset
 	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss); err != nil {
 		return nil, err
 	}
 	return &ss, nil
+}
+
+func BlobFromReader(ref *blobref.BlobRef, r io.Reader) (*Blob, error) {
+	if ref == nil {
+		return nil, errors.New("schema.BlobFromReader: nil blobref")
+	}
+	var buf bytes.Buffer
+	ss, err := ParseSuperset(io.TeeReader(r, &buf))
+	if err != nil {
+		return nil, err
+	}
+	return &Blob{ref, buf.String(), ss}, nil
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
@@ -475,39 +429,39 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 	ss.refs = append(ss.refs, ref)
 }
 
-func newMap(version int, ctype string) Map {
-	return Map{
+func newMap(version int, ctype string) *Builder {
+	return &Builder{map[string]interface{}{
 		"camliVersion": version,
 		"camliType":    ctype,
-	}
+	}}
 }
 
 // NewUnsignedPermanode returns a new random permanode, not yet signed.
-func NewUnsignedPermanode() Map {
-	m := newMap(1, "permanode")
+func NewUnsignedPermanode() *Builder {
+	bb := newMap(1, "permanode")
 	chars := make([]byte, 20)
 	_, err := io.ReadFull(rand.Reader, chars)
 	if err != nil {
 		panic("error reading random bytes: " + err.Error())
 	}
-	m["random"] = base64.StdEncoding.EncodeToString(chars)
-	return m
+	bb.m["random"] = base64.StdEncoding.EncodeToString(chars)
+	return bb
 }
 
 // NewPlannedPermanode returns a permanode with a fixed key.  Like
-// NewUnsignedPermanode, this Map is also not yet signed.  Callers of
+// NewUnsignedPermanode, this builder is also not yet signed.  Callers of
 // NewPlannedPermanode must sign the map with a fixed claimDate and
 // GPG date to create consistent JSON encodings of the Map (its
 // blobref), between runs.
-func NewPlannedPermanode(key string) Map {
-	m := newMap(1, "permanode")
-	m["key"] = key
-	return m
+func NewPlannedPermanode(key string) *Builder {
+	bb := newMap(1, "permanode")
+	bb.m["key"] = key
+	return bb
 }
 
 // NewHashPlannedPermanode returns a planned permanode with the sum
 // of the hash, prefixed with "sha1-", as the key.
-func NewHashPlannedPermanode(h hash.Hash) Map {
+func NewHashPlannedPermanode(h hash.Hash) *Builder {
 	if reflect.TypeOf(h) != sha1Type {
 		panic("Hash not supported. Only sha1 for now.")
 	}
@@ -515,8 +469,9 @@ func NewHashPlannedPermanode(h hash.Hash) Map {
 }
 
 // Map returns a Camli map of camliType "static-set"
-func (ss *StaticSet) Map() Map {
-	m := newMap(1, "static-set")
+// TODO: delete this method
+func (ss *StaticSet) Blob() *Blob {
+	bb := newMap(1, "static-set")
 	ss.l.Lock()
 	defer ss.l.Unlock()
 
@@ -526,8 +481,8 @@ func (ss *StaticSet) Map() Map {
 			members = append(members, ref.String())
 		}
 	}
-	m["members"] = members
-	return m
+	bb.m["members"] = members
+	return bb.Blob()
 }
 
 // JSON returns the map m encoded as JSON in its
@@ -536,7 +491,7 @@ func (ss *StaticSet) Map() Map {
 //
 //   {"camliVersion":
 //
-func (m Map) JSON() (string, error) {
+func mapJSON(m map[string]interface{}) (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
 		return "", ErrNoCamliVersion
@@ -553,56 +508,53 @@ func (m Map) JSON() (string, error) {
 	return buf.String(), nil
 }
 
-// NewFileMap returns a new Map of type "file" for the provided fileName.
+// NewFileMap returns a new builder of a type "file" schema for the provided fileName.
 // The chunk parts of the file are not populated.
-func NewFileMap(fileName string) Map {
-	m := newCommonFilenameMap(fileName)
-	m["camliType"] = "file"
-	return m
+func NewFileMap(fileName string) *Builder {
+	return newCommonFilenameMap(fileName).SetType("file")
 }
 
-func newCommonFilenameMap(fileName string) Map {
-	m := newMap(1, "" /* no type yet */)
+func newCommonFilenameMap(fileName string) *Builder {
+	bb := newMap(1, "" /* no type yet */)
 	if fileName != "" {
-		baseName := filepath.Base(fileName)
-		if utf8.ValidString(baseName) {
-			m["fileName"] = baseName
-		} else {
-			m["fileNameBytes"] = []uint8(baseName)
-		}
+		bb.SetFileName(fileName)
 	}
-	return m
+	return bb
 }
 
-var populateSchemaStat []func(schemaMap Map, fi os.FileInfo)
+var populateSchemaStat []func(schemaMap map[string]interface{}, fi os.FileInfo)
 
-func NewCommonFileMap(fileName string, fi os.FileInfo) Map {
-	m := newCommonFilenameMap(fileName)
+func NewCommonFileMap(fileName string, fi os.FileInfo) *Builder {
+	bb := newCommonFilenameMap(fileName)
 	// Common elements (from file-common.txt)
 	if fi.Mode()&os.ModeSymlink == 0 {
-		m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
+		bb.m["unixPermission"] = fmt.Sprintf("0%o", fi.Mode().Perm())
 	}
 
 	// OS-specific population; defined in schema_posix.go, etc. (not on App Engine)
 	for _, f := range populateSchemaStat {
-		f(m, fi)
+		f(bb.m, fi)
 	}
 
 	if mtime := fi.ModTime(); !mtime.IsZero() {
-		m["unixMtime"] = RFC3339FromTime(mtime)
+		bb.m["unixMtime"] = RFC3339FromTime(mtime)
 	}
-	return m
+	return bb
 }
 
-// PopulateParts populates the "parts" field of m with the provided
+// PopulateParts sets the "parts" field of the blob with the provided
 // parts.  The sum of the sizes of parts must match the provided size
 // or an error is returned.  Also, each BytesPart may only contain either
 // a BytesPart or a BlobRef, but not both.
-func PopulateParts(m Map, size int64, parts []BytesPart) error {
+func (bb *Builder) PopulateParts(size int64, parts []BytesPart) error {
+	return populateParts(bb.m, size, parts)
+}
+
+func populateParts(m map[string]interface{}, size int64, parts []BytesPart) error {
 	sumSize := int64(0)
-	mparts := make([]Map, len(parts))
+	mparts := make([]map[string]interface{}, len(parts))
 	for idx, part := range parts {
-		mpart := make(Map)
+		mpart := make(map[string]interface{})
 		mparts[idx] = mpart
 		switch {
 		case part.BlobRef != nil && part.BytesRef != nil:
@@ -627,31 +579,16 @@ func PopulateParts(m Map, size int64, parts []BytesPart) error {
 	return nil
 }
 
-// SetSymlinkTarget sets m to be of type "symlink" and sets the symlink's target.
-func (m Map) SetSymlinkTarget(target string) {
-	m["camliType"] = "symlink"
-	if utf8.ValidString(target) {
-		m["symlinkTarget"] = target
-	} else {
-		m["symlinkTargetBytes"] = []uint8(target)
-	}
-}
-
-func newBytes() Map {
+func newBytes() *Builder {
 	return newMap(1, "bytes")
 }
 
-func PopulateDirectoryMap(m Map, staticSetRef *blobref.BlobRef) {
-	m["camliType"] = "directory"
-	m["entries"] = staticSetRef.String()
-}
-
-func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) Map {
-	m := newMap(1, "share")
-	m["authType"] = authType
-	m["target"] = target.String()
-	m["transitive"] = transitive
-	return m
+func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Builder {
+	bb := newMap(1, "share")
+	bb.m["authType"] = authType
+	bb.m["target"] = target.String()
+	bb.m["transitive"] = transitive
+	return bb
 }
 
 const (
@@ -660,42 +597,33 @@ const (
 	DelAttribute = "del-attribute"
 )
 
-func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) Map {
-	m := newMap(1, "claim")
-	m["permaNode"] = permaNode.String()
-	m["claimType"] = claimType
-	m.SetClaimDate(t)
-	return m
+func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) *Builder {
+	bb := newMap(1, "claim")
+	bb.m["permaNode"] = permaNode.String()
+	bb.m["claimType"] = claimType
+	bb.SetClaimDate(t)
+	return bb
 }
 
-func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) Map {
-	m := newClaim(permaNode, t, claimType)
-	m["attribute"] = attr
-	m["value"] = value
-	return m
+func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) *Builder {
+	bb := newClaim(permaNode, t, claimType)
+	bb.m["attribute"] = attr
+	bb.m["value"] = value
+	return bb
 }
 
-func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) Map {
+func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
 	return newAttrChangeClaim(permaNode, time.Now(), SetAttribute, attr, value)
 }
 
-func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) Map {
+func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
 	return newAttrChangeClaim(permaNode, time.Now(), AddAttribute, attr, value)
 }
 
-func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) Map {
-	m := newAttrChangeClaim(permaNode, time.Now(), DelAttribute, attr, "")
-	delete(m, "value")
-	return m
-}
-
-// MapFromReader parses a JSON schema map from the provided reader r.
-func MapFromReader(r io.Reader) (Map, error) {
-	m := make(Map)
-	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&m); err != nil {
-		return nil, err
-	}
-	return m, nil
+func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) *Builder {
+	bb := newAttrChangeClaim(permaNode, time.Now(), DelAttribute, attr, "")
+	delete(bb.m, "value")
+	return bb
 }
 
 // ShareHaveRef is the a share type specifying that if you "have the

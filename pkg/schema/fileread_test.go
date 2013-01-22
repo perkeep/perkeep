@@ -62,7 +62,7 @@ func filePart(cps []*BytesPart, skip uint64) *BytesPart {
 		fileSize += int64(cp.Size)
 		cpl = append(cpl, *cp)
 	}
-	err := PopulateParts(m, fileSize, cpl)
+	err := m.PopulateParts(fileSize, cpl)
 	if err != nil {
 		panic(err)
 	}

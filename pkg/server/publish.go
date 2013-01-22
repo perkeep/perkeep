@@ -601,8 +601,8 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 	return
 }
 
-func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string, m map[string]interface{}) (*blobref.BlobRef, error) {
-	signed, err := jsonSign.SignMap(m)
+func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string, bb *schema.Builder) (*blobref.BlobRef, error) {
+	signed, err := jsonSign.Sign(bb)
 	if err != nil {
 		return nil, fmt.Errorf("error signing %s: %v", name, err)
 	}

@@ -78,8 +78,8 @@ func (id *IndexDeps) dumpIndex(t *testing.T) {
 	t.Logf("End index dump.")
 }
 
-func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
-	m["camliSigner"] = id.SignerBlobRef
+func (id *IndexDeps) uploadAndSign(m *schema.Builder) *blobref.BlobRef {
+	m.SetSigner(id.SignerBlobRef)
 	unsigned, err := m.JSON()
 	if err != nil {
 		id.Fatalf("uploadAndSignMap: " + err.Error())
@@ -106,19 +106,19 @@ func (id *IndexDeps) uploadAndSignMap(m schema.Map) *blobref.BlobRef {
 // to the index, returning its blobref.
 func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
 	unsigned := schema.NewUnsignedPermanode()
-	return id.uploadAndSignMap(unsigned)
+	return id.uploadAndSign(unsigned)
 }
 
 // NewPermanode creates (& signs) a new planned permanode and adds it
 // to the index, returning its blobref.
 func (id *IndexDeps) NewPlannedPermanode(key string) *blobref.BlobRef {
 	unsigned := schema.NewPlannedPermanode(key)
-	return id.uploadAndSignMap(unsigned)
+	return id.uploadAndSign(unsigned)
 }
 
-func (id *IndexDeps) advanceTime() string {
+func (id *IndexDeps) advanceTime() time.Time {
 	id.now = id.now.Add(1 * time.Second)
-	return schema.RFC3339FromTime(id.now)
+	return id.now
 }
 
 func (id *IndexDeps) lastTime() time.Time {
@@ -127,20 +127,20 @@ func (id *IndexDeps) lastTime() time.Time {
 
 func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
 	m := schema.NewSetAttributeClaim(permaNode, attr, value)
-	m["claimDate"] = id.advanceTime()
-	return id.uploadAndSignMap(m)
+	m.SetClaimDate(id.advanceTime())
+	return id.uploadAndSign(m)
 }
 
 func (id *IndexDeps) AddAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
 	m := schema.NewAddAttributeClaim(permaNode, attr, value)
-	m["claimDate"] = id.advanceTime()
-	return id.uploadAndSignMap(m)
+	m.SetClaimDate(id.advanceTime())
+	return id.uploadAndSign(m)
 }
 
 func (id *IndexDeps) DelAttribute(permaNode *blobref.BlobRef, attr string) *blobref.BlobRef {
 	m := schema.NewDelAttributeClaim(permaNode, attr)
-	m["claimDate"] = id.advanceTime()
-	return id.uploadAndSignMap(m)
+	m.SetClaimDate(id.advanceTime())
+	return id.uploadAndSign(m)
 }
 
 func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, wholeRef *blobref.BlobRef) {
@@ -153,11 +153,11 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 	}
 
 	m := schema.NewFileMap(fileName)
-	schema.PopulateParts(m, int64(len(contents)), []schema.BytesPart{
+	m.PopulateParts(int64(len(contents)), []schema.BytesPart{
 		schema.BytesPart{
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
-		}})
+	}})
 	fjson, err := m.JSON()
 	if err != nil {
 		id.Fatalf("UploadFile.JSON: %v", err)
