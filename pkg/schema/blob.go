@@ -42,7 +42,7 @@ type Buildable interface {
 type Blob struct {
 	br  *blobref.BlobRef
 	str string
-	ss  *Superset
+	ss  *superset
 }
 
 // Type returns the blob's "camliType" field.
@@ -126,15 +126,15 @@ func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
 
 func (b *Blob) ShareAuthType() string {
 	if b.Type() != "share" {
-                return ""
-        }
+		return ""
+	}
 	return b.ss.AuthType
 }
 
 func (b *Blob) ShareTarget() *blobref.BlobRef {
 	if b.Type() != "share" {
-                return nil
-        }
+		return nil
+	}
 	return b.ss.Target
 }
 
@@ -194,7 +194,7 @@ func (bb *Builder) Blob() *Blob {
 	if err != nil {
 		panic(err)
 	}
-	ss, err := ParseSuperset(strings.NewReader(json))
+	ss, err := parseSuperset(strings.NewReader(json))
 	if err != nil {
 		panic(err)
 	}

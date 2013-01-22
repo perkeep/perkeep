@@ -148,7 +148,7 @@ func skipBytes(fr *FileReader, skipBytes uint64) uint64 {
 
 func TestReader(t *testing.T) {
 	for idx, rt := range readTests {
-		ss := new(Superset)
+		ss := new(superset)
 		ss.Type = "file"
 		ss.Version = 1
 		ss.Parts = rt.parts

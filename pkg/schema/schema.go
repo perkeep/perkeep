@@ -107,7 +107,7 @@ type DirectoryEntry interface {
 
 // dirEntry is the default implementation of DirectoryEntry
 type dirEntry struct {
-	ss      Superset
+	ss      superset
 	fetcher blobref.SeekFetcher
 	fr      *FileReader // or nil if not a file
 	dr      *DirReader  // or nil if not a directory
@@ -157,11 +157,11 @@ func (de *dirEntry) Symlink() (Symlink, error) {
 	return 0, errors.New("TODO: Symlink not implemented")
 }
 
-// NewDirectoryEntry takes a Superset and returns a DirectoryEntry if
+// newDirectoryEntry takes a superset and returns a DirectoryEntry if
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func NewDirectoryEntry(fetcher blobref.SeekFetcher, ss *Superset) (DirectoryEntry, error) {
+func newDirectoryEntry(fetcher blobref.SeekFetcher, ss *superset) (DirectoryEntry, error) {
 	if ss == nil {
 		return nil, errors.New("ss was nil")
 	}
@@ -183,18 +183,18 @@ func NewDirectoryEntry(fetcher blobref.SeekFetcher, ss *Superset) (DirectoryEntr
 // or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
 func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.BlobRef) (DirectoryEntry, error) {
-	ss := new(Superset)
+	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, blobRef)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: can't fill Superset: %v\n", err)
+		return nil, fmt.Errorf("schema/filereader: can't fill superset: %v\n", err)
 	}
-	return NewDirectoryEntry(fetcher, ss)
+	return newDirectoryEntry(fetcher, ss)
 }
 
-// Superset represents the superset of common Camlistore JSON schema
+// superset represents the superset of common Camlistore JSON schema
 // keys as a convenient json.Unmarshal target.
 // TODO(bradfitz): unexport this type. Getting too gross. Move to schema.Blob
-type Superset struct {
+type superset struct {
 	// BlobRef isn't for a particular metadata blob field, but included
 	// for convenience.
 	BlobRef *blobref.BlobRef
@@ -248,8 +248,8 @@ type Superset struct {
 	AuthType string `json:"authType"`
 }
 
-func ParseSuperset(r io.Reader) (*Superset, error) {
-	var ss Superset
+func parseSuperset(r io.Reader) (*superset, error) {
+	var ss superset
 	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss); err != nil {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func BlobFromReader(ref *blobref.BlobRef, r io.Reader) (*Blob, error) {
 	}
 	var buf bytes.Buffer
 	tee := io.TeeReader(r, &buf)
-	ss, err := ParseSuperset(tee)
+	ss, err := parseSuperset(tee)
 	if err != nil {
 		return nil, err
 	}
@@ -344,14 +344,14 @@ func stringFromMixedArray(parts []interface{}) string {
 	return buf.String()
 }
 
-func (ss *Superset) SumPartsSize() (size uint64) {
+func (ss *superset) SumPartsSize() (size uint64) {
 	for _, part := range ss.Parts {
 		size += uint64(part.Size)
 	}
 	return size
 }
 
-func (ss *Superset) SymlinkTargetString() string {
+func (ss *superset) SymlinkTargetString() string {
 	if ss.SymlinkTarget != "" {
 		return ss.SymlinkTarget
 	}
@@ -362,7 +362,7 @@ func (ss *Superset) SymlinkTargetString() string {
 //
 // If the fileName field of the blob accidentally or maliciously
 // contains a slash, this function returns an empty string instead.
-func (ss *Superset) FileNameString() string {
+func (ss *superset) FileNameString() string {
 	v := ss.FileName
 	if v == "" {
 		v = stringFromMixedArray(ss.FileNameBytes)
@@ -380,7 +380,7 @@ func (ss *Superset) FileNameString() string {
 	return v
 }
 
-func (ss *Superset) HasFilename(name string) bool {
+func (ss *superset) HasFilename(name string) bool {
 	return ss.FileNameString() == name
 }
 
@@ -389,7 +389,7 @@ func (b *Blob) FileMode() os.FileMode {
 	return b.ss.FileMode()
 }
 
-func (ss *Superset) FileMode() os.FileMode {
+func (ss *superset) FileMode() os.FileMode {
 	var mode os.FileMode
 	m64, err := strconv.ParseUint(ss.UnixPermission, 8, 64)
 	if err == nil {
@@ -418,7 +418,7 @@ func (b *Blob) MapUid() int { return b.ss.MapUid() }
 // followed by just mapping the number through directly.
 func (b *Blob) MapGid() int { return b.ss.MapGid() }
 
-func (ss *Superset) MapUid() int {
+func (ss *superset) MapUid() int {
 	if ss.UnixOwner != "" {
 		uid, ok := getUidFromName(ss.UnixOwner)
 		if ok {
@@ -428,7 +428,7 @@ func (ss *Superset) MapUid() int {
 	return ss.UnixOwnerId // TODO: will be 0 if unset, which isn't ideal
 }
 
-func (ss *Superset) MapGid() int {
+func (ss *superset) MapGid() int {
 	if ss.UnixGroup != "" {
 		gid, ok := getGidFromName(ss.UnixGroup)
 		if ok {
@@ -438,7 +438,7 @@ func (ss *Superset) MapGid() int {
 	return ss.UnixGroupId // TODO: will be 0 if unset, which isn't ideal
 }
 
-func (ss *Superset) ModTime() time.Time {
+func (ss *superset) ModTime() time.Time {
 	if ss.UnixMtime == "" {
 		return time.Time{}
 	}
