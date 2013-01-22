@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"camlistore.org/pkg/blobref"
 	. "camlistore.org/pkg/test/asserts"
 )
 
@@ -107,5 +108,24 @@ func TestRFC3339(t *testing.T) {
 		if out := RFC3339FromTime(tm); in != out {
 			t.Errorf("RFC3339FromTime(%q) = %q; want %q", in, out, in)
 		}
+	}
+}
+
+func TestBlobFromReader(t *testing.T) {
+	br := blobref.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+	blob, err := BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  `))
+	if err != nil {
+		t.Error(err)
+	} else if blob.Type() != "foo" {
+		t.Errorf("got type %q; want foo", blob.Type())
+	}
+
+	blob, err = BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  X  `))
+	if err == nil {
+		// TODO(bradfitz): fix this somehow. Currently encoding/json's
+		// decoder over-reads.
+		// See: https://code.google.com/p/go/issues/detail?id=1955 ,
+		// which was "fixed", but not really.
+		t.Logf("TODO(bradfitz): make sure bogus non-whitespace after the JSON object causes an error.")
 	}
 }

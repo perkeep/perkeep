@@ -83,6 +83,10 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	return fr, nil
 }
 
+func (b *Blob) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, error) {
+	return b.ss.NewFileReader(fetcher)
+}
+
 // NewFileReader returns a new FileReader, reading bytes and blobs
 // from the provided fetcher.
 //

@@ -43,7 +43,7 @@ func (ix *Index) GetBlobHub() blobserver.BlobHub {
 }
 
 func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb blobref.SizedBlobRef, err error) {
-	sniffer := new(BlobSniffer)
+	sniffer := NewBlobSniffer(blobRef)
 	hash := blobRef.Hash()
 	var written int64
 	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
@@ -73,7 +73,7 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 	// (especially in tests, like search/handler_test), but I
 	// could see it being useful in production. For now, disabled:
 	//
-	// mimeType := sniffer.MimeType()
+	// mimeType := sniffer.MIMEType()
 	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
 	return blobref.SizedBlobRef{blobRef, written}, nil
@@ -85,12 +85,12 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 // and verified to match), and the sniffer has been populated.
 func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm BatchMutation) error {
 	bm.Set("have:"+br.String(), fmt.Sprintf("%d", sniffer.Size()))
-	bm.Set("meta:"+br.String(), fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MimeType()))
+	bm.Set("meta:"+br.String(), fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()))
 
-	if camli, ok := sniffer.Superset(); ok {
-		switch camli.Type {
+	if blob, ok := sniffer.SchemaBlob(); ok {
+		switch blob.Type() {
 		case "claim":
-			if err := ix.populateClaim(br, camli, sniffer, bm); err != nil {
+			if err := ix.populateClaim(blob, bm); err != nil {
 				return err
 			}
 		case "permanode":
@@ -98,11 +98,11 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 			//return err
 			//}
 		case "file":
-			if err := ix.populateFile(br, camli, bm); err != nil {
+			if err := ix.populateFile(blob, bm); err != nil {
 				return err
 			}
 		case "directory":
-			if err := ix.populateDir(br, camli, bm); err != nil {
+			if err := ix.populateDir(blob, bm); err != nil {
 				return err
 			}
 		}
@@ -113,9 +113,12 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 // blobref: of the file or schema blob
 //      ss: the parsed file schema blob
 //      bm: keys to populate
-func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm BatchMutation) error {
+func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
+	// TODO: move the NewFileReader off of blob.
+
+	blobRef := blob.BlobRef()
 	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
-	fr, err := ss.NewFileReader(seekFetcher)
+	fr, err := blob.NewFileReader(seekFetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
@@ -168,16 +171,19 @@ func (ix *Index) populateFile(blobRef *blobref.BlobRef, ss *schema.Superset, bm 
 
 	wholeRef := blobref.FromHash(sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
-	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, ss.FileName, mime))
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, blob.FileName(), mime))
 	return nil
 }
 
 // blobref: of the file or schema blob
 //      ss: the parsed file schema blob
 //      bm: keys to populate
-func (ix *Index) populateDir(blobRef *blobref.BlobRef, ss *schema.Superset, bm BatchMutation) error {
+func (ix *Index) populateDir(blob *schema.Blob, bm BatchMutation) error {
+	blobRef := blob.BlobRef()
+	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto 
+
 	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
-	dr, err := ss.NewDirReader(seekFetcher)
+	dr, err := blob.NewDirReader(seekFetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
@@ -191,23 +197,27 @@ func (ix *Index) populateDir(blobRef *blobref.BlobRef, ss *schema.Superset, bm B
 		return nil
 	}
 
-	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), ss.FileName, ""))
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), blob.FileName(), ""))
 	return nil
 }
 
-func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer *BlobSniffer, bm BatchMutation) error {
-	pnbr := blobref.Parse(ss.Permanode)
-	if pnbr == nil {
+func (ix *Index) populateClaim(blob *schema.Blob, bm BatchMutation) error {
+	br := blob.BlobRef()
+
+	claim, ok := blob.AsClaim()
+	if !ok {
 		// Skip bogus claim with malformed permanode.
 		return nil
 	}
 
-	rawJson, err := sniffer.Body()
-	if err != nil {
-		return err
+	pnbr := claim.ModifiedPermanode()
+	if pnbr == nil {
+		// A different type of claim; not modifying a permanode.
+		return nil
 	}
+	attr, value := claim.Attribute(), claim.Value()
 
-	vr := jsonsign.NewVerificationRequest(string(rawJson), ix.KeyFetcher)
+	vr := jsonsign.NewVerificationRequest(blob.JSON(), ix.KeyFetcher)
 	if !vr.Verify() {
 		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
 		// later if it's not permanent? or maybe do this up a level?
@@ -220,45 +230,45 @@ func (ix *Index) populateClaim(br *blobref.BlobRef, ss *schema.Superset, sniffer
 
 	bm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
-	recentKey := keyRecentPermanode.Key(verifiedKeyId, ss.ClaimDate, br)
+	recentKey := keyRecentPermanode.Key(verifiedKeyId, claim.ClaimDateString(), br)
 	bm.Set(recentKey, pnbr.String())
 
-	claimKey := pipes("claim", pnbr, verifiedKeyId, ss.ClaimDate, br)
-	bm.Set(claimKey, pipes(urle(ss.ClaimType), urle(ss.Attribute), urle(ss.Value)))
+	claimKey := pipes("claim", pnbr, verifiedKeyId, claim.ClaimDateString(), br)
+	bm.Set(claimKey, pipes(urle(claim.ClaimType()), urle(attr), urle(value)))
 
-	if strings.HasPrefix(ss.Attribute, "camliPath:") {
-		targetRef := blobref.Parse(ss.Value)
+	if strings.HasPrefix(attr, "camliPath:") {
+		targetRef := blobref.Parse(value)
 		if targetRef != nil {
 			// TODO: deal with set-attribute vs. del-attribute
 			// properly? I think we get it for free when
 			// del-attribute has no Value, but we need to deal
 			// with the case where they explicitly delete the
 			// current value.
-			suffix := ss.Attribute[len("camliPath:"):]
+			suffix := attr[len("camliPath:"):]
 			active := "Y"
-			if ss.ClaimType == "del-attribute" {
+			if claim.ClaimType() == "del-attribute" {
 				active = "N"
 			}
 			baseRef := pnbr
 			claimRef := br
 
 			key := keyPathBackward.Key(verifiedKeyId, targetRef, claimRef)
-			val := keyPathBackward.Val(ss.ClaimDate, baseRef, active, suffix)
+			val := keyPathBackward.Val(claim.ClaimDateString(), baseRef, active, suffix)
 			bm.Set(key, val)
 
-			key = keyPathForward.Key(verifiedKeyId, baseRef, suffix, ss.ClaimDate, claimRef)
+			key = keyPathForward.Key(verifiedKeyId, baseRef, suffix, claim.ClaimDateString(), claimRef)
 			val = keyPathForward.Val(active, targetRef)
 			bm.Set(key, val)
 		}
 	}
 
-	if search.IsIndexedAttribute(ss.Attribute) {
-		key := keySignerAttrValue.Key(verifiedKeyId, ss.Attribute, ss.Value, ss.ClaimDate, br)
+	if search.IsIndexedAttribute(attr) {
+		key := keySignerAttrValue.Key(verifiedKeyId, attr, value, claim.ClaimDateString(), br)
 		bm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
 
-	if search.IsBlobReferenceAttribute(ss.Attribute) {
-		targetRef := blobref.Parse(ss.Value)
+	if search.IsBlobReferenceAttribute(attr) {
+		targetRef := blobref.Parse(value)
 		if targetRef != nil {
 			key := keyEdgeBackward.Key(targetRef, pnbr, br)
 			bm.Set(key, keyEdgeBackward.Val("permanode", ""))

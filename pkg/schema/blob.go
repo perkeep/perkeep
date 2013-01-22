@@ -58,12 +58,19 @@ func (b *Blob) JSON() string { return b.str }
 func (b *Blob) Blob() *Blob { return b }
 
 // PartsSize returns the number of bytes represented by the "parts" field.
+// TODO: move this off *Blob to a specialized type.
 func (b *Blob) PartsSize() int64 {
 	n := int64(0)
 	for _, part := range b.ss.Parts {
 		n += int64(part.Size)
 	}
 	return n
+}
+
+// FileName returns the file, directory, or symlink's filename, or the empty string.
+// TODO: move this off *Blob to a specialized type.
+func (b *Blob) FileName() string {
+	return b.ss.FileNameString()
 }
 
 // ByteParts returns the "parts" field. The caller owns the returned
@@ -87,6 +94,39 @@ func (b *Blob) Builder() *Builder {
 	return &Builder{m}
 }
 
+// AsClaim returns a Claim if the receiver Blob has all the required fields.
+func (b *Blob) AsClaim() (c Claim, ok bool) {
+	if blobref.Parse(b.ss.Signer) != nil && b.ss.Sig != "" && b.ss.ClaimType != "" && b.ss.ClaimDate != "" {
+		return Claim{b}, true
+	}
+	return
+}
+
+// DirectoryEntries the "entries" field if valid and b's type is "directory", else
+// it returns nil
+func (b *Blob) DirectoryEntries() *blobref.BlobRef {
+	if b.Type() != "directory" {
+		return nil
+	}
+	return blobref.Parse(b.ss.Entries)
+}
+
+func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
+	if b.Type() != "static-set" {
+		return nil
+	}
+	s := make([]*blobref.BlobRef, 0, len(b.ss.Members))
+	for _, refstr := range b.ss.Members {
+		if ref := blobref.Parse(refstr); ref != nil {
+			s = append(s, ref)
+		}
+	}
+	return s
+}
+
+// ModTime returns the "unixMtime" field, or the zero time.
+func (b *Blob) ModTime() time.Time { return b.ss.ModTime() }
+
 // A Claim is a Blob that is signed.
 type Claim struct {
 	b *Blob
@@ -94,6 +134,24 @@ type Claim struct {
 
 // Blob returns the claim's Blob.
 func (c Claim) Blob() *Blob { return c.b }
+
+// ClaimDate returns the blob's "claimDate" field.
+func (c Claim) ClaimDateString() string { return c.b.ss.ClaimDate }
+
+// ClaimType returns the blob's "claimType" field.
+func (c Claim) ClaimType() string { return c.b.ss.ClaimType }
+
+// Attribute returns the "attribute" field, if set.
+func (c Claim) Attribute() string { return c.b.ss.Attribute }
+
+// Value returns the "value" field, if set.
+func (c Claim) Value() string { return c.b.ss.Value }
+
+// ModifiedPermanode returns the claim's "permaNode" field, if it's
+// a claim that modifies a permanode. Otherwise nil is returned.
+func (c Claim) ModifiedPermanode() *blobref.BlobRef {
+	return blobref.Parse(c.b.ss.Permanode)
+}
 
 // A Builder builds a JSON blob.
 // After mutating the Builder, call Blob to get the built blob.

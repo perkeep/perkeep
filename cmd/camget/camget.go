@@ -185,14 +185,14 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 	}
 	defer rc.Close()
 
-	sniffer := new(index.BlobSniffer)
+	sniffer := index.NewBlobSniffer(br)
 	_, err = io.CopyN(sniffer, rc, sniffSize)
 	if err != nil && err != io.EOF {
 		return err
 	}
 
 	sniffer.Parse()
-	sc, ok := sniffer.Superset()
+	blob, ok := sniffer.SchemaBlob()
 
 	if !ok {
 		if *flagVerbose {
@@ -211,23 +211,21 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		return err
 	}
 
-	sc.BlobRef = br
-
-	switch sc.Type {
+	switch blob.Type() {
 	case "directory":
-		dir := filepath.Join(targ, sc.FileNameString())
+		dir := filepath.Join(targ, blob.FileName())
 		if *flagVerbose {
 			log.Printf("Fetching directory %v into %s", br, dir)
 		}
-		if err := os.MkdirAll(dir, sc.FileMode()); err != nil {
+		if err := os.MkdirAll(dir, blob.FileMode()); err != nil {
 			return err
 		}
-		if err := setFileMeta(dir, sc); err != nil {
+		if err := setFileMeta(dir, blob); err != nil {
 			log.Print(err)
 		}
-		entries := blobref.Parse(sc.Entries)
+		entries := blob.DirectoryEntries()
 		if entries == nil {
-			return fmt.Errorf("bad entries blobref: %v", sc.Entries)
+			return fmt.Errorf("bad entries blobref in dir %v", blob.BlobRef())
 		}
 		return smartFetch(src, dir, entries)
 	case "static-set":
@@ -241,7 +239,8 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 			br   *blobref.BlobRef
 			errc chan<- error
 		}
-		workc := make(chan work, len(sc.Members))
+		members := blob.StaticSetMembers()
+		workc := make(chan work, len(members))
 		defer close(workc)
 		for i := 0; i < numWorkers; i++ {
 			go func() {
@@ -251,14 +250,10 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 			}()
 		}
 		var errcs []<-chan error
-		for _, m := range sc.Members {
-			dref := blobref.Parse(m)
-			if dref == nil {
-				return fmt.Errorf("bad member blobref: %v", m)
-			}
+		for _, mref := range members {
 			errc := make(chan error, 1)
 			errcs = append(errcs, errc)
-			workc <- work{dref, errc}
+			workc <- work{mref, errc}
 		}
 		for _, errc := range errcs {
 			if err := <-errc; err != nil {
@@ -275,7 +270,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		fr.LoadAllChunks()
 		defer fr.Close()
 
-		name := filepath.Join(targ, sc.FileNameString())
+		name := filepath.Join(targ, blob.FileName())
 
 		if fi, err := os.Stat(name); err == nil && fi.Size() == fi.Size() {
 			if *flagVerbose {
@@ -296,25 +291,26 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		if _, err := io.Copy(f, fr); err != nil {
 			return fmt.Errorf("Copying %s to %s: %v", br, name, err)
 		}
-		if err := setFileMeta(name, sc); err != nil {
+		if err := setFileMeta(name, blob); err != nil {
 			log.Print(err)
 		}
 		return nil
 	default:
-		return errors.New("unknown blob type: " + sc.Type)
+		return errors.New("unknown blob type: " + blob.Type())
 	}
 	panic("unreachable")
 }
 
-func setFileMeta(name string, sc *schema.Superset) error {
-	err1 := os.Chmod(name, sc.FileMode())
+func setFileMeta(name string, blob *schema.Blob) error {
+	err1 := os.Chmod(name, blob.FileMode())
 	var err2 error
-	if mt := sc.ModTime(); !mt.IsZero() {
+	if mt := blob.ModTime(); !mt.IsZero() {
 		err2 = os.Chtimes(name, mt, mt)
 	}
-	err3 := os.Chown(name, sc.UnixOwnerId, sc.UnixGroupId)
-	// Return first non-nil error for logging.
-	for _, err := range []error{err1, err2, err3} {
+	// TODO: we previously did os.Chown here, but it's rarely wanted,
+	// then the schema.Blob refactor broke it, so it's gone.
+	// Add it back later once we care?
+	for _, err := range []error{err1, err2} {
 		if err != nil {
 			return err
 		}

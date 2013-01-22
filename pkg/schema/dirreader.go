@@ -54,6 +54,10 @@ func NewDirReader(fetcher blobref.SeekFetcher, dirBlobRef *blobref.BlobRef) (*Di
 	return dr, nil
 }
 
+func (b *Blob) NewDirReader(fetcher blobref.SeekFetcher) (*DirReader, error) {
+	return b.ss.NewDirReader(fetcher)
+}
+
 func (ss *Superset) NewDirReader(fetcher blobref.SeekFetcher) (*DirReader, error) {
 	if ss.Type != "directory" {
 		return nil, fmt.Errorf("Superset not of type \"directory\"")

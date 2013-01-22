@@ -39,7 +39,7 @@ type node struct {
 	g  *graph
 
 	size  int64
-	ss    *schema.Superset
+	blob  *schema.Blob
 	edges []*blobref.BlobRef
 }
 
@@ -49,17 +49,17 @@ func (n *node) dotName() string {
 
 func (n *node) dotLabel() string {
 	name := n.displayName()
-	if n.ss == nil {
+	if n.blob == nil {
 		return fmt.Sprintf("%s\n%d bytes", name, n.size)
 	}
-	return name + "\n" + n.ss.Type
+	return name + "\n" + n.blob.Type()
 }
 
 func (n *node) color() string {
 	if n.br.Equal(n.g.root) {
 		return "#a0ffa0"
 	}
-	if n.ss == nil {
+	if n.blob == nil {
 		return "#aaaaaa"
 	}
 	return "#a0a0ff"
@@ -76,16 +76,16 @@ func (n *node) load() {
 	rc, err := fetch(n.g.src, n.br)
 	check(err)
 	defer rc.Close()
-	sniff := new(index.BlobSniffer)
+	sniff := index.NewBlobSniffer(n.br)
 	n.size, err = io.Copy(sniff, rc)
 	check(err)
 	sniff.Parse()
-	ss, ok := sniff.Superset()
+	blob, ok := sniff.SchemaBlob()
 	if !ok {
 		return
 	}
-	n.ss = ss
-	for _, part := range ss.Parts {
+	n.blob = blob
+	for _, part := range blob.ByteParts() {
 		n.addEdge(part.BlobRef)
 		n.addEdge(part.BytesRef)
 	}

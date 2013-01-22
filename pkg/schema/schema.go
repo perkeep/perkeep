@@ -42,6 +42,10 @@ import (
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
+// MaxSchemaBlobSize represents the upper bound for how large
+// a schema blob may be.
+const MaxSchemaBlobSize = 1 << 20
+
 var sha1Type = reflect.TypeOf(sha1.New())
 
 var (
@@ -252,16 +256,53 @@ func ParseSuperset(r io.Reader) (*Superset, error) {
 	return &ss, nil
 }
 
+// BlobReader returns a new Blob from the provided Reader r,
+// which should be the body of the provided blobref.
+// Note: the hash checksum is not verified. Call (*Blob).Verify()
+// to validate that the digest matches.
 func BlobFromReader(ref *blobref.BlobRef, r io.Reader) (*Blob, error) {
 	if ref == nil {
 		return nil, errors.New("schema.BlobFromReader: nil blobref")
 	}
 	var buf bytes.Buffer
-	ss, err := ParseSuperset(io.TeeReader(r, &buf))
+	tee := io.TeeReader(r, &buf)
+	ss, err := ParseSuperset(tee)
 	if err != nil {
 		return nil, err
 	}
-	return &Blob{ref, buf.String(), ss}, nil
+	var wb [16]byte
+	afterObj := 0
+	for {
+		n, err := tee.Read(wb[:])
+		afterObj += n
+		for i := 0; i < n; i++ {
+			if !isASCIIWhite(wb[i]) {
+				return nil, fmt.Errorf("invalid bytes after JSON schema blob in %v", ref)
+			}
+		}
+		if afterObj > MaxSchemaBlobSize {
+			break
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	json := buf.String()
+	if len(json) > MaxSchemaBlobSize {
+		return nil, fmt.Errorf("schema: metadata blob %v is over expected limit; size=%d", ref, len(json))
+	}
+	return &Blob{ref, json, ss}, nil
+}
+
+func isASCIIWhite(b byte) bool {
+	switch b {
+	case ' ', '\t', '\r', '\n':
+		return true
+	}
+	return false
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
@@ -341,6 +382,11 @@ func (ss *Superset) FileNameString() string {
 
 func (ss *Superset) HasFilename(name string) bool {
 	return ss.FileNameString() == name
+}
+
+func (b *Blob) FileMode() os.FileMode {
+	// TODO: move this to a different type, off *Blob
+	return b.ss.FileMode()
 }
 
 func (ss *Superset) FileMode() os.FileMode {
