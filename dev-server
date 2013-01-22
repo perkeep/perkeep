@@ -4,13 +4,11 @@ use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
 require "$Bin/misc/devlib.pl";
+require "$Bin/misc/get_closure.pl";
 
 sub usage {
     die "Usage: dev-server [--wipe] [--mongo|--mysql|--postgres] [--tls] <portnumber> -- [other_blobserver_opts]";
 }
-
-my $closure_rev = "r2322";
-my $closure_svn = "http://closure-library.googlecode.com/svn/trunk/";
 
 chdir $Bin or die;
 
@@ -176,23 +174,10 @@ if ($opt_wipe && -d $templatedir) {
 unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
     $ENV{CAMLI_DEV_NEWUI_FILES} = "$FindBin::Bin/server/camlistored/newui"; # set in server/camlistored/newui/fileembed.go
-    my $closure_dir = "tmp/closure";
     unless ($opt_offline) {
-        if (-d $closure_dir) {
-            chdir $closure_dir or die;
-            my $local_rev = "r" . `svnversion`;
-            chomp($local_rev);
-            if ($local_rev ne $closure_rev) {
-                die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
-                system("svn", "update", "-r", $closure_rev)
-                    and die "Failed to svn up the closure library: $!\n";
-            }
-            chdir $Bin or die;
-        } else {
-            die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
-            system("svn", "checkout", "-r", $closure_rev, $closure_svn, "tmp")
-                and die "Failed to svn co the closure library: $!\n";
-        }
+        get_closure_lib();
+        get_closure_compiler();
+        chdir $Bin or die;
     }
 }
 
