@@ -124,6 +124,20 @@ func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
 	return s
 }
 
+func (b *Blob) ShareAuthType() string {
+	if b.Type() != "share" {
+                return ""
+        }
+	return b.ss.AuthType
+}
+
+func (b *Blob) ShareTarget() *blobref.BlobRef {
+	if b.Type() != "share" {
+                return nil
+        }
+	return b.ss.Target
+}
+
 // ModTime returns the "unixMtime" field, or the zero time.
 func (b *Blob) ModTime() time.Time { return b.ss.ModTime() }
 

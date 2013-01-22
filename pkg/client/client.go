@@ -121,19 +121,20 @@ func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, 
 		return nil, nil, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
 	}
 	defer res.Body.Close()
-	ss, err := schema.ParseSuperset(res.Body)
+	blob, err := schema.BlobFromReader(blobref.Parse(root), res.Body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
 	}
-	if ss.AuthType != "haveref" {
-		return nil, nil, fmt.Errorf("Unknown share authType of %q", ss.AuthType)
+	if blob.ShareAuthType() != "haveref" {
+		return nil, nil, fmt.Errorf("Unknown share authType of %q", blob.ShareAuthType())
 	}
-	if ss.Target == nil {
+	target = blob.ShareTarget()
+	if target == nil {
 		return nil, nil, fmt.Errorf("No target.")
 	}
-	c.via[ss.Target.String()] = root
+	c.via[target.String()] = root
 	// TODO(bradfitz): send via in requests, populate via as we fetch more things
-	return c, ss.Target, nil
+	return c, target, nil
 }
 
 // SetHTTPClient sets the Camlistore client's HTTP client.
