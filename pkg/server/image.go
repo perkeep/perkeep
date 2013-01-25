@@ -265,8 +265,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	h := rw.Header()
-	const oneYearish = 365 * 86400 * time.Second
-	h.Set("Expires", time.Now().Add(oneYearish).Format(http.TimeFormat))
+	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
 	h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
 	size := buf.Len()
