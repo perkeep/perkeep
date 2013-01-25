@@ -159,7 +159,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 		log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
 			" Closure will not be used.")
 	} else {
-		closureDir := filepath.Join(camliRootPath, "tmp", "closure")
+		closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
 		ui.closureHandler = http.FileServer(http.Dir(closureDir))
 	}
 
@@ -416,7 +416,7 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 	}
 	if suffix == "new" {
 		// Add a trailing slash.
-		http.Redirect(rw, req, base + "new/", http.StatusFound)
+		http.Redirect(rw, req, base+"new/", http.StatusFound)
 		return
 	}
 	suffix = path.Clean(suffix)
