@@ -19,3 +19,4 @@ appengine-sdk
 build/root
 .DS_Store
 tmp
+server/camlistored/newui/all.js

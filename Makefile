@@ -12,3 +12,18 @@ presubmit:
 
 embeds:
 	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./pkg/server
+
+checkjs:
+	perl -e 'require "misc/get_closure.pl"; get_closure_lib(); get_closure_compiler();'
+	if [ -f server/camlistored/newui/all.js ]; then rm server/camlistored/newui/all.js; fi
+	# This will generate non working code for now, since camli.js, SHA1.js, Crypto.js,
+	# and base64.js are not explicitely declared as dependencies.
+	tmp/closure-lib/closure/bin/build/closurebuilder.py\
+		--root tmp/closure-lib/ \
+		--root server/camlistored/ui/ \
+		--root server/camlistored/newui/ \
+		--namespace="camlistore.IndexPage" \
+		--output_mode=compiled \
+		--compiler_jar=tmp/closure-compiler/compiler.jar \
+		--compiler_flags="--compilation_level=ADVANCED_OPTIMIZATIONS" \
+	> server/camlistored/newui/all.js
