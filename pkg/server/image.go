@@ -27,6 +27,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -85,7 +86,7 @@ func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, erro
 	return br, nil
 }
 
-// CacheScaled saves in the image handler's cache the scaled image read 
+// CacheScaled saves in the image handler's cache the scaled image read
 // from tr, and puts its blobref in the scaledImage under the key name.
 func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 	br, err := ih.cache(tr, name)
@@ -228,6 +229,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		http.Error(rw, "bogus dimensions", 400)
 		return
 	}
+	if req.Header.Get("If-Modified-Since") != "" {
+		// Immutable, so any copy's a good copy.
+		rw.WriteHeader(http.StatusNotModified)
+		return
+	}
 
 	var buf bytes.Buffer
 	var err error
@@ -258,18 +264,25 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		}
 	}
 
-	rw.Header().Set("Content-Type", imageContentTypeOfFormat(format))
+	h := rw.Header()
+	const oneYearish = 365 * 86400 * time.Second
+	h.Set("Expires", time.Now().Add(oneYearish).Format(http.TimeFormat))
+	h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+	h.Set("Content-Type", imageContentTypeOfFormat(format))
 	size := buf.Len()
-	rw.Header().Set("Content-Length", fmt.Sprintf("%d", size))
-	n, err := io.Copy(rw, &buf)
-	if err != nil {
-		log.Printf("error serving thumbnail of file schema %s: %v", file, err)
-		return
-	}
-	if n != int64(size) {
-		log.Printf("error serving thumbnail of file schema %s: sent %d, expected size of %d",
-			file, n, size)
-		return
+	h.Set("Content-Length", fmt.Sprintf("%d", size))
+
+	if req.Method == "GET" {
+		n, err := io.Copy(rw, &buf)
+		if err != nil {
+			log.Printf("error serving thumbnail of file schema %s: %v", file, err)
+			return
+		}
+		if n != int64(size) {
+			log.Printf("error serving thumbnail of file schema %s: sent %d, expected size of %d",
+				file, n, size)
+			return
+		}
 	}
 }
 
