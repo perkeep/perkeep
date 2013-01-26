@@ -18,6 +18,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -123,12 +124,20 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 	return mode, nil
 }
 
+// ErrNoAuth is returned when there is no configured authentication.
+var ErrNoAuth = errors.New("auth: no configured authentication")
+
 // FromConfig parses authConfig and accordingly sets up the AuthMode
 // that will be used for all upcoming authentication exchanges. The
 // supported modes are UserPass and DevAuth. UserPass requires an authConfig
 // of the kind "userpass:joe:ponies". If the CAMLI_ADVERTISED_PASSWORD
 // environment variable is defined, the mode will default to DevAuth.
+//
+// If the input string is empty, the error will be ErrNoAuth.
 func FromConfig(authConfig string) (AuthMode, error) {
+	if authConfig == "" {
+		return nil, ErrNoAuth
+	}
 	pieces := strings.SplitN(authConfig, ":", 2)
 	if len(pieces) < 1 {
 		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)

@@ -103,9 +103,11 @@ func (c *Client) SetupAuth() error {
 		// If using an explicit blobserver, don't use auth
 		// configured from the config file, so we don't send
 		// our password to a friend's blobserver.
-		log.Printf("Using explicit --server parameter; using auth from environment only.")
 		var err error
 		c.authMode, err = auth.FromEnv()
+		if err == auth.ErrNoAuth {
+			log.Printf("Using explicit --server parameter; not using config file auth, and no auth mode set in environment")
+		}
 		return err
 	}
 	return c.SetupAuthFromConfig(config)
