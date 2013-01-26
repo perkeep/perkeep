@@ -1,5 +1,5 @@
 {
-  "blobServer": "http://localhost:3179/",
+  "server": "http://localhost:3179/",
 
   "auth": ["_env", "${CAMLI_AUTH}" ],
   "selfPubKeyDir": ["_env", "${CAMLI_DEV_KEYBLOBS}" ],

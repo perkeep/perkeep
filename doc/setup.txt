@@ -31,7 +31,7 @@ Instructions for getting the Camlistore build to work on Mac OS X.
   - Run it:
       ~/google_appengine/dev_appserver.py -a `hostname` --high_replication server/go/appengine/
   - Uplaod a file:
-      ./dev-camput --blobserver=localhost:8080/bs --password=foo file COPYING
+      ./dev-camput file COPYING
 
 * Hack on it
   - TextMate bundle: https://github.com/AlanQuatermain/go-tmbundle

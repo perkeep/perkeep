@@ -37,7 +37,7 @@ if ($opt_tls) {
 
 my @args;
 unless (grep { /^--?shared\b/ } @ARGV) {
-    push @args, "--blobserver=$blobserver";
+    push @args, "--server=$blobserver";
 }
 push @args, @ARGV;
 

@@ -39,7 +39,8 @@ import (
 var flagServer *string
 
 func AddFlags() {
-	flagServer = flag.String("blobserver", "", "camlistore blob server")
+	defaultPath := ConfigFilePath()
+	flagServer = flag.String("server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of " + defaultPath + " is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
 }
 
 // ExplicitServer returns the blobserver given in the flags, if any.
@@ -79,19 +80,19 @@ func cleanServer(server string) string {
 	return server
 }
 
-func blobServerOrDie() string {
+func serverOrDie() string {
 	if flagServer != nil && *flagServer != "" {
 		return cleanServer(*flagServer)
 	}
 	configOnce.Do(parseConfig)
-	value, ok := config["blobServer"]
+	value, ok := config["server"]
 	var server string
 	if ok {
 		server = value.(string)
 	}
 	server = cleanServer(server)
 	if !ok || server == "" {
-		log.Fatalf("Missing or invalid \"blobServer\" in %q", ConfigFilePath())
+		log.Fatalf("Missing or invalid \"server\" in %q", ConfigFilePath())
 	}
 	return server
 }
@@ -102,8 +103,10 @@ func (c *Client) SetupAuth() error {
 		// If using an explicit blobserver, don't use auth
 		// configured from the config file, so we don't send
 		// our password to a friend's blobserver.
-		c.authMode = auth.None{}
-		return nil
+		log.Printf("Using explicit --server parameter; using auth from environment only.")
+		var err error
+		c.authMode, err = auth.FromEnv()
+		return err
 	}
 	return c.SetupAuthFromConfig(config)
 }

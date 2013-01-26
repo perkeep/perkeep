@@ -43,6 +43,6 @@ if ($ENV{"CAMLI_WANT_CAMPUT_PASSWORD"}) {  # Set by dev-pass-camput
 
 exec("$camput",
      "--verbose",
-     "--blobserver=$blobserver",
+     "--server=$blobserver",
      @ARGV);
 die "Failure running camput: $!";

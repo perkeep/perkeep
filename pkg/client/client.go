@@ -90,7 +90,7 @@ func New(server string) *Client {
 }
 
 func NewOrFail() *Client {
-	c := New(blobServerOrDie())
+	c := New(serverOrDie())
 	c.log = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	err := c.SetupAuth()
 	if err != nil {

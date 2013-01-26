@@ -152,7 +152,7 @@ func (c *initCmd) RunCommand(_ *Uploader, args []string) error {
 		m := make(map[string]interface{})
 		m["keyId"] = keyId                    // TODO(bradfitz): make this 'identity' to match server config?
 		m["publicKeyBlobref"] = bref.String() // TODO(bradfitz): not used anymore?
-		m["blobServer"] = "http://localhost:3179/"
+		m["server"] = "http://localhost:3179/"
 		m["selfPubKeyDir"] = blobDir
 		m["auth"] = "localhost"
 
