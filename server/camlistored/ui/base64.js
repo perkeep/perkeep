@@ -22,6 +22,11 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
+
+if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
+    goog.provide('camlistore.base64');
+}
+
 function StringBuffer()
 { 
     this.buffer = []; 

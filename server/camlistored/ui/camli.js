@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
+    goog.provide('camlistore.CamliCommon');
+
+    goog.require('camlistore.base64');
+    goog.require('camlistore.SHA1');
+}
+
 // Camli namespace.
 if (!window.Camli) {
    window.Camli = {};

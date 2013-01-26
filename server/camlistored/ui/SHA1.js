@@ -24,6 +24,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
+    goog.provide('camlistore.SHA1');
+
+    goog.require('camlistore.Crypto');
+}
+
 (function(){
 
 // Shortcuts
