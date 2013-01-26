@@ -41,7 +41,13 @@ Camli.setTextContent = function(ele, text) {
     element.appendChild(document.createTextNode(text));
 };
 
-// Method 1 to get discovery information (JSONP style):
+/**
+* Sets the Camlistore Discovery configuration object.
+*
+* @param {Object.<string, <?>>} config The Camlistore configuration Object from Discovery.
+*
+* @expose
+*/
 Camli.onConfiguration = function(config) {
     Camli.config = config;
 };
