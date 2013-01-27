@@ -23,27 +23,17 @@ import android.net.Uri;
  */
 public class QueuedFile {
 
-    private final String mContentName;
     private final Uri mUri;
     private final long mSize;
+    private final String mDiskPath;  // or null if it can't be resolved.
 
-    public QueuedFile(String sha1, Uri uri, long size) {
-        if (sha1 == null) {
-            throw new NullPointerException("sha1 == null");
-        }
+    public QueuedFile(Uri uri, long size, String diskPath) {
         if (uri == null) {
             throw new NullPointerException("uri == null");
         }
-        if (sha1.length() != 40) {
-            throw new IllegalArgumentException("unexpected sha1 length");
-        }
-        mContentName = "sha1-" + sha1;
         mUri = uri;
         mSize = size;
-    }
-
-    public String getContentName() {
-        return mContentName;
+        mDiskPath = diskPath;
     }
 
     public Uri getUri() {
@@ -53,18 +43,21 @@ public class QueuedFile {
     public long getSize() {
         return mSize;
     }
+    
+    // getDiskPath may return null, if the URI couldn't be resolved to a path on disk.
+    public String getDiskPath() {
+        return mDiskPath;
+    }
 
     @Override
     public String toString() {
-        return "QueuedFile [mContentName=" + mContentName + ", mSize=" + mSize + ", mUri=" + mUri
-                + "]";
+        return "QueuedFile [mSize=" + mSize + ", mUri=" + mUri + "]";
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((mContentName == null) ? 0 : mContentName.hashCode());
         result = prime * result + (int) (mSize ^ (mSize >>> 32));
         result = prime * result + ((mUri == null) ? 0 : mUri.hashCode());
         return result;
@@ -79,11 +72,6 @@ public class QueuedFile {
         if (getClass() != obj.getClass())
             return false;
         QueuedFile other = (QueuedFile) obj;
-        if (mContentName == null) {
-            if (other.mContentName != null)
-                return false;
-        } else if (!mContentName.equals(other.mContentName))
-            return false;
         if (mSize != other.mSize)
             return false;
         if (mUri == null) {

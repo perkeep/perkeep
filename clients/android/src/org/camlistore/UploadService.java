@@ -48,6 +48,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.provider.MediaStore;
 import android.util.Log;
 
 public class UploadService extends Service {
@@ -86,7 +87,6 @@ public class UploadService extends Service {
     NotificationManager mNotificationManager;
     SharedPreferences mSharedPrefs;
     Preferences mPrefs;
-    SQLiteOpenHelper mOpenHelper;
 
     // Wake locks for when we have work in-flight
     private PowerManager.WakeLock mWakeLock;
@@ -96,9 +96,6 @@ public class UploadService extends Service {
     // reference and their finalizers would run otherwise, stopping their
     // inotify.
     private ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
-
-    // Created lazily by getDb(), guarded by this. Closed when service stops.
-    private SQLiteDatabase mDb;
 
     @Override
     public void onCreate() {
@@ -110,18 +107,6 @@ public class UploadService extends Service {
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
         mPrefs = new Preferences(mSharedPrefs);
-        mOpenHelper = new SQLiteOpenHelper(this, "camli.db", null, DB_VERSION) {
-
-            @Override
-            public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            }
-
-            @Override
-            public void onCreate(SQLiteDatabase db) {
-                db.execSQL("CREATE TABLE digestcache (file VARCHAR(200) NOT NULL PRIMARY KEY,"
-                        + "size INT, sha1 TEXT)");
-            }
-        };
 
         updateBackgroundWatchers();
     }
@@ -460,10 +445,6 @@ public class UploadService extends Service {
 
     private void stopServiceIfEmpty() {
         // Convenient place to drop this cache.
-        synchronized (mDigestRows) {
-            mDigestRows.clear();
-        }
-
         synchronized (this) {
             if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null &&
                 !mPrefs.autoUpload()) {
@@ -476,11 +457,6 @@ public class UploadService extends Service {
                       + mUploading + "; "
                       + (mUploadThread != null));
                 return;
-            }
-
-            if (mDb != null) {
-                mDb.close();
-                mDb = null;
             }
         }
     }
@@ -495,83 +471,10 @@ public class UploadService extends Service {
         }
     }
 
-    private SQLiteDatabase getDb() {
-        synchronized (UploadService.this) {
-            mDb = mOpenHelper.getWritableDatabase();
-            return mDb;
-        }
-    }
-
-    private static class DigestCacheRow {
-        String sha1;
-        long   size;
-    }
-
-    private final HashMap<String, DigestCacheRow> mDigestRows = new HashMap<String, DigestCacheRow>();
-    private void batchDigestLookup(List<Uri> uriList) {
-        synchronized (mDigestRows) {
-            for (Uri uri : uriList) {
-                mDigestRows.put(uri.toString(), new DigestCacheRow());
-            }
-            SQLiteDatabase db = getDb();
-            Cursor c = db.query("digestcache", new String[] { "sha1", "file", "size" },
-                                null, null, null, null, null);
-            try {
-                while (c.moveToNext()) {
-                    String file = c.getString(1);
-                    Log.d(TAG, "batch stat = " + file);
-                    DigestCacheRow row = mDigestRows.get(file);
-                    if (row == null) {
-                        continue;
-                    }
-                    Log.d(TAG, "populating");
-                    row.sha1 = c.getString(0);
-                    row.size = c.getLong(2);
-                }
-            } finally {
-                c.close();
-            }
-        }
-    }
-
-    private synchronized String getSha1OfUri(Uri uri, ParcelFileDescriptor pfd) {
+    private String getSha1OfUri(Uri uri, ParcelFileDescriptor pfd) {
         long statSize = pfd.getStatSize();
-        synchronized (mDigestRows) {
-            String uriString = uri.toString();
-            DigestCacheRow row = mDigestRows.get(uriString);
-            mDigestRows.remove(uriString);
-            if (row != null && row.size == statSize) {
-                return row.sha1;
-            }
-        }
-        SQLiteDatabase db = getDb();
-        Cursor c = db.query("digestcache", new String[] { "sha1" }, "file=? AND size=?",
-                new String[] { uri.toString(), "" + statSize }, null /* groupBy */,
-                null /* having */, null /* orderBy */);
-        if (c != null) {
-            try {
-                if (c.moveToNext()) {
-                    String cachedSha1 = c.getString(0);
-                    Log.d(TAG, "Cached sha1 of " + uri + ": " + cachedSha1);
-                    return cachedSha1;
-                }
-            } finally {
-                c.close();
-            }
-        }
         String sha1 = Util.getSha1(pfd.getFileDescriptor());
-        Log.d(TAG, "Uncached sha1 for " + uri + ": " + sha1);
-        if (sha1 != null) {
-            ContentValues row = new ContentValues();
-            row.put("file", uri.toString());
-            row.put("size", statSize);
-            row.put("sha1", sha1);
-            try {
-                db.replace("digestcache", null, row);
-            } catch (IllegalStateException e) {
-                Log.d(TAG, "error replacing sha1", e);
-            }
-        }
+        Log.d(TAG, "Uncached sha1 for " + uri + ": " + statSize + " bytes, " + sha1);
         return sha1;
     }
 
@@ -581,6 +484,18 @@ public class UploadService extends Service {
         }
         broadcastBlobsRemain();
     }
+    
+    public String pathOfURI(Uri uri) {
+        String[] proj = { MediaStore.Images.Media.DATA };
+        Cursor cursor = getContentResolver().query(uri, proj, null, null, null);
+        cursor.moveToFirst();
+
+        int columnIndex = cursor.getColumnIndex(proj[0]);
+        String filePath = cursor.getString(columnIndex);
+        cursor.close();
+        return filePath;
+    }
+
 
     private final IUploadService.Stub service = new IUploadService.Stub() {
 
@@ -591,7 +506,6 @@ public class UploadService extends Service {
             startService(new Intent(UploadService.this, UploadService.class));
             Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
             incrementBlobsToDigest(uriList.size());
-            batchDigestLookup(uriList);
             int goodCount = 0;
             int startGen = mStopDigestingCounter.get();
             for (Uri uri : uriList) {
@@ -602,9 +516,6 @@ public class UploadService extends Service {
                     }
                     return goodCount;
                 }
-            }
-            synchronized (mDigestRows) {
-                mDigestRows.clear();
             }
             Log.d(TAG, "...goodCount = " + goodCount);
             return goodCount;
@@ -629,19 +540,10 @@ public class UploadService extends Service {
                 return false;
             }
 
-            Log.d(TAG, "Getting SHA-1 of " + uri + "...");
-            String sha1 = getSha1OfUri(uri, pfd);
-            if (sha1 == null) {
-                Log.w(TAG, "File is corrupt?" + uri);
-                // null is returned on IO errors (e.g. flaky SD cards?)
-                // TODO: propagate error up. record in service & tell activity?
-                // maybe log to disk too?
-                incrementBlobsToDigest(-1);
-                stopServiceIfEmpty();
-                return false;
-            }
-
-            QueuedFile qf = new QueuedFile(sha1, uri, pfd.getStatSize());
+            String diskPath = pathOfURI(uri);
+            Log.d(TAG, "diskPath of " + uri + " = " + diskPath);
+            
+            QueuedFile qf = new QueuedFile(uri, pfd.getStatSize(), diskPath);
 
             boolean needResume = false;
             synchronized (UploadService.this) {
@@ -704,6 +606,7 @@ public class UploadService extends Service {
                 setUploadStatusText("Upload server not configured.");
                 return false;
             }
+            String username = mSharedPrefs.getString(Preferences.USERNAME, "");
             String password = mSharedPrefs.getString(Preferences.PASSWORD, "");
 
             final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
@@ -732,7 +635,7 @@ public class UploadService extends Service {
 
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
-                        password);
+                        username, password);
                 mUploadThread.start();
 
                 // Start a thread to release the wakelock...

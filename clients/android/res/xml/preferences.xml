@@ -1,69 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:key="first_preferencescreen">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:key="first_preferencescreen" >
 
-   <EditTextPreference
-       android:key="camli.host"
-       android:title="@string/settings_host_title"
-       android:summary="@string/settings_host_summary"
-       android:persistent="true"
-       />
-
-  <EditTextPreference
-      android:key="camli.password"
-      android:title="@string/settings_password_title"
-      android:persistent="true"
-      android:inputType="textPassword"
-      />
-
-  <CheckBoxPreference
-      android:key="camli.auto"
-      android:title="@string/settings_auto"
-      android:summary="@string/settings_auto_summary"
-      android:persistent="true"
-      />
-
-  <PreferenceScreen
-      android:title="Auto-upload settings"
-      android:key="camli.auto.opts">
+    <EditTextPreference
+        android:key="camli.host"
+        android:persistent="true"
+        android:summary="@string/settings_host_summary"
+        android:title="@string/settings_host_title" />
+    <EditTextPreference
+        android:key="camli.username"
+        android:persistent="true"
+        android:title="@string/settings_username_title" />
+    <EditTextPreference
+        android:inputType="textPassword"
+        android:key="camli.password"
+        android:persistent="true"
+        android:title="@string/settings_password_title" />
 
     <CheckBoxPreference
-        android:key="camli.auto.photos"
-        android:title="Photos (DCIM/Camera/)"
+        android:key="camli.auto"
         android:persistent="true"
-        android:defaultValue="true"
-        />
+        android:summary="@string/settings_auto_summary"
+        android:title="@string/settings_auto" />
 
-    <CheckBoxPreference
-        android:key="camli.auto.mytracks"
-        android:title="MyTracks exports"
+    <PreferenceScreen
+        android:key="camli.auto.opts"
+        android:title="Auto-upload settings" >
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="camli.auto.photos"
+            android:persistent="true"
+            android:title="Photos (DCIM/Camera/)" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="camli.auto.mytracks"
+            android:persistent="true"
+            android:title="MyTracks exports" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="camli.auto.require_wifi"
+            android:persistent="true"
+            android:summary="Wait for Wifi to auto-upload"
+            android:title="Require Wifi" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="camli.auto.require_power"
+            android:persistent="true"
+            android:summary="Wait until charging to auto-upload"
+            android:title="Require Power" />
+    </PreferenceScreen>
+
+    <EditTextPreference
+        android:key="camli.max_cache_mb"
+        android:numeric="integer"
         android:persistent="true"
-        android:defaultValue="true"
-        />
+        android:singleLine="true"
+        android:title="@string/settings_max_cache_size_title" />
 
-    <CheckBoxPreference
-        android:key="camli.auto.require_wifi"
-        android:title="Require Wifi"
-        android:summary="Wait for Wifi to auto-upload"
-        android:persistent="true"
-        android:defaultValue="false"
-        />
-
-    <CheckBoxPreference
-        android:key="camli.auto.require_power"
-        android:title="Require Power"
-        android:summary="Wait until charging to auto-upload"
-        android:persistent="true"
-        android:defaultValue="false"
-        />
-  </PreferenceScreen>
-
-  <EditTextPreference
-      android:key="camli.max_cache_mb"
-      android:title="@string/settings_max_cache_size_title"
-      android:persistent="true"
-      android:numeric="integer"
-      android:singleLine="true"
-      />
 </PreferenceScreen>

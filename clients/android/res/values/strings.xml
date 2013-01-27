@@ -3,7 +3,8 @@
   <string name="app_name">Camlistore Uploader</string>
   <string name="settings_host_title">Camlistore server</string>
   <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
-  <string name="settings_password_title">Server password</string>
+  <string name="settings_username_title">Username</string>
+  <string name="settings_password_title">Password</string>
   <string name="settings_max_cache_size_title">Maximum cache size</string>
   <string name="settings_max_cache_size_summary">%d MB</string>
   <string name="pause_resume">Pause / Resume</string>
