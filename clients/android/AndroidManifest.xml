@@ -5,7 +5,7 @@
       android:versionName="1.0">
 
     <!-- Now using Gingerbread and up.... -->
-    <uses-sdk android:minSdkVersion="10" android:targetSdkVersion="10" />
+    <uses-sdk android:minSdkVersion="10" android:targetSdkVersion="17" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,7 +18,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <application android:icon="@drawable/icon" android:label="@string/app_name"
-                 android:name=".UploadApplication">
+                 android:name=".UploadApplication" android:allowBackup="true">
 
         <service android:name=".UploadService"
                  android:exported="false"
