@@ -23,7 +23,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.LinkedList;
 import java.util.ListIterator;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import android.util.Log;
@@ -35,12 +34,9 @@ public class UploadThread extends Thread {
     private final HostPort mHostPort;
     private final String mUsername;
     private final String mPassword;
-    private LinkedList<QueuedFile> mQueue;
 
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
     AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
-
-    private final AtomicBoolean mStopRequested = new AtomicBoolean(false);
 
     public UploadThread(UploadService uploadService, HostPort hp, String username, String password) {
         mService = uploadService;
@@ -49,8 +45,11 @@ public class UploadThread extends Thread {
         mPassword = password;
     }
 
-    public void stopPlease() {
-        mStopRequested.set(true);
+    public void stopUploads() {
+        Process p = goProcess.get();
+        if (p != null) {
+            p.destroy(); // force kill
+        }
     }
 
     private String binaryPath(String suffix) {
@@ -66,17 +65,11 @@ public class UploadThread extends Thread {
         }
         status("Running UploadThread for " + mHostPort);
 
-        mService.setInFlightBytes(0);
-        mService.setInFlightBlobs(0);
+        LinkedList<QueuedFile> queue;
 
-        while (!(mQueue = mService.uploadQueue()).isEmpty()) {
-            if (mStopRequested.get()) {
-                status("Upload pause requested; ending upload.");
-                return;
-            }
-
+        while (!(queue = mService.uploadQueue()).isEmpty()) {
             status("Uploading...");
-            ListIterator<QueuedFile> iter = mQueue.listIterator();
+            ListIterator<QueuedFile> iter = queue.listIterator();
             while (iter.hasNext()) {
                 QueuedFile qf = iter.next();
                 String diskPath = qf.getDiskPath();
@@ -94,6 +87,7 @@ public class UploadThread extends Thread {
                     .redirectErrorStream(false);
                     pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
                     pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
+                    pb.environment().put("CAMPUT_ANDROID_OUTPUT", "1");
                     process = pb.start();
                     goProcess.set(process);
                     new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
@@ -118,9 +112,6 @@ public class UploadThread extends Thread {
                 }
 
             }
-
-            mService.setInFlightBytes(0);
-            mService.setInFlightBlobs(0);
         }
 
         status("Queue empty; done.");

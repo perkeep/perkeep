@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -31,33 +31,20 @@ public class DummyNullCallback extends IStatusCallback.Stub {
     }
 
     public void logToClient(String stuff) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
     public void setBlobStatus(int done, int inFlight, int total) throws RemoteException {
-        // TODO Auto-generated method stub
-
-    }
-
-    public void setBlobsRemain(int toUpload, int toDigest) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
     public void setByteStatus(long done, int inFlight, long total) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
     public void setUploading(boolean uploading) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
     public void setUploadStatusText(String text) throws RemoteException {
-        // TODO Auto-generated method stub
-
     }
 
+    public void setFileStatus(int done, int inFlight, int total) throws RemoteException {
+    }
 }

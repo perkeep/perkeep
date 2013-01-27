@@ -377,12 +377,17 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 }
 
 // statReceiver returns the StatReceiver used for checking for and uploading blobs.
-func (up *Uploader) statReceiver() blobserver.StatReceiver {
+//
+// The optional provided node is only used for conditionally printing out status info to stdout.
+func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 	statReceiver := up.altStatReceiver
 	if statReceiver == nil {
 		// TODO(mpl): simplify the altStatReceiver situation as well,
 		// see TODO in cmd/camput/uploader.go
 		statReceiver = up.Client
+	}
+	if androidOutput && n != nil && n.fi.Mode()&os.ModeType == 0 {
+		return androidStatusRecevier{statReceiver, n.fullPath}
 	}
 	return statReceiver
 }
@@ -484,7 +489,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	var fileContents io.Reader = io.LimitReader(file, size)
 
 	if up.fileOpts.wantVivify() {
-		err := schema.WriteFileChunks(up.statReceiver(), filebb, fileContents)
+		err := schema.WriteFileChunks(up.statReceiver(n), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -512,7 +517,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		sumRef, err := up.wholeFileDigest(n.fullPath)
 		if err == nil {
 			sum = sumRef.String()
-			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(), filebb, sum); ok {
+			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum); ok {
 				blobref = ref
 			}
 		}
@@ -522,7 +527,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if sum == "" && up.fileOpts.wantFilePermanode() {
 			fileContents = &trackDigestReader{r: fileContents}
 		}
-		blobref, err = schema.WriteFileMap(up.statReceiver(), filebb, fileContents)
+		blobref, err = schema.WriteFileMap(up.statReceiver(n), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}

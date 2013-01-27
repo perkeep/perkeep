@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -31,6 +32,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/schema"
 )
 
 var detectOnce sync.Once
@@ -131,3 +136,43 @@ func tlsClientConfig() *tls.Config {
 	}
 	return cfg
 }
+
+var androidOutput = os.Getenv("CAMPUT_ANDROID_OUTPUT") != ""
+
+// androidStatusRecevier is a blobserver.StatReceiver wrapper that
+// reports the full filename path and size of uploaded blobs.
+// The android app wrapping camput watches stdout for this, for progress bars.
+type androidStatusRecevier struct {
+	blobserver.StatReceiver
+	path string
+}
+
+func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+	// Sniff the first 1KB of it and don't print the stats if it looks like it was just a schema
+	// blob.  We won't update the progress bar for that yet.
+	var buf [1024]byte
+	contents := buf[:0]
+	sb, err := asr.StatReceiver.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
+	if err == nil && !schema.LikelySchemaBlob(contents) {
+		fmt.Printf("CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path)
+	}
+	return sb, err
+}
+
+type writeUntilSliceFull struct {
+	s *[]byte
+}
+
+func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
+	s := *w.s
+	l := len(s)
+	growBy := cap(s) - l
+	if growBy > len(p) {
+		growBy = len(p)
+	}
+	s = s[0:l+growBy]
+	copy(s[l:], p)
+	*w.s = s
+	return len(p), nil
+}
+

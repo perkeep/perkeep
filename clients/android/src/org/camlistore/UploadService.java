@@ -71,13 +71,12 @@ public class UploadService extends Service {
     private String mLastUploadStatusText = null;
     private int mBytesInFlight = 0;
     private int mBlobsInFlight = 0;
-    private int mBlobsToDigest = 0;
 
     // Stats, all guarded by 'this', and all reset to 0 on queue size transition from 0 -> 1.
     private long mBytesTotal = 0;
     private long mBytesUploaded = 0;
-    private int mBlobsTotal = 0;
-    private int mBlobsUploaded = 0;
+    private int mFilesTotal = 0;
+    private int mFilesUploaded = 0;
 
     // Effectively final, initialized in onCreate():
     PowerManager mPowerManager;
@@ -85,10 +84,6 @@ public class UploadService extends Service {
     NotificationManager mNotificationManager;
     SharedPreferences mSharedPrefs;
     Preferences mPrefs;
-
-    // Wake locks for when we have work in-flight
-    private PowerManager.WakeLock mWakeLock;
-    private WifiManager.WifiLock mWifiLock;
 
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
@@ -308,7 +303,7 @@ public class UploadService extends Service {
     public void onDestroy() {
         synchronized (this) {
             Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading="
-                    + mUploading + "; mBlobsToDigest=" + mBlobsToDigest + "; queue size="
+                    + mUploading + "; queue size="
                     + mQueueSet.size());
         }
         super.onDestroy();
@@ -357,19 +352,10 @@ public class UploadService extends Service {
         }
     }
 
-    void broadcastBlobStatus() {
+    void broadcastFileStatus() {
         synchronized (this) {
             try {
-                mCallback.setBlobStatus(mBlobsUploaded, mBlobsInFlight, mBlobsTotal);
-            } catch (RemoteException e) {
-            }
-        }
-    }
-
-    void broadcastBlobsRemain() {
-        synchronized (this) {
-            try {
-                mCallback.setBlobsRemain(mQueueSet.size(), mBlobsToDigest);
+                mCallback.setFileStatus(mFilesUploaded, mBlobsInFlight, mFilesTotal);
             } catch (RemoteException e) {
             }
         }
@@ -383,9 +369,8 @@ public class UploadService extends Service {
             } catch (RemoteException e) {
             }
         }
-        broadcastBlobStatus();
+        broadcastFileStatus();
         broadcastByteStatus();
-        broadcastBlobsRemain();
     }
 
     void setInFlightBlobs(int v) {
@@ -396,10 +381,8 @@ public class UploadService extends Service {
 
     private void onUploadThreadEnded() {
         synchronized (this) {
-            Log.d(TAG, "UploadThread ended; blobsToDigest=" + mBlobsToDigest);
-            if (mBlobsToDigest == 0) {
-                mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
-            }
+            Log.d(TAG, "UploadThread ended");
+            mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
             mUploadThread = null;
             mUploading = false;
             try {
@@ -413,7 +396,7 @@ public class UploadService extends Service {
     /**
      * Callback from the UploadThread to the service.
      * 
-     * @param qf the queued file that was succesfully uploaded.
+     * @param qf the queued file that was successfully uploaded.
      */
     void onUploadComplete(QueuedFile qf) {
         Log.d(TAG, "onUploadComplete of " + qf);
@@ -424,10 +407,9 @@ public class UploadService extends Service {
             mQueueList.remove(qf); // TODO: ghetto, linear scan
 
             mBytesTotal -= qf.getSize();
-            mBlobsTotal -= 1;
-            broadcastBlobsRemain();
+            mFilesTotal -= 1;
             broadcastByteStatus();
-            broadcastBlobStatus();
+            broadcastFileStatus();
         }
         stopServiceIfEmpty();
     }
@@ -435,14 +417,13 @@ public class UploadService extends Service {
     private void stopServiceIfEmpty() {
         // Convenient place to drop this cache.
         synchronized (this) {
-            if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null &&
+            if (mQueueSet.isEmpty() && !mUploading && mUploadThread == null &&
                     !mPrefs.autoUpload()) {
                 Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
             } else {
                 Log.d(TAG, "stopServiceIfEmpty; NOT stopping; "
                         + mQueueSet.isEmpty() + "; "
-                        + mBlobsToDigest + "; "
                         + mUploading + "; "
                         + (mUploadThread != null));
                 return;
@@ -460,11 +441,11 @@ public class UploadService extends Service {
         }
     }
 
-    private void incrementBlobsToDigest(int size) throws RemoteException {
+    private void incrementFilesToUpload(int size) throws RemoteException {
         synchronized (UploadService.this) {
-            mBlobsToDigest += size;
+            mFilesTotal += size;
         }
-        broadcastBlobsRemain();
+        broadcastFileStatus();
     }
 
     public String pathOfURI(Uri uri) {
@@ -478,26 +459,15 @@ public class UploadService extends Service {
         return filePath;
     }
 
-
     private final IUploadService.Stub service = new IUploadService.Stub() {
-
-        // Incremented whenever "stop" is pressed:
-        private final AtomicInteger mStopDigestingCounter = new AtomicInteger(0);
 
         public int enqueueUploadList(List<Uri> uriList) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
             Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
-            incrementBlobsToDigest(uriList.size());
+            incrementFilesToUpload(uriList.size());
             int goodCount = 0;
-            int startGen = mStopDigestingCounter.get();
             for (Uri uri : uriList) {
                 goodCount += enqueueSingleUri(uri) ? 1 : 0;
-                if (startGen != mStopDigestingCounter.get()) {
-                    synchronized (UploadService.this) {
-                        mBlobsToDigest = 0;
-                    }
-                    return goodCount;
-                }
             }
             Log.d(TAG, "...goodCount = " + goodCount);
             return goodCount;
@@ -505,14 +475,14 @@ public class UploadService extends Service {
 
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startUploadService();
-            incrementBlobsToDigest(1);
+            incrementFilesToUpload(1);
             return enqueueSingleUri(uri);
         }
 
         private boolean enqueueSingleUri(Uri uri) throws RemoteException {
             ParcelFileDescriptor pfd = getFileDescriptor(uri);
             if (pfd == null) {
-                incrementBlobsToDigest(-1);
+                incrementFilesToUpload(-1);
                 stopServiceIfEmpty();
                 return false;
             }
@@ -524,7 +494,6 @@ public class UploadService extends Service {
 
             boolean needResume = false;
             synchronized (UploadService.this) {
-                mBlobsToDigest--;
                 if (mQueueSet.contains(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
                     stopServiceIfEmpty();
@@ -536,17 +505,16 @@ public class UploadService extends Service {
 
                 if (mQueueSet.size() == 1) {
                     mBytesTotal = 0;
-                    mBlobsTotal = 0;
+                    mFilesTotal = 0;
                     mBytesUploaded = 0;
-                    mBlobsUploaded = 0;
+                    mFilesUploaded = 0;
                 }
                 mBytesTotal += qf.getSize();
-                mBlobsTotal += 1;
+                mFilesTotal += 1;
                 needResume = !mUploading;
             }
-            broadcastBlobStatus();
+            broadcastFileStatus();
             broadcastByteStatus();
-            broadcastBlobsRemain();
             if (needResume) {
                 resume();
             }
@@ -651,7 +619,7 @@ public class UploadService extends Service {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
                     mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
-                    mUploadThread.stopPlease();
+                    mUploadThread.stopUploads();
                     mUploading = false;
                     mCallback.setUploading(false);
                     return true;
@@ -675,14 +643,12 @@ public class UploadService extends Service {
                 mUploading = false;
                 mBytesInFlight = 0;
                 mBlobsInFlight = 0;
-                mBlobsToDigest = 0;
                 mBytesTotal = 0;
                 mBytesUploaded = 0;
-                mBlobsTotal = 0;
-                mBlobsUploaded = 0;
-                mStopDigestingCounter.incrementAndGet();
+                mFilesTotal = 0;
+                mFilesUploaded = 0;
                 if (mUploadThread != null) {
-                    mUploadThread.stopPlease();
+                    mUploadThread.stopUploads();
                     mUploadThread = null;
                 }
             }

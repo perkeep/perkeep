@@ -41,7 +41,7 @@ interface IUploadService {
     boolean enqueueUpload(in Uri uri);
     int enqueueUploadList(in List<Uri> uri);
 
-    // Stop digesting, stop uploads, clear queues.
+    // Stop stop uploads, clear queues.
     void stopEverything();
     
     // For the SettingsActivity

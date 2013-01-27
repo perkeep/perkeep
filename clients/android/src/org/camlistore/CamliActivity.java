@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -83,10 +83,10 @@ public class CamliActivity extends Activity {
         buttonKill.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View btn) {
-            	System.exit(1);
+                System.exit(1);
             }
         });
-        
+
         buttonToggle.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View btn) {
@@ -134,18 +134,22 @@ public class CamliActivity extends Activity {
                 });
             }
 
-            public void setBlobStatus(final int blobsDone, final int inFlight, final int total)
+            public void setFileStatus(final int done, final int inFlight, final int total)
                     throws RemoteException {
                 mHandler.post(new Runnable() {
                     public void run() {
-                        boolean finished = (blobsDone == total && mLastBlobsDigestRemain == 0);
+                        boolean finished = (done == total && mLastBlobsDigestRemain == 0);
                         buttonToggle.setEnabled(!finished);
                         progressBlob.setMax(total);
-                        progressBlob.setProgress(blobsDone);
-                        progressBlob.setSecondaryProgress(blobsDone + inFlight);
+                        progressBlob.setProgress(done);
+                        progressBlob.setSecondaryProgress(done + inFlight);
                         if (finished) {
                             buttonToggle.setText(getString(R.string.pause_resume));
                         }
+
+                        StringBuilder sb = new StringBuilder(40);
+                        sb.append("Files to upload: ").append(total - done);
+                        textBlobsRemain.setText(sb.toString());
                     }
                 });
             }
@@ -160,24 +164,6 @@ public class CamliActivity extends Activity {
                         progressBytes.setProgress((int) (done / 1024L));
                         progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight
                                 / 1024);
-                    }
-                });
-            }
-
-            public void setBlobsRemain(final int toUpload, final int toDigest)
-                    throws RemoteException {
-                mHandler.post(new Runnable() {
-                    public void run() {
-                        mLastBlobsUploadRemain = toUpload;
-                        mLastBlobsDigestRemain = toDigest;
-
-                        buttonToggle.setEnabled((toUpload + toDigest) != 0);
-                        StringBuilder sb = new StringBuilder(40);
-                        sb.append("Blobs to upload: ").append(toUpload);
-                        if (toDigest > 0) {
-                            sb.append("; to digest: ").append(toDigest);
-                        }
-                        textBlobsRemain.setText(sb.toString());
                     }
                 });
             }
@@ -265,7 +251,7 @@ public class CamliActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        
+
         SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
         HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
         if (!hp.isValid()) {
