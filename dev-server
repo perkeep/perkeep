@@ -17,6 +17,7 @@ my $opt_latency_ms = 90; # added latency in millisecond
 my $opt_fast; # shortcut to disable throttling
 
 my $opt_all;  # listen on all interfaces
+my $opt_hostname;  # hostname to advertise, else `hostname` is used
 my $opt_nobuild;
 my $opt_offline;   # don't use the network ("airplane mode")
 my $opt_staticres; # use static resources, not those on disk
@@ -45,6 +46,7 @@ GetOptions("wipe" => \$opt_wipe,
            "latency_ms=i" => \$opt_latency_ms,
            "fast" => \$opt_fast,
            "verbose" => \$opt_verbose,
+           "hostname=s" => \$opt_hostname,
     )
     or usage();
 
@@ -137,7 +139,7 @@ my $base = "http://localhost:$port";
 my $listen = "127.0.0.1:$port";
 if ($opt_all) {
     $listen = "0.0.0.0:$port";
-    my $host = `hostname`;
+    my $host = $opt_hostname || `hostname`;
     chomp $host;
     $base = "http://$host:$port";
 }
