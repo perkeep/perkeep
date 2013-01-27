@@ -38,6 +38,7 @@ public class SettingsActivity extends PreferenceActivity {
     private IUploadService mServiceStub = null;
 
     private EditTextPreference hostPref;
+    private EditTextPreference usernamePref;
     private EditTextPreference passwordPref;
     private CheckBoxPreference autoPref;
     private PreferenceScreen autoOpts;
@@ -64,6 +65,7 @@ public class SettingsActivity extends PreferenceActivity {
         addPreferencesFromResource(R.xml.preferences);
 
         hostPref = (EditTextPreference) findPreference(Preferences.HOST);
+        usernamePref = (EditTextPreference) findPreference(Preferences.USERNAME);
         passwordPref = (EditTextPreference) findPreference(Preferences.PASSWORD);
         autoPref = (CheckBoxPreference) findPreference(Preferences.AUTO);
         autoOpts = (PreferenceScreen) findPreference(Preferences.AUTO_OPTS);
@@ -89,6 +91,8 @@ public class SettingsActivity extends PreferenceActivity {
                     updateHostSummary(newStr);
                 } else if (pref == passwordPref) {
                     updatePasswordSummary(newStr);
+                } else if (pref == usernamePref) {
+                    updateUsernameSummary(newStr);
                 } else if (pref == maxCacheSizePref) {
                     if (!updateMaxCacheSizeSummary(newStr))
                         return false;
@@ -98,6 +102,7 @@ public class SettingsActivity extends PreferenceActivity {
         };
         hostPref.setOnPreferenceChangeListener(onChange);
         passwordPref.setOnPreferenceChangeListener(onChange);
+        usernamePref.setOnPreferenceChangeListener(onChange);
         maxCacheSizePref.setOnPreferenceChangeListener(onChange);
     }
 
@@ -143,6 +148,7 @@ public class SettingsActivity extends PreferenceActivity {
         updatePasswordSummary(passwordPref.getText());
         updateAutoOpts(autoPref.isChecked());
         updateMaxCacheSizeSummary(hostPref.getText());
+        updateUsernameSummary(usernamePref.getText());
     }
 
     private void updatePasswordSummary(String value) {
@@ -150,6 +156,14 @@ public class SettingsActivity extends PreferenceActivity {
             passwordPref.setSummary("*********");
         } else {
             passwordPref.setSummary("<unset>");
+        }
+    }
+
+    private void updateUsernameSummary(String value) {
+        if (value != null && value.length() > 0) {
+            usernamePref.setSummary(value);
+        } else {
+            usernamePref.setSummary("<unset>");
         }
     }
 
