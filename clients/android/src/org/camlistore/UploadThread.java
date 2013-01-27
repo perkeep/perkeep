@@ -93,6 +93,7 @@ public class UploadThread extends Thread {
                     .command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath)
                     .redirectErrorStream(false);
                     pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
+                    pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
                     process = pb.start();
                     goProcess.set(process);
                     new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();

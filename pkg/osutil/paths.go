@@ -39,6 +39,9 @@ func CacheDir() string {
 }
 
 func cacheDir() string {
+	if d := os.Getenv("CAMLI_CACHE_DIR"); d != "" {
+		return d
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		return filepath.Join(HomeDir(), "Library", "Caches", "Camlistore")
