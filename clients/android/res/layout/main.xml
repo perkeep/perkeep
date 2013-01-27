@@ -46,12 +46,12 @@
 		android:layout_width="fill_parent"
 		android:layout_height="20sp" />
 	<TextView
-		android:id="@+id/textByteStatus"
+		android:id="@+id/textFileStatus"
 		android:layout_width="fill_parent"
 		android:layout_height="wrap_content"
-		android:text="@+string/blobs_uploaded" />
+		android:text="@+string/files_uploaded" />
 	<ProgressBar
-		android:id="@+id/progressBlobStatus"
+		android:id="@+id/progressFileStatus"
 		style="?android:attr/progressBarStyleHorizontal"
 		android:indeterminate="false"
 		android:indeterminateOnly="false"

@@ -15,9 +15,9 @@
   <string name="digesting">Digesting...</string>
   <string name="settings_auto">Auto-Upload</string>
   <string name="settings_auto_summary">Upload SD card files as created</string>
-  <string name="blobs_remaining">Blobs Remaining: --</string>
+  <string name="files_remaining">Files Remaining: &#8212;</string>
   <string name="status_detail">[status detail]</string>
-  <string name="blobs_uploaded">Blobs Uploaded</string>
+  <string name="files_uploaded">Files Uploaded</string>
   <string name="bytes_uploaded">Bytes Uploaded</string>
   <string name="settings">Settings</string>
   <string name="upload_all">Upload All</string>

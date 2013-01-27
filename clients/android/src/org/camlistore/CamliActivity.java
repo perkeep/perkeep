@@ -78,7 +78,7 @@ public class CamliActivity extends Activity {
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
         final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
         final ProgressBar progressBytes = (ProgressBar) findViewById(R.id.progressByteStatus);
-        final ProgressBar progressBlob = (ProgressBar) findViewById(R.id.progressBlobStatus);
+        final ProgressBar progressFile = (ProgressBar) findViewById(R.id.progressFileStatus);
 
         buttonKill.setOnClickListener(new OnClickListener() {
             @Override
@@ -140,9 +140,9 @@ public class CamliActivity extends Activity {
                     public void run() {
                         boolean finished = (done == total && mLastBlobsDigestRemain == 0);
                         buttonToggle.setEnabled(!finished);
-                        progressBlob.setMax(total);
-                        progressBlob.setProgress(done);
-                        progressBlob.setSecondaryProgress(done + inFlight);
+                        progressFile.setMax(total);
+                        progressFile.setProgress(done);
+                        progressFile.setSecondaryProgress(done + inFlight);
                         if (finished) {
                             buttonToggle.setText(getString(R.string.pause_resume));
                         }
