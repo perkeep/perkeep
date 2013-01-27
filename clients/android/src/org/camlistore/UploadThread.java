@@ -113,6 +113,8 @@ public class UploadThread extends Thread {
                     throw new RuntimeException(e);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
+                } finally {
+                    goProcess.set(null);
                 }
 
             }
