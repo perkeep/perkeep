@@ -469,13 +469,6 @@ public class UploadService extends Service {
         }
     }
 
-    private String getSha1OfUri(Uri uri, ParcelFileDescriptor pfd) {
-        long statSize = pfd.getStatSize();
-        String sha1 = Util.getSha1(pfd.getFileDescriptor());
-        Log.d(TAG, "Uncached sha1 for " + uri + ": " + statSize + " bytes, " + sha1);
-        return sha1;
-    }
-
     private void incrementBlobsToDigest(int size) throws RemoteException {
         synchronized (UploadService.this) {
             mBlobsToDigest += size;
