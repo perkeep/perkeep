@@ -156,8 +156,14 @@ func newUploader() *Uploader {
 		cc.SetLogger(nil)
 	}
 
+	transport := &http.Transport{
+		Dial: dialFunc(),
+		TLSClientConfig: tlsClientConfig(),
+	}
+
 	httpStats := &httputil.StatsTransport{
 		VerboseLog: *flagHTTP,
+		Transport:  transport,
 	}
 	cc.SetHTTPClient(&http.Client{Transport: httpStats})
 
