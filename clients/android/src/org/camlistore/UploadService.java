@@ -413,27 +413,18 @@ public class UploadService extends Service {
     /**
      * Callback from the UploadThread to the service.
      * 
-     * @param qf
-     *            the queued file
-     * @param wasUploaded
-     *            not a dupe that the server already had. the bytes were
-     *            actually uploaded.
+     * @param qf the queued file that was succesfully uploaded.
      */
-    void onUploadComplete(QueuedFile qf, boolean wasUploaded) {
-        Log.d(TAG, "onUploadComplete of " + qf + ", uploaded=" + wasUploaded);
+    void onUploadComplete(QueuedFile qf) {
+        Log.d(TAG, "onUploadComplete of " + qf);
         synchronized (this) {
             if (!mQueueSet.remove(qf)) {
                 return;
             }
             mQueueList.remove(qf); // TODO: ghetto, linear scan
 
-            if (wasUploaded) {
-                mBytesUploaded += qf.getSize();
-                mBlobsUploaded += 1;
-            } else {
-                mBytesTotal -= qf.getSize();
-                mBlobsTotal -= 1;
-            }
+            mBytesTotal -= qf.getSize();
+            mBlobsTotal -= 1;
             broadcastBlobsRemain();
             broadcastByteStatus();
             broadcastBlobStatus();

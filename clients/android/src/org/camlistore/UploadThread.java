@@ -103,7 +103,7 @@ public class UploadThread extends Thread {
                     Log.d(TAG, "Exit status of camput = " + process.exitValue());
                     if (process.exitValue() == 0) {
                         status("Uploaded " + diskPath);
-                        iter.remove();
+                        mService.onUploadComplete(qf);
                     } else {
                         Log.d(TAG, "Problem uploading.");
                         return;
