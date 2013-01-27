@@ -58,18 +58,12 @@
 		android:minHeight="20sp"
 		android:layout_width="fill_parent"
 		android:layout_height="20sp" />
-        <Button
-                android:id="@+id/buttonBrowse"
-                android:padding="15sp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@+string/browse" />
         
-                <Button
-                android:id="@+id/buttonKill"
-                android:padding="15sp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="KILL" />
+ 	<Button
+        android:id="@+id/buttonKill"
+        android:padding="15sp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="KILL" />
         
 </LinearLayout>

@@ -24,10 +24,6 @@
                  android:exported="false"
                  android:label="Camlistore Upload Service" />
 
-        <service android:name=".DownloadService"
-                 android:exported="false"
-                 android:label="Camlistore Download Service" />
-
         <activity android:name=".CamliActivity"
                   android:label="@string/app_name">
             <intent-filter>

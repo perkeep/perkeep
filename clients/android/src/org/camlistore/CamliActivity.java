@@ -72,7 +72,6 @@ public class CamliActivity extends Activity {
         setContentView(R.layout.main);
 
         final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
-        final Button buttonBrowse = (Button) findViewById(R.id.buttonBrowse);
         final Button buttonKill = (Button) findViewById(R.id.buttonKill);
 
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
@@ -105,13 +104,6 @@ public class CamliActivity extends Activity {
                     } catch (RemoteException e) {
                     }
                 }
-            }
-        });
-
-        buttonBrowse.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View button) {
-                startActivity(new Intent(CamliActivity.this, BrowseActivity.class));
             }
         });
 
