@@ -64,4 +64,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@+string/browse" />
+        
+                <Button
+                android:id="@+id/buttonKill"
+                android:padding="15sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="KILL" />
+        
 </LinearLayout>

@@ -4,9 +4,8 @@
       android:versionCode="1"
       android:versionName="1.0">
 
-    <!-- Note: only using SDK 8 for android.util.Base64; could fix and let
-         Donut users (SDK 4) use this too .... -->
-    <uses-sdk android:minSdkVersion="8" android:targetSdkVersion="8" />
+    <!-- Now using Gingerbread and up.... -->
+    <uses-sdk android:minSdkVersion="10" android:targetSdkVersion="10" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />

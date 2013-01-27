@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -72,12 +73,21 @@ public class CamliActivity extends Activity {
 
         final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
         final Button buttonBrowse = (Button) findViewById(R.id.buttonBrowse);
+        final Button buttonKill = (Button) findViewById(R.id.buttonKill);
+
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
         final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
         final ProgressBar progressBytes = (ProgressBar) findViewById(R.id.progressByteStatus);
         final ProgressBar progressBlob = (ProgressBar) findViewById(R.id.progressBlobStatus);
 
+        buttonKill.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View btn) {
+            	System.exit(1);
+            }
+        });
+        
         buttonToggle.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View btn) {
@@ -263,7 +273,7 @@ public class CamliActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-
+        
         SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
         HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
         if (!hp.isValid()) {
