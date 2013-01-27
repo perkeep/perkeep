@@ -57,9 +57,14 @@ func ConfigFilePath() string {
 
 var configOnce sync.Once
 var config = make(map[string]interface{})
+var parseConfigErr error
 
 func parseConfig() {
 	configPath := ConfigFilePath()
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		parseConfigErr = os.ErrNotExist
+		return
+	}
 
 	var err error
 	if config, err = jsonconfig.ReadFile(configPath); err != nil {
@@ -98,7 +103,6 @@ func serverOrDie() string {
 }
 
 func (c *Client) SetupAuth() error {
-	configOnce.Do(parseConfig)
 	if flagServer != nil && *flagServer != "" {
 		// If using an explicit blobserver, don't use auth
 		// configured from the config file, so we don't send
@@ -110,6 +114,7 @@ func (c *Client) SetupAuth() error {
 		}
 		return err
 	}
+	configOnce.Do(parseConfig)
 	return c.SetupAuthFromConfig(config)
 }
 
