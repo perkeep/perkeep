@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -90,23 +91,22 @@ func androidLookupHost(host string) string {
 }
 
 func dialFunc() func(network, addr string) (net.Conn, error) {
+	if !onAndroid() {
+		return nil // use default
+	}
 	return func(network, addr string) (net.Conn, error) {
-		if onAndroid() {
-			// Temporary laziness hack, avoiding doing a
-			// cross-compiled Android cgo build.
-			// Without cgo, package net uses
-			// /etc/resolv.conf (not available on
-			// Android).  We really want a cgo binary to
-			// use Android's DNS cache, but it's kinda
-			// hard/impossible to cross-compile for now.
-			host, port, err := net.SplitHostPort(addr)
-			if err == nil {
-				return net.Dial(network, net.JoinHostPort(androidLookupHost(host), port))
-			} else {
-				log.Printf("couldn't split %q", addr)
-			}
+		// Temporary laziness hack, avoiding doing a
+		// cross-compiled Android cgo build.
+		// Without cgo, package net uses
+		// /etc/resolv.conf (not available on
+		// Android).  We really want a cgo binary to
+		// use Android's DNS cache, but it's kinda
+		// hard/impossible to cross-compile for now.
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't split %q", addr)
 		}
-		return net.Dial(network, addr)
+		return net.Dial(network, net.JoinHostPort(androidLookupHost(host), port))
 	}
 }
 
