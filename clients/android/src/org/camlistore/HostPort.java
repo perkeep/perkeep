@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -74,21 +74,21 @@ public class HostPort {
     }
 
     private boolean nonStandardPort() {
-    	return mPort != (mSecure ? 443 : 80);
+        return mPort != (mSecure ? 443 : 80);
     }
-    
+
     public String urlPrefix() {
-    	StringBuilder sb = new StringBuilder(12 + mHost.length());
-    	sb.append(httpScheme());
-    	sb.append("://");
-    	sb.append(mHost);
-    	if (nonStandardPort()) {
-    		sb.append(":");
-    		sb.append(mPort);
-    	}
-    	return sb.toString();
+        StringBuilder sb = new StringBuilder(12 + mHost.length());
+        sb.append(httpScheme());
+        sb.append("://");
+        sb.append(mHost);
+        if (nonStandardPort()) {
+            sb.append(":");
+            sb.append(mPort);
+        }
+        return sb.toString();
     }
-    
+
     public String httpScheme() {
         return mSecure ? "https" : "http";
     }

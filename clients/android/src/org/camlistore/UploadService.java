@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -56,17 +56,15 @@ public class UploadService extends Service {
 
     private static int NOTIFY_ID_UPLOADING = 0x001;
 
-    private static final int DB_VERSION = 1;
-
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
     public static final String INTENT_UPLOAD_ALL = "UPLOAD_ALL";
 
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
-                                        // quickly)
+    // quickly)
     private UploadThread mUploadThread = null; // last thread created; null when
-                                               // thread exits
+    // thread exits
     private final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
@@ -91,7 +89,7 @@ public class UploadService extends Service {
     // Wake locks for when we have work in-flight
     private PowerManager.WakeLock mWakeLock;
     private WifiManager.WifiLock mWifiLock;
-    
+
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
     // inotify.
@@ -447,15 +445,15 @@ public class UploadService extends Service {
         // Convenient place to drop this cache.
         synchronized (this) {
             if (mQueueSet.isEmpty() && mBlobsToDigest == 0 && !mUploading && mUploadThread == null &&
-                !mPrefs.autoUpload()) {
+                    !mPrefs.autoUpload()) {
                 Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
             } else {
                 Log.d(TAG, "stopServiceIfEmpty; NOT stopping; "
-                      + mQueueSet.isEmpty() + "; "
-                      + mBlobsToDigest + "; "
-                      + mUploading + "; "
-                      + (mUploadThread != null));
+                        + mQueueSet.isEmpty() + "; "
+                        + mBlobsToDigest + "; "
+                        + mUploading + "; "
+                        + (mUploadThread != null));
                 return;
             }
         }
@@ -484,7 +482,7 @@ public class UploadService extends Service {
         }
         broadcastBlobsRemain();
     }
-    
+
     public String pathOfURI(Uri uri) {
         String[] proj = { MediaStore.Images.Media.DATA };
         Cursor cursor = getContentResolver().query(uri, proj, null, null, null);
@@ -521,11 +519,6 @@ public class UploadService extends Service {
             return goodCount;
         }
 
-        /*
-         * Note: blocks while sha1'ing the file. Should be called from an
-         * AsyncTask from the Activity. TODO: make the activity pass this info
-         * via a startService(Intent) to us.
-         */
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startUploadService();
             incrementBlobsToDigest(1);
@@ -542,7 +535,7 @@ public class UploadService extends Service {
 
             String diskPath = pathOfURI(uri);
             Log.d(TAG, "diskPath of " + uri + " = " + diskPath);
-            
+
             QueuedFile qf = new QueuedFile(uri, pfd.getStatSize(), diskPath);
 
             boolean needResume = false;

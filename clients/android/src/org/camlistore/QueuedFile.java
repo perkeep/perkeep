@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -43,7 +43,7 @@ public class QueuedFile {
     public long getSize() {
         return mSize;
     }
-    
+
     // getDiskPath may return null, if the URI couldn't be resolved to a path on disk.
     public String getDiskPath() {
         return mDiskPath;

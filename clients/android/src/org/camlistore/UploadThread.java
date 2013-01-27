@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -60,13 +60,13 @@ import android.util.Log;
 
 public class UploadThread extends Thread {
     private static final String TAG = "UploadThread";
-    
+
     private final UploadService mService;
     private final HostPort mHostPort;
     private final String mUsername;
     private final String mPassword;
     private LinkedList<QueuedFile> mQueue;
-    
+
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
     AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
 
@@ -78,7 +78,7 @@ public class UploadThread extends Thread {
         mUsername = username;
         mPassword = password;
     }
-    
+
     public void stopPlease() {
         mStopRequested.set(true);
     }
@@ -86,19 +86,19 @@ public class UploadThread extends Thread {
     private String binaryPath(String suffix) {
         return mService.getBaseContext().getFilesDir().getAbsolutePath() + "/" + suffix;
     }
-    
+
     @Override
     public void run() {
-    	Log.d(TAG, "Running");
+        Log.d(TAG, "Running");
         if (!mHostPort.isValid()) {
-        	Log.d(TAG, "host/port is invalid");
+            Log.d(TAG, "host/port is invalid");
             return;
         }
         status("Running UploadThread for " + mHostPort);
 
         mService.setInFlightBytes(0);
         mService.setInFlightBlobs(0);
-        
+
         while (!(mQueue = mService.uploadQueue()).isEmpty()) {
             if (mStopRequested.get()) {
                 status("Upload pause requested; ending upload.");
@@ -108,44 +108,44 @@ public class UploadThread extends Thread {
             status("Uploading...");
             ListIterator<QueuedFile> iter = mQueue.listIterator();
             while (iter.hasNext()) {
-            	QueuedFile qf = iter.next();
-            	String diskPath = qf.getDiskPath();
-            	if (diskPath == null) {
-            		Log.d(TAG, "URI " + qf.getUri() + " had no disk path; skipping");
-            		iter.remove();
-            		continue;
-            	}
-            	Log.d(TAG, "need to upload: " + qf);
-            
+                QueuedFile qf = iter.next();
+                String diskPath = qf.getDiskPath();
+                if (diskPath == null) {
+                    Log.d(TAG, "URI " + qf.getUri() + " had no disk path; skipping");
+                    iter.remove();
+                    continue;
+                }
+                Log.d(TAG, "need to upload: " + qf);
+
                 Process process = null;
                 try {
                     ProcessBuilder pb = new ProcessBuilder()
-                    	.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath)
-                        .redirectErrorStream(false);
+                    .command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath)
+                    .redirectErrorStream(false);
                     pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
                     process = pb.start();
                     goProcess.set(process);
-                    new CopyToAndroidLogThread(process.getErrorStream()).start(); // stderr
-                    new CopyToAndroidLogThread(process.getInputStream()).start(); // stdout
+                    new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
+                    new CopyToAndroidLogThread("stdout", process.getInputStream()).start();
                     //BufferedReader br = new BufferedReader(new InputStreamReader(in));
                     Log.d(TAG, "Waiting for camput process.");
                     process.waitFor();
                     Log.d(TAG, "Exit status of camput = " + process.exitValue());
                     if (process.exitValue() == 0) {
                         status("Uploaded " + diskPath);
-                    	iter.remove();
+                        iter.remove();
                     } else {
-                    	Log.d(TAG, "Problem uploading.");
-                    	return;
+                        Log.d(TAG, "Problem uploading.");
+                        return;
                     }
                 } catch (IOException e) {
-                	throw new RuntimeException(e);
+                    throw new RuntimeException(e);
                 } catch (InterruptedException e) {
-                	throw new RuntimeException(e);
+                    throw new RuntimeException(e);
                 }
-                
+
             }
-            
+
             mService.setInFlightBytes(0);
             mService.setInFlightBlobs(0);
         }
@@ -159,17 +159,19 @@ public class UploadThread extends Thread {
         Log.d(TAG, st);
         mService.setUploadStatusText(st);
     }
-    
+
     private class CopyToAndroidLogThread extends Thread {
         private final BufferedReader mBufIn;
-		
-        public CopyToAndroidLogThread(InputStream in) {
+        private final String mStream;
+
+        public CopyToAndroidLogThread(String stream, InputStream in) {
             mBufIn = new BufferedReader(new InputStreamReader(in));
+            mStream = stream;
         }
-		
+
         @Override 
-            public void run() {
-            String tag = TAG + "/child-stderr";
+        public void run() {
+            String tag = TAG + "/" + mStream + "-child";
             while (true) {
                 String line = null;
                 try {
@@ -179,7 +181,7 @@ public class UploadThread extends Thread {
                     return;
                 }
                 if (line == null) {
-                    Log.d(tag, "null line from child stderr.");
+                    // EOF
                     return;
                 }
                 Log.d(tag, line);
