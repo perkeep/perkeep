@@ -28,75 +28,81 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 
 public class UploadApplication extends Application {
-	private final static String TAG = "UploadApplication";
-	private final static boolean STRICT_MODE = true;
+    private final static String TAG = "UploadApplication";
+    private final static boolean STRICT_MODE = true;
 
-	private long getAPKModTime() {
-		try {
-			return getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime;
-		} catch (NameNotFoundException e) {
-			throw new RuntimeException(e);
-		}
-	}
+    private long getAPKModTime() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime;
+        } catch (NameNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-	private void copyGoBinary() {
-		long myTime = getAPKModTime();
-		String dstFile = getBaseContext().getFilesDir().getAbsolutePath() + "/camput.bin";
-		File f = new File(dstFile);
-		Log.d(TAG, " My Time: " + myTime);
-		Log.d(TAG, "Bin Time: " + f.lastModified());
-		if (f.exists() && f.lastModified() > myTime) {
-			Log.d(TAG, "Go binary modtime up-to-date.");
-			return;
-		}
-		Log.d(TAG, "Go binary missing or modtime stale. Re-copying from APK.");
-		try {
-			InputStream is = getAssets().open("camput.arm");
-			FileOutputStream fos = getBaseContext().openFileOutput("camput.bin.writing", MODE_PRIVATE);
-			byte[] buf = new byte[8192];
-			int offset;
-			while ((offset = is.read(buf))>0) {
-				fos.write(buf, 0, offset);
-			}
-			is.close(); 
-			fos.flush();
-			fos.close();
+    private void copyGoBinary() {
+        long myTime = getAPKModTime();
+        String dstFile = getBaseContext().getFilesDir().getAbsolutePath() + "/camput.bin";
+        File f = new File(dstFile);
+        Log.d(TAG, " My Time: " + myTime);
+        Log.d(TAG, "Bin Time: " + f.lastModified());
+        if (f.exists() && f.lastModified() > myTime) {
+            Log.d(TAG, "Go binary modtime up-to-date.");
+            return;
+        }
+        Log.d(TAG, "Go binary missing or modtime stale. Re-copying from APK.");
+        try {
+            InputStream is = getAssets().open("camput.arm");
+            FileOutputStream fos = getBaseContext().openFileOutput("camput.bin.writing", MODE_PRIVATE);
+            byte[] buf = new byte[8192];
+            int offset;
+            while ((offset = is.read(buf))>0) {
+                fos.write(buf, 0, offset);
+            }
+            is.close(); 
+            fos.flush();
+            fos.close();
 
-			String writingFilePath = dstFile + ".writing";
-			Log.d(TAG, "wrote out " + writingFilePath);
-			Runtime.getRuntime().exec("chmod 0777 " + writingFilePath);
-			Log.d(TAG, "did chmod 0700 on " + writingFilePath);
-			Runtime.getRuntime().exec("mv " + writingFilePath + " " + dstFile);
-			f = new File(dstFile);
-			f.setLastModified(myTime);
-			Log.d(TAG, "set modtime of " + dstFile);
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
+            String writingFilePath = dstFile + ".writing";
+            Log.d(TAG, "wrote out " + writingFilePath);
+            Runtime.getRuntime().exec("chmod 0777 " + writingFilePath);
+            Log.d(TAG, "did chmod 0700 on " + writingFilePath);
+            Runtime.getRuntime().exec("mv " + writingFilePath + " " + dstFile);
+            f = new File(dstFile);
+            f.setLastModified(myTime);
+            Log.d(TAG, "set modtime of " + dstFile);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-	public void onCreate() {
-		super.onCreate();
+    public void onCreate() {
+        super.onCreate();
 
-		copyGoBinary();
+        copyGoBinary();
 
-		if (!STRICT_MODE) {
-			Log.d(TAG, "Starting UploadApplication; release build.");
-			return;
-		}
+        if (!STRICT_MODE) {
+            Log.d(TAG, "Starting UploadApplication; release build.");
+            return;
+        }
 
-		try {
-			Class strictmode = Class.forName("android.os.StrictMode");
-			Log.d(TAG, "StrictMode class found.");
-			Method method = strictmode.getMethod("enableDefaults");
-			Log.d(TAG, "enableDefaults method found.");
-			method.invoke(null);
-		} catch (ClassNotFoundException e) {
-		} catch (LinkageError e) {
-		} catch (IllegalAccessException e) {
-		} catch (NoSuchMethodException e) {
-		} catch (SecurityException e) {
-		} catch (java.lang.reflect.InvocationTargetException e) {
-		}
-	}
+        try {
+            Runtime.getRuntime().exec("chmod 0755 " + getCacheDir().getAbsolutePath());
+        } catch (IOException e) {
+            Log.d(TAG, "failed to chmod cache dir");
+        }
+
+        try {
+            Class strictmode = Class.forName("android.os.StrictMode");
+            Log.d(TAG, "StrictMode class found.");
+            Method method = strictmode.getMethod("enableDefaults");
+            Log.d(TAG, "enableDefaults method found.");
+            method.invoke(null);
+        } catch (ClassNotFoundException e) {
+        } catch (LinkageError e) {
+        } catch (IllegalAccessException e) {
+        } catch (NoSuchMethodException e) {
+        } catch (SecurityException e) {
+        } catch (java.lang.reflect.InvocationTargetException e) {
+        }
+    }
 }
