@@ -8,7 +8,7 @@ goog.provide('camlistore.ServerConnection');
 
 goog.require('goog.net.XhrIo');
 goog.require('goog.uri.utils');
-
+goog.require('camlistore.CamliCommon');
 
 /**
  * @param {camlistore.ServerType.DiscoveryDocument} config Discovery document

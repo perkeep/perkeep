@@ -24,6 +24,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
+if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
+    goog.provide('camlistore.Crypto');
+}
+
 if (typeof Crypto == "undefined" || ! Crypto.util)
 {
 (function(){
