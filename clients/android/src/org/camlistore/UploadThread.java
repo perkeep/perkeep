@@ -92,9 +92,9 @@ public class UploadThread extends Thread {
 
                 Process process = null;
                 try {
-                    ProcessBuilder pb = new ProcessBuilder()
-                    .command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath)
-                    .redirectErrorStream(false);
+                    ProcessBuilder pb = new ProcessBuilder();
+                    pb.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath);
+                    pb.redirectErrorStream(false);
                     pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
                     pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
                     pb.environment().put("CAMPUT_ANDROID_OUTPUT", "1");
@@ -102,7 +102,6 @@ public class UploadThread extends Thread {
                     goProcess.set(process);
                     new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
                     new ParseCamputOutputThread(process, mService).start();
-                    //BufferedReader br = new BufferedReader(new InputStreamReader(in));
                     Log.d(TAG, "Waiting for camput process.");
                     process.waitFor();
                     Log.d(TAG, "Exit status of camput = " + process.exitValue());
@@ -125,7 +124,7 @@ public class UploadThread extends Thread {
 
         status("Queue empty; done.");
     }
- 
+
     // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
     private final static Pattern chunkUploadedPattern = Pattern.compile("^CHUNK_UPLOADED (\\d+) (\\S+) (.+)");
 
@@ -162,7 +161,7 @@ public class UploadThread extends Thread {
             mBufIn = new BufferedReader(new InputStreamReader(process.getInputStream()));
         }
 
-        @Override 
+        @Override
         public void run() {
             while (true) {
                 String line = null;
@@ -180,7 +179,7 @@ public class UploadThread extends Thread {
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);
                     mService.onChunkUploaded(msg);
-                    continue;     
+                    continue;
                 }
                 Log.d(TAG, "Unknown line: " + line);
             }
@@ -199,7 +198,7 @@ public class UploadThread extends Thread {
             mStream = stream;
         }
 
-        @Override 
+        @Override
         public void run() {
             String tag = TAG + "/" + mStream + "-child";
             while (true) {
