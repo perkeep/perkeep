@@ -23,8 +23,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.HashMap;
 
 import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 
@@ -33,13 +31,9 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -74,7 +68,8 @@ public class UploadService extends Service {
     private int mBytesInFlight = 0;
     private int mBlobsInFlight = 0;
 
-    // Stats, all guarded by 'this', and all reset to 0 on queue size transition from 0 -> 1.
+    // Stats, all guarded by 'this', and all reset to 0 on queue size transition
+    // from 0 -> 1.
     private long mBytesTotal = 0;
     private long mBytesUploaded = 0;
     private int mFilesTotal = 0;
@@ -84,13 +79,12 @@ public class UploadService extends Service {
     PowerManager mPowerManager;
     WifiManager mWifiManager;
     NotificationManager mNotificationManager;
-    SharedPreferences mSharedPrefs;
     Preferences mPrefs;
 
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
     // inotify.
-    private ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
+    private final ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
 
     @Override
     public void onCreate() {
@@ -100,8 +94,7 @@ public class UploadService extends Service {
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
-        mPrefs = new Preferences(mSharedPrefs);
+        mPrefs = new Preferences(getSharedPreferences(Preferences.NAME, 0));
 
         updateBackgroundWatchers();
     }
@@ -124,6 +117,8 @@ public class UploadService extends Service {
     // This is @Override as of SDK version 5, but we're targetting 4 (Android
     // 1.6)
     private static final int START_STICKY = 1; // in SDK 5
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         handleCommand(intent);
         // We want this service to continue running until it is explicitly
@@ -162,7 +157,8 @@ public class UploadService extends Service {
                 handleUploadAll();
             }
 
-            if (INTENT_POWER_DISCONNECTED.equals(action) && mPrefs.autoRequiresPower()) {
+            if (INTENT_POWER_DISCONNECTED.equals(action)
+                    && mPrefs.autoRequiresPower()) {
                 service.pause();
                 stopBackgroundWatchers();
                 stopServiceIfEmpty();
@@ -190,6 +186,7 @@ public class UploadService extends Service {
 
         final Uri uri = (Uri) streamValue;
         Util.runAsync(new Runnable() {
+            @Override
             public void run() {
                 try {
                     service.enqueueUpload(uri);
@@ -207,6 +204,7 @@ public class UploadService extends Service {
                 PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload All");
         wakeLock.acquire();
         Util.runAsync(new Runnable() {
+            @Override
             public void run() {
                 try {
                     List<String> dirs = getBackupDirs();
@@ -237,10 +235,10 @@ public class UploadService extends Service {
 
     private List<String> getBackupDirs() {
         ArrayList<String> dirs = new ArrayList<String>();
-        if (mSharedPrefs.getBoolean(Preferences.AUTO_DIR_PHOTOS, true)) {
+        if (mPrefs.autoDirPhotos()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
         }
-        if (mSharedPrefs.getBoolean(Preferences.AUTO_DIR_MYTRACKS, true)) {
+        if (mPrefs.autoDirMyTracks()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/gpx");
             dirs.add(Environment.getExternalStorageDirectory() + "/kml");
         }
@@ -248,7 +246,8 @@ public class UploadService extends Service {
     }
 
     private void handleSendMultiple(Intent intent) {
-        ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+        ArrayList<Parcelable> items = intent
+                .getParcelableArrayListExtra(Intent.EXTRA_STREAM);
         ArrayList<Uri> uris = new ArrayList<Uri>(items.size());
         for (Parcelable p : items) {
             if (!(p instanceof Uri)) {
@@ -259,6 +258,7 @@ public class UploadService extends Service {
         }
         final ArrayList<Uri> finalUris = uris;
         Util.runAsync(new Runnable() {
+            @Override
             public void run() {
                 try {
                     service.enqueueUploadList(finalUris);
@@ -285,7 +285,7 @@ public class UploadService extends Service {
 
     private void updateBackgroundWatchers() {
         stopBackgroundWatchers();
-        if (!mSharedPrefs.getBoolean(Preferences.AUTO, false)) {
+        if (!mPrefs.autoUpload()) {
             return;
         }
         startBackgroundWatchers();
@@ -304,13 +304,14 @@ public class UploadService extends Service {
     @Override
     public void onDestroy() {
         synchronized (this) {
-            Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading="
-                    + mUploading + "; queue size="
-                    + mQueueSet.size());
+            Log.d(TAG, "onDestroy of camli UploadService; thread="
+                    + mUploadThread + "; uploading=" + mUploading
+                    + "; queue size=" + mQueueSet.size());
         }
         super.onDestroy();
         if (mUploadThread != null) {
-            Log.e(TAG, "Unexpected onDestroy with active upload thread.  Killing it.");
+            Log.e(TAG,
+                    "Unexpected onDestroy with active upload thread.  Killing it.");
             mUploadThread.interrupt();
             mUploadThread = null;
         }
@@ -348,7 +349,8 @@ public class UploadService extends Service {
     void broadcastByteStatus() {
         synchronized (this) {
             try {
-                mCallback.setByteStatus(mBytesUploaded, mBytesInFlight, mBytesTotal);
+                mCallback.setByteStatus(mBytesUploaded, mBytesInFlight,
+                        mBytesTotal);
             } catch (RemoteException e) {
             }
         }
@@ -357,7 +359,8 @@ public class UploadService extends Service {
     void broadcastFileStatus() {
         synchronized (this) {
             try {
-                mCallback.setFileStatus(mFilesUploaded, mBlobsInFlight, mFilesTotal);
+                mCallback.setFileStatus(mFilesUploaded, mBlobsInFlight,
+                        mFilesTotal);
             } catch (RemoteException e) {
             }
         }
@@ -398,7 +401,8 @@ public class UploadService extends Service {
     /**
      * Callback from the UploadThread to the service.
      * 
-     * @param qf the queued file that was successfully uploaded.
+     * @param qf
+     *            the queued file that was successfully uploaded.
      */
     void onUploadComplete(QueuedFile qf) {
         Log.d(TAG, "onUploadComplete of " + qf);
@@ -419,15 +423,15 @@ public class UploadService extends Service {
     private void stopServiceIfEmpty() {
         // Convenient place to drop this cache.
         synchronized (this) {
-            if (mQueueSet.isEmpty() && !mUploading && mUploadThread == null &&
-                    !mPrefs.autoUpload()) {
+            if (mQueueSet.isEmpty() && !mUploading && mUploadThread == null
+                    && !mPrefs.autoUpload()) {
                 Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
             } else {
-                Log.d(TAG, "stopServiceIfEmpty; NOT stopping; "
-                        + mQueueSet.isEmpty() + "; "
-                        + mUploading + "; "
-                        + (mUploadThread != null));
+                Log.d(TAG,
+                        "stopServiceIfEmpty; NOT stopping; "
+                                + mQueueSet.isEmpty() + "; " + mUploading
+                                + "; " + (mUploadThread != null));
                 return;
             }
         }
@@ -463,6 +467,7 @@ public class UploadService extends Service {
 
     private final IUploadService.Stub service = new IUploadService.Stub() {
 
+        @Override
         public int enqueueUploadList(List<Uri> uriList) throws RemoteException {
             startService(new Intent(UploadService.this, UploadService.class));
             Log.d(TAG, "enqueuing list of " + uriList.size() + " URIs");
@@ -475,6 +480,7 @@ public class UploadService extends Service {
             return goodCount;
         }
 
+        @Override
         public boolean enqueueUpload(Uri uri) throws RemoteException {
             startUploadService();
             incrementFilesToUpload(1);
@@ -523,12 +529,14 @@ public class UploadService extends Service {
             return true;
         }
 
+        @Override
         public boolean isUploading() throws RemoteException {
             synchronized (UploadService.this) {
                 return mUploading;
             }
         }
 
+        @Override
         public void registerCallback(IStatusCallback cb) throws RemoteException {
             // TODO: permit multiple listeners? when need comes.
             synchronized (UploadService.this) {
@@ -540,21 +548,22 @@ public class UploadService extends Service {
             broadcastAllState();
         }
 
-        public void unregisterCallback(IStatusCallback cb) throws RemoteException {
+        @Override
+        public void unregisterCallback(IStatusCallback cb)
+                throws RemoteException {
             synchronized (UploadService.this) {
                 mCallback = DummyNullCallback.instance();
             }
         }
 
+        @Override
         public boolean resume() throws RemoteException {
             Log.d(TAG, "Resuming upload...");
-            HostPort hp = new HostPort(mSharedPrefs.getString(Preferences.HOST, ""));
+            HostPort hp = mPrefs.hostPort();
             if (!hp.isValid()) {
                 setUploadStatusText("Upload server not configured.");
                 return false;
             }
-            String username = mSharedPrefs.getString(Preferences.USERNAME, "");
-            String password = mSharedPrefs.getString(Preferences.PASSWORD, "");
 
             final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
                     PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
@@ -570,37 +579,43 @@ public class UploadService extends Service {
                 wakeLock.acquire();
                 wifiLock.acquire();
 
-                Notification n = new Notification(android.R.drawable.stat_sys_upload,
-                        "Uploading", System.currentTimeMillis());
-                n.flags = Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
-                PendingIntent pIntent = PendingIntent.getActivity(UploadService.this, 0,
-                        new Intent(UploadService.this, CamliActivity.class), 0);
+                Notification n = new Notification(
+                        android.R.drawable.stat_sys_upload, "Uploading",
+                        System.currentTimeMillis());
+                n.flags = Notification.FLAG_NO_CLEAR
+                        | Notification.FLAG_ONGOING_EVENT;
+                PendingIntent pIntent = PendingIntent.getActivity(
+                        UploadService.this, 0, new Intent(UploadService.this,
+                                CamliActivity.class), 0);
                 n.setLatestEventInfo(UploadService.this, "Uploading",
-                        "Camlistore uploader running",
-                        pIntent);
+                        "Camlistore uploader running", pIntent);
                 mNotificationManager.notify(NOTIFY_ID_UPLOADING, n);
 
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp,
-                        username, password);
+                        mPrefs.username(), mPrefs.password());
                 mUploadThread.start();
 
                 // Start a thread to release the wakelock...
                 final Thread threadToWatch = mUploadThread;
                 new Thread("UploadThread-waiter") {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         while (true) {
                             try {
                                 threadToWatch.join(10000); // 10 seconds
                             } catch (InterruptedException e) {
-                                Log.d(TAG, "Interrupt waiting for uploader thread.", e);
+                                Log.d(TAG,
+                                        "Interrupt waiting for uploader thread.",
+                                        e);
                             }
                             synchronized (UploadService.this) {
                                 if (threadToWatch.getState() == Thread.State.TERMINATED) {
                                     break;
                                 }
                                 if (threadToWatch == mUploadThread) {
-                                    Log.d(TAG, "UploadThread-waiter still waiting.");                                          
+                                    Log.d(TAG,
+                                            "UploadThread-waiter still waiting.");
                                     continue;
                                 }
                             }
@@ -617,6 +632,7 @@ public class UploadService extends Service {
             return true;
         }
 
+        @Override
         public boolean pause() throws RemoteException {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
@@ -630,12 +646,14 @@ public class UploadService extends Service {
             }
         }
 
+        @Override
         public int queueSize() throws RemoteException {
             synchronized (UploadService.this) {
                 return mQueueList.size();
             }
         }
 
+        @Override
         public void stopEverything() throws RemoteException {
             synchronized (UploadService.this) {
                 mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
@@ -657,7 +675,9 @@ public class UploadService extends Service {
             broadcastAllState();
         }
 
-        public void setBackgroundWatchersEnabled(boolean enabled) throws RemoteException {
+        @Override
+        public void setBackgroundWatchersEnabled(boolean enabled)
+                throws RemoteException {
             if (enabled) {
                 startUploadService();
                 UploadService.this.stopBackgroundWatchers();
@@ -670,7 +690,8 @@ public class UploadService extends Service {
     };
 
     public void onChunkUploaded(CamputChunkUploadedMessage msg) {
-        Log.d(TAG, "chunked uploaded for " + msg.queuedFile() + " with size " + msg.size());
+        Log.d(TAG, "chunked uploaded for " + msg.queuedFile() + " with size "
+                + msg.size());
         // TODO(bradfitz): flesh this out, progress bars, etc.
     }
 }

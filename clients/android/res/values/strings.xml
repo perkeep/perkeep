@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="app_name">Camlistore Uploader</string>
-  <string name="settings_host_title">Camlistore server</string>
-  <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
-  <string name="settings_username_title">Username</string>
-  <string name="settings_password_title">Password</string>
-  <string name="settings_max_cache_size_title">Maximum cache size</string>
-  <string name="settings_max_cache_size_summary">%d MB</string>
-  <string name="pause_resume">Pause / Resume</string>
-  <string name="pause">Pause</string>
-  <string name="resume">Resume</string>
-  <string name="stop">Stop</string>
-  <string name="uploading">Uploading...</string>
-  <string name="digesting">Digesting...</string>
-  <string name="settings_auto">Auto-Upload</string>
-  <string name="settings_auto_summary">Upload SD card files as created</string>
-  <string name="files_remaining">Files Remaining: &#8212;</string>
-  <string name="status_detail">[status detail]</string>
-  <string name="files_uploaded">Files Uploaded</string>
-  <string name="bytes_uploaded">Bytes Uploaded</string>
-  <string name="settings">Settings</string>
-  <string name="upload_all">Upload All</string>
-  <string name="browse">Browse</string>
-  <string name="results">Results</string>
+
+    <string name="app_name">Camlistore Uploader</string>
+    <string name="settings_host_title">Camlistore server</string>
+    <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
+    <string name="settings_username_title">Username</string>
+    <string name="settings_password_title">Password</string>
+    <string name="settings_max_cache_size_title">Maximum cache size</string>
+    <string name="settings_max_cache_size_summary">%d MB</string>
+    <string name="pause_resume">Pause / Resume</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="stop">Stop</string>
+    <string name="uploading">Uploading&#8230;</string>
+    <string name="digesting">Digesting&#8230;.</string>
+    <string name="settings_auto">Auto-Upload</string>
+    <string name="settings_auto_summary">Upload SD card files as created</string>
+    <string name="settings_dev_ip">Development IP address</string>
+    <string name="files_remaining">Files Remaining: &#8212;</string>
+    <string name="status_detail">[status detail]</string>
+    <string name="files_uploaded">Files Uploaded</string>
+    <string name="bytes_uploaded">Bytes Uploaded</string>
+    <string name="settings">Settings</string>
+    <string name="upload_all">Upload All</string>
+    <string name="browse">Browse</string>
+    <string name="results">Results</string>
+
 </resources>

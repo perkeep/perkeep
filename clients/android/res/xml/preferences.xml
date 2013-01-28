@@ -57,4 +57,11 @@
         android:singleLine="true"
         android:title="@string/settings_max_cache_size_title" />
 
+    <EditTextPreference
+        android:key="camli.dev_ip"
+        android:phoneNumber="true"
+        android:persistent="true"
+        android:singleLine="true"
+        android:title="@string/settings_dev_ip" />
+    
 </PreferenceScreen>

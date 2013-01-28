@@ -25,6 +25,8 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import android.util.Log;
 
@@ -123,19 +125,22 @@ public class UploadThread extends Thread {
 
         status("Queue empty; done.");
     }
+ 
+    // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
+    private final static Pattern chunkUploadedPattern = Pattern.compile("^CHUNK_UPLOADED (\\d+) (\\S+) (.+)");
 
     public class CamputChunkUploadedMessage {
+
         private final String mFilename;
         private final long mSize;
 
-        // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
         public CamputChunkUploadedMessage(String line) {
-            String[] fields = line.split("\\s+");
-            if (fields.length < 4 || fields[0] != "CHUNK_UPLOADED") {
+            Matcher m = chunkUploadedPattern.matcher(line);
+            if (!m.matches()) {
                 throw new RuntimeException("bogus CamputChunkMessage: " + line);
             }
-            mSize = Long.parseLong(fields[1]);
-            mFilename = fields[3];
+            mSize = Long.parseLong(m.group(1));
+            mFilename = m.group(3);
         }
 
         public QueuedFile queuedFile() {
