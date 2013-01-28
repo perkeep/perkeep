@@ -172,18 +172,64 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 	return jmap, nil
 }
 
+func sendStatRequest(dest chan<- blobref.SizedBlobRef, done chan error, c *Client, req *http.Request) {
+	// TODO: cut this up into multiple http requests if the server returns a 400
+	// error, per the blob-stat-protocol.txt document.
+	resp, err := c.doReq(req)
+	if err != nil {
+		done <- fmt.Errorf("stat HTTP error: %v", err)
+		return
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if resp.StatusCode != 200 {
+		done <- fmt.Errorf("stat response had http status %d", resp.StatusCode)
+		return
+	}
+
+	stat, err := parseStatResponse(resp.Body)
+	if err != nil {
+		done <- err
+		return
+	}
+
+	for _, sb := range stat.HaveMap {
+		dest <- sb
+	}
+	done <- nil
+}
+
 func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
 	if len(blobs) == 0 {
 		return nil
 	}
 
-	// TODO: if len(blobs) > 1000 or something, cut this up into
-	// multiple http requests, and also if the server returns a
-	// 400 error, per the blob-stat-protocol.txt document.
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camliversion=1")
+	// TODO: Tune the value.
+	softLimit := 900
+	hardLimit := 1000
+
+	var err error
+	var pfx string
+	var buf *bytes.Buffer
+	numTasks := 0
 	needed := 0
-	for _, blob := range blobs {
+	tasks := make(chan error)
+	sendReq := func() {
+		req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx), buf)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		go sendStatRequest(dest, tasks, c, req)
+		numTasks++
+	}
+	secs := 0
+	if wait > 0 {
+		secs = int(wait.Seconds())
+		if secs == 0 {
+			secs = 1
+		}
+	}
+	for i, blob := range blobs {
 		if blob == nil {
 			panic("nil blob")
 		}
@@ -191,49 +237,35 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 			dest <- blobref.SizedBlobRef{blob, size}
 			continue
 		}
+		if buf == nil {
+			if pfx, err = c.prefix(); err != nil {
+				return err
+			}
+			buf = bytes.NewBufferString("camliversion=1")
+			if secs != 0 {
+				fmt.Fprintf(buf, "&maxwaitsec=%d", secs)
+			}
+		}
 		needed++
-		fmt.Fprintf(&buf, "&blob%d=%s", needed, blob)
+		fmt.Fprintf(buf, "&blob%d=%s", needed, blob)
+		if needed >= softLimit && (len(blobs)-i) <= (hardLimit-softLimit) {
+			sendReq()
+			buf = nil
+			needed = 0
+		}
 	}
-	if needed == 0 {
+	if needed == 0 && numTasks == 0 {
 		return nil
 	}
-
-	if wait > 0 {
-		secs := int(wait.Seconds())
-		if secs == 0 {
-			secs = 1
+	if buf != nil {
+		sendReq()
+	}
+	for i := 0; i < numTasks; i++ {
+		if err2 := <-tasks; err2 != nil {
+			err = err2
 		}
-		fmt.Fprintf(&buf, "&maxwaitsec=%d", secs)
 	}
-
-	pfx, err := c.prefix()
-	if err != nil {
-		return err
-	}
-	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx), &buf)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.doReq(req)
-	if err != nil {
-		return fmt.Errorf("stat HTTP error: %v", err)
-	}
-	if resp.Body != nil {
-		defer resp.Body.Close()
-	}
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("stat response had http status %d", resp.StatusCode)
-	}
-
-	stat, err := parseStatResponse(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	for _, sb := range stat.HaveMap {
-		dest <- sb
-	}
-	return nil
+	return err
 }
 
 // Figure out the size of the contents.
