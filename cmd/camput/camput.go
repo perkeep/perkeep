@@ -22,8 +22,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
@@ -33,9 +35,10 @@ import (
 const buffered = 16 // arbitrary
 
 var (
-	flagHelp    = flag.Bool("help", false, "print usage")
-	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
-	flagHTTP    = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagProxyLocal = flag.Bool("proxy_local", false, "enables proxying localhost requests")
+	flagHelp       = flag.Bool("help", false, "print usage")
+	flagVerbose    = flag.Bool("verbose", false, "extra debug logging")
+	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 )
 
 var ErrUsage = UsageError("invalid command usage")
@@ -150,6 +153,32 @@ func handleResult(what string, pr *client.PutResult, err error) error {
 	return nil
 }
 
+func getenvEitherCase(k string) string {
+	if v := os.Getenv(strings.ToUpper(k)); v != "" {
+		return v
+	}
+	return os.Getenv(strings.ToLower(k))
+}
+
+// Proxies localhost too, unlike http.ProxyFromEnvironment().
+func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
+	proxy := getenvEitherCase("HTTP_PROXY")
+	if proxy == "" {
+		return nil, nil
+	}
+	proxyURL, err := url.Parse(proxy)
+	if err != nil || proxyURL.Scheme == "" {
+		if u, err := url.Parse("http://" + proxy); err == nil {
+			proxyURL = u
+			err = nil
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("invalid proxy address %q: %v", proxy, err)
+	}
+	return proxyURL, nil
+}
+
 func newUploader() *Uploader {
 	cc := client.NewOrFail()
 	if !*flagVerbose {
@@ -157,10 +186,12 @@ func newUploader() *Uploader {
 	}
 
 	transport := &http.Transport{
-		Dial: dialFunc(),
+		Dial:            dialFunc(),
 		TLSClientConfig: tlsClientConfig(),
 	}
-
+	if *flagProxyLocal {
+		transport.Proxy = proxyFromEnvironment
+	}
 	httpStats := &httputil.StatsTransport{
 		VerboseLog: *flagHTTP,
 		Transport:  transport,
