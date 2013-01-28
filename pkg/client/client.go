@@ -133,7 +133,6 @@ func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, 
 		return nil, nil, fmt.Errorf("No target.")
 	}
 	c.via[target.String()] = root
-	// TODO(bradfitz): send via in requests, populate via as we fetch more things
 	return c, target, nil
 }
 
