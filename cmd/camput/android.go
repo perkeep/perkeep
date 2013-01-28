@@ -139,6 +139,13 @@ func tlsClientConfig() *tls.Config {
 
 var androidOutput = os.Getenv("CAMPUT_ANDROID_OUTPUT") != ""
 
+func noteFileUploaded(fullPath string) {
+	if !androidOutput {
+		return
+	}
+	fmt.Printf("FILE_UPLOADED %s\n", fullPath)
+}
+
 // androidStatusRecevier is a blobserver.StatReceiver wrapper that
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.

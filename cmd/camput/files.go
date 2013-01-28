@@ -504,7 +504,11 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			Contents: strings.NewReader(json),
 			Vivify:   true,
 		}
-		return up.Upload(h)
+		pr, err := up.Upload(h)
+		if err == nil {
+			noteFileUploaded(n.fullPath)
+		}
+		return pr, err
 	}
 
 	var (

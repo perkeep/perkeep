@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.HashMap;
 
+import org.camlistore.UploadThread.CamputChunkUploadedMessage;
+
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -666,4 +668,9 @@ public class UploadService extends Service {
             }
         }
     };
+
+    public void onChunkUploaded(CamputChunkUploadedMessage msg) {
+        Log.d(TAG, "chunked uploaded for " + msg.queuedFile() + " with size " + msg.size());
+        // TODO(bradfitz): flesh this out, progress bars, etc.
+    }
 }
