@@ -124,22 +124,8 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		up.altStatReceiver = sr
 		defer func() { sr.DumpStats(c.histo) }()
 	}
-	if c.statcache || c.havecache {
-		gen, err := up.StorageGeneration()
-		if err != nil {
-			log.Printf("WARNING: not using local caches; failed to retrieve server's storage generation: %v", err)
-		} else {
-			if c.statcache {
-				cache := NewFlatStatCache(gen)
-				up.statCache = cache
-			}
-			if c.havecache {
-				cache := NewFlatHaveCache(gen)
-				up.haveCache = cache
-				up.Client.SetHaveCache(cache)
-			}
-		}
-	}
+	c.initCaches(up)
+
 	if c.makePermanode || c.filePermanodes {
 		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
 		if testSigBlobRef == nil {
@@ -232,6 +218,26 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("permanode", permaNode, nil)
 	}
 	return nil
+}
+
+func (c *fileCmd) initCaches(up *Uploader) {
+	if !c.statcache && !c.havecache {
+		return
+	}
+	gen, err := up.StorageGeneration()
+	if err != nil {
+		log.Printf("WARNING: not using local caches; failed to retrieve server's storage generation: %v", err)
+		return
+	}
+	if c.statcache {
+		cache := NewFlatStatCache(gen)
+		up.statCache = cache
+	}
+	if c.havecache {
+		cache := NewFlatHaveCache(gen)
+		up.haveCache = cache
+		up.Client.SetHaveCache(cache)
+	}
 }
 
 // statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
