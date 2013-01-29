@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"errors"
 	"flag"
@@ -50,6 +51,7 @@ type fileCmd struct {
 	vivify         bool
 	exifTime       bool // use metadata (such as in EXIF) to find the creation time of the file
 	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
+	argsFromInput  bool // Android mode: filenames piped into stdin, one at a time.
 
 	havecache, statcache bool
 
@@ -74,6 +76,7 @@ func init() {
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+			flags.BoolVar(&cmd.argsFromInput, "stdinargs", false, "If true, filenames to upload are sent one-per-line on stdin. EOF means to quit the process with exit status 0.")
 			flags.BoolVar(&cmd.statcache, "statcache", true, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
 			flags.BoolVar(&cmd.havecache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
@@ -102,9 +105,6 @@ func (c *fileCmd) Examples() []string {
 }
 
 func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
-	if len(args) == 0 {
-		return UsageError("No files or directories given.")
-	}
 	if c.vivify {
 		if c.makePermanode || c.filePermanodes || c.tag != "" || c.name != "" {
 			return UsageError("--vivify excludes any other option")
@@ -129,7 +129,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if c.makePermanode || c.filePermanodes {
 		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
 		if testSigBlobRef == nil {
-			return UsageError("A gpg key is needed to create permanodes; configure one or use vivify mode.")
+			return UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
 	up.fileOpts = &fileOptions{
@@ -175,7 +175,30 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 		handleResult("tree-upload", pr, err)
 		return nil
 	}
+	if c.argsFromInput {
+		if len(args) > 0 {
+			return errors.New("args not supported with -argsfrominput")
+		}
+		tu := up.NewRootlessTreeUpload()
+		tu.Start()
+		br := bufio.NewReader(os.Stdin)
+		for {
+			path, err := br.ReadString('\n')
+			if path = strings.TrimSpace(path); path != "" {
+				tu.Enqueue(path)
+			}
+			if err == io.EOF {
+				os.Exit(0)
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 
+	if len(args) == 0 {
+		return UsageError("No files or directories given.")
+	}
 	for _, filename := range args {
 		fi, err := os.Stat(filename)
 		if err != nil {
@@ -658,10 +681,19 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
 	return pr, err
 }
 
-// StartTreeUpload begins uploading dir and all its children.
+// NewTreeUpload returns a TreeUpload. It doesn't begin uploading any files until a
+// call to Start
 func (up *Uploader) NewTreeUpload(dir string) *TreeUpload {
+	tu := up.NewRootlessTreeUpload()
+	tu.rootless = false
+	tu.base = dir
+	return tu
+}
+
+func (up *Uploader) NewRootlessTreeUpload() *TreeUpload {
 	return &TreeUpload{
-		base:     dir,
+		rootless: true,
+		base:     "",
 		up:       up,
 		donec:    make(chan bool, 1),
 		errc:     make(chan error, 1),
@@ -758,6 +790,7 @@ type TreeUpload struct {
 	DiskUsageMode bool
 
 	// Immutable:
+	rootless bool   // if true, "base" will be empty.
 	base     string // base directory
 	up       *Uploader
 	stattedc chan *node // from stat-the-world goroutine to run()
@@ -772,6 +805,11 @@ type TreeUpload struct {
 	uploaded stats // uploaded (even if server said it already had it and bytes weren't sent)
 
 	finalPutRes *client.PutResult // set after run() returns
+}
+
+// Enqueue starts uploading path (a file, directory, etc).
+func (t *TreeUpload) Enqueue(path string) {
+	t.statPath(path, nil)
 }
 
 // fi is optional (will be statted if nil)
@@ -826,17 +864,23 @@ func (t *TreeUpload) run() {
 	// node (which references all its children).
 	var root *node // nil until received and set in loop below.
 	rootc := make(chan *node, 1)
-	go func() {
-		n, err := t.statPath(t.base, nil)
-		if err != nil {
-			log.Fatalf("Error scanning files under %s: %v", t.base, err)
-		}
-		close(t.stattedc)
-		rootc <- n
-	}()
+	if !t.rootless {
+		go func() {
+			n, err := t.statPath(t.base, nil)
+			if err != nil {
+				log.Fatalf("Error scanning files under %s: %v", t.base, err)
+			}
+			close(t.stattedc)
+			rootc <- n
+		}()
+	}
 
 	var lastStat, lastUpload string
 	dumpStats := func() {
+		if androidOutput {
+			printAndroidCamputStatus(t)
+			return
+		}
 		statStatus := ""
 		if root == nil {
 			statStatus = fmt.Sprintf("last stat: %s", lastStat)
@@ -902,6 +946,7 @@ func (t *TreeUpload) run() {
 			if err == nil {
 				n.SetPutResult(cachedRes, nil)
 				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
+				noteFileUploaded(n.fullPath)
 				skippedc <- n
 				return
 			}

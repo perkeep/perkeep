@@ -146,6 +146,25 @@ func noteFileUploaded(fullPath string) {
 	fmt.Printf("FILE_UPLOADED %s\n", fullPath)
 }
 
+type allStats struct {
+	total, skipped, uploaded stats
+}
+
+var lastStatBroadcast allStats
+
+func printAndroidCamputStatus(t *TreeUpload) {
+	bcast := allStats{t.total, t.skipped, t.uploaded}
+	if bcast == lastStatBroadcast {
+		return
+	}
+	lastStatBroadcast = bcast
+
+	fmt.Printf("STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n",
+		t.total.files, t.total.bytes,
+		t.skipped.files, t.skipped.bytes,
+		t.uploaded.files, t.uploaded.bytes)
+}
+
 // androidStatusRecevier is a blobserver.StatReceiver wrapper that
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.
