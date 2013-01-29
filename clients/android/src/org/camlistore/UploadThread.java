@@ -17,13 +17,16 @@ limitations under the License.
 package org.camlistore;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.util.LinkedList;
+import java.io.OutputStreamWriter;
+import java.util.HashMap;
 import java.util.ListIterator;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,10 +40,17 @@ public class UploadThread extends Thread {
     private final HostPort mHostPort;
     private final String mUsername;
     private final String mPassword;
+    private final LinkedBlockingQueue<UploadThreadMessage> msgCh = new LinkedBlockingQueue<UploadThreadMessage>();
 
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
     AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
-    ConcurrentHashMap<String, QueuedFile> mQueuedFile = new ConcurrentHashMap<String, QueuedFile>();
+    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded
+                                                                                 // by
+                                                                                 // itself
+
+    private final Object stdinLock = new Object(); // guards setting and writing
+                                                   // to stdinWriter
+    private BufferedWriter stdinWriter;
 
     public UploadThread(UploadService uploadService, HostPort hp, String username, String password) {
         mService = uploadService;
@@ -65,6 +75,44 @@ public class UploadThread extends Thread {
         mService.setUploadStatusText(st);
     }
 
+    // An UploadThreadMessage can be sent on msgCh and read by the run() method
+    // in
+    // until it's time to quit the thread.
+    private static class UploadThreadMessage {
+    }
+
+    private static class ProcessExitedMessage extends UploadThreadMessage {
+        public int code;
+
+        public ProcessExitedMessage(int code) {
+            this.code = code;
+        }
+    }
+
+    public boolean enqueueFile(QueuedFile qf) {
+        String diskPath = qf.getDiskPath();
+        if (diskPath == null) {
+            Log.d(TAG, "file has no disk path: " + qf);
+            return false;
+        }
+        synchronized (stdinLock) {
+            if (stdinWriter == null) {
+                return false;
+            }
+            synchronized (mQueuedFile) {
+                mQueuedFile.put(diskPath, qf);
+            }
+            try {
+                stdinWriter.write(diskPath + "\n");
+                stdinWriter.flush();
+            } catch (IOException e) {
+                Log.d(TAG, "Failed to write " + diskPath + " to camput stdin: " + e);
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public void run() {
         Log.d(TAG, "Running");
@@ -74,55 +122,45 @@ public class UploadThread extends Thread {
         }
         status("Running UploadThread for " + mHostPort);
 
-        LinkedList<QueuedFile> queue;
-
-        while (!(queue = mService.uploadQueue()).isEmpty()) {
-            status("Uploading...");
-            ListIterator<QueuedFile> iter = queue.listIterator();
-            while (iter.hasNext()) {
-                QueuedFile qf = iter.next();
-                String diskPath = qf.getDiskPath();
-                if (diskPath == null) {
-                    Log.d(TAG, "URI " + qf.getUri() + " had no disk path; skipping");
-                    iter.remove();
-                    continue;
-                }
-                mQueuedFile.put(diskPath, qf);
-                Log.d(TAG, "need to upload: " + qf);
-
-                Process process = null;
-                try {
-                    ProcessBuilder pb = new ProcessBuilder();
-                    pb.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-vivify", diskPath);
-                    pb.redirectErrorStream(false);
-                    pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
-                    pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
-                    pb.environment().put("CAMPUT_ANDROID_OUTPUT", "1");
-                    process = pb.start();
-                    goProcess.set(process);
-                    new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
-                    new ParseCamputOutputThread(process, mService).start();
-                    Log.d(TAG, "Waiting for camput process.");
-                    process.waitFor();
-                    Log.d(TAG, "Exit status of camput = " + process.exitValue());
-                    if (process.exitValue() == 0) {
-                        status("Uploaded " + diskPath);
-                        mService.onUploadComplete(qf);
-                    } else {
-                        Log.d(TAG, "Problem uploading.");
-                        return;
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    goProcess.set(null);
-                }
+        Process process = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
+            pb.redirectErrorStream(false);
+            pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
+            pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
+            pb.environment().put("CAMPUT_ANDROID_OUTPUT", "1");
+            process = pb.start();
+            goProcess.set(process);
+            synchronized (stdinLock) {
+                stdinWriter = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), "UTF-8"));
             }
+            new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
+            new ParseCamputOutputThread(process, mService).start();
+            new WaitForProcessThread(process).start();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
-        status("Queue empty; done.");
+        ListIterator<QueuedFile> iter = mService.uploadQueue().listIterator();
+        while (iter.hasNext()) {
+            enqueueFile(iter.next());
+        }
+
+        // Loop forever reading from msgCh
+        while (true) {
+            UploadThreadMessage msg = null;
+            try {
+                msg = msgCh.poll(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                continue;
+            }
+            if (msg instanceof ProcessExitedMessage) {
+                ProcessExitedMessage pem = (ProcessExitedMessage) msg;
+                Log.d(TAG, "Loop exiting; code was = " + pem.code);
+                return;
+            }
+        }
     }
 
     // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
@@ -143,7 +181,9 @@ public class UploadThread extends Thread {
         }
 
         public QueuedFile queuedFile() {
-            return mQueuedFile.get(mFilename);
+            synchronized (mQueuedFile) {
+                return mQueuedFile.get(mFilename);
+            }
         }
 
         public long size() {
@@ -175,15 +215,54 @@ public class UploadThread extends Thread {
                     // EOF
                     return;
                 }
+                Log.d(TAG, "camput said: " + line);
                 // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);
                     mService.onChunkUploaded(msg);
                     continue;
                 }
+                // FILE_UPLOADED <filename>
+                if (line.startsWith("FILE_UPLOADED ")) {
+                    String filename = line.substring(14).trim();
+                    synchronized (mQueuedFile) {
+                        QueuedFile qf = mQueuedFile.get(filename);
+                        Log.d(TAG, "FILE_UPLOADED for " + filename + " = " + qf);
+                        if (qf != null) {
+                            mService.onUploadComplete(qf);
+                            mQueuedFile.remove(filename);
+                            if (mQueuedFile.isEmpty()) {
+                                stopUploads();
+                            }
+                        }
+                    }
+                    continue;
+                }
                 Log.d(TAG, "Unknown line: " + line);
             }
 
+        }
+    }
+
+    private class WaitForProcessThread extends Thread {
+        private final Process mProcess;
+
+        public WaitForProcessThread(Process p) {
+            mProcess = p;
+        }
+
+        @Override
+        public void run() {
+            Log.d(TAG, "Waiting for camput process.");
+            try {
+                mProcess.waitFor();
+            } catch (InterruptedException e) {
+                Log.d(TAG, "Interrupted waiting for camput");
+                msgCh.offer(new ProcessExitedMessage(-1));
+                return;
+            }
+            Log.d(TAG, "Exit status of camput = " + mProcess.exitValue());
+            msgCh.offer(new ProcessExitedMessage(mProcess.exitValue()));
         }
     }
 
