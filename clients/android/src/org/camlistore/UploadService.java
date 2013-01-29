@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.camlistore.UploadThread.CamputChunkUploadedMessage;
+import org.camlistore.UploadThread.CamputStatsMessage;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -66,7 +67,7 @@ public class UploadService extends Service {
     private IStatusCallback mCallback = DummyNullCallback.instance();
     private String mLastUploadStatusText = null;
     private int mBytesInFlight = 0;
-    private int mBlobsInFlight = 0;
+    private int mFilesInFlight = 0;
 
     // Stats, all guarded by 'this', and all reset to 0 on queue size transition
     // from 0 -> 1.
@@ -350,7 +351,7 @@ public class UploadService extends Service {
     void broadcastFileStatus() {
         synchronized (this) {
             try {
-                mCallback.setFileStatus(mFilesUploaded, mBlobsInFlight, mFilesTotal);
+                mCallback.setFileStatus(mFilesUploaded, mFilesInFlight, mFilesTotal);
             } catch (RemoteException e) {
             }
         }
@@ -366,12 +367,6 @@ public class UploadService extends Service {
         }
         broadcastFileStatus();
         broadcastByteStatus();
-    }
-
-    void setInFlightBlobs(int v) {
-        synchronized (this) {
-            mBlobsInFlight = v;
-        }
     }
 
     private void onUploadThreadEnded() {
@@ -401,12 +396,8 @@ public class UploadService extends Service {
                 return;
             }
             mQueueList.remove(qf); // TODO: ghetto, linear scan
-
-            mBytesTotal -= qf.getSize();
-            mFilesTotal -= 1;
-            broadcastByteStatus();
-            broadcastFileStatus();
         }
+        broadcastAllState();
         stopServiceIfEmpty();
     }
 
@@ -639,7 +630,7 @@ public class UploadService extends Service {
                 mLastUploadStatusText = "Stopped";
                 mUploading = false;
                 mBytesInFlight = 0;
-                mBlobsInFlight = 0;
+                mFilesInFlight = 0;
                 mBytesTotal = 0;
                 mBytesUploaded = 0;
                 mFilesTotal = 0;
@@ -667,6 +658,19 @@ public class UploadService extends Service {
 
     public void onChunkUploaded(CamputChunkUploadedMessage msg) {
         Log.d(TAG, "chunked uploaded for " + msg.queuedFile() + " with size " + msg.size());
-        // TODO(bradfitz): flesh this out, progress bars, etc.
+        synchronized (UploadService.this) {
+            mBytesUploaded += msg.size();
+        }
+        broadcastAllState();
+    }
+
+    public void onStatsReceived(CamputStatsMessage msg) {
+        synchronized (UploadService.this) {
+            mBytesTotal = msg.totalBytes();
+            mFilesTotal = (int) msg.totalFiles();
+            mBytesUploaded = msg.skippedBytes() + msg.uploadedBytes();
+            mFilesUploaded = (int) (msg.skippedFiles() + msg.uploadedFiles());
+        }
+        broadcastAllState();
     }
 }

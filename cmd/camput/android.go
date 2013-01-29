@@ -139,11 +139,19 @@ func tlsClientConfig() *tls.Config {
 
 var androidOutput = os.Getenv("CAMPUT_ANDROID_OUTPUT") != ""
 
+var androidOutMu sync.Mutex
+
+func androidf(format string, args ...interface{}) {
+	androidOutMu.Lock()
+	defer androidOutMu.Unlock()
+	fmt.Printf(format, args...)
+}
+
 func noteFileUploaded(fullPath string) {
 	if !androidOutput {
 		return
 	}
-	fmt.Printf("FILE_UPLOADED %s\n", fullPath)
+	androidf("FILE_UPLOADED %s\n", fullPath)
 }
 
 type allStats struct {
@@ -153,13 +161,14 @@ type allStats struct {
 var lastStatBroadcast allStats
 
 func printAndroidCamputStatus(t *TreeUpload) {
+	blobStats := t.up.Stats()
 	bcast := allStats{t.total, t.skipped, t.uploaded}
 	if bcast == lastStatBroadcast {
 		return
 	}
 	lastStatBroadcast = bcast
 
-	fmt.Printf("STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n",
+	androidf("STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n",
 		t.total.files, t.total.bytes,
 		t.skipped.files, t.skipped.bytes,
 		t.uploaded.files, t.uploaded.bytes)
@@ -180,7 +189,7 @@ func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Re
 	contents := buf[:0]
 	sb, err := asr.StatReceiver.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
 	if err == nil && !schema.LikelySchemaBlob(contents) {
-		fmt.Printf("CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path)
+		androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path)
 	}
 	return sb, err
 }

@@ -167,7 +167,6 @@ public class UploadThread extends Thread {
     private final static Pattern chunkUploadedPattern = Pattern.compile("^CHUNK_UPLOADED (\\d+) (\\S+) (.+)");
 
     public class CamputChunkUploadedMessage {
-
         private final String mFilename;
         private final long mSize;
 
@@ -188,6 +187,48 @@ public class UploadThread extends Thread {
 
         public long size() {
             return mSize;
+        }
+    }
+
+    // STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n
+    private final static Pattern statsPattern = Pattern.compile("^STATS nfile=(\\d+) nbyte=(\\d+) skfile=(\\d+) skbyte=(\\d+) upfile=(\\d+) upbyte=(\\d+)");
+
+    public class CamputStatsMessage {
+        private final Matcher mm;
+
+        public CamputStatsMessage(String line) {
+            mm = statsPattern.matcher(line);
+            if (!mm.matches()) {
+                throw new RuntimeException("bogus CamputStatsMessage: " + line);
+            }
+        }
+
+        private long field(int n) {
+            return Long.parseLong(mm.group(n));
+        }
+
+        public long totalFiles() {
+            return field(1);
+        }
+
+        public long totalBytes() {
+            return field(2);
+        }
+
+        public long skippedFiles() {
+            return field(3);
+        }
+
+        public long skippedBytes() {
+            return field(4);
+        }
+
+        public long uploadedFiles() {
+            return field(5);
+        }
+
+        public long uploadedBytes() {
+            return field(6);
         }
     }
 
@@ -216,13 +257,17 @@ public class UploadThread extends Thread {
                     return;
                 }
                 Log.d(TAG, "camput said: " + line);
-                // "CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path
+
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);
                     mService.onChunkUploaded(msg);
                     continue;
                 }
-                // FILE_UPLOADED <filename>
+                if (line.startsWith("STATS ")) {
+                    CamputStatsMessage msg = new CamputStatsMessage(line);
+                    mService.onStatsReceived(msg);
+                    continue;
+                }
                 if (line.startsWith("FILE_UPLOADED ")) {
                     String filename = line.substring(14).trim();
                     synchronized (mQueuedFile) {
