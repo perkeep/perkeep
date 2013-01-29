@@ -327,7 +327,7 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
 
 
 /**
- * @param {Object} result JSON response to this request.
+ * @param {camlistore.ServerType.IndexerMetaBag} result JSON response to this request.
  * @private
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {

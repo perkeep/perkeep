@@ -7,7 +7,10 @@ require "$Bin/misc/devlib.pl";
 require "$Bin/misc/get_closure.pl";
 
 sub usage {
-    die "Usage: dev-server [--wipe] [--mongo|--mysql|--postgres] [--tls] <portnumber> -- [other_blobserver_opts]";
+    die "Usage: dev-server [--wipe] [--mongo|--mysql|--postgres] [--tls] <portnumber>" .
+    "[--all] [--nobuild] [--staticres] [--offline] [--KBps] <number>" .
+    "[--latency_ms] <number> [--fast] [--verbose] [--hostname] <name> [--compile-js]" .
+    " -- [other_blobserver_opts]";
 }
 
 chdir $Bin or die;
@@ -23,6 +26,7 @@ my $opt_offline;   # don't use the network ("airplane mode")
 my $opt_staticres; # use static resources, not those on disk
 my $opt_tls;
 my $opt_wipe;
+my $opt_closure; # run the Closure compiler
 my $opt_verbose;
 
 # keep indexes in memory only. often used with --wipe, but not
@@ -47,6 +51,7 @@ GetOptions("wipe" => \$opt_wipe,
            "fast" => \$opt_fast,
            "verbose" => \$opt_verbose,
            "hostname=s" => \$opt_hostname,
+           "compile-js" => \$opt_closure,
     )
     or usage();
 
@@ -66,7 +71,7 @@ unless ($opt_fast) {
     $ENV{DEV_THROTTLE_LATENCY_MS} = $opt_latency_ms;
 }
 
-$ENV{CAM_HTTP_DEBUG} = 1 if $opt_verbose;
+$ENV{CAMLI_HTTP_DEBUG} = 1 if $opt_verbose;
 
 my $camlistored;
 my $camdbinit; # closure to return path
@@ -180,6 +185,10 @@ unless ($opt_staticres) {
         get_closure_lib();
         get_closure_compiler();
         chdir $Bin or die;
+    }
+    if ($opt_closure) {
+        $ENV{CAMLI_USE_COMPILED_JS} = 1;
+        system("make", "minijs") and die "Failed to compress javascript with closure compiler.\n";
     }
 }
 

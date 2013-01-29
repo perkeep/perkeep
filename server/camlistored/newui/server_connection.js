@@ -24,7 +24,7 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
   this.config_ = config;
 
   /**
-   * @type {function}
+   * @type {function()}
    * @private
    */
   this.sendXhr_ = opt_sendXhr || goog.net.XhrIo.send;

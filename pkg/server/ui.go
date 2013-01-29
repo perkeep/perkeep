@@ -445,6 +445,11 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		ui.serveDepsJS(rw, req)
 		return
 	}
+	// TODO(mpl): temporary hack to ease the work on the newui with
+	// the closure compiler.
+	if strings.HasSuffix(file, "index.html") && os.Getenv("CAMLI_USE_COMPILED_JS") == "1" {
+		file = "/index-compiled.html"
+	}
 	serveStaticFile(rw, req, newuiFiles, file)
 }
 

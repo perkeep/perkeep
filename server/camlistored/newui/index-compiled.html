@@ -1,23 +1,12 @@
 <!doctype html>
 <html>
   <head>
-    <script src="closure/goog/base.js"></script>
-    <script src="./deps.js"></script>
     <script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
-
-    <!-- Begin non-Closure cheating; but depended on by server_connection.js -->
-    <script type="text/javascript" src="../base64.js"></script>
-    <script type="text/javascript" src="../Crypto.js"></script>
-    <script type="text/javascript" src="../SHA1.js"></script>
-    <script src="../camli.js"></script>
+    <script src="all.js"></script>
     <script>
-      Camli.onConfiguration(CAMLISTORE_CONFIG);
+      window["Camli"].onConfiguration(CAMLISTORE_CONFIG);
     </script>
-    <!-- End non-Closure cheating -->
-
-    <script>
-      goog.require('camlistore.IndexPage');
-    </script>
+    <!-- easier css handling: https://code.google.com/p/camlistore/issues/detail?id=98 -->
     <link rel="stylesheet" href="blob_item.css" type="text/css">
     <link rel="stylesheet" href="blob_item_container.css" type="text/css">
     <link rel="stylesheet" href="create_item.css" type="text/css">
@@ -28,8 +17,7 @@
   </head>
   <body>
     <script>
-      var page = new camlistore.IndexPage(window.CAMLISTORE_CONFIG);
-      page.decorate(document.body);
+      window["newIndexPage"](CAMLISTORE_CONFIG, document.body);
     </script>
   </body>
 </html>
