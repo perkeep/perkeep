@@ -230,3 +230,21 @@ func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// TODO: show in the Android UI stats about:
+// * TCP connects/disconnects.
+// * TCP bytes written.
+// * TCP bytes received.
+// * HTTP requests started.
+// * HTTP requests sent.
+// * HTTP headers received.
+// * HTTP bodies received.
+// * Byte up/down counts and summary of each HTTP request?
+// For example:
+//
+// In-flight:
+//   (17) blob-upload (123123423 up)
+//
+// Recently-completed: (last 10 or something)
+//   (2) blob-upload (1 blobs) (483234 up / 1239 down, 200 OK)
+//   (3) blob-stat (2 blobs) (483 up / 1239 down, 204 No Content)
+//   (1) blob-stat (1 blobs) (483 up / 1239 down)
