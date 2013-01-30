@@ -19,10 +19,10 @@ package org.camlistore;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 import org.camlistore.UploadThread.CamputStatsMessage;
@@ -59,10 +59,11 @@ public class UploadService extends Service {
 
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
-    // quickly)
+                                        // quickly)
+
     private UploadThread mUploadThread = null; // last thread created; null when
-    // thread exits
-    private final Set<QueuedFile> mQueueSet = new HashSet<QueuedFile>();
+                                               // thread exits
+    private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
     private String mLastUploadStatusText = null;
@@ -300,7 +301,7 @@ public class UploadService extends Service {
     @Override
     public void onDestroy() {
         synchronized (this) {
-            Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading=" + mUploading + "; queue size=" + mQueueSet.size());
+            Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading=" + mUploading + "; queue size=" + mFileBytesRemain.size());
         }
         super.onDestroy();
         if (mUploadThread != null) {
@@ -392,8 +393,20 @@ public class UploadService extends Service {
     void onUploadComplete(QueuedFile qf) {
         Log.d(TAG, "onUploadComplete of " + qf);
         synchronized (this) {
-            if (!mQueueSet.remove(qf)) {
+            if (!mFileBytesRemain.containsKey(qf)) {
                 return;
+            }
+            incrBytes(qf, qf.getSize());
+            mFileBytesRemain.remove(qf);
+            if (mFileBytesRemain.isEmpty()) {
+                // Fill up the percentage bars, since we could get
+                // this event before the periodic stats event.
+                // And at the end, we could kill camput between
+                // getting the final "file uploaded" event and the final
+                // stats event.
+                mFilesUploaded = mFilesTotal;
+                mBytesUploaded = mBytesTotal;
+                stopUploadThread();
             }
             mQueueList.remove(qf); // TODO: ghetto, linear scan
         }
@@ -401,14 +414,27 @@ public class UploadService extends Service {
         stopServiceIfEmpty();
     }
 
+    // incrBytes notes that size bytes of qf have been uploaded
+    // and updates mBytesUploaded.
+    private void incrBytes(QueuedFile qf, long size) {
+        synchronized (this) {
+            Long remain = mFileBytesRemain.get(qf);
+            if (remain != null) {
+                long actual = Math.min(size, remain.longValue());
+                mBytesUploaded += actual;
+                mFileBytesRemain.put(qf, remain - actual);
+            }
+        }
+    }
+
     private void stopServiceIfEmpty() {
         // Convenient place to drop this cache.
         synchronized (this) {
-            if (mQueueSet.isEmpty() && !mUploading && mUploadThread == null && !mPrefs.autoUpload()) {
+            if (mFileBytesRemain.isEmpty() && !mUploading && mUploadThread == null && !mPrefs.autoUpload()) {
                 Log.d(TAG, "stopServiceIfEmpty; stopping");
                 stopSelf();
             } else {
-                Log.d(TAG, "stopServiceIfEmpty; NOT stopping; " + mQueueSet.isEmpty() + "; " + mUploading + "; " + (mUploadThread != null));
+                Log.d(TAG, "stopServiceIfEmpty; NOT stopping; " + mFileBytesRemain.isEmpty() + "; " + mUploading + "; " + (mUploadThread != null));
                 return;
             }
         }
@@ -479,16 +505,16 @@ public class UploadService extends Service {
 
             boolean needResume = false;
             synchronized (UploadService.this) {
-                if (mQueueSet.contains(qf)) {
+                if (mFileBytesRemain.containsKey(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
                     stopServiceIfEmpty();
                     return false;
                 }
                 Log.d(TAG, "Enqueueing blob: " + qf);
-                mQueueSet.add(qf);
+                mFileBytesRemain.put(qf, qf.getSize());
                 mQueueList.add(qf);
 
-                if (mQueueSet.size() == 1) {
+                if (mFileBytesRemain.size() == 1) {
                     mBytesTotal = 0;
                     mFilesTotal = 0;
                     mBytesUploaded = 0;
@@ -604,10 +630,7 @@ public class UploadService extends Service {
         public boolean pause() throws RemoteException {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
-                    mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
-                    mUploadThread.stopUploads();
-                    mUploading = false;
-                    mCallback.setUploading(false);
+                    stopUploadThread();
                     return true;
                 }
                 return false;
@@ -625,20 +648,16 @@ public class UploadService extends Service {
         public void stopEverything() throws RemoteException {
             synchronized (UploadService.this) {
                 mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
-                mQueueSet.clear();
+                mFileBytesRemain.clear();
                 mQueueList.clear();
                 mLastUploadStatusText = "Stopped";
-                mUploading = false;
                 mBytesInFlight = 0;
                 mFilesInFlight = 0;
                 mBytesTotal = 0;
                 mBytesUploaded = 0;
                 mFilesTotal = 0;
                 mFilesUploaded = 0;
-                if (mUploadThread != null) {
-                    mUploadThread.stopUploads();
-                    mUploadThread = null;
-                }
+                stopUploadThread(); // recursive lock: okay
             }
             broadcastAllState();
         }
@@ -659,9 +678,24 @@ public class UploadService extends Service {
     public void onChunkUploaded(CamputChunkUploadedMessage msg) {
         Log.d(TAG, "chunked uploaded for " + msg.queuedFile() + " with size " + msg.size());
         synchronized (UploadService.this) {
-            mBytesUploaded += msg.size();
+            incrBytes(msg.queuedFile(), msg.size());
         }
         broadcastAllState();
+    }
+
+    protected void stopUploadThread() {
+        synchronized (UploadService.this) {
+            mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
+            if (mUploadThread != null) {
+                mUploadThread.stopUploads();
+                mUploadThread = null;
+                try {
+                    mCallback.setUploading(false);
+                } catch (RemoteException e) {
+                }
+            }
+            mUploading = false;
+        }
     }
 
     public void onStatsReceived(CamputStatsMessage msg) {

@@ -44,9 +44,7 @@ public class UploadThread extends Thread {
 
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
     AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
-    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded
-                                                                                 // by
-                                                                                 // itself
+    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded by itself
 
     private final Object stdinLock = new Object(); // guards setting and writing
                                                    // to stdinWriter
@@ -156,6 +154,7 @@ public class UploadThread extends Thread {
                 continue;
             }
             if (msg instanceof ProcessExitedMessage) {
+                status("Upload process ended.");
                 ProcessExitedMessage pem = (ProcessExitedMessage) msg;
                 Log.d(TAG, "Loop exiting; code was = " + pem.code);
                 return;
@@ -272,13 +271,9 @@ public class UploadThread extends Thread {
                     String filename = line.substring(14).trim();
                     synchronized (mQueuedFile) {
                         QueuedFile qf = mQueuedFile.get(filename);
-                        Log.d(TAG, "FILE_UPLOADED for " + filename + " = " + qf);
                         if (qf != null) {
                             mService.onUploadComplete(qf);
                             mQueuedFile.remove(filename);
-                            if (mQueuedFile.isEmpty()) {
-                                stopUploads();
-                            }
                         }
                     }
                     continue;
