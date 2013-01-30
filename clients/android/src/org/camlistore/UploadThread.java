@@ -59,8 +59,38 @@ public class UploadThread extends Thread {
 
     public void stopUploads() {
         Process p = goProcess.get();
-        if (p != null) {
-            p.destroy(); // force kill
+        if (p == null) {
+            return;
+        }
+        synchronized (stdinLock) {
+            if (stdinWriter == null) {
+                // force kill. confused.
+                p.destroy();
+                goProcess.set(null);
+                return;
+            }
+            try {
+                stdinWriter.close();
+                Log.d(TAG, "Closed camput's stdin");
+                stdinWriter = null;
+            } catch (IOException e) {
+                p.destroy(); // force kill
+                goProcess.set(null);
+                return;
+            }
+
+            // Unnecessary paranoia, never seen in practice:
+            new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(750, 0);
+                        stopUploads(); // force kill if still alive.
+                    } catch (InterruptedException e) {
+                    }
+
+                }
+            }.start();
         }
     }
 
