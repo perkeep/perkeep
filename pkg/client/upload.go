@@ -269,9 +269,11 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	c.statsMutex.Unlock()
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
-	if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
-		pr.Skipped = true
-		return pr, nil
+	if !h.Vivify {
+		if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
+			pr.Skipped = true
+			return pr, nil
+		}
 	}
 
 	blobrefStr := h.BlobRef.String()
@@ -304,16 +306,18 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	for _, sbr := range stat.HaveMap {
 		c.haveCache.NoteBlobExists(sbr.BlobRef, sbr.Size)
 	}
-	if _, ok := stat.HaveMap[blobrefStr]; ok {
-		pr.Skipped = true
-		if closer, ok := h.Contents.(io.Closer); ok {
-			// TODO(bradfitz): I did this
-			// Close-if-possible thing early on, before I
-			// knew better.  Fix the callers instead, and
-			// fix the docs.
-			closer.Close()
+	if !h.Vivify {
+		if _, ok := stat.HaveMap[blobrefStr]; ok {
+			pr.Skipped = true
+			if closer, ok := h.Contents.(io.Closer); ok {
+				// TODO(bradfitz): I did this
+				// Close-if-possible thing early on, before I
+				// knew better.  Fix the callers instead, and
+				// fix the docs.
+				closer.Close()
+			}
+			return pr, nil
 		}
-		return pr, nil
 	}
 
 	if debugUploads {
