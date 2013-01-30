@@ -59,7 +59,62 @@ func onAndroid() bool {
 
 var pingRx = regexp.MustCompile(`\((.+?)\)`)
 
+type namedInt struct {
+	name string
+	sync.Mutex
+	val int64
+}
+
+func (ni *namedInt) Incr(delta int64) {
+	ni.Lock()
+	ni.val += delta
+	nv := ni.val
+	ni.Unlock()
+	androidf("STAT %s %d\n", ni.name, nv)
+}
+
+var (
+	statTCPStart   = &namedInt{name: "tcp_start"}
+	statTCPStarted = &namedInt{name: "tcp_started"}
+	statTCPFail    = &namedInt{name: "tcp_fail"}
+	statTCPDone    = &namedInt{name: "tcp_done"}
+	statTCPWrites  = &namedInt{name: "tcp_write_byte"}
+	statTCPReads   = &namedInt{name: "tcp_read_byte"}
+	statDNSStart   = &namedInt{name: "dns_start"}
+	statDNSDone    = &namedInt{name: "dns_done"}
+)
+
+type statTrackingConn struct {
+	net.Conn
+}
+
+func (c statTrackingConn) Write(p []byte) (n int, err error) {
+	n, err = c.Conn.Write(p)
+	statTCPWrites.Incr(int64(n))
+	return
+}
+
+func (c statTrackingConn) Read(p []byte) (n int, err error) {
+	n, err = c.Conn.Read(p)
+	statTCPReads.Incr(int64(n))
+	return
+}
+
+var (
+	dnsMu    sync.Mutex
+	dnsCache = make(map[string]string)
+)
+
 func androidLookupHost(host string) string {
+	dnsMu.Lock()
+	v, ok := dnsCache[host]
+	dnsMu.Unlock()
+	if ok {
+		return v
+	}
+	statDNSStart.Incr(1)
+	defer statDNSDone.Incr(1)
+
 	// Android has no "dig" or "host" tool, so use "ping -c 1". Ghetto.
 	// $ ping -c 1 google.com
 	// PING google.com (74.125.224.64) 56(84) bytes of data.
@@ -88,12 +143,17 @@ func androidLookupHost(host string) string {
 			return
 		}
 		if m := pingRx.FindStringSubmatch(line); m != nil {
-			c <- m[1]
+			ip := m[1]
+			dnsMu.Lock()
+			dnsCache[host] = ip
+			dnsMu.Unlock()
+			c <- ip
 			return
 		}
 		c <- host
 	}()
 	return <-c
+	return v
 }
 
 func dialFunc() func(network, addr string) (net.Conn, error) {
@@ -108,11 +168,19 @@ func dialFunc() func(network, addr string) (net.Conn, error) {
 		// Android).  We really want a cgo binary to
 		// use Android's DNS cache, but it's kinda
 		// hard/impossible to cross-compile for now.
+		statTCPStart.Incr(1)
 		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
+			statTCPFail.Incr(1)
 			return nil, fmt.Errorf("couldn't split %q", addr)
 		}
-		return net.Dial(network, net.JoinHostPort(androidLookupHost(host), port))
+		c, err := net.Dial(network, net.JoinHostPort(androidLookupHost(host), port))
+		if err != nil {
+			statTCPFail.Incr(1)
+			return nil, err
+		}
+		statTCPStarted.Incr(1)
+		return statTrackingConn{Conn: c}, err
 	}
 }
 
@@ -178,7 +246,7 @@ func printAndroidCamputStatus(t *TreeUpload) {
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.
 type androidStatusRecevier struct {
-	sr blobserver.StatReceiver
+	sr   blobserver.StatReceiver
 	path string
 }
 
@@ -224,7 +292,7 @@ func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
 	if growBy > len(p) {
 		growBy = len(p)
 	}
-	s = s[0:l+growBy]
+	s = s[0 : l+growBy]
 	copy(s[l:], p)
 	*w.s = s
 	return len(p), nil
