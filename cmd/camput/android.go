@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -161,7 +162,6 @@ type allStats struct {
 var lastStatBroadcast allStats
 
 func printAndroidCamputStatus(t *TreeUpload) {
-	blobStats := t.up.Stats()
 	bcast := allStats{t.total, t.skipped, t.uploaded}
 	if bcast == lastStatBroadcast {
 		return
@@ -178,8 +178,12 @@ func printAndroidCamputStatus(t *TreeUpload) {
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.
 type androidStatusRecevier struct {
-	blobserver.StatReceiver
+	sr blobserver.StatReceiver
 	path string
+}
+
+func (asr androidStatusRecevier) noteChunkOnServer(sb blobref.SizedBlobRef) {
+	androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.BlobRef, asr.path)
 }
 
 func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
@@ -187,11 +191,26 @@ func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Re
 	// blob.  We won't update the progress bar for that yet.
 	var buf [1024]byte
 	contents := buf[:0]
-	sb, err := asr.StatReceiver.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
+	sb, err := asr.sr.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
 	if err == nil && !schema.LikelySchemaBlob(contents) {
-		androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, blob, asr.path)
+		asr.noteChunkOnServer(sb)
 	}
 	return sb, err
+}
+
+func (asr androidStatusRecevier) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+	midc := make(chan blobref.SizedBlobRef)
+	errc := make(chan error, 1)
+	go func() {
+		err := asr.sr.StatBlobs(midc, blobs, wait)
+		errc <- err
+		close(midc)
+	}()
+	for sb := range midc {
+		asr.noteChunkOnServer(sb)
+		dest <- sb
+	}
+	return <-errc
 }
 
 type writeUntilSliceFull struct {
