@@ -3,10 +3,11 @@ package exif
 type FieldName string
 
 const (
-	ImageWidth  FieldName = "ImageWidth"
-	ImageLength FieldName = "ImageLength" // height
-	Orientation FieldName = "Orientation"
-	DateTime    FieldName = "DateTime"
+	ImageWidth       FieldName = "ImageWidth"
+	ImageLength      FieldName = "ImageLength" // height
+	Orientation      FieldName = "Orientation"
+	DateTime         FieldName = "DateTime"
+	DateTimeOriginal FieldName = "DateTimeOriginal"
 )
 
 const (

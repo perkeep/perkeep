@@ -23,6 +23,9 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
+
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
 const datadir = "testdata"
@@ -131,5 +134,31 @@ func TestForcedCorrection(t *testing.T) {
 		if !equals(im, straightF) {
 			t.Fatalf("%v not properly corrected", name)
 		}
+	}
+}
+
+// TODO(mpl): move this test to the goexif lib if/when we contribute
+// back the DateTime stuff to upstream.
+func TestDateTime(t *testing.T) {
+	f, err := os.Open(path.Join(datadir, "f1-exif.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	ex, err := exif.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ex.DateTime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	exifTimeLayout := "2006:01:02 15:04:05"
+	want, err := time.Parse(exifTimeLayout, "2012:11:04 05:42:02")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("Creation times differ; got %v, want: %v\n", got, want)
 	}
 }
