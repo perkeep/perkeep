@@ -18,7 +18,8 @@ package org.camlistore;
 
 oneway interface IStatusCallback {
     void logToClient(String stuff);
-    void setUploadStatusText(String text);
+    void setUploadStatusText(String text); // single line
+    void setUploadStatsText(String text);  // big box
     void setUploading(boolean uploading);
     
     // done: acknowledged by server

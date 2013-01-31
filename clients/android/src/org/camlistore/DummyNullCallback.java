@@ -30,21 +30,27 @@ public class DummyNullCallback extends IStatusCallback.Stub {
         return mInstance;
     }
 
+    @Override
     public void logToClient(String stuff) throws RemoteException {
     }
 
-    public void setBlobStatus(int done, int inFlight, int total) throws RemoteException {
-    }
-
+    @Override
     public void setByteStatus(long done, int inFlight, long total) throws RemoteException {
     }
 
+    @Override
     public void setUploading(boolean uploading) throws RemoteException {
     }
 
+    @Override
     public void setUploadStatusText(String text) throws RemoteException {
     }
 
+    @Override
     public void setFileStatus(int done, int inFlight, int total) throws RemoteException {
+    }
+
+    @Override
+    public void setUploadStatsText(String text) throws RemoteException {
     }
 }

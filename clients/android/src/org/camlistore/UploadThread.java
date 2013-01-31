@@ -44,7 +44,9 @@ public class UploadThread extends Thread {
 
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
     AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
-    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded by itself
+    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded
+                                                                                 // by
+                                                                                 // itself
 
     private final Object stdinLock = new Object(); // guards setting and writing
                                                    // to stdinWriter
@@ -150,6 +152,8 @@ public class UploadThread extends Thread {
         }
         status("Running UploadThread for " + mHostPort);
 
+        mService.onStatReceived(null, 0);
+
         Process process = null;
         try {
             ProcessBuilder pb = new ProcessBuilder();
@@ -219,6 +223,28 @@ public class UploadThread extends Thread {
         }
     }
 
+    // STAT %s %d\n
+    private final static Pattern statPattern = Pattern.compile("^STAT (\\S+) (\\d+)\\b");
+
+    public class CamputStatMessage {
+        private final Matcher mm;
+
+        public CamputStatMessage(String line) {
+            mm = statPattern.matcher(line);
+            if (!mm.matches()) {
+                throw new RuntimeException("bogus CamputStatMessage: " + line);
+            }
+        }
+
+        public String name() {
+            return mm.group(1);
+        }
+
+        public long value() {
+            return Long.parseLong(mm.group(2));
+        }
+    }
+
     // STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n
     private final static Pattern statsPattern = Pattern.compile("^STATS nfile=(\\d+) nbyte=(\\d+) skfile=(\\d+) skbyte=(\\d+) upfile=(\\d+) upbyte=(\\d+)");
 
@@ -285,8 +311,6 @@ public class UploadThread extends Thread {
                     // EOF
                     return;
                 }
-                Log.d(TAG, "camput said: " + line);
-
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);
                     mService.onChunkUploaded(msg);
@@ -295,6 +319,11 @@ public class UploadThread extends Thread {
                 if (line.startsWith("STATS ")) {
                     CamputStatsMessage msg = new CamputStatsMessage(line);
                     mService.onStatsReceived(msg);
+                    continue;
+                }
+                if (line.startsWith("STAT ")) {
+                    CamputStatMessage msg = new CamputStatMessage(line);
+                    mService.onStatReceived(msg.name(), msg.value());
                     continue;
                 }
                 if (line.startsWith("FILE_UPLOADED ")) {
@@ -308,7 +337,7 @@ public class UploadThread extends Thread {
                     }
                     continue;
                 }
-                Log.d(TAG, "Unknown line: " + line);
+                Log.d(TAG, "camput said unknown line: " + line);
             }
 
         }

@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 import org.camlistore.UploadThread.CamputStatsMessage;
@@ -65,8 +67,10 @@ public class UploadService extends Service {
                                                // thread exits
     private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
+    private final Map<String, Long> mStatValue = new TreeMap<String, Long>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
-    private String mLastUploadStatusText = null;
+    private String mLastUploadStatusText = null; // single line
+    private String mLastUploadStatsText = null; // multi-line stats
     private int mBytesInFlight = 0;
     private int mFilesInFlight = 0;
 
@@ -363,6 +367,7 @@ public class UploadService extends Service {
             try {
                 mCallback.setUploading(mUploading);
                 mCallback.setUploadStatusText(mLastUploadStatusText);
+                mCallback.setUploadStatsText(mLastUploadStatsText);
             } catch (RemoteException e) {
             }
         }
@@ -681,6 +686,30 @@ public class UploadService extends Service {
             incrBytes(msg.queuedFile(), msg.size());
         }
         broadcastAllState();
+    }
+
+    public void onStatReceived(String stat, long value) {
+        String v;
+        synchronized (UploadService.this) {
+            if (stat == null) {
+                mStatValue.clear();
+            } else {
+                mStatValue.put(stat, value);
+            }
+            StringBuilder sb = new StringBuilder();
+            for (Entry<String, Long> ent : mStatValue.entrySet()) {
+                sb.append(ent.getKey());
+                sb.append(": ");
+                sb.append(ent.getValue());
+                sb.append("\n");
+            }
+            v = sb.toString();
+            mLastUploadStatsText = v;
+        }
+        try {
+            mCallback.setUploadStatsText(v);
+        } catch (RemoteException e) {
+        }
     }
 
     protected void stopUploadThread() {
