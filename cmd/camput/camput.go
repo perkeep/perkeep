@@ -156,7 +156,9 @@ func newUploader() *Uploader {
 		cc.SetLogger(nil)
 	}
 
-	transport := &http.Transport{
+	var transport http.RoundTripper
+
+	transport = &http.Transport{
 		Dial: dialFunc(),
 		TLSClientConfig: tlsClientConfig(),
 	}
@@ -165,7 +167,12 @@ func newUploader() *Uploader {
 		VerboseLog: *flagHTTP,
 		Transport:  transport,
 	}
-	cc.SetHTTPClient(&http.Client{Transport: httpStats})
+	transport = httpStats
+
+	if androidOutput {
+		transport = androidStatsTransport{transport}
+	}
+	cc.SetHTTPClient(&http.Client{Transport: transport})
 
 	pwd, err := os.Getwd()
 	if err != nil {

@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,14 +75,21 @@ func (ni *namedInt) Incr(delta int64) {
 }
 
 var (
-	statTCPStart   = &namedInt{name: "tcp_start"}
-	statTCPStarted = &namedInt{name: "tcp_started"}
-	statTCPFail    = &namedInt{name: "tcp_fail"}
-	statTCPDone    = &namedInt{name: "tcp_done"}
-	statTCPWrites  = &namedInt{name: "tcp_write_byte"}
-	statTCPReads   = &namedInt{name: "tcp_read_byte"}
-	statDNSStart   = &namedInt{name: "dns_start"}
-	statDNSDone    = &namedInt{name: "dns_done"}
+	statDNSStart       = &namedInt{name: "dns_start"}
+	statDNSDone        = &namedInt{name: "dns_done"}
+	statTCPStart       = &namedInt{name: "tcp_start"}
+	statTCPStarted     = &namedInt{name: "tcp_started"}
+	statTCPFail        = &namedInt{name: "tcp_fail"}
+	statTCPDone        = &namedInt{name: "tcp_done"}
+	statTCPWrites      = &namedInt{name: "tcp_write_byte"}
+	statTCPWrote       = &namedInt{name: "tcp_wrote_byte"}
+	statTCPReads       = &namedInt{name: "tcp_read_byte"}
+	statHTTPStart      = &namedInt{name: "http_start"}
+	statHTTPResHeaders = &namedInt{name: "http_res_headers"}
+	statBlobUploaded   = &namedInt{name: "blob_uploaded"}
+	statBlobExisted    = &namedInt{name: "blob_existed"}
+	statFileUploaded   = &namedInt{name: "file_uploaded"}
+	statFileExisted    = &namedInt{name: "file_existed"}
 )
 
 type statTrackingConn struct {
@@ -89,8 +97,9 @@ type statTrackingConn struct {
 }
 
 func (c statTrackingConn) Write(p []byte) (n int, err error) {
+	statTCPWrites.Incr(int64(len(p)))
 	n, err = c.Conn.Write(p)
-	statTCPWrites.Incr(int64(n))
+	statTCPWrote.Incr(int64(n))
 	return
 }
 
@@ -156,6 +165,18 @@ func androidLookupHost(host string) string {
 	return v
 }
 
+type androidStatsTransport struct {
+	rt http.RoundTripper
+}
+
+func (t androidStatsTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
+	statHTTPStart.Incr(1)
+	res, err = t.rt.RoundTrip(req)
+	statHTTPResHeaders.Incr(1)
+	// TODO: track per-response code stats, and also track when body done being read.
+	return
+}
+
 func dialFunc() func(network, addr string) (net.Conn, error) {
 	if !onAndroid() {
 		return nil // use default
@@ -216,9 +237,14 @@ func androidf(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
 
-func noteFileUploaded(fullPath string) {
+func noteFileUploaded(fullPath string, uploaded bool) {
 	if !androidOutput {
 		return
+	}
+	if uploaded {
+		statFileUploaded.Incr(1)
+	} else {
+		statFileExisted.Incr(1)
 	}
 	androidf("FILE_UPLOADED %s\n", fullPath)
 }
@@ -261,6 +287,7 @@ func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Re
 	contents := buf[:0]
 	sb, err := asr.sr.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
 	if err == nil && !schema.LikelySchemaBlob(contents) {
+		statBlobUploaded.Incr(1)
 		asr.noteChunkOnServer(sb)
 	}
 	return sb, err
@@ -276,6 +303,7 @@ func (asr androidStatusRecevier) StatBlobs(dest chan<- blobref.SizedBlobRef, blo
 	}()
 	for sb := range midc {
 		asr.noteChunkOnServer(sb)
+		statBlobExisted.Incr(1)
 		dest <- sb
 	}
 	return <-errc

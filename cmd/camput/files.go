@@ -536,7 +536,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		}
 		pr, err := up.Upload(h)
 		if err == nil {
-			noteFileUploaded(n.fullPath)
+			noteFileUploaded(n.fullPath, true)
 		}
 		return pr, err
 	}
@@ -947,7 +947,7 @@ func (t *TreeUpload) run() {
 			if err == nil {
 				n.SetPutResult(cachedRes, nil)
 				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
-				noteFileUploaded(n.fullPath)
+				noteFileUploaded(n.fullPath, false)
 				skippedc <- n
 				return
 			}

@@ -212,7 +212,7 @@ public class CamliActivity extends Activity {
         MenuItem stop = menu.add(Menu.NONE, MENU_STOP, 0, R.string.stop);
         stop.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
 
-        MenuItem stopDie = menu.add(Menu.NONE, MENU_STOP_DIE, 0, R.string.stop);
+        MenuItem stopDie = menu.add(Menu.NONE, MENU_STOP_DIE, 0, R.string.stop_die);
         stopDie.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
 
         MenuItem settings = menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.settings);
