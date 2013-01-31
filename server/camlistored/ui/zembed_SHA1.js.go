@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("SHA1.js", 3452, fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
+	Files.Add("SHA1.js", 3604, fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
 		"// License: http://www.opensource.org/licenses/bsd-license.php\x0d\n"+
 		"//\x0d\n"+
 		"// Copyright (c) 2009, Jeff Mott. All rights reserved.\x0d\n"+
@@ -33,6 +33,12 @@ func init() {
 		"// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\x0d\n"+
 		"// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\x0d\n"+
 		"\x0d\n"+
+		"if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {\n"+
+		"    goog.provide('camlistore.SHA1');\n"+
+		"\n"+
+		"    goog.require('camlistore.Crypto');\n"+
+		"}\n"+
+		"\n"+
 		"(function(){\x0d\n"+
 		"\x0d\n"+
 		"// Shortcuts\x0d\n"+
@@ -116,5 +122,5 @@ func init() {
 		"SHA1._blocksize = 16;\x0d\n"+
 		"\x0d\n"+
 		"})();\x0d\n"+
-		""), time.Unix(0, 1349725494143774804))
+		""), time.Unix(0, 1359675908724750359))
 }

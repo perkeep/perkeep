@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 16702, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17008, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -22,6 +22,13 @@ func init() {
 		"See the License for the specific language governing permissions and\n"+
 		"limitations under the License.\n"+
 		"*/\n"+
+		"\n"+
+		"if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {\n"+
+		"    goog.provide('camlistore.CamliCommon');\n"+
+		"\n"+
+		"    goog.require('camlistore.base64');\n"+
+		"    goog.require('camlistore.SHA1');\n"+
+		"}\n"+
 		"\n"+
 		"// Camli namespace.\n"+
 		"if (!window.Camli) {\n"+
@@ -50,7 +57,14 @@ func init() {
 		"    element.appendChild(document.createTextNode(text));\n"+
 		"};\n"+
 		"\n"+
-		"// Method 1 to get discovery information (JSONP style):\n"+
+		"/**\n"+
+		"* Sets the Camlistore Discovery configuration object.\n"+
+		"*\n"+
+		"* @param {Object.<string, <?>>} config The Camlistore configuration Object from D"+
+		"iscovery.\n"+
+		"*\n"+
+		"* @expose\n"+
+		"*/\n"+
 		"Camli.onConfiguration = function(config) {\n"+
 		"    Camli.config = config;\n"+
 		"};\n"+
@@ -527,5 +541,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1358715291000000000))
+		""), time.Unix(0, 1359675908724750359))
 }

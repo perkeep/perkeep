@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("Crypto.js", 5731, fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
+	Files.Add("Crypto.js", 5846, fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
 		"// License: http://www.opensource.org/licenses/bsd-license.php\x0d\n"+
 		"//\x0d\n"+
 		"// Copyright (c) 2009, Jeff Mott. All rights reserved.\x0d\n"+
@@ -33,6 +33,11 @@ func init() {
 		"// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\x0d\n"+
 		"// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\x0d\n"+
 		"\x0d\n"+
+		"\n"+
+		"if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {\n"+
+		"    goog.provide('camlistore.Crypto');\n"+
+		"}\n"+
+		"\n"+
 		"if (typeof Crypto == \"undefined\" || ! Crypto.util)\x0d\n"+
 		"{\x0d\n"+
 		"(function(){\x0d\n"+
@@ -192,5 +197,5 @@ func init() {
 		"\x0d\n"+
 		"})();\x0d\n"+
 		"}\x0d\n"+
-		""), time.Unix(0, 1349725494123778548))
+		""), time.Unix(0, 1359675908724750359))
 }

@@ -11,7 +11,7 @@ function discoverJsonSign() {
         sigdisco = JSON.parse(xhr.responseText);
         document.getElementById("sigdiscores").innerHTML = "<pre>" + JSON.stringify(sigdisco, null, 2) + "</pre>";
     };
-    xhr.open("GET", disco.jsonSignRoot + "/camli/sig/discovery", true);
+    xhr.open("GET", Camli.config.jsonSignRoot + "/camli/sig/discovery", true);
     xhr.send();
 }
 

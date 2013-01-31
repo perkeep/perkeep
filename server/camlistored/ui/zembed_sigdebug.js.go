@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("sigdebug.js", 2315, fileembed.String("var sigdisco = null;\n"+
+	Files.Add("sigdebug.js", 2322, fileembed.String("var sigdisco = null;\n"+
 		"\n"+
 		"function discoverJsonSign() {\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
@@ -21,7 +21,7 @@ func init() {
 		"        document.getElementById(\"sigdiscores\").innerHTML = \"<pre>\" + JSON.stringi"+
 		"fy(sigdisco, null, 2) + \"</pre>\";\n"+
 		"    };\n"+
-		"    xhr.open(\"GET\", disco.jsonSignRoot + \"/camli/sig/discovery\", true);\n"+
+		"    xhr.open(\"GET\", Camli.config.jsonSignRoot + \"/camli/sig/discovery\", true);\n"+
 		"    xhr.send();\n"+
 		"}\n"+
 		"\n"+
@@ -85,5 +85,5 @@ func init() {
 		"    xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urlencoded\");\n"+
 		"    xhr.send(\"sjson=\" + encodeURIComponent(signedta.value));\n"+
 		"}\n"+
-		""), time.Unix(0, 1349725494303779986))
+		""), time.Unix(0, 1359676098841984696))
 }
