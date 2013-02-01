@@ -260,15 +260,25 @@ func (bb *Builder) SetSymlinkTarget(target string) *Builder {
 	return bb
 }
 
+// IsClaimType returns whether this blob builder is for a type
+// which should be signed. (a "claim" or "permanode")
+func (bb *Builder) IsClaimType() bool {
+	switch bb.Type() {
+	case "claim", "permanode":
+		return true
+	}
+	return false
+}
+
 // SetClaimDate sets the "claimDate" on a claim.
 // It is a fatal error to call SetClaimDate if the Map isn't of Type "claim".
 func (bb *Builder) SetClaimDate(t time.Time) *Builder {
-	if t := bb.Type(); t != "claim" {
+	if !bb.IsClaimType() {
 		// This is a little gross, using panic here, but I
 		// don't want all callers to check errors.  This is
 		// really a programming error, not a runtime error
 		// that would arise from e.g. random user data.
-		panic("SetClaimDate called on non-claim *Builder; camliType=" + t)
+		panic("SetClaimDate called on non-claim *Builder; camliType=" + bb.Type())
 	}
 	bb.m["claimDate"] = RFC3339FromTime(t)
 	return bb

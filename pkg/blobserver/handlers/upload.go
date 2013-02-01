@@ -109,33 +109,39 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 		return fmt.Errorf("Discovery: json decoding error: %v", err)
 	}
 
-	unsigned := schema.NewHashPlannedPermanode(h)
-	unsigned.SetSigner(blobref.MustParse(publicKeyBlobRef))
-	signed, err := sigHelper.Sign(unsigned)
-	if err != nil {
-		return fmt.Errorf("Signing permanode %v: %v", signed, err)
-	}
-	signedPerm := blobref.SHA1FromString(signed)
-	_, err = blobReceiver.ReceiveBlob(signedPerm, strings.NewReader(signed))
-	if err != nil {
-		return fmt.Errorf("While uploading signed permanode %v: %v", signed, err)
-	}
-
-	contentAttr := schema.NewSetAttributeClaim(signedPerm, "camliContent", fileblob.BlobRef.String())
+	// The file schema must have a modtime to vivify, as the modtime is used for all three of:
+	// 1) the permanode's signature
+	// 2) the camliContent attribute claim's "claimDate"
+	// 3) the signature time of 2)
 	claimDate, err := time.Parse(time.RFC3339, fr.FileSchema().UnixMtime)
 	if err != nil {
 		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileSchema().FileName, err)
 	}
-	contentAttr.SetClaimDate(claimDate)
-	contentAttr.SetSigner(blobref.MustParse(publicKeyBlobRef))
-	signed, err = sigHelper.Sign(contentAttr)
+
+	permanodeBB := schema.NewHashPlannedPermanode(h)
+	permanodeBB.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	permanodeBB.SetClaimDate(claimDate)
+	permanodeSigned, err := sigHelper.Sign(permanodeBB)
+	if err != nil {
+		return fmt.Errorf("Signing permanode %v: %v", permanodeSigned, err)
+	}
+	permanodeRef := blobref.SHA1FromString(permanodeSigned)
+	_, err = blobReceiver.ReceiveBlob(permanodeRef, strings.NewReader(permanodeSigned))
+	if err != nil {
+		return fmt.Errorf("While uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
+	}
+
+	contentClaimBB := schema.NewSetAttributeClaim(permanodeRef, "camliContent", fileblob.BlobRef.String())
+	contentClaimBB.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	contentClaimBB.SetClaimDate(claimDate)
+	contentClaimSigned, err := sigHelper.Sign(contentClaimBB)
 	if err != nil {
 		return fmt.Errorf("Signing camliContent claim: %v", err)
 	}
-	signedClaim := blobref.SHA1FromString(signed)
-	_, err = blobReceiver.ReceiveBlob(signedClaim, strings.NewReader(signed))
+	contentClaimRef := blobref.SHA1FromString(contentClaimSigned)
+	_, err = blobReceiver.ReceiveBlob(contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
-		return fmt.Errorf("While uploading signed camliContent claim %v: %v", signed, err)
+		return fmt.Errorf("While uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
 	}
 	return nil
 }
