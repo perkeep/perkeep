@@ -255,5 +255,13 @@ func (h *Handler) Sign(bb *schema.Builder) (string, error) {
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
 	}
+	claimTime, err := bb.Blob().ClaimDate()
+	if err != nil {
+		if !schema.IsMissingField(err) {
+			return "", err
+		}
+	} else {
+		sreq.SignatureTime = claimTime
+	}
 	return sreq.Sign()
 }
