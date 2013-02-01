@@ -417,7 +417,7 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 		statReceiver = up.Client
 	}
 	if androidOutput && n != nil && n.fi.Mode()&os.ModeType == 0 {
-		return androidStatusRecevier{statReceiver, n.fullPath}
+		return androidStatusReceiver{statReceiver, n.fullPath}
 	}
 	return statReceiver
 }

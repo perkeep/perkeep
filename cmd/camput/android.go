@@ -268,19 +268,19 @@ func printAndroidCamputStatus(t *TreeUpload) {
 		t.uploaded.files, t.uploaded.bytes)
 }
 
-// androidStatusRecevier is a blobserver.StatReceiver wrapper that
+// androidStatusReceiver is a blobserver.StatReceiver wrapper that
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.
-type androidStatusRecevier struct {
+type androidStatusReceiver struct {
 	sr   blobserver.StatReceiver
 	path string
 }
 
-func (asr androidStatusRecevier) noteChunkOnServer(sb blobref.SizedBlobRef) {
+func (asr androidStatusReceiver) noteChunkOnServer(sb blobref.SizedBlobRef) {
 	androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.BlobRef, asr.path)
 }
 
-func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+func (asr androidStatusReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
 	// Sniff the first 1KB of it and don't print the stats if it looks like it was just a schema
 	// blob.  We won't update the progress bar for that yet.
 	var buf [1024]byte
@@ -293,7 +293,7 @@ func (asr androidStatusRecevier) ReceiveBlob(blob *blobref.BlobRef, source io.Re
 	return sb, err
 }
 
-func (asr androidStatusRecevier) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (asr androidStatusReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
 	midc := make(chan blobref.SizedBlobRef)
 	errc := make(chan error, 1)
 	go func() {
