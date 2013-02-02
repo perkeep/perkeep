@@ -27,6 +27,19 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
+// A MissingFieldError represents a missing JSON field in a schema blob.
+type MissingFieldError string
+
+func (e MissingFieldError) Error() string {
+	return fmt.Sprintf("schema: missing field %q", string(e))
+}
+
+// IsMissingField returns whether error is of type MissingFieldError.
+func IsMissingField(err error) bool {
+	_, ok := err.(MissingFieldError)
+	return ok
+}
+
 // AnyBlob represents any type of schema blob.
 type AnyBlob interface {
 	Blob() *Blob
@@ -71,6 +84,17 @@ func (b *Blob) PartsSize() int64 {
 // TODO: move this off *Blob to a specialized type.
 func (b *Blob) FileName() string {
 	return b.ss.FileNameString()
+}
+
+// ClaimDate returns the "claimDate" field.
+// If there is no claimDate, the error will be a MissingFieldError.
+func (b *Blob) ClaimDate() (time.Time, error) {
+	var ct time.Time
+	claimDate := b.ss.ClaimDate
+	if claimDate == "" {
+		return ct, MissingFieldError("claimDate")
+	}
+	return time.Parse(time.RFC3339, claimDate)
 }
 
 // ByteParts returns the "parts" field. The caller owns the returned
