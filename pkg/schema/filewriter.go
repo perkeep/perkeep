@@ -198,17 +198,16 @@ func uploadString(bs blobserver.StatReceiver, s string) (*blobref.BlobRef, error
 	return br, nil
 }
 
-// uploadBytes gets a map from mapSource (of type either "bytes" or
+// uploadBytes populates bb (a builder of either type "bytes" or
 // "file", which is a superset of "bytes"), sets it to the provided
 // size, and populates with provided spans.  The bytes or file schema
 // blob is uploaded and its blobref is returned.
-func uploadBytes(bs blobserver.StatReceiver, source func() *Builder, size int64, s []span) (*blobref.BlobRef, error) {
+func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) (*blobref.BlobRef, error) {
 	parts := []BytesPart{}
 	err := addBytesParts(bs, &parts, s)
 	if err != nil {
 		return nil, err
 	}
-	bb := source()
 	err = bb.PopulateParts(size, parts)
 	if err != nil {
 		return nil, err
@@ -237,7 +236,7 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span) e
 			for _, cs := range sp.children {
 				childrenSize += cs.size()
 			}
-			br, err := uploadBytes(bs, newBytes, childrenSize, sp.children)
+			br, err := uploadBytes(bs, newBytes(), childrenSize, sp.children)
 			if err != nil {
 				return err
 			}
@@ -261,13 +260,12 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span) e
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob. It uses rolling checksum for the chunks sizes.
 func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader) (outbr *blobref.BlobRef, outerr error) {
-	rootFile := func() *Builder { return file }
 	n, spans, err := writeFileChunks(bs, file, r)
 	if err != nil {
 		return nil, err
 	}
 	// The top-level content parts
-	return uploadBytes(bs, rootFile, n, spans)
+	return uploadBytes(bs, file, n, spans)
 }
 
 // WriteFileChunks uploads chunks of r to bs while populating fileMap.
