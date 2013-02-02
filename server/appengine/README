@@ -1,4 +1,7 @@
-To run:
+We typically just use the "dev-appengine" script in the project root
+to hack on this code.
+
+But to run by hand:
 
 $ dev_appserver.py --high_replication .
 

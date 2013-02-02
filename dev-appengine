@@ -38,7 +38,8 @@ if ($opt_port) {
 }
 push @args, @ARGV;
 
-push @args, "$Bin/server/go/appengine";
+chdir "$Bin/server/appengine" or die "$!";
+push @args, ".";
 
 print "\$ @args\n";
 
