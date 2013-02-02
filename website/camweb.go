@@ -52,7 +52,7 @@ var (
 	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
 	gerritUser          = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
 	gerritHost          = flag.String("gerrithost", "", "Gerrit host, or empty.")
-	buildbotBackend     = flag.String("buildbot_backend", "", "Build bot status backend.")
+	buildbotBackend     = flag.String("buildbot_backend", "", "Build bot status backend URL")
 	buildbotHost        = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	pageHtml, errorHtml *template.Template
 )
@@ -343,8 +343,8 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
 		Handler:      handler,
-		ReadTimeout:  connTimeoutNanos,
-		WriteTimeout: connTimeoutNanos,
+		ReadTimeout:  5 * time.Minute,
+		WriteTimeout: 30 * time.Minute,
 	}
 	go func() {
 		errch <- httpServer.ListenAndServe()
@@ -362,8 +362,6 @@ func main() {
 
 	log.Fatalf("Serve error: %v", <-errch)
 }
-
-const connTimeoutNanos = 15e9
 
 type fixUpGitwebUrls struct {
 	handler http.Handler
