@@ -25,6 +25,7 @@ import (
 	"os"
 	"sort"
 
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
@@ -33,6 +34,7 @@ import (
 const buffered = 16 // arbitrary
 
 var (
+	flagVersion = flag.Bool("version", false, "show version")
 	flagHelp    = flag.Bool("help", false, "print usage")
 	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
 	flagHTTP    = flag.Bool("verbose_http", false, "show HTTP request summaries")
@@ -225,6 +227,10 @@ var (
 
 // camputMain is separated from main for testing from camput
 func camputMain(args ...string) {
+	if *flagVersion {
+		fmt.Fprintf(stderr, "camget version: %s\n", buildinfo.Version())
+		return
+	}
 	if *flagHelp {
 		usage("")
 	}

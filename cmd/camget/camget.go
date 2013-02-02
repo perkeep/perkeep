@@ -48,6 +48,7 @@ import (
 	"path/filepath"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
@@ -56,6 +57,7 @@ import (
 )
 
 var (
+	flagVersion  = flag.Bool("version", false, "show version")
 	flagVerbose  = flag.Bool("verbose", false, "be verbose")
 	flagHTTP     = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagCheck    = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
@@ -68,6 +70,11 @@ var (
 func main() {
 	client.AddFlags()
 	flag.Parse()
+
+	if *flagVersion {
+		fmt.Fprintf(os.Stderr, "camget version: %s\n", buildinfo.Version())
+		return
+	}
 
 	if *flagGraph && flag.NArg() != 1 {
 		log.Fatalf("The --graph option requires exactly one parameter.")

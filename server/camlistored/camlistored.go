@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/json"
 	"encoding/pem"
 	"flag"
@@ -36,8 +37,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"database/sql"
 
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverconfig"
@@ -70,6 +71,7 @@ const (
 )
 
 var (
+	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
 	listenFlag = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
@@ -350,6 +352,11 @@ func listenAndBaseURL(config *serverconfig.Config) (listen, baseURL string) {
 
 func main() {
 	flag.Parse()
+
+	if *flagVersion {
+		fmt.Fprintf(os.Stderr, "camlistored version: %s\n", buildinfo.Version())
+		return
+	}
 
 	fileName, err := findConfigFile(*flagConfigFile)
 	if err != nil {
