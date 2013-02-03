@@ -446,6 +446,8 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 	return blobref.MustParse(td.Sum()), nil
 }
 
+var noDupSearch = os.Getenv("CAMLI_NO_FILE_DUP_SEARCH") == "1"
+
 // fileMapFromDuplicate queries the server's search interface for an
 // existing file with an entire contents of sum (a blobref string).
 // If the server has it, it's validated, and then fileMap (which must
@@ -454,6 +456,9 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 // returned.  If there's any problem, or a dup doesn't exist, ok is
 // false.
 func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (fileSchema *blobref.BlobRef, ok bool) {
+	if noDupSearch {
+		return
+	}
 	_, err := up.Client.SearchRoot()
 	if err != nil {
 		return
