@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/client"
@@ -35,7 +36,7 @@ import (
 const buffered = 16 // arbitrary
 
 var (
-	flagProxyLocal = flag.Bool("proxy_local", false, "enables proxying localhost requests")
+	flagProxyLocal = false
 	flagHelp       = flag.Bool("help", false, "print usage")
 	flagVerbose    = flag.Bool("verbose", false, "extra debug logging")
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
@@ -60,6 +61,12 @@ type Exampler interface {
 
 var modeCommand = make(map[string]CommandRunner)
 var modeFlags = make(map[string]*flag.FlagSet)
+
+func init() {
+	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "enables proxying localhost requests; this can be used to alter the http requests to test with emulated flaky connection")
+	}
+}
 
 func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunner) {
 	if _, dup := modeCommand[mode]; dup {
@@ -160,7 +167,9 @@ func getenvEitherCase(k string) string {
 	return os.Getenv(strings.ToLower(k))
 }
 
-// Proxies localhost too, unlike http.ProxyFromEnvironment().
+// proxyFromEnvironment is similar to http.ProxyFromEnvironment but it skips
+// $NO_PROXY blacklist so it proxies every requests, including localhost
+// requests.
 func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 	proxy := getenvEitherCase("HTTP_PROXY")
 	if proxy == "" {
@@ -189,7 +198,7 @@ func newUploader() *Uploader {
 		Dial:            dialFunc(),
 		TLSClientConfig: tlsClientConfig(),
 	}
-	if *flagProxyLocal {
+	if flagProxyLocal {
 		transport.Proxy = proxyFromEnvironment
 	}
 	httpStats := &httputil.StatsTransport{
