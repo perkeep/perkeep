@@ -172,38 +172,148 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 	return jmap, nil
 }
 
-func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	if len(blobs) == 0 {
-		return nil
-	}
+// statReq is a request to stat a blob.
+type statReq struct {
+	br   *blobref.BlobRef
+	dest chan<- blobref.SizedBlobRef // written to on success
+	errc chan<- error                // written to on both failure and success (after any dest)
+}
 
-	// TODO: if len(blobs) > 1000 or something, cut this up into
-	// multiple http requests, and also if the server returns a
-	// 400 error, per the blob-stat-protocol.txt document.
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camliversion=1")
-	needed := 0
+func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+	var needStat []*blobref.BlobRef
 	for _, blob := range blobs {
 		if blob == nil {
 			panic("nil blob")
 		}
 		if size, ok := c.haveCache.StatBlobCache(blob); ok {
 			dest <- blobref.SizedBlobRef{blob, size}
-			continue
+		} else {
+			if needStat == nil {
+				needStat = make([]*blobref.BlobRef, 0, len(blobs))
+			}
+			needStat = append(needStat, blob)
 		}
-		needed++
-		fmt.Fprintf(&buf, "&blob%d=%s", needed, blob)
 	}
-	if needed == 0 {
+	if len(needStat) == 0 {
 		return nil
 	}
+	if wait > 0 {
+		// No batching on wait requests.
+		return c.doStat(dest, needStat, wait, true)
+	}
 
+	// Here begins all the batching logic. In a SPDY world, this
+	// will all be somewhat useless, so consider detecting SPDY on
+	// the underlying connection and just always calling doStat
+	// instead.  The one thing this code below is also cut up
+	// >1000 stats into smaller batches.  But with SPDY we could
+	// even just do lots of little 1-at-a-time stats.
+
+	var errcs []chan error // one per blob to stat
+
+	c.pendStatMu.Lock()
+	{
+		if c.pendStat == nil {
+			c.pendStat = make(map[string][]statReq)
+		}
+		for _, blob := range needStat {
+			errc := make(chan error, 1)
+			errcs = append(errcs, errc)
+			brStr := blob.String()
+			c.pendStat[brStr] = append(c.pendStat[brStr], statReq{blob, dest, errc})
+		}
+	}
+	c.pendStatMu.Unlock()
+
+	// Kick off at least one worker. It may do nothing and lose
+	// the race, but somebody will handle our requests in
+	// pendStat.
+	go c.doSomeStats()
+
+	for _, errc := range errcs {
+		if err := <-errc; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const maxStatPerReq = 1000 // TODO: detect this from client discovery? add it on server side too.
+
+func (c *Client) doSomeStats() {
+	c.requestHTTPToken()
+	defer c.releaseHTTPToken()
+
+	var batch map[string][]statReq
+
+	c.pendStatMu.Lock()
+	{
+		if len(c.pendStat) == 0 {
+			// Lost race. Another batch got these.
+			c.pendStatMu.Unlock()
+			return
+		}
+		batch = make(map[string][]statReq)
+		for blobStr, reqs := range c.pendStat {
+			batch[blobStr] = reqs
+			delete(c.pendStat, blobStr)
+			if len(batch) == maxStatPerReq {
+				go c.doSomeStats() // kick off next batch
+				break
+			}
+		}
+	}
+	c.pendStatMu.Unlock()
+
+	println("doing stat batch of", len(batch))
+
+	blobs := make([]*blobref.BlobRef, 0, len(batch))
+	for _, reqs := range batch {
+		// Just the first waiter's blobref is fine. All
+		// reqs[n] have the same br. This is just to avoid
+		// blobref.Parse from the 'batch' map's string key.
+		blobs = append(blobs, reqs[0].br)
+	}
+
+	ourDest := make(chan blobref.SizedBlobRef)
+	errc := make(chan error, 1)
+	go func() {
+		// false for not gated, since we already grabbed the
+		// token at the beginning of this function.
+		errc <- c.doStat(ourDest, blobs, 0, false)
+		close(ourDest)
+	}()
+
+	for sb := range ourDest {
+		for _, req := range batch[sb.BlobRef.String()] {
+			req.dest <- sb
+			println("did stat for", sb.Size)
+		}
+	}
+
+	// Copy the doStat's error to all waiters for all blobrefs in this batch.
+	err := <-errc
+	for _, reqs := range batch {
+		for _, req := range reqs {
+			req.errc <- err
+		}
+	}
+}
+
+// doStat does an HTTP request for the stat. the number of blobs is used verbatim. No extra splitting
+// or batching is done at this layer.
+func (c *Client) doStat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration, gated bool) error {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "camliversion=1")
 	if wait > 0 {
 		secs := int(wait.Seconds())
 		if secs == 0 {
 			secs = 1
 		}
 		fmt.Fprintf(&buf, "&maxwaitsec=%d", secs)
+	}
+	for i, blob := range blobs {
+		fmt.Fprintf(&buf, "&blob%d=%s", i+1, blob)
 	}
 
 	pfx, err := c.prefix()
@@ -213,7 +323,12 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx), &buf)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.doReq(req)
+	var resp *http.Response
+	if gated {
+		resp, err = c.doReqGated(req)
+	} else {
+		resp, err = c.httpClient.Do(req)
+	}
 	if err != nil {
 		return fmt.Errorf("stat HTTP error: %v", err)
 	}
@@ -288,7 +403,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.doReq(req)
+	resp, err := c.doReqGated(req)
 	if err != nil {
 		return errorf("stat http error: %v", err)
 	}
@@ -352,7 +467,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}
 	req.Body = ioutil.NopCloser(pipeReader)
 	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
-	resp, err = c.doReq(req)
+	resp, err = c.doReqGated(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)
 	}

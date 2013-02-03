@@ -62,6 +62,9 @@ type Client struct {
 	httpClient *http.Client
 	haveCache  HaveCache
 
+	pendStatMu sync.Mutex           // guards pendStat
+	pendStat   map[string][]statReq // blobref -> reqs; for next batch(es)
+
 	statsMutex sync.Mutex
 	stats      Stats
 
@@ -269,7 +272,7 @@ func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.B
 	}
 	url := sr + "camli/search/files?wholedigest=" + wholeRef.String()
 	req := c.newRequest("GET", url)
-	res, err := c.doReq(req)
+	res, err := c.doReqGated(req)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +316,7 @@ func (c *Client) FileHasContents(f, wholeRef *blobref.BlobRef) bool {
 		return false
 	}
 	req := c.newRequest("HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
-	res, err := c.doReq(req)
+	res, err := c.doReqGated(req)
 	if err != nil {
 		log.Printf("download helper HEAD error: %v", err)
 		return false
@@ -375,7 +378,7 @@ func (c *Client) doDiscovery() {
 	req, _ := http.NewRequest("GET", c.discoRoot(), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	c.authMode.AddAuthHeader(req)
-	res, err := c.doReq(req)
+	res, err := c.doReqGated(req)
 	if err != nil {
 		c.discoErr = err
 		return
@@ -473,10 +476,16 @@ func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request
 	return req
 }
 
-func (c *Client) doReq(req *http.Request) (*http.Response, error) {
+func (c *Client) requestHTTPToken() {
 	c.reqGate <- true
-	defer func() {
-		<-c.reqGate
-	}()
+}
+
+func (c *Client) releaseHTTPToken() {
+	<-c.reqGate
+}
+
+func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
+	c.requestHTTPToken()
+	defer c.releaseHTTPToken()
 	return c.httpClient.Do(req)
 }
