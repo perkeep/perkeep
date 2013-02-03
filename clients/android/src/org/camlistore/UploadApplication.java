@@ -16,16 +16,17 @@ limitations under the License.
 
 package org.camlistore;
 
-import android.app.Application;
-import android.content.pm.PackageManager.NameNotFoundException;
-import android.util.Config;
-import android.util.Log;
-
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
+
+import android.app.Application;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.util.Log;
 
 public class UploadApplication extends Application {
     private final static String TAG = "UploadApplication";
@@ -55,10 +56,10 @@ public class UploadApplication extends Application {
             FileOutputStream fos = getBaseContext().openFileOutput("camput.bin.writing", MODE_PRIVATE);
             byte[] buf = new byte[8192];
             int offset;
-            while ((offset = is.read(buf))>0) {
+            while ((offset = is.read(buf)) > 0) {
                 fos.write(buf, 0, offset);
             }
-            is.close(); 
+            is.close();
             fos.flush();
             fos.close();
 
@@ -75,6 +76,7 @@ public class UploadApplication extends Application {
         }
     }
 
+    @Override
     public void onCreate() {
         super.onCreate();
 
@@ -103,6 +105,24 @@ public class UploadApplication extends Application {
         } catch (NoSuchMethodException e) {
         } catch (SecurityException e) {
         } catch (java.lang.reflect.InvocationTargetException e) {
+        }
+    }
+
+    public String getCamputVersion() {
+        InputStream is = null;
+        try {
+            is = getAssets().open("camput-version.txt");
+            BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            return br.readLine();
+        } catch (IOException e) {
+            return e.toString();
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
+            }
         }
     }
 }

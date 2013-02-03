@@ -463,8 +463,14 @@ public class UploadService extends Service {
     }
 
     public String pathOfURI(Uri uri) {
+        if (uri == null) {
+            return null;
+        }
         String[] proj = { MediaStore.Images.Media.DATA };
         Cursor cursor = getContentResolver().query(uri, proj, null, null, null);
+        if (cursor == null) {
+            return null;
+        }
         cursor.moveToFirst();
 
         int columnIndex = cursor.getColumnIndex(proj[0]);

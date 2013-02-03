@@ -34,6 +34,7 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
@@ -41,6 +42,7 @@ public class CamliActivity extends Activity {
     private static final int MENU_STOP = 2;
     private static final int MENU_STOP_DIE = 3;
     private static final int MENU_UPLOAD_ALL = 4;
+    private static final int MENU_VERSION = 5;
 
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
@@ -218,6 +220,7 @@ public class CamliActivity extends Activity {
         MenuItem settings = menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.settings);
         settings.setIcon(android.R.drawable.ic_menu_preferences);
 
+        menu.add(Menu.NONE, MENU_VERSION, 0, R.string.version);
         return true;
     }
 
@@ -237,6 +240,9 @@ public class CamliActivity extends Activity {
             System.exit(1);
         case MENU_SETTINGS:
             SettingsActivity.show(this);
+            break;
+        case MENU_VERSION:
+            Toast.makeText(this, "camput version: " + ((UploadApplication) getApplication()).getCamputVersion(), Toast.LENGTH_LONG).show();
             break;
         case MENU_UPLOAD_ALL:
             Intent uploadAll = new Intent(UploadService.INTENT_UPLOAD_ALL);
