@@ -22,8 +22,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/client"
@@ -34,10 +37,11 @@ import (
 const buffered = 16 // arbitrary
 
 var (
-	flagVersion = flag.Bool("version", false, "show version")
-	flagHelp    = flag.Bool("help", false, "print usage")
-	flagVerbose = flag.Bool("verbose", false, "extra debug logging")
-	flagHTTP    = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagProxyLocal = false
+	flagVersion    = flag.Bool("version", false, "show version")
+	flagHelp       = flag.Bool("help", false, "print usage")
+	flagVerbose    = flag.Bool("verbose", false, "extra debug logging")
+	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 )
 
 var ErrUsage = UsageError("invalid command usage")
@@ -59,6 +63,12 @@ type Exampler interface {
 
 var modeCommand = make(map[string]CommandRunner)
 var modeFlags = make(map[string]*flag.FlagSet)
+
+func init() {
+	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
+	}
+}
 
 func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunner) {
 	if _, dup := modeCommand[mode]; dup {
@@ -152,6 +162,34 @@ func handleResult(what string, pr *client.PutResult, err error) error {
 	return nil
 }
 
+func getenvEitherCase(k string) string {
+	if v := os.Getenv(strings.ToUpper(k)); v != "" {
+		return v
+	}
+	return os.Getenv(strings.ToLower(k))
+}
+
+// proxyFromEnvironment is similar to http.ProxyFromEnvironment but it skips
+// $NO_PROXY blacklist so it proxies every requests, including localhost
+// requests.
+func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
+	proxy := getenvEitherCase("HTTP_PROXY")
+	if proxy == "" {
+		return nil, nil
+	}
+	proxyURL, err := url.Parse(proxy)
+	if err != nil || proxyURL.Scheme == "" {
+		if u, err := url.Parse("http://" + proxy); err == nil {
+			proxyURL = u
+			err = nil
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("invalid proxy address %q: %v", proxy, err)
+	}
+	return proxyURL, nil
+}
+
 func newUploader() *Uploader {
 	cc := client.NewOrFail()
 	if !*flagVerbose {
@@ -160,11 +198,15 @@ func newUploader() *Uploader {
 
 	var transport http.RoundTripper
 
-	transport = &http.Transport{
-		Dial: dialFunc(),
-		TLSClientConfig: tlsClientConfig(),
+	proxy := http.ProxyFromEnvironment
+	if flagProxyLocal {
+		proxy = proxyFromEnvironment
 	}
-
+	transport = &http.Transport{
+		Dial:            dialFunc(),
+		TLSClientConfig: tlsClientConfig(),
+		Proxy:           proxy,
+	}
 	httpStats := &httputil.StatsTransport{
 		VerboseLog: *flagHTTP,
 		Transport:  transport,
