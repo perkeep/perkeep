@@ -1,0 +1,6 @@
+#!/bin/sh
+
+ver=$(git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1)
+git diff --exit-code >/dev/null || ver=$ver+
+echo $ver
+

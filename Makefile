@@ -1,5 +1,5 @@
 all:
-	go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`git log --pretty=format:'%ad-%h' --abbrev-commit --date=short -1` `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` ./pkg/... ./server/... ./cmd/... ./third_party/...
+	go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`./misc/gitversion` `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` ./pkg/... ./server/... ./cmd/... ./third_party/...
 
 # Workaround Go bug where the $GOPATH/pkg cache doesn't know about tag changes.
 # Useful when you accidentally run "make" and then "make presubmit" doesn't work.
