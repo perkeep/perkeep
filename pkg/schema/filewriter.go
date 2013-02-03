@@ -268,26 +268,19 @@ func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader)
 	return uploadBytes(bs, file, n, spans)
 }
 
-// WriteFileChunks uploads chunks of r to bs while populating fileMap.
-// It does not upload fileMap.
+// WriteFileChunks uploads chunks of r to bs while populating file.
+// It does not upload file.
 func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) error {
-	rootFile := func() *Builder { return file }
-
-	n, spans, err := writeFileChunks(bs, file, r)
+	size, spans, err := writeFileChunks(bs, file, r)
 	if err != nil {
 		return err
 	}
-	topLevel := func(source func() *Builder, size int64, s []span) error {
-		parts := []BytesPart{}
-		err := addBytesParts(bs, &parts, s)
-		if err != nil {
-			return err
-		}
-		return source().PopulateParts(size, parts)
+	parts := []BytesPart{}
+	err = addBytesParts(bs, &parts, spans)
+	if err != nil {
+		return err
 	}
-
-	// The top-level content parts
-	return topLevel(rootFile, n, spans)
+	return file.PopulateParts(size, parts)
 }
 
 func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
