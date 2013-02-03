@@ -615,7 +615,6 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 				go func(tag string) {
 					m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 					m.SetClaimDate(claimTime)
-					// TODO(mpl): verify that SetClaimDate does modify the GPG signature date of the claim
 					signed, err := up.SignBlob(m, claimTime)
 					if err != nil {
 						errch <- fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
