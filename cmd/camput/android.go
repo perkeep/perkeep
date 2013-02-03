@@ -326,7 +326,7 @@ func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// TODO: show in the Android UI stats about:
+// TODO: (partially done above) show in the Android UI stats about:
 // * TCP connects/disconnects.
 // * TCP bytes written.
 // * TCP bytes received.
