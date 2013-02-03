@@ -265,7 +265,9 @@ func (c *Client) doSomeStats() {
 	}
 	c.pendStatMu.Unlock()
 
-	println("doing stat batch of", len(batch))
+	if debugUploads {
+		println("doing stat batch of", len(batch))
+	}
 
 	blobs := make([]*blobref.BlobRef, 0, len(batch))
 	for _, reqs := range batch {
@@ -287,7 +289,6 @@ func (c *Client) doSomeStats() {
 	for sb := range ourDest {
 		for _, req := range batch[sb.BlobRef.String()] {
 			req.dest <- sb
-			println("did stat for", sb.Size)
 		}
 	}
 
