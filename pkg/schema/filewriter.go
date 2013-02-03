@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 
 	"camlistore.org/pkg/blobref"
@@ -137,13 +138,11 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*b
 }
 
 func serverHasBlob(bs blobserver.BlobStatter, br *blobref.BlobRef) (have bool, err error) {
-	ch := make(chan blobref.SizedBlobRef, 1)
-	go func() {
-		err = bs.StatBlobs(ch, []*blobref.BlobRef{br}, 0)
-		close(ch)
-	}()
-	for _ = range ch {
+	_, err = blobserver.StatBlob(bs, br)
+	if err == nil {
 		have = true
+	} else if err == os.ErrNotExist {
+		err = nil
 	}
 	return
 }
