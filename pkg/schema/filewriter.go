@@ -182,8 +182,11 @@ func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func uploadString(bs blobserver.StatReceiver, s string) (*blobref.BlobRef, error) {
-	br := blobref.SHA1FromString(s)
+// br may be nil, to mean calculate it.
+func uploadString(bs blobserver.StatReceiver, br *blobref.BlobRef, s string) (*blobref.BlobRef, error) {
+	if br == nil {
+		br = blobref.SHA1FromString(s)
+	}
 	hasIt, err := serverHasBlob(bs, br)
 	if err != nil {
 		return nil, err
@@ -212,8 +215,7 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 	if err != nil {
 		return nil, err
 	}
-	json := bb.Blob().JSON()
-	return uploadString(bs, json)
+	return uploadString(bs, nil, bb.Blob().JSON())
 }
 
 // addBytesParts uploads the provided spans to bs, appending elements to *dst.
@@ -285,22 +287,41 @@ func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) err
 
 func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
 	src := &noteEOFReader{r: r}
-	blobSize := 0 // of the next blob being built, should be same as buf.Len()
 	bufr := bufio.NewReaderSize(src, bufioReaderSize)
 	spans = []span{} // the tree of spans, cut on interesting rollsum boundaries
 	rs := rollsum.New()
-	last := n
-	buf := new(bytes.Buffer)
+	var last int64
+	var buf bytes.Buffer
+	blobSize := 0 // of the next blob being built, should be same as buf.Len()
 
-	// TODO: keep multiple of these in-flight at a time.
+	const chunksInFlight = 32 // at ~64 KB chunks, this is ~2MB memory per file
+	gatec := make(chan bool, chunksInFlight)
+	firsterrc := make(chan error, 1)
+
+	// uploadLastSpan runs in the same goroutine as the loop below and is responsible for
+	// starting uploading the contents of the buf.  It returns false if there's been
+	// an error and the loop below should be stopped.
 	uploadLastSpan := func() bool {
-		defer buf.Reset()
-		br, err := uploadString(bs, buf.String())
-		if err != nil {
-			outerr = err
-			return false
-		}
+		chunk := buf.String()
+		buf.Reset()
+		br := blobref.SHA1FromString(chunk)
 		spans[len(spans)-1].br = br
+		select {
+		case outerr = <-firsterrc:
+			return false
+		default:
+			// No error seen so far, continue.
+		}
+		gatec <- true
+		go func() {
+			if _, err := uploadString(bs, br, chunk); err != nil {
+				select {
+				case firsterrc <- err:
+				default:
+				}
+			}
+			<-gatec
+		}()
 		return true
 	}
 
@@ -361,6 +382,24 @@ func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n 
 		if !uploadLastSpan() {
 			return
 		}
+	}
+
+	// Loop was already hit earlier.
+	if outerr != nil {
+		return 0, nil, outerr
+	}
+
+	// Wait for all uploads to finish, one way or another, and then
+	// see if any generated errors.
+	// Once this loop is done, we own all the tokens in gatec, so nobody
+	// else can have one outstanding.
+	for i := 0; i < chunksInFlight; i++ {
+		gatec <- true
+	}
+	select {
+	case err := <-firsterrc:
+		return 0, nil, err
+	default:
 	}
 
 	return n, spans, nil
