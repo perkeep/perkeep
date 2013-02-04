@@ -310,6 +310,7 @@ func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) err
 	parts := []BytesPart{}
 	future := newUploadBytesFuture()
 	addBytesParts(bs, &parts, spans, future)
+	future.errc <- nil // Get will still block on addBytesParts' children
 	if _, err := future.Get(); err != nil {
 		return err
 	}
