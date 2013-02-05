@@ -41,7 +41,6 @@ const (
 	interval    = 1 * time.Minute  // polling frequency
 	warmup      = 60 * time.Second // duration before we test if dev-server has started properly
 	historySize = 30
-	testFile    = "AUTHORS"
 )
 
 var (
@@ -54,9 +53,11 @@ var (
 )
 
 var (
+	testFile        = []string{"AUTHORS", "CONTRIBUTORS"}
 	camliHeadHash   string
 	cachedCamliRoot string
 	camliRoot       string
+	camputCacheDir  string
 	currentTask     task
 	dbg             *debugger
 	defaultDir      string
@@ -75,53 +76,31 @@ var (
 	goTipDir                                string
 	goTipHash                               string
 	lastErr                                 error
-	NameToCmd                               map[string]string
 
 	historylk        sync.Mutex
 	currentTestSuite *testSuite
 	history          History
 )
 
-var TaskNames = []string{
-	"prepRepo1",
-	"prepRepo2",
-	"prepRepo3",
-	"prepRepo4",
-	"prepRepo5",
-	"prepRepo6",
-	"prepRepo7",
-	"prepRepo8",
-	"buildGoTip1",
-	"buildCamli1",
-	"buildCamli2",
-	"runCamli",
-	"hitCamliUi1",
-	"hitCamliUi2",
-	"camput1",
-	"camget1",
-	"camget2",
-	"camput2",
-}
-
-var Cmds = []string{
-	"hg pull",
-	"hg update -C default",
-	"hg --config extensions.purge= purge --all",
-	"hg log -r tip --template {node}",
-	"git reset --hard HEAD",
-	"git clean -Xdf",
-	"git pull",
-	"git rev-parse HEAD",
-	"./make.bash",
-	"make full",
-	"make presubmit",
-	"./dev-server --wipe --mysql",
-	"http://localhost:3179/ui/",
-	"http://localhost:3179/ui/new/",
-	"./dev-camput file --permanode " + testFile,
-	"./dev-camget ",
-	"./dev-camget ",
-	"./dev-camput file --filenodes pkg",
+var NameToCmd = map[string]string{
+	"prepRepo1":   "hg pull",
+	"prepRepo2":   "hg update -C default",
+	"prepRepo3":   "hg --config extensions.purge= purge --all",
+	"prepRepo4":   "hg log -r tip --template {node}",
+	"prepRepo5":   "git reset --hard HEAD",
+	"prepRepo6":   "git clean -Xdf",
+	"prepRepo7":   "git pull",
+	"prepRepo8":   "git rev-parse HEAD",
+	"buildGoTip1": "./make.bash",
+	"buildCamli1": "make forcefull",
+	"buildCamli2": "make presubmit",
+	"runCamli":    "./dev-server --wipe --mysql --offline",
+	"hitCamliUi1": "http://localhost:3179/ui/",
+	"hitCamliUi2": "http://localhost:3179/ui/new/",
+	"camget":      "./dev-camget ",
+	"camput1":     "./dev-camput file --permanode " + testFile[0],
+	"camput2":     "./dev-camput file --vivify " + testFile[1],
+	"camput3":     "./dev-camput file --filenodes pkg",
 }
 
 func usage() {
@@ -160,10 +139,6 @@ func setup() {
 		log.Fatal("PATH not set")
 	}
 	dbg = &debugger{log.New(os.Stderr, "", log.LstdFlags)}
-	NameToCmd = make(map[string]string, 1)
-	for k, v := range TaskNames {
-		NameToCmd[v] = Cmds[k]
-	}
 
 	// check go tip tree
 	goTipDir, err = filepath.Abs(*gotipdir)
@@ -223,6 +198,13 @@ func setup() {
 			log.Fatal(err)
 		}
 	}
+
+	// recording camput cache dir, so we can clean it up fast everytime
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		log.Fatal("HOME not set")
+	}
+	camputCacheDir = filepath.Join(homeDir, ".cache", "camlistore")
 }
 
 func cleanTempGopath() {
@@ -700,7 +682,7 @@ func hitCamliUi() error {
 	return err
 }
 
-func camliClients() error {
+func camputOne(vivify bool) error {
 	if *fast {
 		gofast(3)
 		return nil
@@ -715,9 +697,18 @@ func camliClients() error {
 			panic(err)
 		}
 	}()
+	// clean up camput caches
+	err = os.RemoveAll(camputCacheDir)
+	if err != nil {
+		log.Fatalf("Problem cleaning up camputCacheDir %v: %v", camputCacheDir, err)
+	}
 
 	// push the file to camli
-	setCurrentTask(NameToCmd["camput1"])
+	tskString := NameToCmd["camput1"]
+	if vivify {
+		tskString = NameToCmd["camput2"]
+	}
+	setCurrentTask(tskString)
 	tsk := getCurrentTask()
 	out, err := runCmd(tsk.Cmd)
 	addRun(tsk, err)
@@ -726,6 +717,9 @@ func camliClients() error {
 	}
 	// TODO(mpl): parsing camput output is kinda weak.
 	firstSHA1 := regexp.MustCompile(`.*(sha1-[a-zA-Z0-9]+)\nsha1-[a-zA-Z0-9]+\nsha1-[a-zA-Z0-9]+\n.*`)
+	if vivify {
+		firstSHA1 = regexp.MustCompile(`.*(sha1-[a-zA-Z0-9]+)\n.*`)
+	}
 	m := firstSHA1.FindStringSubmatch(out)
 	if m == nil {
 		return fmt.Errorf("%v: unexpected camput output\n", getCurrentTask().Cmd)
@@ -733,7 +727,7 @@ func camliClients() error {
 	blobref := m[1]
 
 	// get the file's json to find out the file's blobref
-	setCurrentTask(NameToCmd["camget1"] + blobref)
+	setCurrentTask(NameToCmd["camget"] + blobref)
 	tsk = getCurrentTask()
 	out, err = runCmd(tsk.Cmd)
 	addRun(tsk, err)
@@ -748,7 +742,7 @@ func camliClients() error {
 	blobref = m[1]
 
 	// finally, get the file back
-	setCurrentTask(NameToCmd["camget2"] + blobref)
+	setCurrentTask(NameToCmd["camget"] + blobref)
 	tsk = getCurrentTask()
 	out, err = runCmd(tsk.Cmd)
 	addRun(tsk, err)
@@ -757,17 +751,21 @@ func camliClients() error {
 	}
 
 	// and compare it with the original
-	fileContents, err := ioutil.ReadFile(testFile)
+	wantFile := testFile[0]
+	if vivify {
+		wantFile = testFile[1]
+	}
+	fileContents, err := ioutil.ReadFile(wantFile)
 	if err != nil {
-		log.Fatalf("Could not read %v: %v", testFile, err)
+		log.Fatalf("Could not read %v: %v", wantFile, err)
 	}
 	if string(fileContents) != out {
-		return fmt.Errorf("%v: contents fetched with camget differ from %v contents", getCurrentTask().Cmd, testFile)
+		return fmt.Errorf("%v: contents fetched with camget differ from %v contents", getCurrentTask().Cmd, wantFile)
 	}
 	return nil
 }
 
-func hitMySQL() error {
+func camputMany() error {
 	if *fast {
 		gofast(1)
 		return nil
@@ -783,7 +781,7 @@ func hitMySQL() error {
 		}
 	}()
 	// upload the full camli pkg tree
-	setCurrentTask(NameToCmd["camput2"])
+	setCurrentTask(NameToCmd["camput3"])
 	tsk := getCurrentTask()
 	_, err = runCmd(tsk.Cmd)
 	addRun(tsk, err)
@@ -864,12 +862,19 @@ func main() {
 					handleErr(err, proc)
 					continue
 				}
-				err = camliClients()
+				doVivify := false
+				err = camputOne(doVivify)
 				if err != nil {
 					handleErr(err, proc)
 					continue
 				}
-				err = hitMySQL()
+				doVivify = true
+				err = camputOne(doVivify)
+				if err != nil {
+					handleErr(err, proc)
+					continue
+				}
+				err = camputMany()
 				if err != nil {
 					handleErr(err, proc)
 					continue
@@ -982,11 +987,20 @@ type status struct {
 	Ts *testSuite
 }
 
-func statusHandler(w http.ResponseWriter, r *http.Request) {
+func invertedHistory() (inverted History) {
 	historylk.Lock()
 	defer historylk.Unlock()
+	inverted = make(History, len(history))
+	endpos := len(history) - 1
+	for k, v := range history {
+		inverted[endpos-k] = v
+	}
+	return inverted
+}
+
+func statusHandler(w http.ResponseWriter, r *http.Request) {
 	stat := &status{
-		Hs: history,
+		Hs: invertedHistory(),
 		Ts: currentTestSuite,
 	}
 	err := statusTpl.Execute(w, stat)
@@ -1111,6 +1125,22 @@ var reportHTML = `
 	<th colspan="1">Go1</th>
 	<th colspan="1">Gotip</th>
 	</tr>
+	{{if .Ts}}
+		{{if .Ts.IsTip | not}}
+			<tr class="commit">
+				<td class="hash">{{.Ts.Start}}</td>
+				<td class="hash">
+					<a href="{{goRepoURL .Ts.GoHash}}">{{shortHash .Ts.GoHash}}</a>
+				</td>
+				<td class="hash">
+					<a href="{{camliRepoURL .Ts.CamliHash}}">{{shortHash .Ts.CamliHash}}</a>
+				</td>
+				<td class="result">
+					<a href="` + currentPrefix + `" class="ok">In progress</a>
+				</td>
+			</tr>
+		{{end}}
+	{{end}}
 	{{if .Hs}}
 		{{range $tss := .Hs}}
 			<tr class="commit">
@@ -1144,22 +1174,6 @@ var reportHTML = `
 				</td>
 			{{end}}
 			{{end}}
-			</tr>
-		{{end}}
-	{{end}}
-	{{if .Ts}}
-		{{if .Ts.IsTip | not}}
-			<tr class="commit">
-				<td class="hash">{{.Ts.Start}}</td>
-				<td class="hash">
-					<a href="{{goRepoURL .Ts.GoHash}}">{{shortHash .Ts.GoHash}}</a>
-				</td>
-				<td class="hash">
-					<a href="{{camliRepoURL .Ts.CamliHash}}">{{shortHash .Ts.CamliHash}}</a>
-				</td>
-				<td class="result">
-					<a href="` + currentPrefix + `" class="ok">In progress</a>
-				</td>
 			</tr>
 		{{end}}
 	{{end}}
