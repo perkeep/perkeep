@@ -17,7 +17,6 @@ limitations under the License.
 package fs
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -33,10 +32,6 @@ import (
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
-
-var _ = fmt.Println
-var _ = log.Println
-var _ = bytes.NewReader
 
 var serverStart = time.Now()
 
