@@ -182,7 +182,7 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 			thumbSize = i
 		}
 	}
-	dr.populateJSONThumbnails(ret, thumbSize)
+	dr.populateJSONAndThumbnails(ret, thumbSize)
 }
 
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching
@@ -468,7 +468,7 @@ func (b *DescribedBlob) isPermanode() bool {
 // returns a path relative to the UI handler.
 //
 // Locking: requires that DescribedRequest is done loading or that
-// Request.mu is held (as it is from populateJSONThumbnails)
+// Request.mu is held (as it is from populateJSONAndThumbnails)
 func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
 	if thumbSize <= 0 || !b.isPermanode() {
 		return
@@ -621,12 +621,12 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 // the results into the provided dest map, suitable for marshalling
 // as JSON with the json package.
 func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
-	dr.populateJSONThumbnails(dest, 0)
+	dr.populateJSONAndThumbnails(dest, 0)
 }
 
 // Version of PopulateJSON with also including thumbnails.  thumbSize
 // of zero means to not include them.
-func (dr *DescribeRequest) populateJSONThumbnails(dest map[string]interface{}, thumbSize int) {
+func (dr *DescribeRequest) populateJSONAndThumbnails(dest map[string]interface{}, thumbSize int) {
 	dr.wg.Wait()
 	dr.mu.Lock()
 	defer dr.mu.Unlock()
@@ -760,7 +760,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 			thumbSize = i
 		}
 	}
-	dr.populateJSONThumbnails(ret, thumbSize)
+	dr.populateJSONAndThumbnails(ret, thumbSize)
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
