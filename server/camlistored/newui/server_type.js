@@ -8,7 +8,7 @@ goog.provide('camlistore.ServerType');
  * @typedef {{
  *   currentPermanode: string,
  *   name: string,
- *   prefix: Array.<string>,
+ *   prefix: Array.<string>
  * }}
  */
 camlistore.ServerType.DiscoveryRoot;
@@ -25,7 +25,7 @@ camlistore.ServerType.DiscoveryRoot;
  *   searchRoot: string,
  *   storageGeneration: string,
  *   storageInitTime: string,
- *   uploadHelper: string,
+ *   uploadHelper: string
  * }}
  */
 camlistore.ServerType.DiscoveryDocument;
@@ -35,7 +35,7 @@ camlistore.ServerType.DiscoveryDocument;
  * @typedef {{
  *   fileName: string,
  *   mimeType: string,
- *   size: number,
+ *   size: number
  * }}
  */
 camlistore.ServerType.IndexerFileMeta;
@@ -43,7 +43,16 @@ camlistore.ServerType.IndexerFileMeta;
 
 /**
  * @typedef {{
- *   attr: Object.<string, Array.<string>>
+ *   title: string,
+ *   camliContent: Array.<camlistore.ServerType.IndexerMeta>
+ * }}
+ */
+camlistore.ServerType.IndexerPermanodeAttrMeta;
+
+
+/**
+ * @typedef {{
+ *   attr: camlistore.ServerType.IndexerPermanodeAttrMeta?
  * }}
  */
 camlistore.ServerType.IndexerPermanodeMeta;
@@ -59,7 +68,7 @@ camlistore.ServerType.IndexerPermanodeMeta;
  *   size: number,
  *   thumbnailHeight: number?,
  *   thumbnailWidth: number?,
- *   thumbnailSrc: string?,
+ *   thumbnailSrc: string?
  * }}
  */
 camlistore.ServerType.IndexerMeta;
