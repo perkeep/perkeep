@@ -143,27 +143,38 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
+// A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
+type RecentItem struct {
+	BlobRef *blobref.BlobRef `json:"blobref"`
+	ModTime string           `json:"modtime"` // RFC3339
+	Owner   *blobref.BlobRef `json:"owner"`
+}
+
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJSON(rw, ret)
 
+	n, _ := strconv.Atoi(req.FormValue("n"))
+	if n <= 0 || n > 1000 {
+		n = 50
+	}
+
 	ch := make(chan *Result)
 	errch := make(chan error)
 	go func() {
-		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, 50)
+		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, n)
 	}()
 
 	dr := sh.NewDescribeRequest()
 
-	recent := jsonMapList()
+	var recent []*RecentItem
 	for res := range ch {
 		dr.Describe(res.BlobRef, 2)
-		jm := jsonMap()
-		jm["blobref"] = res.BlobRef.String()
-		jm["owner"] = res.Signer.String()
-		t := time.Unix(res.LastModTime, 0).UTC()
-		jm["modtime"] = t.Format(time.RFC3339)
-		recent = append(recent, jm)
+		recent = append(recent, &RecentItem{
+			BlobRef: res.BlobRef,
+			Owner:   res.Signer,
+			ModTime: time.Unix(res.LastModTime, 0).UTC().Format(time.RFC3339),
+		})
 	}
 
 	err := <-errch
