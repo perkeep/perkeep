@@ -65,9 +65,16 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 	if err = tempFile.Close(); err != nil {
 		return
 	}
-
 	if !blobRef.HashMatches(hash) {
 		err = blobserver.ErrCorruptBlob
+		return
+	}
+	stat, err := os.Lstat(tempFile.Name())
+	if err != nil {
+		return
+	}
+	if stat.Size() != written {
+		err = fmt.Errorf("temp file %q size %d didn't match written size %d", tempFile.Name(), stat.Size(), written)
 		return
 	}
 
@@ -76,11 +83,11 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		return
 	}
 
-	stat, err := os.Lstat(fileName)
+	stat, err = os.Lstat(fileName)
 	if err != nil {
 		return
 	}
-	if !!stat.IsDir() || stat.Size() != written {
+	if stat.Size() != written {
 		err = errors.New("Written size didn't match.")
 		return
 	}
