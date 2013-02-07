@@ -22,6 +22,7 @@ mkdir $dir, 0700 unless -d $dir;
 
 try_unmount();
 print "Mounting on $dir ...\n";
+$ENV{"CAMLI_AUTH"} = "userpass:camlistore:pass3179";
 system("$cammount", "--server=http://localhost:3179/bs", $dir, @blobref_arg)
     and warn "cammount failure: $!\n";
 warn "Failed to unmount\n" unless try_unmount();
