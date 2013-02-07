@@ -214,10 +214,10 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 		json := bb.Blob().JSON()
 		br := blobref.SHA1FromString(json)
 		future.br = br
-		go func() {
-			_, err := uploadString(bs, br, json)
-			future.errc <- err
-		}()
+		// TODO(mpl): run it in a goroutine again
+		// and find out what should be waiting for it?
+		_, err := uploadString(bs, br, json)
+		future.errc <- err
 	}
 	return future
 }
