@@ -195,7 +195,7 @@ func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr f
 		return nil
 	}
 	size := req.Size
-	if int64(size) + req.Offset >= nr.fr.Size() {
+	if int64(size)+req.Offset >= nr.fr.Size() {
 		size -= int((int64(size) + req.Offset) - nr.fr.Size())
 	}
 	buf := make([]byte, size)
@@ -263,7 +263,7 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		ch := make(chan res, 1)
 		ssc = append(ssc, ch)
 		// TODO: move the cmd/camput/chanworker.go into its own package, and use it here. only
-		// have 10 or so of these loading at once.  for now we do them all. 
+		// have 10 or so of these loading at once.  for now we do them all.
 		go func() {
 			mss, err := n.fs.fetchSchemaMeta(memberRef)
 			if err != nil {
@@ -367,4 +367,42 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br *blobref.BlobRef) (*schema.Blob, e
 	}
 	fs.blobToSchema.Add(blobStr, blob)
 	return blob, nil
+}
+
+type notImplementDirNode struct{}
+
+func (notImplementDirNode) Attr() fuse.Attr {
+	return fuse.Attr{
+		Mode: os.ModeDir | 0000,
+		Uid:  uint32(os.Getuid()),
+		Gid:  uint32(os.Getgid()),
+	}
+}
+
+type staticFileNode string
+
+func (s staticFileNode) Attr() fuse.Attr {
+	return fuse.Attr{
+		Mode:   0400,
+		Uid:    uint32(os.Getuid()),
+		Gid:    uint32(os.Getgid()),
+		Size:   uint64(len(s)),
+		Mtime:  serverStart,
+		Ctime:  serverStart,
+		Crtime: serverStart,
+	}
+}
+
+func (s staticFileNode) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+	if req.Offset > int64(len(s)) {
+		return nil
+	}
+	s = s[req.Offset:]
+	size := req.Size
+	if size > len(s) {
+		size = len(s)
+	}
+	res.Data = make([]byte, size)
+	copy(res.Data, s)
+	return nil
 }
