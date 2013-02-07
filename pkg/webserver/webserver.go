@@ -53,7 +53,7 @@ type Server struct {
 func New() *Server {
 	return &Server{
 		mux:     http.NewServeMux(),
-		verbose: os.Getenv("CAM_HTTP_DEBUG") == "1",
+		verbose: os.Getenv("CAMLI_HTTP_DEBUG") == "1",
 	}
 }
 

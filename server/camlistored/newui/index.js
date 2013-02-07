@@ -15,6 +15,14 @@ goog.require('camlistore.ServerConnection');
 goog.require('camlistore.Toolbar');
 goog.require('camlistore.Toolbar.EventType');
 
+// TODO(mpl): Brett, this is just a quick hack so that IndexPage
+// can be called from index.html when the js has been minified.
+// Please feel free to remove when you've moved forward with this.
+window["newIndexPage"] = function(config, body) {
+  var page = new camlistore.IndexPage(config);
+  page.decorate(body);
+};
+
 
 /**
  * @param {camlistore.ServerType.DiscoveryDocument} config Global config
@@ -149,7 +157,7 @@ camlistore.IndexPage.prototype.exitDocument = function() {
 
 
 /**
- * @param {Array.<camlistore.BlobItem>}
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
  * @private
  */
 camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {

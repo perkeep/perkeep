@@ -134,7 +134,7 @@ camlistore.Toolbar.prototype.exitDocument = function() {
 
 /**
  * TODO: i18n.
- * @param {number>}
+ * @param {number} count Number of items.
  */
 camlistore.Toolbar.prototype.setCheckedBlobItemCount = function(count) {
   if (count) {
