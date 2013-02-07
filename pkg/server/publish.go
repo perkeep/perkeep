@@ -416,8 +416,6 @@ func (pr *publishRequest) serveSubject() {
 
 	// HTML header + Javascript
 	{
-		jm := make(map[string]interface{})
-		dr.PopulateJSON(jm)
 		pr.pf("<!doctype html>\n<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
 		for _, filename := range pr.ph.CSSFiles {
 			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
@@ -438,7 +436,7 @@ func (pr *publishRequest) serveSubject() {
 		pr.pf("var camliViewIsOwner = %v;\n", pr.ViewerIsOwner())
 		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
 		pr.pf("var camliPageMeta = \n")
-		json, _ := json.MarshalIndent(jm, "", "  ")
+		json, _ := json.MarshalIndent(res, "", "  ")
 		pr.rw.Write(json)
 		pr.pf(";\n </script>\n</head>\n<body>\n")
 		defer pr.pf("</body>\n</html>\n")

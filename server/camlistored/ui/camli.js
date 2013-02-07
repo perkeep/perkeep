@@ -463,7 +463,7 @@ Camli.changeAttribute = function(permanode, claimType, attribute, value, opts) {
 };
 
 // pn: permanode to find a good title of
-// jdes: describe response of root permanode
+// des: a describe "meta" map from blobref to DescribedBlob.
 function camliBlobTitle(pn, des) {
     var d = des[pn];
     if (!d) {

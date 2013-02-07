@@ -334,7 +334,7 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
   this.resetChildren_();
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
-    var item = new camlistore.BlobItem(blobRef, result);
+    var item = new camlistore.BlobItem(blobRef, result.meta);
     this.addChild(item, true);
   }
 };

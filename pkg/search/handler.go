@@ -143,6 +143,12 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
+// RecentResponse is the JSON response from $searchRoot/camli/search/recent.
+type RecentResponse struct {
+	Recent []*RecentItem             `json:"recent"`
+	Meta   map[string]*DescribedBlob `json:"meta"`
+}
+
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
 type RecentItem struct {
 	BlobRef *blobref.BlobRef `json:"blobref"`
@@ -151,9 +157,6 @@ type RecentItem struct {
 }
 
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
-
 	n, _ := strconv.Atoi(req.FormValue("n"))
 	if n <= 0 || n > 1000 {
 		n = 50
@@ -179,12 +182,12 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 
 	err := <-errch
 	if err != nil {
-		// TODO: return error status code
+		ret := jsonMap()
 		ret["error"] = err.Error()
+		// TODO: return error status code
+		httputil.ReturnJSON(rw, ret)
 		return
 	}
-
-	ret["recent"] = recent
 
 	thumbSize := 0
 	if req.FormValue("thumbnails") != "" {
@@ -193,7 +196,19 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 			thumbSize = i
 		}
 	}
-	dr.populateJSONAndThumbnails(ret, thumbSize)
+
+	metaMap, err := dr.metaMap(thumbSize)
+	if err != nil {
+		ret := jsonMap()
+		ret["error"] = err.Error()
+		httputil.ReturnJSON(rw, ret)
+		return
+	}
+
+	httputil.ReturnJSON(rw, &RecentResponse{
+		Recent: recent,
+		Meta:   metaMap,
+	})
 }
 
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching
@@ -261,7 +276,7 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	}
 
 	ret["withAttr"] = withAttr
-	dr.PopulateJSON(ret)
+	dr.populateJSON(ret)
 }
 
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
@@ -315,23 +330,27 @@ type DescribeRequest struct {
 }
 
 type DescribedBlob struct {
-	Request *DescribeRequest
+	Request *DescribeRequest `json:"-"`
 
-	BlobRef   *blobref.BlobRef
-	MimeType  string
-	CamliType string
-	// TODO: just int is probably fine, if we're going to be capping blobs at 32MB?
-	Size int64
+	BlobRef   *blobref.BlobRef `json:"blobRef"`
+	MimeType  string           `json:"mimeType"`
+	CamliType string           `json:"camliType"`
+	Size      int64            `json:"size,"`
 
 	// if camliType "permanode"
-	Permanode *DescribedPermanode
+	Permanode *DescribedPermanode `json:"permanode,omitempty"`
 
 	// if camliType "file"
-	File *FileInfo
+	File *FileInfo `json:"file,omitempty"`
 	// if camliType "directory"
-	Dir *FileInfo
+	Dir *FileInfo `json:"dir,omitempty"`
 
-	Stub bool // if not loaded, but referenced
+	Thumbnail       string `json:"thumbnailSrc,omitempty"`
+	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
+	ThumbnailHeight int    `json:"thumbnailHeight,omitempty"`
+
+	// Stub is set if this is not loaded, but referenced.
+	Stub bool `json:"-"`
 }
 
 // PermanodeFile returns the blobref path from this permanode to its
@@ -518,6 +537,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	return "node.png", thumbSize, thumbSize, true
 }
 
+// TODO: delete this function
 func (b *DescribedBlob) jsonMap() map[string]interface{} {
 	m := jsonMap()
 	m["blobRef"] = b.BlobRef.String()
@@ -541,7 +561,7 @@ func (b *DescribedBlob) jsonMap() map[string]interface{} {
 }
 
 type DescribedPermanode struct {
-	Attr url.Values // a map[string][]string
+	Attr url.Values `json:"attr"` // a map[string][]string
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
@@ -561,7 +581,7 @@ func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
 
 // NewDescribeRequest returns a new DescribeRequest holding the state
 // of blobs and their summarized descriptions.  Use DescribeBlob
-// one or more times before calling PopulateJSON or Result.
+// one or more times before calling Result.
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	return &DescribeRequest{
 		sh:   sh,
@@ -628,14 +648,20 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 	return dr.m, nil
 }
 
-// PopulateJSON waits for all outstanding lookups to complete and populates
+// TODO: Stop using this and delete it. Switch to the style of
+// serveRecent, returning a struct type and not a dumb map.
+//
+// populateJSON waits for all outstanding lookups to complete and populates
 // the results into the provided dest map, suitable for marshalling
 // as JSON with the json package.
-func (dr *DescribeRequest) PopulateJSON(dest map[string]interface{}) {
+func (dr *DescribeRequest) populateJSON(dest map[string]interface{}) {
 	dr.populateJSONAndThumbnails(dest, 0)
 }
 
-// Version of PopulateJSON with also including thumbnails.  thumbSize
+// TODO: Stop using this and delete it. Switch to the style of
+// serveRecent, returning a struct type and not a dumb map.
+//
+// Version of populateJSON with also including thumbnails.  thumbSize
 // of zero means to not include them.
 func (dr *DescribeRequest) populateJSONAndThumbnails(dest map[string]interface{}, thumbSize int) {
 	dr.wg.Wait()
@@ -654,6 +680,26 @@ func (dr *DescribeRequest) populateJSONAndThumbnails(dest map[string]interface{}
 		dest["error"] = "error populating " + k + ": " + err.Error()
 		return // TODO: include all?
 	}
+}
+
+func (dr *DescribeRequest) metaMap(thumbSize int) (map[string]*DescribedBlob, error) {
+	dr.wg.Wait()
+	dr.mu.Lock()
+	defer dr.mu.Unlock()
+	for k, err := range dr.errs {
+		// TODO: include all?
+		return nil, fmt.Errorf("error populating %s: %v", k, err)
+	}
+	m := make(map[string]*DescribedBlob)
+	for k, desb := range dr.m {
+		m[k] = desb
+		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
+			desb.Thumbnail = src
+			desb.ThumbnailWidth = w
+			desb.ThumbnailHeight = h
+		}
+	}
+	return m, nil
 }
 
 func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
@@ -875,6 +921,9 @@ func mustGet(req *http.Request, param string) string {
 	return v
 }
 
+// TODO: convert this to have two *string pointers to error and errorType, and
+// then add error and errType (embedded? if that works in Go 1.0) in all the other
+// JSON response message struct types.
 func setPanicError(m map[string]interface{}) {
 	p := recover()
 	if p == nil {
@@ -884,9 +933,20 @@ func setPanicError(m map[string]interface{}) {
 	m["errorType"] = "input"
 }
 
+// SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
+type SignerAttrValueResponse struct {
+	Permanode *blobref.BlobRef          `json:"permanode"`
+	Meta      map[string]*DescribedBlob `json:"meta"`
+}
+
 func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
+	done := false // get to success at the end?
 	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
+	defer func() {
+		if !done {
+			httputil.ReturnJSON(rw, ret)
+		}
+	}()
 	defer setPanicError(ret)
 
 	signer := blobref.MustParse(mustGet(req, "signer"))
@@ -895,13 +955,22 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 	pn, err := sh.index.PermanodeOfSignerAttrValue(signer, attr, value)
 	if err != nil {
 		ret["error"] = err.Error()
-	} else {
-		ret["permanode"] = pn.String()
-
-		dr := sh.NewDescribeRequest()
-		dr.Describe(pn, 2)
-		dr.PopulateJSON(ret)
+		return
 	}
+
+	dr := sh.NewDescribeRequest()
+	dr.Describe(pn, 2)
+	metaMap, err := dr.metaMap(0)
+	if err != nil {
+		ret["error"] = err.Error()
+		return
+	}
+
+	done = true
+	httputil.ReturnJSON(rw, &SignerAttrValueResponse{
+		Permanode: pn,
+		Meta:      metaMap,
+	})
 }
 
 // Unlike the index interface's EdgesTo method, the "edgesto" Handler
@@ -1003,7 +1072,7 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 		for _, path := range paths {
 			dr.Describe(path.Base, 2)
 		}
-		dr.PopulateJSON(ret)
+		dr.populateJSON(ret)
 	}
 }
 

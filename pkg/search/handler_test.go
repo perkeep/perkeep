@@ -56,6 +56,7 @@ type handlerTest struct {
 	// FakeIndex is not used.
 	setup func(fi *test.FakeIndex) Index
 
+	name  string // test name
 	query string // the HTTP path + optional query suffix after "camli/search/"
 
 	want map[string]interface{}
@@ -74,12 +75,14 @@ func parseJSON(s string) map[string]interface{} {
 
 var handlerTests = []handlerTest{
 	{
+		name: "describe-missing",
 		setup: func(fi *test.FakeIndex) Index { return fi },
 		query: "describe?blobref=eabc-555",
 		want:  map[string]interface{}{},
 	},
 
 	{
+		name: "describe-jpeg-blob",
 		setup: func(fi *test.FakeIndex) Index {
 			fi.AddMeta(blobref.MustParse("abc-555"), "image/jpeg", 999)
 			return fi
@@ -95,6 +98,7 @@ var handlerTests = []handlerTest{
 	},
 
 	{
+		name: "describe-permanode",
 		setup: func(fi *test.FakeIndex) Index {
 			pn := blobref.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
@@ -137,6 +141,7 @@ var handlerTests = []handlerTest{
 
 	// Test recent permanodes
 	{
+		name: "recent-1",
 		setup: func(*test.FakeIndex) Index {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
@@ -154,7 +159,8 @@ var handlerTests = []handlerTest{
                      "modtime": "2011-11-28T01:32:37Z",
                      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
                 ],
-                "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+                "meta": {
+                      "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
 		 "camliType": "permanode",
                  "mimeType": "application/json; camliType=permanode",
@@ -162,12 +168,14 @@ var handlerTests = []handlerTest{
                    "attr": { "title": [ "Some title" ] }
                  },
                  "size": 534
-                }
+                     }
+                 }
                }`),
 	},
 
 	// Test recent permanodes with thumbnails
 	{
+		name: "recent-thumbs",
 		setup: func(*test.FakeIndex) Index {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
@@ -185,7 +193,8 @@ var handlerTests = []handlerTest{
                      "modtime": "2011-11-28T01:32:37Z",
                      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
                 ],
-                "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+                "meta": {
+                   "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
 		 "camliType": "permanode",
                  "mimeType": "application/json; camliType=permanode",
@@ -196,6 +205,7 @@ var handlerTests = []handlerTest{
                  "thumbnailHeight": 100,
                  "thumbnailSrc": "node.png",
                  "thumbnailWidth": 100
+                    }
                 }
                }`),
 	},
@@ -204,6 +214,7 @@ var handlerTests = []handlerTest{
 	// permanodes, then delete the second and verify that edges
 	// back from member only reveal the first parent.
 	{
+		name: "edge-to",
 		setup: func(*test.FakeIndex) Index {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
@@ -229,7 +240,13 @@ var handlerTests = []handlerTest{
 }
 
 func TestHandler(t *testing.T) {
-	for testn, tt := range handlerTests {
+	seen := map[string]bool{}
+	for _, tt := range handlerTests {
+		if seen[tt.name] {
+			t.Fatalf("duplicate test named %q", tt.name)
+		}
+		seen[tt.name] = true
+
 		fakeIndex := test.NewFakeIndex()
 		idx := tt.setup(fakeIndex)
 
@@ -241,7 +258,7 @@ func TestHandler(t *testing.T) {
 
 		req, err := http.NewRequest("GET", "/camli/search/"+tt.query, nil)
 		if err != nil {
-			t.Fatalf("%d: bad query: %v", testn, err)
+			t.Fatalf("%s: bad query: %v", tt.name, err)
 		}
 		req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[1:])
 
@@ -252,9 +269,20 @@ func TestHandler(t *testing.T) {
 
 		got := rr.Body.Bytes()
 		want, _ := json.MarshalIndent(tt.want, "", "  ")
-		want = append(want, '\n')
-		if !bytes.Equal(got, want) {
-			t.Errorf("test %d:\nwant: %s\n got: %s", testn, want, got)
+		trim := bytes.TrimSpace
+
+		if bytes.Equal(trim(got), trim(want)) {
+			continue
 		}
+
+		// Try with re-encoded got, since the JSON ordering doesn't matter
+		// to the test, 
+		gotj := parseJSON(string(got))
+		got2, _ := json.MarshalIndent(gotj, "", "  ")
+		if bytes.Equal(got2, want) {
+			continue
+		}
+
+		t.Errorf("test %s:\nwant: %s\n got: %s", tt.name, want, got)
 	}
 }

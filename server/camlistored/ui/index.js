@@ -117,7 +117,7 @@ CamliIndexPage.setThumbBoxStyle = function(div) {
 // a div element, style as a thumbnail tile.
 function divFromResult(searchRes, i) {
     var result = searchRes.recent[i];
-    var br = searchRes[result.blobref];
+    var br = searchRes.meta[result.blobref];
     var divperm = document.createElement("div");
     CamliIndexPage.setThumbBoxStyle(divperm);
 
@@ -182,7 +182,7 @@ function divFromResult(searchRes, i) {
     alink.appendChild(img);
     divperm.appendChild(alink);
     var title = document.createElement("p");
-    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes));
+    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes.meta));
     title.className = 'camli-ui-thumbtitle';
     title.style.fontSize = CamliIndexPage.thumbFontSize();
     divperm.appendChild(title);
