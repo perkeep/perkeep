@@ -69,7 +69,7 @@ func main() {
 			errorf("Error creating root with %v: %v", root, err)
 		}
 	} else {
-		camfs = fs.NewCamliFileSystem(diskCacheFetcher)
+		camfs = fs.NewCamliFileSystem(client, diskCacheFetcher)
 		log.Printf("starting with fs %#v", camfs)
 	}
 

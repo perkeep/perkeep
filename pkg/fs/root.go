@@ -45,6 +45,7 @@ func (n *root) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		{Name: "WELCOME.txt"},
 		{Name: "tag"},
 		{Name: "date"},
+		{Name: "recent"},
 		{Name: "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
 	}, nil
 }

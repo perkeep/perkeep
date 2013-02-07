@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/schema"
 
@@ -43,6 +44,7 @@ var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
 type CamliFileSystem struct {
 	fetcher blobref.SeekFetcher
+	client  *client.Client // or nil, if not doing search queries
 	root    fuse.Node
 
 	// IgnoreOwners, if true, collapses all file ownership to the
@@ -68,9 +70,13 @@ func newCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 
 // NewCamliFileSystem returns a filesystem with a generic base, from which users
 // can navigate by blobref, tag, date, etc.
-func NewCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
+func NewCamliFileSystem(client *client.Client, fetcher blobref.SeekFetcher) *CamliFileSystem {
+	if client == nil || fetcher == nil {
+		panic("nil argument")
+	}
 	fs := newCamliFileSystem(fetcher)
 	fs.root = &root{fs: fs} // root.go
+	fs.client = client
 	return fs
 }
 
