@@ -18,6 +18,9 @@ package fs
 
 import (
 	"os"
+	"fmt"
+	"math/rand"
+	"strings"
 
 	//"camlistore.org/pkg/blobref"
 
@@ -41,11 +44,14 @@ func (n *recentDir) Attr() fuse.Attr {
 
 func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	var ents []fuse.Dirent
-	ents = append(ents, fuse.Dirent{Name: "TODO"})
+	ents = append(ents, fuse.Dirent{Name: fmt.Sprintf("TODO-%d", rand.Intn(100))})
 	// TODO: ...
 	return ents, nil
 }
 
 func (n *recentDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	if strings.HasPrefix(name, "TODO-") {
+		return staticFileNode("This is the " + name + "file."), nil
+	}
 	return nil, fuse.ENOENT
 }
