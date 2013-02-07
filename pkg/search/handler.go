@@ -156,6 +156,20 @@ type RecentItem struct {
 	Owner   *blobref.BlobRef `json:"owner"`
 }
 
+func thumbnailSize(r *http.Request) int {
+	return thumbnailSizeStr(r.FormValue("thumbnails"))
+}
+
+func thumbnailSizeStr(s string) int {
+	if s == "" {
+		return 0
+	}
+	if i, _ := strconv.Atoi(s); i >= 25 && i < 800 {
+		return i
+	}
+	return 50
+}
+
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	n, _ := strconv.Atoi(req.FormValue("n"))
 	if n <= 0 || n > 1000 {
@@ -189,15 +203,7 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	thumbSize := 0
-	if req.FormValue("thumbnails") != "" {
-		thumbSize = 50
-		if i, _ := strconv.Atoi(req.FormValue("thumbnails")); i >= 25 && i < 800 {
-			thumbSize = i
-		}
-	}
-
-	metaMap, err := dr.metaMap(thumbSize)
+	metaMap, err := dr.metaMap(thumbnailSize(req))
 	if err != nil {
 		ret := jsonMap()
 		ret["error"] = err.Error()
@@ -810,14 +816,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(br, 4)
-	thumbSize := 0
-	if req.FormValue("thumbnails") != "" {
-		thumbSize = 50
-		if i, _ := strconv.Atoi(req.FormValue("thumbnails")); i >= 25 && i < 800 {
-			thumbSize = i
-		}
-	}
-	dr.populateJSONAndThumbnails(ret, thumbSize)
+	dr.populateJSONAndThumbnails(ret, thumbnailSize(req))
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
