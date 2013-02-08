@@ -17,13 +17,12 @@ limitations under the License.
 package fs
 
 import (
-	"os"
-	"fmt"
-	"math/rand"
-	"strings"
 	"log"
-	"encoding/json"
+	"os"
+	"path"
+	"sync"
 
+	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
@@ -34,6 +33,9 @@ import (
 // "file".
 type recentDir struct {
 	fs *CamliFileSystem
+
+	mu   sync.Mutex
+	ents map[string]*search.DescribedBlob // filename to blob meta
 }
 
 func (n *recentDir) Attr() fuse.Attr {
@@ -45,28 +47,58 @@ func (n *recentDir) Attr() fuse.Attr {
 }
 
 func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+	log.Printf("fs.recent: ReadDir / searching")
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.ents = make(map[string]*search.DescribedBlob)
+
 	req := &search.RecentRequest{N: 100}
 	res, err := n.fs.client.GetRecentPermanodes(req)
 	if err != nil {
 		log.Printf("fs.recent: GetRecentPermanodes error in ReadDir: %v", err)
 		return nil, fuse.EIO
 	}
-	v, err := json.MarshalIndent(res, " ", "  ")
-	if err != nil {
-		log.Printf("json error: %v", err)
-	} else {
-		log.Printf("Got: %s", v)
-	}
 
 	var ents []fuse.Dirent
-	ents = append(ents, fuse.Dirent{Name: fmt.Sprintf("TODO-%d", rand.Intn(100))})
-	// TODO: ...
+	for _, ri := range res.Recent {
+		meta := res.Meta.Get(ri.BlobRef)
+		if meta == nil || meta.Permanode == nil {
+			continue
+		}
+		cc := blobref.Parse(meta.Permanode.Attr.Get("camliContent"))
+		if cc == nil {
+			continue
+		}
+		ccMeta := res.Meta.Get(cc)
+		if ccMeta == nil || ccMeta.File == nil { // TODO: also allow directories
+			continue
+		}
+		name := ccMeta.File.FileName
+		if n.ents[name] != nil {
+			name = ccMeta.BlobRef.String() + path.Ext(name)
+			if n.ents[name] != nil {
+				continue
+			}
+		}
+		n.ents[name] = ccMeta
+		log.Printf("fs.recent: name %q = %v", name, ccMeta.BlobRef)
+		ents = append(ents, fuse.Dirent{
+			Name: name,
+		})
+	}
 	return ents, nil
 }
 
 func (n *recentDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
-	if strings.HasPrefix(name, "TODO-") {
-		return staticFileNode("This is the " + name + "file."), nil
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	db := n.ents[name]
+	log.Printf("fs.recent: Lookup(%q) = %v", name, db)
+	if db == nil {
+		return nil, fuse.ENOENT
 	}
-	return nil, fuse.ENOENT
+	// TODO: fake the modtime to be the modtime of the permanode instead?
+	// set some optional field in *node for that.
+	return &node{fs: n.fs, blobref: db.BlobRef}, nil
 }

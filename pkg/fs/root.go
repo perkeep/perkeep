@@ -19,6 +19,7 @@ package fs
 import (
 	"log"
 	"os"
+	"sync"
 
 	"camlistore.org/pkg/blobref"
 
@@ -30,6 +31,9 @@ import (
 // search and browse static snapshots, etc.
 type root struct {
 	fs *CamliFileSystem
+
+	mu     sync.Mutex // guards recent
+	recent *recentDir
 }
 
 func (n *root) Attr() fuse.Attr {
@@ -50,6 +54,15 @@ func (n *root) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	}, nil
 }
 
+func (n *root) getRecentDir() *recentDir {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.recent == nil {
+		n.recent = &recentDir{fs: n.fs}
+	}
+	return n.recent
+}
+
 func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	switch name {
 	case ".quitquitquit":
@@ -57,7 +70,7 @@ func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	case "WELCOME.txt":
 		return staticFileNode("Welcome to CamlistoreFS.\n\nFor now you can only cd into a sha1-xxxx directory, if you know the blobref of a directory or a file.\n"), nil
 	case "recent":
-		return &recentDir{n.fs}, nil
+		return n.getRecentDir(), nil
 	case "tag", "date":
 		return notImplementDirNode{}, nil
 	case "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
@@ -69,6 +82,5 @@ func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	if br != nil {
 		return &node{fs: n.fs, blobref: br}, nil
 	}
-
 	return nil, fuse.ENOENT
 }

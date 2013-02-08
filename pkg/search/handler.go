@@ -199,6 +199,9 @@ func (r *RecentRequest) thumbnailSize() int {
 type MetaMap map[string]*DescribedBlob
 
 func (m MetaMap) Get(br *blobref.BlobRef) *DescribedBlob {
+	if br == nil {
+		return nil
+	}
 	return m[br.String()]
 }
 
