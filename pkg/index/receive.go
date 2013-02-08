@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"log"
 	"strings"
+	"sync"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -42,7 +43,14 @@ func (ix *Index) GetBlobHub() blobserver.BlobHub {
 	return ix.SimpleBlobHubPartitionMap.GetBlobHub()
 }
 
+var reindexMu sync.Mutex
+
 func (ix *Index) reindex(br *blobref.BlobRef) {
+	// TODO: cap how many of these can be going at once, probably more than 1,
+	// and be more efficient than just blocking goroutines. For now, this:
+	reindexMu.Lock()
+	defer reindexMu.Unlock()
+
 	bs := ix.BlobSource
 	if bs == nil {
 		log.Printf("index: can't re-index %v: no BlobSource", br)
