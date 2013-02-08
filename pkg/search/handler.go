@@ -785,7 +785,7 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 		des.File, err = dr.sh.index.GetFileInfo(br)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Printf("index.GetFileInfo(directory %s) failed; index stale?", br)
+				log.Printf("index.GetFileInfo(file %s) failed; index stale?", br)
 			} else {
 				dr.addError(br, err)
 			}
