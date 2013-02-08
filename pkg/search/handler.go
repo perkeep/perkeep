@@ -18,6 +18,7 @@ package search
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -163,6 +164,11 @@ type RecentRequest struct {
 	ThumbnailSize int       // if zero, no thumbnails
 }
 
+func (r *RecentRequest) URLSuffix() string {
+	// TODO: Before
+	return fmt.Sprintf("camli/search/recent?n=%d&thumbnails=%d", r.n(), r.thumbnailSize())
+}
+
 func (r *RecentRequest) FromHTTP(req *http.Request) error {
 	r.N, _ = strconv.Atoi(req.FormValue("n"))
 	r.ThumbnailSize = thumbnailSize(req)
@@ -200,6 +206,19 @@ func (m MetaMap) Get(br *blobref.BlobRef) *DescribedBlob {
 type RecentResponse struct {
 	Recent []*RecentItem `json:"recent"`
 	Meta   MetaMap       `json:"meta"`
+
+	Error     string `json:"error,omitempty"`
+	ErrorType string `json:"errorType,omitempty"`
+}
+
+func (r *RecentResponse) Err() error {
+	if r.Error != "" || r.ErrorType != "" {
+		if r.ErrorType != "" {
+			return fmt.Errorf("%s: %s", r.ErrorType, r.Error)
+		}
+		return errors.New(r.Error)
+	}
+	return nil
 }
 
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.

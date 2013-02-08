@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/search"
 )
 
 // A Client provides access to a Camlistore server.
@@ -256,6 +257,31 @@ func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
 		return nil, ErrNoSync
 	}
 	return c.syncHandlers, nil
+}
+
+var _ search.IGetRecentPermanodes = (*Client)(nil)
+
+// SearchRecent implements search.IGetRecentPermanodes against a remote server over HTTP.
+func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentResponse, error) {
+	sr, err := c.SearchRoot()
+	if err != nil {
+		return nil, err
+	}
+	url := sr + req.URLSuffix()
+	hreq := c.newRequest("GET", url)
+	hres, err := c.doReqGated(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	res := new(search.RecentResponse)
+	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // SearchExistingFileSchema does a search query looking for an

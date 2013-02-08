@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"log"
+	"encoding/json"
 
-	//"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
@@ -43,6 +45,19 @@ func (n *recentDir) Attr() fuse.Attr {
 }
 
 func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+	req := &search.RecentRequest{N: 100}
+	res, err := n.fs.client.GetRecentPermanodes(req)
+	if err != nil {
+		log.Printf("fs.recent: GetRecentPermanodes error in ReadDir: %v", err)
+		return nil, fuse.EIO
+	}
+	v, err := json.MarshalIndent(res, " ", "  ")
+	if err != nil {
+		log.Printf("json error: %v", err)
+	} else {
+		log.Printf("Got: %s", v)
+	}
+
 	var ents []fuse.Dirent
 	ents = append(ents, fuse.Dirent{Name: fmt.Sprintf("TODO-%d", rand.Intn(100))})
 	// TODO: ...
