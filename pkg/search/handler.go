@@ -47,6 +47,19 @@ type Handler struct {
 	owner *blobref.BlobRef
 }
 
+// IGetRecentPermanodes is the interface encapsulating the GetRecentPermanodes query.
+type IGetRecentPermanodes interface {
+	// GetRecentPermanodes returns recently-modified permanodes.
+	// This is a higher-level query returning more metadata than the index.GetRecentPermanodes,
+	// which only scans the blobrefs but doesn't return anything about the permanodes.
+	// TODO: rename this one?
+	GetRecentPermanodes(*RecentRequest) (*RecentResponse, error)
+}
+
+var (
+	_ IGetRecentPermanodes = (*Handler)(nil)
+)
+
 func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
 	return &Handler{index: index, owner: owner}
 }
@@ -143,10 +156,50 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
+// RecentRequest is a request to get a RecentResponse.
+type RecentRequest struct {
+	N             int       // if zero, default number of results
+	Before        time.Time // if zero, now
+	ThumbnailSize int       // if zero, no thumbnails
+}
+
+func (r *RecentRequest) FromHTTP(req *http.Request) error {
+	r.N, _ = strconv.Atoi(req.FormValue("n"))
+	r.ThumbnailSize = thumbnailSize(req)
+	// TODO: populate Before
+	return nil
+}
+
+// n returns the sanitized number of search results.
+func (r *RecentRequest) n() int {
+	if r.N <= 0 || r.N > 1000 {
+		return 50
+	}
+	return r.N
+}
+
+func (r *RecentRequest) thumbnailSize() int {
+	v := r.ThumbnailSize
+	if v == 0 {
+		return 0
+	}
+	if v < minThumbSize || v > maxThumbSize {
+		return defThumbSize
+	}
+	return v
+}
+
+// A MetaMap is a map from blobref to a DescribedBlob.
+type MetaMap map[string]*DescribedBlob
+
+func (m MetaMap) Get(br *blobref.BlobRef) *DescribedBlob {
+	return m[br.String()]
+}
+
 // RecentResponse is the JSON response from $searchRoot/camli/search/recent.
 type RecentResponse struct {
-	Recent []*RecentItem             `json:"recent"`
-	Meta   map[string]*DescribedBlob `json:"meta"`
+	Recent []*RecentItem `json:"recent"`
+	Meta   MetaMap       `json:"meta"`
 }
 
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
@@ -160,26 +213,27 @@ func thumbnailSize(r *http.Request) int {
 	return thumbnailSizeStr(r.FormValue("thumbnails"))
 }
 
+const (
+	minThumbSize = 25
+	defThumbSize = 50
+	maxThumbSize = 800
+)
+
 func thumbnailSizeStr(s string) int {
 	if s == "" {
 		return 0
 	}
-	if i, _ := strconv.Atoi(s); i >= 25 && i < 800 {
+	if i, _ := strconv.Atoi(s); i >= minThumbSize && i <= maxThumbSize {
 		return i
 	}
-	return 50
+	return defThumbSize
 }
 
-func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
-	n, _ := strconv.Atoi(req.FormValue("n"))
-	if n <= 0 || n > 1000 {
-		n = 50
-	}
-
+func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ch := make(chan *Result)
 	errch := make(chan error)
 	go func() {
-		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, n)
+		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, req.n())
 	}()
 
 	dr := sh.NewDescribeRequest()
@@ -194,27 +248,40 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 		})
 	}
 
-	err := <-errch
-	if err != nil {
-		ret := jsonMap()
-		ret["error"] = err.Error()
-		// TODO: return error status code
-		httputil.ReturnJSON(rw, ret)
-		return
+	if err := <-errch; err != nil {
+		return nil, err
 	}
 
-	metaMap, err := dr.metaMap(thumbnailSize(req))
+	metaMap, err := dr.metaMap(req.thumbnailSize())
 	if err != nil {
-		ret := jsonMap()
-		ret["error"] = err.Error()
-		httputil.ReturnJSON(rw, ret)
-		return
+		return nil, err
 	}
 
-	httputil.ReturnJSON(rw, &RecentResponse{
+	res := &RecentResponse{
 		Recent: recent,
 		Meta:   metaMap,
-	})
+	}
+	return res, nil
+}
+
+func serveJSONError(rw http.ResponseWriter, err error) {
+	ret := jsonMap()
+	ret["error"] = err.Error()
+	httputil.ReturnJSON(rw, ret)
+}
+
+func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
+	var rr RecentRequest
+	if err := rr.FromHTTP(req); err != nil {
+		serveJSONError(rw, err)
+		return
+	}
+	res, err := sh.GetRecentPermanodes(&rr)
+	if err != nil {
+		serveJSONError(rw, err)
+		return
+	}
+	httputil.ReturnJSON(rw, res)
 }
 
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching
@@ -328,7 +395,7 @@ type DescribeRequest struct {
 	sh *Handler
 
 	mu   sync.Mutex // protects following:
-	m    map[string]*DescribedBlob
+	m    MetaMap
 	done map[string]bool  // blobref -> described
 	errs map[string]error // blobref -> error
 
@@ -591,7 +658,7 @@ func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
 	return &DescribeRequest{
 		sh:   sh,
-		m:    make(map[string]*DescribedBlob),
+		m:    make(MetaMap),
 		errs: make(map[string]error),
 		wg:   new(sync.WaitGroup),
 	}
@@ -934,8 +1001,8 @@ func setPanicError(m map[string]interface{}) {
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
 type SignerAttrValueResponse struct {
-	Permanode *blobref.BlobRef          `json:"permanode"`
-	Meta      map[string]*DescribedBlob `json:"meta"`
+	Permanode *blobref.BlobRef `json:"permanode"`
+	Meta      MetaMap          `json:"meta"`
 }
 
 func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
