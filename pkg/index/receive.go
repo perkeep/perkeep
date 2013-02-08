@@ -42,6 +42,27 @@ func (ix *Index) GetBlobHub() blobserver.BlobHub {
 	return ix.SimpleBlobHubPartitionMap.GetBlobHub()
 }
 
+func (ix *Index) reindex(br *blobref.BlobRef) {
+	bs := ix.BlobSource
+	if bs == nil {
+		log.Printf("index: can't re-index %v: no BlobSource", br)
+		return
+	}
+	log.Printf("index: starting re-index of %v", br)
+	rc, _, err := bs.FetchStreaming(br)
+	if err != nil {
+		log.Printf("index: failed to fetch %v for reindexing: %v", br, err)
+		return
+	}
+	defer rc.Close()
+	sb, err := ix.ReceiveBlob(br, rc)
+	if err != nil {
+		log.Printf("index: reindex of %v failed: %v", br, err)
+		return
+	}
+	log.Printf("index: successfully reindexed %v", sb)
+}
+
 func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb blobref.SizedBlobRef, err error) {
 	sniffer := NewBlobSniffer(blobRef)
 	hash := blobRef.Hash()

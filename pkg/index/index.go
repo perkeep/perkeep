@@ -545,6 +545,7 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	key := "fileinfo|" + fileRef.String()
 	v, err := x.s.Get(key)
 	if err == ErrNotFound {
+		go x.reindex(fileRef) // kinda a hack. Issue 103.
 		return nil, os.ErrNotExist
 	}
 	valPart := strings.Split(v, "|")
