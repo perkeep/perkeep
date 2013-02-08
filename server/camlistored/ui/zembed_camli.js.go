@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 17008, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17024, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -492,7 +492,7 @@ func init() {
 		"};\n"+
 		"\n"+
 		"// pn: permanode to find a good title of\n"+
-		"// jdes: describe response of root permanode\n"+
+		"// des: a describe \"meta\" map from blobref to DescribedBlob.\n"+
 		"function camliBlobTitle(pn, des) {\n"+
 		"    var d = des[pn];\n"+
 		"    if (!d) {\n"+
@@ -541,5 +541,5 @@ func init() {
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1359675908724750359))
+		""), time.Unix(0, 1360259901380858573))
 }

@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 10843, fileembed.String("/*\n"+
+	Files.Add("index.js", 10853, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -129,7 +129,7 @@ func init() {
 		"// a div element, style as a thumbnail tile.\n"+
 		"function divFromResult(searchRes, i) {\n"+
 		"    var result = searchRes.recent[i];\n"+
-		"    var br = searchRes[result.blobref];\n"+
+		"    var br = searchRes.meta[result.blobref];\n"+
 		"    var divperm = document.createElement(\"div\");\n"+
 		"    CamliIndexPage.setThumbBoxStyle(divperm);\n"+
 		"\n"+
@@ -194,7 +194,7 @@ func init() {
 		"    alink.appendChild(img);\n"+
 		"    divperm.appendChild(alink);\n"+
 		"    var title = document.createElement(\"p\");\n"+
-		"    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes));\n"+
+		"    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes.meta));\n"+
 		"    title.className = 'camli-ui-thumbtitle';\n"+
 		"    title.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
 		"    divperm.appendChild(title);\n"+
@@ -367,5 +367,5 @@ func init() {
 		"};\n"+
 		"\n"+
 		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
-		""), time.Unix(0, 1358715374000000000))
+		""), time.Unix(0, 1360259901380858573))
 }
