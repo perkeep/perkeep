@@ -210,15 +210,30 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 
 	if err := bb.PopulateParts(size, parts); err != nil {
 		future.errc <- err
-	} else {
-		json := bb.Blob().JSON()
-		br := blobref.SHA1FromString(json)
-		future.br = br
-		go func() {
-			_, err := uploadString(bs, br, json)
-			future.errc <- err
-		}()
+		return future
 	}
+
+	// Hack until camlistore.org/issue/102 is fixed. If we happen to upload
+	// the "file" schema before any of its parts arrive, then the indexer
+	// can get confused.  So wait on the parts before, and then upload
+	// the "file" blob afterwards.
+	if bb.Type() == "file" {
+		future.errc <- nil
+		_, err := future.Get() // may not be nil, if children parts failed
+		future = newUploadBytesFuture()
+		if err != nil {
+			future.errc <- err
+			return future
+		}
+	}
+
+	json := bb.Blob().JSON()
+	br := blobref.SHA1FromString(json)
+	future.br = br
+	go func() {
+		_, err := uploadString(bs, br, json)
+		future.errc <- err
+	}()
 	return future
 }
 
