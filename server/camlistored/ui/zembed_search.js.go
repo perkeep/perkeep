@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 7510, fileembed.String("/*\n"+
+	Files.Add("search.js", 7567, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -133,6 +133,10 @@ func init() {
 		"		div.removeChild(div.lastChild);\n"+
 		"	}\n"+
 		"	var results = searchRes.withAttr;\n"+
+		"	if (!results) {\n"+
+		"		hideAllResThings();\n"+
+		"		return;\n"+
+		"	}\n"+
 		"	if (results.length > 0) {\n"+
 		"		var checkall = document.createElement(\"input\");\n"+
 		"		checkall.id = \"checkall\";\n"+
@@ -147,7 +151,7 @@ func init() {
 		"		var result = results[i];\n"+
 		"		var alink = document.createElement(\"a\");\n"+
 		"		alink.href = \"./?p=\" + result.permanode;\n"+
-		"		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes));\n"+
+		"		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes.meta));\n"+
 		"		var cbox = document.createElement('input');\n"+
 		"		cbox.type = \"checkbox\";\n"+
 		"		cbox.name = \"checkbox\";\n"+
@@ -282,5 +286,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1358715391000000000))
+		""), time.Unix(0, 1360366137559069951))
 }

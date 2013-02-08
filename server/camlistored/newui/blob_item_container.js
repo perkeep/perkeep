@@ -425,12 +425,12 @@ camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
 
 /**
  * @param {string} permanode Node to describe.
- * @param {Object} metaBag Object of properties for the node.
+ * @param {Object} describeResult Object of properties for the node.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
-  function(permanode, metaBag) {
-  var item = new camlistore.BlobItem(permanode, metaBag);
+  function(permanode, describeResult) {
+  var item = new camlistore.BlobItem(permanode, describeResult.meta);
   this.addChildAt(item, this.hasCreateItem_ ? 1 : 0, true);
 };
 

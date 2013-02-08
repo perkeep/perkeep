@@ -75,10 +75,13 @@ func parseJSON(s string) map[string]interface{} {
 
 var handlerTests = []handlerTest{
 	{
-		name: "describe-missing",
+		name:  "describe-missing",
 		setup: func(fi *test.FakeIndex) Index { return fi },
 		query: "describe?blobref=eabc-555",
-		want:  map[string]interface{}{},
+		want: parseJSON(`{
+			"meta": {
+			}
+		}`),
 	},
 
 	{
@@ -88,13 +91,16 @@ var handlerTests = []handlerTest{
 			return fi
 		},
 		query: "describe?blobref=abc-555",
-		want: map[string]interface{}{
-			"abc-555": map[string]interface{}{
-				"blobRef":  "abc-555",
-				"mimeType": "image/jpeg",
-				"size":     999,
-			},
-		},
+		want: parseJSON(`{
+			"meta": {
+				"abc-555": {
+					"blobRef":  "abc-555",
+					"mimeType": "image/jpeg",
+					"camliType": "",
+					"size":     999
+				}
+			}
+		}`),
 	},
 
 	{
@@ -118,25 +124,28 @@ var handlerTests = []handlerTest{
 			return fi
 		},
 		query: "describe?blobref=perma-123",
-		want: map[string]interface{}{
-			"foo-232": map[string]interface{}{
-				"blobRef":  "foo-232",
-				"mimeType": "foo/bar",
-				"size":     878,
-			},
-			"perma-123": map[string]interface{}{
-				"blobRef":   "perma-123",
-				"mimeType":  "application/json; camliType=permanode",
-				"camliType": "permanode",
-				"size":      123,
-				"permanode": map[string]interface{}{
-					"attr": map[string]interface{}{
-						"camliContent":  []string{"foo-232"},
-						"only-delete-b": []string{"a", "c"},
-					},
+		want: parseJSON(`{
+			"meta": {
+				"foo-232": {
+					"blobRef":  "foo-232",
+					"mimeType": "foo/bar",
+					"camliType": "",
+					"size":     878
 				},
-			},
-		},
+				"perma-123": {
+					"blobRef":   "perma-123",
+					"mimeType":  "application/json; camliType=permanode",
+					"camliType": "permanode",
+					"size":      123,
+					"permanode": {
+						"attr": {
+							"camliContent": [ "foo-232" ],
+							"only-delete-b": [ "a", "c" ]
+						}
+					}
+				}
+			}
+		}`),
 	},
 
 	// Test recent permanodes

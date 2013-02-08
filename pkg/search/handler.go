@@ -195,6 +195,57 @@ func (r *RecentRequest) thumbnailSize() int {
 	return v
 }
 
+// WithAttrRequest is a request to get a WithAttrResponse.
+type WithAttrRequest struct {
+	N      int              // max number of results
+	Signer *blobref.BlobRef // if nil, search will return index.ErrNotFound
+	// Requested attribute. If blank, all attributes are searched (for Value)
+	// as fulltext.
+	Attr string
+	// Value of the requested attribute. If blank, permanodes which have
+	// request.Attribute as an attribute are searched.
+	Value string
+	Fuzzy bool // fulltext search (if supported).
+}
+
+func (r *WithAttrRequest) FromHTTP(req *http.Request) error {
+	v := req.FormValue("signer")
+	if v == "" {
+		return errors.New("missing required parameter: \"signer\"")
+	}
+	r.Signer = blobref.Parse(v)
+	if r.Signer == nil {
+		return fmt.Errorf("failed to parse signer blobref: %v", v)
+	}
+	r.Value = req.FormValue("value")
+	fuzzy := req.FormValue("fuzzy") // exact match if empty
+	fuzzyMatch := false
+	if fuzzy != "" {
+		lowered := strings.ToLower(fuzzy)
+		if lowered == "true" || lowered == "t" {
+			fuzzyMatch = true
+		}
+	}
+	r.Attr = req.FormValue("attr") // all attributes if empty
+	if r.Attr == "" {              // and force fuzzy in that case.
+		fuzzyMatch = true
+	}
+	r.Fuzzy = fuzzyMatch
+	maxResults := maxPermanodes
+	max := req.FormValue("max")
+	if max != "" {
+		maxR, err := strconv.Atoi(max)
+		if err != nil {
+			return fmt.Errorf("Invalid specified max results 'max': " + err.Error())
+		}
+		if maxR < maxResults {
+			maxResults = maxR
+		}
+	}
+	r.N = maxResults
+	return nil
+}
+
 // A MetaMap is a map from blobref to a DescribedBlob.
 type MetaMap map[string]*DescribedBlob
 
@@ -224,11 +275,42 @@ func (r *RecentResponse) Err() error {
 	return nil
 }
 
+// DescribeResponse is the JSON response from $searchRoot/camli/search/describe.
+type DescribeResponse struct {
+	Meta MetaMap `json:"meta"`
+}
+
+// WithAttrResponse is the JSON response from $searchRoot/camli/search/permanodeattr.
+type WithAttrResponse struct {
+	WithAttr []*WithAttrItem `json:"withAttr"`
+	Meta     MetaMap         `json:"meta"`
+}
+
+// SignerPathsResponse is the JSON response from $searchRoot/camli/search/signerpaths.
+type SignerPathsResponse struct {
+	Paths []*SignerPathsItem `json:"paths"`
+	Meta  MetaMap            `json:"meta"`
+}
+
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
 type RecentItem struct {
 	BlobRef *blobref.BlobRef `json:"blobref"`
+	// TODO: add a type with concrete type of time.Time that implements
+	// encode/decodeJSON hooks to RFC3339 strings
 	ModTime string           `json:"modtime"` // RFC3339
 	Owner   *blobref.BlobRef `json:"owner"`
+}
+
+// A WithAttrItem is an item returned from $searchRoot/camli/search/permanodeattr.
+type WithAttrItem struct {
+	Permanode *blobref.BlobRef `json:"permanode"`
+}
+
+// A SignerPathsItem is an item returned from $searchRoot/camli/search/signerpaths.
+type SignerPathsItem struct {
+	ClaimRef *blobref.BlobRef `json:"claimRef"`
+	BaseRef  *blobref.BlobRef `json:"baseRef"`
+	Suffix   string           `json:"suffix"`
 }
 
 func thumbnailSize(r *http.Request) int {
@@ -306,72 +388,56 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	httputil.ReturnJSON(rw, res)
 }
 
+func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
+	ch := make(chan *blobref.BlobRef, buffered)
+	errch := make(chan error)
+	go func() {
+		errch <- sh.index.SearchPermanodesWithAttr(ch,
+			&PermanodeByAttrRequest{Attribute: req.Attr,
+				Query:      req.Value,
+				Signer:     req.Signer,
+				FuzzyMatch: req.Fuzzy,
+				MaxResults: req.N})
+	}()
+
+	dr := sh.NewDescribeRequest()
+
+	var withAttr []*WithAttrItem
+	for res := range ch {
+		dr.Describe(res, 2)
+		withAttr = append(withAttr, &WithAttrItem{
+			Permanode: res,
+		})
+	}
+
+	metaMap, err := dr.metaMap(0)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &WithAttrResponse{
+		WithAttr: withAttr,
+		Meta:     metaMap,
+	}
+	return res, nil
+}
+
 // servePermanodesWithAttr uses the indexer to search for the permanodes matching
 // the request.
 // The valid values for the "attr" key in the request (i.e the only attributes
 // for a permanode which are actually indexed as such) are "tag" and "title".
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
-	defer setPanicError(ret)
-
-	signer := blobref.MustParse(mustGet(req, "signer"))
-	value := req.FormValue("value")
-	fuzzy := req.FormValue("fuzzy") // exact match if empty
-	fuzzyMatch := false
-	if fuzzy != "" {
-		lowered := strings.ToLower(fuzzy)
-		if lowered == "true" || lowered == "t" {
-			fuzzyMatch = true
-		}
-	}
-	attr := req.FormValue("attr") // all attributes if empty
-	if attr == "" {               // and force fuzzy in that case.
-		fuzzyMatch = true
-	}
-	maxResults := maxPermanodes
-	max := req.FormValue("max")
-	if max != "" {
-		maxR, err := strconv.Atoi(max)
-		if err != nil {
-			log.Printf("Invalid specified max results 'max': " + err.Error())
-			return
-		}
-		if maxR < maxResults {
-			maxResults = maxR
-		}
-	}
-
-	ch := make(chan *blobref.BlobRef, buffered)
-	errch := make(chan error)
-	go func() {
-		errch <- sh.index.SearchPermanodesWithAttr(ch,
-			&PermanodeByAttrRequest{Attribute: attr,
-				Query:      value,
-				Signer:     signer,
-				FuzzyMatch: fuzzyMatch,
-				MaxResults: maxResults})
-	}()
-
-	dr := sh.NewDescribeRequest()
-
-	withAttr := jsonMapList()
-	for res := range ch {
-		dr.Describe(res, 2)
-		jm := jsonMap()
-		jm["permanode"] = res.String()
-		withAttr = append(withAttr, jm)
-	}
-
-	err := <-errch
-	if err != nil {
-		ret["error"] = err.Error()
-		ret["errorType"] = "server"
+	var wr WithAttrRequest
+	if err := wr.FromHTTP(req); err != nil {
+		serveJSONError(rw, err)
 		return
 	}
-
-	ret["withAttr"] = withAttr
-	dr.populateJSON(ret)
+	res, err := sh.GetPermanodesWithAttr(&wr)
+	if err != nil {
+		serveJSONError(rw, err)
+		return
+	}
+	httputil.ReturnJSON(rw, res)
 }
 
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
@@ -593,7 +659,7 @@ func (b *DescribedBlob) isPermanode() bool {
 // returns a path relative to the UI handler.
 //
 // Locking: requires that DescribedRequest is done loading or that
-// Request.mu is held (as it is from populateJSONAndThumbnails)
+// Request.mu is held (as it is from metaMap)
 func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
 	if thumbSize <= 0 || !b.isPermanode() {
 		return
@@ -743,41 +809,8 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 	return dr.m, nil
 }
 
-// TODO: Stop using this and delete it. Switch to the style of
-// serveRecent, returning a struct type and not a dumb map.
-//
-// populateJSON waits for all outstanding lookups to complete and populates
-// the results into the provided dest map, suitable for marshalling
-// as JSON with the json package.
-func (dr *DescribeRequest) populateJSON(dest map[string]interface{}) {
-	dr.populateJSONAndThumbnails(dest, 0)
-}
-
-// TODO: Stop using this and delete it. Switch to the style of
-// serveRecent, returning a struct type and not a dumb map.
-//
-// Version of populateJSON with also including thumbnails.  thumbSize
-// of zero means to not include them.
-func (dr *DescribeRequest) populateJSONAndThumbnails(dest map[string]interface{}, thumbSize int) {
-	dr.wg.Wait()
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	for k, desb := range dr.m {
-		m := desb.jsonMap()
-		dest[k] = m
-		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
-			m["thumbnailSrc"] = src
-			m["thumbnailWidth"] = float64(w)
-			m["thumbnailHeight"] = float64(h)
-		}
-	}
-	for k, err := range dr.errs {
-		dest["error"] = "error populating " + k + ": " + err.Error()
-		return // TODO: include all?
-	}
-}
-
 func (dr *DescribeRequest) metaMap(thumbSize int) (map[string]*DescribedBlob, error) {
+	// thumbSize of zero means to not include the thumbnails.
 	dr.wg.Wait()
 	dr.mu.Lock()
 	defer dr.mu.Unlock()
@@ -893,19 +926,21 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 }
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
-
 	br := blobref.Parse(req.FormValue("blobref"))
 	if br == nil {
-		ret["error"] = "Missing or invalid 'blobref' param"
-		ret["errorType"] = "input"
+		// TODO: make this be a 400 Bad Request HTTP type.
+		serveJSONError(rw, errors.New("input: missing or invalid 'blobref' param"))
 		return
 	}
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(br, 4)
-	dr.populateJSONAndThumbnails(ret, thumbnailSize(req))
+	metaMap, err := dr.metaMap(thumbnailSize(req))
+	if err != nil {
+		serveJSONError(rw, err)
+		return
+	}
+	httputil.ReturnJSON(rw, &DescribeResponse{metaMap})
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
@@ -1001,6 +1036,8 @@ claimLoop:
 	}
 }
 
+// TODO(mpl): we probably want to remove most of the calls on that one,
+// or make it an error instead of a panic, when req is an unfiltered user input.
 func mustGet(req *http.Request, param string) string {
 	v := req.FormValue(param)
 	if v == "" {
@@ -1137,31 +1174,59 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
-	defer setPanicError(ret)
-
-	signer := blobref.MustParse(mustGet(req, "signer"))
-	target := blobref.MustParse(mustGet(req, "target"))
+	// TODO: finish breaking this function up into a pure query half
+	// and an HTTP half which uses the pure querying half.
+	vs := req.FormValue("signer")
+	if vs == "" {
+		serveJSONError(rw, errors.New("missing required parameter: \"signer\""))
+		return
+	}
+	signer := blobref.Parse(vs)
+	if signer == nil {
+		serveJSONError(rw, fmt.Errorf("failed to parse signer blobref: %v", vs))
+		return
+	}
+	vt := req.FormValue("target")
+	if vt == "" {
+		serveJSONError(rw, errors.New("missing required parameter: \"target\""))
+		return
+	}
+	target := blobref.Parse(vt)
+	if target == nil {
+		serveJSONError(rw, fmt.Errorf("failed to parse target blobref: %v", vt))
+		return
+	}
 	paths, err := sh.index.PathsOfSignerTarget(signer, target)
 	if err != nil {
-		ret["error"] = err.Error()
-	} else {
-		jpaths := []map[string]interface{}{}
-		for _, path := range paths {
-			jpaths = append(jpaths, map[string]interface{}{
-				"claimRef": path.Claim.String(),
-				"baseRef":  path.Base.String(),
-				"suffix":   path.Suffix,
-			})
-		}
-		ret["paths"] = jpaths
-		dr := sh.NewDescribeRequest()
-		for _, path := range paths {
-			dr.Describe(path.Base, 2)
-		}
-		dr.populateJSON(ret)
+		serveJSONError(rw, err)
+		return
 	}
+
+	var jpaths []*SignerPathsItem
+	for _, path := range paths {
+		jpaths = append(jpaths, &SignerPathsItem{
+			ClaimRef: path.Claim,
+			BaseRef:  path.Base,
+			Suffix:   path.Suffix,
+		})
+	}
+
+	dr := sh.NewDescribeRequest()
+	for _, path := range paths {
+		dr.Describe(path.Base, 2)
+	}
+
+	metaMap, err := dr.metaMap(0)
+	if err != nil {
+		serveJSONError(rw, err)
+		return
+	}
+
+	res := &SignerPathsResponse{
+		Paths: jpaths,
+		Meta:  metaMap,
+	}
+	httputil.ReturnJSON(rw, res)
 }
 
 const camliTypePrefix = "application/json; camliType="

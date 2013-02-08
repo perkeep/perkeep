@@ -7,7 +7,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.js", 20486, fileembed.String("/*\n"+
+	Files.Add("permanode.js", 20499, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -233,7 +233,7 @@ func init() {
 		"       onContentsRef: function(contentsRef) {\n"+
 		"            setStatus(\"(checking for dup of \" + contentsRef + \")\");\n"+
 		"       },\n"+
-		"       success: onGotFileSchemaRef, \n"+
+		"       success: onGotFileSchemaRef,\n"+
 		"       fail: onFail\n"+
 		"    });\n"+
 		"}\n"+
@@ -323,7 +323,7 @@ func init() {
 		"    var li = document.createElement(\"li\");\n"+
 		"    var a = document.createElement(\"a\");\n"+
 		"    a.href = \"./?p=\" + pn;\n"+
-		"    Camli.setTextContent(a, camliBlobTitle(pn, des));\n"+
+		"    Camli.setTextContent(a, camliBlobTitle(pn, des.meta));\n"+
 		"\n"+
 		"    var del = document.createElement(\"span\");\n"+
 		"    del.className = 'camli-del';\n"+
@@ -347,11 +347,11 @@ func init() {
 		"\n"+
 		"function onBlobDescribed(jres) {\n"+
 		"    var permanode = getPermanodeParam();\n"+
-		"    if (!jres[permanode]) {\n"+
+		"    if (!jres.meta[permanode]) {\n"+
 		"        alert(\"didn't get blob \" + permanode);\n"+
 		"        return;\n"+
 		"    }\n"+
-		"    var permanodeObject = jres[permanode].permanode;\n"+
+		"    var permanodeObject = jres.meta[permanode].permanode;\n"+
 		"    if (!permanodeObject) {\n"+
 		"        alert(\"blob \" + permanode + \" isn't a permanode\");\n"+
 		"        return;\n"+
@@ -362,7 +362,7 @@ func init() {
 		"\n"+
 		"    var attr = function(name) {\n"+
 		"        if (!(name in permanodeObject.attr)) {\n"+
-		"            return null;          \n"+
+		"            return null;\n"+
 		"        }\n"+
 		"        if (permanodeObject.attr[name].length == 0) {\n"+
 		"            return null;\n"+
@@ -413,14 +413,14 @@ func init() {
 		"        var alink = document.createElement(\"a\");\n"+
 		"        alink.href = \"./?b=\" + camliContent;\n"+
 		"        var img = document.createElement(\"img\");\n"+
-		"        var br = jres[permanode];\n"+
+		"        var br = jres.meta[permanode];\n"+
 		"        img.src = br.thumbnailSrc;\n"+
 		"        img.height = br.thumbnailHeight;\n"+
 		"        img.width =  br.thumbnailWidth;\n"+
 		"        alink.appendChild(img);\n"+
 		"        c.appendChild(alink);\n"+
 		"        var title = document.createElement(\"p\");\n"+
-		"        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres));\n"+
+		"        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres.meta));\n"+
 		"        title.className = 'camli-ui-thumbtitle';\n"+
 		"        c.appendChild(title);\n"+
 		"    }\n"+
@@ -487,7 +487,7 @@ func init() {
 		"    if (!publishRoot) {\n"+
 		"        alert(\"no publish root selected\");\n"+
 		"        return;\n"+
-		"    } \n"+
+		"    }\n"+
 		"    var pathSuffix = suffix.value;\n"+
 		"    if (!pathSuffix) {\n"+
 		"        alert(\"no path suffix specified\");\n"+
@@ -657,5 +657,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", permanodePageOnLoad);\n"+
-		""), time.Unix(0, 1358715383000000000))
+		""), time.Unix(0, 1360366137559069951))
 }

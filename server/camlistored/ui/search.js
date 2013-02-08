@@ -120,6 +120,10 @@ function showPermanodes(searchRes, type) {
 		div.removeChild(div.lastChild);
 	}
 	var results = searchRes.withAttr;
+	if (!results) {
+		hideAllResThings();
+		return;
+	}
 	if (results.length > 0) {
 		var checkall = document.createElement("input");
 		checkall.id = "checkall";
@@ -134,7 +138,7 @@ function showPermanodes(searchRes, type) {
 		var result = results[i];
 		var alink = document.createElement("a");
 		alink.href = "./?p=" + result.permanode;
-		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes));
+		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes.meta));
 		var cbox = document.createElement('input');
 		cbox.type = "checkbox";
 		cbox.name = "checkbox";

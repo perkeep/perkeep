@@ -309,7 +309,7 @@ function addMember(pn, des) {
     var li = document.createElement("li");
     var a = document.createElement("a");
     a.href = "./?p=" + pn;
-    Camli.setTextContent(a, camliBlobTitle(pn, des));
+    Camli.setTextContent(a, camliBlobTitle(pn, des.meta));
 
     var del = document.createElement("span");
     del.className = 'camli-del';
@@ -333,11 +333,11 @@ function buildPermanodeUi() {
 
 function onBlobDescribed(jres) {
     var permanode = getPermanodeParam();
-    if (!jres[permanode]) {
+    if (!jres.meta[permanode]) {
         alert("didn't get blob " + permanode);
         return;
     }
-    var permanodeObject = jres[permanode].permanode;
+    var permanodeObject = jres.meta[permanode].permanode;
     if (!permanodeObject) {
         alert("blob " + permanode + " isn't a permanode");
         return;
@@ -398,14 +398,14 @@ function onBlobDescribed(jres) {
         var alink = document.createElement("a");
         alink.href = "./?b=" + camliContent;
         var img = document.createElement("img");
-        var br = jres[permanode];
+        var br = jres.meta[permanode];
         img.src = br.thumbnailSrc;
         img.height = br.thumbnailHeight;
         img.width =  br.thumbnailWidth;
         alink.appendChild(img);
         c.appendChild(alink);
         var title = document.createElement("p");
-        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres));
+        Camli.setTextContent(title, camliBlobTitle(br.blobRef, jres.meta));
         title.className = 'camli-ui-thumbtitle';
         c.appendChild(title);
     }

@@ -29,7 +29,7 @@ function blobInfoUpdate(bmap) {
         alert("no blobref?");
         return;
     }
-    var binfo = bmap[blobref];
+    var binfo = bmap.meta[blobref];
     if (!binfo) {
         blobmeta.innerHTML = "(not found)";
         return;
