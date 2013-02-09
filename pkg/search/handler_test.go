@@ -285,7 +285,7 @@ func TestHandler(t *testing.T) {
 		}
 
 		// Try with re-encoded got, since the JSON ordering doesn't matter
-		// to the test, 
+		// to the test,
 		gotj := parseJSON(string(got))
 		got2, _ := json.MarshalIndent(gotj, "", "  ")
 		if bytes.Equal(got2, want) {

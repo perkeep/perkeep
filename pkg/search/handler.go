@@ -212,11 +212,11 @@ type WithAttrRequest struct {
 func (r *WithAttrRequest) FromHTTP(req *http.Request) error {
 	v := req.FormValue("signer")
 	if v == "" {
-		return errors.New("missing required parameter: \"signer\"")
+		return httputil.MissingParameterError("signer")
 	}
 	r.Signer = blobref.Parse(v)
 	if r.Signer == nil {
-		return fmt.Errorf("failed to parse signer blobref: %v", v)
+		return httputil.InvalidParameterError("signer")
 	}
 	r.Value = req.FormValue("value")
 	fuzzy := req.FormValue("fuzzy") // exact match if empty
@@ -367,21 +367,15 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 	return res, nil
 }
 
-func serveJSONError(rw http.ResponseWriter, err error) {
-	ret := jsonMap()
-	ret["error"] = err.Error()
-	httputil.ReturnJSON(rw, ret)
-}
-
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	var rr RecentRequest
 	if err := rr.FromHTTP(req); err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 	res, err := sh.GetRecentPermanodes(&rr)
 	if err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 	httputil.ReturnJSON(rw, res)
@@ -428,12 +422,12 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	var wr WithAttrRequest
 	if err := wr.FromHTTP(req); err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 	res, err := sh.GetPermanodesWithAttr(&wr)
 	if err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 	httputil.ReturnJSON(rw, res)
@@ -442,13 +436,10 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 // TODO: modernize this like other handlers above: separate HTTP part vs. raw query part,
 // types for request & response, etc.
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
+	defer httputil.RecoverJSON(rw, req)
 	ret := jsonMap()
 
-	pn := blobref.Parse(req.FormValue("permanode"))
-	if pn == nil {
-		http.Error(rw, "Missing or invalid 'permanode' param", 400)
-		return
-	}
+	pn := httputil.MustGetBlobRef(req, "permanode")
 
 	// TODO: rename GetOwnerClaims to GetClaims?
 	claims, err := sh.index.GetOwnerClaims(pn, sh.owner)
@@ -699,29 +690,6 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	return "node.png", thumbSize, thumbSize, true
 }
 
-// TODO: delete this function
-func (b *DescribedBlob) jsonMap() map[string]interface{} {
-	m := jsonMap()
-	m["blobRef"] = b.BlobRef.String()
-	if b.MimeType != "" {
-		m["mimeType"] = b.MimeType
-	}
-	if b.CamliType != "" {
-		m["camliType"] = b.CamliType
-	}
-	m["size"] = b.Size
-	if b.Permanode != nil {
-		m["permanode"] = b.Permanode.jsonMap()
-	}
-	if b.File != nil {
-		m["file"] = b.File
-	}
-	if b.Dir != nil {
-		m["dir"] = b.Dir
-	}
-	return m
-}
-
 type DescribedPermanode struct {
 	Attr url.Values `json:"attr"` // a map[string][]string
 }
@@ -930,7 +898,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	br := blobref.Parse(req.FormValue("blobref"))
 	if br == nil {
 		// TODO: make this be a 400 Bad Request HTTP type.
-		serveJSONError(rw, errors.New("input: missing or invalid 'blobref' param"))
+		httputil.ServeJSONError(rw, errors.New("input: missing or invalid 'blobref' param"))
 		return
 	}
 
@@ -938,7 +906,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	dr.Describe(br, 4)
 	metaMap, err := dr.metaMap(thumbnailSize(req))
 	if err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 	httputil.ReturnJSON(rw, &DescribeResponse{metaMap})
@@ -1037,28 +1005,6 @@ claimLoop:
 	}
 }
 
-// TODO(mpl): we probably want to remove most of the calls on that one,
-// or make it an error instead of a panic, when req is an unfiltered user input.
-func mustGet(req *http.Request, param string) string {
-	v := req.FormValue(param)
-	if v == "" {
-		panic(fmt.Sprintf("missing required parameter %q", param))
-	}
-	return v
-}
-
-// TODO: convert this to have two *string pointers to error and errorType, and
-// then add error and errType (embedded? if that works in Go 1.0) in all the other
-// JSON response message struct types.
-func setPanicError(m map[string]interface{}) {
-	p := recover()
-	if p == nil {
-		return
-	}
-	m["error"] = p.(string)
-	m["errorType"] = "input"
-}
-
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
 type SignerAttrValueResponse struct {
 	Permanode *blobref.BlobRef `json:"permanode"`
@@ -1066,21 +1012,14 @@ type SignerAttrValueResponse struct {
 }
 
 func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
-	done := false // get to success at the end?
-	ret := jsonMap()
-	defer func() {
-		if !done {
-			httputil.ReturnJSON(rw, ret)
-		}
-	}()
-	defer setPanicError(ret)
+	defer httputil.RecoverJSON(rw, req)
+	signer := httputil.MustGetBlobRef(req, "signer")
+	attr := httputil.MustGet(req, "attr")
+	value := httputil.MustGet(req, "value")
 
-	signer := blobref.MustParse(mustGet(req, "signer"))
-	attr := mustGet(req, "attr")
-	value := mustGet(req, "value")
 	pn, err := sh.index.PermanodeOfSignerAttrValue(signer, attr, value)
 	if err != nil {
-		ret["error"] = err.Error()
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 
@@ -1088,11 +1027,10 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 	dr.Describe(pn, 2)
 	metaMap, err := dr.metaMap(0)
 	if err != nil {
-		ret["error"] = err.Error()
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 
-	done = true
 	httputil.ReturnJSON(rw, &SignerAttrValueResponse{
 		Permanode: pn,
 		Meta:      metaMap,
@@ -1174,32 +1112,16 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
+// TODO: finish breaking this function up into a pure query half
+// and an HTTP half which uses the pure querying half.
 func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
-	// TODO: finish breaking this function up into a pure query half
-	// and an HTTP half which uses the pure querying half.
-	vs := req.FormValue("signer")
-	if vs == "" {
-		serveJSONError(rw, errors.New("missing required parameter: \"signer\""))
-		return
-	}
-	signer := blobref.Parse(vs)
-	if signer == nil {
-		serveJSONError(rw, fmt.Errorf("failed to parse signer blobref: %v", vs))
-		return
-	}
-	vt := req.FormValue("target")
-	if vt == "" {
-		serveJSONError(rw, errors.New("missing required parameter: \"target\""))
-		return
-	}
-	target := blobref.Parse(vt)
-	if target == nil {
-		serveJSONError(rw, fmt.Errorf("failed to parse target blobref: %v", vt))
-		return
-	}
+	defer httputil.RecoverJSON(rw, req)
+	signer := httputil.MustGetBlobRef(req, "signer")
+	target := httputil.MustGetBlobRef(req, "target")
+
 	paths, err := sh.index.PathsOfSignerTarget(signer, target)
 	if err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 
@@ -1219,7 +1141,7 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 
 	metaMap, err := dr.metaMap(0)
 	if err != nil {
-		serveJSONError(rw, err)
+		httputil.ServeJSONError(rw, err)
 		return
 	}
 

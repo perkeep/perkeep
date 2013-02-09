@@ -152,43 +152,39 @@ func Recover(rw http.ResponseWriter, req *http.Request) {
 	RecoverJSON(rw, req) // TODO: for now. alternate format?
 }
 
+// RecoverJSON is like Recover but returns with a JSON response.
 func RecoverJSON(rw http.ResponseWriter, req *http.Request) {
 	e := recover()
 	if e == nil {
 		return
 	}
-	code := 500
-	if i, ok := e.(httpCoder); ok {
-		code = i.HTTPCode()
-	}
-	msg := fmt.Sprint(e)
-	log.Printf("Sending error %v to client for: %v", code, msg)
-	ReturnJSONCode(rw, code, map[string]interface{}{
-		"error": msg,
-		"errorType": http.StatusText(code),
-	})
+	ServeJSONError(rw, e)
 }
 
 type httpCoder interface {
 	HTTPCode() int
 }
 
+// An InvalidMethodError is returned when an HTTP handler is invoked
+// with an unsupported method.
 type InvalidMethodError struct{}
 
 func (InvalidMethodError) Error() string { return "invalid method" }
 func (InvalidMethodError) HTTPCode() int { return http.StatusMethodNotAllowed }
 
+// A MissingParameterError represents a missing HTTP parameter.
 type MissingParameterError string
 
 func (p MissingParameterError) Error() string { return fmt.Sprintf("Missing parameter %q", string(p)) }
 func (MissingParameterError) HTTPCode() int   { return http.StatusBadRequest }
 
+// An InvalidParameterError represents an invalid HTTP parameter.
 type InvalidParameterError string
 
 func (p InvalidParameterError) Error() string { return fmt.Sprintf("Invalid parameter %q", string(p)) }
 func (InvalidParameterError) HTTPCode() int   { return http.StatusBadRequest }
 
-// MustGet returns the GET (or HEAD) parameter param and panics
+// MustGet returns a non-empty GET (or HEAD) parameter param and panics
 // with a special error as caught by a deferred httputil.Recover.
 func MustGet(req *http.Request, param string) string {
 	if req.Method != "GET" && req.Method != "HEAD" {
@@ -201,10 +197,27 @@ func MustGet(req *http.Request, param string) string {
 	return v
 }
 
+// MustGetBlobRef returns a non-nil BlobRef from req, as given by param.
+// If it doesn't, it panics with a value understood by Recover or RecoverJSON.
 func MustGetBlobRef(req *http.Request, param string) *blobref.BlobRef {
 	br := blobref.Parse(MustGet(req, param))
 	if br == nil {
 		panic(InvalidParameterError(param))
 	}
 	return br
+}
+
+// ServeJSONError sends a JSON error response to rw for the provided
+// error value.
+func ServeJSONError(rw http.ResponseWriter, err interface{}) {
+	code := 500
+	if i, ok := err.(httpCoder); ok {
+		code = i.HTTPCode()
+	}
+	msg := fmt.Sprint(err)
+	log.Printf("Sending error %v to client for: %v", code, msg)
+	ReturnJSONCode(rw, code, map[string]interface{}{
+		"error":     msg,
+		"errorType": http.StatusText(code),
+	})
 }
