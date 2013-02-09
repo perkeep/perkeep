@@ -1102,11 +1102,10 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 // Unlike the index interface's EdgesTo method, the "edgesto" Handler
 // here additionally filters out since-deleted permanode edges.
 func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
-	defer setPanicError(ret)
+	defer httputil.RecoverJSON(rw, req)
 
-	toRef := blobref.MustParse(mustGet(req, "blobref"))
+	ret := jsonMap()
+	toRef := httputil.MustGetBlobRef(req, "blobref")
 	toRefStr := toRef.String()
 	blobInfo := jsonMap()
 	ret[toRefStr] = blobInfo
@@ -1172,6 +1171,7 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 	blobInfo["edgesTo"] = jsonEdges
+	httputil.ReturnJSON(rw, ret)
 }
 
 func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {

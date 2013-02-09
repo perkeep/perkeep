@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/blobref"
 )
 
 func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
@@ -61,37 +62,21 @@ func ServerError(conn http.ResponseWriter, req *http.Request, err error) {
 	fmt.Fprintf(conn, "An internal error occured, sorry.")
 }
 
-func ReturnJSON(conn http.ResponseWriter, data interface{}) {
-	conn.Header().Set("Content-Type", "text/javascript")
+func ReturnJSON(rw http.ResponseWriter, data interface{}) {
+	ReturnJSONCode(rw, 200, data)
+}
 
-	if m, ok := data.(map[string]interface{}); ok {
-		statusCode := 0
-		if t, ok := m["error"].(string); ok && len(t) > 0 {
-			statusCode = http.StatusInternalServerError
-		}
-		if t, ok := m["errorType"].(string); ok {
-			switch t {
-			case "server":
-				statusCode = http.StatusInternalServerError
-			case "input":
-				statusCode = http.StatusBadRequest
-			}
-		}
-		if statusCode != 0 {
-			conn.WriteHeader(statusCode)
-		}
-	}
-
-	bytes, err := json.MarshalIndent(data, "", "  ")
+func ReturnJSONCode(rw http.ResponseWriter, code int, data interface{}) {
+	rw.Header().Set("Content-Type", "text/javascript")
+	rw.WriteHeader(code)
+	js, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		BadRequestError(conn, fmt.Sprintf(
-			"JSON serialization error: %v", err))
+		BadRequestError(rw, fmt.Sprintf("JSON serialization error: %v", err))
 		return
 	}
-
-	conn.Header().Set("Content-Length", strconv.Itoa(len(bytes)+1))
-	conn.Write(bytes)
-	conn.Write([]byte("\n"))
+	rw.Header().Set("Content-Length", strconv.Itoa(len(js)+1))
+	rw.Write(js)
+	rw.Write([]byte("\n"))
 }
 
 type PrefixHandler struct {
@@ -151,4 +136,75 @@ func RequestTargetPort(req *http.Request) int {
 		return 443
 	}
 	return 80
+}
+
+// Recover is meant to be used at the top of handlers with "defer"
+// to catch errors from MustGet, etc:
+//
+//   func handler(rw http.ResponseWriter, req *http.Request) {
+//       defer httputil.Recover(rw, req)
+//       id := req.MustGet("id")
+//       ....
+//
+// Recover will send the proper HTTP error type and message (e.g.
+// a 400 Bad Request for MustGet)
+func Recover(rw http.ResponseWriter, req *http.Request) {
+	RecoverJSON(rw, req) // TODO: for now. alternate format?
+}
+
+func RecoverJSON(rw http.ResponseWriter, req *http.Request) {
+	e := recover()
+	if e == nil {
+		return
+	}
+	code := 500
+	if i, ok := e.(httpCoder); ok {
+		code = i.HTTPCode()
+	}
+	msg := fmt.Sprint(e)
+	log.Printf("Sending error %v to client for: %v", code, msg)
+	ReturnJSONCode(rw, code, map[string]interface{}{
+		"error": msg,
+		"errorType": http.StatusText(code),
+	})
+}
+
+type httpCoder interface {
+	HTTPCode() int
+}
+
+type InvalidMethodError struct{}
+
+func (InvalidMethodError) Error() string { return "invalid method" }
+func (InvalidMethodError) HTTPCode() int { return http.StatusMethodNotAllowed }
+
+type MissingParameterError string
+
+func (p MissingParameterError) Error() string { return fmt.Sprintf("Missing parameter %q", string(p)) }
+func (MissingParameterError) HTTPCode() int   { return http.StatusBadRequest }
+
+type InvalidParameterError string
+
+func (p InvalidParameterError) Error() string { return fmt.Sprintf("Invalid parameter %q", string(p)) }
+func (InvalidParameterError) HTTPCode() int   { return http.StatusBadRequest }
+
+// MustGet returns the GET (or HEAD) parameter param and panics
+// with a special error as caught by a deferred httputil.Recover.
+func MustGet(req *http.Request, param string) string {
+	if req.Method != "GET" && req.Method != "HEAD" {
+		panic(InvalidMethodError{})
+	}
+	v := req.FormValue(param)
+	if v == "" {
+		panic(MissingParameterError(param))
+	}
+	return v
+}
+
+func MustGetBlobRef(req *http.Request, param string) *blobref.BlobRef {
+	br := blobref.Parse(MustGet(req, param))
+	if br == nil {
+		panic(InvalidParameterError(param))
+	}
+	return br
 }
