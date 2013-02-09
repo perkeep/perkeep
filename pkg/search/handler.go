@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/types"
 )
 
 const buffered = 32      // arbitrary channel buffer size
@@ -295,9 +296,7 @@ type SignerPathsResponse struct {
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
 type RecentItem struct {
 	BlobRef *blobref.BlobRef `json:"blobref"`
-	// TODO: add a type with concrete type of time.Time that implements
-	// encode/decodeJSON hooks to RFC3339 strings
-	ModTime string           `json:"modtime"` // RFC3339
+	ModTime types.Time3339   `json:"modtime"`
 	Owner   *blobref.BlobRef `json:"owner"`
 }
 
@@ -348,7 +347,7 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 		recent = append(recent, &RecentItem{
 			BlobRef: res.BlobRef,
 			Owner:   res.Signer,
-			ModTime: time.Unix(res.LastModTime, 0).UTC().Format(time.RFC3339),
+			ModTime: types.Time3339(time.Unix(res.LastModTime, 0)),
 		})
 	}
 
@@ -440,6 +439,8 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	httputil.ReturnJSON(rw, res)
 }
 
+// TODO: modernize this like other handlers above: separate HTTP part vs. raw query part,
+// types for request & response, etc.
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 
@@ -462,7 +463,7 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 			jclaim["blobref"] = claim.BlobRef.String()
 			jclaim["signer"] = claim.Signer.String()
 			jclaim["permanode"] = claim.Permanode.String()
-			jclaim["date"] = claim.Date.Format(time.RFC3339)
+			jclaim["date"] = claim.Date.Format(time.RFC3339) // TODO: use types.Time3339
 			jclaim["type"] = claim.Type
 			if claim.Attr != "" {
 				jclaim["attr"] = claim.Attr

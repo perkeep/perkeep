@@ -28,7 +28,7 @@ import (
 type Result struct {
 	BlobRef     *blobref.BlobRef
 	Signer      *blobref.BlobRef // may be nil
-	LastModTime int64            // seconds since epoch
+	LastModTime int64            // seconds since epoch; TODO: time.Time?
 }
 
 // Results exists mostly for debugging, to provide a String method on
