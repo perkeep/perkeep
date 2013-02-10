@@ -355,7 +355,7 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 		return nil, err
 	}
 
-	metaMap, err := dr.metaMap(req.thumbnailSize())
+	metaMap, err := dr.metaMapThumbs(req.thumbnailSize())
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 		})
 	}
 
-	metaMap, err := dr.metaMap(0)
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		return nil, err
 	}
@@ -778,7 +778,11 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 	return dr.m, nil
 }
 
-func (dr *DescribeRequest) metaMap(thumbSize int) (map[string]*DescribedBlob, error) {
+func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
+	return dr.metaMapThumbs(0)
+}
+
+func (dr *DescribeRequest) metaMapThumbs(thumbSize int) (map[string]*DescribedBlob, error) {
 	// thumbSize of zero means to not include the thumbnails.
 	dr.wg.Wait()
 	dr.mu.Lock()
@@ -904,7 +908,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(br, 4)
-	metaMap, err := dr.metaMap(thumbnailSize(req))
+	metaMap, err := dr.metaMapThumbs(thumbnailSize(req))
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -1025,7 +1029,7 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(pn, 2)
-	metaMap, err := dr.metaMap(0)
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -1139,7 +1143,7 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 		dr.Describe(path.Base, 2)
 	}
 
-	metaMap, err := dr.metaMap(0)
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
