@@ -86,7 +86,7 @@ func (dr *DirReader) StaticSet() ([]*blobref.BlobRef, error) {
 	if dr.staticSet != nil {
 		return dr.staticSet, nil
 	}
-	staticSetBlobref := blobref.Parse(dr.ss.Entries)
+	staticSetBlobref := dr.ss.Entries
 	if staticSetBlobref == nil {
 		return nil, fmt.Errorf("schema/filereader: Invalid blobref\n")
 	}
@@ -101,8 +101,7 @@ func (dr *DirReader) StaticSet() ([]*blobref.BlobRef, error) {
 	if ss.Type != "static-set" {
 		return nil, fmt.Errorf("schema/filereader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
 	}
-	for _, s := range ss.Members {
-		member := blobref.Parse(s)
+	for _, member := range ss.Members {
 		if member == nil {
 			return nil, fmt.Errorf("schema/filereader: invalid (static-set member) blobref\n")
 		}

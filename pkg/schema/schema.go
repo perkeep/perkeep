@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
@@ -202,15 +203,15 @@ type superset struct {
 	Version int    `json:"camliVersion"`
 	Type    string `json:"camliType"`
 
-	Signer string `json:"camliSigner"`
-	Sig    string `json:"camliSig"`
+	Signer *blobref.BlobRef `json:"camliSigner"`
+	Sig    string           `json:"camliSig"`
 
-	ClaimType string `json:"claimType"`
-	ClaimDate string `json:"claimDate"`
+	ClaimType string         `json:"claimType"`
+	ClaimDate types.Time3339 `json:"claimDate"`
 
-	Permanode string `json:"permaNode"`
-	Attribute string `json:"attribute"`
-	Value     string `json:"value"`
+	Permanode *blobref.BlobRef `json:"permaNode"`
+	Attribute string           `json:"attribute"`
+	Value     string           `json:"value"`
 
 	// FileName and FileNameBytes represent one of the two
 	// representations of file names in schema blobs.  They should
@@ -235,8 +236,8 @@ type superset struct {
 	// See doc/schema/bytes.txt and doc/schema/files/file.txt.
 	Parts []*BytesPart `json:"parts"`
 
-	Entries string   `json:"entries"` // for directories, a blobref to a static-set
-	Members []string `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
+	Entries *blobref.BlobRef   `json:"entries"` // for directories, a blobref to a static-set
+	Members []*blobref.BlobRef `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
 
 	// Target is a "share" blob's target (the thing being shared)
 	Target *blobref.BlobRef `json:"target"`

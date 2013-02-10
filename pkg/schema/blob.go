@@ -91,10 +91,10 @@ func (b *Blob) FileName() string {
 func (b *Blob) ClaimDate() (time.Time, error) {
 	var ct time.Time
 	claimDate := b.ss.ClaimDate
-	if claimDate == "" {
+	if claimDate.IsZero()  {
 		return ct, MissingFieldError("claimDate")
 	}
-	return time.Parse(time.RFC3339, claimDate)
+	return claimDate.Time(), nil
 }
 
 // ByteParts returns the "parts" field. The caller owns the returned
@@ -120,7 +120,7 @@ func (b *Blob) Builder() *Builder {
 
 // AsClaim returns a Claim if the receiver Blob has all the required fields.
 func (b *Blob) AsClaim() (c Claim, ok bool) {
-	if blobref.Parse(b.ss.Signer) != nil && b.ss.Sig != "" && b.ss.ClaimType != "" && b.ss.ClaimDate != "" {
+	if b.ss.Signer != nil && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsZero() {
 		return Claim{b}, true
 	}
 	return
@@ -132,7 +132,7 @@ func (b *Blob) DirectoryEntries() *blobref.BlobRef {
 	if b.Type() != "directory" {
 		return nil
 	}
-	return blobref.Parse(b.ss.Entries)
+	return b.ss.Entries
 }
 
 func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
@@ -140,8 +140,8 @@ func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
 		return nil
 	}
 	s := make([]*blobref.BlobRef, 0, len(b.ss.Members))
-	for _, refstr := range b.ss.Members {
-		if ref := blobref.Parse(refstr); ref != nil {
+	for _, ref := range b.ss.Members {
+		if ref != nil {
 			s = append(s, ref)
 		}
 	}
@@ -174,7 +174,7 @@ type Claim struct {
 func (c Claim) Blob() *Blob { return c.b }
 
 // ClaimDate returns the blob's "claimDate" field.
-func (c Claim) ClaimDateString() string { return c.b.ss.ClaimDate }
+func (c Claim) ClaimDateString() string { return c.b.ss.ClaimDate.String() }
 
 // ClaimType returns the blob's "claimType" field.
 func (c Claim) ClaimType() string { return c.b.ss.ClaimType }
@@ -188,7 +188,7 @@ func (c Claim) Value() string { return c.b.ss.Value }
 // ModifiedPermanode returns the claim's "permaNode" field, if it's
 // a claim that modifies a permanode. Otherwise nil is returned.
 func (c Claim) ModifiedPermanode() *blobref.BlobRef {
-	return blobref.Parse(c.b.ss.Permanode)
+	return c.b.ss.Permanode
 }
 
 // A Builder builds a JSON blob.
