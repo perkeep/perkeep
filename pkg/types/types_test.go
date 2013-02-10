@@ -23,7 +23,7 @@ import (
 )
 
 func TestTime3339(t *testing.T) {
-	tm := time.Unix(123, 0)
+	tm := time.Unix(123, 456)
 	t3 := Time3339(tm)
 	type O struct {
 		SomeTime Time3339 `json:"someTime"`
@@ -33,7 +33,7 @@ func TestTime3339(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goodEnc := "{\"someTime\":\"1970-01-01T00:02:03Z\"}"
+	goodEnc := "{\"someTime\":\"1970-01-01T00:02:03.000000456Z\"}"
 	if string(got) != goodEnc {
 		t.Errorf("Encoding wrong.\n Got: %q\nWant: %q", got, goodEnc)
 	}
@@ -44,5 +44,24 @@ func TestTime3339(t *testing.T) {
 	}
 	if !tm.Equal(ogot.SomeTime.Time()) {
 		t.Errorf("Unmarshal got time %v; want %v", ogot.SomeTime.Time(), tm)
+	}
+}
+
+func TestTime3339_empty(t *testing.T) {
+	tests := []struct {
+		enc string
+		z   bool
+	}{
+		// {enc: "0000-00-00T00:00:00Z"}, Go bug files
+		{enc: "1970-01-01T00:00:00Z", z: true},
+		{enc: "2001-02-03T04:05:06Z", z: false},
+	}
+	for _, tt := range tests {
+		var tm Time3339
+		err := json.Unmarshal([]byte("\"" + tt.enc + "\""), &tm)
+		if tm.IsZero() != tt.z {
+			t.Logf("unmarshal %q = %v (%d), %v; zero=%v; want %v", tt.enc, tm.Time(), tm.Time().Unix(), err,
+				!tt.z, tt.z)
+		}
 	}
 }

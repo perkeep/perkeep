@@ -31,15 +31,19 @@ var (
 	_ json.Unmarshaler = (*Time3339)(nil)
 )
 
+func (t Time3339) String() string {
+	return time.Time(t).UTC().Format(time.RFC3339Nano)
+}
+
 func (t Time3339) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Time(t).UTC().Format(time.RFC3339))
+	return json.Marshal(t.String())
 }
 
 func (t *Time3339) UnmarshalJSON(b []byte) error {
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
 		return fmt.Errorf("types: failed to unmarshal non-string value %q as an RFC 3339 time")
 	}
-	tm, err := time.Parse(time.RFC3339, string(b[1:len(b)-1]))
+	tm, err := time.Parse(time.RFC3339Nano, string(b[1:len(b)-1]))
 	if err != nil {
 		return err
 	}
@@ -51,4 +55,9 @@ func (t *Time3339) UnmarshalJSON(b []byte) error {
 // than a manual conversion.
 func (t Time3339) Time() time.Time {
 	return time.Time(t)
+}
+
+// IsZero returns whether the time is Go zero or Unix zero.
+func (t Time3339) IsZero() bool {
+	return t.Time().IsZero() || t.Time().Unix() == 0
 }
