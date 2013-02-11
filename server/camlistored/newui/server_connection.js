@@ -11,6 +11,8 @@ goog.require('goog.Uri'); // because goog.net.XhrIo forgot to include it.
 goog.require('goog.debug.ErrorHandler'); // because goog.net.Xhrio forgot to include it.
 goog.require('goog.uri.utils');
 goog.require('camlistore.CamliCommon');
+goog.require('camlistore.ServerType');
+
 
 /**
  * @param {camlistore.ServerType.DiscoveryDocument} config Discovery document
@@ -34,7 +36,9 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
 
 
 /**
- *
+ * @param {function(camlistore.ServerType.SearchRecentResponse)} success callback with data.
+ * @param {number=} opt_thumbnailSize
+ * @param {Function=} opt_fail optional failure calback
  */
 camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodes =
     function(success, opt_thumbnailSize, opt_fail) {
