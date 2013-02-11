@@ -16,11 +16,13 @@ embeds:
 getclosure:
 	perl -e 'require "misc/get_closure.pl"; get_closure_lib(); get_closure_compiler();'
 
+UIDIR = server/camlistored/ui
+
 NEWUIDIR = server/camlistored/newui
 
 minijs: $(NEWUIDIR)/all.js
 
-$(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/index.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/toolbar.js
+$(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/index.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/toolbar.js $(UIDIR)/base64.js $(UIDIR)/camli.js $(UIDIR)/Crypto.js $(UIDIR)/SHA1.js
 	# This will generate non working code for now, since camli.js, SHA1.js, Crypto.js,
 	# and base64.js are not explicitely declared as dependencies.
 	tmp/closure-lib/closure/bin/build/closurebuilder.py\
