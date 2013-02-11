@@ -36,4 +36,5 @@ $(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js 
 		--compiler_flags="--jscomp_warning=checkTypes" \
 		--compiler_flags="--debug" \
 		--compiler_flags="--formatting=PRETTY_PRINT" \
+		--compiler_flags="--create_source_map=$(NEWUIDIR)/all.js.map" \
 	> $(NEWUIDIR)/all.js

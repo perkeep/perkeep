@@ -47,7 +47,7 @@ var _ = log.Printf
 
 var (
 	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-	static2FilePattern = regexp.MustCompile(`^new/*(/[a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))*$`)
+	static2FilePattern = regexp.MustCompile(`^new/*(/[a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif|js\.map))*$`)
 	identOrDotPattern  = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
 
 	// Download URL suffix:
@@ -444,6 +444,9 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 	if file == "/deps.js" {
 		ui.serveDepsJS(rw, req)
 		return
+	}
+	if file == "/all.js" {
+		rw.Header().Set("X-SourceMap", "all.js.map")
 	}
 	// TODO(mpl): temporary hack to ease the work on the newui with
 	// the closure compiler.

@@ -20,3 +20,4 @@ build/root
 .DS_Store
 tmp
 server/camlistored/newui/all.js
+server/camlistored/newui/all.js.map
