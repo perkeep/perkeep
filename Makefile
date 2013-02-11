@@ -32,7 +32,7 @@ $(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js 
 		--namespace="camlistore.IndexPage" \
 		--output_mode=compiled \
 		--compiler_jar=tmp/closure-compiler/compiler.jar \
-		--compiler_flags="--compilation_level=ADVANCED_OPTIMIZATIONS" \
+		--compiler_flags="--compilation_level=SIMPLE_OPTIMIZATIONS" \
 		--compiler_flags="--jscomp_warning=checkTypes" \
 		--compiler_flags="--debug" \
 		--compiler_flags="--formatting=PRETTY_PRINT" \
