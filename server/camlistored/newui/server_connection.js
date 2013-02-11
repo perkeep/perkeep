@@ -8,6 +8,7 @@ goog.provide('camlistore.ServerConnection');
 
 goog.require('goog.net.XhrIo');
 goog.require('goog.Uri'); // because goog.net.XhrIo forgot to include it.
+goog.require('goog.debug.ErrorHandler'); // because goog.net.Xhrio forgot to include it.
 goog.require('goog.uri.utils');
 goog.require('camlistore.CamliCommon');
 
@@ -25,7 +26,7 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
   this.config_ = config;
 
   /**
-   * @type {function()}
+   * @type {Function}
    * @private
    */
   this.sendXhr_ = opt_sendXhr || goog.net.XhrIo.send;
@@ -143,7 +144,12 @@ camlistore.ServerConnection.prototype.newAddAttributeClaim =
   });
 };
 
-
+/**
+ * @param {string} blobref Permanode blobref.
+ * @param {number} thumbnailSize
+ * @param {Function} success.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
 camlistore.ServerConnection.prototype.describeWithThumbnails =
     function(blobref, thumbnailSize, success, opt_fail) {
   // TODO(bradfitz): stop depending on camli.js.  For now, cheating:
@@ -152,4 +158,4 @@ camlistore.ServerConnection.prototype.describeWithThumbnails =
     success: success,
     fail: opt_fail
   });
-}
+};

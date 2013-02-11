@@ -19,6 +19,7 @@ if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
 
     goog.require('camlistore.base64');
     goog.require('camlistore.SHA1');
+    goog.require('camlistore.ServerType');
 }
 
 // Camli namespace.
@@ -51,7 +52,7 @@ Camli.setTextContent = function(ele, text) {
 /**
 * Sets the Camlistore Discovery configuration object.
 *
-* @param {Object.<string, <?>>} config The Camlistore configuration Object from Discovery.
+* @param {camlistore.ServerType.DiscoveryDocument} config The Camlistore configuration Object from Discovery.
 *
 * @expose
 */
@@ -238,7 +239,7 @@ function camliUploadFileHelper(file, contentsBlobRef, opts) {
 
     var doUpload = function() {
         var fd = new FormData();
-        fd.append(fd, file);
+        fd.append("TODO-some-uploadHelper-form-name", file);
         var uploadCb = { fail: opts.fail };
         uploadCb.success = function(res) {
             if (res.got && res.got.length == 1 && res.got[0].fileref) {
@@ -505,8 +506,13 @@ function camliNewDelAttributeClaim(permanode, attribute, value, opts) {
     Camli.changeAttribute(permanode, "del-attribute", attribute, value, opts);
 }
 
-// camliCondCall calls fn, if non-null, with the remaining parameters.
-function camliCondCall(fn /*, ... */) {
+/**
+ * camliCondCall calls fn, if non-null, with the remaining parameters.
+ *
+ * @param {Function?} fn 
+ * @param {...?} var_args
+ */
+function camliCondCall(fn, var_args) {
     if (!fn) {
         return;
     }

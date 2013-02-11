@@ -51,7 +51,7 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
    * would be the blobref that is currently the content for the permanode
    * specified by 'blobRef'.
    *
-   * @type {camlistore.ServerType.IndexerMeta}
+   * @type {camlistore.ServerType.IndexerMeta?}
    * @private
    */
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(

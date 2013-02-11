@@ -15,7 +15,7 @@ goog.require('goog.ui.Control');
 /**
  * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
  *
- * @extends {goog.ui.Component}
+ * @extends {goog.ui.Control}
  * @constructor
  */
 camlistore.CreateItem = function(opt_domHelper) {
