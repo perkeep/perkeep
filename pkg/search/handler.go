@@ -170,11 +170,11 @@ func (r *RecentRequest) URLSuffix() string {
 	return fmt.Sprintf("camli/search/recent?n=%d&thumbnails=%d", r.n(), r.thumbnailSize())
 }
 
-func (r *RecentRequest) FromHTTP(req *http.Request) error {
+// fromHTTP panics with an httputil value on failure
+func (r *RecentRequest) fromHTTP(req *http.Request) {
 	r.N, _ = strconv.Atoi(req.FormValue("n"))
 	r.ThumbnailSize = thumbnailSize(req)
 	// TODO: populate Before
-	return nil
 }
 
 // n returns the sanitized number of search results.
@@ -209,15 +209,9 @@ type WithAttrRequest struct {
 	Fuzzy bool // fulltext search (if supported).
 }
 
-func (r *WithAttrRequest) FromHTTP(req *http.Request) error {
-	v := req.FormValue("signer")
-	if v == "" {
-		return httputil.MissingParameterError("signer")
-	}
-	r.Signer = blobref.Parse(v)
-	if r.Signer == nil {
-		return httputil.InvalidParameterError("signer")
-	}
+// fromHTTP panics with an httputil value on failure
+func (r *WithAttrRequest) fromHTTP(req *http.Request) {
+	r.Signer = httputil.MustGetBlobRef(req, "signer")
 	r.Value = req.FormValue("value")
 	fuzzy := req.FormValue("fuzzy") // exact match if empty
 	fuzzyMatch := false
@@ -237,14 +231,23 @@ func (r *WithAttrRequest) FromHTTP(req *http.Request) error {
 	if max != "" {
 		maxR, err := strconv.Atoi(max)
 		if err != nil {
-			return fmt.Errorf("Invalid specified max results 'max': " + err.Error())
+			panic(httputil.InvalidParameterError("max"))
 		}
 		if maxR < maxResults {
 			maxResults = maxR
 		}
 	}
 	r.N = maxResults
-	return nil
+}
+
+// ClaimsRequest is a request to get a ClaimsResponse.
+type ClaimsRequest struct {
+	Permanode *blobref.BlobRef
+}
+
+// fromHTTP panics with an httputil value on failure
+func (r *ClaimsRequest) fromHTTP(req *http.Request) {
+	r.Permanode = httputil.MustGetBlobRef(req, "permanode")
 }
 
 // A MetaMap is a map from blobref to a DescribedBlob.
@@ -287,6 +290,11 @@ type WithAttrResponse struct {
 	Meta     MetaMap         `json:"meta"`
 }
 
+// ClaimsResponse is the JSON response from $searchRoot/camli/search/claims.
+type ClaimsResponse struct {
+	Claims []*ClaimsItem `json:"claims"`
+}
+
 // SignerPathsResponse is the JSON response from $searchRoot/camli/search/signerpaths.
 type SignerPathsResponse struct {
 	Paths []*SignerPathsItem `json:"paths"`
@@ -303,6 +311,17 @@ type RecentItem struct {
 // A WithAttrItem is an item returned from $searchRoot/camli/search/permanodeattr.
 type WithAttrItem struct {
 	Permanode *blobref.BlobRef `json:"permanode"`
+}
+
+// A ClaimsItem is an item returned from $searchRoot/camli/search/claims.
+type ClaimsItem struct {
+	BlobRef   *blobref.BlobRef `json:"blobref"`
+	Signer    *blobref.BlobRef `json:"signer"`
+	Permanode *blobref.BlobRef `json:"permanode"`
+	Date      types.Time3339   `json:"date"`
+	Type      string           `json:"type"`
+	Attr      string           `json:"attr,omitempty"`
+	Value     string           `json:"value,omitempty"`
 }
 
 // A SignerPathsItem is an item returned from $searchRoot/camli/search/signerpaths.
@@ -369,10 +388,8 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	var rr RecentRequest
-	if err := rr.FromHTTP(req); err != nil {
-		httputil.ServeJSONError(rw, err)
-		return
-	}
+	defer httputil.RecoverJSON(rw, req)
+	rr.fromHTTP(req)
 	res, err := sh.GetRecentPermanodes(&rr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -421,10 +438,8 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 // for a permanode which are actually indexed as such) are "tag" and "title".
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	var wr WithAttrRequest
-	if err := wr.FromHTTP(req); err != nil {
-		httputil.ServeJSONError(rw, err)
-		return
-	}
+	defer httputil.RecoverJSON(rw, req)
+	wr.fromHTTP(req)
 	res, err := sh.GetPermanodesWithAttr(&wr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -433,42 +448,44 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	httputil.ReturnJSON(rw, res)
 }
 
-// TODO: modernize this like other handlers above: separate HTTP part vs. raw query part,
-// types for request & response, etc.
-func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
-	defer httputil.RecoverJSON(rw, req)
-	ret := jsonMap()
-
-	pn := httputil.MustGetBlobRef(req, "permanode")
-
+func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	// TODO: rename GetOwnerClaims to GetClaims?
-	claims, err := sh.index.GetOwnerClaims(pn, sh.owner)
+	claims, err := sh.index.GetOwnerClaims(req.Permanode, sh.owner)
+	// TODO(mpl): check what happens if req.Permanode is nil, and deal with it accordingly.
 	if err != nil {
-		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-	} else {
-		sort.Sort(claims)
-		jclaims := jsonMapList()
-
-		for _, claim := range claims {
-			jclaim := jsonMap()
-			jclaim["blobref"] = claim.BlobRef.String()
-			jclaim["signer"] = claim.Signer.String()
-			jclaim["permanode"] = claim.Permanode.String()
-			jclaim["date"] = claim.Date.Format(time.RFC3339) // TODO: use types.Time3339
-			jclaim["type"] = claim.Type
-			if claim.Attr != "" {
-				jclaim["attr"] = claim.Attr
-			}
-			if claim.Value != "" {
-				jclaim["value"] = claim.Value
-			}
-
-			jclaims = append(jclaims, jclaim)
+		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
+	}
+	sort.Sort(claims)
+	var jclaims []*ClaimsItem
+	for _, claim := range claims {
+		jclaim := &ClaimsItem{
+			BlobRef:   claim.BlobRef,
+			Signer:    claim.Signer,
+			Permanode: claim.Permanode,
+			Date:      types.Time3339(claim.Date),
+			Type:      claim.Type,
+			Attr:      claim.Attr,
+			Value:     claim.Value,
 		}
-		ret["claims"] = jclaims
+		jclaims = append(jclaims, jclaim)
 	}
 
-	httputil.ReturnJSON(rw, ret)
+	res := &ClaimsResponse{
+		Claims: jclaims,
+	}
+	return res, nil
+}
+
+func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
+	var cr ClaimsRequest
+	defer httputil.RecoverJSON(rw, req)
+	cr.fromHTTP(req)
+	res, err := sh.GetClaims(&cr)
+	if err != nil {
+		httputil.ServeJSONError(rw, err)
+		return
+	}
+	httputil.ReturnJSON(rw, res)
 }
 
 type DescribeRequest struct {
@@ -899,12 +916,8 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 }
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	br := blobref.Parse(req.FormValue("blobref"))
-	if br == nil {
-		// TODO: make this be a 400 Bad Request HTTP type.
-		httputil.ServeJSONError(rw, errors.New("input: missing or invalid 'blobref' param"))
-		return
-	}
+	defer httputil.RecoverJSON(rw, req)
+	br := httputil.MustGetBlobRef(req, "blobref")
 
 	dr := sh.NewDescribeRequest()
 	dr.Describe(br, 4)
