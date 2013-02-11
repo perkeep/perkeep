@@ -25,11 +25,22 @@ camlistore.ServerType.DiscoveryRoot;
  *   searchRoot: string,
  *   storageGeneration: string,
  *   storageInitTime: string,
+ *   signing: camlistore.ServerType.SigningDiscoveryDocument,
  *   uploadHelper: string
  * }}
  */
 camlistore.ServerType.DiscoveryDocument;
 
+/**
+ * @typedef {{
+ *   publicKey: string,
+ *   publicKeyBlobRef: string,
+ *   publicKeyId: string,
+ *   signHandler: string,
+ *   verifyHandler: string
+ * }}
+ */
+camlistore.ServerType.SigningDiscoveryDocument;
 
 /**
  * @typedef {{
