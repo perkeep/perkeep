@@ -25,7 +25,7 @@ goog.require('goog.ui.Control');
  * @constructor
  */
 camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
-  goog.base(this, opt_domHelper);
+  goog.base(this, null, null, opt_domHelper);
 
   /**
    * @type {string}

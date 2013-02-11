@@ -261,7 +261,7 @@ camlistore.BlobItemContainer.prototype.isShiftKeyDown_ = false;
 
 /**
  * Sets state for whether or not the shift key is down.
- * @param {goog.events.KeyHandler.EventType.KEY} e A key event.
+ * @param {goog.events.KeyEvent} e A key event.
  */
 camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
   this.isShiftKeyDown_ = e.keyCode == goog.events.KeyCodes.SHIFT;
@@ -270,7 +270,7 @@ camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
 
 /**
  * Sets state for whether or not the shift key is down.
- * @param {goog.events.KeyHandler.EventType.KEY} e A key event.
+ * @param {goog.events.KeyEvent} e A key event.
  */
 camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
   this.isShiftKeyDown_ = false;

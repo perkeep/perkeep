@@ -27,6 +27,9 @@ if (typeof goog != 'undefined' && typeof goog.provide != 'undefined') {
     goog.provide('camlistore.base64');
 }
 
+/**
+ * @constructor
+ */
 function StringBuffer()
 { 
     this.buffer = []; 
@@ -107,6 +110,9 @@ var Base64 =
 }
 
 
+/**
+ * @constructor
+ */
 function Utf8EncodeEnumerator(input)
 {
     this._input = input;
@@ -163,6 +169,9 @@ Utf8EncodeEnumerator.prototype =
     }
 }
 
+/**
+ * @constructor
+ */
 function Base64DecodeEnumerator(input)
 {
     this._input = input;

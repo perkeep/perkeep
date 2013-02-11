@@ -27,6 +27,15 @@ if (!window.Camli) {
    window.Camli = {};
 }
 
+/**
+ * @typedef {{
+ *   success: Function?,
+ *   fail: Function?
+ * }}
+ */
+Camli.OptCallbacks;
+
+
 function $(id) {
     return document.getElementById(id);
 }
@@ -183,6 +192,10 @@ function camliSign(clearObj, opts) {
     xhr.send("json=" + encodeURIComponent(clearText));
 }
 
+/**
+ * @param {?} file File object to upload.
+ * @param {Camli.OptCallbacks} opts callbacks. 
+ *
 // camliUploadFile uploads a file and returns a file schema. It does not create
 // any permanodes.
 //
@@ -193,6 +206,7 @@ function camliSign(clearObj, opts) {
 //   - success: function(fileBlobRef) of the server-validated or
 //         just-uploaded file schema blob.
 //   - onContentsRef: function(blobref) of contents, once hashed in-browser
+*/
 function camliUploadFile(file, opts) {
     var fr = new FileReader();
     fr.onload = function() {
