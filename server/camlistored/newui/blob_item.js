@@ -6,6 +6,7 @@
  */
 goog.provide('camlistore.BlobItem');
 
+goog.require('camlistore.ServerType');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
