@@ -253,7 +253,7 @@ camlistore.BlobItemContainer.prototype.listenToBlobItemEvents_ = function() {
 
 
 /**
- * @type {Boolean}
+ * @type {boolean}
  * @private
  */
 camlistore.BlobItemContainer.prototype.isShiftKeyDown_ = false;

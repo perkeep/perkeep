@@ -21,7 +21,7 @@ goog.require('goog.ui.Control');
  *   metadata for this blob and related blobs.
  * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
  *
- * @extends {goog.ui.Component}
+ * @extends {goog.ui.Control}
  * @constructor
  */
 camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
@@ -80,7 +80,7 @@ goog.inherits(camlistore.BlobItem, goog.ui.Control);
  * @param {string} blobRef string BlobRef to resolve.
  * @param {camlistore.ServerType.IndexerMetaBag} metaBag Metadata bag to use
  *   for resolving the blobref.
- * @return {camlistore.ServerType.IndexerMeta}
+ * @return {camlistore.ServerType.IndexerMeta?}
  */
 camlistore.BlobItem.resolve = function(blobRef, metaBag) {
   var metaData = metaBag[blobRef];
@@ -126,7 +126,7 @@ camlistore.BlobItem.prototype.getThumbSrc_ = function() {
  * @return {number}
  */
 camlistore.BlobItem.prototype.getThumbHeight_ = function() {
-  return this.metaData_.thumbnailHeight;
+  return this.metaData_.thumbnailHeight || 0;
 };
 
 
@@ -134,7 +134,7 @@ camlistore.BlobItem.prototype.getThumbHeight_ = function() {
  * @return {number}
  */
 camlistore.BlobItem.prototype.getThumbWidth_ = function() {
-  return this.metaData_.thumbnailWidth;
+  return this.metaData_.thumbnailWidth || 0;
 };
 
 

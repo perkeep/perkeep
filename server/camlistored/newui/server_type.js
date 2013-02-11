@@ -89,3 +89,20 @@ camlistore.ServerType.IndexerMeta;
  * @typedef {Object.<string, camlistore.ServerType.IndexerMeta>}
  */
 camlistore.ServerType.IndexerMetaBag;
+
+/**
+ * @typedef {{
+ *   blobref: string,
+ *   modtime: string,
+ *   owner: string
+ * }}
+*/
+camlistore.ServerType.SearchRecentItem;
+
+/**
+ * @typedef {{
+ *   recent: Array.<camlistore.ServerType.SearchRecentItem>,
+ *   meta: camlistore.ServerType.IndexerMetaBag
+ * }}
+*/
+camlistore.ServerType.SearchRecentResponse;

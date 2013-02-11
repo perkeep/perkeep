@@ -7,6 +7,7 @@
 goog.provide('camlistore.ServerConnection');
 
 goog.require('goog.net.XhrIo');
+goog.require('goog.Uri'); // because goog.net.XhrIo forgot to include it.
 goog.require('goog.uri.utils');
 goog.require('camlistore.CamliCommon');
 
