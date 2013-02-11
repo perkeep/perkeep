@@ -708,7 +708,15 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opInterrupt:
-		panic("opInterrupt")
+		in := (*interruptIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		req = &InterruptRequest{
+			Header: m.Header(),
+			Unique: in.Unique,
+		}
+
 	case opBmap:
 		panic("opBmap")
 
@@ -1610,6 +1618,11 @@ func (r *FsyncRequest) String() string {
 func (r *FsyncRequest) Respond() {
 	out := &outHeader{Unique: uint64(r.ID)}
 	r.Conn.respond(out, unsafe.Sizeof(*out))
+}
+
+type InterruptRequest struct {
+	Header
+	Unique uint64
 }
 
 /*{
