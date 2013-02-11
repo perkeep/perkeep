@@ -20,6 +20,9 @@ UIDIR = server/camlistored/ui
 
 NEWUIDIR = server/camlistored/newui
 
+clean:
+	rm -f $(NEWUIDIR)/all.js $(NEWUIDIR)/all.js.map
+
 minijs: $(NEWUIDIR)/all.js
 
 $(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/index.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/toolbar.js $(UIDIR)/base64.js $(UIDIR)/camli.js $(UIDIR)/Crypto.js $(UIDIR)/SHA1.js
