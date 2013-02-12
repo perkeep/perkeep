@@ -19,6 +19,7 @@ package throttle
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -34,7 +35,7 @@ func (r Rate) byteTime(n int) time.Duration {
 	if r.KBps == 0 {
 		return 0
 	}
-	return time.Duration(float64(n) / 1024 / float64(r.KBps)) * time.Second
+	return time.Duration(float64(n)/1024/float64(r.KBps)) * time.Second
 }
 
 type Listener struct {
@@ -69,7 +70,9 @@ type conn struct {
 	net.Conn
 	Down, Up Rate
 
-	wchan chan writeReq
+	wchan     chan writeReq
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (c *conn) start() {
@@ -97,9 +100,12 @@ func (c *conn) writeLoop() {
 }
 
 func (c *conn) Close() error {
-	err := c.Conn.Close()
-	close(c.wchan)
-	return err
+	c.closeOnce.Do(func() {
+		err := c.Conn.Close()
+		close(c.wchan)
+		c.closeErr = err
+	})
+	return c.closeErr
 }
 
 func (c *conn) Write(p []byte) (n int, err error) {
