@@ -452,10 +452,11 @@ var noDupSearch = os.Getenv("CAMLI_NO_FILE_DUP_SEARCH") == "1"
 // existing file with an entire contents of sum (a blobref string).
 // If the server has it, it's validated, and then fileMap (which must
 // already be partially populated) has its "parts" field populated,
-// and then fileMap is uploaded (if necessary) and its blobref is
-// returned.  If there's any problem, or a dup doesn't exist, ok is
-// false.
-func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (fileSchema *blobref.BlobRef, ok bool) {
+// and then fileMap is uploaded (if necessary) and a PutResult with
+// its blobref is returned. If there's any problem, or a dup doesn't
+// exist, ok is false.
+// If required, Vivify is also done here.
+func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (pr *client.PutResult, ok bool) {
 	if noDupSearch {
 		return
 	}
@@ -487,19 +488,23 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 		return nil, false
 	}
 	uh := client.NewUploadHandleFromString(json)
-	if uh.BlobRef.Equal(dupFileRef) {
-		// Unchanged (same filename, modtime, JSON serialization, etc)
-		return dupFileRef, true
+	if up.fileOpts.wantVivify() {
+		uh.Vivify = true
 	}
-	pr, err := up.Upload(uh)
+	if !uh.Vivify && uh.BlobRef.Equal(dupFileRef) {
+		// Unchanged (same filename, modtime, JSON serialization, etc)
+		return &client.PutResult{BlobRef: dupFileRef, Size: int64(len(json)), Skipped: true}, true
+	}
+	pr, err = up.Upload(uh)
 	if err != nil {
 		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", sum, err)
 		return nil, false
 	}
-	return pr.BlobRef, true
+	return pr, true
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
+	// TODO(mpl): maybe break this func into more maintainable pieces?
 	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
 	filebb.SetType("file")
 	file, err := up.open(n.fullPath)
@@ -520,10 +525,35 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		}
 	}
 
-	size := n.fi.Size()
-	var fileContents io.Reader = io.LimitReader(file, size)
+	var (
+		size                           = n.fi.Size()
+		fileContents io.Reader         = io.LimitReader(file, size)
+		br           *blobref.BlobRef  // of file schemaref
+		sum          string            // sha1 hashsum of the file to upload
+		pr           *client.PutResult // of the final "file" schema blob
+	)
+
+	const dupCheckThreshold = 256 << 10
+	if size > dupCheckThreshold {
+		sumRef, err := up.wholeFileDigest(n.fullPath)
+		if err == nil {
+			sum = sumRef.String()
+			ok := false
+			pr, ok = up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum)
+			if ok {
+				br = pr.BlobRef
+				noteFileUploaded(n.fullPath, !pr.Skipped)
+				if up.fileOpts.wantVivify() {
+					// we can return early in that case, because the other options
+					// are disallowed in the vivify case.
+					return pr, nil
+				}
+			}
+		}
+	}
 
 	if up.fileOpts.wantVivify() {
+		// If vivify wasn't already done in fileMapFromDuplicate.
 		err := schema.WriteFileChunks(up.statReceiver(n), filebb, fileContents)
 		if err != nil {
 			return nil, err
@@ -532,41 +562,29 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		bref := blobref.SHA1FromString(json)
+		br = blobref.SHA1FromString(json)
 		h := &client.UploadHandle{
-			BlobRef:  bref,
+			BlobRef:  br,
 			Size:     int64(len(json)),
 			Contents: strings.NewReader(json),
 			Vivify:   true,
 		}
-		pr, err := up.Upload(h)
-		if err == nil {
-			noteFileUploaded(n.fullPath, true)
+		pr, err = up.Upload(h)
+		if err != nil {
+			return nil, err
 		}
-		return pr, err
+		noteFileUploaded(n.fullPath, true)
+		return pr, nil
 	}
 
-	var (
-		blobref *blobref.BlobRef // of file schemaref
-		sum     string           // "sha1-xxxxx"
-	)
-
-	const dupCheckThreshold = 256 << 10
-	if size > dupCheckThreshold {
-		sumRef, err := up.wholeFileDigest(n.fullPath)
-		if err == nil {
-			sum = sumRef.String()
-			if ref, ok := up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum); ok {
-				blobref = ref
-			}
-		}
-	}
-
-	if blobref == nil {
+	if br == nil {
+		// br still nil means fileMapFromDuplicate did not find the file on the server,
+		// and the file has not just been uploaded subsequently to a vivify request.
+		// So we do the full file + file schema upload here.
 		if sum == "" && up.fileOpts.wantFilePermanode() {
 			fileContents = &trackDigestReader{r: fileContents}
 		}
-		blobref, err = schema.WriteFileMap(up.statReceiver(n), filebb, fileContents)
+		br, err = schema.WriteFileMap(up.statReceiver(n), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -598,7 +616,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if !ok {
 			return nil, fmt.Errorf("couldn't get modtime back for file %v", n.fullPath)
 		}
-		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", blobref.String())
+		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", br.String())
 		contentAttr.SetClaimDate(claimTime)
 		signed, err := up.SignBlob(contentAttr, claimTime)
 		if err != nil {
@@ -647,7 +665,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	// statReceiver) that can track some of this?  or make
 	// schemaWriteFileMap return it?
 	json, _ := filebb.JSON()
-	pr := &client.PutResult{BlobRef: blobref, Size: int64(len(json)), Skipped: false}
+	pr = &client.PutResult{BlobRef: br, Size: int64(len(json)), Skipped: false}
 	return pr, nil
 }
 
