@@ -450,8 +450,10 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 
 func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	// TODO: rename GetOwnerClaims to GetClaims?
+	if req.Permanode == nil {
+		return nil, errors.New("Error getting claims: nil permanode.")
+	}
 	claims, err := sh.index.GetOwnerClaims(req.Permanode, sh.owner)
-	// TODO(mpl): check what happens if req.Permanode is nil, and deal with it accordingly.
 	if err != nil {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}
