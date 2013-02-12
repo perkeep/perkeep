@@ -232,7 +232,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 	ret, err := commonUploadResponse(blobReceiver, req)
 	if err != nil {
-		httputil.ServerError(conn, req, err)
+		httputil.ServeError(conn, req, err)
 	}
 
 	received := make([]map[string]interface{}, 0)

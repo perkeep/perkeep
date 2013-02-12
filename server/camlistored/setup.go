@@ -30,7 +30,7 @@ func setupHome(rw http.ResponseWriter, req *http.Request) {
 	port := httputil.RequestTargetPort(req)
 	localhostAddr, err := netutil.Localhost()
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 	}
 	ourAddr := &net.TCPAddr{IP: localhostAddr, Port: port}
 	rAddr, err := net.ResolveTCPAddr("tcp", req.RemoteAddr)
@@ -40,7 +40,7 @@ func setupHome(rw http.ResponseWriter, req *http.Request) {
 	}
 	uid, err := netutil.AddrPairUserid(rAddr, ourAddr)
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 	}
 
 	fmt.Fprintf(rw, "Hello %q\n", req.RemoteAddr)

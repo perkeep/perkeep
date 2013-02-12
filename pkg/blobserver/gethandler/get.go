@@ -93,7 +93,7 @@ func serveBlobRef(rw http.ResponseWriter, req *http.Request, blobRef *blobref.Bl
 		fmt.Fprintf(rw, "Blob %q not found", blobRef)
 		return
 	default:
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 	defer file.Close()
@@ -109,7 +109,7 @@ func serveBlobRef(rw http.ResponseWriter, req *http.Request, blobRef *blobref.Bl
 			var buf bytes.Buffer
 			_, err := io.Copy(&buf, file)
 			if err != nil {
-				httputil.ServerError(rw, req, err)
+				httputil.ServeError(rw, req, err)
 				return
 			}
 			if utf8.Valid(buf.Bytes()) {

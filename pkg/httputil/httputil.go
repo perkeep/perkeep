@@ -53,7 +53,7 @@ func RequestEntityTooLargeError(conn http.ResponseWriter) {
 	fmt.Fprintf(conn, "<h1>Request entity is too large</h1>")
 }
 
-func ServerError(conn http.ResponseWriter, req *http.Request, err error) {
+func ServeError(conn http.ResponseWriter, req *http.Request, err error) {
 	conn.WriteHeader(http.StatusInternalServerError)
 	if auth.IsLocalhost(req) {
 		fmt.Fprintf(conn, "Server error: %s\n", err)
@@ -173,16 +173,24 @@ func (InvalidMethodError) Error() string { return "invalid method" }
 func (InvalidMethodError) HTTPCode() int { return http.StatusMethodNotAllowed }
 
 // A MissingParameterError represents a missing HTTP parameter.
+// The underlying string is the missing parameter name.
 type MissingParameterError string
 
 func (p MissingParameterError) Error() string { return fmt.Sprintf("Missing parameter %q", string(p)) }
 func (MissingParameterError) HTTPCode() int   { return http.StatusBadRequest }
 
 // An InvalidParameterError represents an invalid HTTP parameter.
+// The underlying string is the invalid parameter name, not value.
 type InvalidParameterError string
 
 func (p InvalidParameterError) Error() string { return fmt.Sprintf("Invalid parameter %q", string(p)) }
 func (InvalidParameterError) HTTPCode() int   { return http.StatusBadRequest }
+
+// A ServerError is a generic 500 error.
+type ServerError string
+
+func (e ServerError) Error() string { return string(e) }
+func (ServerError) HTTPCode() int   { return http.StatusInternalServerError }
 
 // MustGet returns a non-empty GET (or HEAD) parameter param and panics
 // with a special error as caught by a deferred httputil.Recover.

@@ -118,13 +118,13 @@ func flattenPublish(config jsonconfig.Obj) error {
 func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 
 	err = flattenPublish(config)
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 
@@ -143,12 +143,12 @@ func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 
 	tmpl, err := template.New("wizard").Funcs(funcMap).Parse(topWizard + body + bottomWizard)
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 	err = tmpl.Execute(rw, config)
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 }
@@ -171,7 +171,7 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
-		httputil.ServerError(rw, req, err)
+		httputil.ServeError(rw, req, err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 		case "https":
 			b, err := strconv.ParseBool(v[0])
 			if err != nil {
-				httputil.ServerError(rw, req, fmt.Errorf("https field expects a boolean value"))
+				httputil.ServeError(rw, req, fmt.Errorf("https field expects a boolean value"))
 			}
 			el = b
 		case "replicateTo":
@@ -207,7 +207,7 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 			if len(v[0]) > 0 {
 				pub := strings.Split(v[0], ",")
 				if len(pub) < 2 || len(pub) > 3 {
-					httputil.ServerError(rw, req, fmt.Errorf("%s must be of the format ROOT,TEMPLATE,STYLESHEET", k))
+					httputil.ServeError(rw, req, fmt.Errorf("%s must be of the format ROOT,TEMPLATE,STYLESHEET", k))
 					return
 				}
 				handler := jsonconfig.Obj{}
@@ -237,7 +237,7 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	if hasChanged {
 		err = rewriteConfig(&hilevelConf, osutil.UserServerConfigPath())
 		if err != nil {
-			httputil.ServerError(rw, req, err)
+			httputil.ServeError(rw, req, err)
 			return
 		}
 	}
@@ -256,7 +256,7 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method == "POST" {
 		err := req.ParseMultipartForm(10e6)
 		if err != nil {
-			httputil.ServerError(rw, req, err)
+			httputil.ServeError(rw, req, err)
 			return
 		}
 		if len(req.Form) > 0 {
