@@ -55,12 +55,17 @@ func TestTime3339_empty(t *testing.T) {
 		// {enc: "0000-00-00T00:00:00Z"}, Go bug files
 		{enc: "1970-01-01T00:00:00Z", z: true},
 		{enc: "2001-02-03T04:05:06Z", z: false},
+		{enc: "2001-02-03T04:05:06+06:00", z: false},
+		{enc: "2001-02-03T04:05:06-06:00", z: false},
+		{enc: "2001-02-03T04:05:06.123456789Z", z: false},
+		{enc: "2001-02-03T04:05:06.123456789+06:00", z: false},
+		{enc: "2001-02-03T04:05:06.123456789-06:00", z: false},
 	}
 	for _, tt := range tests {
 		var tm Time3339
-		err := json.Unmarshal([]byte("\"" + tt.enc + "\""), &tm)
+		err := json.Unmarshal([]byte("\""+tt.enc+"\""), &tm)
 		if tm.IsZero() != tt.z {
-			t.Logf("unmarshal %q = %v (%d), %v; zero=%v; want %v", tt.enc, tm.Time(), tm.Time().Unix(), err,
+			t.Errorf("unmarshal %q = %v (%d), %v; zero=%v; want %v", tt.enc, tm.Time(), tm.Time().Unix(), err,
 				!tt.z, tt.z)
 		}
 	}
