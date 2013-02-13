@@ -250,6 +250,18 @@ func (r *ClaimsRequest) fromHTTP(req *http.Request) {
 	r.Permanode = httputil.MustGetBlobRef(req, "permanode")
 }
 
+// SignerPathsRequest is a request to get a SignerPathsResponse.
+type SignerPathsRequest struct {
+	Signer *blobref.BlobRef
+	Target *blobref.BlobRef
+}
+
+// fromHTTP panics with an httputil value on failure
+func (r *SignerPathsRequest) fromHTTP(req *http.Request) {
+	r.Signer = httputil.MustGetBlobRef(req, "signer")
+	r.Target = httputil.MustGetBlobRef(req, "target")
+}
+
 // A MetaMap is a map from blobref to a DescribedBlob.
 type MetaMap map[string]*DescribedBlob
 
@@ -351,6 +363,7 @@ func thumbnailSizeStr(s string) int {
 	return defThumbSize
 }
 
+// GetRecentPermanodes returns recently-modified permanodes.
 func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ch := make(chan *Result)
 	errch := make(chan error)
@@ -387,8 +400,8 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 }
 
 func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
-	var rr RecentRequest
 	defer httputil.RecoverJSON(rw, req)
+	var rr RecentRequest
 	rr.fromHTTP(req)
 	res, err := sh.GetRecentPermanodes(&rr)
 	if err != nil {
@@ -398,6 +411,9 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 	httputil.ReturnJSON(rw, res)
 }
 
+// GetPermanodesWithAttr returns permanodes with attribute req.Attr
+// having the req.Value as a value.
+// See WithAttrRequest for more details about the query.
 func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
 	ch := make(chan *blobref.BlobRef, buffered)
 	errch := make(chan error)
@@ -437,8 +453,8 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 // The valid values for the "attr" key in the request (i.e the only attributes
 // for a permanode which are actually indexed as such) are "tag" and "title".
 func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
-	var wr WithAttrRequest
 	defer httputil.RecoverJSON(rw, req)
+	var wr WithAttrRequest
 	wr.fromHTTP(req)
 	res, err := sh.GetPermanodesWithAttr(&wr)
 	if err != nil {
@@ -448,6 +464,7 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	httputil.ReturnJSON(rw, res)
 }
 
+// GetClaims returns the claims on req.Permanode signed by sh.owner.
 func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	// TODO: rename GetOwnerClaims to GetClaims?
 	if req.Permanode == nil {
@@ -479,8 +496,8 @@ func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 }
 
 func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
-	var cr ClaimsRequest
 	defer httputil.RecoverJSON(rw, req)
+	var cr ClaimsRequest
 	cr.fromHTTP(req)
 	res, err := sh.GetClaims(&cr)
 	if err != nil {
@@ -1131,19 +1148,18 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
-// TODO: finish breaking this function up into a pure query half
-// and an HTTP half which uses the pure querying half.
-func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
-	defer httputil.RecoverJSON(rw, req)
-	signer := httputil.MustGetBlobRef(req, "signer")
-	target := httputil.MustGetBlobRef(req, "target")
-
-	paths, err := sh.index.PathsOfSignerTarget(signer, target)
-	if err != nil {
-		httputil.ServeJSONError(rw, err)
-		return
+// GetSignerPaths returns paths with a target of req.Target.
+func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
+	if req.Signer == nil {
+		return nil, errors.New("Error getting signer paths: nil signer.")
 	}
-
+	if req.Target == nil {
+		return nil, errors.New("Error getting signer paths: nil target.")
+	}
+	paths, err := sh.index.PathsOfSignerTarget(req.Signer, req.Target)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting paths of %s: %v", req.Target.String(), err)
+	}
 	var jpaths []*SignerPathsItem
 	for _, path := range paths {
 		jpaths = append(jpaths, &SignerPathsItem{
@@ -1157,16 +1173,27 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 	for _, path := range paths {
 		dr.Describe(path.Base, 2)
 	}
-
 	metaMap, err := dr.metaMap()
 	if err != nil {
-		httputil.ServeJSONError(rw, err)
-		return
+		return nil, err
 	}
 
 	res := &SignerPathsResponse{
 		Paths: jpaths,
 		Meta:  metaMap,
+	}
+	return res, nil
+}
+
+func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
+	defer httputil.RecoverJSON(rw, req)
+	var sr SignerPathsRequest
+	sr.fromHTTP(req)
+
+	res, err := sh.GetSignerPaths(&sr)
+	if err != nil {
+		httputil.ServeJSONError(rw, err)
+		return
 	}
 	httputil.ReturnJSON(rw, res)
 }
