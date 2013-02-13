@@ -3,8 +3,8 @@ use FindBin qw($Bin);
 use File::Fetch;
 use IO::Uncompress::Unzip qw(unzip $UnzipError) ;
 
-my $closure_rev = "r2459";
-my $closure_svn = "http://closure-library.googlecode.com/svn/trunk/";
+my $closure_sha = "1389e13";
+my $closure_git = "https://code.google.com/p/closure-library/";
 my $compiler_version = "20121212";
 my $compiler_baseurl = "http://closure-compiler.googlecode.com/files/";
 
@@ -12,17 +12,20 @@ sub get_closure_lib {
 	my $closure_dir = "$Bin/tmp/closure-lib";
 	if (-d $closure_dir) {
 		chdir $closure_dir or die;
-		my $local_rev = "r" . `svnversion`;
-		chomp($local_rev);
-		if ($local_rev ne $closure_rev) {
-			die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
-			system("svn", "update", "-r", $closure_rev)
-				and die "Failed to svn up the closure library: $!\n";
+		my $local_sha = `git rev-parse --short HEAD`;
+		chomp($local_sha);
+		if ($local_sha ne $closure_sha) {
+			system("git", "fetch")
+				and die "Failed to git fetch the closure library: $!\n";
+			system("git", "reset", "--hard", $closure_sha)
+				and die "Failed to git reset the closure library repo: $!\n";
 		}
 	} else {
-		die "No 'svn' found; install Subversion.\n" unless `which svn` =~ /\S/;
-		system("svn", "checkout", "-r", $closure_rev, $closure_svn, $closure_dir)
-			and die "Failed to svn co the closure library: $!\n";
+		system("git", "clone", $closure_git, $closure_dir)
+			and die "Failed to git clone the closure library: $!\n";
+		chdir $closure_dir or die;
+		system("git", "reset", "--hard", $closure_sha)
+			and die "Failed to git reset the closure library repo: $!\n";
 	}
 }
 
