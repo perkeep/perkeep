@@ -19,7 +19,16 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"runtime"
+	"strings"
 	"time"
+)
+
+var (
+	goVersion  = runtime.Version()
+	isGo10     = goVersion == "go1" || strings.HasPrefix(runtime.Version(), "go1.0")
+	dotNumbers = regexp.MustCompile(`\.\d+`)
 )
 
 // Time3339 is a time.Time which encodes to and from JSON
@@ -39,9 +48,37 @@ func (t Time3339) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.String())
 }
 
+func parseForGo10(s string) (time.Time, error) {
+	var numbers string
+	noNanos := dotNumbers.ReplaceAllStringFunc(s, func(m string) string {
+		numbers = m
+		return ""
+	})
+	t, err := time.Parse(time.RFC3339, noNanos)
+	if err != nil {
+		return t, fmt.Errorf("Failed to parse %q as an RFC 3339 time: %v", noNanos, err)
+	}
+	if numbers != "" {
+		nanos, err := time.ParseDuration(numbers + "s")
+		if err != nil {
+			return t, fmt.Errorf("Failed to parse %q as a duration: %v", numbers+"s", err)
+		}
+		t = t.Add(nanos)
+	}
+	return t, nil
+}
+
 func (t *Time3339) UnmarshalJSON(b []byte) error {
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
 		return fmt.Errorf("types: failed to unmarshal non-string value %q as an RFC 3339 time")
+	}
+	if isGo10 {
+		tgo10, err := parseForGo10(string(b[1 : len(b)-1]))
+		if err != nil {
+			return err
+		}
+		*t = Time3339(tgo10)
+		return nil
 	}
 	tm, err := time.Parse(time.RFC3339Nano, string(b[1:len(b)-1]))
 	if err != nil {
