@@ -71,10 +71,18 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 			continue
 		}
 		ccMeta := res.Meta.Get(cc)
-		if ccMeta == nil || ccMeta.File == nil { // TODO: also allow directories
+		if ccMeta == nil {
 			continue
 		}
-		name := ccMeta.File.FileName
+		var name string
+		switch {
+		case ccMeta.File != nil:
+			name = ccMeta.File.FileName
+		case ccMeta.Dir != nil:
+			name = ccMeta.Dir.FileName
+		default:
+			continue
+		}
 		if name == "" || n.ents[name] != nil {
 			name = ccMeta.BlobRef.String() + path.Ext(name)
 			if n.ents[name] != nil {
@@ -94,6 +102,13 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 func (n *recentDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if n.ents == nil {
+		// Odd case: a Lookup before a Readdir. Force a readdir to
+		// seed our map. Mostly hit just during development.
+		n.mu.Unlock()   // release, since ReadDir will acquire
+		n.ReadDir(intr)
+		n.mu.Lock()
+	}
 	db := n.ents[name]
 	log.Printf("fs.recent: Lookup(%q) = %v", name, db)
 	if db == nil {

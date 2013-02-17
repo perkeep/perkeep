@@ -264,13 +264,13 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		ssc = append(ssc, ch)
 		// TODO: move the cmd/camput/chanworker.go into its own package, and use it here. only
 		// have 10 or so of these loading at once.  for now we do them all.
-		go func() {
+		go func(memberRef *blobref.BlobRef) {
 			mss, err := n.fs.fetchSchemaMeta(memberRef)
 			if err != nil {
 				log.Printf("error reading entry %v in readdir: %v", memberRef, err)
 			}
 			ch <- res{memberRef, mss, err}
-		}()
+		}(memberRef)
 	}
 
 	n.dirents = make([]fuse.Dirent, 0)
