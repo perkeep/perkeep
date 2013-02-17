@@ -75,7 +75,7 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 			continue
 		}
 		name := ccMeta.File.FileName
-		if n.ents[name] != nil {
+		if name == "" || n.ents[name] != nil {
 			name = ccMeta.BlobRef.String() + path.Ext(name)
 			if n.ents[name] != nil {
 				continue
@@ -87,6 +87,7 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 			Name: name,
 		})
 	}
+	log.Printf("fs.recent returning %d entries", len(ents))
 	return ents, nil
 }
 
