@@ -18,8 +18,18 @@ limitations under the License.
 
 package localdisk
 
-import "os"
+import (
+	"os"
+	"runtime"
+	"syscall"
+)
 
 func linkOrCopy(src, dst string) error {
-	return os.Link(src, dst)
+	err := os.Link(src, dst)
+	if le, ok := err.(*os.LinkError); ok && le.Op == "link" && le.Err == syscall.Errno(0x26) && runtime.GOOS == "linux" {
+		// Whatever 0x26 is, it's returned by Linux when the underlying
+		// filesystem (e.g. exfat) doesn't support link.
+		return copyFile(src, dst)
+	}
+	return err
 }

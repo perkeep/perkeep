@@ -67,6 +67,12 @@ func syncAll() error {
 	if err != nil {
 		log.Fatalf("sync handlers discovery failed: %v", err)
 	}
+	if *flagVerbose {
+		log.Printf("To be synced:\n")
+		for _, sh := range syncHandlers {
+			log.Printf("%v -> %v", sh.From, sh.To)
+		}
+	}
 	for _, sh := range syncHandlers {
 		from := client.New(sh.From)
 		from.SetLogger(logger)
@@ -74,6 +80,9 @@ func syncAll() error {
 		to := client.New(sh.To)
 		to.SetLogger(logger)
 		to.SetupAuth()
+		if *flagVerbose {
+			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
+		}
 		stats, err := doPass(from, to)
 		if *flagVerbose {
 			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
