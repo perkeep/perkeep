@@ -64,7 +64,6 @@ func NewStorage(file string) (index.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO(bradfitz): ping db, check that it's reachable.
 	return &storage{
 		file: file,
 		db:   db,
