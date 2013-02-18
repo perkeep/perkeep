@@ -299,7 +299,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 	return
 }
 
-func (x *Index) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error) {
+func (x *Index) GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64, err error) {
 	key := "meta:" + blob.String()
 	meta, err := x.s.Get(key)
 	if err == ErrNotFound {
@@ -561,7 +561,7 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	fi := &search.FileInfo{
 		Size:     size,
 		FileName: urld(valPart[1]),
-		MimeType: urld(valPart[2]),
+		MIMEType: urld(valPart[2]),
 	}
 	return fi, nil
 }

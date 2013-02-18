@@ -91,12 +91,12 @@ func (cl ClaimList) String() string {
 type FileInfo struct {
 	Size     int64  `json:"size"`
 	FileName string `json:"fileName"`
-	// MimeType may be set for files, but never for directories.
-	MimeType string `json:"mimeType,omitempty"`
+	// MIMEType may be set for files, but never for directories.
+	MIMEType string `json:"mimeType,omitempty"`
 }
 
 func (fi *FileInfo) IsImage() bool {
-	return strings.HasPrefix(fi.MimeType, "image/")
+	return strings.HasPrefix(fi.MIMEType, "image/")
 }
 
 type Path struct {
@@ -170,7 +170,7 @@ type Index interface {
 	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, error)
 
 	// os.ErrNotExist should be returned if the blob isn't known
-	GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error)
+	GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64, err error)
 
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
 	// (TODO(bradfitz): or file?) schema blobs that represent the

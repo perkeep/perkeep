@@ -418,22 +418,22 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	// GetBlobMimeType
+	// GetBlobMIMEType
 	{
-		mime, size, err := id.Index.GetBlobMimeType(pn)
+		mime, size, err := id.Index.GetBlobMIMEType(pn)
 		if err != nil {
-			t.Errorf("GetBlobMimeType(%q) = %v", pn, err)
+			t.Errorf("GetBlobMIMEType(%q) = %v", pn, err)
 		} else {
 			if e := "application/json; camliType=permanode"; mime != e {
-				t.Errorf("GetBlobMimeType(%q) mime = %q, want %q", pn, mime, e)
+				t.Errorf("GetBlobMIMEType(%q) mime = %q, want %q", pn, mime, e)
 			}
 			if size == 0 {
-				t.Errorf("GetBlobMimeType(%q) size is zero", pn)
+				t.Errorf("GetBlobMIMEType(%q) size is zero", pn)
 			}
 		}
-		_, _, err = id.Index.GetBlobMimeType(blobref.Parse("abc-123"))
+		_, _, err = id.Index.GetBlobMIMEType(blobref.Parse("abc-123"))
 		if err != os.ErrNotExist {
-			t.Errorf("GetBlobMimeType(dummy blobref) = %v; want os.ErrNotExist", err)
+			t.Errorf("GetBlobMIMEType(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
 	}
 
@@ -581,8 +581,8 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		if g, e := fi.FileName, "foo.html"; g != e {
 			t.Errorf("FileName = %q, want %q", g, e)
 		}
-		if g, e := fi.MimeType, "text/html"; g != e {
-			t.Errorf("MimeType = %q, want %q", g, e)
+		if g, e := fi.MIMEType, "text/html"; g != e {
+			t.Errorf("MIMEType = %q, want %q", g, e)
 		}
 	}
 }
