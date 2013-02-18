@@ -22,16 +22,18 @@ import (
 	"fmt"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
 
 type attrCmd struct {
 	add bool
 	del bool
+	up  *Uploader
 }
 
 func init() {
-	RegisterCommand("attr", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("attr", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(attrCmd)
 		flags.BoolVar(&cmd.add, "add", false, `Adds attribute (e.g. "tag")`)
 		flags.BoolVar(&cmd.del, "del", false, "Deletes named attribute [value]")
@@ -40,7 +42,7 @@ func init() {
 }
 
 func (c *attrCmd) Usage() {
-	errf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
+	cmdmain.Errf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
 }
 
 func (c *attrCmd) Examples() []string {
@@ -51,7 +53,7 @@ func (c *attrCmd) Examples() []string {
 	}
 }
 
-func (c *attrCmd) RunCommand(up *Uploader, args []string) error {
+func (c *attrCmd) RunCommand(args []string) error {
 	if len(args) != 3 {
 		return errors.New("Attr takes 3 args: <permanode> <attr> <value>")
 	}
@@ -75,7 +77,7 @@ func (c *attrCmd) RunCommand(up *Uploader, args []string) error {
 			return errors.New("del not yet implemented")
 		}
 	}
-	put, err := up.UploadAndSignBlob(bb)
+	put, err := getUploader().UploadAndSignBlob(bb)
 	handleResult(bb.Type(), put, err)
 	return nil
 }

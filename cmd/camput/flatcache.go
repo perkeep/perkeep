@@ -79,7 +79,7 @@ func escapeGen(gen string) string {
 }
 
 func NewFlatStatCache(gen string) *FlatStatCache {
-	filename := filepath.Join(osutil.CacheDir(), "camput.statcache." + escapeGen(gen))
+	filename := filepath.Join(osutil.CacheDir(), "camput.statcache."+escapeGen(gen))
 	fc := &FlatStatCache{
 		filename: filename,
 		m:        make(map[string]fileInfoPutRes),

@@ -19,17 +19,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
 )
@@ -38,119 +36,37 @@ const buffered = 16 // arbitrary
 
 var (
 	flagProxyLocal = false
-	flagVersion    = flag.Bool("version", false, "show version")
-	flagHelp       = flag.Bool("help", false, "print usage")
-	flagVerbose    = flag.Bool("verbose", false, "extra debug logging")
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 )
 
-var ErrUsage = UsageError("invalid command usage")
-
-type UsageError string
-
-func (ue UsageError) Error() string {
-	return "Usage error: " + string(ue)
-}
-
-type CommandRunner interface {
-	Usage()
-	RunCommand(up *Uploader, args []string) error
-}
-
-type Exampler interface {
-	Examples() []string
-}
-
-var modeCommand = make(map[string]CommandRunner)
-var modeFlags = make(map[string]*flag.FlagSet)
+var cachedUploader *Uploader // initialized by getUploader
 
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
 	}
+	cmdmain.ExtraFlagRegistration = func() {
+		jsonsign.AddFlags()
+		client.AddFlags()
+	}
+	cmdmain.PreExit = func() {
+		up := getUploader()
+		stats := up.Stats()
+		log.Printf("Client stats: %s", stats.String())
+		log.Printf("  #HTTP reqs: %d", up.transport.Requests())
+	}
 }
 
-func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunner) {
-	if _, dup := modeCommand[mode]; dup {
-		log.Fatalf("duplicate command %q registered", mode)
+func getUploader() *Uploader {
+	if cachedUploader == nil {
+		cachedUploader = newUploader()
 	}
-	flags := flag.NewFlagSet(mode+" options", flag.ContinueOnError)
-	flags.Usage = func() {}
-	modeFlags[mode] = flags
-	modeCommand[mode] = makeCmd(flags)
+	return cachedUploader
 }
 
 // wereErrors gets set to true if any error was encountered, which
 // changes the os.Exit value
 var wereErrors = false
-
-type namedMode struct {
-	Name    string
-	Command CommandRunner
-}
-
-func allModes(startModes []string) <-chan namedMode {
-	ch := make(chan namedMode)
-	go func() {
-		defer close(ch)
-		done := map[string]bool{}
-		for _, name := range startModes {
-			done[name] = true
-			cmd := modeCommand[name]
-			if cmd == nil {
-				panic("bogus mode: " + name)
-			}
-			ch <- namedMode{name, cmd}
-		}
-		var rest []string
-		for name := range modeCommand {
-			if !done[name] {
-				rest = append(rest, name)
-			}
-		}
-		sort.Strings(rest)
-		for _, name := range rest {
-			ch <- namedMode{name, modeCommand[name]}
-		}
-	}()
-	return ch
-}
-
-func errf(format string, args ...interface{}) {
-	fmt.Fprintf(stderr, format, args...)
-}
-
-func usage(msg string) {
-	if msg != "" {
-		errf("Error: %v\n", msg)
-	}
-	errf(`
-Usage: camput [globalopts] <mode> [commandopts] [commandargs]
-
-Examples:
-`)
-	order := []string{"init", "file", "permanode", "blob", "attr"}
-	for mode := range allModes(order) {
-		errf("\n")
-		if ex, ok := mode.Command.(Exampler); ok {
-			for _, example := range ex.Examples() {
-				errf("  camput %s %s\n", mode.Name, example)
-			}
-		} else {
-			errf("  camput %s ...\n", mode.Name)
-		}
-	}
-
-	errf(`
-For mode-specific help:
-
-  camput <mode> -help
-
-Global options:
-`)
-	flag.PrintDefaults()
-	exit(1)
-}
 
 func handleResult(what string, pr *client.PutResult, err error) error {
 	if err != nil {
@@ -192,7 +108,7 @@ func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 
 func newUploader() *Uploader {
 	cc := client.NewOrFail()
-	if !*flagVerbose {
+	if !*cmdmain.FlagVerbose {
 		cc.SetLogger(nil)
 	}
 
@@ -233,90 +149,11 @@ func newUploader() *Uploader {
 	}
 }
 
-func hasFlags(flags *flag.FlagSet) bool {
-	any := false
-	flags.VisitAll(func(*flag.Flag) {
-		any = true
-	})
-	return any
-}
-
 func main() {
-	jsonsign.AddFlags()
-	client.AddFlags()
 	flag.Parse()
-	camputMain(flag.Args()...)
-}
-
-func realExit(code int) {
-	os.Exit(code)
-}
-
-// Indirections for replacement by tests:
-var (
-	stderr io.Writer = os.Stderr
-	stdout io.Writer = os.Stdout
-	stdin  io.Reader = os.Stdin
-
-	exit = realExit
-
-	// TODO: abstract out vfs operation. should never call os.Stat, os.Open, os.Create, etc.
-	// Only use fs.Stat, fs.Open, where vs is an interface type.
-
-	// TODO: switch from using the global flag FlagSet and use our own. right now
-	// running "go test -v" dumps the flag usage data to the global stderr.
-)
-
-// camputMain is separated from main for testing from camput
-func camputMain(args ...string) {
-	if *flagVersion {
-		fmt.Fprintf(stderr, "camget version: %s\n", buildinfo.Version())
-		return
-	}
-	if *flagHelp {
-		usage("")
-	}
-	if len(args) == 0 {
-		usage("No mode given.")
-	}
-
-	mode := args[0]
-	cmd, ok := modeCommand[mode]
-	if !ok {
-		usage(fmt.Sprintf("Unknown mode %q", mode))
-	}
-
-	var up *Uploader
-	if mode != "init" {
-		up = newUploader()
-	}
-
-	cmdFlags := modeFlags[mode]
-	err := cmdFlags.Parse(args[1:])
-	if err != nil {
-		err = ErrUsage
-	} else {
-		err = cmd.RunCommand(up, cmdFlags.Args())
-	}
-	if ue, isUsage := err.(UsageError); isUsage {
-		if isUsage {
-			errf("%s\n", ue)
-		}
-		cmd.Usage()
-		errf("\nGlobal options:\n")
-		flag.PrintDefaults()
-
-		if hasFlags(cmdFlags) {
-			errf("\nMode-specific options for mode %q:\n", mode)
-			cmdFlags.PrintDefaults()
-		}
-		exit(1)
-	}
-	if *flagVerbose {
-		stats := up.Stats()
-		log.Printf("Client stats: %s", stats.String())
-		log.Printf("  #HTTP reqs: %d", up.transport.Requests())
-	}
+	err := cmdmain.Main()
+	// TODO(mpl): see how errors go with other camtool modes
+	//  and move some of this accordingly to cmdmain.
 	previousErrors := wereErrors
 	if err != nil {
 		wereErrors = true
@@ -325,6 +162,6 @@ func camputMain(args ...string) {
 		}
 	}
 	if wereErrors {
-		exit(2)
+		cmdmain.Exit(2)
 	}
 }

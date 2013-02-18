@@ -18,6 +18,8 @@ package main
 
 import (
 	"log"
+
+	"camlistore.org/pkg/cmdmain"
 )
 
 type Logger interface {
@@ -30,7 +32,7 @@ type flagLogger struct {
 
 var flagCacheLog *bool
 
-var vlog = &flagLogger{&flagVerbose}
+var vlog = &flagLogger{&cmdmain.FlagVerbose}
 var cachelog = &flagLogger{&flagCacheLog}
 
 func (fl *flagLogger) Printf(format string, args ...interface{}) {

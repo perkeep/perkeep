@@ -22,6 +22,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
 
@@ -30,7 +31,7 @@ type shareCmd struct {
 }
 
 func init() {
-	RegisterCommand("share", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(shareCmd)
 		flags.BoolVar(&cmd.transitive, "transitive", false, "share everything reachable from the given blobref")
 		return cmd
@@ -38,7 +39,7 @@ func init() {
 }
 
 func (c *shareCmd) Usage() {
-	fmt.Fprintf(stderr, `Usage: camput share [opts] <blobref>
+	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] <blobref>
 `)
 }
 
@@ -48,15 +49,15 @@ func (c *shareCmd) Examples() []string {
 	}
 }
 
-func (c *shareCmd) RunCommand(up *Uploader, args []string) error {
+func (c *shareCmd) RunCommand(args []string) error {
 	if len(args) != 1 {
-		return UsageError("share takes exactly one argument, a blobref")
+		return cmdmain.UsageError("share takes exactly one argument, a blobref")
 	}
 	br := blobref.Parse(args[0])
 	if br == nil {
-		return UsageError("invalid blobref")
+		return cmdmain.UsageError("invalid blobref")
 	}
-	pr, err := up.UploadShare(br, c.transitive)
+	pr, err := getUploader().UploadShare(br, c.transitive)
 	handleResult("share", pr, err)
 	return nil
 }

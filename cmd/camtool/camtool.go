@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,32 +17,12 @@ limitations under the License.
 package main
 
 import (
-	"flag"
-	"fmt"
-
-	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/cmdmain"
 )
 
-type removeCmd struct{}
-
-func init() {
-	cmdmain.RegisterCommand("remove", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := new(removeCmd)
-		return cmd
-	})
-}
-
-func (c *removeCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput remove <blobref(s)>
-
-This command is for debugging only.  You're not expected to use it in practice.
-`)
-}
-
-func (c *removeCmd) RunCommand(args []string) error {
-	if len(args) == 0 {
-		return cmdmain.ErrUsage
+func main() {
+	err := cmdmain.Main()
+	if err != nil {
+		cmdmain.Exit(2)
 	}
-	return getUploader().RemoveBlobs(blobref.ParseMulti(args))
 }

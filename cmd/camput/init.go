@@ -29,6 +29,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 )
@@ -38,7 +39,7 @@ type initCmd struct {
 }
 
 func init() {
-	RegisterCommand("init", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("init", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(initCmd)
 		flags.StringVar(&cmd.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
 		return cmd
@@ -46,7 +47,7 @@ func init() {
 }
 
 func (c *initCmd) Usage() {
-	fmt.Fprintf(stderr, `Usage: camput init [opts]
+	fmt.Fprintf(cmdmain.Stderr, `Usage: camput init [opts]
 
 Initialize the camput configuration file.
 
@@ -106,9 +107,9 @@ func (c *initCmd) getPublicKeyArmored(keyId string) (b []byte, err error) {
 	return nil, fmt.Errorf("failed to export armored public key ID %q from locations: %q", keyId, files)
 }
 
-func (c *initCmd) RunCommand(_ *Uploader, args []string) error {
+func (c *initCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
-		return ErrUsage
+		return cmdmain.ErrUsage
 	}
 
 	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
