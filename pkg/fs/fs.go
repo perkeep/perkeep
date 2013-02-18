@@ -227,65 +227,24 @@ func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 
 	ss, err := n.schema()
 	if err != nil {
+		log.Printf("camli.ReadDir error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	setRef := ss.DirectoryEntries()
-	if setRef == nil {
-		return nil, nil
-	}
-	log.Printf("fetching setref: %v...", setRef)
-	setss, err := n.fs.fetchSchemaMeta(setRef)
+	dr, err := schema.NewDirReader(n.fs.fetcher, ss.BlobRef())
 	if err != nil {
-		log.Printf("fetching %v for readdir on %v: %v", setRef, n.blobref, err)
+		log.Printf("camli.ReadDir error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	if setss.Type() != "static-set" {
-		log.Printf("%v is not a static-set in readdir; is a %q", setRef, setss.Type())
+	schemaEnts, err := dr.Readdir(-1)
+	if err != nil {
+		log.Printf("camli.ReadDir error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-
-	// TODO(bradfitz): push down information to the fetcher
-	// (cachingfetcher -> remote client http) that we're going to load a
-	// bunch, so the HTTP client (if not using SPDY) can do discovery
-	// and see if the server supports a batch handler, then get them all
-	// in one round-trip, rather than attacking the server with hundreds
-	// of parallel TLS setups.
-
-	// res is the result of fetchSchemaMeta.  the ssc slice of channels keeps them ordered
-	// the same as they're listed in the schema's Members.
-	type res struct {
-		*blobref.BlobRef
-		*schema.Blob
-		error
-	}
-	var ssc []chan res
-	for _, memberRef := range setss.StaticSetMembers() {
-		ch := make(chan res, 1)
-		ssc = append(ssc, ch)
-		// TODO: move the cmd/camput/chanworker.go into its own package, and use it here. only
-		// have 10 or so of these loading at once.  for now we do them all.
-		go func(memberRef *blobref.BlobRef) {
-			mss, err := n.fs.fetchSchemaMeta(memberRef)
-			if err != nil {
-				log.Printf("error reading entry %v in readdir: %v", memberRef, err)
-			}
-			ch <- res{memberRef, mss, err}
-		}(memberRef)
-	}
-
 	n.dirents = make([]fuse.Dirent, 0)
-	for i, ch := range ssc {
-		log.Printf("CAMLI dir %v set %v, waiting on entry %d/%d", n.blobref, setRef, i+1, len(ssc))
-		r := <-ch
-		memberRef, mss, err := r.BlobRef, r.Blob, r.error
-		if err != nil {
-			return nil, fuse.EIO
-		}
-		if filename := mss.FileName(); filename != "" {
-			n.addLookupEntry(filename, memberRef)
-			n.dirents = append(n.dirents, fuse.Dirent{
-				Name: mss.FileName(),
-			})
+	for _, sent := range schemaEnts {
+		if name := sent.FileName(); name != "" {
+			n.addLookupEntry(name, sent.BlobRef())
+			n.dirents = append(n.dirents, fuse.Dirent{Name: name})
 		}
 	}
 	return n.dirents, nil

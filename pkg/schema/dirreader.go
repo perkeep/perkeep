@@ -126,12 +126,38 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 			up = len(sts)
 		}
 	}
-	for _, entryBref := range sts[dr.current:up] {
-		entry, err := NewDirectoryEntryFromBlobRef(dr.fetcher, entryBref)
-		if err != nil {
+
+	// TODO(bradfitz): push down information to the fetcher
+	// (e.g. cachingfetcher -> remote client http) that we're
+	// going to load a bunch, so the HTTP client (if not using
+	// SPDY) can do discovery and see if the server supports a
+	// batch handler, then get them all in one round-trip, rather
+	// than attacking the server with hundreds of parallel TLS
+	// setups.
+
+	type res struct {
+		ent DirectoryEntry
+		err error
+	}
+	var cs []chan res
+
+	// Kick off all directory entry loads.
+	// TODO: bound this?
+	for _, entRef := range sts[dr.current:up] {
+		c := make(chan res, 1)
+		cs = append(cs, c)
+		go func(entRef *blobref.BlobRef) {
+			entry, err := NewDirectoryEntryFromBlobRef(dr.fetcher, entRef)
+			c <- res{entry, err}
+		}(entRef)
+	}
+
+	for _, c := range cs {
+		res := <-c
+		if res.err != nil {
 			return nil, fmt.Errorf("schema/filereader: can't create dirEntry: %v\n", err)
 		}
-		entries = append(entries, entry)
+		entries = append(entries, res.ent)
 	}
-	return entries, err
+	return entries, nil
 }
