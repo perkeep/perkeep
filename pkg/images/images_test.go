@@ -20,7 +20,7 @@ import (
 	"image"
 	"image/jpeg"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +35,7 @@ func equals(im1, im2 image.Image) bool {
 		for x := 0; x < im1.Bounds().Dx(); x++ {
 			r1, g1, b1, a1 := im1.At(x, y).RGBA()
 			r2, g2, b2, a2 := im2.At(x, y).RGBA()
-			if !(r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2) {
+			if r1 != r2 || g1 != g2 || b1 != b2 || a1 != a2 {
 				return false
 			}
 		}
@@ -44,7 +44,20 @@ func equals(im1, im2 image.Image) bool {
 }
 
 func straightFImage(t *testing.T) image.Image {
-	g, err := os.Open(path.Join(datadir, "f1.jpg"))
+	g, err := os.Open(filepath.Join(datadir, "f1.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	straightF, err := jpeg.Decode(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return straightF
+}
+
+func smallStraightFImage(t *testing.T) image.Image {
+	g, err := os.Open(filepath.Join(datadir, "f1-s.jpg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,14 +82,16 @@ func sampleNames(t *testing.T) []string {
 	return samples
 }
 
-func TestExifCorrection(t *testing.T) {
+// TestEXIFCorrection tests that the input files with EXIF metadata
+// are correctly automatically rotated/flipped when decoded.
+func TestEXIFCorrection(t *testing.T) {
 	samples := sampleNames(t)
 	straightF := straightFImage(t)
 	for _, v := range samples {
-		if !strings.Contains(v, "exif") {
+		if !strings.Contains(v, "exif") || strings.HasSuffix(v, "-s.jpg") {
 			continue
 		}
-		name := path.Join(datadir, v)
+		name := filepath.Join(datadir, v)
 		t.Logf("correcting %s with EXIF Orientation", name)
 		f, err := os.Open(name)
 		if err != nil {
@@ -93,11 +108,17 @@ func TestExifCorrection(t *testing.T) {
 	}
 }
 
+// TestForcedCorrection tests that manually specifying the
+// rotation/flipping to be applied when decoding works as
+// expected.
 func TestForcedCorrection(t *testing.T) {
 	samples := sampleNames(t)
 	straightF := straightFImage(t)
 	for _, v := range samples {
-		name := path.Join(datadir, v)
+		if strings.HasSuffix(v, "-s.jpg") {
+			continue
+		}
+		name := filepath.Join(datadir, v)
 		t.Logf("forced correction of %s", name)
 		f, err := os.Open(name)
 		if err != nil {
@@ -137,10 +158,61 @@ func TestForcedCorrection(t *testing.T) {
 	}
 }
 
+// TestRescale verifies that rescaling an image, without
+// any rotation/flipping, produces the expected image.
+func TestRescale(t *testing.T) {
+	name := filepath.Join(datadir, "f1.jpg")
+	t.Logf("rescaling %s with half-width and half-height", name)
+	f, err := os.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	rescaledIm, _, err := Decode(f, &DecodeOpts{ScaleWidth: 0.5, ScaleHeight: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	smallIm := smallStraightFImage(t)
+
+	if !equals(rescaledIm, smallIm) {
+		t.Fatalf("%v not properly rescaled", name)
+	}
+}
+
+// TestRescaleEXIF verifies that rescaling an image, followed
+// by the automatic EXIF correction (rotation/flipping),
+// produces the expected image. All the possible correction
+// modes are tested.
+func TestRescaleEXIF(t *testing.T) {
+	smallStraightF := smallStraightFImage(t)
+	samples := sampleNames(t)
+	for _, v := range samples {
+		if !strings.Contains(v, "exif") {
+			continue
+		}
+		name := filepath.Join(datadir, v)
+		t.Logf("rescaling %s with half-width and half-height", name)
+		f, err := os.Open(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		rescaledIm, _, err := Decode(f, &DecodeOpts{ScaleWidth: 0.5, ScaleHeight: 0.5})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !equals(rescaledIm, smallStraightF) {
+			t.Fatalf("%v not properly rescaled", name)
+		}
+	}
+}
+
 // TODO(mpl): move this test to the goexif lib if/when we contribute
 // back the DateTime stuff to upstream.
 func TestDateTime(t *testing.T) {
-	f, err := os.Open(path.Join(datadir, "f1-exif.jpg"))
+	f, err := os.Open(filepath.Join(datadir, "f1-exif.jpg"))
 	if err != nil {
 		t.Fatal(err)
 	}
