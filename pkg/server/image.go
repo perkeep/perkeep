@@ -33,7 +33,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/misc/resize"
 	"camlistore.org/pkg/schema"
 )
 
@@ -149,8 +148,6 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 }
 
 func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err error) {
-	mw, mh := ih.MaxWidth, ih.MaxHeight
-
 	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), file)
 	if err != nil {
 		return format, err
@@ -161,7 +158,8 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	if err != nil {
 		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
 	}
-	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()), nil)
+	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()),
+		&images.DecodeOpts{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
 	if err != nil {
 		return format, err
 	}
@@ -176,34 +174,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 		b = i.Bounds()
 	}
 
-	// only do downscaling, otherwise just serve the original image
-	if mw < b.Dx() || mh < b.Dy() {
-		useBytesUnchanged = false
-
-		const huge = 2400
-		// If it's gigantic, it's more efficient to downsample first
-		// and then resize; resizing will smooth out the roughness.
-		// (trusting the moustachio guys on that one).
-		if b.Dx() > huge || b.Dy() > huge {
-			w, h := mw*2, mh*2
-			if b.Dx() > b.Dy() {
-				w = b.Dx() * h / b.Dy()
-			} else {
-				h = b.Dy() * w / b.Dx()
-			}
-			i = resize.Resample(i, i.Bounds(), w, h)
-			b = i.Bounds()
-		}
-		// conserve proportions. use the smallest of the two as the decisive one.
-		if mw > mh {
-			mw = b.Dx() * mh / b.Dy()
-		} else {
-			mh = b.Dy() * mw / b.Dx()
-		}
-	}
-
 	if !useBytesUnchanged {
-		i = resize.Resize(i, b, mw, mh)
 		// Encode as a new image
 		buf.Reset()
 		switch format {

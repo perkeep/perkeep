@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/jpeg"
 	"io"
 	"log"
 	"os"
@@ -29,6 +28,7 @@ import (
 	_ "image/gif"
 	_ "image/png"
 
+	"camlistore.org/pkg/misc/resize"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
@@ -57,8 +57,17 @@ type DecodeOpts struct {
 	Flip interface{}
 
 	// MaxWidgth and MaxHeight optionally specify bounds on the
-	// final image's size.
+	// image's size. Rescaling is done before flipping or rotating.
+	// Proportions are conserved, so the smallest of the two is used
+	// as the decisive one if needed.
 	MaxWidth, MaxHeight int
+
+	// ScaleWidth and ScaleHeight optionally specify how to rescale the
+	// image's dimensions. Rescaling is done before flipping or rotating.
+	// Proportions are conserved, so the smallest of the two is used
+	// as the decisive one if needed.
+	// They overrule MaxWidth and MaxHeight.
+	ScaleWidth, ScaleHeight float32
 
 	// TODO: consider alternate options if scaled ratio doesn't
 	// match original ratio:
@@ -164,6 +173,53 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 	return im
 }
 
+func rescale(im image.Image, opts *DecodeOpts) image.Image {
+	mw, mh := opts.MaxWidth, opts.MaxHeight
+	mwf, mhf := opts.ScaleWidth, opts.ScaleHeight
+	b := im.Bounds()
+	// only do downscaling, otherwise just serve the original image
+	if !opts.wantRescale(b) {
+		return im
+	}
+	// ScaleWidth and ScaleHeight overrule MaxWidth and MaxHeight
+	if mwf > 0.0 && mwf <= 1 {
+		mw = int(mwf * float32(b.Dx()))
+	}
+	if mhf > 0.0 && mhf <= 1 {
+		mh = int(mhf * float32(b.Dy()))
+	}
+
+	const huge = 2400
+	// If it's gigantic, it's more efficient to downsample first
+	// and then resize; resizing will smooth out the roughness.
+	// (trusting the moustachio guys on that one).
+	if b.Dx() > huge || b.Dy() > huge {
+		w, h := mw*2, mh*2
+		if b.Dx() > b.Dy() {
+			w = b.Dx() * h / b.Dy()
+		} else {
+			h = b.Dy() * w / b.Dx()
+		}
+		im = resize.Resample(im, b, w, h)
+		b = im.Bounds()
+	}
+	// conserve proportions. use the smallest of the two as the decisive one.
+	if mw > mh {
+		mw = b.Dx() * mh / b.Dy()
+	} else {
+		mh = b.Dy() * mw / b.Dx()
+	}
+	return resize.Resize(im, b, mw, mh)
+}
+
+func (opts *DecodeOpts) wantRescale(b image.Rectangle) bool {
+	return opts != nil &&
+		(opts.MaxWidth > 0 && opts.MaxWidth < b.Dx() ||
+			opts.MaxHeight > 0 && opts.MaxHeight < b.Dy() ||
+			opts.ScaleWidth > 0.0 && opts.ScaleWidth < float32(b.Dx()) ||
+			opts.ScaleHeight > 0.0 && opts.ScaleHeight < float32(b.Dy()))
+}
+
 func (opts *DecodeOpts) forcedRotate() bool {
 	return opts != nil && opts.Rotate != nil
 }
@@ -195,20 +251,24 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	flipMode := FlipDirection(0)
 	if opts.useEXIF() {
 		ex, err := exif.Decode(tr)
-		if err != nil {
-			imageDebug("No valid EXIF; will not rotate or flip.")
+		maybeRescale := func() (image.Image, Config, error) {
 			im, format, err := image.Decode(io.MultiReader(&buf, r))
+			if err == nil && opts.wantRescale(im.Bounds()) {
+				im = rescale(im, opts)
+				c.Modified = true
+			}
 			c.Format = format
 			c.setBounds(im)
 			return im, c, err
 		}
+		if err != nil {
+			imageDebug("No valid EXIF; will not rotate or flip.")
+			return maybeRescale()
+		}
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
 			imageDebug("No \"Orientation\" tag in EXIF; will not rotate or flip.")
-			im, format, err := image.Decode(io.MultiReader(&buf, r))
-			c.Format = format
-			c.setBounds(im)
-			return im, c, err
+			return maybeRescale()
 		}
 		orient := tag.Int(0)
 		switch orient {
@@ -249,16 +309,22 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 		}
 	}
 
-	im, err := jpeg.Decode(io.MultiReader(&buf, r))
+	im, format, err := image.Decode(io.MultiReader(&buf, r))
 	if err != nil {
 		return nil, c, err
 	}
+	rescaled := false
+	if opts.wantRescale(im.Bounds()) {
+		im = rescale(im, opts)
+		rescaled = true
+	}
 	im = flip(rotate(im, angle), flipMode)
 	modified := true
-	if angle == 0 && flipMode == 0 {
+	if angle == 0 && flipMode == 0 && !rescaled {
 		modified = false
 	}
-	c.Format = "jpeg"
+
+	c.Format = format
 	c.Modified = modified
 	c.setBounds(im)
 	return im, c, nil
