@@ -522,7 +522,7 @@ type DescribedBlob struct {
 	Request *DescribeRequest `json:"-"`
 
 	BlobRef   *blobref.BlobRef `json:"blobRef"`
-	MimeType  string           `json:"mimeType"`
+	MIMEType  string           `json:"mimeType"`
 	CamliType string           `json:"camliType"`
 	Size      int64            `json:"size,"`
 
@@ -715,7 +715,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 				return image, thumbSize, thumbSize, true
 			}
 
-			// TODO: different thumbnails based on peer.File.MimeType.
+			// TODO: different thumbnails based on peer.File.MIMEType.
 			return "file.png", thumbSize, thumbSize, true
 		}
 		if peer.Dir != nil {
@@ -891,7 +891,7 @@ func (dr *DescribeRequest) addError(br *blobref.BlobRef, err error) {
 }
 
 func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
-	mime, size, err := dr.sh.index.GetBlobMimeType(br)
+	mime, size, err := dr.sh.index.GetBlobMIMEType(br)
 	if err == os.ErrNotExist {
 		return
 	}
@@ -904,7 +904,7 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 	// DescribedBlob/DescribedPermanode/DescribedFile, not json
 	// maps.  Then add JSON marhsallers to those types. Add tests.
 	des := dr.describedBlob(br)
-	des.setMimeType(mime)
+	des.setMIMEType(mime)
 	des.Size = size
 
 	switch des.CamliType {
@@ -1200,8 +1200,8 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 
 const camliTypePrefix = "application/json; camliType="
 
-func (d *DescribedBlob) setMimeType(mime string) {
-	d.MimeType = mime
+func (d *DescribedBlob) setMIMEType(mime string) {
+	d.MIMEType = mime
 	if strings.HasPrefix(mime, camliTypePrefix) {
 		d.CamliType = mime[len(camliTypePrefix):]
 	}

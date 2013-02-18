@@ -126,7 +126,7 @@ func (fi *FakeIndex) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (search.C
 	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
 }
 
-func (fi *FakeIndex) GetBlobMimeType(blob *blobref.BlobRef) (mime string, size int64, err error) {
+func (fi *FakeIndex) GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64, err error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	bs := blob.String()

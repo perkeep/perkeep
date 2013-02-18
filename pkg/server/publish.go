@@ -454,7 +454,7 @@ func (pr *publishRequest) serveSubject() {
 			pr.pf("<div>File: %s, %d bytes, type %s</div>",
 				html.EscapeString(des.File.FileName),
 				des.File.Size,
-				des.File.MimeType)
+				des.File.MIMEType)
 			if des.File.IsImage() {
 				pr.pf("<a href='%s'><img src='%s'></a>",
 					downloadURL,
@@ -559,7 +559,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 	}
 	mime := ""
 	if fileinfo != nil && fileinfo.IsImage() {
-		mime = fileinfo.MimeType
+		mime = fileinfo.MIMEType
 	}
 	dh := &DownloadHandler{
 		Fetcher:   pr.ph.Storage,
