@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 
 	"camlistore.org/pkg/index"
 )
@@ -36,6 +37,16 @@ type Storage struct {
 	// PlaceHolderFunc optionally replaces ? placeholders with the right ones for the rdbms
 	// in use
 	PlaceHolderFunc func(string) string
+
+	// Serial determines whether a Go-level mutex protects DB from
+	// concurrent access.  This isn't perfect and exists just for
+	// SQLite, whose driver likes to return "the database is
+	// locked" (camlistore.org/issue/114), so this keeps some
+	// pressure off. But we still trust SQLite to deal with
+	// concurrency in most cases.
+	Serial bool
+
+	mu sync.Mutex // the mutex used, if Serial is set
 }
 
 func (s *Storage) sql(v string) string {
@@ -83,7 +94,9 @@ func (b *batchTx) Delete(key string) {
 }
 
 func (s *Storage) BeginBatch() index.BatchMutation {
-
+	if s.Serial {
+		s.mu.Lock()
+	}
 	tx, err := s.DB.Begin()
 	return &batchTx{
 		tx:              tx,
@@ -94,6 +107,9 @@ func (s *Storage) BeginBatch() index.BatchMutation {
 }
 
 func (s *Storage) CommitBatch(b index.BatchMutation) error {
+	if s.Serial {
+		defer s.mu.Unlock()
+	}
 	bt, ok := b.(*batchTx)
 	if !ok {
 		return fmt.Errorf("wrong BatchMutation type %T", b)
@@ -105,6 +121,10 @@ func (s *Storage) CommitBatch(b index.BatchMutation) error {
 }
 
 func (s *Storage) Get(key string) (value string, err error) {
+	if s.Serial {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
 	err = s.DB.QueryRow(s.sql("SELECT v FROM rows WHERE k=?"), key).Scan(&value)
 	if err == sql.ErrNoRows {
 		err = index.ErrNotFound
@@ -113,6 +133,10 @@ func (s *Storage) Get(key string) (value string, err error) {
 }
 
 func (s *Storage) Set(key, value string) error {
+	if s.Serial {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
 	if s.SetFunc != nil {
 		return s.SetFunc(s.DB, key, value)
 	}
@@ -121,6 +145,10 @@ func (s *Storage) Set(key, value string) error {
 }
 
 func (s *Storage) Delete(key string) error {
+	if s.Serial {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
 	_, err := s.DB.Exec(s.sql("DELETE FROM rows WHERE k=?"), key)
 	return err
 }
@@ -170,9 +198,15 @@ func (t *iter) Next() bool {
 	if t.rows == nil {
 		const batchSize = 50
 		t.batchSize = batchSize
+		if t.s.Serial {
+			t.s.mu.Lock()
+		}
 		t.rows, t.err = t.s.DB.Query(t.s.sql(
 			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k LIMIT "+strconv.Itoa(batchSize)),
 			t.low)
+		if t.s.Serial {
+			t.s.mu.Unlock()
+		}
 		if t.err != nil {
 			log.Printf("unexpected query error: %v", t.err)
 			return false

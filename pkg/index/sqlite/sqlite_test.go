@@ -106,9 +106,10 @@ func TestEdgesTo_SQLite(t *testing.T) {
 }
 
 func TestConcurrency(t *testing.T) {
-	t.Logf("skipping; fails. http://camlistore.org/issue/114")
-	return
-
+	if testing.Short() {
+		t.Logf("skipping for short mode")
+		return
+	}
 	s, clean := makeStorage(t)
 	defer clean()
 	const n = 100
