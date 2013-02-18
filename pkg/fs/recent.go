@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/search"
@@ -34,8 +35,9 @@ import (
 type recentDir struct {
 	fs *CamliFileSystem
 
-	mu   sync.Mutex
-	ents map[string]*search.DescribedBlob // filename to blob meta
+	mu      sync.Mutex
+	ents    map[string]*search.DescribedBlob // filename to blob meta
+	modTime map[string]time.Time             // filename to permanode modtime
 }
 
 func (n *recentDir) Attr() fuse.Attr {
@@ -52,6 +54,7 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	defer n.mu.Unlock()
 
 	n.ents = make(map[string]*search.DescribedBlob)
+	n.modTime = make(map[string]time.Time)
 
 	req := &search.RecentRequest{N: 100}
 	res, err := n.fs.client.GetRecentPermanodes(req)
@@ -90,7 +93,8 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 			}
 		}
 		n.ents[name] = ccMeta
-		log.Printf("fs.recent: name %q = %v", name, ccMeta.BlobRef)
+		n.modTime[name] = ri.ModTime.Time()
+		log.Printf("fs.recent: name %q = %v (at %v)", name, ccMeta.BlobRef, ri.ModTime.Time())
 		ents = append(ents, fuse.Dirent{
 			Name: name,
 		})
@@ -105,7 +109,7 @@ func (n *recentDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) 
 	if n.ents == nil {
 		// Odd case: a Lookup before a Readdir. Force a readdir to
 		// seed our map. Mostly hit just during development.
-		n.mu.Unlock()   // release, since ReadDir will acquire
+		n.mu.Unlock() // release, since ReadDir will acquire
 		n.ReadDir(intr)
 		n.mu.Lock()
 	}
@@ -114,7 +118,10 @@ func (n *recentDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) 
 	if db == nil {
 		return nil, fuse.ENOENT
 	}
-	// TODO: fake the modtime to be the modtime of the permanode instead?
-	// set some optional field in *node for that.
-	return &node{fs: n.fs, blobref: db.BlobRef}, nil
+	nod := &node{
+		fs:           n.fs,
+		blobref:      db.BlobRef,
+		pnodeModTime: n.modTime[name],
+	}
+	return nod, nil
 }

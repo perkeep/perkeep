@@ -99,6 +99,8 @@ type node struct {
 	fs      *CamliFileSystem
 	blobref *blobref.BlobRef
 
+	pnodeModTime time.Time // optionally set by recent.go; modtime of permanode
+
 	dmu     sync.Mutex    // guards dirents. acquire before mu.
 	dirents []fuse.Dirent // nil until populated once
 
@@ -269,16 +271,21 @@ func (n *node) populateAttr() error {
 
 	// TODO: inode?
 
-	n.attr.Mtime = meta.ModTime()
+	if mt := meta.ModTime(); !mt.IsZero() {
+		n.attr.Mtime = mt
+	} else {
+		n.attr.Mtime = n.pnodeModTime
+	}
 
 	switch meta.Type() {
 	case "file":
 		n.attr.Size = uint64(meta.PartsSize())
 		n.attr.Blocks = 0 // TODO: set?
+		n.attr.Mode |= 0400
 	case "directory":
-		// Nothing special? Just prevent default case.
+		n.attr.Mode |= 0500
 	case "symlink":
-		// Nothing special? Just prevent default case.
+		n.attr.Mode |= 0400
 	default:
 		log.Printf("unknown attr ss.Type %q in populateAttr", meta.Type())
 	}
