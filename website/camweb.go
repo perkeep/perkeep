@@ -321,6 +321,7 @@ func main() {
 			Static: http.StripPrefix("/code/", http.FileServer(http.Dir(*gitwebFiles))),
 		}})
 	}
+	mux.HandleFunc("/issue/", issueRedirect)
 	mux.HandleFunc("/", mainHandler)
 
 	if *buildbotHost != "" && *buildbotBackend != "" {
@@ -361,6 +362,17 @@ func main() {
 	}
 
 	log.Fatalf("Serve error: %v", <-errch)
+}
+
+var issueNum = regexp.MustCompile(`^/issue/(\d+)$`)
+
+func issueRedirect(w http.ResponseWriter, r *http.Request) {
+	m := issueNum.FindStringSubmatch(r.URL.Path)
+	if m == nil {
+		http.Error(w, "Bad request", 400)
+		return
+	}
+	http.Redirect(w, r, "https://code.google.com/p/camlistore/issues/detail?id=" + m[1], http.StatusFound)
 }
 
 type fixUpGitwebUrls struct {
