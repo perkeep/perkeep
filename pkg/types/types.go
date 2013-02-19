@@ -40,6 +40,7 @@ var (
 	_ json.Unmarshaler = (*Time3339)(nil)
 )
 
+
 func (t Time3339) String() string {
 	return time.Time(t).UTC().Format(time.RFC3339Nano)
 }
@@ -72,20 +73,41 @@ func (t *Time3339) UnmarshalJSON(b []byte) error {
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
 		return fmt.Errorf("types: failed to unmarshal non-string value %q as an RFC 3339 time")
 	}
-	if isGo10 {
-		tgo10, err := parseForGo10(string(b[1 : len(b)-1]))
-		if err != nil {
-			return err
-		}
-		*t = Time3339(tgo10)
-		return nil
-	}
-	tm, err := time.Parse(time.RFC3339Nano, string(b[1:len(b)-1]))
+	tm, err := ParseTime3339(string(b[1 : len(b)-1]))
 	if err != nil {
 		return err
 	}
-	*t = Time3339(tm)
+	*t = tm
 	return nil
+}
+
+// ParseTime3339 parses a string in RFC3339 format.
+func ParseTime3339(v string) (t Time3339, err error) {
+	var tm time.Time
+	if isGo10 {
+		tm, err = parseForGo10(v)
+	} else {
+		tm, err = time.Parse(time.RFC3339Nano, v)
+	}
+	return Time3339(tm), err
+}
+
+// ParseTime3339 parses a string in RFC3339 format. If it's invalid,
+// the zero time value is returned instead.
+func ParseTime3339OrZero(v string) Time3339 {
+	t, err := ParseTime3339(v)
+	if err != nil {
+		return Time3339{}
+	}
+	return t
+}
+
+func ParseTime3339OrZil(v string) *Time3339 {
+	t, err := ParseTime3339(v)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // Time returns the time as a time.Time with slightly less stutter
@@ -95,8 +117,8 @@ func (t Time3339) Time() time.Time {
 }
 
 // IsZero returns whether the time is Go zero or Unix zero.
-func (t Time3339) IsZero() bool {
-	return t.Time().IsZero() || t.Time().Unix() == 0
+func (t *Time3339) IsZero() bool {
+	return t == nil || time.Time(*t).IsZero() || time.Time(*t).Unix() == 0
 }
 
 // ByTime sorts times.
