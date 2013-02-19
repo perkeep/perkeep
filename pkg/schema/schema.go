@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -719,6 +718,19 @@ func findSize(v interface{}) (size int64, ok bool) {
 	}); ok {
 		return sz.Size(), true
 	}
+	// For bytes.Reader, strings.Reader, etc:
+	if li, ok := v.(interface {
+		Len() int
+	}); ok {
+		ln := int64(li.Len()) // unread portion, typically
+		// If it's also a seeker, remove add any seek offset:
+		if sk, ok := v.(io.Seeker); ok {
+			if cur, err := sk.Seek(0, 1); err == nil {
+				ln += cur
+			}
+		}
+		return ln, true
+	}
 	return 0, false
 }
 
@@ -747,12 +759,10 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	r := io.NewSectionReader(f, 0, size)
 	ex, err := exif.Decode(r)
 	if err != nil {
-		fmt.Printf("%v\n", err)
 		return defaultTime()
 	}
 	ct, err = ex.DateTime()
 	if err != nil {
-		log.Printf("Error with DateTime in EXIF: %v", err)
 		return defaultTime()
 	}
 	return ct, nil
