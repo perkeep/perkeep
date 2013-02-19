@@ -52,7 +52,7 @@ func TestTime3339_empty(t *testing.T) {
 		enc string
 		z   bool
 	}{
-		// {enc: "0000-00-00T00:00:00Z"}, Go bug files
+		{enc: "0000-00-00T00:00:00Z", z: true},
 		{enc: "1970-01-01T00:00:00Z", z: true},
 		{enc: "2001-02-03T04:05:06Z", z: false},
 		{enc: "2001-02-03T04:05:06+06:00", z: false},

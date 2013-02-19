@@ -98,3 +98,10 @@ func (t Time3339) Time() time.Time {
 func (t Time3339) IsZero() bool {
 	return t.Time().IsZero() || t.Time().Unix() == 0
 }
+
+// ByTime sorts times.
+type ByTime []time.Time
+
+func (s ByTime) Len() int           { return len(s) }
+func (s ByTime) Less(i, j int) bool { return s[i].Before(s[j]) }
+func (s ByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
