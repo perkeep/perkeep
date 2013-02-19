@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,27 +18,25 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"log"
+	"os"
+
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
-var (
-	flagSplits = flag.Bool("splits", false, "show splits of provided filename")
-	flagMIME   = flag.Bool("mime", false, "show MIME type of provided file")
-	flagEXIF   = flag.Bool("exif", false, "show EXIF dump of provided file")
-)
-
-func main() {
-	flag.Parse()
-	if *flagMIME {
-		showMIME()
-		return
+func showEXIF() {
+	file := flag.Arg(0)
+	f, err := os.Open(file)
+	if err != nil {
+		panic(err.Error())
 	}
-	if *flagSplits {
-		showSplits()
-		return
+	defer f.Close()
+	ex, err := exif.Decode(f)
+	if err != nil {
+		log.Fatalf("exif.Decode: %v", err)
 	}
-	if *flagEXIF {
-		showEXIF()
-		return
-	}
-	flag.Usage()
+	fmt.Printf("exif.Decode = %#v\n", ex)
+	ct, err := ex.DateTime()
+	fmt.Printf("exif.DateTime = %v, %v\n", ct, err)
 }
