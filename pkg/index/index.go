@@ -23,11 +23,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types"
 )
 
 var _ = log.Printf
@@ -541,28 +543,59 @@ func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*bl
 	return schemaRefs, nil
 }
 
+func (x *Index) loadKey(key string, val *string, err *error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	*val, *err = x.s.Get(key)
+}
+
 func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) {
-	key := "fileinfo|" + fileRef.String()
-	v, err := x.s.Get(key)
-	if err == ErrNotFound {
+	ikey := "fileinfo|" + fileRef.String()
+	tkey := "filetimes|" + fileRef.String()
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	var iv, tv string // info value, time value
+	var ierr, terr error
+	go x.loadKey(ikey, &iv, &ierr, wg)
+	go x.loadKey(tkey, &tv, &terr, wg)
+	wg.Wait()
+
+	if ierr == ErrNotFound {
 		go x.reindex(fileRef) // kinda a hack. Issue 103.
 		return nil, os.ErrNotExist
 	}
-	valPart := strings.Split(v, "|")
+	if ierr != nil {
+		return nil, ierr
+	}
+	if terr == ErrNotFound {
+		// Old index; retry. TODO: index versioning system.
+		x.reindex(fileRef)
+		tv, terr = x.s.Get(tkey)
+	}
+	valPart := strings.Split(iv, "|")
 	if len(valPart) < 3 {
-		log.Printf("index: bogus key %q = %q", key, v)
+		log.Printf("index: bogus key %q = %q", ikey, iv)
 		return nil, os.ErrNotExist
 	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
-		log.Printf("index: bogus integer at position 0 in key %q = %q", key, v)
+		log.Printf("index: bogus integer at position 0 in key %q = %q", ikey, iv)
 		return nil, os.ErrNotExist
 	}
+	fileName := urld(valPart[1])
 	fi := &search.FileInfo{
 		Size:     size,
-		FileName: urld(valPart[1]),
+		FileName: fileName,
 		MIMEType: urld(valPart[2]),
 	}
+
+	if tv != "" {
+		times := strings.Split(urld(tv), ",")
+		fi.Time = types.ParseTime3339OrZil(times[0])
+		if len(times) == 2 {
+			fi.ModTime = types.ParseTime3339OrZil(times[1])
+		}
+	}
+
 	return fi, nil
 }
 

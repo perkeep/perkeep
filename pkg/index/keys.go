@@ -79,7 +79,6 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{})
 			}
 			buf.WriteString(reverseTimeString(s))
 		default:
-			// TODO(bradfitz): reverse time and such
 			if s, ok := arg.(string); ok {
 				buf.WriteString(s)
 			} else {
@@ -170,6 +169,19 @@ var (
 			{"size", typeIntStr},
 			{"filename", typeStr},
 			{"mimetype", typeStr},
+		},
+	}
+
+	keyFileTimes = &keyType{
+		"filetimes",
+		[]part{
+			{"file", typeBlobRef},
+		},
+		[]part{
+			// 0, 1, or 2 comma-separated types.Time3339
+			// strings for creation/mod times. Oldest,
+			// then newest. See FileInfo docs.
+			{"time3339s", typeStr},
 		},
 	}
 

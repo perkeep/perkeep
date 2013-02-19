@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/types"
 )
 
 type Result struct {
@@ -88,11 +89,25 @@ func (cl ClaimList) String() string {
 	return buf.String()
 }
 
+// FileInfo describes a file or directory.
 type FileInfo struct {
-	Size     int64  `json:"size"`
 	FileName string `json:"fileName"`
+
+	// Size is the size of files. It is not set for directories.
+	Size     int64  `json:"size"`
+
 	// MIMEType may be set for files, but never for directories.
 	MIMEType string `json:"mimeType,omitempty"`
+
+	// Time is the earliest of any modtime, creation time, or EXIF
+	// original/modification times found. It may be omitted (zero)
+	// if unknown.
+	Time *types.Time3339 `json:"time,omitempty"`
+
+	// ModTime is the latest of any modtime, creation time, or EXIF
+	// original/modification times found. If ModTime doesn't differ
+	// from Time, ModTime is omitted (zero).
+	ModTime *types.Time3339 `json:"modTime,omitempty"`
 }
 
 func (fi *FileInfo) IsImage() bool {

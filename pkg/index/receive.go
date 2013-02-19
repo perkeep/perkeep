@@ -26,10 +26,11 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"io/ioutil"
 	"log"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
@@ -37,6 +38,7 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types"
 )
 
 func (ix *Index) GetBlobHub() blobserver.BlobHub {
@@ -139,11 +141,28 @@ func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm 
 	return nil
 }
 
+// keepFirstN keeps the first N bytes written to it in Bytes.
+type keepFirstN struct {
+	N     int
+	Bytes []byte
+}
+
+func (w *keepFirstN) Write(p []byte) (n int, err error) {
+	if n := w.N - len(w.Bytes); n > 0 {
+		if n > len(p) {
+			n = len(p)
+		}
+		w.Bytes = append(w.Bytes, p[:n]...)
+	}
+	return len(p), nil
+}
+
 // blobref: of the file or schema blob
-//      ss: the parsed file schema blob
+//      blob: the parsed file schema blob
 //      bm: keys to populate
 func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
-	// TODO: move the NewFileReader off of blob.
+	var times []time.Time // all creation or mod times seen; may be zero
+	times = append(times, blob.ModTime())
 
 	blobRef := blob.BlobRef()
 	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
@@ -161,32 +180,12 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 
 	sha1 := sha1.New()
 	var copyDest io.Writer = sha1
-	var withCopyErr func(error) // or nil
+	var imageBuf *keepFirstN // or nil
 	if strings.HasPrefix(mime, "image/") {
-		pr, pw := io.Pipe()
-		copyDest = io.MultiWriter(copyDest, pw)
-		confc := make(chan *image.Config, 1)
-		go func() {
-			conf, _, err := image.DecodeConfig(pr)
-			defer io.Copy(ioutil.Discard, pr)
-			if err == nil {
-				confc <- &conf
-			} else {
-				confc <- nil
-			}
-		}()
-		withCopyErr = func(err error) {
-			pw.CloseWithError(err)
-			if conf := <-confc; conf != nil {
-				bm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
-			}
-		}
+		imageBuf = &keepFirstN{N: 256 << 10}
+		copyDest = io.MultiWriter(copyDest, imageBuf)
 	}
-
 	size, err := io.Copy(copyDest, reader)
-	if f := withCopyErr; f != nil {
-		f(err)
-	}
 	if err != nil {
 		// TODO: job scheduling system to retry this spaced
 		// out max n times.  Right now our options are
@@ -198,9 +197,39 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 		return nil
 	}
 
+	if imageBuf != nil {
+		if conf, _, err := image.DecodeConfig(bytes.NewReader(imageBuf.Bytes)); err == nil {
+			bm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
+		}
+		if ft, err := schema.FileTime(bytes.NewReader(imageBuf.Bytes)); err == nil {
+			log.Printf("filename %q exif = %v, %v", blob.FileName(), ft, err)
+			times = append(times, ft)
+		} else {
+			log.Printf("filename %q exif = %v, %v", blob.FileName(), ft, err)
+		}
+	}
+
+	var sortTimes []time.Time
+	for _, t := range times {
+		if !t.IsZero() {
+			sortTimes = append(sortTimes, t)
+		}
+	}
+	sort.Sort(types.ByTime(sortTimes))
+	var time3339s string
+	switch {
+	case len(sortTimes) == 1:
+		time3339s = types.Time3339(sortTimes[0]).String()
+	case len(sortTimes) >= 2:
+		oldest, newest := sortTimes[0], sortTimes[len(sortTimes)-1]
+		time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
+	}
+	log.Printf("times are: %q", time3339s)
+
 	wholeRef := blobref.FromHash(sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, blob.FileName(), mime))
+	bm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 	return nil
 }
 
@@ -209,7 +238,7 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 //      bm: keys to populate
 func (ix *Index) populateDir(blob *schema.Blob, bm BatchMutation) error {
 	blobRef := blob.BlobRef()
-	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto 
+	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto
 
 	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
 	dr, err := blob.NewDirReader(seekFetcher)

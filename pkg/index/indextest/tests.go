@@ -143,7 +143,10 @@ func (id *IndexDeps) DelAttribute(permaNode *blobref.BlobRef, attr string) *blob
 	return id.uploadAndSign(m)
 }
 
-func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, wholeRef *blobref.BlobRef) {
+var noTime = time.Time{}
+
+// If modTime is zero, it's not used.
+func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.Time) (fileRef, wholeRef *blobref.BlobRef) {
 	cb := &test.Blob{Contents: contents}
 	id.BlobSource.AddBlob(cb)
 	wholeRef = cb.BlobRef()
@@ -158,6 +161,9 @@ func (id *IndexDeps) UploadFile(fileName string, contents string) (fileRef, whol
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
 	}})
+	if !modTime.IsZero() {
+		m.SetModTime(modTime)
+	}
 	fjson, err := m.JSON()
 	if err != nil {
 		id.Fatalf("UploadFile.JSON: %v", err)
@@ -249,23 +255,29 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			id.UploadFile(fileBase, string(contents))
+			id.UploadFile(fileBase, string(contents), noTime)
 		}
 	}
 
 	// Upload a basic image.
 	var jpegFileRef *blobref.BlobRef
+	var exifFileRef *blobref.BlobRef
 	{
 		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
 		if err != nil {
 			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
 		}
-		fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", "dude.jpg")
-		contents, err := ioutil.ReadFile(fileName)
-		if err != nil {
-			t.Fatal(err)
+		uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+			contents, err := ioutil.ReadFile(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			br, _ := id.UploadFile(file, string(contents), modTime)
+			return br
 		}
-		jpegFileRef, _ = id.UploadFile("dude.jpg", string(contents))
+		jpegFileRef = uploadFile("dude.jpg", noTime)
+		exifFileRef = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
 	}
 
 	lastPermanodeMutation := id.lastTime()
@@ -279,6 +291,15 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = "imagesize|" + jpegFileRef.String()
 	if g, e := id.Get(key), "50|100"; g != e {
 		t.Errorf("JPEG dude.jpg key %q = %q; want %q", key, g, e)
+	}
+	key = "filetimes|" + jpegFileRef.String()
+	if g, e := id.Get(key), ""; g != e {
+		t.Errorf("JPEG dude.jpg key %q = %q; want %q", key, g, e)
+	}
+
+	key = "filetimes|" + exifFileRef.String()
+	if g, e := id.Get(key), "2013-02-18T01%3A11%3A20Z%2C2013-02-19T04%3A39%3A56Z"; g != e {
+		t.Errorf("EXIF dude-exif.jpg key %q = %q; want %q", key, g, e)
 	}
 
 	key = "have:" + pn.String()
@@ -543,7 +564,8 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 func Files(t *testing.T, initIdx func() *index.Index) {
 	id := NewIndexDeps(initIdx())
 	id.Fataler = t
-	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>")
+	fileTime := time.Unix(1361250375, 0)
+	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>", fileTime)
 	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
 	id.dumpIndex(t)
 
@@ -583,6 +605,9 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		}
 		if g, e := fi.MIMEType, "text/html"; g != e {
 			t.Errorf("MIMEType = %q, want %q", g, e)
+		}
+		if g, e := fi.Time, fileTime; !g.Time().Equal(e) {
+			t.Errorf("Time = %v; want %v", g, e)
 		}
 	}
 }
