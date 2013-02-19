@@ -65,6 +65,7 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 
 	var ents []fuse.Dirent
 	for _, ri := range res.Recent {
+		modTime := ri.ModTime.Time()
 		meta := res.Meta.Get(ri.BlobRef)
 		if meta == nil || meta.Permanode == nil {
 			continue
@@ -81,6 +82,9 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		switch {
 		case ccMeta.File != nil:
 			name = ccMeta.File.FileName
+			if mt := ccMeta.File.Time; !mt.IsZero() {
+				modTime = mt.Time()
+			}
 		case ccMeta.Dir != nil:
 			name = ccMeta.Dir.FileName
 		default:
@@ -93,8 +97,8 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 			}
 		}
 		n.ents[name] = ccMeta
-		n.modTime[name] = ri.ModTime.Time()
-		log.Printf("fs.recent: name %q = %v (at %v)", name, ccMeta.BlobRef, ri.ModTime.Time())
+		n.modTime[name] = modTime
+		log.Printf("fs.recent: name %q = %v (at %v -> %v)", name, ccMeta.BlobRef, ri.ModTime.Time(), modTime)
 		ents = append(ents, fuse.Dirent{
 			Name: name,
 		})
