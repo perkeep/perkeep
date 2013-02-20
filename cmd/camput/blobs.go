@@ -27,18 +27,19 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 )
 
 type blobCmd struct{}
 
 func init() {
-	RegisterCommand("blob", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("blob", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(blobCmd)
 	})
 }
 
 func (c *blobCmd) Usage() {
-	fmt.Fprintf(stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
 }
 
 func (c *blobCmd) Examples() []string {
@@ -48,11 +49,12 @@ func (c *blobCmd) Examples() []string {
 	}
 }
 
-func (c *blobCmd) RunCommand(up *Uploader, args []string) error {
+func (c *blobCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return errors.New("No files given.")
 	}
 
+	up := getUploader()
 	for _, arg := range args {
 		var (
 			handle *client.UploadHandle
@@ -75,7 +77,7 @@ func (c *blobCmd) RunCommand(up *Uploader, args []string) error {
 
 func stdinBlobHandle() (uh *client.UploadHandle, err error) {
 	var buf bytes.Buffer
-	size, err := io.Copy(&buf, stdin)
+	size, err := io.Copy(&buf, cmdmain.Stdin)
 	if err != nil {
 		return
 	}

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
 
@@ -35,7 +36,7 @@ type permanodeCmd struct {
 }
 
 func init() {
-	RegisterCommand("permanode", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("permanode", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(permanodeCmd)
 		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on new permanode")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on new permanode; comma separated.")
@@ -46,7 +47,7 @@ func init() {
 }
 
 func (c *permanodeCmd) Usage() {
-	errf("Usage: camput [globalopts] permanode [permanodeopts]\n")
+	cmdmain.Errf("Usage: camput [globalopts] permanode [permanodeopts]\n")
 }
 
 func (c *permanodeCmd) Examples() []string {
@@ -56,7 +57,7 @@ func (c *permanodeCmd) Examples() []string {
 	}
 }
 
-func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
+func (c *permanodeCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
 		return errors.New("Permanode command doesn't take any additional arguments")
 	}
@@ -64,6 +65,7 @@ func (c *permanodeCmd) RunCommand(up *Uploader, args []string) error {
 	var (
 		permaNode *client.PutResult
 		err       error
+		up        = getUploader()
 	)
 	if (c.key != "") != (c.sigTime != "") {
 		return errors.New("Both --key and --sigtime must be used to produce deterministic permanodes.")
