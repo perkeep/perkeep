@@ -150,7 +150,6 @@ func newUploader() *Uploader {
 }
 
 func main() {
-	flag.Parse()
 	err := cmdmain.Main()
 	// TODO(mpl): see how errors go with other camtool modes
 	//  and move some of this accordingly to cmdmain.
