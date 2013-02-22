@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -25,8 +24,7 @@ import (
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
-func showEXIF() {
-	file := flag.Arg(0)
+func showEXIF(file string) {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(err.Error())
