@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,21 +26,96 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 )
 
-var (
-	flagLoop    = flag.Bool("loop", false, "sync in a loop once done; requires --removesrc")
-	flagVerbose = flag.Bool("verbose", false, "be verbose")
-	flagAll     = flag.Bool("all", false, "Discover all sync destinations configured on the source server and run them.")
+type syncCmd struct {
+	src  string
+	dest string
 
-	flagSrc  = flag.String("src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], or blank to use the Camlistore client config's default host.")
-	flagDest = flag.String("dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout")
+	loop      bool
+	verbose   bool
+	all       bool
+	removeSrc bool
 
-	flagRemoveSource = flag.Bool("removesrc", false,
-		"remove each blob from the source after syncing to the destination; for queue processing")
-)
+	logger *log.Logger
+}
 
-var logger *log.Logger = nil
+func init() {
+	cmdmain.RegisterCommand("sync", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		cmd := new(syncCmd)
+		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.dest, "dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout.")
+
+		flags.BoolVar(&cmd.loop, "loop", false, "Create an associate a new permanode for the uploaded file or directory.")
+		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
+		flags.BoolVar(&cmd.all, "all", false, "Discover all sync destinations configured on the source server and run them.")
+		flags.BoolVar(&cmd.removeSrc, "removesrc", false, "Remove each blob from the source after syncing to the destination; for queue processing.")
+
+		return cmd
+	})
+}
+
+func (c *syncCmd) Usage() {
+	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] sync [syncopts] \n")
+}
+
+func (c *syncCmd) Examples() []string {
+	return []string{
+		"--all",
+		"--src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/",
+	}
+}
+
+func (c *syncCmd) RunCommand(args []string) error {
+	if c.loop && !c.removeSrc {
+		return cmdmain.UsageError("Can't use --loop without --removesrc")
+	}
+	if c.verbose {
+		c.logger = log.New(os.Stderr, "", 0) // else nil
+	}
+	if c.all {
+		err := c.syncAll()
+		if err != nil {
+			return fmt.Errorf("sync all failed: %v", err)
+		}
+		return nil
+	}
+	if c.dest == "" {
+		return cmdmain.UsageError("No --dest specified.")
+	}
+
+	discl := c.discoClient()
+	discl.SetLogger(c.logger)
+	src, err := discl.BlobRoot()
+	if err != nil {
+		return fmt.Errorf("Failed to get blob source: %v", err)
+	}
+
+	sc := client.New(src)
+	sc.SetupAuth()
+	dc := client.New(c.dest)
+	dc.SetupAuth()
+
+	sc.SetLogger(c.logger)
+	dc.SetLogger(c.logger)
+
+	passNum := 0
+	for {
+		passNum++
+		stats, err := c.doPass(sc, dc)
+		if c.verbose {
+			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
+		}
+		if err != nil {
+			return fmt.Errorf("sync failed: %v", err)
+		}
+		if !c.loop {
+			break
+		}
+	}
+	return nil
+}
 
 type SyncStats struct {
 	BlobsCopied int
@@ -48,26 +123,18 @@ type SyncStats struct {
 	ErrorCount  int
 }
 
-func usage(err string) {
-	if err != "" {
-		fmt.Fprintf(os.Stderr, "Error: %s\n\nUsage:\n", err)
-	}
-	flag.PrintDefaults()
-	os.Exit(2)
-}
-
-func syncAll() error {
-	if *flagLoop {
-		usage("--all can not be used with --loop")
+func (c *syncCmd) syncAll() error {
+	if c.loop {
+		return cmdmain.UsageError("--all can not be used with --loop")
 	}
 
-	dc := discoClient()
-	dc.SetLogger(logger)
+	dc := c.discoClient()
+	dc.SetLogger(c.logger)
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
-		log.Fatalf("sync handlers discovery failed: %v", err)
+		return fmt.Errorf("sync handlers discovery failed: %v", err)
 	}
-	if *flagVerbose {
+	if c.verbose {
 		log.Printf("To be synced:\n")
 		for _, sh := range syncHandlers {
 			log.Printf("%v -> %v", sh.From, sh.To)
@@ -75,16 +142,16 @@ func syncAll() error {
 	}
 	for _, sh := range syncHandlers {
 		from := client.New(sh.From)
-		from.SetLogger(logger)
+		from.SetLogger(c.logger)
 		from.SetupAuth()
 		to := client.New(sh.To)
-		to.SetLogger(logger)
+		to.SetLogger(c.logger)
 		to.SetupAuth()
-		if *flagVerbose {
+		if c.verbose {
 			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
 		}
-		stats, err := doPass(from, to)
-		if *flagVerbose {
+		stats, err := c.doPass(from, to)
+		if c.verbose {
 			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
 		}
 		if err != nil {
@@ -98,69 +165,18 @@ func syncAll() error {
 // based from --src or from the configuration file if --src
 // is blank. The returned client can then be used to discover
 // the blobRoot and syncHandlers.
-func discoClient() *client.Client {
+func (c *syncCmd) discoClient() *client.Client {
 	var cl *client.Client
-	if *flagSrc == "" {
+	if c.src == "" {
 		cl = client.NewOrFail()
 	} else {
-		cl = client.New(*flagSrc)
+		cl = client.New(c.src)
 	}
 	cl.SetupAuth()
 	return cl
 }
 
-func main() {
-	flag.Parse()
-
-	if *flagLoop && !*flagRemoveSource {
-		usage("Can't use --loop without --removesrc")
-	}
-	if *flagVerbose {
-		logger = log.New(os.Stderr, "", 0)
-	}
-	if *flagAll {
-		err := syncAll()
-		if err != nil {
-			log.Fatalf("sync all failed: %v", err)
-		}
-		return
-	}
-	if *flagDest == "" {
-		usage("No --dest specified.")
-	}
-
-	discl := discoClient()
-	discl.SetLogger(logger)
-	src, err := discl.BlobRoot()
-	if err != nil {
-		log.Fatalf("Failed to get blob source: %v", err)
-	}
-
-	sc := client.New(src)
-	sc.SetupAuth()
-	dc := client.New(*flagDest)
-	dc.SetupAuth()
-
-	sc.SetLogger(logger)
-	dc.SetLogger(logger)
-
-	passNum := 0
-	for {
-		passNum++
-		stats, err := doPass(sc, dc)
-		if *flagVerbose {
-			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
-		}
-		if err != nil {
-			log.Fatalf("sync failed: %v", err)
-		}
-		if !*flagLoop {
-			break
-		}
-	}
-}
-
-func doPass(sc, dc *client.Client) (stats SyncStats, retErr error) {
+func (c *syncCmd) doPass(sc, dc *client.Client) (stats SyncStats, retErr error) {
 	srcBlobs := make(chan blobref.SizedBlobRef, 100)
 	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan error)
@@ -175,7 +191,7 @@ func doPass(sc, dc *client.Client) (stats SyncStats, retErr error) {
 		}
 	}
 
-	if *flagDest == "stdout" {
+	if c.dest == "stdout" {
 		for sb := range srcBlobs {
 			fmt.Printf("%s %d\n", sb.BlobRef, sb.Size)
 		}
@@ -195,7 +211,7 @@ func doPass(sc, dc *client.Client) (stats SyncStats, retErr error) {
 	destNotHaveBlobs := make(chan blobref.SizedBlobRef)
 	sizeMismatch := make(chan *blobref.BlobRef)
 	readSrcBlobs := srcBlobs
-	if *flagVerbose {
+	if c.verbose {
 		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
 	}
 	mismatches := []*blobref.BlobRef{}
@@ -237,7 +253,7 @@ For:
 				stats.BlobsCopied++
 				stats.BytesCopied += pr.Size
 			}
-			if *flagRemoveSource {
+			if c.removeSrc {
 				if err = sc.RemoveBlob(sb.BlobRef); err != nil {
 					stats.ErrorCount++
 					log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
@@ -249,7 +265,7 @@ For:
 	checkSourceError()
 	checkDestError()
 	if retErr == nil && stats.ErrorCount > 0 {
-		retErr = errors.New(fmt.Sprintf("%d errors during sync", stats.ErrorCount))
+		retErr = fmt.Errorf("%d errors during sync", stats.ErrorCount)
 	}
 	return stats, retErr
 }

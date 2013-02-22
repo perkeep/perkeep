@@ -39,6 +39,7 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
 
@@ -61,7 +62,7 @@ type fileCmd struct {
 }
 
 func init() {
-	RegisterCommand("file", func(flags *flag.FlagSet) CommandRunner {
+	cmdmain.RegisterCommand("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
@@ -94,7 +95,7 @@ func init() {
 }
 
 func (c *fileCmd) Usage() {
-	fmt.Fprintf(stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
 }
 
 func (c *fileCmd) Examples() []string {
@@ -105,21 +106,22 @@ func (c *fileCmd) Examples() []string {
 	}
 }
 
-func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
+func (c *fileCmd) RunCommand(args []string) error {
 	if c.vivify {
 		if c.makePermanode || c.filePermanodes || c.tag != "" || c.name != "" {
-			return UsageError("--vivify excludes any other option")
+			return cmdmain.UsageError("--vivify excludes any other option")
 		}
 	}
 	if c.name != "" && !c.makePermanode {
-		return UsageError("Can't set name without using --permanode")
+		return cmdmain.UsageError("Can't set name without using --permanode")
 	}
 	if c.tag != "" && !c.makePermanode && !c.filePermanodes {
-		return UsageError("Can't set tag without using --permanode or --filenodes")
+		return cmdmain.UsageError("Can't set tag without using --permanode or --filenodes")
 	}
 	if c.histo != "" && !c.memstats {
-		return UsageError("Can't use histo without memstats")
+		return cmdmain.UsageError("Can't use histo without memstats")
 	}
+	up := getUploader()
 	if c.memstats {
 		sr := new(statsStatReceiver)
 		up.altStatReceiver = sr
@@ -130,7 +132,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	if c.makePermanode || c.filePermanodes {
 		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
 		if testSigBlobRef == nil {
-			return UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
+			return cmdmain.UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
 	up.fileOpts = &fileOptions{
@@ -198,7 +200,7 @@ func (c *fileCmd) RunCommand(up *Uploader, args []string) error {
 	}
 
 	if len(args) == 0 {
-		return UsageError("No files or directories given.")
+		return cmdmain.UsageError("No files or directories given.")
 	}
 	for _, filename := range args {
 		fi, err := os.Stat(filename)
@@ -472,7 +474,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	if dupFileRef == nil {
 		return nil, false
 	}
-	if *flagVerbose {
+	if *cmdmain.FlagVerbose {
 		log.Printf("Found dup of contents %s in file schema %s", sum, dupFileRef)
 	}
 	dupMap, err := up.Client.FetchSchemaBlob(dupFileRef)
