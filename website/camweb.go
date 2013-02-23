@@ -374,7 +374,7 @@ func issueRedirect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", 400)
 		return
 	}
-	http.Redirect(w, r, "https://code.google.com/p/camlistore/issues/detail?id=" + m[1], http.StatusFound)
+	http.Redirect(w, r, "https://code.google.com/p/camlistore/issues/detail?id="+m[1], http.StatusFound)
 }
 
 type fixUpGitwebUrls struct {

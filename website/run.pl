@@ -17,7 +17,7 @@ print STDERR "Running camweb in $Bin on port 8080\n";
 my $in_prod = -e "$HOME/etc/ssl.key"; # heuristic. good enough.
 
 my @args;
-push @args, "go", "run", "camweb.go", "logging.go", "godoc.go";
+push @args, "go", "run", "camweb.go", "logging.go", "godoc.go", "format.go";
 push @args, "--http=:8080";
 push @args, "--root=$Bin";
 push @args, "--logdir=$logdir";
