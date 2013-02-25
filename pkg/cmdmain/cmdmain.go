@@ -81,6 +81,10 @@ type exampler interface {
 	Examples() []string
 }
 
+type describer interface {
+	Describe() string
+}
+
 // RegisterCommand adds a mode to the list of modes for the main command.
 // It is meant to be called in init() for each subcommand.
 func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunner) {
@@ -149,16 +153,21 @@ func usage(msg string) {
 	Errf(`
 Usage: ` + cmdName + ` [globalopts] <mode> [commandopts] [commandargs]
 
-Examples:
+Modes:
+
 `)
 	for mode, cmd := range modeCommand {
-		Errf("\n")
+		if des, ok := cmd.(describer); ok {
+			Errf("  %s: %s\n", mode, des.Describe())
+		}
+	}
+	Errf("\nExamples:\n")
+	for mode, cmd := range modeCommand {
 		if ex, ok := cmd.(exampler); ok {
+			Errf("\n")
 			for _, example := range ex.Examples() {
 				Errf("  %s %s %s\n", cmdName, mode, example)
 			}
-		} else {
-			Errf("  %s %s ...\n", cmdName, mode)
 		}
 	}
 
@@ -173,6 +182,27 @@ Global options:
 	Exit(1)
 }
 
+func help(mode string) {
+	cmdName := os.Args[0]
+	// We can skip all the checks as they're done in Main
+	cmd := modeCommand[mode]
+	cmdFlags := modeFlags[mode]
+	if des, ok := cmd.(describer); ok {
+		Errf("%s\n", des.Describe())
+	}
+	Errf("\n")
+	cmd.Usage()
+	if hasFlags(cmdFlags) {
+		cmdFlags.PrintDefaults()
+	}
+	if ex, ok := cmd.(exampler); ok {
+		Errf("\nExamples:\n")
+		for _, example := range ex.Examples() {
+			Errf("  %s %s %s\n", cmdName, mode, example)
+		}
+	}
+}
+
 // Main is meant to be the core of a command that has
 // subcommands (modes), such as camput or camtool.
 func Main() error {
@@ -180,7 +210,7 @@ func Main() error {
 	flag.Parse()
 	args := flag.Args()
 	if *FlagVersion {
-		fmt.Fprintf(Stderr, "camput version: %s\n", buildinfo.Version())
+		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Version())
 		return nil
 	}
 	if *FlagHelp {
@@ -197,10 +227,16 @@ func Main() error {
 	}
 
 	cmdFlags := modeFlags[mode]
+	var cmdHelp bool
+	cmdFlags.BoolVar(&cmdHelp, "help", false, "Help for this mode.")
 	err := cmdFlags.Parse(args[1:])
 	if err != nil {
 		err = ErrUsage
 	} else {
+		if cmdHelp {
+			help(mode)
+			return nil
+		}
 		err = cmd.RunCommand(cmdFlags.Args())
 	}
 	if ue, isUsage := err.(UsageError); isUsage {

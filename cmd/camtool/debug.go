@@ -53,6 +53,10 @@ func init() {
 	})
 }
 
+func (c *debugCmd) Describe() string {
+	return "Show misc meta-info from the given file."
+}
+
 func (c *debugCmd) Usage() {
 	var subModes, docs string
 	for k, v := range debugSubModes {

@@ -56,6 +56,10 @@ func init() {
 	})
 }
 
+func (c *syncCmd) Describe() string {
+	return "Synchronize blobs from a source to a destination."
+}
+
 func (c *syncCmd) Usage() {
 	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] sync [syncopts] \n")
 }
