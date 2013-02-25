@@ -21,6 +21,7 @@ committed=`git diff-index --cached --name-only HEAD`
 for c in $committed
 do
 	gofile=`echo $c | grep -E '.*\.go$'`
+	javafile=`echo $c | grep -E '.*\.java$'`
 	if [ -n "$gofile" ]
 	then
 		fmtdiff=`gofmt -d $c 2>&1`
@@ -29,6 +30,9 @@ do
 			echo "gofmt needed on "$c
 			exitstatus=1
 		fi
+	fi
+	if [ -n "$gofile" -o -n "$javafile" ]
+	then
 		trailspace=`git diff-index --cached --check HEAD $c | grep 'trailing whitespace'`
 		if [ -n "$trailspace" ]
 		then
