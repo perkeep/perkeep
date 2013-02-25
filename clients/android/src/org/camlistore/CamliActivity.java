@@ -17,6 +17,7 @@ limitations under the License.
 package org.camlistore;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -274,12 +275,20 @@ public class CamliActivity extends Activity {
         super.onResume();
 
         SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
-        HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
-        if (!hp.isValid()) {
-            // Crashes oddly in some Android Instrumentation thing if
-            // uncommented:
-            // SettingsActivity.show(this);
-            // return;
+        try {
+            HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
+            if (!hp.isValid()) {
+                // Crashes oddly in some Android Instrumentation thing if
+                // uncommented:
+                // SettingsActivity.show(this);
+                // return;
+            }
+        } catch (NumberFormatException enf) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage("Server should be of form [https://]<host[:port]>")
+                .setTitle("Invalid Setting");
+            AlertDialog alert = builder.create();
+            alert.show();
         }
 
         bindService(new Intent(this, UploadService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
