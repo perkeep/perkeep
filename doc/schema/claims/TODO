@@ -6,20 +6,37 @@ Clean this up and/or break into separate files.
  "camliType": "claim",
  "camliSigner": "....",
  "claimDate": "2010-07-10T17:20:03.9212Z", // redundant with data in ascii armored "camliSig", 
-                                           // but required. more legible. takes precedent over 
+                                           // but required. more legible. takes precedence over
                                            // any date inferred from camliSig
  "permaNode": "dig-xxxxxxx",        // what is being modified
  "claimType": "set-attribute",
  "attribute": "camliContent",
  "value": "dig-yyyyyyy",
-}
+ "camliSig": .........}
 
 claimTypes:
 -----------
-set-attribute (set a single-valued attribute)
-del-attribute (unsets a single-valued attribute)
-add-attribute (adds a value to a multi-valued attribute (e.g. "tag"))
-unadd-attribute (removes just one value from a multi-valued attribute)
+"add-attribute" (adds a value to a multi-valued attribute (e.g. "tag"))
+"set-attribute" (set a single-valued attribute. equivalent to "del-attribute" of "attribute" and then add-attribute)
+"del-attribute" (deletes all values of "attribute", if no "value" given, or just the provided "value" if multi-valued)
+
+"multi".. atomically do multiple add/set/del from above on potentially different permanodes. looks like:
+
+   {"camliVersion": 1,
+    "camliType": "claim",
+    "claimType": "multi",
+    "claimDate": "2013-02-24T17:20:03.9212Z",
+    "claims": [
+         {"claimType": "set-attribute",
+          "permanode": "dig-xxxxxx",
+          "attribute": "foo",
+          "value": "fooValue"},
+         {"claimType": "add-attribute",
+          "permanode": "dig-yyyyy",
+          "attribute": "tag",
+          "value": "funny"}
+    ],
+    "camliSig": .........}
 
 Attribute names:
 ----------------
@@ -36,38 +53,38 @@ permanode-become:
   -- ‘permaNode’ is the thing that is changing
   -- ‘contents’ is the current node that represents what permaNode changes to
 set-membership: add a blobref to a dynamic set
-  -- “permaNode” is blobref of the dynamic set
+  -- "permaNode" is blobref of the dynamic set
 delete-claim:  delete another claim (target is claim to delete)
-  -- “contents” is the claim blobref you’re deleting
+  -- "contents" is the claim blobref you’re deleting
 {set,add}-attribute:
   -- attach a piece of metadata to something.
-  -- use set-attribute for single-valued attributes only: highest dated claim wins (of trusted person) e.g.  “title”, “description”
-  -- use add-attribute for multi-valued things. e.g. “tag”
+  -- use set-attribute for single-valued attributes only: highest dated claim wins (of trusted person) e.g.  "title", "description"
+  -- use add-attribute for multi-valued things. e.g. "tag"
 
 Tagging something:
-{“claimType”: “add-attribute”, //
-  “attribute”: “tag”,  // utf-8, should have list of valid attributes names, preferrably not made up by us (open social spec?)
-  “value”: “funny”,  // value that doesn’t have lasting value
-  “valueRef”: “sha1-blobref”,  // hefty reference to a lasting value
+{"claimType": "add-attribute", //
+  "attribute": "tag",  // utf-8, should have list of valid attributes names, preferrably not made up by us (open social spec?)
+  "value": "funny",  // value that doesn’t have lasting value
+  "valueRef": "sha1-blobref",  // hefty reference to a lasting value
  
-  “claimer?”: “sha1-of-the-dude-who’s-signing”,
-  “claimDate”: “2010-07-10T17:20:03.9212Z”,
-  “claimType”, “permanode-become”,
-  “permaNode”: “sha1-pnode”,
+  "claimer?": "sha1-of-the-dude-who’s-signing",
+  "claimDate": "2010-07-10T17:20:03.9212Z",
+  "claimType", "permanode-become",
+  "permaNode": "sha1-pnode",
 }
 
 filesystem root claim:
 {
-  “camliVersion”: 1,
-  “camliType”: “claim”,
+  "camliVersion": 1,
+  "camliType": "claim",
 
-  // Stuff for camliType “claim”:
-  “claimDate”: “2010-07-10T17:20:03.9212Z”,  // redundant with data in ascii armored "camliSig".  TODO: resolve
-  “claimType”, “permanode-become”,
+  // Stuff for camliType "claim":
+  "claimDate": "2010-07-10T17:20:03.9212Z",  // redundant with data in ascii armored "camliSig".  TODO: resolve
+  "claimType", "permanode-become",
 
-   // Stuff for “permanode-become”:
-  “permaNode”: “sha1-pnode”,
-  “contents”: “sha1-fs-node”
+   // Stuff for "permanode-become":
+  "permaNode": "sha1-pnode",
+  "contents": "sha1-fs-node"
 
 ,"camliSigner": "digalg-blobref-to-ascii-armor-public-key-of-signer",
 "camliSig": "......"}
