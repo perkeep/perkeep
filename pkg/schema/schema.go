@@ -681,7 +681,7 @@ func NewClaim(claims ...*ClaimParam) *Builder {
 func populateClaimMap(m map[string]interface{}, cp *ClaimParam) {
 	m["claimType"] = string(cp.Type)
 	m["attribute"] = cp.Attribute
-	m["permaNode"] = cp.Permanode
+	m["permaNode"] = cp.Permanode.String()
 	if !(cp.Type == DelAttribute && cp.Value == "") {
 		m["value"] = cp.Value
 	}
