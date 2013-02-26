@@ -129,3 +129,91 @@ func TestBlobFromReader(t *testing.T) {
 		t.Logf("TODO(bradfitz): make sure bogus non-whitespace after the JSON object causes an error.")
 	}
 }
+
+func TestAttribute(t *testing.T) {
+	tm := time.Unix(123, 456)
+	br := blobref.MustParse("xxx-123")
+	tests := []struct {
+		bb   *Builder
+		want string
+	}{
+		{
+			bb: NewSetAttributeClaim(br, "attr1", "val1"),
+			want: `{"camliVersion": 1,
+  "attribute": "attr1",
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "set-attribute",
+  "value": "val1"
+}`,
+		},
+		{
+			bb: NewAddAttributeClaim(br, "tag", "funny"),
+			want: `{"camliVersion": 1,
+  "attribute": "tag",
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "add-attribute",
+  "value": "funny"
+}`,
+		},
+		{
+			bb: NewDelAttributeClaim(br, "attr1"),
+			want: `{"camliVersion": 1,
+  "attribute": "attr1",
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "del-attribute"
+}`,
+		},
+		{
+			bb: NewClaim(&ClaimParam{
+				Permanode: br,
+				Type:      SetAttribute,
+				Attribute: "foo",
+				Value:     "bar",
+			}, &ClaimParam{
+				Permanode: br,
+				Type:      DelAttribute,
+				Attribute: "foo",
+				Value:     "specific-del",
+			}, &ClaimParam{
+				Permanode: br,
+				Type:      DelAttribute,
+				Attribute: "foo",
+			}),
+			want: `{"camliVersion": 1,
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "multi",
+  "claims": [
+    {
+      "attribute": "foo",
+      "claimType": "set-attribute",
+      "value": "bar"
+    },
+    {
+      "attribute": "foo",
+      "claimType": "del-attribute",
+      "value": "specific-del"
+    },
+    {
+      "attribute": "foo",
+      "claimType": "del-attribute"
+    }
+  ]
+}`,
+		},
+	}
+	for i, tt := range tests {
+		tt.bb.SetClaimDate(tm)
+		got, err := tt.bb.JSON()
+		if err != nil {
+			t.Errorf("%d. JSON error = %v", i, err)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("%d.\t got:\n%s\n\twant:q\n%s", i, got, tt.want)
+		}
+	}
+}

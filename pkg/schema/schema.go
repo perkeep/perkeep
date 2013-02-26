@@ -482,7 +482,7 @@ func (ss *StaticSet) Add(ref *blobref.BlobRef) {
 	ss.refs = append(ss.refs, ref)
 }
 
-func newMap(version int, ctype string) *Builder {
+func base(version int, ctype string) *Builder {
 	return &Builder{map[string]interface{}{
 		"camliVersion": version,
 		"camliType":    ctype,
@@ -491,7 +491,7 @@ func newMap(version int, ctype string) *Builder {
 
 // NewUnsignedPermanode returns a new random permanode, not yet signed.
 func NewUnsignedPermanode() *Builder {
-	bb := newMap(1, "permanode")
+	bb := base(1, "permanode")
 	chars := make([]byte, 20)
 	_, err := io.ReadFull(rand.Reader, chars)
 	if err != nil {
@@ -507,7 +507,7 @@ func NewUnsignedPermanode() *Builder {
 // GPG date to create consistent JSON encodings of the Map (its
 // blobref), between runs.
 func NewPlannedPermanode(key string) *Builder {
-	bb := newMap(1, "permanode")
+	bb := base(1, "permanode")
 	bb.m["key"] = key
 	return bb
 }
@@ -524,7 +524,7 @@ func NewHashPlannedPermanode(h hash.Hash) *Builder {
 // Map returns a Camli map of camliType "static-set"
 // TODO: delete this method
 func (ss *StaticSet) Blob() *Blob {
-	bb := newMap(1, "static-set")
+	bb := base(1, "static-set")
 	ss.l.Lock()
 	defer ss.l.Unlock()
 
@@ -568,7 +568,7 @@ func NewFileMap(fileName string) *Builder {
 }
 
 func newCommonFilenameMap(fileName string) *Builder {
-	bb := newMap(1, "" /* no type yet */)
+	bb := base(1, "" /* no type yet */)
 	if fileName != "" {
 		bb.SetFileName(fileName)
 	}
@@ -633,50 +633,83 @@ func populateParts(m map[string]interface{}, size int64, parts []BytesPart) erro
 }
 
 func newBytes() *Builder {
-	return newMap(1, "bytes")
+	return base(1, "bytes")
 }
 
 func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Builder {
-	bb := newMap(1, "share")
+	bb := base(1, "share")
 	bb.m["authType"] = authType
 	bb.m["target"] = target.String()
 	bb.m["transitive"] = transitive
 	return bb
 }
 
+type ClaimType string
+
 const (
-	SetAttribute = "set-attribute"
-	AddAttribute = "add-attribute"
-	DelAttribute = "del-attribute"
+	SetAttribute ClaimType = "set-attribute"
+	AddAttribute ClaimType = "add-attribute"
+	DelAttribute ClaimType = "del-attribute"
 )
 
-func newClaim(permaNode *blobref.BlobRef, t time.Time, claimType string) *Builder {
-	bb := newMap(1, "claim")
-	bb.m["permaNode"] = permaNode.String()
-	bb.m["claimType"] = claimType
-	bb.SetClaimDate(t)
+type ClaimParam struct {
+	Permanode *blobref.BlobRef // modified permanode
+	Type      ClaimType
+	Attribute string // required
+	Value     string // optional if Type == DelAttribute
+}
+
+func NewClaim(claims ...*ClaimParam) *Builder {
+	bb := base(1, "claim")
+	bb.SetClaimDate(time.Now())
+	if len(claims) == 1 {
+		cp := claims[0]
+		populateClaimMap(bb.m, cp)
+		return bb
+	}
+	var claimList []interface{}
+	for _, cp := range claims {
+		m := map[string]interface{}{}
+		populateClaimMap(m, cp)
+		claimList = append(claimList, m)
+	}
+	bb.m["claimType"] = "multi"
+	bb.m["claims"] = claimList
 	return bb
 }
 
-func newAttrChangeClaim(permaNode *blobref.BlobRef, t time.Time, claimType, attr, value string) *Builder {
-	bb := newClaim(permaNode, t, claimType)
-	bb.m["attribute"] = attr
-	bb.m["value"] = value
-	return bb
+func populateClaimMap(m map[string]interface{}, cp *ClaimParam) {
+	m["claimType"] = string(cp.Type)
+	m["attribute"] = cp.Attribute
+	if !(cp.Type == DelAttribute && cp.Value == "") {
+		m["value"] = cp.Value
+	}
 }
 
 func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
-	return newAttrChangeClaim(permaNode, time.Now(), SetAttribute, attr, value)
+	return NewClaim(&ClaimParam{
+		Permanode: permaNode,
+		Type:      SetAttribute,
+		Attribute: attr,
+		Value:     value,
+	})
 }
 
 func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
-	return newAttrChangeClaim(permaNode, time.Now(), AddAttribute, attr, value)
+	return NewClaim(&ClaimParam{
+		Permanode: permaNode,
+		Type:      AddAttribute,
+		Attribute: attr,
+		Value:     value,
+	})
 }
 
 func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) *Builder {
-	bb := newAttrChangeClaim(permaNode, time.Now(), DelAttribute, attr, "")
-	delete(bb.m, "value")
-	return bb
+	return NewClaim(&ClaimParam{
+		Permanode: permaNode,
+		Type:      DelAttribute,
+		Attribute: attr,
+	})
 }
 
 // ShareHaveRef is the a share type specifying that if you "have the
