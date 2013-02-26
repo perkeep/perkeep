@@ -51,7 +51,7 @@ func (c *permanodeCmd) Describe() string {
 }
 
 func (c *permanodeCmd) Usage() {
-	cmdmain.Errf("Usage: camput [globalopts] permanode [permanodeopts]\n")
+	cmdmain.Errorf("Usage: camput [globalopts] permanode [permanodeopts]\n")
 }
 
 func (c *permanodeCmd) Examples() []string {
