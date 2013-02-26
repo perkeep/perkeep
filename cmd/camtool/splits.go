@@ -18,7 +18,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -34,8 +33,7 @@ type span struct {
 	children []span
 }
 
-func showSplits() {
-	file := flag.Arg(0)
+func showSplits(file string) {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(err.Error())
