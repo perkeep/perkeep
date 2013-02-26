@@ -46,6 +46,10 @@ func init() {
 	})
 }
 
+func (c *permanodeCmd) Describe() string {
+	return "Create and upload a permanode."
+}
+
 func (c *permanodeCmd) Usage() {
 	cmdmain.Errf("Usage: camput [globalopts] permanode [permanodeopts]\n")
 }

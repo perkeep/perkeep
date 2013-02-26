@@ -39,6 +39,10 @@ func init() {
 	})
 }
 
+func (c *rawCmd) Describe() string {
+	return "Upload a custom JSON schema blob."
+}
+
 func (c *rawCmd) Usage() {
 	cmdmain.Errf("Usage: camput [globalopts] rawobj [rawopts]\n")
 }

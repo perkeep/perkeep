@@ -38,6 +38,10 @@ func init() {
 	})
 }
 
+func (c *shareCmd) Describe() string {
+	return `Grant access to a resource by making a "share" blob.`
+}
+
 func (c *shareCmd) Usage() {
 	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] <blobref>
 `)
