@@ -144,6 +144,7 @@ func TestAttribute(t *testing.T) {
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "set-attribute",
+  "permaNode": "xxx-123",
   "value": "val1"
 }`,
 		},
@@ -154,6 +155,7 @@ func TestAttribute(t *testing.T) {
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "add-attribute",
+  "permaNode": "xxx-123",
   "value": "funny"
 }`,
 		},
@@ -163,7 +165,8 @@ func TestAttribute(t *testing.T) {
   "attribute": "attr1",
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
-  "claimType": "del-attribute"
+  "claimType": "del-attribute",
+  "permaNode": "xxx-123"
 }`,
 		},
 		{
@@ -190,16 +193,19 @@ func TestAttribute(t *testing.T) {
     {
       "attribute": "foo",
       "claimType": "set-attribute",
+      "permaNode": "xxx-123",
       "value": "bar"
     },
     {
       "attribute": "foo",
       "claimType": "del-attribute",
+      "permaNode": "xxx-123",
       "value": "specific-del"
     },
     {
       "attribute": "foo",
-      "claimType": "del-attribute"
+      "claimType": "del-attribute",
+      "permaNode": "xxx-123"
     }
   ]
 }`,
