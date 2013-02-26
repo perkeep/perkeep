@@ -19,15 +19,33 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
 
 	"camlistore.org/pkg/blobserver/google"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
-func main() {
+type gsinitCmd struct{}
+
+func init() {
+	cmdmain.RegisterCommand("gsinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		return new(gsinitCmd)
+	})
+}
+
+func (c *gsinitCmd) Describe() string {
+	return "Init Google Storage."
+}
+
+func (c *gsinitCmd) Usage() {
+	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] gsinit \n")
+}
+
+func (c *gsinitCmd) RunCommand(args []string) error {
 	var (
 		err          error
 		clientId     string
@@ -35,16 +53,16 @@ func main() {
 	)
 
 	if clientId, clientSecret, err = getClientInfo(); err != nil {
-		panic(err)
+		return err
 	}
 	transport := google.MakeOauthTransport(clientId, clientSecret, "")
 
 	var accessCode string
 	if accessCode, err = getAccessCode(transport.Config); err != nil {
-		panic(err)
+		return err
 	}
 	if _, err = transport.Exchange(accessCode); err != nil {
-		panic(err)
+		return err
 	}
 
 	fmt.Printf("\nYour Google Storage auth object:\n\n")
@@ -56,6 +74,7 @@ func main() {
 	}
 	enc.Encode(authObj)
 	fmt.Print("\n")
+	return nil
 }
 
 // Prompt the user for an input line.  Return the given input.
