@@ -22,6 +22,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"camlistore.org/pkg/buildinfo"
@@ -146,7 +147,7 @@ func Errf(format string, args ...interface{}) {
 }
 
 func usage(msg string) {
-	cmdName := os.Args[0]
+	cmdName := filepath.Base(os.Args[0])
 	if msg != "" {
 		Errf("Error: %v\n", msg)
 	}

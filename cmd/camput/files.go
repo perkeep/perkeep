@@ -94,6 +94,10 @@ func init() {
 	})
 }
 
+func (c *fileCmd) Describe() string {
+	return "Upload file(s)."
+}
+
 func (c *fileCmd) Usage() {
 	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
 }

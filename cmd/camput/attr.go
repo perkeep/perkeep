@@ -41,6 +41,10 @@ func init() {
 	})
 }
 
+func (c *attrCmd) Describe() string {
+	return "Add, set, or delete a permanode's attribute."
+}
+
 func (c *attrCmd) Usage() {
 	cmdmain.Errf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
 }

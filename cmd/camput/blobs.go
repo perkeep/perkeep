@@ -38,6 +38,10 @@ func init() {
 	})
 }
 
+func (c *blobCmd) Describe() string {
+	return "Upload raw blob(s)."
+}
+
 func (c *blobCmd) Usage() {
 	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
 }

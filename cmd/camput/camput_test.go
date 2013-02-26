@@ -22,6 +22,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"camlistore.org/pkg/cmdmain"
 )
 
 // env is the environment that a camput test runs within.
@@ -35,15 +37,15 @@ type env struct {
 func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	outbuf := new(bytes.Buffer)
 	errbuf := new(bytes.Buffer)
-	stdout, stderr = outbuf, errbuf
+	cmdmain.Stdout, cmdmain.Stderr = outbuf, errbuf
 	exitc := make(chan int, 1)
-	exit = func(code int) {
+	cmdmain.Exit = func(code int) {
 		exitc <- code
 		runtime.Goexit()
 	}
 	go func() {
-		camputMain(args...)
-		exit(0)
+		cmdmain.Main()
+		cmdmain.Exit(0)
 	}()
 	select {
 	case exitCode = <-exitc:

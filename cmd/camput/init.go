@@ -46,12 +46,12 @@ func init() {
 	})
 }
 
+func (c *initCmd) Describe() string {
+	return "Initialize the camput configuration file."
+}
+
 func (c *initCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput init [opts]
-
-Initialize the camput configuration file.
-
-`)
+	fmt.Fprintf(cmdmain.Stderr, "Usage: camput init [opts]")
 }
 
 func (c *initCmd) Examples() []string {
