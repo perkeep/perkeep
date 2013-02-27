@@ -44,7 +44,7 @@ func (c *rawCmd) Describe() string {
 }
 
 func (c *rawCmd) Usage() {
-	cmdmain.Errf("Usage: camput [globalopts] rawobj [rawopts]\n")
+	cmdmain.Errorf("Usage: camput [globalopts] rawobj [rawopts]\n")
 }
 
 func (c *rawCmd) Examples() []string {

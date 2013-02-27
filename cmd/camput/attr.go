@@ -46,7 +46,7 @@ func (c *attrCmd) Describe() string {
 }
 
 func (c *attrCmd) Usage() {
-	cmdmain.Errf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
+	cmdmain.Errorf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
 }
 
 func (c *attrCmd) Examples() []string {

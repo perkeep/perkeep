@@ -141,17 +141,17 @@ func hasFlags(flags *flag.FlagSet) bool {
 	return any
 }
 
-// Errf prints to Stderr
-func Errf(format string, args ...interface{}) {
+// Errorf prints to Stderr
+func Errorf(format string, args ...interface{}) {
 	fmt.Fprintf(Stderr, format, args...)
 }
 
 func usage(msg string) {
 	cmdName := filepath.Base(os.Args[0])
 	if msg != "" {
-		Errf("Error: %v\n", msg)
+		Errorf("Error: %v\n", msg)
 	}
-	Errf(`
+	Errorf(`
 Usage: ` + cmdName + ` [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
@@ -159,20 +159,20 @@ Modes:
 `)
 	for mode, cmd := range modeCommand {
 		if des, ok := cmd.(describer); ok {
-			Errf("  %s: %s\n", mode, des.Describe())
+			Errorf("  %s: %s\n", mode, des.Describe())
 		}
 	}
-	Errf("\nExamples:\n")
+	Errorf("\nExamples:\n")
 	for mode, cmd := range modeCommand {
 		if ex, ok := cmd.(exampler); ok {
-			Errf("\n")
+			Errorf("\n")
 			for _, example := range ex.Examples() {
-				Errf("  %s %s %s\n", cmdName, mode, example)
+				Errorf("  %s %s %s\n", cmdName, mode, example)
 			}
 		}
 	}
 
-	Errf(`
+	Errorf(`
 For mode-specific help:
 
   ` + cmdName + ` <mode> -help
@@ -189,17 +189,17 @@ func help(mode string) {
 	cmd := modeCommand[mode]
 	cmdFlags := modeFlags[mode]
 	if des, ok := cmd.(describer); ok {
-		Errf("%s\n", des.Describe())
+		Errorf("%s\n", des.Describe())
 	}
-	Errf("\n")
+	Errorf("\n")
 	cmd.Usage()
 	if hasFlags(cmdFlags) {
 		cmdFlags.PrintDefaults()
 	}
 	if ex, ok := cmd.(exampler); ok {
-		Errf("\nExamples:\n")
+		Errorf("\nExamples:\n")
 		for _, example := range ex.Examples() {
-			Errf("  %s %s %s\n", cmdName, mode, example)
+			Errorf("  %s %s %s\n", cmdName, mode, example)
 		}
 	}
 }
@@ -242,14 +242,14 @@ func Main() error {
 	}
 	if ue, isUsage := err.(UsageError); isUsage {
 		if isUsage {
-			Errf("%s\n", ue)
+			Errorf("%s\n", ue)
 		}
 		cmd.Usage()
-		Errf("\nGlobal options:\n")
+		Errorf("\nGlobal options:\n")
 		flag.PrintDefaults()
 
 		if hasFlags(cmdFlags) {
-			Errf("\nMode-specific options for mode %q:\n", mode)
+			Errorf("\nMode-specific options for mode %q:\n", mode)
 			cmdFlags.PrintDefaults()
 		}
 		Exit(1)
