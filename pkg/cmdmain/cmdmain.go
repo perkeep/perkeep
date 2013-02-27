@@ -41,6 +41,9 @@ var (
 	// PreExit is meant to dump additional stats and other
 	// verbiage before Main terminates.
 	PreExit = func() {}
+	// ExitWithFailure determines whether the command exits
+	// with a non-zero exit status.
+	ExitWithFailure bool
 )
 
 var ErrUsage = UsageError("invalid command")
@@ -206,13 +209,13 @@ func help(mode string) {
 
 // Main is meant to be the core of a command that has
 // subcommands (modes), such as camput or camtool.
-func Main() error {
+func Main() {
 	ExtraFlagRegistration()
 	flag.Parse()
 	args := flag.Args()
 	if *FlagVersion {
 		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Version())
-		return nil
+		return
 	}
 	if *FlagHelp {
 		usage("")
@@ -236,7 +239,7 @@ func Main() error {
 	} else {
 		if cmdHelp {
 			help(mode)
-			return nil
+			return
 		}
 		err = cmd.RunCommand(cmdFlags.Args())
 	}
@@ -257,5 +260,11 @@ func Main() error {
 	if *FlagVerbose {
 		PreExit()
 	}
-	return err
+	if err != nil {
+		if !ExitWithFailure {
+			// because it was already logged if ExitWithFailure
+			log.Printf("Error: %v", err)
+		}
+		Exit(2)
+	}
 }

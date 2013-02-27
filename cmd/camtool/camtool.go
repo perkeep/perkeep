@@ -21,8 +21,5 @@ import (
 )
 
 func main() {
-	err := cmdmain.Main()
-	if err != nil {
-		cmdmain.Exit(2)
-	}
+	cmdmain.Main()
 }

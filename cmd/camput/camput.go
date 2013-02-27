@@ -64,14 +64,10 @@ func getUploader() *Uploader {
 	return cachedUploader
 }
 
-// wereErrors gets set to true if any error was encountered, which
-// changes the os.Exit value
-var wereErrors = false
-
 func handleResult(what string, pr *client.PutResult, err error) error {
 	if err != nil {
 		log.Printf("Error putting %s: %s", what, err)
-		wereErrors = true
+		cmdmain.ExitWithFailure = true
 		return err
 	}
 	fmt.Println(pr.BlobRef.String())
@@ -150,17 +146,5 @@ func newUploader() *Uploader {
 }
 
 func main() {
-	err := cmdmain.Main()
-	// TODO(mpl): see how errors go with other camtool modes
-	//  and move some of this accordingly to cmdmain.
-	previousErrors := wereErrors
-	if err != nil {
-		wereErrors = true
-		if !previousErrors {
-			log.Printf("Error: %v", err)
-		}
-	}
-	if wereErrors {
-		cmdmain.Exit(2)
-	}
+	cmdmain.Main()
 }
