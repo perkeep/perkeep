@@ -31,11 +31,12 @@ import (
 // various parameters derived from the high-level user config
 // and needed to set up the low-level config.
 type configPrefixesParams struct {
-	secretRing  string
-	keyId       string
-	indexerPath string
-	blobPath    string
-	searchOwner *blobref.BlobRef
+	secretRing   string
+	keyId        string
+	indexerPath  string
+	blobPath     string
+	searchOwner  *blobref.BlobRef
+	shareHandler bool
 }
 
 var tempDir = os.TempDir
@@ -257,6 +258,15 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		"handler": "setup",
 	}
 
+	if params.shareHandler {
+		m["/share/"] = map[string]interface{}{
+			"handler": "share",
+			"handlerArgs": map[string]interface{}{
+				"blobRoot": "/bs/",
+			},
+		}
+	}
+
 	m["/sighelper/"] = map[string]interface{}{
 		"handler": "jsonsign",
 		"handlerArgs": map[string]interface{}{
@@ -335,8 +345,9 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
 
 		// Blob storage options
-		blobPath = conf.OptionalString("blobPath", "")
-		s3       = conf.OptionalString("s3", "") // "access_key_id:secret_access_key:bucket"
+		blobPath     = conf.OptionalString("blobPath", "")
+		s3           = conf.OptionalString("s3", "")           // "access_key_id:secret_access_key:bucket"
+		shareHandler = conf.OptionalBool("shareHandler", true) // enable the share handler
 
 		// Index options
 		runIndex   = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
@@ -424,11 +435,12 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	prefixesParams := &configPrefixesParams{
-		secretRing:  secretRing,
-		keyId:       keyId,
-		indexerPath: indexerPath,
-		blobPath:    blobPath,
-		searchOwner: blobref.SHA1FromString(armoredPublicKey),
+		secretRing:   secretRing,
+		keyId:        keyId,
+		indexerPath:  indexerPath,
+		blobPath:     blobPath,
+		searchOwner:  blobref.SHA1FromString(armoredPublicKey),
+		shareHandler: shareHandler,
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams)

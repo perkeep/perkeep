@@ -23,7 +23,14 @@
 	
  		"/setup/": {
 			"handler": "setup"
-                },
+        },
+
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
 
  		"/sync/": {
 			"handler": "sync",

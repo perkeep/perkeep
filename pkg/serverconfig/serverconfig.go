@@ -108,29 +108,34 @@ func (s *storageAndConfig) GetStorage() blobserver.Storage {
 	return s.Storage
 }
 
-func handleCamliUsingStorage(conn http.ResponseWriter, req *http.Request, action string, storage blobserver.StorageConfiger) {
+func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger) (func(http.ResponseWriter, *http.Request), auth.Operation) {
 	handler := unsupportedHandler
+	op := auth.OpAll
 	switch req.Method {
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = auth.RequireAuth(handlers.CreateEnumerateHandler(storage), auth.OpGet)
+			handler = handlers.CreateEnumerateHandler(storage)
+			op = auth.OpGet
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage), auth.OpAll)
+			handler = handlers.CreateStatHandler(storage)
 		default:
 			handler = gethandler.CreateGetHandler(storage)
+			op = auth.OpGet
 		}
 	case "POST":
 		switch action {
 		case "stat":
-			handler = auth.RequireAuth(handlers.CreateStatHandler(storage), auth.OpStat)
+			handler = handlers.CreateStatHandler(storage)
+			op = auth.OpStat
 		case "upload":
-			handler = auth.RequireAuth(handlers.CreateUploadHandler(storage), auth.OpUpload)
+			handler = handlers.CreateUploadHandler(storage)
+			op = auth.OpUpload
 		case "remove":
-			handler = auth.RequireAuth(handlers.CreateRemoveHandler(storage), auth.OpAll)
+			handler = handlers.CreateRemoveHandler(storage)
 		}
 	}
-	handler(conn, req)
+	return handler, op
 }
 
 // where prefix is like "/" or "/s3/" for e.g. "/camli/" or "/s3/camli/*"
@@ -162,7 +167,8 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 			unsupportedHandler(conn, req)
 			return
 		}
-		handleCamliUsingStorage(conn, req, action, storageConfig)
+		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
+		handler(conn, req)
 	})
 }
 

@@ -68,11 +68,11 @@ func (c *Client) viaPathTo(b *blobref.BlobRef) (path []*blobref.BlobRef) {
 var blobsRx = regexp.MustCompile(blobref.Pattern)
 
 func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadCloser, int64, error) {
-	pfx, err := c.prefix()
+	pfx, err := c.blobPrefix()
 	if err != nil {
 		return nil, 0, err
 	}
-	url := fmt.Sprintf("%s/camli/%s", pfx, b)
+	url := fmt.Sprintf("%s/%s", pfx, b)
 
 	if len(v) > 0 {
 		buf := bytes.NewBufferString(url)

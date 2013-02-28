@@ -10,5 +10,6 @@
         "memIndex": true,
 	"s3": "",
 	"replicateTo": [],
-	"publish": {}
+	"publish": {},
+	"shareHandler": true
 }
