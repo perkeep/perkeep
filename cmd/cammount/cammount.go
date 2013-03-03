@@ -82,6 +82,8 @@ func main() {
 				log.Fatalf("Error parsing root blobref: %q\n", rootArg)
 			}
 		}
+	} else {
+		cl = client.NewOrFail() // automatic from flags
 	}
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)
