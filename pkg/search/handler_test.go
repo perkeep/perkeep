@@ -21,13 +21,17 @@ import (
 
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/test"
 )
 
@@ -182,6 +186,160 @@ var handlerTests = []handlerTest{
                }`),
 	},
 
+	// Test recent permanode of a file
+	{
+		name: "recent-file",
+		setup: func(*test.FakeIndex) Index {
+			// Ignore the fakeindex and use the real (but in-memory) implementation,
+			// using IndexDeps to populate it.
+			idx := index.NewMemoryIndex()
+			id := indextest.NewIndexDeps(idx)
+
+			// Upload a basic image
+			camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+			if err != nil {
+				panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			}
+			uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+				fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+				contents, err := ioutil.ReadFile(fileName)
+				if err != nil {
+					panic(err)
+				}
+				br, _ := id.UploadFile(file, string(contents), modTime)
+				return br
+			}
+			dudeFileRef := uploadFile("dude.jpg", time.Time{})
+
+			pn := id.NewPlannedPermanode("pn1")
+			id.SetAttribute(pn, "camliContent", dudeFileRef.String())
+			return indexAndOwner{idx, id.SignerBlobRef}
+		},
+		query: "recent",
+		want: parseJSON(`{
+                "recent": [
+                    {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+                     "modtime": "2011-11-28T01:32:37Z",
+                     "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+                ],
+                "meta": {
+                      "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+		 "camliType": "permanode",
+                 "mimeType": "application/json; camliType=permanode",
+                 "permanode": {
+		        "attr": {
+		          "camliContent": [
+		            "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
+		          ]
+		        }
+		      },
+                 "size": 534
+                     },
+		    "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
+		      "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
+		      "mimeType": "application/json; camliType=file",
+		      "camliType": "file",
+		      "size": 184,
+		      "file": {
+		        "fileName": "dude.jpg",
+		        "size": 1932,
+		        "mimeType": "image/jpeg"
+		      }
+		    }
+                 }
+               }`),
+	},
+
+	// Test recent permanode of a file, in a collection
+	{
+		name: "recent-file-collec",
+		setup: func(*test.FakeIndex) Index {
+			SetTestHookBug121(func() {
+				time.Sleep(2 * time.Second)
+			})
+			// Ignore the fakeindex and use the real (but in-memory) implementation,
+			// using IndexDeps to populate it.
+			idx := index.NewMemoryIndex()
+			id := indextest.NewIndexDeps(idx)
+
+			// Upload a basic image
+			camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+			if err != nil {
+				panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			}
+			uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+				fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
+				contents, err := ioutil.ReadFile(fileName)
+				if err != nil {
+					panic(err)
+				}
+				br, _ := id.UploadFile(file, string(contents), modTime)
+				return br
+			}
+			dudeFileRef := uploadFile("dude.jpg", time.Time{})
+			pn := id.NewPlannedPermanode("pn1")
+			id.SetAttribute(pn, "camliContent", dudeFileRef.String())
+			collec := id.NewPlannedPermanode("pn2")
+			id.SetAttribute(collec, "camliMember", pn.String())
+			return indexAndOwner{idx, id.SignerBlobRef}
+		},
+		query: "recent",
+		want: parseJSON(`{
+		  "recent": [
+		    {
+		      "blobref": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
+		      "modtime": "2011-11-28T01:32:38Z",
+		      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+		    },
+		    {
+		      "blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+		      "modtime": "2011-11-28T01:32:37Z",
+		      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+		    }
+		  ],
+		  "meta": {
+		    "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf": {
+		      "blobRef": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
+		      "mimeType": "application/json; camliType=permanode",
+		      "camliType": "permanode",
+		      "size": 534,
+		      "permanode": {
+		        "attr": {
+		          "camliMember": [
+		            "sha1-7ca7743e38854598680d94ef85348f2c48a44513"
+		          ]
+		        }
+		      }
+		    },
+		    "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
+		      "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+		      "mimeType": "application/json; camliType=permanode",
+		      "camliType": "permanode",
+		      "size": 534,
+		      "permanode": {
+		        "attr": {
+		          "camliContent": [
+		            "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
+		          ]
+		        }
+		      }
+		    },
+		    "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
+		      "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
+		      "mimeType": "application/json; camliType=file",
+		      "camliType": "file",
+		      "size": 184,
+		      "file": {
+		        "fileName": "dude.jpg",
+		        "size": 1932,
+		        "mimeType": "image/jpeg"
+		      }
+		    }
+		  }
+		}`),
+	},
+
 	// Test recent permanodes with thumbnails
 	{
 		name: "recent-thumbs",
@@ -250,11 +408,13 @@ var handlerTests = []handlerTest{
 
 func TestHandler(t *testing.T) {
 	seen := map[string]bool{}
+	defer SetTestHookBug121(func() {})
 	for _, tt := range handlerTests {
 		if seen[tt.name] {
 			t.Fatalf("duplicate test named %q", tt.name)
 		}
 		seen[tt.name] = true
+		SetTestHookBug121(func() {})
 
 		fakeIndex := test.NewFakeIndex()
 		idx := tt.setup(fakeIndex)
