@@ -381,6 +381,9 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 			Owner:   res.Signer,
 			ModTime: types.Time3339(time.Unix(res.LastModTime, 0)),
 		})
+		// TODO(mpl): uncommenting that one and running the tests
+		// makes them fail and illustrates the depth race problem.
+		// time.Sleep(2*time.Second)
 	}
 
 	if err := <-errch; err != nil {
