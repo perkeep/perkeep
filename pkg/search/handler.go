@@ -872,10 +872,11 @@ func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	if dr.done == nil {
 		dr.done = make(map[string]bool)
 	}
-	if dr.done[br.String()] {
+	brefAndDepth := fmt.Sprintf("%s-%d", br, depth)
+	if dr.done[brefAndDepth] {
 		return
 	}
-	dr.done[br.String()] = true
+	dr.done[brefAndDepth] = true
 	dr.wg.Add(1)
 	go func() {
 		defer dr.wg.Done()
