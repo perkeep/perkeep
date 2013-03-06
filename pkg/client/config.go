@@ -40,7 +40,7 @@ var flagServer *string
 
 func AddFlags() {
 	defaultPath := ConfigFilePath()
-	flagServer = flag.String("server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of " + defaultPath + " is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
+	flagServer = flag.String("server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of "+defaultPath+" is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
 }
 
 // ExplicitServer returns the blobserver given in the flags, if any.

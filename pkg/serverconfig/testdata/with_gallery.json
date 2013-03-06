@@ -14,5 +14,6 @@
 			"style": "pics.css"
 		}
 	},
-	"replicateTo": []
+	"replicateTo": [],
+	"shareHandler": true
 }

@@ -116,8 +116,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	}
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
 	h.pubKeyHandler = &gethandler.Handler{
-		Fetcher:           ms,
-		AllowGlobalAccess: true, // just public keys
+		Fetcher: ms,
 	}
 
 	return h, nil

@@ -7,5 +7,6 @@
 	"memIndex": true,
 	"s3": "key:secret:bucket",
 	"replicateTo": [],
-	"publish": {}
+	"publish": {},
+	"shareHandler": true
 }

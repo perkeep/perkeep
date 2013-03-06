@@ -47,9 +47,10 @@ type Client struct {
 	// prefix is.
 	server string
 
-	prefixOnce sync.Once
-	prefixErr  error
-	prefixv    string // URL prefix before "/camli/"
+	prefixOnce    sync.Once // guards init of following 3 fields
+	prefixErr     error
+	prefixv       string // URL prefix before "/camli/"
+	isSharePrefix bool   // URL is a request for a share blob
 
 	discoOnce      sync.Once
 	discoErr       error
@@ -103,23 +104,25 @@ func NewOrFail() *Client {
 	return c
 }
 
-var shareURLRx = regexp.MustCompile(`^(.+)/camli/(` + blobref.Pattern + ")")
+var shareURLRx = regexp.MustCompile(`^(.+)/(` + blobref.Pattern + ")$")
 
 func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, err error) {
 	var root string
-	if m := shareURLRx.FindStringSubmatch(shareBlobURL); m == nil {
-		return nil, nil, fmt.Errorf("Unkown URL base; doesn't contain /camli/")
-	} else {
-		c = New(m[1])
-		c.discoOnce.Do(func() { /* nothing */
-		})
-		c.prefixOnce.Do(func() { /* nothing */
-		})
-		c.prefixv = m[1]
-		c.authMode = auth.None{}
-		c.via = make(map[string]string)
-		root = m[2]
+	m := shareURLRx.FindStringSubmatch(shareBlobURL)
+	if m == nil {
+		return nil, nil, fmt.Errorf("Unkown share URL base")
 	}
+	c = New(m[1])
+	c.discoOnce.Do(func() { /* nothing */
+	})
+	c.prefixOnce.Do(func() { /* nothing */
+	})
+	c.prefixv = m[1]
+	c.isSharePrefix = true
+	c.authMode = auth.None{}
+	c.via = make(map[string]string)
+	root = m[2]
+
 	res, err := http.Get(shareBlobURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
@@ -351,6 +354,9 @@ func (c *Client) FileHasContents(f, wholeRef *blobref.BlobRef) bool {
 	return res.Header.Get("X-Camli-Contents") == wholeRef.String()
 }
 
+// prefix returns the URL prefix before "/camli/", or before
+// the blobref hash in case of a share URL.
+// Examples: http://foo.com:3179/bs or http://foo.com:3179/share
 func (c *Client) prefix() (string, error) {
 	c.prefixOnce.Do(func() { c.initPrefix() })
 	if c.prefixErr != nil {
@@ -360,6 +366,19 @@ func (c *Client) prefix() (string, error) {
 		return "", c.discoErr
 	}
 	return c.prefixv, nil
+}
+
+// blobPrefix returns the URL prefix before the blobref hash.
+// Example: http://foo.com:3179/bs/camli or http://foo.com:3179/share
+func (c *Client) blobPrefix() (string, error) {
+	pfx, err := c.prefix()
+	if err != nil {
+		return "", err
+	}
+	if !c.isSharePrefix {
+		pfx += "/camli"
+	}
+	return pfx, nil
 }
 
 func (c *Client) discoRoot() string {
@@ -375,6 +394,7 @@ func (c *Client) discoRoot() string {
 // component then it is directly used, otherwise the blobRoot
 // from the discovery is used as the path.
 func (c *Client) initPrefix() {
+	c.isSharePrefix = false
 	root := c.discoRoot()
 	u, err := url.Parse(root)
 	if err != nil {
