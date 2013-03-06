@@ -21,7 +21,6 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -34,6 +33,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
@@ -198,7 +198,7 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 	}
 
 	if imageBuf != nil {
-		if conf, _, err := image.DecodeConfig(bytes.NewReader(imageBuf.Bytes)); err == nil {
+		if conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes)); err == nil {
 			bm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		}
 		if ft, err := schema.FileTime(bytes.NewReader(imageBuf.Bytes)); err == nil {

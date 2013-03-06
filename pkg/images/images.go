@@ -32,6 +32,19 @@ import (
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
+// Exif Orientation Tag values
+// http://sylvana.net/jpegcrop/exif_orientation.html
+const (
+	topLeftSide     = 1
+	topRightSide    = 2
+	bottomRightSide = 3
+	bottomLeftSide  = 4
+	leftSideTop     = 5
+	rightSideTop    = 6
+	rightSideBottom = 7
+	leftSideBottom  = 8
+)
+
 // The FlipDirection type is used by the Flip option in DecodeOpts
 // to indicate in which direction to flip an image.
 type FlipDirection int
@@ -173,6 +186,24 @@ func flip(im image.Image, dir FlipDirection) image.Image {
 	return im
 }
 
+// ScaledDimensions returns the newWidth and newHeight obtained
+// when an image of dimensions w x h has to be rescaled under
+// mw x mh, while conserving the proportions.
+// It returns 1,1 if any of the parameter is 0.
+func ScaledDimensions(w, h, mw, mh int) (newWidth int, newHeight int) {
+	if w == 0 || h == 0 || mw == 0 || mh == 0 {
+		imageDebug("ScaledDimensions was given as 0; returning 1x1 as dimensions.")
+		return 1, 1
+	}
+	newWidth, newHeight = mw, mh
+	if float32(h)/float32(mh) > float32(w)/float32(mw) {
+		newWidth = w * mh / h
+	} else {
+		newHeight = h * mw / w
+	}
+	return
+}
+
 func rescale(im image.Image, opts *DecodeOpts) image.Image {
 	mw, mh := opts.MaxWidth, opts.MaxHeight
 	mwf, mhf := opts.ScaleWidth, opts.ScaleHeight
@@ -203,12 +234,7 @@ func rescale(im image.Image, opts *DecodeOpts) image.Image {
 		im = resize.Resample(im, b, w, h)
 		b = im.Bounds()
 	}
-	// conserve proportions. use the smallest of the two as the decisive one.
-	if mw > mh {
-		mw = b.Dx() * mh / b.Dy()
-	} else {
-		mh = b.Dy() * mw / b.Dx()
-	}
+	mw, mh = ScaledDimensions(b.Dx(), b.Dy(), mw, mh)
 	return resize.Resize(im, b, mw, mh)
 }
 
@@ -236,6 +262,48 @@ func imageDebug(msg string) {
 	if os.Getenv("CAM_DEBUG_IMAGES") != "" {
 		log.Print(msg)
 	}
+}
+
+// DecodeConfig returns the image Config similarly to
+// the standard library's image.DecodeConfig with the
+// addition that it also checks for an EXIF orientation,
+// and sets the Width and Height as they would visibly
+// be after correcting for that orientation.
+func DecodeConfig(r io.Reader) (Config, error) {
+	var c Config
+	var buf bytes.Buffer
+	tr := io.TeeReader(io.LimitReader(r, 2<<20), &buf)
+	swapDimensions := false
+
+	ex, err := exif.Decode(tr)
+	if err != nil {
+		imageDebug("No valid EXIF.")
+	} else {
+		tag, err := ex.Get(exif.Orientation)
+		if err != nil {
+			imageDebug("No \"Orientation\" tag in EXIF.")
+		} else {
+			orient := tag.Int(0)
+			switch orient {
+			// those are the orientations that require
+			// a rotation of ±90
+			case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
+				swapDimensions = true
+			}
+		}
+	}
+	conf, format, err := image.DecodeConfig(io.MultiReader(&buf, r))
+	if err != nil {
+		imageDebug(fmt.Sprintf("Image Decoding failed: %v", err))
+		return c, err
+	}
+	c.Format = format
+	if swapDimensions {
+		c.Width, c.Height = conf.Height, conf.Width
+	} else {
+		c.Width, c.Height = conf.Width, conf.Height
+	}
+	return c, err
 }
 
 // Decode decodes an image from r using the provided decoding options.
@@ -272,24 +340,24 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 		}
 		orient := tag.Int(0)
 		switch orient {
-		case 1:
+		case topLeftSide:
 			// do nothing
-		case 2:
+		case topRightSide:
 			flipMode = 2
-		case 3:
+		case bottomRightSide:
 			angle = 180
-		case 4:
+		case bottomLeftSide:
 			angle = 180
 			flipMode = 2
-		case 5:
+		case leftSideTop:
 			angle = -90
 			flipMode = 2
-		case 6:
+		case rightSideTop:
 			angle = -90
-		case 7:
+		case rightSideBottom:
 			angle = 90
 			flipMode = 2
-		case 8:
+		case leftSideBottom:
 			angle = 90
 		}
 	} else {

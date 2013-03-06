@@ -245,6 +245,10 @@ var handlerTests = []handlerTest{
 		        "fileName": "dude.jpg",
 		        "size": 1932,
 		        "mimeType": "image/jpeg"
+		      },
+		      "image": {
+		        "width": 50,
+		        "height": 100
 		      }
 		    }
                  }
@@ -334,6 +338,10 @@ var handlerTests = []handlerTest{
 		        "fileName": "dude.jpg",
 		        "size": 1932,
 		        "mimeType": "image/jpeg"
+		      },
+		      "image": {
+		        "width": 50,
+		        "height": 100
 		      }
 		    }
 		  }
