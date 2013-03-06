@@ -363,6 +363,8 @@ func thumbnailSizeStr(s string) int {
 	return defThumbSize
 }
 
+var testHookBug121 = func() {}
+
 // GetRecentPermanodes returns recently-modified permanodes.
 func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ch := make(chan *Result)
@@ -381,6 +383,7 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 			Owner:   res.Signer,
 			ModTime: types.Time3339(time.Unix(res.LastModTime, 0)),
 		})
+		testHookBug121() // http://camlistore.org/issue/121
 	}
 
 	if err := <-errch; err != nil {
@@ -869,10 +872,11 @@ func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	if dr.done == nil {
 		dr.done = make(map[string]bool)
 	}
-	if dr.done[br.String()] {
+	brefAndDepth := fmt.Sprintf("%s-%d", br, depth)
+	if dr.done[brefAndDepth] {
 		return
 	}
-	dr.done[br.String()] = true
+	dr.done[brefAndDepth] = true
 	dr.wg.Add(1)
 	go func() {
 		defer dr.wg.Done()
