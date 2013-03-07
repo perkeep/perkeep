@@ -74,13 +74,13 @@ unless ($opt_fast) {
 $ENV{CAMLI_HTTP_DEBUG} = 1 if $opt_verbose;
 
 my $camlistored;
-my $camdbinit; # closure to return path
+my $camtool; # closure to return path
 if ($opt_nobuild) {
     $camlistored = find_bin("./server/camlistored");
-    $camdbinit = sub { scalar find_bin("./cmd/camdbinit") };
+    $camtool = sub { scalar find_bin("./cmd/camtool") };
 } else {
     $camlistored = build_bin("./server/camlistored");
-    $camdbinit = sub { scalar  build_bin("./cmd/camdbinit") };
+    $camtool = sub { scalar  build_bin("./cmd/camtool") };
 }
 
 my $root = "/tmp/camliroot-$ENV{USER}/port$port/";
@@ -122,22 +122,24 @@ if ($opt_memory) {
 } elsif ($opt_postgres) {
     $ENV{"CAMLI_POSTGRES_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-postgres/";
-    system($camdbinit->(),
+    system($camtool->(),
+           "dbinit",
            "-postgres",
            "-user=postgres",
            "-password=postgres",
            "-host=localhost",
-           "-database=$DBNAME",
-           @opts) and die "Failed to run camdbinit.\n";
+           "-dbname=$DBNAME",
+           @opts) and die "Failed to run camtool dbinit.\n";
 } else {
     $ENV{"CAMLI_MYSQL_ENABLED"} = "true";
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-mysql/";
-    system($camdbinit->(),
+    system($camtool->(),
+           "dbinit",
            "-user=root",
            "-password=root",
            "-host=localhost",
-           "-database=$DBNAME",
-           @opts) and die "Failed to run camdbinit.\n";
+           "-dbname=$DBNAME",
+           @opts) and die "Failed to run camtool dbinit.\n";
 }
 
 my $base = "http://localhost:$port";
