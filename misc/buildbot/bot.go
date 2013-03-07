@@ -25,6 +25,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/smtp"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -41,6 +42,8 @@ const (
 	interval    = 1 * time.Minute  // polling frequency
 	warmup      = 60 * time.Second // duration before we test if dev-server has started properly
 	historySize = 30
+	smtpd       = "localhost:25"
+	emailMsg    = "Subject: camlibot alert."
 )
 
 var (
@@ -50,6 +53,8 @@ var (
 	host      = flag.String("host", "0.0.0.0:8080", "listening hostname and port")
 	nocleanup = flag.Bool("nocleanup", false, "do not clean up the tmp gopath when failing")
 	verbose   = flag.Bool("verbose", false, "print what's going on")
+	emailTo   = flag.String("emailto", "", "address where to send an alert when failing")
+	emailFrom = flag.String("emailfrom", "", "alert sender email address")
 )
 
 var (
@@ -798,6 +803,12 @@ func handleErr(err error, proc *os.Process) {
 		killCamli(proc)
 	}
 	addTestSuite()
+	if *emailTo != "" && *emailFrom != "" {
+		err := smtp.SendMail(smtpd, nil, *emailFrom, []string{*emailTo}, []byte(emailMsg))
+		if err != nil {
+			dbg.Println(err)
+		}
+	}
 }
 
 func main() {
