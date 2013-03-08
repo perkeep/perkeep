@@ -91,7 +91,7 @@ func (b *Blob) FileName() string {
 func (b *Blob) ClaimDate() (time.Time, error) {
 	var ct time.Time
 	claimDate := b.ss.ClaimDate
-	if claimDate.IsZero()  {
+	if claimDate.IsZero() {
 		return ct, MissingFieldError("claimDate")
 	}
 	return claimDate.Time(), nil
@@ -122,6 +122,18 @@ func (b *Blob) Builder() *Builder {
 func (b *Blob) AsClaim() (c Claim, ok bool) {
 	if b.ss.Signer != nil && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsZero() {
 		return Claim{b}, true
+	}
+	return
+}
+
+// AsShare returns a Share if the receiver Blob has all the required fields.
+func (b *Blob) AsShare() (s Share, ok bool) {
+	c, ok := b.AsClaim()
+	if !ok {
+		return
+	}
+	if b.ss.Type == "share" && b.ss.AuthType == ShareHaveRef && b.ss.Target != nil {
+		return Share{c}, true
 	}
 	return
 }
@@ -189,6 +201,25 @@ func (c Claim) Value() string { return c.b.ss.Value }
 // a claim that modifies a permanode. Otherwise nil is returned.
 func (c Claim) ModifiedPermanode() *blobref.BlobRef {
 	return c.b.ss.Permanode
+}
+
+// A Share is a claim for giving access to a user's blob(s).
+// When returned from (*Blob).AsShare, it always represents
+// a valid share with all required fields.
+type Share struct {
+	Claim
+}
+
+// Target returns the blob referenced by the Share.
+func (s Share) Target() *blobref.BlobRef {
+	return s.b.ShareTarget()
+}
+
+// IsTransitive returns whether the Share transitively
+// gives access to everything reachable from the referenced
+// blob.
+func (s Share) IsTransitive() bool {
+	return s.b.ss.Transitive
 }
 
 // A Builder builds a JSON blob.

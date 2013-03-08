@@ -713,7 +713,7 @@ func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) *Builder {
 	})
 }
 
-// ShareHaveRef is the a share type specifying that if you "have the
+// ShareHaveRef is the auth type specifying that if you "have the
 // reference" (know the blobref to the haveref share blob), then you
 // have access to the referenced object from that share blob.
 // This is the "send a link to a friend" access model.
