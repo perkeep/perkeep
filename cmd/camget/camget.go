@@ -1,24 +1,3 @@
-// The camget tool fetches blobs, files, and directories.
-//
-// Examples
-//
-// Writes to stdout by default:
-//
-//   camget <blobref>                 // dump raw blob
-//   camget -contents <file-blobref>  // dump file contents
-//
-// Like curl, lets you set output file/directory with -o:
-//
-//   camget -o <dir> <blobref>
-//     (if <dir> exists and is directory, <blobref> must be a directory;
-//      use -f to overwrite any files)
-//
-//   camget -o <filename> <file-blobref>
-//
-// TODO(bradfitz): camget isn't very fleshed out. In general, using 'cammount' to just
-// mount a tree is an easier way to get files back.
-package main
-
 /*
 Copyright 2011 Google Inc.
 
@@ -34,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+package main
 
 import (
 	"bytes"
