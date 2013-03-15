@@ -423,6 +423,7 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := pathpkg.Base(diskPath) + " (" + pkgName + ")"
-	servePage(w, title, "", applyTextTemplate(packageHTML, "packageHTML", pi))
+	subtitle := pathpkg.Base(diskPath)
+	title := subtitle + " (" + pkgName + ")"
+	servePage(w, title, subtitle, applyTextTemplate(packageHTML, "packageHTML", pi))
 }

@@ -15,15 +15,16 @@ limitations under the License.
 */
 
 /*
-$ go get camlistore.org/cmd/cammount
-
 The cammount tool mounts a root directory blob onto the given mountpoint. The blobref can be given directly or through a share blob URL. If no root blobref is given, an automatic root is created instead.
 
-usage: cammount [opts] <mountpoint> [<root-blobref>|<share URL>]
-  -debug=false: print debugging messages.
-  -server="": Camlistore server prefix.
-  If blank, the default from the "server" field of ~/.camlistore/config is used.
-  Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or
-  http://you.example.com/alt-root
+
+Usage:
+
+	cammount [opts] <mountpoint> [<root-blobref>|<share URL>]
+	-debug=false: print debugging messages.
+	-server="": Camlistore server prefix.
+	If blank, the default from the "server" field of ~/.camlistore/config is used.
+	Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or
+	http://you.example.com/alt-root
 */
 package main

@@ -15,9 +15,8 @@ limitations under the License.
 */
 
 /*
-$ go get camlistore.org/cmd/camget
-
 The camget tool fetches blobs, files, and directories.
+
 
 Examples
 

@@ -15,12 +15,12 @@ limitations under the License.
 */
 
 /*
-$ go get camlistore.org/cmd/camput
-
-The camput tool mainly pushes blobs, files, and directories. It can also perform various tasks related to that, such as setting tags, creating permanodes, an creating share blobs.
+The camput tool mainly pushes blobs, files, and directories. It can also perform various related tasks, such as setting tags, creating permanodes, and creating share blobs.
 
 
-Usage: camput [globalopts] <mode> [commandopts] [commandargs]
+Usage:
+
+	camput [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 

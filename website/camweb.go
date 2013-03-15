@@ -119,6 +119,14 @@ func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 }
 
 func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
+	// insert an "install command" if it applies
+	if strings.Contains(title, cmdPattern) && subtitle != cmdPattern {
+		toInsert := `
+		<h3>Installation</h3>
+		<pre>go get camlistore.org/cmd/` + subtitle + `</pre>
+		<h3>Overview</h3><p>`
+		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
+	}
 	d := struct {
 		Title    string
 		Subtitle string
