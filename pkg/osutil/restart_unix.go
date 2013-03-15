@@ -1,3 +1,4 @@
+// +build !appengine
 // +build linux darwin freebsd netbsd openbsd
 
 /*
