@@ -42,38 +42,15 @@ import (
 	"time"
 )
 
-const domainName = "camlistore.org"
+const (
+	domainName = "camlistore.org"
+	pkgPattern = "/pkg/"
+	cmdPattern = "/cmd/"
+)
 
 var docRx = regexp.MustCompile(`^/((?:pkg|cmd)/([\w/]+?)(\.go)??)/?$`)
 
 var tabwidth = 4
-
-type docServer struct {
-	pattern string // url pattern; e.g. "/pkg/"
-	fsRoot  string // file system root to which the pattern is mapped
-}
-
-var (
-	cmdHandler = docServer{"/cmd/", "/cmd"}
-	pkgHandler = docServer{"/pkg/", "/pkg"}
-)
-
-// DirEntry describes a directory entry. The Depth and Height values
-// are useful for presenting an entry in an indented fashion.
-//
-type DirEntry struct {
-	Depth    int    // >= 0
-	Height   int    // = DirList.MaxHeight - Depth, > 0
-	Path     string // directory path; includes Name, relative to DirList root
-	Name     string // directory name
-	HasPkg   bool   // true if the directory contains at least one package
-	Synopsis string // package documentation, if any
-}
-
-type DirList struct {
-	MaxHeight int // directory tree height, > 0
-	List      []DirEntry
-}
 
 type PageInfo struct {
 	Dirname string // directory containing the package
@@ -81,7 +58,7 @@ type PageInfo struct {
 
 	// package info
 	FSet     *token.FileSet // nil if no package documentation
-	PDoc     *doc.Package   // nil if no package documentation
+	PDoc     *doc.Package   // package documentation, but never nil anyway.
 	Examples []*doc.Example // nil if no example code
 	PAst     *ast.File      // nil if no AST with package exports
 	IsPkg    bool           // true for pkg, false for cmd
@@ -118,7 +95,6 @@ var godocFmap = template.FuncMap{
 	//"comment_text": comment_textFunc,
 
 	// support for URL attributes
-	"pkgLink":     pkgLinkFunc,
 	"srcLink":     srcLinkFunc,
 	"posLink_url": posLink_urlFunc,
 
@@ -199,14 +175,6 @@ func comment_htmlFunc(comment string) string {
 	return buf.String()
 }
 
-func pkgLinkFunc(path string) string {
-	relpath := path[1:]
-	// because of the irregular mapping under goroot
-	// we need to correct certain relative paths
-	relpath = strings.TrimLeft(relpath, "pkg/")
-	return pkgHandler.pattern[1:] + relpath // remove trailing '/' for relative URL
-}
-
 func posLink_urlFunc(node ast.Node, fset *token.FileSet) string {
 	var relpath string
 	var line int
@@ -274,7 +242,24 @@ func readGodocTemplate(name string) *template.Template {
 	return t
 }
 
+func (pi *PageInfo) populateDirs(diskPath string, depth int) {
+	var dir *Directory
+	dir = newDirectory(diskPath, depth)
+	pi.Dirs = dir.listing(true)
+	pi.DirTime = time.Now()
+}
+
 func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
+	if pkgName == pathpkg.Join(domainName, pkgPattern) ||
+		pkgName == pathpkg.Join(domainName, cmdPattern) {
+		pi.Dirname = diskPath
+		pi.populateDirs(diskPath, 2)
+		// hack; setting PDoc so that we can keep using directly
+		// $GOROOT/lib/godoc/package.html, while avoiding the
+		// missing gopher png and the "ad" for the go dashboard.
+		pi.PDoc = &doc.Package{}
+		return
+	}
 	bpkg, err := build.ImportDir(diskPath, 0)
 	if err != nil {
 		return
@@ -306,7 +291,10 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 
 	pi.Dirname = diskPath
 	pi.PDoc = doc.New(aPkg, pkgName, 0)
-	pi.IsPkg = !strings.Contains(pkgName, domainName+"/cmd/")
+	pi.IsPkg = strings.Contains(pkgName, domainName+pkgPattern)
+
+	// get directory information
+	pi.populateDirs(diskPath, 1)
 	return
 }
 
@@ -410,11 +398,16 @@ type godocHandler struct{}
 
 func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m := docRx.FindStringSubmatch(r.URL.Path)
+	suffix := ""
 	if m == nil {
-		http.NotFound(w, r)
-		return
+		if r.URL.Path != pkgPattern && r.URL.Path != cmdPattern {
+			http.NotFound(w, r)
+			return
+		}
+		suffix = r.URL.Path
+	} else {
+		suffix = m[1]
 	}
-	suffix := m[1]
 	diskPath := filepath.Join(*root, "..", suffix)
 
 	switch pathpkg.Ext(suffix) {
@@ -423,7 +416,7 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkgName := domainName + "/" + suffix
+	pkgName := pathpkg.Join(domainName, suffix)
 	pi, err := getPageInfo(pkgName, diskPath)
 	if err != nil {
 		log.Print(err)

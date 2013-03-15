@@ -285,8 +285,8 @@ func main() {
 	mux.Handle("/robots.txt", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
-	mux.Handle("/pkg/", godocHandler{})
-	mux.Handle("/cmd/", godocHandler{})
+	mux.Handle(pkgPattern, godocHandler{})
+	mux.Handle(cmdPattern, godocHandler{})
 
 	gerritUrl, _ := url.Parse(fmt.Sprintf("http://%s:8000/", *gerritHost))
 	var gerritHandler http.Handler = httputil.NewSingleHostReverseProxy(gerritUrl)
