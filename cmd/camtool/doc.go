@@ -15,12 +15,12 @@ limitations under the License.
 */
 
 /*
-$ go get camlistore.org/cmd/camtool
-
 Camtool is a collection of commands to help with the use of a camlistore server. Notably, it can initialize a database for the indexer, and it can sync blobs between blobservers.
 
 
-Usage: camtool [globalopts] <mode> [commandopts] [commandargs]
+Usage:
+
+	camtool [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
