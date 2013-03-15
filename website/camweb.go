@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	txttemplate "text/template"
 	"time"
 )
 
@@ -55,6 +56,7 @@ var (
 	buildbotBackend     = flag.String("buildbot_backend", "", "Build bot status backend URL")
 	buildbotHost        = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	pageHtml, errorHtml *template.Template
+	packageHTML         *txttemplate.Template
 )
 
 var fmap = template.FuncMap{
@@ -158,6 +160,8 @@ func readTemplate(name string) *template.Template {
 func readTemplates() {
 	pageHtml = readTemplate("page.html")
 	errorHtml = readTemplate("error.html")
+	// TODO(mpl): see about not using text template anymore?
+	packageHTML = readTextTemplate("package.html")
 }
 
 func serveError(w http.ResponseWriter, r *http.Request, relpath string, err error) {
@@ -270,7 +274,6 @@ func fixupGitwebFiles() {
 
 func main() {
 	flag.Parse()
-	readTemplates()
 
 	if *root == "" {
 		var err error
@@ -279,7 +282,7 @@ func main() {
 			log.Fatalf("Failed to getwd: %v", err)
 		}
 	}
-
+	readTemplates()
 	fixupGitwebFiles()
 
 	latestGits := filepath.Join(*root, "latestgits")

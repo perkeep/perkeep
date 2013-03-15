@@ -36,7 +36,6 @@ import (
 	pathpkg "path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -223,25 +222,6 @@ func srcLinkFunc(s string) string {
 	return pathpkg.Clean(s[idx+len(domainName):])
 }
 
-var packageHTML = readGodocTemplate("package.html")
-
-func readGodocTemplate(name string) *template.Template {
-	path := runtime.GOROOT() + "/lib/godoc/" + name
-
-	// use underlying file system fs to read the template file
-	// (cannot use template ParseFile functions directly)
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Fatal("readTemplate: ", err)
-	}
-	// be explicit with errors (for app engine use)
-	t, err := template.New(name).Funcs(godocFmap).Parse(string(data))
-	if err != nil {
-		log.Fatal("readTemplate: ", err)
-	}
-	return t
-}
-
 func (pi *PageInfo) populateDirs(diskPath string, depth int) {
 	var dir *Directory
 	dir = newDirectory(diskPath, depth)
@@ -254,6 +234,8 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 		pkgName == pathpkg.Join(domainName, cmdPattern) {
 		pi.Dirname = diskPath
 		pi.populateDirs(diskPath, 2)
+		// TODO(mpl): trim down our now local package.html to avoid that,
+		// among other things.
 		// hack; setting PDoc so that we can keep using directly
 		// $GOROOT/lib/godoc/package.html, while avoiding the
 		// missing gopher png and the "ad" for the go dashboard.
@@ -368,6 +350,19 @@ func (p *tconv) Write(data []byte) (n int, err error) {
 		_, err = p.output.Write(data[pos:])
 	}
 	return
+}
+
+func readTextTemplate(name string) *template.Template {
+	fileName := filepath.Join(*root, "tmpl", name)
+	data, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		log.Fatalf("ReadFile %s: %v", fileName, err)
+	}
+	t, err := template.New(name).Funcs(godocFmap).Parse(string(data))
+	if err != nil {
+		log.Fatalf("%s: %v", fileName, err)
+	}
+	return t
 }
 
 func applyTextTemplate(t *template.Template, name string, data interface{}) []byte {
