@@ -42,7 +42,8 @@ func isGoFile(fi os.FileInfo) bool {
 
 func isPkgFile(fi os.FileInfo) bool {
 	return isGoFile(fi) &&
-		!strings.HasSuffix(fi.Name(), "_test.go") // ignore test files
+		!strings.HasSuffix(fi.Name(), "_test.go") && // ignore test files
+		!strings.HasSuffix(fi.Name(), fileembedPattern)
 }
 
 func isPkgDir(fi os.FileInfo) bool {
