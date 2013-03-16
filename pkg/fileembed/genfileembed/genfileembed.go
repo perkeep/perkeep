@@ -90,7 +90,7 @@ func main() {
 
 		var b bytes.Buffer
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
-		fmt.Fprintf(&b, "// DO NOT EDIT.\n")
+		fmt.Fprintf(&b, "// DO NOT EDIT.\n\n")
 		fmt.Fprintf(&b, "package %s\n\n", pkgName)
 		fmt.Fprintf(&b, "import \"time\"\n\n")
 		fmt.Fprintf(&b, "import \"camlistore.org/pkg/fileembed\"\n\n")

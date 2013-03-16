@@ -43,9 +43,10 @@ import (
 )
 
 const (
-	domainName = "camlistore.org"
-	pkgPattern = "/pkg/"
-	cmdPattern = "/cmd/"
+	domainName       = "camlistore.org"
+	pkgPattern       = "/pkg/"
+	cmdPattern       = "/cmd/"
+	fileembedPattern = "fileembed.go"
 )
 
 var docRx = regexp.MustCompile(`^/((?:pkg|cmd)/([\w/]+?)(\.go)??)/?$`)
@@ -266,6 +267,9 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	}
 	inSet := make(map[string]bool)
 	for _, name := range bpkg.GoFiles {
+		if name == fileembedPattern {
+			continue
+		}
 		inSet[filepath.Base(name)] = true
 	}
 
