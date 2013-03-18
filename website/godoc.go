@@ -58,7 +58,7 @@ type PageInfo struct {
 
 	// package info
 	FSet     *token.FileSet // nil if no package documentation
-	PDoc     *doc.Package   // package documentation, but never nil anyway.
+	PDoc     *doc.Package   // nil if no package documentation
 	Examples []*doc.Example // nil if no example code
 	PAst     *ast.File      // nil if no AST with package exports
 	IsPkg    bool           // true for pkg, false for cmd
@@ -235,12 +235,6 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 		pkgName == pathpkg.Join(domainName, cmdPattern) {
 		pi.Dirname = diskPath
 		pi.populateDirs(diskPath, 2)
-		// TODO(mpl): trim down our now local package.html to avoid that,
-		// among other things.
-		// hack; setting PDoc so that we can keep using directly
-		// $GOROOT/lib/godoc/package.html, while avoiding the
-		// missing gopher png and the "ad" for the go dashboard.
-		pi.PDoc = &doc.Package{}
 		return
 	}
 	bpkg, err := build.ImportDir(diskPath, 0)
