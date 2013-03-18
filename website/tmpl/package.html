@@ -179,13 +179,7 @@
 
 {{with .Dirs}}
 	{{/* DirList entries are numbers and strings - no need for FSet */}}
-	{{if $.PDoc}}
-		<h2 id="pkg-subdirectories">Subdirectories</h2>
-	{{else}}
-		<div class="pkgGopher">
-			<img class="gopher" src="/doc/gopher/pkg.png"/>
-		</div>
-	{{end}}
+	<h2 id="pkg-subdirectories">Subdirectories</h2>
 	<table class="dir">
 	<tr>
 	<th>Name</th>
@@ -215,7 +209,4 @@
 		{{end}}
 	{{end}}
 	</table>
-	{{if $.PDoc}}{{else}}
-	<p>Need more packages? Take a look at the <a href="http://godashboard.appspot.com/">Go Project Dashboard</a>.</p>
-	{{end}}
 {{end}}
