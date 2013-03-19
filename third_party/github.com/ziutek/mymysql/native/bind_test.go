@@ -1,10 +1,12 @@
 package native
 
 import (
+	"bufio"
 	"bytes"
 	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
 	"math"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -64,6 +66,27 @@ type BindTest struct {
 	length int
 }
 
+func intSize() int {
+	switch strconv.IntSize {
+	case 32:
+		return 4
+	case 64:
+		return 8
+	}
+	panic("bad int size")
+}
+
+func intType() uint16 {
+	switch strconv.IntSize {
+	case 32:
+		return MYSQL_TYPE_LONG
+	case 64:
+		return MYSQL_TYPE_LONGLONG
+	}
+	panic("bad int size")
+
+}
+
 var bindTests = []BindTest{
 	BindTest{nil, MYSQL_TYPE_NULL, 0},
 
@@ -99,37 +122,37 @@ var bindTests = []BindTest{
 	BindTest{Int16, MYSQL_TYPE_SHORT, 2},
 	BindTest{Int32, MYSQL_TYPE_LONG, 4},
 	BindTest{Int64, MYSQL_TYPE_LONGLONG, 8},
-	BindTest{Int, MYSQL_TYPE_LONG, 4}, // Hack
+	BindTest{Int, intType(), intSize()},
 
 	BindTest{&Int8, MYSQL_TYPE_TINY, 1},
 	BindTest{&Int16, MYSQL_TYPE_SHORT, 2},
 	BindTest{&Int32, MYSQL_TYPE_LONG, 4},
 	BindTest{&Int64, MYSQL_TYPE_LONGLONG, 8},
-	BindTest{&Int, MYSQL_TYPE_LONG, 4}, // Hack
+	BindTest{&Int, intType(), intSize()},
 
 	BindTest{pInt8, MYSQL_TYPE_TINY, 1},
 	BindTest{pInt16, MYSQL_TYPE_SHORT, 2},
 	BindTest{pInt32, MYSQL_TYPE_LONG, 4},
 	BindTest{pInt64, MYSQL_TYPE_LONGLONG, 8},
-	BindTest{pInt, MYSQL_TYPE_LONG, 4}, // Hack
+	BindTest{pInt, intType(), intSize()},
 
 	BindTest{Uint8, MYSQL_TYPE_TINY | MYSQL_UNSIGNED_MASK, 1},
 	BindTest{Uint16, MYSQL_TYPE_SHORT | MYSQL_UNSIGNED_MASK, 2},
 	BindTest{Uint32, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4},
 	BindTest{Uint64, MYSQL_TYPE_LONGLONG | MYSQL_UNSIGNED_MASK, 8},
-	BindTest{Uint, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4}, //Hack
+	BindTest{Uint, intType() | MYSQL_UNSIGNED_MASK, intSize()},
 
 	BindTest{&Uint8, MYSQL_TYPE_TINY | MYSQL_UNSIGNED_MASK, 1},
 	BindTest{&Uint16, MYSQL_TYPE_SHORT | MYSQL_UNSIGNED_MASK, 2},
 	BindTest{&Uint32, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4},
 	BindTest{&Uint64, MYSQL_TYPE_LONGLONG | MYSQL_UNSIGNED_MASK, 8},
-	BindTest{&Uint, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4}, //Hack
+	BindTest{&Uint, intType() | MYSQL_UNSIGNED_MASK, intSize()},
 
 	BindTest{pUint8, MYSQL_TYPE_TINY | MYSQL_UNSIGNED_MASK, 1},
 	BindTest{pUint16, MYSQL_TYPE_SHORT | MYSQL_UNSIGNED_MASK, 2},
 	BindTest{pUint32, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4},
 	BindTest{pUint64, MYSQL_TYPE_LONGLONG | MYSQL_UNSIGNED_MASK, 8},
-	BindTest{pUint, MYSQL_TYPE_LONG | MYSQL_UNSIGNED_MASK, 4}, //Hack
+	BindTest{pUint, intType() | MYSQL_UNSIGNED_MASK, intSize()},
 
 	BindTest{Float32, MYSQL_TYPE_FLOAT, 4},
 	BindTest{Float64, MYSQL_TYPE_DOUBLE, 8},
@@ -169,6 +192,59 @@ type WriteTest struct {
 
 var writeTest []WriteTest
 
+func encodeU16(v uint16) []byte {
+	buf := make([]byte, 2)
+	EncodeU16(buf, v)
+	return buf
+}
+
+func encodeU24(v uint32) []byte {
+	buf := make([]byte, 3)
+	EncodeU24(buf, v)
+	return buf
+}
+
+func encodeU32(v uint32) []byte {
+	buf := make([]byte, 4)
+	EncodeU32(buf, v)
+	return buf
+}
+
+func encodeU64(v uint64) []byte {
+	buf := make([]byte, 8)
+	EncodeU64(buf, v)
+	return buf
+}
+
+func encodeDuration(d time.Duration) []byte {
+	buf := make([]byte, 13)
+	n := EncodeDuration(buf, d)
+	return buf[:n]
+}
+
+func encodeTime(t time.Time) []byte {
+	buf := make([]byte, 12)
+	n := EncodeTime(buf, t)
+	return buf[:n]
+}
+
+func encodeDate(d mysql.Date) []byte {
+	buf := make([]byte, 5)
+	n := EncodeDate(buf, d)
+	return buf[:n]
+}
+
+func encodeUint(u uint) []byte {
+	switch strconv.IntSize {
+	case 32:
+		return encodeU32(uint32(u))
+	case 64:
+		return encodeU64(uint64(u))
+	}
+	panic("bad int size")
+
+}
+
 func init() {
 	b := make([]byte, 64*1024)
 	for ii := range b {
@@ -183,7 +259,8 @@ func init() {
 		WriteTest{pString, nil},
 		WriteTest{
 			blob,
-			append(append([]byte{253}, EncodeU24(uint32(len(blob)))...),
+			append(
+				append([]byte{253}, byte(len(blob)), byte(len(blob)>>8), byte(len(blob)>>16)),
 				[]byte(blob)...),
 		},
 		WriteTest{
@@ -230,52 +307,52 @@ func init() {
 		WriteTest{&bol, []byte{1}},
 		WriteTest{pBol, nil},
 
-		WriteTest{dateT, EncodeTime(dateT)},
-		WriteTest{&dateT, EncodeTime(dateT)},
+		WriteTest{dateT, encodeTime(dateT)},
+		WriteTest{&dateT, encodeTime(dateT)},
 		WriteTest{pDateT, nil},
 
-		WriteTest{tstamp, EncodeTime(tstamp.Time)},
-		WriteTest{&tstamp, EncodeTime(tstamp.Time)},
+		WriteTest{tstamp, encodeTime(tstamp.Time)},
+		WriteTest{&tstamp, encodeTime(tstamp.Time)},
 		WriteTest{pTstamp, nil},
 
-		WriteTest{date, EncodeDate(date)},
-		WriteTest{&date, EncodeDate(date)},
+		WriteTest{date, encodeDate(date)},
+		WriteTest{&date, encodeDate(date)},
 		WriteTest{pDate, nil},
 
-		WriteTest{tim, EncodeDuration(tim)},
-		WriteTest{&tim, EncodeDuration(tim)},
+		WriteTest{tim, encodeDuration(tim)},
+		WriteTest{&tim, encodeDuration(tim)},
 		WriteTest{pTim, nil},
 
-		WriteTest{Int, EncodeU32(uint32(Int))}, // Hack
-		WriteTest{Int16, EncodeU16(uint16(Int16))},
-		WriteTest{Int32, EncodeU32(uint32(Int32))},
-		WriteTest{Int64, EncodeU64(uint64(Int64))},
+		WriteTest{Int, encodeUint(uint(Int))},
+		WriteTest{Int16, encodeU16(uint16(Int16))},
+		WriteTest{Int32, encodeU32(uint32(Int32))},
+		WriteTest{Int64, encodeU64(uint64(Int64))},
 
-		WriteTest{Int, EncodeU32(uint32(Int))}, // Hack
-		WriteTest{Uint16, EncodeU16(Uint16)},
-		WriteTest{Uint32, EncodeU32(Uint32)},
-		WriteTest{Uint64, EncodeU64(Uint64)},
+		WriteTest{Uint, encodeUint(Uint)},
+		WriteTest{Uint16, encodeU16(Uint16)},
+		WriteTest{Uint32, encodeU32(Uint32)},
+		WriteTest{Uint64, encodeU64(Uint64)},
 
-		WriteTest{&Int, EncodeU32(uint32(Int))}, // Hack
-		WriteTest{&Int16, EncodeU16(uint16(Int16))},
-		WriteTest{&Int32, EncodeU32(uint32(Int32))},
-		WriteTest{&Int64, EncodeU64(uint64(Int64))},
+		WriteTest{&Int, encodeUint(uint(Int))},
+		WriteTest{&Int16, encodeU16(uint16(Int16))},
+		WriteTest{&Int32, encodeU32(uint32(Int32))},
+		WriteTest{&Int64, encodeU64(uint64(Int64))},
 
-		WriteTest{&Uint, EncodeU32(uint32(Uint))}, // Hack
-		WriteTest{&Uint16, EncodeU16(Uint16)},
-		WriteTest{&Uint32, EncodeU32(Uint32)},
-		WriteTest{&Uint64, EncodeU64(Uint64)},
+		WriteTest{&Uint, encodeUint(Uint)},
+		WriteTest{&Uint16, encodeU16(Uint16)},
+		WriteTest{&Uint32, encodeU32(Uint32)},
+		WriteTest{&Uint64, encodeU64(Uint64)},
 
 		WriteTest{pInt, nil},
 		WriteTest{pInt16, nil},
 		WriteTest{pInt32, nil},
 		WriteTest{pInt64, nil},
 
-		WriteTest{Float32, EncodeU32(math.Float32bits(Float32))},
-		WriteTest{Float64, EncodeU64(math.Float64bits(Float64))},
+		WriteTest{Float32, encodeU32(math.Float32bits(Float32))},
+		WriteTest{Float64, encodeU64(math.Float64bits(Float64))},
 
-		WriteTest{&Float32, EncodeU32(math.Float32bits(Float32))},
-		WriteTest{&Float64, EncodeU64(math.Float64bits(Float64))},
+		WriteTest{&Float32, encodeU32(math.Float32bits(Float32))},
+		WriteTest{&Float64, encodeU64(math.Float64bits(Float64))},
 
 		WriteTest{pFloat32, nil},
 		WriteTest{pFloat64, nil},
@@ -286,11 +363,21 @@ func TestWrite(t *testing.T) {
 	buf := new(bytes.Buffer)
 	for _, test := range writeTest {
 		buf.Reset()
+		var seq byte
+		pw := &pktWriter{
+			wr:       bufio.NewWriter(buf),
+			seq:      &seq,
+			to_write: len(test.exp),
+		}
 		v := makeAddressable(reflect.ValueOf(test.val))
 		val := bindValue(v)
-		writeValue(buf, val)
-		if !bytes.Equal(buf.Bytes(), test.exp) || val.Len() != len(test.exp) {
-			t.Errorf("%s - exp_len=%d res_len=%d exp: %v res: %v",
+		pw.writeValue(&val)
+		if !reflect.Indirect(v).IsValid() && len(buf.Bytes()) == 0 {
+			// writeValue writes nothing for nil
+			continue
+		}
+		if len(buf.Bytes()) != len(test.exp)+4 || !bytes.Equal(buf.Bytes()[4:], test.exp) || val.Len() != len(test.exp) {
+			t.Fatalf("%s - exp_len=%d res_len=%d exp: %v res: %v",
 				reflect.TypeOf(test.val), len(test.exp), val.Len(),
 				test.exp, buf.Bytes(),
 			)

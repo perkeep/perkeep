@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -27,7 +28,8 @@ func syntaxError(ln int) error {
 //	DbPass	TestPasswd9
 //	# optional: DbName	test
 //	# optional: DbEncd	utf8	
-//	# optional: DbLaddr	127.0.0.1
+//	# optional: DbLaddr	127.0.0.1:0
+//	# optional: DbTimeout 15s
 //
 //	# Your options (returned in unk)
 //
@@ -40,7 +42,7 @@ func NewFromCF(cfgFile string) (con Conn, unk map[string]string, err error) {
 	}
 	br := bufio.NewReader(cf)
 	um := make(map[string]string)
-	var proto, laddr, raddr, user, pass, name, encd string
+	var proto, laddr, raddr, user, pass, name, encd, to string
 	for i := 1; ; i++ {
 		buf, isPrefix, e := br.ReadLine()
 		if e != nil {
@@ -83,6 +85,8 @@ func NewFromCF(cfgFile string) (con Conn, unk map[string]string, err error) {
 			name = l
 		case "DbEncd":
 			encd = l
+		case "DbTimeout":
+			to = l
 		default:
 			um[v] = l
 		}
@@ -99,6 +103,14 @@ func NewFromCF(cfgFile string) (con Conn, unk map[string]string, err error) {
 	}
 	if encd != "" {
 		con.Register(fmt.Sprintf("SET NAMES %s", encd))
+	}
+	if to != "" {
+		var timeout time.Duration
+		timeout, err = time.ParseDuration(to)
+		if err != nil {
+			return
+		}
+		con.SetTimeout(timeout)
 	}
 	return
 }

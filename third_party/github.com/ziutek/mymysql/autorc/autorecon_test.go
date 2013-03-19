@@ -27,7 +27,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	c.Debug = false
 
 	// Register initialisation commands
-	c.Raw.Register("set names utf8")
+	c.Register("set names utf8")
 
 	// my is in unconnected state
 	checkErr(t, c.Use(dbname), nil)
@@ -59,7 +59,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Bind insert parameters
-	ins.Raw.Bind(1, "jeden")
+	ins.Bind(1, "jeden")
 	// Insert into table
 	_, _, err = ins.Exec()
 	checkErr(t, err, nil)
@@ -68,7 +68,7 @@ func TestAutoConnectReconnect(t *testing.T) {
 	c.Query("kill %d", c.Raw.ThreadId())
 
 	// Bind insert parameters
-	ins.Raw.Bind(2, "dwa")
+	ins.Bind(2, "dwa")
 	// Insert into table
 	_, _, err = ins.Exec()
 	checkErr(t, err, nil)

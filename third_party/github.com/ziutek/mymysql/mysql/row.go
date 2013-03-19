@@ -325,6 +325,10 @@ func (tr Row) BoolErr(nn int) (val bool, err error) {
 		val = (data != 0)
 	case uint64:
 		val = (data != 0)
+	case []byte:
+		var v int64
+		v, err = strconv.ParseInt(string(data), 0, 64)
+		val = (v != 0)
 	default:
 		err = os.ErrInvalid
 	}

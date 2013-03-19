@@ -1,13 +1,17 @@
 // MySQL Client API written entirely in Go without any external dependences.
 package mysql
 
+import (
+	"time"
+)
+
 type ConnCommon interface {
 	Start(sql string, params ...interface{}) (Result, error)
 	Prepare(sql string) (Stmt, error)
 
 	Ping() error
 	ThreadId() uint32
-	EscapeString(txt string) string
+	Escape(txt string) string
 
 	Query(sql string, params ...interface{}) ([]Row, Result, error)
 	QueryFirst(sql string, params ...interface{}) (Row, Result, error)
@@ -18,6 +22,7 @@ type Conn interface {
 	ConnCommon
 
 	Clone() Conn
+	SetTimeout(time.Duration)
 	Connect() error
 	Close() error
 	IsConnected() bool
@@ -25,6 +30,8 @@ type Conn interface {
 	Use(dbname string) error
 	Register(sql string)
 	SetMaxPktSize(new_size int) int
+	NarrowTypeSet(narrow bool)
+	FullFieldInfo(full bool)
 
 	Begin() (Transaction, error)
 }
@@ -40,14 +47,12 @@ type Transaction interface {
 
 type Stmt interface {
 	Bind(params ...interface{})
-	ResetParams()
 	Run(params ...interface{}) (Result, error)
 	Delete() error
 	Reset() error
 	SendLongData(pnum int, data interface{}, pkt_size int) error
 
-	Map(string) int
-	NumField() int
+	Fields() []*Field
 	NumParam() int
 	WarnCount() int
 

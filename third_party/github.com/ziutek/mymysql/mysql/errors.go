@@ -497,3 +497,37 @@ const (
 	ER_WRONG_STRING_LENGTH                     = 1470
 	ER_NON_INSERTABLE_TABLE                    = 1471
 )
+
+type ClientError string
+
+func (e ClientError) Error() string {
+	return string(e)
+}
+
+var (
+	ErrSeq            = ClientError("packet sequence error")
+	ErrPkt            = ClientError("malformed packet")
+	ErrPktLong        = ClientError("packet too long")
+	ErrUnexpNullLCS   = ClientError("unexpected NULL LCS")
+	ErrUnexpNullLCB   = ClientError("unexpected NULL LCB")
+	ErrUnexpNullDate  = ClientError("unexpected NULL DATETIME")
+	ErrUnexpNullTime  = ClientError("unexpected NULL TIME")
+	ErrUnkResultPkt   = ClientError("unexpected or unknown result packet")
+	ErrNotConn        = ClientError("not connected")
+	ErrAlredyConn     = ClientError("not connected")
+	ErrBadResult      = ClientError("unexpected result")
+	ErrUnreadedReply  = ClientError("reply is not completely read")
+	ErrBindCount      = ClientError("wrong number of values for bind")
+	ErrBindUnkType    = ClientError("unknown value type for bind")
+	ErrRowLength      = ClientError("wrong length of row slice")
+	ErrBadCommand     = ClientError("comand isn't text SQL nor *Stmt")
+	ErrWrongDateLen   = ClientError("wrong datetime/timestamp length")
+	ErrWrongTimeLen   = ClientError("wrong time length")
+	ErrUnkMySQLType   = ClientError("unknown MySQL type")
+	ErrWrongParamNum  = ClientError("wrong parameter number")
+	ErrUnkDataType    = ClientError("unknown data source type")
+	ErrSmallPktSize   = ClientError("specified packet size is to small")
+	ErrReadAfterEOR   = ClientError("previous ScanRow call returned io.EOF")
+	ErrOldProtocol    = ClientError("server does not support 4.1 protocol")
+	ErrAuthentication = ClientError("authentication error")
+)

@@ -17,7 +17,7 @@ var (
 	passwd = "TestPasswd9"
 	dbname = "test"
 	//conn   = []string{"unix", "", "/var/run/mysqld/mysqld.sock"}
-	conn  = []string{"tcp", "", "127.0.0.1:3306"}
+	conn  = []string{"", "", "127.0.0.1:3306"}
 	debug = false
 )
 
@@ -183,8 +183,8 @@ func TestPing(t *testing.T) {
 
 func TestQuery(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table T") // Drop test table if exists
-	checkResult(t, query("create table T (s varchar(40))"),
+	query("drop table t") // Drop test table if exists
+	checkResult(t, query("create table t (s varchar(40))"),
 		cmdOK(0, false, true))
 
 	exp := &RowsResErr{
@@ -205,7 +205,6 @@ func TestQuery(t *testing.T) {
 					Scale:    0,
 				},
 			},
-			fc_map:       map[string]int{"Str": 0},
 			status:       _SERVER_STATUS_AUTOCOMMIT,
 			eor_returned: true,
 		},
@@ -214,20 +213,20 @@ func TestQuery(t *testing.T) {
 	for ii := 0; ii > 10000; ii += 3 {
 		var val interface{}
 		if ii%10 == 0 {
-			checkResult(t, query("insert T values (null)"),
+			checkResult(t, query("insert t values (null)"),
 				cmdOK(1, false, true))
 			val = nil
 		} else {
 			txt := []byte(fmt.Sprintf("%d %d %d %d %d", ii, ii, ii, ii, ii))
 			checkResult(t,
-				query("insert T values ('%s')", txt), cmdOK(1, false, true))
+				query("insert t values ('%s')", txt), cmdOK(1, false, true))
 			val = txt
 		}
 		exp.rows = append(exp.rows, mysql.Row{val})
 	}
 
-	checkResult(t, query("select s as Str from T as Test"), exp)
-	checkResult(t, query("drop table T"), cmdOK(0, false, true))
+	checkResult(t, query("select s as Str from t as Test"), exp)
+	checkResult(t, query("drop table t"), cmdOK(0, false, true))
 	myClose(t)
 }
 
@@ -247,7 +246,6 @@ func checkStmt(t *testing.T, res, exp *StmtErr) {
 	ok := res.err == exp.err &&
 		// Skipping id
 		reflect.DeepEqual(res.stmt.fields, exp.stmt.fields) &&
-		reflect.DeepEqual(res.stmt.fc_map, exp.stmt.fc_map) &&
 		res.stmt.field_count == exp.stmt.field_count &&
 		res.stmt.param_count == exp.stmt.param_count &&
 		res.stmt.warning_count == exp.stmt.warning_count &&
@@ -267,10 +265,10 @@ func checkStmt(t *testing.T, res, exp *StmtErr) {
 
 func TestPrepared(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table P") // Drop test table if exists
+	query("drop table p") // Drop test table if exists
 	checkResult(t,
 		query(
-			"create table P ("+
+			"create table p ("+
 				"   ii int not null, ss varchar(20), dd datetime"+
 				") default charset=utf8",
 		),
@@ -280,7 +278,7 @@ func TestPrepared(t *testing.T) {
 	exp := Stmt{
 		fields: []*mysql.Field{
 			&mysql.Field{
-				Catalog: "def", Db: "test", Table: "P", OrgTable: "P",
+				Catalog: "def", Db: "test", Table: "p", OrgTable: "p",
 				Name:    "i",
 				OrgName: "ii",
 				DispLen: 11,
@@ -289,7 +287,7 @@ func TestPrepared(t *testing.T) {
 				Scale:   0,
 			},
 			&mysql.Field{
-				Catalog: "def", Db: "test", Table: "P", OrgTable: "P",
+				Catalog: "def", Db: "test", Table: "p", OrgTable: "p",
 				Name:    "s",
 				OrgName: "ss",
 				DispLen: 3 * 20, // varchar(20)
@@ -298,7 +296,7 @@ func TestPrepared(t *testing.T) {
 				Scale:   0,
 			},
 			&mysql.Field{
-				Catalog: "def", Db: "test", Table: "P", OrgTable: "P",
+				Catalog: "def", Db: "test", Table: "p", OrgTable: "p",
 				Name:    "d",
 				OrgName: "dd",
 				DispLen: 19,
@@ -307,20 +305,19 @@ func TestPrepared(t *testing.T) {
 				Scale:   0,
 			},
 		},
-		fc_map:        map[string]int{"i": 0, "s": 1, "d": 2},
 		field_count:   3,
 		param_count:   2,
 		warning_count: 0,
 		status:        0x2,
 	}
 
-	sel := prepare("select ii i, ss s, dd d from P where ii = ? and ss = ?")
+	sel := prepare("select ii i, ss s, dd d from p where ii = ? and ss = ?")
 	checkStmt(t, sel, &StmtErr{&exp, nil})
 
-	all := prepare("select * from P")
+	all := prepare("select * from p")
 	checkErr(t, all.err, nil)
 
-	ins := prepare("insert into P values (?, ?, ?)")
+	ins := prepare("insert p values (?, ?, ?)")
 	checkErr(t, ins.err, nil)
 
 	parsed, err := mysql.ParseTime("2012-01-17 01:10:10", time.Local)
@@ -399,7 +396,7 @@ func TestPrepared(t *testing.T) {
 	checkErrWarn(t, exec(sel.stmt, 2, "Taki tekst"), selectOK(exp_rows, true))
 	checkErrWarnRows(t, exec(all.stmt), selectOK(exp_rows, true))
 
-	checkResult(t, query("drop table P"), cmdOK(0, false, true))
+	checkResult(t, query("drop table p"), cmdOK(0, false, true))
 
 	checkErr(t, sel.stmt.Delete(), nil)
 	checkErr(t, all.stmt.Delete(), nil)
@@ -412,13 +409,13 @@ func TestPrepared(t *testing.T) {
 
 func TestVarBinding(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table T") // Drop test table if exists
+	query("drop table t") // Drop test table if exists
 	checkResult(t,
-		query("create table T (id int primary key, str varchar(20))"),
+		query("create table t (id int primary key, str varchar(20))"),
 		cmdOK(0, false, true),
 	)
 
-	ins, err := my.Prepare("insert T values (?, ?)")
+	ins, err := my.Prepare("insert t values (?, ?)")
 	checkErr(t, err, nil)
 
 	var (
@@ -452,7 +449,7 @@ func TestVarBinding(t *testing.T) {
 	rre.res, rre.err = ins.Run()
 	checkResult(t, &rre, cmdOK(1, true, false))
 
-	sel, err := my.Prepare("select str from T where id = ?")
+	sel, err := my.Prepare("select str from t where id = ?")
 	checkErr(t, err, nil)
 
 	rows, _, err := sel.Exec(1)
@@ -473,21 +470,21 @@ func TestVarBinding(t *testing.T) {
 		t.Fatal("Thrid string don't match")
 	}
 
-	checkResult(t, query("drop table T"), cmdOK(0, false, true))
+	checkResult(t, query("drop table t"), cmdOK(0, false, true))
 	myClose(t)
 }
 
 func TestBindStruct(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table T") // Drop test table if exists
+	query("drop table t") // Drop test table if exists
 	checkResult(t,
-		query("create table T (id int primary key, txt varchar(20), b bool)"),
+		query("create table t (id int primary key, txt varchar(20), b bool)"),
 		cmdOK(0, false, true),
 	)
 
-	ins, err := my.Prepare("insert T values (?, ?, ?)")
+	ins, err := my.Prepare("insert t values (?, ?, ?)")
 	checkErr(t, err, nil)
-	sel, err := my.Prepare("select txt, b from T where id = ?")
+	sel, err := my.Prepare("select txt, b from t where id = ?")
 	checkErr(t, err, nil)
 
 	var (
@@ -514,15 +511,15 @@ func TestBindStruct(t *testing.T) {
 		t.Fatal("selected data don't match inserted data")
 	}
 
-	checkResult(t, query("drop table T"), cmdOK(0, false, true))
+	checkResult(t, query("drop table t"), cmdOK(0, false, true))
 	myClose(t)
 }
 
 func TestDate(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table D") // Drop test table if exists
+	query("drop table d") // Drop test table if exists
 	checkResult(t,
-		query("create table D (id int, dd date, dt datetime, tt time)"),
+		query("create table d (id int, dd date, dt datetime, tt time)"),
 		cmdOK(0, false, true),
 	)
 
@@ -541,10 +538,10 @@ func TestDate(t *testing.T) {
 		},
 	}
 
-	ins, err := my.Prepare("insert D values (?, ?, ?, ?)")
+	ins, err := my.Prepare("insert d values (?, ?, ?, ?)")
 	checkErr(t, err, nil)
 
-	sel, err := my.Prepare("select id, tt from D where dd = ? && dt = ?")
+	sel, err := my.Prepare("select id, tt from d where dd = ? && dt = ?")
 	checkErr(t, err, nil)
 
 	for i, r := range test {
@@ -569,23 +566,23 @@ func TestDate(t *testing.T) {
 		}
 	}
 
-	checkResult(t, query("drop table D"), cmdOK(0, false, true))
+	checkResult(t, query("drop table d"), cmdOK(0, false, true))
 	myClose(t)
 }
 
 // Big blob
 func TestBigBlob(t *testing.T) {
 	myConnect(t, true, 34*1024*1024)
-	query("drop table P") // Drop test table if exists
+	query("drop table p") // Drop test table if exists
 	checkResult(t,
-		query("create table P (id int primary key, bb longblob)"),
+		query("create table p (id int primary key, bb longblob)"),
 		cmdOK(0, false, true),
 	)
 
-	ins, err := my.Prepare("insert P values (?, ?)")
+	ins, err := my.Prepare("insert p values (?, ?)")
 	checkErr(t, err, nil)
 
-	sel, err := my.Prepare("select bb from P where id = ?")
+	sel, err := my.Prepare("select bb from p where id = ?")
 	checkErr(t, err, nil)
 
 	big_blob := make(mysql.Blob, 33*1024*1024)
@@ -659,7 +656,7 @@ func TestBigBlob(t *testing.T) {
 		t.Fatal("Partial blob data don't match")
 	}
 
-	checkResult(t, query("drop table P"), cmdOK(0, false, true))
+	checkResult(t, query("drop table p"), cmdOK(0, false, true))
 	myClose(t)
 }
 
@@ -671,23 +668,23 @@ func TestEmpty(t *testing.T) {
 		}
 	}
 	myConnect(t, true, 0)
-	query("drop table E") // Drop test table if exists
+	query("drop table e") // Drop test table if exists
 	// Create table 
 	checkResult(t,
-		query("create table E (id int)"),
+		query("create table e (id int)"),
 		cmdOK(0, false, true),
 	)
 	// Text query
-	res, err := my.Start("select * from E")
+	res, err := my.Start("select * from e")
 	checkErr(t, err, nil)
 	row, err := res.GetRow()
 	checkErr(t, err, nil)
 	checkNil(row)
 	row, err = res.GetRow()
-	checkErr(t, err, READ_AFTER_EOR_ERROR)
+	checkErr(t, err, mysql.ErrReadAfterEOR)
 	checkNil(row)
 	// Prepared statement
-	sel, err := my.Prepare("select * from E")
+	sel, err := my.Prepare("select * from e")
 	checkErr(t, err, nil)
 	res, err = sel.Run()
 	checkErr(t, err, nil)
@@ -695,24 +692,24 @@ func TestEmpty(t *testing.T) {
 	checkErr(t, err, nil)
 	checkNil(row)
 	row, err = res.GetRow()
-	checkErr(t, err, READ_AFTER_EOR_ERROR)
+	checkErr(t, err, mysql.ErrReadAfterEOR)
 	checkNil(row)
 	// Drop test table
-	checkResult(t, query("drop table E"), cmdOK(0, false, true))
+	checkResult(t, query("drop table e"), cmdOK(0, false, true))
 }
 
 // Reconnect test
 func TestReconnect(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table R") // Drop test table if exists
+	query("drop table r") // Drop test table if exists
 	checkResult(t,
-		query("create table R (id int primary key, str varchar(20))"),
+		query("create table r (id int primary key, str varchar(20))"),
 		cmdOK(0, false, true),
 	)
 
-	ins, err := my.Prepare("insert R values (?, ?)")
+	ins, err := my.Prepare("insert r values (?, ?)")
 	checkErr(t, err, nil)
-	sel, err := my.Prepare("select str from R where id = ?")
+	sel, err := my.Prepare("select str from r where id = ?")
 	checkErr(t, err, nil)
 
 	params := struct {
@@ -749,7 +746,7 @@ func TestReconnect(t *testing.T) {
 
 	checkErr(t, my.Reconnect(), nil)
 
-	checkResult(t, query("drop table R"), cmdOK(0, false, true))
+	checkResult(t, query("drop table r"), cmdOK(0, false, true))
 	myClose(t)
 }
 
@@ -757,15 +754,15 @@ func TestReconnect(t *testing.T) {
 
 func TestSendLongData(t *testing.T) {
 	myConnect(t, true, 64*1024*1024)
-	query("drop table L") // Drop test table if exists
+	query("drop table l") // Drop test table if exists
 	checkResult(t,
-		query("create table L (id int primary key, bb longblob)"),
+		query("create table l (id int primary key, bb longblob)"),
 		cmdOK(0, false, true),
 	)
-	ins, err := my.Prepare("insert L values (?, ?)")
+	ins, err := my.Prepare("insert l values (?, ?)")
 	checkErr(t, err, nil)
 
-	sel, err := my.Prepare("select bb from L where id = ?")
+	sel, err := my.Prepare("select bb from l where id = ?")
 	checkErr(t, err, nil)
 
 	var (
@@ -845,18 +842,18 @@ func TestSendLongData(t *testing.T) {
 		t.Fatal("Bad result")
 	}
 
-	checkResult(t, query("drop table L"), cmdOK(0, false, true))
+	checkResult(t, query("drop table l"), cmdOK(0, false, true))
 	myClose(t)
 }
 
 func TestNull(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table if exists N")
+	query("drop table if exists n")
 	checkResult(t,
-		query("create table N (i int not null, n int)"),
+		query("create table n (i int not null, n int)"),
 		cmdOK(0, false, true),
 	)
-	ins, err := my.Prepare("insert N values (?, ?)")
+	ins, err := my.Prepare("insert n values (?, ?)")
 	checkErr(t, err, nil)
 
 	var (
@@ -877,10 +874,10 @@ func TestNull(t *testing.T) {
 	rre.res, rre.err = ins.Run()
 	checkResult(t, &rre, cmdOK(1, true, false))
 
-	checkResult(t, query("insert N values (2, 1)"), cmdOK(1, false, true))
-	checkResult(t, query("insert N values (3, NULL)"), cmdOK(1, false, true))
+	checkResult(t, query("insert n values (2, 1)"), cmdOK(1, false, true))
+	checkResult(t, query("insert n values (3, NULL)"), cmdOK(1, false, true))
 
-	rows, res, err := my.Query("select * from N")
+	rows, res, err := my.Query("select * from n")
 	checkErr(t, err, nil)
 	if len(rows) != 4 {
 		t.Fatal("str: len(rows) != 4")
@@ -898,7 +895,7 @@ func TestNull(t *testing.T) {
 		t.Fatalf("str row: %d = (%s, %s)", k, row[i], row[n])
 	}
 
-	sel, err := my.Prepare("select * from N")
+	sel, err := my.Prepare("select * from n")
 	checkErr(t, err, nil)
 	rows, res, err = sel.Exec()
 	checkErr(t, err, nil)
@@ -918,27 +915,27 @@ func TestNull(t *testing.T) {
 		t.Fatalf("bin row: %d = (%v, %v)", k, row[i], row[n])
 	}
 
-	checkResult(t, query("drop table N"), cmdOK(0, false, true))
+	checkResult(t, query("drop table n"), cmdOK(0, false, true))
 }
 
 func TestMultipleResults(t *testing.T) {
 	myConnect(t, true, 0)
-	query("drop table M") // Drop test table if exists
+	query("drop table m") // Drop test table if exists
 	checkResult(t,
-		query("create table M (id int primary key, str varchar(20))"),
+		query("create table m (id int primary key, str varchar(20))"),
 		cmdOK(0, false, true),
 	)
 
 	str := []string{"zero", "jeden", "dwa"}
 
-	checkResult(t, query("insert M values (0, '%s')", str[0]),
+	checkResult(t, query("insert m values (0, '%s')", str[0]),
 		cmdOK(1, false, true))
-	checkResult(t, query("insert M values (1, '%s')", str[1]),
+	checkResult(t, query("insert m values (1, '%s')", str[1]),
 		cmdOK(1, false, true))
-	checkResult(t, query("insert M values (2, '%s')", str[2]),
+	checkResult(t, query("insert m values (2, '%s')", str[2]),
 		cmdOK(1, false, true))
 
-	res, err := my.Start("select id from M; select str from M")
+	res, err := my.Start("select id from m; select str from m")
 	checkErr(t, err, nil)
 
 	for ii := 0; ; ii++ {
@@ -964,21 +961,21 @@ func TestMultipleResults(t *testing.T) {
 		}
 	}
 
-	checkResult(t, query("drop table M"), cmdOK(0, false, true))
+	checkResult(t, query("drop table m"), cmdOK(0, false, true))
 	myClose(t)
 }
 
 func TestDecimal(t *testing.T) {
 	myConnect(t, true, 0)
 
-	query("drop table if exists D")
+	query("drop table if exists d")
 	checkResult(t,
-		query("create table D (d decimal(4,2))"),
+		query("create table d (d decimal(4,2))"),
 		cmdOK(0, false, true),
 	)
 
-	checkResult(t, query("insert D values (10.01)"), cmdOK(1, false, true))
-	sql := "select * from D"
+	checkResult(t, query("insert d values (10.01)"), cmdOK(1, false, true))
+	sql := "select * from d"
 	sel, err := my.Prepare(sql)
 	checkErr(t, err, nil)
 	rows, res, err := sel.Exec()
@@ -987,7 +984,7 @@ func TestDecimal(t *testing.T) {
 		t.Fatal(sql)
 	}
 
-	checkResult(t, query("drop table D"), cmdOK(0, false, true))
+	checkResult(t, query("drop table d"), cmdOK(0, false, true))
 	myClose(t)
 }
 
@@ -1107,20 +1104,20 @@ func BenchmarkInsertSelect(b *testing.B) {
 	my := New(conn[0], conn[1], conn[2], user, passwd, dbname)
 	check(my.Connect())
 
-	my.Start("drop table B") // Drop test table if exists
+	my.Start("drop table b") // Drop test table if exists
 
-	_, err := my.Start("create table B (s varchar(40), i int)")
+	_, err := my.Start("create table b (s varchar(40), i int)")
 	check(err)
 
 	for ii := 0; ii < 10000; ii++ {
-		_, err := my.Start("insert B values ('%d-%d-%d', %d)", ii, ii, ii, ii)
+		_, err := my.Start("insert b values ('%d-%d-%d', %d)", ii, ii, ii, ii)
 		check(err)
 	}
 
 	b.StartTimer()
 
 	for ii := 0; ii < b.N; ii++ {
-		res, err := my.Start("select * from B")
+		res, err := my.Start("select * from b")
 		check(err)
 		for {
 			row, err := res.GetRow()
@@ -1133,7 +1130,7 @@ func BenchmarkInsertSelect(b *testing.B) {
 
 	b.StopTimer()
 
-	_, err = my.Start("drop table B")
+	_, err = my.Start("drop table b")
 	check(err)
 	check(my.Close())
 }
@@ -1144,15 +1141,15 @@ func BenchmarkPreparedInsertSelect(b *testing.B) {
 	my := New(conn[0], conn[1], conn[2], user, passwd, dbname)
 	check(my.Connect())
 
-	my.Start("drop table B") // Drop test table if exists
+	my.Start("drop table b") // Drop test table if exists
 
-	_, err := my.Start("create table B (s varchar(40), i int)")
+	_, err := my.Start("create table b (s varchar(40), i int)")
 	check(err)
 
-	ins, err := my.Prepare("insert B values (?, ?)")
+	ins, err := my.Prepare("insert b values (?, ?)")
 	check(err)
 
-	sel, err := my.Prepare("select * from B")
+	sel, err := my.Prepare("select * from b")
 	check(err)
 
 	for ii := 0; ii < 10000; ii++ {
@@ -1176,7 +1173,7 @@ func BenchmarkPreparedInsertSelect(b *testing.B) {
 
 	b.StopTimer()
 
-	_, err = my.Start("drop table B")
+	_, err = my.Start("drop table b")
 	check(err)
 	check(my.Close())
 }

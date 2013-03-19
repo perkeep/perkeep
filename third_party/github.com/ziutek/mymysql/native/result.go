@@ -1,6 +1,7 @@
 package native
 
 import (
+	"errors"
 	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
 	"log"
 	"math"
@@ -74,7 +75,7 @@ func (res *Result) MakeRow() mysql.Row {
 func (my *Conn) getResult(res *Result, row mysql.Row) *Result {
 loop:
 	pr := my.newPktReader() // New reader for next packet
-	pkt0 := readByte(pr)
+	pkt0 := pr.readByte()
 
 	if pkt0 == 255 {
 		// Error packet
@@ -91,6 +92,10 @@ loop:
 			// Result set header packet
 			res = my.getResSetHeadPacket(pr)
 			// Read next packet
+			goto loop
+		case pkt0 == 251:
+			// Load infile response
+			// Handle response
 			goto loop
 		case pkt0 == 254:
 			// EOF packet (without body)
@@ -117,7 +122,7 @@ loop:
 		case pkt0 < 254 && res.field_count == len(res.fields):
 			// Row Data Packet
 			if len(row) != res.field_count {
-				panic(ROW_LENGTH_ERROR)
+				panic(mysql.ErrRowLength)
 			}
 			if res.binary {
 				my.getBinRowPacket(pr, res, row)
@@ -127,7 +132,7 @@ loop:
 			return nil
 		}
 	}
-	panic(UNK_RESULT_PKT_ERROR)
+	panic(mysql.ErrUnkResultPkt)
 }
 
 func (my *Conn) getOkPacket(pr *pktReader) (res *Result) {
@@ -138,11 +143,11 @@ func (my *Conn) getOkPacket(pr *pktReader) (res *Result) {
 	res.status_only = true
 	res.my = my
 	// First byte was readed by getResult
-	res.affected_rows = readLCB(pr)
-	res.insert_id = readLCB(pr)
-	res.status = readU16(pr)
+	res.affected_rows = pr.readLCB()
+	res.insert_id = pr.readLCB()
+	res.status = pr.readU16()
 	my.status = res.status
-	res.warning_count = int(readU16(pr))
+	res.warning_count = int(pr.readU16())
 	res.message = pr.readAll()
 	pr.checkEof()
 
@@ -160,11 +165,11 @@ func (my *Conn) getErrorPacket(pr *pktReader) {
 		log.Printf("[%2d ->] Error packet:", my.seq-1)
 	}
 	var err mysql.Error
-	err.Code = readU16(pr)
-	if readByte(pr) != '#' {
-		panic(PKT_ERROR)
+	err.Code = pr.readU16()
+	if pr.readByte() != '#' {
+		panic(mysql.ErrPkt)
 	}
-	read(pr, 5)
+	pr.skipN(5)
 	err.Msg = pr.readAll()
 	pr.checkEof()
 
@@ -176,10 +181,20 @@ func (my *Conn) getErrorPacket(pr *pktReader) {
 
 func (my *Conn) getEofPacket(pr *pktReader) (warn_count int, status uint16) {
 	if my.Debug {
-		log.Printf("[%2d ->] EOF packet:", my.seq-1)
+		if pr.eof() {
+			log.Printf("[%2d ->] EOF packet without body", my.seq-1)
+		} else {
+			log.Printf("[%2d ->] EOF packet:", my.seq-1)
+		}
 	}
-	warn_count = int(readU16(pr))
-	status = readU16(pr)
+	if pr.eof() {
+		return
+	}
+	warn_count = int(pr.readU16())
+	if pr.eof() {
+		return
+	}
+	status = pr.readU16()
 	pr.checkEof()
 
 	if my.Debug {
@@ -194,7 +209,7 @@ func (my *Conn) getResSetHeadPacket(pr *pktReader) (res *Result) {
 	}
 	pr.unreadByte()
 
-	field_count := int(readLCB(pr))
+	field_count := int(pr.readLCB())
 	pr.checkEof()
 
 	res = &Result{
@@ -216,19 +231,30 @@ func (my *Conn) getFieldPacket(pr *pktReader) (field *mysql.Field) {
 	pr.unreadByte()
 
 	field = new(mysql.Field)
-	field.Catalog = readStr(pr)
-	field.Db = readStr(pr)
-	field.Table = readStr(pr)
-	field.OrgTable = readStr(pr)
-	field.Name = readStr(pr)
-	field.OrgName = readStr(pr)
-	read(pr, 1+2)
-	//field.Charset= readU16(pr)
-	field.DispLen = readU32(pr)
-	field.Type = readByte(pr)
-	field.Flags = readU16(pr)
-	field.Scale = readByte(pr)
-	read(pr, 2)
+	if my.fullFieldInfo {
+		field.Catalog = string(pr.readBin())
+		field.Db = string(pr.readBin())
+		field.Table = string(pr.readBin())
+		field.OrgTable = string(pr.readBin())
+	} else {
+		pr.skipBin()
+		pr.skipBin()
+		pr.skipBin()
+		pr.skipBin()
+	}
+	field.Name = string(pr.readBin())
+	if my.fullFieldInfo {
+		field.OrgName = string(pr.readBin())
+	} else {
+		pr.skipBin()
+	}
+	pr.skipN(1 + 2)
+	//field.Charset= pr.readU16()
+	field.DispLen = pr.readU32()
+	field.Type = pr.readByte()
+	field.Flags = pr.readU16()
+	field.Scale = pr.readByte()
+	pr.skipN(2)
 	pr.checkEof()
 
 	if my.Debug {
@@ -244,7 +270,7 @@ func (my *Conn) getTextRowPacket(pr *pktReader, res *Result, row mysql.Row) {
 	pr.unreadByte()
 
 	for ii := 0; ii < res.field_count; ii++ {
-		bin, null := readNullBin(pr)
+		bin, null := pr.readNullBin()
 		if null {
 			row[ii] = nil
 		} else {
@@ -261,7 +287,7 @@ func (my *Conn) getBinRowPacket(pr *pktReader, res *Result, row mysql.Row) {
 	// First byte was readed by getResult
 
 	null_bitmap := make([]byte, (res.field_count+7+2)>>3)
-	readFull(pr, null_bitmap)
+	pr.readFull(null_bitmap)
 
 	for ii, field := range res.fields {
 		null_byte := (ii + 2) >> 3
@@ -271,57 +297,110 @@ func (my *Conn) getBinRowPacket(pr *pktReader, res *Result, row mysql.Row) {
 			row[ii] = nil
 			continue
 		}
-		typ := field.Type
 		unsigned := (field.Flags & _FLAG_UNSIGNED) != 0
-		switch typ {
-		case MYSQL_TYPE_TINY:
-			if unsigned {
-				row[ii] = readByte(pr)
-			} else {
-				row[ii] = int8(readByte(pr))
-			}
-		case MYSQL_TYPE_SHORT, MYSQL_TYPE_YEAR:
-			if unsigned {
-				row[ii] = readU16(pr)
-			} else {
-				row[ii] = int16(readU16(pr))
-			}
-		case MYSQL_TYPE_LONG, MYSQL_TYPE_INT24:
-			if unsigned {
-				row[ii] = readU32(pr)
-			} else {
-				row[ii] = int32(readU32(pr))
-			}
-		case MYSQL_TYPE_LONGLONG:
-			if unsigned {
-				row[ii] = readU64(pr)
-			} else {
-				row[ii] = int64(readU64(pr))
-			}
-		case MYSQL_TYPE_FLOAT:
-			row[ii] = math.Float32frombits(readU32(pr))
-		case MYSQL_TYPE_DOUBLE:
-			row[ii] = math.Float64frombits(readU64(pr))
-		case MYSQL_TYPE_DECIMAL, MYSQL_TYPE_NEWDECIMAL:
-			dec := string(readBin(pr))
-			var err error
-			row[ii], err = strconv.ParseFloat(dec, 64)
-			if err != nil {
-				panic("MySQL server returned wrong decimal value: " + dec)
-			}
-		case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_VARCHAR,
-			MYSQL_TYPE_BIT, MYSQL_TYPE_BLOB, MYSQL_TYPE_TINY_BLOB,
-			MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_SET,
-			MYSQL_TYPE_ENUM, MYSQL_TYPE_GEOMETRY:
-			row[ii] = readBin(pr)
-		case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
-			row[ii] = readDate(pr)
-		case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
-			row[ii] = readTime(pr)
-		case MYSQL_TYPE_TIME:
-			row[ii] = readDuration(pr)
-		default:
-			panic(UNK_MYSQL_TYPE_ERROR)
+		if my.narrowTypeSet {
+			row[ii] = readValueNarrow(pr, field.Type, unsigned)
+		} else {
+			row[ii] = readValue(pr, field.Type, unsigned)
 		}
 	}
+}
+
+func readValue(pr *pktReader, typ byte, unsigned bool) interface{} {
+	switch typ {
+	case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_VARCHAR,
+		MYSQL_TYPE_BIT, MYSQL_TYPE_BLOB, MYSQL_TYPE_TINY_BLOB,
+		MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_SET,
+		MYSQL_TYPE_ENUM, MYSQL_TYPE_GEOMETRY:
+		return pr.readBin()
+	case MYSQL_TYPE_TINY:
+		if unsigned {
+			return pr.readByte()
+		} else {
+			return int8(pr.readByte())
+		}
+	case MYSQL_TYPE_SHORT, MYSQL_TYPE_YEAR:
+		if unsigned {
+			return pr.readU16()
+		} else {
+			return int16(pr.readU16())
+		}
+	case MYSQL_TYPE_LONG, MYSQL_TYPE_INT24:
+		if unsigned {
+			return pr.readU32()
+		} else {
+			return int32(pr.readU32())
+		}
+	case MYSQL_TYPE_LONGLONG:
+		if unsigned {
+			return pr.readU64()
+		} else {
+			return int64(pr.readU64())
+		}
+	case MYSQL_TYPE_FLOAT:
+		return math.Float32frombits(pr.readU32())
+	case MYSQL_TYPE_DOUBLE:
+		return math.Float64frombits(pr.readU64())
+	case MYSQL_TYPE_DECIMAL, MYSQL_TYPE_NEWDECIMAL:
+		dec := string(pr.readBin())
+		r, err := strconv.ParseFloat(dec, 64)
+		if err != nil {
+			panic(errors.New("MySQL server returned wrong decimal value: " + dec))
+		}
+		return r
+	case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
+		return pr.readDate()
+	case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
+		return pr.readTime()
+	case MYSQL_TYPE_TIME:
+		return pr.readDuration()
+	}
+	panic(mysql.ErrUnkMySQLType)
+}
+
+func readValueNarrow(pr *pktReader, typ byte, unsigned bool) interface{} {
+	switch typ {
+	case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_VARCHAR,
+		MYSQL_TYPE_BIT, MYSQL_TYPE_BLOB, MYSQL_TYPE_TINY_BLOB,
+		MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_SET,
+		MYSQL_TYPE_ENUM, MYSQL_TYPE_GEOMETRY:
+		return pr.readBin()
+	case MYSQL_TYPE_TINY:
+		if unsigned {
+			return int64(pr.readByte())
+		}
+		return int64(int8(pr.readByte()))
+	case MYSQL_TYPE_SHORT, MYSQL_TYPE_YEAR:
+		if unsigned {
+			return int64(pr.readU16())
+		}
+		return int64(int16(pr.readU16()))
+	case MYSQL_TYPE_LONG, MYSQL_TYPE_INT24:
+		if unsigned {
+			return int64(pr.readU32())
+		}
+		return int64(int32(pr.readU32()))
+	case MYSQL_TYPE_LONGLONG:
+		v := pr.readU64()
+		if unsigned && v > math.MaxInt64 {
+			panic(errors.New("Value to large for int64 type"))
+		}
+		return int64(v)
+	case MYSQL_TYPE_FLOAT:
+		return float64(math.Float32frombits(pr.readU32()))
+	case MYSQL_TYPE_DOUBLE:
+		return math.Float64frombits(pr.readU64())
+	case MYSQL_TYPE_DECIMAL, MYSQL_TYPE_NEWDECIMAL:
+		dec := string(pr.readBin())
+		r, err := strconv.ParseFloat(dec, 64)
+		if err != nil {
+			panic("MySQL server returned wrong decimal value: " + dec)
+		}
+		return r
+	case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP, MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
+		return pr.readTime()
+	case MYSQL_TYPE_TIME:
+		return int64(pr.readDuration())
+	}
+	panic(mysql.ErrUnkMySQLType)
 }

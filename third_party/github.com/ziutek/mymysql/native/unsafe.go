@@ -2,7 +2,6 @@ package native
 
 import (
 	"camlistore.org/third_party/github.com/ziutek/mymysql/mysql"
-	"io"
 	"time"
 	"unsafe"
 )
@@ -54,7 +53,7 @@ func (val *paramValue) Len() int {
 	return lenBin(*(*[]byte)(ptr))
 }
 
-func writeValue(wr io.Writer, val *paramValue) {
+func (pw *pktWriter) writeValue(val *paramValue) {
 	if val.addr == nil {
 		// Invalid Value was binded
 		return
@@ -68,7 +67,7 @@ func writeValue(wr io.Writer, val *paramValue) {
 
 	if val.raw || val.typ == MYSQL_TYPE_VAR_STRING ||
 		val.typ == MYSQL_TYPE_BLOB {
-		writeBin(wr, *(*[]byte)(ptr))
+		pw.writeBin(*(*[]byte)(ptr))
 		return
 	}
 	// We don't need unsigned bit to check type
@@ -77,40 +76,41 @@ func writeValue(wr io.Writer, val *paramValue) {
 		// Don't write null values
 
 	case MYSQL_TYPE_STRING:
-		writeStr(wr, *(*string)(ptr))
+		s := *(*string)(ptr)
+		pw.writeBin([]byte(s))
 
 	case MYSQL_TYPE_LONG, MYSQL_TYPE_FLOAT:
-		writeU32(wr, *(*uint32)(ptr))
+		pw.writeU32(*(*uint32)(ptr))
 
 	case MYSQL_TYPE_SHORT:
-		writeU16(wr, *(*uint16)(ptr))
+		pw.writeU16(*(*uint16)(ptr))
 
 	case MYSQL_TYPE_TINY:
 		if val.length == -1 {
 			// Translate bool value to MySQL tiny
 			if *(*bool)(ptr) {
-				writeByte(wr, 1)
+				pw.writeByte(1)
 			} else {
-				writeByte(wr, 0)
+				pw.writeByte(0)
 			}
 		} else {
-			writeByte(wr, *(*byte)(ptr))
+			pw.writeByte(*(*byte)(ptr))
 		}
 
 	case MYSQL_TYPE_LONGLONG, MYSQL_TYPE_DOUBLE:
-		writeU64(wr, *(*uint64)(ptr))
+		pw.writeU64(*(*uint64)(ptr))
 
 	case MYSQL_TYPE_DATE:
-		writeDate(wr, *(*mysql.Date)(ptr))
+		pw.writeDate(*(*mysql.Date)(ptr))
 
 	case MYSQL_TYPE_TIMESTAMP, MYSQL_TYPE_DATETIME:
-		writeTime(wr, *(*time.Time)(ptr))
+		pw.writeTime(*(*time.Time)(ptr))
 
 	case MYSQL_TYPE_TIME:
-		writeDuration(wr, *(*time.Duration)(ptr))
+		pw.writeDuration(*(*time.Duration)(ptr))
 
 	default:
-		panic(BIND_UNK_TYPE)
+		panic(mysql.ErrBindUnkType)
 	}
 	return
 }

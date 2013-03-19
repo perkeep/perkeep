@@ -12,18 +12,18 @@ import (
 func DecodeU16(buf []byte) uint16 {
 	return uint16(buf[1])<<8 | uint16(buf[0])
 }
-func readU16(rd io.Reader) uint16 {
-	buf := make([]byte, 2)
-	readFull(rd, buf)
+func (pr *pktReader) readU16() uint16 {
+	buf := pr.buf[:2]
+	pr.readFull(buf)
 	return DecodeU16(buf)
 }
 
 func DecodeU24(buf []byte) uint32 {
 	return (uint32(buf[2])<<8|uint32(buf[1]))<<8 | uint32(buf[0])
 }
-func readU24(rd io.Reader) uint32 {
-	buf := make([]byte, 3)
-	readFull(rd, buf)
+func (pr *pktReader) readU24() uint32 {
+	buf := pr.buf[:3]
+	pr.readFull(buf)
 	return DecodeU24(buf)
 }
 
@@ -31,9 +31,9 @@ func DecodeU32(buf []byte) uint32 {
 	return ((uint32(buf[3])<<8|uint32(buf[2]))<<8|
 		uint32(buf[1]))<<8 | uint32(buf[0])
 }
-func readU32(rd io.Reader) uint32 {
-	buf := make([]byte, 4)
-	readFull(rd, buf)
+func (pr *pktReader) readU32() uint32 {
+	buf := pr.buf[:4]
+	pr.readFull(buf)
 	return DecodeU32(buf)
 }
 
@@ -43,87 +43,104 @@ func DecodeU64(buf []byte) (rv uint64) {
 	}
 	return
 }
-func readU64(rd io.Reader) (rv uint64) {
-	buf := make([]byte, 8)
-	readFull(rd, buf)
+func (pr *pktReader) readU64() (rv uint64) {
+	buf := pr.buf[:8]
+	pr.readFull(buf)
 	return DecodeU64(buf)
 }
 
-func EncodeU16(val uint16) []byte {
-	return []byte{byte(val), byte(val >> 8)}
+func EncodeU16(buf []byte, val uint16) {
+	buf[0] = byte(val)
+	buf[1] = byte(val >> 8)
 }
-func writeU16(wr io.Writer, val uint16) {
-	write(wr, EncodeU16(val))
-}
-
-func EncodeU24(val uint32) []byte {
-	return []byte{byte(val), byte(val >> 8), byte(val >> 16)}
-}
-func writeU24(wr io.Writer, val uint32) {
-	write(wr, EncodeU24(val))
+func (pw *pktWriter) writeU16(val uint16) {
+	buf := pw.buf[:2]
+	EncodeU16(buf, val)
+	pw.write(buf)
 }
 
-func EncodeU32(val uint32) []byte {
-	return []byte{byte(val), byte(val >> 8), byte(val >> 16), byte(val >> 24)}
+func EncodeU24(buf []byte, val uint32) {
+	buf[0] = byte(val)
+	buf[1] = byte(val >> 8)
+	buf[2] = byte(val >> 16)
 }
-func writeU32(wr io.Writer, val uint32) {
-	write(wr, EncodeU32(val))
+func (pw *pktWriter) writeU24(val uint32) {
+	buf := pw.buf[:3]
+	EncodeU24(buf, val)
+	pw.write(buf)
 }
 
-func EncodeU64(val uint64) []byte {
-	buf := make([]byte, 8)
-	for ii := range buf {
-		buf[ii] = byte(val >> uint(ii*8))
-	}
-	return buf
+func EncodeU32(buf []byte, val uint32) {
+	buf[0] = byte(val)
+	buf[1] = byte(val >> 8)
+	buf[2] = byte(val >> 16)
+	buf[3] = byte(val >> 24)
 }
-func writeU64(wr io.Writer, val uint64) {
-	write(wr, EncodeU64(val))
+func (pw *pktWriter) writeU32(val uint32) {
+	buf := pw.buf[:4]
+	EncodeU32(buf, val)
+	pw.write(buf)
+}
+
+func EncodeU64(buf []byte, val uint64) {
+	buf[0] = byte(val)
+	buf[1] = byte(val >> 8)
+	buf[2] = byte(val >> 16)
+	buf[3] = byte(val >> 24)
+	buf[4] = byte(val >> 32)
+	buf[5] = byte(val >> 40)
+	buf[6] = byte(val >> 48)
+	buf[7] = byte(val >> 56)
+}
+func (pw *pktWriter) writeU64(val uint64) {
+	buf := pw.buf[:8]
+	EncodeU64(buf, val)
+	pw.write(buf)
 }
 
 // Variable length values
 
-func readNullLCB(rd io.Reader) (lcb uint64, null bool) {
-	bb := readByte(rd)
+func (pr *pktReader) readNullLCB() (lcb uint64, null bool) {
+	bb := pr.readByte()
 	switch bb {
 	case 251:
 		null = true
 	case 252:
-		lcb = uint64(readU16(rd))
+		lcb = uint64(pr.readU16())
 	case 253:
-		lcb = uint64(readU24(rd))
+		lcb = uint64(pr.readU24())
 	case 254:
-		lcb = readU64(rd)
+		lcb = pr.readU64()
 	default:
 		lcb = uint64(bb)
 	}
 	return
 }
 
-func readLCB(rd io.Reader) uint64 {
-	lcb, null := readNullLCB(rd)
+func (pr *pktReader) readLCB() uint64 {
+	lcb, null := pr.readNullLCB()
 	if null {
-		panic(UNEXP_NULL_LCB_ERROR)
+		panic(mysql.ErrUnexpNullLCB)
 	}
 	return lcb
 }
 
-func writeLCB(wr io.Writer, val uint64) {
+func (pw *pktWriter) writeLCB(val uint64) {
 	switch {
 	case val <= 250:
-		writeByte(wr, byte(val))
+		pw.writeByte(byte(val))
 
 	case val <= 0xffff:
-		writeByte(wr, 252)
-		writeU16(wr, uint16(val))
+		pw.writeByte(252)
+		pw.writeU16(uint16(val))
 
 	case val <= 0xffffff:
-		writeByte(wr, 253)
-		writeU24(wr, uint32(val))
+		pw.writeByte(253)
+		pw.writeU24(uint32(val))
 
 	default:
-		writeByte(wr, 254)
-		writeU64(wr, val)
+		pw.writeByte(254)
+		pw.writeU64(val)
 	}
 }
 
@@ -141,59 +158,53 @@ func lenLCB(val uint64) int {
 	return 9
 }
 
-func readNullBin(rd io.Reader) (buf []byte, null bool) {
+func (pr *pktReader) readNullBin() (buf []byte, null bool) {
 	var l uint64
-	l, null = readNullLCB(rd)
+	l, null = pr.readNullLCB()
 	if null {
 		return
 	}
 	buf = make([]byte, l)
-	readFull(rd, buf)
+	pr.readFull(buf)
 	return
 }
 
-func readBin(rd io.Reader) []byte {
-	buf, null := readNullBin(rd)
+func (pr *pktReader) readBin() []byte {
+	buf, null := pr.readNullBin()
 	if null {
-		panic(UNEXP_NULL_LCS_ERROR)
+		panic(mysql.ErrUnexpNullLCS)
 	}
 	return buf
 }
 
-func writeBin(wr io.Writer, buf []byte) {
-	writeLCB(wr, uint64(len(buf)))
-	write(wr, buf)
+func (pr *pktReader) skipBin() {
+	n, _ := pr.readNullLCB()
+	pr.skipN(int(n))
+}
+
+func (pw *pktWriter) writeBin(buf []byte) {
+	pw.writeLCB(uint64(len(buf)))
+	pw.write(buf)
 }
 
 func lenBin(buf []byte) int {
 	return lenLCB(uint64(len(buf))) + len(buf)
 }
 
-func readStr(rd io.Reader) (str string) {
-	buf := readBin(rd)
-	str = string(buf)
-	return
-}
-
-func writeStr(wr io.Writer, str string) {
-	writeLCB(wr, uint64(len(str)))
-	writeString(wr, str)
-}
-
 func lenStr(str string) int {
 	return lenLCB(uint64(len(str))) + len(str)
 }
 
-func writeLC(wr io.Writer, v interface{}) {
+func (pw *pktWriter) writeLC(v interface{}) {
 	switch val := v.(type) {
 	case []byte:
-		writeBin(wr, val)
+		pw.writeBin(val)
 	case *[]byte:
-		writeBin(wr, *val)
+		pw.writeBin(*val)
 	case string:
-		writeStr(wr, val)
+		pw.writeBin([]byte(val))
 	case *string:
-		writeStr(wr, *val)
+		pw.writeBin([]byte(*val))
 	default:
 		panic("Unknown data type for write as lenght coded string")
 	}
@@ -213,39 +224,28 @@ func lenLC(v interface{}) int {
 	panic("Unknown data type for write as lenght coded string")
 }
 
-func readNTB(rd io.Reader) (buf []byte) {
-	bb := new(bytes.Buffer)
+func (pr *pktReader) readNTB() (buf []byte) {
 	for {
-		ch := readByte(rd)
+		ch := pr.readByte()
 		if ch == 0 {
-			return bb.Bytes()
+			break
 		}
-		bb.WriteByte(ch)
+		buf = append(buf, ch)
 	}
 	return
 }
 
-func writeNTB(wr io.Writer, buf []byte) {
-	write(wr, buf)
-	writeByte(wr, 0)
+func (pw *pktWriter) writeNTB(buf []byte) {
+	pw.write(buf)
+	pw.writeByte(0)
 }
 
-func readNTS(rd io.Reader) (str string) {
-	buf := readNTB(rd)
-	str = string(buf)
-	return
-}
-
-func writeNTS(wr io.Writer, str string) {
-	writeNTB(wr, []byte(str))
-}
-
-func writeNT(wr io.Writer, v interface{}) {
+func (pw *pktWriter) writeNT(v interface{}) {
 	switch val := v.(type) {
 	case []byte:
-		writeNTB(wr, val)
+		pw.writeNTB(val)
 	case string:
-		writeNTS(wr, val)
+		pw.writeNTB([]byte(val))
 	default:
 		panic("Unknown type for write as null terminated data")
 	}
@@ -253,22 +253,22 @@ func writeNT(wr io.Writer, v interface{}) {
 
 // Date and time
 
-func readDuration(rd io.Reader) time.Duration {
-	dlen := readByte(rd)
+func (pr *pktReader) readDuration() time.Duration {
+	dlen := pr.readByte()
 	switch dlen {
 	case 251:
 		// Null
-		panic(UNEXP_NULL_TIME_ERROR)
+		panic(mysql.ErrUnexpNullTime)
 	case 0:
 		// 00:00:00
 		return 0
 	case 5, 8, 12:
 		// Properly time length
 	default:
-		panic(WRONG_DATE_LEN_ERROR)
+		panic(mysql.ErrWrongDateLen)
 	}
-	buf := make([]byte, dlen)
-	readFull(rd, buf)
+	buf := pr.buf[:dlen]
+	pr.readFull(buf)
 	tt := int64(0)
 	switch dlen {
 	case 12:
@@ -282,7 +282,6 @@ func readDuration(rd io.Reader) time.Duration {
 	case 5:
 		// Day part
 		tt += int64(DecodeU32(buf[1:5])) * (24 * 3600 * 1e9)
-		fallthrough
 	}
 	if buf[0] != 0 {
 		tt = -tt
@@ -290,14 +289,14 @@ func readDuration(rd io.Reader) time.Duration {
 	return time.Duration(tt)
 }
 
-func EncodeDuration(d time.Duration) []byte {
-	buf := make([]byte, 13)
+func EncodeDuration(buf []byte, d time.Duration) int {
+	buf[0] = 0
 	if d < 0 {
 		buf[1] = 1
 		d = -d
 	}
 	if ns := uint32(d % 1e9); ns != 0 {
-		copy(buf[9:13], EncodeU32(ns)) // nanosecond
+		EncodeU32(buf[9:13], ns) // nanosecond
 		buf[0] += 4
 	}
 	d /= 1e9
@@ -309,16 +308,17 @@ func EncodeDuration(d time.Duration) []byte {
 		buf[0] += 3
 	}
 	if day := uint32(d / (24 * 3600)); buf[0] != 0 || day != 0 {
-		copy(buf[2:6], EncodeU32(day)) // day
+		EncodeU32(buf[2:6], day) // day
 		buf[0] += 4
 	}
 	buf[0]++ // For sign byte
-	buf = buf[0 : buf[0]+1]
-	return buf
+	return int(buf[0] + 1)
 }
 
-func writeDuration(wr io.Writer, d time.Duration) {
-	write(wr, EncodeDuration(d))
+func (pw *pktWriter) writeDuration(d time.Duration) {
+	buf := pw.buf[:13]
+	n := EncodeDuration(buf, d)
+	pw.write(buf[:n])
 }
 
 func lenDuration(d time.Duration) int {
@@ -335,23 +335,23 @@ func lenDuration(d time.Duration) int {
 	return 6
 }
 
-func readTime(rd io.Reader) time.Time {
-	dlen := readByte(rd)
+func (pr *pktReader) readTime() time.Time {
+	dlen := pr.readByte()
 	switch dlen {
 	case 251:
 		// Null
-		panic(UNEXP_NULL_DATE_ERROR)
+		panic(mysql.ErrUnexpNullDate)
 	case 0:
 		// return 0000-00-00 converted to time.Time zero
 		return time.Time{}
 	case 4, 7, 11:
 		// Properly datetime length
 	default:
-		panic(WRONG_DATE_LEN_ERROR)
+		panic(mysql.ErrWrongDateLen)
 	}
 
-	buf := make([]byte, dlen)
-	readFull(rd, buf)
+	buf := pr.buf[:dlen]
+	pr.readFull(buf)
 	var y, mon, d, h, m, s, n int
 	switch dlen {
 	case 11:
@@ -373,11 +373,11 @@ func readTime(rd io.Reader) time.Time {
 	return time.Date(y, time.Month(mon), d, h, m, s, n, time.Local)
 }
 
-func encodeNonzeroTime(y int16, mon, d, h, m, s byte, n uint32) []byte {
-	buf := make([]byte, 12)
+func encodeNonzeroTime(buf []byte, y int16, mon, d, h, m, s byte, n uint32) int {
+	buf[0] = 0
 	switch {
 	case n != 0:
-		copy(buf[7:12], EncodeU32(n))
+		EncodeU32(buf[7:12], n)
 		buf[0] += 4
 		fallthrough
 	case s != 0 || m != 0 || h != 0:
@@ -388,27 +388,31 @@ func encodeNonzeroTime(y int16, mon, d, h, m, s byte, n uint32) []byte {
 	}
 	buf[4] = d
 	buf[3] = mon
-	copy(buf[1:3], EncodeU16(uint16(y)))
+	EncodeU16(buf[1:3], uint16(y))
 	buf[0] += 4
-	buf = buf[0 : buf[0]+1]
-	return buf
+	return int(buf[0] + 1)
 }
 
-func EncodeTime(t time.Time) []byte {
+func EncodeTime(buf []byte, t time.Time) int {
 	if t.IsZero() {
-		return []byte{0} // MySQL zero
+		// MySQL zero
+		buf[0] = 0
+		return 1 // MySQL zero
 	}
 	y, mon, d := t.Date()
 	h, m, s := t.Clock()
 	n := t.Nanosecond()
 	return encodeNonzeroTime(
+		buf,
 		int16(y), byte(mon), byte(d),
 		byte(h), byte(m), byte(s), uint32(n),
 	)
 }
 
-func writeTime(wr io.Writer, t time.Time) {
-	write(wr, EncodeTime(t))
+func (pw *pktWriter) writeTime(t time.Time) {
+	buf := pw.buf[:12]
+	n := EncodeTime(buf, t)
+	pw.write(buf[:n])
 }
 
 func lenTime(t time.Time) int {
@@ -423,20 +427,24 @@ func lenTime(t time.Time) int {
 	return 5
 }
 
-func readDate(rd io.Reader) mysql.Date {
-	y, m, d := readTime(rd).Date()
+func (pr *pktReader) readDate() mysql.Date {
+	y, m, d := pr.readTime().Date()
 	return mysql.Date{int16(y), byte(m), byte(d)}
 }
 
-func EncodeDate(d mysql.Date) []byte {
+func EncodeDate(buf []byte, d mysql.Date) int {
 	if d.IsZero() {
-		return []byte{0} // MySQL zero
+		// MySQL zero
+		buf[0] = 0
+		return 1
 	}
-	return encodeNonzeroTime(d.Year, d.Month, d.Day, 0, 0, 0, 0)
+	return encodeNonzeroTime(buf, d.Year, d.Month, d.Day, 0, 0, 0, 0)
 }
 
-func writeDate(wr io.Writer, d mysql.Date) {
-	write(wr, EncodeDate(d))
+func (pw *pktWriter) writeDate(d mysql.Date) {
+	buf := pw.buf[:5]
+	n := EncodeDate(buf, d)
+	pw.write(buf[:n])
 }
 
 func lenDate(d mysql.Date) int {

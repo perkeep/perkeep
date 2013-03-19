@@ -1,17 +1,31 @@
 Sorry for my poor English. If you can help with improving the English in this
 documentation, please contact me.
 
-## MyMySQL v1.0 (2012-09-26)
+## MyMySQL v1.4 (2013-03-04)
 
-This package contains MySQL client API written entirely in Go. It works with
-the MySQL protocol version 4.1 or greater. It definitely works well with MySQL
-5.0 and 5.1 (I use these versions of MySQL servers for my applications).
+This package contains MySQL client API written entirely in Go. It is designed
+to work with the MySQL protocol version 4.1 or greater. It definitely works
+well with MySQL server version 5.0 and 5.1 (I use these versions of MySQL
+servers for my applications). Some people claim that mymysql works with older
+versions of MySQL protocol too.
 
 ## Changelog
 
+v1.4: `Stmt.ResetParams`, `Stmt.Map` and `Stmt.NumFields` methods disappeared.
+New `Stmt.Fields` method. *godrv* implements `driver.Queryer` interface which
+improves performance when compiled with Go tip.
+
+v1.3: Overall performance improved by factor 1.5 to 1.8. All Encode* functions
+now accept properly sized `[]byte` slice as first argument.
+
+v1.2: Faster execution of simple queries in *mymysql/godrv*. `EscapeString`
+method renamed to `Escape`.
+
+v1.1: Client error codes moved from *mymysql/native* pacage to *mymysql/mysql*.
+
 v1.0: Transactions added to autorc, new Transaction.IsValid method. I think
 this library is mature enough to release it as v1.0
- 
+
 v0.4.11: Add Reconnect, Register, SetMaxPktSize, Bind to autorc.
 
 v0.4.10: New *Clone* method for create connection from other connection.
@@ -89,7 +103,7 @@ For testing you will need to create the test database and a test user:
 
 	mysql> create database test;
 	mysql> grant all privileges on test.* to testuser@localhost;
-	mysql> set password for testuser@localhost = password("TestPasswd9")
+	mysql> set password for testuser@localhost = password("TestPasswd9");
 
 Make sure that MySQL *max_allowed_packet* variable in *my.cnf* is equal or greater than 34M (In order to test long packets).
 
@@ -167,12 +181,12 @@ If you do not want to load the entire result into memory you may use
 	// Print all rows
 	for {
 		row, err := res.GetRow()
-		checkError(err)
+			checkError(err)
 
-		if row == nil {
-			// No more rows
-			break
-		}
+			if row == nil {
+				// No more rows
+				break
+			}
 
 		// Print all cols
 		for _, col := range row {
@@ -195,8 +209,8 @@ unnecessary allocations:
 	for {
 		err := res.ScanRow(row)
 		if err == io.EOF {
-			// No more rows
-			break
+			 // No more rows
+			 break
 		}
 		checkError(err)
 
@@ -222,7 +236,7 @@ You can use *Run* or *Exec* method for prepared statements:
 	for {
 		err := getData(data)
 		if err == endOfData {
-			break       
+			 break       
 		}
 		checkError(err)
 
@@ -267,7 +281,7 @@ This is the improved code of the previous example:
 	for {
 		err := getData(data)
 		if isEndOfData(error) {
-			break       
+			 break       
 		}
 		checkError(err)
 
@@ -378,7 +392,7 @@ This is the improved code of the previous example:
 	// to the transaction before using it.
 	_, err = tr.Do(ins).Run(3, "three")
 	checkError(err)
-
+	
 	// For a greater number of calls
 	ti := tr.Do(ins)
 	_, err = ti.Run(4, "four")
@@ -438,7 +452,15 @@ This is the improved code of the previous example:
 	// local server using default protocol). Currently possible forms:
 	//   DBNAME/USER/PASSWD
 	//   unix:SOCKPATH*DBNAME/USER/PASSWD
+	//   unix:SOCKPATH,OPTIONS*DBNAME/USER/PASSWD
 	//   tcp:ADDR*DBNAME/USER/PASSWD
+	//   tcp:ADDR,OPTIONS*DBNAME/USER/PASSWD
+	//
+	// OPTIONS can contain comma separated list of options in form:
+	//   opt1=VAL1,opt2=VAL2,boolopt3,boolopt4
+	// Currently implemented options:
+	//   laddr   - local address/port (eg. 1.2.3.4:0)
+	//   timeout - connect timeout in format accepted by time.ParseDuration
 
 	// Register initialisation commands
 	// (workaround, see http://codereview.appspot.com/5706047)
@@ -649,11 +671,11 @@ application befor put it into production. There is example output from siege:
 	# siege my.httpserver.pl -c25 -d0 -t 30s
 	** SIEGE 2.69
 	** Preparing 25 concurrent users for battle.
-	The server is now under siege...
+    The server is now under siege...
 	Lifting the server siege..      done.
-	Transactions:                   3212 hits
-	Availability:                 100.00 %
-	Elapsed time:                  29.83 secs
+    Transactions:                   3212 hits
+    Availability:                 100.00 %
+    Elapsed time:                  29.83 secs
 	Data transferred:               3.88 MB
 	Response time:                  0.22 secs
 	Transaction rate:             107.68 trans/sec
