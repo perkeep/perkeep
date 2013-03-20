@@ -18,6 +18,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/index/mysql"
 	"camlistore.org/pkg/index/postgres"
+	"camlistore.org/pkg/index/sqlite"
 
 	_ "camlistore.org/third_party/github.com/bmizerany/pq"
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
@@ -48,8 +50,8 @@ func init() {
 		flags.StringVar(&cmd.user, "user", "root", "Admin user.")
 		flags.StringVar(&cmd.password, "password", "", "Admin password.")
 		flags.StringVar(&cmd.host, "host", "localhost", "host[:port]")
-		flags.StringVar(&cmd.dbName, "dbname", "", "Database to wipe or create.")
-		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres.")
+		flags.StringVar(&cmd.dbName, "dbname", "", "Database to wipe or create. For sqlite, this is the db filename.")
+		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite.")
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
 		flags.BoolVar(&cmd.keep, "ignoreexists", false, "Do nothing if database already exists.")
@@ -78,8 +80,15 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	}
 
 	if c.dbType != "mysql" && c.dbType != "postgres" {
-		return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres"`))
+		if c.dbType == "sqlite" {
+			if !WithSQLite {
+				return ErrNoSQLite
+			}
+		} else {
+			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres", or "sqlite"`))
+		}
 	}
+
 	var rootdb *sql.DB
 	var err error
 	switch c.dbType {
@@ -102,20 +111,31 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		if !c.wipe {
 			return cmdmain.UsageError(fmt.Sprintf("Database %q already exists, but --wipe not given. Stopping.", dbname))
 		}
-		do(rootdb, "DROP DATABASE "+dbname)
+		if c.dbType != "sqlite" {
+			do(rootdb, "DROP DATABASE "+dbname)
+		}
 	}
-	do(rootdb, "CREATE DATABASE "+dbname)
+	if c.dbType == "sqlite" {
+		_, err := os.Create(dbname)
+		if err != nil {
+			exitf("Error creating file %v for sqlite db: %v", dbname, err)
+		}
+	} else {
+		do(rootdb, "CREATE DATABASE "+dbname)
+	}
 
 	var db *sql.DB
 	switch c.dbType {
 	case "postgres":
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", c.user, dbname, c.host, c.password)
 		db, err = sql.Open("postgres", conninfo)
+	case "sqlite":
+		db, err = sql.Open("sqlite3", dbname)
 	default:
 		db, err = sql.Open("mymysql", dbname+"/"+c.user+"/"+c.password)
 	}
 	if err != nil {
-		return fmt.Errorf("Error connecting to the %s %s database: %v", dbname, c.dbType, err)
+		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)
 	}
 
 	switch c.dbType {
@@ -132,6 +152,11 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 			do(db, tableSql)
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
+	case "sqlite":
+		for _, tableSql := range sqlite.SQLCreateTables() {
+			do(db, tableSql)
+		}
+		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 	}
 	return nil
 }
@@ -159,6 +184,11 @@ func dbExists(db *sql.DB, dbtype, dbname string) bool {
 		query = "SELECT datname FROM pg_database"
 	case "mysql":
 		query = "SHOW DATABASES"
+	case "sqlite":
+		// There is no point in using sql.Open because it apparently does
+		// not return an error when the file does not exist.
+		_, err := os.Stat(dbname)
+		return err == nil
 	}
 	rows, err := db.Query(query)
 	check(err)
@@ -186,4 +216,15 @@ func exitf(format string, args ...interface{}) {
 	}
 	cmdmain.Errorf(format, args)
 	cmdmain.Exit(1)
+}
+
+var WithSQLite = false
+
+var ErrNoSQLite = errors.New("the command was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite " + compileHint())
+
+func compileHint() string {
+	if _, err := os.Stat("/etc/apt"); err == nil {
+		return " (Required: apt-get install libsqlite3-dev)"
+	}
+	return ""
 }
