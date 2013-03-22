@@ -275,6 +275,13 @@ func initSQLiteDB(path string) error {
 			return err
 		}
 	}
+	if sqlite.IsWALCapable() {
+		if _, err := db.Exec(sqlite.EnableWAL()); err != nil {
+			return err
+		}
+	} else {
+		log.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114\n")
+	}
 	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 	return err
 }
