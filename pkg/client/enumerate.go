@@ -36,6 +36,14 @@ func (c *Client) SimpleEnumerateBlobs(ch chan<- blobref.SizedBlobRef) error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
+func (c *Client) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+	return c.EnumerateBlobsOpts(dest, EnumerateOpts{
+		After:   after,
+		Limit:   limit,
+		MaxWait: wait,
+	})
+}
+
 const enumerateBatchSize = 1000
 
 // Note: closes ch.

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 )
@@ -45,8 +46,8 @@ type syncCmd struct {
 func init() {
 	cmdmain.RegisterCommand("sync", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(syncCmd)
-		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], or blank to use the Camlistore client config's default host.")
-		flags.StringVar(&cmd.dest, "dest", "", "Destination blobserver, or 'stdout' to just enumerate the --src blobs to stdout.")
+		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with / or ./), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.dest, "dest", "", "Destination blobserver (same format as src), or 'stdout' to just enumerate the --src blobs to stdout.")
 		flags.StringVar(&cmd.third, "thirdleg", "", "Copy blobs present in source but missing from destination to this 'third leg' blob store, instead of the destination.")
 
 		flags.BoolVar(&cmd.loop, "loop", false, "Create an associate a new permanode for the uploaded file or directory.")
@@ -116,7 +117,7 @@ func (c *syncCmd) RunCommand(args []string) error {
 	passNum := 0
 	for {
 		passNum++
-		stats, err := c.doPass(sc, dc, tc)
+		stats, err := c.doPass(noHub{sc}, noHub{dc}, noHub{tc})
 		if c.verbose {
 			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
 		}
@@ -163,7 +164,7 @@ func (c *syncCmd) syncAll() error {
 		if c.verbose {
 			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
 		}
-		stats, err := c.doPass(from, to, nil)
+		stats, err := c.doPass(noHub{from}, noHub{to}, nil)
 		if c.verbose {
 			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
 		}
@@ -189,7 +190,7 @@ func (c *syncCmd) discoClient() *client.Client {
 	return cl
 }
 
-func (c *syncCmd) doPass(sc, dc, tc *client.Client) (stats SyncStats, retErr error) {
+func (c *syncCmd) doPass(sc, dc, tc blobserver.Storage) (stats SyncStats, retErr error) {
 	srcBlobs := make(chan blobref.SizedBlobRef, 100)
 	destBlobs := make(chan blobref.SizedBlobRef, 100)
 	srcErr := make(chan error)
@@ -276,6 +277,7 @@ For:
 					sb.Size, sb.BlobRef, size)
 				continue
 			}
+			// ...
 			uh := &client.UploadHandle{BlobRef: sb.BlobRef, Size: size, Contents: blobReader}
 			pr, err := uploadClient.Upload(uh)
 			if err != nil {
@@ -324,4 +326,12 @@ func loggingBlobRefChannel(ch <-chan blobref.SizedBlobRef) chan blobref.SizedBlo
 		log.Printf("Total blobs: %d, %d bytes", nblob, nbyte)
 	}()
 	return ch2
+}
+
+type noHub struct {
+	*client.Client
+}
+
+func (noHub) GetBlobHub() blobserver.BlobHub {
+	panic("not needed, nor implemented")
 }

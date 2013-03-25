@@ -34,7 +34,8 @@ Examples:
   camtool dbinit -user root -password root -host localhost -dbname camliprod -wipe
 
   camtool sync --all
-  camtool sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
+  camtool sync --src=http://localhost:3179/bs/ --dest=http://localhost:3179/index-mem/
+  camtool sync --src=http://localhost:3179/bs/ --dest=/tmp/some/path
 
 For mode-specific help:
 
