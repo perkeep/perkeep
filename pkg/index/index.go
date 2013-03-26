@@ -599,6 +599,37 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	return fi, nil
 }
 
+func (x *Index) GetImageInfo(fileRef *blobref.BlobRef) (*search.ImageInfo, error) {
+	// it might be that the key does not exist because image.DecodeConfig failed earlier
+	// (because of unsupported JPEG features like progressive mode).
+	key := keyImageSize.Key(fileRef.String())
+	dim, err := x.s.Get(key)
+	if err == ErrNotFound {
+		err = os.ErrNotExist
+	}
+	if err != nil {
+		return nil, err
+	}
+	valPart := strings.Split(dim, "|")
+	if len(valPart) != 2 {
+		return nil, fmt.Errorf("index: bogus key %q = %q", key, dim)
+	}
+	width, err := strconv.Atoi(valPart[0])
+	if err != nil {
+		return nil, fmt.Errorf("index: bogus integer at position 0 in key %q: %q", key, valPart[0])
+	}
+	height, err := strconv.Atoi(valPart[1])
+	if err != nil {
+		return nil, fmt.Errorf("index: bogus integer at position 1 in key %q: %q", key, valPart[1])
+	}
+
+	imgInfo := &search.ImageInfo{
+		Width:  width,
+		Height: height,
+	}
+	return imgInfo, nil
+}
+
 func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges []*search.Edge, err error) {
 	it := x.queryPrefix(keyEdgeBackward, ref)
 	defer closeIterator(it, &err)

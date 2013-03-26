@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/types"
 )
@@ -536,6 +537,8 @@ type DescribedBlob struct {
 	File *FileInfo `json:"file,omitempty"`
 	// if camliType "directory"
 	Dir *FileInfo `json:"dir,omitempty"`
+	// if camliType "file", and File.IsImage()
+	Image *ImageInfo `json:"image,omitempty"`
 
 	Thumbnail       string `json:"thumbnailSrc,omitempty"`
 	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
@@ -710,11 +713,12 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 			if peer.File.IsImage() {
 				image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
 					url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
-				// TODO: return the correct thumbSizes here,
-				// once we know from the indexer the
-				// dimensions (after correction for exif
-				// orientation).  For now the thumbnails will
-				// all be stretched fat squares.
+				if peer.Image != nil {
+					mw, mh := images.ScaledDimensions(
+						peer.Image.Width, peer.Image.Height,
+						thumbSize, thumbSize)
+					return image, mw, mh, true
+				}
 				return image, thumbSize, thumbSize, true
 			}
 
@@ -923,6 +927,17 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 				log.Printf("index.GetFileInfo(file %s) failed; index stale?", br)
 			} else {
 				dr.addError(br, err)
+			}
+			return
+		}
+		if des.File.IsImage() {
+			des.Image, err = dr.sh.index.GetImageInfo(br)
+			if err != nil {
+				if os.IsNotExist(err) {
+					log.Printf("index.GetImageInfo(file %s) failed; index stale?", br)
+				} else {
+					dr.addError(br, err)
+				}
 			}
 		}
 	case "directory":

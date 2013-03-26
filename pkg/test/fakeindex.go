@@ -145,6 +145,10 @@ func (fi *FakeIndex) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, er
 	panic("NOIMPL")
 }
 
+func (fi *FakeIndex) GetImageInfo(fileRef *blobref.BlobRef) (*search.ImageInfo, error) {
+	panic("NOIMPL")
+}
+
 func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()

@@ -94,7 +94,7 @@ type FileInfo struct {
 	FileName string `json:"fileName"`
 
 	// Size is the size of files. It is not set for directories.
-	Size     int64  `json:"size"`
+	Size int64 `json:"size"`
 
 	// MIMEType may be set for files, but never for directories.
 	MIMEType string `json:"mimeType,omitempty"`
@@ -112,6 +112,14 @@ type FileInfo struct {
 
 func (fi *FileInfo) IsImage() bool {
 	return strings.HasPrefix(fi.MIMEType, "image/")
+}
+
+// ImageInfo describes an image file.
+type ImageInfo struct {
+	// Width is the visible width of the image (after any necessary EXIF rotation).
+	Width int `json:"width"`
+	// Height is the visible height of the image (after any necessary EXIF rotation).
+	Height int `json:"height"`
 }
 
 type Path struct {
@@ -208,6 +216,9 @@ type Index interface {
 
 	// Should return os.ErrNotExist if not found.
 	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, error)
+
+	// Should return os.ErrNotExist if not found.
+	GetImageInfo(fileRef *blobref.BlobRef) (*ImageInfo, error)
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
