@@ -186,10 +186,10 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		switch k {
-		case "https":
+		case "https", "shareHandler", "memIndex":
 			b, err := strconv.ParseBool(v[0])
 			if err != nil {
-				httputil.ServeError(rw, req, fmt.Errorf("https field expects a boolean value"))
+				httputil.ServeError(rw, req, fmt.Errorf("%v field expects a boolean value", k))
 			}
 			el = b
 		case "replicateTo":
