@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM index.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 10853, fileembed.String("/*\n"+
+	Files.Add("index.js", 10925, fileembed.String("/*\n"+
 		"Copyright 2012 Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -361,11 +362,14 @@ func init() {
 		"    var divrecent = $(\"recent\");\n"+
 		"    divrecent.innerHTML = \"\";\n"+
 		"    divrecent.appendChild(createPlusButton());\n"+
+		"    if (!searchRes || !searchRes.recent) {\n"+
+		"        return;\n"+
+		"    }\n"+
 		"    for (var i = 0; i < searchRes.recent.length; i++) {\n"+
-		"	divrecent.appendChild(divFromResult(searchRes, i));\n"+
+		"        divrecent.appendChild(divFromResult(searchRes, i));\n"+
 		"    }\n"+
 		"};\n"+
 		"\n"+
 		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
-		""), time.Unix(0, 1360259901380858573))
+		""), time.Unix(0, 1365030607264593529))
 }

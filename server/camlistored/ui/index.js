@@ -349,8 +349,11 @@ CamliIndexPage.onLoadedRecentItems = function (searchRes) {
     var divrecent = $("recent");
     divrecent.innerHTML = "";
     divrecent.appendChild(createPlusButton());
+    if (!searchRes || !searchRes.recent) {
+        return;
+    }
     for (var i = 0; i < searchRes.recent.length; i++) {
-	divrecent.appendChild(divFromResult(searchRes, i));
+        divrecent.appendChild(divFromResult(searchRes, i));
     }
 };
 
