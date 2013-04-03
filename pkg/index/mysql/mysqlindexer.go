@@ -42,7 +42,7 @@ var _ index.Storage = (*myIndexStorage)(nil)
 // This exists mostly for testing and does not initialize the schema.
 func NewStorage(host, user, password, dbname string) (index.Storage, error) {
 	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
-	dsn := dbname+"/"+user+"/"+password
+	dsn := dbname + "/" + user + "/" + password
 	db, err := sql.Open("mymysql", dsn)
 	if err != nil {
 		return nil, err
@@ -59,6 +59,12 @@ func NewStorage(host, user, password, dbname string) (index.Storage, error) {
 		database: dbname,
 	}, nil
 }
+
+const fixSchema20to21 = `Character set in tables changed to binary, you can fix your tables with:
+ALTER TABLE rows CONVERT TO CHARACTER SET binary;
+ALTER TABLE meta CONVERT TO CHARACTER SET binary;
+UPDATE meta SET value=21 WHERE metakey='version' AND value=20;
+`
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
@@ -89,6 +95,9 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
 	}
 	if version != requiredSchemaVersion {
+		if version == 20 && requiredSchemaVersion == 21 {
+			fmt.Fprintf(os.Stderr, fixSchema20to21)
+		}
 		if os.Getenv("CAMLI_ADVERTISED_PASSWORD") != "" {
 			// Good signal that we're using the dev-server script, so help out
 			// the user with a more useful tip:
