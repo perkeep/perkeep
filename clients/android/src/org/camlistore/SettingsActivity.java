@@ -41,6 +41,7 @@ public class SettingsActivity extends PreferenceActivity {
     private IUploadService mServiceStub = null;
 
     private EditTextPreference hostPref;
+    private EditTextPreference trustedCertPref;
     private EditTextPreference usernamePref;
     private EditTextPreference passwordPref;
     private EditTextPreference devIPPref;
@@ -71,6 +72,9 @@ public class SettingsActivity extends PreferenceActivity {
         addPreferencesFromResource(R.xml.preferences);
 
         hostPref = (EditTextPreference) findPreference(Preferences.HOST);
+        // TODO(mpl): popup window that proposes to automatically add the cert to
+        // the prefs when we fail to dial an untrusted server (and only in that case).
+        trustedCertPref = (EditTextPreference) findPreference(Preferences.TRUSTED_CERT);
         usernamePref = (EditTextPreference) findPreference(Preferences.USERNAME);
         passwordPref = (EditTextPreference) findPreference(Preferences.PASSWORD);
         autoPref = (CheckBoxPreference) findPreference(Preferences.AUTO);
@@ -97,6 +101,8 @@ public class SettingsActivity extends PreferenceActivity {
                         : null;
                 if (pref == hostPref) {
                     updateHostSummary(newStr);
+                } else if (pref == trustedCertPref) {
+                    updateTrustedCertSummary(newStr);
                 } else if (pref == passwordPref) {
                     updatePasswordSummary(newStr);
                 } else if (pref == usernamePref) {
@@ -111,6 +117,7 @@ public class SettingsActivity extends PreferenceActivity {
             }
         };
         hostPref.setOnPreferenceChangeListener(onChange);
+        trustedCertPref.setOnPreferenceChangeListener(onChange);
         passwordPref.setOnPreferenceChangeListener(onChange);
         usernamePref.setOnPreferenceChangeListener(onChange);
         maxCacheSizePref.setOnPreferenceChangeListener(onChange);
@@ -158,9 +165,10 @@ public class SettingsActivity extends PreferenceActivity {
 
     private void updatePreferenceSummaries() {
         updateHostSummary(hostPref.getText());
+        updateTrustedCertSummary(trustedCertPref.getText());
         updatePasswordSummary(passwordPref.getText());
         updateAutoOpts(autoPref.isChecked());
-        updateMaxCacheSizeSummary(hostPref.getText());
+        updateMaxCacheSizeSummary(maxCacheSizePref.getText());
         updateUsernameSummary(usernamePref.getText());
         updateDevIP(devIPPref.getText());
     }
@@ -183,6 +191,7 @@ public class SettingsActivity extends PreferenceActivity {
         }
         boolean enabled = TextUtils.isEmpty(value);
         hostPref.setEnabled(enabled);
+        trustedCertPref.setEnabled(enabled);
         usernamePref.setEnabled(enabled);
         passwordPref.setEnabled(enabled);
         if (!enabled) {
@@ -214,6 +223,14 @@ public class SettingsActivity extends PreferenceActivity {
             hostPref.setSummary(value);
         } else {
             hostPref.setSummary(getString(R.string.settings_host_summary));
+        }
+    }
+
+    private void updateTrustedCertSummary(String value) {
+        if (value != null && value.length() > 0) {
+            trustedCertPref.setSummary(value);
+        } else {
+            trustedCertPref.setSummary("<unset>");
         }
     }
 

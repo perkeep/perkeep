@@ -38,6 +38,7 @@ public class UploadThread extends Thread {
 
     private final UploadService mService;
     private final HostPort mHostPort;
+    private final String mTrustedCert;
     private final String mUsername;
     private final String mPassword;
     private final LinkedBlockingQueue<UploadThreadMessage> msgCh = new LinkedBlockingQueue<UploadThreadMessage>();
@@ -52,9 +53,10 @@ public class UploadThread extends Thread {
                                                    // to stdinWriter
     private BufferedWriter stdinWriter;
 
-    public UploadThread(UploadService uploadService, HostPort hp, String username, String password) {
+    public UploadThread(UploadService uploadService, HostPort hp, String trustedCert, String username, String password) {
         mService = uploadService;
         mHostPort = hp;
+        mTrustedCert = trustedCert;
         mUsername = username;
         mPassword = password;
     }
@@ -160,6 +162,7 @@ public class UploadThread extends Thread {
             pb.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
             pb.redirectErrorStream(false);
             pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
+            pb.environment().put("CAMLI_TRUSTED_CERT", mTrustedCert);
             pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
             pb.environment().put("CAMPUT_ANDROID_OUTPUT", "1");
             process = pb.start();

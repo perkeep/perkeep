@@ -18,12 +18,14 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,6 +35,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 )
@@ -63,6 +66,19 @@ type Client struct {
 
 	httpClient *http.Client
 	haveCache  HaveCache
+
+	// We define a certificate fingerprint as the 10 digits lowercase prefix
+	// of the SHA1 of the complete certificate (in ASN.1 DER encoding).
+	// It is the same as what 'openssl x509 -fingerprint' shows and what
+	// web browsers commonly use (except truncated to 10 digits).
+	// trustedCerts contains the fingerprints of the self-signed
+	// certificates we trust.
+	// If not empty, (and if using TLS) the full x509 verification is
+	// disabled, and we instead check the server's certificate against
+	// that list.
+	// The camlistore server prints the fingerprint to add to the config
+	// when starting.
+	trustedCerts []string
 
 	pendStatMu sync.Mutex           // guards pendStat
 	pendStat   map[string][]statReq // blobref -> reqs; for next batch(es)
@@ -421,7 +437,8 @@ func (c *Client) doDiscovery() {
 
 	// If the path is just "" or "/", do discovery against
 	// the URL to see which path we should actually use.
-	req, _ := http.NewRequest("GET", c.discoRoot(), nil)
+	// TODO(mpl): maybe just use c.newRequest instead?
+	req, _ := http.NewRequest("GET", c.condRewriteURL(c.discoRoot()), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	c.authMode.AddAuthHeader(req)
 	res, err := c.doReqGated(req)
@@ -510,7 +527,7 @@ func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request
 	if len(body) > 1 {
 		panic("too many body arguments")
 	}
-	req, err := http.NewRequest(method, url, bodyR)
+	req, err := http.NewRequest(method, c.condRewriteURL(url), bodyR)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -534,4 +551,90 @@ func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
 	c.requestHTTPToken()
 	defer c.releaseHTTPToken()
 	return c.httpClient.Do(req)
+}
+
+// selfVerifiedSSL returns whether the client config has fingerprints for
+// (self-signed) trusted certificates.
+// When true, we run with InsecureSkipVerify and it is our responsibility
+// to check the server's cert against our trusted certs.
+func (c *Client) selfVerifiedSSL() bool {
+	return c.useTLS() && len(c.GetTrustedCerts()) > 0
+}
+
+// condRewriteURL changes "https://" to "http://" if we are in
+// selfVerifiedSSL mode. We need to do that because we do the TLS
+// dialing ourselves, and we do not want the http transport layer
+// to redo it.
+func (c *Client) condRewriteURL(url string) string {
+	if c.selfVerifiedSSL() {
+		return strings.Replace(url, "https://", "http://", 1)
+	}
+	return url
+}
+
+// TLSConfig returns the correct tls.Config depending on whether
+// SSL is required, the client's config has some trusted certs,
+// and we're on android.
+func (c *Client) TLSConfig() (*tls.Config, error) {
+	if !c.useTLS() {
+		return nil, nil
+	}
+	trustedCerts := c.GetTrustedCerts()
+	if len(trustedCerts) > 0 {
+		return &tls.Config{InsecureSkipVerify: true}, nil
+	}
+	if !onAndroid() {
+		return nil, nil
+	}
+	return androidTLSConfig()
+}
+
+// DialFunc returns the adequate dial function, depending on
+// whether SSL is required, the client's config has some trusted
+// certs, and we're on android.
+// If the client's config has some trusted certs, the server's
+// certificate will be checked against those in the config after
+// the TLS handshake.
+func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
+	trustedCerts := c.GetTrustedCerts()
+	if !c.useTLS() || len(trustedCerts) == 0 {
+		// No TLS, or TLS with normal/full verification
+		if onAndroid() {
+			return func(network, addr string) (net.Conn, error) {
+				return androidDial(network, addr)
+			}
+		}
+		return nil
+	}
+
+	return func(network, addr string) (net.Conn, error) {
+		var conn *tls.Conn
+		var err error
+		if onAndroid() {
+			con, err := androidDial(network, addr)
+			if err != nil {
+				return nil, err
+			}
+			conn = tls.Client(con, &tls.Config{InsecureSkipVerify: true})
+			if err = conn.Handshake(); err != nil {
+				return nil, err
+			}
+		} else {
+			conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true})
+			if err != nil {
+				return nil, err
+			}
+		}
+		certs := conn.ConnectionState().PeerCertificates
+		if certs == nil || len(certs) < 1 {
+			return nil, errors.New("Could not get server's certificate from the TLS connection.")
+		}
+		sig := misc.SHA1Prefix(certs[0].Raw)
+		for _, v := range trustedCerts {
+			if v == sig {
+				return conn, nil
+			}
+		}
+		return nil, fmt.Errorf("Server's certificate %v is not in the trusted list", sig)
+	}
 }

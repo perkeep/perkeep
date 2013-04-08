@@ -102,6 +102,10 @@ func serverOrDie() string {
 	return server
 }
 
+func (c *Client) useTLS() bool {
+	return strings.HasPrefix(c.server, "https://")
+}
+
 func (c *Client) SetupAuth() error {
 	if flagServer != nil && *flagServer != "" {
 		// If using an explicit blobserver, don't use auth
@@ -227,4 +231,37 @@ func getSignerPublicKeyBlobref() *blobref.BlobRef {
 func (c *Client) GetBlobFetcher() blobref.SeekFetcher {
 	// Use blobref.NewSeriesFetcher(...all configured fetch paths...)
 	return blobref.NewConfigDirFetcher()
+}
+
+// config[trustedCerts] is the list of trusted certificates fingerprints.
+// Case insensitive.
+// See Client.trustedCerts in client.go
+const trustedCerts = "trustedCerts"
+
+var initTrustedCertsOnce sync.Once
+
+func (c *Client) initTrustedCerts() {
+	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
+		c.trustedCerts = []string{e}
+		return
+	}
+	c.trustedCerts = []string{}
+	configOnce.Do(parseConfig)
+	val, ok := config[trustedCerts].([]interface{})
+	if !ok {
+		return
+	}
+	for _, v := range val {
+		trustedCert, ok := v.(string)
+		if !ok {
+			log.Printf("trustedCert: was expecting a string, got %T", v)
+			return
+		}
+		c.trustedCerts = append(c.trustedCerts, strings.ToLower(trustedCert))
+	}
+}
+
+func (c *Client) GetTrustedCerts() []string {
+	initTrustedCertsOnce.Do(c.initTrustedCerts)
+	return c.trustedCerts
 }

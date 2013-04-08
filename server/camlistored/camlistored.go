@@ -40,6 +40,7 @@ import (
 
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/jsonsign"
+	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverconfig"
 	"camlistore.org/pkg/webserver"
@@ -66,8 +67,8 @@ import (
 )
 
 const (
-	defCert = "config/selfgen_cert.pem"
-	defKey  = "config/selfgen_key.pem"
+	defCert = serverconfig.DefaultTLSCert
+	defKey  = serverconfig.DefaultTLSKey
 )
 
 var (
@@ -85,7 +86,23 @@ func exitf(pattern string, args ...interface{}) {
 	os.Exit(1)
 }
 
-// Mostly copied from $GOROOT/src/pkg/crypto/tls/generate_cert.go
+// 1) We do not want to force the user to buy a cert.
+// 2) We still want our client (camput) to be able to
+// verify the cert's authenticity.
+// 3) We want to avoid MITM attacks and warnings in
+// the browser.
+// Using a simple self-signed won't do because of 3),
+// as Chrome offers no way to set a self-signed as
+// trusted when importing it. (same on android).
+// We could have created a self-signed CA (that we
+// would import in the browsers) and create another
+// cert (signed by that CA) which would be the one
+// used in camlistore.
+// We're doing even simpler: create a self-signed
+// CA and directly use it as a self-signed cert
+// (and install it as a CA in the browsers).
+// 2) is satisfied by doing our own checks,
+// See pkg/client
 func genSelfTLS(listen string) error {
 	priv, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
@@ -99,6 +116,13 @@ func genSelfTLS(listen string) error {
 		return fmt.Errorf("splitting listen failed: %q", err)
 	}
 
+	// TODO(mpl): if no host is specified in the listening address
+	// (e.g ":3179") we'll end up in this case, and the self-signed
+	// will have "localhost" as a CommonName. But I don't think
+	// there's anything we can do about it. Maybe warn...
+	if hostname == "" {
+		hostname = "localhost"
+	}
 	template := x509.Certificate{
 		SerialNumber: new(big.Int).SetInt64(0),
 		Subject: pkix.Name{
@@ -108,7 +132,9 @@ func genSelfTLS(listen string) error {
 		NotBefore:    now.Add(-5 * time.Minute).UTC(),
 		NotAfter:     now.AddDate(1, 0, 0).UTC(),
 		SubjectKeyId: []byte{1, 2, 3, 4},
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:         true,
+		BasicConstraintsValid: true,
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
@@ -123,6 +149,14 @@ func genSelfTLS(listen string) error {
 	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	certOut.Close()
 	log.Printf("written %s\n", defCert)
+	cert, err := x509.ParseCertificate(derBytes)
+	if err != nil {
+		return fmt.Errorf("Failed to parse certificate: %v", err)
+	}
+	sig := misc.SHA1Prefix(cert.Raw)
+	hint := "You must add this certificate's fingerprint to your client's trusted certs list to use it. Like so:\n" +
+		`"trustedCerts": ["` + sig + `"],`
+	log.Printf(hint)
 
 	keyOut, err := os.OpenFile(defKey, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
@@ -309,6 +343,20 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 		cert = defCert
 		key = defKey
 	}
+	data, err := ioutil.ReadFile(cert)
+	if err != nil {
+		exitf("Failed to read pem certificate: %s", err)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		exitf("Failed to decode pem certificate")
+	}
+	certif, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		exitf("Failed to parse certificate: %v", err)
+	}
+	sig := misc.SHA1Prefix(certif.Raw)
+	log.Printf("TLS enabled, with certificate fingerprint: %v", sig)
 	ws.SetTLS(cert, key)
 }
 
