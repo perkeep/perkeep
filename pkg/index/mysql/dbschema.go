@@ -16,20 +16,26 @@ limitations under the License.
 
 package mysql
 
-const requiredSchemaVersion = 20
+const requiredSchemaVersion = 21
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
 }
 
+// Note: using character set "binary", as any knowledge
+// of character set encodings is handled by higher layers.
+// At this layer we're just obeying the IndexStorage interface,
+// which is purely about bytes.
 func SQLCreateTables() []string {
 	return []string{
 		`CREATE TABLE rows (
  k VARCHAR(255) NOT NULL PRIMARY KEY,
- v VARCHAR(255))`,
+ v VARCHAR(255))
+ DEFAULT CHARACTER SET binary`,
 
 		`CREATE TABLE meta (
  metakey VARCHAR(255) NOT NULL PRIMARY KEY,
- value VARCHAR(255) NOT NULL)`,
+ value VARCHAR(255) NOT NULL)
+ DEFAULT CHARACTER SET binary`,
 	}
 }
