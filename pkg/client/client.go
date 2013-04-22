@@ -132,7 +132,7 @@ func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
 	}
-	if blob.ShareAuthType() != "haveref" {
+	if blob.ShareAuthType() != schema.ShareHaveRef {
 		return nil, nil, fmt.Errorf("Unknown share authType of %q", blob.ShareAuthType())
 	}
 	target = blob.ShareTarget()

@@ -18,7 +18,6 @@ package server
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -122,22 +121,21 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				auth.SendUnauthorized(conn, req)
 				return
 			}
-			jd := json.NewDecoder(file)
-			m := make(map[string]interface{})
-			if err := jd.Decode(&m); err != nil {
-				log.Printf("Fetch chain 0 of %s wasn't JSON: %v", br.String(), err)
+			blob, err := schema.BlobFromReader(br, file)
+			if err != nil {
+				log.Printf("Can't create a blob from %v: %v", br.String(), err)
 				auth.SendUnauthorized(conn, req)
 				return
 			}
-			// TODO(mpl): make and use a struct type with json tags instead of map[string]interface{}.
-			if m["camliType"].(string) != "share" {
-				log.Printf("Fetch chain 0 of %s wasn't a share", br.String())
+			share, ok := blob.AsShare()
+			if !ok {
+				log.Printf("Fetch chain 0 of %s wasn't a valid Share", br.String())
 				auth.SendUnauthorized(conn, req)
 				return
 			}
-			if len(fetchChain) > 1 && fetchChain[1].String() != m["target"].(string) {
+			if len(fetchChain) > 1 && fetchChain[1].String() != share.Target().String() {
 				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
-					br.String(), fetchChain[1].String(), m["target"])
+					br.String(), fetchChain[1].String(), share.Target().String())
 				auth.SendUnauthorized(conn, req)
 				return
 			}
