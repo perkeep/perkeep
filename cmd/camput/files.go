@@ -44,8 +44,8 @@ import (
 )
 
 type fileCmd struct {
-	name string
-	tag  string
+	title string
+	tag   string
 
 	makePermanode  bool // make new, unique permanode of the root (dir or file)
 	filePermanodes bool // make planned permanodes for each file (based on their digest)
@@ -71,7 +71,7 @@ func init() {
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
 				" or at-risk clients, such as phones.")
 		flags.BoolVar(&cmd.exifTime, "exiftime", false, "Try to use metadata (such as EXIF) to get a stable creation time. If found, used as the replacement for the modtime. Mainly useful with vivify or filenodes.")
-		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on permanode when using -permanode.")
+		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
@@ -105,19 +105,19 @@ func (c *fileCmd) Usage() {
 func (c *fileCmd) Examples() []string {
 	return []string{
 		"[opts] <file(s)/director(ies)",
-		"--permanode --name='Homedir backup' --tag=backup,homedir $HOME",
+		"--permanode --title='Homedir backup' --tag=backup,homedir $HOME",
 		"--filenodes /mnt/camera/DCIM",
 	}
 }
 
 func (c *fileCmd) RunCommand(args []string) error {
 	if c.vivify {
-		if c.makePermanode || c.filePermanodes || c.tag != "" || c.name != "" {
+		if c.makePermanode || c.filePermanodes || c.tag != "" || c.title != "" {
 			return cmdmain.UsageError("--vivify excludes any other option")
 		}
 	}
-	if c.name != "" && !c.makePermanode {
-		return cmdmain.UsageError("Can't set name without using --permanode")
+	if c.title != "" && !c.makePermanode {
+		return cmdmain.UsageError("Can't set title without using --permanode")
 	}
 	if c.tag != "" && !c.makePermanode && !c.filePermanodes {
 		return cmdmain.UsageError("Can't set tag without using --permanode or --filenodes")
@@ -232,9 +232,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
 		}
-		if c.name != "" {
-			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "name", c.name))
-			handleResult("claim-permanode-name", put, err)
+		if c.title != "" {
+			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
+			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
 			tags := strings.Split(c.tag, ",")
