@@ -54,7 +54,8 @@ type fileOptions struct {
 	permanode bool // create a content-based permanode for each uploaded file
 	// tag is an optional tag or comma-delimited tags to apply to
 	// the above permanode.
-	tag string
+	tag            string
+	permanodeTitle string // optional permanode title.
 	// perform for the client the actions needing gpg signing when uploading a file.
 	vivify   bool
 	exifTime bool // use the time in exif metadata as the modtime if possible.
@@ -65,6 +66,13 @@ func (o *fileOptions) tags() []string {
 		return nil
 	}
 	return strings.Split(o.tag, ",")
+}
+
+func (o *fileOptions) title() string {
+	if o == nil {
+		return ""
+	}
+	return o.permanodeTitle
 }
 
 func (o *fileOptions) wantFilePermanode() bool {

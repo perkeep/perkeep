@@ -116,8 +116,8 @@ func (c *fileCmd) RunCommand(args []string) error {
 			return cmdmain.UsageError("--vivify excludes any other option")
 		}
 	}
-	if c.title != "" && !c.makePermanode {
-		return cmdmain.UsageError("Can't set title without using --permanode")
+	if c.title != "" && !(c.makePermanode || c.filePermanodes) {
+		return cmdmain.UsageError("Can't set title without using --permanode or --filenodes")
 	}
 	if c.tag != "" && !c.makePermanode && !c.filePermanodes {
 		return cmdmain.UsageError("Can't set tag without using --permanode or --filenodes")
@@ -140,10 +140,11 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 	}
 	up.fileOpts = &fileOptions{
-		permanode: c.filePermanodes,
-		tag:       c.tag,
-		vivify:    c.vivify,
-		exifTime:  c.exifTime,
+		permanode:      c.filePermanodes,
+		tag:            c.tag,
+		permanodeTitle: c.title,
+		vivify:         c.vivify,
+		exifTime:       c.exifTime,
 	}
 
 	var (
@@ -633,6 +634,19 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
 		}
 		handleResult("node-permanode-contentattr", put, nil)
+		if title := up.fileOpts.title(); title != "" {
+			m := schema.NewAddAttributeClaim(permaNode.BlobRef, "title", title)
+			m.SetClaimDate(claimTime)
+			signed, err := up.SignBlob(m, claimTime)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to sign title claim: %v", err)
+			}
+			put, err := up.uploadString(signed)
+			if err != nil {
+				return nil, fmt.Errorf("Error uploading permanode's title attribute %v: %v", title, err)
+			}
+			handleResult("node-permanode-title", put, nil)
+		}
 		if tags := up.fileOpts.tags(); len(tags) > 0 {
 			errch := make(chan error)
 			for _, tag := range tags {
