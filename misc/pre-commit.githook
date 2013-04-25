@@ -20,6 +20,10 @@ fi
 committed=`git diff-index --cached --name-only HEAD`
 for c in $committed
 do
+	if [ ! -e "$c" ]
+	then
+		continue
+	fi
 	gofile=`echo $c | grep -E '.*\.go$'`
 	javafile=`echo $c | grep -E '.*\.java$'`
 	if [ -n "$gofile" ]
