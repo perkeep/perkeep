@@ -36,19 +36,20 @@ import (
 // "server" and "password" keys.
 //
 // A main binary must call AddFlags to expose these.
-var flagServer *string
+var (
+	flagServer     string
+	flagSecretRing string
+)
 
 func AddFlags() {
 	defaultPath := ConfigFilePath()
-	flagServer = flag.String("server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of "+defaultPath+" is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
+	flag.StringVar(&flagServer, "server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of "+defaultPath+" is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
+	flag.StringVar(&flagSecretRing, "secret-keyring", "", "GnuPG secret keyring file to use.")
 }
 
 // ExplicitServer returns the blobserver given in the flags, if any.
 func ExplicitServer() string {
-	if flagServer != nil {
-		return *flagServer
-	}
-	return ""
+	return flagServer
 }
 
 func ConfigFilePath() string {
@@ -86,8 +87,8 @@ func cleanServer(server string) string {
 }
 
 func serverOrDie() string {
-	if flagServer != nil && *flagServer != "" {
-		return cleanServer(*flagServer)
+	if flagServer != "" {
+		return cleanServer(flagServer)
 	}
 	configOnce.Do(parseConfig)
 	value, ok := config["server"]
@@ -103,7 +104,7 @@ func serverOrDie() string {
 }
 
 func (c *Client) SetupAuth() error {
-	if flagServer != nil && *flagServer != "" {
+	if flagServer != "" {
 		// If using an explicit blobserver, don't use auth
 		// configured from the config file, so we don't send
 		// our password to a friend's blobserver.
@@ -137,6 +138,9 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 }
 
 func (c *Client) SecretRingFile() string {
+	if flagSecretRing != "" {
+		return flagSecretRing
+	}
 	configOnce.Do(parseConfig)
 	keyRing, ok := config["secretRing"].(string)
 	if ok && keyRing != "" {

@@ -46,7 +46,6 @@ func init() {
 		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
 	}
 	cmdmain.ExtraFlagRegistration = func() {
-		jsonsign.AddFlags()
 		client.AddFlags()
 	}
 	cmdmain.PreExit = func() {

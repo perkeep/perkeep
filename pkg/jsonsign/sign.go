@@ -20,12 +20,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -39,14 +37,6 @@ import (
 
 var _ = log.Printf
 
-var flagSecretRing = ""
-
-func AddFlags() {
-	defSecRing := filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
-	flag.StringVar(&flagSecretRing, "secret-keyring", defSecRing,
-		"GnuPG secret keyring file to use.")
-}
-
 type EntityFetcher interface {
 	FetchEntity(keyId string) (*openpgp.Entity, error)
 }
@@ -56,7 +46,7 @@ type FileEntityFetcher struct {
 }
 
 func FlagEntityFetcher() *FileEntityFetcher {
-	return &FileEntityFetcher{File: flagSecretRing}
+	return &FileEntityFetcher{File: DefaultSecRingPath()}
 }
 
 type CachingEntityFetcher struct {
@@ -196,7 +186,7 @@ func (sr *SignRequest) secretRingPath() string {
 	if sr.SecretKeyringPath != "" {
 		return sr.SecretKeyringPath
 	}
-	return flagSecretRing
+	return DefaultSecRingPath()
 }
 
 func (sr *SignRequest) Sign() (signedJSON string, err error) {
