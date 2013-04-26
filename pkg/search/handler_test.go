@@ -405,12 +405,13 @@ var handlerTests = []handlerTest{
 			return indexAndOwner{idx, id.SignerBlobRef}
 		},
 		query: "edgesto?blobref=sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
-		want: parseJSON(`{"sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae": {
-                   "edgesTo": [
-                      {"from": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-                       "fromType": "permanode"}
-                   ]
-                }}`),
+		want: parseJSON(`{
+			"toRef": "sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
+			"edgesTo": [
+				{"from": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+				"fromType": "permanode"}
+				]
+			}`),
 	},
 }
 

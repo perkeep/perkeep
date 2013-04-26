@@ -263,6 +263,17 @@ func (r *SignerPathsRequest) fromHTTP(req *http.Request) {
 	r.Target = httputil.MustGetBlobRef(req, "target")
 }
 
+// EdgesRequest is a request to get an EdgesResponse.
+type EdgesRequest struct {
+	// The blob we want to find as a reference.
+	ToRef *blobref.BlobRef
+}
+
+// fromHTTP panics with an httputil value on failure
+func (r *EdgesRequest) fromHTTP(req *http.Request) {
+	r.ToRef = httputil.MustGetBlobRef(req, "blobref")
+}
+
 // A MetaMap is a map from blobref to a DescribedBlob.
 type MetaMap map[string]*DescribedBlob
 
@@ -342,6 +353,18 @@ type SignerPathsItem struct {
 	ClaimRef *blobref.BlobRef `json:"claimRef"`
 	BaseRef  *blobref.BlobRef `json:"baseRef"`
 	Suffix   string           `json:"suffix"`
+}
+
+// EdgesResponse is the JSON response from $searchRoot/camli/search/edgesto.
+type EdgesResponse struct {
+	ToRef   *blobref.BlobRef `json:"toRef"`
+	EdgesTo []*EdgeItem      `json:"edgesTo"`
+}
+
+// An EdgeItem is an item returned from $searchRoot/camli/search/edgesto.
+type EdgeItem struct {
+	From     *blobref.BlobRef `json:"from"`
+	FromType string           `json:"fromType"`
 }
 
 func thumbnailSize(r *http.Request) int {
@@ -1092,34 +1115,27 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 	})
 }
 
-// Unlike the index interface's EdgesTo method, the "edgesto" Handler
-// here additionally filters out since-deleted permanode edges.
-func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
-	defer httputil.RecoverJSON(rw, req)
-
-	ret := jsonMap()
-	toRef := httputil.MustGetBlobRef(req, "blobref")
+// EdgesTo returns edges that reference req.RefTo.
+// It filters out since-deleted permanode edges.
+func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
+	toRef := req.ToRef
 	toRefStr := toRef.String()
-	blobInfo := jsonMap()
-	ret[toRefStr] = blobInfo
-
-	jsonEdges := jsonMapList()
+	var edgeItems []*EdgeItem
 
 	edges, err := sh.index.EdgesTo(toRef, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	type mapOrError struct {
-		m   map[string]interface{} // nil if no map
-		err error
+	type edgeOrError struct {
+		edge *EdgeItem // or nil
+		err  error
 	}
-	resc := make(chan mapOrError)
+	resc := make(chan edgeOrError)
 	verify := func(edge *Edge) {
-		fromStr := edge.From.String()
 		db, err := sh.NewDescribeRequest().DescribeSync(edge.From)
 		if err != nil {
-			resc <- mapOrError{err: err}
+			resc <- edgeOrError{err: err}
 			return
 		}
 		found := false
@@ -1134,13 +1150,14 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 				}
 			}
 		}
-		var em map[string]interface{}
+		var ei *EdgeItem
 		if found {
-			em = jsonMap()
-			em["from"] = fromStr
-			em["fromType"] = "permanode"
+			ei = &EdgeItem{
+				From:     edge.From,
+				FromType: "permanode",
+			}
 		}
-		resc <- mapOrError{m: em}
+		resc <- edgeOrError{edge: ei}
 	}
 	verifying := 0
 	for _, edge := range edges {
@@ -1149,22 +1166,40 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 			go verify(edge)
 			continue
 		}
-		em := jsonMap()
-		em["from"] = edge.From.String()
-		em["fromType"] = edge.FromType
-		jsonEdges = append(jsonEdges, em)
+		ei := &EdgeItem{
+			From:     edge.From,
+			FromType: edge.FromType,
+		}
+		edgeItems = append(edgeItems, ei)
 	}
 	for i := 0; i < verifying; i++ {
 		res := <-resc
 		if res.err != nil {
-			panic(res.err) // caught and put in JSON response
+			return nil, res.err
 		}
-		if res.m != nil {
-			jsonEdges = append(jsonEdges, res.m)
+		if res.edge != nil {
+			edgeItems = append(edgeItems, res.edge)
 		}
 	}
-	blobInfo["edgesTo"] = jsonEdges
-	httputil.ReturnJSON(rw, ret)
+
+	return &EdgesResponse{
+		ToRef:   toRef,
+		EdgesTo: edgeItems,
+	}, nil
+}
+
+// Unlike the index interface's EdgesTo method, the "edgesto" Handler
+// here additionally filters out since-deleted permanode edges.
+func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
+	defer httputil.RecoverJSON(rw, req)
+	var er EdgesRequest
+	er.fromHTTP(req)
+	res, err := sh.EdgesTo(&er)
+	if err != nil {
+		httputil.ServeJSONError(rw, err)
+		return
+	}
+	httputil.ReturnJSON(rw, res)
 }
 
 // GetSignerPaths returns paths with a target of req.Target.
