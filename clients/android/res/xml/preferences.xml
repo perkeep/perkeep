@@ -8,6 +8,11 @@
         android:summary="@string/settings_host_summary"
         android:title="@string/settings_host_title" />
     <EditTextPreference
+        android:key="camli.trusted_cert"
+        android:persistent="true"
+        android:summary="@string/settings_trusted_cert_summary"
+        android:title="@string/settings_trusted_cert_title" />
+    <EditTextPreference
         android:key="camli.username"
         android:persistent="true"
         android:title="@string/settings_username_title" />

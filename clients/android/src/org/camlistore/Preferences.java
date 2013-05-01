@@ -22,6 +22,8 @@ public final class Preferences {
     public static final String NAME = "CamliUploader";
 
     public static final String HOST = "camli.host";
+	// TODO(mpl): list instead of single string later? seems overkill for now.
+    public static final String TRUSTED_CERT = "camli.trusted_cert";
     public static final String USERNAME = "camli.username";
     public static final String PASSWORD = "camli.password";
     public static final String AUTO = "camli.auto";
@@ -90,6 +92,10 @@ public final class Preferences {
             return new HostPort("http://" + devIP() + ":3179");
         }
         return new HostPort(mSP.getString(Preferences.HOST, ""));
+    }
+
+    public String trustedCert() {
+        return mSP.getString(TRUSTED_CERT, "").toLowerCase();
     }
 
     public void setDevIP(String value) {

@@ -85,7 +85,7 @@ func init() {
 			cmd.havecache = true
 			cmd.statcache = true
 		}
-		if androidOutput {
+		if client.AndroidOutput() {
 			flags.BoolVar(&cmd.argsFromInput, "stdinargs", false, "If true, filenames to upload are sent one-per-line on stdin. EOF means to quit the process with exit status 0.")
 		}
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
@@ -422,8 +422,8 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 		// see TODO in cmd/camput/uploader.go
 		statReceiver = up.Client
 	}
-	if androidOutput && n != nil && n.fi.Mode()&os.ModeType == 0 {
-		return androidStatusReceiver{statReceiver, n.fullPath}
+	if client.AndroidOutput() && n != nil && n.fi.Mode()&os.ModeType == 0 {
+		return client.AndroidStatusReceiver{Sr: statReceiver, Path: n.fullPath}
 	}
 	return statReceiver
 }
@@ -547,7 +547,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			pr, ok = up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum)
 			if ok {
 				br = pr.BlobRef
-				noteFileUploaded(n.fullPath, !pr.Skipped)
+				client.NoteFileUploaded(n.fullPath, !pr.Skipped)
 				if up.fileOpts.wantVivify() {
 					// we can return early in that case, because the other options
 					// are disallowed in the vivify case.
@@ -578,7 +578,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		noteFileUploaded(n.fullPath, true)
+		client.NoteFileUploaded(n.fullPath, true)
 		return pr, nil
 	}
 
@@ -917,7 +917,7 @@ func (t *TreeUpload) run() {
 
 	var lastStat, lastUpload string
 	dumpStats := func() {
-		if androidOutput {
+		if client.AndroidOutput() {
 			printAndroidCamputStatus(t)
 			return
 		}
@@ -986,7 +986,7 @@ func (t *TreeUpload) run() {
 			if err == nil {
 				n.SetPutResult(cachedRes, nil)
 				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
-				noteFileUploaded(n.fullPath, false)
+				client.NoteFileUploaded(n.fullPath, false)
 				skippedc <- n
 				return
 			}
