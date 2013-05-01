@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM search.html
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.html", 1448, fileembed.String("<html>\n"+
+	Files.Add("search.html", 1516, fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
@@ -36,7 +37,8 @@ func init() {
 		"    <h2>By Tag</h2>\n"+
 		"    <form id=\"formTags\">\n"+
 		"        <input id=\"inputTag\" placeholder=\"tag1\">\n"+
-		"        <input type=\"submit\" id=\"btnTagged\" value=\"Search\">\n"+
+		"        <input type=\"submit\" id=\"btnTagged\" value=\"Search\"></br>\n"+
+		"        <input id=\"maxTagged\" placeholder=\"nb of results: 50\">\n"+
 		"    </form>\n"+
 		"\n"+
 		"    <h2>By Title</h2>\n"+
@@ -58,5 +60,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1358714694000000000))
+		""), time.Unix(0, 1364837799719094732))
 }

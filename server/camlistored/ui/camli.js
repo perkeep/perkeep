@@ -379,10 +379,10 @@ function camliGetRecentlyUpdatedPermanodes(opts) {
     xhr.send();
 }
 
-function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, opts) {
+function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, max, opts) {
     var xhr = camliJsonXhr("camliGetPermanodesWithAttr", opts);
     var path = Camli.makeURL(Camli.config.searchRoot + "camli/search/permanodeattr",
-                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy });
+                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy, max: max});
     xhr.open("GET", path, true);
     xhr.send();
 }

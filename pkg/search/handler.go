@@ -38,8 +38,9 @@ import (
 	"camlistore.org/pkg/types"
 )
 
-const buffered = 32      // arbitrary channel buffer size
-const maxPermanodes = 50 // arbitrary limit on the number of permanodes fetched
+const buffered = 32     // arbitrary channel buffer size
+const maxResults = 1000 // arbitrary limit on the number of search results returned
+const defaultNumResults = 50
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -159,6 +160,14 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, ret)
 }
 
+// sanitizeNumResults takes n as a requested number of search results and sanitizes it.
+func sanitizeNumResults(n int) int {
+	if n <= 0 || n > maxResults {
+		return defaultNumResults
+	}
+	return n
+}
+
 // RecentRequest is a request to get a RecentResponse.
 type RecentRequest struct {
 	N             int       // if zero, default number of results
@@ -178,12 +187,9 @@ func (r *RecentRequest) fromHTTP(req *http.Request) {
 	// TODO: populate Before
 }
 
-// n returns the sanitized number of search results.
+// n returns the sanitized maximum number of search results.
 func (r *RecentRequest) n() int {
-	if r.N <= 0 || r.N > 1000 {
-		return 50
-	}
-	return r.N
+	return sanitizeNumResults(r.N)
 }
 
 func (r *RecentRequest) thumbnailSize() int {
@@ -227,18 +233,20 @@ func (r *WithAttrRequest) fromHTTP(req *http.Request) {
 		fuzzyMatch = true
 	}
 	r.Fuzzy = fuzzyMatch
-	maxResults := maxPermanodes
 	max := req.FormValue("max")
 	if max != "" {
 		maxR, err := strconv.Atoi(max)
 		if err != nil {
 			panic(httputil.InvalidParameterError("max"))
 		}
-		if maxR < maxResults {
-			maxResults = maxR
-		}
+		r.N = maxR
 	}
-	r.N = maxResults
+	r.N = r.n()
+}
+
+// n returns the sanitized maximum number of search results.
+func (r *WithAttrRequest) n() int {
+	return sanitizeNumResults(r.N)
 }
 
 // ClaimsRequest is a request to get a ClaimsResponse.

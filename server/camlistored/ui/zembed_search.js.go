@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM search.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 7567, fileembed.String("/*\n"+
+	Files.Add("search.js", 7810, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -32,6 +33,7 @@ func init() {
 		"	CamliSearch.query = Camli.getQueryParam('q') || \"\";\n"+
 		"	CamliSearch.type = Camli.getQueryParam('t') || \"\";\n"+
 		"	CamliSearch.fuzzy = Camli.getQueryParam('f') || \"\";\n"+
+		"	CamliSearch.max = Camli.getQueryParam('max') || \"\";\n"+
 		"}\n"+
 		"\n"+
 		"function hideAllResThings() {\n"+
@@ -53,13 +55,17 @@ func init() {
 		"	e.preventDefault();\n"+
 		"\n"+
 		"	var input = document.getElementById(\"inputTag\");\n"+
-		"\n"+
 		"	if (input.value == \"\") {\n"+
 		"		return;\n"+
 		"	}\n"+
-		"\n"+
 		"	var tags = input.value.split(/\\s*,\\s*/);\n"+
-		"	document.location.href = \"search.html?q=\" + tags[0] + \"&t=tag\"\n"+
+		"	query = \"search.html?q=\" + tags[0] + \"&t=tag\"\n"+
+		"	var max = document.getElementById(\"maxTagged\");\n"+
+		"	if (max.value != \"\") {\n"+
+		"		query += \"&max=\" + max.value\n"+
+		"	}\n"+
+		"\n"+
+		"	document.location.href = query;\n"+
 		"}\n"+
 		"\n"+
 		"function handleFormGetTitled(e) {\n"+
@@ -102,20 +108,20 @@ func init() {
 		"	switch(CamliSearch.type) {\n"+
 		"	case \"tag\":\n"+
 		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"tag\", CamliSearch.query, "+
-		"CamliSearch.fuzzy, tagcb);\n"+
+		"CamliSearch.fuzzy, CamliSearch.max, tagcb);\n"+
 		"		break;\n"+
 		"	case \"title\":\n"+
 		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"title\", CamliSearch.query"+
-		", \"true\", tagcb);\n"+
+		", \"true\", CamliSearch.max, tagcb);\n"+
 		"		break;\n"+
 		"	case \"camliRoot\":\n"+
 		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"camliRoot\", CamliSearch.q"+
-		"uery, \"false\", tagcb);\n"+
+		"uery, \"false\", CamliSearch.max, tagcb);\n"+
 		"		break;\n"+
 		"	case \"\":\n"+
 		"		if (CamliSearch.query !== \"\") {\n"+
 		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \"t"+
-		"rue\", tagcb);\n"+
+		"rue\", CamliSearch.max, tagcb);\n"+
 		"		}\n"+
 		"		break;\n"+
 		"	}\n"+
@@ -286,5 +292,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1360366137559069951))
+		""), time.Unix(0, 1364924103400730350))
 }

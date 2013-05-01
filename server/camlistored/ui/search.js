@@ -23,6 +23,7 @@ function getSearchParams() {
 	CamliSearch.query = Camli.getQueryParam('q') || "";
 	CamliSearch.type = Camli.getQueryParam('t') || "";
 	CamliSearch.fuzzy = Camli.getQueryParam('f') || "";
+	CamliSearch.max = Camli.getQueryParam('max') || "";
 }
 
 function hideAllResThings() {
@@ -44,13 +45,17 @@ function handleFormGetTagged(e) {
 	e.preventDefault();
 
 	var input = document.getElementById("inputTag");
-
 	if (input.value == "") {
 		return;
 	}
-
 	var tags = input.value.split(/\s*,\s*/);
-	document.location.href = "search.html?q=" + tags[0] + "&t=tag"
+	query = "search.html?q=" + tags[0] + "&t=tag"
+	var max = document.getElementById("maxTagged");
+	if (max.value != "") {
+		query += "&max=" + max.value
+	}
+
+	document.location.href = query;
 }
 
 function handleFormGetTitled(e) {
@@ -92,17 +97,17 @@ function doSearch() {
 	};
 	switch(CamliSearch.type) {
 	case "tag":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, tagcb);
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, CamliSearch.max, tagcb);
 		break;
 	case "title":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", tagcb);
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", CamliSearch.max, tagcb);
 		break;
 	case "camliRoot":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", tagcb);
+		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", CamliSearch.max, tagcb);
 		break;
 	case "":
 		if (CamliSearch.query !== "") {
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", tagcb);
+			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", CamliSearch.max, tagcb);
 		}
 		break;
 	}

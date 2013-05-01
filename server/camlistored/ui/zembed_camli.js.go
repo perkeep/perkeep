@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM camli.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.js", 17024, fileembed.String("/*\n"+
+	Files.Add("camli.js", 17391, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -28,12 +29,22 @@ func init() {
 		"\n"+
 		"    goog.require('camlistore.base64');\n"+
 		"    goog.require('camlistore.SHA1');\n"+
+		"    goog.require('camlistore.ServerType');\n"+
 		"}\n"+
 		"\n"+
 		"// Camli namespace.\n"+
 		"if (!window.Camli) {\n"+
 		"   window.Camli = {};\n"+
 		"}\n"+
+		"\n"+
+		"/**\n"+
+		" * @typedef {{\n"+
+		" *   success: Function?,\n"+
+		" *   fail: Function?\n"+
+		" * }}\n"+
+		" */\n"+
+		"Camli.OptCallbacks;\n"+
+		"\n"+
 		"\n"+
 		"function $(id) {\n"+
 		"    return document.getElementById(id);\n"+
@@ -60,8 +71,8 @@ func init() {
 		"/**\n"+
 		"* Sets the Camlistore Discovery configuration object.\n"+
 		"*\n"+
-		"* @param {Object.<string, <?>>} config The Camlistore configuration Object from D"+
-		"iscovery.\n"+
+		"* @param {camlistore.ServerType.DiscoveryDocument} config The Camlistore configur"+
+		"ation Object from Discovery.\n"+
 		"*\n"+
 		"* @expose\n"+
 		"*/\n"+
@@ -196,6 +207,10 @@ func init() {
 		"    xhr.send(\"json=\" + encodeURIComponent(clearText));\n"+
 		"}\n"+
 		"\n"+
+		"/**\n"+
+		" * @param {?} file File object to upload.\n"+
+		" * @param {Camli.OptCallbacks} opts callbacks. \n"+
+		" *\n"+
 		"// camliUploadFile uploads a file and returns a file schema. It does not create\n"+
 		"// any permanodes.\n"+
 		"//\n"+
@@ -206,6 +221,7 @@ func init() {
 		"//   - success: function(fileBlobRef) of the server-validated or\n"+
 		"//         just-uploaded file schema blob.\n"+
 		"//   - onContentsRef: function(blobref) of contents, once hashed in-browser\n"+
+		"*/\n"+
 		"function camliUploadFile(file, opts) {\n"+
 		"    var fr = new FileReader();\n"+
 		"    fr.onload = function() {\n"+
@@ -256,7 +272,7 @@ func init() {
 		"\n"+
 		"    var doUpload = function() {\n"+
 		"        var fd = new FormData();\n"+
-		"        fd.append(fd, file);\n"+
+		"        fd.append(\"TODO-some-uploadHelper-form-name\", file);\n"+
 		"        var uploadCb = { fail: opts.fail };\n"+
 		"        uploadCb.success = function(res) {\n"+
 		"            if (res.got && res.got.length == 1 && res.got[0].fileref) {\n"+
@@ -387,12 +403,12 @@ func init() {
 		"    xhr.send();\n"+
 		"}\n"+
 		"\n"+
-		"function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, opts) {\n"+
+		"function camliGetPermanodesWithAttr(signer, attr, value, fuzzy, max, opts) {\n"+
 		"    var xhr = camliJsonXhr(\"camliGetPermanodesWithAttr\", opts);\n"+
 		"    var path = Camli.makeURL(Camli.config.searchRoot + \"camli/search/permanodeatt"+
 		"r\",\n"+
-		"                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy }"+
-		");\n"+
+		"                       { signer: signer, attr: attr, value: value, fuzzy: fuzzy, "+
+		"max: max});\n"+
 		"    xhr.open(\"GET\", path, true);\n"+
 		"    xhr.send();\n"+
 		"}\n"+
@@ -534,12 +550,17 @@ func init() {
 		"    Camli.changeAttribute(permanode, \"del-attribute\", attribute, value, opts);\n"+
 		"}\n"+
 		"\n"+
-		"// camliCondCall calls fn, if non-null, with the remaining parameters.\n"+
-		"function camliCondCall(fn /*, ... */) {\n"+
+		"/**\n"+
+		" * camliCondCall calls fn, if non-null, with the remaining parameters.\n"+
+		" *\n"+
+		" * @param {Function?} fn \n"+
+		" * @param {...?} var_args\n"+
+		" */\n"+
+		"function camliCondCall(fn, var_args) {\n"+
 		"    if (!fn) {\n"+
 		"        return;\n"+
 		"    }\n"+
 		"    fn.apply(null, Array.prototype.slice.call(arguments, 1));\n"+
 		"}\n"+
-		""), time.Unix(0, 1360259901380858573))
+		""), time.Unix(0, 1364839610223738354))
 }
