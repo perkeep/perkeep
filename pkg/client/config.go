@@ -262,6 +262,6 @@ func (c *Client) initTrustedCerts() {
 }
 
 func (c *Client) GetTrustedCerts() []string {
-	initTrustedCertsOnce.Do(c.initTrustedCerts)
+	initTrustedCertsOnce.Do(func() { c.initTrustedCerts() })
 	return c.trustedCerts
 }
