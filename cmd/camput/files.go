@@ -510,7 +510,6 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
-	// TODO(mpl): maybe break this func into more maintainable pieces?
 	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
 	filebb.SetType("file")
 	file, err := up.open(n.fullPath)
@@ -601,16 +600,6 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if td, ok := fileContents.(*trackDigestReader); ok {
 			sum = td.Sum()
 		}
-		// Use a fixed time value for signing; not using modtime
-		// so two identical files don't have different modtimes?
-		// TODO(bradfitz): consider this more?
-		permaNodeSigTime := time.Unix(0, 0)
-		permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
-		if err != nil {
-			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
-		}
-		handleResult("node-permanode", permaNode, nil)
-
 		// claimTime is both the time of the "claimDate" in the
 		// JSON claim, as well as the date in the OpenPGP
 		// header.
@@ -620,48 +609,11 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		// type and just have the Uploader override the claimDate.
 		claimTime, ok := filebb.ModTime()
 		if !ok {
-			return nil, fmt.Errorf("couldn't get modtime back for file %v", n.fullPath)
+			return nil, fmt.Errorf("couldn't get modtime for file %v", n.fullPath)
 		}
-		contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", br.String())
-		contentAttr.SetClaimDate(claimTime)
-		signed, err := up.SignBlob(contentAttr, claimTime)
+		err = up.uploadFilePermanode(sum, br, claimTime)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to sign content claim for node %v: %v", n, err)
-		}
-		put, err := up.uploadString(signed)
-		if err != nil {
-			return nil, fmt.Errorf("Error uploading permanode's attribute for node %v: %v", n, err)
-		}
-		handleResult("node-permanode-contentattr", put, nil)
-		if tags := up.fileOpts.tags(); len(tags) > 0 {
-			errch := make(chan error)
-			for _, tag := range tags {
-				go func(tag string) {
-					m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-					m.SetClaimDate(claimTime)
-					signed, err := up.SignBlob(m, claimTime)
-					if err != nil {
-						errch <- fmt.Errorf("Failed to sign tag claim for node %v: %v", n, err)
-						return
-					}
-					put, err := up.uploadString(signed)
-					if err != nil {
-						errch <- fmt.Errorf("Error uploading permanode's tag attribute %v for node %v: %v", tag, n, err)
-						return
-					}
-					handleResult("node-permanode-tag", put, nil)
-					errch <- nil
-				}(tag)
-			}
-
-			for _ = range tags {
-				if e := <-errch; e != nil && err == nil {
-					err = e
-				}
-			}
-			if err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
 		}
 	}
 
@@ -673,6 +625,65 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	json, _ := filebb.JSON()
 	pr = &client.PutResult{BlobRef: br, Size: int64(len(json)), Skipped: false}
 	return pr, nil
+}
+
+// uploadFilePermanode creates and uploads the planned permanode (with sum as a
+// fixed key) associated with the file blobref fileRef.
+// It also sets the optional tags for this permanode.
+func (up *Uploader) uploadFilePermanode(sum string, fileRef *blobref.BlobRef, claimTime time.Time) error {
+	// Use a fixed time value for signing; not using modtime
+	// so two identical files don't have different modtimes?
+	// TODO(bradfitz): consider this more?
+	permaNodeSigTime := time.Unix(0, 0)
+	permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
+	if err != nil {
+		return fmt.Errorf("Error uploading planned permanode: %v", err)
+	}
+	handleResult("node-permanode", permaNode, nil)
+
+	contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", fileRef.String())
+	contentAttr.SetClaimDate(claimTime)
+	signed, err := up.SignBlob(contentAttr, claimTime)
+	if err != nil {
+		return fmt.Errorf("Failed to sign content claim: %v", err)
+	}
+	put, err := up.uploadString(signed)
+	if err != nil {
+		return fmt.Errorf("Error uploading permanode's attribute: %v", err)
+	}
+
+	handleResult("node-permanode-contentattr", put, nil)
+	if tags := up.fileOpts.tags(); len(tags) > 0 {
+		errch := make(chan error)
+		for _, tag := range tags {
+			go func(tag string) {
+				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+				m.SetClaimDate(claimTime)
+				signed, err := up.SignBlob(m, claimTime)
+				if err != nil {
+					errch <- fmt.Errorf("Failed to sign tag claim: %v", err)
+					return
+				}
+				put, err := up.uploadString(signed)
+				if err != nil {
+					errch <- fmt.Errorf("Error uploading permanode's tag attribute %v: %v", tag, err)
+					return
+				}
+				handleResult("node-permanode-tag", put, nil)
+				errch <- nil
+			}(tag)
+		}
+
+		for _ = range tags {
+			if e := <-errch; e != nil && err == nil {
+				err = e
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
