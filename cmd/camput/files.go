@@ -61,6 +61,8 @@ type fileCmd struct {
 	histo    string // optional histogram output filename
 }
 
+var flagUseSQLiteChildCache bool // Use sqlite for the statcache and havecache.
+
 func init() {
 	cmdmain.RegisterCommand("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(fileCmd)
@@ -81,6 +83,7 @@ func init() {
 			flags.BoolVar(&cmd.havecache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "Use sqlite for the statcache and havecache instead of a flat cache.")
 		} else {
 			cmd.havecache = true
 			cmd.statcache = true
@@ -260,11 +263,21 @@ func (c *fileCmd) initCaches(up *Uploader) {
 		return
 	}
 	if c.statcache {
-		cache := NewFlatStatCache(gen)
+		var cache UploadCache
+		if flagUseSQLiteChildCache {
+			cache = NewSQLiteStatCache(gen)
+		} else {
+			cache = NewFlatStatCache(gen)
+		}
 		up.statCache = cache
 	}
 	if c.havecache {
-		cache := NewFlatHaveCache(gen)
+		var cache HaveCache
+		if flagUseSQLiteChildCache {
+			cache = NewSQLiteHaveCache(gen)
+		} else {
+			cache = NewFlatHaveCache(gen)
+		}
 		up.haveCache = cache
 		up.Client.SetHaveCache(cache)
 	}
