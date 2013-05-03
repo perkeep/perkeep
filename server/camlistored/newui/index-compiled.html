@@ -3,9 +3,6 @@
   <head>
     <script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
     <script src="all.js"></script>
-    <script>
-      window["Camli"].onConfiguration(CAMLISTORE_CONFIG);
-    </script>
     <!-- easier css handling: https://code.google.com/p/camlistore/issues/detail?id=98 -->
     <link rel="stylesheet" href="blob_item.css" type="text/css">
     <link rel="stylesheet" href="blob_item_container.css" type="text/css">
@@ -17,7 +14,8 @@
   </head>
   <body>
     <script>
-      window["newIndexPage"](CAMLISTORE_CONFIG, document.body);
+      var page = new camlistore.IndexPage(CAMLISTORE_CONFIG);
+      page.decorate(document.body);
     </script>
   </body>
 </html>

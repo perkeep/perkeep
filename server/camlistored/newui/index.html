@@ -9,10 +9,6 @@
     <script type="text/javascript" src="../base64.js"></script>
     <script type="text/javascript" src="../Crypto.js"></script>
     <script type="text/javascript" src="../SHA1.js"></script>
-    <script src="../camli.js"></script>
-    <script>
-      Camli.onConfiguration(CAMLISTORE_CONFIG);
-    </script>
     <!-- End non-Closure cheating -->
 
     <script>
@@ -28,7 +24,7 @@
   </head>
   <body>
     <script>
-      var page = new camlistore.IndexPage(window.CAMLISTORE_CONFIG);
+      var page = new camlistore.IndexPage(CAMLISTORE_CONFIG);
       page.decorate(document.body);
     </script>
   </body>
