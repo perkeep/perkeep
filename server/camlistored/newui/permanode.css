@@ -1,0 +1,35 @@
+.cam-permanode-page {
+  font: 16px/1.4 normal Arial, sans-serif;
+}
+.cam-permanode-nav:before {
+  content: "[";
+}
+.cam-permanode-nav:after {
+  content: "]";
+}
+.cam-permanode-del {
+  text-decoration: underline;
+  cursor: pointer;
+  color: darkred;
+  margin-left: .4em;
+  font-size: 80%;
+}
+.cam-permanode-tag-c {
+  margin-right: .5em;
+}
+.cam-permanode-tag {
+  font-style: italic;
+}
+.cam-permanode-dnd {
+  border: 2px dashed black;
+  min-height: 250px;
+  padding: 10px;
+}
+.cam-permanode-dnd-item {
+  margin: 0.25em;
+  border: 1px solid #888;
+  padding: 0.25em;
+}
+.cam-permanode-dnd-over {
+  background: #eee;
+}

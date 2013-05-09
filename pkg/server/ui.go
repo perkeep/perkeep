@@ -414,6 +414,14 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		http.NotFound(rw, req)
 		return
 	}
+	// TODO(mpl): temporary hack to get the permanode info page
+	// in new ui mode. clean up later.
+	if wantsPermanode(req) {
+		file := "/permanode.html"
+		serveStaticFile(rw, req, newuiFiles, file)
+		return
+	}
+
 	if suffix == "new" {
 		// Add a trailing slash.
 		http.Redirect(rw, req, base+"new/", http.StatusFound)

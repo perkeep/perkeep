@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+	<title>Permanode</title>
+	<script src="closure/goog/base.js"></script>
+	<script src="./deps.js"></script>
+    <script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
+	<!-- Begin non-Closure cheating; but depended on by server_connection.js -->
+	<script type="text/javascript" src="../base64.js"></script>
+	<script type="text/javascript" src="../Crypto.js"></script>
+	<script type="text/javascript" src="../SHA1.js"></script>
+	<!-- End non-Closure cheating -->
+	<script>
+		goog.require('camlistore.PermanodePage');
+	</script>
+	<link rel="stylesheet" href="permanode.css">
+</head>
+<body class="cam-permanode-page">
+	<div class="cam-permanode-nav"><a href="./">Home</a></div>
+	<h1>Permanode</h1>
+
+	<p>
+	Permalink:
+	<span id="permanode"></span>
+	<span id="permanodeBlob" class="cam-permanode-nav"></span>
+	</p>
+
+	<form id="formTitle">
+		<p>
+		Title:
+		<input type="text" id="inputTitle" size="30" value="(loading)" disabled="disabled">
+		<input type="submit" id="btnSaveTitle" value="Save" disabled="disabled">
+		</p>
+	</form>
+
+	<form id="formTags">
+		<p>
+		Tags:
+		<span id="spanTags"></span>
+		<input id="inputNewTag" placeholder="tag1, tag2, tag3">
+		<input type="submit" id="btnAddTag" value="Add Tag(s)">
+	</form>
+
+	<form id="formAccess">
+		<p>
+		Access:
+		<select id="selectAccess" disabled="disabled">
+			<option value="private">Private</option>
+			<option value="public">Public</option>
+		</select>
+		<input type="submit" id="btnSaveAccess" value="Save" disabled="disabled">
+
+		... with URL:
+		<select id="selectPublishRoot">
+			<option value=""></option>
+		</select>
+		<input type="text" id="publishSuffix" size="40">
+		<input type="submit" id="btnSavePublish" value="Set URL">
+		</p>
+	</form>
+
+	<div id="existingPaths"></div>
+
+	<form id="formType">
+		<p>
+		Type:
+		<select id='type' disabled>
+			<option value=''>(None / auto)</option>
+			<option value='_other'>(Other)</option>
+			<option value="root">Root (of a hierarchy)</option>
+			<option value="collection">Collection (e.g. directory, gallery)</option>
+			<option value="file">File</option>
+			<option value="collection">File Collection / Gallery</option>
+			<option value="microblog">Microblog Post</option>
+			<option value="blog">Blog Post</option>
+		</select>
+		</p>
+	</form>
+
+	<div id="members"></div>
+	<p>
+	<button id="btnGallery"> Show gallery </button> 
+	</p>
+
+	<div id="content"></div>
+
+	<div id="dnd" class="cam-permanode-dnd">
+		<form id="fileForm">
+			<input type="file" id="fileInput" multiple="true" onchange="">
+			<input type="submit" id="fileUploadBtn" value="Upload">
+		</form>
+		<p id='filelist'>
+		<em>or drag &amp; drop files here</em>
+		</p>
+		<pre id="info"></pre>
+	</div>
+
+	<h3>Current object attributes</h3>
+	<pre id="debugattrs" style="font-size: 8pt"></pre>
+
+	<script>
+		var page = new camlistore.PermanodePage(CAMLISTORE_CONFIG);
+		page.decorate(document.body);
+	</script>
+</body>
+</html>

@@ -19,13 +19,27 @@ goog.require('goog.ui.Control');
  * @param {string} blobRef BlobRef for the item.
  * @param {camlistore.ServerType.IndexerMetaBag} metaBag Maps blobRefs to
  *   metadata for this blob and related blobs.
+ * @param {string} opt_contentLink if "true", use the contained file blob as link when decorating
  * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
  *
  * @extends {goog.ui.Control}
  * @constructor
  */
-camlistore.BlobItem = function(blobRef, metaBag, opt_domHelper) {
+camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
   goog.base(this, null, null, opt_domHelper);
+
+  // TODO(mpl): Hack so we know when to decorate with the blobref
+  // of the contained file, instead of with the permanode, as the link.
+  // Idiomatic alternative suggestion very welcome.
+  /**
+   * @type {string}
+   * @private
+   */
+  this.useContentAsLink_ = "false"; 
+  
+  if (typeof opt_contentLink !== "undefined" && opt_contentLink == "true") {
+    this.useContentAsLink_ = opt_contentLink;
+  }
 
   /**
    * @type {string}
@@ -144,8 +158,24 @@ camlistore.BlobItem.prototype.getThumbWidth_ = function() {
 camlistore.BlobItem.prototype.getLink_ = function() {
   // TODO(bslatkin): Remove the '../' once we move the new UI to the right
   // handler, or change the server side to return an absolute URL.
+  if (this.useContentAsLink_ == "true") {
+    return '../?b=' + this.getFileBlobref_();
+  }
   return '../?p=' + this.blobRef_;
 };
+
+
+/**
+ * @private
+ * @return {string}
+ */
+camlistore.BlobItem.prototype.getFileBlobref_ = function() {
+	if (this.resolvedMetaData_ &&
+		this.resolvedMetaData_.camliType == 'file') {
+		return this.resolvedMetaData_.blobRef;
+	}
+	return "";
+}
 
 
 /**

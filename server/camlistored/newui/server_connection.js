@@ -50,6 +50,33 @@ camlistore.ServerConnection.prototype.safeFail_ = function(fail) {
 	return fail;
 };
 
+/**
+ * @param {Function} success Success callback.
+ * @param {?Function} fail Optional fail callback.
+ * @param {goog.events.Event} e Event that triggered this
+ * @private
+ */
+camlistore.ServerConnection.prototype.handleXhrResponseText_ =
+function(success, fail, e) {
+	var xhr = e.target;
+	var error = !xhr.isSuccess();
+	var result = null;
+	if (!error) {
+		result = xhr.getResponseText();
+		error = !result;
+	}
+	if (error) {
+		if (fail) {
+			fail()
+		} else {
+			// TODO(bslatkin): Add a default failure event handler to this class.
+			console.log('Failed XHR (text) in ServerConnection');
+		}
+		return;
+	}
+	success(result);
+};
+
 
 // TODO(mpl): set a global timeout ?
 // Brett, would it be worth to use the XhrIo send instance method, with listeners,
@@ -91,7 +118,6 @@ camlistore.ServerConnection.prototype.genericHandleSearch_ =
 function(success, opt_fail, e) {
 	this.handleXhrResponseJson_(success, this.safeFail_(opt_fail), e);
 };
-
 
 /**
  * @param {function(camlistore.ServerType.SearchRecentResponse)} success callback with data.
@@ -138,6 +164,54 @@ function(blobref, thumbnailSize, success, opt_fail) {
 
 
 /**
+ * @param {string} signer permanode must belong to signer.
+ * @param {string} attr searched attribute.
+ * @param {string} value value of the searched attribute.
+ * @param {Function} success.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.permanodeOfSignerAttrValue =
+function(signer, attr, value, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.searchRoot, 'camli/search/signerattrvalue'
+	);
+	path = goog.uri.utils.appendParams(path,
+		'signer', signer, 'attr', attr, 'value', value
+	);
+
+	this.sendXhr_(
+		path,
+		goog.bind(this.genericHandleSearch_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
+
+
+// Where is the target accessed via? (paths it's at)
+/**
+ * @param {string} signer owner of permanode.
+ * @param {string} target blobref of permanode we want to find paths to
+ * @param {Function} success.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.pathsOfSignerTarget =
+function(signer, target, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.searchRoot, 'camli/search/signerpaths'
+	);
+	path = goog.uri.utils.appendParams(path, 'signer', signer, 'target', target);
+
+	this.sendXhr_(
+		path,
+		goog.bind(this.genericHandleSearch_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
+
+
+/**
  * @param {Object} clearObj Unsigned object.
  * @param {Function} success Success callback.
  * @param {?Function} opt_fail Optional fail callback.
@@ -173,23 +247,7 @@ function(clearObj, success, opt_fail) {
  */
 camlistore.ServerConnection.prototype.handlePost_ =
 function(success, opt_fail, e) {
-	var xhr = e.target;
-	var error = !xhr.isSuccess();
-	var result = null;
-	if (!error) {
-		result = xhr.getResponseText();
-		error = !result;
-	}
-	if (error) {
-		if (opt_fail) {
-			opt_fail("got status " + xhr.getStatus())
-		} else {
-			// TODO(bslatkin): Add a default failure event handler to this class.
-			console.log('Failed XHR (POST) in ServerConnection');
-		}
-		return;
-	}
-	success(result);
+	this.handleXhrResponseText_(success, opt_fail, e);
 };
 
 
@@ -353,8 +411,8 @@ function(permanode, attribute, value, success, opt_fail) {
 
 /**
  * @param {string} permanode Permanode blobref.
- * @param {string} attribute Name of the attribute to set.
- * @param {string} value Value to set the attribute to.
+ * @param {string} attribute Name of the attribute to add.
+ * @param {string} value Value of the added attribute.
  * @param {function(string)} success Success callback, called with blobref of
  *   uploaded file.
  * @param {?Function} opt_fail Optional fail callback.
@@ -365,6 +423,22 @@ function(permanode, attribute, value, success, opt_fail) {
 		success, this.safeFail_(opt_fail)
 	);
 };
+
+/**
+ * @param {string} permanode Permanode blobref.
+ * @param {string} attribute Name of the attribute to delete.
+ * @param {string} value Value of the attribute to delete.
+ * @param {function(string)} success Success callback, called with blobref of
+ *   uploaded file.
+ * @param {?Function} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.newDelAttributeClaim =
+function(permanode, attribute, value, success, opt_fail) {
+	this.changeAttribute_(permanode, "del-attribute", attribute, value,
+		success, this.safeFail_(opt_fail)
+	);
+};
+
 
 /**
  * @param {File} file File to be uploaded.
