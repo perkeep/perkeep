@@ -159,9 +159,9 @@ camlistore.BlobItem.prototype.getLink_ = function() {
   // TODO(bslatkin): Remove the '../' once we move the new UI to the right
   // handler, or change the server side to return an absolute URL.
   if (this.useContentAsLink_ == "true") {
-    return '../?b=' + this.getFileBlobref_();
+    return './?b=' + this.getFileBlobref_();
   }
-  return '../?p=' + this.blobRef_;
+  return './?p=' + this.blobRef_;
 };
 
 

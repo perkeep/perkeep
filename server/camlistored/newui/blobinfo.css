@@ -1,0 +1,13 @@
+.cam-blobinfo-page {
+  font: 16px/1.4 normal Arial, sans-serif;
+}
+.cam-blobinfo-page #blobdata {
+  overflow: auto;
+  max-width: 800px;
+}
+.cam-blobinfo-nav:before {
+  content: "[";
+}
+.cam-blobinfo-nav:after {
+  content: "]";
+}

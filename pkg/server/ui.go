@@ -414,10 +414,15 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		http.NotFound(rw, req)
 		return
 	}
-	// TODO(mpl): temporary hack to get the permanode info page
-	// in new ui mode. clean up later.
+	// TODO(mpl): temporary hack to get the permanode and
+	// blobinfo pages in new ui mode. clean up later.
 	if wantsPermanode(req) {
 		file := "/permanode.html"
+		serveStaticFile(rw, req, newuiFiles, file)
+		return
+	}
+	if wantsBlobInfo(req) {
+		file := "/blobinfo.html"
 		serveStaticFile(rw, req, newuiFiles, file)
 		return
 	}

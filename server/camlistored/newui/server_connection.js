@@ -77,6 +77,23 @@ function(success, fail, e) {
 	success(result);
 };
 
+/**
+ * @param {string} blobref blobref whose contents we want.
+ * @param {Function} success callback with data.
+ * @param {?Function} opt_fail optional failure calback
+ */
+camlistore.ServerConnection.prototype.getBlobContents =
+function(blobref, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.blobRoot, 'camli/' + blobref
+	);
+
+	this.sendXhr_(path,
+		goog.bind(this.handleXhrResponseText_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
 
 // TODO(mpl): set a global timeout ?
 // Brett, would it be worth to use the XhrIo send instance method, with listeners,
@@ -138,7 +155,6 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodes =
       goog.bind(this.genericHandleSearch_, this,
                 success, this.safeFail_(opt_fail)));
 };
-
 
 /**
  * @param {string} blobref Permanode blobref.
@@ -210,6 +226,24 @@ function(signer, target, success, opt_fail) {
 	);
 };
 
+/**
+ * @param {string} permanode Permanode blobref.
+ * @param {Function} success.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.permanodeClaims =
+function(permanode, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.searchRoot, 'camli/search/claims?permanode=' + permanode
+	);
+
+	this.sendXhr_(
+		path,
+		goog.bind(this.genericHandleSearch_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
 
 /**
  * @param {Object} clearObj Unsigned object.
