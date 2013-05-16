@@ -203,6 +203,33 @@ function(signer, attr, value, success, opt_fail) {
 	);
 };
 
+/**
+ * @param {string} signer permanode must belong to signer.
+ * @param {string} attr searched attribute.
+ * @param {string} value value of the searched attribute.
+ * @param {boolean} fuzzy fuzzy search.
+ * @param {number} max max number of results.
+ * @param {number} thumbsize thumbnails size, 0 for no thumbnails.
+ * @param {Function} success.
+ * @param {Function=} opt_fail Optional fail callback.
+ */
+camlistore.ServerConnection.prototype.permanodesWithAttr =
+function(signer, attr, value, fuzzy, max, thumbsize, success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.searchRoot, 'camli/search/permanodeattr'
+	);
+	path = goog.uri.utils.appendParams(path,
+		'signer', signer, 'attr', attr, 'value', value,
+		'fuzzy', fuzzy, 'max', max, 'thumbnails', thumbsize
+	);
+
+	this.sendXhr_(
+		path,
+		goog.bind(this.genericHandleSearch_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
 
 // Where is the target accessed via? (paths it's at)
 /**

@@ -106,3 +106,18 @@ camlistore.ServerType.SearchRecentItem;
  * }}
 */
 camlistore.ServerType.SearchRecentResponse;
+
+/**
+ * @typedef {{
+ *   permanode: string
+ * }}
+*/
+camlistore.ServerType.SearchWithAttrItem;
+
+/**
+ * @typedef {{
+ *   withAttr: Array.<camlistore.ServerType.SearchWithAttrItem>,
+ *   meta: camlistore.ServerType.IndexerMetaBag
+ * }}
+*/
+camlistore.ServerType.SearchWithAttrResponse;

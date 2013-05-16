@@ -120,6 +120,12 @@ camlistore.IndexPage.prototype.enterDocument = function() {
       });
 
   this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.GOSEARCH,
+      function() {
+        window.open('./search.html', 'Search');
+      });
+
+  this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
       function() {
         var blobItems = this.blobItemContainer_.getCheckedBlobItems();

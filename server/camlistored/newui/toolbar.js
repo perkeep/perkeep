@@ -9,8 +9,11 @@ goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
+goog.require('goog.ui.MenuItem');
+goog.require('goog.ui.PopupMenu');
 goog.require('goog.ui.Toolbar');
 goog.require('goog.ui.ToolbarButton');
+goog.require('goog.ui.ToolbarMenuButton');
 
 
 /**
@@ -44,6 +47,43 @@ camlistore.Toolbar = function(opt_domHelper) {
   this.checkedItemsCreateSetButton_.addClassName('cam-checked-items');
 
   /**
+   * Used only on the search page
+   * @type {goog.ui.ToolbarButton}
+   * @private
+   */
+  this.rootsButton_ = new goog.ui.ToolbarButton('Search Roots');
+  this.rootsButton_.addClassName('cam-checked-items');
+
+  /**
+   * Used only on the search page
+   * @type {goog.ui.ToolbarButton}
+   * @private
+   */
+  this.homeButton_ = new goog.ui.ToolbarButton('Home');
+  this.homeButton_.addClassName('cam-checked-items');
+
+  /**
+   * Used only on the search page
+   * @type {goog.ui.ToolbarButton}
+   * @private
+   */
+  // TODO(mpl): figure out why it is acting retarded with the positioning.
+  var pm = new goog.ui.PopupMenu();
+  pm.addItem(new goog.ui.MenuItem('Examples:'));
+  pm.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: tag:foo"));
+  pm.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: title:bar"));
+  pm.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: baz (broken atm?)"));
+  this.helpButton_ = new goog.ui.ToolbarMenuButton('Help', pm);
+
+  /**
+   * Used only on the index page
+   * @type {goog.ui.ToolbarButton}
+   * @private
+   */
+  this.goSearchButton_ = new goog.ui.ToolbarButton('Search');
+  this.goSearchButton_.addClassName('cam-checked-items');
+
+  /**
    * @type {goog.events.EventHandler}
    * @private
    */
@@ -58,8 +98,17 @@ goog.inherits(camlistore.Toolbar, goog.ui.Toolbar);
 camlistore.Toolbar.EventType = {
   BIGGER: 'Camlistore_Toolbar_Bigger',
   SMALLER: 'Camlistore_Toolbar_Smaller',
+  HOME: 'Camlistore_Toolbar_Home',
+  ROOTS: 'Camlistore_Toolbar_SearchRoots',
+  GOSEARCH: 'Camlistore_Toolbar_GoSearch',
+  HELP: 'Camlistore_Toolbar_Help',
   CHECKED_ITEMS_CREATE_SET: 'Camlistore_Toolbar_Checked_Items_Create_set'
 };
+
+/**
+ * @type {boolean}
+ */
+camlistore.Toolbar.prototype.isSearch = "false";
 
 
 /**
@@ -80,6 +129,13 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.biggerButton_, true);
   this.addChild(this.smallerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
+  if (this.isSearch == "true") {
+    this.addChild(this.homeButton_, true);
+    this.addChild(this.rootsButton_, true);
+    this.addChild(this.helpButton_, true);
+  } else {
+    this.addChild(this.goSearchButton_, true);
+  }
 };
 
 
@@ -105,6 +161,24 @@ camlistore.Toolbar.prototype.enterDocument = function() {
       this.smallerButton_.getElement(),
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.SMALLER));
+
+  if (this.isSearch == "true") {
+    this.eh_.listen(
+      this.rootsButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.ROOTS));
+
+    this.eh_.listen(
+      this.homeButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.HOME));
+
+  } else {
+    this.eh_.listen(
+      this.goSearchButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.GOSEARCH));
+  }
 
   this.eh_.listen(
       this.checkedItemsCreateSetButton_.getElement(),

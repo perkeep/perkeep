@@ -225,6 +225,39 @@ camlistore.BlobItemContainer.prototype.showRecent = function() {
 
 
 /**
+ * Show roots
+ */
+camlistore.BlobItemContainer.prototype.showRoots =
+function(sigconf) {
+	this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef,
+		"camliRoot", "", false, 0, this.thumbnailSize_,
+		goog.bind(this.showWithAttrDone_, this),
+		function(msg) {
+			alert(msg);
+		}
+	);
+};
+
+/**
+ * Show tagged
+ * @param {string} sigconf
+ * @param {string} attr
+ * @param {string} value
+ * @param {boolean} fuzzy
+ * @param {number} max max number of items in response.
+ */
+camlistore.BlobItemContainer.prototype.showWithAttr =
+function(sigconf, attr, value, fuzzy, max) {
+	this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef,
+		attr, value, fuzzy, max, this.thumbnailSize_,
+		goog.bind(this.showWithAttrDone_, this),
+		function(msg) {
+			alert(msg);
+		}
+	);
+};
+
+/**
  * @return {Array.<camlistore.BlobItem>}
  */
 camlistore.BlobItemContainer.prototype.getCheckedBlobItems = function() {
@@ -269,7 +302,7 @@ camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
 
 
 /**
- * Sets state for whether or not the shift key is down.
+ * Sets state for whether or not the shift key is up.
  * @param {goog.events.KeyEvent} e A key event.
  */
 camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
@@ -325,6 +358,15 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
   this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
 };
 
+/**
+ */
+camlistore.BlobItemContainer.prototype.unselectAll =
+function() {
+	goog.array.forEach(this.checkedBlobItems_, function(item) {
+		item.setState(goog.ui.Component.State.CHECKED, false);
+	});
+	this.checkedBlobItems_ = [];
+}
 
 /**
  * @param {camlistore.ServerType.IndexerMetaBag} result JSON response to this request.
@@ -339,6 +381,26 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
   }
 };
 
+/**
+ * @param {camlistore.ServerType.SearchWithAttrResponse} result JSON response to this request.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
+	this.resetChildren_();
+	if (!result) {
+		return;
+	}
+	var results = result.withAttr;
+	var meta = result.meta;
+	if (!results || !meta) {
+		return;
+	}
+	for (var i = 0, n = results.length; i < n; i++) {
+		var blobRef = results[i].permanode;
+		var item = new camlistore.BlobItem(blobRef, meta);
+		this.addChild(item, true);
+	}
+};
 
 /**
  * Clears all children from this container, reseting to the default state.
