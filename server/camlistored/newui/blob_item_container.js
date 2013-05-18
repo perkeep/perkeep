@@ -316,40 +316,46 @@ camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
  */
 camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
   // Because the CHECK/UNCHECK event dispatches before isChecked is set.
+  // We stop the default behaviour because want to control manually here whether
+  // the source blobitem gets checked or not. See http://camlistore.org/issue/134
+  e.preventDefault();
   var blobItem = e.target;
   var isCheckingItem = !blobItem.isChecked();
-  var isMultiSelect = this.isShiftKeyDown_;
+  // TODO(mpl): do a control-click multi select too.
+  var isShiftMultiSelect = this.isShiftKeyDown_;
 
-  if (isMultiSelect) {
+  if (isShiftMultiSelect) {
     var lastChildSelected =
         this.checkedBlobItems_[this.checkedBlobItems_.length - 1];
+    var firstChildSelected =
+        this.checkedBlobItems_[0];
     var lastChosenIndex = this.indexOfChild(lastChildSelected);
+    var firstChosenIndex = this.indexOfChild(firstChildSelected);
     var thisIndex = this.indexOfChild(blobItem);
-    var startIndex, endIndex;
-    if (thisIndex > lastChosenIndex) {
-      startIndex = lastChosenIndex;
-      endIndex = thisIndex;
-    } else {
-      startIndex = thisIndex;
-      endIndex = lastChosenIndex;
-    }
-    for (var i = startIndex; i <= endIndex; i++) {
+
+    // deselect all items after the chosen one
+    for (var i = lastChosenIndex; i > thisIndex; i--) {
       var item = this.getChildAt(i);
-      // Don't need to set the item chosen's checked state manually.
-      if (i != thisIndex) {
-        item.setState(goog.ui.Component.State.CHECKED, true);
+      item.setState(goog.ui.Component.State.CHECKED, false);
+      if (goog.array.contains(this.checkedBlobItems_, item)) {
+        goog.array.remove(this.checkedBlobItems_, item);
       }
+    }
+    // make sure all the others are selected.
+    for (var i = firstChosenIndex; i <= thisIndex; i++) {
+      var item = this.getChildAt(i);
+      item.setState(goog.ui.Component.State.CHECKED, true);
       if (!goog.array.contains(this.checkedBlobItems_, item)) {
         this.checkedBlobItems_.push(item);
       }
     }
-
   } else {
     // unselect all chosen items.
     goog.array.forEach(this.checkedBlobItems_, function(item) {
       item.setState(goog.ui.Component.State.CHECKED, false);
     });
     if (isCheckingItem) {
+      blobItem.setState(goog.ui.Component.State.CHECKED, true);
       this.checkedBlobItems_ = [blobItem];
     } else {
       this.checkedBlobItems_ = [];
