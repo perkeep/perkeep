@@ -41,6 +41,15 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   this.connection_ = connection;
 
   /**
+   * BlobRef of the permanode defined as the current collection/set.
+   * Selected blobitems will be added as members of that collection
+   * upon relevant actions (e.g click on the 'Add to Set' toolbar button).
+   * @type {string}
+   * @private
+   */
+  this.currentCollec_ = "";
+
+  /**
    * @type {goog.events.EventHandler}
    * @private
    */
@@ -81,7 +90,8 @@ camlistore.BlobItemContainer.prototype.dragDepth_ = 0;
  * @enum {string}
  */
 camlistore.BlobItemContainer.EventType = {
-  BLOB_ITEMS_CHOSEN: 'Camlistore_BlobItemContainer_BlobItems_Chosen'
+  BLOB_ITEMS_CHOSEN: 'Camlistore_BlobItemContainer_BlobItems_Chosen',
+  SINGLE_NODE_CHOSEN: 'Camlistore_BlobItemContainer_SingleNode_Chosen'
 };
 
 
@@ -368,6 +378,7 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
         this.checkedBlobItems_.push(item);
       }
     }
+    this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
   } else if (isCtrlMultiSelect) {
     if (isCheckingItem) {
       blobItem.setState(goog.ui.Component.State.CHECKED, true);
@@ -395,6 +406,7 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
         }
       }
     }
+    this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
   } else {
     // unselect all chosen items.
     goog.array.forEach(this.checkedBlobItems_, function(item) {
@@ -406,8 +418,8 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
     } else {
       this.checkedBlobItems_ = [];
     }
+    this.dispatchEvent(camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN);
   }
-  this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
 };
 
 /**

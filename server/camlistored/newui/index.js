@@ -133,11 +133,68 @@ camlistore.IndexPage.prototype.enterDocument = function() {
       });
 
   this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.addItemsToSet_(blobItems);
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        // there should be only one item selected
+        if (blobItems.length != 1) {
+          alert("Cannet set multiple items as current collection");
+          return;
+        }
+        this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;
+        this.blobItemContainer_.unselectAll();
+        this.toolbar_.setCheckedBlobItemCount(0);
+        this.toolbar_.toggleCollecButton(false);
+        this.toolbar_.toggleAddToSetButton(false);
+      });
+
+  // TODO(mpl): those are getting large. make dedicated funcs.
+  this.eh_.listen(
       this.blobItemContainer_,
       camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
       function() {
         var blobItems = this.blobItemContainer_.getCheckedBlobItems();
         this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+        // set checkedItemsAddToSetButton_
+        if (this.blobItemContainer_.currentCollec_ &&
+          this.blobItemContainer_.currentCollec_ != "" &&
+          blobItems.length > 0) {
+          this.toolbar_.toggleAddToSetButton(true);
+        } else {
+          this.toolbar_.toggleAddToSetButton(false);
+        }
+        // set setAsCollecButton_
+        this.toolbar_.toggleCollecButton(false);
+      });
+
+  this.eh_.listen(
+      this.blobItemContainer_,
+      camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+        // set checkedItemsAddToSetButton_
+        if (this.blobItemContainer_.currentCollec_ &&
+          this.blobItemContainer_.currentCollec_ != "" &&
+          blobItems.length > 0) {
+          this.toolbar_.toggleAddToSetButton(true);
+        } else {
+          this.toolbar_.toggleAddToSetButton(false);
+        }
+        // set setAsCollecButton_
+        if (blobItems.length == 1 &&
+          blobItems[0].isCollection()) {
+          this.toolbar_.toggleCollecButton(true);
+        } else {
+          this.toolbar_.toggleCollecButton(false);
+        }
       });
 
   this.blobItemContainer_.showRecent();
@@ -160,28 +217,44 @@ camlistore.IndexPage.prototype.exitDocument = function() {
  */
 camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {
   this.connection_.createPermanode(
-      goog.bind(this.createPermanodeDone_, this, blobItems));
+      goog.bind(this.addMembers_, this, true, blobItems));
 };
 
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.IndexPage.prototype.addItemsToSet_ = function(blobItems) {
+	if (!this.blobItemContainer_.currentCollec_ ||
+		this.blobItemContainer_.currentCollec_ == "") {
+		alert("no destination collection selected");
+	}
+	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);
+};
 
 /**
+ * @param {boolean} newSet Whether the containing set has just been created.
  * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
  * @param {string} permanode Node to add the items to.
  * @private
  */
-camlistore.IndexPage.prototype.createPermanodeDone_ =
-    function(blobItems, permanode) {
+camlistore.IndexPage.prototype.addMembers_ =
+    function(newSet, blobItems, permanode) {
   var deferredList = [];
   var complete = goog.bind(this.addItemsToSetDone_, this, permanode);
   var callback = function() {
     deferredList.push(1);
-    if (deferredList.length == blobItems.length + 1) {
+    if (deferredList.length == blobItems.length) {
       complete();
     }
   };
 
-  this.connection_.newAddAttributeClaim(
-        permanode, 'title', 'My new set', callback);
+  // TODO(mpl): newSet is a lame trick. Do better.
+  if (newSet) {
+    this.connection_.newSetAttributeClaim(
+      permanode, 'title', 'My new set', function() {}
+    );
+  }
   goog.array.forEach(blobItems, function(blobItem, index) {
     this.connection_.newAddAttributeClaim(
         permanode, 'camliMember', blobItem.getBlobRef(), callback);
@@ -194,5 +267,9 @@ camlistore.IndexPage.prototype.createPermanodeDone_ =
  * @private
  */
 camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
+  this.blobItemContainer_.unselectAll();
+  this.toolbar_.setCheckedBlobItemCount(0);
+  this.toolbar_.toggleCollecButton(false);
+  this.toolbar_.toggleAddToSetButton(false);
   this.blobItemContainer_.showRecent();
 };

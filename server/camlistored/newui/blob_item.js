@@ -117,6 +117,21 @@ camlistore.BlobItem.resolve = function(blobRef, metaBag) {
 
 };
 
+/**
+ * @return {boolean}
+ */
+camlistore.BlobItem.prototype.isCollection = function() {
+	// TODO(mpl): for now disallow being a collection if it
+	// has members. What else to check?
+	if (!this.resolvedMetaData_ ||
+		this.resolvedMetaData_.camliType != 'permanode' ||
+		!this.resolvedMetaData_.permanode ||
+		!this.resolvedMetaData_.permanode.attr ||
+		!!this.resolvedMetaData_.permanode.attr.camliContent) {
+			return false;
+	}
+	return true;
+};
 
 /**
  * @return {string}
