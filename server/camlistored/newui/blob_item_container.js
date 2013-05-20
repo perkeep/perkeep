@@ -293,20 +293,37 @@ camlistore.BlobItemContainer.prototype.isShiftKeyDown_ = false;
 
 
 /**
- * Sets state for whether or not the shift key is down.
+ * @type {boolean}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.isCtrlKeyDown_ = false;
+
+
+/**
+ * Sets state for whether or not the shift or ctrl key is down.
  * @param {goog.events.KeyEvent} e A key event.
  */
 camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
-  this.isShiftKeyDown_ = e.keyCode == goog.events.KeyCodes.SHIFT;
+  if (e.keyCode == goog.events.KeyCodes.SHIFT) {
+    this.isShiftKeyDown_ = true;
+    this.isCtrlKeyDown_ = false;
+    return;
+  }
+  if (e.keyCode == goog.events.KeyCodes.CTRL) {
+    this.isCtrlKeyDown_ = true;
+    this.isShiftKeyDown_ = false;
+    return;
+  }
 };
 
 
 /**
- * Sets state for whether or not the shift key is up.
+ * Sets state for whether or not the shift or ctrl key is up.
  * @param {goog.events.KeyEvent} e A key event.
  */
 camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
   this.isShiftKeyDown_ = false;
+  this.isCtrlKeyDown_ = false;
 };
 
 
@@ -321,10 +338,10 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
   e.preventDefault();
   var blobItem = e.target;
   var isCheckingItem = !blobItem.isChecked();
-  // TODO(mpl): do a control-click multi select too.
   var isShiftMultiSelect = this.isShiftKeyDown_;
+  var isCtrlMultiSelect = this.isCtrlKeyDown_;
 
-  if (isShiftMultiSelect) {
+  if (isShiftMultiSelect || isCtrlMultiSelect) {
     var lastChildSelected =
         this.checkedBlobItems_[this.checkedBlobItems_.length - 1];
     var firstChildSelected =
@@ -332,7 +349,9 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
     var lastChosenIndex = this.indexOfChild(lastChildSelected);
     var firstChosenIndex = this.indexOfChild(firstChildSelected);
     var thisIndex = this.indexOfChild(blobItem);
+  }
 
+  if (isShiftMultiSelect) {
     // deselect all items after the chosen one
     for (var i = lastChosenIndex; i > thisIndex; i--) {
       var item = this.getChildAt(i);
@@ -347,6 +366,33 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
       item.setState(goog.ui.Component.State.CHECKED, true);
       if (!goog.array.contains(this.checkedBlobItems_, item)) {
         this.checkedBlobItems_.push(item);
+      }
+    }
+  } else if (isCtrlMultiSelect) {
+    if (isCheckingItem) {
+      blobItem.setState(goog.ui.Component.State.CHECKED, true);
+      if (!goog.array.contains(this.checkedBlobItems_, blobItem)) {
+        var pos = -1;
+        for (var i = 0; i <= this.checkedBlobItems_.length; i++) {
+          var idx = this.indexOfChild(this.checkedBlobItems_[i]);
+          if (idx > thisIndex) {
+            pos = i;
+            break;
+          }
+        }
+        if (pos != -1) {
+          goog.array.insertAt(this.checkedBlobItems_, blobItem, pos)
+        } else {
+          this.checkedBlobItems_.push(blobItem);
+        }
+      }
+    } else {
+      blobItem.setState(goog.ui.Component.State.CHECKED, false);
+      if (goog.array.contains(this.checkedBlobItems_, blobItem)) {
+        var done = goog.array.remove(this.checkedBlobItems_, blobItem);
+        if (!done) {
+          alert("Failed to remove item from selection");
+        }
       }
     }
   } else {
