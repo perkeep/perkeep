@@ -268,6 +268,22 @@ function(sigconf, attr, value, fuzzy, max) {
 };
 
 /**
+ * Search for a permanode with the required blobref
+ * @param {string} blobref
+ */
+camlistore.BlobItemContainer.prototype.findByBlobref_ =
+function(blobref) {
+	this.connection_.describeWithThumbnails(
+		blobref,
+		this.thumbnailSize_,
+		goog.bind(this.findByBlobrefDone_, this, blobref),
+		function(msg) {
+			alert(msg);
+		}
+	);
+};
+
+/**
  * @return {Array.<camlistore.BlobItem>}
  */
 camlistore.BlobItemContainer.prototype.getCheckedBlobItems = function() {
@@ -450,7 +466,6 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
-	this.resetChildren_();
 	if (!result) {
 		return;
 	}
@@ -459,11 +474,30 @@ camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
 	if (!results || !meta) {
 		return;
 	}
+	this.resetChildren_();
 	for (var i = 0, n = results.length; i < n; i++) {
 		var blobRef = results[i].permanode;
 		var item = new camlistore.BlobItem(blobRef, meta);
 		this.addChild(item, true);
 	}
+};
+
+/**
+ * @param {camlistore.ServerType.DescribeResponse} result JSON response to this request.
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.findByBlobrefDone_ =
+function(permanode, result) {
+	if (!result) {
+		return;
+	}
+	var meta = result.meta;
+	if (!meta || !meta[permanode]) {
+		return;
+	}
+	this.resetChildren_();
+	var item = new camlistore.BlobItem(permanode, meta);
+	this.addChild(item, true);
 };
 
 /**
@@ -551,7 +585,7 @@ camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
 
 /**
  * @param {string} permanode Node to describe.
- * @param {Object} describeResult Object of properties for the node.
+ * @param {camlistore.ServerType.DescribeResponse} describeResult Object of properties for the node.
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
