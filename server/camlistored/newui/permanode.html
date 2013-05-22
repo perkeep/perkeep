@@ -14,6 +14,8 @@
 		goog.require('camlistore.PermanodePage');
 	</script>
 	<link rel="stylesheet" href="permanode.css">
+	<link rel="stylesheet" href="blob_item.css">
+	<link rel="stylesheet" href="blob_item_container.css">
 </head>
 <body class="cam-permanode-page">
 	<div class="cam-permanode-nav"><a href="./">Home</a></div>
@@ -78,9 +80,9 @@
 	</form>
 
 	<div id="members"></div>
-	<p>
-	<button id="btnGallery"> Show gallery </button> 
-	</p>
+	<p><button id="btnGallery" value="list">Thumbnails</button></p>
+	<div id="membersList"></div>
+	<div id="membersThumbs"></div>
 
 	<div id="content"></div>
 

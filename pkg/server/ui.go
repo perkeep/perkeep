@@ -199,6 +199,8 @@ func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
 
+// TODO(mpl): remove when we make the full switch to newui, since
+// we're now using a blobcontainer directly on the permanode page.
 func wantsGallery(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("g")) != nil
 }
