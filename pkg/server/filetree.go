@@ -43,6 +43,11 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	defer httputil.ReturnJSON(rw, ret)
 
 	de, err := schema.NewDirectoryEntryFromBlobRef(fth.storageSeekFetcher(), fth.file)
+	if err != nil {
+		http.Error(rw, "Error reading directory", 500)
+		log.Printf("Error reading directory from blobref %s: %v\n", fth.file, err)
+		return
+	}
 	dir, err := de.Directory()
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)

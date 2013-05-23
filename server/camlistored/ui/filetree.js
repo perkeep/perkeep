@@ -126,7 +126,7 @@ function treePageOnLoad(e) {
 	if (blobref) {
 		var dbcb = {};
 		dbcb.success = function(bmap) {
-			var binfo = bmap[blobref];
+			var binfo = bmap.meta[blobref];
 			if (!binfo) {
 				alert("Error describing blob " + blobref);
 				return;
