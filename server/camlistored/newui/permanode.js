@@ -26,6 +26,7 @@ goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Component');
 goog.require('camlistore.BlobItem');
+goog.require('camlistore.BlobItemContainer');
 goog.require('camlistore.ServerConnection');
 
 /**
@@ -46,19 +47,46 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
 	this.config_ = config;
 
 	/**
+	 * For members, not content.
+	 * @type {camlistore.BlobItemContainer}
+	 * @private
+	 */
+	this.blobItemContainer_ = new camlistore.BlobItemContainer(
+		this.connection_, opt_domHelper
+	);
+	// We'll get thumbs that are too large for this container, see TODO below.
+	// No big deal though.
+	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[1];
+
+	// TODO(mpl): use a DescribeResponse as type, once we've merged
+	// with the other CL that introduces it.
+	/**
+	 * @type {Object}
+	 * @private
+	 */
+	this.describeResponse_ = null;
+
+	/**
 	 * @type {camlistore.ServerConnection}
 	 * @private
 	 */
 	this.connection_ = new camlistore.ServerConnection(config);
-
 };
 goog.inherits(camlistore.PermanodePage, goog.ui.Component);
 
+
+// TODO(mpl): the problem is that we use that size for the describe request
+// without knowing, à priori, if we'll get some content (file) or members
+// (dir/collection). And if we're with a collection, we'd like way smaller
+// thumbs than that.
+// We could redo a describe request with a smaller size just to (re)draw the
+// members I suppose...
+// Salient would probably come in handy here.
 /**
  * @type {number}
  * @private
  */
-camlistore.PermanodePage.prototype.thumbnailSize_ = 200;
+camlistore.PermanodePage.prototype.contentThumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[5];
 
 
 /**
@@ -108,7 +136,17 @@ camlistore.PermanodePage.prototype.enterDocument = function() {
 		false, this);
 	goog.events.listen(goog.dom.getElement('btnGallery'),
 		goog.events.EventType.CLICK,
-		handleGoToGallery_,
+		function() {
+			var btnGallery = goog.dom.getElement('btnGallery');
+			if (btnGallery.value == "list") {
+				goog.dom.setTextContent(btnGallery, "List");
+				btnGallery.value = "thumbnails";
+			} else {
+				goog.dom.setTextContent(btnGallery, "Thumbnails");
+				btnGallery.value = "list";
+			}
+			this.reloadMembers_();
+		},
 		false, this);
 
 	// set publish roots
@@ -120,6 +158,8 @@ camlistore.PermanodePage.prototype.enterDocument = function() {
 	this.describeBlob_()
 
 	this.buildPathsList_()
+
+	this.blobItemContainer_.render(goog.dom.getElement('membersThumbs'));
 };
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
@@ -145,7 +185,7 @@ camlistore.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
 	this.connection_.describeWithThumbnails(
 		permanode,
-		this.thumbnailSize_,
+		this.contentThumbnailSize_,
 		goog.bind(this.handleDescribeBlob_, this, permanode),
 		function(msg) {
 			alert("failed to get blob description: " + msg);
@@ -170,6 +210,7 @@ function(permanode, describeResult) {
 		alert("blob " + permanode + " isn't a permanode");
 		return;
 	}
+	this.describeResponse_ = describeResult;
 
 	// title form
 	var permTitleValue = permAttr(permObj, "title") ? permAttr(permObj, "title") : "";
@@ -198,14 +239,7 @@ function(permanode, describeResult) {
 	handleType(permObj);
 
 	// members
-	goog.dom.getElement('members').innerHTML = '';
-	var members = permObj.attr.camliMember;
-	if (members && members.length > 0) {
-		for (idx in members) {
-			var member = members[idx];
-			this.addMember_(member, meta);
-		}
-	}
+	this.reloadMembers_();
 
 	// TODO(mpl): use a permanent blobItemContainer instead?
 	/* blob content */
@@ -286,40 +320,73 @@ function(tag, strikeEle, removeEle) {
 	return goog.bind(delFunc, this);
 }
 
+
+/**
+ * @private
+ */
+camlistore.PermanodePage.prototype.reloadMembers_ =
+function() {
+	var meta = this.describeResponse_.meta;
+	var permanode = getPermanodeParam();
+	var members = meta[permanode].permanode.attr.camliMember;
+	var membersList = goog.dom.getElement('membersList');
+	var membersThumbs = goog.dom.getElement('membersThumbs');
+	membersList.innerHTML = '';
+	if (members && members.length > 0) {
+		var btnGallery = goog.dom.getElement('btnGallery');
+		var doThumbnails = (btnGallery.value == "thumbnails");
+		if (doThumbnails) {
+			this.blobItemContainer_.show_();
+		} else {
+			this.blobItemContainer_.hide_();
+			this.blobItemContainer_.resetChildren_();
+		}
+		for (idx in members) {
+			var member = members[idx];
+			this.addMember_(member, meta, doThumbnails);
+		}
+	}
+}
+
+
 /**
  * @param {string} pn child permanode.
  * @param {Object} meta meta in describe response.
+ * @param {booleon} thumbnails whether to display thumbnails or a list
  * @private
  */
 camlistore.PermanodePage.prototype.addMember_ =
-function(pn, meta) {
-	var membersDiv = goog.dom.getElement("members");
-	var ul;
-	if (membersDiv.innerHTML == "") {
-		goog.dom.appendChild(membersDiv, document.createTextNode("Members:"));
-		ul = goog.dom.createDom("ul");
-		goog.dom.appendChild(membersDiv, ul);
-	} else {
-		ul = membersDiv.firstChild.nextSibling;
-	}
-	var li = goog.dom.createDom("li");
-	var a = goog.dom.createDom("a");
-	a.href = "./?p=" + pn;
+function(pn, meta, thumbnails) {
 	var blobItem = new camlistore.BlobItem(pn, meta);
-	goog.dom.setTextContent(a, blobItem.getTitle_());
+	if (thumbnails) {
+		this.blobItemContainer_.addChild(blobItem, true)
+	} else {
+		var membersList = goog.dom.getElement("membersList");
+		var ul;
+		if (membersList.innerHTML == "") {
+			ul = goog.dom.createDom("ul");
+			goog.dom.appendChild(membersList, ul);
+		} else {
+			ul = membersList.firstChild;
+		}
+		var li = goog.dom.createDom("li");
+		var a = goog.dom.createDom("a");
+		a.href = "./?p=" + pn;
+		goog.dom.setTextContent(a, blobItem.getTitle_());
 
-	var del = goog.dom.createDom("span");
-	del.className = 'cam-permanode-del';
-	goog.dom.setTextContent(del, "x");
-	goog.events.listen(del,
-		goog.events.EventType.CLICK,
-		this.deleteMemberFunc_(pn, a, li),
-		false, this
-	);
+		var del = goog.dom.createDom("span");
+		del.className = 'cam-permanode-del';
+		goog.dom.setTextContent(del, "x");
+		goog.events.listen(del,
+			goog.events.EventType.CLICK,
+			this.deleteMemberFunc_(pn, a, li),
+			false, this
+		);
 
-	goog.dom.appendChild(li, a);
-	goog.dom.appendChild(li, del);
-	goog.dom.appendChild(ul, li);
+		goog.dom.appendChild(li, a);
+		goog.dom.appendChild(li, del);
+		goog.dom.appendChild(ul, li);
+	}
 }
 
 /**
@@ -337,9 +404,11 @@ function(member, strikeEle, removeEle) {
 			getPermanodeParam(),
 			"camliMember",
 			member,
-			function() {
+			goog.bind(function() {
 				removeEle.parentNode.removeChild(removeEle);
-			},
+				// TODO(mpl): refreshing the whole thing is kindof heavy, maybe?
+				this.describeBlob_();
+			}, this),
 			function(msg) {
 				alert(msg);
 			}
@@ -840,24 +909,19 @@ function handleType(permObj) {
 
 	var dnd = goog.dom.getElement("dnd");
 	var btnGallery = goog.dom.getElement("btnGallery");
+	var membersDiv = goog.dom.getElement("members");
 	if (selType.value == "collection" || selType.value == "") {
 		dnd.style.display = "block";
 		btnGallery.style.visibility = 'visible';
+		goog.dom.setTextContent(membersDiv, "Members:");
 	} else {
 		dnd.style.display = "none";
 		btnGallery.style.visibility = 'hidden';
+		goog.dom.setTextContent(membersDiv, "");
 	}
 	goog.dom.getElement("selectPublishRoot").disabled = disablePublish;
 	goog.dom.getElement("publishSuffix").disabled = disablePublish;
 	goog.dom.getElement("btnSavePublish").disabled = disablePublish;
-};
-
-
-function handleGoToGallery_(e) {
-	var permanode = getPermanodeParam();
-	if (permanode) {
-		window.open('./?g=' + permanode, 'Gallery');
-	}
 };
 
 

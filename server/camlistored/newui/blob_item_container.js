@@ -597,3 +597,23 @@ camlistore.BlobItemContainer.prototype.handleFileDragLeave_ = function(e) {
     this.resetDragState_();
   }
 };
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.hide_ = function() {
+	goog.dom.classes.remove(this.getElement(),
+		'cam-blobitemcontainer-' + this.thumbnailSize_);
+	goog.dom.classes.add(this.getElement(),
+		'cam-blobitemcontainer-hidden');
+};
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.show_ = function() {
+	goog.dom.classes.remove(this.getElement(),
+		'cam-blobitemcontainer-hidden');
+	goog.dom.classes.add(this.getElement(),
+		'cam-blobitemcontainer-' + this.thumbnailSize_);
+};
