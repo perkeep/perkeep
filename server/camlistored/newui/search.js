@@ -16,7 +16,6 @@ goog.require('camlistore.Toolbar');
 goog.require('camlistore.Toolbar.EventType');
 
 
-// TODO(mpl): add selected items to existing set.
 // TODO(mpl): better help. tooltip maybe?
 
 // TODO(mpl): make a mother class that both index.js and search.js could
@@ -73,7 +72,8 @@ goog.inherits(camlistore.SearchPage, goog.ui.Component);
  */
 camlistore.SearchPage.prototype.searchPrefix_ = {
   TAG: 'tag:',
-  TITLE: 'title:'
+  TITLE: 'title:',
+  BLOBREF: 'bref:'
 };
 
 
@@ -110,7 +110,7 @@ camlistore.SearchPage.prototype.decorateInternal = function(element) {
 
 	var searchForm = this.dom_.createDom('form', {'id': 'searchForm'});
 	var searchText = this.dom_.createDom('input',
-		{'type': 'text', 'id': 'searchText', 'size': 20, 'title': 'Search'}
+		{'type': 'text', 'id': 'searchText', 'size': 50, 'title': 'Search'}
 	);
 	var btnSearch = this.dom_.createDom('input',
 		{'type': 'submit', 'id': 'btnSearch', 'value': 'Search'}
@@ -172,22 +172,87 @@ camlistore.SearchPage.prototype.enterDocument = function() {
 	);
 
 	this.eh_.listen(
-			this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
-			function() {
-				var blobItems = this.blobItemContainer_.getCheckedBlobItems();
-				this.createNewSetWithItems_(blobItems);
-			});
+		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			this.createNewSetWithItems_(blobItems);
+		}
+	);
 
 	this.eh_.listen(
-			this.blobItemContainer_,
-			camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
-			function() {
-				var blobItems = this.blobItemContainer_.getCheckedBlobItems();
-				this.toolbar_.setCheckedBlobItemCount(blobItems.length);
-			});
+		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			this.addItemsToSet_(blobItems);
+		}
+	);
+
+	this.eh_.listen(
+		this.blobItemContainer_,
+		camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
+		function() {
+			this.handleItemSelection_(false);
+		}
+	);
+
+	this.eh_.listen(
+		this.blobItemContainer_,
+		camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,
+		function() {
+			this.handleItemSelection_(true);
+		}
+	);
+
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			// there should be only one item selected
+			if (blobItems.length != 1) {
+				alert("Select (only) one item to set as the default collection.");
+				return;
+			}
+			this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;
+			this.blobItemContainer_.unselectAll();
+			this.toolbar_.setCheckedBlobItemCount(0);
+			this.toolbar_.toggleCollecButton(false);
+			this.toolbar_.toggleAddToSetButton(false);
+		}
+	);
 
 };
 
+
+/**
+ * @param {boolean} single Whether a single item has been (un)selected.
+ * @private
+ */
+camlistore.SearchPage.prototype.handleItemSelection_ =
+function(single) {
+	var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+	this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+	// set checkedItemsAddToSetButton_
+	if (this.blobItemContainer_.currentCollec_ &&
+		this.blobItemContainer_.currentCollec_ != "" &&
+		blobItems.length > 0) {
+		this.toolbar_.toggleAddToSetButton(true);
+	} else {
+		this.toolbar_.toggleAddToSetButton(false);
+	}
+	// set setAsCollecButton_
+	if (single &&
+		blobItems.length == 1 &&
+		blobItems[0].isCollection()) {
+		this.toolbar_.toggleCollecButton(true);
+	} else {
+		this.toolbar_.toggleCollecButton(false);
+	}
+}
+
+// Returns true if the passed-in string might be a blobref.
+isPlausibleBlobRef = function(blobRef) {
+	return /^\w+-[a-f0-9]+$/.test(blobRef);
+};
 
 /**
  * @param {goog.events.Event} e The title form submit event.
@@ -206,17 +271,27 @@ function(e) {
 	var attr = "";
 	var value = "";
 	var fuzzy = false;
-	// is it a tag search?
 	if (searchText.value.indexOf(this.searchPrefix_.TAG) == 0) {
+		// search by tag
 		attr = "tag";
 		value = searchText.value.slice(this.searchPrefix_.TAG.length);
 		// TODO(mpl): allow fuzzy option for tag search. How?
 		// ":fuzzy" at the end of search string maybe?
-	// is it a title search?
 	} else if (searchText.value.indexOf(this.searchPrefix_.TITLE) == 0) {
+		// search by title
 		attr = "title";
 		value = searchText.value.slice(this.searchPrefix_.TITLE.length);
 		// TODO(mpl): fuzzy search seems to be broken for title. investigate.
+	} else if (searchText.value.indexOf(this.searchPrefix_.BLOBREF) == 0) {
+		// or query directly by blobref (useful to get a permanode and set it
+		// as the default collection)
+		value = searchText.value.slice(this.searchPrefix_.BLOBREF.length);
+		if (isPlausibleBlobRef(value)) {
+			this.blobItemContainer_.findByBlobref_(value);
+		}
+		searchText.disabled = false;
+		btnSearch.disabled = false;
+		return;
 	} else {
 		attr = "";
 		value = searchText.value;
@@ -247,29 +322,44 @@ camlistore.SearchPage.prototype.exitDocument = function() {
  */
 camlistore.SearchPage.prototype.createNewSetWithItems_ = function(blobItems) {
 	this.connection_.createPermanode(
-		goog.bind(this.createPermanodeDone_, this, blobItems));
+		goog.bind(this.addMembers_, this, true, blobItems));
 };
 
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.SearchPage.prototype.addItemsToSet_ = function(blobItems) {
+	if (!this.blobItemContainer_.currentCollec_ ||
+		this.blobItemContainer_.currentCollec_ == "") {
+		alert("no destination collection selected");
+	}
+	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);
+};
 
 /**
+ * @param {boolean} newSet Whether the containing set has just been created.
  * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
  * @param {string} permanode Node to add the items to.
  * @private
  */
-camlistore.SearchPage.prototype.createPermanodeDone_ =
-function(blobItems, permanode) {
+camlistore.SearchPage.prototype.addMembers_ =
+function(newSet, blobItems, permanode) {
 	var deferredList = [];
 	var complete = goog.bind(this.addItemsToSetDone_, this, permanode);
 	var callback = function() {
 		deferredList.push(1);
-		if (deferredList.length == blobItems.length + 1) {
+		if (deferredList.length == blobItems.length) {
 			complete();
 		}
 	};
 
-	this.connection_.newAddAttributeClaim(
-		permanode, 'title', 'My new set', callback
-	);
+	// TODO(mpl): newSet is a lame trick. Do better.
+	if (newSet) {
+		this.connection_.newSetAttributeClaim(
+			permanode, 'title', 'My new set', function() {}
+		);
+	}
 	goog.array.forEach(blobItems, function(blobItem, index) {
 		this.connection_.newAddAttributeClaim(
 			permanode, 'camliMember', blobItem.getBlobRef(), callback
@@ -286,4 +376,6 @@ camlistore.SearchPage.prototype.addItemsToSetDone_ = function(permanode) {
 	this.blobItemContainer_.unselectAll();
 	var blobItems = this.blobItemContainer_.getCheckedBlobItems();
 	this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+	this.toolbar_.toggleCollecButton(false);
+	this.toolbar_.toggleAddToSetButton(false);
 };

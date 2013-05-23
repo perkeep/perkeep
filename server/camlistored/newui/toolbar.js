@@ -47,7 +47,6 @@ camlistore.Toolbar = function(opt_domHelper) {
   this.checkedItemsCreateSetButton_.addClassName('cam-checked-items');
 
   /**
-   * Used only on the index page (for now)
    * @type {goog.ui.ToolbarButton}
    * @private
    */
@@ -56,7 +55,6 @@ camlistore.Toolbar = function(opt_domHelper) {
   this.checkedItemsAddToSetButton_.setEnabled(false);
 
   /**
-   * Used only on the index page (for now)
    * @type {goog.ui.ToolbarButton}
    * @private
    */
@@ -88,10 +86,11 @@ camlistore.Toolbar = function(opt_domHelper) {
    */
   // TODO(mpl): figure out why it is acting retarded with the positioning.
   var pm = new goog.ui.PopupMenu();
-  pm.addItem(new goog.ui.MenuItem('Examples:'));
-  pm.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: tag:foo"));
-  pm.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: title:bar"));
-  pm.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: baz (broken atm?)"));
+  pm.addItem(new goog.ui.MenuItem('Usage examples (omit the double-quotes):'));
+  pm.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: \"tag:foo\""));
+  pm.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: \"title:bar\""));
+  pm.addItem(new goog.ui.MenuItem("Search for permanode with blobref XXX: \"bref:XXX\""));
+  pm.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: \"baz\" (broken atm?)"));
   this.helpButton_ = new goog.ui.ToolbarMenuButton('Help', pm);
 
   /**
@@ -150,13 +149,13 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.biggerButton_, true);
   this.addChild(this.smallerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
+  this.addChild(this.setAsCollecButton_, true);
+  this.addChild(this.checkedItemsAddToSetButton_, true);
   if (this.isSearch == "true") {
-    this.addChild(this.homeButton_, true);
     this.addChild(this.rootsButton_, true);
+    this.addChild(this.homeButton_, true);
     this.addChild(this.helpButton_, true);
   } else {
-    this.addChild(this.setAsCollecButton_, true);
-    this.addChild(this.checkedItemsAddToSetButton_, true);
     this.addChild(this.goSearchButton_, true);
   }
 };
@@ -199,18 +198,6 @@ camlistore.Toolbar.prototype.enterDocument = function() {
 
   } else {
 
-  this.eh_.listen(
-      this.setAsCollecButton_.getElement(),
-      goog.events.EventType.CLICK,
-      goog.bind(this.dispatch_, this,
-                camlistore.Toolbar.EventType.SELECT_COLLEC));
-
-  this.eh_.listen(
-      this.checkedItemsAddToSetButton_.getElement(),
-      goog.events.EventType.CLICK,
-      goog.bind(this.dispatch_, this,
-                camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET));
-
     this.eh_.listen(
       this.goSearchButton_.getElement(),
       goog.events.EventType.CLICK,
@@ -223,6 +210,18 @@ camlistore.Toolbar.prototype.enterDocument = function() {
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this,
                 camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET));
+
+  this.eh_.listen(
+      this.setAsCollecButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this,
+                camlistore.Toolbar.EventType.SELECT_COLLEC));
+
+  this.eh_.listen(
+      this.checkedItemsAddToSetButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this,
+                camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET));
 
 };
 

@@ -121,3 +121,10 @@ camlistore.ServerType.SearchWithAttrItem;
  * }}
 */
 camlistore.ServerType.SearchWithAttrResponse;
+
+/**
+ * @typedef {{
+ *   meta: camlistore.ServerType.IndexerMetaBag
+ * }}
+*/
+camlistore.ServerType.DescribeResponse;
