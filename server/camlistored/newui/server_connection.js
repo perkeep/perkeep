@@ -126,6 +126,23 @@ function(success, fail, e) {
 };
 
 /**
+ * @param {Function} success callback with data.
+ * @param {?Function} opt_fail optional failure calback
+ */
+camlistore.ServerConnection.prototype.discoSignRoot =
+function(success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.jsonSignRoot, '/camli/sig/discovery'
+	);
+
+	this.sendXhr_(path,
+		goog.bind(this.handleXhrResponseJson_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
+
+/**
  * @param {Function} success Success callback.
  * @param {?Function} opt_fail Optional fail callback.
  * @param {goog.events.Event} e Event that triggered this
@@ -287,7 +304,7 @@ function(clearObj, success, opt_fail) {
 	}
 
     clearObj.camliSigner = sigConf.publicKeyBlobRef;
-    clearText = JSON.stringify(clearObj, null, 2);
+    clearText = JSON.stringify(clearObj);
 
 	this.sendXhr_(
 		sigConf.signHandler,
@@ -299,6 +316,31 @@ function(clearObj, success, opt_fail) {
 	);
 };
 
+/**
+ * @param {Object} sObj Signed object.
+ * @param {Function} success Success callback.
+ * @param {?Function} opt_fail Optional fail callback.
+ * @private
+ */
+camlistore.ServerConnection.prototype.verify_ =
+function(sObj, success, opt_fail) {
+	var sigConf = this.config_.signing;
+	if (!sigConf || !sigConf.publicKeyBlobRef) {
+		this.safeFail_(opt_fail)("Missing Camli.config.signing.publicKeyBlobRef");
+		return;
+	}
+
+    var clearText = JSON.stringify(sObj);
+
+	this.sendXhr_(
+		sigConf.verifyHandler,
+		goog.bind(this.handlePost_, this,
+			success, this.safeFail_(opt_fail)),
+		"POST",
+		"sjson=" + encodeURIComponent(clearText),
+		{"Content-Type": "application/x-www-form-urlencoded"}
+	);
+};
 
 /**
  * @param {Function} success Success callback.
