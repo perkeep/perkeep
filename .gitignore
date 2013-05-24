@@ -21,3 +21,4 @@ build/root
 tmp
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
+server/camlistored/newui/zembed_all.js.go

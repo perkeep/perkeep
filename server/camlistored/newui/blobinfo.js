@@ -132,10 +132,9 @@ function(bmap) {
 						finfo = JSON.parse(data);
 						bd.innerHTML = "<a href=''></a>";
 						var fileName = finfo.fileName || blobref;
-						// TODO(mpl): ../ is a temp hack. remove when newui replaces ui.
-						bd.firstChild.href = "../download/" + blobref + "/" + fileName;
+						bd.firstChild.href = "./download/" + blobref + "/" + fileName;
 						if (binfo.file.mimeType.indexOf("image/") == 0) {
-							var thumbURL = "<img src='../thumbnail/" + blobref + "/" +
+							var thumbURL = "<img src='./thumbnail/" + blobref + "/" +
 								fileName + "?mw=" + this.thumbnailSize_ +
 								"&mh=" + this.thumbnailSize_ + "'>";
 							goog.dom.getElement("thumbnail").innerHTML = thumbURL;

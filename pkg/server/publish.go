@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +37,7 @@ import (
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"net/url"
@@ -51,8 +54,9 @@ type PublishHandler struct {
 
 	JSFiles, CSSFiles []string
 
-	handlerFinder blobserver.FindHandlerByTyper
-	staticHandler http.Handler
+	handlerFinder  blobserver.FindHandlerByTyper
+	staticHandler  http.Handler
+	closureHandler http.Handler
 }
 
 func init() {
@@ -139,7 +143,16 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		}
 	}
 
-	ph.staticHandler = http.FileServer(uiFiles)
+	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		error := "Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
+			" Needed to find closure dir."
+		return nil, fmt.Errorf(error)
+	}
+	closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
+	ph.closureHandler = http.FileServer(http.Dir(closureDir))
+
+	ph.staticHandler = http.FileServer(newuiFiles)
 
 	return ph, nil
 }
@@ -366,6 +379,17 @@ func (pr *publishRequest) serveHTTP() {
 		pr.serveSubresImage()
 	case "s": // static
 		pr.req.URL.Path = pr.subres[len("/=s"):]
+		if len(pr.req.URL.Path) > 1 {
+			if m := closurePattern.FindStringSubmatch(pr.req.URL.Path[1:]); m != nil {
+				pr.req.URL.Path = "/" + m[1]
+				pr.ph.closureHandler.ServeHTTP(pr.rw, pr.req)
+				return
+			}
+		}
+		if pr.req.URL.Path == "/deps.js" {
+			serveDepsJS(pr.rw, pr.req)
+			return
+		}
 		pr.ph.staticHandler.ServeHTTP(pr.rw, pr.req)
 	default:
 		pr.rw.WriteHeader(400)
@@ -395,6 +419,39 @@ func (pr *publishRequest) memberPath(member *blobref.BlobRef) string {
 	return addPathComponent(pr.subjectBasePath, "/h"+member.DigestPrefix(10))
 }
 
+var provCamliRx = regexp.MustCompile(`^goog\.(provide)\(['"]camlistore\.(.*)['"]\)`)
+
+// camliClosurePage checks if filename is a .js file using closure
+// and if yes, if it provides a page in the camlistore namespace.
+// It returns that page name, or the empty string otherwise.
+func camliClosurePage(filename string) string {
+	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		return ""
+	}
+	// TODO(mpl): to change when we do the final move into ui
+	fullpath := filepath.Join(camliRootPath, "server", "camlistored", "newui", filename)
+	f, err := os.Open(fullpath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		l, err := br.ReadString('\n')
+		if err != nil {
+			return ""
+		}
+		if !strings.HasPrefix(l, "goog.") {
+			continue
+		}
+		m := provCamliRx.FindStringSubmatch(l)
+		if m != nil {
+			return m[2]
+		}
+	}
+}
+
 func (pr *publishRequest) serveSubject() {
 	dr := pr.ph.Search.NewDescribeRequest()
 	dr.Describe(pr.subject, 3)
@@ -415,23 +472,37 @@ func (pr *publishRequest) serveSubject() {
 	title := subdes.Title()
 
 	// HTML header + Javascript
+	var camliPage string
 	{
 		pr.pf("<!doctype html>\n<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
-		for _, filename := range pr.ph.CSSFiles {
-			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
+		// TODO(mpl): We are only using the first .js file, and expecting it to be
+		// using closure. Do we want to be more open about this?
+		if len(pr.ph.JSFiles) > 0 {
+			camliPage = camliClosurePage(pr.ph.JSFiles[0])
 		}
-		for _, filename := range pr.ph.JSFiles {
-			// TODO(bradfitz): Remove this manual dependency hack once Issue 37 is resolved.
-			if filename == "camli.js" {
+
+		if camliPage != "" {
+			if os.Getenv("CAMLI_DEV_NEWUI_FILES") != "" {
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
+				if pr.ViewerIsOwner() {
+					pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
+				}
 				pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
 				pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
 				pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
-			}
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath(filename))
-			if filename == "camli.js" && pr.ViewerIsOwner() {
-				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&cb=onConfiguration")
+				pr.pf("<script>\n goog.require('camlistore.%s');\n </script>\n", camliPage)
+			} else {
+				pr.pf(" <script src='%s'></script>\n", pr.staticPath("all.js"))
+				if pr.ViewerIsOwner() {
+					pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
+				}
 			}
 		}
+		for _, filename := range pr.ph.CSSFiles {
+			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
+		}
+
 		pr.pf(" <script>\n")
 		pr.pf("var camliViewIsOwner = %v;\n", pr.ViewerIsOwner())
 		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
@@ -467,7 +538,7 @@ func (pr *publishRequest) serveSubject() {
 	}
 
 	if members := subdes.Members(); len(members) > 0 {
-		pr.pf("<ul>\n")
+		pr.pf("<ul id='members'>\n")
 		for _, member := range members {
 			des := member.Description()
 			if des != "" {
@@ -492,6 +563,13 @@ func (pr *publishRequest) serveSubject() {
 				fileLink)
 		}
 		pr.pf("</ul>\n")
+	}
+
+	if camliPage != "" {
+		pr.pf("<script>\n")
+		pr.pf("var page = new camlistore.%s(CAMLISTORE_CONFIG);\n", camliPage)
+		pr.pf("page.decorate(document.body);\n")
+		pr.pf("</script>\n")
 	}
 }
 

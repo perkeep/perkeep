@@ -72,16 +72,20 @@ func main() {
 		}
 		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
 
-		zb, fileSize := compressFile(fileName)
+		bs, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// TODO(mpl): rm "newui" test for the final switch
+		if strings.HasSuffix(dir, "newui") && strings.HasSuffix(fileName, ".html") {
+			bs = useMinifiedJs(bs)
+		}
+
+		zb, fileSize := compressFile(bytes.NewReader(bs))
 		ratio := float64(len(zb)) / float64(fileSize)
-		var bs []byte
 		byteStreamType := ""
 		if fileSize < maxUncompressed || ratio > zRatio {
 			byteStreamType = "fileembed.String"
-			bs, err = ioutil.ReadFile(fileName)
-			if err != nil {
-				log.Fatal(err)
-			}
 		} else {
 			byteStreamType = "fileembed.ZlibCompressed"
 			bs = zb
@@ -120,15 +124,26 @@ func main() {
 	}
 }
 
-func compressFile(fileName string) ([]byte, int64) {
+var (
+	jsPattern = regexp.MustCompile(
+		`<script +(type="text/javascript" )?src="(\./)?[a-zA-Z0-9\-\_/]+\.js"></script>`)
+	requirePattern = regexp.MustCompile(
+		`<script>\s*goog.require\(.*\);\s*</script>`)
+	headPattern  = regexp.MustCompile(`<head>`)
+	withMinified = "<head>\n\t\t<script type=\"text/javascript\" src=\"all.js\"></script>"
+)
+
+func useMinifiedJs(b []byte) []byte {
+	bs := jsPattern.ReplaceAllLiteral(b, []byte(""))
+	bs = requirePattern.ReplaceAllLiteral(bs, []byte(""))
+	bs = headPattern.ReplaceAllLiteral(bs, []byte(withMinified))
+	return bs
+}
+
+func compressFile(r io.Reader) ([]byte, int64) {
 	var zb bytes.Buffer
-	f, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
 	w := zlib.NewWriter(&zb)
-	n, err := io.Copy(w, f)
+	n, err := io.Copy(w, r)
 	if err != nil {
 		log.Fatal(err)
 	}

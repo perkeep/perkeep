@@ -238,6 +238,8 @@ function(permanode, describeResult) {
 	// handle type detection
 	handleType(permObj);
 
+	// TODO(mpl): link to filetree browser when type is dir
+
 	// members
 	this.reloadMembers_();
 

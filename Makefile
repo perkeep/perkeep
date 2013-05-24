@@ -11,7 +11,7 @@ presubmit:
 	SKIP_DEP_TESTS=1 go test `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` -short ./pkg/... ./server/camlistored ./cmd/... && echo PASS
 
 embeds:
-	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./pkg/server
+	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./server/camlistored/newui && genfileembed ./pkg/server
 
 getclosure:
 	perl -e 'require "misc/get_closure.pl"; get_closure_lib(); get_closure_compiler();'
@@ -25,14 +25,16 @@ clean:
 
 minijs: $(NEWUIDIR)/all.js
 
-$(NEWUIDIR)/all.js: $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/index.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/toolbar.js $(UIDIR)/base64.js $(UIDIR)/camli.js $(UIDIR)/Crypto.js $(UIDIR)/SHA1.js
-	# This will generate non working code for now, since camli.js, SHA1.js, Crypto.js,
-	# and base64.js are not explicitely declared as dependencies.
+$(NEWUIDIR)/all.js: $(NEWUIDIR)/blobinfo.js $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/filetree.js $(NEWUIDIR)/index.js $(NEWUIDIR)/permanode.js $(NEWUIDIR)/pics.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/search.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/sigdebug.js $(NEWUIDIR)/toolbar.js $(NEWUIDIR)/base64.js $(NEWUIDIR)/Crypto.js $(NEWUIDIR)/SHA1.js
 	tmp/closure-lib/closure/bin/build/closurebuilder.py\
 		--root tmp/closure-lib/ \
-		--root server/camlistored/ui/ \
 		--root server/camlistored/newui/ \
+		--namespace="camlistore.BlobPage" \
+		--namespace="camlistore.FiletreePage" \
+		--namespace="camlistore.GalleryPage" \
 		--namespace="camlistore.IndexPage" \
+		--namespace="camlistore.PermanodePage" \
+		--namespace="camlistore.SearchPage" \
 		--output_mode=compiled \
 		--compiler_jar=tmp/closure-compiler/compiler.jar \
 		--compiler_flags="--compilation_level=SIMPLE_OPTIMIZATIONS" \

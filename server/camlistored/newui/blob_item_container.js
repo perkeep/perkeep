@@ -453,6 +453,9 @@ function() {
  * @private
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
+  if (!result || !result.recent) {
+    return;
+  }
   this.resetChildren_();
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
@@ -513,7 +516,7 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
       function() {
         this.connection_.createPermanode(
             function(p) {
-              window.location = "../?p=" + p;
+              window.location = "./?p=" + p;
             },
             function(failMsg) {
               console.log("Failed to create permanode: " + failMsg);
