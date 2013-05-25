@@ -154,6 +154,27 @@ function(success, opt_fail, e) {
 };
 
 /**
+ * @param {string} blobref root of the tree
+ * @param {function} success callback with data.
+ * @param {?Function} opt_fail optional failure calback
+ */
+camlistore.ServerConnection.prototype.getFileTree =
+function(blobref, success, opt_fail) {
+
+	// TODO(mpl): fix when we do the switch to newui. and
+	// redo it relatively to one of the roots anyway?
+	var path = "../tree/" + blobref;
+
+	this.sendXhr_(
+		path,
+		goog.bind(this.genericHandleSearch_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
+
+
+/**
  * @param {function(camlistore.ServerType.SearchRecentResponse)} success callback with data.
  * @param {number=} opt_thumbnailSize
  * @param {?Function} opt_fail optional failure calback

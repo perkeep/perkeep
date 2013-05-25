@@ -428,6 +428,11 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		serveStaticFile(rw, req, newuiFiles, file)
 		return
 	}
+	if wantsFileTreePage(req) {
+		file := "/filetree.html"
+		serveStaticFile(rw, req, newuiFiles, file)
+		return
+	}
 
 	if suffix == "new" {
 		// Add a trailing slash.
