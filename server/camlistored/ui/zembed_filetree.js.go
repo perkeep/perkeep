@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM filetree.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("filetree.js", 4733, fileembed.String("/*\n"+
+	Files.Add("filetree.js", 4738, fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -139,7 +140,7 @@ func init() {
 		"	if (blobref) {\n"+
 		"		var dbcb = {};\n"+
 		"		dbcb.success = function(bmap) {\n"+
-		"			var binfo = bmap[blobref];\n"+
+		"			var binfo = bmap.meta[blobref];\n"+
 		"			if (!binfo) {\n"+
 		"				alert(\"Error describing blob \" + blobref);\n"+
 		"				return;\n"+
@@ -175,5 +176,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", treePageOnLoad);\n"+
-		""), time.Unix(0, 1358715357000000000))
+		""), time.Unix(0, 1369518799000000000))
 }

@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM base64.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("base64.js", 5879, fileembed.String("/*\n"+
+	Files.Add("base64.js", 5951, fileembed.String("/*\n"+
 		"Copyright (c) 2008 Fred Palmer fred.palmer_at_gmail.com\n"+
 		"\n"+
 		"Permission is hereby granted, free of charge, to any person\n"+
@@ -36,6 +37,9 @@ func init() {
 		"    goog.provide('camlistore.base64');\n"+
 		"}\n"+
 		"\n"+
+		"/**\n"+
+		" * @constructor\n"+
+		" */\n"+
 		"function StringBuffer()\n"+
 		"{ \n"+
 		"    this.buffer = []; \n"+
@@ -117,6 +121,9 @@ func init() {
 		"}\n"+
 		"\n"+
 		"\n"+
+		"/**\n"+
+		" * @constructor\n"+
+		" */\n"+
 		"function Utf8EncodeEnumerator(input)\n"+
 		"{\n"+
 		"    this._input = input;\n"+
@@ -174,6 +181,9 @@ func init() {
 		"    }\n"+
 		"}\n"+
 		"\n"+
+		"/**\n"+
+		" * @constructor\n"+
+		" */\n"+
 		"function Base64DecodeEnumerator(input)\n"+
 		"{\n"+
 		"    this._input = input;\n"+
@@ -220,5 +230,5 @@ func init() {
 		"        }\n"+
 		"    }\n"+
 		"};\n"+
-		""), time.Unix(0, 1359675908724750359))
+		""), time.Unix(0, 1361083496000000000))
 }
