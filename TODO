@@ -1,3 +1,11 @@
+-- move most of camput into a library, not a package main.
+
+-- server cron support: full syncs, camput file backups, integrity
+   checks.
+
+-- status in top right of UI: sync, crons. (in-progress, un-acked
+   problems)
+
 -- encryption blobserver.Storage wrapper (like cond & replicate)
    putting encrypted metadata in one blobserver.Storage and encrypted
    blobs in another blobserver.Storage.  the metadata one will
