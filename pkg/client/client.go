@@ -437,10 +437,8 @@ func (c *Client) doDiscovery() {
 
 	// If the path is just "" or "/", do discovery against
 	// the URL to see which path we should actually use.
-	// TODO(mpl): maybe just use c.newRequest instead?
-	req, _ := http.NewRequest("GET", c.condRewriteURL(c.discoRoot()), nil)
+	req := c.newRequest("GET", c.discoRoot(), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
-	c.authMode.AddAuthHeader(req)
 	res, err := c.doReqGated(req)
 	if err != nil {
 		c.discoErr = err
