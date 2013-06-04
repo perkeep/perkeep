@@ -42,6 +42,11 @@ type Files struct {
 	// slurped into memory.  It's intended for use with DirFallback.
 	SlurpToMemory bool
 
+	// Listable controls whether requests for the http file "/" return
+	// a directory of available files. Must be set to true for
+	// http.FileServer to correctly handle requests for index.html.
+	Listable bool
+
 	lk   sync.Mutex
 	file map[string]*staticFile
 }
@@ -107,9 +112,11 @@ func (f *Files) add(filename string, sf *staticFile) {
 var _ http.FileSystem = (*Files)(nil)
 
 func (f *Files) Open(filename string) (hf http.File, err error) {
-	if strings.HasPrefix(filename, "/") {
-		filename = filename[1:]
+	// don't bother locking f.lk here, because Listable will normally be set on initialization
+	if filename == "/" && f.Listable {
+		return openDir(f)
 	}
+	filename = strings.TrimLeft(filename, "/")
 	if e := f.OverrideEnv; e != "" && os.Getenv(e) != "" {
 		diskPath := filepath.Join(os.Getenv(e), filename)
 		return os.Open(diskPath)
@@ -209,3 +216,72 @@ func (f *staticFile) Mode() os.FileMode  { return 0444 }
 func (f *staticFile) ModTime() time.Time { return f.modtime }
 func (f *staticFile) IsDir() bool        { return false }
 func (f *staticFile) Sys() interface{}   { return nil }
+
+func openDir(f *Files) (hf http.File, err error) {
+	f.lk.Lock()
+	defer f.lk.Unlock()
+
+	allFiles := make([]os.FileInfo, 0, len(f.file))
+	var dirModtime time.Time
+
+	for filename, sfile := range f.file {
+		if strings.Contains(filename, "/") {
+			continue // skip child directories; we only support readdir on the rootdir for now
+		}
+		allFiles = append(allFiles, sfile)
+		// a directory's modtime is the maximum contained modtime
+		if sfile.modtime.After(dirModtime) {
+			dirModtime = sfile.modtime
+		}
+	}
+
+	return &dirHandle{
+		sd:    &staticDir{name: "/", modtime: dirModtime},
+		files: allFiles,
+	}, nil
+}
+
+type dirHandle struct {
+	sd    *staticDir
+	files []os.FileInfo
+	off   int
+}
+
+func (d *dirHandle) Readdir(n int) ([]os.FileInfo, error) {
+	if n <= 0 {
+		return d.files, nil
+	}
+	if d.off >= len(d.files) {
+		return []os.FileInfo{}, io.EOF
+	}
+
+	if d.off+n > len(d.files) {
+		n = len(d.files) - d.off
+	}
+	matches := d.files[d.off : d.off+n]
+	d.off += n
+
+	var err error
+	if d.off > len(d.files) {
+		err = io.EOF
+	}
+
+	return matches, err
+}
+
+func (d *dirHandle) Close() error                   { return nil }
+func (d *dirHandle) Read(p []byte) (int, error)     { return 0, errors.New("not file") }
+func (d *dirHandle) Seek(int64, int) (int64, error) { return 0, os.ErrInvalid }
+func (d *dirHandle) Stat() (os.FileInfo, error)     { return d.sd, nil }
+
+type staticDir struct {
+	name    string
+	modtime time.Time
+}
+
+func (d *staticDir) Name() string       { return d.name }
+func (d *staticDir) Size() int64        { return 0 }
+func (d *staticDir) Mode() os.FileMode  { return 0444 | os.ModeDir }
+func (d *staticDir) ModTime() time.Time { return d.modtime }
+func (d *staticDir) IsDir() bool        { return true }
+func (d *staticDir) Sys() interface{}   { return nil }
