@@ -21,7 +21,7 @@
 				"rootPermanode": ["/sighelper/", "sha1-xxxxx"],
 				"cache": "/cache/",
 				"css": ["pics.css"],
-				"js": ["camli.js", "pics.js"],
+				"js": ["pics.js"],
 				"scaledImage": "lrucache"
 			}
 		},
