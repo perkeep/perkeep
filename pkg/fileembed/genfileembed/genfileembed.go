@@ -40,8 +40,20 @@ const (
 	zRatio = 0.5
 )
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "usage: genfileembed [flags] [<dir>]\n")
+	flag.PrintDefaults()
+	os.Exit(2)
+}
+
 func main() {
+	var processAll bool
+	flag.BoolVar(&processAll, "all", false, "process all files (if false, only process modified files)")
+	var fileEmbedPkgPath string
+	flag.StringVar(&fileEmbedPkgPath, "fileembed-package", "camlistore.org/pkg/fileembed", "the Go package name for fileembed. If you have vendored fileembed (e.g. with goven), you can use this flag to ensure that generated code imports the vendored package.")
+	flag.Usage = usage
 	flag.Parse()
+
 	dir := "."
 	switch flag.NArg() {
 	case 0:
@@ -51,8 +63,7 @@ func main() {
 			log.Fatalf("chdir(%q) = %v", dir, err)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "usage: genfileembed [<dir>]\n")
-		os.Exit(2)
+		flag.Usage()
 	}
 
 	pkgName, filePattern, err := parseFileEmbed()
@@ -67,7 +78,7 @@ func main() {
 			log.Fatal(err)
 		}
 		efi, err := os.Stat(embedName)
-		if err == nil && !efi.ModTime().Before(fi.ModTime()) {
+		if err == nil && !efi.ModTime().Before(fi.ModTime()) && !processAll {
 			continue
 		}
 		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
@@ -93,7 +104,7 @@ func main() {
 		fmt.Fprintf(&b, "// DO NOT EDIT.\n\n")
 		fmt.Fprintf(&b, "package %s\n\n", pkgName)
 		fmt.Fprintf(&b, "import \"time\"\n\n")
-		fmt.Fprintf(&b, "import \"camlistore.org/pkg/fileembed\"\n\n")
+		fmt.Fprintf(&b, "import \""+fileEmbedPkgPath+"\"\n\n")
 		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %d, %s(%s), time.Unix(0, %d));\n}\n",
 			fileName, fileSize, byteStreamType, qb, fi.ModTime().UnixNano())
 
