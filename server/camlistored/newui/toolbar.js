@@ -26,6 +26,11 @@ camlistore.Toolbar = function(opt_domHelper) {
   goog.base(this, opt_domHelper);
 
   /**
+   * @type {boolean}
+   */
+  this.isSearch = false;
+
+  /**
    * @type {goog.ui.ToolbarButton}
    * @private
    */
@@ -81,17 +86,16 @@ camlistore.Toolbar = function(opt_domHelper) {
 
   /**
    * Used only on the search page
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.ToolbarMenuButton}
    * @private
    */
   // TODO(mpl): figure out why it is acting retarded with the positioning.
-  var pm = new goog.ui.PopupMenu();
-  pm.addItem(new goog.ui.MenuItem('Usage examples (omit the double-quotes):'));
-  pm.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: \"tag:foo\""));
-  pm.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: \"title:bar\""));
-  pm.addItem(new goog.ui.MenuItem("Search for permanode with blobref XXX: \"bref:XXX\""));
-  pm.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: \"baz\" (broken atm?)"));
-  this.helpButton_ = new goog.ui.ToolbarMenuButton('Help', pm);
+  this.helpButton_ = new goog.ui.ToolbarMenuButton('Help');
+  this.helpButton_.addItem(new goog.ui.MenuItem('Usage examples (omit the double-quotes):'));
+  this.helpButton_.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: \"tag:foo\""));
+  this.helpButton_.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: \"title:bar\""));
+  this.helpButton_.addItem(new goog.ui.MenuItem("Search for permanode with blobref XXX: \"bref:XXX\""));
+  this.helpButton_.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: \"baz\" (broken atm?)"));
 
   /**
    * Used only on the index page
@@ -126,12 +130,6 @@ camlistore.Toolbar.EventType = {
 };
 
 /**
- * @type {boolean}
- */
-camlistore.Toolbar.prototype.isSearch = "false";
-
-
-/**
  * Creates an initial DOM representation for the component.
  */
 camlistore.Toolbar.prototype.createDom = function() {
@@ -141,7 +139,7 @@ camlistore.Toolbar.prototype.createDom = function() {
 
 /**
  * Decorates an existing HTML DIV element.
- * @param {Element} element The DIV element to decorate.
+ * @param {Element} el The DIV element to decorate.
  */
 camlistore.Toolbar.prototype.decorateInternal = function(el) {
   camlistore.Toolbar.superClass_.decorateInternal.call(this, el);
@@ -151,7 +149,7 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.checkedItemsCreateSetButton_, true);
   this.addChild(this.setAsCollecButton_, true);
   this.addChild(this.checkedItemsAddToSetButton_, true);
-  if (this.isSearch == "true") {
+  if (this.isSearch == true) {
     this.addChild(this.rootsButton_, true);
     this.addChild(this.homeButton_, true);
     this.addChild(this.helpButton_, true);
@@ -184,7 +182,7 @@ camlistore.Toolbar.prototype.enterDocument = function() {
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.SMALLER));
 
-  if (this.isSearch == "true") {
+  if (this.isSearch == true) {
 
     this.eh_.listen(
       this.rootsButton_.getElement(),

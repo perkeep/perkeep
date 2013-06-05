@@ -155,15 +155,14 @@ function(success, opt_fail, e) {
 
 /**
  * @param {string} blobref root of the tree
- * @param {function} success callback with data.
+ * @param {Function} success callback with data.
  * @param {?Function} opt_fail optional failure calback
  */
 camlistore.ServerConnection.prototype.getFileTree =
 function(blobref, success, opt_fail) {
 
-	// TODO(mpl): fix when we do the switch to newui. and
-	// redo it relatively to one of the roots anyway?
-	var path = "../tree/" + blobref;
+	// TODO(mpl): do it relatively to a discovered root?
+	var path = "./tree/" + blobref;
 
 	this.sendXhr_(
 		path,
@@ -197,7 +196,7 @@ camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodes =
 /**
  * @param {string} blobref Permanode blobref.
  * @param {number} thumbnailSize
- * @param {Function} success.
+ * @param {function(camlistore.ServerType.DescribeResponse)} success.
  * @param {Function=} opt_fail Optional fail callback.
  */
 camlistore.ServerConnection.prototype.describeWithThumbnails =
@@ -248,7 +247,7 @@ function(signer, attr, value, success, opt_fail) {
  * @param {boolean} fuzzy fuzzy search.
  * @param {number} max max number of results.
  * @param {number} thumbsize thumbnails size, 0 for no thumbnails.
- * @param {Function} success.
+ * @param {function(camlistore.ServerType.SearchWithAttrResponse)} success.
  * @param {Function=} opt_fail Optional fail callback.
  */
 camlistore.ServerConnection.prototype.permanodesWithAttr =
@@ -635,7 +634,8 @@ function(file, contentsBlobRef, success, opt_fail) {
 		contentsBlobRef,
 		goog.bind(this.dupCheck_, this,
 			doUpload, contentsBlobRef, success
-		)
+		),
+		this.safeFail_(opt_fail)
 	)
 }
 

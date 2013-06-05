@@ -80,9 +80,9 @@ var publishURLTests = []publishURLTest{
 	// the server digest them on start, or rather part of fileembed. This is
 	// a short-term hack to unblock Lindsey.
 	{
-		path:    "/pics/=s/camli.js",
+		path:    "/pics/=s/pics.js",
 		subject: "",
-		subres:  "/=s/camli.js",
+		subres:  "/=s/pics.js",
 	},
 }
 

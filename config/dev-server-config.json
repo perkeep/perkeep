@@ -36,7 +36,7 @@
               "cache": "/cache/",
               "scaledImage": "lrucache",
               "css": ["pics.css"],
-              "js": ["camli.js", "pics.js"],
+              "js": ["pics.js"],
               "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },

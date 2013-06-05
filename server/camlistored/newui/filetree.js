@@ -59,7 +59,7 @@ goog.inherits(camlistore.FiletreePage, goog.ui.Component);
 camlistore.FiletreePage.prototype.indentStep_ = 20;
 
 
-function getPermanodeParam() {
+function getDirBlobrefParam() {
 	var blobRef = getQueryParam('d');
 	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
@@ -87,7 +87,7 @@ isPlausibleBlobRef = function(blobRef) {
  */
 camlistore.FiletreePage.prototype.enterDocument = function() {
 	camlistore.FiletreePage.superClass_.enterDocument.call(this);
-	var blobref = getPermanodeParam();
+	var blobref = getDirBlobrefParam();
 
 	if (blobref) {
 		this.connection_.describeWithThumbnails(
@@ -102,20 +102,20 @@ camlistore.FiletreePage.prototype.enterDocument = function() {
 }
 
 /**
- * @param {string} permanode Node to describe.
+ * @param {string} blobref blob to describe.
  * @param {camlistore.ServerType.DescribeResponse} describeResult Object of properties for the node.
  * @private
  */
 camlistore.FiletreePage.prototype.handleDescribeBlob_ =
-function(permanode, describeResult) {
+function(blobref, describeResult) {
 	var meta = describeResult.meta;
-	if (!meta[permanode]) {
-		alert("didn't get blob " + permanode);
+	if (!meta[blobref]) {
+		alert("didn't get blob " + blobref);
 		return;
 	}
-	var binfo = meta[permanode];
+	var binfo = meta[blobref];
 	if (!binfo) {
-		alert("Error describing blob " + permanode);
+		alert("Error describing blob " + blobref);
 		return;
 	}
 	if (binfo.camliType != "directory") {
@@ -123,12 +123,12 @@ function(permanode, describeResult) {
 		return;
 	}
 	this.connection_.getBlobContents(
-		permanode,
+		blobref,
 		goog.bind(function(data) {
 			var finfo = JSON.parse(data);
 			var fileName = finfo.fileName;
 			var curDir = document.getElementById('curDir');
-			curDir.innerHTML = "<a href='./?b=" + permanode + "'>" + fileName + "</a>";
+			curDir.innerHTML = "<a href='./?b=" + blobref + "'>" + fileName + "</a>";
 			this.buildTree_();
 		}, this),
 		function(msg) {
@@ -141,7 +141,7 @@ function(permanode, describeResult) {
  * @private
  */
 camlistore.FiletreePage.prototype.buildTree_ = function() {
-	var blobref = getPermanodeParam();
+	var blobref = getDirBlobrefParam();
 	var children = goog.dom.getElement("children");
 	this.connection_.getFileTree(blobref,
 		goog.bind(function(jres) {
@@ -171,8 +171,8 @@ function(div, depth, jres) {
 			goog.dom.setTextContent(alink, "+ " + children[i].name);
 			goog.events.listen(alink,
 				goog.events.EventType.CLICK,
-				goog.bind(function (p, d) {
-					this.unFold_(p, d);
+				goog.bind(function (b, d) {
+					this.unFold_(b, d);
 				}, this, alink.id, depth),
 				false, this
 			);
@@ -245,8 +245,8 @@ function(blobref, depth) {
 			goog.events.removeAll(node);
 			goog.events.listen(node,
 				goog.events.EventType.CLICK,
-				goog.bind(function(p, d) {
-					this.fold_(p, d);
+				goog.bind(function(b, d) {
+					this.fold_(b, d);
 				}, this, blobref, depth),
 				false, this
 			);
@@ -272,8 +272,8 @@ function(nodeid, depth) {
 	goog.events.removeAll(node);
 	goog.events.listen(node,
 		goog.events.EventType.CLICK,
-		goog.bind(function(p, d) {
-			this.unFold_(p, d);
+		goog.bind(function(b, d) {
+			this.unFold_(b, d);
 		}, this, nodeid, depth),
 		false, this
 	);

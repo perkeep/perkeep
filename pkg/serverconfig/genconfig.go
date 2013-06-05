@@ -89,7 +89,7 @@ func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]in
 				style = "pics.css"
 			}
 			handlerArgs["css"] = []interface{}{style}
-			handlerArgs["js"] = []interface{}{"camli.js", "pics.js"}
+			handlerArgs["js"] = []interface{}{"pics.js"}
 			handlerArgs["scaledImage"] = "lrucache"
 		case "blog":
 			if style != "" {

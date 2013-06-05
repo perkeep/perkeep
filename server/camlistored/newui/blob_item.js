@@ -145,9 +145,7 @@ camlistore.BlobItem.prototype.getBlobRef = function() {
  * @return {string}
  */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
-  // TODO(bslatkin): Remove the '../' once we move the new UI to the right
-  // handler, or change the server side to return an absolute URL.
-  return '../' + this.metaData_.thumbnailSrc;
+  return './' + this.metaData_.thumbnailSrc;
 };
 
 
@@ -171,8 +169,6 @@ camlistore.BlobItem.prototype.getThumbWidth_ = function() {
  * @return {string}
  */
 camlistore.BlobItem.prototype.getLink_ = function() {
-  // TODO(bslatkin): Remove the '../' once we move the new UI to the right
-  // handler, or change the server side to return an absolute URL.
   if (this.useContentAsLink_ == "true") {
     return './?b=' + this.getFileBlobref_();
   }

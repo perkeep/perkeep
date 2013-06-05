@@ -55,7 +55,7 @@ camlistore.SearchPage = function(config, opt_domHelper) {
 	 * @private
 	 */
 	this.toolbar_ = new camlistore.Toolbar(opt_domHelper);
-	this.toolbar_.isSearch = "true";
+	this.toolbar_.isSearch = true;
 
 	/**
 	 * @type {goog.events.EventHandler}
@@ -135,7 +135,6 @@ camlistore.SearchPage.prototype.disposeInternal = function() {
  */
 camlistore.SearchPage.prototype.enterDocument = function() {
 	camlistore.SearchPage.superClass_.enterDocument.call(this);
-
 
 	this.eh_.listen(
 		this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
