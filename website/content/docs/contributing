@@ -23,7 +23,12 @@
 <ul class='lispaced'>
 	<li>Camlistore requires changes to be reviewed before they are committed.</li>
 	<li>Sign in to Gerrit at <a href="http://camlistore.org/r/">http://camlistore.org/r/</a> and set your username + SSH key(s).
-            You'll want your Gerrit username to be the same as your local machine's $USER, else you'll need to modify the misc/review script.</li>
+            If your Gerrit username is not the same as your local machine's $USER, add a section like:
+<pre>
+Host camlistore.org
+  User &lt;your-gerrit-username&gt;
+</pre>
+            to your ssh config file (probably <tt>~/.ssh/config</tt>).</li>
 	<li>Usual Work Flow</li>
 		<ul>
                         <li>Create a topic branch. Commit away. If you modify or squash your commits during review, don't touch <a href="http://gerrit.googlecode.com/svn/documentation/2.2.1/user-changeid.html">the Change-Id line</a>.</li>
