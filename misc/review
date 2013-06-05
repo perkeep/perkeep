@@ -25,7 +25,4 @@ scalar(<STDIN>);
     system("git", "commit", "--amend") and die "git commit --amend fail\n";
 }
 
-my $user = $ENV{USER};
-$user = "adg" if $user eq "nf";
-
-exec("git", "push", "ssh://$user\@camlistore.org:29418/camlistore", "HEAD:refs/for/master");
+exec("git", "push", "ssh://camlistore.org:29418/camlistore", "HEAD:refs/for/master");
