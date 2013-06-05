@@ -1,3 +1,12 @@
 .cam-index-page {
-  font: 16px/1.4 normal Arial, sans-serif;
+	font: 16px/1.4 normal Arial, sans-serif;
+}
+
+.cam-index-title {
+	display: inline-block;
+}
+
+.cam-index-serverinfo {
+	display: inline;
+	float: right;
 }
