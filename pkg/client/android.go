@@ -150,6 +150,7 @@ func androidLookupHost(host string) string {
 		br := bufio.NewReader(stdout)
 		line, err := br.ReadString('\n')
 		if err != nil {
+			log.Printf("Failed to resolve %q with ping", host)
 			c <- host
 			return
 		}
@@ -161,6 +162,7 @@ func androidLookupHost(host string) string {
 			c <- ip
 			return
 		}
+		log.Printf("Failed to resolve %q with ping", host)
 		c <- host
 	}()
 	return <-c

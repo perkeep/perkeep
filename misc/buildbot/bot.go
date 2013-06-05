@@ -246,7 +246,7 @@ func switchGoPath(isTip bool) {
 }
 
 func handleSignals() {
-	c := make(chan os.Signal, 1)
+	c := make(chan os.Signal)
 	sigs := []os.Signal{syscall.SIGINT, syscall.SIGTERM}
 	signal.Notify(c, sigs...)
 	for {
@@ -594,7 +594,7 @@ func buildCamli(isTip bool) error {
 	return nil
 }
 
-func runCamli(cerr chan error) (*os.Process, error) {
+func runCamli() (*os.Process, error) {
 	if *fast {
 		gofast(1)
 		return nil, nil
@@ -618,20 +618,19 @@ func runCamli(cerr chan error) (*os.Process, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
+	errc := make(chan error, 1)
 	go func() {
-		cerr <- cmd.Run()
+		errc <- cmd.Run()
 	}()
-	time.Sleep(warmup)
 	select {
-	case err := <-cerr:
+	case err := <-errc:
 		dbg.Println("dev server DEAD")
 		tsk := getCurrentTask()
 		addRun(tsk, err)
 		return nil, fmt.Errorf("%v: %v\n", tsk.Cmd, "camlistored terminated prematurely")
-	default:
+	case <-time.After(warmup):
 		dbg.Println("dev server OK")
 		addRun(getCurrentTask(), nil)
-		break
 	}
 	return cmd.Process, nil
 }
@@ -849,10 +848,7 @@ func main() {
 					handleErr(err, nil)
 					continue
 				}
-				cerr := make(chan error)
-				// TODO(mpl): how/when to close this chan without getting a panic?
-				// this is important because it is probably a mem leak right now.
-				proc, err := runCamli(cerr)
+				proc, err := runCamli()
 				if err != nil {
 					handleErr(err, nil)
 					continue
