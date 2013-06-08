@@ -1,6 +1,10 @@
 
 // jquery-colorbox browsable photo gallery
 
+// TODO(mpl): something about camligroup is broken,
+// hence why the call to it is commented out.
+// Not worth fixing for now as I suppose we may replace
+// all this with some closure eye candy eventually?
 function addColorboxen() {
   $(document).ready(function() {
     $('li > a').each(function() {
@@ -108,5 +112,5 @@ if (typeof window['jQuery'] == 'undefined') {
   document.write('<link media="screen" rel="stylesheet" href="//colorpowered.com/colorbox/core/example1/colorbox.css">');
   document.write('<scr'+'ipt  src="//ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js" onload="init()"></sc'+'ript>');
   document.write('<scr'+'ipt  src="//ajax.googleapis.com/ajax/libs/jqueryui/1.8.14/jquery-ui.js"></sc'+'ript>');
-  document.write('<scr'+'ipt  src="//colorpowered.com/colorbox/core/colorbox/jquery.colorbox.js" onload="addColorboxen()"></sc'+'ript>');
+//  document.write('<scr'+'ipt  src="//colorpowered.com/colorbox/core/colorbox/jquery.colorbox.js" onload="addColorboxen()"></sc'+'ript>');
 }
