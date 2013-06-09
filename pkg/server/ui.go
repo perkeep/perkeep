@@ -56,7 +56,7 @@ var (
 	//       if sane looking
 	downloadPattern  = regexp.MustCompile(`^(new/)?download/([^/]+)(/.*)?$`)
 	thumbnailPattern = regexp.MustCompile(`^(new/)?thumbnail/([^/]+)(/.*)?$`)
-	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
+	treePattern      = regexp.MustCompile(`^(new/)?tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^new/closure/(([^/]+)(/.*)?)$`)
 )
 
@@ -398,7 +398,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	blobref := blobref.Parse(m[1])
+	blobref := blobref.Parse(m[2])
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
@@ -426,6 +426,9 @@ func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
 		return
 	case strings.HasPrefix(suffix, "new/thumbnail/"):
 		ui.serveThumbnail(rw, req)
+		return
+	case strings.HasPrefix(suffix, "new/tree/"):
+		ui.serveFileTree(rw, req)
 		return
 	case wantsPermanode(req):
 		file = "permanode.html"
