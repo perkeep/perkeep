@@ -170,7 +170,11 @@ camlistore.BlobItem.prototype.getThumbWidth_ = function() {
  */
 camlistore.BlobItem.prototype.getLink_ = function() {
   if (this.useContentAsLink_ == "true") {
-    return './?b=' + this.getFileBlobref_();
+    var b = this.getFileBlobref_();
+    if (b == "") {
+      b = this.getDirBlobref_();
+    }
+    return './?b=' + b;
   }
   return './?p=' + this.blobRef_;
 };
@@ -188,6 +192,17 @@ camlistore.BlobItem.prototype.getFileBlobref_ = function() {
 	return "";
 }
 
+/**
+ * @private
+ * @return {string}
+ */
+camlistore.BlobItem.prototype.getDirBlobref_ = function() {
+	if (this.resolvedMetaData_ &&
+		this.resolvedMetaData_.camliType == 'directory') {
+		return this.resolvedMetaData_.blobRef;
+	}
+	return "";
+}
 
 /**
  * @return {string}

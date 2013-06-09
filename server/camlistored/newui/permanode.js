@@ -58,10 +58,8 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
 	// No big deal though.
 	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[1];
 
-	// TODO(mpl): use a DescribeResponse as type, once we've merged
-	// with the other CL that introduces it.
 	/**
-	 * @type {Object}
+	 * @type {camlistore.ServerType.DescribeResponse}
 	 * @private
 	 */
 	this.describeResponse_ = null;
@@ -239,6 +237,7 @@ function(permanode, describeResult) {
 	handleType(permObj);
 
 	// TODO(mpl): link to filetree browser when type is dir
+	// TODO(mpl): display command to cammount the dir
 
 	// members
 	this.reloadMembers_();
