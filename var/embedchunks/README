@@ -1,0 +1,4 @@
+This directory is populated by "make embeds" and the genfilembed
+program, which takes the 650KB javascript output from Closure and
+chunks it up into rolling checksum chunks so it doesn't bloat
+our git history.

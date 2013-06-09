@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("create_item.css", 120, fileembed.String(".cam-createitem-link {\n"+
+	Files.Add("create_item.css", 120, time.Unix(0, 1356370432000000000), fileembed.String(".cam-createitem-link {\n"+
 		"  font-size: 40pt;\n"+
 		"  text-decoration: none;\n"+
 		"}\n"+
@@ -16,5 +16,5 @@ func init() {
 		".cam-createitem {\n"+
 		"  cursor: pointer !important;\n"+
 		"}\n"+
-		""), time.Unix(0, 1368822939661545650))
+		""))
 }

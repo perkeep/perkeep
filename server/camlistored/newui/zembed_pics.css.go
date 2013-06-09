@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("pics.css", 1273, fileembed.String("/* Something arbitrary for testing. */\n"+
+	Files.Add("pics.css", 1273, time.Unix(0, 1370450675000000000), fileembed.String("/* Something arbitrary for testing. */\n"+
 		"body {\n"+
 		"  font: 13px/1.3 normal Verdana, Geneva, sans-serif;\n"+
 		"  background: #000;\n"+
@@ -105,5 +105,5 @@ func init() {
 		"	display: inline-block;\n"+
 		"}\n"+
 		"\n"+
-		""), time.Unix(0, 1370352368981715089))
+		""))
 }

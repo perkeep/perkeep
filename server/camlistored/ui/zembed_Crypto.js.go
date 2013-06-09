@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM Crypto.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("Crypto.js", 5846, fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
+	Files.Add("Crypto.js", 5846, time.Unix(0, 1359675908000000000), fileembed.String("// From http://code.google.com/p/crypto-js/\x0d\n"+
 		"// License: http://www.opensource.org/licenses/bsd-license.php\x0d\n"+
 		"//\x0d\n"+
 		"// Copyright (c) 2009, Jeff Mott. All rights reserved.\x0d\n"+
@@ -197,5 +198,5 @@ func init() {
 		"\x0d\n"+
 		"})();\x0d\n"+
 		"}\x0d\n"+
-		""), time.Unix(0, 1359675908724750359))
+		""))
 }

@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM permanode.html
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.html", 2673, fileembed.String("<!doctype html>\n"+
+	Files.Add("permanode.html", 2673, time.Unix(0, 1358726342000000000), fileembed.String("<!doctype html>\n"+
 		"<html>\n"+
 		"<head>\n"+
 		"  <title>Permanode</title>\n"+
@@ -102,5 +103,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1358714676000000000))
+		""))
 }

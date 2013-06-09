@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM debug.html
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.html", 1258, fileembed.String("<html>\n"+
+	Files.Add("debug.html", 1258, time.Unix(0, 1358726342000000000), fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
@@ -48,5 +49,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1358714643000000000))
+		""))
 }

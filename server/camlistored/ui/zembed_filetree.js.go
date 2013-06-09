@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("filetree.js", 4738, fileembed.String("/*\n"+
+	Files.Add("filetree.js", 4738, time.Unix(0, 1369518799000000000), fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -176,5 +176,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", treePageOnLoad);\n"+
-		""), time.Unix(0, 1369518799000000000))
+		""))
 }

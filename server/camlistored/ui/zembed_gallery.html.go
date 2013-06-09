@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM gallery.html
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("gallery.html", 622, fileembed.String("<!doctype html>\n"+
+	Files.Add("gallery.html", 622, time.Unix(0, 1358726342000000000), fileembed.String("<!doctype html>\n"+
 		"<html>\n"+
 		"<head>\n"+
 		"  <title>Gallery</title>\n"+
@@ -33,5 +34,5 @@ func init() {
 		"\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1358714667000000000))
+		""))
 }

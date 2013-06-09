@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blob_item_container.css", 857, fileembed.String(".cam-blobitemcontainer {\n"+
+	Files.Add("blob_item_container.css", 857, time.Unix(0, 1369518799000000000), fileembed.String(".cam-blobitemcontainer {\n"+
 		"  outline: 0;  /* Do not show an outline when container has focus. */\n"+
 		"  border-width: 5px;\n"+
 		"  border-color: rgba(0, 0, 0, 0);\n"+
@@ -49,5 +49,5 @@ func init() {
 		".cam-blobitemcontainer-hidden {\n"+
 		"  display: none;\n"+
 		"}\n"+
-		""), time.Unix(0, 1369665728443985580))
+		""))
 }

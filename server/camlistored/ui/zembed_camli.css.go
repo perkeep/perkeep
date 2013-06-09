@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM camli.css
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("camli.css", 2080, fileembed.String("/*\n"+
+	Files.Add("camli.css", 2080, time.Unix(0, 1356130243000000000), fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -121,5 +122,5 @@ func init() {
 		"\n"+
 		"#plusdrop a.plusLink {\n"+
 		"  text-decoration: none;\n"+
-		"}"), time.Unix(0, 1355282571926447470))
+		"}"))
 }

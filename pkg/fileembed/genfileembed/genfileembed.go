@@ -19,6 +19,8 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/sha1"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"go/parser"
@@ -31,6 +33,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"camlistore.org/pkg/rollsum"
+)
+
+var (
+	processAll = flag.Bool("all", false, "process all files (if false, only process modified files)")
+
+	fileEmbedPkgPath = flag.String("fileembed-package", "camlistore.org/pkg/fileembed", "the Go package name for fileembed. If you have vendored fileembed (e.g. with goven), you can use this flag to ensure that generated code imports the vendored package.")
+
+	chunkThreshold = flag.Int64("chunk-threshold", 0, "If non-zero, the maximum size of a file before it's cut up into content-addressable chunks with a rolling checksum")
+	chunkPackage = flag.String("chunk-package", "", "Package to hold chunks")
 )
 
 const (
@@ -47,10 +60,6 @@ func usage() {
 }
 
 func main() {
-	var processAll bool
-	flag.BoolVar(&processAll, "all", false, "process all files (if false, only process modified files)")
-	var fileEmbedPkgPath string
-	flag.StringVar(&fileEmbedPkgPath, "fileembed-package", "camlistore.org/pkg/fileembed", "the Go package name for fileembed. If you have vendored fileembed (e.g. with goven), you can use this flag to ensure that generated code imports the vendored package.")
 	flag.Usage = usage
 	flag.Parse()
 
@@ -78,7 +87,7 @@ func main() {
 			log.Fatal(err)
 		}
 		efi, err := os.Stat(embedName)
-		if err == nil && !efi.ModTime().Before(fi.ModTime()) && !processAll {
+		if err == nil && !efi.ModTime().Before(fi.ModTime()) && !*processAll {
 			continue
 		}
 		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
@@ -95,22 +104,32 @@ func main() {
 		zb, fileSize := compressFile(bytes.NewReader(bs))
 		ratio := float64(len(zb)) / float64(fileSize)
 		byteStreamType := ""
-		if fileSize < maxUncompressed || ratio > zRatio {
+		var qb []byte // quoted string, or Go expression evaluating to a string
+		var imports string
+		if *chunkThreshold > 0 && int64(len(bs)) > *chunkThreshold {
+			byteStreamType = "fileembed.Multi"
+			qb = chunksOf(bs)
+			if *chunkPackage == "" {
+				log.Fatalf("Must provide a --chunk-package value with --chunk-threshold")
+			}
+			imports = fmt.Sprintf("import chunkpkg \"%s\"\n", *chunkPackage)
+		} else if fileSize < maxUncompressed || ratio > zRatio {
 			byteStreamType = "fileembed.String"
+			qb = quote(bs)
 		} else {
-			byteStreamType = "fileembed.ZlibCompressed"
-			bs = zb
+			byteStreamType = "fileembed.ZlibCompressedBase64"
+			qb = quote([]byte(base64.StdEncoding.EncodeToString(zb)))
 		}
-		qb := quote(bs) // quoted bytes
 
 		var b bytes.Buffer
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
 		fmt.Fprintf(&b, "// DO NOT EDIT.\n\n")
 		fmt.Fprintf(&b, "package %s\n\n", pkgName)
 		fmt.Fprintf(&b, "import \"time\"\n\n")
-		fmt.Fprintf(&b, "import \""+fileEmbedPkgPath+"\"\n\n")
-		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %d, %s(%s), time.Unix(0, %d));\n}\n",
-			fileName, fileSize, byteStreamType, qb, fi.ModTime().UnixNano())
+		fmt.Fprintf(&b, "import \""+*fileEmbedPkgPath+"\"\n\n")
+		b.WriteString(imports)
+		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %d, time.Unix(0, %d), %s(%s));\n}\n",
+			fileName, fileSize, fi.ModTime().UnixNano(), byteStreamType, qb)
 
 		// gofmt it
 		fset := token.NewFileSet()
@@ -129,10 +148,26 @@ func main() {
 			log.Fatal(err)
 		}
 
-		if err := ioutil.WriteFile(embedName, clean.Bytes(), 0644); err != nil {
+		if err := writeFileIfDifferent(embedName, clean.Bytes()); err != nil {
 			log.Fatal(err)
 		}
 	}
+}
+
+func writeFileIfDifferent(filename string, contents []byte) error {
+	fi, err := os.Stat(filename)
+	if err == nil && fi.Size() == int64(len(contents)) && contentsEqual(filename, contents) {
+		return nil
+	}
+	return ioutil.WriteFile(filename, contents, 0644)
+}
+
+func contentsEqual(filename string, contents []byte) bool {
+	got, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(got, contents)
 }
 
 var (
@@ -251,4 +286,53 @@ func parseFileEmbed() (pkgName string, filePattern *regexp.Regexp, err error) {
 		return
 	}
 	return
+}
+
+// chunksOf takes a (presumably large) file's uncompressed input,
+// rolling-checksum splits it into ~514 byte chunks, compresses each,
+// base64s each, and writes chunk files out, with each file just
+// defining an exported fileembed.Opener variable named C<xxxx> where
+// xxxx is the first 8 lowercase hex digits of the SHA-1 of the chunk
+// value pre-compression.  The return value is a Go expression
+// referencing each of those chunks concatenated together.
+func chunksOf(in []byte) (stringExpression []byte) {
+	var multiParts [][]byte
+	rs := rollsum.New()
+	const nBits = 9 // ~512 byte chunks
+	last := 0
+	for i, b := range in {
+		rs.Roll(b)
+		if rs.OnSplitWithBits(nBits)|| i == len(in) - 1 {
+			raw := in[last:i+1] // inclusive
+			last = i + 1
+			s1 := sha1.New()
+			s1.Write(raw)
+			sha1hex := fmt.Sprintf("%x", s1.Sum(nil))[:8]
+			writeChunkFile(sha1hex, raw)
+			multiParts = append(multiParts, []byte(fmt.Sprintf("chunkpkg.C%s", sha1hex)))
+		}
+	}
+	return bytes.Join(multiParts, []byte(",\n\t"))
+}
+
+func writeChunkFile(hex string, raw []byte) {
+	path := os.Getenv("GOPATH")
+	if path == "" {
+		log.Fatalf("No GOPATH set")
+	}
+	path = filepath.SplitList(path)[0]
+	file := filepath.Join(path, "src", filepath.FromSlash(*chunkPackage), "chunk_" + hex + ".go")
+	zb, _ := compressFile(bytes.NewReader(raw))
+	var buf bytes.Buffer
+	buf.WriteString("// THIS FILE IS AUTO-GENERATED. SEE README.\n\n")
+	buf.WriteString("package chunkpkg\n")
+	buf.WriteString("import \""+*fileEmbedPkgPath+"\"\n\n")
+	fmt.Fprintf(&buf, "var C%s fileembed.Opener\n\nfunc init() { C%s = fileembed.ZlibCompressedBase64(%s)\n }\n",
+		hex,
+		hex,
+		quote([]byte(base64.StdEncoding.EncodeToString(zb))))
+	err := writeFileIfDifferent(file, buf.Bytes())
+	if err != nil {
+		log.Fatalf("Error writing chunk %s to %v: %v", hex, file, err)
+	}
 }

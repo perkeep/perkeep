@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.css", 226, fileembed.String(".cam-blobinfo-page {\n"+
+	Files.Add("blobinfo.css", 226, time.Unix(0, 1369518799000000000), fileembed.String(".cam-blobinfo-page {\n"+
 		"  font: 16px/1.4 normal Arial, sans-serif;\n"+
 		"}\n"+
 		".cam-blobinfo-page #blobdata {\n"+
@@ -21,5 +21,5 @@ func init() {
 		".cam-blobinfo-nav:after {\n"+
 		"  content: \"]\";\n"+
 		"}\n"+
-		""), time.Unix(0, 1369665728443985580))
+		""))
 }

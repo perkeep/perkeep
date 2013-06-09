@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blob_item.css", 1592, fileembed.String("/* Tile view of BlobItem */\n"+
+	Files.Add("blob_item.css", 1592, time.Unix(0, 1358726342000000000), fileembed.String("/* Tile view of BlobItem */\n"+
 		".cam-blobitem {\n"+
 		"  margin: 0.25em;\n"+
 		"  border: 1px solid gray;\n"+
@@ -94,5 +94,5 @@ func init() {
 		"  text-decoration: underline;\n"+
 		"  background: #999;\n"+
 		"}\n"+
-		""), time.Unix(0, 1368819196169951223))
+		""))
 }

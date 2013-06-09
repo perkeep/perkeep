@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("base64.js", 5951, fileembed.String("/*\n"+
+	Files.Add("base64.js", 5951, time.Unix(0, 1361083496000000000), fileembed.String("/*\n"+
 		"Copyright (c) 2008 Fred Palmer fred.palmer_at_gmail.com\n"+
 		"\n"+
 		"Permission is hereby granted, free of charge, to any person\n"+
@@ -230,5 +230,5 @@ func init() {
 		"        }\n"+
 		"    }\n"+
 		"};\n"+
-		""), time.Unix(0, 1361083496000000000))
+		""))
 }

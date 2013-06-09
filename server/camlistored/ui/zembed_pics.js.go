@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM pics.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,9 +8,13 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("pics.js", 3178, fileembed.String("\n"+
+	Files.Add("pics.js", 3386, time.Unix(0, 1370782352000000000), fileembed.String("\n"+
 		"// jquery-colorbox browsable photo gallery\n"+
 		"\n"+
+		"// TODO(mpl): something about camligroup is broken,\n"+
+		"// hence why the call to it is commented out.\n"+
+		"// Not worth fixing for now as I suppose we may replace\n"+
+		"// all this with some closure eye candy eventually?\n"+
 		"function addColorboxen() {\n"+
 		"  $(document).ready(function() {\n"+
 		"    $('li > a').each(function() {\n"+
@@ -120,8 +125,8 @@ func init() {
 		"query.min.js\" onload=\"init()\"></sc'+'ript>');\n"+
 		"  document.write('<scr'+'ipt  src=\"//ajax.googleapis.com/ajax/libs/jqueryui/1.8.1"+
 		"4/jquery-ui.js\"></sc'+'ript>');\n"+
-		"  document.write('<scr'+'ipt  src=\"//colorpowered.com/colorbox/core/colorbox/jque"+
-		"ry.colorbox.js\" onload=\"addColorboxen()\"></sc'+'ript>');\n"+
+		"//  document.write('<scr'+'ipt  src=\"//colorpowered.com/colorbox/core/colorbox/jq"+
+		"uery.colorbox.js\" onload=\"addColorboxen()\"></sc'+'ript>');\n"+
 		"}\n"+
-		""), time.Unix(0, 1349725494273781341))
+		""))
 }

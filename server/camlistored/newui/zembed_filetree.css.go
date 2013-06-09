@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("filetree.css", 858, fileembed.String("/*\n"+
+	Files.Add("filetree.css", 858, time.Unix(0, 1369519259000000000), fileembed.String("/*\n"+
 		"Copyright 2011 The Camlistore Authors.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -40,5 +40,5 @@ func init() {
 		"  margin-left: .4em;\n"+
 		"  font-size: 80%;\n"+
 		"}\n"+
-		""), time.Unix(0, 1369665728944011422))
+		""))
 }

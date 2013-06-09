@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM blobinfo.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blobinfo.js", 4273, fileembed.String("/*\n"+
+	Files.Add("blobinfo.js", 4273, time.Unix(0, 1361083496000000000), fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -123,5 +124,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", blobInfoOnLoad);\n"+
-		""), time.Unix(0, 1360366137559069951))
+		""))
 }

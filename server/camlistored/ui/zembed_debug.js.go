@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM debug.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.js", 2651, fileembed.String("/*\n"+
+	Files.Add("debug.js", 2651, time.Unix(0, 1358726342000000000), fileembed.String("/*\n"+
 		"Copyright 2011 Google Inc.\n"+
 		"\n"+
 		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
@@ -90,5 +91,5 @@ func init() {
 		"}\n"+
 		"\n"+
 		"window.addEventListener(\"load\", indexOnLoad);\n"+
-		""), time.Unix(0, 1358715350000000000))
+		""))
 }

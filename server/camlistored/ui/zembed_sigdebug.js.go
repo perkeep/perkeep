@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM sigdebug.js
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("sigdebug.js", 2322, fileembed.String("var sigdisco = null;\n"+
+	Files.Add("sigdebug.js", 2322, time.Unix(0, 1359676098000000000), fileembed.String("var sigdisco = null;\n"+
 		"\n"+
 		"function discoverJsonSign() {\n"+
 		"    var xhr = new XMLHttpRequest();\n"+
@@ -85,5 +86,5 @@ func init() {
 		"    xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urlencoded\");\n"+
 		"    xhr.send(\"sjson=\" + encodeURIComponent(signedta.value));\n"+
 		"}\n"+
-		""), time.Unix(0, 1359676098841984696))
+		""))
 }

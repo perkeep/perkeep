@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("permanode.css", 606, fileembed.String(".cam-permanode-page {\n"+
+	Files.Add("permanode.css", 606, time.Unix(0, 1369518799000000000), fileembed.String(".cam-permanode-page {\n"+
 		"  font: 16px/1.4 normal Arial, sans-serif;\n"+
 		"}\n"+
 		".cam-permanode-nav:before {\n"+
@@ -42,5 +42,5 @@ func init() {
 		"}\n"+
 		".cam-permanode-dnd-over {\n"+
 		"  background: #eee;\n"+
-		"}"), time.Unix(0, 1369665728944011422))
+		"}"))
 }

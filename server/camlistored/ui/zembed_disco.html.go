@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM disco.html
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("disco.html", 1238, fileembed.String("<html>\n"+
+	Files.Add("disco.html", 1238, time.Unix(0, 1358726342000000000), fileembed.String("<html>\n"+
 		"<head>\n"+
 		"  <title>Camlistored UI</title>\n"+
 		"  <script src=\"camli.js\"></script>\n"+
@@ -51,5 +52,5 @@ func init() {
 		"  </form>\n"+
 		"</body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1358714649000000000))
+		""))
 }

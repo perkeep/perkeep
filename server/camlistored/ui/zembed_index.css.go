@@ -1,5 +1,6 @@
 // THIS FILE IS AUTO-GENERATED FROM index.css
 // DO NOT EDIT.
+
 package ui
 
 import "time"
@@ -7,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.css", 375, fileembed.String("#toolbar input[type=\"button\"] {\n"+
+	Files.Add("index.css", 375, time.Unix(0, 1356130243000000000), fileembed.String("#toolbar input[type=\"button\"] {\n"+
 		"    padding: 2px 5px 2px 5px;\n"+
 		"}\n"+
 		"\n"+
@@ -36,5 +37,5 @@ func init() {
 		"#btnSearch {\n"+
 		" margin-left: 0;\n"+
 		" border-left: 0;\n"+
-		"}"), time.Unix(0, 1355276007991994116))
+		"}"))
 }

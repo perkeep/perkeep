@@ -18,6 +18,7 @@ package fileembed
 
 import (
 	"compress/zlib"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -67,7 +68,7 @@ func (s String) Open() (io.Reader, error) {
 	return strings.NewReader(string(s)), nil
 }
 
-// ZlibCompressed is used to store a compressed file
+// ZlibCompressed is used to store a compressed file.
 type ZlibCompressed string
 
 func (zb ZlibCompressed) Open() (io.Reader, error) {
@@ -78,8 +79,40 @@ func (zb ZlibCompressed) Open() (io.Reader, error) {
 	return rz, nil
 }
 
+// ZlibCompressedBase64 is used to store a compressed file.
+// Unlike ZlibCompressed, the string is base64 encoded,
+// in standard base64 encoding.
+type ZlibCompressedBase64 string
+
+func (zb ZlibCompressedBase64) Open() (io.Reader, error) {
+	rz, err := zlib.NewReader(base64.NewDecoder(base64.StdEncoding, strings.NewReader(string(zb))))
+	if err != nil {
+		return nil, fmt.Errorf("Could not open ZlibCompressedBase64: %v", err)
+	}
+	return rz, nil
+}
+
+// Multi concatenates multiple Openers into one, like io.MultiReader.
+func Multi(openers ...Opener) Opener {
+	return multi(openers)
+}
+
+type multi []Opener
+
+func (m multi) Open() (io.Reader, error) {
+	rs := make([]io.Reader, 0, len(m))
+	for _, o := range m {
+		r, err := o.Open()
+		if err != nil {
+			return nil, err
+		}
+		rs = append(rs, r)
+	}
+	return io.MultiReader(rs...), nil
+}
+
 // Add adds a file to the file set.
-func (f *Files) Add(filename string, size int64, o Opener, modtime time.Time) {
+func (f *Files) Add(filename string, size int64, modtime time.Time, o Opener) {
 	f.lk.Lock()
 	defer f.lk.Unlock()
 

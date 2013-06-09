@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index-compiled.html", 905, fileembed.String("<!doctype html>\n"+
+	Files.Add("index-compiled.html", 905, time.Unix(0, 1369518799000000000), fileembed.String("<!doctype html>\n"+
 		"<html>\n"+
 		"  <head>\n"+
 		"		<script type=\"text/javascript\" src=\"all.js\"></script>\n"+
@@ -31,5 +31,5 @@ func init() {
 		"    </script>\n"+
 		"  </body>\n"+
 		"</html>\n"+
-		""), time.Unix(0, 1369665728944011422))
+		""))
 }
