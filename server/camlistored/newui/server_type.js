@@ -23,6 +23,7 @@ camlistore.ServerType.DiscoveryRoot;
  *   ownerName: string,
  *   publishRoots: Array.<camlistore.ServerType.DiscoveryRoot>,
  *   searchRoot: string,
+ *   statusRoot: string,
  *   storageGeneration: string,
  *   storageInitTime: string,
  *   signing: camlistore.ServerType.SigningDiscoveryDocument,
@@ -128,3 +129,10 @@ camlistore.ServerType.SearchWithAttrResponse;
  * }}
 */
 camlistore.ServerType.DescribeResponse;
+
+/**
+ * @typedef {{
+ *   version: string,
+ * }}
+*/
+camlistore.ServerType.StatusResponse;

@@ -44,6 +44,7 @@ type RootHandler struct {
 	// search root.
 	BlobRoot   string
 	SearchRoot string
+	statusRoot string
 
 	Storage blobserver.Storage // of BlobRoot, or nil
 
@@ -75,6 +76,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		OwnerName:  conf.OptionalString("ownerName", u.Name),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
+	root.statusRoot = conf.OptionalString("statusRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -163,6 +165,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		"blobRoot":   rh.BlobRoot,
 		"searchRoot": rh.SearchRoot,
 		"ownerName":  rh.OwnerName,
+		"statusRoot": rh.statusRoot,
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()
