@@ -19,6 +19,7 @@ package localdisk
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -133,6 +134,9 @@ func readBlobs(opts readBlobRequest) error {
 
 func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
+	if limit == 0 {
+		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
+	}
 
 	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit

@@ -19,6 +19,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"time"
 
@@ -34,6 +35,19 @@ type EnumerateOpts struct {
 // Note: closes ch.
 func (c *Client) SimpleEnumerateBlobs(ch chan<- blobref.SizedBlobRef) error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
+}
+
+func (c *Client) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+	if limit == 0 {
+		log.Printf("Warning: Client.EnumerateBlobs called with a limit of zero")
+		close(dest)
+		return nil
+	}
+	return c.EnumerateBlobsOpts(dest, EnumerateOpts{
+		After:   after,
+		Limit:   limit,
+		MaxWait: wait,
+	})
 }
 
 const enumerateBatchSize = 1000
