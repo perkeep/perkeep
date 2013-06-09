@@ -1,3 +1,10 @@
+-- ./dev-camtool shouldn't look at $HOME's config:
+
+   $ ./dev-camtool sync
+   Building ./cmd/camtool ...
+   camlistore.org/cmd/camtool
+   2013/06/09 10:57:22 Missing or invalid "server" in "/Users/bradfitz/.camlistore/config"
+
 -- support for building (with just "make" or "go run make.go" for
    Windows) without having the camlistore-0.1.tar.gz extracted
    into a GOPATH (or really: not having any GOPATH set).  should
