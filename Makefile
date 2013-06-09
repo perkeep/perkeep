@@ -32,6 +32,7 @@ $(NEWUIDIR)/all.js: $(NEWUIDIR)/blobinfo.js $(NEWUIDIR)/blob_item.js $(NEWUIDIR)
 		--root tmp/closure-lib/ \
 		--root server/camlistored/newui/ \
 		--namespace="camlistore.BlobPage" \
+		--namespace="camlistore.DebugPage" \
 		--namespace="camlistore.FiletreePage" \
 		--namespace="camlistore.GalleryPage" \
 		--namespace="camlistore.IndexPage" \
