@@ -11,6 +11,7 @@
          "handlerArgs": {
              "ownerName": ["_env", "${USER}-dev"],
              "blobRoot": "/bs-and-maybe-also-index/",
+             "statusRoot": "/status/",
              "searchRoot": "/my-search/",
              "stealth": false
          }
@@ -56,6 +57,10 @@
              "scaledImage": "lrucache",
              "publishRoots": ["/blog/", "/pics/"]
          }
+     },
+
+     "/status/": {
+         "handler": "status"
      },
 
       "/sync/": {

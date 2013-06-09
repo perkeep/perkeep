@@ -143,6 +143,24 @@ function(success, opt_fail) {
 };
 
 /**
+ * @param {function(camlistore.ServerType.StatusResponse)} success.
+ * @param {?Function} opt_fail optional failure calback
+ */
+camlistore.ServerConnection.prototype.serverStatus =
+function(success, opt_fail) {
+	var path = goog.uri.utils.appendPath(
+		this.config_.statusRoot, 'status.json'
+	);
+
+	this.sendXhr_(path,
+		goog.bind(this.handleXhrResponseJson_, this,
+			success, this.safeFail_(opt_fail)
+		)
+	);
+};
+
+
+/**
  * @param {Function} success Success callback.
  * @param {?Function} opt_fail Optional fail callback.
  * @param {goog.events.Event} e Event that triggered this

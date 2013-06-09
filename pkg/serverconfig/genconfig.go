@@ -253,6 +253,7 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		"handlerArgs": map[string]interface{}{
 			"stealth":  false,
 			"blobRoot": root,
+			"statusRoot": "/status/",
 		},
 	}
 	if haveIndex {
@@ -261,6 +262,10 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 
 	m["/setup/"] = map[string]interface{}{
 		"handler": "setup",
+	}
+
+	m["/status/"] = map[string]interface{}{
+		"handler": "status",
 	}
 
 	if params.shareHandler {
