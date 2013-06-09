@@ -58,10 +58,8 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
 	// No big deal though.
 	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[1];
 
-	// TODO(mpl): use a DescribeResponse as type, once we've merged
-	// with the other CL that introduces it.
 	/**
-	 * @type {Object}
+	 * @type {camlistore.ServerType.DescribeResponse}
 	 * @private
 	 */
 	this.describeResponse_ = null;
@@ -238,7 +236,10 @@ function(permanode, describeResult) {
 	// handle type detection
 	handleType(permObj);
 
-	// TODO(mpl): link to filetree browser when type is dir
+	// TODO(mpl): add a line showing something like
+	// "Content: file (blobref)" or
+	// "Content: directory (blobref)" or
+	// "Content: None (has members)".
 
 	// members
 	this.reloadMembers_();
@@ -252,6 +253,19 @@ function(permanode, describeResult) {
 		var useFileBlobrefAsLink = "true";
 		var blobItem = new camlistore.BlobItem(permanode, meta, useFileBlobrefAsLink);
 		blobItem.decorate(content);
+		// TODO(mpl): ideally this should be done by handleType, but it's easier
+		// to do it now that we have a blobItem object to work with.
+		var isdir = blobItem.getDirBlobref_()
+		var mountTip = goog.dom.getElement("cammountTip");
+		goog.dom.removeChildren(mountTip);
+		if (isdir != "") {
+			var tip = "Mount with:";
+			goog.dom.setTextContent(mountTip, tip);
+			goog.dom.appendChild(mountTip, goog.dom.createDom("br"));
+			var codeTip = goog.dom.createDom("code");
+			goog.dom.setTextContent(codeTip, "$ cammount /some/mountpoint " + isdir);
+			goog.dom.appendChild(mountTip, codeTip);
+		}
 	}
 
 	// debug attrs
@@ -900,27 +914,20 @@ function permAttr(permanodeObject, name) {
 function handleType(permObj) {
 	var disablePublish = false;
 	var selType = goog.dom.getElement("type");
-	if (permAttr(permObj, "camliRoot")) {
-		selType.value = "root";
-		disablePublish = true;  // can't give a URL to a root with a claim
-	} else if (permAttr(permObj, "camliContent")) {
-		selType.value = "file";
-	} else if (permAttr(permObj, "camliMember")) {
-		selType.value = "collection";
-	}
-
 	var dnd = goog.dom.getElement("dnd");
 	var btnGallery = goog.dom.getElement("btnGallery");
 	var membersDiv = goog.dom.getElement("members");
-	if (selType.value == "collection" || selType.value == "") {
+	dnd.style.display = "none";
+	btnGallery.style.visibility = 'hidden';
+	goog.dom.setTextContent(membersDiv, "");
+	if (permAttr(permObj, "camliRoot")) {
+		disablePublish = true;  // can't give a URL to a root with a claim
+	} else if (permAttr(permObj, "camliMember")) {
 		dnd.style.display = "block";
 		btnGallery.style.visibility = 'visible';
 		goog.dom.setTextContent(membersDiv, "Members:");
-	} else {
-		dnd.style.display = "none";
-		btnGallery.style.visibility = 'hidden';
-		goog.dom.setTextContent(membersDiv, "");
 	}
+
 	goog.dom.getElement("selectPublishRoot").disabled = disablePublish;
 	goog.dom.getElement("publishSuffix").disabled = disablePublish;
 	goog.dom.getElement("btnSavePublish").disabled = disablePublish;
