@@ -1,3 +1,14 @@
+-- support for building (with just "make" or "go run make.go" for
+   Windows) without having the camlistore-0.1.tar.gz extracted
+   into a GOPATH (or really: not having any GOPATH set).  should
+   be possible to just install binary release of Go 1.1,
+   download Camlistore, and run "go run make.go", which will
+   make a temp directory for the GOPATH, copy all files to it,
+   and run "go install".
+
+-- tests for all cmd/* stuff, perhaps as part of some integration
+   tests.
+
 -- move most of camput into a library, not a package main.
 
 -- server cron support: full syncs, camput file backups, integrity
