@@ -43,7 +43,7 @@ var (
 	fileEmbedPkgPath = flag.String("fileembed-package", "camlistore.org/pkg/fileembed", "the Go package name for fileembed. If you have vendored fileembed (e.g. with goven), you can use this flag to ensure that generated code imports the vendored package.")
 
 	chunkThreshold = flag.Int64("chunk-threshold", 0, "If non-zero, the maximum size of a file before it's cut up into content-addressable chunks with a rolling checksum")
-	chunkPackage = flag.String("chunk-package", "", "Package to hold chunks")
+	chunkPackage   = flag.String("chunk-package", "", "Package to hold chunks")
 )
 
 const (
@@ -95,10 +95,6 @@ func main() {
 		bs, err := ioutil.ReadFile(fileName)
 		if err != nil {
 			log.Fatal(err)
-		}
-		// TODO(mpl): rm "newui" test for the final switch
-		if strings.HasSuffix(dir, "newui") && strings.HasSuffix(fileName, ".html") {
-			bs = useMinifiedJs(bs)
 		}
 
 		zb, fileSize := compressFile(bytes.NewReader(bs))
@@ -168,22 +164,6 @@ func contentsEqual(filename string, contents []byte) bool {
 		return false
 	}
 	return bytes.Equal(got, contents)
-}
-
-var (
-	jsPattern = regexp.MustCompile(
-		`<script +(type="text/javascript" )?src="(\./)?[a-zA-Z0-9\-\_/]+\.js"></script>`)
-	requirePattern = regexp.MustCompile(
-		`<script>\s*goog.require\(.*\);\s*</script>`)
-	headPattern  = regexp.MustCompile(`<head>`)
-	withMinified = "<head>\n\t\t<script type=\"text/javascript\" src=\"all.js\"></script>"
-)
-
-func useMinifiedJs(b []byte) []byte {
-	bs := jsPattern.ReplaceAllLiteral(b, []byte(""))
-	bs = requirePattern.ReplaceAllLiteral(bs, []byte(""))
-	bs = headPattern.ReplaceAllLiteral(bs, []byte(withMinified))
-	return bs
 }
 
 func compressFile(r io.Reader) ([]byte, int64) {
@@ -302,8 +282,8 @@ func chunksOf(in []byte) (stringExpression []byte) {
 	last := 0
 	for i, b := range in {
 		rs.Roll(b)
-		if rs.OnSplitWithBits(nBits)|| i == len(in) - 1 {
-			raw := in[last:i+1] // inclusive
+		if rs.OnSplitWithBits(nBits) || i == len(in)-1 {
+			raw := in[last : i+1] // inclusive
 			last = i + 1
 			s1 := sha1.New()
 			s1.Write(raw)
@@ -321,12 +301,12 @@ func writeChunkFile(hex string, raw []byte) {
 		log.Fatalf("No GOPATH set")
 	}
 	path = filepath.SplitList(path)[0]
-	file := filepath.Join(path, "src", filepath.FromSlash(*chunkPackage), "chunk_" + hex + ".go")
+	file := filepath.Join(path, "src", filepath.FromSlash(*chunkPackage), "chunk_"+hex+".go")
 	zb, _ := compressFile(bytes.NewReader(raw))
 	var buf bytes.Buffer
 	buf.WriteString("// THIS FILE IS AUTO-GENERATED. SEE README.\n\n")
 	buf.WriteString("package chunkpkg\n")
-	buf.WriteString("import \""+*fileEmbedPkgPath+"\"\n\n")
+	buf.WriteString("import \"" + *fileEmbedPkgPath + "\"\n\n")
 	fmt.Fprintf(&buf, "var C%s fileembed.Opener\n\nfunc init() { C%s = fileembed.ZlibCompressedBase64(%s)\n }\n",
 		hex,
 		hex,
