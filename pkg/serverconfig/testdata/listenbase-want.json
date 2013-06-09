@@ -9,6 +9,7 @@
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
 				"searchRoot": "/my-search/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -25,6 +26,10 @@
  		"/setup/": {
 			"handler": "setup"
         },
+
+ 		"/status/": {
+			"handler": "status"
+		},
 
  		"/share/": {
 			"handler": "share",
