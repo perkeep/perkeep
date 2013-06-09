@@ -27,7 +27,6 @@ import (
 
 // StatusHandler publishes server status information.
 type StatusHandler struct {
-	Version string
 }
 
 func init() {
@@ -35,16 +34,14 @@ func init() {
 }
 
 func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
-	sh := &StatusHandler{
-		Version: buildinfo.Version(),
-	}
-	return sh, nil
+	return &StatusHandler{}, nil
 }
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 	if req.Method != "GET" {
-		http.Error(rw, "Illegal URL.", 404)
+		http.Error(rw, "Illegal URL.", http.StatusMethodNotAllowed)
+		return
 	}
 	if suffix == "status.json" {
 		sh.serveStatus(rw, req)
@@ -59,7 +56,7 @@ type statusResponse struct {
 
 func (sh *StatusHandler) serveStatus(rw http.ResponseWriter, req *http.Request) {
 	res := &statusResponse{
-		Version: sh.Version,
+		Version: buildinfo.Version(),
 	}
 
 	httputil.ReturnJSON(rw, res)
