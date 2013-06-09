@@ -53,8 +53,17 @@ func (rs *RollSum) Roll(ch byte) {
 	rs.wofs = (rs.wofs + 1) % windowSize
 }
 
+// OnSplit returns whether at least 13 consecutive trailing bits of
+// the current checksum are set the same way.
 func (rs *RollSum) OnSplit() bool {
 	return (rs.s2 & (blobSize - 1)) == ((^0) & (blobSize - 1))
+}
+
+// OnSplit returns whether at least n consecutive trailing bits
+// of the current checksum are set the same way.
+func (rs *RollSum) OnSplitWithBits(n uint32) bool {
+	mask := (uint32(1) << n) - 1
+	return rs.s2 & mask == (^uint32(0)) & mask
 }
 
 func (rs *RollSum) Bits() int {
