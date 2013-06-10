@@ -18,6 +18,7 @@ clients/go/camwebdav/camwebdav
 appengine-sdk
 build/root
 .DS_Store
+bin/cam*
 tmp
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
