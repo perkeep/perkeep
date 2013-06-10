@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// The genfileembed command embeds resources into Go files, to eliminate run-time
+// dependencies on files on the filesystem.
 package main
 
 import (
