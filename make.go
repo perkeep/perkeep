@@ -33,7 +33,10 @@ import (
 	"strings"
 )
 
-var wantSQLite = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
+var (
+	wantSQLite = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
+	all        = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
+)
 
 func main() {
 	log.SetFlags(0)
@@ -97,8 +100,11 @@ func main() {
 	if sql && *wantSQLite {
 		tags = "with_sqlite"
 	}
-	cmd := exec.Command("go", "install",
-		"-v",
+	args := []string{"install", "-v"}
+	if *all {
+		args = append(args, "-a")
+	}
+	args = append(args,
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
 		"--tags="+tags,
 		"camlistore.org/pkg/...",
@@ -110,8 +116,9 @@ func main() {
 	)
 	switch runtime.GOOS {
 	case "linux", "darwin":
-		cmd.Args = append(cmd.Args, "camlistore.org/cmd/cammount")
+		args = append(args, "camlistore.org/cmd/cammount")
 	}
+	cmd := exec.Command("go", args...)
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "GOPATH=") || strings.HasPrefix(env, "GOBIN=") {
 			continue
@@ -235,6 +242,9 @@ func mirrorFile(src, dst string) error {
 	cerr := df.Close()
 	if err == nil {
 		err = cerr
+	}
+	if err == nil {
+		err = os.Chtimes(dst, sfi.ModTime(), sfi.ModTime())
 	}
 	return err
 }
