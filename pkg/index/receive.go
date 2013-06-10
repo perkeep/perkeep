@@ -224,7 +224,6 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 		oldest, newest := sortTimes[0], sortTimes[len(sortTimes)-1]
 		time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
 	}
-	log.Printf("times are: %q", time3339s)
 
 	wholeRef := blobref.FromHash(sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
