@@ -36,6 +36,7 @@ import (
 var (
 	wantSQLite = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
 	all        = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
+	verbose    = flag.Bool("v", false, "Verbose mode")
 )
 
 func main() {
@@ -49,8 +50,15 @@ func main() {
 	verifyCamlistoreRoot(camRoot)
 	verifyGoVersion()
 
+	sql := haveSQLite()
+
+	buildBaseDir := "build-gopath"
+	if !sql {
+		buildBaseDir += "-nosqlite"
+	}
+
 	// goPath becomes our child "go" processes' GOPATH environment variable:
-	goPath := filepath.Join(camRoot, "tmp", "build-gopath")
+	goPath := filepath.Join(camRoot, "tmp", buildBaseDir)
 	binDir := filepath.Join(camRoot, "bin")
 
 	// We copy all *.go files from camRoot's goDirs to buildSrcPath.
@@ -62,13 +70,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	sql := haveSQLite()
 	version := getVersion(camRoot)
 
-	log.Printf("Camlistore version = %s", version)
-	log.Printf("SQLite available: %v", sql)
-	log.Printf("Temp GOPATH: %s", buildSrcPath)
-	log.Printf("Output binaries: %s", binDir)
+	if *verbose {
+		log.Printf("Camlistore version = %s", version)
+		log.Printf("SQLite available: %v", sql)
+		log.Printf("Temp GOPATH: %s", buildSrcPath)
+		log.Printf("Output binaries: %s", binDir)
+	}
 
 	if !sql && *wantSQLite {
 		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
@@ -129,6 +138,9 @@ func main() {
 	cmd.Env = append(cmd.Env, "GOBIN="+binDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if *verbose {
+		log.Printf("Running go with args %s", args)
+	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building: %v", err)
 	}
