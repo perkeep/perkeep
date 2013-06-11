@@ -5,8 +5,9 @@ Developing on Windows is sometimes broken, but should work.  Let us
 know if we broke something, or we accidentally depend on some
 Unix-specific build tool somewhere.
 
-See http://camlistore.org/docs/contributing for information
-on how to contribute to the project and submit patches.
+See http://camlistore.org/docs/contributing for information on how to
+contribute to the project and submit patches.  Notably, we use Gerrit
+for code review.  Our Gerrit instance is at https://camlistore.org/r/
 
 See architecture docs: https://camlistore.org/docs/
 
