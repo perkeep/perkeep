@@ -39,5 +39,11 @@ $ ./dev-camput
 $ ./dev-camget
 ... etc.
 
-Please update this file as appropriate.
+e.g.
+  - Upload a file (make sure this works):
+      ~/camlistore/dev-camput file ~/camlistore/COPYING
+  - Create a permanode:
+      ~/camlistore/dev-camput permanode
+  - Use the UI: http://localhost:3179/ui/
 
+Please update this file as appropriate.

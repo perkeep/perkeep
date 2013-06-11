@@ -1,3 +1,9 @@
+There are two TODO lists. This file (good for airplanes) and the online bug tracker:
+
+     https://code.google.com/p/camlistore/issues/list
+
+Offline list:
+
 -- support for building (with just "make" or "go run make.go" for
    Windows) without having the camlistore-0.1.tar.gz extracted
    into a GOPATH (or really: not having any GOPATH set).  should
