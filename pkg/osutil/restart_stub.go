@@ -1,7 +1,7 @@
-// +build !appengine
+// +build windows appengine
 
 /*
-Copyright 2011 Google Inc.
+Copyright 2012 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,14 +16,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package newui
+package osutil
 
 import (
-	"camlistore.org/pkg/fileembed"
+	"log"
 )
 
-func init() {
-	Files = &fileembed.Files{
-		OverrideEnv: "CAMLI_DEV_UI_FILES",
-	}
+// restartProcess returns an error if things couldn't be
+// restarted.  On success, this function never returns
+// because the process becomes the new process.
+func RestartProcess() error {
+	log.Print("RestartProcess not implemented on windows")
+	return nil
 }

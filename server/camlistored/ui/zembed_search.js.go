@@ -1,296 +1,392 @@
 // THIS FILE IS AUTO-GENERATED FROM search.js
 // DO NOT EDIT.
 
-package ui
+package newui
 
 import "time"
 
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 7810, time.Unix(0, 1369518799000000000), fileembed.String("/*\n"+
-		"Copyright 2011 Google Inc.\n"+
+	Files.Add("search.js", 10137, time.Unix(0, 1370942742232957700), fileembed.String("/**\n"+
+		" * @fileoverview Entry point for the permanodes search UI.\n"+
+		" *\n"+
+		" */\n"+
+		"goog.provide('camlistore.SearchPage');\n"+
 		"\n"+
-		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
-		"you may not use this file except in compliance with the License.\n"+
-		"You may obtain a copy of the License at\n"+
+		"goog.require('goog.array');\n"+
+		"goog.require('goog.dom');\n"+
+		"goog.require('goog.dom.classes');\n"+
+		"goog.require('goog.events.EventHandler');\n"+
+		"goog.require('goog.events.EventType');\n"+
+		"goog.require('goog.ui.Component');\n"+
+		"goog.require('camlistore.BlobItemContainer');\n"+
+		"goog.require('camlistore.ServerConnection');\n"+
+		"goog.require('camlistore.Toolbar');\n"+
+		"goog.require('camlistore.Toolbar.EventType');\n"+
 		"\n"+
-		"     http://www.apache.org/licenses/LICENSE-2.0\n"+
 		"\n"+
-		"Unless required by applicable law or agreed to in writing, software\n"+
-		"distributed under the License is distributed on an \"AS IS\" BASIS,\n"+
-		"WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n"+
-		"See the License for the specific language governing permissions and\n"+
-		"limitations under the License.\n"+
-		"*/\n"+
+		"// TODO(mpl): better help. tooltip maybe?\n"+
 		"\n"+
-		"var CamliSearch = {};\n"+
+		"// TODO(mpl): make a mother class that both index.js and search.js could\n"+
+		"// inherit from?\n"+
+		"/**\n"+
+		" * @param {camlistore.ServerType.DiscoveryDocument} config Global config\n"+
+		" *	 of the current server this page is being rendered for.\n"+
+		" * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.\n"+
+		" *\n"+
+		" * @extends {goog.ui.Component}\n"+
+		" * @constructor\n"+
+		" */\n"+
+		"camlistore.SearchPage = function(config, opt_domHelper) {\n"+
+		"	goog.base(this, opt_domHelper);\n"+
 		"\n"+
-		"function getSearchParams() {\n"+
-		"	CamliSearch.query = \"\";\n"+
-		"	CamliSearch.type = \"\";\n"+
-		"	CamliSearch.fuzzy = \"\";\n"+
-		"	CamliSearch.query = Camli.getQueryParam('q') || \"\";\n"+
-		"	CamliSearch.type = Camli.getQueryParam('t') || \"\";\n"+
-		"	CamliSearch.fuzzy = Camli.getQueryParam('f') || \"\";\n"+
-		"	CamliSearch.max = Camli.getQueryParam('max') || \"\";\n"+
-		"}\n"+
+		"	/**\n"+
+		"	 * @type {Object}\n"+
+		"	 * @private\n"+
+		"	 */\n"+
+		"	this.config_ = config;\n"+
 		"\n"+
-		"function hideAllResThings() {\n"+
-		"	CamliSearch.titleRes.style.visibility = 'hidden';\n"+
-		"	CamliSearch.btnNewCollec.disabled = true;\n"+
-		"	CamliSearch.btnNewCollec.style.visibility = 'hidden';\n"+
-		"	CamliSearch.formAddToCollec.style.visibility = 'hidden';\n"+
-		"}\n"+
+		"	/**\n"+
+		"	 * @type {camlistore.ServerConnection}\n"+
+		"	 * @private\n"+
+		"	 */\n"+
+		"	this.connection_ = new camlistore.ServerConnection(config);\n"+
 		"\n"+
-		"function handleFormGetRoots(e) {\n"+
-		"	e.stopPropagation();\n"+
-		"	e.preventDefault();\n"+
+		"	/**\n"+
+		"	 * @type {camlistore.BlobItemContainer}\n"+
+		"	 * @private\n"+
+		"	 */\n"+
+		"	this.blobItemContainer_ = new camlistore.BlobItemContainer(\n"+
+		"		this.connection_, opt_domHelper);\n"+
 		"\n"+
-		"	document.location.href = \"search.html?&t=camliRoot\"\n"+
-		"}\n"+
+		"	/**\n"+
+		"	 * @type {camlistore.Toolbar}\n"+
+		"	 * @private\n"+
+		"	 */\n"+
+		"	this.toolbar_ = new camlistore.Toolbar(opt_domHelper);\n"+
+		"	this.toolbar_.isSearch = true;\n"+
 		"\n"+
-		"function handleFormGetTagged(e) {\n"+
-		"	e.stopPropagation();\n"+
-		"	e.preventDefault();\n"+
+		"	/**\n"+
+		"	 * @type {goog.events.EventHandler}\n"+
+		"	 * @private\n"+
+		"	 */\n"+
+		"	this.eh_ = new goog.events.EventHandler(this);\n"+
+		"};\n"+
+		"goog.inherits(camlistore.SearchPage, goog.ui.Component);\n"+
 		"\n"+
-		"	var input = document.getElementById(\"inputTag\");\n"+
-		"	if (input.value == \"\") {\n"+
-		"		return;\n"+
-		"	}\n"+
-		"	var tags = input.value.split(/\\s*,\\s*/);\n"+
-		"	query = \"search.html?q=\" + tags[0] + \"&t=tag\"\n"+
-		"	var max = document.getElementById(\"maxTagged\");\n"+
-		"	if (max.value != \"\") {\n"+
-		"		query += \"&max=\" + max.value\n"+
-		"	}\n"+
 		"\n"+
-		"	document.location.href = query;\n"+
-		"}\n"+
+		"/**\n"+
+		" * @enum {string}\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.searchPrefix_ = {\n"+
+		"  TAG: 'tag:',\n"+
+		"  TITLE: 'title:',\n"+
+		"  BLOBREF: 'bref:'\n"+
+		"};\n"+
 		"\n"+
-		"function handleFormGetTitled(e) {\n"+
-		"	e.stopPropagation();\n"+
-		"	e.preventDefault();\n"+
 		"\n"+
-		"	var input = document.getElementById(\"inputTitle\");\n"+
+		"/**\n"+
+		" * @type {number}\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.maxInResponse_ = 100;\n"+
 		"\n"+
-		"	if (input.value == \"\") {\n"+
-		"		return;\n"+
-		"	}\n"+
 		"\n"+
-		"	var titles = input.value.split(/\\s*,\\s*/);\n"+
-		"	document.location.href = \"search.html?q=\" + titles[0] + \"&t=title\"\n"+
-		"}\n"+
+		"/**\n"+
+		" * Creates an initial DOM representation for the component.\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.createDom = function() {\n"+
+		"	this.decorateInternal(this.dom_.createElement('div'));\n"+
+		"};\n"+
 		"\n"+
-		"function handleFormGetAnyAttr(e) {\n"+
-		"	e.stopPropagation();\n"+
-		"	e.preventDefault();\n"+
 		"\n"+
-		"	var input = document.getElementById(\"inputAnyAttr\");\n"+
+		"/**\n"+
+		" * Decorates an existing HTML DIV element.\n"+
+		" * @param {Element} element The DIV element to decorate.\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.decorateInternal = function(element) {\n"+
+		"	camlistore.SearchPage.superClass_.decorateInternal.call(this, element);\n"+
 		"\n"+
-		"	if (input.value == \"\") {\n"+
-		"		return;\n"+
-		"	}\n"+
+		"	var el = this.getElement();\n"+
+		"	goog.dom.classes.add(el, 'cam-index-page');\n"+
 		"\n"+
-		"	var any = input.value.split(/\\s*,\\s*/);\n"+
-		"	document.location.href = \"search.html?q=\" + any[0]\n"+
-		"}\n"+
+		"	var titleEl = this.dom_.createDom('h1', 'cam-index-page-title');\n"+
+		"	this.dom_.setTextContent(titleEl, \"Search\");\n"+
+		"	this.dom_.appendChild(el, titleEl);\n"+
 		"\n"+
-		"function doSearch() {\n"+
-		"	var sigconf = Camli.config.signing;\n"+
-		"	var tagcb = {};\n"+
-		"	tagcb.success = function(pres) {\n"+
-		"		showSearchResult(pres, CamliSearch.type);\n"+
-		"	};\n"+
-		"	tagcb.fail = function(msg) {\n"+
-		"		alert(msg);\n"+
-		"	};\n"+
-		"	switch(CamliSearch.type) {\n"+
-		"	case \"tag\":\n"+
-		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"tag\", CamliSearch.query, "+
-		"CamliSearch.fuzzy, CamliSearch.max, tagcb);\n"+
-		"		break;\n"+
-		"	case \"title\":\n"+
-		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"title\", CamliSearch.query"+
-		", \"true\", CamliSearch.max, tagcb);\n"+
-		"		break;\n"+
-		"	case \"camliRoot\":\n"+
-		"		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"camliRoot\", CamliSearch.q"+
-		"uery, \"false\", CamliSearch.max, tagcb);\n"+
-		"		break;\n"+
-		"	case \"\":\n"+
-		"		if (CamliSearch.query !== \"\") {\n"+
-		"			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, \"\", CamliSearch.query, \"t"+
-		"rue\", CamliSearch.max, tagcb);\n"+
+		"	this.addChild(this.toolbar_, true);\n"+
+		"\n"+
+		"	var searchForm = this.dom_.createDom('form', {'id': 'searchForm'});\n"+
+		"	var searchText = this.dom_.createDom('input',\n"+
+		"		{'type': 'text', 'id': 'searchText', 'size': 50, 'title': 'Search'}\n"+
+		"	);\n"+
+		"	var btnSearch = this.dom_.createDom('input',\n"+
+		"		{'type': 'submit', 'id': 'btnSearch', 'value': 'Search'}\n"+
+		"	);\n"+
+		"	goog.dom.appendChild(searchForm, searchText);\n"+
+		"	goog.dom.appendChild(searchForm, btnSearch);\n"+
+		"	goog.dom.appendChild(el, searchForm);\n"+
+		"	\n"+
+		"	this.addChild(this.blobItemContainer_, true);\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/** @override */\n"+
+		"camlistore.SearchPage.prototype.disposeInternal = function() {\n"+
+		"	camlistore.SearchPage.superClass_.disposeInternal.call(this);\n"+
+		"	this.eh_.dispose();\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * Called when component's element is known to be in the document.\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.enterDocument = function() {\n"+
+		"	camlistore.SearchPage.superClass_.enterDocument.call(this);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.BIGGER,\n"+
+		"		function() {\n"+
+		"			this.blobItemContainer_.bigger();\n"+
 		"		}\n"+
-		"		break;\n"+
-		"	}\n"+
-		"}\n"+
+		"	);\n"+
 		"\n"+
-		"function showSearchResult(pres, type) {\n"+
-		"	showPermanodes(pres, type);\n"+
-		"	CamliSearch.query = \"\";\n"+
-		"	CamliSearch.type = \"\";\n"+
-		"}\n"+
-		"\n"+
-		"function showPermanodes(searchRes, type) {\n"+
-		"	var div = document.getElementById(\"divRes\");\n"+
-		"	while (div.hasChildNodes()) {\n"+
-		"		div.removeChild(div.lastChild);\n"+
-		"	}\n"+
-		"	var results = searchRes.withAttr;\n"+
-		"	if (!results) {\n"+
-		"		hideAllResThings();\n"+
-		"		return;\n"+
-		"	}\n"+
-		"	if (results.length > 0) {\n"+
-		"		var checkall = document.createElement(\"input\");\n"+
-		"		checkall.id = \"checkall\";\n"+
-		"		checkall.type = \"checkbox\";\n"+
-		"		checkall.name = \"checkall\";\n"+
-		"		checkall.checked = false;\n"+
-		"		checkall.onclick = Function(\"checkAll();\");\n"+
-		"		div.appendChild(checkall);\n"+
-		"		div.appendChild(document.createElement(\"br\"));\n"+
-		"	}\n"+
-		"	for (var i = 0; i < results.length; i++) {\n"+
-		"		var result = results[i];\n"+
-		"		var alink = document.createElement(\"a\");\n"+
-		"		alink.href = \"./?p=\" + result.permanode;\n"+
-		"		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes.meta));\n"+
-		"		var cbox = document.createElement('input');\n"+
-		"		cbox.type = \"checkbox\";\n"+
-		"		cbox.name = \"checkbox\";\n"+
-		"		cbox.value = result.permanode;\n"+
-		"		div.appendChild(cbox);\n"+
-		"		div.appendChild(alink);\n"+
-		"		div.appendChild(document.createElement('br'));\n"+
-		"	}\n"+
-		"	if (results.length > 0) {\n"+
-		"		switch(type) {\n"+
-		"		case \"tag\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"Tagged with \\\"\" + CamliSearch.query + \"\\\"\";\n"+
-		"			break;\n"+
-		"		case \"title\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"Titled with \\\"\" + CamliSearch.query + \"\\\"\";\n"+
-		"			break;\n"+
-		"		case \"camliRoot\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"All roots\";\n"+
-		"			break;\n"+
-		"		case \"\":\n"+
-		"			CamliSearch.titleRes.innerHTML = \"General search for \\\"\" + CamliSearch.query +"+
-		" \"\\\"\";\n"+
-		"			break;\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.SMALLER,\n"+
+		"		function() {\n"+
+		"			this.blobItemContainer_.smaller();\n"+
 		"		}\n"+
-		"		CamliSearch.titleRes.style.visibility = 'visible';\n"+
-		"		CamliSearch.btnNewCollec.disabled = false;\n"+
-		"		CamliSearch.btnNewCollec.style.visibility = 'visible';\n"+
-		"		CamliSearch.formAddToCollec.style.visibility = 'visible';\n"+
-		"	} else {\n"+
-		"		hideAllResThings();\n"+
-		"	}\n"+
-		"}\n"+
+		"	);\n"+
 		"\n"+
-		"function getTicked() {\n"+
-		"	var checkboxes = document.getElementsByName(\"checkbox\");\n"+
-		"	CamliSearch.tickedMemb = new Array();\n"+
-		"	var j = 0;\n"+
-		"	for (var i = 0; i < checkboxes.length; i++) {\n"+
-		"		if (checkboxes[i].checked) {\n"+
-		"			CamliSearch.tickedMemb[j] = checkboxes[i].value;\n"+
-		"			j++;\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.ROOTS,\n"+
+		"		function() {\n"+
+		"			this.blobItemContainer_.showRoots(this.config_.signing);\n"+
 		"		}\n"+
-		"	}\n"+
-		"}\n"+
+		"	);\n"+
 		"\n"+
-		"function checkAll() {\n"+
-		"	var checkall = document.getElementById(\"checkall\");\n"+
-		"	var checkboxes = document.getElementsByName('checkbox');\n"+
-		"	for (var i = 0; i < checkboxes.length; i++) {\n"+
-		"		checkboxes[i].checked = checkall.checked;\n"+
-		"	}\n"+
-		"}\n"+
-		"\n"+
-		"function handleCreateNewCollection(e) {\n"+
-		"	addToCollection(true)\n"+
-		"}\n"+
-		"\n"+
-		"function handleAddToCollection(e) {\n"+
-		"	e.stopPropagation();\n"+
-		"	e.preventDefault();\n"+
-		"	addToCollection(false)\n"+
-		"}\n"+
-		"\n"+
-		"function addToCollection(createNew) {\n"+
-		"	var cnpcb = {};\n"+
-		"	cnpcb.success = function(parent) {\n"+
-		"		var nRemain = CamliSearch.tickedMemb.length;\n"+
-		"		var naaccb = {};\n"+
-		"		naaccb.fail = function() {\n"+
-		"			CamliSearch.btnNewCollec.disabled = true;\n"+
-		"			throw(\"failed to add member to collection\");\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.HOME,\n"+
+		"		function() {\n"+
+		"			window.open('./index.html', 'Home');\n"+
 		"		}\n"+
-		"		naaccb.success = function() {\n"+
-		"			nRemain--;\n"+
-		"			if (nRemain == 0) {\n"+
-		"				CamliSearch.btnNewCollec.disabled = true;\n"+
-		"				window.location = \"./?p=\" + parent;\n"+
-		"			}\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		goog.dom.getElement('searchForm'),\n"+
+		"		goog.events.EventType.SUBMIT,\n"+
+		"		this.handleTextSearch_\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,\n"+
+		"		function() {\n"+
+		"			var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"			this.createNewSetWithItems_(blobItems);\n"+
 		"		}\n"+
-		"		try {\n"+
-		"			for (var i = 0; i < CamliSearch.tickedMemb.length; i++) {\n"+
-		"				camliNewAddAttributeClaim(parent, \"camliMember\", CamliSearch.tickedMemb[i], n"+
-		"aaccb);\n"+
-		"			}\n"+
-		"		} catch(x) {\n"+
-		"			alert(x)\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,\n"+
+		"		function() {\n"+
+		"			var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"			this.addItemsToSet_(blobItems);\n"+
 		"		}\n"+
-		"	};\n"+
-		"	cnpcb.fail = function() {\n"+
-		"		alert(\"failed to create permanode\");\n"+
-		"	};\n"+
-		"	getTicked();\n"+
-		"	if (CamliSearch.tickedMemb.length > 0) {\n"+
-		"		if (createNew) {\n"+
-		"			camliCreateNewPermanode(cnpcb);\n"+
-		"		} else {\n"+
-		"			var pn = document.getElementById(\"inputCollec\").value;\n"+
-		"//TODO(mpl): allow a collection title (instead of a hash) as input\n"+
-		"			if (!Camli.isPlausibleBlobRef(pn)) {\n"+
-		"				alert(\"Not a valid collection permanode hash\");\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.blobItemContainer_,\n"+
+		"		camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,\n"+
+		"		function() {\n"+
+		"			this.handleItemSelection_(false);\n"+
+		"		}\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.blobItemContainer_,\n"+
+		"		camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,\n"+
+		"		function() {\n"+
+		"			this.handleItemSelection_(true);\n"+
+		"		}\n"+
+		"	);\n"+
+		"\n"+
+		"	this.eh_.listen(\n"+
+		"		this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,\n"+
+		"		function() {\n"+
+		"			var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"			// there should be only one item selected\n"+
+		"			if (blobItems.length != 1) {\n"+
+		"				alert(\"Select (only) one item to set as the default collection.\");\n"+
 		"				return;\n"+
 		"			}\n"+
-		"			var returnPn = function(opts) {\n"+
-		"				opts = Camli.saneOpts(opts);\n"+
-		"				opts.success(pn);\n"+
-		"			}\n"+
-		"			returnPn(cnpcb);\n"+
+		"			this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;\n"+
+		"			this.blobItemContainer_.unselectAll();\n"+
+		"			this.toolbar_.setCheckedBlobItemCount(0);\n"+
+		"			this.toolbar_.toggleCollecButton(false);\n"+
+		"			this.toolbar_.toggleAddToSetButton(false);\n"+
 		"		}\n"+
+		"	);\n"+
+		"\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {boolean} single Whether a single item has been (un)selected.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.handleItemSelection_ =\n"+
+		"function(single) {\n"+
+		"	var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"	this.toolbar_.setCheckedBlobItemCount(blobItems.length);\n"+
+		"	// set checkedItemsAddToSetButton_\n"+
+		"	if (this.blobItemContainer_.currentCollec_ &&\n"+
+		"		this.blobItemContainer_.currentCollec_ != \"\" &&\n"+
+		"		blobItems.length > 0) {\n"+
+		"		this.toolbar_.toggleAddToSetButton(true);\n"+
 		"	} else {\n"+
-		"		alert(\"No selected object\")\n"+
+		"		this.toolbar_.toggleAddToSetButton(false);\n"+
+		"	}\n"+
+		"	// set setAsCollecButton_\n"+
+		"	if (single &&\n"+
+		"		blobItems.length == 1 &&\n"+
+		"		blobItems[0].isCollection()) {\n"+
+		"		this.toolbar_.toggleCollecButton(true);\n"+
+		"	} else {\n"+
+		"		this.toolbar_.toggleCollecButton(false);\n"+
 		"	}\n"+
 		"}\n"+
 		"\n"+
-		"function indexOnLoad(e) {\n"+
+		"// Returns true if the passed-in string might be a blobref.\n"+
+		"isPlausibleBlobRef = function(blobRef) {\n"+
+		"	return /^\\w+-[a-f0-9]+$/.test(blobRef);\n"+
+		"};\n"+
 		"\n"+
-		"	var formRoots = document.getElementById(\"formRoots\");\n"+
-		"	formRoots.addEventListener(\"submit\", handleFormGetRoots);\n"+
-		"	var formTags = document.getElementById(\"formTags\");\n"+
-		"	formTags.addEventListener(\"submit\", handleFormGetTagged);\n"+
-		"	var formTitles = document.getElementById(\"formTitles\");\n"+
-		"	formTitles.addEventListener(\"submit\", handleFormGetTitled);\n"+
-		"	var formAnyAttr = document.getElementById(\"formAnyAttr\");\n"+
-		"	formAnyAttr.addEventListener(\"submit\", handleFormGetAnyAttr);\n"+
-		"	CamliSearch.titleRes = document.getElementById(\"titleRes\");\n"+
-		"	CamliSearch.btnNewCollec = document.getElementById(\"btnNewCollec\");\n"+
-		"	CamliSearch.btnNewCollec.addEventListener(\"click\", handleCreateNewCollection);\n"+
-		"	CamliSearch.formAddToCollec = document.getElementById(\"formAddToCollec\");\n"+
-		"	CamliSearch.formAddToCollec.addEventListener(\"submit\", handleAddToCollection);\n"+
-		"	hideAllResThings();\n"+
-		"	getSearchParams();\n"+
-		"	doSearch();\n"+
-		"}\n"+
+		"/**\n"+
+		" * @param {goog.events.Event} e The title form submit event.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.handleTextSearch_ =\n"+
+		"function(e) {\n"+
+		"	e.stopPropagation();\n"+
+		"	e.preventDefault();\n"+
 		"\n"+
-		"window.addEventListener(\"load\", indexOnLoad);\n"+
+		"	var searchText = goog.dom.getElement(\"searchText\");\n"+
+		"	searchText.disabled = true;\n"+
+		"	var btnSearch = goog.dom.getElement(\"btnSearch\");\n"+
+		"	btnSearch.disabled = true;\n"+
+		"\n"+
+		"	var attr = \"\";\n"+
+		"	var value = \"\";\n"+
+		"	var fuzzy = false;\n"+
+		"	if (searchText.value.indexOf(this.searchPrefix_.TAG) == 0) {\n"+
+		"		// search by tag\n"+
+		"		attr = \"tag\";\n"+
+		"		value = searchText.value.slice(this.searchPrefix_.TAG.length);\n"+
+		"		// TODO(mpl): allow fuzzy option for tag search. How?\n"+
+		"		// \":fuzzy\" at the end of search string maybe?\n"+
+		"	} else if (searchText.value.indexOf(this.searchPrefix_.TITLE) == 0) {\n"+
+		"		// search by title\n"+
+		"		attr = \"title\";\n"+
+		"		value = searchText.value.slice(this.searchPrefix_.TITLE.length);\n"+
+		"		// TODO(mpl): fuzzy search seems to be broken for title. investigate.\n"+
+		"	} else if (searchText.value.indexOf(this.searchPrefix_.BLOBREF) == 0) {\n"+
+		"		// or query directly by blobref (useful to get a permanode and set it\n"+
+		"		// as the default collection)\n"+
+		"		value = searchText.value.slice(this.searchPrefix_.BLOBREF.length);\n"+
+		"		if (isPlausibleBlobRef(value)) {\n"+
+		"			this.blobItemContainer_.findByBlobref_(value);\n"+
+		"		}\n"+
+		"		searchText.disabled = false;\n"+
+		"		btnSearch.disabled = false;\n"+
+		"		return;\n"+
+		"	} else {\n"+
+		"		attr = \"\";\n"+
+		"		value = searchText.value;\n"+
+		"		fuzzy = true;\n"+
+		"	}\n"+
+		"\n"+
+		"	this.blobItemContainer_.showWithAttr(this.config_.signing,\n"+
+		"		attr, value, fuzzy, this.maxInResponse_\n"+
+		"	);\n"+
+		"	searchText.disabled = false;\n"+
+		"	btnSearch.disabled = false;\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * Called when component's element is known to have been removed from the\n"+
+		" * document.\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.exitDocument = function() {\n"+
+		"	camlistore.SearchPage.superClass_.exitDocument.call(this);\n"+
+		"	this.eh_.dispose();\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.createNewSetWithItems_ = function(blobItems) {\n"+
+		"	this.connection_.createPermanode(\n"+
+		"		goog.bind(this.addMembers_, this, true, blobItems));\n"+
+		"};\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.addItemsToSet_ = function(blobItems) {\n"+
+		"	if (!this.blobItemContainer_.currentCollec_ ||\n"+
+		"		this.blobItemContainer_.currentCollec_ == \"\") {\n"+
+		"		alert(\"no destination collection selected\");\n"+
+		"	}\n"+
+		"	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);\n"+
+		"};\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {boolean} newSet Whether the containing set has just been created.\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @param {string} permanode Node to add the items to.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.addMembers_ =\n"+
+		"function(newSet, blobItems, permanode) {\n"+
+		"	var deferredList = [];\n"+
+		"	var complete = goog.bind(this.addItemsToSetDone_, this, permanode);\n"+
+		"	var callback = function() {\n"+
+		"		deferredList.push(1);\n"+
+		"		if (deferredList.length == blobItems.length) {\n"+
+		"			complete();\n"+
+		"		}\n"+
+		"	};\n"+
+		"\n"+
+		"	// TODO(mpl): newSet is a lame trick. Do better.\n"+
+		"	if (newSet) {\n"+
+		"		this.connection_.newSetAttributeClaim(\n"+
+		"			permanode, 'title', 'My new set', function() {}\n"+
+		"		);\n"+
+		"	}\n"+
+		"	goog.array.forEach(blobItems, function(blobItem, index) {\n"+
+		"		this.connection_.newAddAttributeClaim(\n"+
+		"			permanode, 'camliMember', blobItem.getBlobRef(), callback\n"+
+		"		);\n"+
+		"	}, this);\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {string} permanode Node to which the items were added.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.SearchPage.prototype.addItemsToSetDone_ = function(permanode) {\n"+
+		"	this.blobItemContainer_.unselectAll();\n"+
+		"	var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"	this.toolbar_.setCheckedBlobItemCount(blobItems.length);\n"+
+		"	this.toolbar_.toggleCollecButton(false);\n"+
+		"	this.toolbar_.toggleAddToSetButton(false);\n"+
+		"};\n"+
 		""))
 }

@@ -70,3 +70,28 @@ a.pics-edit:hover {
   margin-right: .5em;
   font-weight: normal;
 }
+
+a.hidden {
+	display: none;
+}
+
+a.visible {
+	display: inline;
+}
+
+input.hidden {
+	display: none;
+}
+
+input.visible {
+	display: inline-block;
+}
+
+span.hidden {
+	display: none;
+}
+
+span.visible {
+	display: inline-block;
+}
+

@@ -1,375 +1,324 @@
 // THIS FILE IS AUTO-GENERATED FROM index.js
 // DO NOT EDIT.
 
-package ui
+package newui
 
 import "time"
 
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.js", 10925, time.Unix(0, 1365377949000000000), fileembed.String("/*\n"+
-		"Copyright 2012 Camlistore Authors.\n"+
+	Files.Add("index.js", 9095, time.Unix(0, 1370942742232957700), fileembed.String("/**\n"+
+		" * @fileoverview Entry point for the blob browser UI.\n"+
+		" *\n"+
+		" */\n"+
+		"goog.provide('camlistore.IndexPage');\n"+
 		"\n"+
-		"Licensed under the Apache License, Version 2.0 (the \"License\");\n"+
-		"you may not use this file except in compliance with the License.\n"+
-		"You may obtain a copy of the License at\n"+
+		"goog.require('goog.array');\n"+
+		"goog.require('goog.dom');\n"+
+		"goog.require('goog.dom.classes');\n"+
+		"goog.require('goog.events.EventHandler');\n"+
+		"goog.require('goog.events.EventType');\n"+
+		"goog.require('goog.ui.Component');\n"+
+		"goog.require('goog.ui.Textarea');\n"+
+		"goog.require('camlistore.BlobItemContainer');\n"+
+		"goog.require('camlistore.ServerConnection');\n"+
+		"goog.require('camlistore.Toolbar');\n"+
+		"goog.require('camlistore.Toolbar.EventType');\n"+
+		"goog.require('camlistore.ServerType');\n"+
 		"\n"+
-		"	 http://www.apache.org/licenses/LICENSE-2.0\n"+
 		"\n"+
-		"Unless required by applicable law or agreed to in writing, software\n"+
-		"distributed under the License is distributed on an \"AS IS\" BASIS,\n"+
-		"WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n"+
-		"See the License for the specific language governing permissions and\n"+
-		"limitations under the License.\n"+
-		"*/\n"+
+		"/**\n"+
+		" * @param {camlistore.ServerType.DiscoveryDocument} config Global config\n"+
+		" *   of the current server this page is being rendered for.\n"+
+		" * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.\n"+
+		" *\n"+
+		" * @extends {goog.ui.Component}\n"+
+		" * @constructor\n"+
+		" */\n"+
+		"camlistore.IndexPage = function(config, opt_domHelper) {\n"+
+		"  goog.base(this, opt_domHelper);\n"+
 		"\n"+
-		"var CamliIndexPage = {\n"+
-		"    thumbSizes: [25, 50, 75, 100, 150, 200],\n"+
-		"    thumbSizeIdx: 3\n"+
+		"  /**\n"+
+		"   * @type {Object}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.config_ = config;\n"+
+		"\n"+
+		"  /**\n"+
+		"   * @type {camlistore.ServerConnection}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.connection_ = new camlistore.ServerConnection(config);\n"+
+		"\n"+
+		"  /**\n"+
+		"   * @type {camlistore.BlobItemContainer}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.blobItemContainer_ = new camlistore.BlobItemContainer(\n"+
+		"      this.connection_, opt_domHelper);\n"+
+		"  this.blobItemContainer_.setHasCreateItem(true);\n"+
+		"\n"+
+		"  /**\n"+
+		"   * @type {Element}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.serverInfo_;\n"+
+		"\n"+
+		"  /**\n"+
+		"   * @type {camlistore.Toolbar}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.toolbar_ = new camlistore.Toolbar(opt_domHelper);\n"+
+		"\n"+
+		"  /**\n"+
+		"   * @type {goog.events.EventHandler}\n"+
+		"   * @private\n"+
+		"   */\n"+
+		"  this.eh_ = new goog.events.EventHandler(this);\n"+
+		"};\n"+
+		"goog.inherits(camlistore.IndexPage, goog.ui.Component);\n"+
+		"\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * Creates an initial DOM representation for the component.\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.createDom = function() {\n"+
+		"  this.decorateInternal(this.dom_.createElement('div'));\n"+
 		"};\n"+
 		"\n"+
-		"CamliIndexPage.thumbSize = function() {\n"+
-		"  return CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];\n"+
+		"\n"+
+		"/**\n"+
+		" * Decorates an existing HTML DIV element.\n"+
+		" * @param {Element} element The DIV element to decorate.\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.decorateInternal = function(element) {\n"+
+		"  camlistore.IndexPage.superClass_.decorateInternal.call(this, element);\n"+
+		"\n"+
+		"  var el = this.getElement();\n"+
+		"  goog.dom.classes.add(el, 'cam-index-page');\n"+
+		"\n"+
+		"  var titleEl = this.dom_.createDom('h1', 'cam-index-title');\n"+
+		"  this.dom_.setTextContent(titleEl, this.config_.ownerName + '\\'s Vault');\n"+
+		"  this.dom_.appendChild(el, titleEl);\n"+
+		"\n"+
+		"  this.serverInfo_ = this.dom_.createDom('div', 'cam-index-serverinfo');\n"+
+		"  this.dom_.appendChild(el, this.serverInfo_);\n"+
+		"\n"+
+		"  this.addChild(this.toolbar_, true);\n"+
+		"  this.addChild(this.blobItemContainer_, true);\n"+
 		"};\n"+
 		"\n"+
-		"CamliIndexPage.thumbBoxSize = function() {\n"+
-		"  return 50 + CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];\n"+
+		"\n"+
+		"/** @override */\n"+
+		"camlistore.IndexPage.prototype.disposeInternal = function() {\n"+
+		"  camlistore.IndexPage.superClass_.disposeInternal.call(this);\n"+
+		"  this.eh_.dispose();\n"+
 		"};\n"+
 		"\n"+
-		"CamliIndexPage.thumbFontSize = function() {\n"+
-		"  var fontSize = (CamliIndexPage.thumbSize() / 6);\n"+
-		"  if (fontSize < 10) {\n"+
-		"      fontSize = 10;\n"+
-		"  }\n"+
-		"  if (fontSize > 20) {\n"+
-		"      fontSize = 20;\n"+
-		"  }\n"+
-		"  return fontSize + \"px\";\n"+
-		"};\n"+
 		"\n"+
-		"CamliIndexPage.onLoad = function() {\n"+
-		"    CamliIndexPage.startRecentLoading();\n"+
+		"/**\n"+
+		" * Called when component's element is known to be in the document.\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.enterDocument = function() {\n"+
+		"  camlistore.IndexPage.superClass_.enterDocument.call(this);\n"+
 		"\n"+
-		"    var selView = $(\"selectView\");\n"+
-		"    var goTargets = {\n"+
-		"      \"recent\": function() { alert(\"not implemented, but it's already in recent m"+
-		"ode\"); },\n"+
-		"      \"date\": function() { alert(\"TODO: pop up a date selector dialog\"); },\n"+
-		"      \"fromsel\": function() { alert(\"TODO: go forward in time from selected item\""+
-		"); },\n"+
-		"      \"debug:signing\": \"signing.html\", \n"+
-		"      \"debug:disco\": \"disco.html\",\n"+
-		"      \"debug:misc\": \"debug.html\",\n"+
-		"      \"search\": \"search.html\"\n"+
-		"    };\n"+
-		"    selView.addEventListener(\n"+
-		"        \"change\",\n"+
-		"        function(e) {\n"+
-		"            var target = goTargets[selView.value];\n"+
-		"            if (!target) {\n"+
-		"                return;\n"+
-		"            }\n"+
-		"            if (typeof(target) == \"string\") {\n"+
-		"                window.location = target;\n"+
-		"            }\n"+
-		"            if (typeof(target) == \"function\") {\n"+
-		"                target();\n"+
-		"            }\n"+
-		"    });\n"+
+		"	this.connection_.serverStatus(\n"+
+		"		goog.bind(function(resp) {\n"+
+		"			this.handleServerStatus_(resp);\n"+
+		"		}, this)\n"+
+		"	);\n"+
 		"\n"+
-		"    $(\"formSearch\").addEventListener(\"submit\", CamliIndexPage.onSearchSubmit);\n"+
-		"    $(\"btnSmaller\").addEventListener(\"click\", CamliIndexPage.sizeHandler(-1));\n"+
-		"    $(\"btnBigger\").addEventListener(\"click\", CamliIndexPage.sizeHandler(1));\n"+
-		"    Camli.setTextContent($(\"topTitle\"), Camli.config.ownerName + \"'s Vault\");\n"+
-		"};\n"+
-		"\n"+
-		"CamliIndexPage.sizeHandler = function(idxDelta) {\n"+
-		"    return function(e) { // onclick handler\n"+
-		"        var newSize = CamliIndexPage.thumbSizeIdx + idxDelta;\n"+
-		"        if (newSize < 0 || newSize >= CamliIndexPage.thumbSizes.length) {\n"+
-		"            return;\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.BIGGER,\n"+
+		"      function() {\n"+
+		"        if (this.blobItemContainer_.bigger()) {\n"+
+		"          this.blobItemContainer_.showRecent();\n"+
 		"        }\n"+
-		"        CamliIndexPage.thumbSizeIdx = newSize;\n"+
-		"        $(\"recent\").innerHTML = \"\";\n"+
-		"        CamliIndexPage.startRecentLoading();\n"+
-		"    };\n"+
-		"};\n"+
+		"      });\n"+
 		"\n"+
-		"CamliIndexPage.startRecentLoading = function() {\n"+
-		"    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItem"+
-		"s, thumbnails: CamliIndexPage.thumbSize()});\n"+
-		"};\n"+
-		"\n"+
-		"CamliIndexPage.onSearchSubmit = function(e) {\n"+
-		"    e.preventDefault();\n"+
-		"    e.stopPropagation();\n"+
-		"    var searchVal = $(\"textSearch\").value;\n"+
-		"    if (searchVal == \"\") {\n"+
-		"        CamliIndexPage.startRecentLoading();\n"+
-		"    } else {\n"+
-		"        // TODO: super lame.  for now.  should just change filter\n"+
-		"        // of existing page, without navigating away.\n"+
-		"        window.location = \"search.html?t=tag&q=\" + searchVal;\n"+
-		"    }\n"+
-		"};\n"+
-		"\n"+
-		"var lastSelIndex = 0;\n"+
-		"var selSetter = {};         // numeric index -> func(selected) setter\n"+
-		"var currentlySelected = {}; // currently selected index -> true\n"+
-		"var itemsSelected = 0;\n"+
-		"\n"+
-		"CamliIndexPage.setThumbBoxStyle = function(div) {\n"+
-		"  div.style.width = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
-		"  div.style.height = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
-		"  div.style.maxWidth = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
-		"  div.style.maxHeight = CamliIndexPage.thumbBoxSize() + \"px\";\n"+
-		"};\n"+
-		"\n"+
-		"// divFromResult converts the |i|th searchResult into\n"+
-		"// a div element, style as a thumbnail tile.\n"+
-		"function divFromResult(searchRes, i) {\n"+
-		"    var result = searchRes.recent[i];\n"+
-		"    var br = searchRes.meta[result.blobref];\n"+
-		"    var divperm = document.createElement(\"div\");\n"+
-		"    CamliIndexPage.setThumbBoxStyle(divperm);\n"+
-		"\n"+
-		"    var setSelected = function(selected) {\n"+
-		"        if (divperm.isSelected == selected) {\n"+
-		"            return;\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.SMALLER,\n"+
+		"      function() {\n"+
+		"        if (this.blobItemContainer_.smaller()) {\n"+
+		"          this.blobItemContainer_.showRecent();\n"+
 		"        }\n"+
-		"	divperm.isSelected = selected;\n"+
-		"	if (selected) {\n"+
-		"	    lastSelIndex = i;\n"+
-		"	    currentlySelected[i] = true;\n"+
-		"	    divperm.classList.add(\"selected\");\n"+
-		"	} else {\n"+
-		"	    delete currentlySelected[selected];\n"+
-		"	    lastSelIndex = -1;\n"+
-		"	    divperm.classList.remove(\"selected\");\n"+
+		"      });\n"+
+		"\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.GOSEARCH,\n"+
+		"      function() {\n"+
+		"        window.open('./search.html', 'Search');\n"+
+		"      });\n"+
+		"\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,\n"+
+		"      function() {\n"+
+		"        var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"        this.createNewSetWithItems_(blobItems);\n"+
+		"      });\n"+
+		"\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,\n"+
+		"      function() {\n"+
+		"        var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"        this.addItemsToSet_(blobItems);\n"+
+		"      });\n"+
+		"\n"+
+		"  this.eh_.listen(\n"+
+		"      this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,\n"+
+		"      function() {\n"+
+		"        var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"        // there should be only one item selected\n"+
+		"        if (blobItems.length != 1) {\n"+
+		"          alert(\"Cannet set multiple items as current collection\");\n"+
+		"          return;\n"+
+		"        }\n"+
+		"        this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;\n"+
+		"        this.blobItemContainer_.unselectAll();\n"+
+		"        this.toolbar_.setCheckedBlobItemCount(0);\n"+
+		"        this.toolbar_.toggleCollecButton(false);\n"+
+		"        this.toolbar_.toggleAddToSetButton(false);\n"+
+		"      });\n"+
+		"\n"+
+		"  // TODO(mpl): those are getting large. make dedicated funcs.\n"+
+		"  this.eh_.listen(\n"+
+		"      this.blobItemContainer_,\n"+
+		"      camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,\n"+
+		"      function() {\n"+
+		"        var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"        this.toolbar_.setCheckedBlobItemCount(blobItems.length);\n"+
+		"        // set checkedItemsAddToSetButton_\n"+
+		"        if (this.blobItemContainer_.currentCollec_ &&\n"+
+		"          this.blobItemContainer_.currentCollec_ != \"\" &&\n"+
+		"          blobItems.length > 0) {\n"+
+		"          this.toolbar_.toggleAddToSetButton(true);\n"+
+		"        } else {\n"+
+		"          this.toolbar_.toggleAddToSetButton(false);\n"+
+		"        }\n"+
+		"        // set setAsCollecButton_\n"+
+		"        this.toolbar_.toggleCollecButton(false);\n"+
+		"      });\n"+
+		"\n"+
+		"  this.eh_.listen(\n"+
+		"      this.blobItemContainer_,\n"+
+		"      camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,\n"+
+		"      function() {\n"+
+		"        var blobItems = this.blobItemContainer_.getCheckedBlobItems();\n"+
+		"        this.toolbar_.setCheckedBlobItemCount(blobItems.length);\n"+
+		"        // set checkedItemsAddToSetButton_\n"+
+		"        if (this.blobItemContainer_.currentCollec_ &&\n"+
+		"          this.blobItemContainer_.currentCollec_ != \"\" &&\n"+
+		"          blobItems.length > 0) {\n"+
+		"          this.toolbar_.toggleAddToSetButton(true);\n"+
+		"        } else {\n"+
+		"          this.toolbar_.toggleAddToSetButton(false);\n"+
+		"        }\n"+
+		"        // set setAsCollecButton_\n"+
+		"        if (blobItems.length == 1 &&\n"+
+		"          blobItems[0].isCollection()) {\n"+
+		"          this.toolbar_.toggleCollecButton(true);\n"+
+		"        } else {\n"+
+		"          this.toolbar_.toggleCollecButton(false);\n"+
+		"        }\n"+
+		"      });\n"+
+		"\n"+
+		"  this.blobItemContainer_.showRecent();\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * Called when component's element is known to have been removed from the\n"+
+		" * document.\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.exitDocument = function() {\n"+
+		"  camlistore.IndexPage.superClass_.exitDocument.call(this);\n"+
+		"  // Clear event handlers here\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {\n"+
+		"  this.connection_.createPermanode(\n"+
+		"      goog.bind(this.addMembers_, this, true, blobItems));\n"+
+		"};\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.addItemsToSet_ = function(blobItems) {\n"+
+		"	if (!this.blobItemContainer_.currentCollec_ ||\n"+
+		"		this.blobItemContainer_.currentCollec_ == \"\") {\n"+
+		"		alert(\"no destination collection selected\");\n"+
 		"	}\n"+
-		"        itemsSelected += selected ? 1 : -1;\n"+
-		"        $(\"optFromSel\").disabled = (itemsSelected == 0);\n"+
-		"    };\n"+
-		"    selSetter[i] = setSelected;\n"+
-		"    divperm.addEventListener(\n"+
-		"        \"mousedown\", function(e) {\n"+
-		"	    if (e.shiftKey) {\n"+
-		"	        e.preventDefault(); // prevent browser range selection\n"+
-		"	    }\n"+
-		"	});\n"+
-		"    divperm.addEventListener(\n"+
-		"        \"click\", function(e) {\n"+
-		"	    if (e.ctrlKey) {\n"+
-		"		setSelected(!divperm.isSelected);\n"+
-		"		return;\n"+
-		"	    }\n"+
-		"	    if (e.shiftKey) {\n"+
-		"		if (lastSelIndex < 0) {\n"+
-		"		    return;\n"+
-		"		}\n"+
-		"		var from = lastSelIndex;\n"+
-		"		var to = i;\n"+
-		"		if (to < from) {\n"+
-		"		    from = i;\n"+
-		"		    to = lastSelIndex;\n"+
-		"		}\n"+
-		"		for (var j = from; j <= to; j++) {\n"+
-		"		    selSetter[j](true);\n"+
-		"		}\n"+
-		"		return;\n"+
-		"	    }\n"+
-		"	    for (var j in currentlySelected) {\n"+
-		"		if (j != i) {\n"+
-		"		    selSetter[j](false);\n"+
-		"		}\n"+
-		"	    }\n"+
-		"	    setSelected(!divperm.isSelected);\n"+
-		"	});\n"+
-		"    var alink = document.createElement(\"a\");\n"+
-		"    alink.href = \"./?p=\" + br.blobRef;\n"+
-		"    var img = document.createElement(\"img\");\n"+
-		"    img.src = br.thumbnailSrc;\n"+
-		"    img.height = br.thumbnailHeight;\n"+
-		"    img.width =  br.thumbnailWidth;\n"+
-		"    alink.appendChild(img);\n"+
-		"    divperm.appendChild(alink);\n"+
-		"    var title = document.createElement(\"p\");\n"+
-		"    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes.meta));\n"+
-		"    title.className = 'camli-ui-thumbtitle';\n"+
-		"    title.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
-		"    divperm.appendChild(title);\n"+
-		"    divperm.className = 'camli-ui-thumb';\n"+
-		"    return divperm;\n"+
-		"}\n"+
-		"\n"+
-		"// createPlusButton returns the div element that is both a button\n"+
-		"// a drop zone for new file(s).\n"+
-		"function createPlusButton() {\n"+
-		"  var div = document.createElement(\"div\");\n"+
-		"  div.id = \"plusdrop\";\n"+
-		"  div.className = \"camli-ui-thumb\";\n"+
-		"  CamliIndexPage.setThumbBoxStyle(div);\n"+
-		"\n"+
-		"  var plusLink = document.createElement(\"a\");\n"+
-		"  plusLink.classList.add(\"plusLink\");\n"+
-		"  plusLink.href = '#';\n"+
-		"  plusLink.innerHTML = \"+\";\n"+
-		"\n"+
-		"  plusLink.style.fontSize = (CamliIndexPage.thumbSize() / 4 * 3) + \"px\";\n"+
-		"  plusLink.style.marginTop = (CamliIndexPage.thumbSize() / 4) + \"px\";\n"+
-		"  div.appendChild(plusLink);\n"+
-		"\n"+
-		"  var statusDiv = document.createElement(\"div\");\n"+
-		"  statusDiv.innerHTML = \"Click or drag & drop files here.\";\n"+
-		"  statusDiv.style.fontSize = CamliIndexPage.thumbFontSize();\n"+
-		"\n"+
-		"  // TODO: use statusDiv instead (hidden by default), but put\n"+
-		"  // it somewhere users can get to it with a click.\n"+
-		"  div.appendChild(statusDiv);\n"+
-		"\n"+
-		"  plusLink.addEventListener(\"click\", function(e) {\n"+
-		"      e.preventDefault();\n"+
-		"      camliCreateNewPermanode({\n"+
-		"            success: function(blobref) {\n"+
-		"               window.location = \"./?p=\" + blobref;\n"+
-		"            },\n"+
-		"            fail: function(msg) {\n"+
-		"                alert(\"create permanode failed: \" + msg);\n"+
-		"            }\n"+
-		"        });\n"+
-		"  });\n"+
-		"  \n"+
-		"  var stop = function(e) {\n"+
-		"    this.classList && this.classList.add('camli-dnd-over');\n"+
-		"    e.stopPropagation();\n"+
-		"    e.preventDefault();\n"+
-		"  };\n"+
-		"  div.addEventListener(\"dragenter\", stop, false);\n"+
-		"  div.addEventListener(\"dragover\", stop, false);\n"+
-		"  div.addEventListener(\"dragleave\", function() {\n"+
-		"      this.classList.remove('camli-dnd-over');\n"+
-		"  }, false);\n"+
-		"\n"+
-		"  var drop = function(e) {\n"+
-		"    this.classList.remove('camli-dnd-over');\n"+
-		"    stop(e);\n"+
-		"    var dt = e.dataTransfer;\n"+
-		"    var files = dt.files;\n"+
-		"    var subject = \"\";\n"+
-		"    if (files.length == 1) {\n"+
-		"      subject = files[0].name;\n"+
-		"    } else {\n"+
-		"      subject = files.length + \" files\";\n"+
-		"    }\n"+
-		"    statusDiv.innerHTML = \"Uploading \" + subject + \" (<a href='#'>status</a>)\";\n"+
-		"    startFileUploads(files, document.getElementById(\"debugstatus\"), {\n"+
-		"      success: function() {\n"+
-		"          statusDiv.innerHTML = \"Uploaded.\";\n"+
-		"\n"+
-		"          // TODO(bradfitz): this just re-does the whole initial\n"+
-		"          // query, and only at the very end of all the uploads.\n"+
-		"          // it would be cooler if, when uploading a dozen\n"+
-		"          // large files, we saw the permanodes load in one-at-a-time\n"+
-		"          // as the became available.\n"+
-		"          CamliIndexPage.startRecentLoading();\n"+
-		"      }\n"+
-		"    });\n"+
-		"  };\n"+
-		"  div.addEventListener(\"drop\", drop, false);\n"+
-		"  return div;\n"+
-		"}\n"+
-		"\n"+
-		"// files: array of File objects to upload and create permanods for.\n"+
-		"//    If >1, also create an enclosing permanode for them to all\n"+
-		"//    be members of.\n"+
-		"// statusdiv: optional div element to log status messages to.\n"+
-		"// opts:\n"+
-		"// -- success: function([permanodes])\n"+
-		"function startFileUploads(files, statusDiv, opts) {\n"+
-		"  var parentNode = opts.parentNode;\n"+
-		"  if (files.length > 1 && !parentNode) {\n"+
-		"    // create a new parent permanode with dummy\n"+
-		"    // title and re-call startFileUploads with\n"+
-		"    // opts.parentNode set, so we upload into that.\n"+
-		"  }\n"+
-		"\n"+
-		"  var log = function(msg) {\n"+
-		"    if (statusDiv) {\n"+
-		"      var p = document.createElement(\"p\");\n"+
-		"      p.innerHTML = msg;\n"+
-		"      statusDiv.appendChild(p);\n"+
-		"    }\n"+
-		"  };\n"+
-		"\n"+
-		"  var remain = files.length;\n"+
-		"  log(\"Need to upload \" + remain + \" files\");\n"+
-		"\n"+
-		"  var permanodes = [];\n"+
-		"  var fails = [];\n"+
-		"  var decr = function() {\n"+
-		"    remain--;\n"+
-		"    log(remain + \" remaining now\");\n"+
-		"    if (remain > 0) {\n"+
-		"      return;\n"+
-		"    }\n"+
-		"    if (fails.length > 0) {\n"+
-		"      if (opts.fail) {\n"+
-		"        opts.fail(fails);\n"+
-		"      }\n"+
-		"      return\n"+
-		"    }\n"+
-		"    if (permanodes.length == files.length) {\n"+
-		"      if (opts.success) {\n"+
-		"        opts.success();\n"+
-		"      }\n"+
-		"    }\n"+
-		"  };\n"+
-		"  var permanodeGood = function(permaRef, fileRef) {\n"+
-		"    log(\"File succeeeded: file=\" + fileRef + \" permanode=\" + permaRef);\n"+
-		"    permanodes.push(permaRef);\n"+
-		"    decr();\n"+
-		"  };\n"+
-		"  var fileFail = function(msg) {\n"+
-		"    log(\"File failed: \" + msg);\n"+
-		"    fails.push(msg);\n"+
-		"    decr();\n"+
-		"  };\n"+
-		"  var fileSuccess = function(fileRef) {\n"+
-		"    camliCreateNewPermanode({\n"+
-		"      success: function(filepn) {\n"+
-		"          camliNewSetAttributeClaim(filepn, \"camliContent\", fileRef, {\n"+
-		"            success: function() {\n"+
-		"                permanodeGood(filepn, fileRef);\n"+
-		"            },\n"+
-		"            fail: fileFail\n"+
-		"            });\n"+
-		"        }\n"+
-		"    });\n"+
-		"  };\n"+
-		"  \n"+
-		"  // TODO(bradfitz): do something smarter than starting all at once.\n"+
-		"  // Only keep n in flight or something?\n"+
-		"  for (var i = 0; i < files.length; i++) {\n"+
-		"    camliUploadFile(files[i], {\n"+
-		"      success: fileSuccess, \n"+
-		"      fail: fileFail\n"+
-		"    });\n"+
-		"  }\n"+
-		"}\n"+
-		"\n"+
-		"CamliIndexPage.onLoadedRecentItems = function (searchRes) {\n"+
-		"    var divrecent = $(\"recent\");\n"+
-		"    divrecent.innerHTML = \"\";\n"+
-		"    divrecent.appendChild(createPlusButton());\n"+
-		"    if (!searchRes || !searchRes.recent) {\n"+
-		"        return;\n"+
-		"    }\n"+
-		"    for (var i = 0; i < searchRes.recent.length; i++) {\n"+
-		"        divrecent.appendChild(divFromResult(searchRes, i));\n"+
-		"    }\n"+
+		"	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);\n"+
 		"};\n"+
 		"\n"+
-		"window.addEventListener(\"load\", CamliIndexPage.onLoad);\n"+
+		"/**\n"+
+		" * @param {boolean} newSet Whether the containing set has just been created.\n"+
+		" * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.\n"+
+		" * @param {string} permanode Node to add the items to.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.addMembers_ =\n"+
+		"    function(newSet, blobItems, permanode) {\n"+
+		"  var deferredList = [];\n"+
+		"  var complete = goog.bind(this.addItemsToSetDone_, this, permanode);\n"+
+		"  var callback = function() {\n"+
+		"    deferredList.push(1);\n"+
+		"    if (deferredList.length == blobItems.length) {\n"+
+		"      complete();\n"+
+		"    }\n"+
+		"  };\n"+
+		"\n"+
+		"  // TODO(mpl): newSet is a lame trick. Do better.\n"+
+		"  if (newSet) {\n"+
+		"    this.connection_.newSetAttributeClaim(\n"+
+		"      permanode, 'title', 'My new set', function() {}\n"+
+		"    );\n"+
+		"  }\n"+
+		"  goog.array.forEach(blobItems, function(blobItem, index) {\n"+
+		"    this.connection_.newAddAttributeClaim(\n"+
+		"        permanode, 'camliMember', blobItem.getBlobRef(), callback);\n"+
+		"  }, this);\n"+
+		"};\n"+
+		"\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {string} permanode Node to which the items were added.\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {\n"+
+		"  this.blobItemContainer_.unselectAll();\n"+
+		"  this.toolbar_.setCheckedBlobItemCount(0);\n"+
+		"  this.toolbar_.toggleCollecButton(false);\n"+
+		"  this.toolbar_.toggleAddToSetButton(false);\n"+
+		"  this.blobItemContainer_.showRecent();\n"+
+		"};\n"+
+		"\n"+
+		"/**\n"+
+		" * @param {camlistore.ServerType.StatusResponse} resp response for a status reque"+
+		"st\n"+
+		" * @private\n"+
+		" */\n"+
+		"camlistore.IndexPage.prototype.handleServerStatus_ =\n"+
+		"function(resp) {\n"+
+		"	if (resp == null) {\n"+
+		"		return;\n"+
+		"	}\n"+
+		"	goog.dom.removeChildren(this.serverInfo_);\n"+
+		"	if (resp.version) {\n"+
+		"		var version = \"Camlistore version: \" + resp.version + \"\\n\";\n"+
+		"		var div = this.dom_.createDom('div');\n"+
+		"		goog.dom.setTextContent(div, version);\n"+
+		"		goog.dom.appendChild(this.serverInfo_, div);\n"+
+		"	}\n"+
+		"};\n"+
+		"\n"+
 		""))
 }

@@ -39,28 +39,25 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
-	newuistatic "camlistore.org/server/camlistored/newui"
-	uistatic "camlistore.org/server/camlistored/ui"
+	newuistatic "camlistore.org/server/camlistored/ui"
 )
 
 var _ = log.Printf
 
 var (
-	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
-	static2FilePattern = regexp.MustCompile(`^new/*(/[a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif|js\.map))*$`)
-	identOrDotPattern  = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
+	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
+	identOrDotPattern = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
 
 	// Download URL suffix:
 	//   $1: blobref (checked in download handler)
 	//   $2: optional "/filename" to be sent as recommended download name,
 	//       if sane looking
-	downloadPattern  = regexp.MustCompile(`^(new/)?download/([^/]+)(/.*)?$`)
-	thumbnailPattern = regexp.MustCompile(`^(new/)?thumbnail/([^/]+)(/.*)?$`)
-	treePattern      = regexp.MustCompile(`^(new/)?tree/([^/]+)(/.*)?$`)
-	closurePattern   = regexp.MustCompile(`^new/closure/(([^/]+)(/.*)?)$`)
+	downloadPattern  = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
+	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
+	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
 )
 
-var uiFiles = uistatic.Files
 var newuiFiles = newuistatic.Files
 
 // UIHandler handles serving the UI and discovery JSON.
@@ -155,12 +152,18 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	}
 
 	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
-			" Closure will not be used.")
-	} else {
+	if err == nil {
 		closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
-		ui.closureHandler = http.FileServer(http.Dir(closureDir))
+		fi, err := os.Stat(closureDir)
+		if err == nil && fi.IsDir() {
+			ui.closureHandler = http.FileServer(http.Dir(closureDir))
+		} else {
+			ui.closureHandler = &closureRedirector{}
+		}
+	} else {
+		log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
+			" Online closure from " + closureBaseURL + " will be used.")
+			ui.closureHandler = &closureRedirector{}
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
@@ -175,6 +178,16 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	}
 
 	return ui, nil
+}
+
+const closureBaseURL = "https://closure-library.googlecode.com/git"
+
+type closureRedirector struct {}
+
+func (c *closureRedirector) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	newURL := closureBaseURL + "/" + path.Clean(suffix)
+	http.Redirect(rw, req, newURL, http.StatusTemporaryRedirect)
 }
 
 func camliMode(req *http.Request) string {
@@ -199,12 +212,6 @@ func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
 
-// TODO(mpl): remove when we make the full switch to newui, since
-// we're now using a blobcontainer directly on the permanode page.
-func wantsGallery(req *http.Request) bool {
-	return req.Method == "GET" && blobref.Parse(req.FormValue("g")) != nil
-}
-
 func wantsBlobInfo(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("b")) != nil
 }
@@ -213,14 +220,10 @@ func wantsFileTreePage(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("d")) != nil
 }
 
-func wantsNewUI(req *http.Request) bool {
+func wantsClosure(req *http.Request) bool {
 	if req.Method == "GET" {
 		suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-		// TODO(mpl): probably ok to be lax here since we're checking
-		// more strictly in serveNewUI. We'll redo it for the final
-		// switch anyway.
-		return strings.HasPrefix(suffix, "new") ||
-			closurePattern.MatchString(suffix)
+		return closurePattern.MatchString(suffix)
 	}
 	return false
 }
@@ -241,8 +244,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveThumbnail(rw, req)
 	case strings.HasPrefix(suffix, "tree/"):
 		ui.serveFileTree(rw, req)
-	case wantsNewUI(req):
-		ui.serveNewUI(rw, req)
+	case wantsClosure(req):
+		ui.ServeClosure(rw, req)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
@@ -251,8 +254,6 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			switch {
 			case wantsPermanode(req):
 				file = "permanode.html"
-			case wantsGallery(req):
-				file = "gallery.html"
 			case wantsBlobInfo(req):
 				file = "blobinfo.html"
 			case wantsFileTreePage(req):
@@ -260,11 +261,18 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			case req.URL.Path == base:
 				file = "index.html"
 			default:
-				http.Error(rw, "Illegal URL.", 404)
+				http.Error(rw, "Illegal URL.", http.StatusNotFound)
 				return
 			}
 		}
-		serveStaticFile(rw, req, uiFiles, file)
+		if file == "deps.js" {
+			envVar := newuiFiles.OverrideEnv
+			if envVar != "" && os.Getenv(envVar) != "" {
+				serveDepsJS(rw, req)
+				return
+			}
+		}
+		serveStaticFile(rw, req, newuiFiles, file)
 	}
 }
 
@@ -272,7 +280,7 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(rw, req)
-		log.Printf("Failed to open file %q from uiFiles: %v", file, err)
+		log.Printf("Failed to open file %q from newuiFiles: %v", file, err)
 		return
 	}
 	defer f.Close()
@@ -331,7 +339,7 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fbr := blobref.Parse(m[2])
+	fbr := blobref.Parse(m[1])
 	if fbr == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
@@ -369,7 +377,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	blobref := blobref.Parse(m[2])
+	blobref := blobref.Parse(m[1])
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
@@ -398,7 +406,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	blobref := blobref.Parse(m[2])
+	blobref := blobref.Parse(m[1])
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
@@ -411,78 +419,25 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 	fth.ServeHTTP(rw, req)
 }
 
-func (ui *UIHandler) serveNewUI(rw http.ResponseWriter, req *http.Request) {
-	base := req.Header.Get("X-PrefixHandler-PathBase")
+func (ui *UIHandler) ServeClosure(rw http.ResponseWriter, req *http.Request) {
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
 	if ui.closureHandler == nil {
-		log.Printf("%v not served: handler is nil", suffix)
+		log.Printf("%v not served: closure handler is nil", suffix)
 		http.NotFound(rw, req)
 		return
 	}
-	var file string
-	switch {
-	case strings.HasPrefix(suffix, "new/download/"):
-		ui.serveDownload(rw, req)
-		return
-	case strings.HasPrefix(suffix, "new/thumbnail/"):
-		ui.serveThumbnail(rw, req)
-		return
-	case strings.HasPrefix(suffix, "new/tree/"):
-		ui.serveFileTree(rw, req)
-		return
-	case wantsPermanode(req):
-		file = "permanode.html"
-	case wantsBlobInfo(req):
-		file = "blobinfo.html"
-	case wantsFileTreePage(req):
-		file = "filetree.html"
-	}
-	if file != "" {
-		serveStaticFile(rw, req, newuiFiles, file)
-		return
-	}
-	if suffix == "new" {
-		// Add a trailing slash.
-		http.Redirect(rw, req, base+"new/", http.StatusFound)
-		return
-	}
-	suffix = path.Clean(suffix)
-
 	m := closurePattern.FindStringSubmatch(suffix)
-	if m != nil {
-		req.URL.Path = "/" + m[1]
-		ui.closureHandler.ServeHTTP(rw, req)
+	if m == nil {
+		httputil.ErrorRouting(rw, req)
 		return
 	}
-
-	if suffix == "new" {
-		file = "index.html"
-	} else {
-		m := static2FilePattern.FindStringSubmatch(suffix)
-		if m != nil {
-			file = m[1]
-		}
-	}
-	if file == "" {
-		http.NotFound(rw, req)
-		return
-	}
-	if file == "/deps.js" {
-		serveDepsJS(rw, req)
-		return
-	}
-	if file == "/all.js" {
-		rw.Header().Set("X-SourceMap", "all.js.map")
-	}
-	if file[0] == '/' {
-		file = file[1:]
-	}
-
-	serveStaticFile(rw, req, newuiFiles, file)
+	req.URL.Path = "/" + m[1]
+	ui.closureHandler.ServeHTTP(rw, req)
 }
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
 func serveDepsJS(rw http.ResponseWriter, req *http.Request) {
+	println("DYNAMIC")
 	envVar := newuiFiles.OverrideEnv
 	if envVar == "" {
 		log.Printf("No newuiFiles.OverrideEnv set; can't generate deps.js")

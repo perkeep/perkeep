@@ -1,41 +1,25 @@
 // THIS FILE IS AUTO-GENERATED FROM index.css
 // DO NOT EDIT.
 
-package ui
+package newui
 
 import "time"
 
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("index.css", 375, time.Unix(0, 1356130243000000000), fileembed.String("#toolbar input[type=\"button\"] {\n"+
-		"    padding: 2px 5px 2px 5px;\n"+
+	Files.Add("index.css", 187, time.Unix(0, 1370942742232957700), fileembed.String(".cam-index-page {\n"+
+		"	font: 16px/1.4 normal Arial, sans-serif;\n"+
 		"}\n"+
 		"\n"+
-		"#btnList {\n"+
-		"  margin-right: 0;\n"+
-		"  border-right: 1px dashed #000;\n"+
+		".cam-index-title {\n"+
+		"	display: inline-block;\n"+
 		"}\n"+
 		"\n"+
-		"#btnThumbs {\n"+
-		" margin-left: 0;\n"+
-		" border-left: 0;\n"+
+		".cam-index-serverinfo {\n"+
+		"	display: inline;\n"+
+		"	float: right;\n"+
+		"	font-size: small;\n"+
 		"}\n"+
-		"\n"+
-		"#btnSmaller {\n"+
-		"  margin-right: 0;\n"+
-		"  border-right: 1px dashed #000;\n"+
-		"  width: 2em;\n"+
-		"}\n"+
-		"\n"+
-		"#btnBigger {\n"+
-		" margin-left: 0;\n"+
-		" border-left: 0;\n"+
-		" width: 2em;\n"+
-		"}\n"+
-		"\n"+
-		"#btnSearch {\n"+
-		" margin-left: 0;\n"+
-		" border-left: 0;\n"+
-		"}"))
+		""))
 }
