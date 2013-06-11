@@ -1,6 +1,15 @@
 <h1 class='bustTitleRegexp'>What is Camlistore?</h1>
 
-<p>Camlistore is your personal storage system for life. It is:</p>
+<p>Camlistore is your <b>personal storage system for life</b>.</p>
+
+<p>Note that it's a "storage system", not just a "file system".  It
+can store and be accessed like a traditional filesystem, but it
+specializes in representing higher-level objects which don't need to
+exist in purely one place in a tree. (e.g. a photo, a comment, a
+"like", a blog post) Or a tree of 5TB videos with Unix mode bits that
+you can access via a FUSE filesystem. Whatever.</p>
+
+<p>It is:</p>
 <ul>
   <li>a way to store, sync, share, model and back up content</li>
   <li>everything private by default</li>
@@ -8,7 +17,7 @@
   <li>Open Source (Apache licensed)</li>
   <li>an acronym for <i>"Content-Addressable Multi-Layer Indexed Storage"</i>, saying that Camlistore is about:
       <ul>
-        <li>content-addressable storage (at the lowest layer)</li>
+        <li>content-addressable storage, at the lowest layer ("Like git for all content in your life")</li>
         <li>separate interoperable parts (<a href="/docs/arch">storage</a>, <a href="/docs/terms#graphsync">sync</a>, <a href="/docs/sharing">sharing</a>,
         <a href="/docs/schema">modeling</a>), with well-defined protocols and roles</li>
         <li>indexing and searching your content</li>
@@ -21,7 +30,9 @@
   <li>simple!</li>
   <li>programming language-agnostic (parts and different implementations in <a href="http://golang.org/">Go</a>, Python, Java, Perl, Bash, ... the language doesn't matter.)  What matters is well-defined, simple HTTP interfaces.</li>
   <li>neither "Cloud" nor "Local". happily both. Run it on your own machine (any OS, any architecture), your phone, EC2, App Engine, Heroku, whatever.</li>
-  <li>a "20% project" from a few Google employees, but not Google-centric nor endorsed by Google (other than them letting us open source our side project)</li>
+  <li>a "20% project" from a few Google employees (and non-Googlers),
+  but not Google-centric nor endorsed by Google (other than them
+  letting us open source our side project)</li>
 </ul>
 
 <h2>Latest Release</h2>

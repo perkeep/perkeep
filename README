@@ -1,11 +1,21 @@
-Camlistore is a way to store, sync, share, model and back up content.
+Camlistore is your personal storage system for life.
+
+It's a way to store, sync, share, model and back up content.
 
 It stands for "Content-Addressable Multi-Layer Indexed Storage", for
-lack of a better name.
-
-See:
+lack of a better name.  For more, see:
 
      http://camlistore.org/
 
-... for actual documentation.
+Other useful files:
 
+     BUILDING  how to compile it ("go run make.go")
+     HACKING   how to do development and contribute
+
+Mailing lists:
+
+     http://camlistore.org/lists
+
+Bugs:
+
+     https://code.google.com/p/camlistore/issues/list

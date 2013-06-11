@@ -16,6 +16,8 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.1">g
 it's at least ready for people to start using and playing with.  We've
 been using it ourselves for a year.</p>
 
+<p>We plan to do subsequent releases in a more timely fashion.</p>
+
 <h1>What works</h1>
 
 <ul>
@@ -27,12 +29,18 @@ been using it ourselves for a year.</p>
         <li><b><code>camtool</code></b>: additional swiss-army knife tools, and manual sync tool ("camtool sync"). 
      </ul>
   </li>
-  <li>Web UI. Not great, but lets you browse your Camlistore resources.
+  <li><b><code>camlistored</code></b>: the server.</li>
+  <li>Web UI (optional part of the server, on by default). Not great, but lets you browse your Camlistore resources.</li>
   <li>Android client: upload photos ("Share to Camlistore")</li>
   <li>Blob storage options: local disk, Amazon S3, Google Cloud Storage, ...</li>
   <li>Search index storage options: in-memory, SQLite, MySQL, Postgres, Mongo, ...</li>
-  <li>Synchronous and asynchronous replication support between any storage types or Camlistore instances.</li>
-  <li>Sharding, mirroring, ...</li>
+  <li>All sorts of replication:
+      <ul>
+        <li><b><code>camlistored</code></b>: The server supports both asynchronous and synchronous replication from incoming blobs to any storage backend, which includes other remote Camlistore servers</li>
+        <li><b><code>camtool sync</code></b>: The camtool command supports syncing from servers (or local disk blob directories) to other servers (or other local disk blob directories), as well as a "third-leg" mode, where you can sync from <b>A</b> to <b>B></b> by using the network to communicate differences, but instead copying missing blobs to destination <b>C</b> (e.g. a local portable harddisk to be manually transported to <b>B</b>)</li>
+      </ul>
+  </li>
+  <li>Sharding, mirroring, unioning, ...</li>
 </ul>
 
 
@@ -54,6 +62,7 @@ been using it ourselves for a year.</p>
 Much is planned:
 
 <ul>
+   <li>Much more documentation</li>
    <li>Photo gallery & blog serving</li>
    <li>More sharing support</li>
    <li>Encryption</li>
@@ -69,6 +78,11 @@ Much is planned:
 <p>We welcome feedback, feature requests, bug reports, and code
 contributions.  See <a href="/docs/contributing">the Contributing
 page</a>.</p>
+
+<p>While most the codebase (the server and command-line tools) are
+written in <a href="http://golang.org">Go</a>, there's also a lot of
+JavaScript which needs love, as well as Java (for Android) and
+Objective C (for iOS). Or anything useful you'd like to contribute.</p>
 
 <p>File <a href="https://code.google.com/p/camlistore/issues/list">bugs</a> at: <a
 href="https://code.google.com/p/camlistore/issues/entry">https://code.google.com/p/camlistore/issues/entry</a>.</p>
