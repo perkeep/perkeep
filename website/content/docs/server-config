@@ -1,0 +1,17 @@
+<h1>Configuring the server</h1>
+
+<p>The server's config file is JSON. It can either be in simple mode (for basic configurations), or in low-level mode (for any sort of crazy configuration).</p>
+
+<p>This page documents the simple configuration mode.</p>
+
+<p>If you visit your Camlistore server's /setup page (by default, at
+http://localhost:3179/setup) you can modify the config file from your
+web browser and restart the server.</p>
+
+<h1>Configuration Keys &amp; Values</h1>
+
+<ul>
+<li><b><code>auth</code></b>: the authentication mechanism to use.
+<li>... TODO: finish ...</li>
+
+</ul>
