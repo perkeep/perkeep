@@ -163,7 +163,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 	} else {
 		log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
 			" Online closure from " + closureBaseURL + " will be used.")
-			ui.closureHandler = &closureRedirector{}
+		ui.closureHandler = &closureRedirector{}
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
@@ -182,7 +182,7 @@ func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler,
 
 const closureBaseURL = "https://closure-library.googlecode.com/git"
 
-type closureRedirector struct {}
+type closureRedirector struct{}
 
 func (c *closureRedirector) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
@@ -437,7 +437,6 @@ func (ui *UIHandler) ServeClosure(rw http.ResponseWriter, req *http.Request) {
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
 func serveDepsJS(rw http.ResponseWriter, req *http.Request) {
-	println("DYNAMIC")
 	envVar := newuiFiles.OverrideEnv
 	if envVar == "" {
 		log.Printf("No newuiFiles.OverrideEnv set; can't generate deps.js")
