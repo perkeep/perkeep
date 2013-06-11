@@ -17,7 +17,7 @@ limitations under the License.
 /*
 #fileembed pattern .+\.(js|css|html|png)$
 */
-package ui
+package newui
 
 import (
 	"camlistore.org/pkg/fileembed"

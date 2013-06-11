@@ -1,360 +1,311 @@
-/*
-Copyright 2012 Camlistore Authors.
+/**
+ * @fileoverview Entry point for the blob browser UI.
+ *
+ */
+goog.provide('camlistore.IndexPage');
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+goog.require('goog.array');
+goog.require('goog.dom');
+goog.require('goog.dom.classes');
+goog.require('goog.events.EventHandler');
+goog.require('goog.events.EventType');
+goog.require('goog.ui.Component');
+goog.require('goog.ui.Textarea');
+goog.require('camlistore.BlobItemContainer');
+goog.require('camlistore.ServerConnection');
+goog.require('camlistore.Toolbar');
+goog.require('camlistore.Toolbar.EventType');
+goog.require('camlistore.ServerType');
 
-	 http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * @param {camlistore.ServerType.DiscoveryDocument} config Global config
+ *   of the current server this page is being rendered for.
+ * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
+ *
+ * @extends {goog.ui.Component}
+ * @constructor
+ */
+camlistore.IndexPage = function(config, opt_domHelper) {
+  goog.base(this, opt_domHelper);
 
-var CamliIndexPage = {
-    thumbSizes: [25, 50, 75, 100, 150, 200],
-    thumbSizeIdx: 3
+  /**
+   * @type {Object}
+   * @private
+   */
+  this.config_ = config;
+
+  /**
+   * @type {camlistore.ServerConnection}
+   * @private
+   */
+  this.connection_ = new camlistore.ServerConnection(config);
+
+  /**
+   * @type {camlistore.BlobItemContainer}
+   * @private
+   */
+  this.blobItemContainer_ = new camlistore.BlobItemContainer(
+      this.connection_, opt_domHelper);
+  this.blobItemContainer_.setHasCreateItem(true);
+
+  /**
+   * @type {Element}
+   * @private
+   */
+  this.serverInfo_;
+
+  /**
+   * @type {camlistore.Toolbar}
+   * @private
+   */
+  this.toolbar_ = new camlistore.Toolbar(opt_domHelper);
+
+  /**
+   * @type {goog.events.EventHandler}
+   * @private
+   */
+  this.eh_ = new goog.events.EventHandler(this);
+};
+goog.inherits(camlistore.IndexPage, goog.ui.Component);
+
+
+
+/**
+ * Creates an initial DOM representation for the component.
+ */
+camlistore.IndexPage.prototype.createDom = function() {
+  this.decorateInternal(this.dom_.createElement('div'));
 };
 
-CamliIndexPage.thumbSize = function() {
-  return CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];
+
+/**
+ * Decorates an existing HTML DIV element.
+ * @param {Element} element The DIV element to decorate.
+ */
+camlistore.IndexPage.prototype.decorateInternal = function(element) {
+  camlistore.IndexPage.superClass_.decorateInternal.call(this, element);
+
+  var el = this.getElement();
+  goog.dom.classes.add(el, 'cam-index-page');
+
+  var titleEl = this.dom_.createDom('h1', 'cam-index-title');
+  this.dom_.setTextContent(titleEl, this.config_.ownerName + '\'s Vault');
+  this.dom_.appendChild(el, titleEl);
+
+  this.serverInfo_ = this.dom_.createDom('div', 'cam-index-serverinfo');
+  this.dom_.appendChild(el, this.serverInfo_);
+
+  this.addChild(this.toolbar_, true);
+  this.addChild(this.blobItemContainer_, true);
 };
 
-CamliIndexPage.thumbBoxSize = function() {
-  return 50 + CamliIndexPage.thumbSizes[CamliIndexPage.thumbSizeIdx];
+
+/** @override */
+camlistore.IndexPage.prototype.disposeInternal = function() {
+  camlistore.IndexPage.superClass_.disposeInternal.call(this);
+  this.eh_.dispose();
 };
 
-CamliIndexPage.thumbFontSize = function() {
-  var fontSize = (CamliIndexPage.thumbSize() / 6);
-  if (fontSize < 10) {
-      fontSize = 10;
-  }
-  if (fontSize > 20) {
-      fontSize = 20;
-  }
-  return fontSize + "px";
-};
 
-CamliIndexPage.onLoad = function() {
-    CamliIndexPage.startRecentLoading();
+/**
+ * Called when component's element is known to be in the document.
+ */
+camlistore.IndexPage.prototype.enterDocument = function() {
+  camlistore.IndexPage.superClass_.enterDocument.call(this);
 
-    var selView = $("selectView");
-    var goTargets = {
-      "recent": function() { alert("not implemented, but it's already in recent mode"); },
-      "date": function() { alert("TODO: pop up a date selector dialog"); },
-      "fromsel": function() { alert("TODO: go forward in time from selected item"); },
-      "debug:signing": "signing.html", 
-      "debug:disco": "disco.html",
-      "debug:misc": "debug.html",
-      "search": "search.html"
-    };
-    selView.addEventListener(
-        "change",
-        function(e) {
-            var target = goTargets[selView.value];
-            if (!target) {
-                return;
-            }
-            if (typeof(target) == "string") {
-                window.location = target;
-            }
-            if (typeof(target) == "function") {
-                target();
-            }
-    });
+	this.connection_.serverStatus(
+		goog.bind(function(resp) {
+			this.handleServerStatus_(resp);
+		}, this)
+	);
 
-    $("formSearch").addEventListener("submit", CamliIndexPage.onSearchSubmit);
-    $("btnSmaller").addEventListener("click", CamliIndexPage.sizeHandler(-1));
-    $("btnBigger").addEventListener("click", CamliIndexPage.sizeHandler(1));
-    Camli.setTextContent($("topTitle"), Camli.config.ownerName + "'s Vault");
-};
-
-CamliIndexPage.sizeHandler = function(idxDelta) {
-    return function(e) { // onclick handler
-        var newSize = CamliIndexPage.thumbSizeIdx + idxDelta;
-        if (newSize < 0 || newSize >= CamliIndexPage.thumbSizes.length) {
-            return;
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
+      function() {
+        if (this.blobItemContainer_.bigger()) {
+          this.blobItemContainer_.showRecent();
         }
-        CamliIndexPage.thumbSizeIdx = newSize;
-        $("recent").innerHTML = "";
-        CamliIndexPage.startRecentLoading();
-    };
-};
+      });
 
-CamliIndexPage.startRecentLoading = function() {
-    camliGetRecentlyUpdatedPermanodes({success: CamliIndexPage.onLoadedRecentItems, thumbnails: CamliIndexPage.thumbSize()});
-};
-
-CamliIndexPage.onSearchSubmit = function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var searchVal = $("textSearch").value;
-    if (searchVal == "") {
-        CamliIndexPage.startRecentLoading();
-    } else {
-        // TODO: super lame.  for now.  should just change filter
-        // of existing page, without navigating away.
-        window.location = "search.html?t=tag&q=" + searchVal;
-    }
-};
-
-var lastSelIndex = 0;
-var selSetter = {};         // numeric index -> func(selected) setter
-var currentlySelected = {}; // currently selected index -> true
-var itemsSelected = 0;
-
-CamliIndexPage.setThumbBoxStyle = function(div) {
-  div.style.width = CamliIndexPage.thumbBoxSize() + "px";
-  div.style.height = CamliIndexPage.thumbBoxSize() + "px";
-  div.style.maxWidth = CamliIndexPage.thumbBoxSize() + "px";
-  div.style.maxHeight = CamliIndexPage.thumbBoxSize() + "px";
-};
-
-// divFromResult converts the |i|th searchResult into
-// a div element, style as a thumbnail tile.
-function divFromResult(searchRes, i) {
-    var result = searchRes.recent[i];
-    var br = searchRes.meta[result.blobref];
-    var divperm = document.createElement("div");
-    CamliIndexPage.setThumbBoxStyle(divperm);
-
-    var setSelected = function(selected) {
-        if (divperm.isSelected == selected) {
-            return;
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.SMALLER,
+      function() {
+        if (this.blobItemContainer_.smaller()) {
+          this.blobItemContainer_.showRecent();
         }
-	divperm.isSelected = selected;
-	if (selected) {
-	    lastSelIndex = i;
-	    currentlySelected[i] = true;
-	    divperm.classList.add("selected");
-	} else {
-	    delete currentlySelected[selected];
-	    lastSelIndex = -1;
-	    divperm.classList.remove("selected");
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.GOSEARCH,
+      function() {
+        window.open('./search.html', 'Search');
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.createNewSetWithItems_(blobItems);
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.addItemsToSet_(blobItems);
+      });
+
+  this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        // there should be only one item selected
+        if (blobItems.length != 1) {
+          alert("Cannet set multiple items as current collection");
+          return;
+        }
+        this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;
+        this.blobItemContainer_.unselectAll();
+        this.toolbar_.setCheckedBlobItemCount(0);
+        this.toolbar_.toggleCollecButton(false);
+        this.toolbar_.toggleAddToSetButton(false);
+      });
+
+  // TODO(mpl): those are getting large. make dedicated funcs.
+  this.eh_.listen(
+      this.blobItemContainer_,
+      camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+        // set checkedItemsAddToSetButton_
+        if (this.blobItemContainer_.currentCollec_ &&
+          this.blobItemContainer_.currentCollec_ != "" &&
+          blobItems.length > 0) {
+          this.toolbar_.toggleAddToSetButton(true);
+        } else {
+          this.toolbar_.toggleAddToSetButton(false);
+        }
+        // set setAsCollecButton_
+        this.toolbar_.toggleCollecButton(false);
+      });
+
+  this.eh_.listen(
+      this.blobItemContainer_,
+      camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,
+      function() {
+        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+        this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+        // set checkedItemsAddToSetButton_
+        if (this.blobItemContainer_.currentCollec_ &&
+          this.blobItemContainer_.currentCollec_ != "" &&
+          blobItems.length > 0) {
+          this.toolbar_.toggleAddToSetButton(true);
+        } else {
+          this.toolbar_.toggleAddToSetButton(false);
+        }
+        // set setAsCollecButton_
+        if (blobItems.length == 1 &&
+          blobItems[0].isCollection()) {
+          this.toolbar_.toggleCollecButton(true);
+        } else {
+          this.toolbar_.toggleCollecButton(false);
+        }
+      });
+
+  this.blobItemContainer_.showRecent();
+};
+
+
+/**
+ * Called when component's element is known to have been removed from the
+ * document.
+ */
+camlistore.IndexPage.prototype.exitDocument = function() {
+  camlistore.IndexPage.superClass_.exitDocument.call(this);
+  // Clear event handlers here
+};
+
+
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.IndexPage.prototype.createNewSetWithItems_ = function(blobItems) {
+  this.connection_.createPermanode(
+      goog.bind(this.addMembers_, this, true, blobItems));
+};
+
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.IndexPage.prototype.addItemsToSet_ = function(blobItems) {
+	if (!this.blobItemContainer_.currentCollec_ ||
+		this.blobItemContainer_.currentCollec_ == "") {
+		alert("no destination collection selected");
 	}
-        itemsSelected += selected ? 1 : -1;
-        $("optFromSel").disabled = (itemsSelected == 0);
-    };
-    selSetter[i] = setSelected;
-    divperm.addEventListener(
-        "mousedown", function(e) {
-	    if (e.shiftKey) {
-	        e.preventDefault(); // prevent browser range selection
-	    }
-	});
-    divperm.addEventListener(
-        "click", function(e) {
-	    if (e.ctrlKey) {
-		setSelected(!divperm.isSelected);
-		return;
-	    }
-	    if (e.shiftKey) {
-		if (lastSelIndex < 0) {
-		    return;
-		}
-		var from = lastSelIndex;
-		var to = i;
-		if (to < from) {
-		    from = i;
-		    to = lastSelIndex;
-		}
-		for (var j = from; j <= to; j++) {
-		    selSetter[j](true);
-		}
-		return;
-	    }
-	    for (var j in currentlySelected) {
-		if (j != i) {
-		    selSetter[j](false);
-		}
-	    }
-	    setSelected(!divperm.isSelected);
-	});
-    var alink = document.createElement("a");
-    alink.href = "./?p=" + br.blobRef;
-    var img = document.createElement("img");
-    img.src = br.thumbnailSrc;
-    img.height = br.thumbnailHeight;
-    img.width =  br.thumbnailWidth;
-    alink.appendChild(img);
-    divperm.appendChild(alink);
-    var title = document.createElement("p");
-    Camli.setTextContent(title, camliBlobTitle(br.blobRef, searchRes.meta));
-    title.className = 'camli-ui-thumbtitle';
-    title.style.fontSize = CamliIndexPage.thumbFontSize();
-    divperm.appendChild(title);
-    divperm.className = 'camli-ui-thumb';
-    return divperm;
-}
-
-// createPlusButton returns the div element that is both a button
-// a drop zone for new file(s).
-function createPlusButton() {
-  var div = document.createElement("div");
-  div.id = "plusdrop";
-  div.className = "camli-ui-thumb";
-  CamliIndexPage.setThumbBoxStyle(div);
-
-  var plusLink = document.createElement("a");
-  plusLink.classList.add("plusLink");
-  plusLink.href = '#';
-  plusLink.innerHTML = "+";
-
-  plusLink.style.fontSize = (CamliIndexPage.thumbSize() / 4 * 3) + "px";
-  plusLink.style.marginTop = (CamliIndexPage.thumbSize() / 4) + "px";
-  div.appendChild(plusLink);
-
-  var statusDiv = document.createElement("div");
-  statusDiv.innerHTML = "Click or drag & drop files here.";
-  statusDiv.style.fontSize = CamliIndexPage.thumbFontSize();
-
-  // TODO: use statusDiv instead (hidden by default), but put
-  // it somewhere users can get to it with a click.
-  div.appendChild(statusDiv);
-
-  plusLink.addEventListener("click", function(e) {
-      e.preventDefault();
-      camliCreateNewPermanode({
-            success: function(blobref) {
-               window.location = "./?p=" + blobref;
-            },
-            fail: function(msg) {
-                alert("create permanode failed: " + msg);
-            }
-        });
-  });
-  
-  var stop = function(e) {
-    this.classList && this.classList.add('camli-dnd-over');
-    e.stopPropagation();
-    e.preventDefault();
-  };
-  div.addEventListener("dragenter", stop, false);
-  div.addEventListener("dragover", stop, false);
-  div.addEventListener("dragleave", function() {
-      this.classList.remove('camli-dnd-over');
-  }, false);
-
-  var drop = function(e) {
-    this.classList.remove('camli-dnd-over');
-    stop(e);
-    var dt = e.dataTransfer;
-    var files = dt.files;
-    var subject = "";
-    if (files.length == 1) {
-      subject = files[0].name;
-    } else {
-      subject = files.length + " files";
-    }
-    statusDiv.innerHTML = "Uploading " + subject + " (<a href='#'>status</a>)";
-    startFileUploads(files, document.getElementById("debugstatus"), {
-      success: function() {
-          statusDiv.innerHTML = "Uploaded.";
-
-          // TODO(bradfitz): this just re-does the whole initial
-          // query, and only at the very end of all the uploads.
-          // it would be cooler if, when uploading a dozen
-          // large files, we saw the permanodes load in one-at-a-time
-          // as the became available.
-          CamliIndexPage.startRecentLoading();
-      }
-    });
-  };
-  div.addEventListener("drop", drop, false);
-  return div;
-}
-
-// files: array of File objects to upload and create permanods for.
-//    If >1, also create an enclosing permanode for them to all
-//    be members of.
-// statusdiv: optional div element to log status messages to.
-// opts:
-// -- success: function([permanodes])
-function startFileUploads(files, statusDiv, opts) {
-  var parentNode = opts.parentNode;
-  if (files.length > 1 && !parentNode) {
-    // create a new parent permanode with dummy
-    // title and re-call startFileUploads with
-    // opts.parentNode set, so we upload into that.
-  }
-
-  var log = function(msg) {
-    if (statusDiv) {
-      var p = document.createElement("p");
-      p.innerHTML = msg;
-      statusDiv.appendChild(p);
-    }
-  };
-
-  var remain = files.length;
-  log("Need to upload " + remain + " files");
-
-  var permanodes = [];
-  var fails = [];
-  var decr = function() {
-    remain--;
-    log(remain + " remaining now");
-    if (remain > 0) {
-      return;
-    }
-    if (fails.length > 0) {
-      if (opts.fail) {
-        opts.fail(fails);
-      }
-      return
-    }
-    if (permanodes.length == files.length) {
-      if (opts.success) {
-        opts.success();
-      }
-    }
-  };
-  var permanodeGood = function(permaRef, fileRef) {
-    log("File succeeeded: file=" + fileRef + " permanode=" + permaRef);
-    permanodes.push(permaRef);
-    decr();
-  };
-  var fileFail = function(msg) {
-    log("File failed: " + msg);
-    fails.push(msg);
-    decr();
-  };
-  var fileSuccess = function(fileRef) {
-    camliCreateNewPermanode({
-      success: function(filepn) {
-          camliNewSetAttributeClaim(filepn, "camliContent", fileRef, {
-            success: function() {
-                permanodeGood(filepn, fileRef);
-            },
-            fail: fileFail
-            });
-        }
-    });
-  };
-  
-  // TODO(bradfitz): do something smarter than starting all at once.
-  // Only keep n in flight or something?
-  for (var i = 0; i < files.length; i++) {
-    camliUploadFile(files[i], {
-      success: fileSuccess, 
-      fail: fileFail
-    });
-  }
-}
-
-CamliIndexPage.onLoadedRecentItems = function (searchRes) {
-    var divrecent = $("recent");
-    divrecent.innerHTML = "";
-    divrecent.appendChild(createPlusButton());
-    if (!searchRes || !searchRes.recent) {
-        return;
-    }
-    for (var i = 0; i < searchRes.recent.length; i++) {
-        divrecent.appendChild(divFromResult(searchRes, i));
-    }
+	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);
 };
 
-window.addEventListener("load", CamliIndexPage.onLoad);
+/**
+ * @param {boolean} newSet Whether the containing set has just been created.
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @param {string} permanode Node to add the items to.
+ * @private
+ */
+camlistore.IndexPage.prototype.addMembers_ =
+    function(newSet, blobItems, permanode) {
+  var deferredList = [];
+  var complete = goog.bind(this.addItemsToSetDone_, this, permanode);
+  var callback = function() {
+    deferredList.push(1);
+    if (deferredList.length == blobItems.length) {
+      complete();
+    }
+  };
+
+  // TODO(mpl): newSet is a lame trick. Do better.
+  if (newSet) {
+    this.connection_.newSetAttributeClaim(
+      permanode, 'title', 'My new set', function() {}
+    );
+  }
+  goog.array.forEach(blobItems, function(blobItem, index) {
+    this.connection_.newAddAttributeClaim(
+        permanode, 'camliMember', blobItem.getBlobRef(), callback);
+  }, this);
+};
+
+
+/**
+ * @param {string} permanode Node to which the items were added.
+ * @private
+ */
+camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
+  this.blobItemContainer_.unselectAll();
+  this.toolbar_.setCheckedBlobItemCount(0);
+  this.toolbar_.toggleCollecButton(false);
+  this.toolbar_.toggleAddToSetButton(false);
+  this.blobItemContainer_.showRecent();
+};
+
+/**
+ * @param {camlistore.ServerType.StatusResponse} resp response for a status request
+ * @private
+ */
+camlistore.IndexPage.prototype.handleServerStatus_ =
+function(resp) {
+	if (resp == null) {
+		return;
+	}
+	goog.dom.removeChildren(this.serverInfo_);
+	if (resp.version) {
+		var version = "Camlistore version: " + resp.version + "\n";
+		var div = this.dom_.createDom('div');
+		goog.dom.setTextContent(div, version);
+		goog.dom.appendChild(this.serverInfo_, div);
+	}
+};
+

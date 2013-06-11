@@ -1,40 +1,52 @@
+<!doctype html>
 <html>
 <head>
-  <title>Camlistored UI</title>
-  <script type="text/javascript" src="base64.js"></script>
-  <script type="text/javascript" src="Crypto.js"></script>
-  <script type="text/javascript" src="SHA1.js"></script>
-  <script src="camli.js"></script>
-  <script src="debug.js"></script>
-  <script src="?camli.mode=config&cb=Camli.onConfiguration"></script>
-  <link rel="stylesheet" href="camli.css">
+	<title>Camlistored UI</title>
+	<script src="closure/goog/base.js"></script>
+	<script src="./deps.js"></script>
+	<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
+	<!-- Begin non-Closure cheating; but depended on by server_connection.js -->
+	<script type="text/javascript" src="base64.js"></script>
+	<script type="text/javascript" src="Crypto.js"></script>
+	<script type="text/javascript" src="SHA1.js"></script>
+	<!-- End non-Closure cheating -->
+	<script>
+		goog.require('camlistore.DebugPage');
+	</script>
+
 </head>
-<body class="camli-ui-index">
-  <h1>Camlistored UI</h1>
-  <p class="camli-nav"><strong>Debug:</strong>
-    <a href="disco.html">discovery</a> |
-    <a href="signing.html">signing</a></p>
+<body>
+	<form>
+		<h2>Root Discovery</h2>
+		<p><input type="button" id="discobtn" value="Do Discovery" /></p>
+		<div id="discores" style="border: 2px solid gray">(discovery results)</div>
 
-  <button id="btnNew">New</button> - create a new item or collection 
+		<h2>Signing Discovery</h2>
+		<p><input type="button" id="sigdiscobtn" value="Do jsonSign discovery" /></p>
+		<div id="sigdiscores" style="border: 2px solid gray">(jsonsign discovery results)</div>
 
-  <h2>Recent Objects</h2>
-  <p class="camli-nav">
-    <strong>View:</strong>
-    <a href="recent.html">thumbnails</a></p>
-  <ul id="recent"></ul>
+		<h2>Signing Debug</h2>
+		<table>
+		<tr align='left'>
+			<th>JSON blob to sign: <input type='button' id='addkeyref' value="Add keyref"/></th>
+			<th></th>
+			<th>Signed blob:</th>
+			<th></th>
+			<th>Verification details:</th>
+		</tr>
+		<tr>
+			<td><textarea id='clearjson' rows=10 cols=40>{"camliVersion": 1, "camliType": "whatever", "foo": "bar"}</textarea></td>
+			<td valign='middle'><input type='button' id='sign' value="Sign &gt;&gt;" /></td>
+			<td><textarea id="signedjson" rows=10 cols=40></textarea></td>
+			<td valign='middle'><input type='button' id='verify' value="Verify &gt;&gt;" /></td>
+			<td><div id='verifyinfo'></div></td>
+		</tr>
+		</table>
+	</form>
 
-  <h2>Search</h2>
-  <form id="formSearch">
-    <p>
-      <input id="inputSearch" placeholder="tag1">
-      <input type="submit" id="btnSearch" value="Search">
-  </form>
-
-  <h2>Upload</h2>
-  <form method="POST" id="uploadform" enctype="multipart/form-data">
-    <input type="file" id="fileinput" multiple="true" name="file" disabled="true">
-    <input type="submit" id="filesubmit" value="Upload" disabled="true">
-  </form>
-
+	<script>
+		var page = new camlistore.DebugPage(CAMLISTORE_CONFIG);
+		page.decorate(document.body);
+	</script>
 </body>
 </html>

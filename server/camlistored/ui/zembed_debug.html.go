@@ -1,52 +1,68 @@
 // THIS FILE IS AUTO-GENERATED FROM debug.html
 // DO NOT EDIT.
 
-package ui
+package newui
 
 import "time"
 
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("debug.html", 1258, time.Unix(0, 1358726342000000000), fileembed.String("<html>\n"+
+	Files.Add("debug.html", 1751, time.Unix(0, 1370942742232957700), fileembed.String("<!doctype html>\n"+
+		"<html>\n"+
 		"<head>\n"+
-		"  <title>Camlistored UI</title>\n"+
-		"  <script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
-		"  <script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
-		"  <script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
-		"  <script src=\"camli.js\"></script>\n"+
-		"  <script src=\"debug.js\"></script>\n"+
-		"  <script src=\"?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
-		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
+		"	<title>Camlistored UI</title>\n"+
+		"	<script src=\"closure/goog/base.js\"></script>\n"+
+		"	<script src=\"./deps.js\"></script>\n"+
+		"	<script src=\"?camli.mode=config&var=CAMLISTORE_CONFIG\"></script>\n"+
+		"	<!-- Begin non-Closure cheating; but depended on by server_connection.js -->\n"+
+		"	<script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
+		"	<script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
+		"	<script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
+		"	<!-- End non-Closure cheating -->\n"+
+		"	<script>\n"+
+		"		goog.require('camlistore.DebugPage');\n"+
+		"	</script>\n"+
+		"\n"+
 		"</head>\n"+
-		"<body class=\"camli-ui-index\">\n"+
-		"  <h1>Camlistored UI</h1>\n"+
-		"  <p class=\"camli-nav\"><strong>Debug:</strong>\n"+
-		"    <a href=\"disco.html\">discovery</a> |\n"+
-		"    <a href=\"signing.html\">signing</a></p>\n"+
+		"<body>\n"+
+		"	<form>\n"+
+		"		<h2>Root Discovery</h2>\n"+
+		"		<p><input type=\"button\" id=\"discobtn\" value=\"Do Discovery\" /></p>\n"+
+		"		<div id=\"discores\" style=\"border: 2px solid gray\">(discovery results)</div>\n"+
 		"\n"+
-		"  <button id=\"btnNew\">New</button> - create a new item or collection \n"+
+		"		<h2>Signing Discovery</h2>\n"+
+		"		<p><input type=\"button\" id=\"sigdiscobtn\" value=\"Do jsonSign discovery\" /></p>\n"+
+		"		<div id=\"sigdiscores\" style=\"border: 2px solid gray\">(jsonsign discovery result"+
+		"s)</div>\n"+
 		"\n"+
-		"  <h2>Recent Objects</h2>\n"+
-		"  <p class=\"camli-nav\">\n"+
-		"    <strong>View:</strong>\n"+
-		"    <a href=\"recent.html\">thumbnails</a></p>\n"+
-		"  <ul id=\"recent\"></ul>\n"+
+		"		<h2>Signing Debug</h2>\n"+
+		"		<table>\n"+
+		"		<tr align='left'>\n"+
+		"			<th>JSON blob to sign: <input type='button' id='addkeyref' value=\"Add keyref\"/"+
+		"></th>\n"+
+		"			<th></th>\n"+
+		"			<th>Signed blob:</th>\n"+
+		"			<th></th>\n"+
+		"			<th>Verification details:</th>\n"+
+		"		</tr>\n"+
+		"		<tr>\n"+
+		"			<td><textarea id='clearjson' rows=10 cols=40>{\"camliVersion\": 1, \"camliType\": "+
+		"\"whatever\", \"foo\": \"bar\"}</textarea></td>\n"+
+		"			<td valign='middle'><input type='button' id='sign' value=\"Sign &gt;&gt;\" /></t"+
+		"d>\n"+
+		"			<td><textarea id=\"signedjson\" rows=10 cols=40></textarea></td>\n"+
+		"			<td valign='middle'><input type='button' id='verify' value=\"Verify &gt;&gt;\" /"+
+		"></td>\n"+
+		"			<td><div id='verifyinfo'></div></td>\n"+
+		"		</tr>\n"+
+		"		</table>\n"+
+		"	</form>\n"+
 		"\n"+
-		"  <h2>Search</h2>\n"+
-		"  <form id=\"formSearch\">\n"+
-		"    <p>\n"+
-		"      <input id=\"inputSearch\" placeholder=\"tag1\">\n"+
-		"      <input type=\"submit\" id=\"btnSearch\" value=\"Search\">\n"+
-		"  </form>\n"+
-		"\n"+
-		"  <h2>Upload</h2>\n"+
-		"  <form method=\"POST\" id=\"uploadform\" enctype=\"multipart/form-data\">\n"+
-		"    <input type=\"file\" id=\"fileinput\" multiple=\"true\" name=\"file\" disabled=\"true\""+
-		">\n"+
-		"    <input type=\"submit\" id=\"filesubmit\" value=\"Upload\" disabled=\"true\">\n"+
-		"  </form>\n"+
-		"\n"+
+		"	<script>\n"+
+		"		var page = new camlistore.DebugPage(CAMLISTORE_CONFIG);\n"+
+		"		page.decorate(document.body);\n"+
+		"	</script>\n"+
 		"</body>\n"+
 		"</html>\n"+
 		""))
