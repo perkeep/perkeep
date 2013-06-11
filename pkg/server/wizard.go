@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -32,6 +33,8 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
+
+	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 )
 
 var ignoredFields = map[string]bool{
@@ -123,6 +126,12 @@ func flattenPublish(config jsonconfig.Obj) error {
 	return nil
 }
 
+var serverKey = func() string {
+	var b [20]byte
+	rand.Read(b[:])
+	return string(b[:])
+}()
+
 func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	config, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
@@ -144,13 +153,17 @@ func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 			}
 			return true
 		},
+		"genXSRF": func() string {
+			return xsrftoken.Generate(serverKey, "user", "wizardSave")
+		},
 	}
 
 	body := `
-	<form id="WizardForm" action="" method="post" enctype="multipart/form-data">
+	<form id="WizardForm" method="POST" enctype="multipart/form-data">
 	<table>
 	{{range $k,$v := .}}{{if showField $k}}<tr><td>{{printf "%v" $k}}</td><td><input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}" ></td></tr>{{end}}{{end}}
 	</table>
+	<input type="hidden" name="token" value="{{genXSRF}}">
 	<input type="submit" form="WizardForm" value="Save"> (Will restart server.)</form>`
 
 	if hasChanged {
@@ -184,11 +197,15 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 	return err
 }
 
-// TODO(mpl): use XRRF
 func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
 		httputil.ServeError(rw, req, err)
+		return
+	}
+	if !xsrftoken.Valid(req.FormValue("token"), serverKey, "user", "wizardSave") {
+		http.Error(rw, "Form expired. Press back and reload form.", http.StatusBadRequest)
+		log.Printf("invalid xsrf token=%q", req.FormValue("token"))
 		return
 	}
 
@@ -230,9 +247,14 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 			httputil.ServeError(rw, req, err)
 			return
 		}
+		err = osutil.RestartProcess()
+		if err != nil {
+			log.Fatal("Failed to restart: " + err.Error())
+			http.Error(rw, "Failed to restart process", 500)
+			return
+		}
 	}
 	sendWizard(rw, req, hasChanged)
-	return
 }
 
 func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -251,11 +273,8 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		if len(req.Form) > 0 {
 			handleSetupChange(rw, req)
-			err = osutil.RestartProcess()
-			if err != nil {
-				log.Fatal("Failed to restart: " + err.Error())
-			}
 		}
+		return
 	}
 
 	sendWizard(rw, req, false)
