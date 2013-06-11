@@ -208,18 +208,31 @@ camlistore.BlobItem.prototype.getDirBlobref_ = function() {
  * @return {string}
  */
 camlistore.BlobItem.prototype.getTitle_ = function() {
-  if (this.resolvedMetaData_) {
-    if (this.resolvedMetaData_.camliType == 'file' &&
-        !!this.resolvedMetaData_.file) {
-      return this.resolvedMetaData_.file.fileName;
-    } else if (this.resolvedMetaData_.camliType == 'permanode' &&
-               !!this.resolvedMetaData_.permanode &&
-               !!this.resolvedMetaData_.permanode.attr &&
-               !!this.resolvedMetaData_.permanode.attr.title) {
-      return this.resolvedMetaData_.permanode.attr.title;
-    }
-  }
-  return 'Unknown title';
+	if (this.metaData_) {
+		if (this.metaData_.camliType == 'permanode' &&
+			!!this.metaData_.permanode &&
+			!!this.metaData_.permanode.attr &&
+			!!this.metaData_.permanode.attr.title) {		
+			return this.metaData_.permanode.attr.title;
+		}
+	}
+	if (this.resolvedMetaData_) {
+		if (this.resolvedMetaData_.camliType == 'file' &&
+			!!this.resolvedMetaData_.file) {
+			return this.resolvedMetaData_.file.fileName;
+		}
+		if (this.resolvedMetaData_.camliType == 'directory' &&
+	        !!this.resolvedMetaData_.dir) {
+	      return this.resolvedMetaData_.dir.fileName;
+	    }
+		if (this.resolvedMetaData_.camliType == 'permanode' &&
+			!!this.resolvedMetaData_.permanode &&
+			!!this.resolvedMetaData_.permanode.attr &&
+			!!this.resolvedMetaData_.permanode.attr.title) {
+			return this.resolvedMetaData_.permanode.attr.title;
+		}
+	}
+	return 'Unknown title';
 };
 
 
