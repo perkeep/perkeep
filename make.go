@@ -16,6 +16,10 @@ limitations under the License.
 
 // This program builds Camlistore.
 //
+// $ go run make.go
+//
+// See the BUILDING file.
+//
 // The output binaries go into the ./bin/ directory (under the
 // Camlistore root, where make.go is)
 package main
