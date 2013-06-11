@@ -48,6 +48,14 @@ foreach my $d (qw{
 system("git", "commit", "-m", "Add VERSION file and clean tree for release $version") and die "Failed to commit";
 system("git", "tag", $version) and die "Failed to tag";
 
+my $commit = do { open(my $f, ".git/refs/tags/$version") or die; local $/; <$f> };
+chomp $commit;
+
+system("git", "checkout", "master") and die;
+open(my $fh, ">>misc/release-history-tags");
+print $fh "$commit\t$version\n";
+close($fh);
+
 print "Created branch $new_branch from master, cleaned it and wrote VERSION file, & tagged $version.\n";
 print "\n";
 print "Push with:\n";
