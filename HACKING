@@ -1,12 +1,43 @@
+Camlistore contributors regularly use Linux and OS X, and both are
+100% supported.
+
+Developing on Windows is sometimes broken, but should work.  Let us
+know if we broke something, or we accidentally depend on some
+Unix-specific build tool somewhere.
+
 See http://camlistore.org/docs/contributing for information
 on how to contribute to the project and submit patches.
 
-On Debian, to get started:
+See architecture docs: https://camlistore.org/docs/
 
-$ sudo apt-get install libsqlite3-dev sqlite3 pkg-config subversion git make
+You can view docs for Camlistore packages with local godoc, or
+godoc.org.
+
+It's recommended you use git to fetch the source code, rather than
+hack from a Camlistore release's zip file:
+
+$ git clone https://camlistore.org/r/p/camlistore
+
+(We use github for distribution and collaboration with some people,
+but the Gerrit git server & code review system is the main repo.)
+
+After cloning it, move the top-level directory to be named
+"camlistore.org" under your $GOPATH/src. (e.g. if your $GOPATH is
+$HOME, put the Camlistore git repo at $HOME/src/camlistore.org) This
+isn't required for normal users, but is assumed for people hacking on
+Camlistore.
+
+On Debian/Ubuntu, some deps to get started:
+
+$ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git make
+
+Then we use the following scripts to run a hermetic, self-contained
+environment independent (with its own config files & storage space):
+
 $ ./dev-server
 $ ./dev-camput
 $ ./dev-camget
+... etc.
 
-etc
+Please update this file as appropriate.
 
