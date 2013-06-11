@@ -20,6 +20,7 @@ build/root
 .DS_Store
 bin/cam*
 tmp
+gopath
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
 server/camlistored/newui/zembed_all.js.go
