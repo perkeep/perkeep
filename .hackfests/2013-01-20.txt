@@ -1,5 +1,0 @@
-At Brett's place, with Brett Slatkin, Lindsey Simon, Ryan Barrett.
-
-Goal: More closure UI stuff.
-
-Ryan getting up-to-speed and maybe working on Activity Streams import.
