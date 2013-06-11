@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blob_item.js", 7288, time.Unix(0, 1370942742232957700), fileembed.String("/**\n"+
+	Files.Add("blob_item.js", 7628, time.Unix(0, 1370954334543804326), fileembed.String("/**\n"+
 		" * @fileoverview An item showing in a blob item container; represents a blob\n"+
 		" * that has already been uploaded in the system, or acts as a placeholder\n"+
 		" * for a new blob.\n"+
@@ -220,18 +220,31 @@ func init() {
 		" * @return {string}\n"+
 		" */\n"+
 		"camlistore.BlobItem.prototype.getTitle_ = function() {\n"+
-		"  if (this.resolvedMetaData_) {\n"+
-		"    if (this.resolvedMetaData_.camliType == 'file' &&\n"+
-		"        !!this.resolvedMetaData_.file) {\n"+
-		"      return this.resolvedMetaData_.file.fileName;\n"+
-		"    } else if (this.resolvedMetaData_.camliType == 'permanode' &&\n"+
-		"               !!this.resolvedMetaData_.permanode &&\n"+
-		"               !!this.resolvedMetaData_.permanode.attr &&\n"+
-		"               !!this.resolvedMetaData_.permanode.attr.title) {\n"+
-		"      return this.resolvedMetaData_.permanode.attr.title;\n"+
-		"    }\n"+
-		"  }\n"+
-		"  return 'Unknown title';\n"+
+		"	if (this.metaData_) {\n"+
+		"		if (this.metaData_.camliType == 'permanode' &&\n"+
+		"			!!this.metaData_.permanode &&\n"+
+		"			!!this.metaData_.permanode.attr &&\n"+
+		"			!!this.metaData_.permanode.attr.title) {		\n"+
+		"			return this.metaData_.permanode.attr.title;\n"+
+		"		}\n"+
+		"	}\n"+
+		"	if (this.resolvedMetaData_) {\n"+
+		"		if (this.resolvedMetaData_.camliType == 'file' &&\n"+
+		"			!!this.resolvedMetaData_.file) {\n"+
+		"			return this.resolvedMetaData_.file.fileName;\n"+
+		"		}\n"+
+		"		if (this.resolvedMetaData_.camliType == 'directory' &&\n"+
+		"	        !!this.resolvedMetaData_.dir) {\n"+
+		"	      return this.resolvedMetaData_.dir.fileName;\n"+
+		"	    }\n"+
+		"		if (this.resolvedMetaData_.camliType == 'permanode' &&\n"+
+		"			!!this.resolvedMetaData_.permanode &&\n"+
+		"			!!this.resolvedMetaData_.permanode.attr &&\n"+
+		"			!!this.resolvedMetaData_.permanode.attr.title) {\n"+
+		"			return this.resolvedMetaData_.permanode.attr.title;\n"+
+		"		}\n"+
+		"	}\n"+
+		"	return 'Unknown title';\n"+
 		"};\n"+
 		"\n"+
 		"\n"+
