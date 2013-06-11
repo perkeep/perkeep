@@ -1,0 +1,55 @@
+<h1>Release 0.1 ("Grenoble")</h1>
+
+<p><b>2013-06-11</b></p>
+
+<p>After three years of development, we're proud to release our first
+version of Camlistore, 0.1, codename "Grenoble", the beautiful city
+where we're currently releasing it from.</p>
+
+<center><a href="https://github.com/bradfitz/camlistore/archive/0.1.zip">camlistore-0.1.zip</a></center>
+
+<p>As reflected in the version number, Camlistore is not yet done, but
+it's at least ready for people to start using and playing with.  We've
+been using it ourselves for a year.</p>
+
+<h1>What works</h1>
+
+<ul>
+  <li>Linux and OS X support. And probably any Unix.</li>
+  <li>Command-line tools:<ul>
+        <li><b><code>camput</code></b>: upload blobs, files, or directories (any size). The camput tool can also make share claims to share those resources with others, or can be used to make raw permanodes & claims.</li>
+        <li><b><code>camget</code></b>: get blobs or files (not directories)</li>
+        <li><b><code>cammount</code></b>: FUSE-mount your Camlistore (Linux and OS X only): either static directories (e.g. backups from camput), or a virtual "recent" directories of recent files uploaded (e.g. from your Android phone)</li>
+        <li><b><code>camtool</code></b>: additional swiss-army knife tools, and manual sync tool ("camtool sync"). 
+     </ul>
+  </li>
+  <li>Web UI. Not great, but lets you browse your Camlistore resources.
+  <li>Android client: upload photos ("Share to Camlistore")</li>
+  <li>Blob storage options: local disk, Amazon S3, Google Cloud Storage, ...</li>
+  <li>Search index storage options: in-memory, SQLite, MySQL, Postgres, Mongo, ...</li>
+  <li>Synchronous and asynchronous replication support between any storage types or Camlistore instances.</li>
+  <li>Sharding, mirroring, ...</li>
+</ul>
+
+
+<h1>What doesn't work (or work well)</h1>
+
+<p>Things currently known to be broken or not yet finished:</p>
+
+<ul>
+  <li>Windows support. Has worked at times, but may currently be broken again. It will improve and hopefully stay stable in future releases.</li>
+  <li>iOS client. Nascent.</li>
+  <li>WebDAV server (for mounting your Camlistore resources on Windows) is currently broken, but once worked.</li>
+  <li>App Engine support. App Engine used to work, but is currently broken until a new App Engine SDK comes out with Go 1.1 support (soon).</li>
+  <li>Encryption. Designed, but not implemented.</li>
+  <li>The web UI could use some JavaScript / CSS / design love.</li>
+</ul>
+
+<h1>Get involved!</h1>
+
+<p>We welcome feedback, feature requests, bug reports, and code
+contributions.  See <a href="/docs/contributing">the Contributing
+page</a>.</p>
+
+<p>File <a href="https://code.google.com/p/camlistore/issues/list">bugs</a> at: <a
+href="https://code.google.com/p/camlistore/issues/entry">https://code.google.com/p/camlistore/issues/entry</a>.</p>
