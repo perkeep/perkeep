@@ -40,6 +40,7 @@ been using it ourselves for a year.</p>
         <li><b><code>camtool sync</code></b>: The camtool command supports syncing from servers (or local disk blob directories) to other servers (or other local disk blob directories), as well as a "third-leg" mode, where you can sync from <b>A</b> to <b>B></b> by using the network to communicate differences, but instead copying missing blobs to destination <b>C</b> (e.g. a local portable harddisk to be manually transported to <b>B</b>)</li>
       </ul>
   </li>
+  <li>The server and command-line tools are written in <a href="http://golang.org/">Go</a>, so it runs everywhere, and easily (no library versioning stress). Just a single binary to copy to your Raspberry Pi running NetBSD or Linux or whatever.</li>
   <li>Sharding, mirroring, unioning, ...</li>
 </ul>
 
