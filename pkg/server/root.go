@@ -142,11 +142,13 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	configLink := ""
 	if auth.IsLocalhost(req) {
-		configLink = "<p>If you're coming from localhost, hit <a href='/setup'>/setup</a>.</p>"
+		configLink = "<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>"
 	}
 	fmt.Fprintf(rw, "<html><body>This is camlistored, a "+
 		"<a href='http://camlistore.org'>Camlistore</a> server."+
-		"%s</body></html>\n", configLink)
+		"%s"+
+		"<p>To manage your content, access the <a href='/ui'>/ui</a>.</p></body></html>\n",
+		configLink)
 }
 
 type byFromTo []*SyncHandler
