@@ -1,278 +1,380 @@
-/*
-Copyright 2011 Google Inc.
+/**
+ * @fileoverview Entry point for the permanodes search UI.
+ *
+ */
+goog.provide('camlistore.SearchPage');
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+goog.require('goog.array');
+goog.require('goog.dom');
+goog.require('goog.dom.classes');
+goog.require('goog.events.EventHandler');
+goog.require('goog.events.EventType');
+goog.require('goog.ui.Component');
+goog.require('camlistore.BlobItemContainer');
+goog.require('camlistore.ServerConnection');
+goog.require('camlistore.Toolbar');
+goog.require('camlistore.Toolbar.EventType');
 
-     http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// TODO(mpl): better help. tooltip maybe?
 
-var CamliSearch = {};
+// TODO(mpl): make a mother class that both index.js and search.js could
+// inherit from?
+/**
+ * @param {camlistore.ServerType.DiscoveryDocument} config Global config
+ *	 of the current server this page is being rendered for.
+ * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
+ *
+ * @extends {goog.ui.Component}
+ * @constructor
+ */
+camlistore.SearchPage = function(config, opt_domHelper) {
+	goog.base(this, opt_domHelper);
 
-function getSearchParams() {
-	CamliSearch.query = "";
-	CamliSearch.type = "";
-	CamliSearch.fuzzy = "";
-	CamliSearch.query = Camli.getQueryParam('q') || "";
-	CamliSearch.type = Camli.getQueryParam('t') || "";
-	CamliSearch.fuzzy = Camli.getQueryParam('f') || "";
-	CamliSearch.max = Camli.getQueryParam('max') || "";
-}
+	/**
+	 * @type {Object}
+	 * @private
+	 */
+	this.config_ = config;
 
-function hideAllResThings() {
-	CamliSearch.titleRes.style.visibility = 'hidden';
-	CamliSearch.btnNewCollec.disabled = true;
-	CamliSearch.btnNewCollec.style.visibility = 'hidden';
-	CamliSearch.formAddToCollec.style.visibility = 'hidden';
-}
+	/**
+	 * @type {camlistore.ServerConnection}
+	 * @private
+	 */
+	this.connection_ = new camlistore.ServerConnection(config);
 
-function handleFormGetRoots(e) {
-	e.stopPropagation();
-	e.preventDefault();
+	/**
+	 * @type {camlistore.BlobItemContainer}
+	 * @private
+	 */
+	this.blobItemContainer_ = new camlistore.BlobItemContainer(
+		this.connection_, opt_domHelper);
 
-	document.location.href = "search.html?&t=camliRoot"
-}
+	/**
+	 * @type {camlistore.Toolbar}
+	 * @private
+	 */
+	this.toolbar_ = new camlistore.Toolbar(opt_domHelper);
+	this.toolbar_.isSearch = true;
 
-function handleFormGetTagged(e) {
-	e.stopPropagation();
-	e.preventDefault();
+	/**
+	 * @type {goog.events.EventHandler}
+	 * @private
+	 */
+	this.eh_ = new goog.events.EventHandler(this);
+};
+goog.inherits(camlistore.SearchPage, goog.ui.Component);
 
-	var input = document.getElementById("inputTag");
-	if (input.value == "") {
-		return;
-	}
-	var tags = input.value.split(/\s*,\s*/);
-	query = "search.html?q=" + tags[0] + "&t=tag"
-	var max = document.getElementById("maxTagged");
-	if (max.value != "") {
-		query += "&max=" + max.value
-	}
 
-	document.location.href = query;
-}
+/**
+ * @enum {string}
+ * @private
+ */
+camlistore.SearchPage.prototype.searchPrefix_ = {
+  TAG: 'tag:',
+  TITLE: 'title:',
+  BLOBREF: 'bref:'
+};
 
-function handleFormGetTitled(e) {
-	e.stopPropagation();
-	e.preventDefault();
 
-	var input = document.getElementById("inputTitle");
+/**
+ * @type {number}
+ * @private
+ */
+camlistore.SearchPage.prototype.maxInResponse_ = 100;
 
-	if (input.value == "") {
-		return;
-	}
 
-	var titles = input.value.split(/\s*,\s*/);
-	document.location.href = "search.html?q=" + titles[0] + "&t=title"
-}
+/**
+ * Creates an initial DOM representation for the component.
+ */
+camlistore.SearchPage.prototype.createDom = function() {
+	this.decorateInternal(this.dom_.createElement('div'));
+};
 
-function handleFormGetAnyAttr(e) {
-	e.stopPropagation();
-	e.preventDefault();
 
-	var input = document.getElementById("inputAnyAttr");
+/**
+ * Decorates an existing HTML DIV element.
+ * @param {Element} element The DIV element to decorate.
+ */
+camlistore.SearchPage.prototype.decorateInternal = function(element) {
+	camlistore.SearchPage.superClass_.decorateInternal.call(this, element);
 
-	if (input.value == "") {
-		return;
-	}
+	var el = this.getElement();
+	goog.dom.classes.add(el, 'cam-index-page');
 
-	var any = input.value.split(/\s*,\s*/);
-	document.location.href = "search.html?q=" + any[0]
-}
+	var titleEl = this.dom_.createDom('h1', 'cam-index-page-title');
+	this.dom_.setTextContent(titleEl, "Search");
+	this.dom_.appendChild(el, titleEl);
 
-function doSearch() {
-	var sigconf = Camli.config.signing;
-	var tagcb = {};
-	tagcb.success = function(pres) {
-		showSearchResult(pres, CamliSearch.type);
-	};
-	tagcb.fail = function(msg) {
-		alert(msg);
-	};
-	switch(CamliSearch.type) {
-	case "tag":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "tag", CamliSearch.query, CamliSearch.fuzzy, CamliSearch.max, tagcb);
-		break;
-	case "title":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "title", CamliSearch.query, "true", CamliSearch.max, tagcb);
-		break;
-	case "camliRoot":
-		camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", CamliSearch.query, "false", CamliSearch.max, tagcb);
-		break;
-	case "":
-		if (CamliSearch.query !== "") {
-			camliGetPermanodesWithAttr(sigconf.publicKeyBlobRef, "", CamliSearch.query, "true", CamliSearch.max, tagcb);
+	this.addChild(this.toolbar_, true);
+
+	var searchForm = this.dom_.createDom('form', {'id': 'searchForm'});
+	var searchText = this.dom_.createDom('input',
+		{'type': 'text', 'id': 'searchText', 'size': 50, 'title': 'Search'}
+	);
+	var btnSearch = this.dom_.createDom('input',
+		{'type': 'submit', 'id': 'btnSearch', 'value': 'Search'}
+	);
+	goog.dom.appendChild(searchForm, searchText);
+	goog.dom.appendChild(searchForm, btnSearch);
+	goog.dom.appendChild(el, searchForm);
+	
+	this.addChild(this.blobItemContainer_, true);
+};
+
+
+/** @override */
+camlistore.SearchPage.prototype.disposeInternal = function() {
+	camlistore.SearchPage.superClass_.disposeInternal.call(this);
+	this.eh_.dispose();
+};
+
+
+/**
+ * Called when component's element is known to be in the document.
+ */
+camlistore.SearchPage.prototype.enterDocument = function() {
+	camlistore.SearchPage.superClass_.enterDocument.call(this);
+
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
+		function() {
+			this.blobItemContainer_.bigger();
 		}
-		break;
-	}
-}
+	);
 
-function showSearchResult(pres, type) {
-	showPermanodes(pres, type);
-	CamliSearch.query = "";
-	CamliSearch.type = "";
-}
-
-function showPermanodes(searchRes, type) {
-	var div = document.getElementById("divRes");
-	while (div.hasChildNodes()) {
-		div.removeChild(div.lastChild);
-	}
-	var results = searchRes.withAttr;
-	if (!results) {
-		hideAllResThings();
-		return;
-	}
-	if (results.length > 0) {
-		var checkall = document.createElement("input");
-		checkall.id = "checkall";
-		checkall.type = "checkbox";
-		checkall.name = "checkall";
-		checkall.checked = false;
-		checkall.onclick = Function("checkAll();");
-		div.appendChild(checkall);
-		div.appendChild(document.createElement("br"));
-	}
-	for (var i = 0; i < results.length; i++) {
-		var result = results[i];
-		var alink = document.createElement("a");
-		alink.href = "./?p=" + result.permanode;
-		Camli.setTextContent(alink, camliBlobTitle(result.permanode, searchRes.meta));
-		var cbox = document.createElement('input');
-		cbox.type = "checkbox";
-		cbox.name = "checkbox";
-		cbox.value = result.permanode;
-		div.appendChild(cbox);
-		div.appendChild(alink);
-		div.appendChild(document.createElement('br'));
-	}
-	if (results.length > 0) {
-		switch(type) {
-		case "tag":
-			CamliSearch.titleRes.innerHTML = "Tagged with \"" + CamliSearch.query + "\"";
-			break;
-		case "title":
-			CamliSearch.titleRes.innerHTML = "Titled with \"" + CamliSearch.query + "\"";
-			break;
-		case "camliRoot":
-			CamliSearch.titleRes.innerHTML = "All roots";
-			break;
-		case "":
-			CamliSearch.titleRes.innerHTML = "General search for \"" + CamliSearch.query + "\"";
-			break;
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.SMALLER,
+		function() {
+			this.blobItemContainer_.smaller();
 		}
-		CamliSearch.titleRes.style.visibility = 'visible';
-		CamliSearch.btnNewCollec.disabled = false;
-		CamliSearch.btnNewCollec.style.visibility = 'visible';
-		CamliSearch.formAddToCollec.style.visibility = 'visible';
-	} else {
-		hideAllResThings();
-	}
-}
+	);
 
-function getTicked() {
-	var checkboxes = document.getElementsByName("checkbox");
-	CamliSearch.tickedMemb = new Array();
-	var j = 0;
-	for (var i = 0; i < checkboxes.length; i++) {
-		if (checkboxes[i].checked) {
-			CamliSearch.tickedMemb[j] = checkboxes[i].value;
-			j++;
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.ROOTS,
+		function() {
+			this.blobItemContainer_.showRoots(this.config_.signing);
 		}
-	}
-}
+	);
 
-function checkAll() {
-	var checkall = document.getElementById("checkall");
-	var checkboxes = document.getElementsByName('checkbox');
-	for (var i = 0; i < checkboxes.length; i++) {
-		checkboxes[i].checked = checkall.checked;
-	}
-}
-
-function handleCreateNewCollection(e) {
-	addToCollection(true)
-}
-
-function handleAddToCollection(e) {
-	e.stopPropagation();
-	e.preventDefault();
-	addToCollection(false)
-}
-
-function addToCollection(createNew) {
-	var cnpcb = {};
-	cnpcb.success = function(parent) {
-		var nRemain = CamliSearch.tickedMemb.length;
-		var naaccb = {};
-		naaccb.fail = function() {
-			CamliSearch.btnNewCollec.disabled = true;
-			throw("failed to add member to collection");
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.HOME,
+		function() {
+			window.open('./index.html', 'Home');
 		}
-		naaccb.success = function() {
-			nRemain--;
-			if (nRemain == 0) {
-				CamliSearch.btnNewCollec.disabled = true;
-				window.location = "./?p=" + parent;
-			}
+	);
+
+	this.eh_.listen(
+		goog.dom.getElement('searchForm'),
+		goog.events.EventType.SUBMIT,
+		this.handleTextSearch_
+	);
+
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			this.createNewSetWithItems_(blobItems);
 		}
-		try {
-			for (var i = 0; i < CamliSearch.tickedMemb.length; i++) {
-				camliNewAddAttributeClaim(parent, "camliMember", CamliSearch.tickedMemb[i], naaccb);
-			}
-		} catch(x) {
-			alert(x)
+	);
+
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			this.addItemsToSet_(blobItems);
 		}
-	};
-	cnpcb.fail = function() {
-		alert("failed to create permanode");
-	};
-	getTicked();
-	if (CamliSearch.tickedMemb.length > 0) {
-		if (createNew) {
-			camliCreateNewPermanode(cnpcb);
-		} else {
-			var pn = document.getElementById("inputCollec").value;
-//TODO(mpl): allow a collection title (instead of a hash) as input
-			if (!Camli.isPlausibleBlobRef(pn)) {
-				alert("Not a valid collection permanode hash");
+	);
+
+	this.eh_.listen(
+		this.blobItemContainer_,
+		camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
+		function() {
+			this.handleItemSelection_(false);
+		}
+	);
+
+	this.eh_.listen(
+		this.blobItemContainer_,
+		camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,
+		function() {
+			this.handleItemSelection_(true);
+		}
+	);
+
+	this.eh_.listen(
+		this.toolbar_, camlistore.Toolbar.EventType.SELECT_COLLEC,
+		function() {
+			var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+			// there should be only one item selected
+			if (blobItems.length != 1) {
+				alert("Select (only) one item to set as the default collection.");
 				return;
 			}
-			var returnPn = function(opts) {
-				opts = Camli.saneOpts(opts);
-				opts.success(pn);
-			}
-			returnPn(cnpcb);
+			this.blobItemContainer_.currentCollec_ = blobItems[0].blobRef_;
+			this.blobItemContainer_.unselectAll();
+			this.toolbar_.setCheckedBlobItemCount(0);
+			this.toolbar_.toggleCollecButton(false);
+			this.toolbar_.toggleAddToSetButton(false);
 		}
+	);
+
+};
+
+
+/**
+ * @param {boolean} single Whether a single item has been (un)selected.
+ * @private
+ */
+camlistore.SearchPage.prototype.handleItemSelection_ =
+function(single) {
+	var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+	this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+	// set checkedItemsAddToSetButton_
+	if (this.blobItemContainer_.currentCollec_ &&
+		this.blobItemContainer_.currentCollec_ != "" &&
+		blobItems.length > 0) {
+		this.toolbar_.toggleAddToSetButton(true);
 	} else {
-		alert("No selected object")
+		this.toolbar_.toggleAddToSetButton(false);
+	}
+	// set setAsCollecButton_
+	if (single &&
+		blobItems.length == 1 &&
+		blobItems[0].isCollection()) {
+		this.toolbar_.toggleCollecButton(true);
+	} else {
+		this.toolbar_.toggleCollecButton(false);
 	}
 }
 
-function indexOnLoad(e) {
+// Returns true if the passed-in string might be a blobref.
+isPlausibleBlobRef = function(blobRef) {
+	return /^\w+-[a-f0-9]+$/.test(blobRef);
+};
 
-	var formRoots = document.getElementById("formRoots");
-	formRoots.addEventListener("submit", handleFormGetRoots);
-	var formTags = document.getElementById("formTags");
-	formTags.addEventListener("submit", handleFormGetTagged);
-	var formTitles = document.getElementById("formTitles");
-	formTitles.addEventListener("submit", handleFormGetTitled);
-	var formAnyAttr = document.getElementById("formAnyAttr");
-	formAnyAttr.addEventListener("submit", handleFormGetAnyAttr);
-	CamliSearch.titleRes = document.getElementById("titleRes");
-	CamliSearch.btnNewCollec = document.getElementById("btnNewCollec");
-	CamliSearch.btnNewCollec.addEventListener("click", handleCreateNewCollection);
-	CamliSearch.formAddToCollec = document.getElementById("formAddToCollec");
-	CamliSearch.formAddToCollec.addEventListener("submit", handleAddToCollection);
-	hideAllResThings();
-	getSearchParams();
-	doSearch();
-}
+/**
+ * @param {goog.events.Event} e The title form submit event.
+ * @private
+ */
+camlistore.SearchPage.prototype.handleTextSearch_ =
+function(e) {
+	e.stopPropagation();
+	e.preventDefault();
 
-window.addEventListener("load", indexOnLoad);
+	var searchText = goog.dom.getElement("searchText");
+	searchText.disabled = true;
+	var btnSearch = goog.dom.getElement("btnSearch");
+	btnSearch.disabled = true;
+
+	var attr = "";
+	var value = "";
+	var fuzzy = false;
+	if (searchText.value.indexOf(this.searchPrefix_.TAG) == 0) {
+		// search by tag
+		attr = "tag";
+		value = searchText.value.slice(this.searchPrefix_.TAG.length);
+		// TODO(mpl): allow fuzzy option for tag search. How?
+		// ":fuzzy" at the end of search string maybe?
+	} else if (searchText.value.indexOf(this.searchPrefix_.TITLE) == 0) {
+		// search by title
+		attr = "title";
+		value = searchText.value.slice(this.searchPrefix_.TITLE.length);
+		// TODO(mpl): fuzzy search seems to be broken for title. investigate.
+	} else if (searchText.value.indexOf(this.searchPrefix_.BLOBREF) == 0) {
+		// or query directly by blobref (useful to get a permanode and set it
+		// as the default collection)
+		value = searchText.value.slice(this.searchPrefix_.BLOBREF.length);
+		if (isPlausibleBlobRef(value)) {
+			this.blobItemContainer_.findByBlobref_(value);
+		}
+		searchText.disabled = false;
+		btnSearch.disabled = false;
+		return;
+	} else {
+		attr = "";
+		value = searchText.value;
+		fuzzy = true;
+	}
+
+	this.blobItemContainer_.showWithAttr(this.config_.signing,
+		attr, value, fuzzy, this.maxInResponse_
+	);
+	searchText.disabled = false;
+	btnSearch.disabled = false;
+};
+
+
+/**
+ * Called when component's element is known to have been removed from the
+ * document.
+ */
+camlistore.SearchPage.prototype.exitDocument = function() {
+	camlistore.SearchPage.superClass_.exitDocument.call(this);
+	this.eh_.dispose();
+};
+
+
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.SearchPage.prototype.createNewSetWithItems_ = function(blobItems) {
+	this.connection_.createPermanode(
+		goog.bind(this.addMembers_, this, true, blobItems));
+};
+
+/**
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @private
+ */
+camlistore.SearchPage.prototype.addItemsToSet_ = function(blobItems) {
+	if (!this.blobItemContainer_.currentCollec_ ||
+		this.blobItemContainer_.currentCollec_ == "") {
+		alert("no destination collection selected");
+	}
+	this.addMembers_(false, blobItems, this.blobItemContainer_.currentCollec_);
+};
+
+/**
+ * @param {boolean} newSet Whether the containing set has just been created.
+ * @param {Array.<camlistore.BlobItem>} blobItems Items to add to the permanode.
+ * @param {string} permanode Node to add the items to.
+ * @private
+ */
+camlistore.SearchPage.prototype.addMembers_ =
+function(newSet, blobItems, permanode) {
+	var deferredList = [];
+	var complete = goog.bind(this.addItemsToSetDone_, this, permanode);
+	var callback = function() {
+		deferredList.push(1);
+		if (deferredList.length == blobItems.length) {
+			complete();
+		}
+	};
+
+	// TODO(mpl): newSet is a lame trick. Do better.
+	if (newSet) {
+		this.connection_.newSetAttributeClaim(
+			permanode, 'title', 'My new set', function() {}
+		);
+	}
+	goog.array.forEach(blobItems, function(blobItem, index) {
+		this.connection_.newAddAttributeClaim(
+			permanode, 'camliMember', blobItem.getBlobRef(), callback
+		);
+	}, this);
+};
+
+
+/**
+ * @param {string} permanode Node to which the items were added.
+ * @private
+ */
+camlistore.SearchPage.prototype.addItemsToSetDone_ = function(permanode) {
+	this.blobItemContainer_.unselectAll();
+	var blobItems = this.blobItemContainer_.getCheckedBlobItems();
+	this.toolbar_.setCheckedBlobItemCount(blobItems.length);
+	this.toolbar_.toggleCollecButton(false);
+	this.toolbar_.toggleAddToSetButton(false);
+};

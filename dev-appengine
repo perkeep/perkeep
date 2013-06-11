@@ -22,7 +22,6 @@ my $sdk = readlink("$Bin/appengine-sdk")
 my @args = (
     "$sdk/dev_appserver.py",
     "--skip_sdk_update_check",
-    "--high_replication",
     );
 
 if ($opt_all) {
@@ -32,9 +31,9 @@ if ($opt_wipe) {
     push @args, "--clear_datastore";
 }
 if ($opt_port) {
-    push @args, "-p", "$opt_port";
+    push @args, "--port", "$opt_port";
 } else {
-    push @args, "-p", "3179";
+    push @args, "--port", "3179";
 }
 push @args, @ARGV;
 

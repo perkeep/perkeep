@@ -450,6 +450,7 @@ func camliClosurePage(filename string) string {
 			return m[2]
 		}
 	}
+	return ""
 }
 
 func (pr *publishRequest) serveSubject() {

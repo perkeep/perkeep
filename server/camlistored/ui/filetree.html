@@ -1,20 +1,28 @@
 <!doctype html>
 <html>
 <head>
-  <title>Gallery</title>
-  <script src="base64.js"></script>
-  <script src="Crypto.js"></script>
-  <script src="SHA1.js"></script>
-  <script src="camli.js"></script>
-  <script src="?camli.mode=config&cb=Camli.onConfiguration"></script>
-  <script src="filetree.js"></script>
-  <link rel="stylesheet" href="camli.css">
+	<title>Filetree</title>
+	<script src="closure/goog/base.js"></script>
+	<script src="./deps.js"></script>
+	<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
+	<!-- Begin non-Closure cheating; but depended on by server_connection.js -->
+	<script type="text/javascript" src="base64.js"></script>
+	<script type="text/javascript" src="Crypto.js"></script>
+	<script type="text/javascript" src="SHA1.js"></script>
+	<!-- End non-Closure cheating -->
+	<script>
+		goog.require('camlistore.FiletreePage');
+	</script>
+	<link rel="stylesheet" href="filetree.css">
 </head>
-<body class="camli-ui-permanode">
-  <div class="camli-nav"><a href="./">Home</a></div>
-  <h1>FileTree for <span id="curDir" class="camli-nav"></span> </h1>
+<body class="cam-filetree-page">
+	<div class="cam-filetree-nav"><a href="./">Home</a></div>
+	<h1>FileTree for <span id="curDir" class="cam-filetree-nav"></span> </h1>
 
-  <div id="children"></div>
-
+	<div id="children"></div>
+	<script>
+		var page = new camlistore.FiletreePage(CAMLISTORE_CONFIG);
+		page.decorate(document.body);
+	</script>
 </body>
 </html>

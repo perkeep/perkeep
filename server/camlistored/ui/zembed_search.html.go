@@ -1,63 +1,41 @@
 // THIS FILE IS AUTO-GENERATED FROM search.html
 // DO NOT EDIT.
 
-package ui
+package newui
 
 import "time"
 
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.html", 1516, time.Unix(0, 1369518799000000000), fileembed.String("<html>\n"+
+	Files.Add("search.html", 1144, time.Unix(0, 1370942742232957700), fileembed.String("<html>\n"+
 		"<head>\n"+
-		"  <title>Camlistored UI</title>\n"+
-		"  <script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
-		"  <script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
-		"  <script src=\"camli.js\"></script>\n"+
-		"  <script src=\"?camli.mode=config&cb=Camli.onConfiguration\"></script>\n"+
-		"  <script src=\"search.js\"></script>\n"+
-		"  <link rel=\"stylesheet\" href=\"camli.css\">\n"+
+		"	<title>Search</title>\n"+
+		"	<script src=\"closure/goog/base.js\"></script>\n"+
+		"	<script src=\"./deps.js\"></script>\n"+
+		"	<script src=\"?camli.mode=config&var=CAMLISTORE_CONFIG\"></script>\n"+
+		"	<!-- Begin non-Closure cheating; but depended on by server_connection.js -->\n"+
+		"	<script type=\"text/javascript\" src=\"base64.js\"></script>\n"+
+		"	<script type=\"text/javascript\" src=\"Crypto.js\"></script>\n"+
+		"	<script type=\"text/javascript\" src=\"SHA1.js\"></script>\n"+
+		"	<!-- End non-Closure cheating -->\n"+
+		"	<script>\n"+
+		"		goog.require('camlistore.SearchPage');\n"+
+		"	</script>\n"+
+		"	<link rel=\"stylesheet\" href=\"blob_item.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"blob_item_container.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"create_item.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"index.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"toolbar.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"closure/goog/css/common.css\" type=\"text/css\">\n"+
+		"	<link rel=\"stylesheet\" href=\"closure/goog/css/toolbar.css\" type=\"text/css\">\n"+
 		"</head>\n"+
 		"<body>\n"+
-		"    <div class=\"camli-nav\"><a href=\"./\">Home</a></div>\n"+
 		"\n"+
-		"    <h1>Search</h1>\n"+
-		"\n"+
-		"    <h2>Find all roots</h2>\n"+
-		"    <form id=\"formRoots\">\n"+
-		"        <input type=\"submit\" id=\"btnRoots\" value=\"Search\">\n"+
-		"    </form>\n"+
-		"\n"+
-		"    <h2>In all attributes</h2>\n"+
-		"    <form id=\"formAnyAttr\">\n"+
-		"        <input id=\"inputAnyAttr\" placeholder=\"attrValue1\">\n"+
-		"        <input type=\"submit\" id=\"btnAnyAttr\" value=\"Search\">\n"+
-		"    </form>\n"+
-		"\n"+
-		"    <h2>By Tag</h2>\n"+
-		"    <form id=\"formTags\">\n"+
-		"        <input id=\"inputTag\" placeholder=\"tag1\">\n"+
-		"        <input type=\"submit\" id=\"btnTagged\" value=\"Search\"></br>\n"+
-		"        <input id=\"maxTagged\" placeholder=\"nb of results: 50\">\n"+
-		"    </form>\n"+
-		"\n"+
-		"    <h2>By Title</h2>\n"+
-		"    <form id=\"formTitles\">\n"+
-		"        <input id=\"inputTitle\" placeholder=\"title1\">\n"+
-		"        <input type=\"submit\" id=\"btnTitle\" value=\"Search\">\n"+
-		"    </form>\n"+
-		"\n"+
-		"    <h3 id=\"titleRes\">Search</h3>\n"+
-		"    <div id=\"divRes\">\n"+
-		"</div>\n"+
-		"    <p>\n"+
-		"    <form id=\"formAddToCollec\">\n"+
-		"        <input id=\"inputCollec\" placeholder=\"collection's permanode\">\n"+
-		"        <input type=\"submit\" id=\"btnAddToCollec\" value=\"Add to collection\"> or\n"+
-		"    </form>\n"+
-		"    <button id=\"btnNewCollec\">Create new collection</button>\n"+
-		"    </p>\n"+
-		"\n"+
+		"	<script>\n"+
+		"		var page = new camlistore.SearchPage(CAMLISTORE_CONFIG);\n"+
+		"		page.decorate(document.body);\n"+
+		"	</script>\n"+
 		"</body>\n"+
 		"</html>\n"+
 		""))

@@ -25,7 +25,7 @@ presubmit:
 	SKIP_DEP_TESTS=1 go test `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` -short ./pkg/... ./server/camlistored ./cmd/... && echo PASS
 
 embeds:
-	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./server/camlistored/newui && genfileembed ./pkg/server
+	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./pkg/server
 
 getclosure:
 	perl -e 'require "misc/get_closure.pl"; get_closure_lib(); get_closure_compiler();'
@@ -37,6 +37,13 @@ NEWUIDIR = server/camlistored/newui
 clean:
 	rm -f $(NEWUIDIR)/all.js $(NEWUIDIR)/all.js.map
 
+genjsdeps: $(UIDIR)/deps.js
+
+$(UIDIR)/deps.js: $(UIDIR)/blobinfo.js $(UIDIR)/blob_item.js $(UIDIR)/blob_item_container.js $(UIDIR)/create_item.js $(UIDIR)/filetree.js $(UIDIR)/index.js $(UIDIR)/permanode.js $(UIDIR)/pics.js $(UIDIR)/server_connection.js $(UIDIR)/server_connection.js $(UIDIR)/search.js $(UIDIR)/server_type.js $(UIDIR)/sigdebug.js $(UIDIR)/toolbar.js $(UIDIR)/base64.js $(UIDIR)/Crypto.js $(UIDIR)/SHA1.js
+	go install ./pkg/misc/genjsdeps/ && genjsdeps ./server/camlistored/ui \
+	> $(UIDIR)/deps.js
+
+#TODO(mpl): make it output somewhere else
 minijs: $(NEWUIDIR)/all.js
 
 $(NEWUIDIR)/all.js: $(NEWUIDIR)/blobinfo.js $(NEWUIDIR)/blob_item.js $(NEWUIDIR)/blob_item_container.js $(NEWUIDIR)/create_item.js $(NEWUIDIR)/filetree.js $(NEWUIDIR)/index.js $(NEWUIDIR)/permanode.js $(NEWUIDIR)/pics.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/server_connection.js $(NEWUIDIR)/search.js $(NEWUIDIR)/server_type.js $(NEWUIDIR)/sigdebug.js $(NEWUIDIR)/toolbar.js $(NEWUIDIR)/base64.js $(NEWUIDIR)/Crypto.js $(NEWUIDIR)/SHA1.js
