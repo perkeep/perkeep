@@ -34,6 +34,13 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
+var ignoredFields = map[string]bool{
+	"gallery":     true,
+	"blog":        true,
+	"memIndex":    true,
+	"replicateTo": true,
+}
+
 // SetupHandler handles serving the wizard setup page.
 type SetupHandler struct {
 	config jsonconfig.Obj
@@ -66,7 +73,8 @@ func printWizard(i interface{}) (s string) {
 	return s
 }
 
-// Flatten all published entities as lists and move them at the root 
+// TODO(mpl): probably not needed anymore. check later and remove.
+// Flatten all published entities as lists and move them at the root
 // of the conf, to have them displayed individually by the template
 func flattenPublish(config jsonconfig.Obj) error {
 	gallery := []string{}
@@ -129,13 +137,21 @@ func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	}
 
 	funcMap := template.FuncMap{
-		"printWizard":    printWizard,
-		"inputIsGallery": func(inputName string) bool { return inputName == "gallery" },
+		"printWizard": printWizard,
+		"showField": func(inputName string) bool {
+			if _, ok := ignoredFields[inputName]; ok {
+				return false
+			}
+			return true
+		},
 	}
 
-	body := `<form id="WizardForm" action="setup" method="post" enctype="multipart/form-data">`
-	body += `{{range $k,$v := .}}{{printf "%v" $k}} <input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}" {{if inputIsGallery $k}}placeholder="/pics/,sha1-xxxx,pics.css"{{end}}><br />{{end}}`
-	body += `<input type="submit" form="WizardForm" value="Save"></form>`
+	body := `
+	<form id="WizardForm" action="" method="post" enctype="multipart/form-data">
+	<table>
+	{{range $k,$v := .}}{{if showField $k}}<tr><td>{{printf "%v" $k}}</td><td><input type="text" size="30" name ="{{printf "%v" $k}}" value="{{printWizard $v}}" ></td></tr>{{end}}{{end}}
+	</table>
+	<input type="submit" form="WizardForm" value="Save"> (Will restart server.)</form>`
 
 	if hasChanged {
 		body += `<p> Configuration succesfully rewritten </p>`
@@ -168,6 +184,7 @@ func rewriteConfig(config *jsonconfig.Obj, configfile string) error {
 	return err
 }
 
+// TODO(mpl): use XRRF
 func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 	hilevelConf, err := jsonconfig.ReadFile(osutil.UserServerConfigPath())
 	if err != nil {
@@ -186,39 +203,12 @@ func handleSetupChange(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		switch k {
-		case "https", "shareHandler", "memIndex":
+		case "https", "shareHandler":
 			b, err := strconv.ParseBool(v[0])
 			if err != nil {
 				httputil.ServeError(rw, req, fmt.Errorf("%v field expects a boolean value", k))
 			}
 			el = b
-		case "replicateTo":
-			// TODO(mpl): figure out why it is always seen as different from the conf
-			el = []interface{}{}
-			if len(v[0]) > 0 {
-				els := []string{}
-				vals := strings.Split(v[0], ",")
-				els = append(els, vals...)
-				el = els
-			}
-		// TODO(mpl): "handler,rootPermanode[,style]" for each published entity for now.
-		// we will need something more readable later probably
-		case "gallery", "blog":
-			if len(v[0]) > 0 {
-				pub := strings.Split(v[0], ",")
-				if len(pub) < 2 || len(pub) > 3 {
-					httputil.ServeError(rw, req, fmt.Errorf("%s must be of the format ROOT,TEMPLATE,STYLESHEET", k))
-					return
-				}
-				handler := jsonconfig.Obj{}
-				handler["template"] = k
-				handler["rootPermanode"] = pub[1]
-				if len(pub) > 2 {
-					handler["style"] = pub[2]
-				}
-				publish[pub[0]] = handler
-			}
-			continue
 		default:
 			el = v[0]
 		}
@@ -261,9 +251,6 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		if len(req.Form) > 0 {
 			handleSetupChange(rw, req)
-			return
-		}
-		if strings.Contains(req.URL.Path, "restartCamli") {
 			err = osutil.RestartProcess()
 			if err != nil {
 				log.Fatal("Failed to restart: " + err.Error())
