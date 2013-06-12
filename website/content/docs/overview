@@ -2,7 +2,39 @@
 
 <p>Camlistore is your <b>personal storage system for life</b>.</p>
 
-<p>What does that mean?</p>
+<h2>Summary</h2>
+
+The project began because I wanted to...
+<ul>
+<li>... <b>store all my stuff forever</b>, not worrying about deleting, or losing stuff.</li>
+
+<li>... <b>save stuff easily</b>, and <b>without categorizing it or choosing a location</b> whenever I save it.  I just want a data dumptruck that I can throw stuff at whenever.</li>
+
+<li>... <b>never lose anything</b> because nothing can be overwritten (all blobs are content-addressable), and there's no delete support.  (optional garbage collection coming later)</li>
+
+<li>be able to <b>search for anything</b> I once stored.</li>
+
+<li>be able to <b>browse and visualize</b> stuff I've stored.</li>
+
+<li>... <b>not always be forced into a POSIX-y filesystem model</b>. That involves thinking of where to put stuff, and most the time I don't even want filenames. If I take a bunch of photos, those don't have filenames (or not good ones, and not unique). They just exist. They don't need a directory or a name. Likewise with blog posts, comments, likes, bookmarks, etc. They're just objects.</li>
+
+<li>... <b>have a POSIX-y filesystem when I want one</b>. And it should all be logically available on my tiny laptop's SSD disk, even if my laptop's disk is miniscule compared to my entire repo.  That is, there should actually be a caching virtual filesystem, not a daemon running rsync in the background. If I have to have a complete copy of my data locally, or I have to "choose which folders" to sync, that's broken.</li>
+
+<li>... <b>be able to synthesize POSIX-y filesystems from search queries</b> over my higher-level objects. e.g. a "recent" directory of recent photos from my Android phone (this all works already in 0.1)</li>
+
+<li><b>Not write another CMS system, ever</b>. Camlistore should be able to store and model any type of content, so it can just be a backend for other apps.</li>
+
+<li>... have <b>backups of all my social network content</b> I created daily on other people's servers, to protect myself if my account is hijacked, the company goes evil, changes ownership, or goes out of business..</li>
+
+<li>... have both a <b>web UI</b> and <b>command-line tools</b>, as well as a <b>FUSE filesystem</b>.</li>
+
+<li>... <b>be in control</b> of my data, but also still be able to utilize big companies' infrastructure cloud products if desired.</li>
+
+</ul>
+
+<p>Most of this works as of the 0.1 release, and the rest and more is in progress.</p>
+
+<h2>Longer Answer</h2>
 
 <p>Throughout our life, we all continue to generate content, whether
 that's writing documents, taking photos, writing comments online,
@@ -72,7 +104,10 @@ optional and can be turn on or off per-instance:</p>
   their digest. The only metadata a storage server needs to track
   per-blob is its size. (No other metadata is permitted, as it's
   stored elsewhere) Implementations are trivial and exist for local
-  disk, Amazon S3, Google Storage, etc.</li>
+  disk, Amazon S3, Google Storage, etc. They're also composable, so
+  there exists "shard", "replica", "remote", "conditional", and
+  "encrypt" (in-progress) storage targets, which layer upon
+  others<.</li>
 
   <li><b>Index</b>: index is implemented in terms of the Storage
   interface, so can be synchronously or asynchronously replicated to
@@ -96,3 +131,7 @@ optional and can be turn on or off per-instance:</p>
   also just use the command-line tools or API.</li>
 
 </ul>
+
+<p>Enough words for now.  See <a href="/docs/">the docs</a> and code for more.</p>
+
+<p><em>Last updated 2013-06-12</em></p>
