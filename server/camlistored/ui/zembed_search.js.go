@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("search.js", 10137, time.Unix(0, 1370942742232957700), fileembed.String("/**\n"+
+	Files.Add("search.js", 10069, time.Unix(0, 1371078083685270484), fileembed.String("/**\n"+
 		" * @fileoverview Entry point for the permanodes search UI.\n"+
 		" *\n"+
 		" */\n"+
@@ -273,6 +273,9 @@ func init() {
 		"	e.preventDefault();\n"+
 		"\n"+
 		"	var searchText = goog.dom.getElement(\"searchText\");\n"+
+		"	if (!!searchText && searchText.value == \"\") {\n"+
+		"		return;\n"+
+		"	}\n"+
 		"	searchText.disabled = true;\n"+
 		"	var btnSearch = goog.dom.getElement(\"btnSearch\");\n"+
 		"	btnSearch.disabled = true;\n"+
@@ -284,13 +287,10 @@ func init() {
 		"		// search by tag\n"+
 		"		attr = \"tag\";\n"+
 		"		value = searchText.value.slice(this.searchPrefix_.TAG.length);\n"+
-		"		// TODO(mpl): allow fuzzy option for tag search. How?\n"+
-		"		// \":fuzzy\" at the end of search string maybe?\n"+
 		"	} else if (searchText.value.indexOf(this.searchPrefix_.TITLE) == 0) {\n"+
 		"		// search by title\n"+
 		"		attr = \"title\";\n"+
 		"		value = searchText.value.slice(this.searchPrefix_.TITLE.length);\n"+
-		"		// TODO(mpl): fuzzy search seems to be broken for title. investigate.\n"+
 		"	} else if (searchText.value.indexOf(this.searchPrefix_.BLOBREF) == 0) {\n"+
 		"		// or query directly by blobref (useful to get a permanode and set it\n"+
 		"		// as the default collection)\n"+
@@ -302,6 +302,7 @@ func init() {
 		"		btnSearch.disabled = false;\n"+
 		"		return;\n"+
 		"	} else {\n"+
+		"		// For when we support full text search again.\n"+
 		"		attr = \"\";\n"+
 		"		value = searchText.value;\n"+
 		"		fuzzy = true;\n"+
