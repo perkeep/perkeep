@@ -14,6 +14,14 @@ Offline list:
    directories".  make.go could further have a flag.Bool to do the
    zembed, defaulting to true.
 
+   Despite the full Closure source being 10 MB, it's only 2 MB if we
+   compress it and embed a zip or .tar.gz in the static binary:
+
+   $ find tmp/closure-lib/closure/ -name '*.js' | xargs cat  | wc
+   327098 1214807 10449092
+   $ find tmp/closure-lib/closure/ -name '*.js' | xargs cat  | gzip -c | wc
+   7436   58545 1932707
+
 -- tests for all cmd/* stuff, perhaps as part of some integration
    tests.
 
