@@ -263,6 +263,9 @@ function(e) {
 	e.preventDefault();
 
 	var searchText = goog.dom.getElement("searchText");
+	if (!!searchText && searchText.value == "") {
+		return;
+	}
 	searchText.disabled = true;
 	var btnSearch = goog.dom.getElement("btnSearch");
 	btnSearch.disabled = true;
@@ -274,13 +277,10 @@ function(e) {
 		// search by tag
 		attr = "tag";
 		value = searchText.value.slice(this.searchPrefix_.TAG.length);
-		// TODO(mpl): allow fuzzy option for tag search. How?
-		// ":fuzzy" at the end of search string maybe?
 	} else if (searchText.value.indexOf(this.searchPrefix_.TITLE) == 0) {
 		// search by title
 		attr = "title";
 		value = searchText.value.slice(this.searchPrefix_.TITLE.length);
-		// TODO(mpl): fuzzy search seems to be broken for title. investigate.
 	} else if (searchText.value.indexOf(this.searchPrefix_.BLOBREF) == 0) {
 		// or query directly by blobref (useful to get a permanode and set it
 		// as the default collection)
@@ -292,6 +292,7 @@ function(e) {
 		btnSearch.disabled = false;
 		return;
 	} else {
+		// For when we support full text search again.
 		attr = "";
 		value = searchText.value;
 		fuzzy = true;

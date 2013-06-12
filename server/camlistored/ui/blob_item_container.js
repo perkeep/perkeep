@@ -249,11 +249,11 @@ function(sigconf) {
 };
 
 /**
- * Show tagged
+ * Search and show permanodes matching the specified criteria.
  * @param {string} sigconf
  * @param {string} attr
  * @param {string} value
- * @param {boolean} fuzzy
+ * @param {boolean} fuzzy Noop because not supported yet.
  * @param {number} max max number of items in response.
  */
 camlistore.BlobItemContainer.prototype.showWithAttr =
@@ -453,10 +453,10 @@ function() {
  * @private
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
+  this.resetChildren_();
   if (!result || !result.recent) {
     return;
   }
-  this.resetChildren_();
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
     var item = new camlistore.BlobItem(blobRef, result.meta);
@@ -469,6 +469,7 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
+	this.resetChildren_();
 	if (!result) {
 		return;
 	}
@@ -477,7 +478,6 @@ camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
 	if (!results || !meta) {
 		return;
 	}
-	this.resetChildren_();
 	for (var i = 0, n = results.length; i < n; i++) {
 		var blobRef = results[i].permanode;
 		var item = new camlistore.BlobItem(blobRef, meta);
@@ -491,6 +491,7 @@ camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
  */
 camlistore.BlobItemContainer.prototype.findByBlobrefDone_ =
 function(permanode, result) {
+	this.resetChildren_();
 	if (!result) {
 		return;
 	}
@@ -498,7 +499,6 @@ function(permanode, result) {
 	if (!meta || !meta[permanode]) {
 		return;
 	}
-	this.resetChildren_();
 	var item = new camlistore.BlobItem(permanode, meta);
 	this.addChild(item, true);
 };
