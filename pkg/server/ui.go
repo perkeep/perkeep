@@ -39,7 +39,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
-	newuistatic "camlistore.org/server/camlistored/ui"
+	uistatic "camlistore.org/server/camlistored/ui"
 )
 
 var _ = log.Printf
@@ -58,7 +58,7 @@ var (
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
 )
 
-var newuiFiles = newuistatic.Files
+var uiFiles = uistatic.Files
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
@@ -84,10 +84,10 @@ type UIHandler struct {
 }
 
 func init() {
-	blobserver.RegisterHandlerConstructor("ui", newUIFromConfig)
+	blobserver.RegisterHandlerConstructor("ui", uiFromConfig)
 }
 
-func newUIFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ui := &UIHandler{
 		prefix:       ld.MyPrefix(),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
@@ -273,13 +273,13 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if file == "deps.js" {
-			envVar := newuiFiles.OverrideEnv
+			envVar := uiFiles.OverrideEnv
 			if envVar != "" && os.Getenv(envVar) != "" {
 				serveDepsJS(rw, req)
 				return
 			}
 		}
-		serveStaticFile(rw, req, newuiFiles, file)
+		serveStaticFile(rw, req, uiFiles, file)
 	}
 }
 
@@ -287,7 +287,7 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(rw, req)
-		log.Printf("Failed to open file %q from newuiFiles: %v", file, err)
+		log.Printf("Failed to open file %q from uiFiles: %v", file, err)
 		return
 	}
 	defer f.Close()
@@ -444,9 +444,9 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
 func serveDepsJS(rw http.ResponseWriter, req *http.Request) {
-	envVar := newuiFiles.OverrideEnv
+	envVar := uiFiles.OverrideEnv
 	if envVar == "" {
-		log.Printf("No newuiFiles.OverrideEnv set; can't generate deps.js")
+		log.Printf("No uiFiles.OverrideEnv set; can't generate deps.js")
 		http.NotFound(rw, req)
 		return
 	}

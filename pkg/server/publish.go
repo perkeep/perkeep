@@ -153,7 +153,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
 	ph.closureHandler = http.FileServer(http.Dir(closureDir))
 
-	ph.staticHandler = http.FileServer(newuiFiles)
+	ph.staticHandler = http.FileServer(uiFiles)
 
 	return ph, nil
 }
@@ -430,8 +430,7 @@ func camliClosurePage(filename string) string {
 	if err != nil {
 		return ""
 	}
-	// TODO(mpl): to change when we do the final move into ui
-	fullpath := filepath.Join(camliRootPath, "server", "camlistored", "newui", filename)
+	fullpath := filepath.Join(camliRootPath, "server", "camlistored", "ui", filename)
 	f, err := os.Open(fullpath)
 	if err != nil {
 		return ""
