@@ -120,12 +120,16 @@ func main() {
 	args = append(args,
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
 		"--tags="+tags,
-		"camlistore.org/pkg/...",
-		"camlistore.org/server/...",
-		"camlistore.org/third_party/...",
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
+		"camlistore.org/server/camlistored",
+		// Unnecessary, but to make sure we don't ship
+		// anything or copy anything into the fake GOPATH
+		// that's not needed or doesn't build:
+		"camlistore.org/pkg/...",
+		"camlistore.org/server/...",
+		"camlistore.org/third_party/...",
 	)
 	switch runtime.GOOS {
 	case "linux", "darwin":
@@ -201,6 +205,7 @@ func mirrorDir(src, dst string) error {
 		base := fi.Name()
 		if fi.IsDir() {
 			if base == "testdata" || base == "genfileembed" ||
+				strings.HasSuffix(path, "pkg/misc/genjsdeps") ||
 				(base == "cmd" && strings.Contains(path, "github.com/camlistore/goexif")) {
 				return filepath.SkipDir
 			}
