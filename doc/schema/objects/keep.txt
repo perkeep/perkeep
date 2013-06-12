@@ -1,4 +1,4 @@
-A signed "keep" edge for GC/indexing purposes.  Expressed a user's
+A signed "keep" edge for GC/indexing purposes.  Expresses a user's
 intent to keep an object.
 
 This is not the only way to keep an object alive for the purposes of
