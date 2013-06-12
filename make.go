@@ -205,7 +205,10 @@ func mirrorDir(src, dst string) error {
 				return filepath.SkipDir
 			}
 		}
-		if strings.HasSuffix(base, "_test.go") || !strings.HasSuffix(base, ".go") {
+		switch {
+		case strings.HasSuffix(base, "_test.go"),
+			strings.HasPrefix(base, ".#"),
+			!strings.HasSuffix(base, ".go"):
 			return nil
 		}
 		suffix, err := filepath.Rel(src, path)
