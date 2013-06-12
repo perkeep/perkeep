@@ -4,6 +4,13 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- website: remove the "Installation" heading for /cmd/*, since
+   they're misleading and people should use "go run make.go" in the
+   general case.
+
+-- website: add godoc for /server/camlistored (also without a "go get"
+   line)
+
 -- make fileembed & zembed only happen as part of "make.go", but
    remove the z*.go files from git (and make them all .gitignore'd).
    Users' options will be either a) use make.go to get a fully static
