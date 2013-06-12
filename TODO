@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- add camliRoot & closureRoot to pkg/genconfig high-level config &
+   the docs
+
 -- website: remove the "Installation" heading for /cmd/*, since
    they're misleading and people should use "go run make.go" in the
    general case.

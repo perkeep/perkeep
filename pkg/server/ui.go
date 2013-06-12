@@ -38,11 +38,8 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/osutil"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
-
-var _ = log.Printf
 
 var (
 	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif))$`)
@@ -52,7 +49,8 @@ var (
 	//   $1: blobref (checked in download handler)
 	//   $2: optional "/filename" to be sent as recommended download name,
 	//       if sane looking
-	downloadPattern  = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+	downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+
 	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
@@ -79,6 +77,13 @@ type UIHandler struct {
 	Cache blobserver.Storage // or nil
 	sc    ScaledImage        // cache for scaled images, optional
 
+	// camliRoot optionally specifies the path to root of Camlistore's
+	// source. If empty, the UI files must be compiled in to the
+	// binary (with go run make.go).  This comes from the "camliRoot"
+	// ui handler config option.
+	// TODO: not yet implemented.
+	camliRoot string
+
 	// closureHandler serves the Closure JS files.
 	closureHandler http.Handler
 }
@@ -91,7 +96,9 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	ui := &UIHandler{
 		prefix:       ld.MyPrefix(),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
+		camliRoot:    conf.OptionalString("camliRoot", ""),
 	}
+	closureRoot := conf.OptionalString("closureRoot", "")
 	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")
 	scType := conf.OptionalString("scaledImage", "")
@@ -151,23 +158,9 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		}
 	}
 
-	// In development mode, serve the Closure files from disk directly.
-	isDevServer := os.Getenv("CAMLI_DEV_UI_FILES") != "" // and not in --staticres mode
-	if isDevServer {
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
-		if err == nil {
-			closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
-			fi, err := os.Stat(closureDir)
-			if err == nil && fi.IsDir() {
-				ui.closureHandler = http.FileServer(http.Dir(closureDir))
-			} 
-		} else {
-			log.Printf("Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
-				" Online closure from " + closureBaseURL + " will be used.")
-		}
-	}
-	if ui.closureHandler == nil {
-		ui.closureHandler = closureRedirector{}
+	ui.closureHandler, err = ui.makeClosureHandler(closureRoot)
+	if err != nil {
+		return nil, fmt.Errorf(`Invalid "closureRoot" value of %q: %v"`, closureRoot, err)
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
@@ -184,17 +177,48 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	return ui, nil
 }
 
-const closureBaseURL = "https://closure-library.googlecode.com/git"
+// makeClosureHandler returns a handler to serve Closure files.
+// root is either:
+// 1) empty: use the Closure files compiled in to the binar (if available), else redirect to the Internet.
+// 2) a URL prefix: base of Closure to redirect to
+// 3) a path on disk to serve files from
+func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
+	// In development mode, serve the Closure files from disk directly.
+	if root == "" {
+		// TODO: see if they're compiled in, and serve from that.
+
+		// But for now, assume a redirector to their current location
+		// on the web.
+		return closureBaseURL, nil
+	}
+	if strings.HasPrefix(root, "http") {
+		return closureRedirector(root), nil
+	}
+	fi, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.IsDir() {
+		return nil, errors.New("not a directory")
+	}
+	_, err = os.Stat(filepath.Join(root, "closure", "goog", "base.js"))
+	if err != nil {
+		return nil, fmt.Errorf("directory doesn't contain closure/goog/base.js; wrong directory?")
+	}
+	return http.FileServer(http.Dir(filepath.Join(root, "closure"))), nil
+}
+
+const closureBaseURL closureRedirector = "https://closure-library.googlecode.com/git"
 
 // closureRedirector is a hack to redirect requests for Closure's million *.js files
 // to https://closure-library.googlecode.com/git.
 // TODO: this doesn't work when offline. We need to run genjsdeps over all of the Camlistore
 // UI to figure out which Closure *.js files to fileembed and generate zembed. Then this
 // type can be deleted.
-type closureRedirector struct{}
+type closureRedirector string
 
-func (closureRedirector) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	newURL := closureBaseURL + "/" + path.Clean(httputil.PathSuffix(req))
+func (base closureRedirector) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	newURL := string(base) + "/" + path.Clean(httputil.PathSuffix(req))
 	http.Redirect(rw, req, newURL, http.StatusTemporaryRedirect)
 }
 

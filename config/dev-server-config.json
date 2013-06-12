@@ -52,6 +52,8 @@
      "/ui/": {
          "handler": "ui",
          "handlerArgs": {
+             "camliRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
+             "closureRoot": ["_env", "${CAMLI_DEV_CLOSURE_ROOT}", ""],
              "jsonSignRoot": "/sighelper/",
              "cache": "/cache/",
              "scaledImage": "lrucache",

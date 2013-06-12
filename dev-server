@@ -26,7 +26,6 @@ my $opt_offline;   # don't use the network ("airplane mode")
 my $opt_staticres; # use static resources, not those on disk
 my $opt_tls;
 my $opt_wipe;
-my $opt_closure; # run the Closure compiler
 my $opt_verbose;
 
 # keep indexes in memory only. often used with --wipe, but not
@@ -51,7 +50,6 @@ GetOptions("wipe" => \$opt_wipe,
            "fast" => \$opt_fast,
            "verbose" => \$opt_verbose,
            "hostname=s" => \$opt_hostname,
-           "compile-js" => \$opt_closure,
     )
     or usage();
 
@@ -181,7 +179,6 @@ if ($opt_wipe && -d $templatedir) {
 # To use resources from disk, instead of the copies linked into the
 # binary:
 unless ($opt_staticres) {
-    $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
     unless ($opt_offline) {
         if (-e "$Bin/tmp/closure-lib/.svn") {
             system("rm", "-rf", "$Bin/tmp/closure-lib") and die "Failed to remove the svn checkout of the closure-lib.\n";
@@ -190,10 +187,13 @@ unless ($opt_staticres) {
         get_closure_compiler();
         chdir $Bin or die;
     }
-    if ($opt_closure) {
-        $ENV{CAMLI_USE_COMPILED_JS} = 1;
-        system("make", "minijs") and die "Failed to compress javascript with closure compiler.\n";
-    }
+    $ENV{CAMLI_DEV_CAMLI_ROOT} = $Bin;
+    $ENV{CAMLI_DEV_CLOSURE_ROOT} = "$Bin/tmp/closure-lib";
+
+    # TODO: delete CAMLI_DEV_UI_FILES here and in
+    # server/ui/fileembed_normal.go, once ui.go is updated to use
+    # camliRoot. This is just here transitionally:
+    $ENV{CAMLI_DEV_UI_FILES} = "$Bin/server/camlistored/ui";
 }
 
 print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
