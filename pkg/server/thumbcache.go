@@ -39,18 +39,18 @@ type ScaledImage interface {
 
 var ErrCacheMiss = errors.New("not in cache")
 
-type ScaledImageLru struct {
+type ScaledImageLRU struct {
 	nameToBlob *lru.Cache // string (see key format) -> *blobref.BlobRef
 }
 
-func NewScaledImageLru() *ScaledImageLru {
-	sc := &ScaledImageLru{
+func NewScaledImageLRU() *ScaledImageLRU {
+	sc := &ScaledImageLRU{
 		nameToBlob: lru.New(cacheSize),
 	}
 	return sc
 }
 
-func (sc *ScaledImageLru) Get(key string) (*blobref.BlobRef, error) {
+func (sc *ScaledImageLRU) Get(key string) (*blobref.BlobRef, error) {
 	br, ok := sc.nameToBlob.Get(key)
 	if !ok {
 		return nil, ErrCacheMiss
@@ -58,7 +58,7 @@ func (sc *ScaledImageLru) Get(key string) (*blobref.BlobRef, error) {
 	return br.(*blobref.BlobRef), nil
 }
 
-func (sc *ScaledImageLru) Put(key string, br *blobref.BlobRef) error {
+func (sc *ScaledImageLRU) Put(key string, br *blobref.BlobRef) error {
 	sc.nameToBlob.Add(key, br)
 	return nil
 }

@@ -136,7 +136,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		ph.Cache = bs
 		switch scType {
 		case "lrucache":
-			ph.sc = NewScaledImageLru()
+			ph.sc = NewScaledImageLRU()
 		case "":
 		default:
 			return nil, fmt.Errorf("unsupported publish handler's scType: %q ", scType)
@@ -483,22 +483,15 @@ func (pr *publishRequest) serveSubject() {
 		}
 
 		if camliPage != "" {
-			if os.Getenv("CAMLI_DEV_NEWUI_FILES") != "" {
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
-				if pr.ViewerIsOwner() {
-					pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
-				}
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
-				pr.pf("<script>\n goog.require('camlistore.%s');\n </script>\n", camliPage)
-			} else {
-				pr.pf(" <script src='%s'></script>\n", pr.staticPath("all.js"))
-				if pr.ViewerIsOwner() {
-					pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
-				}
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
+			if pr.ViewerIsOwner() {
+				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
 			}
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
+			pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
+			pr.pf("<script>\n goog.require('camlistore.%s');\n </script>\n", camliPage)
 		}
 		for _, filename := range pr.ph.CSSFiles {
 			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))

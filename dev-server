@@ -182,7 +182,6 @@ if ($opt_wipe && -d $templatedir) {
 # binary:
 unless ($opt_staticres) {
     $ENV{CAMLI_DEV_UI_FILES} = "$FindBin::Bin/server/camlistored/ui"; # set in server/camlistored/ui/fileembed.go
-    $ENV{CAMLI_DEV_NEWUI_FILES} = "$FindBin::Bin/server/camlistored/newui"; # set in server/camlistored/newui/fileembed.go
     unless ($opt_offline) {
         if (-e "$Bin/tmp/closure-lib/.svn") {
             system("rm", "-rf", "$Bin/tmp/closure-lib") and die "Failed to remove the svn checkout of the closure-lib.\n";
