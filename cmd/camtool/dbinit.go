@@ -42,6 +42,7 @@ type dbinitCmd struct {
 
 	wipe bool
 	keep bool
+	wal  bool // Write-Ahead Logging for SQLite
 }
 
 func init() {
@@ -55,6 +56,8 @@ func init() {
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
 		flags.BoolVar(&cmd.keep, "ignoreexists", false, "Do nothing if database already exists.")
+		// Defaults to true, because it fixes http://camlistore.org/issues/114
+		flags.BoolVar(&cmd.wal, "wal", true, "Enable Write-Ahead Logging with SQLite, for better concurrency. Requires SQLite >= 3.7.0.")
 
 		return cmd
 	})
@@ -83,6 +86,10 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		if c.dbType == "sqlite" {
 			if !WithSQLite {
 				return ErrNoSQLite
+			}
+			c.wal = c.wal && sqlite.IsWALCapable()
+			if !c.wal {
+				fmt.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114\n")
 			}
 		} else {
 			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres", or "sqlite"`))
@@ -155,6 +162,9 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	case "sqlite":
 		for _, tableSql := range sqlite.SQLCreateTables() {
 			do(db, tableSql)
+		}
+		if c.wal {
+			do(db, sqlite.EnableWAL())
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 	}

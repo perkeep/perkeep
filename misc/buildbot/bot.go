@@ -96,7 +96,6 @@ var NameToCmd = map[string]string{
 	"buildCamli2": "make presubmit",
 	"runCamli":    "./dev-server --wipe --mysql --offline",
 	"hitCamliUi1": "http://localhost:3179/ui/",
-	"hitCamliUi2": "http://localhost:3179/ui/new/",
 	"camget":      "./dev-camget ",
 	"camput1":     "./dev-camput file --permanode " + testFile[0],
 	"camput2":     "./dev-camput file --vivify " + testFile[1],
@@ -668,7 +667,6 @@ func hitCamliUi() error {
 	}
 	urls := []string{
 		NameToCmd["hitCamliUi1"],
-		NameToCmd["hitCamliUi2"],
 	}
 	var err error
 	for _, v := range urls {

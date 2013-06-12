@@ -16,6 +16,12 @@ limitations under the License.
 
 package sqlite
 
+import (
+	"log"
+	"os/exec"
+	"strings"
+)
+
 const requiredSchemaVersion = 1
 
 func SchemaVersion() int {
@@ -32,4 +38,29 @@ func SQLCreateTables() []string {
  metakey VARCHAR(255) NOT NULL PRIMARY KEY,
  value VARCHAR(255) NOT NULL)`,
 	}
+}
+
+// IsWALCapable checks if the installed sqlite3 library can
+// use Write-Ahead Logging (i.e version >= 3.7.0)
+func IsWALCapable() bool {
+	// TODO(mpl): alternative to make it work on windows
+	cmdPath, err := exec.LookPath("pkg-config")
+	if err != nil {
+		log.Printf("Could not find pkg-config to check sqlite3 lib version: %v", err)
+		return false
+	}
+	out, err := exec.Command(cmdPath, "--modversion", "sqlite3").Output()
+	if err != nil {
+		log.Printf("Could not check sqlite3 version: %v\n", err)
+		return false
+	}
+	version := strings.TrimRight(string(out), "\n")
+	return version >= "3.7.0"
+}
+
+// EnableWAL returns the statement to enable Write-Ahead Logging,
+// which improves SQLite concurrency.
+// Requires SQLite >= 3.7.0
+func EnableWAL() string {
+	return "PRAGMA journal_mode = WAL"
 }
