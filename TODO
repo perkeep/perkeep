@@ -19,8 +19,8 @@ Offline list:
    Users' options will be either a) use make.go to get a fully static
    binary (with all of Closure zembed-ed), or b) use "go install" and
    get a binary that requires configuration to tell it where files on
-   disk are. On start-up, if the UI is not configured, the UI should
-   fail and say "You didn't configure the path to the UI & Closure
+   disk are. On start-up, if the UI is configured, the UI should fail
+   and say "You didn't configure the path to the UI & Closure
    directories".  make.go could further have a flag.Bool to do the
    zembed, defaulting to true.
 
