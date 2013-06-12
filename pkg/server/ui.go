@@ -194,8 +194,7 @@ const closureBaseURL = "https://closure-library.googlecode.com/git"
 type closureRedirector struct{}
 
 func (closureRedirector) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
-	newURL := closureBaseURL + "/" + path.Clean(suffix)
+	newURL := closureBaseURL + "/" + path.Clean(httputil.PathSuffix(req))
 	http.Redirect(rw, req, newURL, http.StatusTemporaryRedirect)
 }
 
@@ -231,15 +230,14 @@ func wantsFileTreePage(req *http.Request) bool {
 
 func wantsClosure(req *http.Request) bool {
 	if req.Method == "GET" {
-		suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+		suffix := httputil.PathSuffix(req)
 		return closurePattern.MatchString(suffix)
 	}
 	return false
 }
 
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	base := req.Header.Get("X-PrefixHandler-PathBase")
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 
 	rw.Header().Set("Vary", "Accept")
 	switch {
@@ -267,7 +265,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				file = "blobinfo.html"
 			case wantsFileTreePage(req):
 				file = "filetree.html"
-			case req.URL.Path == base:
+			case req.URL.Path == httputil.PathBase(req):
 				file = "index.html"
 			default:
 				http.Error(rw, "Illegal URL.", http.StatusNotFound)
@@ -341,7 +339,7 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 	m := downloadPattern.FindStringSubmatch(suffix)
 	if m == nil {
 		httputil.ErrorRouting(rw, req)
@@ -367,7 +365,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 	m := thumbnailPattern.FindStringSubmatch(suffix)
 	if m == nil {
 		httputil.ErrorRouting(rw, req)
@@ -408,7 +406,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 	m := treePattern.FindStringSubmatch(suffix)
 	if m == nil {
 		httputil.ErrorRouting(rw, req)
@@ -429,7 +427,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 	if ui.closureHandler == nil {
 		log.Printf("%v not served: closure handler is nil", suffix)
 		http.NotFound(rw, req)

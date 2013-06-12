@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/osutil"
@@ -438,7 +439,7 @@ func TestHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: bad query: %v", tt.name, err)
 		}
-		req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[1:])
+		req.Header.Set(httputil.PathSuffixHeader, req.URL.Path[1:])
 
 		rr := httptest.NewRecorder()
 		rr.Body = new(bytes.Buffer)

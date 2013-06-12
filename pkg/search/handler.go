@@ -122,8 +122,7 @@ func jsonMapList() []map[string]interface{} {
 
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
-	_ = req.Header.Get("X-PrefixHandler-PathBase")
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 
 	if req.Method == "GET" {
 		switch suffix {

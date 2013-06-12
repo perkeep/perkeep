@@ -145,8 +145,8 @@ func (h *Handler) DiscoveryMap(base string) map[string]interface{} {
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	base := req.Header.Get("X-PrefixHandler-PathBase")
-	subPath := req.Header.Get("X-PrefixHandler-PathSuffix")
+	base := httputil.PathBase(req)
+	subPath := httputil.PathSuffix(req)
 	switch req.Method {
 	case "GET":
 		switch subPath {

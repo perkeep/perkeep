@@ -25,6 +25,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,12 +36,12 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"net/url"
 )
 
 // PublishHandler publishes your info to the world, if permanodes have
@@ -231,7 +232,7 @@ type publishRequest struct {
 func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) *publishRequest {
 	// splits a path request into its suffix and subresource parts.
 	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
-	suffix, res := req.Header.Get("X-PrefixHandler-PathSuffix"), ""
+	suffix, res := httputil.PathSuffix(req), ""
 	if strings.HasPrefix(suffix, "-/") {
 		suffix, res = "", suffix[2:]
 	} else if s := strings.SplitN(suffix, "/-/", 2); len(s) == 2 {
@@ -243,7 +244,7 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 		rw:              rw,
 		req:             req,
 		suffix:          suffix,
-		base:            req.Header.Get("X-PrefixHandler-PathBase"),
+		base:            httputil.PathBase(req),
 		subres:          res,
 		rootpn:          rootpn,
 		dr:              ph.Search.NewDescribeRequest(),

@@ -174,7 +174,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 }
 
 func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	blobRef := blobref.Parse(req.Header.Get("X-PrefixHandler-PathSuffix"))
+	blobRef := blobref.Parse(httputil.PathSuffix(req))
 	if blobRef == nil {
 		http.Error(rw, "Malformed share URL.", 400)
 		return

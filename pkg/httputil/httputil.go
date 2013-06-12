@@ -79,20 +79,37 @@ func ReturnJSONCode(rw http.ResponseWriter, code int, data interface{}) {
 	rw.Write([]byte("\n"))
 }
 
+// PrefixHandler wraps another Handler and verifies that all requests'
+// Path begin with Prefix. If they don't, a 500 error is returned.
+// If they do, the headers PathBaseHeader and PathSuffixHeader are set
+// on the request before proxying to Handler.
+// PathBaseHeader is just the value of Prefix.
+// PathSuffixHeader is the part of the path that follows Prefix.
 type PrefixHandler struct {
 	Prefix  string
 	Handler http.Handler
 }
+
+const (
+	PathBaseHeader   = "X-Prefixhandler-Pathbase"
+	PathSuffixHeader = "X-Prefixhandler-Pathsuffix"
+)
 
 func (p *PrefixHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if !strings.HasPrefix(req.URL.Path, p.Prefix) {
 		http.Error(rw, "Inconfigured PrefixHandler", 500)
 		return
 	}
-	req.Header.Set("X-PrefixHandler-PathBase", p.Prefix)
-	req.Header.Set("X-PrefixHandler-PathSuffix", req.URL.Path[len(p.Prefix):])
+	req.Header.Set(PathBaseHeader, p.Prefix)
+	req.Header.Set(PathSuffixHeader, strings.TrimPrefix(req.URL.Path, p.Prefix))
 	p.Handler.ServeHTTP(rw, req)
 }
+
+// PathBase returns a Request's base path, if it went via a PrefixHandler.
+func PathBase(req *http.Request) string { return req.Header.Get(PathBaseHeader) }
+
+// PathSuffix returns a Request's suffix path, if it went via a PrefixHandler.
+func PathSuffix(req *http.Request) string { return req.Header.Get(PathSuffixHeader) }
 
 // BaseURL returns the base URL (scheme + host and optional port +
 // blobserver prefix) that should be used for requests (and responses)

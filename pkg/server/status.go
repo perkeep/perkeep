@@ -38,7 +38,7 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 }
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	suffix := req.Header.Get("X-PrefixHandler-PathSuffix")
+	suffix := httputil.PathSuffix(req)
 	if req.Method != "GET" {
 		http.Error(rw, "Illegal URL.", http.StatusMethodNotAllowed)
 		return
