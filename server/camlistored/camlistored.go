@@ -47,6 +47,7 @@ import (
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
+	_ "camlistore.org/pkg/blobserver/encrypt"
 	_ "camlistore.org/pkg/blobserver/localdisk"
 	_ "camlistore.org/pkg/blobserver/remote"
 	_ "camlistore.org/pkg/blobserver/replica"
