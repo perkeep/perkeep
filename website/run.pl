@@ -18,12 +18,12 @@ my $in_prod = -e "$HOME/etc/ssl.key"; # heuristic. good enough.
 
 my @args;
 push @args, "go", "run", "camweb.go", "logging.go", "godoc.go", "format.go", "dirtrees.go";
-push @args, "--http=:8080";
 push @args, "--root=$Bin";
 push @args, "--logdir=$logdir";
 push @args, "--buildbot_host=build.camlistore.org";
 push @args, "--buildbot_backend=http://c1.danga.com:8080";
 if ($in_prod) {
+    push @args, "--http=:8080";
     push @args, "--https=:4430";
     push @args, "--gerrithost=ec2-107-22-182-135.compute-1.amazonaws.com";
     push @args, "--tlscert=$HOME/etc/ssl.crt";
@@ -34,6 +34,7 @@ if ($in_prod) {
         sleep 5;
     }
 } else {
+    push @args, "--http=127.0.0.1:8080"; # localhost avoids Mac firewall warning
     exec(@args);
     die "Failed to exec: $!";
 }
