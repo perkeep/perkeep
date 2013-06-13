@@ -37,10 +37,10 @@ NEWUIDIR = server/camlistored/newui
 clean:
 	rm -f $(NEWUIDIR)/all.js $(NEWUIDIR)/all.js.map
 
-genjsdeps: $(UIDIR)/deps.js
+genclosuredeps: $(UIDIR)/deps.js
 
 $(UIDIR)/deps.js: $(UIDIR)/blobinfo.js $(UIDIR)/blob_item.js $(UIDIR)/blob_item_container.js $(UIDIR)/create_item.js $(UIDIR)/filetree.js $(UIDIR)/index.js $(UIDIR)/permanode.js $(UIDIR)/pics.js $(UIDIR)/server_connection.js $(UIDIR)/server_connection.js $(UIDIR)/search.js $(UIDIR)/server_type.js $(UIDIR)/sigdebug.js $(UIDIR)/toolbar.js $(UIDIR)/base64.js $(UIDIR)/Crypto.js $(UIDIR)/SHA1.js
-	go install ./pkg/misc/genjsdeps/ && genjsdeps ./server/camlistored/ui \
+	go install ./pkg/misc/closure/genclosuredeps && genclosuredeps ./server/camlistored/ui \
 	> $(UIDIR)/deps.js
 
 #TODO(mpl): make it output somewhere else
