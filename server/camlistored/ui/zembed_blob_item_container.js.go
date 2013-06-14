@@ -8,7 +8,7 @@ import "time"
 import "camlistore.org/pkg/fileembed"
 
 func init() {
-	Files.Add("blob_item_container.js", 18109, time.Unix(0, 1370942742232957700), fileembed.String("/**\n"+
+	Files.Add("blob_item_container.js", 18189, time.Unix(0, 1371078083685270484), fileembed.String("/**\n"+
 		" * @fileoverview Contains a set of BlobItems. Knows how to fetch items from\n"+
 		" * the server side. Is preconfigured with common queries like \"recent\" blobs.\n"+
 		" *\n"+
@@ -259,11 +259,11 @@ func init() {
 		"};\n"+
 		"\n"+
 		"/**\n"+
-		" * Show tagged\n"+
+		" * Search and show permanodes matching the specified criteria.\n"+
 		" * @param {string} sigconf\n"+
 		" * @param {string} attr\n"+
 		" * @param {string} value\n"+
-		" * @param {boolean} fuzzy\n"+
+		" * @param {boolean} fuzzy Noop because not supported yet.\n"+
 		" * @param {number} max max number of items in response.\n"+
 		" */\n"+
 		"camlistore.BlobItemContainer.prototype.showWithAttr =\n"+
@@ -465,10 +465,10 @@ func init() {
 		" * @private\n"+
 		" */\n"+
 		"camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {\n"+
+		"  this.resetChildren_();\n"+
 		"  if (!result || !result.recent) {\n"+
 		"    return;\n"+
 		"  }\n"+
-		"  this.resetChildren_();\n"+
 		"  for (var i = 0, n = result.recent.length; i < n; i++) {\n"+
 		"    var blobRef = result.recent[i].blobref;\n"+
 		"    var item = new camlistore.BlobItem(blobRef, result.meta);\n"+
@@ -482,6 +482,7 @@ func init() {
 		" * @private\n"+
 		" */\n"+
 		"camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {\n"+
+		"	this.resetChildren_();\n"+
 		"	if (!result) {\n"+
 		"		return;\n"+
 		"	}\n"+
@@ -490,7 +491,6 @@ func init() {
 		"	if (!results || !meta) {\n"+
 		"		return;\n"+
 		"	}\n"+
-		"	this.resetChildren_();\n"+
 		"	for (var i = 0, n = results.length; i < n; i++) {\n"+
 		"		var blobRef = results[i].permanode;\n"+
 		"		var item = new camlistore.BlobItem(blobRef, meta);\n"+
@@ -505,6 +505,7 @@ func init() {
 		" */\n"+
 		"camlistore.BlobItemContainer.prototype.findByBlobrefDone_ =\n"+
 		"function(permanode, result) {\n"+
+		"	this.resetChildren_();\n"+
 		"	if (!result) {\n"+
 		"		return;\n"+
 		"	}\n"+
@@ -512,7 +513,6 @@ func init() {
 		"	if (!meta || !meta[permanode]) {\n"+
 		"		return;\n"+
 		"	}\n"+
-		"	this.resetChildren_();\n"+
 		"	var item = new camlistore.BlobItem(permanode, meta);\n"+
 		"	this.addChild(item, true);\n"+
 		"};\n"+

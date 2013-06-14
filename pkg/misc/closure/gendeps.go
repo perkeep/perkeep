@@ -14,21 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The genjsdeps command, similarly to the closure depswriter.py tool,
-// outputs to os.Stdout for each .js file, which namespaces
-// it provides, and the namespaces it requires, hence allowing
-// the closure library to resolve dependencies between those files.
-package main
+// Package closure provides tools to help with the use of the
+// closure library.
+//
+// See https://code.google.com/p/closure-library/
+package closure
 
 import (
 	"bufio"
 	"bytes"
-	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -36,28 +33,17 @@ import (
 	"time"
 )
 
-// TODO(mpl): make a library and a separate command which uses
-// that library.
-// http://camlistore.org/issue/142
-
-func usage() {
-	fmt.Fprintf(os.Stderr, "Usage: genjsdeps <dir>\n")
-	os.Exit(1)
-}
-
-func main() {
-	flag.Parse()
-	args := flag.Args()
-	if len(args) != 1 {
-		usage()
-	}
-	dir := path.Clean(args[0])
+// GenDeps returns the namespace dependencies between the
+// closure javascript files in dir.
+// The format for each relevant javascript file is:
+// goog.addDependency("filepath", ["namespace provided"], ["required namespace 1", "required namespace 2", ...]);
+func GenDeps(dir string) ([]byte, error) {
 	fi, err := os.Stat(dir)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	if !fi.IsDir() {
-		log.Fatalf("%v not a dir", dir)
+		return nil, fmt.Errorf("%v not a dir", dir)
 	}
 	var buf bytes.Buffer
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -67,7 +53,7 @@ func main() {
 		if !strings.HasSuffix(path, ".js") {
 			return nil
 		}
-		suffix := path[len(dir)+1:]
+		suffix := filepath.Base(path)
 		prov, req, err := parseProvidesRequires(info, path)
 		if err != nil {
 			return err
@@ -78,9 +64,9 @@ func main() {
 		return nil
 	})
 	if err != nil {
-		log.Fatalf("Error walking %d generating deps.js: %v", dir, err)
+		return nil, fmt.Errorf("Error walking %d while generating closure deps: %v", dir, err)
 	}
-	io.Copy(os.Stdout, &buf)
+	return buf.Bytes(), nil
 }
 
 var provReqRx = regexp.MustCompile(`^goog\.(provide|require)\(['"]([\w\.]+)['"]\)`)
