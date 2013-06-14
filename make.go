@@ -302,6 +302,13 @@ func haveSQLite() bool {
 		log.Fatalf("No pkg-config found. Can't determine whether sqlite3 is available, and where.")
 	}
 	out, err := exec.Command("pkg-config", "--libs", "sqlite3").Output()
+	if err != nil && err.Error() == "exit status 1" {
+		// This is sloppy (comparing against a string), but
+		// doing it correctly requires using multiple *.go
+		// files to portably get the OS-syscall bits, and I
+		// want to keep make.go a single file.
+		return false
+	}
 	if err != nil {
 		log.Fatalf("Can't determine whether sqlite3 is available, and where. pkg-config error was: %v, %s", err, out)
 	}
