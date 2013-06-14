@@ -17,12 +17,8 @@ limitations under the License.
 package s3
 
 import (
-	"log"
-
 	"camlistore.org/pkg/blobref"
 )
-
-var _ = log.Printf
 
 func (sto *s3Storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	// TODO: do these in parallel

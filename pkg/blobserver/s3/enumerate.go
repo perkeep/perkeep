@@ -24,8 +24,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 )
 
-var _ = log.Printf
-
 var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
 func (sto *s3Storage) MaxEnumerate() int { return 1000 }

@@ -30,8 +30,6 @@ import (
 	"camlistore.org/pkg/singleflight"
 )
 
-var _ = log.Printf
-
 const closedIndex = -1
 
 var errClosed = errors.New("filereader is closed")

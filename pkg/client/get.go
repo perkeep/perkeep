@@ -21,15 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"regexp"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 )
-
-var _ = log.Printf
 
 func (c *Client) FetchSchemaBlob(b *blobref.BlobRef) (*schema.Blob, error) {
 	rc, _, err := c.FetchStreaming(b)

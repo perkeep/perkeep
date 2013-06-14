@@ -22,15 +22,11 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
-	//"camli/misc/amazon/s3"
 )
-
-var _ = log.Printf
 
 const maxInMemorySlurp = 4 << 20 // 4MB.  *shrug*
 

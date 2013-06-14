@@ -20,13 +20,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 )
-
-var _ = log.Printf
 
 var ErrCancel = errors.New("pinentry: Cancel")
 

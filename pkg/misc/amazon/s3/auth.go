@@ -23,14 +23,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 )
-
-var _ = log.Printf
 
 // See http://docs.amazonwebservices.com/AmazonS3/latest/dev/index.html?RESTAuthentication.html
 

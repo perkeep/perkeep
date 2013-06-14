@@ -20,15 +20,12 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"os"
 	"testing"
 
 	"camlistore.org/pkg/test"
 )
-
-var _ = log.Printf
 
 var testFetcher = &test.Fetcher{}
 

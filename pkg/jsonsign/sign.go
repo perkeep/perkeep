@@ -35,8 +35,6 @@ import (
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
-var _ = log.Printf
-
 type EntityFetcher interface {
 	FetchEntity(keyId string) (*openpgp.Entity, error)
 }

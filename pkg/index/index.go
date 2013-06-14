@@ -32,8 +32,6 @@ import (
 	"camlistore.org/pkg/types"
 )
 
-var _ = log.Printf
-
 var ErrNotFound = errors.New("index: key not found")
 
 type Storage interface {
