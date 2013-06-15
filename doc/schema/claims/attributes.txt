@@ -1,0 +1,6 @@
+Description of the attributes a permanode can get
+-----
+
+"tag": a set of zero or more keywords (or phrases) indexed completely, for searching by tag. No HTML.
+"title": A name given to the permanode. No HTML.
+"description": An account of the permanode. It may include but is not limited to: an abstract, a table of contents, or a free-text account of the resource. No HTML.
