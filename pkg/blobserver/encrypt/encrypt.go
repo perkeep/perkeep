@@ -27,6 +27,11 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
+// TODO:
+// http://godoc.org/code.google.com/p/go.crypto/scrypt
+// crypto/aes
+// index.Storage (initially: memindex) for all metadata.
+
 /*
 TODO: decide meta format. One argument is to stick with JSON, like
 option (a) below. But that means we can't easily read it incrementally
