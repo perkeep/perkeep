@@ -17,8 +17,10 @@ limitations under the License.
 package encrypt
 
 import (
-	"io"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"time"
 
@@ -103,24 +105,30 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	keyFile := config.OptionalString("keyFile", "")
 	switch {
 	case key != "":
-		sto.key = []byte(key)
+		sto.key, err = hex.DecodeString(key)
+		if err != nil || len(sto.key) != 16 {
+			return nil, fmt.Errorf("The 'key' parameter must be 16 bytes of 32 hex digits. (currently fixed at AES-128")
+		}
 	case keyFile != "":
 		// TODO: check that keyFile's unix permissions aren't too permissive.
 		sto.key, err = ioutil.ReadFile(keyFile)
 		if err != nil {
-			return
+			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)
 		}
 	}
-	sto.blobs, err = ld.GetStorage(config.RequiredString("blobs"))
-	if err != nil {
-		return
-	}
-	sto.meta, err = ld.GetStorage(config.RequiredString("meta"))
-	if err != nil {
-		return
-	}
+	blobStorage := config.RequiredString("blobs")
+	metaStorage := config.RequiredString("meta")
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+
+	sto.blobs, err = ld.GetStorage(blobStorage)
+	if err != nil {
+		return
+	}
+	sto.meta, err = ld.GetStorage(metaStorage)
+	if err != nil {
+		return
 	}
 	if sto.key == nil {
 		// TODO: add a way to prompt from stdin on start? or keychain support?

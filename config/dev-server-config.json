@@ -167,6 +167,29 @@
           }
      },
 
+     "/enc/": {
+          "handler": "storage-encrypt",
+          "handlerArgs": {
+              "meta": "/encmeta/",
+              "blobs": "/encblob/",
+              "key": "000102030405060708090a0b0c0d0e0f"
+          }
+      },
+
+     "/encmeta/": {
+         "handler": "storage-filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_ENCMETA}"]
+          }
+     },
+
+     "/encblob/": {
+         "handler": "storage-filesystem",
+         "handlerArgs": {
+            "path": ["_env", "${CAMLI_ROOT_ENCBLOB}"]
+          }
+     },
+
      "/index-mem/": {
          "handler": "storage-memory-only-dev-indexer",
          "handlerArgs": {
