@@ -81,65 +81,65 @@ type ReadSeekCloser interface {
 	io.Closer
 }
 
-func (b *BlobRef) HashName() string {
-	return b.hashName
+func (br *BlobRef) HashName() string {
+	return br.hashName
 }
 
-func (b *BlobRef) Digest() string {
-	return b.digest
+func (br *BlobRef) Digest() string {
+	return br.digest
 }
 
-func (b *BlobRef) DigestPrefix(digits int) string {
-	if len(b.digest) < digits {
-		return b.digest
+func (br *BlobRef) DigestPrefix(digits int) string {
+	if len(br.digest) < digits {
+		return br.digest
 	}
-	return b.digest[:digits]
+	return br.digest[:digits]
 }
 
-func (b *BlobRef) String() string {
-	if b == nil {
+func (br *BlobRef) String() string {
+	if br == nil {
 		return "<nil-BlobRef>"
 	}
-	return b.strValue
+	return br.strValue
 }
 
-func (b *BlobRef) DomID() string {
-	if b == nil {
+func (br *BlobRef) DomID() string {
+	if br == nil {
 		return ""
 	}
-	return "camli-" + b.String()
+	return "camli-" + br.String()
 }
 
-func (o *BlobRef) Equal(other *BlobRef) bool {
-	if (o == nil) != (other == nil) {
+func (br *BlobRef) Equal(other *BlobRef) bool {
+	if (br == nil) != (other == nil) {
 		return false
 	}
-	if o == nil {
+	if br == nil {
 		return true
 	}
-	return o.hashName == other.hashName && o.digest == other.digest
+	return br.hashName == other.hashName && br.digest == other.digest
 }
 
-func (o *BlobRef) Hash() hash.Hash {
-	fn, ok := supportedDigests[o.hashName]
+func (br *BlobRef) Hash() hash.Hash {
+	fn, ok := supportedDigests[br.hashName]
 	if !ok {
 		return nil // TODO: return an error here, not nil
 	}
 	return fn()
 }
 
-func (o *BlobRef) HashMatches(h hash.Hash) bool {
-	return fmt.Sprintf("%x", h.Sum(nil)) == o.digest
+func (br *BlobRef) HashMatches(h hash.Hash) bool {
+	return fmt.Sprintf("%x", h.Sum(nil)) == br.digest
 }
 
-func (o *BlobRef) IsSupported() bool {
-	_, ok := supportedDigests[o.hashName]
+func (br *BlobRef) IsSupported() bool {
+	_, ok := supportedDigests[br.hashName]
 	return ok
 }
 
-func (o *BlobRef) Sum32() uint32 {
+func (br *BlobRef) Sum32() uint32 {
 	var h32 uint32
-	n, err := fmt.Sscanf(o.digest[len(o.digest)-8:], "%8x", &h32)
+	n, err := fmt.Sscanf(br.digest[len(br.digest)-8:], "%8x", &h32)
 	if err != nil {
 		panic(err)
 	}
@@ -192,6 +192,13 @@ func FromHash(h hash.Hash) *BlobRef {
 func SHA1FromString(s string) *BlobRef {
 	s1 := sha1.New()
 	s1.Write([]byte(s))
+	return FromHash(s1)
+}
+
+// SHA1FromBytes returns a SHA-1 blobref of the provided bytes.
+func SHA1FromBytes(b []byte) *BlobRef {
+	s1 := sha1.New()
+	s1.Write(b)
 	return FromHash(s1)
 }
 
