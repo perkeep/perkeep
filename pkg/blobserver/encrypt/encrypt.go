@@ -98,26 +98,35 @@ func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.B
 	panic("TODO: implement")
 }
 
-func (s *storage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
 	iv := s.randIV()
 	stream := cipher.NewCTR(s.block, iv)
 
+	hash := plainBR.Hash()
 	var buf bytes.Buffer
 	buf.Write(iv) // TODO: write more structured header w/ version & IV length? or does that weaken it?
 	sw := cipher.StreamWriter{S: stream, W: &buf}
-	n, err := io.Copy(sw, source)
+	n, err := io.Copy(io.MultiWriter(sw, hash), source)
 	if err != nil {
 		return sb, err
 	}
 	if err := sw.Close(); err != nil {
 		return sb, err
 	}
+	if !plainBR.HashMatches(hash) {
+		return sb, blobserver.ErrCorruptBlob
+	}
 
+	encBR := blobref.SHA1FromBytes(buf.Bytes())
+	_, err = s.blobs.ReceiveBlob(encBR, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return sb, fmt.Errorf("encrypt: error writing encrypted %v (plaintext %v): %v", encBR, plainBR, err)
+	}
 	// TODO: upload buf.Bytes() to s.blobs
 	// TODO: upload meta blob with two blobrefs & IV to s.meta
 	// TODO: update index with mapping
 
-	return blobref.SizedBlobRef{b, n}, nil
+	return blobref.SizedBlobRef{plainBR, n}, nil
 }
 
 func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
