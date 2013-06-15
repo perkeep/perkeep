@@ -26,12 +26,25 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
+	"strings"
 	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 )
+
+
+/*
+Dev notes:
+
+$ ./dev-camput --path=/enc/ blob dev-camput
+$ find /tmp/camliroot-$USER/port3179/encblob/
+$ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
+
+*/
 
 // TODO:
 // http://godoc.org/code.google.com/p/go.crypto/scrypt
@@ -58,6 +71,7 @@ type storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 
 	block cipher.Block
+	index index.Storage // meta index
 
 	// Encryption key.
 	key []byte
@@ -95,7 +109,25 @@ func (s *storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 }
 
 func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	panic("TODO: implement")
+	for _, br := range blobs {
+		v, err := s.index.Get(br.String())
+		if err == index.ErrNotFound {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		slash := strings.Index(v, "/")
+		if slash < 0 {
+			continue
+		}
+		plainSize, err := strconv.Atoi(v[:slash])
+		if err != nil {
+			continue
+		}
+		dest <- blobref.SizedBlobRef{br, int64(plainSize)}
+	}
+	return nil
 }
 
 func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
@@ -104,13 +136,11 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 
 	hash := plainBR.Hash()
 	var buf bytes.Buffer
+	// TODO: compress before encrypting?
 	buf.Write(iv) // TODO: write more structured header w/ version & IV length? or does that weaken it?
 	sw := cipher.StreamWriter{S: stream, W: &buf}
-	n, err := io.Copy(io.MultiWriter(sw, hash), source)
+	plainSize, err := io.Copy(io.MultiWriter(sw, hash), source)
 	if err != nil {
-		return sb, err
-	}
-	if err := sw.Close(); err != nil {
 		return sb, err
 	}
 	if !plainBR.HashMatches(hash) {
@@ -122,11 +152,20 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted %v (plaintext %v): %v", encBR, plainBR, err)
 	}
-	// TODO: upload buf.Bytes() to s.blobs
-	// TODO: upload meta blob with two blobrefs & IV to s.meta
-	// TODO: update index with mapping
 
-	return blobref.SizedBlobRef{plainBR, n}, nil
+	// TODO: upload meta blob with two blobrefs & IV to s.meta
+	// ....
+
+	err = s.index.Set(plainBR.String(), encodeMetaValue(plainSize, iv, encBR, buf.Len()))
+	if err != nil {
+		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", err)
+	}
+
+	return blobref.SizedBlobRef{plainBR, plainSize}, nil
+}
+
+func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
+	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
 }
 
 func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
@@ -144,6 +183,7 @@ func init() {
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.Storage, err error) {
 	sto := &storage{
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		index: index.NewMemoryStorage(), // TODO: temporary for development; let be configurable (mysql, etc)
 	}
 
 	key := config.OptionalString("key", "")

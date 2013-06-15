@@ -34,9 +34,14 @@ func init() {
 
 // NewMemoryIndex returns an Index backed only by memory, for use in tests.
 func NewMemoryIndex() *Index {
+	return New(NewMemoryStorage())
+}
+
+// NewMemoryStorage returns an index Storage implementation that's backed only
+// by memory, for use in tests.
+func NewMemoryStorage() Storage {
 	db := memdb.New(nil)
-	memStorage := &memKeys{db: db}
-	return New(memStorage)
+	return &memKeys{db: db}
 }
 
 func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
