@@ -17,6 +17,10 @@ limitations under the License.
 package encrypt
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -53,6 +57,8 @@ Option a)
 type storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 
+	block cipher.Block
+
 	// Encryption key.
 	key []byte
 
@@ -72,6 +78,18 @@ type storage struct {
 	meta blobserver.Storage
 }
 
+func (s *storage) randIV() []byte {
+	iv := make([]byte, s.block.BlockSize())
+	n, err := rand.Read(iv)
+	if err != nil {
+		panic(err)
+	}
+	if n != len(iv) {
+		panic("short read from crypto/rand")
+	}
+	return iv
+}
+
 func (s *storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	panic("TODO: implement")
 }
@@ -81,7 +99,25 @@ func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.B
 }
 
 func (s *storage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
-	panic("TODO: implement")
+	iv := s.randIV()
+	stream := cipher.NewCTR(s.block, iv)
+
+	var buf bytes.Buffer
+	buf.Write(iv) // TODO: write more structured header w/ version & IV length? or does that weaken it?
+	sw := cipher.StreamWriter{S: stream, W: &buf}
+	n, err := io.Copy(sw, source)
+	if err != nil {
+		return sb, err
+	}
+	if err := sw.Close(); err != nil {
+		return sb, err
+	}
+
+	// TODO: upload buf.Bytes() to s.blobs
+	// TODO: upload meta blob with two blobrefs & IV to s.meta
+	// TODO: update index with mapping
+
+	return blobref.SizedBlobRef{b, n}, nil
 }
 
 func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
@@ -107,7 +143,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	case key != "":
 		sto.key, err = hex.DecodeString(key)
 		if err != nil || len(sto.key) != 16 {
-			return nil, fmt.Errorf("The 'key' parameter must be 16 bytes of 32 hex digits. (currently fixed at AES-128")
+			return nil, fmt.Errorf("The 'key' parameter must be 16 bytes of 32 hex digits. (currently fixed at AES-128)")
 		}
 	case keyFile != "":
 		// TODO: check that keyFile's unix permissions aren't too permissive.
@@ -133,6 +169,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	if sto.key == nil {
 		// TODO: add a way to prompt from stdin on start? or keychain support?
 		return nil, errors.New("no encryption key set with 'key' or 'keyFile'")
+	}
+	sto.block, err = aes.NewCipher(sto.key)
+	if err != nil {
+		return nil, fmt.Errorf("The key must be exactly 16 bytes (currently only AES-128 is supported): %v", err)
 	}
 	return sto, nil
 }
