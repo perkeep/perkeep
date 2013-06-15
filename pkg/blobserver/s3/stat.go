@@ -23,8 +23,6 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
-var _ = log.Printf
-
 func (sto *s3Storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
 	// TODO: do n stats in parallel
 	for _, br := range blobs {

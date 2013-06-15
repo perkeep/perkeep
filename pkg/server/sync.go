@@ -35,8 +35,6 @@ var queueSyncInterval = 5 * time.Second
 
 const maxErrors = 20
 
-var _ = log.Printf
-
 // TODO: rate control + tunable
 // TODO: expose copierPoolSize as tunable
 type SyncHandler struct {

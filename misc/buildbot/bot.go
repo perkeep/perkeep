@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	interval    = 1 * time.Minute  // polling frequency
+	interval    = 60 * time.Second // polling frequency
 	warmup      = 60 * time.Second // duration before we test if dev-server has started properly
 	historySize = 30
 )
@@ -94,7 +94,7 @@ var NameToCmd = map[string]string{
 	"buildGoTip1": "./make.bash",
 	"buildCamli1": "make forcefull",
 	"buildCamli2": "make presubmit",
-	"runCamli":    "./dev-server --wipe --mysql --offline",
+	"runCamli":    "./dev-server --wipe --mysql --staticres --offline",
 	"hitCamliUi1": "http://localhost:3179/ui/",
 	"camget":      "./dev-camget ",
 	"camput1":     "./dev-camput file --permanode " + testFile[0],
@@ -614,19 +614,19 @@ func runCamli() (*os.Process, error) {
 	fields := strings.Fields(getCurrentTask().Cmd)
 	args := fields[1:]
 	cmd := exec.Command(fields[0], args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
 
+	var output []byte
 	errc := make(chan error, 1)
 	go func() {
-		errc <- cmd.Run()
+		output, err = cmd.CombinedOutput()
+		errc <- err
 	}()
 	select {
 	case err := <-errc:
-		dbg.Println("dev server DEAD")
+		dbg.Printf("dev server DEAD:\n%s\n", output)
 		tsk := getCurrentTask()
 		addRun(tsk, err)
-		return nil, fmt.Errorf("%v: %v\n", tsk.Cmd, "camlistored terminated prematurely")
+		return nil, fmt.Errorf("%v: server failed to start\n", tsk.Cmd)
 	case <-time.After(warmup):
 		dbg.Println("dev server OK")
 		addRun(getCurrentTask(), nil)

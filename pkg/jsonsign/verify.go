@@ -22,15 +22,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
 )
-
-var _ = log.Printf
 
 const sigSeparator = `,"camliSig":"`
 

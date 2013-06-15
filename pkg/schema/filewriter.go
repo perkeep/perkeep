@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strings"
 
@@ -58,8 +57,6 @@ const (
 	// smaller than this.
 	tooSmallThreshold = 64 << 10
 )
-
-var _ = log.Printf
 
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned

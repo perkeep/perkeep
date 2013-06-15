@@ -25,14 +25,11 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 )
-
-var _ = log.Printf
 
 type Client struct {
 	*Auth

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -39,8 +38,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 )
-
-var _ = log.Printf
 
 const (
 	blobKind = "Blob"

@@ -34,8 +34,6 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
-var _ = log.Printf
-
 var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
 
 // multipartOverhead is how many extra bytes mime/multipart's

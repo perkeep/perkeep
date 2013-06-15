@@ -30,8 +30,6 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
-var _ = log.Printf
-
 const buffered = 8
 
 type replicaStorage struct {

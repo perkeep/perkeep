@@ -19,7 +19,6 @@ package netutil
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,8 +27,6 @@ import (
 	"testing"
 	"time"
 )
-
-var _ = log.Printf
 
 func TestLocalIPv4(t *testing.T) {
 	// Start listening on localhost IPv4, on some port.

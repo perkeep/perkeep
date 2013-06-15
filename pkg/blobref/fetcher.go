@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,8 +30,6 @@ import (
 
 	"camlistore.org/pkg/osutil"
 )
-
-var _ = log.Printf
 
 // TODO: rename StreamingFetcher to be Fetcher (the common case)
 
