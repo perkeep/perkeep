@@ -166,34 +166,53 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 	return blobref.SizedBlobRef{plainBR, plainSize}, nil
 }
 
-func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
-	meta, err := s.fetchMeta(b)
+func (s *storage) FetchStreaming(plainBR *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+	meta, err := s.fetchMeta(plainBR)
 	if err != nil {
 		return nil, 0, err
 	}
-	rc, _, err := s.blobs.FetchStreaming(meta.EncBlobRef)
+	encData, _, err := s.blobs.FetchStreaming(meta.EncBlobRef)
 	if err != nil {
-		log.Printf("encrypt: plaintext %s's encrypted %v blob not found", b, meta.EncBlobRef)
+		log.Printf("encrypt: plaintext %s's encrypted %v blob not found", plainBR, meta.EncBlobRef)
 		return
 	}
+	defer encData.Close()
+
+	// Quick sanity check that the blob begins with the same IV we
+	// have in our metadata.
 	blobIV := make([]byte, len(meta.IV))
-	_, err = io.ReadFull(rc, blobIV)
+	_, err = io.ReadFull(encData, blobIV)
 	if err != nil {
 		return nil, 0, fmt.Errorf("Error reading off IV header from blob: %v", err)
 	}
 	if !bytes.Equal(blobIV, meta.IV) {
 		return nil, 0, fmt.Errorf("Blob and meta IV don't match")
 	}
+
+	// Slurp the whole blob into memory to validate its plaintext
+	// checksum (no tampered bits) before returning it. Clients
+	// should be the party doing this in the general case, but
+	// we'll be extra paranoid and always do it here, at the cost
+	// of sometimes having it be done twice.
+	var plain bytes.Buffer
+	plainHash := plainBR.Hash()
+	plainSize, err := io.Copy(io.MultiWriter(&plain, plainHash), cipher.StreamReader{
+		S: cipher.NewCTR(s.block, meta.IV),
+		R: encData,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	if !plainBR.HashMatches(plainHash) {
+		return nil, 0, blobserver.ErrCorruptBlob
+	}
 	return struct {
-		io.Reader
+		*bytes.Reader
 		io.Closer
 	}{
-		Closer: rc,
-		Reader: cipher.StreamReader{
-			S: cipher.NewCTR(s.block, meta.IV),
-			R: rc,
-		},
-	}, meta.PlainSize, nil
+		bytes.NewReader(plain.Bytes()),
+		dummyCloser,
+	}, plainSize, nil
 }
 
 func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
@@ -283,6 +302,8 @@ func parseMetaValue(v string) (mv *metaValue, err error) {
 	}
 	return mv, nil
 }
+
+var dummyCloser io.Closer = ioutil.NopCloser(nil)
 
 func init() {
 	blobserver.RegisterStorageConstructor("encrypt", blobserver.StorageConstructor(newFromConfig))
