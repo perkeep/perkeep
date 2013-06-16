@@ -21,6 +21,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -51,24 +52,6 @@ $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 
 // TODO:
 // http://godoc.org/code.google.com/p/go.crypto/scrypt
-// crypto/aes
-// index.Storage (initially: memindex) for all metadata.
-
-/*
-TODO: decide meta format. One argument is to stick with JSON, like
-option (a) below. But that means we can't easily read it incrementally
-during enumerate, which argues for a line-based format, with a magic
-header.
-
-Option a)
-{"camliVersion": 1,
-"camliType": "encryptedMeta",
-"encryptedBlobs": [
-  ["sha1-plainplainplain", "sha1-encencencenc", "iviviviviviviv" (%xx)]
-],
-}
-
-*/
 
 type storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
@@ -89,9 +72,6 @@ type storage struct {
 	// encrypted blob in 'blobs' and one single-meta blob in
 	// 'meta'. The small metadata blobs are occasionally rolled up
 	// into bigger blobs with multiple blob descriptions.
-	//
-	// TODO: which IV are these written with? safe to just use key
-	// with a zero IV? ask experts.
 	meta blobserver.Storage
 }
 
@@ -105,6 +85,42 @@ func (s *storage) randIV() []byte {
 		panic("short read from crypto/rand")
 	}
 	return iv
+}
+
+/*
+Meta format:
+   <16 bytes of IV> (for AES-128)
+   <40 bytes of SHA-1 of encrypted bytes that follow>
+   #camlistore/encmeta=1
+Then sorted lines, each ending in a newline, like:
+   sha1-plain/<metaValue>
+See the encodeMetaValue for the definition of metaValue, but in summary:
+   sha1-plain/<plaintext size>/<iv as %x>/sha1-encrypted/<encrypted size>
+*/
+
+func (s *storage) makeSingleMetaBlob(plainBR *blobref.BlobRef, meta string) []byte {
+	iv := s.randIV()
+
+	var plain bytes.Buffer
+	plain.WriteString("#camlistore/encmeta=1\n")
+	plain.WriteString(plainBR.String())
+	plain.WriteByte('/')
+	plain.WriteString(meta)
+	plain.WriteByte('\n')
+
+	s1 := sha1.New()
+	s1.Write(plain.Bytes())
+
+	var final bytes.Buffer
+	final.Grow(len(iv) + s1.Size() + plain.Len())
+	final.Write(iv)
+	final.Write(s1.Sum(final.Bytes()[len(iv):]))
+
+	_, err := io.Copy(cipher.StreamWriter{S: cipher.NewCTR(s.block, iv), W: &final}, &plain)
+	if err != nil {
+		panic(err)
+	}
+	return final.Bytes()
 }
 
 func (s *storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
@@ -152,13 +168,19 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 	encBR := blobref.SHA1FromBytes(buf.Bytes())
 	_, err = s.blobs.ReceiveBlob(encBR, bytes.NewReader(buf.Bytes()))
 	if err != nil {
-		return sb, fmt.Errorf("encrypt: error writing encrypted %v (plaintext %v): %v", encBR, plainBR, err)
+		log.Printf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
+		return sb, errors.New("encrypt: error writing encrypted blob")
 	}
 
-	// TODO: upload meta blob with two blobrefs & IV to s.meta
-	// ....
+	meta := encodeMetaValue(plainSize, iv, encBR, buf.Len())
+	metaBlob := s.makeSingleMetaBlob(plainBR, meta)
+	_, err = s.meta.ReceiveBlob(blobref.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
+	if err != nil {
+		log.Printf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
+		return sb, errors.New("encrypt: error writing encrypted meta")
+	}
 
-	err = s.index.Set(plainBR.String(), encodeMetaValue(plainSize, iv, encBR, buf.Len()))
+	err = s.index.Set(plainBR.String(), meta)
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", err)
 	}
