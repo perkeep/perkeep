@@ -293,6 +293,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		index: index.NewMemoryStorage(), // TODO: temporary for development; let be configurable (mysql, etc)
 	}
+	agreement := config.OptionalString("I_AGREE", "")
+	const wantAgreement = "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change."
+	if agreement != wantAgreement {
+		return nil, errors.New("Use of the 'encrypt' target without the proper I_AGREE value.")
+	}
 
 	key := config.OptionalString("key", "")
 	keyFile := config.OptionalString("keyFile", "")
