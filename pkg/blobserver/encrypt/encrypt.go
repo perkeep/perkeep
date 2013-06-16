@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -36,11 +38,12 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
-
 /*
 Dev notes:
 
 $ ./dev-camput --path=/enc/ blob dev-camput
+sha1-282c0feceeb5cdf4c5086c191b15356fadfb2392
+$ ./dev-camget --path=/enc/ sha1-282c0feceeb5cdf4c5086c191b15356fadfb2392
 $ find /tmp/camliroot-$USER/port3179/encblob/
 $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 
@@ -164,16 +167,86 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 	return blobref.SizedBlobRef{plainBR, plainSize}, nil
 }
 
-func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
-	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
-}
-
 func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
-	panic("TODO: implement")
+	meta, err := s.fetchMeta(b)
+	if err != nil {
+		return nil, 0, err
+	}
+	rc, _, err := s.blobs.FetchStreaming(meta.EncBlobRef)
+	if err != nil {
+		log.Printf("encrypt: plaintext %s's encrypted %v blob not found", b, meta.EncBlobRef)
+		return
+	}
+	blobIV := make([]byte, len(meta.IV))
+	_, err = io.ReadFull(rc, blobIV)
+	if err != nil {
+		return nil, 0, fmt.Errorf("Error reading off IV header from blob: %v", err)
+	}
+	if !bytes.Equal(blobIV, meta.IV) {
+		return nil, 0, fmt.Errorf("Blob and meta IV don't match")
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Closer: rc,
+		Reader: cipher.StreamReader{
+			S: cipher.NewCTR(s.block, meta.IV),
+			R: rc,
+		},
+	}, meta.PlainSize, nil
 }
 
 func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
 	panic("TODO: implement")
+}
+
+func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
+	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
+}
+
+type metaValue struct {
+	IV         []byte
+	EncBlobRef *blobref.BlobRef
+	EncSize    int64
+	PlainSize  int64
+}
+
+// returns os.ErrNotExist on cache miss
+func (s *storage) fetchMeta(b *blobref.BlobRef) (*metaValue, error) {
+	v, err := s.index.Get(b.String())
+	if err == index.ErrNotFound {
+		err = os.ErrNotExist
+	}
+	if err != nil {
+		return nil, err
+	}
+	return parseMetaValue(v)
+}
+
+func parseMetaValue(v string) (mv *metaValue, err error) {
+	f := strings.Split(v, "/")
+	if len(f) != 4 {
+		return nil, errors.New("wrong number of fields")
+	}
+	mv = &metaValue{}
+	mv.PlainSize, err = strconv.ParseInt(f[0], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("bad plaintext size in meta %q", v)
+	}
+	mv.IV, err = hex.DecodeString(f[1])
+	if err != nil {
+		return nil, fmt.Errorf("bad iv in meta %q", v)
+	}
+	mv.EncBlobRef = blobref.Parse(f[2])
+	if mv.EncBlobRef == nil {
+		return nil, fmt.Errorf("bad blobref in meta %q", v)
+	}
+	mv.EncSize, err = strconv.ParseInt(f[3], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("bad encrypted size in meta %q", v)
+	}
+	return mv, nil
 }
 
 func init() {
