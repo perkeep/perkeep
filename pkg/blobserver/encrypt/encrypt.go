@@ -120,15 +120,14 @@ func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.B
 		if err != nil {
 			return err
 		}
-		slash := strings.Index(v, "/")
-		if slash < 0 {
+		plainSize, ok := parseMetaValuePlainSize(v)
+		if !ok {
 			continue
 		}
-		plainSize, err := strconv.Atoi(v[:slash])
 		if err != nil {
 			continue
 		}
-		dest <- blobref.SizedBlobRef{br, int64(plainSize)}
+		dest <- blobref.SizedBlobRef{br, plainSize}
 	}
 	return nil
 }
@@ -198,7 +197,31 @@ func (s *storage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size i
 }
 
 func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
-	panic("TODO: implement")
+	if wait != 0 {
+		panic("TODO: support wait in EnumerateBlobs")
+	}
+	defer close(dest)
+	iter := s.index.Find(after)
+	n := 0
+	for iter.Next() {
+		if iter.Key() == after {
+			continue
+		}
+		br := blobref.Parse(iter.Key())
+		if br == nil {
+			panic("Bogus encrypt index key: " + iter.Key())
+		}
+		plainSize, ok := parseMetaValuePlainSize(iter.Value())
+		if !ok {
+			panic("Bogus encrypt index value: " + iter.Value())
+		}
+		dest <- blobref.SizedBlobRef{br, plainSize}
+		n++
+		if limit != 0 && n >= limit {
+			break
+		}
+	}
+	return iter.Close()
 }
 
 func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
@@ -222,6 +245,18 @@ func (s *storage) fetchMeta(b *blobref.BlobRef) (*metaValue, error) {
 		return nil, err
 	}
 	return parseMetaValue(v)
+}
+
+func parseMetaValuePlainSize(v string) (plainSize int64, ok bool) {
+	slash := strings.Index(v, "/")
+	if slash < 0 {
+		return
+	}
+	n, err := strconv.Atoi(v[:slash])
+	if err != nil {
+		return
+	}
+	return int64(n), true
 }
 
 func parseMetaValue(v string) (mv *metaValue, err error) {
