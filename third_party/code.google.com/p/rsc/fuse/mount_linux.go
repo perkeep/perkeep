@@ -20,7 +20,7 @@ func mount(dir string) (fusefd int, errmsg string) {
 	defer syscall.Close(fds[0])
 	defer syscall.Close(fds[1])
 
-	cmd := exec.Command("/bin/fusermount", "--", dir)
+	cmd := exec.Command("fusermount", "--", dir)
 	cmd.Env = append(os.Environ(), "_FUSE_COMMFD=3")
 
 	writeFile := os.NewFile(uintptr(fds[0]), "fusermount-child-writes")
