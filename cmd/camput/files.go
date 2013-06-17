@@ -453,11 +453,7 @@ func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
 	}
 	defer file.Close()
 	td := &trackDigestReader{r: file}
-	// Warning: the struct in the following line exists to hide
-	// ioutil.Discard's ReadFrom from io.Copy, since ReadFrom uses
-	// an intentionally-racy buffer that's passed to the reader,
-	// which was causing SHA-1 calculation corruption.
-	_, err = io.Copy(struct{ io.Writer }{ioutil.Discard}, td)
+	_, err = io.Copy(ioutil.Discard, td)
 	atomic.AddInt64(&atomicDigestOps, 1)
 	if err != nil {
 		return nil, err
