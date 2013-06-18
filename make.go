@@ -110,8 +110,6 @@ func main() {
 		}
 	}
 
-	deleteUnwantedOldMirrorFiles(buildSrcPath)
-
 	closureEmbed := filepath.Join(buildSrcPath, "server", "camlistored", "ui", "closure", "z_data.go")
 	if *embedResources {
 		closureSrcDir := filepath.Join(camRoot, "third_party", "closure", "lib")
@@ -119,11 +117,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	} else {
-		if err := os.RemoveAll(closureEmbed); err != nil {
-			log.Fatal(err)
-		}
+		wantDestFile[closureEmbed] = true
 	}
+
+	deleteUnwantedOldMirrorFiles(buildSrcPath)
 
 	tags := ""
 	if sql && *wantSQLite {
@@ -298,6 +295,7 @@ func deleteUnwantedOldMirrorFiles(dir string) {
 			return nil
 		}
 		if !wantDestFile[path] {
+			log.Printf("Deleting old file from temp build dir: %s", path)
 			return os.Remove(path)
 		}
 		return nil
