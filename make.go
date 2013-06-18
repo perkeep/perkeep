@@ -149,14 +149,10 @@ func main() {
 		args = append(args, "camlistore.org/cmd/cammount")
 	}
 	cmd := exec.Command("go", args...)
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "GOPATH=") || strings.HasPrefix(env, "GOBIN=") {
-			continue
-		}
-		cmd.Env = append(cmd.Env, env)
-	}
-	cmd.Env = append(cmd.Env, "GOPATH="+goPath)
-	cmd.Env = append(cmd.Env, "GOBIN="+binDir)
+	cmd.Env = append(cleanGoEnv(),
+		"GOPATH="+goPath,
+		"GOBIN="+binDir,
+	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if *verbose {
@@ -166,6 +162,17 @@ func main() {
 		log.Fatalf("Error building: %v", err)
 	}
 	log.Printf("Success. Binaries are in %s", binDir)
+}
+
+// cleanGoEnv returns a copy of the current environment with GOPATH and GOBIN removed.
+func cleanGoEnv() (clean []string) {
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "GOPATH=") || strings.HasPrefix(env, "GOBIN=") {
+			continue
+		}
+		clean = append(clean, env)
+	}
+	return
 }
 
 // getVersion returns the version of Camlistore. Either from a VERSION file at the root,
