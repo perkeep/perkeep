@@ -17,6 +17,7 @@ limitations under the License.
 package encrypt
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -91,7 +92,10 @@ func (s *storage) randIV() []byte {
 /*
 Meta format:
    <16 bytes of IV> (for AES-128)
-   <40 bytes of SHA-1 of encrypted bytes that follow>
+   <20 bytes of SHA-1 of plaintext>
+   <encrypted>
+
+Where encrypted has plaintext of:
    #camlistore/encmeta=1
 Then sorted lines, each ending in a newline, like:
    sha1-plain/<metaValue>
@@ -113,7 +117,7 @@ func (s *storage) makeSingleMetaBlob(plainBR *blobref.BlobRef, meta string) []by
 	s1.Write(plain.Bytes())
 
 	var final bytes.Buffer
-	final.Grow(len(iv) + s1.Size() + plain.Len())
+	final.Grow(len(iv) + sha1.Size + plain.Len())
 	final.Write(iv)
 	final.Write(s1.Sum(final.Bytes()[len(iv):]))
 
@@ -266,23 +270,117 @@ func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string,
 	return iter.Close()
 }
 
-func (s *storage) readAllMetaBlobs() error {
-	const maxInFlight = 50
-	var wg sync.WaitGroup
-	var gate = make(chan bool, maxInFlight)
-	err := blobserver.EnumerateAll(s.meta, func(sb blobref.SizedBlobRef) error {
-		wg.Add(1)
-		gate <- true
-		go func() {
-			defer wg.Done()
-			defer func() { <-gate }()
-			// TODO: finish
-			log.Printf("encrypt: TODO: read metablob %v on start-up", sb)
-		}()
-		return nil
+// processEncryptedMetaBlob decrypts dat (the data for the br meta blob) and parses
+// its meta lines, updating the index.
+//
+// processEncryptedMetaBlob is not thread-safe.
+func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) error {
+	log.Printf("processing meta blob %v: %d bytes", br, len(dat))
+	ivSize := s.block.BlockSize()
+	if len(dat) < ivSize+sha1.Size {
+		return errors.New("data size is smaller than IV + SHA-1")
+	}
+	var (
+		iv       = dat[:ivSize]
+		wantHash = dat[ivSize : ivSize+sha1.Size]
+		enc      = dat[ivSize+sha1.Size:]
+	)
+	plain := bytes.NewBuffer(make([]byte, 0, len(dat)))
+	io.Copy(plain, cipher.StreamReader{
+		S: cipher.NewCTR(s.block, iv),
+		R: bytes.NewReader(enc),
 	})
-	wg.Wait()
-	return err
+	s1 := sha1.New()
+	s1.Write(plain.Bytes())
+	if !bytes.Equal(wantHash, s1.Sum(nil)) {
+		return errors.New("hash of encrypted data doesn't match")
+	}
+	sc := bufio.NewScanner(plain)
+	if !sc.Scan() {
+		return errors.New("No first line")
+	}
+	if sc.Text() != "#camlistore/encmeta=1" {
+		line := sc.Text()
+		if len(line) > 80 {
+			line = line[:80]
+		}
+		return fmt.Errorf("unsupported first line %q", line)
+	}
+	for sc.Scan() {
+		line := sc.Text()
+		slash := strings.Index(line, "/")
+		if slash < 0 {
+			return errors.New("no slash in metaline")
+		}
+		plainBR, meta := line[:slash], line[slash+1:]
+		log.Printf("Adding meta: %q = %q", plainBR, meta)
+		if err := s.index.Set(plainBR, meta); err != nil {
+			return err
+		}
+	}
+	return sc.Err()
+}
+
+func (s *storage) readAllMetaBlobs() error {
+	type metaBlob struct {
+		br  *blobref.BlobRef
+		dat []byte // encrypted blob
+		err error
+	}
+	metac := make(chan metaBlob, 16)
+
+	const maxInFlight = 50
+	var gate = make(chan bool, maxInFlight)
+
+	var stopEnumerate = make(chan bool) // closed on error
+	enumErrc := make(chan error, 1)
+	go func() {
+		var wg sync.WaitGroup
+		enumErrc <- blobserver.EnumerateAll(s.meta, func(sb blobref.SizedBlobRef) error {
+			select {
+			case <-stopEnumerate:
+				return errors.New("enumeration stopped")
+			default:
+			}
+
+			wg.Add(1)
+			gate <- true
+			go func() {
+				defer wg.Done()
+				defer func() { <-gate }()
+				rc, _, err := s.meta.FetchStreaming(sb.BlobRef)
+				var all []byte
+				if err == nil {
+					all, err = ioutil.ReadAll(rc)
+					rc.Close()
+				}
+				metac <- metaBlob{sb.BlobRef, all, err}
+			}()
+			return nil
+		})
+		wg.Wait()
+		close(metac)
+	}()
+
+	for mi := range metac {
+		err := mi.err
+		if err == nil {
+			err = s.processEncryptedMetaBlob(mi.br, mi.dat)
+		}
+		if err != nil {
+			close(stopEnumerate)
+			go func() {
+				for _ = range metac {
+				}
+			}()
+			// TODO: advertise in this error message a new option or environment variable
+			// to skip a certain or all meta blobs, to allow partial recovery, if some
+			// are corrupt. For now, require all to be correct.
+			return fmt.Errorf("Error with meta blob %v: %v", mi.br, err)
+		}
+	}
+
+	return <-enumErrc
 }
 
 func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
