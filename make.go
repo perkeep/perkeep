@@ -25,6 +25,8 @@ limitations under the License.
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -38,9 +40,10 @@ import (
 )
 
 var (
-	wantSQLite = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
-	all        = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
-	verbose    = flag.Bool("v", false, "Verbose mode")
+	embedResources = flag.Bool("embed_static", true, "Whether to embed the closure library.")
+	wantSQLite     = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
+	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
+	verbose        = flag.Bool("v", false, "Verbose mode")
 )
 
 func main() {
@@ -108,6 +111,19 @@ func main() {
 	}
 
 	deleteUnwantedOldMirrorFiles(buildSrcPath)
+
+	closureEmbed := filepath.Join(buildSrcPath, "server", "camlistored", "ui", "closure", "z_data.go")
+	if *embedResources {
+		closureSrcDir := filepath.Join(camRoot, "third_party", "closure", "lib")
+		err := embedClosure(closureSrcDir, closureEmbed)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if err := os.RemoveAll(closureEmbed); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	tags := ""
 	if sql && *wantSQLite {
@@ -313,4 +329,100 @@ func haveSQLite() bool {
 		log.Fatalf("Can't determine whether sqlite3 is available, and where. pkg-config error was: %v, %s", err, out)
 	}
 	return strings.TrimSpace(string(out)) != ""
+}
+
+func embedClosure(closureDir, embedFile string) error {
+	if _, err := os.Stat(closureDir); err != nil {
+		return fmt.Errorf("Could not stat %v: %v", closureDir, err)
+	}
+
+	// first, zip it
+	var zipbuf bytes.Buffer
+	w := zip.NewWriter(&zipbuf)
+	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		suffix, err := filepath.Rel(closureDir, path)
+		if err != nil {
+			return fmt.Errorf("Failed to find Rel(%q, %q): %v", closureDir, path, err)
+		}
+		if fi.IsDir() {
+			return nil
+		}
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		f, err := w.Create(suffix)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = f.Write(b)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+
+	// then embed it as a quoted string
+	var qb bytes.Buffer
+	fmt.Fprint(&qb, "package closure\n\n")
+	fmt.Fprint(&qb, "func init() {\n\tZipData = ")
+	quote(&qb, zipbuf.Bytes())
+	fmt.Fprint(&qb, "\n}")
+
+	// and write to a .go file
+	// TODO(mpl): do not regenerate the whole zip file if the modtime
+	// of the z_data.go file is greater than the modtime of all the closure *.js files.
+	if err := writeFileIfDifferent(embedFile, qb.Bytes()); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func writeFileIfDifferent(filename string, contents []byte) error {
+	fi, err := os.Stat(filename)
+	if err == nil && fi.Size() == int64(len(contents)) && contentsEqual(filename, contents) {
+		return nil
+	}
+	return ioutil.WriteFile(filename, contents, 0644)
+}
+
+func contentsEqual(filename string, contents []byte) bool {
+	got, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(got, contents)
+}
+
+// quote escapes and quotes the bytes from bs and writes
+// them to dest.
+func quote(dest *bytes.Buffer, bs []byte) {
+	dest.WriteByte('"')
+	for _, b := range bs {
+		if b == '\n' {
+			dest.WriteString(`\n`)
+		}
+		if b == '\\' {
+			dest.WriteString(`\\`)
+			continue
+		}
+		if b == '"' {
+			dest.WriteString(`\"`)
+			continue
+		}
+		if (b >= 32 && b <= 126) || b == '\t' {
+			dest.WriteByte(b)
+			continue
+		}
+		fmt.Fprintf(dest, "\\x%02x", b)
+	}
+	dest.WriteByte('"')
 }
