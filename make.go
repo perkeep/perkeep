@@ -226,6 +226,7 @@ func mirrorDir(src, dst string) error {
 		if fi.IsDir() {
 			if base == "testdata" || base == "genfileembed" ||
 				strings.HasSuffix(path, "pkg/misc/closure/genclosuredeps") ||
+				strings.HasSuffix(path, "third_party/closure") ||
 				(base == "cmd" && strings.Contains(path, "github.com/camlistore/goexif")) {
 				return filepath.SkipDir
 			}
