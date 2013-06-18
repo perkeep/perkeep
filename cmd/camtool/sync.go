@@ -23,7 +23,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -244,30 +243,11 @@ func enumerateAllBlobs(s blobserver.Storage, destc chan<- blobref.SizedBlobRef) 
 		return nh.Client.SimpleEnumerateBlobs(destc)
 	}
 
-	const batchSize = 1000
 	defer close(destc)
-	after := ""
-	for {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		ch := make(chan blobref.SizedBlobRef)
-		n := 0
-		go func() {
-			defer wg.Done()
-			for sb := range ch {
-				after = sb.BlobRef.String()
-				destc <- sb
-				n++
-			}
-		}()
-		if err := s.EnumerateBlobs(ch, after, batchSize, 0); err != nil {
-			return err
-		}
-		wg.Wait()
-		if n == 0 {
-			return nil
-		}
-	}
+	return blobserver.EnumerateAll(s, func(sb blobref.SizedBlobRef) error {
+		destc <- sb
+		return nil
+	})
 }
 
 // src: non-nil source

@@ -31,6 +31,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -265,6 +266,25 @@ func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string,
 	return iter.Close()
 }
 
+func (s *storage) readAllMetaBlobs() error {
+	const maxInFlight = 50
+	var wg sync.WaitGroup
+	var gate = make(chan bool, maxInFlight)
+	err := blobserver.EnumerateAll(s.meta, func(sb blobref.SizedBlobRef) error {
+		wg.Add(1)
+		gate <- true
+		go func() {
+			defer wg.Done()
+			defer func() { <-gate }()
+			// TODO: finish
+			log.Printf("encrypt: TODO: read metablob %v on start-up", sb)
+		}()
+		return nil
+	})
+	wg.Wait()
+	return err
+}
+
 func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
 	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
 }
@@ -379,5 +399,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	if err != nil {
 		return nil, fmt.Errorf("The key must be exactly 16 bytes (currently only AES-128 is supported): %v", err)
 	}
+
+	log.Printf("Reading encryption metadata...")
+	if err := sto.readAllMetaBlobs(); err != nil {
+		return nil, fmt.Errorf("Error scanning metadata on start-up: %v", err)
+	}
+	log.Printf("Read all encryption metadata.")
+
 	return sto, nil
 }
