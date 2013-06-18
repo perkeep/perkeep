@@ -121,16 +121,6 @@ func FindCamliInclude(configFile string) (absPath string, err error) {
 	return "", os.ErrNotExist
 }
 
-func envVarSplitChar() string {
-	switch runtime.GOOS {
-	case "windows":
-		return ";"
-	case "plan9":
-		panic("unsupported")
-	}
-	return ":"
-}
-
 // GoPackagePath returns the path to the provided Go package's
 // source directory.
 // pkg may be a path prefix without any *.go files.
@@ -141,8 +131,8 @@ func GoPackagePath(pkg string) (path string, err error) {
 	if gp == "" {
 		return path, os.ErrNotExist
 	}
-	for _, p := range strings.Split(gp, envVarSplitChar()) {
-		dir := filepath.Join(p, "src", pkg)
+	for _, p := range filepath.SplitList(gp) {
+		dir := filepath.Join(p, "src", filepath.FromSlash(pkg))
 		fi, err := os.Stat(dir)
 		if os.IsNotExist(err) {
 			continue
