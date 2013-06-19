@@ -94,7 +94,7 @@ var NameToCmd = map[string]string{
 	"buildGoTip1": "./make.bash",
 	"buildCamli1": "make forcefull",
 	"buildCamli2": "make presubmit",
-	"runCamli":    "./dev-server --wipe --mysql --staticres --offline",
+	"runCamli":    "./dev-server --fast --wipe --mysql",
 	"hitCamliUi1": "http://localhost:3179/ui/",
 	"camget":      "./dev-camget ",
 	"camput1":     "./dev-camput file --permanode " + testFile[0],
