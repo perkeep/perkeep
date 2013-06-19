@@ -7,10 +7,9 @@ require "$Bin/misc/devlib.pl";
 require "$Bin/misc/get_closure.pl";
 
 sub usage {
-    die "Usage: dev-server [--wipe] [--mongo|--mysql|--postgres] [--tls] <portnumber>" .
-    "[--all] [--nobuild] [--staticres] [--offline] [--KBps] <number>" .
-    "[--latency_ms] <number> [--fast] [--verbose] [--hostname] <name> [--compile-js]" .
-    " -- [other_blobserver_opts]";
+    die "Usage: dev-server [OPTS] [<portnumber>] -- [other_blobserver_opts]\n\nWhere OPTS include:\n   [--wipe] [--mongo|--mysql|--postgres] [--tls] [--fullclosure] " .
+    "[--all] [--nobuild] [--staticres] [--offline] [--KBps=<number>] " .
+    "[--latency_ms=<number>] [--fast] [--verbose] [--hostname=<name>]\n";
 }
 
 chdir $Bin or die;
@@ -22,7 +21,7 @@ my $opt_fast; # shortcut to disable throttling
 my $opt_all;  # listen on all interfaces
 my $opt_hostname;  # hostname to advertise, else `hostname` is used
 my $opt_nobuild;
-my $opt_offline;   # don't use the network ("airplane mode")
+my $opt_fullclosure; # make all of closure available
 my $opt_staticres; # use static resources, not those on disk
 my $opt_tls;
 my $opt_wipe;
@@ -44,12 +43,12 @@ GetOptions("wipe" => \$opt_wipe,
            "postgres" => \$opt_postgres,
            "mysql" => \$opt_mysql,
            "staticres" => \$opt_staticres,
-           "offline" => \$opt_offline,
            "KBps=i" => \$opt_KBps,
            "latency_ms=i" => \$opt_latency_ms,
            "fast" => \$opt_fast,
            "verbose" => \$opt_verbose,
            "hostname=s" => \$opt_hostname,
+           "fullclosure" => \$opt_fullclosure,
     )
     or usage();
 
@@ -156,6 +155,7 @@ $ENV{CAMLI_TLS} = "false";
 if ($opt_tls) {
     $ENV{CAMLI_TLS} = "true";
 }
+$ENV{CAMLI_DEV_CAMLI_ROOT} = $Bin;
 $ENV{CAMLI_BASEURL} = $base;
 $ENV{CAMLI_AUTH} = "userpass:camlistore:pass$port:+localhost";
 $ENV{CAMLI_ADVERTISED_PASSWORD} = "pass$port"; # public password
@@ -180,22 +180,14 @@ if ($opt_wipe && -d $templatedir) {
 
 # To use resources from disk, instead of the copies linked into the
 # binary:
-unless ($opt_staticres) {
-    unless ($opt_offline) {
-        if (-e "$Bin/tmp/closure-lib/.svn") {
-            system("rm", "-rf", "$Bin/tmp/closure-lib") and die "Failed to remove the svn checkout of the closure-lib.\n";
-        }
-        get_closure_lib();
-        get_closure_compiler();
-        chdir $Bin or die;
+if ($opt_fullclosure) {
+    if (-e "$Bin/tmp/closure-lib/.svn") {
+        system("rm", "-rf", "$Bin/tmp/closure-lib") and die "Failed to remove the svn checkout of the closure-lib.\n";
     }
-    $ENV{CAMLI_DEV_CAMLI_ROOT} = $Bin;
-    $ENV{CAMLI_DEV_CLOSURE_ROOT} = "$Bin/tmp/closure-lib";
-
-    # TODO: delete CAMLI_DEV_UI_FILES here and in
-    # server/ui/fileembed_normal.go, once ui.go is updated to use
-    # camliRoot. This is just here transitionally:
-    $ENV{CAMLI_DEV_UI_FILES} = "$Bin/server/camlistored/ui";
+    get_closure_lib();
+    get_closure_compiler();
+    chdir $Bin or die;
+    $ENV{CAMLI_DEV_CLOSURE_DIR} = "$Bin/tmp/closure-lib/closure";
 }
 
 print "Starting dev server on $base/ui/ with password \"pass$port\"\n";

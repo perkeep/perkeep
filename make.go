@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 var (
@@ -383,6 +384,7 @@ func embedClosure(closureDir, embedFile string) error {
 		zipdest = io.MultiWriter(zipdest, f)
 		defer f.Close()
 	}
+	var modTime time.Time
 	w := zip.NewWriter(zipdest)
 	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -394,6 +396,9 @@ func embedClosure(closureDir, embedFile string) error {
 		}
 		if fi.IsDir() {
 			return nil
+		}
+		if mt := fi.ModTime(); mt.After(modTime) {
+			modTime = mt
 		}
 		b, err := ioutil.ReadFile(path)
 		if err != nil {
@@ -417,9 +422,12 @@ func embedClosure(closureDir, embedFile string) error {
 	// then embed it as a quoted string
 	var qb bytes.Buffer
 	fmt.Fprint(&qb, "package closure\n\n")
-	fmt.Fprint(&qb, "func init() {\n\tZipData = ")
+	fmt.Fprint(&qb, "import \"time\"\n\n")
+	fmt.Fprint(&qb, "func init() {\n")
+	fmt.Fprintf(&qb, "\tZipModTime = time.Unix(%d, 0)\n", modTime.Unix())
+	fmt.Fprint(&qb, "\tZipData = ")
 	quote(&qb, zipbuf.Bytes())
-	fmt.Fprint(&qb, "\n}")
+	fmt.Fprint(&qb, "\n}\n")
 
 	// and write to a .go file
 	// TODO(mpl): do not regenerate the whole zip file if the modtime

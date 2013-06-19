@@ -4,8 +4,7 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- add camliRoot & closureRoot to pkg/genconfig high-level config &
-   the docs
+-- add sourceRoot to pkg/genconfig high-level config & the docs
 
 -- website: remove the "Installation" heading for /cmd/*, since
    they're misleading and people should use "go run make.go" in the
@@ -13,24 +12,6 @@ Offline list:
 
 -- website: add godoc for /server/camlistored (also without a "go get"
    line)
-
--- make fileembed & zembed only happen as part of "make.go", but
-   remove the z*.go files from git (and make them all .gitignore'd).
-   Users' options will be either a) use make.go to get a fully static
-   binary (with all of Closure zembed-ed), or b) use "go install" and
-   get a binary that requires configuration to tell it where files on
-   disk are. On start-up, if the UI is configured, the UI should fail
-   and say "You didn't configure the path to the UI & Closure
-   directories".  make.go could further have a flag.Bool to do the
-   zembed, defaulting to true.
-
-   Despite the full Closure source being 10 MB, it's only 2 MB if we
-   compress it and embed a zip or .tar.gz in the static binary:
-
-   $ find tmp/closure-lib/closure/ -name '*.js' | xargs cat  | wc
-   327098 1214807 10449092
-   $ find tmp/closure-lib/closure/ -name '*.js' | xargs cat  | gzip -c | wc
-   7436   58545 1932707
 
 -- tests for all cmd/* stuff, perhaps as part of some integration
    tests.
