@@ -118,7 +118,12 @@ func main() {
 			log.Fatal(err)
 		}
 		wantDestFile[closureEmbed] = true
+		if err = buildGenfileembed(goPath); err != nil {
+			log.Fatal(err)
+		}
 	}
+	// because we do not want the main install to install genfileembed as well.
+	wantDestFile[filepath.Join(buildSrcPath, "pkg", "fileembed", "genfileembed", "genfileembed.go")] = false
 
 	deleteUnwantedOldMirrorFiles(buildSrcPath)
 
@@ -175,6 +180,34 @@ func cleanGoEnv() (clean []string) {
 	return
 }
 
+func buildGenfileembed(goPath string) error {
+	args := []string{"install", "-v"}
+	if *all {
+		args = append(args, "-a")
+	}
+	args = append(args,
+		"camlistore.org/pkg/fileembed/genfileembed",
+	)
+	cmd := exec.Command("go", args...)
+	// We don't even need to set GOBIN as it defaults to $GOPATH/bin
+	// and that is where we want genfileembed to go.
+	cmd.Env = append(cleanGoEnv(),
+		"GOPATH="+goPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if *verbose {
+		log.Printf("Running go with args %s", args)
+	}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Error building genfileembed: %v", err)
+	}
+	if *verbose {
+		log.Printf("genfileembed installed in %s", filepath.Join(goPath, "bin"))
+	}
+	return nil
+}
+
 // getVersion returns the version of Camlistore. Either from a VERSION file at the root,
 // or from git.
 func getVersion(camRoot string) string {
@@ -224,7 +257,7 @@ func mirrorDir(src, dst string) error {
 		}
 		base := fi.Name()
 		if fi.IsDir() {
-			if base == "testdata" || base == "genfileembed" ||
+			if base == "testdata" ||
 				strings.HasSuffix(path, "pkg/misc/closure/genclosuredeps") ||
 				strings.HasSuffix(path, "third_party/closure") ||
 				(base == "cmd" && strings.Contains(path, "github.com/camlistore/goexif")) {
