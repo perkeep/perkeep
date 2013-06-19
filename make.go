@@ -344,7 +344,13 @@ func embedClosure(closureDir, embedFile string) error {
 
 	// first, zip it
 	var zipbuf bytes.Buffer
-	w := zip.NewWriter(&zipbuf)
+	var zipdest io.Writer = &zipbuf
+	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
+		f, _ := os.Create("/tmp/camli-closure.zip")
+		zipdest = io.MultiWriter(zipdest, f)
+		defer f.Close()
+	}
+	w := zip.NewWriter(zipdest)
 	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -415,6 +421,7 @@ func quote(dest *bytes.Buffer, bs []byte) {
 	for _, b := range bs {
 		if b == '\n' {
 			dest.WriteString(`\n`)
+			continue
 		}
 		if b == '\\' {
 			dest.WriteString(`\\`)
