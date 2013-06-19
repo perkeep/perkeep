@@ -8,7 +8,7 @@ require "$Bin/misc/get_closure.pl";
 
 sub usage {
     die "Usage: dev-server [OPTS] [<portnumber>] -- [other_blobserver_opts]\n\nWhere OPTS include:\n   [--wipe] [--mongo|--mysql|--postgres] [--tls] [--fullclosure] " .
-    "[--all] [--nobuild] [--staticres] [--offline] [--KBps=<number>] " .
+    "[--all] [--nobuild] [--staticres] [--KBps=<number>] " .
     "[--latency_ms=<number>] [--fast] [--verbose] [--hostname=<name>]\n";
 }
 
