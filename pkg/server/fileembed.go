@@ -20,8 +20,16 @@ limitations under the License.
 package server
 
 import (
+	"os"
+	"path/filepath"
+
 	"camlistore.org/pkg/fileembed"
 )
 
 var Files = &fileembed.Files{}
 
+func init() {
+	if root := os.Getenv("CAMLI_DEV_CAMLI_ROOT"); root != "" {
+		Files.DirFallback = filepath.Join(root, filepath.FromSlash("pkg/server"))
+	}
+}

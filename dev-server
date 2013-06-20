@@ -156,7 +156,6 @@ if ($opt_tls) {
     $ENV{CAMLI_TLS} = "true";
 }
 $ENV{CAMLI_DEV_CAMLI_ROOT} = $Bin;
-$ENV{CAMLI_DEV_UI_FILES} = "$Bin/server/camlistored/ui";
 $ENV{CAMLI_BASEURL} = $base;
 $ENV{CAMLI_AUTH} = "userpass:camlistore:pass$port:+localhost";
 $ENV{CAMLI_ADVERTISED_PASSWORD} = "pass$port"; # public password
