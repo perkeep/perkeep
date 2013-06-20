@@ -103,7 +103,10 @@ func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]in
 	return pubPrefixes, nil
 }
 
-func addUIConfig(prefixes jsonconfig.Obj, uiPrefix string, published []interface{}) {
+func addUIConfig(prefixes jsonconfig.Obj,
+	uiPrefix string,
+	published []interface{},
+	sourceRoot string) {
 	ob := map[string]interface{}{}
 	ob["handler"] = "ui"
 	handlerArgs := map[string]interface{}{
@@ -113,6 +116,9 @@ func addUIConfig(prefixes jsonconfig.Obj, uiPrefix string, published []interface
 	}
 	if len(published) > 0 {
 		handlerArgs["publishRoots"] = published
+	}
+	if sourceRoot != "" {
+		handlerArgs["sourceRoot"] = sourceRoot
 	}
 	ob["handlerArgs"] = handlerArgs
 	prefixes[uiPrefix] = ob
@@ -251,8 +257,8 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 	m["/"] = map[string]interface{}{
 		"handler": "root",
 		"handlerArgs": map[string]interface{}{
-			"stealth":  false,
-			"blobRoot": root,
+			"stealth":    false,
+			"blobRoot":   root,
 			"statusRoot": "/status/",
 		},
 	}
@@ -370,6 +376,11 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 		_       = conf.OptionalList("replicateTo")
 		publish = conf.OptionalObject("publish")
+		// alternative source tree, to override the embedded ui and/or closure resources.
+		// If non empty, the ui files will be expected at
+		// sourceRoot + "/server/camlistored/ui" and the closure library at
+		// sourceRoot + "/third_party/closure/lib"
+		sourceRoot = conf.OptionalString("sourceRoot", "")
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -480,7 +491,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	if runIndex {
-		addUIConfig(prefixes, "/ui/", published)
+		addUIConfig(prefixes, "/ui/", published, sourceRoot)
 	}
 
 	if mysql != "" {
