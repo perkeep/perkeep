@@ -17,8 +17,8 @@ limitations under the License.
 package closure
 
 import (
-	"bytes"
 	"archive/zip"
+	"bytes"
 	"sync"
 
 	"errors"

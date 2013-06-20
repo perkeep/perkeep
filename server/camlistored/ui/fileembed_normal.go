@@ -19,16 +19,9 @@ limitations under the License.
 package ui
 
 import (
-	"os"
-	"path/filepath"
-
 	"camlistore.org/pkg/fileembed"
 )
 
 func init() {
 	Files = &fileembed.Files{}
-
-	if root := os.Getenv("CAMLI_DEV_CAMLI_ROOT"); root != "" {
-		Files.DirFallback = filepath.Join(root, filepath.FromSlash("server/camlistored/ui"))
-	}
 }

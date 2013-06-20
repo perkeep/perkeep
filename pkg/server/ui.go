@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
@@ -53,8 +54,6 @@ var (
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
 )
-
-var uiFiles = uistatic.Files
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
@@ -79,8 +78,9 @@ type UIHandler struct {
 	// source. If empty, the UI files must be compiled in to the
 	// binary (with go run make.go).  This comes from the "sourceRoot"
 	// ui handler config option.
-	// TODO: not yet implemented.
 	sourceRoot string
+
+	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
 
 	// closureHandler serves the Closure JS files.
 	closureHandler http.Handler
@@ -152,6 +152,20 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 			ui.sc = NewScaledImageLRU()
 		default:
 			return nil, fmt.Errorf("unsupported ui handler's scType: %q ", scType)
+		}
+	}
+
+	if ui.sourceRoot == "" {
+		ui.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
+	}
+	if ui.sourceRoot != "" {
+		ui.uiDir = filepath.Join(ui.sourceRoot, filepath.FromSlash("server/camlistored/ui"))
+		// Ignore any fileembed files:
+		Files = &fileembed.Files{
+			DirFallback: filepath.Join(ui.sourceRoot, filepath.FromSlash("pkg/server")),
+		}
+		uistatic.Files = &fileembed.Files{
+			DirFallback: ui.uiDir,
 		}
 	}
 
@@ -307,14 +321,11 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
-		if file == "deps.js" {
-			envVar := uiFiles.OverrideEnv
-			if envVar != "" && os.Getenv(envVar) != "" {
-				serveDepsJS(rw, req)
-				return
-			}
+		if file == "deps.js" && ui.sourceRoot != "" {
+			serveDepsJS(rw, req, ui.uiDir)
+			return
 		}
-		serveStaticFile(rw, req, uiFiles, file)
+		serveStaticFile(rw, req, uistatic.Files, file)
 	}
 }
 
@@ -322,7 +333,7 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(rw, req)
-		log.Printf("Failed to open file %q from uiFiles: %v", file, err)
+		log.Printf("Failed to open file %q from uistatic.Files: %v", file, err)
 		return
 	}
 	defer f.Close()
@@ -478,19 +489,10 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 }
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
-func serveDepsJS(rw http.ResponseWriter, req *http.Request) {
-	envVar := uiFiles.OverrideEnv
-	if envVar == "" {
-		log.Printf("No uiFiles.OverrideEnv set; can't generate deps.js")
-		http.NotFound(rw, req)
-		return
-	}
-	dir := os.Getenv(envVar)
-	if dir == "" {
-		log.Printf("The %q environment variable is not set; can't generate deps.js", envVar)
-		http.NotFound(rw, req)
-		return
-	}
+func serveDepsJS(rw http.ResponseWriter, req *http.Request, dir string) {
+	// TODO: closure.GenDeps should work from a VFS interface
+	// (http.FileSystem or lighter) so we can eliminate the
+	// Makefile genjsdeps hack and just always generate our own.
 	b, err := closure.GenDeps(dir)
 	if err != nil {
 		log.Print(err)
@@ -498,5 +500,6 @@ func serveDepsJS(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	rw.Write([]byte("// auto-generated from camlistored\n"))
 	rw.Write(b)
 }

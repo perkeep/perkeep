@@ -42,6 +42,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	uistatic "camlistore.org/server/camlistored/ui"
 )
 
 // PublishHandler publishes your info to the world, if permanodes have
@@ -153,7 +154,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
 	ph.closureHandler = http.FileServer(http.Dir(closureDir))
 
-	ph.staticHandler = http.FileServer(uiFiles)
+	ph.staticHandler = http.FileServer(uistatic.Files)
 
 	return ph, nil
 }
@@ -387,9 +388,16 @@ func (pr *publishRequest) serveHTTP() {
 				return
 			}
 		}
+		// TODO: this assumes that deps.js either dev server, or that deps.js
+		// is embedded in the binary. We want to NOT embed deps.js, but also
+		// serve dynamic deps.js from other resources embedded in the server
+		// when not in dev-server mode.  So fix this later, when serveDepsJS
+		// can work over embedded resources.
 		if pr.req.URL.Path == "/deps.js" {
-			serveDepsJS(pr.rw, pr.req)
-			return
+			if dir := os.Getenv("CAMLI_DEV_CAMLI_ROOT"); dir != "" {
+				serveDepsJS(pr.rw, pr.req, dir+"/server/camlistored/ui")
+				return
+			}
 		}
 		pr.ph.staticHandler.ServeHTTP(pr.rw, pr.req)
 	default:
