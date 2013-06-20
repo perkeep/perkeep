@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -45,6 +46,15 @@ var (
 	wantSQLite     = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
+)
+
+var (
+	// buildGoPath becomes our child "go" processes' GOPATH environment variable
+	buildGoPath string
+	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
+	buildSrcDir string
+	// files mirrored from camRoot to buildSrcDir
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:go|html|js|css|png|jpg|gif))$`)
 )
 
 func main() {
@@ -65,16 +75,11 @@ func main() {
 		buildBaseDir += "-nosqlite"
 	}
 
-	// goPath becomes our child "go" processes' GOPATH environment variable:
-	goPath := filepath.Join(camRoot, "tmp", buildBaseDir)
+	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
 	binDir := filepath.Join(camRoot, "bin")
+	buildSrcDir = filepath.Join(buildGoPath, "src", "camlistore.org")
 
-	// We copy all *.go files from camRoot's goDirs to buildSrcPath.
-	goDirs := []string{"cmd", "pkg", "server/camlistored", "third_party"}
-
-	buildSrcPath := filepath.Join(goPath, "src", "camlistore.org")
-
-	if err := os.MkdirAll(buildSrcPath, 0755); err != nil {
+	if err := os.MkdirAll(buildSrcDir, 0755); err != nil {
 		log.Fatal(err)
 	}
 
@@ -83,7 +88,7 @@ func main() {
 	if *verbose {
 		log.Printf("Camlistore version = %s", version)
 		log.Printf("SQLite available: %v", sql)
-		log.Printf("Temp GOPATH: %s", buildSrcPath)
+		log.Printf("Temporary source: %s", buildSrcDir)
 		log.Printf("Output binaries: %s", binDir)
 	}
 
@@ -101,32 +106,37 @@ func main() {
 		os.Exit(2)
 	}
 
+	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
+	goDirs := []string{"cmd", "pkg", "server/camlistored", "third_party"}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
 	for _, dir := range goDirs {
-		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
-		dstPath := filepath.Join(buildSrcPath, filepath.FromSlash(dir))
-		if err := mirrorDir(srcPath, dstPath); err != nil {
-			log.Fatalf("Error while mirroring %s to %s: %v", srcPath, dstPath, err)
+		oriPath := filepath.Join(camRoot, filepath.FromSlash(dir))
+		dstPath := buildSrcPath(dir)
+		if err := mirrorDir(oriPath, dstPath); err != nil {
+			log.Fatalf("Error while mirroring %s to %s: %v", oriPath, dstPath, err)
 		}
 	}
 
-	closureEmbed := filepath.Join(buildSrcPath, "server", "camlistored", "ui", "closure", "z_data.go")
+	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
 	if *embedResources {
-		closureSrcDir := filepath.Join(camRoot, "third_party", "closure", "lib")
+		closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("third_party/closure/lib"))
 		err := embedClosure(closureSrcDir, closureEmbed)
 		if err != nil {
 			log.Fatal(err)
 		}
 		wantDestFile[closureEmbed] = true
-		if err = buildGenfileembed(goPath); err != nil {
+		if err = buildGenfileembed(); err != nil {
+			log.Fatal(err)
+		}
+		if err = genEmbeds(); err != nil {
 			log.Fatal(err)
 		}
 	}
 	// because we do not want the main install to install genfileembed as well.
-	wantDestFile[filepath.Join(buildSrcPath, "pkg", "fileembed", "genfileembed", "genfileembed.go")] = false
+	wantDestFile[buildSrcPath("pkg/fileembed/genfileembed/genfileembed.go")] = false
 
-	deleteUnwantedOldMirrorFiles(buildSrcPath)
+	deleteUnwantedOldMirrorFiles(buildSrcDir)
 
 	tags := ""
 	if sql && *wantSQLite {
@@ -156,7 +166,7 @@ func main() {
 	}
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+goPath,
+		"GOPATH="+buildGoPath,
 		"GOBIN="+binDir,
 	)
 	cmd.Stdout = os.Stdout
@@ -181,19 +191,68 @@ func cleanGoEnv() (clean []string) {
 	return
 }
 
-func buildGenfileembed(goPath string) error {
+// buildSrcPath returns the full path concatenation
+// of buildSrcDir with fromSrc.
+func buildSrcPath(fromSrc string) string {
+	return filepath.Join(buildSrcDir, filepath.FromSlash(fromSrc))
+}
+
+// genEmbeds generates from the static resources the zembed.*.go
+// files that will allow for these resources to be included in
+// the camlistored binary.
+// It also populates wantDestFile with those files so they're
+// kept in between runs.
+func genEmbeds() error {
+	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
+	uiEmbeds := buildSrcPath("server/camlistored/ui")
+	serverEmbeds := buildSrcPath("pkg/server")
+	for _, embeds := range []string{uiEmbeds, serverEmbeds} {
+		args := []string{embeds}
+		cmd := exec.Command(cmdName, args...)
+		cmd.Env = append(cleanGoEnv(),
+			"GOPATH="+buildGoPath,
+		)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if *verbose {
+			log.Printf("Running %s %s", cmdName, embeds)
+		}
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("Error running %s %s: %v", cmdName, embeds, err)
+		}
+		// We mark all the zembeds in builddir as wanted, so that we do not
+		// have to regen them next time, unless they need updating.
+		f, err := os.Open(embeds)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		names, err := f.Readdirnames(-1)
+		if err != nil {
+			return err
+		}
+		for _, v := range names {
+			if strings.HasPrefix(v, "zembed_") {
+				wantDestFile[filepath.Join(embeds, v)] = true
+			}
+		}
+	}
+	return nil
+}
+
+func buildGenfileembed() error {
 	args := []string{"install", "-v"}
 	if *all {
 		args = append(args, "-a")
 	}
 	args = append(args,
-		"camlistore.org/pkg/fileembed/genfileembed",
+		filepath.FromSlash("camlistore.org/pkg/fileembed/genfileembed"),
 	)
 	cmd := exec.Command("go", args...)
 	// We don't even need to set GOBIN as it defaults to $GOPATH/bin
 	// and that is where we want genfileembed to go.
 	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+goPath,
+		"GOPATH="+buildGoPath,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -204,7 +263,7 @@ func buildGenfileembed(goPath string) error {
 		return fmt.Errorf("Error building genfileembed: %v", err)
 	}
 	if *verbose {
-		log.Printf("genfileembed installed in %s", filepath.Join(goPath, "bin"))
+		log.Printf("genfileembed installed in %s", filepath.Join(buildGoPath, "bin"))
 	}
 	return nil
 }
@@ -265,10 +324,9 @@ func mirrorDir(src, dst string) error {
 				return filepath.SkipDir
 			}
 		}
-		switch {
-		case strings.HasSuffix(base, "_test.go"),
-			strings.HasPrefix(base, ".#"),
-			!strings.HasSuffix(base, ".go"):
+		if strings.HasSuffix(base, "_test.go") ||
+			strings.HasPrefix(base, ".#") ||
+			!rxMirrored.MatchString(base) {
 			return nil
 		}
 		suffix, err := filepath.Rel(src, path)
