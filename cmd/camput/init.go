@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(mpl): Shouldn't we move this subcommand to camtool? e.g as 'camtool configinit' ?
+// It does not feel like a good fit in camput since this does not send anything
+// to a server.
+
 package main
 
 import (
@@ -28,26 +32,27 @@ import (
 	"path"
 
 	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 )
 
 type initCmd struct {
+	newKey bool
 	gpgkey string
 }
 
 func init() {
 	cmdmain.RegisterCommand("init", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(initCmd)
+		flags.BoolVar(&cmd.newKey, "newkey", false, "Automatically generate a new identity in a new secret ring.")
 		flags.StringVar(&cmd.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
 		return cmd
 	})
 }
 
 func (c *initCmd) Describe() string {
-	return "Initialize the camput configuration file."
+	return "Initialize the camput configuration file. With no option, it tries to use the GPG key found in the default identity secret ring."
 }
 
 func (c *initCmd) Usage() {
@@ -58,10 +63,14 @@ func (c *initCmd) Examples() []string {
 	return []string{
 		"",
 		"--gpgkey=XXXXX",
+		"--newkey Creates a new identity",
 	}
 }
 
-func (c *initCmd) keyId() (string, error) {
+// keyId returns the current keyId. It checks, in this order,
+// the --gpgkey flag, the GPGKEY env var, and the default
+// identity secret ring.
+func (c *initCmd) keyId(secRing string) (string, error) {
 	if k := c.gpgkey; k != "" {
 		return k, nil
 	}
@@ -69,13 +78,19 @@ func (c *initCmd) keyId() (string, error) {
 		return k, nil
 	}
 
-	// TODO: move camlistored.go's keyIdFromRing into
-	// pkg/jsonsign/keys.go and use that (which looks for an
-	// identify file with exactly one identity)
+	k, err := jsonsign.KeyIdFromRing(secRing)
+	if err != nil {
+		log.Printf("No suitable gpg key was found in %v: %v", secRing, err)
+	} else {
+		if k != "" {
+			log.Printf("Re-using identity with keyId %q found in file %s", k, secRing)
+			return k, nil
+		}
+	}
 
 	// TODO: run and parse gpg --list-secret-keys and see if there's just one and suggest that?  Or show
 	// a list of them?
-	return "", errors.New("Initialization requires your public GPG key.  Set --gpgkey=<pubid> or set $GPGKEY in your environment.  Run gpg --list-secret-keys to find their key IDs.")
+	return "", errors.New("Initialization requires your public GPG key.\nYou can set --gpgkey=<pubid> or set $GPGKEY in your environment. Run gpg --list-secret-keys to find their key IDs.\nOr you can create a new secret ring and key with 'camput init --newkey'.")
 }
 
 func (c *initCmd) getPublicKeyArmoredFromFile(secretRingFileName, keyId string) (b []byte, err error) {
@@ -112,13 +127,27 @@ func (c *initCmd) RunCommand(args []string) error {
 		return cmdmain.ErrUsage
 	}
 
+	if c.newKey && c.gpgkey != "" {
+		log.Fatal("--newkey and --gpgkey are mutually exclusive")
+	}
+
 	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
 	os.Mkdir(osutil.CamliConfigDir(), 0700)
 	os.Mkdir(blobDir, 0700)
 
-	keyId, err := c.keyId()
-	if err != nil {
-		return err
+	var keyId string
+	var err error
+	secRing := osutil.IdentitySecretRing()
+	if c.newKey {
+		keyId, err = jsonsign.GenerateNewSecRing(secRing)
+		if err != nil {
+			return err
+		}
+	} else {
+		keyId, err = c.keyId(secRing)
+		if err != nil {
+			return err
+		}
 	}
 
 	if os.Getenv("GPG_AGENT_INFO") == "" {
@@ -143,12 +172,13 @@ func (c *initCmd) RunCommand(args []string) error {
 
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
 
-	_, err = os.Stat(client.ConfigFilePath())
+	configFilePath := osutil.UserClientConfigPath()
+	_, err = os.Stat(configFilePath)
 	if err == nil {
-		log.Fatalf("Config file %q already exists; quitting without touching it.", client.ConfigFilePath())
+		log.Fatalf("Config file %q already exists; quitting without touching it.", configFilePath)
 	}
 
-	if f, err := os.OpenFile(client.ConfigFilePath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
+	if f, err := os.OpenFile(configFilePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
 		m := make(map[string]interface{})
 		m["keyId"] = keyId                    // TODO(bradfitz): make this 'identity' to match server config?
@@ -163,9 +193,9 @@ func (c *initCmd) RunCommand(args []string) error {
 		}
 		_, err = f.Write(jsonBytes)
 		if err != nil {
-			log.Fatalf("Error writing to %q: %v", client.ConfigFilePath(), err)
+			log.Fatalf("Error writing to %q: %v", configFilePath, err)
 		}
-		log.Printf("Wrote %q; modify as necessary.", client.ConfigFilePath())
+		log.Printf("Wrote %q; modify as necessary.", configFilePath)
 	}
 	return nil
 }
