@@ -76,7 +76,10 @@ func CamliConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
 	}
-	return filepath.Join(HomeDir(), ".camlistore")
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "camlistore")
+	}
+	return filepath.Join(HomeDir(), ".config", "camlistore")
 }
 
 func UserServerConfigPath() string {
@@ -84,7 +87,7 @@ func UserServerConfigPath() string {
 }
 
 func UserClientConfigPath() string {
-	return filepath.Join(CamliConfigDir(), "config")
+	return filepath.Join(CamliConfigDir(), "client-config.json")
 }
 
 func IdentitySecretRing() string {
