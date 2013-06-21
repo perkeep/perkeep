@@ -636,14 +636,6 @@ func newBytes() *Builder {
 	return base(1, "bytes")
 }
 
-func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Builder {
-	bb := base(1, "share")
-	bb.m["authType"] = authType
-	bb.m["target"] = target.String()
-	bb.m["transitive"] = transitive
-	return bb
-}
-
 type ClaimType string
 
 const (
@@ -652,14 +644,24 @@ const (
 	DelAttribute ClaimType = "del-attribute"
 )
 
-type ClaimParam struct {
-	Permanode *blobref.BlobRef // modified permanode
-	Type      ClaimType
-	Attribute string // required
-	Value     string // optional if Type == DelAttribute
+const claimTypeShare = "share"
+
+// claimParam is used to populate a claim map when building a new claim
+type claimParam struct {
+	claimType ClaimType
+
+	// Params specific to *Attribute claims:
+	permanode *blobref.BlobRef // modified permanode
+	attribute string           // required
+	value     string           // optional if Type == DelAttribute
+
+	// Params specific to "share" claims:
+	authType   string
+	target     *blobref.BlobRef
+	transitive bool
 }
 
-func NewClaim(claims ...*ClaimParam) *Builder {
+func NewClaim(claims ...*claimParam) *Builder {
 	bb := base(1, "claim")
 	bb.SetClaimDate(time.Now())
 	if len(claims) == 1 {
@@ -678,38 +680,54 @@ func NewClaim(claims ...*ClaimParam) *Builder {
 	return bb
 }
 
-func populateClaimMap(m map[string]interface{}, cp *ClaimParam) {
-	m["claimType"] = string(cp.Type)
-	m["attribute"] = cp.Attribute
-	m["permaNode"] = cp.Permanode.String()
-	if !(cp.Type == DelAttribute && cp.Value == "") {
-		m["value"] = cp.Value
+func populateClaimMap(m map[string]interface{}, cp *claimParam) {
+	m["claimType"] = string(cp.claimType)
+	if cp.claimType != claimTypeShare {
+		m["permaNode"] = cp.permanode.String()
+		m["attribute"] = cp.attribute
+		if !(cp.claimType == DelAttribute && cp.value == "") {
+			m["value"] = cp.value
+		}
+	} else {
+		m["authType"] = cp.authType
+		m["target"] = cp.target.String()
+		m["transitive"] = cp.transitive
 	}
 }
 
+// NewShareRef creates a *Builder for a "share" claim.
+func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Builder {
+	return NewClaim(&claimParam{
+		claimType:  claimTypeShare,
+		authType:   authType,
+		target:     target,
+		transitive: transitive,
+	})
+}
+
 func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
-	return NewClaim(&ClaimParam{
-		Permanode: permaNode,
-		Type:      SetAttribute,
-		Attribute: attr,
-		Value:     value,
+	return NewClaim(&claimParam{
+		permanode: permaNode,
+		claimType: SetAttribute,
+		attribute: attr,
+		value:     value,
 	})
 }
 
 func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
-	return NewClaim(&ClaimParam{
-		Permanode: permaNode,
-		Type:      AddAttribute,
-		Attribute: attr,
-		Value:     value,
+	return NewClaim(&claimParam{
+		permanode: permaNode,
+		claimType: AddAttribute,
+		attribute: attr,
+		value:     value,
 	})
 }
 
 func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) *Builder {
-	return NewClaim(&ClaimParam{
-		Permanode: permaNode,
-		Type:      DelAttribute,
-		Attribute: attr,
+	return NewClaim(&claimParam{
+		permanode: permaNode,
+		claimType: DelAttribute,
+		attribute: attr,
 	})
 }
 

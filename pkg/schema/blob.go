@@ -132,7 +132,7 @@ func (b *Blob) AsShare() (s Share, ok bool) {
 	if !ok {
 		return
 	}
-	if b.ss.Type == "share" && b.ss.AuthType == ShareHaveRef && b.ss.Target != nil {
+	if b.ss.ClaimType == claimTypeShare && b.ss.AuthType == ShareHaveRef && b.ss.Target != nil {
 		return Share{c}, true
 	}
 	return
@@ -161,17 +161,19 @@ func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
 }
 
 func (b *Blob) ShareAuthType() string {
-	if b.Type() != "share" {
+	s, ok := b.AsShare()
+	if !ok {
 		return ""
 	}
-	return b.ss.AuthType
+	return s.AuthType()
 }
 
 func (b *Blob) ShareTarget() *blobref.BlobRef {
-	if b.Type() != "share" {
+	s, ok := b.AsShare()
+	if !ok {
 		return nil
 	}
-	return b.ss.Target
+	return s.Target()
 }
 
 // ModTime returns the "unixMtime" field, or the zero time.
@@ -210,9 +212,14 @@ type Share struct {
 	Claim
 }
 
+// AuthType returns the AuthType of the Share.
+func (s Share) AuthType() string {
+	return s.b.ss.AuthType
+}
+
 // Target returns the blob referenced by the Share.
 func (s Share) Target() *blobref.BlobRef {
-	return s.b.ShareTarget()
+	return s.b.ss.Target
 }
 
 // IsTransitive returns whether the Share transitively

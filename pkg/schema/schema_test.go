@@ -170,20 +170,20 @@ func TestAttribute(t *testing.T) {
 }`,
 		},
 		{
-			bb: NewClaim(&ClaimParam{
-				Permanode: br,
-				Type:      SetAttribute,
-				Attribute: "foo",
-				Value:     "bar",
-			}, &ClaimParam{
-				Permanode: br,
-				Type:      DelAttribute,
-				Attribute: "foo",
-				Value:     "specific-del",
-			}, &ClaimParam{
-				Permanode: br,
-				Type:      DelAttribute,
-				Attribute: "foo",
+			bb: NewClaim(&claimParam{
+				permanode: br,
+				claimType: SetAttribute,
+				attribute: "foo",
+				value:     "bar",
+			}, &claimParam{
+				permanode: br,
+				claimType: DelAttribute,
+				attribute: "foo",
+				value:     "specific-del",
+			}, &claimParam{
+				permanode: br,
+				claimType: DelAttribute,
+				attribute: "foo",
 			}),
 			want: `{"camliVersion": 1,
   "camliType": "claim",
