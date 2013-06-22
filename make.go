@@ -133,8 +133,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	// because we do not want the main install to install genfileembed as well.
-	wantDestFile[buildSrcPath("pkg/fileembed/genfileembed/genfileembed.go")] = false
 
 	deleteUnwantedOldMirrorFiles(buildSrcDir)
 
@@ -142,23 +140,21 @@ func main() {
 	if sql && *wantSQLite {
 		tags = "with_sqlite"
 	}
-	args := []string{"install", "-v"}
+	baseArgs := []string{"install", "-v"}
 	if *all {
-		args = append(args, "-a")
+		baseArgs = append(baseArgs, "-a")
 	}
-	args = append(args,
+	baseArgs = append(baseArgs,
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
-		"--tags="+tags,
+		"--tags="+tags)
+
+	// First install command: build just the final binaries, installed to a GOBIN
+	// under <camlistore_root>/bin:
+	args := append(baseArgs,
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
 		"camlistore.org/server/camlistored",
-		// Unnecessary, but to make sure we don't ship
-		// anything or copy anything into the fake GOPATH
-		// that's not needed or doesn't build:
-		"camlistore.org/pkg/...",
-		"camlistore.org/server/...",
-		"camlistore.org/third_party/...",
 	)
 	switch runtime.GOOS {
 	case "linux", "darwin":
@@ -172,11 +168,29 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if *verbose {
-		log.Printf("Running go with args %s", args)
+		log.Printf("Running go install of main binaries with args %s", args)
 	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building: %v", err)
 	}
+
+	// Now do another build, but including everything, just to make
+	// sure everything compiles. But if there are any binaries (package main) in here,
+	// put them in a junk GOBIN (the default location), rather than polluting
+	// the GOBIN that the user will look in.
+	cmd = exec.Command("go", append(baseArgs,
+		"camlistore.org/pkg/...",
+		"camlistore.org/server/...",
+		"camlistore.org/third_party/...",
+	)...)
+	cmd.Env = append(cleanGoEnv(), "GOPATH="+buildGoPath)
+	if *verbose {
+		log.Printf("Running full go install with args %s", args)
+	}
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error building: %v", err)
+	}
+
 	log.Printf("Success. Binaries are in %s", binDir)
 }
 
@@ -317,10 +331,7 @@ func mirrorDir(src, dst string) error {
 		}
 		base := fi.Name()
 		if fi.IsDir() {
-			if base == "testdata" ||
-				strings.HasSuffix(path, "pkg/misc/closure/genclosuredeps") ||
-				strings.HasSuffix(path, "third_party/closure") ||
-				(base == "cmd" && strings.Contains(path, "github.com/camlistore/goexif")) {
+			if base == "testdata" {
 				return filepath.SkipDir
 			}
 		}
