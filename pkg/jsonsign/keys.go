@@ -152,3 +152,46 @@ func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
 	}
 	return nil
 }
+
+// KeyIdFromRing returns the public keyId contained in the secret
+// ring file secRing. It expects only one keyId in this secret ring
+// and returns an error otherwise.
+func KeyIdFromRing(secRing string) (keyId string, err error) {
+	f, err := os.Open(secRing)
+	if err != nil {
+		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
+	}
+	defer f.Close()
+	el, err := openpgp.ReadKeyRing(f)
+	if err != nil {
+		return "", fmt.Errorf("Could not read secret ring file %s: %v", secRing, err)
+	}
+	if len(el) != 1 {
+		return "", fmt.Errorf("Secret ring file %v contained %d identities; expected 1", secRing, len(el))
+	}
+	ent := el[0]
+	return ent.PrimaryKey.KeyIdShortString(), nil
+}
+
+// GenerateNewSecRing creates a new secret ring file secRing, with
+// a new GPG identity. It returns the public keyId of that identity.
+// It returns an error if the file already exists.
+func GenerateNewSecRing(secRing string) (keyId string, err error) {
+	ent, err := NewEntity()
+	if err != nil {
+		return "", fmt.Errorf("generating new identity: %v", err)
+	}
+	f, err := os.OpenFile(secRing, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return "", err
+	}
+	err = WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
+	if err != nil {
+		f.Close()
+		return "", fmt.Errorf("Could not write new key ring to %s: %v", secRing, err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("Could not close %v: %v", secRing, err)
+	}
+	return ent.PrimaryKey.KeyIdShortString(), nil
+}

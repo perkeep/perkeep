@@ -83,11 +83,15 @@ func UserServerConfigPath() string {
 	return filepath.Join(CamliConfigDir(), "server-config.json")
 }
 
+func UserClientConfigPath() string {
+	return filepath.Join(CamliConfigDir(), "config")
+}
+
 func IdentitySecretRing() string {
 	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
 }
 
-// Find the correct absolute path corresponding to a relative path, 
+// Find the correct absolute path corresponding to a relative path,
 // searching the following sequence of directories:
 // 1. Working Directory
 // 2. CAMLI_CONFIG_DIR (deprecated, will complain if this is on env)

@@ -18,6 +18,7 @@ package client
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -42,7 +43,7 @@ var (
 )
 
 func AddFlags() {
-	defaultPath := ConfigFilePath()
+	defaultPath := osutil.UserClientConfigPath()
 	flag.StringVar(&flagServer, "server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of "+defaultPath+" is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
 	flag.StringVar(&flagSecretRing, "secret-keyring", "", "GnuPG secret keyring file to use.")
 }
@@ -52,19 +53,40 @@ func ExplicitServer() string {
 	return flagServer
 }
 
-func ConfigFilePath() string {
-	return filepath.Join(osutil.CamliConfigDir(), "config")
-}
-
 var configOnce sync.Once
 var config = make(map[string]interface{})
-var parseConfigErr error
+
+// serverGPGKey returns the public gpg key id ("identity" field)
+// from the user's server config , if any.
+// It returns the empty string otherwise.
+func serverKeyId() string {
+	serverConfigFile := osutil.UserServerConfigPath()
+	if _, err := os.Stat(serverConfigFile); err != nil {
+		if os.IsNotExist(err) {
+			return ""
+		}
+		log.Fatalf("Could not stat %v: %v", serverConfigFile, err)
+	}
+	obj, err := jsonconfig.ReadFile(serverConfigFile)
+	if err != nil {
+		return ""
+	}
+	keyId, ok := obj["identity"].(string)
+	if !ok {
+		return ""
+	}
+	return keyId
+}
 
 func parseConfig() {
-	configPath := ConfigFilePath()
+	configPath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		parseConfigErr = os.ErrNotExist
-		return
+		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'camput init' to generate it.", configPath)
+		if keyId := serverKeyId(); keyId != "" {
+			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'camput init -gpgkey %v'", keyId, osutil.UserServerConfigPath(), keyId)
+			errMsg += hint
+		}
+		log.Fatal(errMsg)
 	}
 
 	var err error
@@ -98,7 +120,7 @@ func serverOrDie() string {
 	}
 	server = cleanServer(server)
 	if !ok || server == "" {
-		log.Fatalf("Missing or invalid \"server\" in %q", ConfigFilePath())
+		log.Fatalf("Missing or invalid \"server\" in %q", osutil.UserClientConfigPath())
 	}
 	return server
 }
@@ -181,7 +203,7 @@ func getSignerPublicKeyBlobref() *blobref.BlobRef {
 	key := "keyId"
 	keyId, ok := config[key].(string)
 	if !ok {
-		log.Printf("No key %q in JSON configuration file %q; have you run \"camput init\"?", key, ConfigFilePath())
+		log.Printf("No key %q in JSON configuration file %q; have you run \"camput init\"?", key, osutil.UserClientConfigPath())
 		return nil
 	}
 	keyRing, hasKeyRing := config["secretRing"].(string)
@@ -208,7 +230,7 @@ func getSignerPublicKeyBlobref() *blobref.BlobRef {
 
 	selfPubKeyDir, ok := config["selfPubKeyDir"].(string)
 	if !ok {
-		log.Printf("No 'selfPubKeyDir' defined in %q", ConfigFilePath())
+		log.Printf("No 'selfPubKeyDir' defined in %q", osutil.UserClientConfigPath())
 		return nil
 	}
 	fi, err := os.Stat(selfPubKeyDir)

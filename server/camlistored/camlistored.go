@@ -63,8 +63,6 @@ import (
 	// Handlers:
 	_ "camlistore.org/pkg/search"
 	_ "camlistore.org/pkg/server" // UI, publish, etc
-
-	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
 const (
@@ -198,40 +196,6 @@ func findConfigFile(file string) (absPath string, err error) {
 	return
 }
 
-func keyIdFromRing(filename string) (keyId string, err error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return "", fmt.Errorf("reading identity secret ring file: %v", err)
-	}
-	defer f.Close()
-	el, err := openpgp.ReadKeyRing(f)
-	if err != nil {
-		return "", fmt.Errorf("reading identity secret ring file %s: %v", filename, err)
-	}
-	if len(el) != 1 {
-		return "", fmt.Errorf("identity secret ring file contained %d identities; expected 1", len(el))
-	}
-	ent := el[0]
-	return ent.PrimaryKey.KeyIdShortString(), nil
-}
-
-func generateNewSecRing(filename string) (keyId string, err error) {
-	ent, err := jsonsign.NewEntity()
-	if err != nil {
-		return "", fmt.Errorf("generating new identity: %v", err)
-	}
-	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	err = jsonsign.WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
-	if err != nil {
-		return "", fmt.Errorf("writing new key ring to %s: %v", filename, err)
-	}
-	return ent.PrimaryKey.KeyIdShortString(), nil
-}
-
 type defaultConfigFile struct {
 	Listen             string        `json:"listen"`
 	HTTPS              bool          `json:"https"`
@@ -266,10 +230,10 @@ func newDefaultConfigFile(path string) error {
 	_, err := os.Stat(secRing)
 	switch {
 	case err == nil:
-		keyId, err = keyIdFromRing(secRing)
+		keyId, err = jsonsign.KeyIdFromRing(secRing)
 		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
 	case os.IsNotExist(err):
-		keyId, err = generateNewSecRing(secRing)
+		keyId, err = jsonsign.GenerateNewSecRing(secRing)
 		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
 	}
 	if err != nil {
