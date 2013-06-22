@@ -107,31 +107,17 @@ func newUploader() *Uploader {
 		cc.SetLogger(nil)
 	}
 
-	var transport http.RoundTripper
 	proxy := http.ProxyFromEnvironment
 	if flagProxyLocal {
 		proxy = proxyFromEnvironment
 	}
-	tlsConfig, err := cc.TLSConfig()
-	if err != nil {
-		log.Fatalf("Error while configuring TLS for client: %v", err)
-	}
-	transport = &http.Transport{
-		Dial:            cc.DialFunc(),
-		TLSClientConfig: tlsConfig,
-		Proxy:           proxy,
-	}
-
-	httpStats := &httputil.StatsTransport{
-		VerboseLog: *flagHTTP,
-		Transport:  transport,
-	}
-	transport = httpStats
-
-	if client.AndroidOutput() {
-		transport = client.AndroidStatsTransport{transport}
-	}
-	cc.SetHTTPClient(&http.Client{Transport: transport})
+	tr := cc.TransportForConfig(
+		&client.TransportConfig{
+			Proxy:   proxy,
+			Verbose: *flagHTTP,
+		})
+	httpStats, _ := tr.(*httputil.StatsTransport)
+	cc.SetHTTPClient(&http.Client{Transport: tr})
 
 	pwd, err := os.Getwd()
 	if err != nil {

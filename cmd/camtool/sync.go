@@ -160,6 +160,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		return disk, nil
 	}
 	cl := client.New(val)
+	// TODO(mpl): probably needs the transport setup for trusted certs here.
 	cl.SetupAuth()
 	cl.SetLogger(c.logger)
 	return noHub{cl}, nil
