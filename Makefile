@@ -1,19 +1,14 @@
-# On OS X with "brew install sqlite3", you need PKG_CONFIG_PATH=/usr/local/Cellar/sqlite/3.7.17/lib/pkgconfig/
-
-# TODO(bradfitz): rename "all" to "raw" and "newall" to "all", once
-# make.go is finished.  Then this text will remain and be accurate:
-#
-# The "raw" target is the old "all" way, using the "go" command
-# directly. Assumes that the camlistore root is in
-# $GOPATH/src/camlistore.org.
-#
-# The new "all" way (above) doesn't care where the directory is
-# checked out, or whether you even have a GOPATH at all.
+# The normal way to build Camlistore is just "go run make.go", which
+# works everywhere, even on systems without Make.  The rest of this
+# Makefile is mostly historical and should hopefully disappear over
+# time.
 all:
+	go run make.go
+
+# On OS X with "brew install sqlite3", you need PKG_CONFIG_PATH=/usr/local/Cellar/sqlite/3.7.17/lib/pkgconfig/
+full:
 	go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`./misc/gitversion` `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` ./pkg/... ./server/... ./cmd/... ./third_party/...
 
-newall:
-	go run make.go
 
 # Workaround Go bug where the $GOPATH/pkg cache doesn't know about tag changes.
 # Useful when you accidentally run "make" and then "make presubmit" doesn't work.
