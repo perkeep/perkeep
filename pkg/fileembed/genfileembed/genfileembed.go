@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/rollsum"
 )
@@ -77,19 +78,32 @@ func main() {
 		flag.Usage()
 	}
 
-	pkgName, filePattern, err := parseFileEmbed()
+	pkgName, filePattern, fileEmbedModTime, err := parseFileEmbed()
 	if err != nil {
 		log.Fatalf("Error parsing %s/fileembed.go: %v", dir, err)
 	}
 
 	for _, fileName := range matchingFiles(filePattern) {
-		embedName := "zembed_" + fileName + ".go"
 		fi, err := os.Stat(fileName)
 		if err != nil {
 			log.Fatal(err)
 		}
-		efi, err := os.Stat(embedName)
-		if err == nil && !efi.ModTime().Before(fi.ModTime()) && !*processAll {
+
+		embedName := "zembed_" + fileName + ".go"
+		zfi, zerr := os.Stat(embedName)
+		genFile := func() bool {
+			if *processAll || zerr != nil {
+				return true
+			}
+			if zfi.ModTime().Before(fi.ModTime()) {
+				return true
+			}
+			if zfi.ModTime().Before(fileEmbedModTime) {
+				return true
+			}
+			return false
+		}
+		if !genFile() {
 			continue
 		}
 		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
@@ -235,12 +249,18 @@ func matchingFiles(p *regexp.Regexp) []string {
 	return f
 }
 
-func parseFileEmbed() (pkgName string, filePattern *regexp.Regexp, err error) {
+func parseFileEmbed() (pkgName string, filePattern *regexp.Regexp, modTime time.Time, err error) {
 	fe, err := os.Open("fileembed.go")
 	if err != nil {
 		return
 	}
 	defer fe.Close()
+
+	fi, err := fe.Stat()
+	if err != nil {
+		return
+	}
+	modTime = fi.ModTime()
 
 	fs := token.NewFileSet()
 	astf, err := parser.ParseFile(fs, "fileembed.go", fe, parser.PackageClauseOnly|parser.ParseComments)
