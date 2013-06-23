@@ -17,8 +17,12 @@ limitations under the License.
 package sqlite
 
 import (
+	"bytes"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -49,9 +53,19 @@ func IsWALCapable() bool {
 		log.Printf("Could not find pkg-config to check sqlite3 lib version: %v", err)
 		return false
 	}
-	out, err := exec.Command(cmdPath, "--modversion", "sqlite3").Output()
+	var stderr bytes.Buffer
+	cmd := exec.Command(cmdPath, "--modversion", "sqlite3")
+	cmd.Stderr = &stderr
+	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
+		matches, err := filepath.Glob("/usr/local/Cellar/sqlite/*/lib/pkgconfig/sqlite3.pc")
+		if err == nil && len(matches) > 0 {
+			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH="+filepath.Dir(matches[0]))
+		}
+	}
+
+	out, err := cmd.Output()
 	if err != nil {
-		log.Printf("Could not check sqlite3 version: %v\n", err)
+		log.Printf("Could not check sqlite3 version: %v\n", stderr.String())
 		return false
 	}
 	version := strings.TrimRight(string(out), "\n")

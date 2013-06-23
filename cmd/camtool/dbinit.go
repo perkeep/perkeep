@@ -197,8 +197,8 @@ func dbExists(db *sql.DB, dbtype, dbname string) bool {
 	case "sqlite":
 		// There is no point in using sql.Open because it apparently does
 		// not return an error when the file does not exist.
-		_, err := os.Stat(dbname)
-		return err == nil
+		fi, err := os.Stat(dbname)
+		return err == nil && fi.Size() > 0
 	}
 	rows, err := db.Query(query)
 	check(err)

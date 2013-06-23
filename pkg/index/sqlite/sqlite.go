@@ -86,19 +86,25 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
+	fi, err := os.Stat(file)
+	if os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
+		return nil, fmt.Errorf(`You need to initialize your SQLite index database with: camtool dbinit --dbname=%s --dbtype=sqlite`, file)
+	}
 	isto, err := NewStorage(file)
 	if err != nil {
 		return nil, err
 	}
 	is := isto.(*storage)
+
+	version, err := is.SchemaVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error getting schema version (need to init database with 'camtool dbinit %s'?): %v", file, err)
+	}
+
 	if err := is.ping(); err != nil {
 		return nil, err
 	}
 
-	version, err := is.SchemaVersion()
-	if err != nil {
-		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
-	}
 	if version != requiredSchemaVersion {
 		if os.Getenv("CAMLI_ADVERTISED_PASSWORD") != "" {
 			// Good signal that we're using the dev-server script, so help out
