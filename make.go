@@ -96,8 +96,7 @@ func main() {
 		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
 		switch runtime.GOOS {
 		case "darwin":
-			// TODO: search for /usr/local/Cellar/sqlite/*/lib/pkgconfig for the user.
-			log.Printf("On OS X, run 'brew install sqlite3' and set PKG_CONFIG_PATH=/usr/local/Cellar/sqlite/3.7.17/lib/pkgconfig/")
+			log.Printf("On OS X, run 'brew install sqlite3' and 'brew install pkg-config'")
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
@@ -426,7 +425,15 @@ func haveSQLite() bool {
 	if err != nil {
 		log.Fatalf("No pkg-config found. Can't determine whether sqlite3 is available, and where.")
 	}
-	out, err := exec.Command("pkg-config", "--libs", "sqlite3").Output()
+	cmd := exec.Command("pkg-config", "--libs", "sqlite3")
+	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
+		matches, err := filepath.Glob("/usr/local/Cellar/sqlite/*/lib/pkgconfig/sqlite3.pc")
+		if err == nil && len(matches) > 0 {
+			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH=" + filepath.Dir(matches[0]))
+		}
+	}
+
+	out, err := cmd.Output()
 	if err != nil && err.Error() == "exit status 1" {
 		// This is sloppy (comparing against a string), but
 		// doing it correctly requires using multiple *.go
