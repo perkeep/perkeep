@@ -46,6 +46,7 @@ var (
 	wantSQLite     = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
+	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 )
 
 var (
@@ -149,15 +150,25 @@ func main() {
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
-	args := append(baseArgs,
+	buildAll := true
+	targs := []string{
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
 		"camlistore.org/server/camlistored",
-	)
-	switch runtime.GOOS {
-	case "linux", "darwin":
-		args = append(args, "camlistore.org/cmd/cammount")
+	}
+	if *targets != "" {
+		if t := strings.Split(*targets, ","); len(t) != 0 {
+			targs = t
+			buildAll = false
+		}
+	}
+	args := append(baseArgs, targs...)
+	if buildAll {
+		switch runtime.GOOS {
+		case "linux", "darwin":
+			args = append(args, "camlistore.org/cmd/cammount")
+		}
 	}
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
@@ -167,10 +178,14 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if *verbose {
-		log.Printf("Running go install of main binaries with args %s", args)
+		log.Printf("Running go install of main binaries with args %s", targs)
 	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building: %v", err)
+	}
+	if !buildAll {
+		log.Printf("Success. Binaries are in %s", binDir)
+		os.Exit(0)
 	}
 
 	// Now do another build, but including everything, just to make
@@ -429,7 +444,7 @@ func haveSQLite() bool {
 	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
 		matches, err := filepath.Glob("/usr/local/Cellar/sqlite/*/lib/pkgconfig/sqlite3.pc")
 		if err == nil && len(matches) > 0 {
-			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH=" + filepath.Dir(matches[0]))
+			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH="+filepath.Dir(matches[0]))
 		}
 	}
 
