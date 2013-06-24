@@ -1,6 +1,6 @@
 <h1>Sharing</h1>
 
-<p><b>TODO:</b> finish documenting this.</p>
+<p><b>TODO:</b> finish documenting this. In particular, add example with camget -shared.</p>
 
 <p>The basic summary is that you create
 a <a href="/docs/terms#claim">claim</a> that a user has access to
@@ -36,22 +36,28 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 
 <p>Note also that any errors you get from my private blob server always delay for at least 200 ms to mask timing attacks that could otherwise reveal the existence or non-existence of a blob on my private server.</p>
 
-<p>Now I want to share Hi.txt with you, so I create a share blob (e.g <tt><a href="/cmd/camput">camput</a> --share <blob></tt>).</p>
+<p>Note that in order to have all of the following working, your server needs to have a share handler, so you need to have the line</br>
+<b><code>"shareHandler"</code></b>: true,</br>
+in your server <a href="/docs/server-config">config</a>.</p>
 
-<p>I've created this, and its name is <tt>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</tt></p>
+<p>Now I want to share Hi.txt with you, so I create a share blob (e.g <tt><a href="/cmd/camput">camput</a> share --transitive sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</tt>).</p>
 
-<p>Note that you can fetch it without authentication, because my blobserver knows I have it and that it's a share blob that doesn't require auth (<tt>authType</tt> == "haveref" ... like "Share with others that have the link")</p>
+<p>I've created this, and its name is <tt>sha1-102758fb54521cb6540d256098e7c0f1625b33e3</tt></p>
+
+<p>Note that you can fetch it without authentication, because you're using the url prefix <code>/share/</code>, which delegates the task to the share handler, and because the share handler checks that it's a share blob that doesn't require auth (<tt>authType</tt> == "haveref" ... like "Share with others that have the link")</p>
 
 <p>Here's you getting the blob:</p>
 
-<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708">http://camlistore.org:3179/camli/sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</a>
+<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/share/sha1-102758fb54521cb6540d256098e7c0f1625b33e3">http://camlistore.org:3179/share/sha1-102758fb54521cb6540d256098e7c0f1625b33e3</a>
 {"camliVersion": 1,
   "authType": "haveref",
-  "camliSigner": "sha1-f019d17dd308eebbd49fd94536eb67214c2f0587",
-  "camliType": "share",
+  "camliSigner": "sha1-3bee195d0dada92a9d88e67f731124238e65a916",
+  "camliType": "claim",
+  "claimDate": "2013-06-24T14:17:02.791613849Z",
+  "claimType": "share",
   "target": "sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d",
   "transitive": true
-,"camliSig":"iQEcBAABAgAGBQJNQJGuAAoJEIUeCLJL7Fq1EuAIAL/nGoX8caGaANnam0bcIQT7C61wXMRW4qCCaFW+w67ys5z4ztfnTPKwL9ErzMF8Hd32Xe/bVcF6ZL38x/axqI7ehxN8lneKGQNoEdZDA9i752aAr0fkAba6eDehoOj9F4XxOzk3iVrq445jEXtu/+twamHV3UfRozWK1ZQb57dM+cRff47M/Y6VIBRSgW2BrABjuBs8G6PiKxycgh1mb+RL8f9KG+HB/yFuK37YJqZ0zU2OTRp6ELiOgTxbeg99koV9Duy4f4mQgxQgli46077Sv/ujzIeVbmdFL3OenGEzQnyKG0fhf8fa5WkED0XfH7zibAHLiSq3O7x11Q0406U==ANug"}</pre>
+,"camliSig":"wsBcBAABCAAQBQJRyFTeCRApy/NNAr6GZgAAKmgIAGbCCn1YPoZuqz+mcMaLN09J3rJYZPnjICp9at9UL7fFJ6izzDFLi6gq9ae/Kou51VRnuLYvRXGvqgZ9HCTTJiGaET8I6c3gBvQWMC/NOS/B9Y+CcZ5qEsz84Dk2D6zMIC9adQjN4yjtcsVtKYDVDQ5SCkCE6sOaUebGBS22TOhZMXPalIyzf2EPSiXdeEKtsMwg+sbd4EmpQHeE3XqzI8gbcsUX6VdCp6zU81Y71pNuYdmEVBPY5gVch2Xe1gJQICOatiAi4W/1nrTLB73sKEeulzRMbIDB4rgWooKKmnBPI1ZOTyg/fkKmfWfuJKSU0ySiPwVHn4aPFwCGrBRladE==KjfB"}</pre>
 
 <p>Note the "target" and "transitive".</p>
 
@@ -59,7 +65,7 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 
 <p>Here's the first hop to the metadata, in which we discover the blobRef of the bytes of the file (in this case, just one part is the whole file bytes...)  I already told you this earlier in the email, but assume you're just discovering this now.</p>
 
-<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708">http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d<b>?via=</b>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</a>
+<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/share/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3">http://camlistore.org:3179/share/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d<b>?via=</b>sha1-102758fb54521cb6540d256098e7c0f1625b33e3</a>
 {"camliVersion": 1,
   "camliType": "file",
   "contentParts": [
@@ -80,7 +86,7 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 
 <p>Now let's get the final bytes of the file:</p>
 
-<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25<b>?via=</b>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</a>
+<pre class='sty' style='overflow: auto'>$ curl <a href="http://camlistore.org:3179/share/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d">http://camlistore.org:3179/share/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25<b>?via=</b>sha1-102758fb54521cb6540d256098e7c0f1625b33e3,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</a>
 Hello, Camli!</pre>
 
 <p>That's it.</p>

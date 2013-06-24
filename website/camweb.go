@@ -42,19 +42,21 @@ const defaultAddr = ":31798" // default webserver address
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 
 var (
-	httpAddr            = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
-	httpsAddr           = flag.String("https", "", "HTTPS service address")
-	root                = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
-	gitwebScript        = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
-	gitwebFiles         = flag.String("gitwebfiles", "/usr/share/gitweb/static", "Path to gitweb's static files.")
-	logDir              = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
-	logStdout           = flag.Bool("logstdout", true, "Write to stdout?")
-	tlsCertFile         = flag.String("tlscert", "", "TLS cert file")
-	tlsKeyFile          = flag.String("tlskey", "", "TLS private key file")
-	gerritUser          = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
-	gerritHost          = flag.String("gerrithost", "", "Gerrit host, or empty.")
-	buildbotBackend     = flag.String("buildbot_backend", "", "Build bot status backend URL")
-	buildbotHost        = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
+	httpAddr        = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
+	httpsAddr       = flag.String("https", "", "HTTPS service address")
+	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
+	gitwebScript    = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
+	gitwebFiles     = flag.String("gitwebfiles", "/usr/share/gitweb/static", "Path to gitweb's static files.")
+	logDir          = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
+	logStdout       = flag.Bool("logstdout", true, "Write to stdout?")
+	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
+	tlsKeyFile      = flag.String("tlskey", "", "TLS private key file")
+	gerritUser      = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
+	gerritHost      = flag.String("gerrithost", "", "Gerrit host, or empty.")
+	buildbotBackend = flag.String("buildbot_backend", "", "Build bot status backend URL")
+	buildbotHost    = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
+	alsoRun         = flag.String("also_run", "", "Optional path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+
 	pageHtml, errorHtml *template.Template
 	packageHTML         *txttemplate.Template
 )
@@ -272,6 +274,25 @@ func fixupGitwebFiles() {
 	}
 }
 
+// runAsChild runs res as a child process and
+// does not wait for it to finish.
+func runAsChild(res string) {
+	cmdName, err := exec.LookPath(res)
+	if err != nil {
+		log.Fatalf("Could not find %v in $PATH: %v", res, err)
+	}
+	cmd := exec.Command(cmdName)
+	log.Printf("Running %v", res)
+	if err := cmd.Start(); err != nil {
+		log.Fatal("Program %v failed to start: %v", res, err)
+	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Fatalf("Program %s did not end successfully: %v", res, err)
+		}
+	}()
+}
+
 func main() {
 	flag.Parse()
 
@@ -350,6 +371,10 @@ func main() {
 	var handler http.Handler = &noWwwHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
 		handler = NewLoggingHandler(handler, *logDir, *logStdout)
+	}
+
+	if *alsoRun != "" {
+		runAsChild(*alsoRun)
 	}
 
 	errch := make(chan error)
