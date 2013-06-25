@@ -1,14 +1,21 @@
 { "_for-emacs": "-*- mode: js2;-*-",
-  "baseURL": ["_env", "http://camlistore.org:3179"],
-  "password": ["_env", "${CAMLI_PASSWORD}"],
+	"handlerConfig": true,
+	"baseURL": ["_env", "http://camlistore.org:3179"],
+	"https": false,
+	"auth": ["_env", "userpass:whatever:${CAMLI_PASSWORD}"],
 
-  "prefixes": {
-    "/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT}"]
-      }
-    }
-  }
+	"prefixes": {
+		"/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}"]
+			}
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/"
+			}
+		}
+	}
 }
-

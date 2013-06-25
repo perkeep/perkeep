@@ -1,0 +1,9 @@
+{"camliVersion": 1,
+  "authType": "haveref",
+  "camliSigner": "sha1-3bee195d0dada92a9d88e67f731124238e65a916",
+  "camliType": "claim",
+  "claimDate": "2013-06-24T14:17:02.791613849Z",
+  "claimType": "share",
+  "target": "sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d",
+  "transitive": true
+,"camliSig":"wsBcBAABCAAQBQJRyFTeCRApy/NNAr6GZgAAKmgIAGbCCn1YPoZuqz+mcMaLN09J3rJYZPnjICp9at9UL7fFJ6izzDFLi6gq9ae/Kou51VRnuLYvRXGvqgZ9HCTTJiGaET8I6c3gBvQWMC/NOS/B9Y+CcZ5qEsz84Dk2D6zMIC9adQjN4yjtcsVtKYDVDQ5SCkCE6sOaUebGBS22TOhZMXPalIyzf2EPSiXdeEKtsMwg+sbd4EmpQHeE3XqzI8gbcsUX6VdCp6zU81Y71pNuYdmEVBPY5gVch2Xe1gJQICOatiAi4W/1nrTLB73sKEeulzRMbIDB4rgWooKKmnBPI1ZOTyg/fkKmfWfuJKSU0ySiPwVHn4aPFwCGrBRladE==KjfB"}

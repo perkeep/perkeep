@@ -22,6 +22,7 @@ push @args, "--root=$Bin";
 push @args, "--logdir=$logdir";
 push @args, "--buildbot_host=build.camlistore.org";
 push @args, "--buildbot_backend=http://c1.danga.com:8080";
+push @args, "--also_run=$Bin/scripts/run-blobserver";
 if ($in_prod) {
     push @args, "--http=:8080";
     push @args, "--https=:4430";
