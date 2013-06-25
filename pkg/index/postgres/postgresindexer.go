@@ -27,7 +27,7 @@ import (
 	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
 
-	_ "camlistore.org/third_party/github.com/bmizerany/pq"
+	_ "camlistore.org/third_party/github.com/lib/pq"
 )
 
 type myIndexStorage struct {

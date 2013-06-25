@@ -29,7 +29,7 @@ import (
 	"camlistore.org/pkg/index/postgres"
 	"camlistore.org/pkg/test/testdep"
 
-	_ "camlistore.org/third_party/github.com/bmizerany/pq"
+	_ "camlistore.org/third_party/github.com/lib/pq"
 )
 
 var (
