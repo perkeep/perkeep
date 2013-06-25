@@ -39,6 +39,7 @@ type dbinitCmd struct {
 	host     string
 	dbName   string
 	dbType   string
+	sslMode  string // Postgres SSL mode configuration
 
 	wipe bool
 	keep bool
@@ -53,6 +54,7 @@ func init() {
 		flags.StringVar(&cmd.host, "host", "localhost", "host[:port]")
 		flags.StringVar(&cmd.dbName, "dbname", "", "Database to wipe or create. For sqlite, this is the db filename.")
 		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite.")
+		flags.StringVar(&cmd.sslMode, "sslmode", "require", "Configure SSL mode for postgres. Possible values: require, verify-full, disable.")
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
 		flags.BoolVar(&cmd.keep, "ignoreexists", false, "Do nothing if database already exists.")
@@ -100,7 +102,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	var err error
 	switch c.dbType {
 	case "postgres":
-		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", c.user, "postgres", c.host, c.password)
+		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
 		rootdb, err = sql.Open("postgres", conninfo)
 	case "mysql":
 		rootdb, err = sql.Open("mymysql", "mysql/"+c.user+"/"+c.password)
@@ -134,7 +136,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	var db *sql.DB
 	switch c.dbType {
 	case "postgres":
-		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", c.user, dbname, c.host, c.password)
+		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, dbname, c.host, c.password, c.sslMode)
 		db, err = sql.Open("postgres", conninfo)
 	case "sqlite":
 		db, err = sql.Open("sqlite3", dbname)

@@ -55,11 +55,11 @@ func checkDB() {
 func closeAllSessions(dbname string) {
 	query := `
 SELECT
-    pg_terminate_backend(procpid)
+    pg_terminate_backend(pg_stat_activity.pid)
 FROM
     pg_stat_activity
 WHERE
-    procpid <> pg_backend_pid()
+    pg_stat_activity.pid <> pg_backend_pid()
     AND datname = '` + dbname + `'`
 	doQuery(rootdb, query)
 }
@@ -71,7 +71,7 @@ func makeIndex() *index.Index {
 	do(rootdb, "CREATE DATABASE "+dbname)
 	var err error
 
-	testdb, err = sql.Open("postgres", "user=postgres password=postgres host=localhost ssl=require dbname="+dbname)
+	testdb, err = sql.Open("postgres", "user=postgres password=postgres host=localhost sslmode=require dbname="+dbname)
 	if err != nil {
 		panic("opening test database: " + err.Error())
 	}
@@ -83,7 +83,7 @@ func makeIndex() *index.Index {
 	}
 
 	doQuery(testdb, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
-	s, err := postgres.NewStorage("localhost", "postgres", "postgres", dbname)
+	s, err := postgres.NewStorage("localhost", "postgres", "postgres", dbname, "require")
 	if err != nil {
 		panic(err)
 	}

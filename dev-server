@@ -121,7 +121,7 @@ if ($opt_memory) {
     $ENV{"CAMLI_INDEXER_PATH"} = "/index-postgres/";
     system($camtool->(),
            "dbinit",
-           "-postgres",
+           "-dbtype=postgres",
            "-user=postgres",
            "-password=postgres",
            "-host=localhost",

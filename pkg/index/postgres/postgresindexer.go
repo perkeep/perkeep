@@ -72,8 +72,8 @@ var replacePlaceHolders = func(query string) string {
 
 // NewStorage returns an index.Storage implementation of the described PostgreSQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (index.Storage, error) {
-	conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=require", user, dbname, host, password)
+func NewStorage(host, user, password, dbname, sslmode string) (index.Storage, error) {
+	conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", user, dbname, host, password, sslmode)
 	db, err := sql.Open("postgres", conninfo)
 	if err != nil {
 		return nil, err
@@ -100,6 +100,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		user       = config.RequiredString("user")
 		password   = config.OptionalString("password", "")
 		database   = config.RequiredString("database")
+		sslmode    = config.OptionalString("sslmode", "require")
 	)
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -108,7 +109,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
-	isto, err := NewStorage(host, user, password, database)
+	isto, err := NewStorage(host, user, password, database, sslmode)
 	if err != nil {
 		return nil, err
 	}

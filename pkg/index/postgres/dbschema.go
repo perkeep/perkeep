@@ -37,7 +37,33 @@ func SQLCreateTables() []string {
 
 func SQLDefineReplace() []string {
 	return []string{
-		`CREATE LANGUAGE plpgsql`,
+		// The first 3 statements here are a work around that allows us to issue
+		// the "CREATE LANGUAGE plpsql;" statement only if the language doesn't
+		// already exist.
+		`CREATE OR REPLACE FUNCTION create_language_plpgsql() RETURNS INTEGER AS
+$$
+CREATE LANGUAGE plpgsql;
+SELECT 1;
+$$
+LANGUAGE SQL;`,
+
+		`SELECT CASE WHEN NOT
+(
+	SELECT  TRUE AS exists
+	FROM    pg_language
+	WHERE   lanname = 'plpgsql'
+	UNION
+	SELECT  FALSE AS exists
+	ORDER BY exists DESC
+	LIMIT 1
+)
+THEN
+    create_language_plpgsql()
+ELSE
+	0
+END AS plpgsql_created;`,
+
+		`DROP FUNCTION create_language_plpgsql();`,
 
 		`CREATE OR REPLACE FUNCTION replaceinto(key TEXT, value TEXT) RETURNS VOID AS
 $$
