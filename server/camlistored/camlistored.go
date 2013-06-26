@@ -405,6 +405,9 @@ func main() {
 	urlOpened := false
 	if config.UIPath != "" {
 		uiURL := ws.ListenURL() + config.UIPath
+		if baseURL != "" {
+			uiURL = baseURL + config.UIPath
+		}
 		log.Printf("UI available at %s", uiURL)
 		if runtime.GOOS == "windows" {
 			// Might be double-clicking an icon with no shell window?
