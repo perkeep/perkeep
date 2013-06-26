@@ -243,7 +243,7 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	return nil
 }
 
-func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
+func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m jsonconfig.Obj) {
 	m = make(jsonconfig.Obj)
 
 	haveIndex := params.indexerPath != ""
@@ -254,13 +254,17 @@ func genLowLevelPrefixes(params *configPrefixesParams) (m jsonconfig.Obj) {
 		pubKeyDest = "/bs-and-index/"
 	}
 
+	rootArgs := map[string]interface{}{
+		"stealth":    false,
+		"blobRoot":   root,
+		"statusRoot": "/status/",
+	}
+	if ownerName != "" {
+		rootArgs["ownerName"] = ownerName
+	}
 	m["/"] = map[string]interface{}{
-		"handler": "root",
-		"handlerArgs": map[string]interface{}{
-			"stealth":    false,
-			"blobRoot":   root,
-			"statusRoot": "/status/",
-		},
+		"handler":     "root",
+		"handlerArgs": rootArgs,
 	}
 	if haveIndex {
 		setMap(m, "/", "handlerArgs", "searchRoot", "/my-search/")
@@ -381,6 +385,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// sourceRoot + "/server/camlistored/ui" and the closure library at
 		// sourceRoot + "/third_party/closure/lib"
 		sourceRoot = conf.OptionalString("sourceRoot", "")
+
+		ownerName = conf.OptionalString("ownerName", "")
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -464,7 +470,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		shareHandler: shareHandler,
 	}
 
-	prefixes := genLowLevelPrefixes(prefixesParams)
+	prefixes := genLowLevelPrefixes(prefixesParams, ownerName)
 	var cacheDir string
 	if nolocaldisk {
 		// Whether camlistored is run from EC2 or not, we use

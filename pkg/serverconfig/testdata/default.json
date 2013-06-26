@@ -9,5 +9,6 @@
 	"s3": "key:secret:bucket",
 	"replicateTo": [],
 	"publish": {},
+        "ownerName": "Brad",
 	"shareHandler": true
 }
