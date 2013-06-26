@@ -175,8 +175,7 @@ camlistore.DebugPage.prototype.doVerify_ = function() {
 		return;
 	}
 	var signedta = goog.dom.getElement("signedjson");
-	var sObj = JSON.parse(signedta.value);
-	this.connection_.verify_(sObj,
+	this.connection_.verify_(signedta.value,
 		function(response) {
 			var text = "<pre>" + response + "</pre>";
 			goog.dom.getElement("verifyinfo").innerHTML = text;

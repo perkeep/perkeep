@@ -362,27 +362,24 @@ function(clearObj, success, opt_fail) {
 };
 
 /**
- * @param {Object} sObj Signed object.
+ * @param {Object} signed Signed JSON blob (string) to verify.
  * @param {Function} success Success callback.
  * @param {?Function} opt_fail Optional fail callback.
  * @private
  */
 camlistore.ServerConnection.prototype.verify_ =
-function(sObj, success, opt_fail) {
+function(signed, success, opt_fail) {
 	var sigConf = this.config_.signing;
 	if (!sigConf || !sigConf.publicKeyBlobRef) {
 		this.safeFail_(opt_fail)("Missing Camli.config.signing.publicKeyBlobRef");
 		return;
 	}
-
-    var clearText = JSON.stringify(sObj);
-
 	this.sendXhr_(
 		sigConf.verifyHandler,
 		goog.bind(this.handlePost_, this,
 			success, this.safeFail_(opt_fail)),
 		"POST",
-		"sjson=" + encodeURIComponent(clearText),
+		"sjson=" + encodeURIComponent(signed),
 		{"Content-Type": "application/x-www-form-urlencoded"}
 	);
 };
