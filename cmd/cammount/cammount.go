@@ -88,7 +88,6 @@ func main() {
 		cl = client.NewOrFail() // automatic from flags
 		cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 	}
-	// TODO(mpl): probably needs the transport setup for trusted certs here.
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)
 	if err != nil {
