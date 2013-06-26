@@ -114,6 +114,9 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		h, _ := ld.GetHandler(rootNode[0])
 		jsonSign := h.(*signhandler.Handler)
 		pn := blobref.Parse(rootNode[1])
+		if pn == nil {
+			return nil, fmt.Errorf("Invalid \"rootPermanode\" value; was expecting a blobRef, got %q.", rootNode[1])
+		}
 		if err := ph.setRootNode(jsonSign, pn); err != nil {
 			return nil, fmt.Errorf("error setting publish root permanode: %v", err)
 		}
