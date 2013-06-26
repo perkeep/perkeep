@@ -414,12 +414,7 @@ func main() {
 		}
 	}
 	if *flagConfigFile == "" && !urlOpened {
-		go func() {
-			err := osutil.OpenURL(ws.ListenURL())
-			if err != nil {
-				log.Printf("Failed to open %s in browser: %v", baseURL, err)
-			}
-		}()
+		go osutil.OpenURL(ws.ListenURL())
 	}
 
 	go ws.Serve()
