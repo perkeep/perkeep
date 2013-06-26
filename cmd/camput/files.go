@@ -604,7 +604,10 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		}
 	}
 
-	// TODO(mpl): test that none of these claims get uploaded if they've already been done
+	// The work for those planned permanodes (and the claims) is redone
+	// everytime we get here (i.e past the stat cache). However, they're
+	// caught by the have cache, so they won't be reuploaded for nothing
+	// at least.
 	if up.fileOpts.wantFilePermanode() {
 		if td, ok := fileContents.(*trackDigestReader); ok {
 			sum = td.Sum()
@@ -713,18 +716,21 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
 		fi:       fi,
 	}
 
+	withPermanode := up.fileOpts.wantFilePermanode()
 	if up.statCache != nil && !up.fileOpts.wantVivify() {
 		// Note: ignoring cache hits if wantVivify, otherwise
 		// a non-vivify put followed by a vivify one wouldn't
 		// end up doing the vivify.
-		if cachedRes, err := up.statCache.CachedPutResult(up.pwd, n.fullPath, n.fi); err == nil {
+		if cachedRes, err := up.statCache.CachedPutResult(
+			up.pwd, n.fullPath, n.fi, withPermanode); err == nil {
 			return cachedRes, nil
 		}
 	}
 
 	pr, err := up.uploadNode(n)
 	if err == nil && up.statCache != nil {
-		up.statCache.AddCachedPutResult(up.pwd, n.fullPath, n.fi, pr)
+		up.statCache.AddCachedPutResult(
+			up.pwd, n.fullPath, n.fi, pr, withPermanode)
 	}
 
 	return pr, err
@@ -949,6 +955,7 @@ func (t *TreeUpload) run() {
 
 	uploadsdonec := make(chan bool)
 	var upload chan<- *node
+	withPermanode := t.up.fileOpts.wantFilePermanode()
 	if t.DiskUsageMode {
 		upload = NewNodeWorker(1, func(n *node, ok bool) {
 			if !ok {
@@ -972,7 +979,8 @@ func (t *TreeUpload) run() {
 			}
 			n.SetPutResult(put, nil)
 			if c := t.up.statCache; c != nil && !n.fi.IsDir() {
-				c.AddCachedPutResult(t.up.pwd, n.fullPath, n.fi, put)
+				c.AddCachedPutResult(
+					t.up.pwd, n.fullPath, n.fi, put, withPermanode)
 			}
 			uploadedc <- n
 		})
@@ -991,7 +999,8 @@ func (t *TreeUpload) run() {
 			return
 		}
 		if !n.fi.IsDir() {
-			cachedRes, err := t.up.statCache.CachedPutResult(t.up.pwd, n.fullPath, n.fi)
+			cachedRes, err := t.up.statCache.CachedPutResult(
+				t.up.pwd, n.fullPath, n.fi, withPermanode)
 			if err == nil {
 				n.SetPutResult(cachedRes, nil)
 				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
