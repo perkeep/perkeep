@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -81,9 +82,11 @@ func main() {
 			if root == nil {
 				log.Fatalf("Error parsing root blobref: %q\n", rootArg)
 			}
+			cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 		}
 	} else {
 		cl = client.NewOrFail() // automatic from flags
+		cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 	}
 	// TODO(mpl): probably needs the transport setup for trusted certs here.
 
