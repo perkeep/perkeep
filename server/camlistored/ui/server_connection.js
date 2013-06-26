@@ -342,7 +342,14 @@ function(clearObj, success, opt_fail) {
 	}
 
     clearObj.camliSigner = sigConf.publicKeyBlobRef;
-    clearText = JSON.stringify(clearObj);
+    var camVersion = clearObj.camliVersion;
+    if (camVersion) {
+       delete clearObj.camliVersion;
+    }
+    var clearText = JSON.stringify(clearObj, null, "  ");
+    if (camVersion) {
+       clearText = "{\"camliVersion\":" + camVersion + ",\n" + clearText.substr("{\n".length);
+    }
 
 	this.sendXhr_(
 		sigConf.signHandler,
