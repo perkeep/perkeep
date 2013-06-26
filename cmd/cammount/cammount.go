@@ -85,6 +85,7 @@ func main() {
 	} else {
 		cl = client.NewOrFail() // automatic from flags
 	}
+	// TODO(mpl): probably needs the transport setup for trusted certs here.
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)
 	if err != nil {

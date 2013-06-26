@@ -35,6 +35,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -120,6 +121,49 @@ func NewOrFail() *Client {
 	return c
 }
 
+// TransportConfig contains options for SetupTransport.
+type TransportConfig struct {
+	// Proxy optionally specifies the Proxy for the transport. Useful with
+	// camput for debugging even localhost requests.
+	Proxy   func(*http.Request) (*url.URL, error)
+	Verbose bool // Verbose enables verbose logging of HTTP requests.
+}
+
+// TransportForConfig returns a transport for the client, setting the correct
+// Proxy, Dial, and TLSClientConfig if needed. It does not mutate c.
+// It is the caller's responsibility to then use that transport to set
+// the client's httpClient with SetHTTPClient.
+func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
+	if c == nil {
+		return nil
+	}
+	tlsConfig, err := c.TLSConfig()
+	if err != nil {
+		log.Fatalf("Error while configuring TLS for client: %v", err)
+	}
+	var transport http.RoundTripper
+	proxy := http.ProxyFromEnvironment
+	if tc != nil && tc.Proxy != nil {
+		proxy = tc.Proxy
+	}
+	transport = &http.Transport{
+		Dial:            c.DialFunc(),
+		TLSClientConfig: tlsConfig,
+		Proxy:           proxy,
+	}
+	httpStats := &httputil.StatsTransport{
+		Transport: transport,
+	}
+	if tc != nil {
+		httpStats.VerboseLog = tc.Verbose
+	}
+	transport = httpStats
+	if AndroidOutput() {
+		transport = &AndroidStatsTransport{transport}
+	}
+	return transport
+}
+
 var shareURLRx = regexp.MustCompile(`^(.+)/(` + blobref.Pattern + ")$")
 
 func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, err error) {
@@ -139,7 +183,10 @@ func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, 
 	c.via = make(map[string]string)
 	root = m[2]
 
-	res, err := http.Get(shareBlobURL)
+	c.SetHTTPClient(&http.Client{Transport: c.TransportForConfig(nil)})
+
+	req := c.newRequest("GET", shareBlobURL, nil)
+	res, err := c.doReqGated(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
 	}

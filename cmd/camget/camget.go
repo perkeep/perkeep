@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -89,18 +88,11 @@ func main() {
 		}
 	}
 
-	httpStats := &httputil.StatsTransport{
-		VerboseLog: *flagHTTP,
-	}
-	if *flagHTTP {
-		httpStats.Transport = &http.Transport{
-			Dial: func(net_, addr string) (net.Conn, error) {
-				log.Printf("Dialing %s", addr)
-				return net.Dial(net_, addr)
-			},
-		}
-	}
-	cl.SetHTTPClient(&http.Client{Transport: httpStats})
+	tr := cl.TransportForConfig(&client.TransportConfig{
+		Verbose: *flagHTTP,
+	})
+	httpStats, _ := tr.(*httputil.StatsTransport)
+	cl.SetHTTPClient(&http.Client{Transport: tr})
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)
 	if err != nil {
