@@ -127,25 +127,25 @@ function(bmap) {
 				if (binfo.camliType == "file") {
 					// TODO(mpl): we can't get the thumnails url in a describe
 					// response because the server only gives it for a permanode.
-					//  That's why we do this messy business here. Fix it server side.
-					try {
-						finfo = JSON.parse(data);
-						bd.innerHTML = "<a href=''></a>";
-						var fileName = finfo.fileName || blobref;
-						bd.firstChild.href = "./download/" + blobref + "/" + fileName;
-						if (binfo.file.mimeType.indexOf("image/") == 0) {
-							var thumbURL = "<img src='./thumbnail/" + blobref + "/" +
-								fileName + "?mw=" + this.thumbnailSize_ +
-								"&mh=" + this.thumbnailSize_ + "'>";
-							goog.dom.getElement("thumbnail").innerHTML = thumbURL;
-						} else {
-							goog.dom.getElement("thumbnail").innerHTML = "";
-						}
-						goog.dom.setTextContent(bd.firstChild, fileName);
-						bd.innerHTML = "download: " + bd.innerHTML;
-					} catch (x) {
-						// TOD(mpl): why?
+					// That's why we do this messy business here. Fix it server side.
+					finfo = JSON.parse(data);
+					bd.innerHTML = "<a href=''></a>";
+					var fileName = finfo.fileName || blobref;
+					bd.firstChild.href = "./download/" + blobref + "/" + fileName;
+					// If the mime type was not detected by magic pkg, we end up
+					// with an empty mimetype value in the indexer's fileinfo,
+					// hence no mimeType in the returned JSON.
+					if (!!binfo.file.mimeType &&
+						binfo.file.mimeType.indexOf("image/") == 0) {
+						var thumbURL = "<img src='./thumbnail/" + blobref + "/" +
+							fileName + "?mw=" + this.thumbnailSize_ +
+							"&mh=" + this.thumbnailSize_ + "'>";
+						goog.dom.getElement("thumbnail").innerHTML = thumbURL;
+					} else {
+						goog.dom.getElement("thumbnail").innerHTML = "";
 					}
+					goog.dom.setTextContent(bd.firstChild, fileName);
+					bd.innerHTML = "download: " + bd.innerHTML;
 				}
 			}, this),
 			alert
