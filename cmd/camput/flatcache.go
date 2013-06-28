@@ -136,21 +136,29 @@ var _ UploadCache = (*FlatStatCache)(nil)
 
 var errCacheMiss = errors.New("not in cache")
 
-// cacheKey returns the cleaned absolute path of joining pwd and filename.
-func cacheKey(pwd, filename string) string {
+// flatCacheKey returns the key used for a stat entry in the flat cache.
+// It is the cleaned absolute path of joining pwd and filename, to which
+// "|Perm" is appended if -filenodes is being used.
+func flatCacheKey(pwd, filename string, withPermanode bool) string {
+	var fullPath string
 	if filepath.IsAbs(filename) {
-		return filepath.Clean(filename)
+		fullPath = filepath.Clean(filename)
+	} else {
+		fullPath = filepath.Join(pwd, filename)
 	}
-	return filepath.Join(pwd, filename)
+	if withPermanode {
+		return fmt.Sprintf("%v|Perm", fullPath)
+	}
+	return fullPath
 }
 
-func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*client.PutResult, error) {
+func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, withPermanode bool) (*client.PutResult, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	fp := fileInfoToFingerprint(fi)
 
-	key := cacheKey(pwd, filename)
+	key := flatCacheKey(pwd, filename, withPermanode)
 	val, ok := c.m[key]
 	if !ok {
 		cachelog.Printf("cache MISS on %q: not in cache", key)
@@ -164,10 +172,10 @@ func (c *FlatStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*
 	return &pr, nil
 }
 
-func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult) {
+func (c *FlatStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult, withPermanode bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	key := cacheKey(pwd, filename)
+	key := flatCacheKey(pwd, filename, withPermanode)
 	val := fileInfoPutRes{fileInfoToFingerprint(fi), *pr}
 
 	cachelog.Printf("Adding to stat cache %q: %v", key, val)

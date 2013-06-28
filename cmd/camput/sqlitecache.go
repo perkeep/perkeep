@@ -177,8 +177,26 @@ func (c *SQLiteStatCache) startSQLiteChild() error {
 	return nil
 }
 
-func (c *SQLiteStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) (*client.PutResult, error) {
-	key := cacheKey(pwd, filename) + "|" + string(fileInfoToFingerprint(fi))
+// sqliteCacheKey returns the key used for a stat entry in the sqlite cache.
+// It is the cleaned absolute path of joining pwd and filename,
+// concatenated with a fingerprint based on the file's info. If
+// -filenodes is being used, the suffix "|Perm" is also appended.
+func sqliteCacheKey(pwd, filename string, fi os.FileInfo, withPermanode bool) string {
+	var fullPath string
+	if filepath.IsAbs(filename) {
+		fullPath = filepath.Clean(filename)
+	} else {
+		fullPath = filepath.Join(pwd, filename)
+	}
+	key := fmt.Sprintf("%v|%v", fullPath, string(fileInfoToFingerprint(fi)))
+	if withPermanode {
+		return fmt.Sprintf("%v|Perm", key)
+	}
+	return key
+}
+
+func (c *SQLiteStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, withPermanode bool) (*client.PutResult, error) {
+	key := sqliteCacheKey(pwd, filename, fi, withPermanode)
 	query := fmt.Sprintf("%v'%v';\n", statKeyQuery, key)
 	c.mu.Lock()
 	err := c.startSQLiteChild()
@@ -221,8 +239,8 @@ func (c *SQLiteStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo) 
 	}, nil
 }
 
-func (c *SQLiteStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult) {
-	key := cacheKey(pwd, filename) + "|" + string(fileInfoToFingerprint(fi))
+func (c *SQLiteStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult, withPermanode bool) {
+	key := sqliteCacheKey(pwd, filename, fi, withPermanode)
 	val := pr.BlobRef.String() + "|" + strconv.FormatInt(pr.Size, 10)
 	repl := strings.NewReplacer("?1", key, "?2", val)
 	query := repl.Replace(noteStatStmt)
