@@ -188,6 +188,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	return ui, nil
 }
 
+func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
+	return makeClosureHandler(root, "ui")
+}
+
 // makeClosureHandler returns a handler to serve Closure files.
 // root is either:
 // 1) empty: use the Closure files compiled in to the binary (if
@@ -195,26 +199,26 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 // 2) a URL prefix: base of Camlistore to get Closure to redirect to
 // 3) a path on disk to the root of camlistore's source (which
 //    contains the necessary subset of Closure files)
-func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
+func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 	// dev-server environment variable takes precendence:
 	if d := os.Getenv("CAMLI_DEV_CLOSURE_DIR"); d != "" {
-		log.Printf("ui: serving Closure from dev-server's $CAMLI_DEV_CLOSURE_DIR: %v", d)
+		log.Printf("%v: serving Closure from dev-server's $CAMLI_DEV_CLOSURE_DIR: %v", handlerName, d)
 		return http.FileServer(http.Dir(d)), nil
 	}
 	if root == "" {
 		fs, err := closurestatic.FileSystem()
 		if err == os.ErrNotExist {
-			log.Printf("ui: no configured setting or embedded resources; serving Closure via %v", closureBaseURL)
+			log.Printf("%v: no configured setting or embedded resources; serving Closure via %v", handlerName, closureBaseURL)
 			return closureBaseURL, nil
 		}
 		if err != nil {
 			return nil, fmt.Errorf("error loading embedded Closure zip file: %v", err)
 		}
-		log.Printf("ui: serving Closure from embedded resources")
+		log.Printf("%v: serving Closure from embedded resources", handlerName)
 		return http.FileServer(fs), nil
 	}
 	if strings.HasPrefix(root, "http") {
-		log.Printf("ui: serving Closure using redirects to %v", root)
+		log.Printf("%v: serving Closure using redirects to %v", handlerName, root)
 		return closureRedirector(root), nil
 	}
 	fi, err := os.Stat(root)
@@ -229,7 +233,7 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("directory doesn't contain closure/goog/base.js; wrong directory?")
 	}
-	log.Printf("ui: serving Closure from disk: %v", closureRoot)
+	log.Printf("%v: serving Closure from disk: %v", handlerName, closureRoot)
 	return http.FileServer(http.Dir(closureRoot)), nil
 }
 
