@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
+	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
@@ -56,8 +57,17 @@ type PublishHandler struct {
 
 	JSFiles, CSSFiles []string
 
-	handlerFinder  blobserver.FindHandlerByTyper
-	staticHandler  http.Handler
+	handlerFinder blobserver.FindHandlerByTyper
+
+	// sourceRoot optionally specifies the path to root of Camlistore's
+	// source. If empty, the UI files must be compiled in to the
+	// binary (with go run make.go).  This comes from the "sourceRoot"
+	// publish handler config option.
+	sourceRoot string
+
+	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
+
+	// closureHandler serves the Closure JS files.
 	closureHandler http.Handler
 }
 
@@ -78,6 +88,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	scType := conf.OptionalString("scaledImage", "")
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	rootNode := conf.OptionalList("rootPermanode")
+	ph.sourceRoot = conf.OptionalString("sourceRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -148,18 +159,30 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		}
 	}
 
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		error := "Package camlistore.org not found in $GOPATH (or $GOPATH not defined)." +
-			" Needed to find closure dir."
-		return nil, fmt.Errorf(error)
+	if ph.sourceRoot == "" {
+		ph.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
 	}
-	closureDir := filepath.Join(camliRootPath, "tmp", "closure-lib", "closure")
-	ph.closureHandler = http.FileServer(http.Dir(closureDir))
+	if ph.sourceRoot != "" {
+		ph.uiDir = filepath.Join(ph.sourceRoot, filepath.FromSlash("server/camlistored/ui"))
+		// Ignore any fileembed files:
+		Files = &fileembed.Files{
+			DirFallback: filepath.Join(ph.sourceRoot, filepath.FromSlash("pkg/server")),
+		}
+		uistatic.Files = &fileembed.Files{
+			DirFallback: ph.uiDir,
+		}
+	}
 
-	ph.staticHandler = http.FileServer(uistatic.Files)
+	ph.closureHandler, err = ph.makeClosureHandler(ph.sourceRoot)
+	if err != nil {
+		return nil, fmt.Errorf(`Invalid "sourceRoot" value of %q: %v"`, ph.sourceRoot, err)
+	}
 
 	return ph, nil
+}
+
+func (ph *PublishHandler) makeClosureHandler(root string) (http.Handler, error) {
+	return makeClosureHandler(root, "publish")
 }
 
 func (ph *PublishHandler) rootPermanode() (*blobref.BlobRef, error) {
@@ -384,25 +407,26 @@ func (pr *publishRequest) serveHTTP() {
 		pr.serveSubresImage()
 	case "s": // static
 		pr.req.URL.Path = pr.subres[len("/=s"):]
-		if len(pr.req.URL.Path) > 1 {
-			if m := closurePattern.FindStringSubmatch(pr.req.URL.Path[1:]); m != nil {
-				pr.req.URL.Path = "/" + m[1]
-				pr.ph.closureHandler.ServeHTTP(pr.rw, pr.req)
-				return
-			}
+		if len(pr.req.URL.Path) <= 1 {
+			http.Error(pr.rw, "Illegal URL.", http.StatusNotFound)
+			return
+		}
+		file := pr.req.URL.Path[1:]
+		if m := closurePattern.FindStringSubmatch(file); m != nil {
+			pr.req.URL.Path = "/" + m[1]
+			pr.ph.closureHandler.ServeHTTP(pr.rw, pr.req)
+			return
 		}
 		// TODO: this assumes that deps.js either dev server, or that deps.js
 		// is embedded in the binary. We want to NOT embed deps.js, but also
 		// serve dynamic deps.js from other resources embedded in the server
 		// when not in dev-server mode.  So fix this later, when serveDepsJS
 		// can work over embedded resources.
-		if pr.req.URL.Path == "/deps.js" {
-			if dir := os.Getenv("CAMLI_DEV_CAMLI_ROOT"); dir != "" {
-				serveDepsJS(pr.rw, pr.req, dir+"/server/camlistored/ui")
-				return
-			}
+		if file == "deps.js" && pr.ph.sourceRoot != "" {
+			serveDepsJS(pr.rw, pr.req, pr.ph.uiDir)
+			return
 		}
-		pr.ph.staticHandler.ServeHTTP(pr.rw, pr.req)
+		serveStaticFile(pr.rw, pr.req, uistatic.Files, file)
 	default:
 		pr.rw.WriteHeader(400)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")

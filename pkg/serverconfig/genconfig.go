@@ -46,7 +46,9 @@ type configPrefixesParams struct {
 
 var tempDir = os.TempDir
 
-func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]interface{}, error) {
+func addPublishedConfig(prefixes jsonconfig.Obj,
+	published jsonconfig.Obj,
+	sourceRoot string) ([]interface{}, error) {
 	pubPrefixes := []interface{}{}
 	for k, v := range published {
 		p, ok := v.(map[string]interface{})
@@ -82,6 +84,9 @@ func addPublishedConfig(prefixes jsonconfig.Obj, published jsonconfig.Obj) ([]in
 			"searchRoot":    "/my-search/",
 			"cache":         "/cache/",
 			"rootPermanode": []interface{}{"/sighelper/", rootPermanode},
+		}
+		if sourceRoot != "" {
+			handlerArgs["sourceRoot"] = sourceRoot
 		}
 		switch template {
 		case "gallery":
@@ -384,6 +389,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// If non empty, the ui files will be expected at
 		// sourceRoot + "/server/camlistored/ui" and the closure library at
 		// sourceRoot + "/third_party/closure/lib"
+		// Also used by the publish handler.
 		sourceRoot = conf.OptionalString("sourceRoot", "")
 
 		ownerName = conf.OptionalString("ownerName", "")
@@ -490,7 +496,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		if !runIndex {
 			return nil, fmt.Errorf("publishing requires an index")
 		}
-		published, err = addPublishedConfig(prefixes, publish)
+		published, err = addPublishedConfig(prefixes, publish, sourceRoot)
 		if err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
