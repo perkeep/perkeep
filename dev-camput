@@ -5,12 +5,6 @@ use FindBin qw($Bin);
 use Getopt::Long;
 require "$Bin/misc/devlib.pl";
 
-unless ($ENV{GOPATH}) {
-    $ENV{GOPATH} = "$Bin/gopath"
-}
-
-system("go", "install", "camlistore.org/cmd/camput") and die "failed to build camput";
-
 sub usage {
     die "Usage: dev-camput [--tls] -- camput_args";
 }

@@ -47,6 +47,8 @@ var (
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
+	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
+	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 )
 
 var (
@@ -67,9 +69,8 @@ func main() {
 		log.Fatalf("Failed to get current directory: %v", err)
 	}
 	verifyCamlistoreRoot(camRoot)
-	verifyGoVersion()
 
-	sql := haveSQLite()
+	sql := *wantSQLite && haveSQLite()
 
 	buildBaseDir := "build-gopath"
 	if !sql {
@@ -110,16 +111,26 @@ func main() {
 	goDirs := []string{"cmd", "pkg", "server/camlistored", "third_party"}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
+	var latestSrcMod time.Time
 	for _, dir := range goDirs {
 		oriPath := filepath.Join(camRoot, filepath.FromSlash(dir))
 		dstPath := buildSrcPath(dir)
-		if err := mirrorDir(oriPath, dstPath); err != nil {
+		if maxMod, err := mirrorDir(oriPath, dstPath); err != nil {
 			log.Fatalf("Error while mirroring %s to %s: %v", oriPath, dstPath, err)
+		} else {
+			if maxMod.After(latestSrcMod) {
+				latestSrcMod = maxMod
+			}
 		}
 	}
 
-	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
+	verifyGoVersion()
+
 	if *embedResources {
+		if *verbose {
+			log.Printf("Embedding resources...")
+		}
+		closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
 		closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("third_party/closure/lib"))
 		err := embedClosure(closureSrcDir, closureEmbed)
 		if err != nil {
@@ -175,37 +186,43 @@ func main() {
 		"GOPATH="+buildGoPath,
 		"GOBIN="+binDir,
 	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var output bytes.Buffer
+	if *quiet {
+		cmd.Stdout = &output
+		cmd.Stderr = &output
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	if *verbose {
 		log.Printf("Running go install of main binaries with args %s", targs)
 	}
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building: %v", err)
+		log.Fatalf("Error building: %v\n%s", err, output.String())
 	}
-	if !buildAll {
+
+	if buildAll {
+		// Now do another build, but including everything, just to make
+		// sure everything compiles. But if there are any binaries (package main) in here,
+		// put them in a junk GOBIN (the default location), rather than polluting
+		// the GOBIN that the user will look in.
+		cmd = exec.Command("go", append(baseArgs,
+			"camlistore.org/pkg/...",
+			"camlistore.org/server/...",
+			"camlistore.org/third_party/...",
+		)...)
+		cmd.Env = append(cleanGoEnv(), "GOPATH="+buildGoPath)
+		if *verbose {
+			log.Printf("Running full go install with args %s", args)
+		}
+		if err := cmd.Run(); err != nil {
+			log.Fatalf("Error building: %v", err)
+		}
+	}
+
+	if !*quiet {
 		log.Printf("Success. Binaries are in %s", binDir)
-		os.Exit(0)
 	}
-
-	// Now do another build, but including everything, just to make
-	// sure everything compiles. But if there are any binaries (package main) in here,
-	// put them in a junk GOBIN (the default location), rather than polluting
-	// the GOBIN that the user will look in.
-	cmd = exec.Command("go", append(baseArgs,
-		"camlistore.org/pkg/...",
-		"camlistore.org/server/...",
-		"camlistore.org/third_party/...",
-	)...)
-	cmd.Env = append(cleanGoEnv(), "GOPATH="+buildGoPath)
-	if *verbose {
-		log.Printf("Running full go install with args %s", args)
-	}
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building: %v", err)
-	}
-
-	log.Printf("Success. Binaries are in %s", binDir)
 }
 
 // cleanGoEnv returns a copy of the current environment with GOPATH and GOBIN removed.
@@ -338,8 +355,8 @@ func verifyGoVersion() {
 	}
 }
 
-func mirrorDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+func mirrorDir(src, dst string) (maxMod time.Time, err error) {
+	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -358,8 +375,12 @@ func mirrorDir(src, dst string) error {
 		if err != nil {
 			return fmt.Errorf("Failed to find Rel(%q, %q): %v", src, path, err)
 		}
+		if t := fi.ModTime(); t.After(maxMod) {
+			maxMod = t
+		}
 		return mirrorFile(path, filepath.Join(dst, suffix))
 	})
+	return
 }
 
 var wantDestFile = make(map[string]bool) // full dest filename => true
@@ -420,7 +441,9 @@ func deleteUnwantedOldMirrorFiles(dir string) {
 			return nil
 		}
 		if !wantDestFile[path] {
-			log.Printf("Deleting old file from temp build dir: %s", path)
+			if !*quiet {
+				log.Printf("Deleting old file from temp build dir: %s", path)
+			}
 			return os.Remove(path)
 		}
 		return nil
