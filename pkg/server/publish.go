@@ -517,12 +517,10 @@ func (pr *publishRequest) serveSubject() {
 			camliPage = camliClosurePage(pr.ph.JSFiles[0])
 		}
 
-		if camliPage != "" {
+		if camliPage != "" && pr.ViewerIsOwner() {
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
-			if pr.ViewerIsOwner() {
 				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
-			}
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
@@ -594,7 +592,7 @@ func (pr *publishRequest) serveSubject() {
 		pr.pf("</ul>\n")
 	}
 
-	if camliPage != "" {
+	if camliPage != "" && pr.ViewerIsOwner() {
 		pr.pf("<script>\n")
 		pr.pf("var page = new camlistore.%s(CAMLISTORE_CONFIG);\n", camliPage)
 		pr.pf("page.decorate(document.body);\n")
