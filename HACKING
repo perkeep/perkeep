@@ -22,15 +22,9 @@ $ git clone https://camlistore.org/r/p/camlistore
 (We use github for distribution and collaboration with some people,
 but the Gerrit git server & code review system is the main repo.)
 
-After cloning it, move the top-level directory to be named
-"camlistore.org" under your $GOPATH/src. (e.g. if your $GOPATH is
-$HOME, put the Camlistore git repo at $HOME/src/camlistore.org) This
-isn't required for normal users, but is assumed for people hacking on
-Camlistore.
-
 On Debian/Ubuntu, some deps to get started:
 
-$ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git make
+$ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
 
 Then we use the following scripts to run a hermetic, self-contained
 environment independent (with its own config files & storage space):
