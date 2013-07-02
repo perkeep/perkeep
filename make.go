@@ -461,6 +461,13 @@ func haveSQLite() bool {
 	}
 	_, err := exec.LookPath("pkg-config")
 	if err != nil {
+		if runtime.GOOS == "darwin" {
+			// OS X usually doesn't have pkg-config installed. Don't
+			// call Fatalf() so that the nicer error message in main()
+			// can be printed.
+			return false
+		}
+
 		log.Fatalf("No pkg-config found. Can't determine whether sqlite3 is available, and where.")
 	}
 	cmd := exec.Command("pkg-config", "--libs", "sqlite3")
