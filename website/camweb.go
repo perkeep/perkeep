@@ -282,6 +282,8 @@ func runAsChild(res string) {
 		log.Fatalf("Could not find %v in $PATH: %v", res, err)
 	}
 	cmd := exec.Command(cmdName)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	log.Printf("Running %v", res)
 	if err := cmd.Start(); err != nil {
 		log.Fatal("Program %v failed to start: %v", res, err)
