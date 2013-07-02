@@ -20,7 +20,8 @@ hack from a Camlistore release's zip file:
 $ git clone https://camlistore.org/r/p/camlistore
 
 (We use github for distribution and collaboration with some people,
-but the Gerrit git server & code review system is the main repo.)
+but the Gerrit git server & code review system is the main repo. See
+http://camlistore.org/docs/contributing for how to use them.)
 
 On Debian/Ubuntu, some deps to get started:
 
