@@ -41,6 +41,13 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
+// Compaction constants
+const (
+	// FullMetaBlobSize is the size at which we stop compacting
+	// a meta blob.
+	FullMetaBlobSize = 512 << 10
+)
+
 /*
 Dev notes:
 
@@ -75,6 +82,9 @@ type storage struct {
 	// 'meta'. The small metadata blobs are occasionally rolled up
 	// into bigger blobs with multiple blob descriptions.
 	meta blobserver.Storage
+
+	mu sync.Mutex
+	// TODO: all meta blobs sorted by their size
 }
 
 func (s *storage) randIV() []byte {

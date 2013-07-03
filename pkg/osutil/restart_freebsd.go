@@ -19,9 +19,6 @@ limitations under the License.
 package osutil
 
 import (
-	"errors"
-	"os"
-	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -35,7 +32,7 @@ func selfPathFreeBSD() (string, error) {
 
 	n := uintptr(0)
 	// get length
-	_, _, err := syscall.Syscall6(syscall.SYS__SYSCTL, uintptr(unsafe.Pointer(&mib[0])), 4, 0, uintptr(unsafe.Pointer(&n)), 0, 0)
+	_, _, err := syscall.Syscall6(syscall.SYS___SYSCTL, uintptr(unsafe.Pointer(&mib[0])), 4, 0, uintptr(unsafe.Pointer(&n)), 0, 0)
 	if err != 0 {
 		return "", err
 	}
@@ -43,7 +40,7 @@ func selfPathFreeBSD() (string, error) {
 		return "", nil
 	}
 	buf := make([]byte, n)
-	_, _, err = syscall.Syscall6(syscall.SYS__SYSCTL, uintptr(unsafe.Pointer(&mib[0])), 4, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&n)), 0, 0)
+	_, _, err = syscall.Syscall6(syscall.SYS___SYSCTL, uintptr(unsafe.Pointer(&mib[0])), 4, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&n)), 0, 0)
 	if err != 0 {
 		return "", err
 	}
