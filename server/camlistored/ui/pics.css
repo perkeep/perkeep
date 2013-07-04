@@ -63,8 +63,8 @@ li input {
   text-align: right;
 }
 
-a.pics-edit,
-a.pics-edit:hover {
+a.title-edit,
+a.title-edit:hover {
   font-size: 70%;
   color: #f00;
   margin-right: .5em;

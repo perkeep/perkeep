@@ -90,61 +90,61 @@ camlistore.GalleryPage.prototype.enterDocument = function() {
 		goog.dom.classes.add(el, 'camliadmin');
 
 		goog.array.forEach(children, function(li) {
-		var lichild = goog.dom.getFirstElementChild(li);
-		var titleSpan = goog.dom.getNextElementSibling(goog.dom.getFirstElementChild(lichild));
-		var editLink = goog.dom.createElement('a', {'href': '#'});
-		goog.dom.classes.add(editLink, 'hidden');
-		goog.dom.setTextContent(editLink, 'edit title');
+			var lichild = goog.dom.getFirstElementChild(li);
+			var titleSpan = goog.dom.getLastElementChild(lichild);
+			var editLink = goog.dom.createElement('a', {'href': '#'});
+			goog.dom.classes.add(editLink, 'hidden');
+			goog.dom.setTextContent(editLink, 'edit title');
 
-		var titleInput = goog.dom.createElement('input');
-		goog.dom.classes.add(titleInput, 'hidden');
+			var titleInput = goog.dom.createElement('input');
+			goog.dom.classes.add(titleInput, 'hidden');
 
-		goog.events.listen(editLink,
-			goog.events.EventType.CLICK,
-			function(e) {
-				goog.dom.classes.remove(titleSpan, 'visible');
-				goog.dom.classes.add(titleSpan, 'hidden');
-				goog.dom.classes.remove(titleInput, 'hidden');
-				goog.dom.classes.add(titleInput, 'visible');
-				titleInput.focus();
-				titleInput.select();
-				e.stopPropagation();
-				e.preventDefault();
-			},
-			false, this
-		);
-		goog.events.listen(li,
-			goog.events.EventType.MOUSEOVER,
+			goog.events.listen(editLink,
+				goog.events.EventType.CLICK,
 				function(e) {
-					goog.dom.classes.remove(editLink, 'hidden');
-					goog.dom.classes.add(editLink, 'pics-edit');
+					goog.dom.classes.remove(titleSpan, 'visible');
+					goog.dom.classes.add(titleSpan, 'hidden');
+					goog.dom.classes.remove(titleInput, 'hidden');
+					goog.dom.classes.add(titleInput, 'visible');
+					titleInput.focus();
+					titleInput.select();
+					e.stopPropagation();
+					e.preventDefault();
 				},
-				false, editLink
-		);
-		goog.events.listen(li,
-			goog.events.EventType.MOUSEOUT,
-				function(e) {
-					goog.dom.classes.remove(editLink, 'pics-edit');
-					goog.dom.classes.add(editLink, 'hidden');
-					goog.dom.classes.remove(titleInput, 'visible');
-					goog.dom.classes.add(titleInput, 'hidden');
-					goog.dom.classes.remove(titleSpan, 'hidden');
-					goog.dom.classes.add(titleSpan, 'visible');
-				},
-				false, editLink
-		);
-		goog.events.listen(titleInput,
-			goog.events.EventType.KEYPRESS,
-			goog.bind(function(e) {
-				if (e.keyCode == 13) {
-					this.saveImgTitle_(titleInput, titleSpan);
-				}
-			}, this),
-			false, this
-		);
-		goog.dom.insertChildAt(lichild, editLink, 1);
-		goog.dom.insertChildAt(li, titleInput, 1);
-		}, this
+				false, this
+			);
+			goog.events.listen(li,
+				goog.events.EventType.MOUSEOVER,
+					function(e) {
+						goog.dom.classes.remove(editLink, 'hidden');
+						goog.dom.classes.add(editLink, 'title-edit');
+					},
+					false, this
+			);
+			goog.events.listen(li,
+				goog.events.EventType.MOUSEOUT,
+					function(e) {
+						goog.dom.classes.remove(editLink, 'title-edit');
+						goog.dom.classes.add(editLink, 'hidden');
+						goog.dom.classes.remove(titleInput, 'visible');
+						goog.dom.classes.add(titleInput, 'hidden');
+						goog.dom.classes.remove(titleSpan, 'hidden');
+						goog.dom.classes.add(titleSpan, 'visible');
+					},
+					false, this
+			);
+			goog.events.listen(titleInput,
+				goog.events.EventType.KEYPRESS,
+				goog.bind(function(e) {
+					if (e.keyCode == 13) {
+						this.saveImgTitle_(titleInput, titleSpan);
+					}
+				}, this),
+				false, this
+			);
+			goog.dom.insertSiblingBefore(editLink, titleSpan);
+			goog.dom.insertChildAt(li, titleInput, 1);
+			}, this
 		)
 	}
 }
