@@ -265,10 +265,6 @@ func wantsUploadHelper(req *http.Request) bool {
 	return req.Method == "POST" && camliMode(req) == "uploadhelper"
 }
 
-func wantsRecentPermanodes(req *http.Request) bool {
-	return req.Method == "GET" && req.FormValue("mode") == "thumbnails"
-}
-
 func wantsPermanode(req *http.Request) bool {
 	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
 }
