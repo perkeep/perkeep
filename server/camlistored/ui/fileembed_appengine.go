@@ -32,5 +32,6 @@ func init() {
 		// restarting. In production, though, it's faster to just
 		// slurp it in.
 		SlurpToMemory: !appengine.IsDevAppServer(),
+		Listable:      true,
 	}
 }
