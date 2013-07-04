@@ -1,3 +1,5 @@
+// +build !freebsd
+
 /*
 Copyright 2012 Google Inc.
 
