@@ -195,10 +195,12 @@ func main() {
 		cmd.Stderr = os.Stderr
 	}
 	if *verbose {
+		// TODO(reviewer) should this be cmd.Args too? Providing the contents
+		// of baseArgs doesn't hurt when you're trying to debug.
 		log.Printf("Running go install of main binaries with args %s", targs)
 	}
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building: %v\n%s", err, output.String())
+		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
 	}
 
 	if buildAll {
@@ -212,11 +214,18 @@ func main() {
 			"camlistore.org/third_party/...",
 		)...)
 		cmd.Env = append(cleanGoEnv(), "GOPATH="+buildGoPath)
+		if *quiet {
+			cmd.Stdout = &output
+			cmd.Stderr = &output
+		} else {
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+		}
 		if *verbose {
-			log.Printf("Running full go install with args %s", args)
+			log.Printf("Running full go install with args %s", cmd.Args)
 		}
 		if err := cmd.Run(); err != nil {
-			log.Fatalf("Error building: %v", err)
+			log.Fatalf("Error building full install: %v\n%s", err, output.String())
 		}
 	}
 
