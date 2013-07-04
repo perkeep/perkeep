@@ -67,7 +67,7 @@ function(success, fail, e) {
 	}
 	if (error) {
 		if (fail) {
-			fail()
+			fail(xhr.getLastError())
 		} else {
 			// TODO(bslatkin): Add a default failure event handler to this class.
 			console.log('Failed XHR (text) in ServerConnection');
