@@ -49,6 +49,7 @@ var (
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
+	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 var (
@@ -69,6 +70,18 @@ func main() {
 		log.Fatalf("Failed to get current directory: %v", err)
 	}
 	verifyCamlistoreRoot(camRoot)
+
+	if runtime.GOOS != *buildOS {
+		if *wantSQLite {
+			log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
+		}
+		// TODO(bradfitz): we can fix this one, though, by
+		// building genfileembed with the GOOS of the host
+		// instead:
+		if *embedResources {
+			log.Fatalf("Due to a bug, can't currently cross-compile and also embed resources. For now, set --embed_static=false")
+		}
+	}
 
 	sql := *wantSQLite && haveSQLite()
 
@@ -176,7 +189,7 @@ func main() {
 	}
 	args := append(baseArgs, targs...)
 	if buildAll {
-		switch runtime.GOOS {
+		switch *buildOS {
 		case "linux", "darwin":
 			args = append(args, "camlistore.org/cmd/cammount")
 		}
@@ -195,9 +208,7 @@ func main() {
 		cmd.Stderr = os.Stderr
 	}
 	if *verbose {
-		// TODO(reviewer) should this be cmd.Args too? Providing the contents
-		// of baseArgs doesn't hurt when you're trying to debug.
-		log.Printf("Running go install of main binaries with args %s", targs)
+		log.Printf("Running go install of main binaries with args %s", cmd.Args)
 	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
@@ -241,6 +252,9 @@ func cleanGoEnv() (clean []string) {
 			continue
 		}
 		clean = append(clean, env)
+	}
+	if *buildOS != runtime.GOOS {
+		clean = append(clean, "GOOS="+*buildOS)
 	}
 	return
 }
