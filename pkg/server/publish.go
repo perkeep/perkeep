@@ -576,11 +576,15 @@ func (pr *publishRequest) serveSubject() {
 					thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
 				}
 			}
+			memberTitle := member.Title()
+			if memberTitle == "" {
+				memberTitle = member.BlobRef.DigestPrefix(10)
+			}
 			pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
 				member.DomID(),
 				pr.memberPath(member.BlobRef),
 				thumbnail,
-				html.EscapeString(member.Title()),
+				html.EscapeString(memberTitle),
 				des,
 				fileLink)
 		}
