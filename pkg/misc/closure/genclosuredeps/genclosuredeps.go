@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 
 	"camlistore.org/pkg/misc/closure"
@@ -42,7 +43,7 @@ func main() {
 	if len(args) != 1 {
 		usage()
 	}
-	b, err := closure.GenDeps(args[0])
+	b, err := closure.GenDeps(http.Dir(args[0]))
 	if err != nil {
 		log.Fatal(err)
 	}

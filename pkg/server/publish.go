@@ -417,12 +417,7 @@ func (pr *publishRequest) serveHTTP() {
 			pr.ph.closureHandler.ServeHTTP(pr.rw, pr.req)
 			return
 		}
-		// TODO: this assumes that deps.js either dev server, or that deps.js
-		// is embedded in the binary. We want to NOT embed deps.js, but also
-		// serve dynamic deps.js from other resources embedded in the server
-		// when not in dev-server mode.  So fix this later, when serveDepsJS
-		// can work over embedded resources.
-		if file == "deps.js" && pr.ph.sourceRoot != "" {
+		if file == "deps.js" {
 			serveDepsJS(pr.rw, pr.req, pr.ph.uiDir)
 			return
 		}
@@ -520,7 +515,7 @@ func (pr *publishRequest) serveSubject() {
 		if camliPage != "" && pr.ViewerIsOwner() {
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
-				pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
+			pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
 			pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))

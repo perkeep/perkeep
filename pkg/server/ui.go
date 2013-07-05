@@ -166,6 +166,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		}
 		uistatic.Files = &fileembed.Files{
 			DirFallback: ui.uiDir,
+			Listable:    true,
 		}
 	}
 
@@ -321,7 +322,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				return
 			}
 		}
-		if file == "deps.js" && ui.sourceRoot != "" {
+		if file == "deps.js" {
 			serveDepsJS(rw, req, ui.uiDir)
 			return
 		}
@@ -490,10 +491,14 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
 func serveDepsJS(rw http.ResponseWriter, req *http.Request, dir string) {
-	// TODO: closure.GenDeps should work from a VFS interface
-	// (http.FileSystem or lighter) so we can eliminate the
-	// Makefile genjsdeps hack and just always generate our own.
-	b, err := closure.GenDeps(dir)
+	var root http.FileSystem
+	if dir == "" {
+		root = uistatic.Files
+	} else {
+		root = http.Dir(dir)
+	}
+
+	b, err := closure.GenDeps(root)
 	if err != nil {
 		log.Print(err)
 		http.Error(rw, "Server error", 500)

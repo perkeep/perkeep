@@ -23,5 +23,7 @@ import (
 )
 
 func init() {
-	Files = &fileembed.Files{}
+	Files = &fileembed.Files{
+		Listable: true,
+	}
 }
