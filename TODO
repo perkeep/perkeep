@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- verify that the HTTP blob upload interface caps uploads at MaxBlobSize
+   before giving it to storage impls
+
 -- add sourceRoot to pkg/genconfig high-level config & the docs
 
 -- website: remove the "Installation" heading for /cmd/*, since
