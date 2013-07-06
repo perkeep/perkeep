@@ -25,8 +25,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -34,37 +34,44 @@ import (
 )
 
 // GenDeps returns the namespace dependencies between the
-// closure javascript files in dir.
+// closure javascript files in root. It does not descend
+// in directories.
 // The format for each relevant javascript file is:
 // goog.addDependency("filepath", ["namespace provided"], ["required namespace 1", "required namespace 2", ...]);
-func GenDeps(dir string) ([]byte, error) {
-	fi, err := os.Stat(dir)
+func GenDeps(root http.FileSystem) ([]byte, error) {
+	d, err := root.Open("/")
+	if err != nil {
+		return nil, fmt.Errorf("Failed to open root of %v: %v", root, err)
+	}
+	fi, err := d.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("%v not a dir", dir)
+		return nil, fmt.Errorf("root of %v is not a dir", root)
+	}
+	ent, err := d.Readdir(-1)
+	if err != nil {
+		return nil, fmt.Errorf("Could not read dir entries of root: %v", err)
 	}
 	var buf bytes.Buffer
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	for _, info := range ent {
+		name := info.Name()
+		if !strings.HasSuffix(name, ".js") {
+			continue
 		}
-		if !strings.HasSuffix(path, ".js") {
-			return nil
-		}
-		suffix := filepath.Base(path)
-		prov, req, err := parseProvidesRequires(info, path)
+		f, err := root.Open(name)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("Could not open %v: %v", name, err)
+		}
+		prov, req, err := parseProvidesRequires(info, name, f)
+		f.Close()
+		if err != nil {
+			return nil, fmt.Errorf("Could not parse deps for %v: %v", name, err)
 		}
 		if len(prov) > 0 {
-			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", "../../"+suffix, jsList(prov), jsList(req))
+			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", "../../"+name, jsList(prov), jsList(req))
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("Error walking %d while generating closure deps: %v", dir, err)
 	}
 	return buf.Bytes(), nil
 }
@@ -81,7 +88,7 @@ var (
 	depCache   = map[string]depCacheItem{}
 )
 
-func parseProvidesRequires(fi os.FileInfo, path string) (provides, requires []string, err error) {
+func parseProvidesRequires(fi os.FileInfo, path string, f io.Reader) (provides, requires []string, err error) {
 	mt := fi.ModTime()
 	depCacheMu.Lock()
 	defer depCacheMu.Unlock()
@@ -89,11 +96,6 @@ func parseProvidesRequires(fi os.FileInfo, path string) (provides, requires []st
 		return ci.provides, ci.requires, nil
 	}
 
-	f, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
 	br := bufio.NewReader(f)
 	for {
 		l, err := br.ReadString('\n')

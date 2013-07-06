@@ -9,3 +9,16 @@
 .cam-toolbar-magnify .goog-toolbar-button-inner-box {
   width: 20px;
 }
+
+/* copied from third_party/closure/lib/closure/goog/css/toolbar.css */
+.cam-toolbar {
+  background: #fafafa url(closure-toolbar-bg.png) repeat-x bottom left;
+  border-bottom: 1px solid #d5d5d5;
+  cursor: default;
+  font: normal 12px Arial, sans-serif;
+  margin: 0;
+  outline: none;
+  padding: 2px;
+  position: relative;
+  zoom: 1; /* The toolbar element must have layout on IE. */
+}

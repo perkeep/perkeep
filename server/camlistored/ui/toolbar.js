@@ -143,7 +143,7 @@ camlistore.Toolbar.prototype.createDom = function() {
  */
 camlistore.Toolbar.prototype.decorateInternal = function(el) {
   camlistore.Toolbar.superClass_.decorateInternal.call(this, el);
-
+  goog.dom.classes.add(this.getElement(), 'cam-toolbar');
   this.addChild(this.biggerButton_, true);
   this.addChild(this.smallerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
