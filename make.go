@@ -111,7 +111,7 @@ func main() {
 		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
 		switch runtime.GOOS {
 		case "darwin":
-			log.Printf("On OS X, run 'brew install sqlite3' and 'brew install pkg-config'")
+			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
