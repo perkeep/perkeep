@@ -24,7 +24,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blobserver/google"
+	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
@@ -55,7 +55,7 @@ func (c *gsinitCmd) RunCommand(args []string) error {
 	if clientId, clientSecret, err = getClientInfo(); err != nil {
 		return err
 	}
-	transport := google.MakeOauthTransport(clientId, clientSecret, "")
+	transport := googlestorage.MakeOauthTransport(clientId, clientSecret, "")
 
 	var accessCode string
 	if accessCode, err = getAccessCode(transport.Config); err != nil {
@@ -90,7 +90,7 @@ func prompt(promptText string) (string, error) {
 
 // Provide the authorization link, then prompt for the resulting access code
 func getAccessCode(config *oauth.Config) (string, error) {
-	fmt.Printf("In order to obtain a storage access code, you will need to naviage to the following URL:\n\n")
+	fmt.Printf("In order to obtain a storage access code, you will need to navigate to the following URL:\n\n")
 	fmt.Printf("https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=%s&response_type=code\n\n",
 		config.ClientId, config.Scope)
 	return prompt("Please enter the access code provided by that page:")

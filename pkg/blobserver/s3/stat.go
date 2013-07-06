@@ -17,7 +17,6 @@ limitations under the License.
 package s3
 
 import (
-	"log"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -27,7 +26,6 @@ func (sto *s3Storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobr
 	// TODO: do n stats in parallel
 	for _, br := range blobs {
 		size, err := sto.s3Client.Stat(br.String(), sto.bucket)
-		log.Printf("stat of %s: %d, %v", br.String(), size, err)
 		if err == nil {
 			dest <- blobref.SizedBlobRef{BlobRef: br, Size: size}
 		} else {

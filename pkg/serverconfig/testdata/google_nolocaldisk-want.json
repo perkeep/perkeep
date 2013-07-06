@@ -7,7 +7,6 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"ownerName": "Brad",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -75,16 +74,21 @@
 		},
 
 		"/bs/": {
-			"handler": "storage-filesystem",
+			"handler": "storage-google",
 			"handlerArgs": {
-				"path": "/tmp/blobs"
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"bucket": "bucketName"
 			}
 		},
 
 		"/cache/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
-				"path": "/tmp/blobs/cache"
+				"path": "/tmp/camli-cache"
 			}
 		},
 
@@ -101,45 +105,9 @@
 				"index": "/index-mem/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
 			}
-		},
-
-		"/sto-s3/": {
-			"handler": "storage-s3",
-			"handlerArgs": {
-				"aws_access_key": "key",
-				"aws_secret_access_key": "secret",
-				"bucket": "bucket"
-			}
-		},
-
-		"/sync-to-s3/": {
-			"handler": "sync",
-			"handlerArgs": {
-				"from": "/bs/",
-				"to": "/sto-s3/"
-			}
-		},
-
-		"/sto-google/": {
-			"handler": "storage-google",
-			"handlerArgs": {
-				"auth": {
-					"client_id": "clientId",
-					"client_secret": "clientSecret",
-					"refresh_token": "refreshToken"
-				},
-				"bucket": "bucketName"
-			}
-		},
-
-		"/sync-to-google/": {
-			"handler": "sync",
-			"handlerArgs": {
-				"from": "/bs/",
-				"to": "/sto-google/"
-			}
 		}
 
 	}
 
 }
+

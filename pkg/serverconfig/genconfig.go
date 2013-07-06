@@ -248,6 +248,61 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	return nil
 }
 
+func addGoogleConfig(prefixes jsonconfig.Obj, highCfg string) error {
+	f := strings.SplitN(highCfg, ":", 4)
+	if len(f) != 4 {
+		return errors.New(`genconfig: expected "google" field to be of form "client_id:client_secret:refresh_token:bucket"`)
+	}
+	clientId, secret, refreshToken, bucket := f[0], f[1], f[2], f[3]
+
+	isPrimary := false
+	if _, ok := prefixes["/bs/"]; !ok {
+		isPrimary = true
+	}
+
+	gsPrefix := ""
+	if isPrimary {
+		gsPrefix = "/bs/"
+	} else {
+		gsPrefix = "/sto-google/"
+	}
+
+	prefixes[gsPrefix] = map[string]interface{}{
+		"handler": "storage-google",
+		"handlerArgs": map[string]interface{}{
+			"bucket": bucket,
+			"auth": map[string]interface{}{
+				"client_id":     clientId,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+				// If high-level config is for the common user then fullSyncOnStart = true
+				// Then the default just works.
+				//"fullSyncOnStart": true,
+				//"blockingFullSyncOnStart": false
+			},
+		},
+	}
+
+	if isPrimary {
+		// TODO: cacheBucket like s3CacheBucket?
+		prefixes["/cache/"] = map[string]interface{}{
+			"handler": "storage-filesystem",
+			"handlerArgs": map[string]interface{}{
+				"path": filepath.Join(tempDir(), "camli-cache"),
+			},
+		}
+	} else {
+		prefixes["/sync-to-google/"] = map[string]interface{}{
+			"handler": "sync",
+			"handlerArgs": map[string]interface{}{
+				"from": "/bs/",
+				"to":   gsPrefix,
+			},
+		}
+	}
+	return nil
+}
+
 func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m jsonconfig.Obj) {
 	m = make(jsonconfig.Obj)
 
@@ -372,6 +427,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// Blob storage options
 		blobPath     = conf.OptionalString("blobPath", "")
 		s3           = conf.OptionalString("s3", "")           // "access_key_id:secret_access_key:bucket"
+		gstorage     = conf.OptionalString("google", "")     // "clientId:clientSecret:refreshToken:bucket"
 		shareHandler = conf.OptionalBool("shareHandler", true) // enable the share handler
 
 		// Index options
@@ -463,8 +519,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	nolocaldisk := blobPath == ""
-	if nolocaldisk && s3 == "" {
-		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 configured for a blobserver.")
+	if nolocaldisk && s3 == "" && gstorage == "" {
+		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or google configured for a blobserver.")
 	}
 
 	prefixesParams := &configPrefixesParams{
@@ -520,6 +576,11 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 	if s3 != "" {
 		if err := addS3Config(prefixes, s3); err != nil {
+			return nil, err
+		}
+	}
+	if gstorage != "" {
+		if err := addGoogleConfig(prefixes, gstorage); err != nil {
 			return nil, err
 		}
 	}

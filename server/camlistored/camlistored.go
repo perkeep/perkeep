@@ -53,6 +53,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/remote"
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/s3"
+	_ "camlistore.org/pkg/blobserver/google"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
 	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
