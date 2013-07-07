@@ -25,8 +25,9 @@ import (
 	"camlistore.org/pkg/blobref"
 )
 
-type NoImplStorage struct {
-}
+// NoImplStorage is an implementation of Storage that return a not
+// implemented error for all operations.
+type NoImplStorage struct{}
 
 var _ Storage = (*NoImplStorage)(nil)
 

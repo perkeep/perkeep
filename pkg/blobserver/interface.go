@@ -163,18 +163,20 @@ type Generationer interface {
 	ResetStorageGeneration() error
 }
 
+// Storage is the interface that must be implemented by a blobserver
+// storage type. (e.g. localdisk, s3, encrypt, shard, replica, remote)
 type Storage interface {
 	blobref.StreamingFetcher
 	BlobReceiver
 	BlobStatter
 	BlobEnumerator
 
-	// Remove 0 or more blobs.  Removal of non-existent items
-	// isn't an error.  Returns failure if any items existed but
-	// failed to be deleted.
+	// RemoveBlobs removes 0 or more blobs.  Removal of
+	// non-existent items isn't an error.  Returns failure if any
+	// items existed but failed to be deleted.
 	RemoveBlobs(blobs []*blobref.BlobRef) error
 
-	// Returns the blob notification bus
+	// GetBlobHub returns the blob notification bus.
 	GetBlobHub() BlobHub
 }
 

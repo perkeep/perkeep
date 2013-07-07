@@ -14,6 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package cond registers the "cond" conditional blobserver storage type
+to select routing of get/put operations on blobs to other storage
+targets as a function of their content.
+
+Currently only the "isSchema" predicate is defined.
+
+Example usage:
+
+  "/bs-and-maybe-also-index/": {
+	"handler": "storage-cond",
+	"handlerArgs": {
+		"write": {
+			"if": "isSchema",
+			"then": "/bs-and-index/",
+			"else": "/bs/"
+		},
+		"read": "/bs/"
+	}
+  }
+*/
 package cond
 
 import (

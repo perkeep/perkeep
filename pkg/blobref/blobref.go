@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package blobref provides the BlobRef type and associate types and parsers.
+// A blobref is the immutable reference to an individual blob.
 package blobref
 
 import (

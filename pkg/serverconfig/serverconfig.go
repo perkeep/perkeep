@@ -120,7 +120,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 		case "stat":
 			handler = handlers.CreateStatHandler(storage)
 		default:
-			handler = gethandler.CreateGetHandler(storage)
+			handler = gethandler.CreateGetHandler(storage).ServeHTTP
 			op = auth.OpGet
 		}
 	case "POST":

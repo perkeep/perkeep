@@ -3,3 +3,4 @@ Tests needed
 -cmd/camput/
 	-verify that stat caching works. verify that -filenodes does create the permanode even if the file was already uploaded (and cached) in a previous run.
 
+-- blobserver/cond has no tests.

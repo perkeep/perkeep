@@ -14,6 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package encrypt registers the "encrypt" blobserver storage type
+// which stores all blobs and metadata with AES encryption into other
+// wrapped storage targets (e.g. localdisk, s3, remote, google).
+//
+// An encrypt storage target is configured with two other storage targets:
+// one to hold encrypted blobs, and one to hold encrypted metadata about
+// the encrypted blobs. On start-up, all the metadata blobs are read
+// to discover the plaintext blobrefs.
+//
+// Encryption is currently always AES-128.  See code for metadata formats
+// and configuration details, which are currently subject to change.
+//
+// WARNING: work in progress as of 2013-07-13.
 package encrypt
 
 import (

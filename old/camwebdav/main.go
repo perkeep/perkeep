@@ -1,5 +1,11 @@
 // +build THIS_IS_BROKEN
 
+// The camwebdav binary is a WebDAV server to expose Camlistore as a
+// filesystem that can be mounted from Windows (or other operating
+// systems).
+//
+// It is currently broken and needs to be updated to use
+// camlistore.org/pkg/fs.
 package main
 
 import (

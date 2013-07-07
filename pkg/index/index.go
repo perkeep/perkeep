@@ -34,6 +34,9 @@ import (
 
 var ErrNotFound = errors.New("index: key not found")
 
+// Storage is the minimal interface that must be implemented by index
+// storage implementations. (e.g. mysql, postgres, mongo, sqlite,
+// leveldb, dynamo)
 type Storage interface {
 	// Get gets the value for the given key. It returns ErrNotFound if the DB
 	// does not contain the key.

@@ -14,25 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package atomics provides atomic types.
-package atomics
-
-import (
-	"sync/atomic"
-)
-
-type Bool struct {
-	v uint32 // 0 or 1, atomically
-}
-
-func (b *Bool) Get() bool {
-	return atomic.LoadUint32(&b.v) != 0
-}
-
-func (b *Bool) Set(v bool) {
-	if v {
-		atomic.StoreUint32(&b.v, 1)
-		return
-	}
-	atomic.StoreUint32(&b.v, 0)
-}
+// Package blobserver defines how raw blobs are stored and accessed.
+package blobserver

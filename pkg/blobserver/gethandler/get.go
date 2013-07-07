@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package gethandler implements the HTTP handler for fetching blobs.
 package gethandler
 
 import (
@@ -38,19 +39,18 @@ type Handler struct {
 	Fetcher blobref.StreamingFetcher
 }
 
-func CreateGetHandler(fetcher blobref.StreamingFetcher) func(http.ResponseWriter, *http.Request) {
-	gh := &Handler{Fetcher: fetcher}
-	return func(conn http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
-			// Test handler.
-			simulatePrematurelyClosedConnection(conn, req)
-			return
-		}
-		gh.ServeHTTP(conn, req)
-	}
+// CreateGetHandler returns an http Handler for serving blobs from fetcher.1
+func CreateGetHandler(fetcher blobref.StreamingFetcher) http.Handler {
+	return &Handler{Fetcher: fetcher}
 }
 
 func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
+	if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
+		// Test handler.
+		simulatePrematurelyClosedConnection(conn, req)
+		return
+	}
+
 	blobRef := blobFromUrlPath(req.URL.Path)
 	if blobRef == nil {
 		http.Error(conn, "Malformed GET URL.", 400)

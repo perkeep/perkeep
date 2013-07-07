@@ -69,7 +69,12 @@ type Loader interface {
 	GetRequestContext() (ctx *http.Request, ok bool)
 }
 
+// A StorageConstructor returns a Storage implementation from a Loader
+// environment and a configuration.
 type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, error)
+
+// A HandlerConstructor returns an http.Handler from a Loader
+// environment and a configuration.
 type HandlerConstructor func(Loader, jsonconfig.Obj) (http.Handler, error)
 
 var mapLock sync.Mutex
@@ -95,6 +100,10 @@ func CreateStorage(typ string, loader Loader, config jsonconfig.Obj) (Storage, e
 	return ctor(loader, config)
 }
 
+// RegisterHandlerConstructor registers an http Handler constructor function
+// for a given handler type.
+//
+// It is an error to register the same handler type twice.
 func RegisterHandlerConstructor(typ string, ctor HandlerConstructor) {
 	mapLock.Lock()
 	defer mapLock.Unlock()
@@ -104,6 +113,12 @@ func RegisterHandlerConstructor(typ string, ctor HandlerConstructor) {
 	handlerConstructors[typ] = ctor
 }
 
+// CreateHandler instantiates an http Handler of type 'typ' from the
+// provided JSON configuration, and finding peer handlers and
+// configuration from the environment in 'loader'.
+//
+// The handler 'typ' must have bee previously registered with
+// RegisterHandlerConstructor.
 func CreateHandler(typ string, loader Loader, config jsonconfig.Obj) (http.Handler, error) {
 	mapLock.Lock()
 	ctor, ok := handlerConstructors[typ]
