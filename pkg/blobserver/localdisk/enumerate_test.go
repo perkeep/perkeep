@@ -26,6 +26,7 @@ import (
 
 	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/test"
 )
 
 func TestEnumerate(t *testing.T) {
@@ -34,12 +35,12 @@ func TestEnumerate(t *testing.T) {
 
 	// For test simplicity foo, bar, and baz all have ascending
 	// sha1s and lengths.
-	foo := &testBlob{"foo"}   // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
-	bar := &testBlob{"baar"}  // b23361951dde70cb3eca44c0c674181673a129dc
-	baz := &testBlob{"bazzz"} // e0eb17003ce1c2812ca8f19089fff44ca32b3710
-	foo.ExpectUploadBlob(t, ds)
-	bar.ExpectUploadBlob(t, ds)
-	baz.ExpectUploadBlob(t, ds)
+	foo := &test.Blob{"foo"}   // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	bar := &test.Blob{"baar"}  // b23361951dde70cb3eca44c0c674181673a129dc
+	baz := &test.Blob{"bazzz"} // e0eb17003ce1c2812ca8f19089fff44ca32b3710
+	foo.MustUpload(t, ds)
+	bar.MustUpload(t, ds)
+	baz.MustUpload(t, ds)
 
 	limit := 5000
 	waitSeconds := time.Duration(0)
@@ -113,10 +114,10 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
 	}()
 
-	foo := &testBlob{"foo"} // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	foo := &test.Blob{"foo"} // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
 	go func() {
 		time.Sleep(100e6) // 100 ms
-		foo.ExpectUploadBlob(t, ds)
+		foo.MustUpload(t, ds)
 	}()
 
 	sb, ok := <-ch
@@ -150,8 +151,8 @@ func TestEnumerateIsSorted(t *testing.T) {
 	const blobsToMake = 250
 	t.Logf("Uploading test blobs...")
 	for i := 0; i < blobsToMake; i++ {
-		blob := &testBlob{fmt.Sprintf("blob-%d", i)}
-		blob.ExpectUploadBlob(t, ds)
+		blob := &test.Blob{fmt.Sprintf("blob-%d", i)}
+		blob.MustUpload(t, ds)
 	}
 
 	// Make some fake blobs in other partitions to confuse the

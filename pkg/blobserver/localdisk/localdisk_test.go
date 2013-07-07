@@ -17,17 +17,15 @@ limitations under the License.
 package localdisk
 
 import (
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/blobserver"
-	"crypto/sha1"
 	"fmt"
-	"io"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	. "camlistore.org/pkg/test/asserts"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/test"
 )
 
 func cleanUp(ds *DiskStorage) {
@@ -54,60 +52,21 @@ func NewStorage(t *testing.T) *DiskStorage {
 	return ds
 }
 
-type testBlob struct {
-	val string
-}
-
-func (tb *testBlob) BlobRef() *blobref.BlobRef {
-	h := sha1.New()
-	h.Write([]byte(tb.val))
-	return blobref.FromHash(h)
-}
-
-func (tb *testBlob) BlobRefSlice() []*blobref.BlobRef {
-	return []*blobref.BlobRef{tb.BlobRef()}
-}
-
-func (tb *testBlob) Size() int64 {
-	return int64(len(tb.val))
-}
-
-func (tb *testBlob) Reader() io.Reader {
-	return strings.NewReader(tb.val)
-}
-
-func (tb *testBlob) AssertMatches(t *testing.T, sb blobref.SizedBlobRef) {
-	if sb.Size != tb.Size() {
-		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
-	}
-	if sb.BlobRef.String() != tb.BlobRef().String() {
-		t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
-	}
-}
-
-func (tb *testBlob) ExpectUploadBlob(t *testing.T, ds blobserver.BlobReceiver) {
-	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader())
-	if err != nil {
-		t.Fatalf("ReceiveBlob error: %v", err)
-	}
-	tb.AssertMatches(t, sb)
-}
-
 func TestUploadDup(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 	ds.CreateQueue("some-queue")
-	tb := &testBlob{"Foo"}
-	tb.ExpectUploadBlob(t, ds)
-	tb.ExpectUploadBlob(t, ds)
+	tb := &test.Blob{"Foo"}
+	tb.MustUpload(t, ds)
+	tb.MustUpload(t, ds)
 }
 
 func TestReceiveStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	tb := &testBlob{"Foo"}
-	tb.ExpectUploadBlob(t, ds)
+	tb := &test.Blob{"Foo"}
+	tb.MustUpload(t, ds)
 
 	ch := make(chan blobref.SizedBlobRef, 0)
 	errch := make(chan error, 1)
@@ -128,7 +87,7 @@ func TestReceiveStat(t *testing.T) {
 func TestStatWait(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	tb := &testBlob{"Foo"}
+	tb := &test.Blob{"Foo"}
 
 	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
 	wait := 2 * time.Second
@@ -154,7 +113,7 @@ func TestStatWait(t *testing.T) {
 	// Now upload the blob, now that everything else is in-flight.
 	// Sleep a bit to make sure the ds.Stat above has had a chance to fail and sleep.
 	time.Sleep(1e9 / 5) // 200ms in nanos
-	tb.ExpectUploadBlob(t, ds)
+	tb.MustUpload(t, ds)
 
 	AssertInt(t, 1, <-statCountCh, "number stat results")
 }
@@ -163,10 +122,10 @@ func TestMultiStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	blobfoo := &testBlob{"foo"}
-	blobbar := &testBlob{"bar!"}
-	blobfoo.ExpectUploadBlob(t, ds)
-	blobbar.ExpectUploadBlob(t, ds)
+	blobfoo := &test.Blob{"foo"}
+	blobbar := &test.Blob{"bar!"}
+	blobfoo.MustUpload(t, ds)
+	blobbar.MustUpload(t, ds)
 
 	need := make(map[string]bool)
 	need[blobfoo.BlobRef().String()] = true
@@ -196,7 +155,7 @@ func TestMultiStat(t *testing.T) {
 func TestMissingGetReturnsNoEnt(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	foo := &testBlob{"foo"}
+	foo := &test.Blob{"foo"}
 
 	blob, _, err := ds.Fetch(foo.BlobRef())
 	if err != os.ErrNotExist {

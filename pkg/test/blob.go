@@ -17,12 +17,13 @@ limitations under the License.
 package test
 
 import (
-	"camlistore.org/pkg/blobref"
-
 	"crypto/sha1"
 	"io"
 	"strings"
 	"testing"
+
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
 )
 
 // Blob is a utility class for unit tests.
@@ -48,11 +49,19 @@ func (tb *Blob) Reader() io.Reader {
 	return strings.NewReader(tb.Contents)
 }
 
-func (tb *Blob) AssertMatches(t *testing.T, sb *blobref.SizedBlobRef) {
+func (tb *Blob) AssertMatches(t *testing.T, sb blobref.SizedBlobRef) {
 	if sb.Size != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}
 	if sb.BlobRef.String() != tb.BlobRef().String() {
 		t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
 	}
+}
+
+func (tb *Blob) MustUpload(t *testing.T, ds blobserver.BlobReceiver) {
+	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader())
+	if err != nil {
+		t.Fatalf("failed to upload blob %v (%q): %v", tb.BlobRef(), tb.Contents, err)
+	}
+	tb.AssertMatches(t, sb) // TODO: better error reporting
 }
