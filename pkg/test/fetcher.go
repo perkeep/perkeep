@@ -21,17 +21,26 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
 )
 
+// Fetcher is an in-memory implementation of the blobserver Storage
+// interface.  It started as just a fetcher and grew. It also includes
+// other convenience methods for testing.
 type Fetcher struct {
-	l sync.Mutex
-	m map[string]*Blob
+	blobserver.SimpleBlobHubPartitionMap
+	l      sync.Mutex
+	m      map[string]*Blob // keyed by blobref string
+	sorted []string         // blobrefs sorted
 }
+
+var _ blobserver.Storage = (*Fetcher)(nil)
 
 func (tf *Fetcher) AddBlob(b *Blob) {
 	tf.l.Lock()
@@ -39,7 +48,10 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 	if tf.m == nil {
 		tf.m = make(map[string]*Blob)
 	}
-	tf.m[b.BlobRef().String()] = b
+	key := b.BlobRef().String()
+	tf.m[key] = b
+	tf.sorted = append(tf.sorted, key)
+	sort.Strings(tf.sorted)
 }
 
 func (tf *Fetcher) FetchStreaming(ref *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
@@ -72,7 +84,7 @@ func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, siz
 
 func (tf *Fetcher) BlobContents(br *blobref.BlobRef) (contents string, ok bool) {
 	tf.l.Lock()
-        defer tf.l.Unlock()
+	defer tf.l.Unlock()
 	b, ok := tf.m[br.String()]
 	if !ok {
 		return
@@ -110,5 +122,53 @@ func (tf *Fetcher) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.
 			dest <- blobref.SizedBlobRef{br, int64(len(b.Contents))}
 		}
 	}
+	return nil
+}
+
+// BlobrefStrings returns the sorted stringified blobrefs stored in this fetcher.
+func (tf *Fetcher) BlobrefStrings() []string {
+	tf.l.Lock()
+	defer tf.l.Unlock()
+	s := make([]string, len(tf.sorted))
+	copy(s, tf.sorted)
+	return s
+}
+
+func (tf *Fetcher) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+	after string,
+	limit int,
+	wait time.Duration) error {
+	if wait != 0 {
+		panic("TestFetcher can't wait")
+	}
+	defer close(dest)
+	tf.l.Lock()
+	defer tf.l.Unlock()
+	n := 0
+	for _, k := range tf.sorted {
+		if k <= after {
+			continue
+		}
+		b := tf.m[k]
+		dest <- blobref.SizedBlobRef{b.BlobRef(), b.Size()}
+		n++
+		if limit > 0 && n == limit {
+			break
+		}
+	}
+	return nil
+}
+
+func (tf *Fetcher) RemoveBlobs(blobs []*blobref.BlobRef) error {
+	tf.l.Lock()
+	defer tf.l.Unlock()
+	for _, br := range blobs {
+		delete(tf.m, br.String())
+	}
+	tf.sorted = tf.sorted[:0]
+	for k := range tf.m {
+		tf.sorted = append(tf.sorted, k)
+	}
+	sort.Strings(tf.sorted)
 	return nil
 }
