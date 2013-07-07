@@ -19,6 +19,7 @@ package encrypt
 import (
 	"bufio"
 	"bytes"
+	"container/heap"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -65,11 +66,14 @@ $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 type storage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 
-	block cipher.Block
-	index index.Storage // meta index
+	// index is the meta index.
+	// it's keyed by plaintext blobref.
+	// the value is the meta key (encodeMetaValue)
+	index index.Storage
 
 	// Encryption key.
-	key []byte
+	key   []byte
+	block cipher.Block // aes.NewCipher(key)
 
 	// blobs holds encrypted versions of all plaintext blobs.
 	blobs blobserver.Storage
@@ -83,11 +87,70 @@ type storage struct {
 	// into bigger blobs with multiple blob descriptions.
 	meta blobserver.Storage
 
-	mu sync.Mutex
-	// TODO: all meta blobs sorted by their size
+	// TODO(bradfitz): finish metdata compaction
+	/*
+		// mu guards the following
+		mu sync.Mutex
+		// toDelete are the meta blobrefs that are no longer
+		// necessary, as they're subsets of others.
+		toDelete []*blobref.BlobRef
+		// plainIn maps from a plaintext blobref to its currently-largest-describing metablob.
+		plainIn map[string]*metaBlobInfo
+		// smallMeta tracks a heap of meta blobs, sorted by their encrypted size
+		smallMeta metaBlobHeap
+	*/
+
+	// Hooks for testing
+	testRandIV func() []byte
 }
 
+func (s *storage) setKey(key []byte) error {
+	var err error
+	s.block, err = aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("The key must be exactly 16 bytes (currently only AES-128 is supported): %v", err)
+	}
+	s.key = key
+	return nil
+}
+
+type metaBlobInfo struct {
+	br     *blobref.BlobRef // of meta blob
+	n      int              // size of meta blob
+	plains []*blobref.BlobRef
+}
+
+type metaBlobHeap []*metaBlobInfo
+
+var _ heap.Interface = (*metaBlobHeap)(nil)
+
+func (s *metaBlobHeap) Push(x interface{}) {
+	*s = append(*s, x.(*metaBlobInfo))
+}
+
+func (s *metaBlobHeap) Pop() interface{} {
+	l := s.Len()
+	v := (*s)[l]
+	*s = (*s)[:l-1]
+	return v
+}
+
+func (s *metaBlobHeap) Len() int { return len(*s) }
+func (s *metaBlobHeap) Less(i, j int) bool {
+	sl := *s
+	v := sl[i].n < sl[j].n
+	if !v && sl[i].n == sl[j].n {
+		v = sl[i].br.String() < sl[j].br.String()
+	}
+	return v
+}
+
+func (s *metaBlobHeap) Swap(i, j int) { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
+
 func (s *storage) randIV() []byte {
+	if f := s.testRandIV; f != nil {
+		return f()
+	}
 	iv := make([]byte, s.block.BlockSize())
 	n, err := rand.Read(iv)
 	if err != nil {
@@ -285,6 +348,10 @@ func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string,
 //
 // processEncryptedMetaBlob is not thread-safe.
 func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) error {
+	mi := &metaBlobInfo{
+		br: br,
+		n:  len(dat),
+	}
 	log.Printf("processing meta blob %v: %d bytes", br, len(dat))
 	ivSize := s.block.BlockSize()
 	if len(dat) < ivSize+sha1.Size {
@@ -324,6 +391,7 @@ func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) erro
 		}
 		plainBR, meta := line[:slash], line[slash+1:]
 		log.Printf("Adding meta: %q = %q", plainBR, meta)
+		mi.plains = append(mi.plains, blobref.Parse(plainBR))
 		if err := s.index.Set(plainBR, meta); err != nil {
 			return err
 		}
@@ -472,15 +540,16 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 
 	key := config.OptionalString("key", "")
 	keyFile := config.OptionalString("keyFile", "")
+	var keyb []byte
 	switch {
 	case key != "":
-		sto.key, err = hex.DecodeString(key)
-		if err != nil || len(sto.key) != 16 {
+		keyb, err = hex.DecodeString(key)
+		if err != nil || len(keyb) != 16 {
 			return nil, fmt.Errorf("The 'key' parameter must be 16 bytes of 32 hex digits. (currently fixed at AES-128)")
 		}
 	case keyFile != "":
 		// TODO: check that keyFile's unix permissions aren't too permissive.
-		sto.key, err = ioutil.ReadFile(keyFile)
+		keyb, err = ioutil.ReadFile(keyFile)
 		if err != nil {
 			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)
 		}
@@ -499,13 +568,14 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	if err != nil {
 		return
 	}
+
 	if sto.key == nil {
 		// TODO: add a way to prompt from stdin on start? or keychain support?
 		return nil, errors.New("no encryption key set with 'key' or 'keyFile'")
 	}
-	sto.block, err = aes.NewCipher(sto.key)
-	if err != nil {
-		return nil, fmt.Errorf("The key must be exactly 16 bytes (currently only AES-128 is supported): %v", err)
+
+	if err := sto.setKey(keyb); err != nil {
+		return nil, err
 	}
 
 	log.Printf("Reading encryption metadata...")
