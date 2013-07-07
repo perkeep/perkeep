@@ -7,7 +7,12 @@ Offline list:
 -- verify that the HTTP blob upload interface caps uploads at MaxBlobSize
    before giving it to storage impls
 
--- add sourceRoot to pkg/genconfig high-level config & the docs
+-- support syncing from a storage type that doesn't support
+   QueueCreator by using local disk instead. writes go to both 1) that
+   storage target not supporting QueueCreator and 2) local disk before
+   being acknowledged. Then sync goes from local disk to wherever,
+   deleting from local disk when done as normal (except in that case,
+   the hardlink refcount would drop from 1 to 0, not 2 to 1)
 
 -- website: remove the "Installation" heading for /cmd/*, since
    they're misleading and people should use "go run make.go" in the
