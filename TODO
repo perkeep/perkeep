@@ -4,6 +4,10 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- remove all the blobhub stuff from the blobserver storage interface
+   and move it elsewhere? nobody really implements it anyway, suggesting
+   it's at the wrong level.
+
 -- change representation of *blobref.BlobRef to a value type with smaller
    memory usage and no internal string cache, so it can be used as a map
    key:
