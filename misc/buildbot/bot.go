@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// The buildbot binary is Camlistore's continuous builder.
 package main
 
 import (
