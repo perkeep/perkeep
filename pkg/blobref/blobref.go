@@ -240,12 +240,3 @@ func MustParse(ref string) *BlobRef {
 	}
 	return br
 }
-
-// May return nil in list positions where the blobref could not be parsed.
-func ParseMulti(refs []string) (parsed []*BlobRef) {
-	parsed = make([]*BlobRef, 0, len(refs))
-	for _, ref := range refs {
-		parsed = append(parsed, Parse(ref))
-	}
-	return
-}

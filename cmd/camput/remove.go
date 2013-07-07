@@ -44,5 +44,13 @@ func (c *removeCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.ErrUsage
 	}
-	return getUploader().RemoveBlobs(blobref.ParseMulti(args))
+	refs := make([]*blobref.BlobRef, 0, len(args))
+	for _, s := range args {
+		br := blobref.Parse(s)
+		if br == nil {
+			return fmt.Errorf("Invalid blobref %q", s)
+		}
+		refs = append(refs, br)
+	}
+	return getUploader().RemoveBlobs(refs)
 }
