@@ -6,7 +6,11 @@ Offline list:
 
 -- remove all the blobhub stuff from the blobserver storage interface
    and move it elsewhere? nobody really implements it anyway, suggesting
-   it's at the wrong level.
+   it's at the wrong level. in the process, also look into simplifying
+   the EnumerateBlobs interface and its "wait" parameter. perhaps we need
+   a new optional AwaitNewBlob method on a storage interface, and the
+   HTTP layer would use that, instead of assuming that all EnumerateBlob
+   impls can wait.
 
 -- change representation of *blobref.BlobRef to a value type with smaller
    memory usage and no internal string cache, so it can be used as a map
