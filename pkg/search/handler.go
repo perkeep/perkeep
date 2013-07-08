@@ -594,8 +594,10 @@ type DescribedBlob struct {
 	Stub bool `json:"-"`
 }
 
-// PermanodeFile returns the blobref path from this permanode to its
-// File camliContent, else (nil, false)
+// PermanodeFile returns in path the blobref of the described permanode
+// and the blobref of its File camliContent.
+// If b isn't a permanode, or doesn't have a camliContent that
+// is a file blob, ok is false.
 func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, ok bool) {
 	if b == nil || b.Permanode == nil {
 		return
@@ -603,6 +605,22 @@ func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, 
 	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
 		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.File != nil {
 			return []*blobref.BlobRef{b.BlobRef, cdes.BlobRef}, cdes.File, true
+		}
+	}
+	return
+}
+
+// PermanodeDir returns in path the blobref of the described permanode
+// and the blobref of its Directory camliContent.
+// If b isn't a permanode, or doesn't have a camliContent that
+// is a directory blob, ok is false.
+func (b *DescribedBlob) PermanodeDir() (path []*blobref.BlobRef, fi *FileInfo, ok bool) {
+	if b == nil || b.Permanode == nil {
+		return
+	}
+	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
+		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.Dir != nil {
+			return []*blobref.BlobRef{b.BlobRef, cdes.BlobRef}, cdes.Dir, true
 		}
 	}
 	return

@@ -341,6 +341,18 @@ func (pr *publishRequest) findSubject() error {
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(pr.subres, "=z/") {
+		// this happens when we are at the root of the published path,
+		// e.g /base/suffix/-/=z/foo.zip
+		// so we need to reset subres as fullpath so that it is detected
+		// properly when switching on pr.SubresourceType()
+		pr.subres = "/" + pr.subres
+		// since we return early, we set the subject because that is
+		// what is going to be used as a root node by the zip handler.
+		pr.subject = subject
+		return nil
+	}
+
 	pr.inSubjectChain[subject.String()] = true
 	pr.subjectBasePath = pr.base + pr.suffix
 
@@ -422,6 +434,8 @@ func (pr *publishRequest) serveHTTP() {
 			return
 		}
 		serveStaticFile(pr.rw, pr.req, uistatic.Files, file)
+	case "z":
+		pr.serveZip()
 	default:
 		pr.rw.WriteHeader(400)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")
@@ -481,6 +495,24 @@ func camliClosurePage(filename string) string {
 		}
 	}
 	return ""
+}
+
+// serveZip streams a zip archive of all the files "under"
+// pr.subject. That is, all the files pointed by file permanodes,
+// which are directly members of pr.subject or recursively down
+// directory permanodes and permanodes members.
+func (pr *publishRequest) serveZip() {
+	filename := ""
+	if len(pr.subres) > len("/=z/") {
+		filename = pr.subres[4:]
+	}
+	zh := &zipHandler{
+		fetcher:  pr.ph.Storage,
+		search:   pr.ph.Search,
+		root:     pr.subject,
+		filename: filename,
+	}
+	zh.ServeHTTP(pr.rw, pr.req)
 }
 
 func (pr *publishRequest) serveSubject() {
@@ -560,6 +592,17 @@ func (pr *publishRequest) serveSubject() {
 	}
 
 	if members := subdes.Members(); len(members) > 0 {
+		zipName := ""
+		if title == "" {
+			zipName = "download.zip"
+		} else {
+			zipName = html.EscapeString(title) + ".zip"
+		}
+		subjectPath := pr.subjectBasePath
+		if !strings.Contains(subjectPath, "/-/") {
+			subjectPath += "/-"
+		}
+		pr.pf("<div><a href='%s/=z/%s'>%s</a></div>\n", subjectPath, zipName, zipName)
 		pr.pf("<ul id='members'>\n")
 		for _, member := range members {
 			des := member.Description()
