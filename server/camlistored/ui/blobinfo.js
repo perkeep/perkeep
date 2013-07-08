@@ -113,7 +113,7 @@ function(bmap) {
 		blobmeta.innerHTML = "(not found)";
 		return;
 	}
-	blobmeta.innerHTML = JSON.stringify(binfo, null, 2);
+	blobmeta.innerHTML = htmlEscape(JSON.stringify(binfo, null, 2));
 	if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
 		this.connection_.getBlobContents(blobref,
 			goog.bind(function(data) {
@@ -130,7 +130,7 @@ function(bmap) {
 					// That's why we do this messy business here. Fix it server side.
 					finfo = JSON.parse(data);
 					bd.innerHTML = "<a href=''></a>";
-					var fileName = finfo.fileName || blobref;
+					var fileName = htmlEscape(finfo.fileName) || blobref;
 					bd.firstChild.href = "./download/" + blobref + "/" + fileName;
 					// If the mime type was not detected by magic pkg, we end up
 					// with an empty mimetype value in the indexer's fileinfo,
@@ -176,9 +176,13 @@ function(bmap) {
 	}
 }
 
+function htmlEscape(data) {
+	return goog.string.htmlEscape(data);
+}
+
 function linkifyBlobRefs(schemaBlob) {
 	var re = /(\w{3,6}-[a-f0-9]{30,})/g;
-	return schemaBlob.replace(re, "<a href='./?b=$1'>$1</a>");
+	return htmlEscape(schemaBlob).replace(re, "<a href='./?b=$1'>$1</a>");
 };
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
