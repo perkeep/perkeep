@@ -27,7 +27,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/postgres"
-	"camlistore.org/pkg/test/testdep"
+	"camlistore.org/pkg/test"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
 )
@@ -113,7 +113,7 @@ func (postgresTester) test(t *testing.T, tfn func(*testing.T, func() *index.Inde
 	once.Do(checkDB)
 	if !dbAvailable {
 		err := errors.New("Not running; start a postgres daemon on the standard port (5432) with password 'postgres' for postgres user")
-		testdep.CheckEnv(t)
+		test.DependencyErrorOrSkip(t)
 		t.Fatalf("PostGreSQL not available locally for testing: %v", err)
 	}
 	tfn(t, makeIndex)

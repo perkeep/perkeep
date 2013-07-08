@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package mysql implements the Camlistore index storage abstraction
+// on top of MySQL.
 package mysql
 
 import (

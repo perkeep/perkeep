@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package netutil identifies the system userid responsible for
+// localhost TCP connections.
 package netutil
 
 import (
@@ -40,7 +42,7 @@ func ConnUserid(conn net.Conn) (uid int, err error) {
 	return AddrPairUserid(conn.LocalAddr(), conn.RemoteAddr())
 }
 
-// This fonction allows parsing of a TCPAddr without resolving names
+// HostPortToIP parses a host:port to a TCPAddr without resolving names
 // other than localhost. It will return an error instead of resolving.
 func HostPortToIP(hostport string) (hostaddr *net.TCPAddr, err error) {
 	host, port, err := net.SplitHostPort(hostport)
@@ -212,7 +214,7 @@ func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (u
 }
 
 // Localhost returns the first address found when
-// doing a lookup on "localhost".
+// doing a lookup of "localhost".
 func Localhost() (net.IP, error) {
 	ips, err := net.LookupIP("localhost")
 	if err != nil {

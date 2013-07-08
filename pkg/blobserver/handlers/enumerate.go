@@ -37,10 +37,10 @@ type blobInfo struct {
 	error
 }
 
-func CreateEnumerateHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
+func CreateEnumerateHandler(storage blobserver.BlobEnumerator) http.Handler {
+	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
 		handleEnumerateBlobs(conn, req, storage)
-	}
+	})
 }
 
 const errMsgMaxWaitSecWithAfter = "Can't use 'maxwaitsec' with 'after'.\n"

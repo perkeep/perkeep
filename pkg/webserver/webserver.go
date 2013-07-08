@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package webserver implements a superset wrapper of http.Server.
+//
+// Among other things, it can throttle its connections, inherit its
+// listening socket from a file descriptor in the environment, and
+// log all activity.
 package webserver
 
 import (
@@ -35,10 +40,7 @@ import (
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
-type HandlerPicker func(req *http.Request) (http.HandlerFunc, bool)
-
 type Server struct {
-	premux   []HandlerPicker
 	mux      *http.ServeMux
 	listener net.Listener
 	verbose  bool // log HTTP requests and response codes
@@ -79,13 +81,6 @@ func (s *Server) ListenURL() string {
 	return ""
 }
 
-// Register conditional handler-picker functions which get run before
-// HandleFunc or Handle.  The HandlerPicker should return false if
-// it's not interested in a request.
-func (s *Server) RegisterPreMux(hp HandlerPicker) {
-	s.premux = append(s.premux, hp)
-}
-
 func (s *Server) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.Request)) {
 	s.mux.HandleFunc(pattern, fn)
 }
@@ -104,18 +99,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("Request #%d: %s %s ...", n, req.Method, req.RequestURI)
 		rw = &trackResponseWriter{ResponseWriter: rw}
 	}
-	done := false
-	for _, hp := range s.premux {
-		handler, ok := hp(req)
-		if ok {
-			handler(rw, req)
-			done = true
-			break
-		}
-	}
-	if !done {
-		s.mux.ServeHTTP(rw, req)
-	}
+	s.mux.ServeHTTP(rw, req)
 	if s.verbose {
 		tw := rw.(*trackResponseWriter)
 		log.Printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)

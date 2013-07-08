@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2011 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,21 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package testdep
+package readerutil
 
-import (
-	"os"
-	"runtime"
-	"strconv"
-	"testing"
-)
+import "io"
 
-func CheckEnv(t *testing.T) {
-	b, _ := strconv.ParseBool(os.Getenv("SKIP_DEP_TESTS"))
-	if b {
-		t.Log("SKIP_DEP_TESTS is set; skipping test.")
-		runtime.Goexit()
-	}
-	t.Error("External test dependencies not found, and environment SKIP_DEP_TESTS not set.")
+// CountingReader wraps a Reader, incrementing N by the number of
+// bytes read. No locking is performed.
+type CountingReader struct {
+	Reader io.Reader
+	N      *int64
 }
 
+func (cr CountingReader) Read(p []byte) (n int, err error) {
+	n, err = cr.Reader.Read(p)
+	*cr.N += int64(n)
+	return
+}

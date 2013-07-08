@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/test/testdep"
+	"camlistore.org/pkg/test"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
@@ -45,7 +45,7 @@ func (b *BufferCloser) Close() error {
 // Reads google storage config and creates a Client.  Exits on error.
 func doConfig(t *testing.T) (gsa *Client, bucket string) {
 	if _, err := os.Stat("gstestconfig.json"); os.IsNotExist(err) {
-		testdep.CheckEnv(t)
+		test.DependencyErrorOrSkip(t)
 		t.Fatalf("Missing config file: %v", err)
 	}
 	cf, err := jsonconfig.ReadFile("testconfig.json")

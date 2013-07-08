@@ -28,10 +28,10 @@ import (
 	"camlistore.org/pkg/httputil"
 )
 
-func CreateStatHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
+func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {
+	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
 		handleStat(conn, req, storage)
-	}
+	})
 }
 
 const maxStatBlobs = 1000

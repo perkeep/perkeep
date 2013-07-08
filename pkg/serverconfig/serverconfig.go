@@ -115,10 +115,10 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	case "GET":
 		switch action {
 		case "enumerate-blobs":
-			handler = handlers.CreateEnumerateHandler(storage)
+			handler = handlers.CreateEnumerateHandler(storage).ServeHTTP
 			op = auth.OpGet
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage).ServeHTTP
 		default:
 			handler = gethandler.CreateGetHandler(storage).ServeHTTP
 			op = auth.OpGet
@@ -126,13 +126,13 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	case "POST":
 		switch action {
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage).ServeHTTP
 			op = auth.OpStat
 		case "upload":
-			handler = handlers.CreateUploadHandler(storage)
+			handler = handlers.CreateUploadHandler(storage).ServeHTTP
 			op = auth.OpUpload
 		case "remove":
-			handler = handlers.CreateRemoveHandler(storage)
+			handler = handlers.CreateRemoveHandler(storage).ServeHTTP
 		}
 	}
 	return handler, op

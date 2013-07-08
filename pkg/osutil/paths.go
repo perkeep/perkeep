@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package osutil provides operating system-specific path information,
+// and other utility functions.
 package osutil
 
 import (
@@ -24,6 +26,8 @@ import (
 	"sync"
 )
 
+// HomeDir returns the path to the user's home directory.
+// It returns the empty string if the value isn't known.
 func HomeDir() string {
 	if runtime.GOOS == "windows" {
 		return os.Getenv("HOMEPATH")

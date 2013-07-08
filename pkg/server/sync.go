@@ -28,7 +28,7 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/misc"
+	"camlistore.org/pkg/readerutil"
 )
 
 var queueSyncInterval = 5 * time.Second
@@ -319,7 +319,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 	set(statusFunc(func() string {
 		return fmt.Sprintf("copying: %d/%d bytes", bytesCopied, sb.Size)
 	}))
-	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, misc.CountingReader{rc, &bytesCopied})
+	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, readerutil.CountingReader{rc, &bytesCopied})
 	if err != nil {
 		return errorf("dest write: %v", err)
 	}

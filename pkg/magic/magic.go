@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package magic implements MIME type sniffing of data based on the
+// well-known "magic" number prefixes in the file.
 package magic
 
 import (
@@ -40,8 +42,10 @@ var prefixTable = []prefixEntry{
 	// TODO(bradfitz): popular audio & video formats at least
 }
 
-// Returns the emptry string if unknown.
-func MimeType(hdr []byte) string {
+// MIMEType returns the MIME type from the data in the provided header
+// of the data.
+// It returns the empty string if the MIME type can't be determined.
+func MIMEType(hdr []byte) string {
 	hlen := len(hdr)
 	for _, pte := range prefixTable {
 		plen := len(pte.prefix)
@@ -57,21 +61,21 @@ func MimeType(hdr []byte) string {
 	return ""
 }
 
-// MimeTypeFromReader takes a reader, sniffs the beginning of it,
+// MIMETypeFromReader takes a reader, sniffs the beginning of it,
 // and returns the mime (if sniffed, else "") and a new reader
 // that's the concatenation of the bytes sniffed and the remaining
 // reader.
-func MimeTypeFromReader(r io.Reader) (mime string, reader io.Reader) {
+func MIMETypeFromReader(r io.Reader) (mime string, reader io.Reader) {
 	var buf bytes.Buffer
 	io.CopyN(&buf, r, 1024)
-	mime = MimeType(buf.Bytes())
+	mime = MIMEType(buf.Bytes())
 	return mime, io.MultiReader(&buf, r)
 }
 
-// MimeTypeFromReader takes a ReaderAt, sniffs the beginning of it,
+// MIMETypeFromReader takes a ReaderAt, sniffs the beginning of it,
 // and returns the MIME type if sniffed, else the empty string.
 func MIMETypeFromReaderAt(ra io.ReaderAt) (mime string) {
 	var buf [1024]byte
 	n, _ := ra.ReadAt(buf[:], 0)
-	return MimeType(buf[:n])
+	return MIMEType(buf[:n])
 }

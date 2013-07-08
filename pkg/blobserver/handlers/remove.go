@@ -17,20 +17,21 @@ limitations under the License.
 package handlers
 
 import (
-	"camlistore.org/pkg/blobref"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
 	"fmt"
 	"log"
 	"net/http"
+
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/httputil"
 )
 
 const maxRemovesPerRequest = 1000
 
-func CreateRemoveHandler(storage blobserver.Storage) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
+func CreateRemoveHandler(storage blobserver.Storage) http.Handler {
+	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
 		handleRemove(conn, req, storage)
-	}
+	})
 }
 
 func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage) {

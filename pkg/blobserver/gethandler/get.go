@@ -39,7 +39,7 @@ type Handler struct {
 	Fetcher blobref.StreamingFetcher
 }
 
-// CreateGetHandler returns an http Handler for serving blobs from fetcher.1
+// CreateGetHandler returns an http Handler for serving blobs from fetcher.
 func CreateGetHandler(fetcher blobref.StreamingFetcher) http.Handler {
 	return &Handler{Fetcher: fetcher}
 }

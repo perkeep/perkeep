@@ -176,7 +176,7 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 		return nil
 	}
 	defer fr.Close()
-	mime, reader := magic.MimeTypeFromReader(fr)
+	mime, reader := magic.MIMETypeFromReader(fr)
 
 	sha1 := sha1.New()
 	var copyDest io.Writer = sha1

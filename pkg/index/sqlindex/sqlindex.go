@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package sqlindex implements the index.Storage interface using an *sql.DB.
 package sqlindex
 
 import (
@@ -27,6 +28,7 @@ import (
 	"camlistore.org/pkg/index"
 )
 
+// Storage implements the index.Storage interface using an *sql.DB.
 type Storage struct {
 	DB *sql.DB
 

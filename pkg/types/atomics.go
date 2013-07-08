@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,21 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package types
 
 import (
-	"fmt"
-	"log"
-	"os"
-
-	"camlistore.org/pkg/magic"
+	"sync/atomic"
 )
 
-func showMIME(file string) {
-	f, err := os.Open(file)
-	if err != nil {
-		log.Fatal(err)
+// AtomicBool is an atomic boolean.
+// It can be accessed from concurrent goroutines.
+type AtomicBool struct {
+	v uint32 // 0 or 1, atomically
+}
+
+func (b *AtomicBool) Get() bool {
+	return atomic.LoadUint32(&b.v) != 0
+}
+
+func (b *AtomicBool) Set(v bool) {
+	if v {
+		atomic.StoreUint32(&b.v, 1)
+		return
 	}
-	mime, _ := magic.MIMETypeFromReader(f)
-	fmt.Println(mime)
+	atomic.StoreUint32(&b.v, 0)
 }

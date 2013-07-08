@@ -84,7 +84,7 @@ func (sn *BlobSniffer) Parse() {
 	if sn.bufferIsCamliJSON() {
 		sn.mimeType = "application/json; camliType=" + sn.meta.Type()
 	} else {
-		sn.mimeType = magic.MimeType(sn.header)
+		sn.mimeType = magic.MIMEType(sn.header)
 	}
 }
 

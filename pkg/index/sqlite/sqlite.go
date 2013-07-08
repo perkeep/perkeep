@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package sqlite implements the Camlistore index storage abstraction
+// using an SQLite database file.
 package sqlite
 
 import (

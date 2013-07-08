@@ -170,14 +170,17 @@ type Storage interface {
 	BlobReceiver
 	BlobStatter
 	BlobEnumerator
+	BlobRemover
 
+	// GetBlobHub returns the blob notification bus.
+	GetBlobHub() BlobHub
+}
+
+type BlobRemover interface {
 	// RemoveBlobs removes 0 or more blobs.  Removal of
 	// non-existent items isn't an error.  Returns failure if any
 	// items existed but failed to be deleted.
 	RemoveBlobs(blobs []*blobref.BlobRef) error
-
-	// GetBlobHub returns the blob notification bus.
-	GetBlobHub() BlobHub
 }
 
 type StorageConfiger interface {

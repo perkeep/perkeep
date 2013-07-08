@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,21 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package handlers
 
 import (
-	"fmt"
-	"log"
-	"os"
+	"net/http"
 
-	"camlistore.org/pkg/magic"
+	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blobserver/gethandler"
 )
 
-func showMIME(file string) {
-	f, err := os.Open(file)
-	if err != nil {
-		log.Fatal(err)
-	}
-	mime, _ := magic.MIMETypeFromReader(f)
-	fmt.Println(mime)
+// CreateGetHandler returns an http Handler for serving blobs from fetcher.
+func CreateGetHandler(fetcher blobref.StreamingFetcher) http.Handler {
+	return gethandler.CreateGetHandler(fetcher)
 }
+

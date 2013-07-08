@@ -133,7 +133,7 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 	if err != nil {
 		return format, fmt.Errorf("error reading cached thumbnail %v: %v", name, err)
 	}
-	mime := magic.MimeType(buf.Bytes())
+	mime := magic.MIMEType(buf.Bytes())
 	if mime == "" {
 		return format, fmt.Errorf("error with cached thumbnail %v: unknown mime type", name)
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package misc
-
-import "io"
-
-// CountingReader wraps a Reader, incrementing N by the number of
-// bytes read. No locking is performed.
-type CountingReader struct {
-	Reader io.Reader
-	N      *int64
-}
-
-func (cr CountingReader) Read(p []byte) (n int, err error) {
-	n, err = cr.Reader.Read(p)
-	*cr.N += int64(n)
-	return
-}
+// Package test provides common Camlistore test objects.
+package test

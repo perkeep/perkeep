@@ -14,21 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package test
 
 import (
-	"fmt"
-	"log"
 	"os"
-
-	"camlistore.org/pkg/magic"
+	"strconv"
+	"testing"
 )
 
-func showMIME(file string) {
-	f, err := os.Open(file)
-	if err != nil {
-		log.Fatal(err)
+// DependencyErrorOrSkip is called when a test's dependency
+// isn't found. It either skips the current test (if SKIP_DEP_TESTS is set),
+// or calls t.Error with an error.
+func DependencyErrorOrSkip(t *testing.T) {
+	b, _ := strconv.ParseBool(os.Getenv("SKIP_DEP_TESTS"))
+	if b {
+		t.Skip("SKIP_DEP_TESTS is set; skipping test.")
 	}
-	mime, _ := magic.MIMETypeFromReader(f)
-	fmt.Println(mime)
+	t.Error("External test dependencies not found, and environment SKIP_DEP_TESTS not set.")
 }
+

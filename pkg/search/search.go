@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package search describes and answers Camlistore search queries.
 package search
 
 import (

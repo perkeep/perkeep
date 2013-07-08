@@ -43,7 +43,7 @@ func TestMagic(t *testing.T) {
 			data, err = ioutil.ReadFile("testdata/" + tt.fileName)
 			AssertNil(t, err, "no error reading "+tt.fileName)
 		}
-		mime := MimeType(data)
+		mime := MIMEType(data)
 		if mime != tt.want {
 			t.Errorf("%d. got %q; want %q", i, mime, tt.want)
 		}

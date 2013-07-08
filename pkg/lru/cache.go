@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package lru implements an LRU cache.
 package lru
 
 import (
@@ -21,6 +22,7 @@ import (
 	"sync"
 )
 
+// Cache is an LRU cache, safe for concurrent access.
 type Cache struct {
 	maxEntries int
 
@@ -34,6 +36,7 @@ type entry struct {
 	value interface{}
 }
 
+// New returns a new cache with the provided maximum items.
 func New(maxEntries int) *Cache {
 	return &Cache{
 		maxEntries: maxEntries,
@@ -42,6 +45,8 @@ func New(maxEntries int) *Cache {
 	}
 }
 
+// Add adds the provided key and value to the cache, evicting
+// an old item if necessary.
 func (c *Cache) Add(key string, value interface{}) {
 	c.lk.Lock()
 	defer c.lk.Unlock()
@@ -62,6 +67,8 @@ func (c *Cache) Add(key string, value interface{}) {
 	}
 }
 
+// Get fetches the key's value from the cache.
+// The ok result will be true if the item was found.
 func (c *Cache) Get(key string) (value interface{}, ok bool) {
 	c.lk.Lock()
 	defer c.lk.Unlock()
@@ -72,6 +79,7 @@ func (c *Cache) Get(key string) (value interface{}, ok bool) {
 	return
 }
 
+// RemoveOldest removes the oldest item in the cache.
 func (c *Cache) RemoveOldest() {
 	c.lk.Lock()
 	defer c.lk.Unlock()
@@ -88,6 +96,7 @@ func (c *Cache) removeOldest() {
 	delete(c.cache, ele.Value.(*entry).key)
 }
 
+// Len returns the number of items in the cache.
 func (c *Cache) Len() int {
 	c.lk.Lock()
 	defer c.lk.Unlock()

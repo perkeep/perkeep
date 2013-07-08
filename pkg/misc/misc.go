@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package misc contains stuff which should probably move elsewhere.
+//
+// This is a gross place to put code.
 package misc
 
 import (
@@ -21,8 +24,8 @@ import (
 	"fmt"
 )
 
-// SHA1Prefix returns the first ten digits of the lowercased hex string
-// of the SHA1 hash of data.
+// SHA1Prefix computes the SHA-1 digest of data and returns
+// the first ten digits of its lowercase hex string.
 func SHA1Prefix(data []byte) string {
 	h := sha1.New()
 	h.Write(data)

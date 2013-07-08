@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package throttle provides a net.Listener that returns
+// artificially-delayed connections for testing real-world
+// connectivity.
 package throttle
 
 import (

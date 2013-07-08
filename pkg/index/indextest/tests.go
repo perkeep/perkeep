@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package indextest contains the unit tests for the indexer so they
+// can be re-used for each specific implementation of the index
+// Storage interface.
 package indextest
 
 import (

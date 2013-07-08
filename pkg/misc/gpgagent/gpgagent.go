@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package gpgagent interacts with the local GPG Agent.
 package gpgagent
 
 import (
@@ -29,16 +30,20 @@ import (
 	"strings"
 )
 
-// A connection to the GPG agent.
+// Conn is a connection to the GPG agent.
 type Conn struct {
 	c  io.ReadWriteCloser
 	br *bufio.Reader
 }
 
-var ErrNoAgent = errors.New("GPG_AGENT_INFO not set in environment")
-var ErrNoData = errors.New("GPG_ERR_NO_DATA cache miss")
-var ErrCancel = errors.New("gpgagent: Cancel")
+var (
+	ErrNoAgent = errors.New("GPG_AGENT_INFO not set in environment")
+	ErrNoData  = errors.New("GPG_ERR_NO_DATA cache miss")
+	ErrCancel  = errors.New("gpgagent: Cancel")
+)
 
+// NewConn connects to the GPG Agent as described in the
+// GPG_AGENT_INFO environment variable.
 func NewConn() (*Conn, error) {
 	sp := strings.SplitN(os.Getenv("GPG_AGENT_INFO"), ":", 3)
 	if len(sp) == 0 || len(sp[0]) == 0 {
@@ -66,6 +71,8 @@ func (c *Conn) Close() error {
 	return c.c.Close()
 }
 
+// PassphraseRequest is a request to get a passphrase from the GPG
+// Agent.
 type PassphraseRequest struct {
 	CacheKey, Error, Prompt, Desc string
 

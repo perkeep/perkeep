@@ -42,10 +42,10 @@ import (
 // doesn't let you set those.
 const oldAppEngineHappySpec = false
 
-func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) func(http.ResponseWriter, *http.Request) {
-	return func(conn http.ResponseWriter, req *http.Request) {
+func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
+	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
 		handleMultiPartUpload(conn, req, storage)
-	}
+	})
 }
 
 func wrapReceiveConfiger(cw blobserver.ContextWrapper,
