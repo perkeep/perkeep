@@ -515,6 +515,260 @@ func (pr *publishRequest) serveZip() {
 	zh.ServeHTTP(pr.rw, pr.req)
 }
 
+// serveHeader serves the html header with the relevant title, javascript
+// and css includes. It is meant to be called from serveSubject.
+func (pr *publishRequest) serveHeader(title, camliClosurePage string) {
+	pr.pf("<!doctype html>\n<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
+	if camliClosurePage != "" && pr.ViewerIsOwner() {
+		pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
+		pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
+		pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
+		pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
+		pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
+		pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
+		pr.pf("<script>\n goog.require('camlistore.%s');\n </script>\n", camliClosurePage)
+	}
+	for _, filename := range pr.ph.CSSFiles {
+		pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
+	}
+}
+
+// serveMeta serves all the described meta data about the published items,
+// within the html header. It is meant to be called from serveSubject.
+func (pr *publishRequest) serveMeta(des map[string]*search.DescribedBlob) {
+	pr.pf(" <script>\n")
+	pr.pf("var camliViewIsOwner = %v;\n", pr.ViewerIsOwner())
+	pr.pf("var camliPagePermanode = %q;\n", pr.subject)
+	pr.pf("var camliPageMeta = \n")
+	json, _ := json.MarshalIndent(des, "", "  ")
+	pr.rw.Write(json)
+	pr.pf(";\n </script>\n</head>\n")
+}
+
+// TODO(mpl): use those everywhere else
+const (
+	resSeparator = "/-"
+	digestPrefix = "h"
+	digestLen    = 10
+)
+
+var hopRE = regexp.MustCompile(fmt.Sprintf("^/%s([0-9a-f]{%d})", digestPrefix, digestLen))
+
+// publishedPath is a URL suffix path of the kind
+// suffix + resSeparator + subresource(s), such as:
+// /foo/bar/-/subres1/subres2
+type publishedPath string
+
+// splitHops returns a slice containing the subresource(s)
+// digests. For example, with /foo/bar/-/he0917e5bcf/h5f46bb454d
+// it will yield []string{"e0917e5bcf", "5f46bb454d"}
+func (p publishedPath) splitHops() []string {
+	ps := string(p)
+	var hops []string
+	if idx := strings.Index(ps, resSeparator); idx != -1 {
+		ps = ps[idx+len(resSeparator):]
+	}
+	matchLen := 1 + len(digestPrefix) + digestLen
+	for {
+		m := memberRE.FindStringSubmatch(ps)
+		if m == nil {
+			break
+		}
+		hops = append(hops, m[1])
+		ps = ps[matchLen:]
+	}
+	return hops
+}
+
+// parent returns the base path and the blobRef of pr.subject's parent.
+// It returns an error if pr.subject or pr.subjectBasePath were not set
+// properly (with findSubject), or if the parent was not found.
+func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.BlobRef, err error) {
+	if pr.subject == nil {
+		return "", nil, errors.New("subject not set")
+	}
+	if pr.subjectBasePath == "" {
+		return "", nil, errors.New("subjectBasePath not set")
+	}
+	hops := publishedPath(pr.subjectBasePath).splitHops()
+	if len(hops) == 0 {
+		return "", nil, errors.New("No subresource digest in subjectBasePath")
+	}
+	subjectDigest := hops[len(hops)-1]
+	if subjectDigest != pr.subject.DigestPrefix(digestLen) {
+		return "", nil, errors.New("subject digest not in subjectBasePath")
+	}
+	parentPath = strings.TrimSuffix(pr.subjectBasePath, "/"+digestPrefix+subjectDigest)
+
+	if len(hops) == 1 {
+		// the parent is the suffix, not one of the subresource hops
+		for br, _ := range pr.inSubjectChain {
+			if br != pr.subject.String() {
+				parentBlobRef = blobref.Parse(br)
+				break
+			}
+		}
+	} else {
+		// nested collection(s)
+		parentDigest := hops[len(hops)-2]
+		for br, _ := range pr.inSubjectChain {
+			bref := blobref.Parse(br)
+			if bref == nil {
+				return "", nil, fmt.Errorf("Could not parse %q as blobRef", br)
+			}
+			if bref.DigestPrefix(10) == parentDigest {
+				parentBlobRef = bref
+				break
+			}
+		}
+	}
+	if parentBlobRef == nil {
+		return "", nil, fmt.Errorf("No parent found for %v", pr.subjectBasePath)
+	}
+	return parentPath, parentBlobRef, nil
+}
+
+// serveNav serves some navigation links (prev, next, up) if the
+// pr.subject is member of a collection (its parent has members).
+// It is meant to be called from serveFile.
+func (pr *publishRequest) serveNav() error {
+	// first get the parent path and blob
+	parentPath, parentbr, err := pr.parent()
+	if err != nil {
+		return fmt.Errorf("Errors building nav links for %s: %v", pr.subject, err)
+	}
+	parentNav := fmt.Sprintf("[<a href='%s'>up</a>]", strings.TrimSuffix(parentPath, resSeparator))
+
+	// describe the parent so we get the siblings (members of the parent)
+	dr := pr.ph.Search.NewDescribeRequest()
+	dr.Describe(parentbr, 3)
+	parentRes, err := dr.Result()
+	if err != nil {
+		return fmt.Errorf("Errors loading %s, permanode %s: %v, %#v", pr.req.URL, pr.subject, err, err)
+	}
+	members := parentRes[parentbr.String()].Members()
+	if len(members) == 0 {
+		pr.pf("<div class='camlifile'>[<a href='%s'>up</a>]</div>", parentNav)
+		return nil
+	}
+
+	pos := 0
+	var prev, next *blobref.BlobRef
+	for k, member := range members {
+		if member.BlobRef.String() == pr.subject.String() {
+			pos = k
+			break
+		}
+	}
+	if pos > 0 {
+		prev = members[pos-1].BlobRef
+	}
+	if pos < len(members)-1 {
+		next = members[pos+1].BlobRef
+	}
+	if prev != nil || next != nil {
+		var prevNav, nextNav string
+		if prev != nil {
+			prevNav = fmt.Sprintf("[<a href='%s/h%s'>prev</a>]",
+				parentPath, prev.DigestPrefix(10))
+		}
+		if next != nil {
+			nextNav = fmt.Sprintf("[<a href='%s/h%s'>next</a>]",
+				parentPath, next.DigestPrefix(10))
+		}
+		pr.pf("<div class='camlifile'>%s %s %s</div>", parentNav, prevNav, nextNav)
+	}
+
+	return nil
+}
+
+// serveFile serves the relevant view when the subject in serveSubject
+// is a permanode with some content cref. It is meant to be called
+// from serveSubject.
+func (pr *publishRequest) serveFile(cref *blobref.BlobRef) error {
+	des, err := pr.dr.DescribeSync(cref)
+	if err != nil {
+		pr.pf("<p>Error serving file</p>")
+		return fmt.Errorf("Could not describe %v: %v", cref, err)
+	}
+	if des.File != nil {
+		path := []*blobref.BlobRef{pr.subject, cref}
+		downloadURL := pr.SubresFileURL(path, des.File.FileName)
+		pr.pf("<div>File: %s, %d bytes, type %s</div>",
+			html.EscapeString(des.File.FileName),
+			des.File.Size,
+			des.File.MIMEType)
+		if des.File.IsImage() {
+			pr.pf("<a href='%s'><img src='%s'></a>",
+				downloadURL,
+				pr.SubresThumbnailURL(path, des.File.FileName, 600))
+		}
+		pr.pf("<div id='%s' class='camlifile'>[<a href='%s'>download</a>]</div>",
+			cref.DomID(),
+			downloadURL)
+	}
+	if strings.Contains(pr.subjectBasePath, resSeparator) {
+		// this permanode has a "parent" collection.
+		// so we send a deep request on the parent in order to get some info
+		// about the siblings and build some "prev" and "next" nav links.
+		// TODO(mpl): nav links everywhere, not just when showing a permanode
+		// with some content.
+		err := pr.serveNav()
+		if err != nil {
+			pr.pf("<p>Error building navs links</p>")
+			return err
+		}
+	}
+	return nil
+}
+
+// serveMembers serves the relevant view when the subject in serveSubject
+// is a collection (permanode with members). It is meant to be called
+// from serveSubject.
+func (pr *publishRequest) serveMembers(title string, members []*search.DescribedBlob) {
+	zipName := ""
+	if title == "" {
+		zipName = "download.zip"
+	} else {
+		zipName = title + ".zip"
+	}
+	subjectPath := pr.subjectBasePath
+	if !strings.Contains(subjectPath, "/-/") {
+		subjectPath += "/-"
+	}
+	pr.pf("<div><a href='%s/=z/%s'>%s</a></div>\n", subjectPath,
+		html.EscapeString(url.QueryEscape(zipName)), html.EscapeString(zipName))
+	pr.pf("<ul id='members'>\n")
+	for _, member := range members {
+		des := member.Description()
+		if des != "" {
+			des = " - " + des
+		}
+		var fileLink, thumbnail string
+		if path, fileInfo, ok := member.PermanodeFile(); ok {
+			fileLink = fmt.Sprintf("<div id='%s' class='camlifile'><a href='%s'>file</a></div>",
+				path[len(path)-1].DomID(),
+				html.EscapeString(pr.SubresFileURL(path, fileInfo.FileName)),
+			)
+			if fileInfo.IsImage() {
+				thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
+			}
+		}
+		memberTitle := member.Title()
+		if memberTitle == "" {
+			memberTitle = member.BlobRef.DigestPrefix(10)
+		}
+		pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
+			member.DomID(),
+			pr.memberPath(member.BlobRef),
+			thumbnail,
+			html.EscapeString(memberTitle),
+			des,
+			fileLink)
+	}
+	pr.pf("</ul>\n")
+}
+
 func (pr *publishRequest) serveSubject() {
 	dr := pr.ph.Search.NewDescribeRequest()
 	dr.Describe(pr.subject, 3)
@@ -536,102 +790,30 @@ func (pr *publishRequest) serveSubject() {
 
 	// HTML header + Javascript
 	var camliPage string
-	{
-		pr.pf("<!doctype html>\n<html>\n<head>\n <title>%s</title>\n", html.EscapeString(title))
-		// TODO(mpl): We are only using the first .js file, and expecting it to be
-		// using closure. Do we want to be more open about this?
-		if len(pr.ph.JSFiles) > 0 {
-			camliPage = camliClosurePage(pr.ph.JSFiles[0])
-		}
-
-		if camliPage != "" && pr.ViewerIsOwner() {
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath("closure/goog/base.js"))
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath("deps.js"))
-			pr.pf(" <script src='%s'></script>\n", pr.base+"?camli.mode=config&var=CAMLISTORE_CONFIG")
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath("base64.js"))
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath("Crypto.js"))
-			pr.pf(" <script src='%s'></script>\n", pr.staticPath("SHA1.js"))
-			pr.pf("<script>\n goog.require('camlistore.%s');\n </script>\n", camliPage)
-		}
-		for _, filename := range pr.ph.CSSFiles {
-			pr.pf(" <link rel='stylesheet' type='text/css' href='%s'>\n", pr.staticPath(filename))
-		}
-
-		pr.pf(" <script>\n")
-		pr.pf("var camliViewIsOwner = %v;\n", pr.ViewerIsOwner())
-		pr.pf("var camliPagePermanode = %q;\n", pr.subject)
-		pr.pf("var camliPageMeta = \n")
-		json, _ := json.MarshalIndent(res, "", "  ")
-		pr.rw.Write(json)
-		pr.pf(";\n </script>\n</head>\n<body>\n")
-		defer pr.pf("</body>\n</html>\n")
+	// TODO(mpl): We are only using the first .js file, and expecting it to be
+	// using closure. We want to be more customizable in the long run and enable
+	// some sort of templating mechanism.
+	if len(pr.ph.JSFiles) > 0 {
+		camliPage = camliClosurePage(pr.ph.JSFiles[0])
 	}
-
+	pr.serveHeader(title, camliPage)
+	pr.serveMeta(res)
+	pr.pf("<body>\n")
 	if title != "" {
 		pr.pf("<h1>%s</h1>\n", html.EscapeString(title))
 	}
+	defer pr.pf("</body>\n</html>\n")
 
 	if cref, ok := subdes.ContentRef(); ok {
-		des, err := pr.dr.DescribeSync(cref)
-		if err == nil && des.File != nil {
-			path := []*blobref.BlobRef{pr.subject, cref}
-			downloadURL := pr.SubresFileURL(path, des.File.FileName)
-			pr.pf("<div>File: %s, %d bytes, type %s</div>",
-				html.EscapeString(des.File.FileName),
-				des.File.Size,
-				des.File.MIMEType)
-			if des.File.IsImage() {
-				pr.pf("<a href='%s'><img src='%s'></a>",
-					downloadURL,
-					pr.SubresThumbnailURL(path, des.File.FileName, 600))
-			}
-			pr.pf("<div id='%s' class='camlifile'>[<a href='%s'>download</a>]</div>",
-				cref.DomID(),
-				downloadURL)
+		err = pr.serveFile(cref)
+		if err != nil {
+			log.Print(err)
+			return
 		}
-	}
-
-	if members := subdes.Members(); len(members) > 0 {
-		zipName := ""
-		if title == "" {
-			zipName = "download.zip"
-		} else {
-			zipName = html.EscapeString(title) + ".zip"
+	} else {
+		if members := subdes.Members(); len(members) > 0 {
+			pr.serveMembers(title, members)
 		}
-		subjectPath := pr.subjectBasePath
-		if !strings.Contains(subjectPath, "/-/") {
-			subjectPath += "/-"
-		}
-		pr.pf("<div><a href='%s/=z/%s'>%s</a></div>\n", subjectPath, zipName, zipName)
-		pr.pf("<ul id='members'>\n")
-		for _, member := range members {
-			des := member.Description()
-			if des != "" {
-				des = " - " + des
-			}
-			var fileLink, thumbnail string
-			if path, fileInfo, ok := member.PermanodeFile(); ok {
-				fileLink = fmt.Sprintf("<div id='%s' class='camlifile'><a href='%s'>file</a></div>",
-					path[len(path)-1].DomID(),
-					html.EscapeString(pr.SubresFileURL(path, fileInfo.FileName)),
-				)
-				if fileInfo.IsImage() {
-					thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(path, fileInfo.FileName, 200))
-				}
-			}
-			memberTitle := member.Title()
-			if memberTitle == "" {
-				memberTitle = member.BlobRef.DigestPrefix(10)
-			}
-			pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
-				member.DomID(),
-				pr.memberPath(member.BlobRef),
-				thumbnail,
-				html.EscapeString(memberTitle),
-				des,
-				fileLink)
-		}
-		pr.pf("</ul>\n")
 	}
 
 	if camliPage != "" && pr.ViewerIsOwner() {
