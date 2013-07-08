@@ -4,6 +4,10 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- why can't ./pkg/blobserver/gethandler be merged into
+   ./pkg/blobserver/handlers? I forget the reason, but it seems to
+   work now, so maybe the circular dependency is gone.
+
 -- support for running cammount under camlistored. especially for OS X,
    where the lifetime of the background daemon will be the same as the
    user's login session.

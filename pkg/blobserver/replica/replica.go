@@ -14,6 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package replica registers the "replica" blobserver storage type,
+providing synchronous replication to one more backends.
+
+Writes wait for minWritesForSuccess (default: all). Reads are
+attempted in order and not load-balanced, randomized, or raced by
+default.
+
+Example config:
+
+      "/repl/": {
+          "handler": "storage-replica",
+          "handlerArgs": {
+              "backends": ["/b1/", "/b2/", "/b3/"],
+              "minWritesForSuccess": 2
+          }
+      },
+*/
 package replica
 
 import (
@@ -96,13 +114,8 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *replicaStorage) weightedRandomReplicas() []blobserver.Storage {
-	// TODO: implement something actually weighted or random.
-	return sto.replicas
-}
-
 func (sto *replicaStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
-	for _, replica := range sto.weightedRandomReplicas() {
+	for _, replica := range sto.replicas {
 		file, size, err = replica.FetchStreaming(b)
 		if err == nil {
 			return
@@ -167,8 +180,7 @@ type sizedBlobAndError struct {
 	err error
 }
 
-// TODO-GO: s/xxgo/_/ once Go issue 1802 is fixd
-func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (xxgo blobref.SizedBlobRef, err error) {
+func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (_ blobref.SizedBlobRef, err error) {
 	nReplicas := len(sto.replicas)
 	rpipe, wpipe, writer := make([]*io.PipeReader, nReplicas), make([]*io.PipeWriter, nReplicas), make([]io.Writer, nReplicas)
 	for idx := range sto.replicas {

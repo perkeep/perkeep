@@ -14,6 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package shard registers the "shard" blobserver storage type,
+predictably spraying out blobs out over the provided backends
+based on their blobref. Each blob maps to exactly one backend.
+
+Example low-level config:
+
+     "/foo/": {
+         "handler": "storage-shard",
+         "handlerArgs": {
+             "backends": ["/s1/", "/s2/"]
+          }
+     },
+
+*/
 package shard
 
 import (

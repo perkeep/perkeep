@@ -3,4 +3,6 @@ Tests needed
 -cmd/camput/
 	-verify that stat caching works. verify that -filenodes does create the permanode even if the file was already uploaded (and cached) in a previous run.
 
--- blobserver/cond has no tests.
+-- blobserver/{cond,replica,remote,shard} have no tests. should be easier now
+   that test.Fetcher is a full blobserver? see encrypt's nascent tests for
+   examples.

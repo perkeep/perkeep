@@ -14,6 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package remote registers the "remote" blobserver storage type, storing
+and fetching blobs from a remote Camlistore server, speaking the HTTP
+protocol.
+
+Example low-level config:
+
+     "/peer/": {
+         "handler": "storage-remote",
+         "handlerArgs": {
+             "url": "http://10.0.0.17/base",
+             "skipStartupCheck": false
+          }
+     },
+
+*/
 package remote
 
 import (
@@ -35,6 +51,8 @@ type remoteStorage struct {
 
 var _ = blobserver.Storage((*remoteStorage)(nil))
 
+// NewFromClient returns a new Storage implementation using the
+// provided Camlistore client.
 func NewFromClient(c *client.Client) blobserver.Storage {
 	return &remoteStorage{client: c}
 }

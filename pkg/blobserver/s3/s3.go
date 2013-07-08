@@ -14,6 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package s3 registers the "s3" blobserver storage type, storing
+blobs in an Amazon Web Services' S3 storage bucket.
+
+Example low-level config:
+
+     "/r1/": {
+         "handler": "storage-s3",
+         "handlerArgs": {
+            "bucket": "foo",
+            "aws_access_key": "...",
+            "aws_secret_access_key": "...",
+            "skipStartupCheck": false
+          }
+     },
+
+*/
 package s3
 
 import (

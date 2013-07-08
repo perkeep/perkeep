@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package fileembed provides access to static data resources (images,
+// HTML, css, etc) embedded into the binary with genfileembed.
+//
+// Most of the package contains internal details used by genfileembed.
+// Normal applications will simply make a global Files variable.
 package fileembed
 
 import (
@@ -32,6 +37,7 @@ import (
 	"time"
 )
 
+// Files contains all the embedded resources.
 type Files struct {
 	// Optional environment variable key to override
 	OverrideEnv string

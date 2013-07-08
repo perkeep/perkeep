@@ -25,7 +25,7 @@ import (
 	"net/url"
 )
 
-func BlobFileBaseName(b *blobref.BlobRef) string {
+func blobFileBaseName(b *blobref.BlobRef) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
@@ -38,7 +38,7 @@ func (ds *DiskStorage) blobDirectory(partition string, b *blobref.BlobRef) strin
 }
 
 func (ds *DiskStorage) blobPath(partition string, b *blobref.BlobRef) string {
-	return filepath.Join(ds.blobDirectory(partition, b), BlobFileBaseName(b))
+	return filepath.Join(ds.blobDirectory(partition, b), blobFileBaseName(b))
 }
 
 func (ds *DiskStorage) PartitionRoot(partition string) string {

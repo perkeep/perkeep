@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package google registers the "google" blob storage type, storing blobs
+// on Google Cloud Storage (not Google Drive).
 package google
 
 import (

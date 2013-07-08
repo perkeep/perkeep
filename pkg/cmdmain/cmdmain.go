@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmdmain contains the shared implementation for camget,
+// camput, camtool, and other Camlistore command-line tools.
 package cmdmain
 
 import (

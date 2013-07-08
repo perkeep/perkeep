@@ -41,7 +41,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		return
 	}
 
-	tempFile, err := ioutil.TempFile(hashedDirectory, BlobFileBaseName(blobRef)+".tmp")
+	tempFile, err := ioutil.TempFile(hashedDirectory, blobFileBaseName(blobRef)+".tmp")
 	if err != nil {
 		return
 	}

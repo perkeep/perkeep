@@ -14,6 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package localdisk registers the "filesystem" blobserver storage type,
+storing blobs in a forest of sharded directories at the specified root.
+
+Example low-level config:
+
+     "/storage/": {
+         "handler": "storage-filesystem",
+         "handlerArgs": {
+            "path": "/var/camlistore/blobs"
+          }
+     },
+
+*/
 package localdisk
 
 import (
@@ -27,6 +41,8 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
+// DiskStorage implements the blobserver.Storage interface using the
+// local filesystem.
 type DiskStorage struct {
 	*blobserver.SimpleBlobHubPartitionMap
 	root string
@@ -39,8 +55,8 @@ type DiskStorage struct {
 	mirrorPartitions []*DiskStorage
 }
 
-// New returns a new local disk storage implementation, rooted at the provided
-// directory, which must already exist.
+// New returns a new local disk storage implementation at the provided
+// root directory, which must already exist.
 func New(root string) (*DiskStorage, error) {
 	// Local disk.
 	fi, err := os.Stat(root)

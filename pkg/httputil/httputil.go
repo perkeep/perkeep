@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package httputil contains a bunch of HTTP utility code, some generic,
+// and some Camlistore-specific.
 package httputil
 
 import (

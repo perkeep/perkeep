@@ -14,9 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Implements the Google Storage API calls needed by camlistore.
-// This is intended to be exclude camlistore-specific logic.
-
+// Package googlestorage implements a generic Google Storage API
+// client. It does not include any Camlistore-specific logic.
 package googlestorage
 
 import (

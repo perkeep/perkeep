@@ -16,6 +16,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package fs implements a FUSE filesystem for Camlistore and is
+// used by the cammount binary.
 package fs
 
 import (
