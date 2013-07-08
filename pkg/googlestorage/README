@@ -2,9 +2,18 @@ Implements the Storage interface for Google Storage.
 A GoogleStorage instance stores blobs in a single Google Storage bucket, with
 each blob keyed by its blobref.  
 
-Testing:
+Server configuration
+=====================
 
-gsapi_test.go contains integration tests which run against Google Storage.
+High-level server config is formatted like:
+
+	"google": "clientId:clientSecret:refreshToken:bucketName"
+
+
+Testing
+========
+
+googlestorage_test.go contains integration tests which run against Google Storage.
 In order to run these tests properly, you will need to:
 
 1.  Set up google storage.  See:
@@ -14,17 +23,19 @@ In order to run these tests properly, you will need to:
 	that all these files begin with 'test-': such files will be ignored when 
 	the bucket is used as blobserver storage.
 
-3.  Create the config file '~/.camli/gstestconfig.json'.  The file should look
-	something like this:
+3.  Create the config file '~/.config/camlistore/gstestconfig.json'.  The 
+    file should look something like this:
 
 	{
+		"gsconf": {
 			"auth": {
 				"client_id": "your client id",
 				"client_secret": "your client secret",
 				"refresh_token": "a refresh token"
 			},
-			"bucket": "bucket.example.com"
+			"bucket": "bucketName"
+		}
 	}
 
-	You can use camgsinit to help obtain the auth config object.
 
+	You can use 'camtool gsinit' to help obtain the auth config object.

@@ -19,8 +19,10 @@ limitations under the License.
 package google
 
 import (
-	"errors"
+	"bytes"
 	"io"
+	"io/ioutil"
+	"log"
 	"time"
 
 	"camlistore.org/pkg/blobref"
@@ -35,16 +37,20 @@ type Storage struct {
 	client *googlestorage.Client
 }
 
+var _ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+
+func (gs *Storage) MaxEnumerate() int { return 1000 }
+
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	auth := config.RequiredObject("auth")
+
 	gs := &Storage{
 		&blobserver.SimpleBlobHub{},
 		config.RequiredString("bucket"),
-		googlestorage.NewClient(MakeOauthTransport(
+		googlestorage.NewClient(googlestorage.MakeOauthTransport(
 			auth.RequiredString("client_id"),
 			auth.RequiredString("client_secret"),
-			auth.RequiredString("refresh_token"),
-		)),
+			auth.RequiredString("refresh_token"))),
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -56,30 +62,83 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 }
 
 func (gs *Storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
-	// TODO: Implement stub
+	defer close(dest)
+	objs, err := gs.client.EnumerateObjects(gs.bucket, after, limit)
+	if err != nil {
+		log.Printf("gstorage EnumerateObjects: %v", err)
+		return err
+	}
+	for _, obj := range objs {
+		br := blobref.Parse(obj.Key)
+		if br == nil {
+			continue
+		}
+		dest <- blobref.SizedBlobRef{BlobRef: br, Size: obj.Size}
+	}
 	return nil
 }
 
 func (gs *Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
-	// TODO: Implement stub
-	return blobref.SizedBlobRef{}, nil
+	buf := &bytes.Buffer{}
+	hash := blob.Hash()
+	size, err := io.Copy(io.MultiWriter(hash, buf), source)
+	if err != nil {
+		return blobref.SizedBlobRef{}, err
+	}
+	if !blob.HashMatches(hash) {
+		return blobref.SizedBlobRef{}, blobserver.ErrCorruptBlob
+	}
+
+	for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
+		shouldRetry, err = gs.client.PutObject(
+			&googlestorage.Object{Bucket: gs.bucket, Key: blob.String()},
+			ioutil.NopCloser(bytes.NewReader(buf.Bytes())))
+	}
+	if err != nil {
+		return blobref.SizedBlobRef{}, err
+	}
+
+	return blobref.SizedBlobRef{BlobRef: blob, Size: size}, nil
 }
 
 func (gs *Storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	// TODO: Implement stub
-	return errors.New("TODO: implement StatBlobs")
+	var reterr error
+
+	// TODO: do a batch API call, or at least keep N of these in flight at a time. No need to do them all serially.
+	for _, br := range blobs {
+		size, _, err := gs.client.StatObject(
+			&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
+		if err == nil {
+			dest <- blobref.SizedBlobRef{BlobRef: br, Size: size}
+		} else {
+			reterr = err
+		}
+	}
+	return reterr
 }
 
-func (gs *Storage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, error) {
-	// TODO: Implement stub
-	return nil, 0, errors.New("TODO: implement FetchStreaming")
+func (gs *Storage) FetchStreaming(blob *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+	file, size, err = gs.client.GetObject(&googlestorage.Object{Bucket: gs.bucket, Key: blob.String()})
+	return
+
 }
 
 func (gs *Storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
-	// TODO: Implement stub
-	return errors.New("TODO: implement RemoveBlobs")
+	var reterr error
+	// TODO: do a batch API call, or at least keep N of these in flight at a time. No need to do them all serially.
+	for _, br := range blobs {
+		err := gs.client.DeleteObject(&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
+		if err != nil {
+			reterr = err
+		}
+	}
+	return reterr
 }
 
 func (gs *Storage) GetBlobHub() blobserver.BlobHub {
 	return gs.hub
+}
+
+func init() {
+	blobserver.RegisterStorageConstructor("google", blobserver.StorageConstructor(newFromConfig))
 }

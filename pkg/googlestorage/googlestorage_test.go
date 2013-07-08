@@ -23,12 +23,13 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/test"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
 const testObjectContent = "Google Storage Test\n"
@@ -44,11 +45,13 @@ func (b *BufferCloser) Close() error {
 
 // Reads google storage config and creates a Client.  Exits on error.
 func doConfig(t *testing.T) (gsa *Client, bucket string) {
-	if _, err := os.Stat("gstestconfig.json"); os.IsNotExist(err) {
+	gsConfigPath := filepath.Join(osutil.CamliConfigDir(), "gstestconfig.json")
+
+	if _, err := os.Stat(gsConfigPath); os.IsNotExist(err) {
 		test.DependencyErrorOrSkip(t)
 		t.Fatalf("Missing config file: %v", err)
 	}
-	cf, err := jsonconfig.ReadFile("testconfig.json")
+	cf, err := jsonconfig.ReadFile(gsConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read config: %v", err)
 	}
@@ -65,21 +68,9 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 		t.Fatalf("Invalid config: %v", err)
 	}
 
-	gsa = NewClient(&oauth.Transport{
-		&oauth.Config{
-			ClientId:     auth.RequiredString("client_id"),
-			ClientSecret: auth.RequiredString("client_secret"),
-			Scope:        "https://www.googleapis.com/auth/devstorage.read_write",
-			AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-			TokenURL:     "https://accounts.google.com/o/oauth2/token",
-			RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
-		},
-		&oauth.Token{
-			AccessToken:  "",
-			RefreshToken: auth.RequiredString("refresh_token"),
-		},
-		nil,
-	})
+	gsa = NewClient(MakeOauthTransport(auth.RequiredString("client_id"),
+		auth.RequiredString("client_secret"),
+		auth.RequiredString("refresh_token")))
 
 	if err := auth.Validate(); err != nil {
 		t.Fatalf("Invalid config: %v", err)
@@ -111,26 +102,28 @@ func TestStatObject(t *testing.T) {
 	// Stat a nonexistant file
 	size, exists, err := gs.StatObject(&Object{bucket, "test-shouldntexist"})
 	if err != nil {
-		t.Errorf("Stat failed: %v\n", err)
-	}
-	if exists {
-		t.Errorf("Test object exists!")
-	}
-	if size != 0 {
-		t.Errorf("Expected size to be 0, found %v\n", size)
+		t.Fatalf("Stat failed: %v\n", err)
+	} else {
+		if exists {
+			t.Errorf("Test object exists!")
+		}
+		if size != 0 {
+			t.Errorf("Expected size to be 0, found %v\n", size)
+		}
 	}
 
 	// Try statting an object which does exist
 	size, exists, err = gs.StatObject(&Object{bucket, "test-stat"})
 	if err != nil {
-		t.Errorf("Stat failed: %v\n", err)
-	}
-	if !exists {
-		t.Errorf("Test object doesn't exist!")
-	}
-	if size != int64(len(testObjectContent)) {
-		t.Errorf("Test object size is wrong: \nexpected: %v\nfound: %v\n",
-			len(testObjectContent), size)
+		t.Fatalf("Stat failed: %v\n", err)
+	} else {
+		if !exists {
+			t.Errorf("Test object doesn't exist!")
+		}
+		if size != int64(len(testObjectContent)) {
+			t.Errorf("Test object size is wrong: \nexpected: %v\nfound: %v\n",
+				len(testObjectContent), size)
+		}
 	}
 }
 

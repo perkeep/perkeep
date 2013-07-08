@@ -22,7 +22,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -32,7 +31,7 @@ import (
 )
 
 const (
-	gsAccessURL = "https://commondatastorage.googleapis.com"
+	gsAccessURL = "https://storage.googleapis.com"
 )
 
 type Client struct {
@@ -63,11 +62,11 @@ func (sgso SizedObject) String() string {
 }
 
 // A close relative to http.Client.Do(), helping with token refresh logic.
-// If canResend is true and the initial request's response is an auth error 
-// (401 or 403), oauth credentials will be refreshed and the request sent 
+// If canResend is true and the initial request's response is an auth error
+// (401 or 403), oauth credentials will be refreshed and the request sent
 // again.  This should only be done for requests with empty bodies, since the
 // Body will be consumed on the first attempt if it exists.
-// If canResend is false, and req would have been resent if canResend were 
+// If canResend is false, and req would have been resent if canResend were
 // true, then shouldRetry will be true.
 // One of resp or err will always be nil.
 func (gsa *Client) doRequest(req *http.Request, canResend bool) (resp *http.Response, err error, shouldRetry bool) {
@@ -109,7 +108,6 @@ func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err 
 // Bucket and Key fields are trusted to be valid.
 // Returns (object reader, object size, err).  Reader must be closed.
 func (gsa *Client) GetObject(obj *Object) (io.ReadCloser, int64, error) {
-	log.Printf("Fetching object from Google Storage: %s/%s\n", obj.Bucket, obj.Key)
 
 	resp, err := gsa.simpleRequest("GET", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
@@ -127,8 +125,6 @@ func (gsa *Client) GetObject(obj *Object) (io.ReadCloser, int64, error) {
 // Bucket and Key fields are trusted to be valid.
 // err signals io / authz errors, a nonexistant file is not an error.
 func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) {
-	log.Printf("Statting object in Google Storage: %s/%s\n", obj.Bucket, obj.Key)
-
 	resp, err := gsa.simpleRequest("HEAD", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
 		return
@@ -154,8 +150,6 @@ func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) 
 // credentials have been refreshed and another attempt is likely to succeed.
 // In this case, content will have been consumed.
 func (gsa *Client) PutObject(obj *Object, content io.ReadCloser) (shouldRetry bool, err error) {
-	log.Printf("Putting object in Google Storage: %s/%s\n", obj.Bucket, obj.Key)
-
 	objURL := gsAccessURL + "/" + obj.Bucket + "/" + obj.Key
 	var req *http.Request
 	if req, err = http.NewRequest("PUT", objURL, content); err != nil {
@@ -178,8 +172,6 @@ func (gsa *Client) PutObject(obj *Object, content io.ReadCloser) (shouldRetry bo
 // Removes a GS object.
 // Bucket and Key values are trusted to be valid.
 func (gsa *Client) DeleteObject(obj *Object) (err error) {
-	log.Printf("Deleting %v/%v\n", obj.Bucket, obj.Key)
-
 	//	bucketURL := gsAccessURL + "/" + obj.Bucket + "/" + obj.Key
 	resp, err := gsa.simpleRequest("DELETE", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
@@ -199,9 +191,7 @@ type gsListResult struct {
 // List the objects in a GS bucket.
 // If after is nonempty, listing will begin with lexically greater object names
 // If limit is nonzero, the length of the list will be limited to that number.
-func (gsa *Client) EnumerateObjects(bucket, after string, limit uint) ([]SizedObject, error) {
-	log.Printf("Fetching from %v: after '%v', limit %v\n", bucket, after, limit)
-
+func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObject, error) {
 	// Build url, with query params
 	params := make([]string, 0, 2)
 	if after != "" {

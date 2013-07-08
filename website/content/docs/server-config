@@ -39,10 +39,11 @@ web browser and restart the server.</p>
 </ul>
 
 <h2>Storage options</h2>
-<p>Exactly one of these must be set:</p>
+<p>At least one of these must be set:</p>
 <ul>
 <li><b><code>blobPath</code></b>: local disk path to store blobs</li>
 <li><b><code>s3</code></b>: "<code>key:secret:bucket</code>" (with colons, but no quotes).</li>
+<li><b><code>google</code></b>: "<code>clientId:clientSecret:refreshToken:bucketName</code>"</li>
 </ul>
 <p>Others aren't yet supported by the simple config mode. Patches
 to <code>pkg/genconfig</code> welcome.</p>
