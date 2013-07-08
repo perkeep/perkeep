@@ -32,7 +32,6 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -120,7 +119,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 		case "stat":
 			handler = handlers.CreateStatHandler(storage).ServeHTTP
 		default:
-			handler = gethandler.CreateGetHandler(storage).ServeHTTP
+			handler = handlers.CreateGetHandler(storage).ServeHTTP
 			op = auth.OpGet
 		}
 	case "POST":
