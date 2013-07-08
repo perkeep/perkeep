@@ -35,6 +35,13 @@ if ($in_prod) {
         sleep 5;
     }
 } else {
+    my $pass_file = "$ENV{HOME}/.config/camlistore/camorg-blobserver.pass";
+    unless (-s $pass_file) {
+        `mkdir -p $ENV{HOME}/.config/camlistore/`;
+        open (my $fh, ">$pass_file");
+        print $fh "foo\n";
+        close($fh);
+    }
     push @args, "--http=127.0.0.1:8080"; # localhost avoids Mac firewall warning
     exec(@args);
     die "Failed to exec: $!";
