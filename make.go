@@ -1,3 +1,5 @@
+// +build ignore
+
 /*
 Copyright 2013 Google Inc.
 
