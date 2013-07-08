@@ -582,7 +582,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return
 	}
 
-	if sto.key == nil {
+	if keyb == nil {
 		// TODO: add a way to prompt from stdin on start? or keychain support?
 		return nil, errors.New("no encryption key set with 'key' or 'keyFile'")
 	}
