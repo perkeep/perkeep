@@ -84,3 +84,12 @@
   text-decoration: underline;
   background: #999;
 }
+
+.cam-blobitem-dropactive {
+  outline: 0;  /* Do not show an outline when container has focus. */
+  border-width: 5px;
+  border-color: #acf;
+  border-style: dashed;
+  position: relative;
+  border-radius: 5px;
+}
