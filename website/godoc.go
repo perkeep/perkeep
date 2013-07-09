@@ -239,6 +239,10 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	}
 	bpkg, err := build.ImportDir(diskPath, 0)
 	if err != nil {
+		if _, ok := err.(*build.NoGoError); ok {
+			pi.populateDirs(diskPath, -1)
+			return pi, nil
+		}
 		return
 	}
 	inSet := make(map[string]bool)
@@ -274,7 +278,7 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	pi.IsPkg = strings.Contains(pkgName, domainName+pkgPattern)
 
 	// get directory information
-	pi.populateDirs(diskPath, 1)
+	pi.populateDirs(diskPath, -1)
 	return
 }
 
