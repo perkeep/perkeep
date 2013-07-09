@@ -234,7 +234,7 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	if pkgName == pathpkg.Join(domainName, pkgPattern) ||
 		pkgName == pathpkg.Join(domainName, cmdPattern) {
 		pi.Dirname = diskPath
-		pi.populateDirs(diskPath, 2)
+		pi.populateDirs(diskPath, -1)
 		return
 	}
 	bpkg, err := build.ImportDir(diskPath, 0)
