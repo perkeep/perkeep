@@ -19,9 +19,11 @@ my $cammount = build_bin("./cmd/cammount");
 unless (-x $cammount) { die "Failed to find $cammount" }
 
 my $dir = "/tmp/cammount-dir";
-mkdir $dir, 0700 unless -d $dir;
 
 try_unmount();
+
+mkdir $dir, 0700 unless -d $dir;
+
 print "Mounting on $dir ...\n";
 
 # Respected by camli/osutil:
@@ -33,11 +35,25 @@ $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
 $ENV{"CAMLI_AUTH"} = "userpass:camlistore:pass3179";
 
-system("$cammount", "--server=http://localhost:3179/bs", $dir, @blobref_arg)
+my $in_child = "false";
+if ($^O eq "darwin") {
+    $in_child = "true";
+}
+
+exec("$cammount", "--mount_in_child=$in_child", "--server=http://localhost:3179/bs", $dir, @blobref_arg)
     and warn "cammount failure: $!\n";
 warn "Failed to unmount\n" unless try_unmount();
 
 sub try_unmount {
+    if ($^O eq "darwin") {
+        print "Try unmount darwin...\n";
+        unless (`df -n` =~ /\Q$dir\E/) {
+            print "Not mounted.\n";
+            return 1;
+        }
+        print "Running: diskutil unmount force $dir ...\n";
+        return system("diskutil", "umount", "force", $dir) == 0;
+    }
     if ($^O eq "linux" && system("fusermount", "-u", $dir) == 0) {
         return 1;
     }

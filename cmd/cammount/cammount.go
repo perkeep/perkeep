@@ -22,17 +22,24 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
-
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+)
+
+var (
+	debug        = flag.Bool("debug", false, "print debugging messages.")
+	mountInChild = flag.Bool("mount_in_child", false, "Run the cammount in a child process, so the top process can catch SIGINT and such easier. Hack to work around OS X FUSE support.")
 )
 
 func usage() {
@@ -43,9 +50,64 @@ func usage() {
 
 func main() {
 	// Scans the arg list and sets up flags
-	debug := flag.Bool("debug", false, "print debugging messages.")
 	client.AddFlags()
 	flag.Parse()
+
+	narg := flag.NArg()
+	if narg < 1 || narg > 2 {
+		usage()
+	}
+
+	mountPoint := flag.Arg(0)
+
+	// TODO(bradfitz): this is not reliable yet.
+	if *mountInChild {
+		log.Printf("Running cammount in child process.")
+		cmd := exec.Command(os.Args[0], flag.Args()...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			log.Fatalf("Error running child cammount: %v", err)
+		}
+		log.Printf("cammount started; awaiting shutdown signals in parent.")
+
+		sigc := make(chan os.Signal, 1)
+		go func() {
+			var buf [1]byte
+			os.Stdin.Read(buf[:])
+			log.Printf("Read from stdin; shutting down.")
+			sigc <- syscall.SIGUSR2
+		}()
+		waitc := make(chan error, 1)
+		go func() {
+			waitc <- cmd.Wait()
+		}()
+		signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
+
+		sig := <-sigc
+		go os.Stat(filepath.Join(mountPoint, ".quitquitquit"))
+		log.Printf("Signal %s received, shutting down.", sig)
+		select {
+		case <-time.After(500 * time.Millisecond):
+			cmd.Process.Kill()
+		case <-waitc:
+		}
+		if runtime.GOOS == "darwin" {
+			donec := make(chan bool, 1)
+			go func() {
+				defer close(donec)
+				exec.Command("diskutil", "umount", "force", mountPoint).Run()
+				log.Printf("Unmounted")
+			}()
+			select {
+			case <-time.After(500 * time.Millisecond):
+				log.Printf("Unmount timeout.")
+			case <-donec:
+			}
+		}
+		os.Exit(0)
+		return
+	}
 
 	errorf := func(msg string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, msg, args...)
@@ -53,18 +115,12 @@ func main() {
 		usage()
 	}
 
-	nargs := flag.NArg()
-	if nargs < 1 || nargs > 2 {
-		usage()
-	}
-
-	mountPoint := flag.Arg(0)
 	var (
 		cl    *client.Client
 		root  *blobref.BlobRef // nil if only one arg
 		camfs *fs.CamliFileSystem
 	)
-	if nargs == 2 {
+	if narg == 2 {
 		rootArg := flag.Arg(1)
 		// not trying very hard since NewFromShareRoot will do it better with a regex
 		if strings.HasPrefix(rootArg, "http://") ||
