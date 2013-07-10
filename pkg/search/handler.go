@@ -205,20 +205,25 @@ func (r *RecentRequest) thumbnailSize() int {
 // WithAttrRequest is a request to get a WithAttrResponse.
 type WithAttrRequest struct {
 	N      int              // max number of results
-	Signer *blobref.BlobRef // if nil, search will return index.ErrNotFound
+	Signer *blobref.BlobRef // if nil, will use the server's default owner (if configured)
 	// Requested attribute. If blank, all attributes are searched (for Value)
 	// as fulltext.
 	Attr string
 	// Value of the requested attribute. If blank, permanodes which have
-	// request.Attribute as an attribute are searched.
+	// request.Attr as an attribute are searched.
 	Value         string
 	Fuzzy         bool // fulltext search (if supported).
 	ThumbnailSize int  // if zero, no thumbnails
 }
 
+func (r *WithAttrRequest) URLSuffix() string {
+	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v", 
+		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N, r.ThumbnailSize)
+}
+
 // fromHTTP panics with an httputil value on failure
 func (r *WithAttrRequest) fromHTTP(req *http.Request) {
-	r.Signer = httputil.MustGetBlobRef(req, "signer")
+	r.Signer = blobref.Parse(req.FormValue("signer"))
 	r.Value = req.FormValue("value")
 	fuzzy := req.FormValue("fuzzy") // exact match if empty
 	fuzzyMatch := false
@@ -335,6 +340,19 @@ type DescribeResponse struct {
 type WithAttrResponse struct {
 	WithAttr []*WithAttrItem `json:"withAttr"`
 	Meta     MetaMap         `json:"meta"`
+
+	Error     string `json:"error,omitempty"`
+	ErrorType string `json:"errorType,omitempty"`
+}
+
+func (r *WithAttrResponse) Err() error {
+	if r.Error != "" || r.ErrorType != "" {
+		if r.ErrorType != "" {
+			return fmt.Errorf("%s: %s", r.ErrorType, r.Error)
+		}
+		return errors.New(r.Error)
+	}
+	return nil
 }
 
 // ClaimsResponse is the JSON response from $searchRoot/camli/search/claims.
@@ -468,10 +486,14 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 	ch := make(chan *blobref.BlobRef, buffered)
 	errch := make(chan error)
 	go func() {
+		signer := req.Signer
+		if signer == nil {
+			signer = sh.owner
+		}
 		errch <- sh.index.SearchPermanodesWithAttr(ch,
 			&PermanodeByAttrRequest{Attribute: req.Attr,
 				Query:      req.Value,
-				Signer:     req.Signer,
+				Signer:     signer,
 				FuzzyMatch: req.Fuzzy,
 				MaxResults: req.N})
 	}()
@@ -1018,6 +1040,7 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 }
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
+	// TODO: make a proper request struct for this
 	defer httputil.RecoverJSON(rw, req)
 	br := httputil.MustGetBlobRef(req, "blobref")
 

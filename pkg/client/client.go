@@ -351,6 +351,47 @@ func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentR
 	return res, nil
 }
 
+func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.WithAttrResponse, error) {
+	sr, err := c.SearchRoot()
+	if err != nil {
+		return nil, err
+	}
+	url := sr + req.URLSuffix()
+	hreq := c.newRequest("GET", url)
+	hres, err := c.doReqGated(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	res := new(search.WithAttrResponse)
+	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *Client) Describe(br *blobref.BlobRef) (*search.DescribeResponse, error) {
+	sr, err := c.SearchRoot()
+	if err != nil {
+		return nil, err
+	}
+	url := sr + "camli/search/describe?blobref="+br.String()
+	hreq := c.newRequest("GET", url)
+	hres, err := c.doReqGated(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	res := new(search.DescribeResponse)
+	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 // SearchExistingFileSchema does a search query looking for an
 // existing file with entire contents of wholeRef, then does a HEAD
 // request to verify the file still exists on the server.  If so,
