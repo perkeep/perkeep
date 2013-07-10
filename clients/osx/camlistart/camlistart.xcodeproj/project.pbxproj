@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		34D377EF842A4FB7898A347A /* libPods.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E3B0C20A01974DA398E19217 /* libPods.a */; };
 		D0A09724178A648200D57EC5 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D0A09723178A648200D57EC5 /* Cocoa.framework */; };
 		D0A0972E178A648200D57EC5 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D0A0972C178A648200D57EC5 /* InfoPlist.strings */; };
 		D0A09730178A648200D57EC5 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A0972F178A648200D57EC5 /* main.m */; };
@@ -41,7 +40,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		7DE587EFBE224148A3D6DCA0 /* Pods.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.xcconfig; path = Pods/Pods.xcconfig; sourceTree = SOURCE_ROOT; };
 		D0A09720178A648200D57EC5 /* camlistart.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = camlistart.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0A09723178A648200D57EC5 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D0A09726178A648200D57EC5 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
@@ -76,7 +74,6 @@
 		D0A0976A178B942F00D57EC5 /* menuicon-selected@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon-selected@2x.png"; sourceTree = "<group>"; };
 		D0A0976B178B942F00D57EC5 /* menuicon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = menuicon.png; sourceTree = "<group>"; };
 		D0A0976C178B942F00D57EC5 /* menuicon@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon@2x.png"; sourceTree = "<group>"; };
-		E3B0C20A01974DA398E19217 /* libPods.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPods.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,7 +82,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D0A09724178A648200D57EC5 /* Cocoa.framework in Frameworks */,
-				34D377EF842A4FB7898A347A /* libPods.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,7 +104,6 @@
 				D0A09746178A648200D57EC5 /* camlistartTests */,
 				D0A09722178A648200D57EC5 /* Frameworks */,
 				D0A09721178A648200D57EC5 /* Products */,
-				7DE587EFBE224148A3D6DCA0 /* Pods.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -127,7 +122,6 @@
 				D0A09723178A648200D57EC5 /* Cocoa.framework */,
 				D0A09741178A648200D57EC5 /* SenTestingKit.framework */,
 				D0A09725178A648200D57EC5 /* Other Frameworks */,
-				E3B0C20A01974DA398E19217 /* libPods.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -222,11 +216,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D0A09751178A648200D57EC5 /* Build configuration list for PBXNativeTarget "camlistart" */;
 			buildPhases = (
-				AFB62F19EE8F4466A8390D10 /* Check Pods Manifest.lock */,
 				D0A0971C178A648200D57EC5 /* Sources */,
 				D0A0971D178A648200D57EC5 /* Frameworks */,
 				D0A0971E178A648200D57EC5 /* Resources */,
-				8B84AE5C29E948CB898A4756 /* Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -311,34 +303,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		8B84AE5C29E948CB898A4756 /* Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Copy Pods Resources";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/Pods/Pods-resources.sh\"\n";
-		};
-		AFB62F19EE8F4466A8390D10 /* Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Check Pods Manifest.lock";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [[ $? != 0 ]] ; then\n    cat << EOM\nerror: The sanbox is not in sync with the Podfile.lock. Run 'pod install'.\nEOM\n    exit 1\nfi\n";
-		};
 		D0A0973E178A648200D57EC5 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -484,7 +448,6 @@
 		};
 		D0A09752178A648200D57EC5 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7DE587EFBE224148A3D6DCA0 /* Pods.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
@@ -497,7 +460,6 @@
 		};
 		D0A09753178A648200D57EC5 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7DE587EFBE224148A3D6DCA0 /* Pods.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
