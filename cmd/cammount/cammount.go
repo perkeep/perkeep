@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -118,6 +119,9 @@ func main() {
 
 	conn, err := fuse.Mount(mountPoint)
 	if err != nil {
+		if err.Error() == "cannot find load_fusefs" && runtime.GOOS == "darwin" {
+			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
+		}
 		log.Fatalf("Mount: %v", err)
 	}
 	err = conn.Serve(camfs)
