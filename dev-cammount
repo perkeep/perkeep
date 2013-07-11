@@ -38,6 +38,7 @@ $ENV{"CAMLI_AUTH"} = "userpass:camlistore:pass3179";
 my $in_child = "false";
 if ($^O eq "darwin") {
     $in_child = "true";
+    print "############################################################################\n## Press 'q' <enter> to shut down.\n##\n";
 }
 
 exec("$cammount", "--mount_in_child=$in_child", "--server=http://localhost:3179/bs", $dir, @blobref_arg)
@@ -46,9 +47,7 @@ warn "Failed to unmount\n" unless try_unmount();
 
 sub try_unmount {
     if ($^O eq "darwin") {
-        print "Try unmount darwin...\n";
         unless (`df -n` =~ /\Q$dir\E/) {
-            print "Not mounted.\n";
             return 1;
         }
         print "Running: diskutil unmount force $dir ...\n";

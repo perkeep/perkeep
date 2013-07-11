@@ -74,8 +74,13 @@ func main() {
 		sigc := make(chan os.Signal, 1)
 		go func() {
 			var buf [1]byte
-			os.Stdin.Read(buf[:])
-			log.Printf("Read from stdin; shutting down.")
+			for {
+				os.Stdin.Read(buf[:])
+				if buf[0] == 'q' {
+					break
+				}
+			}
+			log.Printf("Read 'q' from stdin; shutting down.")
 			sigc <- syscall.SIGUSR2
 		}()
 		waitc := make(chan error, 1)

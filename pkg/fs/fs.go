@@ -301,7 +301,6 @@ func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
 }
 
 func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsResponse, intr fuse.Intr) fuse.Error {
-	log.Printf("CAMLI StatFS")
 	// Make some stuff up, just to see if it makes "lsof" happy.
 	res.Blocks = 1 << 35
 	res.Bfree = 1 << 34

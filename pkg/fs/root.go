@@ -90,6 +90,8 @@ func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		return n.getRootsDir(), nil
 	case "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
 		return notImplementDirNode{}, nil
+	case "mach_kernel", ".hidden", "._.":
+		return nil, fuse.ENOENT
 	}
 
 	br := blobref.Parse(name)
