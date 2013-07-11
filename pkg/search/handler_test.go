@@ -153,6 +153,43 @@ var handlerTests = []handlerTest{
 		}`),
 	},
 
+	// test that describe follows camliPath:foo attributes
+	{
+		name: "describe-permanode-follows-camliPath",
+		setup: func(fi *test.FakeIndex) Index {
+			pn := blobref.MustParse("perma-123")
+			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
+			fi.AddClaim(owner, pn, "set-attribute", "camliPath:foo", "bar-123")
+
+			fi.AddMeta(blobref.MustParse("bar-123"), "other/thing", 123)
+			return fi
+		},
+		query: "describe?blobref=perma-123",
+		want: parseJSON(`{
+  "meta": {
+    "bar-123": {
+      "blobRef": "bar-123",
+      "mimeType": "other/thing",
+      "camliType": "",
+      "size": 123
+    },
+    "perma-123": {
+      "blobRef": "perma-123",
+      "mimeType": "application/json; camliType=permanode",
+      "camliType": "permanode",
+      "size": 123,
+      "permanode": {
+        "attr": {
+          "camliPath:foo": [
+            "bar-123"
+          ]
+        }
+      }
+    }
+  }
+}`),
+	},
+
 	// Test recent permanodes
 	{
 		name: "recent-1",

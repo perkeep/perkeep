@@ -1145,6 +1145,18 @@ claimLoop:
 			}
 		}
 	}
+
+	// Resolve path elements
+	for k, vv := range attr {
+		if !strings.HasPrefix(k, "camliPath:") {
+			continue
+		}
+		for _, brs := range vv {
+			if br := blobref.Parse(brs); br != nil {
+				dr.Describe(br, depth-1)
+			}
+		}
+	}
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
