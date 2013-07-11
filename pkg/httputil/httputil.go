@@ -234,6 +234,20 @@ func MustGetBlobRef(req *http.Request, param string) *blobref.BlobRef {
 	return br
 }
 
+// OptionalInt returns the integer in req given by param, or 0 if not present.
+// If the form value is not an integer, it panics with a a value understood by Recover or RecoverJSON.
+func OptionalInt(req *http.Request, param string) int {
+	v := req.FormValue(param)
+	if v == "" {
+		return 0
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		panic(InvalidParameterError(param))
+	}
+	return i
+}
+
 // ServeJSONError sends a JSON error response to rw for the provided
 // error value.
 func ServeJSONError(rw http.ResponseWriter, err interface{}) {

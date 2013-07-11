@@ -580,14 +580,32 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 }
 
 type DescribeRequest struct {
-	sh *Handler
+	// BlobRef is the blob to describe.
+	BlobRef *blobref.BlobRef
 
+	// Depth is the optional traversal depth to describe from the
+	// root BlobRef. If zero, a default is used.
+	Depth int
+
+	// Internal details, used while loading.
+	// Initialized by sh.initDescribeRequest.
+	sh *Handler
 	mu   sync.Mutex // protects following:
 	m    MetaMap
 	done map[string]bool  // blobref -> described
 	errs map[string]error // blobref -> error
 
 	wg *sync.WaitGroup // for load requests
+}
+
+func (r *DescribeRequest) URLSuffix() string {
+	return fmt.Sprintf("camli/search/describe?blobref=%v&depth=%d", r.BlobRef, r.Depth)
+}
+
+// fromHTTP panics with an httputil value on failure
+func (r *DescribeRequest) fromHTTP(req *http.Request) {
+	r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
+	r.Depth = httputil.OptionalInt(req, "depth")
 }
 
 type DescribedBlob struct {
@@ -842,12 +860,19 @@ func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
 // of blobs and their summarized descriptions.  Use DescribeBlob
 // one or more times before calling Result.
 func (sh *Handler) NewDescribeRequest() *DescribeRequest {
-	return &DescribeRequest{
-		sh:   sh,
-		m:    make(MetaMap),
-		errs: make(map[string]error),
-		wg:   new(sync.WaitGroup),
+	dr := new(DescribeRequest)
+	sh.initDescribeRequest(dr)
+	return dr
+}
+
+func (sh *Handler) initDescribeRequest(req *DescribeRequest) {
+	if req.sh != nil {
+		panic("already initialized")
 	}
+	req.sh = sh
+	req.m = make(MetaMap)
+	req.errs = make(map[string]error)
+	req.wg = new(sync.WaitGroup)
 }
 
 // Given a blobref and a few hex characters of the digest of the next hop, return the complete
@@ -905,6 +930,13 @@ func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error
 		return dr.m, DescribeError(dr.errs)
 	}
 	return dr.m, nil
+}
+
+func (dr *DescribeRequest) depth() int {
+	if dr.Depth > 0 {
+		return dr.Depth
+	}
+	return 4
 }
 
 func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
@@ -1040,12 +1072,13 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 }
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	// TODO: make a proper request struct for this
 	defer httputil.RecoverJSON(rw, req)
-	br := httputil.MustGetBlobRef(req, "blobref")
+	var dr DescribeRequest
+	dr.fromHTTP(req)
 
-	dr := sh.NewDescribeRequest()
-	dr.Describe(br, 4)
+	sh.initDescribeRequest(&dr)
+
+	dr.Describe(dr.BlobRef, dr.depth())
 	metaMap, err := dr.metaMapThumbs(thumbnailSize(req))
 	if err != nil {
 		httputil.ServeJSONError(rw, err)

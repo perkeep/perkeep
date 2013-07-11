@@ -373,12 +373,12 @@ func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.Wit
 	return res, nil
 }
 
-func (c *Client) Describe(br *blobref.BlobRef) (*search.DescribeResponse, error) {
+func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
 	}
-	url := sr + "camli/search/describe?blobref="+br.String()
+	url := sr + req.URLSuffix()
 	hreq := c.newRequest("GET", url)
 	hres, err := c.doReqGated(hreq)
 	if err != nil {

@@ -20,7 +20,6 @@ package fs
 
 import (
 	"log"
-	"encoding/json"
 	"os"
 	"strings"
 
@@ -93,7 +92,9 @@ func (n *mutDir) Attr() fuse.Attr {
 }
 
 func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
-	res, err := n.fs.client.Describe(n.br)
+	res, err := n.fs.client.Describe(&search.DescribeRequest{
+		BlobRef: n.br,
+	})
 	if err != nil {
 		log.Println("ReadDir:", err)
 		return nil, fuse.EIO
