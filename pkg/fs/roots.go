@@ -72,8 +72,8 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		return nil, fuse.ENOENT
 	}
 	nod := &mutDir{
-		fs: n.fs,
-		br: br,
+		fs:        n.fs,
+		permanode: br,
 	}
 	return nod, nil
 }

@@ -20,12 +20,15 @@ package fs
 
 import (
 	"errors"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"sync"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
@@ -34,14 +37,13 @@ import (
 // mutDir is a mutable directory.
 // Its br is the permanode with camliPath:entname attributes.
 type mutDir struct {
-	fs   *CamliFileSystem
-	br   *blobref.BlobRef // root permanode
-	d    *mutDir          // parent directory
-	name string           // ent name (base name within d)
+	fs        *CamliFileSystem
+	permanode *blobref.BlobRef
+	parent    *mutDir
+	name      string // ent name (base name within d)
 
-	mu    sync.Mutex
-	dirs  map[string]*mutDir
-	files map[string]*mutFile
+	mu       sync.Mutex
+	children map[string]fuse.Node
 }
 
 func (n *mutDir) Attr() fuse.Attr {
@@ -53,24 +55,30 @@ func (n *mutDir) Attr() fuse.Attr {
 }
 
 func (n *mutDir) populate() error {
-	// TODO(adg): cache this intelligently
+	if n.children != nil {
+		// TODO(adg): refresh intelligently
+		return nil
+	}
 
 	res, err := n.fs.client.Describe(&search.DescribeRequest{
-		BlobRef: n.br,
+		BlobRef: n.permanode,
 		Depth:   3,
 	})
 	if err != nil {
 		log.Println("mutDir.paths:", err)
 		return nil
 	}
-	db := res.Meta[n.br.String()]
+	db := res.Meta[n.permanode.String()]
 	if db == nil {
 		return errors.New("dir blobref not described")
 	}
+
+	// Find all child permanodes and stick them in n.children
 	n.mu.Lock()
 	defer n.mu.Unlock()
-
-	// Find all child permanodes, and stick them in n.dirs or n.files
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
 	for k, v := range db.Permanode.Attr {
 		const p = "camliPath:"
 		if !strings.HasPrefix(k, p) || len(v) < 1 {
@@ -94,29 +102,22 @@ func (n *mutDir) populate() error {
 				log.Println("child not a file: %v", childRef)
 				continue
 			}
-			if n.files == nil {
-				n.files = make(map[string]*mutFile)
-			}
-			n.files[name] = &mutFile{
-				node: node{
-					fs:      n.fs,
-					blobref: blobref.Parse(contentRef),
-				},
+			n.children[name] = &mutFile{
+				fs:        n.fs,
 				permanode: blobref.Parse(childRef),
-				d:         n,
+				parent:    n,
 				name:      name,
+				content:   blobref.Parse(contentRef),
+				size:      content.File.Size,
 			}
 			continue
 		}
 		// This is a directory.
-		if n.dirs == nil {
-			n.dirs = make(map[string]*mutDir)
-		}
-		n.dirs[name] = &mutDir{
-			fs:   n.fs,
-			br:   blobref.Parse(childRef),
-			d:    n,
-			name: name,
+		n.children[name] = &mutDir{
+			fs:        n.fs,
+			permanode: blobref.Parse(childRef),
+			parent:    n,
+			name:      name,
 		}
 	}
 	return nil
@@ -130,12 +131,7 @@ func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	var ents []fuse.Dirent
-	for name := range n.dirs {
-		ents = append(ents, fuse.Dirent{
-			Name: name,
-		})
-	}
-	for name := range n.files {
+	for name := range n.children {
 		ents = append(ents, fuse.Dirent{
 			Name: name,
 		})
@@ -151,19 +147,182 @@ func (n *mutDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if d := n.dirs[name]; d != nil {
-		return d, nil
-	}
-	if f := n.files[name]; f != nil {
-		return f, nil
+	if n2 := n.children[name]; n2 != nil {
+		return n2, nil
 	}
 	return nil, fuse.ENOENT
 }
 
-type mutFile struct {
-	permanode *blobref.BlobRef
-	d         *mutDir // parent directory
-	name      string  // ent name (base name within d)
+func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
+	pr, err := n.fs.client.UploadNewPermanode()
+	if err != nil {
+		log.Println("mutDir.Create:", err)
+		return nil, nil, fuse.EIO
+	}
 
-	node // read-only file node
+	// TODO(adg): handle directories
+	if req.Mode.IsDir() {
+		panic("can't do directories!")
+	}
+
+	claim := schema.NewSetAttributeClaim(n.permanode, "camliPath:"+req.Name, pr.BlobRef.String())
+	_, err = n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Println("mutDir.Create:", err)
+		return nil, nil, fuse.EIO
+	}
+
+	child := &mutFile{
+		fs:        n.fs,
+		permanode: pr.BlobRef,
+		parent:    n,
+		name:      req.Name,
+	}
+
+	n.mu.Lock()
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
+	n.children[req.Name] = child
+	n.mu.Unlock()
+
+	h, ferr := child.newHandle(nil)
+	if ferr != nil {
+		return nil, nil, ferr
+	}
+	return child, h, nil
+}
+
+type mutFile struct {
+	fs        *CamliFileSystem
+	permanode *blobref.BlobRef
+	parent    *mutDir
+	name      string // ent name (base name within d)
+
+	mu      sync.Mutex
+	content *blobref.BlobRef
+	size    int64
+}
+
+func (n *mutFile) Attr() fuse.Attr {
+	return fuse.Attr{
+		Mode: 0600, // writable!
+		Uid:  uint32(os.Getuid()),
+		Gid:  uint32(os.Getgid()),
+		Size: uint64(n.size),
+		// TODO(adg): use the real stuff here
+		Mtime:  serverStart,
+		Ctime:  serverStart,
+		Crtime: serverStart,
+	}
+}
+
+func (n *mutFile) setContent(br *blobref.BlobRef, size int64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.content = br
+	n.size = size
+	claim := schema.NewSetAttributeClaim(n.permanode, "camliContent", br.String())
+	_, err := n.fs.client.UploadAndSignBlob(claim)
+	return err
+}
+
+func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
+	log.Printf("mutFile.Open: %v: content: %v", n.permanode, n.content)
+	r, err := schema.NewFileReader(n.fs.fetcher, n.content)
+	if err != nil {
+		log.Printf("mutFile.Open: %v", err)
+		return nil, fuse.EIO
+	}
+	defer r.Close()
+	return n.newHandle(r)
+}
+
+func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
+	tmp, err := ioutil.TempFile("", "camli-")
+	if err == nil && body != nil {
+		_, err = io.Copy(tmp, body)
+	}
+	if err != nil {
+		log.Printf("mutFile.newHandle: %v", err)
+		if tmp != nil {
+			tmp.Close()
+			os.Remove(tmp.Name())
+		}
+		return nil, fuse.EIO
+	}
+	return &mutFileHandle{f: n, tmp: tmp}, nil
+}
+
+type mutFileHandle struct {
+	f       *mutFile
+	tmp     *os.File
+	written bool
+}
+
+func (h *mutFileHandle) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+	buf := make([]byte, req.Size)
+	n, err := h.tmp.ReadAt(buf, req.Offset)
+	if err == io.EOF {
+		err = nil
+	}
+	if err != nil {
+		log.Printf("mutFileHandle.Read: %v", err)
+		return fuse.EIO
+	}
+	res.Data = buf[:n]
+	return nil
+}
+
+func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, intr fuse.Intr) fuse.Error {
+	h.written = true
+	log.Printf("WriteAt(%v, %v)", req.Data, req.Offset)
+	n, err := h.tmp.WriteAt(req.Data, req.Offset)
+	if err != nil {
+		log.Println("mutFileHandle.Write:", err)
+		return fuse.EIO
+	}
+	res.Size = n
+	return nil
+}
+
+func (h *mutFileHandle) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.Error {
+	if h.written {
+		_, err := h.tmp.Seek(0, 0)
+		if err != nil {
+			log.Println("mutFileHandle.Release:", err)
+			return fuse.EIO
+		}
+		cr := countingReader{r: h.tmp}
+		br, err := schema.WriteFileFromReader(h.f.fs.client, h.f.name, &cr)
+		if err != nil {
+			log.Println("mutFileHandle.Release:", err)
+			return fuse.EIO
+		}
+		log.Println("wrote", br)
+		h.f.setContent(br, cr.n)
+	}
+	h.tmp.Close()
+	os.Remove(h.tmp.Name())
+	return nil
+}
+
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (r *countingReader) Read(b []byte) (n int, err error) {
+	n, err = r.r.Read(b)
+	r.n++
+	return
+}
+
+func (h *mutFileHandle) Truncate(size uint64, intr fuse.Intr) fuse.Error {
+	h.written = true
+	if err := h.tmp.Truncate(int64(size)); err != nil {
+		log.Println("mutFileHandle.Truncate:", err)
+		return fuse.EIO
+	}
+	return nil
 }
