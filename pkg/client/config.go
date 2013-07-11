@@ -163,6 +163,10 @@ func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
 	return SignerPublicKeyBlobref()
 }
 
+// SecretRingFile returns the filename to the user's GPG secret ring.
+// The value comes from either a command-line flag,
+// the client config file's "secretRing" value, or the operating
+// system default location.
 func (c *Client) SecretRingFile() string {
 	if flagSecretRing != "" {
 		return flagSecretRing

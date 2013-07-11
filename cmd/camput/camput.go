@@ -29,7 +29,6 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
 )
 
 const buffered = 16 // arbitrary
@@ -128,9 +127,6 @@ func newUploader() *Uploader {
 		Client:    cc,
 		transport: httpStats,
 		pwd:       pwd,
-		entityFetcher: &jsonsign.CachingEntityFetcher{
-			Fetcher: &jsonsign.FileEntityFetcher{File: cc.SecretRingFile()},
-		},
 	}
 }
 

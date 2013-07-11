@@ -33,10 +33,12 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -63,6 +65,9 @@ type Client struct {
 	downloadHelper string      // or "" if none
 	storageGen     string      // storage generation, or "" if not reported
 	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
+
+	entityFetcherOnce sync.Once
+	entityFetcher     jsonsign.EntityFetcher
 
 	authMode auth.AuthMode
 
@@ -724,4 +729,77 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 		}
 		return nil, fmt.Errorf("Server's certificate %v is not in the trusted list", sig)
 	}
+}
+
+// Sign signs JSON as described in req.
+// If req's EntityFetcher is nil, the client's entity fetcher is used.
+// If req's Fetcher is nil, the client is used.
+func (c *Client) Sign(req *jsonsign.SignRequest) (signedJSON string, err error) {
+	if req.Fetcher == nil {
+		req.Fetcher = c.GetBlobFetcher()
+	}
+	if req.EntityFetcher == nil {
+		req.EntityFetcher = c.SignerEntityFetcher()
+	}
+	return req.Sign()
+}
+
+// SignerEntityFetcher returns the client's configured GPG entity fetcher.
+func (c *Client) SignerEntityFetcher() jsonsign.EntityFetcher {
+	c.entityFetcherOnce.Do(c.initEntityFetcher)
+	return c.entityFetcher
+}
+
+func (c *Client) initEntityFetcher() {
+	c.entityFetcher = &jsonsign.CachingEntityFetcher{
+		Fetcher: &jsonsign.FileEntityFetcher{File: c.SecretRingFile()},
+	}
+}
+
+// sigTime optionally specifies the signature time.
+// If zero, the current time is used.
+func (c *Client) SignBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
+	camliSigBlobref := c.SignerPublicKeyBlobref()
+	if camliSigBlobref == nil {
+		// TODO: more helpful error message
+		return "", errors.New("No public key configured.")
+	}
+
+	b := bb.Builder().SetSigner(camliSigBlobref).Blob()
+	return c.Sign(&jsonsign.SignRequest{
+		UnsignedJSON:  b.JSON(),
+		SignatureTime: sigTime,
+	})
+}
+
+func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
+	signed, err := c.SignBlob(b.Blob(), time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	return c.uploadString(signed)
+}
+
+func (c *Client) UploadBlob(b schema.AnyBlob) (*PutResult, error) {
+	// TODO(bradfitz): ask the blob for its own blobref, rather
+	// than changing the hash function with uploadString?
+	return c.uploadString(b.Blob().JSON())
+}
+
+func (c *Client) uploadString(s string) (*PutResult, error) {
+	return c.Upload(NewUploadHandleFromString(s))
+}
+
+func (c *Client) UploadNewPermanode() (*PutResult, error) {
+	unsigned := schema.NewUnsignedPermanode()
+	return c.UploadAndSignBlob(unsigned)
+}
+
+func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResult, error) {
+	unsigned := schema.NewPlannedPermanode(key)
+	signed, err := c.SignBlob(unsigned, sigTime)
+	if err != nil {
+		return nil, err
+	}
+	return c.uploadString(signed)
 }
