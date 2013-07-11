@@ -9,14 +9,15 @@ require "$Bin/misc/get_closure.pl";
 sub usage {
     die "Usage: dev-server [OPTS] [<portnumber>] -- [other_blobserver_opts]\n\nWhere OPTS include:\n   [--wipe] [--mongo|--mysql|--postgres] [--tls] [--fullclosure] " .
     "[--all] [--nobuild] [--staticres] [--KBps=<number>] " .
-    "[--latency_ms=<number>] [--fast] [--verbose] [--hostname=<name>]\n";
+    "[--latency_ms=<number>] [--slow] [--verbose] [--hostname=<name>]\n";
 }
 
 chdir $Bin or die;
 
+my $opt_slow;  # add latency
 my $opt_KBps = 150; # if non-zero, kBps to throttle connections
 my $opt_latency_ms = 90; # added latency in millisecond
-my $opt_fast; # shortcut to disable throttling
+my $opt_fast; # (no longer does anything)
 
 my $opt_all;  # listen on all interfaces
 my $opt_hostname;  # hostname to advertise, else `hostname` is used
@@ -46,6 +47,7 @@ GetOptions("wipe" => \$opt_wipe,
            "KBps=i" => \$opt_KBps,
            "latency_ms=i" => \$opt_latency_ms,
            "fast" => \$opt_fast,
+           "slow" => \$opt_slow,
            "verbose" => \$opt_verbose,
            "hostname=s" => \$opt_hostname,
            "fullclosure" => \$opt_fullclosure,
@@ -58,7 +60,11 @@ my $port = shift;
 $port = "3179" unless defined($port);
 usage() unless $port =~ /^\d+$/;
 
-unless ($opt_fast) {
+if ($opt_fast) {
+    warn "# Btw, --fast is now the default. Use --slow if you want to simulate slowness.\n";
+}
+
+if ($opt_slow) {
     $ENV{DEV_THROTTLE_KBPS} = $opt_KBps;
     $ENV{DEV_THROTTLE_LATENCY_MS} = $opt_latency_ms;
 }
