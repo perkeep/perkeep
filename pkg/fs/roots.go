@@ -21,10 +21,9 @@ package fs
 import (
 	"log"
 	"os"
-	"strings"
 
-	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
@@ -64,7 +63,7 @@ func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 }
 
 func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
-	log.Printf("fs.roots: Lookup(%q) = %v", name)
+	log.Printf("fs.roots: Lookup(%q)", name)
 	br := blobref.Parse(name)
 	if br == nil {
 		return nil, fuse.ENOENT
@@ -75,61 +74,3 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	}
 	return nod, nil
 }
-
-// mutDir is a mutable directory.
-// Its br is the permanode with camliPath:entname attributes.
-type mutDir struct {
-	fs *CamliFileSystem
-	br *blobref.BlobRef // root permanode
-}
-
-func (n *mutDir) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
-	}
-}
-
-func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
-	res, err := n.fs.client.Describe(&search.DescribeRequest{
-		BlobRef: n.br,
-	})
-	if err != nil {
-		log.Println("ReadDir:", err)
-		return nil, fuse.EIO
-	}
-	var ents []fuse.Dirent
-	for _, db := range res.Meta {
-		for k, _ := range db.Permanode.Attr {
-			const p = "camliPath:"
-			if strings.HasPrefix(k, p) {
-				ents = append(ents, fuse.Dirent{
-					Name: k[len(p):],
-				})
-			}
-		}
-	}
-	return ents, nil
-}
-
-func (n *mutDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
-	log.Printf("fs.roots: Lookup(%q) = %v", name)
-	br := blobref.Parse(name)
-	if br == nil {
-		return nil, fuse.ENOENT
-	}
-	nod := &mutDir{
-		fs: n.fs,
-		br: br,
-	}
-	return nod, nil
-}
-
-type mutFile struct {
-	fs *CamliFileSystem
-	br *blobref.BlobRef // file permanode
-	d *mutDir // parent directory
-	name string // ent name (base name within d)
-}
-
