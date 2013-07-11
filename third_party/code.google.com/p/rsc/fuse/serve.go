@@ -219,6 +219,8 @@ func nodeAttr(inode uint64, n Node) (attr Attr) {
 //
 //	Setlkw
 //
+//	Truncate
+//
 //	Write
 //
 type Handle interface {
@@ -486,6 +488,10 @@ func (c *Conn) serve(fs FS, r Request) {
 			type writeAll interface {
 				WriteAll([]byte, Intr) Error
 			}
+			type truncate interface {
+				Truncate(uint64, Intr) Error
+			}
+			var trunc truncate
 			switch r.Valid {
 			case SetattrLockOwner | SetattrSize, SetattrSize:
 				// Seen on Linux. Handle isn't set.
@@ -494,6 +500,8 @@ func (c *Conn) serve(fs FS, r Request) {
 					shandle := c.handle[hid]
 					if _, ok := shandle.handle.(writeAll); ok {
 						shandle.trunc = true
+					} else if h, ok := shandle.handle.(truncate); ok {
+						trunc = h
 					}
 				}
 				c.meta.Unlock()
@@ -501,11 +509,21 @@ func (c *Conn) serve(fs FS, r Request) {
 				// Seen on OS X; the Handle is provided.
 				if _, ok := handle.(writeAll); ok {
 					shandle.trunc = true
+				} else if h, ok := handle.(truncate); ok {
+					trunc = h
 				}
+			}
+			if trunc != nil {
+				if err := trunc.Truncate(r.Size, intr); err != nil {
+					done(err)
+					r.RespondError(err)
+				}
+				done(s)
+				r.Respond(s)
+				break
 			}
 		}
 
-		log.Printf("setattr %v", r)
 		if n, ok := node.(interface {
 			Setattr(*SetattrRequest, *SetattrResponse, Intr) Error
 		}); ok {
@@ -714,7 +732,12 @@ func (c *Conn) serve(fs FS, r Request) {
 		c.saveLookup(&s.LookupResponse, snode, r.Name, n2)
 		h, shandle := c.saveHandle(h2, hdr.Node)
 		s.Handle = h
-		shandle.trunc = true
+		// Only set trunc if the handle implements WriteAll.
+		if _, ok := h2.(interface {
+			WriteAll([]byte, Intr) Error
+		}); ok {
+			shandle.trunc = true
+		}
 		done(s)
 		r.Respond(s)
 
