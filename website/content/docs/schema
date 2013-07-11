@@ -10,7 +10,7 @@ schema</a> to represent various classes of data.</p>
 <ul>
   <li><a href="/gw/doc/schema/files">Files</a>: traditional filesystems.  Files, directories, inodes, symlinks, etc.</li>
 
-  <li><a href="/gw/doc/schema/objects/permanode.txt">Permanodes</a>: the immutable root "anchor" of mutable Camli objects (see <a href="terms">terminology</a>).  Must be <a href="/doc/json-signing">signed</a>.</li>
+  <li><a href="/gw/doc/schema/objects/permanode.txt">Permanodes</a>: the immutable root "anchor" of mutable Camli objects (see <a href="terms">terminology</a>).  Must be <a href="/docs/json-signing">signed</a>.</li>
 
   <li><a href="/docs/json-signing">Signing</a></li>
 
