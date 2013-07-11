@@ -580,6 +580,10 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 }
 
 type DescribeRequest struct {
+	// BlobRefs are the blobs to describe. If length zero, BlobRef
+	// is used.
+	BlobRefs []*blobref.BlobRef
+
 	// BlobRef is the blob to describe.
 	BlobRef *blobref.BlobRef
 
@@ -599,12 +603,33 @@ type DescribeRequest struct {
 }
 
 func (r *DescribeRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/describe?blobref=%v&depth=%d", r.BlobRef, r.Depth)
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "camli/search/describe?depth=%d", r.Depth)
+	for _, br := range r.BlobRefs {
+		buf.WriteString("&blobref=")
+		buf.WriteString(br.String())
+	}
+	if len(r.BlobRefs) == 0 && r.BlobRef != nil {
+		buf.WriteString("&blobref=")
+		buf.WriteString(r.BlobRef.String())
+	}
+	return buf.String()
 }
 
 // fromHTTP panics with an httputil value on failure
 func (r *DescribeRequest) fromHTTP(req *http.Request) {
-	r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
+	req.ParseForm()
+	if vv := req.Form["blobref"]; len(vv) > 1 {
+		for _, brs := range vv {
+			if br := blobref.Parse(brs); br != nil {
+				r.BlobRefs = append(r.BlobRefs, br)
+			} else {
+				panic(httputil.InvalidParameterError("blobref"))
+			}
+		}
+	} else {
+		r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
+	}
 	r.Depth = httputil.OptionalInt(req, "depth")
 }
 
@@ -985,6 +1010,8 @@ func (dr *DescribeRequest) DescribeSync(br *blobref.BlobRef) (*DescribedBlob, er
 	return res[br.String()], nil
 }
 
+// Describe starts a lookup of br, down to the provided depth.
+// It returns immediately.
 func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	if depth <= 0 {
 		return
@@ -1078,7 +1105,13 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 	sh.initDescribeRequest(&dr)
 
-	dr.Describe(dr.BlobRef, dr.depth())
+	if dr.BlobRef != nil {
+		dr.Describe(dr.BlobRef, dr.depth())
+	}
+	for _, br := range dr.BlobRefs {
+		dr.Describe(br, dr.depth())
+	}
+
 	metaMap, err := dr.metaMapThumbs(thumbnailSize(req))
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
