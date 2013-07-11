@@ -51,6 +51,7 @@ var (
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
+	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
@@ -73,15 +74,9 @@ func main() {
 	}
 	verifyCamlistoreRoot(camRoot)
 
-	if runtime.GOOS != *buildOS {
+	if runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH {
 		if *wantSQLite {
 			log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
-		}
-		// TODO(bradfitz): we can fix this one, though, by
-		// building genfileembed with the GOOS of the host
-		// instead:
-		if *embedResources {
-			log.Fatalf("Due to a bug, can't currently cross-compile and also embed resources. For now, set --embed_static=false")
 		}
 	}
 
@@ -247,6 +242,11 @@ func main() {
 	}
 }
 
+// Create an environment variable of the form key=value.
+func envPair(key, value string) string {
+	return fmt.Sprintf("%s=%s", key, value)
+}
+
 // cleanGoEnv returns a copy of the current environment with GOPATH and GOBIN removed.
 func cleanGoEnv() (clean []string) {
 	for _, env := range os.Environ() {
@@ -256,9 +256,25 @@ func cleanGoEnv() (clean []string) {
 		clean = append(clean, env)
 	}
 	if *buildOS != runtime.GOOS {
-		clean = append(clean, "GOOS="+*buildOS)
+		clean = append(clean, envPair("GOOS", *buildOS))
+	}
+	if *buildARCH != runtime.GOARCH {
+		clean = append(clean, envPair("GOARCH", *buildARCH))
 	}
 	return
+}
+
+// setEnv sets the given key & value in the provided environment.
+// Each value in the env list should be of the form key=value.
+func setEnv(env []string, key, value string) []string {
+	for i, s := range env {
+		if strings.HasPrefix(s, fmt.Sprintf("%s=", key)) {
+			env[i] = envPair(key, value)
+			return env
+		}
+	}
+	env = append(env, envPair(key, value))
+	return env
 }
 
 // buildSrcPath returns the full path concatenation
@@ -319,11 +335,16 @@ func buildGenfileembed() error {
 		filepath.FromSlash("camlistore.org/pkg/fileembed/genfileembed"),
 	)
 	cmd := exec.Command("go", args...)
+
 	// We don't even need to set GOBIN as it defaults to $GOPATH/bin
 	// and that is where we want genfileembed to go.
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
+	// Here we replace the GOOS and GOARCH valuesfrom the env with the host OS,
+	// to support cross-compiling.
+	cmd.Env = cleanGoEnv()
+	cmd.Env = setEnv(cmd.Env, "GOPATH", buildGoPath)
+	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
+	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if *verbose {
