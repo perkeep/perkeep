@@ -6,6 +6,11 @@ use Getopt::Long;
 require "$Bin/misc/devlib.pl";
 
 my @blobref_arg;
+my $opt_xterm;
+
+GetOptions(
+    "xterm" => \$opt_xterm,
+) or usage();
 
 if (@ARGV) {
     my $blobref = shift;
@@ -35,13 +40,11 @@ $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
 $ENV{"CAMLI_AUTH"} = "userpass:camlistore:pass3179";
 
-my $in_child = "false";
-if ($^O eq "darwin") {
-    $in_child = "true";
-    print "############################################################################\n## Press 'q' <enter> to shut down.\n##\n";
-}
+print "############################################################################\n## Press 'q' <enter> to shut down.\n##\n";
 
-exec("$cammount", "--mount_in_child=$in_child", "--server=http://localhost:3179/bs", $dir, @blobref_arg)
+exec("$cammount",
+     "--xterm=" . ($opt_xterm ? "true" : "false"),
+     "--server=http://localhost:3179/bs", $dir, @blobref_arg)
     and warn "cammount failure: $!\n";
 warn "Failed to unmount\n" unless try_unmount();
 

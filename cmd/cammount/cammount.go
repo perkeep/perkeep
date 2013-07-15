@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -24,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -38,8 +38,8 @@ import (
 )
 
 var (
-	debug        = flag.Bool("debug", false, "print debugging messages.")
-	mountInChild = flag.Bool("mount_in_child", false, "Run the cammount in a child process, so the top process can catch SIGINT and such easier. Hack to work around OS X FUSE support.")
+	debug = flag.Bool("debug", false, "print debugging messages.")
+	xterm = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
 )
 
 func usage() {
@@ -49,6 +49,8 @@ func usage() {
 }
 
 func main() {
+	var conn *fuse.Conn
+
 	// Scans the arg list and sets up flags
 	client.AddFlags()
 	flag.Parse()
@@ -59,60 +61,6 @@ func main() {
 	}
 
 	mountPoint := flag.Arg(0)
-
-	// TODO(bradfitz): this is not reliable yet.
-	if *mountInChild {
-		log.Printf("Running cammount in child process.")
-		cmd := exec.Command(os.Args[0], flag.Args()...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Start(); err != nil {
-			log.Fatalf("Error running child cammount: %v", err)
-		}
-		log.Printf("cammount started; awaiting shutdown signals in parent.")
-
-		sigc := make(chan os.Signal, 1)
-		go func() {
-			var buf [1]byte
-			for {
-				os.Stdin.Read(buf[:])
-				if buf[0] == 'q' {
-					break
-				}
-			}
-			log.Printf("Read 'q' from stdin; shutting down.")
-			sigc <- syscall.SIGUSR2
-		}()
-		waitc := make(chan error, 1)
-		go func() {
-			waitc <- cmd.Wait()
-		}()
-		signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
-
-		sig := <-sigc
-		go os.Stat(filepath.Join(mountPoint, ".quitquitquit"))
-		log.Printf("Signal %s received, shutting down.", sig)
-		select {
-		case <-time.After(500 * time.Millisecond):
-			cmd.Process.Kill()
-		case <-waitc:
-		}
-		if runtime.GOOS == "darwin" {
-			donec := make(chan bool, 1)
-			go func() {
-				defer close(donec)
-				exec.Command("diskutil", "umount", "force", mountPoint).Run()
-				log.Printf("Unmounted")
-			}()
-			select {
-			case <-time.After(500 * time.Millisecond):
-				log.Printf("Unmount timeout.")
-			case <-donec:
-			}
-		}
-		os.Exit(0)
-		return
-	}
 
 	errorf := func(msg string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, msg, args...)
@@ -164,7 +112,6 @@ func main() {
 		}
 	} else {
 		camfs = fs.NewCamliFileSystem(cl, diskCacheFetcher)
-		log.Printf("starting with fs %#v", camfs)
 	}
 
 	if *debug {
@@ -173,21 +120,87 @@ func main() {
 
 	// This doesn't appear to work on OS X:
 	sigc := make(chan os.Signal, 1)
-	go func() {
-		log.Fatalf("Signal %s received, shutting down.", <-sigc)
-	}()
-	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
 
-	conn, err := fuse.Mount(mountPoint)
+	conn, err = fuse.Mount(mountPoint)
 	if err != nil {
 		if err.Error() == "cannot find load_fusefs" && runtime.GOOS == "darwin" {
 			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
 		}
 		log.Fatalf("Mount: %v", err)
 	}
-	err = conn.Serve(camfs)
-	if err != nil {
-		log.Fatalf("Serve: %v", err)
+
+	xtermDone := make(chan bool, 1)
+	if *xterm {
+		cmd := exec.Command("xterm")
+		cmd.Dir = mountPoint
+		if err := cmd.Start(); err != nil {
+			log.Printf("Error starting xterm: %v", err)
+		} else {
+			go func() {
+				cmd.Wait()
+				xtermDone <- true
+			}()
+		}
 	}
-	log.Printf("fuse process ending.")
+
+	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
+
+	doneServe := make(chan error, 1)
+	go func() {
+		doneServe <- conn.Serve(camfs)
+	}()
+
+	quitKey := make(chan bool, 1)
+	go awaitQuitKey(quitKey)
+
+	select {
+	case err := <-doneServe:
+		log.Printf("conn.Serve returned %v", err)
+	case sig := <-sigc:
+		log.Printf("Signal %s received, shutting down.", sig)
+	case <-quitKey:
+		log.Printf("Quit key pressed. Shutting down.")
+	case <-xtermDone:
+		log.Printf("xterm done")
+	}
+
+	time.AfterFunc(2*time.Second, func() {
+		os.Exit(1)
+	})
+	log.Printf("Unmounting...")
+	err = unmount(mountPoint)
+	log.Printf("Unmount = %v", err)
+
+	log.Printf("cammount FUSE processending.")
+}
+
+func awaitQuitKey(done chan<- bool) {
+	var buf [1]byte
+	for {
+		_, err := os.Stdin.Read(buf[:])
+		if err != nil {
+			return
+		}
+		if buf[0] == 'q' {
+			done <- true
+			return
+		}
+	}
+}
+
+func unmount(point string) error {
+	if runtime.GOOS == "darwin" {
+		errc := make(chan error, 1)
+		go func() {
+			errc <- exec.Command("diskutil", "umount", "force", point).Run()
+		}()
+		select {
+		case <-time.After(1 * time.Second):
+			return errors.New("unmount timeout")
+		case err := <-errc:
+			log.Printf("diskutil unmount = %v", err)
+			return err
+		}
+	}
+	return errors.New("unmount: unimplemented")
 }
