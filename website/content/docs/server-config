@@ -62,6 +62,19 @@ to <code>pkg/genconfig</code> welcome.</p>
 <p>There's also an in-memory index type, but only in the low-level
 config, as used by the dev-server script.</p>
 
+<h2>Publishing options</h2>
+<p>Although limited, publishing can be configured through the <b><code>publish</code></b> key. There is only support for an image gallery view (even though it will display thumbnails for other kinds of items), which is not really customizable. Here is an example of a value if one wanted to publish some items under <code>/pics/</code>:</p>
+<pre>
+{
+  "/pics/": {
+    "rootPermanode": "sha1-09888624be84fcb3ae67e8aa2f29682b4ff515d7",
+    "style": "pics.css",
+    "template": "gallery"
+  }
+}
+</pre>
+<p>One can create any permanode with camput or the UI and use it as the rootPermanode.</p>
+
 <h2>App Engine</h2>
 
 <p>
