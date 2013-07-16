@@ -11,5 +11,5 @@
 	"replicateTo": [],
 	"publish": {},
 	"ownerName": "Brad",
-	"shareHandler": true
+	"shareHandlerPath": "/share/"
 }

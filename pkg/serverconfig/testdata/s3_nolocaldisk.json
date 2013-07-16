@@ -8,5 +8,5 @@
 	"s3": "key:secret:bucket",
 	"replicateTo": [],
 	"publish": {},
-	"shareHandler": true
+	"shareHandlerPath": "/share/"
 }

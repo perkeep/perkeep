@@ -33,7 +33,8 @@ web browser and restart the server.</p>
 <li><b><code>identity</code></b>: your GPG fingerprint. A keypair is created for new users on start, but this may be changed if you know what you're doing.</li>
 <li><b><code>identitySecretRing</code></b>: your GnuPG secret keyring file. A new keyring is created on start for new users, but may be changed if you know what you're doing.</li>
 <li><b><code>listen</code></b>: The port (like "80" or ":80") or IP & port (like "10.0.0.2:8080") to listen for HTTP(s) connections on.</li>
-<li><b><code>shareHandler</code></b>: if "true", the server's sharing functionality is enabled, letting your friends have access to any content you've specifically shared.</li>
+<li><b><code>shareHandler</code></b>: if true, the server's sharing functionality is enabled, letting your friends have access to any content you've specifically shared. Its URL prefix path defaults to "<code>/share/</code>".</li>
+<li><b><code>shareHandlerPath</code></b>: Optional. If non-empty, it specifies the URL prefix path to the share handler, and the <b><code>shareHandler</code></b> value is ignored (i.e the share handler is enabled). Example: "<code>/public/</code>".</li>
 <li><b><code>runIndex</code></b>: defaults to true. If "false", no search, no UI, no indexing. (These can be controlled at a more granular level by writing a low-level config file)</li>
 <li><b><code>sourceRoot</code></b>: Optional. If non-empty, it specifies the path to an alternative Camlistore source tree, in order to override the embedded UI and/or Closure resources. The UI files will be expected in <code><b>&lt;sourceRoot&gt;</b>/server/camlistored/ui</code> and the Closure library in <code><b>&lt;sourceRoot&gt;</b>/third_party/closure/lib</code>.</li>
 </ul>
