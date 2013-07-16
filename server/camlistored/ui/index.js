@@ -139,7 +139,7 @@ camlistore.IndexPage.prototype.enterDocument = function() {
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.GOSEARCH,
       function() {
-        window.open('./search.html', 'Search');
+        window.location.href = "./search.html";
       });
 
   this.eh_.listen(

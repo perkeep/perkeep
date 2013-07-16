@@ -160,7 +160,7 @@ camlistore.SearchPage.prototype.enterDocument = function() {
 	this.eh_.listen(
 		this.toolbar_, camlistore.Toolbar.EventType.HOME,
 		function() {
-			window.open('./index.html', 'Home');
+			window.location.href = "./index.html";
 		}
 	);
 
