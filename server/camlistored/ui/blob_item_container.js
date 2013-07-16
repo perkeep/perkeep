@@ -203,14 +203,6 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
       this.fileDropHandler_,
       goog.events.FileDropHandler.EventType.DROP,
       this.handleFileDrop_);
-  this.eh_.listen(
-      this.getElement(),
-      goog.events.EventType.DRAGENTER,
-      this.handleFileDragEnter_);
-  this.eh_.listen(
-      this.getElement(),
-      goog.events.EventType.DRAGLEAVE,
-      this.handleFileDragLeave_);
 };
 
 
@@ -531,16 +523,25 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
-  this.resetDragState_();
-
-  var files = e.getBrowserEvent().dataTransfer.files;
-  for (var i = 0, n = files.length; i < n; i++) {
-    var file = files[i];
-    // TODO(bslatkin): Add an uploading item placeholder while the upload
-    // is in progress. Somehow pipe through the POST progress.
-    this.connection_.uploadFile(
-        file, goog.bind(this.handleUploadSuccess_, this, file));
-  }
+	var recipient = this.dragActiveElement_;
+	// TODO(mpl): I should adapt resetDragState_, but maybe Brett wanted
+	// to do something different with the whole d&d story, so leaving it
+	// as it is for now, and not using it.
+	this.dragActiveElement_ = null;
+	if (!recipient) {
+		console.log("No valid target to drag and drop on.");
+		return;
+	}
+	goog.dom.classes.remove(recipient.getElement(), 'cam-blobitem-dropactive');
+	
+	var files = e.getBrowserEvent().dataTransfer.files;
+	for (var i = 0, n = files.length; i < n; i++) {
+	var file = files[i];
+	// TODO(bslatkin): Add an uploading item placeholder while the upload
+	// is in progress. Somehow pipe through the POST progress.
+	this.connection_.uploadFile(
+		file, goog.bind(this.handleUploadSuccess_, this, file, recipient.blobRef_));
+	}
 };
 
 
@@ -550,9 +551,9 @@ camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
-    function(file, blobRef) {
+    function(file, recipient, blobRef) {
   this.connection_.createPermanode(
-      goog.bind(this.handleCreatePermanodeSuccess_, this, file, blobRef));
+      goog.bind(this.handleCreatePermanodeSuccess_, this, file, recipient, blobRef));
 };
 
 
@@ -563,11 +564,11 @@ camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
-    function(file, blobRef, permanode) {
+    function(file, recipient, blobRef, permanode) {
   this.connection_.newSetAttributeClaim(
       permanode, 'camliContent', blobRef,
       goog.bind(this.handleSetAttributeSuccess_, this,
-                file, blobRef, permanode));
+                file, recipient, blobRef, permanode));
 };
 
 
@@ -578,11 +579,11 @@ camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
-    function(file, blobRef, permanode) {
-  this.connection_.describeWithThumbnails(
-      permanode,
-      this.thumbnailSize_,
-      goog.bind(this.handleDescribeSuccess_, this, permanode));
+function(file, recipient, blobRef, permanode) {
+	this.connection_.describeWithThumbnails(
+		permanode,
+		this.thumbnailSize_,
+		goog.bind(this.handleDescribeSuccess_, this, recipient, permanode));
 };
 
 
@@ -592,9 +593,20 @@ camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
-  function(permanode, describeResult) {
-  var item = new camlistore.BlobItem(permanode, describeResult.meta);
-  this.addChildAt(item, this.hasCreateItem_ ? 1 : 0, true);
+  function(recipient, permanode, describeResult) {
+	var item = new camlistore.BlobItem(permanode, describeResult.meta);
+	this.addChildAt(item, this.hasCreateItem_ ? 1 : 0, true);
+	if (!recipient) {
+		return;
+	}
+	if (this.hasCreateItem_) {
+		var createItem = this.getChildAt(0);
+		if (!createItem || recipient == createItem) {
+			return;
+		}
+	}
+	this.connection_.newAddAttributeClaim(
+		recipient, 'camliMember', permanode);
 };
 
 
@@ -608,7 +620,30 @@ camlistore.BlobItemContainer.prototype.resetDragState_ = function() {
   this.dragDepth_ = 0;
 };
 
+/**
+ * @param {camlistore.BlobItem} blobitem the target collection where we want to drop
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.notifyDragEnter_ =
+function(blobitem) {
+		if (this.dragActiveElement_ == null) {
+			// TODO(mpl): show the drag-message; need to figure out the flickering issue
+			this.dragActiveElement_ = blobitem;
+		}
+};
 
+/**
+ * @param {camlistore.BlobItem} blobitem the target collection where we want to drop
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.notifyDragLeave_ =
+function(blobitem) {
+		if (this.dragActiveElement_ === blobitem) {
+  			this.dragActiveElement_ = null;
+		}
+};
+
+// TODO(mpl): not using it anymore. remove if Brett is ok with it.
 /**
  * @param {goog.events.Event} e The drag enter event.
  * @private
@@ -622,6 +657,7 @@ camlistore.BlobItemContainer.prototype.handleFileDragEnter_ = function(e) {
 };
 
 
+// TODO(mpl): not using it anymore. remove if Brett is ok with it.
 /**
  * @param {goog.events.Event} e The drag leave event.
  * @private

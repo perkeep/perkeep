@@ -71,8 +71,40 @@ camlistore.CreateItem.prototype.disposeInternal = function() {
  */
 camlistore.CreateItem.prototype.enterDocument = function() {
   camlistore.CreateItem.superClass_.enterDocument.call(this);
+	var plusEl = goog.dom.getFirstElementChild(this.getElement());
+	this.eh_.listen(
+		plusEl,
+		goog.events.EventType.DRAGENTER,
+		this.handleFileDragEnter_);
+	this.eh_.listen(
+		plusEl,
+		goog.events.EventType.DRAGLEAVE,
+		this.handleFileDragLeave_);
 };
 
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.CreateItem.prototype.handleFileDragEnter_ = function(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	goog.dom.classes.add(this.getElement(), 'cam-blobitem-dropactive');
+	var container = this.getParent();
+	container.notifyDragEnter_(this);
+};
+
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.CreateItem.prototype.handleFileDragLeave_ = function(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	goog.dom.classes.remove(this.getElement(), 'cam-blobitem-dropactive');
+	var container = this.getParent();
+	container.notifyDragLeave_(this);
+};
 
 /**
  * Called when component's element is known to have been removed from the

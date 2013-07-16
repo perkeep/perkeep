@@ -447,7 +447,9 @@ function(blobref, success, opt_fail, e) {
 				alert("upload permanode fail, expected blobRef not in response");
 				return;
 			}
-			success(blobref);
+			if (success) {
+				success(blobref);
+			}
 		},
 		this.safeFail_(opt_fail),
 		e

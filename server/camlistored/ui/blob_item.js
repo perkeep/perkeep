@@ -133,6 +133,7 @@ camlistore.BlobItem.prototype.isCollection = function() {
 	return true;
 };
 
+
 /**
  * @return {string}
  */
@@ -282,8 +283,48 @@ camlistore.BlobItem.prototype.disposeInternal = function() {
  * Called when component's element is known to be in the document.
  */
 camlistore.BlobItem.prototype.enterDocument = function() {
-  camlistore.BlobItem.superClass_.enterDocument.call(this);
-  // Add event handlers here
+	camlistore.BlobItem.superClass_.enterDocument.call(this);
+
+	var thumbLink = goog.dom.getFirstElementChild(this.getElement());
+	this.eh_.listen(
+		thumbLink,
+		goog.events.EventType.DRAGENTER,
+		this.handleFileDragEnter_);
+	this.eh_.listen(
+		thumbLink,
+		goog.events.EventType.DRAGLEAVE,
+		this.handleFileDragLeave_);
+};
+
+
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.BlobItem.prototype.handleFileDragEnter_ = function(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	if (this.isCollection()) {
+		goog.dom.classes.add(this.getElement(), 'cam-blobitem-dropactive');
+		// we could dispatch another custom event to the container, but why bother
+		// since we can directly access it?
+		var container = this.getParent();
+		container.notifyDragEnter_(this);
+	}
+};
+
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.BlobItem.prototype.handleFileDragLeave_ = function(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	if (this.isCollection()) {
+		goog.dom.classes.remove(this.getElement(), 'cam-blobitem-dropactive');
+		var container = this.getParent();
+		container.notifyDragLeave_(this);
+	}
 };
 
 
@@ -293,5 +334,5 @@ camlistore.BlobItem.prototype.enterDocument = function() {
  */
 camlistore.BlobItem.prototype.exitDocument = function() {
   camlistore.BlobItem.superClass_.exitDocument.call(this);
-  // Clear event handlers here
+  this.eh_.removeAll();
 };
