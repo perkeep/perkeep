@@ -81,6 +81,10 @@ var (
 	historylk        sync.Mutex
 	currentTestSuite *testSuite
 	history          History
+
+	// For "If-Modified-Since" requests on the status page.
+	// Updated every time a new test suite starts or ends.
+	lastModified time.Time
 )
 
 var NameToCmd = map[string]string{
@@ -418,6 +422,8 @@ func addRun(tsk *task, tskErr error) {
 	if tskErr != nil && currentTestSuite.Err == nil {
 		currentTestSuite.Err = tskErr
 		currentTestSuite.failedTask = len(currentTestSuite.Run)
+	} else {
+		currentTestSuite.failedTask = -1
 	}
 	currentTestSuite.Run = append(currentTestSuite.Run, tsk)
 }
@@ -790,6 +796,7 @@ func camputMany() error {
 }
 
 func handleErr(err error, proc *os.Process) {
+	lastModified = time.Now()
 	lastErr = err
 	dbg.Printf("%v", err)
 	if proc != nil {
@@ -824,6 +831,7 @@ func main() {
 		}
 		if doBuildGo || doBuildCamli0 || doBuildCamli1 || lastErr != nil {
 			for _, isTip := range [2]bool{false, true} {
+				lastModified = time.Now()
 				restorePATH()
 				currentTestSuite = &testSuite{
 					Run:       make([]*task, 0, 1),
@@ -878,6 +886,7 @@ func main() {
 				dbg.Println("All good.")
 				killCamli(proc)
 				addTestSuite()
+				lastModified = time.Now()
 			}
 			tryCount++
 		}
@@ -925,13 +934,38 @@ type progressData struct {
 	Current string
 }
 
+// modtime is the modification time of the resource to be served, or IsZero().
+// return value is whether this request is now complete.
+func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time) bool {
+	if modtime.IsZero() {
+		return false
+	}
+
+	// The Date-Modified header truncates sub-second precision, so
+	// use mtime < t+1s instead of mtime <= t to check for unmodified.
+	if t, err := time.Parse(http.TimeFormat, r.Header.Get("If-Modified-Since")); err == nil && modtime.Before(t.Add(1*time.Second)) {
+		h := w.Header()
+		delete(h, "Content-Type")
+		delete(h, "Content-Length")
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+	w.Header().Set("Last-Modified", modtime.UTC().Format(http.TimeFormat))
+	return false
+}
+
 func okHandler(w http.ResponseWriter, r *http.Request) {
 	t := strings.Replace(r.URL.Path, okPrefix, "", -1)
 	historylk.Lock()
 	defer historylk.Unlock()
 	ts, err := getPastTestSuite(t)
-	if err != nil {
+	if err != nil || len(ts.Run) == 0 {
 		http.NotFound(w, r)
+		return
+	}
+	lastTask := ts.Run[len(ts.Run)-1]
+	lastModTime := lastTask.start.Add(lastTask.Duration)
+	if checkLastModified(w, r, lastModTime) {
 		return
 	}
 	dat := &progressData{
@@ -946,9 +980,13 @@ func okHandler(w http.ResponseWriter, r *http.Request) {
 func progressHandler(w http.ResponseWriter, r *http.Request) {
 	historylk.Lock()
 	defer historylk.Unlock()
+	currentTask := getCurrentTask()
+	if checkLastModified(w, r, currentTask.start) {
+		return
+	}
 	dat := &progressData{
 		Ts:      currentTestSuite,
-		Current: getCurrentTask().Cmd,
+		Current: currentTask.Cmd,
 	}
 	err := testSuiteTpl.Execute(w, dat)
 	if err != nil {
@@ -966,11 +1004,16 @@ func failHandler(w http.ResponseWriter, r *http.Request) {
 	historylk.Lock()
 	defer historylk.Unlock()
 	ts, err := getPastTestSuite(t)
-	if err != nil {
+	if err != nil || len(ts.Run) == 0 || ts.failedTask == -1 {
 		http.NotFound(w, r)
 		return
 	}
-	taskReport := &TaskReport{Cmd: ts.Run[ts.failedTask].Cmd, Err: ts.Err}
+	failedTask := ts.Run[ts.failedTask]
+	lastModTime := failedTask.start.Add(failedTask.Duration)
+	if checkLastModified(w, r, lastModTime) {
+		return
+	}
+	taskReport := &TaskReport{Cmd: failedTask.Cmd, Err: ts.Err}
 	err = taskTpl.Execute(w, taskReport)
 	if err != nil {
 		log.Printf("fail template: %v\n", err)
@@ -983,8 +1026,6 @@ type status struct {
 }
 
 func invertedHistory() (inverted History) {
-	historylk.Lock()
-	defer historylk.Unlock()
 	inverted = make(History, len(history))
 	endpos := len(history) - 1
 	for k, v := range history {
@@ -994,9 +1035,14 @@ func invertedHistory() (inverted History) {
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {
+	historylk.Lock()
+	defer historylk.Unlock()
 	stat := &status{
 		Hs: invertedHistory(),
 		Ts: currentTestSuite,
+	}
+	if checkLastModified(w, r, lastModified) {
+		return
 	}
 	err := statusTpl.Execute(w, stat)
 	if err != nil {
