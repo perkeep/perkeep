@@ -26,13 +26,18 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
+
+// How often to refresh directory nodes by reading from the blobstore.
+const populateInterval = 30 * time.Second
 
 // mutDir is a mutable directory.
 // Its br is the permanode with camliPath:entname attributes.
@@ -40,9 +45,10 @@ type mutDir struct {
 	fs        *CamliFileSystem
 	permanode *blobref.BlobRef
 	parent    *mutDir
-	name      string // ent name (base name within d)
+	name      string // ent name (base name within parent)
 
 	mu       sync.Mutex
+	lastPop  time.Time
 	children map[string]fuse.Node
 }
 
@@ -54,11 +60,17 @@ func (n *mutDir) Attr() fuse.Attr {
 	}
 }
 
+// populate hits the blobstore to populate map of child nodes.
 func (n *mutDir) populate() error {
-	if n.children != nil {
-		// TODO(adg): refresh intelligently
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	// Only re-populate if we haven't done so recently.
+	now := time.Now()
+	if n.lastPop.Add(populateInterval).After(now) {
 		return nil
 	}
+	n.lastPop = now
 
 	res, err := n.fs.client.Describe(&search.DescribeRequest{
 		BlobRef: n.permanode,
@@ -74,8 +86,6 @@ func (n *mutDir) populate() error {
 	}
 
 	// Find all child permanodes and stick them in n.children
-	n.mu.Lock()
-	defer n.mu.Unlock()
 	if n.children == nil {
 		n.children = make(map[string]fuse.Node)
 	}
@@ -88,18 +98,18 @@ func (n *mutDir) populate() error {
 		childRef := v[0]
 		child := res.Meta[childRef]
 		if child == nil {
-			log.Println("child not described: %v", childRef)
+			log.Printf("child not described: %v", childRef)
 			continue
 		}
 		if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.
 			content := res.Meta[contentRef]
 			if content == nil {
-				log.Println("child content not described: %v", childRef)
+				log.Printf("child content not described: %v", childRef)
 				continue
 			}
 			if content.CamliType != "file" {
-				log.Println("child not a file: %v", childRef)
+				log.Printf("child not a file: %v", childRef)
 				continue
 			}
 			n.children[name] = &mutFile{
@@ -140,7 +150,6 @@ func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 }
 
 func (n *mutDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
-	log.Printf("fs.mutDir: Lookup(%q)", name)
 	if err := n.populate(); err != nil {
 		log.Println("populate:", err)
 		return nil, fuse.EIO
@@ -154,50 +163,93 @@ func (n *mutDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 }
 
 func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
-	pr, err := n.fs.client.UploadNewPermanode()
+	child, err := n.creat(req.Name, false)
 	if err != nil {
-		log.Println("mutDir.Create:", err)
+		log.Printf("mutDir.Mkdir(%q): %v", req.Name, err)
 		return nil, nil, fuse.EIO
 	}
 
-	// TODO(adg): handle directories
-	if req.Mode.IsDir() {
-		panic("can't do directories!")
-	}
-
-	claim := schema.NewSetAttributeClaim(n.permanode, "camliPath:"+req.Name, pr.BlobRef.String())
-	_, err = n.fs.client.UploadAndSignBlob(claim)
-	if err != nil {
-		log.Println("mutDir.Create:", err)
-		return nil, nil, fuse.EIO
-	}
-
-	child := &mutFile{
-		fs:        n.fs,
-		permanode: pr.BlobRef,
-		parent:    n,
-		name:      req.Name,
-	}
-
-	n.mu.Lock()
-	if n.children == nil {
-		n.children = make(map[string]fuse.Node)
-	}
-	n.children[req.Name] = child
-	n.mu.Unlock()
-
-	h, ferr := child.newHandle(nil)
+	// Create and return a file handle.
+	h, ferr := child.(*mutFile).newHandle(nil)
 	if ferr != nil {
 		return nil, nil, ferr
 	}
 	return child, h, nil
 }
 
+func (n *mutDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	child, err := n.creat(req.Name, true)
+	if err != nil {
+		log.Printf("mutDir.Mkdir(%q): %v", req.Name, err)
+		return nil, fuse.EIO
+	}
+	return child, nil
+}
+
+func (n *mutDir) creat(name string, isDir bool) (fuse.Node, error) {
+	// Create a Permanode for the file/directory.
+	pr, err := n.fs.client.UploadNewPermanode()
+	if err != nil {
+		return nil, err
+	}
+
+	// Add a camliPath:name attribute to the directory permanode.
+	claim := schema.NewSetAttributeClaim(n.permanode, "camliPath:"+name, pr.BlobRef.String())
+	_, err = n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add a child node to this node.
+	var child fuse.Node
+	if isDir {
+		child = &mutDir{
+			fs:        n.fs,
+			permanode: pr.BlobRef,
+			parent:    n,
+			name:      name,
+		}
+	} else {
+		child = &mutFile{
+			fs:        n.fs,
+			permanode: pr.BlobRef,
+			parent:    n,
+			name:      name,
+		}
+	}
+	n.mu.Lock()
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
+	n.children[name] = child
+	n.mu.Unlock()
+
+	return child, nil
+}
+
+func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
+	// Remove the camliPath:name attribute from the directory permanode.
+	claim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.Name)
+	_, err := n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Println("mutDir.Create:", err)
+		return fuse.EIO
+	}
+	// Remove child from map.
+	n.mu.Lock()
+	if n.children != nil {
+		delete(n.children, req.Name)
+	}
+	n.mu.Unlock()
+	return nil
+}
+
+// mutFile is a mutable file.
 type mutFile struct {
 	fs        *CamliFileSystem
 	permanode *blobref.BlobRef
 	parent    *mutDir
-	name      string // ent name (base name within d)
+	name      string // ent name (base name within parent)
 
 	mu      sync.Mutex
 	content *blobref.BlobRef
@@ -238,6 +290,12 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 	return n.newHandle(r)
 }
 
+func (n *mutFile) Fsync(r *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
+	// TODO(adg): in the fuse package, plumb through fsync to mutFileHandle
+	// in the same way we did Truncate.
+	return nil
+}
+
 func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
 	tmp, err := ioutil.TempFile("", "camli-")
 	if err == nil && body != nil {
@@ -254,6 +312,12 @@ func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
 	return &mutFileHandle{f: n, tmp: tmp}, nil
 }
 
+// mutFileHandle represents an open mutable file.
+// It stores the file contents in a temporary file, and
+// delegates reads and writes directly to the temporary file.
+// When the handle is released, it writes the contents of the
+// temporary file to the blobstore, and instructs the parent
+// mutFile to update the file permanode.
 type mutFileHandle struct {
 	f       *mutFile
 	tmp     *os.File
@@ -276,7 +340,6 @@ func (h *mutFileHandle) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr
 
 func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, intr fuse.Intr) fuse.Error {
 	h.written = true
-	log.Printf("WriteAt(%v, %v)", req.Data, req.Offset)
 	n, err := h.tmp.WriteAt(req.Data, req.Offset)
 	if err != nil {
 		log.Println("mutFileHandle.Write:", err)
@@ -293,29 +356,17 @@ func (h *mutFileHandle) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.E
 			log.Println("mutFileHandle.Release:", err)
 			return fuse.EIO
 		}
-		cr := countingReader{r: h.tmp}
-		br, err := schema.WriteFileFromReader(h.f.fs.client, h.f.name, &cr)
+		var n int64
+		br, err := schema.WriteFileFromReader(h.f.fs.client, h.f.name, readerutil.CountingReader{Reader: h.tmp, N: &n})
 		if err != nil {
 			log.Println("mutFileHandle.Release:", err)
 			return fuse.EIO
 		}
-		log.Println("wrote", br)
-		h.f.setContent(br, cr.n)
+		h.f.setContent(br, n)
 	}
 	h.tmp.Close()
 	os.Remove(h.tmp.Name())
 	return nil
-}
-
-type countingReader struct {
-	r io.Reader
-	n int64
-}
-
-func (r *countingReader) Read(b []byte) (n int, err error) {
-	n, err = r.r.Read(b)
-	r.n++
-	return
 }
 
 func (h *mutFileHandle) Truncate(size uint64, intr fuse.Intr) fuse.Error {
