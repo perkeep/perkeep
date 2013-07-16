@@ -304,6 +304,7 @@ func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsRespo
 	// Make some stuff up, just to see if it makes "lsof" happy.
 	res.Blocks = 1 << 35
 	res.Bfree = 1 << 34
+	res.Bavail = 1 << 34
 	res.Files = 1 << 29
 	res.Ffree = 1 << 28
 	res.Namelen = 2048
