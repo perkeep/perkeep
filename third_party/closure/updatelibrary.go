@@ -20,15 +20,19 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/osutil"
 )
 
@@ -36,129 +40,6 @@ const (
 	gitRepo = "https://code.google.com/p/closure-library/"
 	gitHash = "1389e13"
 )
-
-// fileList is the list of resources from the closure library that
-// are required by the ui pages of Camlistore. It was generated
-// from the error messages given in the javascript console.
-// TODO(mpl): Better way to do that generation.
-// See http://camlistore.org/issue/149
-var fileList = []string{
-	"AUTHORS",
-	"LICENSE",
-	"README",
-	"closure/goog/a11y/aria/announcer.js",
-	"closure/goog/a11y/aria/aria.js",
-	"closure/goog/array/array.js",
-	"closure/goog/asserts/asserts.js",
-	"closure/goog/base.js",
-	"closure/goog/css/common.css",
-	"closure/goog/css/toolbar.css",
-	"closure/goog/debug/debug.js",
-	"closure/goog/debug/entrypointregistry.js",
-	"closure/goog/debug/errorhandler.js",
-	"closure/goog/debug/errorhandlerweakdep.js",
-	"closure/goog/debug/error.js",
-	"closure/goog/debug/logbuffer.js",
-	"closure/goog/debug/logger.js",
-	"closure/goog/debug/logrecord.js",
-	"closure/goog/debug/tracer.js",
-	"closure/goog/deps.js",
-	"closure/goog/dom/a11y.js",
-	"closure/goog/dom/browserfeature.js",
-	"closure/goog/dom/classes.js",
-	"closure/goog/dom/dom.js",
-	"closure/goog/dom/tagname.js",
-	"closure/goog/dom/vendor.js",
-	"closure/goog/disposable/disposable.js",
-	"closure/goog/disposable/idisposable.js",
-	"closure/goog/events/browserevent.js",
-	"closure/goog/events/browserfeature.js",
-	"closure/goog/events/eventhandler.js",
-	"closure/goog/events/event.js",
-	"closure/goog/events/events.js",
-	"closure/goog/events/eventtarget.js",
-	"closure/goog/events/eventtype.js",
-	"closure/goog/events/eventwrapper.js",
-	"closure/goog/events/filedrophandler.js",
-	"closure/goog/events/keycodes.js",
-	"closure/goog/events/keyhandler.js",
-	"closure/goog/events/listenable.js",
-	"closure/goog/events/listener.js",
-	"closure/goog/fx/transition.js",
-	"closure/goog/iter/iter.js",
-	"closure/goog/json/json.js",
-	"closure/goog/math/box.js",
-	"closure/goog/math/coordinate.js",
-	"closure/goog/math/math.js",
-	"closure/goog/math/rect.js",
-	"closure/goog/math/size.js",
-	"closure/goog/net/errorcode.js",
-	"closure/goog/net/eventtype.js",
-	"closure/goog/net/httpstatus.js",
-	"closure/goog/net/wrapperxmlhttpfactory.js",
-	"closure/goog/net/xhrio.js",
-	"closure/goog/net/xmlhttpfactory.js",
-	"closure/goog/net/xmlhttp.js",
-	"closure/goog/object/object.js",
-	"closure/goog/positioning/abstractposition.js",
-	"closure/goog/positioning/anchoredposition.js",
-	"closure/goog/positioning/anchoredviewportposition.js",
-	"closure/goog/positioning/clientposition.js",
-	"closure/goog/positioning/menuanchoredposition.js",
-	"closure/goog/positioning/positioning.js",
-	"closure/goog/positioning/viewportclientposition.js",
-	"closure/goog/reflect/reflect.js",
-	"closure/goog/string/string.js",
-	"closure/goog/structs/collection.js",
-	"closure/goog/structs/map.js",
-	"closure/goog/structs/set.js",
-	"closure/goog/structs/simplepool.js",
-	"closure/goog/structs/structs.js",
-	"closure/goog/style/bidi.js",
-	"closure/goog/style/style.js",
-	"closure/goog/timer/timer.js",
-	"closure/goog/ui/button.js",
-	"closure/goog/ui/buttonrenderer.js",
-	"closure/goog/ui/buttonside.js",
-	"closure/goog/ui/component.js",
-	"closure/goog/ui/container.js",
-	"closure/goog/ui/containerrenderer.js",
-	"closure/goog/ui/controlcontent.js",
-	"closure/goog/ui/control.js",
-	"closure/goog/ui/controlrenderer.js",
-	"closure/goog/ui/cssnames.js",
-	"closure/goog/ui/custombuttonrenderer.js",
-	"closure/goog/ui/decorate.js",
-	"closure/goog/ui/idgenerator.js",
-	"closure/goog/ui/menubutton.js",
-	"closure/goog/ui/menubuttonrenderer.js",
-	"closure/goog/ui/menuheader.js",
-	"closure/goog/ui/menuheaderrenderer.js",
-	"closure/goog/ui/menuitem.js",
-	"closure/goog/ui/menuitemrenderer.js",
-	"closure/goog/ui/menu.js",
-	"closure/goog/ui/menurenderer.js",
-	"closure/goog/ui/menuseparator.js",
-	"closure/goog/ui/menuseparatorrenderer.js",
-	"closure/goog/ui/nativebuttonrenderer.js",
-	"closure/goog/ui/popupbase.js",
-	"closure/goog/ui/popupmenu.js",
-	"closure/goog/ui/registry.js",
-	"closure/goog/ui/separator.js",
-	"closure/goog/ui/textarea.js",
-	"closure/goog/ui/textarearenderer.js",
-	"closure/goog/ui/toolbarbutton.js",
-	"closure/goog/ui/toolbarbuttonrenderer.js",
-	"closure/goog/ui/toolbar.js",
-	"closure/goog/ui/toolbarmenubutton.js",
-	"closure/goog/ui/toolbarmenubuttonrenderer.js",
-	"closure/goog/ui/toolbarrenderer.js",
-	"closure/goog/ui/toolbarseparatorrenderer.js",
-	"closure/goog/uri/uri.js",
-	"closure/goog/uri/utils.js",
-	"closure/goog/useragent/product.js",
-	"closure/goog/useragent/useragent.js",
-}
 
 var (
 	currentRevCmd  = newCmd("git", "rev-parse", "--short", "HEAD")
@@ -176,6 +57,70 @@ var (
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "verbose output")
+}
+
+// fileList parses deps.js from the closure repo, as well as the similar
+// dependencies generated for the UI js files, and compiles the list of
+// js files from the closure lib required for the UI.
+func fileList() ([]string, error) {
+	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		log.Fatal("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
+	}
+	uiDir := filepath.Join(camliRootPath, "server", "camlistored", "ui")
+	closureDepsFile := filepath.Join(closureGitDir, "closure", "goog", "deps.js")
+
+	f, err := os.Open(closureDepsFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	allClosureDeps, err := closure.DeepParseDeps(f)
+	if err != nil {
+		return nil, err
+	}
+
+	uiDeps, err := closure.GenDeps(http.Dir(uiDir))
+	if err != nil {
+		return nil, err
+	}
+	_, requ, err := closure.ParseDeps(bytes.NewReader(uiDeps))
+	if err != nil {
+		return nil, err
+	}
+
+	nameDone := make(map[string]bool)
+	jsfilesDone := make(map[string]bool)
+	for _, deps := range requ {
+		for _, dep := range deps {
+			if _, ok := nameDone[dep]; ok {
+				continue
+			}
+			jsfiles := allClosureDeps[dep]
+			for _, filename := range jsfiles {
+				if _, ok := jsfilesDone[filename]; ok {
+					continue
+				}
+				jsfilesDone[filename] = true
+			}
+			nameDone[dep] = true
+		}
+	}
+	jsfiles := []string{
+		"AUTHORS",
+		"LICENSE",
+		"README",
+		filepath.Join("closure", "goog", "base.js"),
+		filepath.Join("closure", "goog", "css", "common.css"),
+		filepath.Join("closure", "goog", "css", "toolbar.css"),
+		filepath.Join("closure", "goog", "deps.js"),
+	}
+	prefix := filepath.Join("closure", "goog")
+	for k, _ := range jsfilesDone {
+		jsfiles = append(jsfiles, filepath.Join(prefix, k))
+	}
+	sort.Strings(jsfiles)
+	return jsfiles, nil
 }
 
 type command struct {
@@ -204,11 +149,20 @@ func (c *command) run() []byte {
 
 func resetAndCheckout() {
 	gitResetCmd.run()
+	// we need deps.js to build the list of files, so we get it first
 	args := gitCheckoutCmd.args
-	args = append(args, fileList...)
+	args = append(args, filepath.Join("closure", "goog", "deps.js"))
+	depsCheckoutCmd := newCmd(gitCheckoutCmd.program, args...)
+	depsCheckoutCmd.run()
+	files, err := fileList()
+	if err != nil {
+		log.Fatalf("Could not generate files list: %v", err)
+	}
+	args = gitCheckoutCmd.args
+	args = append(args, files...)
 	partialCheckoutCmd := newCmd(gitCheckoutCmd.program, args...)
 	if verbose {
-		log.Printf("%v", partialCheckoutCmd)
+		fmt.Printf("%v\n", partialCheckoutCmd)
 	}
 	partialCheckoutCmd.run()
 }
