@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
@@ -74,6 +75,7 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	nod := &mutDir{
 		fs:        n.fs,
 		permanode: br,
+		name:      name,
 	}
 	return nod, nil
 }
@@ -118,4 +120,34 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	}
 	n.lastQuery = time.Now()
 	return nil
+}
+
+func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	name := req.Name
+
+	// Create a Permanode for the root.
+	pr, err := n.fs.client.UploadNewPermanode()
+	if err != nil {
+		log.Printf("rootsDir.Create(%q): %v", name, err)
+		return nil, fuse.EIO
+	}
+
+	// Add a camliRoot attribute to the root permanode.
+	claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliRoot", name)
+	_, err = n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Printf("rootsDir.Create(%q): %v", name, err)
+		return nil, fuse.EIO
+	}
+
+	nod := &mutDir{
+		fs:        n.fs,
+		permanode: pr.BlobRef,
+		name:      name,
+	}
+	n.mu.Lock()
+	n.m[name] = pr.BlobRef
+	n.mu.Unlock()
+
+	return nod, nil
 }
