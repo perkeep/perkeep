@@ -96,15 +96,9 @@ func parseProvidesRequires(fi os.FileInfo, path string, f io.Reader) (provides, 
 		return ci.provides, ci.requires, nil
 	}
 
-	br := bufio.NewReader(f)
-	for {
-		l, err := br.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, nil, err
-		}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		l := scanner.Text()
 		if !strings.HasPrefix(l, "goog.") {
 			continue
 		}
@@ -116,6 +110,9 @@ func parseProvidesRequires(fi os.FileInfo, path string, f io.Reader) (provides, 
 				requires = append(requires, m[2])
 			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
 	}
 	depCache[path] = depCacheItem{provides: provides, requires: requires, modTime: mt}
 	return provides, requires, nil
@@ -135,4 +132,83 @@ func (s jsList) String() string {
 	}
 	buf.WriteByte(']')
 	return buf.String()
+}
+
+// Example of a match:
+// goog.addDependency('asserts/asserts.js', ['goog.asserts', 'goog.asserts.AssertionError'], ['goog.debug.Error', 'goog.string']);
+// So with m := depsRx.FindStringSubmatch,
+// the provider: m[1] == "asserts/asserts.js"
+// the provided namespaces: m[2] == "'goog.asserts', 'goog.asserts.AssertionError'"
+// the required namespaces: m[5] == "'goog.debug.Error', 'goog.string'"
+var depsRx = regexp.MustCompile(`^goog.addDependency\(['"]([^/]+[a-zA-Z0-9\-\_/\.]*\.js)['"], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)\], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)?\]\);`)
+
+// ParseDeps reads closure namespace dependency lines and
+// returns a map giving the js file provider for each namespace,
+// and a map giving the namespace dependencies for each namespace.
+func ParseDeps(r io.Reader) (providedBy map[string]string, requires map[string][]string, err error) {
+	providedBy = make(map[string]string)
+	requires = make(map[string][]string)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		l := scanner.Text()
+		if strings.HasPrefix(l, "//") {
+			continue
+		}
+		if l == "" {
+			continue
+		}
+		m := depsRx.FindStringSubmatch(l)
+		if m == nil {
+			return nil, nil, fmt.Errorf("Invalid line in deps: %q", l)
+		}
+		jsfile := m[1]
+		provides := strings.Split(m[2], ", ")
+		var required []string
+		if m[5] != "" {
+			required = strings.Split(
+				strings.Replace(strings.Replace(m[5], "'", "", -1), `"`, "", -1), ", ")
+		}
+		for _, v := range provides {
+			namespace := strings.Trim(v, `'"`)
+			if otherjs, ok := providedBy[namespace]; ok {
+				return nil, nil, fmt.Errorf("Name %v is provided by both %v and %v", namespace, jsfile, otherjs)
+			}
+			providedBy[namespace] = jsfile
+			if _, ok := requires[namespace]; ok {
+				return nil, nil, fmt.Errorf("Name %v has two sets of dependencies")
+			}
+			if required != nil {
+				requires[namespace] = required
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+	return providedBy, requires, nil
+}
+
+// DeepParseDeps reads closure namespace dependency lines and
+// returns a map giving all the required js files for each namespace.
+func DeepParseDeps(r io.Reader) (map[string][]string, error) {
+	providedBy, requires, err := ParseDeps(r)
+	if err != nil {
+		return nil, err
+	}
+	filesDeps := make(map[string][]string)
+	var deeperDeps func(namespace string) []string
+	deeperDeps = func(namespace string) []string {
+		if jsdeps, ok := filesDeps[namespace]; ok {
+			return jsdeps
+		}
+		jsfiles := []string{providedBy[namespace]}
+		for _, dep := range requires[namespace] {
+			jsfiles = append(jsfiles, deeperDeps(dep)...)
+		}
+		return jsfiles
+	}
+	for namespace, _ := range providedBy {
+		filesDeps[namespace] = deeperDeps(namespace)
+	}
+	return filesDeps, nil
 }
