@@ -141,6 +141,7 @@ func main() {
 				cmd.Wait()
 				xtermDone <- true
 			}()
+			defer cmd.Process.Kill()
 		}
 	}
 
