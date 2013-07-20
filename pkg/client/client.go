@@ -86,6 +86,8 @@ type Client struct {
 	// The camlistore server prints the fingerprint to add to the config
 	// when starting.
 	trustedCerts []string
+	// if set, we also skip the check against trustedCerts
+	InsecureTLS bool
 
 	pendStatMu sync.Mutex           // guards pendStat
 	pendStat   map[string][]statReq // blobref -> reqs; for next batch(es)
@@ -170,9 +172,25 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 	return transport
 }
 
+type ClientOption interface {
+	modifyClient(*Client)
+}
+
+func OptionInsecure(v bool) ClientOption {
+	return optionInsecure(v)
+}
+
+type optionInsecure bool
+
+func (o optionInsecure) modifyClient(c *Client) {
+	c.InsecureTLS = bool(o)
+}
+
 var shareURLRx = regexp.MustCompile(`^(.+)/(` + blobref.Pattern + ")$")
 
-func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, err error) {
+// NewFromShareRoot uses shareBlobURL to set up and return a client that
+// will be used to fetch shared blobs.
+func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, target *blobref.BlobRef, err error) {
 	var root string
 	m := shareURLRx.FindStringSubmatch(shareBlobURL)
 	if m == nil {
@@ -189,6 +207,9 @@ func NewFromShareRoot(shareBlobURL string) (c *Client, target *blobref.BlobRef, 
 	c.via = make(map[string]string)
 	root = m[2]
 
+	for _, v := range opts {
+		v.modifyClient(c)
+	}
 	c.SetHTTPClient(&http.Client{Transport: c.TransportForConfig(nil)})
 
 	req := c.newRequest("GET", shareBlobURL, nil)
@@ -645,6 +666,12 @@ func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
 }
 
+// insecureTLS returns whether the client is using TLS without any
+// verification of the server's cert.
+func (c *Client) insecureTLS() bool {
+	return c.useTLS() && c.InsecureTLS
+}
+
 // selfVerifiedSSL returns whether the client config has fingerprints for
 // (self-signed) trusted certificates.
 // When true, we run with InsecureSkipVerify and it is our responsibility
@@ -658,7 +685,7 @@ func (c *Client) selfVerifiedSSL() bool {
 // dialing ourselves, and we do not want the http transport layer
 // to redo it.
 func (c *Client) condRewriteURL(url string) string {
-	if c.selfVerifiedSSL() {
+	if c.selfVerifiedSSL() || c.insecureTLS() {
 		return strings.Replace(url, "https://", "http://", 1)
 	}
 	return url
@@ -689,7 +716,7 @@ func (c *Client) TLSConfig() (*tls.Config, error) {
 // the TLS handshake.
 func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	trustedCerts := c.GetTrustedCerts()
-	if !c.useTLS() || len(trustedCerts) == 0 {
+	if !c.useTLS() || (!c.InsecureTLS && len(trustedCerts) == 0) {
 		// No TLS, or TLS with normal/full verification
 		if onAndroid() {
 			return func(network, addr string) (net.Conn, error) {
@@ -716,6 +743,9 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 			if err != nil {
 				return nil, err
 			}
+		}
+		if c.InsecureTLS {
+			return conn, nil
 		}
 		certs := conn.ConnectionState().PeerCertificates
 		if certs == nil || len(certs) < 1 {

@@ -37,14 +37,15 @@ import (
 )
 
 var (
-	flagVersion  = flag.Bool("version", false, "show version")
-	flagVerbose  = flag.Bool("verbose", false, "be verbose")
-	flagHTTP     = flag.Bool("verbose_http", false, "show HTTP request summaries")
-	flagCheck    = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
-	flagOutput   = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
-	flagGraph    = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
-	flagContents = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
-	flagShared   = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
+	flagVersion     = flag.Bool("version", false, "show version")
+	flagVerbose     = flag.Bool("verbose", false, "be verbose")
+	flagHTTP        = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagCheck       = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
+	flagOutput      = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
+	flagGraph       = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
+	flagContents    = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
+	flagShared      = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
+	flagInsecureTLS = flag.Bool("insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
 )
 
 func main() {
@@ -70,7 +71,8 @@ func main() {
 		if flag.NArg() != 0 {
 			log.Fatal("No arguments permitted when using --shared")
 		}
-		cl1, target, err := client.NewFromShareRoot(*flagShared)
+		cl1, target, err := client.NewFromShareRoot(*flagShared,
+			client.OptionInsecure(*flagInsecureTLS))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -88,6 +90,7 @@ func main() {
 		}
 	}
 
+	cl.InsecureTLS = *flagInsecureTLS
 	tr := cl.TransportForConfig(&client.TransportConfig{
 		Verbose: *flagHTTP,
 	})
