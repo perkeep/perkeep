@@ -15,5 +15,5 @@
 		}
 	},
 	"replicateTo": [],
-	"shareHandler": true
+	"shareHandlerPath": "/share/"
 }

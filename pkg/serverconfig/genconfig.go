@@ -36,12 +36,12 @@ const (
 // various parameters derived from the high-level user config
 // and needed to set up the low-level config.
 type configPrefixesParams struct {
-	secretRing   string
-	keyId        string
-	indexerPath  string
-	blobPath     string
-	searchOwner  *blobref.BlobRef
-	shareHandler bool
+	secretRing       string
+	keyId            string
+	indexerPath      string
+	blobPath         string
+	searchOwner      *blobref.BlobRef
+	shareHandlerPath string
 }
 
 var tempDir = os.TempDir
@@ -338,8 +338,8 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		"handler": "status",
 	}
 
-	if params.shareHandler {
-		m["/share/"] = map[string]interface{}{
+	if params.shareHandlerPath != "" {
+		m[params.shareHandlerPath] = map[string]interface{}{
 			"handler": "share",
 			"handlerArgs": map[string]interface{}{
 				"blobRoot": "/bs/",
@@ -425,10 +425,14 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
 
 		// Blob storage options
-		blobPath     = conf.OptionalString("blobPath", "")
-		s3           = conf.OptionalString("s3", "")           // "access_key_id:secret_access_key:bucket"
-		gstorage     = conf.OptionalString("google", "")     // "clientId:clientSecret:refreshToken:bucket"
-		shareHandler = conf.OptionalBool("shareHandler", true) // enable the share handler
+		blobPath = conf.OptionalString("blobPath", "")
+		s3       = conf.OptionalString("s3", "")     // "access_key_id:secret_access_key:bucket"
+		gstorage = conf.OptionalString("google", "") // "clientId:clientSecret:refreshToken:bucket"
+		// Enable the share handler. If true, and shareHandlerPath is empty,
+		// then shareHandlerPath defaults to "/share/".
+		shareHandler = conf.OptionalBool("shareHandler", false)
+		// URL prefix for the share handler. If set, overrides shareHandler.
+		shareHandlerPath = conf.OptionalString("shareHandlerPath", "")
 
 		// Index options
 		runIndex   = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
@@ -523,13 +527,17 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or google configured for a blobserver.")
 	}
 
+	if shareHandler && shareHandlerPath == "" {
+		shareHandlerPath = "/share/"
+	}
+
 	prefixesParams := &configPrefixesParams{
-		secretRing:   secretRing,
-		keyId:        keyId,
-		indexerPath:  indexerPath,
-		blobPath:     blobPath,
-		searchOwner:  blobref.SHA1FromString(armoredPublicKey),
-		shareHandler: shareHandler,
+		secretRing:       secretRing,
+		keyId:            keyId,
+		indexerPath:      indexerPath,
+		blobPath:         blobPath,
+		searchOwner:      blobref.SHA1FromString(armoredPublicKey),
+		shareHandlerPath: shareHandlerPath,
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams, ownerName)
