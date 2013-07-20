@@ -157,3 +157,11 @@ func TestSizedBlobRefString(t *testing.T) {
 		t.Errorf("fmt %%s &SizedBlobRef = %q, want %q", g, e)
 	}
 }
+
+func TestAsUint64(t *testing.T) {
+	br := MustParse("sha1-b123456789abcdef0123456789abcdef01234567")
+	got := br.AsUint64()
+	if want := uint64(0xb123456789abcdef); got != want {
+		t.Errorf("got %x; want %x", got, want)
+	}
+}

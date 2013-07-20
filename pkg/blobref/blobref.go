@@ -48,6 +48,22 @@ type BlobRef struct {
 	strValue string // "<hashname>-<digest>"
 }
 
+// AsUint64 returns the first 64-bits of the blobref as an integer.
+func (br *BlobRef) AsUint64() uint64 {
+	var ret uint64
+	for i := 0; i < 16; i++ {
+		b := br.digest[i]
+		switch {
+		case b >= '0' && b <= '9':
+			b = b - '0'
+		default:
+			b = b - 'a' + 10
+		}
+		ret = ret<<4 | uint64(b)
+	}
+	return ret
+}
+
 func (br *BlobRef) GobEncode() ([]byte, error) {
 	return []byte(br.String()), nil
 }
