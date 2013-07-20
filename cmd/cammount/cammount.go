@@ -115,6 +115,7 @@ func main() {
 	}
 
 	if *debug {
+		fuse.Debugf = log.Printf
 		// TODO: set fs's logger
 	}
 

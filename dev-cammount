@@ -7,9 +7,11 @@ require "$Bin/misc/devlib.pl";
 
 my @blobref_arg;
 my $opt_xterm;
+my $opt_verbose;
 
 GetOptions(
     "xterm" => \$opt_xterm,
+    "verbose" => \$opt_verbose,
 ) or usage();
 
 if (@ARGV) {
@@ -44,6 +46,7 @@ print "#########################################################################
 
 exec("$cammount",
      "--xterm=" . ($opt_xterm ? "true" : "false"),
+     "--debug=" . ($opt_verbose ? "true" : "false"),
      "--server=http://localhost:3179/bs", $dir, @blobref_arg)
     and warn "cammount failure: $!\n";
 warn "Failed to unmount\n" unless try_unmount();
