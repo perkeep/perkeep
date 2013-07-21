@@ -41,6 +41,15 @@
           }
      },
 
+      "/sighelper/": {
+          "handler": "jsonsign",
+          "handlerArgs": {
+              "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
+              "keyId": "26F5ABDA",
+              "publicKeyDest": "/bs/"
+          }
+     },
+
      "/index-mem/": {
          "handler": "storage-memory-only-dev-indexer",
          "handlerArgs": {

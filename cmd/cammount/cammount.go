@@ -172,7 +172,7 @@ func main() {
 	err = fs.Unmount(mountPoint)
 	log.Printf("Unmount = %v", err)
 
-	log.Printf("cammount FUSE processending.")
+	log.Printf("cammount FUSE process ending.")
 }
 
 func awaitQuitKey(done chan<- bool) {

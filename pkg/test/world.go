@@ -106,6 +106,7 @@ func (w *World) Start() error {
 		w.server.Dir = w.tempDir
 		w.server.Env = append(os.Environ(),
 			"CAMLI_ROOT="+w.tempDir,
+			"CAMLI_SECRET_RING="+filepath.Join(w.camRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
 			"CAMLI_BASE_URL=http://127.0.0.1:"+strconv.Itoa(w.port),
 		)
 		listenerFD, err := w.listener.(*net.TCPListener).File()
