@@ -8,17 +8,17 @@
 // which carries this notice:
 //
 // The files in this directory are subject to the following license.
-// 
+//
 // The author of this software is Russ Cox.
-// 
+//
 //         Copyright (c) 2006 Russ Cox
-// 
+//
 // Permission to use, copy, modify, and distribute this software for any
 // purpose without fee is hereby granted, provided that this entire notice
 // is included in all copies of any software which is or includes a copy
 // or modification of this software and in all copies of the supporting
 // documentation for such software.
-// 
+//
 // THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT ANY EXPRESS OR IMPLIED
 // WARRANTY.  IN PARTICULAR, THE AUTHOR MAKES NO REPRESENTATION OR WARRANTY
 // OF ANY KIND CONCERNING THE MERCHANTABILITY OF THIS SOFTWARE OR ITS
@@ -80,7 +80,7 @@
 // Mount Options
 //
 // XXX
-// 
+//
 package fuse
 
 // BUG(rsc): The mount code for FreeBSD has not been written yet.
@@ -674,7 +674,21 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opFsyncdir:
-		panic("opFsyncdir")
+		// TODO(bradfitz): not really tested. I see this rarely on OS X,
+		// generally when a Finder window is open showing a directory
+		// and then the filesystem is unmounted. But I should write proper
+		// tests for it before I remove this comment.
+		in := (*fsyncIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		req = &FsyncRequest{
+			Dir:    true,
+			Header: m.Header(),
+			Handle: HandleID(in.Fh),
+			Flags:  in.FsyncFlags,
+		}
+
 	case opGetlk:
 		panic("opGetlk")
 	case opSetlk:
@@ -1611,6 +1625,7 @@ type FsyncRequest struct {
 	Header
 	Handle HandleID
 	Flags  uint32
+	Dir    bool // if opFsyncDir
 }
 
 func (r *FsyncRequest) String() string {
