@@ -170,7 +170,7 @@ func main() {
 		os.Exit(1)
 	})
 	log.Printf("Unmounting...")
-	err = unmount(mountPoint)
+	err = fs.Unmount(mountPoint)
 	log.Printf("Unmount = %v", err)
 
 	log.Printf("cammount FUSE processending.")
@@ -188,21 +188,4 @@ func awaitQuitKey(done chan<- bool) {
 			return
 		}
 	}
-}
-
-func unmount(point string) error {
-	if runtime.GOOS == "darwin" {
-		errc := make(chan error, 1)
-		go func() {
-			errc <- exec.Command("diskutil", "umount", "force", point).Run()
-		}()
-		select {
-		case <-time.After(1 * time.Second):
-			return errors.New("unmount timeout")
-		case err := <-errc:
-			log.Printf("diskutil unmount = %v", err)
-			return err
-		}
-	}
-	return errors.New("unmount: unimplemented")
 }
