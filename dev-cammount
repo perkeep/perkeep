@@ -36,7 +36,7 @@ print "Mounting on $dir ...\n";
 # Respected by camli/osutil:
 $ENV{"CAMLI_CONFIG_DIR"} = "$Bin/config/dev-client-dir";
 
-# Respected by env expansions in config/dev-client-dir/config
+# Respected by env expansions in config/dev-client-dir/client-config.json
 $ENV{"CAMLI_SECRET_RING"} = "$Bin/pkg/jsonsign/testdata/test-secring.gpg";
 $ENV{"CAMLI_KEYID"} = "26F5ABDA";
 $ENV{"CAMLI_DEV_KEYBLOBS"} = "$Bin/config/dev-client-dir/keyblobs";
