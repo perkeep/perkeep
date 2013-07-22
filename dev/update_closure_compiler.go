@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The updatelibrary command allows to selectively download
-// from the closure library git repository (at a chosen revision)
-// the resources needed by the Camlistore ui.
+// update_closure_compiler downloads a new version
+// of the closure compiler if the one in tmp/closure-compiler
+// doesn't exist or is older than the requested version.
 package main
 
 import (
