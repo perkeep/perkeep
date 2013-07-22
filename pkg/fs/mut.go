@@ -353,6 +353,15 @@ func (n *mutFile) setContent(br *blobref.BlobRef, size int64) error {
 	return err
 }
 
+func (n *mutFile) setSizeAtLeast(size int64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	log.Printf("mutFile.setSizeAtLeast(%d). old size = %d", size, n.size)
+	if size > n.size {
+		n.size = size
+	}
+}
+
 // Empirically:
 //  open for read:   req.Flags == 0
 //  open for append: req.Flags == 1
@@ -481,6 +490,7 @@ func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, i
 		return fuse.EIO
 	}
 	res.Size = n
+	h.f.setSizeAtLeast(req.Offset + int64(n))
 	return nil
 }
 

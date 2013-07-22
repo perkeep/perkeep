@@ -175,7 +175,7 @@ func TestMutable(t *testing.T) {
 	condSkip(t)
 	cammountTest(t, func(env *mountEnv) {
 		rootDir := filepath.Join(env.mountPoint, "roots", "r")
-		if err := os.Mkdir(rootDir, 0700); err != nil {
+		if err := os.MkdirAll(rootDir, 0755); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
 		}
 		fi, err := os.Stat(rootDir)
@@ -239,12 +239,15 @@ func TestMutable(t *testing.T) {
 	})
 }
 
+func brokenTest(t *testing.T) {
+	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
+		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
+	}
+}
+
 func TestFinderCopy(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skipf("Skipping Darwin-specific test.")
-	}
-	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
-		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
 	}
 	condSkip(t)
 	cammountTest(t, func(env *mountEnv) {
@@ -261,7 +264,7 @@ func TestFinderCopy(t *testing.T) {
 			t.Fatal(err)
 		}
 		destDir := filepath.Join(env.mountPoint, "roots", "r")
-		if err := os.Mkdir(destDir, 0755); err != nil {
+		if err := os.MkdirAll(destDir, 0755); err != nil {
 			t.Fatal(err)
 		}
 		cmd := exec.Command("osascript")
@@ -270,7 +273,6 @@ tell application "Finder"
   copy file POSIX file %q to folder POSIX file %q
 end tell
 `, f.Name(), destDir)
-		log.Printf("Running AppleScript:\n%s", script)
 		cmd.Stdin = strings.NewReader(script)
 
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -283,6 +285,9 @@ end tell
 		fi, err := os.Stat(destFile)
 		if err != nil {
 			t.Errorf("Stat = %v, %v", fi, err)
+		}
+		if fi.Size() != int64(len(want)) {
+			t.Errorf("Dest stat size = %d; want %d", fi.Size(), len(want))
 		}
 		slurp, err := ioutil.ReadFile(destFile)
 		if err != nil {
