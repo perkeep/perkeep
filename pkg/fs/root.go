@@ -90,7 +90,10 @@ func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		return n.getRootsDir(), nil
 	case "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
 		return notImplementDirNode{}, nil
+	case ".camli_fs_stats":
+		return statsDir{}, nil
 	case "mach_kernel", ".hidden", "._.":
+		// Just quiet some log noise on OS X.
 		return nil, fuse.ENOENT
 	}
 

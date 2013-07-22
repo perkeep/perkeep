@@ -360,15 +360,19 @@ func (n *mutFile) setContent(br *blobref.BlobRef, size int64) error {
 //  open for read/write (+<)   == 2 (bitmask? of?)
 // TODO(bradfitz): look this up, once I have connectivity.
 func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
+	mutFileOpen.Incr()
+
 	log.Printf("mutFile.Open: %v: content: %v dir=%v flags=%v mode=%v", n.permanode, n.content, req.Dir, req.Flags, req.Mode)
 	r, err := schema.NewFileReader(n.fs.fetcher, n.content)
 	if err != nil {
+		mutFileOpenError.Incr()
 		log.Printf("mutFile.Open: %v", err)
 		return nil, fuse.EIO
 	}
 
 	// Read-only.
 	if req.Flags == 0 {
+		mutFileOpenRO.Incr()
 		log.Printf("mutFile.Open returning read-only file")
 		n := &node{
 			fs:      n.fs,
@@ -377,6 +381,7 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 		return &nodeReader{n: n, fr: r}, nil
 	}
 
+	mutFileOpenRW.Incr()
 	log.Printf("mutFile.Open returning read-write filehandle")
 
 	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),

@@ -17,6 +17,7 @@ limitations under the License.
 package fs
 
 import (
+	"bytes"
 	"io"
 	"io/ioutil"
 	"log"
@@ -59,7 +60,27 @@ func condSkip(t *testing.T) {
 	}
 }
 
-func cammountTest(t *testing.T, fn func(mountPoint string)) {
+type mountEnv struct {
+	t          *testing.T
+	mountPoint string
+	process    *os.Process
+}
+
+func (e *mountEnv) Stat(s *stat) int64 {
+	file := filepath.Join(e.mountPoint, ".camli_fs_stats", s.name)
+	slurp, err := ioutil.ReadFile(file)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	slurp = bytes.TrimSpace(slurp)
+	v, err := strconv.ParseInt(string(slurp), 10, 64)
+	if err != nil {
+		e.t.Fatalf("unexpected value %q in file %s", slurp, file)
+	}
+	return v
+}
+
+func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 	w := test.GetWorld(t)
 	mountPoint, err := ioutil.TempDir("", "fs-test-mount")
 	if err != nil {
@@ -77,6 +98,7 @@ func cammountTest(t *testing.T, fn func(mountPoint string)) {
 
 	mount := w.Cmd("cammount", "--debug="+verbose, mountPoint)
 	mount.Stderr = stderrDest
+	mount.Env = append(mount.Env, "CAMLI_TRACK_FS_STATS=1")
 
 	stdin, err := mount.StdinPipe()
 	if err != nil {
@@ -107,13 +129,18 @@ func cammountTest(t *testing.T, fn func(mountPoint string)) {
 	if !waitFor(dirToBeFUSE(mountPoint), 5*time.Second, 100*time.Millisecond) {
 		t.Fatalf("error waiting for %s to be mounted", mountPoint)
 	}
-	fn(mountPoint)
+	fn(&mountEnv{
+		t:          t,
+		mountPoint: mountPoint,
+		process:    mount.Process,
+	})
+
 }
 
 func TestRoot(t *testing.T) {
 	condSkip(t)
-	cammountTest(t, func(mountPoint string) {
-		f, err := os.Open(mountPoint)
+	cammountTest(t, func(env *mountEnv) {
+		f, err := os.Open(env.mountPoint)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,8 +171,8 @@ func TestMutable(t *testing.T) {
 	dupLog := io.MultiWriter(os.Stderr, testLog{t})
 	log.SetOutput(dupLog)
 	defer log.SetOutput(os.Stderr)
-	cammountTest(t, func(mountPoint string) {
-		rootDir := filepath.Join(mountPoint, "roots", "r")
+	cammountTest(t, func(env *mountEnv) {
+		rootDir := filepath.Join(env.mountPoint, "roots", "r")
 		if err := os.Mkdir(rootDir, 0700); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
 		}
@@ -180,10 +207,15 @@ func TestMutable(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		ro0 := env.Stat(mutFileOpenRO)
 		slurp, err := ioutil.ReadFile(filename)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if env.Stat(mutFileOpenRO)-ro0 != 1 {
+			t.Error("Read didn't trigger read-only path optimization.")
+		}
+
 		const want = "foo, bar\nanother line.\n"
 		fi, err = os.Stat(filename)
 		if err != nil || !fi.Mode().IsRegular() || fi.Size() != int64(len(want)) {
