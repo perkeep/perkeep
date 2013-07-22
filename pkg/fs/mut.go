@@ -63,9 +63,10 @@ func (n *mutDir) fullPath() string {
 
 func (n *mutDir) Attr() fuse.Attr {
 	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
+		Inode: n.permanode.AsUint64(),
+		Mode:  os.ModeDir | 0700,
+		Uid:   uint32(os.Getuid()),
+		Gid:   uint32(os.Getgid()),
 	}
 }
 
