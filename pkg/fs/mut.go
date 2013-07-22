@@ -368,7 +368,7 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 	}
 
 	// Read-only.
-	if res.Flags == 0 {
+	if req.Flags == 0 {
 		log.Printf("mutFile.Open returning read-only file")
 		n := &node{
 			fs:      n.fs,
