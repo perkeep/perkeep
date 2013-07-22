@@ -17,6 +17,7 @@ limitations under the License.
 package fs
 
 import (
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -64,11 +66,18 @@ func cammountTest(t *testing.T, fn func(mountPoint string)) {
 		t.Fatal(err)
 	}
 	verbose := "false"
-	if os.Getenv("VERBOSE_FUSE") != "" {
+	var stderrDest io.Writer = ioutil.Discard
+	if v, _ := strconv.ParseBool(os.Getenv("VERBOSE_FUSE")); v {
 		verbose = "true"
+		stderrDest = testLog{t}
 	}
+	if v, _ := strconv.ParseBool(os.Getenv("VERBOSE_FUSE_STDERR")); v {
+		stderrDest = io.MultiWriter(stderrDest, os.Stderr)
+	}
+
 	mount := w.Cmd("cammount", "--debug="+verbose, mountPoint)
-	mount.Stderr = os.Stderr
+	mount.Stderr = stderrDest
+
 	stdin, err := mount.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -121,8 +130,20 @@ func TestRoot(t *testing.T) {
 	})
 }
 
+type testLog struct {
+	t *testing.T
+}
+
+func (tl testLog) Write(p []byte) (n int, err error) {
+	tl.t.Log(strings.TrimSpace(string(p)))
+	return len(p), nil
+}
+
 func TestMutable(t *testing.T) {
 	condSkip(t)
+	dupLog := io.MultiWriter(os.Stderr, testLog{t})
+	log.SetOutput(dupLog)
+	defer log.SetOutput(os.Stderr)
 	cammountTest(t, func(mountPoint string) {
 		rootDir := filepath.Join(mountPoint, "roots", "r")
 		if err := os.Mkdir(rootDir, 0700); err != nil {
@@ -146,31 +167,30 @@ func TestMutable(t *testing.T) {
 			t.Fatalf("Stat of roots/r/x = %v, %v; want a 0-byte regular file", fi, err)
 		}
 
-		if false { // broken
-			for _, str := range []string{"foo, ", "bar\n", "another line.\n"} {
-				f, err = os.OpenFile(filename, os.O_APPEND, 0644)
-				if err != nil {
-					t.Fatalf("OpenFile: %v", err)
-				}
-				if _, err := f.Write([]byte(str)); err != nil {
-					t.Fatalf("Error appending %q to %s: %v", str, filename, err)
-				}
-				if err := f.Close(); err != nil {
-					t.Fatal(err)
-				}
-			}
-			slurp, err := ioutil.ReadFile(filename)
+		for _, str := range []string{"foo, ", "bar\n", "another line.\n"} {
+			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_APPEND, 0644)
 			if err != nil {
+				t.Fatalf("OpenFile: %v", err)
+			}
+			if _, err := f.Write([]byte(str)); err != nil {
+				t.Logf("Error with append: %v", err)
+				t.Fatalf("Error appending %q to %s: %v", str, filename, err)
+			}
+			if err := f.Close(); err != nil {
 				t.Fatal(err)
 			}
-			const want = "foo, bar\nanother line.\n"
-			fi, err = os.Stat(filename)
-			if err != nil || !fi.Mode().IsRegular() || fi.Size() != int64(len(want)) {
-				t.Errorf("Stat of roots/r/x = %v, %v; want a %d byte regular file", fi, len(want), err)
-			}
-			if got := string(slurp); got != want {
-				t.Fatalf("contents = %q; want %q", got, want)
-			}
+		}
+		slurp, err := ioutil.ReadFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const want = "foo, bar\nanother line.\n"
+		fi, err = os.Stat(filename)
+		if err != nil || !fi.Mode().IsRegular() || fi.Size() != int64(len(want)) {
+			t.Errorf("Stat of roots/r/x = %v, %v; want a %d byte regular file", fi, len(want), err)
+		}
+		if got := string(slurp); got != want {
+			t.Fatalf("contents = %q; want %q", got, want)
 		}
 
 		// Delete it.

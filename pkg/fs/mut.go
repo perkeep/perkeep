@@ -164,7 +164,7 @@ func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		// TODO: figure out what Dirent.Type means.
 		// fuse.go says "Type uint32 // ?"
 		dirent := fuse.Dirent{
-			Name: name,
+			Name:  name,
 			Inode: ino,
 		}
 		log.Printf("mutDir(%q) appending inode %x, %+v", n.fullPath(), dirent.Inode, dirent)
@@ -440,8 +440,8 @@ func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
 // temporary file to the blobstore, and instructs the parent
 // mutFile to update the file permanode.
 type mutFileHandle struct {
-	f       *mutFile
-	tmp     *os.File
+	f   *mutFile
+	tmp *os.File
 }
 
 func (h *mutFileHandle) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
