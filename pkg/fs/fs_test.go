@@ -18,6 +18,7 @@ package fs
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -81,6 +82,10 @@ func (e *mountEnv) Stat(s *stat) int64 {
 }
 
 func cammountTest(t *testing.T, fn func(env *mountEnv)) {
+	dupLog := io.MultiWriter(os.Stderr, testLog{t})
+	log.SetOutput(dupLog)
+	defer log.SetOutput(os.Stderr)
+
 	w := test.GetWorld(t)
 	mountPoint, err := ioutil.TempDir("", "fs-test-mount")
 	if err != nil {
@@ -120,13 +125,13 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 		case err := <-waitc:
 			log.Printf("cammount exited: %v", err)
 		}
-		if !waitFor(not(dirToBeFUSE(mountPoint)), 5*time.Second, 1*time.Second) {
+		if !test.WaitFor(not(dirToBeFUSE(mountPoint)), 5*time.Second, 1*time.Second) {
 			// It didn't unmount. Try again.
 			Unmount(mountPoint)
 		}
 	}()
 
-	if !waitFor(dirToBeFUSE(mountPoint), 5*time.Second, 100*time.Millisecond) {
+	if !test.WaitFor(dirToBeFUSE(mountPoint), 5*time.Second, 100*time.Millisecond) {
 		t.Fatalf("error waiting for %s to be mounted", mountPoint)
 	}
 	fn(&mountEnv{
@@ -168,9 +173,6 @@ func (tl testLog) Write(p []byte) (n int, err error) {
 
 func TestMutable(t *testing.T) {
 	condSkip(t)
-	dupLog := io.MultiWriter(os.Stderr, testLog{t})
-	log.SetOutput(dupLog)
-	defer log.SetOutput(os.Stderr)
 	cammountTest(t, func(env *mountEnv) {
 		rootDir := filepath.Join(env.mountPoint, "roots", "r")
 		if err := os.Mkdir(rootDir, 0700); err != nil {
@@ -237,16 +239,59 @@ func TestMutable(t *testing.T) {
 	})
 }
 
-func waitFor(condition func() bool, maxWait, checkInterval time.Duration) bool {
-	t0 := time.Now()
-	tmax := t0.Add(maxWait)
-	for time.Now().Before(tmax) {
-		if condition() {
-			return true
-		}
-		time.Sleep(checkInterval)
+func TestFinderCopy(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skipf("Skipping Darwin-specific test.")
 	}
-	return false
+	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
+		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
+	}
+	condSkip(t)
+	cammountTest(t, func(env *mountEnv) {
+		f, err := ioutil.TempFile("", "finder-copy-file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		want := []byte("Some data for Finder to copy.")
+		if _, err := f.Write(want); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		destDir := filepath.Join(env.mountPoint, "roots", "r")
+		if err := os.Mkdir(destDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("osascript")
+		script := fmt.Sprintf(`
+tell application "Finder"
+  copy file POSIX file %q to folder POSIX file %q
+end tell
+`, f.Name(), destDir)
+		log.Printf("Running AppleScript:\n%s", script)
+		cmd.Stdin = strings.NewReader(script)
+
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("Error running AppleScript: %v, %s", err, out)
+		} else {
+			t.Logf("AppleScript said: %q", out)
+		}
+
+		destFile := filepath.Join(destDir, filepath.Base(f.Name()))
+		fi, err := os.Stat(destFile)
+		if err != nil {
+			t.Errorf("Stat = %v, %v", fi, err)
+		}
+		slurp, err := ioutil.ReadFile(destFile)
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		if !bytes.Equal(slurp, want) {
+			t.Errorf("Dest file = %q; want %q", slurp, want)
+		}
+	})
 }
 
 func not(cond func() bool) func() bool {
@@ -263,7 +308,6 @@ func dirToBeFUSE(dir string) func() bool {
 		}
 		if runtime.GOOS == "darwin" {
 			if strings.Contains(string(out), "mount_osxfusefs@") {
-				log.Printf("fs %s is mounted on fuse.", dir)
 				return true
 			}
 			return false
