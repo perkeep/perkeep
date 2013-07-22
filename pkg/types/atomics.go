@@ -37,3 +37,19 @@ func (b *AtomicBool) Set(v bool) {
 	}
 	atomic.StoreUint32(&b.v, 0)
 }
+
+type AtomicInt64 struct {
+	v int64
+}
+
+func (a *AtomicInt64) Get() int64 {
+	return atomic.LoadInt64(&a.v)
+}
+
+func (a *AtomicInt64) Set(v int64) {
+	atomic.StoreInt64(&a.v, v)
+}
+
+func (a *AtomicInt64) Add(delta int64) int64 {
+	return atomic.AddInt64(&a.v, delta)
+}
