@@ -22,9 +22,6 @@ presubmit:
 embeds:
 	go install ./pkg/fileembed/genfileembed/ && genfileembed ./server/camlistored/ui && genfileembed ./pkg/server
 
-getclosure:
-	perl -e 'require "misc/get_closure.pl"; get_closure_lib(); get_closure_compiler();'
-
 UIDIR = server/camlistored/ui
 
 NEWUIDIR = server/camlistored/newui

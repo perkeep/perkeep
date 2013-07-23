@@ -185,10 +185,10 @@ if ($opt_fullclosure) {
     if (-e "$Bin/tmp/closure-lib/.svn") {
         system("rm", "-rf", "$Bin/tmp/closure-lib") and die "Failed to remove the svn checkout of the closure-lib.\n";
     }
-    get_closure_lib();
-    get_closure_compiler();
-    chdir $Bin or die;
-    $ENV{CAMLI_DEV_CLOSURE_DIR} = "$Bin/tmp/closure-lib/closure";
+    print STDERR "Updating closure library ...\n";
+    system("go", "run", "third_party/closure/updatelibrary.go", "-verbose")
+    and die "go run  third_party/closure/updatelibrary.go failed";
+    $ENV{CAMLI_DEV_CLOSURE_DIR} = "third_party/closure/lib/closure";
 }
 
 print "Starting dev server on $base/ui/ with password \"pass$port\"\n";
