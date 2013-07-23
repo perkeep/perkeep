@@ -4,7 +4,6 @@ use strict;
 use FindBin qw($Bin);
 use Getopt::Long;
 require "$Bin/misc/devlib.pl";
-require "$Bin/misc/get_closure.pl";
 
 sub usage {
     die "Usage: dev-server [OPTS] [<portnumber>] -- [other_blobserver_opts]\n\nWhere OPTS include:\n   [--wipe] [--mongo|--mysql|--postgres] [--tls] [--fullclosure] " .
