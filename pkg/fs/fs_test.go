@@ -299,6 +299,63 @@ end tell
 	})
 }
 
+func TestTextEdit(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skipf("Skipping Darwin-specific test.")
+	}
+	condSkip(t)
+	brokenTest(t)
+	cammountTest(t, func(env *mountEnv) {
+		var (
+			testDir  = filepath.Join(env.mountPoint, "roots", "r")
+			testFile = filepath.Join(testDir, "some-text-file.txt")
+			content1 = []byte("Some text content.")
+			content2 = []byte("Some replacement content.")
+		)
+		if err := os.MkdirAll(testDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ioutil.WriteFile(testFile, content1, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := exec.Command("osascript")
+		script := fmt.Sprintf(`
+tell application "TextEdit"
+	activate
+	open POSIX file %q
+	tell front document
+		set paragraph 1 to %q as text
+		save
+		close
+	end tell
+end tell
+`, testFile, content2)
+		cmd.Stdin = strings.NewReader(script)
+
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("Error running AppleScript: %v, %s", err, out)
+		} else {
+			t.Logf("AppleScript said: %q", out)
+		}
+
+		fi, err := os.Stat(testFile)
+		if err != nil {
+			t.Errorf("Stat = %v, %v", fi, err)
+		}
+		if fi.Size() != int64(len(content2)) {
+			t.Errorf("Stat size = %d; want %d", fi.Size(), len(content2))
+		}
+		slurp, err := ioutil.ReadFile(testFile)
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		if !bytes.Equal(slurp, content2) {
+			t.Errorf("File = %q; want %q", slurp, content2)
+		}
+	})
+}
+
 func not(cond func() bool) func() bool {
 	return func() bool {
 		return !cond()
