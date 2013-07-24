@@ -217,7 +217,7 @@ type WithAttrRequest struct {
 }
 
 func (r *WithAttrRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v", 
+	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v",
 		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N, r.ThumbnailSize)
 }
 
@@ -593,7 +593,7 @@ type DescribeRequest struct {
 
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.
-	sh *Handler
+	sh   *Handler
 	mu   sync.Mutex // protects following:
 	m    MetaMap
 	done map[string]bool  // blobref -> described
@@ -650,6 +650,8 @@ type DescribedBlob struct {
 	Dir *FileInfo `json:"dir,omitempty"`
 	// if camliType "file", and File.IsImage()
 	Image *ImageInfo `json:"image,omitempty"`
+	// if camliType "directory"
+	DirChildren []*blobref.BlobRef `json:"dirChildren,omitempty"`
 
 	Thumbnail       string `json:"thumbnailSrc,omitempty"`
 	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
@@ -740,6 +742,18 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 				m = append(m, b.PeerBlob(br))
 			}
 		}
+	}
+	return m
+}
+
+func (b *DescribedBlob) DirMembers() []*DescribedBlob {
+	if b == nil || b.Dir == nil || len(b.DirChildren) == 0 {
+		return nil
+	}
+
+	m := make([]*DescribedBlob, 0)
+	for _, br := range b.DirChildren {
+		m = append(m, b.PeerBlob(br))
 	}
 	return m
 }
@@ -921,12 +935,26 @@ func (sh *Handler) ResolvePrefixHop(parent *blobref.BlobRef, prefix string) (chi
 		return nil, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
 	}
 	if des.Permanode != nil {
-		if cr, ok := des.ContentRef(); ok && strings.HasPrefix(cr.Digest(), prefix) {
+		cr, ok := des.ContentRef()
+		if ok && strings.HasPrefix(cr.Digest(), prefix) {
 			return cr, nil
 		}
 		for _, member := range des.Members() {
 			if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
 				return member.BlobRef, nil
+			}
+		}
+		_, err := dr.DescribeSync(cr)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to describe content %q of parent %q", cr, parent)
+		}
+		if _, _, ok := des.PermanodeDir(); ok {
+			return sh.ResolvePrefixHop(cr, prefix)
+		}
+	} else if des.Dir != nil {
+		for _, child := range des.DirChildren {
+			if strings.HasPrefix(child.Digest(), prefix) {
+				return child, nil
 			}
 		}
 	}
@@ -1094,7 +1122,20 @@ func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
 			} else {
 				dr.addError(br, err)
 			}
+			return
 		}
+		// TODO(mpl): get that limit from somewhere else.
+		// totally arbitrary for now.
+		members, err := dr.getDirMembers(br, depth, 100)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Printf("index.GetDirMembers(directory %s) failed; index stale?", br)
+			} else {
+				dr.addError(br, err)
+			}
+			return
+		}
+		des.DirChildren = members
 	}
 }
 
@@ -1223,6 +1264,24 @@ claimLoop:
 			}
 		}
 	}
+}
+
+func (dr *DescribeRequest) getDirMembers(br *blobref.BlobRef, depth, limit int) ([]*blobref.BlobRef, error) {
+	ch := make(chan *blobref.BlobRef)
+	errch := make(chan error)
+	go func() {
+		errch <- dr.sh.index.GetDirMembers(br, ch, limit)
+	}()
+
+	var members []*blobref.BlobRef
+	for child := range ch {
+		dr.Describe(child, depth)
+		members = append(members, child)
+	}
+	if err := <-errch; err != nil {
+		return nil, err
+	}
+	return members, nil
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue

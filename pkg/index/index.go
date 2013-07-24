@@ -671,4 +671,35 @@ func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges [
 	return edges, nil
 }
 
+func (x *Index) GetDirMembers(dir *blobref.BlobRef, dest chan *blobref.BlobRef, limit int) error {
+	// TODO(mpl): write a test before submitting.
+	defer close(dest)
+
+	if dir == nil {
+		return os.ErrNotExist
+	}
+	sent := 0
+	key := keyDirMembers.Key(dir.String())
+	val, err := x.s.Get(key)
+	if err == ErrNotFound {
+		err = os.ErrNotExist
+	}
+	if err != nil {
+		return err
+	}
+	children := strings.Split(val, ",")
+	for _, v := range children {
+		child := blobref.Parse(v)
+		if child == nil {
+			continue
+		}
+		dest <- child
+		sent++
+		if sent == limit {
+			break
+		}
+	}
+	return nil
+}
+
 func (x *Index) Storage() Storage { return x.s }

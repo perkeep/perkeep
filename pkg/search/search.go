@@ -221,6 +221,9 @@ type Index interface {
 	// Should return os.ErrNotExist if not found.
 	GetImageInfo(fileRef *blobref.BlobRef) (*ImageInfo, error)
 
+	// Should return os.ErrNotExist if not found.
+	GetDirMembers(dirRef *blobref.BlobRef, dest chan *blobref.BlobRef, limit int) error
+
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.

@@ -163,7 +163,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 		schema.BytesPart{
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
-	}})
+		}})
 	if !modTime.IsZero() {
 		m.SetModTime(modTime)
 	}

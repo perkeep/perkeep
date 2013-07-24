@@ -240,4 +240,16 @@ var (
 			{"height", typeStr},
 		},
 	}
+
+	// Children of a directory
+	keyDirMembers = &keyType{
+		"dirmembers",
+		[]part{
+			{"dirref", typeBlobRef}, // blobref of "directory" schema blob
+		},
+		[]part{
+			// comma-separated blobrefs of the children of the dir
+			{"members", typeStr},
+		},
+	}
 )

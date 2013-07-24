@@ -100,4 +100,3 @@ func (sn *BlobSniffer) bufferIsCamliJSON() bool {
 	sn.meta = blob
 	return true
 }
-

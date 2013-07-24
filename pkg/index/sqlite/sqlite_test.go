@@ -118,8 +118,8 @@ func TestConcurrency(t *testing.T) {
 		i := i
 		go func() {
 			bm := s.BeginBatch()
-			bm.Set("keyA-" + fmt.Sprint(i), fmt.Sprintf("valA=%d", i))
-			bm.Set("keyB-" + fmt.Sprint(i), fmt.Sprintf("valB=%d", i))
+			bm.Set("keyA-"+fmt.Sprint(i), fmt.Sprintf("valA=%d", i))
+			bm.Set("keyB-"+fmt.Sprint(i), fmt.Sprintf("valB=%d", i))
 			ch <- s.CommitBatch(bm)
 		}()
 	}

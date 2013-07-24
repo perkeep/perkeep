@@ -70,7 +70,7 @@ func NewStorage(file string) (index.Storage, error) {
 		file: file,
 		db:   db,
 		Storage: &sqlindex.Storage{
-			DB: db,
+			DB:     db,
 			Serial: true,
 		},
 	}, nil

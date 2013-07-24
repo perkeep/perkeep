@@ -255,6 +255,13 @@ func (ix *Index) populateDir(blob *schema.Blob, bm BatchMutation) error {
 	}
 
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), blob.FileName(), ""))
+	// TODO(mpl): What if there are a lot of children? Should we set a limit ? or use
+	// a truncated hash?
+	var children []string
+	for _, br := range sts {
+		children = append(children, br.String())
+	}
+	bm.Set(keyDirMembers.Key(blobRef), strings.Join(children, ","))
 	return nil
 }
 
