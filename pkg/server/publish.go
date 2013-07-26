@@ -319,7 +319,7 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 		if pr.inSubjectChain[br.String()] {
 			continue
 		}
-		fmt.Fprintf(&buf, "/h%s", br.DigestPrefix(10))
+		fmt.Fprintf(&buf, "/h%s", br.DigestPrefix(digestLen))
 	}
 	fmt.Fprintf(&buf, "/=%s", resType)
 	fmt.Fprintf(&buf, "/%s", url.QueryEscape(fileName))
@@ -329,7 +329,7 @@ func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName s
 	return buf.String()
 }
 
-var memberRE = regexp.MustCompile(`^/?h([0-9a-f]+)`)
+var memberRE = regexp.MustCompile(`^/?` + digestPrefix + `([0-9a-f]+)`)
 
 func (pr *publishRequest) findSubject() error {
 	if strings.HasPrefix(pr.suffix, "=s/") {
@@ -461,7 +461,7 @@ func addPathComponent(base, addition string) string {
 }
 
 func (pr *publishRequest) memberPath(member *blobref.BlobRef) string {
-	return addPathComponent(pr.subjectBasePath, "/h"+member.DigestPrefix(10))
+	return addPathComponent(pr.subjectBasePath, "/"+digestPrefix+member.DigestPrefix(digestLen))
 }
 
 var provCamliRx = regexp.MustCompile(`^goog\.(provide)\(['"]camlistore\.(.*)['"]\)`)
@@ -545,9 +545,7 @@ func (pr *publishRequest) serveMeta(des map[string]*search.DescribedBlob) {
 	pr.pf(";\n </script>\n</head>\n")
 }
 
-// TODO(mpl): use those everywhere else
 const (
-	resSeparator = "/-"
 	digestPrefix = "h"
 	digestLen    = 10
 )
@@ -565,8 +563,8 @@ type publishedPath string
 func (p publishedPath) splitHops() []string {
 	ps := string(p)
 	var hops []string
-	if idx := strings.Index(ps, resSeparator); idx != -1 {
-		ps = ps[idx+len(resSeparator):]
+	if idx := strings.Index(ps, "/-"); idx != -1 {
+		ps = ps[idx+len("/-"):]
 	}
 	matchLen := 1 + len(digestPrefix) + digestLen
 	for {
@@ -616,7 +614,7 @@ func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.Bl
 			if bref == nil {
 				return "", nil, fmt.Errorf("Could not parse %q as blobRef", br)
 			}
-			if bref.DigestPrefix(10) == parentDigest {
+			if bref.DigestPrefix(digestLen) == parentDigest {
 				parentBlobRef = bref
 				break
 			}
@@ -637,7 +635,7 @@ func (pr *publishRequest) serveNav() error {
 	if err != nil {
 		return fmt.Errorf("Errors building nav links for %s: %v", pr.subject, err)
 	}
-	parentNav := fmt.Sprintf("[<a href='%s'>up</a>]", strings.TrimSuffix(parentPath, resSeparator))
+	parentNav := fmt.Sprintf("[<a href='%s'>up</a>]", strings.TrimSuffix(parentPath, "/-"))
 
 	// describe the parent so we get the siblings (members of the parent)
 	dr := pr.ph.Search.NewDescribeRequest()
@@ -669,12 +667,12 @@ func (pr *publishRequest) serveNav() error {
 	if prev != nil || next != nil {
 		var prevNav, nextNav string
 		if prev != nil {
-			prevNav = fmt.Sprintf("[<a href='%s/h%s'>prev</a>]",
-				parentPath, prev.DigestPrefix(10))
+			prevNav = fmt.Sprintf("[<a href='%s/%s%s'>prev</a>]",
+				parentPath, digestPrefix, prev.DigestPrefix(digestLen))
 		}
 		if next != nil {
-			nextNav = fmt.Sprintf("[<a href='%s/h%s'>next</a>]",
-				parentPath, next.DigestPrefix(10))
+			nextNav = fmt.Sprintf("[<a href='%s/%s%s'>next</a>]",
+				parentPath, digestPrefix, next.DigestPrefix(digestLen))
 		}
 		pr.pf("<div class='camlifile'>%s %s %s</div>", parentNav, prevNav, nextNav)
 	}
@@ -707,7 +705,7 @@ func (pr *publishRequest) serveFile(cref *blobref.BlobRef) error {
 			cref.DomID(),
 			downloadURL)
 	}
-	if strings.Contains(pr.subjectBasePath, resSeparator) {
+	if strings.Contains(pr.subjectBasePath, "/-") {
 		// this permanode has a "parent" collection.
 		// so we send a deep request on the parent in order to get some info
 		// about the siblings and build some "prev" and "next" nav links.
@@ -720,6 +718,64 @@ func (pr *publishRequest) serveFile(cref *blobref.BlobRef) error {
 		}
 	}
 	return nil
+}
+
+// serveDirMembers serves the relevant view when the subject in serveSubject
+// is a directory. It is meant to be called from serveSubject.
+func (pr *publishRequest) serveDirMembers(title string, des *search.DescribedBlob) {
+	children := des.DirMembers()
+	if len(children) == 0 {
+		return
+	}
+	dir := des.BlobRef
+	zipName := ""
+	if title == "" {
+		zipName = "download.zip"
+	} else {
+		zipName = title + ".zip"
+	}
+	subjectPath := pr.subjectBasePath
+	if !strings.Contains(subjectPath, "/-/") {
+		subjectPath += "/-"
+	}
+	pr.pf("<div><a href='%s/=z/%s'>%s</a></div>\n", subjectPath,
+		html.EscapeString(url.QueryEscape(zipName)), html.EscapeString(zipName))
+	pr.pf("<ul id='children'>\n")
+	for _, child := range children {
+		if child.File == nil && child.Dir == nil {
+			// TODO(mpl): I don't think that should ever even happen, so maybe fail harder?
+			log.Printf("Blob %v in directory %v is neither a file nor a dir", child.BlobRef, dir)
+			continue
+		}
+		var fileInfo *search.FileInfo
+		if child.File != nil {
+			fileInfo = child.File
+		} else {
+			fileInfo = child.Dir
+		}
+		var thumbnail, des string
+		blobPath := []*blobref.BlobRef{dir, child.BlobRef}
+		fileLink := fmt.Sprintf("<div id='%s' class='camlifile'><a href='%s'>file</a></div>",
+			child.DomID(),
+			html.EscapeString(pr.SubresFileURL(blobPath, fileInfo.FileName)),
+		)
+		if fileInfo.IsImage() {
+			thumbnail = fmt.Sprintf("<img src='%s'>", pr.SubresThumbnailURL(blobPath, fileInfo.FileName, 200))
+		}
+		// TODO(mpl): thumb for a dir too
+		childTitle := child.Title()
+		if childTitle == "" {
+			childTitle = child.BlobRef.DigestPrefix(digestLen)
+		}
+		pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
+			child.DomID(),
+			pr.memberPath(child.BlobRef),
+			thumbnail,
+			html.EscapeString(childTitle),
+			des,
+			fileLink)
+	}
+	pr.pf("</ul>\n")
 }
 
 // serveMembers serves the relevant view when the subject in serveSubject
@@ -756,7 +812,7 @@ func (pr *publishRequest) serveMembers(title string, members []*search.Described
 		}
 		memberTitle := member.Title()
 		if memberTitle == "" {
-			memberTitle = member.BlobRef.DigestPrefix(10)
+			memberTitle = member.BlobRef.DigestPrefix(digestLen)
 		}
 		pr.pf("  <li id='%s'><a href='%s'>%s<span>%s</span></a>%s%s</li>\n",
 			member.DomID(),
@@ -787,7 +843,6 @@ func (pr *publishRequest) serveSubject() {
 	}
 
 	title := subdes.Title()
-
 	// HTML header + Javascript
 	var camliPage string
 	// TODO(mpl): We are only using the first .js file, and expecting it to be
@@ -805,15 +860,28 @@ func (pr *publishRequest) serveSubject() {
 	defer pr.pf("</body>\n</html>\n")
 
 	if cref, ok := subdes.ContentRef(); ok {
-		err = pr.serveFile(cref)
+		// permanode with file or directory camliContent
+		des, err := pr.dr.DescribeSync(cref)
 		if err != nil {
-			log.Print(err)
+			log.Printf("Could not describe camlicontent %v: %v", cref, err)
+			pr.pf("<p>Error describing camlicontent.</p>")
 			return
 		}
-	} else {
-		if members := subdes.Members(); len(members) > 0 {
-			pr.serveMembers(title, members)
+		if des.File != nil {
+			err = pr.serveFile(cref)
+			if err != nil {
+				log.Print(err)
+				return
+			}
+		} else if des.Dir != nil {
+			pr.serveDirMembers(title, des)
 		}
+	} else if subdes.CamliType == "directory" {
+		// directory
+		pr.serveDirMembers(title, subdes)
+	} else if members := subdes.Members(); len(members) > 0 {
+		// collection
+		pr.serveMembers(title, members)
 	}
 
 	if camliPage != "" && pr.ViewerIsOwner() {

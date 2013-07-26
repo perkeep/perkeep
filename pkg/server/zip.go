@@ -73,13 +73,20 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob *blobref.BlobRef) ([]*blo
 
 	described := res[dirBlob.String()]
 	members := described.Members()
-	dirBlobPath, _, isDir := described.PermanodeDir()
-	if len(members) == 0 && !isDir {
+	isDir := described.Dir != nil
+	dirBlobPath, _, isPermaDir := described.PermanodeDir()
+	if len(members) == 0 && !isDir && !isPermaDir {
 		return nil, nil
 	}
+
 	var list []*blobFile
-	if isDir {
-		dirRoot := dirBlobPath[1]
+	if isDir || isPermaDir {
+		var dirRoot *blobref.BlobRef
+		if isPermaDir {
+			dirRoot = dirBlobPath[1]
+		} else {
+			dirRoot = described.BlobRef
+		}
 		children, err := zh.blobsFromDir("/", dirRoot)
 		if err != nil {
 			return nil, fmt.Errorf("Could not get list of blobs from %v: %v", dirRoot, err)
