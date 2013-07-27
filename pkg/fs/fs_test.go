@@ -192,8 +192,10 @@ func TestMutable(t *testing.T) {
 			t.Fatalf("Close: %v", err)
 		}
 		fi, err = os.Stat(filename)
-		if err != nil || !fi.Mode().IsRegular() || fi.Size() != 0 {
-			t.Fatalf("Stat of roots/r/x = %v, %v; want a 0-byte regular file", fi, err)
+		if err != nil {
+			t.Errorf("Stat error: %v", err)
+		} else if !fi.Mode().IsRegular() || fi.Size() != 0 {
+			t.Errorf("Stat of roots/r/x = %v size %d; want a %d byte regular file", fi.Mode(), fi.Size(), 0)
 		}
 
 		for _, str := range []string{"foo, ", "bar\n", "another line.\n"} {
@@ -220,8 +222,10 @@ func TestMutable(t *testing.T) {
 
 		const want = "foo, bar\nanother line.\n"
 		fi, err = os.Stat(filename)
-		if err != nil || !fi.Mode().IsRegular() || fi.Size() != int64(len(want)) {
-			t.Errorf("Stat of roots/r/x = %v, %v; want a %d byte regular file", fi, len(want), err)
+		if err != nil {
+			t.Errorf("Stat error: %v", err)
+		} else if !fi.Mode().IsRegular() || fi.Size() != int64(len(want)) {
+			t.Errorf("Stat of roots/r/x = %v size %d; want a %d byte regular file", fi.Mode(), fi.Size(), len(want))
 		}
 		if got := string(slurp); got != want {
 			t.Fatalf("contents = %q; want %q", got, want)
@@ -235,6 +239,92 @@ func TestMutable(t *testing.T) {
 		// Gone?
 		if _, err := os.Stat(filename); !os.IsNotExist(err) {
 			t.Fatalf("expected file to be gone; got stat err = %v instead", err)
+		}
+	})
+}
+
+func TestDifferentWriteTypes(t *testing.T) {
+	condSkip(t)
+	brokenTest(t)
+	cammountTest(t, func(env *mountEnv) {
+		rootDir := filepath.Join(env.mountPoint, "roots", "r")
+		if err := os.MkdirAll(rootDir, 0755); err != nil {
+			t.Fatalf("Failed to make roots/r dir: %v", err)
+		}
+		fi, err := os.Stat(rootDir)
+		if err != nil || !fi.IsDir() {
+			t.Fatalf("Stat of roots/r dir = %v, %v; want a directory", fi, err)
+		}
+
+		filename := filepath.Join(rootDir, "big")
+
+		writes := []struct {
+			name     string
+			flag     int
+			write    []byte // if non-nil, Write is called
+			writeAt  []byte // if non-nil, WriteAt is used
+			writePos int64  // writeAt position
+			want     string // shortenString of remaining file
+		}{
+			{
+				name:  "write 8k of a",
+				flag:  os.O_RDWR | os.O_CREATE | os.O_TRUNC,
+				write: bytes.Repeat([]byte("a"), 8<<10),
+				want:  "a{8192}",
+			},
+			{
+				name:     "writeAt HI at offset 10",
+				flag:     os.O_RDWR,
+				writeAt:  []byte("HI"),
+				writePos: 10,
+				want:     "a{10}HIa{8180}",
+			},
+			{
+				name:  "append single C",
+				flag:  os.O_WRONLY | os.O_APPEND,
+				write: []byte("C"),
+				want:  "a{10}HIa{8180}C",
+			},
+			{
+				name:  "append 8k of b",
+				flag:  os.O_WRONLY | os.O_APPEND,
+				write: bytes.Repeat([]byte("b"), 8<<10),
+				want:  "a{10}HIa{8180}Cb{8192}",
+			},
+		}
+
+		for _, wr := range writes {
+			f, err := os.OpenFile(filename, wr.flag, 0644)
+			if err != nil {
+				t.Fatalf("%s: OpenFile: %v", wr.name, err)
+			}
+			if wr.write != nil {
+				if n, err := f.Write(wr.write); err != nil || n != len(wr.write) {
+					t.Fatalf("%s: Write = (%n, %v); want (%d, nil)", wr.name, n, err, len(wr.write))
+				}
+			}
+			if wr.writeAt != nil {
+				if n, err := f.WriteAt(wr.writeAt, wr.writePos); err != nil || n != len(wr.writeAt) {
+					t.Fatalf("%s: WriteAt = (%n, %v); want (%d, nil)", wr.name, n, err, len(wr.writeAt))
+				}
+			}
+			if err := f.Close(); err != nil {
+				t.Fatalf("%s: Close: %v", wr.name, err)
+			}
+
+			slurp, err := ioutil.ReadFile(filename)
+			if err != nil {
+				t.Fatalf("%s: Slurp: %v", wr.name, err)
+			}
+			if got := shortenString(string(slurp)); got != wr.want {
+				t.Fatalf("%s: afterwards, file = %q; want %q", wr.name, got, wr.want)
+			}
+
+		}
+
+		// Delete it.
+		if err := os.Remove(filename); err != nil {
+			t.Fatal(err)
 		}
 	})
 }
@@ -376,4 +466,36 @@ func dirToBeFUSE(dir string) func() bool {
 		}
 		return false
 	}
+}
+
+// shortenString reduces any run of 5 or more identical bytes to "x{17}".
+// "hello" => "hello"
+// "fooooooooooooooooo" => "fo{17}"
+func shortenString(v string) string {
+	var buf bytes.Buffer
+	var last byte
+	var run int
+	flush := func() {
+		switch {
+		case run == 0:
+		case run < 5:
+			for i := 0; i < run; i++ {
+				buf.WriteByte(last)
+			}
+		default:
+			buf.WriteByte(last)
+			fmt.Fprintf(&buf, "{%d}", run)
+		}
+		run = 0
+	}
+	for i := 0; i < len(v); i++ {
+		b := v[i]
+		if b != last {
+			flush()
+		}
+		last = b
+		run++
+	}
+	flush()
+	return buf.String()
 }
