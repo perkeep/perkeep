@@ -245,7 +245,6 @@ func TestMutable(t *testing.T) {
 
 func TestDifferentWriteTypes(t *testing.T) {
 	condSkip(t)
-	brokenTest(t)
 	cammountTest(t, func(env *mountEnv) {
 		rootDir := filepath.Join(env.mountPoint, "roots", "r")
 		if err := os.MkdirAll(rootDir, 0755); err != nil {

@@ -192,7 +192,10 @@ func (n *mutDir) Lookup(name string, intr fuse.Intr) (ret fuse.Node, err fuse.Er
 
 // Create of regular file. (not a dir)
 //
-// TOOD(bradfitz): what are the two bits in fl=514? what are CreateRequest.Flags?
+// Flags are always 514:  O_CREAT is 0x200 | O_RDWR is 0x2.
+// From fuse_vnops.c:
+//    /* XXX: We /always/ creat() like this. Wish we were on Linux. */
+//    foi->flags = O_CREAT | O_RDWR;
 //
 // 2013/07/21 05:26:35 <- &{Create [ID=0x3 Node=0x8 Uid=61652 Gid=5000 Pid=13115] "x" fl=514 mode=-rw-r--r-- fuse.Intr}
 // 2013/07/21 05:26:36 -> 0x3 Create {LookupResponse:{Node:23 Generation:0 EntryValid:1m0s AttrValid:1m0s Attr:{Inode:15976986887557313215 Size:0 Blocks:0 Atime:2013-07-21 05:23:51.537251251 +1200 NZST Mtime:2013-07-21 05:23:51.537251251 +1200 NZST Ctime:2013-07-21 05:23:51.537251251 +1200 NZST Crtime:2013-07-21 05:23:51.537251251 +1200 NZST Mode:-rw------- Nlink:1 Uid:61652 Gid:5000 Rdev:0 Flags:0}} OpenResponse:{Handle:1 Flags:OpenDirectIO}}
@@ -208,6 +211,12 @@ func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr 
 	if ferr != nil {
 		return nil, nil, ferr
 	}
+
+	// This isn't required (or even ever been shown to make a
+	// difference), but we do it to match OpenRequest below, where
+	// it causes test failures without:
+	res.OpenResponse.Flags &= ^fuse.OpenDirectIO
+
 	return child, h, nil
 }
 
@@ -368,7 +377,10 @@ func (n *mutFile) setSizeAtLeast(size int64) {
 //  open for append: req.Flags == 1
 //  open for write:  req.Flags == 1
 //  open for read/write (+<)   == 2 (bitmask? of?)
-// TODO(bradfitz): look this up, once I have connectivity.
+//
+// open flags are O_WRONLY (1), O_RDONLY (0), or O_RDWR (2). and also
+// bitmaks of O_SYMLINK (0x200000) maybe. (from
+// fuse_filehandle_xlate_to_oflags in macosx/kext/fuse_file.h)
 func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
 	mutFileOpen.Incr()
 
@@ -379,6 +391,10 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 		log.Printf("mutFile.Open: %v", err)
 		return nil, fuse.EIO
 	}
+
+	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),
+	// else append operations don't work for some reason.
+	res.Flags &= ^fuse.OpenDirectIO
 
 	// Read-only.
 	if req.Flags == 0 {
@@ -393,11 +409,6 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 
 	mutFileOpenRW.Incr()
 	log.Printf("mutFile.Open returning read-write filehandle")
-
-	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),
-	// else append operations don't work for some reason.
-	// TODO(bradfitz): also do tihs in Create? CreateResponse.OpenResponse.Flags.
-	res.Flags &= ^fuse.OpenDirectIO
 
 	defer r.Close()
 	return n.newHandle(r)
