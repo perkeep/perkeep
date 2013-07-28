@@ -40,6 +40,14 @@ import (
 // How often to refresh directory nodes by reading from the blobstore.
 const populateInterval = 30 * time.Second
 
+type nodeType int
+
+const (
+	fileType nodeType = iota
+	dirType
+	symlinkType
+)
+
 // mutDir is a mutable directory.
 // Its br is the permanode with camliPath:entname attributes.
 type mutDir struct {
@@ -109,6 +117,18 @@ func (n *mutDir) populate() error {
 		child := res.Meta[childRef]
 		if child == nil {
 			log.Printf("child not described: %v", childRef)
+			continue
+		}
+		if target := child.Permanode.Attr.Get("camliSymlinkTarget"); target != "" {
+			// This is a symlink.
+			n.children[name] = &mutFile{
+				fs:        n.fs,
+				permanode: blobref.Parse(childRef),
+				parent:    n,
+				name:      name,
+				symLink:   true,
+				target:    target,
+			}
 			continue
 		}
 		if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
@@ -200,7 +220,7 @@ func (n *mutDir) Lookup(name string, intr fuse.Intr) (ret fuse.Node, err fuse.Er
 // 2013/07/21 05:26:35 <- &{Create [ID=0x3 Node=0x8 Uid=61652 Gid=5000 Pid=13115] "x" fl=514 mode=-rw-r--r-- fuse.Intr}
 // 2013/07/21 05:26:36 -> 0x3 Create {LookupResponse:{Node:23 Generation:0 EntryValid:1m0s AttrValid:1m0s Attr:{Inode:15976986887557313215 Size:0 Blocks:0 Atime:2013-07-21 05:23:51.537251251 +1200 NZST Mtime:2013-07-21 05:23:51.537251251 +1200 NZST Ctime:2013-07-21 05:23:51.537251251 +1200 NZST Crtime:2013-07-21 05:23:51.537251251 +1200 NZST Mode:-rw------- Nlink:1 Uid:61652 Gid:5000 Rdev:0 Flags:0}} OpenResponse:{Handle:1 Flags:OpenDirectIO}}
 func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
-	child, err := n.creat(req.Name, false)
+	child, err := n.creat(req.Name, fileType)
 	if err != nil {
 		log.Printf("mutDir.Create(%q): %v", req.Name, err)
 		return nil, nil, fuse.EIO
@@ -221,7 +241,7 @@ func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr 
 }
 
 func (n *mutDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
-	child, err := n.creat(req.Name, true)
+	child, err := n.creat(req.Name, dirType)
 	if err != nil {
 		log.Printf("mutDir.Mkdir(%q): %v", req.Name, err)
 		return nil, fuse.EIO
@@ -229,7 +249,28 @@ func (n *mutDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.
 	return child, nil
 }
 
-func (n *mutDir) creat(name string, isDir bool) (fuse.Node, error) {
+// &fuse.SymlinkRequest{Header:fuse.Header{Conn:(*fuse.Conn)(0xc210047180), ID:0x4, Node:0x8, Uid:0xf0d4, Gid:0x1388, Pid:0x7e88}, NewName:"some-link", Target:"../../some-target"}
+func (n *mutDir) Symlink(req *fuse.SymlinkRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	node, err := n.creat(req.NewName, symlinkType)
+	if err != nil {
+		log.Printf("mutDir.Symlink(%q): %v", req.NewName, err)
+		return nil, fuse.EIO
+	}
+	mf := node.(*mutFile)
+	mf.symLink = true
+	mf.target = req.Target
+
+	claim := schema.NewSetAttributeClaim(mf.permanode, "camliSymlinkTarget", req.Target)
+	_, err = n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Printf("mutDir.Symlink(%q) upload error: %v", req.NewName, err)
+		return nil, fuse.EIO
+	}
+
+	return node, nil
+}
+
+func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 	// Create a Permanode for the file/directory.
 	pr, err := n.fs.client.UploadNewPermanode()
 	if err != nil {
@@ -245,20 +286,23 @@ func (n *mutDir) creat(name string, isDir bool) (fuse.Node, error) {
 
 	// Add a child node to this node.
 	var child mutFileOrDir
-	if isDir {
+	switch typ {
+	case dirType:
 		child = &mutDir{
 			fs:        n.fs,
 			permanode: pr.BlobRef,
 			parent:    n,
 			name:      name,
 		}
-	} else {
+	case fileType, symlinkType:
 		child = &mutFile{
 			fs:        n.fs,
 			permanode: pr.BlobRef,
 			parent:    n,
 			name:      name,
 		}
+	default:
+		panic("bogus creat type")
 	}
 	n.mu.Lock()
 	if n.children == nil {
@@ -350,15 +394,17 @@ func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Int
 	return nil
 }
 
-// mutFile is a mutable file.
+// mutFile is a mutable file, or symlink.
 type mutFile struct {
 	fs        *CamliFileSystem
 	permanode *blobref.BlobRef
 	parent    *mutDir
 	name      string // ent name (base name within parent)
 
-	mu           sync.Mutex
-	content      *blobref.BlobRef
+	mu           sync.Mutex       // protects all following fields
+	symLink      bool             // if true, is a symlink
+	target       string           // if a symlink
+	content      *blobref.BlobRef // if a regular file
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
 }
@@ -373,6 +419,7 @@ func (n *mutFile) fullPath() string {
 
 func (n *mutFile) Attr() fuse.Attr {
 	// TODO: don't grab n.mu three+ times in here.
+	var mode os.FileMode = 0600 // writable
 
 	n.mu.Lock()
 	size := n.size
@@ -381,11 +428,14 @@ func (n *mutFile) Attr() fuse.Attr {
 		blocks = uint64(size)/512 + 1
 	}
 	inode := n.permanode.AsUint64()
+	if n.symLink {
+		mode |= os.ModeSymlink
+	}
 	n.mu.Unlock()
 
 	return fuse.Attr{
 		Inode:  inode,
-		Mode:   0600, // writable!
+		Mode:   mode,
 		Uid:    uint32(os.Getuid()),
 		Gid:    uint32(os.Getgid()),
 		Size:   uint64(size),
@@ -482,6 +532,16 @@ func (n *mutFile) Fsync(r *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
 	// in the same way we did Truncate.
 	log.Printf("mutFile.Fsync: TODO")
 	return nil
+}
+
+func (n *mutFile) Readlink(req *fuse.ReadlinkRequest, intr fuse.Intr) (string, fuse.Error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if !n.symLink {
+		log.Printf("mutFile.Readlink on node that's not a symlink?")
+		return "", fuse.EIO
+	}
+	return n.target, nil
 }
 
 func (n *mutFile) Setattr(req *fuse.SetattrRequest, res *fuse.SetattrResponse, intr fuse.Intr) fuse.Error {

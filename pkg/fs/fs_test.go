@@ -61,6 +61,12 @@ func condSkip(t *testing.T) {
 	}
 }
 
+func brokenTest(t *testing.T) {
+	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
+		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
+	}
+}
+
 type mountEnv struct {
 	t          *testing.T
 	mountPoint string
@@ -395,10 +401,45 @@ func TestRename(t *testing.T) {
 	})
 }
 
-func brokenTest(t *testing.T) {
-	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
-		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
+func TestSymlink(t *testing.T) {
+	condSkip(t)
+	// Do it all once, unmount, re-mount and then check again.
+	// TODO(bradfitz): do this same pattern (unmount and remount) in the other tests.
+	var suffix string
+	var link string
+	const target = "../../some-target" // arbitrary string. some-target is fake.
+	check := func() {
+		fi, err := os.Lstat(link)
+		if err != nil {
+			t.Fatalf("Stat: %v", err)
+		}
+		if fi.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("Mode = %v; want Symlink bit set", fi.Mode())
+		}
+		got, err := os.Readlink(link)
+		if err != nil {
+			t.Fatalf("Readlink: %v", err)
+		}
+		if got != target {
+			t.Errorf("ReadLink = %q; want %q", got, target)
+		}
 	}
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		// Save for second test:
+		link = filepath.Join(rootDir, "some-link")
+		suffix = strings.TrimPrefix(link, env.mountPoint)
+
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatalf("Symlink: %v", err)
+		}
+		t.Logf("Checking in first process...")
+		check()
+	})
+	cammountTest(t, func(env *mountEnv) {
+		t.Logf("Checking in second process...")
+		link = env.mountPoint + suffix
+		check()
+	})
 }
 
 func TestFinderCopy(t *testing.T) {
