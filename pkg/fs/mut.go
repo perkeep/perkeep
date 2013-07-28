@@ -287,6 +287,11 @@ func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
+func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
+	log.Printf("UNIMPLEMENTED %T.Rename %+v; newDir=%#v", req, newDir)
+	return fuse.EIO
+}
+
 // mutFile is a mutable file.
 type mutFile struct {
 	fs        *CamliFileSystem
