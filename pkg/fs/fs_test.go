@@ -339,6 +339,62 @@ func TestDifferentWriteTypes(t *testing.T) {
 	})
 }
 
+func statStr(name string) string {
+	fi, err := os.Stat(name)
+	if os.IsNotExist(err) {
+		return "ENOENT"
+	}
+	if err != nil {
+		return "err=" + err.Error()
+	}
+	return fmt.Sprintf("file %v, size %d", fi.Mode(), fi.Size())
+}
+
+func TestRename(t *testing.T) {
+	condSkip(t)
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		name1 := filepath.Join(rootDir, "1")
+		name2 := filepath.Join(rootDir, "2")
+		subdir := filepath.Join(rootDir, "dir")
+		name3 := filepath.Join(subdir, "3")
+
+		contents := []byte("Some file contents")
+		const gone = "ENOENT"
+		const reg = "file -rw-------, size 18"
+
+		if err := ioutil.WriteFile(name1, contents, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(subdir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := statStr(name1), reg; got != want {
+			t.Errorf("name1 = %q; want %q", got, want)
+		}
+		if err := os.Rename(name1, name2); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := statStr(name1), gone; got != want {
+			t.Errorf("name1 = %q; want %q", got, want)
+		}
+		if got, want := statStr(name2), reg; got != want {
+			t.Errorf("name2 = %q; want %q", got, want)
+		}
+
+		// Moving to a different directory.
+		if err := os.Rename(name2, name3); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := statStr(name2), gone; got != want {
+			t.Errorf("name2 = %q; want %q", got, want)
+		}
+		if got, want := statStr(name3), reg; got != want {
+			t.Errorf("name3 = %q; want %q", got, want)
+		}
+	})
+}
+
 func brokenTest(t *testing.T) {
 	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
 		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
@@ -397,11 +453,13 @@ end tell
 }
 
 func TestTextEdit(t *testing.T) {
+	if testing.Short() {
+		t.Skipf("Skipping in short mode")
+	}
 	if runtime.GOOS != "darwin" {
 		t.Skipf("Skipping Darwin-specific test.")
 	}
 	condSkip(t)
-	brokenTest(t)
 	inEmptyMutDir(t, func(env *mountEnv, testDir string) {
 		var (
 			testFile = filepath.Join(testDir, "some-text-file.txt")
@@ -435,8 +493,7 @@ end tell
 		fi, err := os.Stat(testFile)
 		if err != nil {
 			t.Errorf("Stat = %v, %v", fi, err)
-		}
-		if fi.Size() != int64(len(content2)) {
+		} else if fi.Size() != int64(len(content2)) {
 			t.Errorf("Stat size = %d; want %d", fi.Size(), len(content2))
 		}
 		slurp, err := ioutil.ReadFile(testFile)

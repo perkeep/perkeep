@@ -50,7 +50,7 @@ type mutDir struct {
 
 	mu       sync.Mutex
 	lastPop  time.Time
-	children map[string]fuse.Node
+	children map[string]mutFileOrDir
 }
 
 // for debugging
@@ -97,7 +97,7 @@ func (n *mutDir) populate() error {
 
 	// Find all child permanodes and stick them in n.children
 	if n.children == nil {
-		n.children = make(map[string]fuse.Node)
+		n.children = make(map[string]mutFileOrDir)
 	}
 	for k, v := range db.Permanode.Attr {
 		const p = "camliPath:"
@@ -244,7 +244,7 @@ func (n *mutDir) creat(name string, isDir bool) (fuse.Node, error) {
 	}
 
 	// Add a child node to this node.
-	var child fuse.Node
+	var child mutFileOrDir
 	if isDir {
 		child = &mutDir{
 			fs:        n.fs,
@@ -262,7 +262,7 @@ func (n *mutDir) creat(name string, isDir bool) (fuse.Node, error) {
 	}
 	n.mu.Lock()
 	if n.children == nil {
-		n.children = make(map[string]fuse.Node)
+		n.children = make(map[string]mutFileOrDir)
 	}
 	n.children[name] = child
 	n.mu.Unlock()
@@ -287,9 +287,67 @@ func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
+// &RenameRequest{Header:fuse.Header{Conn:(*fuse.Conn)(0xc210048180), ID:0x2, Node:0x8, Uid:0xf0d4, Gid:0x1388, Pid:0x5edb}, NewDir:0x8, OldName:"1", NewName:"2"}
 func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
-	log.Printf("UNIMPLEMENTED %T.Rename %+v; newDir=%#v", req, newDir)
-	return fuse.EIO
+	n2, ok := newDir.(*mutDir)
+	if !ok {
+		log.Printf("*mutDir newDir node isn't a *mutDir; is a %T; can't handle. returning EIO.", newDir)
+		return fuse.EIO
+	}
+
+	// TODO: do these populates in parallel:
+	if err := n.populate(); err != nil {
+		log.Printf("*mutDir.Rename src dir populate = %v", err)
+		return fuse.EIO
+	}
+	if err := n2.populate(); err != nil {
+		log.Printf("*mutDir.Rename dst dir populate = %v", err)
+		return fuse.EIO
+	}
+
+	n.mu.Lock()
+	target, ok := n.children[req.OldName]
+	n.mu.Unlock()
+	if !ok {
+		log.Printf("*mutDir.Rename src name %q isn't known", req.OldName)
+		return fuse.ENOENT
+	}
+
+	now := time.Now()
+
+	// Add a camliPath:name attribute to the dest permanode before unlinking it from
+	// the source.
+	claim := schema.NewSetAttributeClaim(n2.permanode, "camliPath:"+req.NewName, target.permanodeString())
+	claim.SetClaimDate(now)
+	_, err := n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Printf("Upload rename link error: %v", err)
+		return fuse.EIO
+	}
+
+	delClaim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.OldName)
+	delClaim.SetClaimDate(now)
+	_, err = n.fs.client.UploadAndSignBlob(delClaim)
+	if err != nil {
+		log.Printf("Upload rename src unlink error: %v", err)
+		return fuse.EIO
+	}
+
+	// TODO(bradfitz): this locking would be racy, if the kernel
+	// doesn't do it properly. (It should) Let's just trust the
+	// kernel for now. Later we can verify and remove this
+	// comment.
+	n.mu.Lock()
+	if n.children[req.OldName] != target {
+		panic("Race.")
+	}
+	delete(n.children, req.OldName)
+	n.mu.Unlock()
+	n2.mu.Lock()
+	n2.children[req.NewName] = target
+	n2.mu.Unlock()
+
+	return nil
 }
 
 // mutFile is a mutable file.
@@ -549,4 +607,18 @@ func (h *mutFileHandle) Truncate(size uint64, intr fuse.Intr) fuse.Error {
 		return fuse.EIO
 	}
 	return nil
+}
+
+// mutFileOrDir is a *mutFile or *mutDir
+type mutFileOrDir interface {
+	fuse.Node
+	permanodeString() string
+}
+
+func (n *mutFile) permanodeString() string {
+	return n.permanode.String()
+}
+
+func (n *mutDir) permanodeString() string {
+	return n.permanode.String()
 }
