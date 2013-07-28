@@ -81,6 +81,35 @@ func (e *mountEnv) Stat(s *stat) int64 {
 	return v
 }
 
+func testName() string {
+	skip := 0
+	for {
+		pc, _, _, ok := runtime.Caller(skip)
+		skip++
+		if !ok {
+			panic("Failed to find test name")
+		}
+		name := strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "camlistore.org/pkg/fs.")
+		if strings.HasPrefix(name, "Test") {
+			return name
+		}
+	}
+}
+
+func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
+	cammountTest(t, func(env *mountEnv) {
+		dir := filepath.Join(env.mountPoint, "roots", testName())
+		if err := os.Mkdir(dir, 0755); err != nil {
+			t.Fatalf("Failed to make roots/r dir: %v", err)
+		}
+		fi, err := os.Stat(dir)
+		if err != nil || !fi.IsDir() {
+			t.Fatalf("Stat of %s dir = %v, %v; want a directory", dir, fi, err)
+		}
+		fn(env, dir)
+	})
+}
+
 func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 	dupLog := io.MultiWriter(os.Stderr, testLog{t})
 	log.SetOutput(dupLog)
@@ -173,16 +202,7 @@ func (tl testLog) Write(p []byte) (n int, err error) {
 
 func TestMutable(t *testing.T) {
 	condSkip(t)
-	cammountTest(t, func(env *mountEnv) {
-		rootDir := filepath.Join(env.mountPoint, "roots", "r")
-		if err := os.MkdirAll(rootDir, 0755); err != nil {
-			t.Fatalf("Failed to make roots/r dir: %v", err)
-		}
-		fi, err := os.Stat(rootDir)
-		if err != nil || !fi.IsDir() {
-			t.Fatalf("Stat of roots/r dir = %v, %v; want a directory", fi, err)
-		}
-
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
 		filename := filepath.Join(rootDir, "x")
 		f, err := os.Create(filename)
 		if err != nil {
@@ -191,7 +211,7 @@ func TestMutable(t *testing.T) {
 		if err := f.Close(); err != nil {
 			t.Fatalf("Close: %v", err)
 		}
-		fi, err = os.Stat(filename)
+		fi, err := os.Stat(filename)
 		if err != nil {
 			t.Errorf("Stat error: %v", err)
 		} else if !fi.Mode().IsRegular() || fi.Size() != 0 {
@@ -245,16 +265,7 @@ func TestMutable(t *testing.T) {
 
 func TestDifferentWriteTypes(t *testing.T) {
 	condSkip(t)
-	cammountTest(t, func(env *mountEnv) {
-		rootDir := filepath.Join(env.mountPoint, "roots", "r")
-		if err := os.MkdirAll(rootDir, 0755); err != nil {
-			t.Fatalf("Failed to make roots/r dir: %v", err)
-		}
-		fi, err := os.Stat(rootDir)
-		if err != nil || !fi.IsDir() {
-			t.Fatalf("Stat of roots/r dir = %v, %v; want a directory", fi, err)
-		}
-
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
 		filename := filepath.Join(rootDir, "big")
 
 		writes := []struct {
@@ -339,7 +350,7 @@ func TestFinderCopy(t *testing.T) {
 		t.Skipf("Skipping Darwin-specific test.")
 	}
 	condSkip(t)
-	cammountTest(t, func(env *mountEnv) {
+	inEmptyMutDir(t, func(env *mountEnv, destDir string) {
 		f, err := ioutil.TempFile("", "finder-copy-file")
 		if err != nil {
 			t.Fatal(err)
@@ -352,10 +363,7 @@ func TestFinderCopy(t *testing.T) {
 		if err := f.Close(); err != nil {
 			t.Fatal(err)
 		}
-		destDir := filepath.Join(env.mountPoint, "roots", "r")
-		if err := os.MkdirAll(destDir, 0755); err != nil {
-			t.Fatal(err)
-		}
+
 		cmd := exec.Command("osascript")
 		script := fmt.Sprintf(`
 tell application "Finder"
@@ -394,16 +402,12 @@ func TestTextEdit(t *testing.T) {
 	}
 	condSkip(t)
 	brokenTest(t)
-	cammountTest(t, func(env *mountEnv) {
+	inEmptyMutDir(t, func(env *mountEnv, testDir string) {
 		var (
-			testDir  = filepath.Join(env.mountPoint, "roots", "r")
 			testFile = filepath.Join(testDir, "some-text-file.txt")
 			content1 = []byte("Some text content.")
 			content2 = []byte("Some replacement content.")
 		)
-		if err := os.MkdirAll(testDir, 0755); err != nil {
-			t.Fatal(err)
-		}
 		if err := ioutil.WriteFile(testFile, content1, 0644); err != nil {
 			t.Fatal(err)
 		}
