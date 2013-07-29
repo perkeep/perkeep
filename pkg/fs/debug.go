@@ -1,3 +1,5 @@
+// +build linux darwin
+
 /*
 Copyright 2013 Google Inc.
 
