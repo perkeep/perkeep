@@ -840,12 +840,12 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 		peer := b.peerBlob(content)
 		if peer.File != nil {
 			if peer.File.IsImage() {
-				image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
-					url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
+				image := fmt.Sprintf("thumbnail/%s/%s?mh=%d", peer.BlobRef,
+					url.QueryEscape(peer.File.FileName), thumbSize)
 				if peer.Image != nil {
 					mw, mh := images.ScaledDimensions(
 						peer.Image.Width, peer.Image.Height,
-						thumbSize, thumbSize)
+						2000, thumbSize)
 					return image, mw, mh, true
 				}
 				return image, thumbSize, thumbSize, true

@@ -422,13 +422,13 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	width, err := strconv.Atoi(query.Get("mw"))
 	if err != nil {
-		http.Error(rw, "Invalid specified max width 'mw'", 500)
-		return
+		//http.Error(rw, "Invalid specified max width 'mw'", 500)
+		//return
 	}
 	height, err := strconv.Atoi(query.Get("mh"))
 	if err != nil {
-		http.Error(rw, "Invalid specified height 'mh'", 500)
-		return
+		//http.Error(rw, "Invalid specified height 'mh'", 500)
+		//return
 	}
 
 	blobref := blobref.Parse(m[1])
@@ -436,6 +436,9 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Invalid blobref", 400)
 		return
 	}
+
+	if width == 0 { width = 2000 }
+	if height == 0 { height = 2000 }
 
 	th := &ImageHandler{
 		Fetcher:   ui.root.Storage,
