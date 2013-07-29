@@ -1,8 +1,0 @@
-#!/usr/bin/perl
-
-use strict;
-use FindBin qw($Bin);
-
-$ENV{"CAMLI_WANT_CAMPUT_PASSWORD"} = 1;
-exec("$Bin/dev-camput", @ARGV);
-die "failed to find/run $Bin/dev-camput";
