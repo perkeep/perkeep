@@ -1,8 +1,8 @@
 /* Tile view of BlobItem */
 .cam-blobitem {
+  border: 2px solid white;
   cursor: pointer;
   display: inline-block;
-  margin: 2px;
   outline: 0;
   overflow: hidden;
   position: relative;
@@ -66,14 +66,7 @@
 }
 
 .cam-blobitem.goog-control-checked {
-  border: 3px solid black;
-  background: #ffc;
-  padding: 6px;
-}
-
-.cam-blobitem.goog-control-checked:hover {
-  padding: 6px;
-  background: #e6e6b8;
+  border: 2px solid black;
 }
 
 .cam-blobitem-thumbtitle {
