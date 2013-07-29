@@ -115,7 +115,7 @@ func main() {
 
 	if *debug {
 		fuse.Debugf = log.Printf
-		// TODO: set fs's logger
+		camfs.Logger = log.New(os.Stderr, "", log.LstdFlags)
 	}
 
 	// This doesn't appear to work on OS X:

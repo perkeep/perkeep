@@ -23,6 +23,7 @@ package fs
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -54,6 +55,8 @@ type CamliFileSystem struct {
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Blob
 	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
+
+	Logger *log.Logger // Initialized by NewCamliFileSystem
 }
 
 var _ fuse.FS = (*CamliFileSystem)(nil)
@@ -76,6 +79,9 @@ func NewCamliFileSystem(client *client.Client, fetcher blobref.SeekFetcher) *Cam
 	fs := newCamliFileSystem(fetcher)
 	fs.root = &root{fs: fs} // root.go
 	fs.client = client
+	if fs.Logger == nil {
+		fs.Logger = log.New(ioutil.Discard, "", 0)
+	}
 	return fs
 }
 

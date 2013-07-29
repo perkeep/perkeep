@@ -1,7 +1,7 @@
 // +build linux darwin
 
 /*
-Copyright 2012 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -479,7 +479,7 @@ func (n *mutFile) setContent(br *blobref.BlobRef, size int64) error {
 func (n *mutFile) setSizeAtLeast(size int64) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	log.Printf("mutFile.setSizeAtLeast(%d). old size = %d", size, n.size)
+	n.fs.Logger.Printf("mutFile.setSizeAtLeast(%d). old size = %d", size, n.size)
 	if size > n.size {
 		n.size = size
 	}
@@ -572,14 +572,14 @@ func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
 		_, err = io.Copy(tmp, body)
 	}
 	if err != nil {
-		log.Printf("mutFile.newHandle: %v", err)
+		n.fs.Logger.Printf("mutFile.newHandle: %v", err)
 		if tmp != nil {
 			tmp.Close()
 			os.Remove(tmp.Name())
 		}
 		return nil, fuse.EIO
 	}
-	return &mutFileHandle{f: n, tmp: tmp}, nil
+	return &mutFileHandle{f: n, tmp: tmp, logger: n.fs.Logger}, nil
 }
 
 // mutFileHandle represents an open mutable file.
@@ -589,8 +589,9 @@ func (n *mutFile) newHandle(body io.Reader) (fuse.Handle, fuse.Error) {
 // temporary file to the blobstore, and instructs the parent
 // mutFile to update the file permanode.
 type mutFileHandle struct {
-	f   *mutFile
-	tmp *os.File
+	f      *mutFile
+	tmp    *os.File
+	logger *log.Logger
 }
 
 func (h *mutFileHandle) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
@@ -619,7 +620,7 @@ func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, i
 	}
 
 	n, err := h.tmp.WriteAt(req.Data, req.Offset)
-	log.Printf("mutFileHandle.Write(%q, at %d, flags %v, %q) = %d, %v", h.f.fullPath(), req.Offset, req.Flags, req.Data, n, err)
+	h.logger.Printf("mutFileHandle.Write(%q, at %d, flags %v, %q) = %d, %v", h.f.fullPath(), req.Offset, req.Flags, req.Data, n, err)
 	if err != nil {
 		log.Println("mutFileHandle.Write:", err)
 		return fuse.EIO
