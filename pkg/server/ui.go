@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/misc/closure"
+	"camlistore.org/pkg/search"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
 )
@@ -420,21 +421,19 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	query := req.URL.Query()
-	width, err := strconv.Atoi(query.Get("mw"))
-	if err != nil {
-		http.Error(rw, "Invalid specified max width 'mw'", 500)
-		return
-	}
-	height, err := strconv.Atoi(query.Get("mh"))
-	if err != nil {
-		http.Error(rw, "Invalid specified height 'mh'", 500)
-		return
-	}
-
+	width, _ := strconv.Atoi(query.Get("mw"))
+	height, _ := strconv.Atoi(query.Get("mh"))
 	blobref := blobref.Parse(m[1])
 	if blobref == nil {
 		http.Error(rw, "Invalid blobref", 400)
 		return
+	}
+
+	if width == 0 {
+		width = search.MaxImageSize
+	}
+	if height == 0 {
+		height = search.MaxImageSize
 	}
 
 	th := &ImageHandler{

@@ -1,13 +1,23 @@
+/* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
+*, *:before, *:after {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
 .cam-index-page {
-	font: 16px/1.4 normal Arial, sans-serif;
+  font: 16px/1.4 normal Arial, sans-serif;
+  /* It makes it easier to compute the layout of the aligned tiles if the
+     scrollbar is reliably on */
+  overflow-y: scroll;
 }
 
 .cam-index-title {
-	display: inline-block;
+  display: inline-block;
 }
 
 .cam-index-serverinfo {
-	display: inline;
-	float: right;
-	font-size: small;
+  display: inline;
+  float: right;
+  font-size: small;
 }
