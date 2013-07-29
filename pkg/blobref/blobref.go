@@ -22,7 +22,6 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"hash"
-	"io"
 	"reflect"
 	"regexp"
 )
@@ -91,12 +90,6 @@ func (sb *SizedBlobRef) Equal(o SizedBlobRef) bool {
 
 func (sb SizedBlobRef) String() string {
 	return fmt.Sprintf("[%s; %d bytes]", sb.BlobRef.String(), sb.Size)
-}
-
-type ReadSeekCloser interface {
-	io.Reader
-	io.Seeker
-	io.Closer
 }
 
 func (br *BlobRef) HashName() string {

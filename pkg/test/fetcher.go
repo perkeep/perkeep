@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/types"
 )
 
 // Fetcher is an in-memory implementation of the blobserver Storage
@@ -60,7 +61,7 @@ func (tf *Fetcher) FetchStreaming(ref *blobref.BlobRef) (file io.ReadCloser, siz
 
 var dummyCloser = ioutil.NopCloser(nil)
 
-func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err error) {
+func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	if tf.m == nil {

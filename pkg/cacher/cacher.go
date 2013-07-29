@@ -26,6 +26,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/singleflight"
+	"camlistore.org/pkg/types"
 )
 
 // NewCachingFetcher returns a CachingFetcher that fetches from
@@ -53,7 +54,7 @@ func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadClose
 	return cf.c.Fetch(br)
 }
 
-func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err error) {
+func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return

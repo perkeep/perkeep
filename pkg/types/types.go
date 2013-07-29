@@ -20,6 +20,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"regexp"
 	"runtime"
 	"time"
@@ -95,3 +96,10 @@ type ByTime []time.Time
 func (s ByTime) Len() int           { return len(s) }
 func (s ByTime) Less(i, j int) bool { return s[i].Before(s[j]) }
 func (s ByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// A ReadSeekCloser can Read, Seek, and Close.
+type ReadSeekCloser interface {
+	io.Reader
+	io.Seeker
+	io.Closer
+}

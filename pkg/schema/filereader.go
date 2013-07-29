@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/singleflight"
+	"camlistore.org/pkg/types"
 )
 
 const closedIndex = -1
@@ -299,7 +300,7 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 		return eofReader, nil
 	}
 	p0 := parts[0]
-	var rsc blobref.ReadSeekCloser
+	var rsc types.ReadSeekCloser
 	var err error
 	switch {
 	case p0.BlobRef != nil && p0.BytesRef != nil:

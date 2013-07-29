@@ -39,6 +39,7 @@ import (
 	"camlistore.org/pkg/blobref"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/types"
 )
 
 // DiskStorage implements the blobserver.Storage interface using the
@@ -119,7 +120,7 @@ func (ds *DiskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int
 	return ds.Fetch(blob)
 }
 
-func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (blobref.ReadSeekCloser, int64, error) {
+func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (types.ReadSeekCloser, int64, error) {
 	fileName := ds.blobPath("", blob)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {

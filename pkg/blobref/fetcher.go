@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/types"
 )
 
 // TODO: rename StreamingFetcher to be Fetcher (the common case)
@@ -42,7 +43,7 @@ type SeekFetcher interface {
 	// error with a ErrNotExist inside)
 	//
 	// The caller should close blob.
-	Fetch(*BlobRef) (blob ReadSeekCloser, size int64, err error)
+	Fetch(*BlobRef) (blob types.ReadSeekCloser, size int64, err error)
 }
 
 // SeekTester is the interface implemented by storage implementations that don't
@@ -59,12 +60,12 @@ type fetcherToSeekerWrapper struct {
 	StreamingFetcher
 }
 
-func (w *fetcherToSeekerWrapper) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err error) {
+func (w *fetcherToSeekerWrapper) Fetch(b *BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	rc, size, err := w.StreamingFetcher.FetchStreaming(b)
 	if err != nil {
 		return
 	}
-	file = rc.(ReadSeekCloser)
+	file = rc.(types.ReadSeekCloser)
 	return
 }
 
@@ -98,7 +99,7 @@ type serialFetcher struct {
 	fetchers []SeekFetcher
 }
 
-func (sf *serialFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err error) {
+func (sf *serialFetcher) Fetch(b *BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	for _, fetcher := range sf.fetchers {
 		file, size, err = fetcher.Fetch(b)
 		if err == nil {
@@ -131,7 +132,7 @@ func (df *DirFetcher) FetchStreaming(b *BlobRef) (file io.ReadCloser, size int64
 	return df.Fetch(b)
 }
 
-func (df *DirFetcher) Fetch(b *BlobRef) (file ReadSeekCloser, size int64, err error) {
+func (df *DirFetcher) Fetch(b *BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	fileName := fmt.Sprintf("%s/%s.%s", df.directory, b.String(), df.extension)
 	var stat os.FileInfo
 	stat, err = os.Stat(fileName)
@@ -203,7 +204,7 @@ type bufferingSeekFetcherWrapper struct {
 	sf StreamingFetcher
 }
 
-func (b bufferingSeekFetcherWrapper) Fetch(br *BlobRef) (rsc ReadSeekCloser, size int64, err error) {
+func (b bufferingSeekFetcherWrapper) Fetch(br *BlobRef) (rsc types.ReadSeekCloser, size int64, err error) {
 	rc, size, err := b.sf.FetchStreaming(br)
 	if err != nil {
 		return nil, 0, err

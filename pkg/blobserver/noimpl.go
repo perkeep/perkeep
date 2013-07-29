@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/types"
 )
 
 // NoImplStorage is an implementation of Storage that return a not
@@ -35,7 +36,7 @@ func (nis *NoImplStorage) GetBlobHub() BlobHub {
 	return nil
 }
 
-func (nis *NoImplStorage) Fetch(*blobref.BlobRef) (file blobref.ReadSeekCloser, size int64, err error) {
+func (nis *NoImplStorage) Fetch(*blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
