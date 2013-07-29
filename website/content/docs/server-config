@@ -1,6 +1,6 @@
 <h1>Configuring the server</h1>
 
-<p>The server's config file at $HOME/.camlistore/server-config.json is JSON. It can either be in simple mode (for basic configurations), or in low-level mode (for any sort of crazy configuration).</p>
+<p>The server's config file at $HOME/.config/camlistore/server-config.json is JSON. It can either be in simple mode (for basic configurations), or in low-level mode (for any sort of crazy configuration).</p>
 
 <p>This page documents the simple configuration mode.</p>
 
