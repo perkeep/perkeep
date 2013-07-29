@@ -38,8 +38,11 @@ if ($ENV{"CAMLI_WANT_CAMPUT_PASSWORD"}) {  # Set by dev-pass-camput
     print "**\n** Note: password is \"foo\"\n**\n";
 }
 
+my $verbose = "true";
+$verbose = "false" if $ENV{CAMLI_QUIET};
+
 exec("$camput",
-     "--verbose",
+     "--verbose=$verbose",
      "--server=$blobserver",
      @ARGV);
 die "Failure running camput: $!";

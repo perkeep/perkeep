@@ -38,7 +38,10 @@ unless (grep { /^--?shared\b/ } @ARGV) {
 }
 push @args, @ARGV;
 
+my $verbose = "true";
+$verbose = "false" if $ENV{CAMLI_QUIET};
+
 exec("$camget",
-     "--verbose",
+     "--verbose=$verbose",
      @args);
 die "Failure running camget: $!";

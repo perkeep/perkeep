@@ -5,7 +5,10 @@ use FindBin qw($Bin);
 sub build_bin {
     my $target = shift;
     my $final_bin = find_bin($target);
-    
+    if ($ENV{CAMLI_FAST_DEV}) {
+        return $final_bin;
+    }
+
     my $full_target = $target;
     $full_target =~ s!^\./((cmd|server)/(\w+))$!camlistore.org/$1! or die "Bogus target $target";
 
