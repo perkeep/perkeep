@@ -34,7 +34,10 @@ import (
 	"strings"
 )
 
-var ErrNotFound = errors.New("netutil: connection not found")
+var (
+	ErrNotFound      = errors.New("netutil: connection not found")
+	ErrUnsupportedOS = errors.New("netutil: not implemented on this operating system")
+)
 
 // ConnUserid returns the uid that owns the given localhost connection.
 // The returned error is ErrNotFound if the connection wasn't found.
@@ -84,17 +87,19 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 	if runtime.GOOS == "darwin" {
 		return uidFromDarwinLsof(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
 	}
-
-	file := "/proc/net/tcp"
-	if !localv4 {
-		file = "/proc/net/tcp6"
+	if runtime.GOOS == "linux" {
+		file := "/proc/net/tcp"
+		if !localv4 {
+			file = "/proc/net/tcp6"
+		}
+		f, err := os.Open(file)
+		if err != nil {
+			return -1, fmt.Errorf("Error opening %s: %v", file, err)
+		}
+		defer f.Close()
+		return uidFromReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
 	}
-	f, err := os.Open(file)
-	if err != nil {
-		return -1, fmt.Errorf("Error opening %s: %v", file, err)
-	}
-	defer f.Close()
-	return uidFromReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
+	return 0, ErrUnsupportedOS
 }
 
 func toLinuxIPv4Order(b []byte) []byte {

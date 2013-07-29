@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,9 @@ func testLocalListener(t *testing.T, ln net.Listener) {
 	select {
 	case r := <-c:
 		if r.err != nil {
+			if r.err == ErrUnsupportedOS {
+				t.Skipf("Skipping test; not implemented on " + runtime.GOOS)
+			}
 			t.Fatal(r.err)
 		}
 		if r.uid != os.Getuid() {
