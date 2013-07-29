@@ -29,7 +29,6 @@ close($fh);
 system("git", "add", "VERSION") and die;
 foreach my $d (qw{
  .hackfests
- misc/sqlite
  website
  clients/chrome
  lib
