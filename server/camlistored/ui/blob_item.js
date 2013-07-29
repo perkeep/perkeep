@@ -265,9 +265,6 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   goog.dom.classes.add(el, 'cam-blobitem');
   el.style.width = this.clippingWidth_ + 'px';
 
-  var linkEl = this.dom_.createDom('a');
-  linkEl.href = this.getLink_();
-
   var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
   thumbEl.src = this.getThumbSrc_();
   thumbEl.height = this.getThumbHeight_();
@@ -275,12 +272,12 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   thumbEl.style.left =
       -Math.floor((this.getThumbWidth_() - this.clippingWidth_) / 2) + "px";
 
-  this.dom_.appendChild(linkEl, thumbEl);
-  this.dom_.appendChild(el, linkEl);
+  var linkEl = this.dom_.createDom('a', 'cam-blobitem-thumbtitle');
+  linkEl.href = this.getLink_();
+  this.dom_.setTextContent(linkEl, this.getTitle_());
 
-  var titleEl = this.dom_.createDom('p', 'cam-blobitem-thumbtitle');
-  this.dom_.setTextContent(titleEl, this.getTitle_());
-  this.dom_.appendChild(el, titleEl);
+  this.dom_.appendChild(el, thumbEl);
+  this.dom_.appendChild(el, linkEl);
 };
 
 

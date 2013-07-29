@@ -1,7 +1,6 @@
 /* Tile view of BlobItem */
 .cam-blobitem {
   border: 2px solid white;
-  cursor: pointer;
   display: inline-block;
   outline: 0;
   overflow: hidden;
@@ -14,6 +13,7 @@
 }
 
 .cam-blobitem-thumb {
+  display: block;
   /* So that we can reposition the thumb horizontally within the container */
   position: relative;
 }
@@ -61,10 +61,6 @@
   font-size: 14px;
 }
 
-.cam-blobitem:hover {
-  /*background: #ccc;*/
-}
-
 .cam-blobitem.goog-control-checked {
   border: 2px solid black;
 }
@@ -72,17 +68,19 @@
 .cam-blobitem-thumbtitle {
   background: rgba(255, 255, 255, 0.5);
   bottom: 0;
+  color: #222!important;
   font-size: 0.8em;
+  left: 0;
   margin: 0;
   overflow: hidden;
   padding: 0.2ex 1ex;
   position: absolute;
+  text-decoration: none;
   text-overflow: ellipsis;
   width: 100%;
 }
-.cam-blobitem.goog-control-hover .cam-blobitem-thumbtitle {
+.cam-blobitem-thumbtitle:hover {
   text-decoration: underline;
-  /*background: #999;*/
 }
 
 .cam-blobitem-dropactive {
