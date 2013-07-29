@@ -63,7 +63,7 @@ goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 /**
  * @type {Array.<number>}
  */
-camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
+camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [50, 75, 100, 150, 200, 250];
 
 
 /**
@@ -535,7 +535,7 @@ camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
 		return;
 	}
 	goog.dom.classes.remove(recipient.getElement(), 'cam-blobitem-dropactive');
-	
+
 	var files = e.getBrowserEvent().dataTransfer.files;
 	for (var i = 0, n = files.length; i < n; i++) {
 	var file = files[i];

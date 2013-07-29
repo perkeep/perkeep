@@ -35,8 +35,8 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
    * @type {string}
    * @private
    */
-  this.useContentAsLink_ = "false"; 
-  
+  this.useContentAsLink_ = "false";
+
   if (typeof opt_contentLink !== "undefined" && opt_contentLink == "true") {
     this.useContentAsLink_ = opt_contentLink;
   }
@@ -213,7 +213,7 @@ camlistore.BlobItem.prototype.getTitle_ = function() {
 		if (this.metaData_.camliType == 'permanode' &&
 			!!this.metaData_.permanode &&
 			!!this.metaData_.permanode.attr &&
-			!!this.metaData_.permanode.attr.title) {		
+			!!this.metaData_.permanode.attr.title) {
 			return this.metaData_.permanode.attr.title;
 		}
 	}
