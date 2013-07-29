@@ -454,8 +454,10 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
 
   var containerEl = this.getElement();
   var availWidth = containerEl.clientWidth;
-  var currentLeft = 0;
+  var createItem = this.getChildAt(0);
+  var currentLeft = createItem.getElement().offsetWidth;
   var currentRow = [];
+
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
     var item = new camlistore.BlobItem(blobRef, result.meta);

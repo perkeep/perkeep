@@ -54,7 +54,7 @@ camlistore.CreateItem.prototype.decorateInternal = function(element) {
   this.dom_.appendChild(el, plusEl);
 
   var titleEl = this.dom_.createDom('p', 'cam-createitem-thumbtitle');
-  this.dom_.setTextContent(titleEl, 'Drag & drop files or click');
+  this.dom_.setTextContent(titleEl, 'Drop files or click');
   this.dom_.appendChild(el, titleEl);
 };
 

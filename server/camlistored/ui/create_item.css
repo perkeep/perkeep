@@ -5,4 +5,9 @@
 
 .cam-createitem {
   cursor: pointer !important;
+  text-align: center;
+}
+
+.cam-createitem-thumbtitle {
+  margin: 0;
 }

@@ -8,10 +8,6 @@
   vertical-align: top;
 }
 
-.cam-createitem {
-  display: none!important;
-}
-
 .cam-blobitem-thumb {
   display: block;
   /* So that we can reposition the thumb horizontally within the container */
@@ -62,7 +58,7 @@
 }
 
 .cam-blobitem.goog-control-checked {
-  border: 2px solid black;
+  border: 2px solid #66f;
 }
 
 .cam-blobitem-thumbtitle {
