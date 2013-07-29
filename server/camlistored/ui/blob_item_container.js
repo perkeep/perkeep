@@ -451,10 +451,30 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
   if (!result || !result.recent) {
     return;
   }
+
+  var containerEl = this.getElement();
+  var availWidth = containerEl.clientWidth;
+  var currentLeft = 0;
+  var currentRow = [];
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
     var item = new camlistore.BlobItem(blobRef, result.meta);
-    this.addChild(item, true);
+    currentRow.push(item);
+    currentLeft += item.getThumbWidth_() + 4;
+    if (currentLeft >= availWidth) {
+      var totalDiff = currentLeft - availWidth;
+      while (currentRow.length) {
+	item = currentRow[0];
+        var itemDiff = Math.ceil(totalDiff / currentRow.length);
+        item.setClippingWidth(item.getThumbWidth_() - itemDiff);
+        this.addChild(currentRow.shift(), true);
+        totalDiff -= itemDiff;
+      }
+      currentLeft = 0;
+    }
+  }
+  while (currentRow.length) {
+    this.addChild(currentRow.shift(), true);
   }
 };
 

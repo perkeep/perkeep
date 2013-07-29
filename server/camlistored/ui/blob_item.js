@@ -77,6 +77,8 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
    */
   this.eh_ = new goog.events.EventHandler(this);
 
+  this.clippingWidth_ = this.getThumbWidth_();
+
   // Blob items support the CHECKED state.
   this.setSupportedState(goog.ui.Component.State.CHECKED, true);
 
@@ -163,6 +165,13 @@ camlistore.BlobItem.prototype.getThumbHeight_ = function() {
  */
 camlistore.BlobItem.prototype.getThumbWidth_ = function() {
   return this.metaData_.thumbnailWidth || 0;
+};
+
+camlistore.BlobItem.prototype.setClippingWidth = function(w) {
+  if (this.getElement() != null)
+    throw new Error("Must be called before element is created.");
+
+  this.clippingWidth_ = w;
 };
 
 
@@ -254,6 +263,7 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
+  el.style.width = this.clippingWidth_ + 'px';
 
   var linkEl = this.dom_.createDom('a');
   linkEl.href = this.getLink_();
@@ -262,6 +272,8 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   thumbEl.src = this.getThumbSrc_();
   thumbEl.height = this.getThumbHeight_();
   thumbEl.width = this.getThumbWidth_();
+  thumbEl.style.left =
+      -Math.floor((this.getThumbWidth_() - this.clippingWidth_) / 2) + "px";
 
   this.dom_.appendChild(linkEl, thumbEl);
   this.dom_.appendChild(el, linkEl);

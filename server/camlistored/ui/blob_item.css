@@ -9,6 +9,15 @@
   vertical-align: top;
 }
 
+.cam-createitem {
+  display: none!important;
+}
+
+.cam-blobitem-thumb {
+  /* So that we can reposition the thumb horizontally within the container */
+  position: relative;
+}
+
 .cam-blobitemcontainer-50 .cam-blobitem {
   height: 50px;
 }
