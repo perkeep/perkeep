@@ -366,11 +366,33 @@ func getVersion(camRoot string) string {
 	if err == nil {
 		return strings.TrimSpace(string(slurp))
 	}
-	out, err := exec.Command(filepath.Join(camRoot, "misc", "gitversion")).Output()
+	return gitVersion(camRoot)
+}
+
+var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{7,7}\b`)
+
+// gitVersion returns the git version of the git repo at camRoot as a
+// string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
+// '+' if there are any local uncomitted modifications to the tree.
+func gitVersion(camRoot string) string {
+	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'", "--date=short", "HEAD")
+	cmd.Dir = camRoot
+	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Error running ./misc/gitversion to determine Camlistore version: %v", err)
+		log.Fatalf("Error running git rev-list in %s: %v", camRoot, err)
 	}
-	return strings.TrimSpace(string(out))
+	v := strings.TrimSpace(string(out))
+	if m := gitVersionRx.FindStringSubmatch(v); m != nil {
+		v = m[0]
+	} else {
+		panic("Failed to find git version in " + v)
+	}
+	cmd = exec.Command("git", "diff", "--exit-code")
+	cmd.Dir = camRoot
+	if err := cmd.Run(); err != nil {
+		v += "+"
+	}
+	return v
 }
 
 // verifyCamlistoreRoot crashes if dir isn't the Camlistore root directory.
