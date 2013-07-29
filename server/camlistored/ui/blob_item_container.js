@@ -54,6 +54,8 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
    * @private
    */
   this.eh_ = new goog.events.EventHandler(this);
+
+  this.setFocusable(false);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 
