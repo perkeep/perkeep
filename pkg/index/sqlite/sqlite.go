@@ -47,11 +47,11 @@ func CompiledIn() bool {
 	return compiled
 }
 
-var ErrNotCompiled = errors.New("camlistored was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite " + compileHint())
+var ErrNotCompiled = errors.New("camlistored was not built with SQLite support. If you built with make.go, use go run make.go --sqlite=true. If you used go get or get install, use go {get,install} --tags=with_sqlite" + compileHint())
 
 func compileHint() string {
 	if _, err := os.Stat("/etc/apt"); err == nil {
-		return " (Required: apt-get install libsqlite3-dev)"
+		return " (Hint: apt-get install libsqlite3-dev)"
 	}
 	return ""
 }
