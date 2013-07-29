@@ -25,9 +25,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/osutil"
@@ -313,6 +315,28 @@ func (c *serverCmd) setFullClosure() error {
 	return nil
 }
 
+func handleKillCamliSignal(camliProc *os.Process) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
+	for {
+		sig := <-c
+		sysSig, ok := sig.(syscall.Signal)
+		if !ok {
+			log.Fatal("Not a unix signal")
+		}
+		switch sysSig {
+		case syscall.SIGTERM, syscall.SIGINT:
+			log.Print("Received kill signal, terminating.")
+			err := camliProc.Kill()
+			if err != nil {
+				log.Fatalf("Failed to kill camli: %v ", err)
+			}
+		default:
+			log.Fatal("Received another signal, should not happen.")
+		}
+	}
+}
+
 func (c *serverCmd) RunCommand(args []string) error {
 	err := c.checkFlags(args)
 	if err != nil {
@@ -363,5 +387,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("Could not start camlistored: %v", err)
 	}
+	go handleKillCamliSignal(cmd.Process)
+	cmd.Wait()
 	return nil
 }

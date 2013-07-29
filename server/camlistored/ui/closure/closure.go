@@ -34,7 +34,7 @@ import (
 )
 
 // ZipData is either the empty string (when compiling with "go get",
-// or the dev-server), or is initialized to a base64-encoded zip file
+// or the devcam server), or is initialized to a base64-encoded zip file
 // of the Closure library (when using make.go, which puts an extra
 // file in this package containing an init function to set ZipData).
 var ZipData string

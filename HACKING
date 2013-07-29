@@ -35,6 +35,15 @@ $ ./dev-camput
 $ ./dev-camget
 ... etc.
 
+We are in the process of migrating those scripts to a go command
+with subcommands: devcam. To install (assuming your GOPATH is set):
+
+$ go install ./dev/devcam
+
+./dev/server has already been replaced by:
+
+$ devcam server
+
 e.g.
   - Upload a file (make sure this works):
       ~/camlistore/dev-camput file ~/camlistore/COPYING
