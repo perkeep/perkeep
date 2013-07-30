@@ -85,12 +85,12 @@ func (w *World) Start() error {
 	{
 		cmd := exec.Command("go", "run", "make.go")
 		cmd.Dir = w.camRoot
-		log.Printf("Running make.go to build camlistore binaries for testing...")
+		log.Print("Running make.go to build camlistore binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("Error building world: %v, %s", err, string(out))
 		}
-		log.Printf("Ran make.go.")
+		log.Print("Ran make.go.")
 	}
 
 	// Start camlistored.
@@ -99,12 +99,14 @@ func (w *World) Start() error {
 			filepath.Join(w.camRoot, "bin", "camlistored"),
 			"--configfile="+filepath.Join(w.camRoot, "pkg", "test", "testdata", "server-config.json"),
 			"--listen=FD:3",
+			"--pollparent=true",
 		)
 		var buf bytes.Buffer
 		w.server.Stdout = &buf
 		w.server.Stderr = &buf
 		w.server.Dir = w.tempDir
 		w.server.Env = append(os.Environ(),
+			"CAMLI_DEBUG=1",
 			"CAMLI_ROOT="+w.tempDir,
 			"CAMLI_SECRET_RING="+filepath.Join(w.camRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
 			"CAMLI_BASE_URL=http://127.0.0.1:"+strconv.Itoa(w.port),
@@ -146,6 +148,9 @@ func (w *World) Start() error {
 }
 
 func (w *World) Stop() {
+	if w == nil {
+		return
+	}
 	w.server.Process.Kill()
 
 	if d := w.tempDir; d != "" {
@@ -153,7 +158,6 @@ func (w *World) Stop() {
 	}
 }
 
-//
 func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)
 	switch binary {
@@ -197,6 +201,11 @@ func GetWorld(t *testing.T) *World {
 		theWorld = w
 	}
 	return w
+}
+
+// GetWorldMaybe returns the current World. It might be nil.
+func GetWorldMaybe(t *testing.T) *World {
+	return theWorld
 }
 
 // RunCmd runs c (which is assumed to be something short-lived, like a

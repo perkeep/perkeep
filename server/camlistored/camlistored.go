@@ -35,6 +35,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -49,11 +50,11 @@ import (
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
 	_ "camlistore.org/pkg/blobserver/encrypt"
+	_ "camlistore.org/pkg/blobserver/google"
 	_ "camlistore.org/pkg/blobserver/localdisk"
 	_ "camlistore.org/pkg/blobserver/remote"
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/s3"
-	_ "camlistore.org/pkg/blobserver/google"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
 	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
@@ -76,8 +77,15 @@ var (
 	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
-	listenFlag = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
+	listenFlag     = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
+	flagPollParent bool
 )
+
+func init() {
+	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+		flag.BoolVar(&flagPollParent, "pollparent", false, "Camlistored regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
+	}
+}
 
 func exitf(pattern string, args ...interface{}) {
 	if !strings.HasSuffix(pattern, "\n") {
@@ -424,5 +432,8 @@ func main() {
 
 	go ws.Serve()
 	go handleSignals()
+	if flagPollParent {
+		osutil.DieOnParentDeath()
+	}
 	select {}
 }
