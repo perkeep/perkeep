@@ -19,6 +19,7 @@ limitations under the License.
 package osutil
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,7 +57,10 @@ func cacheDir() string {
 }
 
 func makeCacheDir() {
-	os.Mkdir(cacheDir(), 0700)
+	err := os.MkdirAll(cacheDir(), 0700)
+	if err != nil {
+		log.Fatalf("Could not create cacheDir %v: %v", cacheDir(), err)
+	}
 }
 
 func CamliVarDir() string {
