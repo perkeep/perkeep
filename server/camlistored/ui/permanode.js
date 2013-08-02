@@ -54,9 +54,7 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
 	this.blobItemContainer_ = new camlistore.BlobItemContainer(
 		this.connection_, opt_domHelper
 	);
-	// We'll get thumbs that are too large for this container, see TODO below.
-	// No big deal though.
-	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[1];
+	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[3];
 
 	/**
 	 * @type {camlistore.ServerType.DescribeResponse}
@@ -73,20 +71,6 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
 goog.inherits(camlistore.PermanodePage, goog.ui.Component);
 
 
-// TODO(mpl): the problem is that we use that size for the describe request
-// without knowing, à priori, if we'll get some content (file) or members
-// (dir/collection). And if we're with a collection, we'd like way smaller
-// thumbs than that.
-// We could redo a describe request with a smaller size just to (re)draw the
-// members I suppose...
-// Salient would probably come in handy here.
-/**
- * @type {number}
- * @private
- */
-camlistore.PermanodePage.prototype.contentThumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[5];
-
-
 /**
  * Decorates an existing HTML DIV element.
  * @param {Element} element The DIV element to decorate.
@@ -96,7 +80,7 @@ camlistore.PermanodePage.prototype.decorateInternal = function(element) {
 
 	var el = this.getElement();
 	goog.dom.classes.add(el, 'cam-permanode-page');
-	
+
 };
 
 
@@ -183,7 +167,7 @@ camlistore.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
 	this.connection_.describeWithThumbnails(
 		permanode,
-		this.contentThumbnailSize_,
+		this.blobItemContainer_.thumbnailSize_,
 		goog.bind(this.handleDescribeBlob_, this, permanode),
 		function(msg) {
 			alert("failed to get blob description: " + msg);
@@ -351,15 +335,15 @@ function() {
 	if (members && members.length > 0) {
 		var btnGallery = goog.dom.getElement('btnGallery');
 		var doThumbnails = (btnGallery.value == "thumbnails");
+		for (idx in members) {
+			var member = members[idx];
+			this.addMember_(member, meta, doThumbnails);
+		}
 		if (doThumbnails) {
 			this.blobItemContainer_.show_();
 		} else {
 			this.blobItemContainer_.hide_();
 			this.blobItemContainer_.resetChildren_();
-		}
-		for (idx in members) {
-			var member = members[idx];
-			this.addMember_(member, meta, doThumbnails);
 		}
 	}
 }

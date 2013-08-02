@@ -35,8 +35,7 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
    * @type {string}
    * @private
    */
-  this.useContentAsLink_ = "false"; 
-  
+  this.useContentAsLink_ = "false";
   if (typeof opt_contentLink !== "undefined" && opt_contentLink == "true") {
     this.useContentAsLink_ = opt_contentLink;
   }
@@ -143,6 +142,19 @@ camlistore.BlobItem.prototype.getBlobRef = function() {
 
 
 /**
+ * @param {number} The width to clip the image to.
+ */
+camlistore.BlobItem.prototype.setClippingWidth = function(w) {
+  var el = this.getElement();
+  el.style.width = w + 'px';
+
+  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb');
+  thumbEl.style.left =
+      -Math.floor((this.getThumbWidth() - w) / 2) + "px";
+};
+
+
+/**
  * @return {string}
  */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
@@ -161,7 +173,7 @@ camlistore.BlobItem.prototype.getThumbHeight_ = function() {
 /**
  * @return {number}
  */
-camlistore.BlobItem.prototype.getThumbWidth_ = function() {
+camlistore.BlobItem.prototype.getThumbWidth = function() {
   return this.metaData_.thumbnailWidth || 0;
 };
 
@@ -213,7 +225,7 @@ camlistore.BlobItem.prototype.getTitle_ = function() {
 		if (this.metaData_.camliType == 'permanode' &&
 			!!this.metaData_.permanode &&
 			!!this.metaData_.permanode.attr &&
-			!!this.metaData_.permanode.attr.title) {		
+			!!this.metaData_.permanode.attr.title) {
 			return this.metaData_.permanode.attr.title;
 		}
 	}
@@ -255,20 +267,17 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
 
-  var linkEl = this.dom_.createDom('a');
-  linkEl.href = this.getLink_();
-
   var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
   thumbEl.src = this.getThumbSrc_();
   thumbEl.height = this.getThumbHeight_();
-  thumbEl.width = this.getThumbWidth_();
+  thumbEl.width = this.getThumbWidth();
 
-  this.dom_.appendChild(linkEl, thumbEl);
+  var linkEl = this.dom_.createDom('a', 'cam-blobitem-thumbtitle');
+  linkEl.href = this.getLink_();
+  this.dom_.setTextContent(linkEl, this.getTitle_());
+
+  this.dom_.appendChild(el, thumbEl);
   this.dom_.appendChild(el, linkEl);
-
-  var titleEl = this.dom_.createDom('p', 'cam-blobitem-thumbtitle');
-  this.dom_.setTextContent(titleEl, this.getTitle_());
-  this.dom_.appendChild(el, titleEl);
 };
 
 

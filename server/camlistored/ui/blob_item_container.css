@@ -5,6 +5,7 @@
   border-style: dashed;
   position: relative;
   border-radius: 5px;
+  white-space: nowrap;
 }
 .cam-blobitemcontainer-dropactive {
   border-color: #acf;

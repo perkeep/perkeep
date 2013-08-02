@@ -1,88 +1,84 @@
 /* Tile view of BlobItem */
 .cam-blobitem {
-  margin: 0.25em;
-  border: 1px solid gray;
-  padding: 8px;
+  /* If you change margin, also change blobItemMarginWidth in
+     BlobItemContainer.prototype.layout(). */
+  margin: 1px;
   display: inline-block;
-  overflow: hidden;
-  text-align: center;
-  vertical-align: top;
   outline: 0;
-  cursor: default;
+  overflow: hidden;
+  position: relative;
+  vertical-align: top;
 }
 
-.cam-blobitemcontainer-25 .cam-blobitem {
-  width: 50px;
-  height: 50px;
-}
-.cam-blobitemcontainer-25 .cam-blobitem-thumbtitle {
-  font-size: 8px;
+.cam-blobitem-thumb {
+  display: block;
+  /* So that we can reposition the thumb horizontally within the container */
+  position: relative;
 }
 
 .cam-blobitemcontainer-50 .cam-blobitem {
-  width: 100px;
-  height: 100px;
+  height: 50px;
 }
 .cam-blobitemcontainer-50 .cam-blobitem-thumbtitle {
   font-size: 10px;
 }
 
 .cam-blobitemcontainer-75 .cam-blobitem {
-  width: 125px;
-  height: 125px;
+  height: 75px;
 }
 .cam-blobitemcontainer-75 .cam-blobitem-thumbtitle {
   font-size: 12px;
 }
 
 .cam-blobitemcontainer-100 .cam-blobitem {
-  width: 150px;
-  height: 150px;
+  height: 100px;
 }
+
 .cam-blobitemcontainer-100 .cam-blobitem-thumbtitle {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .cam-blobitemcontainer-150 .cam-blobitem {
-  width: 200px;
-  height: 200px;
+  height: 150px;
 }
 .cam-blobitemcontainer-150 .cam-blobitem-thumbtitle {
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .cam-blobitemcontainer-200 .cam-blobitem {
-  width: 250px;
-  height: 250px;
+  height: 200px;
 }
 .cam-blobitemcontainer-200 .cam-blobitem-thumbtitle {
-  font-size: 18px;
+  font-size: 14px;
 }
 
-.cam-blobitem:hover {
-  border: 1px solid black;
-  background: #ccc;
+.cam-blobitemcontainer-250 .cam-blobitem {
+  height: 250px;
+}
+.cam-blobitemcontainer-250 .cam-blobitem-thumbtitle {
+  font-size: 14px;
 }
 
 .cam-blobitem.goog-control-checked {
-  border: 3px solid black;
-  background: #ffc;
-  padding: 6px;
-}
-
-.cam-blobitem.goog-control-checked:hover {
-  border: 3px solid black;
-  padding: 6px;
-  background: #e6e6b8;
+  outline: 2px solid #66f;
 }
 
 .cam-blobitem-thumbtitle {
+  background: rgba(255, 255, 255, 0.75);
+  bottom: 0;
+  color: #222!important;
+  font-size: 0.8em;
+  left: 0;
+  margin: 0;
   overflow: hidden;
-  text-overflow: ellipsis
+  padding: 0.2ex 1ex;
+  position: absolute;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 .cam-blobitem-thumbtitle:hover {
   text-decoration: underline;
-  background: #999;
 }
 
 .cam-blobitem-dropactive {

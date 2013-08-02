@@ -63,7 +63,7 @@ goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 /**
  * @type {Array.<number>}
  */
-camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [25, 50, 75, 100, 150, 200];
+camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [50, 75, 100, 150, 200, 250];
 
 
 /**
@@ -205,6 +205,10 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
       this.fileDropHandler_,
       goog.events.FileDropHandler.EventType.DROP,
       this.handleFileDrop_);
+
+  // We can't catch everything that could cause us to need to relayout. Instead,
+  // be lazy and just poll every second.
+  window.setInterval(goog.bind(this.layout_, this, false), 1000);
 };
 
 
@@ -451,10 +455,71 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
   if (!result || !result.recent) {
     return;
   }
+
   for (var i = 0, n = result.recent.length; i < n; i++) {
     var blobRef = result.recent[i].blobref;
     var item = new camlistore.BlobItem(blobRef, result.meta);
     this.addChild(item, true);
+  }
+
+  this.layout_(true);
+};
+
+/**
+ * @param {bool} Whether to force layout.
+ */
+camlistore.BlobItemContainer.prototype.layout_ = function(force) {
+  var el = this.getElement();
+  var availWidth = el.clientWidth;
+
+  if (!force && availWidth == this.lastClientWidth_) {
+    return;
+  }
+
+  this.lastClientWidth_ = availWidth;
+
+  // If you change blobItemMarginWidth, also change .cam-blobitem in
+  // blob_item.css.
+  var blobItemMarginWidth = 1;
+  var currentLeft = 0;
+  var rowStart = 0;
+
+  if (this.hasCreateItem_) {
+    var createItem = this.getChildAt(0);
+    currentLeft = createItem.getElement().offsetWidth + blobItemMarginWidth * 2;
+    rowStart++;
+  }
+
+  var breaks = el.querySelectorAll('br');
+  for (var i = 0; i < breaks.length; i++) {
+    breaks[i].parentNode.removeChild(breaks[i]);
+  }
+
+  for (var i = rowStart, n = this.getChildCount(); i < n; i++) {
+    var item = this.getChildAt(i);
+    currentLeft += item.getThumbWidth() + blobItemMarginWidth * 2;
+    if (currentLeft >= availWidth) {
+      this.layoutRow_(rowStart, i, currentLeft - availWidth);
+      el.insertBefore(this.dom_.createElement('br'),
+                      item.getElement().nextSibling);
+      currentLeft = 0;
+      rowStart = i + 1;
+    }
+  }
+
+  if (i < n) {
+    this.layoutRow_(i, n - 1, 0);
+  }
+};
+
+camlistore.BlobItemContainer.prototype.layoutRow_ =
+function(startIndex, endIndex, overflow) {
+  for (var i = startIndex; i <= endIndex; i++) {
+    var item = this.getChildAt(i);
+    var numVictimsLeft = endIndex - i + 1;
+    var clipAmount = Math.ceil(overflow / numVictimsLeft);
+    item.setClippingWidth(item.getThumbWidth() - clipAmount);
+    overflow -= clipAmount;
   }
 };
 
@@ -535,7 +600,6 @@ camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
 		return;
 	}
 	goog.dom.classes.remove(recipient.getElement(), 'cam-blobitem-dropactive');
-	
 	var files = e.getBrowserEvent().dataTransfer.files;
 	for (var i = 0, n = files.length; i < n; i++) {
 	var file = files[i];
@@ -677,18 +741,19 @@ camlistore.BlobItemContainer.prototype.handleFileDragLeave_ = function(e) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.hide_ = function() {
-	goog.dom.classes.remove(this.getElement(),
-		'cam-blobitemcontainer-' + this.thumbnailSize_);
-	goog.dom.classes.add(this.getElement(),
-		'cam-blobitemcontainer-hidden');
+  goog.dom.classes.remove(this.getElement(),
+                          'cam-blobitemcontainer-' + this.thumbnailSize_);
+  goog.dom.classes.add(this.getElement(),
+                       'cam-blobitemcontainer-hidden');
 };
 
 /**
  * @private
  */
 camlistore.BlobItemContainer.prototype.show_ = function() {
-	goog.dom.classes.remove(this.getElement(),
-		'cam-blobitemcontainer-hidden');
-	goog.dom.classes.add(this.getElement(),
-		'cam-blobitemcontainer-' + this.thumbnailSize_);
+  goog.dom.classes.remove(this.getElement(),
+                          'cam-blobitemcontainer-hidden');
+  goog.dom.classes.add(this.getElement(),
+                       'cam-blobitemcontainer-' + this.thumbnailSize_);
+  this.layout_(true);
 };

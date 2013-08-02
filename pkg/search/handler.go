@@ -42,6 +42,10 @@ const buffered = 32     // arbitrary channel buffer size
 const maxResults = 1000 // arbitrary limit on the number of search results returned
 const defaultNumResults = 50
 
+// MaxImageSize is the maximum width or height in pixels that we will serve image
+// thumbnails at. It is used in the search result UI.
+const MaxImageSize = 2000
+
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
 }
@@ -840,12 +844,12 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 		peer := b.peerBlob(content)
 		if peer.File != nil {
 			if peer.File.IsImage() {
-				image := fmt.Sprintf("thumbnail/%s/%s?mw=%d&mh=%d", peer.BlobRef,
-					url.QueryEscape(peer.File.FileName), thumbSize, thumbSize)
+				image := fmt.Sprintf("thumbnail/%s/%s?mh=%d", peer.BlobRef,
+					url.QueryEscape(peer.File.FileName), thumbSize)
 				if peer.Image != nil {
 					mw, mh := images.ScaledDimensions(
 						peer.Image.Width, peer.Image.Height,
-						thumbSize, thumbSize)
+						MaxImageSize, thumbSize)
 					return image, mw, mh, true
 				}
 				return image, thumbSize, thumbSize, true

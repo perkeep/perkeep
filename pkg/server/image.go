@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/search"
 )
 
 const imageDebug = false
@@ -196,7 +197,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		return
 	}
 	mw, mh := ih.MaxWidth, ih.MaxHeight
-	if mw == 0 || mh == 0 || mw > 2000 || mh > 2000 {
+	if mw == 0 || mh == 0 || mw > search.MaxImageSize || mh > search.MaxImageSize {
 		http.Error(rw, "bogus dimensions", 400)
 		return
 	}
