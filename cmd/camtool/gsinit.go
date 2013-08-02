@@ -24,8 +24,8 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 

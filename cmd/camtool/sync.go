@@ -323,7 +323,7 @@ For:
 		select {
 		case br := <-sizeMismatch:
 			// TODO(bradfitz): check both sides and repair, carefully.  For now, fail.
-			log.Printf("WARNING: blobref %v has differing sizes on source and est", br)
+			log.Printf("WARNING: blobref %v has differing sizes on source and dest", br)
 			stats.ErrorCount++
 			mismatches = append(mismatches, br)
 		case sb, ok := <-syncBlobs:
