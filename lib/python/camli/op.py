@@ -103,7 +103,7 @@ class CamliOp(object):
     self.basepath = ""
     if auth:
       if len(auth.split(':')) != 2:
-          # Default to dummy username; current server doesn't care 
+          # Default to dummy username; current server doesn't care
           # TODO(jrabbit): care when necessary
           auth = "username:" + auth #If username not given use the implicit default, 'username'
       self._authorization = ('Basic ' + base64.encodestring(auth).strip())
@@ -258,7 +258,8 @@ class CamliOp(object):
       new_relative_url = urlparse.urlunparse(pieces)
       logging.debug('Redirect %s -> %s', relative_url, new_relative_url)
       relative_url = new_relative_url
-      self.connection.request('GET', relative_url)
+      self.connection.request('GET', relative_url, headers={
+          'Authorization': self._authorization})
       response = self.connection.getresponse()
 
     if response.status != 200:
@@ -353,7 +354,8 @@ class CamliOp(object):
           fullpath = self.basepath + '/camli/'
       else:
           fullpath = '/camli/'
-      self.connection.request('GET', fullpath + blobref)
+      self.connection.request('GET', fullpath + blobref,
+                              headers={'Authorization': self._authorization})
       response = self.connection.getresponse()
       if response.status == 404:
         logging.debug('Server does not have blobref=%s', blobref)
