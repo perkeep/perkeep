@@ -120,6 +120,9 @@ func TestHTTPAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	if g, e := string(body), fmt.Sprintf("uid=%d", os.Getuid()); g != e {
+		if g == "ERR: "+ErrUnsupportedOS.Error() {
+			t.Skipf("Skipping test; not implemented on " + runtime.GOOS)
+		}
 		t.Errorf("got body %q; want %q", g, e)
 	}
 }
