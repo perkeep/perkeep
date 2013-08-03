@@ -61,7 +61,7 @@ to <code>pkg/genconfig</code> welcome.</p>
 <p>Additionally, mongo, mysql, and postgres require the <b><code>dbname</code></b> value set.  Initialize your database with <a href="/cmd/camtool/">camtool dbinit</a>.</p>
 
 <p>There's also an in-memory index type, but only in the low-level
-config, as used by the dev-server script.</p>
+config, as used by <code>devcam server</code>.</p>
 
 <h2>Publishing options</h2>
 <p>Although limited, publishing can be configured through the <b><code>publish</code></b> key. There is only support for an image gallery view (even though it will display thumbnails for other kinds of items), which is not really customizable. Here is an example of a value if one wanted to publish some items under <code>/pics/</code>:</p>

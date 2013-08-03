@@ -40,7 +40,7 @@ import (
 
 const (
 	interval    = 60 * time.Second // polling frequency
-	warmup      = 60 * time.Second // duration before we test if dev-server has started properly
+	warmup      = 60 * time.Second // duration before we test if devcam server has started properly
 	historySize = 30
 )
 
@@ -98,8 +98,9 @@ var NameToCmd = map[string]string{
 	"prepRepo8":   "git rev-parse HEAD",
 	"buildGoTip1": "./make.bash",
 	"buildCamli1": "make forcefull",
-	"buildCamli2": "make presubmit",
-	"runCamli":    "./dev-server --fast --wipe --mysql",
+	"buildCamli2": "go build -o devcam ./dev/devcam/",
+	"buildCamli3": "make presubmit",
+	"runCamli":    "./devcam server --wipe --mysql",
 	"hitCamliUi1": "http://localhost:3179/ui/",
 	"camget":      "./dev-camget ",
 	"camput1":     "./dev-camput file --permanode " + testFile[0],
@@ -575,9 +576,9 @@ func buildCamli(isTip bool) error {
 
 	tasks := []string{}
 	if doBuildCamli0 || doBuildCamli1 || (doBuildGo && isTip) {
-		tasks = append(tasks, NameToCmd["buildCamli1"])
+		tasks = append(tasks, NameToCmd["buildCamli1"], NameToCmd["buildCamli2"])
 	}
-	tasks = append(tasks, NameToCmd["buildCamli2"])
+	tasks = append(tasks, NameToCmd["buildCamli3"])
 	for _, v := range tasks {
 		setCurrentTask(v)
 		tsk := getCurrentTask()
@@ -635,7 +636,7 @@ func runCamli() (*os.Process, error) {
 		addRun(tsk, err)
 		return nil, fmt.Errorf("%v: server failed to start\n", tsk.Cmd)
 	case <-time.After(warmup):
-		dbg.Println("dev server OK")
+		dbg.Println("devcam server OK")
 		addRun(getCurrentTask(), nil)
 	}
 	return cmd.Process, nil
@@ -646,9 +647,9 @@ func killCamli(proc *os.Process) {
 		return
 	}
 	dbg.Println("killing dev server")
-	err := proc.Kill()
+	err := proc.Signal(os.Interrupt)
 	if err != nil {
-		log.Fatalf("Could not kill dev-server: %v", err)
+		log.Fatalf("Could not kill server: %v", err)
 	}
 	dbg.Println("")
 }

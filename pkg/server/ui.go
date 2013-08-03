@@ -202,9 +202,9 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 // 3) a path on disk to the root of camlistore's source (which
 //    contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
-	// dev-server environment variable takes precendence:
+	// devcam server environment variable takes precendence:
 	if d := os.Getenv("CAMLI_DEV_CLOSURE_DIR"); d != "" {
-		log.Printf("%v: serving Closure from dev-server's $CAMLI_DEV_CLOSURE_DIR: %v", handlerName, d)
+		log.Printf("%v: serving Closure from devcam server's $CAMLI_DEV_CLOSURE_DIR: %v", handlerName, d)
 		return http.FileServer(http.Dir(d)), nil
 	}
 	if root == "" {
