@@ -84,8 +84,8 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 			localv4, remotev4)
 	}
 
-	if runtime.GOOS == "darwin" {
-		return uidFromDarwinLsof(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
+	if runtime.GOOS == "darwin" || runtime.GOOS == "freebsd" {
+		return uidFromLsof(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
 	}
 	if runtime.GOOS == "linux" {
 		file := "/proc/net/tcp"
@@ -125,9 +125,12 @@ func (p maybeBrackets) String() string {
 	return s
 }
 
-func uidFromDarwinLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
+func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
 	seek := fmt.Sprintf("%s:%d->%s:%d", maybeBrackets(lip), lport, maybeBrackets(rip), rport)
 	seekb := []byte(seek)
+	if _, err = exec.LookPath("lsof"); err != nil {
+		return
+	}
 	cmd := exec.Command("lsof",
 		"-b", // avoid system calls that could block
 		"-w", // and don't warn about cases where -b fails
