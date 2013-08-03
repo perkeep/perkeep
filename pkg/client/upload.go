@@ -197,7 +197,9 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 	}
 	if wait > 0 {
 		// No batching on wait requests.
-		return c.doStat(dest, needStat, wait, true)
+		err := c.doStat(dest, needStat, wait, true)
+		close(dest)
+		return err
 	}
 
 	// Here begins all the batching logic. In a SPDY world, this
@@ -233,6 +235,7 @@ func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 			return err
 		}
 	}
+	close(dest)
 	return nil
 }
 
