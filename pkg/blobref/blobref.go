@@ -49,6 +49,7 @@ type BlobRef struct {
 
 // AsUint64 returns the first 64-bits of the blobref as an integer.
 func (br *BlobRef) AsUint64() uint64 {
+	// TODO(bradfitz): rename this Sum64 like Sum32 below.
 	var ret uint64
 	for i := 0; i < 16; i++ {
 		b := br.digest[i]
