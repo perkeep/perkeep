@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -47,7 +47,7 @@ type IndexDeps struct {
 	// Following three needed for signing:
 	PublicKeyFetcher *test.Fetcher
 	EntityFetcher    jsonsign.EntityFetcher // fetching decrypted openpgp entities
-	SignerBlobRef    *blobref.BlobRef
+	SignerBlobRef    blob.Ref
 
 	now time.Time // fake clock, nanos since epoch
 
@@ -81,7 +81,7 @@ func (id *IndexDeps) dumpIndex(t *testing.T) {
 	t.Logf("End index dump.")
 }
 
-func (id *IndexDeps) uploadAndSign(m *schema.Builder) *blobref.BlobRef {
+func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
 	m.SetSigner(id.SignerBlobRef)
 	unsigned, err := m.JSON()
 	if err != nil {
@@ -107,14 +107,14 @@ func (id *IndexDeps) uploadAndSign(m *schema.Builder) *blobref.BlobRef {
 
 // NewPermanode creates (& signs) a new permanode and adds it
 // to the index, returning its blobref.
-func (id *IndexDeps) NewPermanode() *blobref.BlobRef {
+func (id *IndexDeps) NewPermanode() blob.Ref {
 	unsigned := schema.NewUnsignedPermanode()
 	return id.uploadAndSign(unsigned)
 }
 
 // NewPermanode creates (& signs) a new planned permanode and adds it
 // to the index, returning its blobref.
-func (id *IndexDeps) NewPlannedPermanode(key string) *blobref.BlobRef {
+func (id *IndexDeps) NewPlannedPermanode(key string) blob.Ref {
 	unsigned := schema.NewPlannedPermanode(key)
 	return id.uploadAndSign(unsigned)
 }
@@ -128,19 +128,19 @@ func (id *IndexDeps) lastTime() time.Time {
 	return id.now
 }
 
-func (id *IndexDeps) SetAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
+func (id *IndexDeps) SetAttribute(permaNode blob.Ref, attr, value string) blob.Ref {
 	m := schema.NewSetAttributeClaim(permaNode, attr, value)
 	m.SetClaimDate(id.advanceTime())
 	return id.uploadAndSign(m)
 }
 
-func (id *IndexDeps) AddAttribute(permaNode *blobref.BlobRef, attr, value string) *blobref.BlobRef {
+func (id *IndexDeps) AddAttribute(permaNode blob.Ref, attr, value string) blob.Ref {
 	m := schema.NewAddAttributeClaim(permaNode, attr, value)
 	m.SetClaimDate(id.advanceTime())
 	return id.uploadAndSign(m)
 }
 
-func (id *IndexDeps) DelAttribute(permaNode *blobref.BlobRef, attr string) *blobref.BlobRef {
+func (id *IndexDeps) DelAttribute(permaNode blob.Ref, attr string) blob.Ref {
 	m := schema.NewDelAttributeClaim(permaNode, attr)
 	m.SetClaimDate(id.advanceTime())
 	return id.uploadAndSign(m)
@@ -149,7 +149,7 @@ func (id *IndexDeps) DelAttribute(permaNode *blobref.BlobRef, attr string) *blob
 var noTime = time.Time{}
 
 // If modTime is zero, it's not used.
-func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.Time) (fileRef, wholeRef *blobref.BlobRef) {
+func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
 	cb := &test.Blob{Contents: contents}
 	id.BlobSource.AddBlob(cb)
 	wholeRef = cb.BlobRef()
@@ -163,7 +163,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 		schema.BytesPart{
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
-	}})
+		}})
 	if !modTime.IsZero() {
 		m.SetModTime(modTime)
 	}
@@ -263,14 +263,14 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	// Upload a basic image.
-	var jpegFileRef *blobref.BlobRef
-	var exifFileRef *blobref.BlobRef
+	var jpegFileRef blob.Ref
+	var exifFileRef blob.Ref
 	{
 		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
 		if err != nil {
 			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
 		}
-		uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
 			contents, err := ioutil.ReadFile(fileName)
 			if err != nil {
@@ -348,7 +348,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// SearchPermanodesWithAttr - match attr type "tag" and value "foo1"
 	{
-		ch := make(chan *blobref.BlobRef, 10)
+		ch := make(chan blob.Ref, 10)
 		req := &search.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
 			Attribute: "tag",
@@ -357,11 +357,11 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Fatalf("SearchPermanodesWithAttr = %v", err)
 		}
-		var got []*blobref.BlobRef
+		var got []blob.Ref
 		for r := range ch {
 			got = append(got, r)
 		}
-		want := []*blobref.BlobRef{pn}
+		want := []blob.Ref{pn}
 		if len(got) < 1 || got[0].String() != want[0].String() {
 			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
 		}
@@ -369,7 +369,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// SearchPermanodesWithAttr - match all with attr type "tag"
 	{
-		ch := make(chan *blobref.BlobRef, 10)
+		ch := make(chan blob.Ref, 10)
 		req := &search.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
 			Attribute: "tag"}
@@ -377,11 +377,11 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Fatalf("SearchPermanodesWithAttr = %v", err)
 		}
-		var got []*blobref.BlobRef
+		var got []blob.Ref
 		for r := range ch {
 			got = append(got, r)
 		}
-		want := []*blobref.BlobRef{pn, pnChild}
+		want := []blob.Ref{pn, pnChild}
 		if len(got) != len(want) {
 			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
 				got, want)
@@ -455,7 +455,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 				t.Errorf("GetBlobMIMEType(%q) size is zero", pn)
 			}
 		}
-		_, _, err = id.Index.GetBlobMIMEType(blobref.Parse("abc-123"))
+		_, _, err = id.Index.GetBlobMIMEType(blob.ParseOrZero("abc-123"))
 		if err != os.ErrNotExist {
 			t.Errorf("GetBlobMIMEType(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
@@ -536,7 +536,7 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 	}
 	for _, tt := range tests {
 		signer := id.SignerBlobRef
-		paths, err := id.Index.PathsOfSignerTarget(signer, blobref.Parse(tt.blobref))
+		paths, err := id.Index.PathsOfSignerTarget(signer, blob.ParseOrZero(tt.blobref))
 		if err != nil {
 			t.Fatalf("PathsOfSignerTarget(%q): %v", tt.blobref, err)
 		}
@@ -583,7 +583,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Fatalf("ExistingFileSchemas = %v", err)
 		}
-		want := []*blobref.BlobRef{fileRef}
+		want := []blob.Ref{fileRef}
 		if !reflect.DeepEqual(refs, want) {
 			t.Errorf("ExistingFileSchemas got = %#v, want %#v", refs, want)
 		}

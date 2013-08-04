@@ -20,13 +20,13 @@ import (
 	"bytes"
 	"errors"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 )
 
 type BlobSniffer struct {
-	br *blobref.BlobRef
+	br blob.Ref
 
 	header   []byte
 	written  int64
@@ -34,9 +34,9 @@ type BlobSniffer struct {
 	mimeType string
 }
 
-func NewBlobSniffer(ref *blobref.BlobRef) *BlobSniffer {
-	if ref == nil {
-		panic("nil ref")
+func NewBlobSniffer(ref blob.Ref) *BlobSniffer {
+	if !ref.Valid() {
+		panic("invalid ref")
 	}
 	return &BlobSniffer{br: ref}
 }
@@ -46,8 +46,8 @@ func (sn *BlobSniffer) SchemaBlob() (meta *schema.Blob, ok bool) {
 }
 
 func (sn *BlobSniffer) Write(d []byte) (int, error) {
-	if sn.br == nil {
-		panic("write on sniffer with nil blobref")
+	if !sn.br.Valid() {
+		panic("write on sniffer with invalid blobref")
 	}
 	sn.written += int64(len(d))
 	if len(sn.header) < schema.MaxSchemaBlobSize {
@@ -100,4 +100,3 @@ func (sn *BlobSniffer) bufferIsCamliJSON() bool {
 	sn.meta = blob
 	return true
 }
-

@@ -23,12 +23,12 @@ import (
 	"io"
 	"regexp"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 )
 
-func (c *Client) FetchSchemaBlob(b *blobref.BlobRef) (*schema.Blob, error) {
+func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
 	rc, _, err := c.FetchStreaming(b)
 	if err != nil {
 		return nil, err
@@ -37,11 +37,11 @@ func (c *Client) FetchSchemaBlob(b *blobref.BlobRef) (*schema.Blob, error) {
 	return schema.BlobFromReader(b, rc)
 }
 
-func (c *Client) FetchStreaming(b *blobref.BlobRef) (io.ReadCloser, int64, error) {
+func (c *Client) FetchStreaming(b blob.Ref) (io.ReadCloser, int64, error) {
 	return c.FetchVia(b, c.viaPathTo(b))
 }
 
-func (c *Client) viaPathTo(b *blobref.BlobRef) (path []*blobref.BlobRef) {
+func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
 	if c.via == nil {
 		return nil
 	}
@@ -52,7 +52,7 @@ func (c *Client) viaPathTo(b *blobref.BlobRef) (path []*blobref.BlobRef) {
 		if v == "" {
 			break
 		}
-		path = append(path, blobref.MustParse(v))
+		path = append(path, blob.MustParse(v))
 		it = v
 	}
 	// Then reverse it
@@ -62,9 +62,9 @@ func (c *Client) viaPathTo(b *blobref.BlobRef) (path []*blobref.BlobRef) {
 	return
 }
 
-var blobsRx = regexp.MustCompile(blobref.Pattern)
+var blobsRx = regexp.MustCompile(blob.Pattern)
 
-func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadCloser, int64, error) {
+func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (io.ReadCloser, int64, error) {
 	pfx, err := c.blobPrefix()
 	if err != nil {
 		return nil, 0, err
@@ -124,19 +124,19 @@ func (c *Client) FetchVia(b *blobref.BlobRef, v []*blobref.BlobRef) (io.ReadClos
 	return rc{io.MultiReader(&buf, resp.Body), resp.Body}, size, nil
 }
 
-func (c *Client) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	size, ok := readerutil.ReaderSize(source)
 	if !ok {
 		size = -1
 	}
 	h := &UploadHandle{
-		BlobRef:  blob,
+		BlobRef:  br,
 		Size:     size, // -1 if we don't know
 		Contents: source,
 	}
 	pr, err := c.Upload(h)
 	if err != nil {
-		return blobref.SizedBlobRef{}, err
+		return blob.SizedRef{}, err
 	}
 	return pr.SizedBlobRef(), nil
 }

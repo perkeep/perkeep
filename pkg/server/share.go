@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/httputil"
@@ -42,7 +42,7 @@ const fetchFailureDelay = 200 * time.Millisecond
 type shareHandler struct {
 	blobRoot string
 
-	fetcher blobref.StreamingFetcher
+	fetcher blob.StreamingFetcher
 }
 
 func init() {
@@ -62,7 +62,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	if err != nil {
 		return nil, fmt.Errorf("Share handler's blobRoot of %q error: %v", share.blobRoot, err)
 	}
-	fetcher, ok := bs.(blobref.StreamingFetcher)
+	fetcher, ok := bs.(blob.StreamingFetcher)
 	if !ok {
 		return nil, errors.New("Share handler's storage not a StreamingFetcher.")
 	}
@@ -72,7 +72,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-	blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+	blobRef blob.Ref, fetcher blob.StreamingFetcher) {
 	if req.Method != "GET" && req.Method != "HEAD" {
 		httputil.BadRequestError(conn, "Invalid method")
 		return
@@ -91,19 +91,19 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			time.Sleep(sleep)
 		}
 	}()
-	viaBlobs := make([]*blobref.BlobRef, 0)
+	viaBlobs := make([]blob.Ref, 0)
 	if via := req.FormValue("via"); via != "" {
 		for _, vs := range strings.Split(via, ",") {
-			if br := blobref.Parse(vs); br == nil {
+			if br, ok := blob.Parse(vs); ok {
+				viaBlobs = append(viaBlobs, br)
+			} else {
 				httputil.BadRequestError(conn, "Malformed blobref in via param")
 				return
-			} else {
-				viaBlobs = append(viaBlobs, br)
 			}
 		}
 	}
 
-	fetchChain := make([]*blobref.BlobRef, 0)
+	fetchChain := make([]blob.Ref, 0)
 	fetchChain = append(fetchChain, viaBlobs...)
 	fetchChain = append(fetchChain, blobRef)
 	for i, br := range fetchChain {
@@ -174,8 +174,8 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 }
 
 func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	blobRef := blobref.Parse(httputil.PathSuffix(req))
-	if blobRef == nil {
+	blobRef, ok := blob.Parse(httputil.PathSuffix(req))
+	if !ok {
 		http.Error(rw, "Malformed share URL.", 400)
 		return
 	}

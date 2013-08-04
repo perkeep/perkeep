@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
 )
 
@@ -30,8 +30,8 @@ import (
 func TestCamputPermanode(t *testing.T) {
 	w := test.GetWorld(t)
 	out := test.MustRunCmd(t, w.Cmd("camput", "permanode"))
-	br := blobref.Parse(strings.TrimSpace(out))
-	if br == nil {
+	br, ok := blob.Parse(strings.TrimSpace(out))
+	if !ok {
 		t.Fatalf("Expected permanode in stdout; got %q", out)
 	}
 

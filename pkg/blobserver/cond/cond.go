@@ -45,7 +45,7 @@ import (
 	"net/http"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
@@ -167,7 +167,7 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 }
 
 // dummyRef is just a dummy reference to give to BlobFromReader.
-var dummyRef = blobref.MustParse("sha1-829c3804401b0727f70f73d4415e162400cbe57b")
+var dummyRef = blob.MustParse("sha1-829c3804401b0727f70f73d4415e162400cbe57b")
 
 func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	return func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error) {
@@ -181,7 +181,7 @@ func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	}
 }
 
-func (sto *condStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (sto *condStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	destSto, overRead, err := sto.storageForReceive(source)
 	if err != nil {
 		return
@@ -193,7 +193,7 @@ func (sto *condStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb bl
 	return destSto.ReceiveBlob(b, source)
 }
 
-func (sto *condStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
 	if sto.remove != nil {
 		rsto := blobserver.MaybeWrapContext(sto.remove, sto.ctx)
 		return rsto.RemoveBlobs(blobs)
@@ -202,11 +202,11 @@ func (sto *condStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 }
 
 func (sto *condStorage) IsFetcherASeeker() bool {
-	_, ok := sto.read.(blobref.SeekFetcher)
+	_, ok := sto.read.(blob.SeekFetcher)
 	return ok
 }
 
-func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (sto *condStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
 	if sto.read != nil {
 		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
 		return rsto.FetchStreaming(b)
@@ -215,7 +215,7 @@ func (sto *condStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, 
 	return
 }
 
-func (sto *condStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (sto *condStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	if sto.read != nil {
 		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
 		return rsto.StatBlobs(dest, blobs, wait)
@@ -223,7 +223,7 @@ func (sto *condStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blo
 	return errors.New("cond: Read not configured")
 }
 
-func (sto *condStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (sto *condStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	if sto.read != nil {
 		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
 		return rsto.EnumerateBlobs(dest, after, limit, wait)

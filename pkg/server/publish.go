@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
 	"camlistore.org/pkg/fileembed"
@@ -124,8 +124,8 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		}
 		h, _ := ld.GetHandler(rootNode[0])
 		jsonSign := h.(*signhandler.Handler)
-		pn := blobref.Parse(rootNode[1])
-		if pn == nil {
+		pn, ok := blob.Parse(rootNode[1])
+		if !ok {
 			return nil, fmt.Errorf("Invalid \"rootPermanode\" value; was expecting a blobRef, got %q.", rootNode[1])
 		}
 		if err := ph.setRootNode(jsonSign, pn); err != nil {
@@ -185,7 +185,7 @@ func (ph *PublishHandler) makeClosureHandler(root string) (http.Handler, error) 
 	return makeClosureHandler(root, "publish")
 }
 
-func (ph *PublishHandler) rootPermanode() (*blobref.BlobRef, error) {
+func (ph *PublishHandler) rootPermanode() (blob.Ref, error) {
 	// TODO: caching, but this can change over time (though
 	// probably rare). might be worth a 5 second cache or
 	// something in-memory? better invalidation story first would
@@ -198,16 +198,16 @@ func (ph *PublishHandler) rootPermanode() (*blobref.BlobRef, error) {
 	return br, err
 }
 
-func (ph *PublishHandler) lookupPathTarget(root *blobref.BlobRef, suffix string) (*blobref.BlobRef, error) {
+func (ph *PublishHandler) lookupPathTarget(root blob.Ref, suffix string) (blob.Ref, error) {
 	if suffix == "" {
 		return root, nil
 	}
 	path, err := ph.Search.Index().PathLookup(ph.Search.Owner(), root, suffix, time.Time{})
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
-	if path.Target == nil {
-		return nil, os.ErrNotExist
+	if !path.Target.Valid() {
+		return blob.Ref{}, os.ErrNotExist
 	}
 	return path.Target, nil
 }
@@ -246,8 +246,8 @@ type publishRequest struct {
 	rw                   http.ResponseWriter
 	req                  *http.Request
 	base, suffix, subres string
-	rootpn               *blobref.BlobRef
-	subject              *blobref.BlobRef
+	rootpn               blob.Ref
+	subject              blob.Ref
 	inSubjectChain       map[string]bool // blobref -> true
 	subjectBasePath      string
 
@@ -301,11 +301,11 @@ func (pr *publishRequest) SubresourceType() string {
 	return ""
 }
 
-func (pr *publishRequest) SubresFileURL(path []*blobref.BlobRef, fileName string) string {
+func (pr *publishRequest) SubresFileURL(path []blob.Ref, fileName string) string {
 	return pr.SubresThumbnailURL(path, fileName, -1)
 }
 
-func (pr *publishRequest) SubresThumbnailURL(path []*blobref.BlobRef, fileName string, maxDimen int) string {
+func (pr *publishRequest) SubresThumbnailURL(path []blob.Ref, fileName string, maxDimen int) string {
 	var buf bytes.Buffer
 	resType := "i"
 	if maxDimen == -1 {
@@ -383,7 +383,7 @@ func (pr *publishRequest) findSubject() error {
 }
 
 func (pr *publishRequest) serveHTTP() {
-	if pr.rootpn == nil {
+	if !pr.rootpn.Valid() {
 		pr.rw.WriteHeader(404)
 		return
 	}
@@ -460,7 +460,7 @@ func addPathComponent(base, addition string) string {
 	return base + "/-" + addition
 }
 
-func (pr *publishRequest) memberPath(member *blobref.BlobRef) string {
+func (pr *publishRequest) memberPath(member blob.Ref) string {
 	return addPathComponent(pr.subjectBasePath, "/h"+member.DigestPrefix(10))
 }
 
@@ -583,20 +583,20 @@ func (p publishedPath) splitHops() []string {
 // parent returns the base path and the blobRef of pr.subject's parent.
 // It returns an error if pr.subject or pr.subjectBasePath were not set
 // properly (with findSubject), or if the parent was not found.
-func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.BlobRef, err error) {
-	if pr.subject == nil {
-		return "", nil, errors.New("subject not set")
+func (pr *publishRequest) parent() (parentPath string, parentBlobRef blob.Ref, err error) {
+	if !pr.subject.Valid() {
+		return "", blob.Ref{}, errors.New("subject not set")
 	}
 	if pr.subjectBasePath == "" {
-		return "", nil, errors.New("subjectBasePath not set")
+		return "", blob.Ref{}, errors.New("subjectBasePath not set")
 	}
 	hops := publishedPath(pr.subjectBasePath).splitHops()
 	if len(hops) == 0 {
-		return "", nil, errors.New("No subresource digest in subjectBasePath")
+		return "", blob.Ref{}, errors.New("No subresource digest in subjectBasePath")
 	}
 	subjectDigest := hops[len(hops)-1]
 	if subjectDigest != pr.subject.DigestPrefix(digestLen) {
-		return "", nil, errors.New("subject digest not in subjectBasePath")
+		return "", blob.Ref{}, errors.New("subject digest not in subjectBasePath")
 	}
 	parentPath = strings.TrimSuffix(pr.subjectBasePath, "/"+digestPrefix+subjectDigest)
 
@@ -604,7 +604,7 @@ func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.Bl
 		// the parent is the suffix, not one of the subresource hops
 		for br, _ := range pr.inSubjectChain {
 			if br != pr.subject.String() {
-				parentBlobRef = blobref.Parse(br)
+				parentBlobRef = blob.ParseOrZero(br)
 				break
 			}
 		}
@@ -612,9 +612,9 @@ func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.Bl
 		// nested collection(s)
 		parentDigest := hops[len(hops)-2]
 		for br, _ := range pr.inSubjectChain {
-			bref := blobref.Parse(br)
-			if bref == nil {
-				return "", nil, fmt.Errorf("Could not parse %q as blobRef", br)
+			bref, ok := blob.Parse(br)
+			if !ok {
+				return "", blob.Ref{}, fmt.Errorf("Could not parse %q as blobRef", br)
 			}
 			if bref.DigestPrefix(10) == parentDigest {
 				parentBlobRef = bref
@@ -622,8 +622,8 @@ func (pr *publishRequest) parent() (parentPath string, parentBlobRef *blobref.Bl
 			}
 		}
 	}
-	if parentBlobRef == nil {
-		return "", nil, fmt.Errorf("No parent found for %v", pr.subjectBasePath)
+	if !parentBlobRef.Valid() {
+		return "", blob.Ref{}, fmt.Errorf("No parent found for %v", pr.subjectBasePath)
 	}
 	return parentPath, parentBlobRef, nil
 }
@@ -653,7 +653,7 @@ func (pr *publishRequest) serveNav() error {
 	}
 
 	pos := 0
-	var prev, next *blobref.BlobRef
+	var prev, next blob.Ref
 	for k, member := range members {
 		if member.BlobRef.String() == pr.subject.String() {
 			pos = k
@@ -666,13 +666,13 @@ func (pr *publishRequest) serveNav() error {
 	if pos < len(members)-1 {
 		next = members[pos+1].BlobRef
 	}
-	if prev != nil || next != nil {
+	if prev.Valid() || next.Valid() {
 		var prevNav, nextNav string
-		if prev != nil {
+		if prev.Valid() {
 			prevNav = fmt.Sprintf("[<a href='%s/h%s'>prev</a>]",
 				parentPath, prev.DigestPrefix(10))
 		}
-		if next != nil {
+		if next.Valid() {
 			nextNav = fmt.Sprintf("[<a href='%s/h%s'>next</a>]",
 				parentPath, next.DigestPrefix(10))
 		}
@@ -685,14 +685,14 @@ func (pr *publishRequest) serveNav() error {
 // serveFile serves the relevant view when the subject in serveSubject
 // is a permanode with some content cref. It is meant to be called
 // from serveSubject.
-func (pr *publishRequest) serveFile(cref *blobref.BlobRef) error {
+func (pr *publishRequest) serveFile(cref blob.Ref) error {
 	des, err := pr.dr.DescribeSync(cref)
 	if err != nil {
 		pr.pf("<p>Error serving file</p>")
 		return fmt.Errorf("Could not describe %v: %v", cref, err)
 	}
 	if des.File != nil {
-		path := []*blobref.BlobRef{pr.subject, cref}
+		path := []blob.Ref{pr.subject, cref}
 		downloadURL := pr.SubresFileURL(path, des.File.FileName)
 		pr.pf("<div>File: %s, %d bytes, type %s</div>",
 			html.EscapeString(des.File.FileName),
@@ -824,10 +824,10 @@ func (pr *publishRequest) serveSubject() {
 	}
 }
 
-func (pr *publishRequest) validPathChain(path []*blobref.BlobRef) bool {
+func (pr *publishRequest) validPathChain(path []blob.Ref) bool {
 	bi := pr.subject
 	for len(path) > 0 {
-		var next *blobref.BlobRef
+		var next blob.Ref
 		next, path = path[0], path[1:]
 
 		desi, err := pr.dr.DescribeSync(bi)
@@ -900,7 +900,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 
 // Given a described blob, optionally follows a camliContent and
 // returns the file's schema blobref and its fileinfo (if found).
-func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (fileref *blobref.BlobRef, fileinfo *search.FileInfo, ok bool) {
+func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (fileref blob.Ref, fileinfo *search.FileInfo, ok bool) {
 	if des == nil {
 		http.NotFound(pr.rw, pr.req)
 		return
@@ -909,8 +909,8 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 		// TODO: get "forceMime" attr out of the permanode? or
 		// fileName content-disposition?
 		if cref := des.Permanode.Attr.Get("camliContent"); cref != "" {
-			cbr := blobref.Parse(cref)
-			if cbr == nil {
+			cbr, ok2 := blob.Parse(cref)
+			if !ok2 {
 				http.Error(pr.rw, "bogus camliContent", 500)
 				return
 			}
@@ -928,20 +928,20 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 	return
 }
 
-func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string, bb *schema.Builder) (*blobref.BlobRef, error) {
+func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string, bb *schema.Builder) (blob.Ref, error) {
 	signed, err := jsonSign.Sign(bb)
 	if err != nil {
-		return nil, fmt.Errorf("error signing %s: %v", name, err)
+		return blob.Ref{}, fmt.Errorf("error signing %s: %v", name, err)
 	}
 	uh := client.NewUploadHandleFromString(signed)
 	_, err = ph.Storage.ReceiveBlob(uh.BlobRef, uh.Contents)
 	if err != nil {
-		return nil, fmt.Errorf("error uploading %s: %v", name, err)
+		return blob.Ref{}, fmt.Errorf("error uploading %s: %v", name, err)
 	}
 	return uh.BlobRef, nil
 }
 
-func (ph *PublishHandler) setRootNode(jsonSign *signhandler.Handler, pn *blobref.BlobRef) (err error) {
+func (ph *PublishHandler) setRootNode(jsonSign *signhandler.Handler, pn blob.Ref) (err error) {
 	_, err = ph.signUpload(jsonSign, "set-attr camliRoot", schema.NewSetAttributeClaim(pn, "camliRoot", ph.RootName))
 	if err != nil {
 		return err

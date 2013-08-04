@@ -21,7 +21,7 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
@@ -65,8 +65,8 @@ func (c *attrCmd) RunCommand(args []string) error {
 
 	var err error
 
-	pn := blobref.Parse(permanode)
-	if pn == nil {
+	pn, ok := blob.Parse(permanode)
+	if !ok {
 		return fmt.Errorf("Error parsing blobref %q", permanode)
 	}
 	bb := schema.NewSetAttributeClaim(pn, attr, value)

@@ -49,7 +49,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
@@ -106,7 +106,7 @@ type storage struct {
 		mu sync.Mutex
 		// toDelete are the meta blobrefs that are no longer
 		// necessary, as they're subsets of others.
-		toDelete []*blobref.BlobRef
+		toDelete []blob.Ref
 		// plainIn maps from a plaintext blobref to its currently-largest-describing metablob.
 		plainIn map[string]*metaBlobInfo
 		// smallMeta tracks a heap of meta blobs, sorted by their encrypted size
@@ -128,9 +128,9 @@ func (s *storage) setKey(key []byte) error {
 }
 
 type metaBlobInfo struct {
-	br     *blobref.BlobRef // of meta blob
-	n      int              // size of meta blob
-	plains []*blobref.BlobRef
+	br     blob.Ref // of meta blob
+	n      int      // size of meta blob
+	plains []blob.Ref
 }
 
 type metaBlobHeap []*metaBlobInfo
@@ -189,7 +189,7 @@ See the encodeMetaValue for the definition of metaValue, but in summary:
    sha1-plain/<plaintext size>/<iv as %x>/sha1-encrypted/<encrypted size>
 */
 
-func (s *storage) makeSingleMetaBlob(plainBR *blobref.BlobRef, meta string) []byte {
+func (s *storage) makeSingleMetaBlob(plainBR blob.Ref, meta string) []byte {
 	iv := s.randIV()
 
 	var plain bytes.Buffer
@@ -214,11 +214,11 @@ func (s *storage) makeSingleMetaBlob(plainBR *blobref.BlobRef, meta string) []by
 	return final.Bytes()
 }
 
-func (s *storage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	panic("TODO: implement")
 }
 
-func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	for _, br := range blobs {
 		v, err := s.index.Get(br.String())
 		if err == index.ErrNotFound {
@@ -234,12 +234,12 @@ func (s *storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.B
 		if err != nil {
 			continue
 		}
-		dest <- blobref.SizedBlobRef{br, plainSize}
+		dest <- blob.SizedRef{br, plainSize}
 	}
 	return nil
 }
 
-func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	iv := s.randIV()
 	stream := cipher.NewCTR(s.block, iv)
 
@@ -256,7 +256,7 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 		return sb, blobserver.ErrCorruptBlob
 	}
 
-	encBR := blobref.SHA1FromBytes(buf.Bytes())
+	encBR := blob.SHA1FromBytes(buf.Bytes())
 	_, err = s.blobs.ReceiveBlob(encBR, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		log.Printf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
@@ -265,7 +265,7 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 
 	meta := encodeMetaValue(plainSize, iv, encBR, buf.Len())
 	metaBlob := s.makeSingleMetaBlob(plainBR, meta)
-	_, err = s.meta.ReceiveBlob(blobref.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
+	_, err = s.meta.ReceiveBlob(blob.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
 	if err != nil {
 		log.Printf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 		return sb, errors.New("encrypt: error writing encrypted meta")
@@ -276,10 +276,10 @@ func (s *storage) ReceiveBlob(plainBR *blobref.BlobRef, source io.Reader) (sb bl
 		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", err)
 	}
 
-	return blobref.SizedBlobRef{plainBR, plainSize}, nil
+	return blob.SizedRef{plainBR, plainSize}, nil
 }
 
-func (s *storage) FetchStreaming(plainBR *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int64, err error) {
 	meta, err := s.fetchMeta(plainBR)
 	if err != nil {
 		return nil, 0, err
@@ -328,7 +328,7 @@ func (s *storage) FetchStreaming(plainBR *blobref.BlobRef) (file io.ReadCloser, 
 	}, plainSize, nil
 }
 
-func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	if wait != 0 {
 		panic("TODO: support wait in EnumerateBlobs")
 	}
@@ -339,15 +339,15 @@ func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string,
 		if iter.Key() == after {
 			continue
 		}
-		br := blobref.Parse(iter.Key())
-		if br == nil {
+		br, ok := blob.Parse(iter.Key())
+		if !ok {
 			panic("Bogus encrypt index key: " + iter.Key())
 		}
 		plainSize, ok := parseMetaValuePlainSize(iter.Value())
 		if !ok {
 			panic("Bogus encrypt index value: " + iter.Value())
 		}
-		dest <- blobref.SizedBlobRef{br, plainSize}
+		dest <- blob.SizedRef{br, plainSize}
 		n++
 		if limit != 0 && n >= limit {
 			break
@@ -360,7 +360,7 @@ func (s *storage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string,
 // its meta lines, updating the index.
 //
 // processEncryptedMetaBlob is not thread-safe.
-func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) error {
+func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
 	mi := &metaBlobInfo{
 		br: br,
 		n:  len(dat),
@@ -404,7 +404,7 @@ func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) erro
 		}
 		plainBR, meta := line[:slash], line[slash+1:]
 		log.Printf("Adding meta: %q = %q", plainBR, meta)
-		mi.plains = append(mi.plains, blobref.Parse(plainBR))
+		mi.plains = append(mi.plains, blob.ParseOrZero(plainBR))
 		if err := s.index.Set(plainBR, meta); err != nil {
 			return err
 		}
@@ -414,7 +414,7 @@ func (s *storage) processEncryptedMetaBlob(br *blobref.BlobRef, dat []byte) erro
 
 func (s *storage) readAllMetaBlobs() error {
 	type metaBlob struct {
-		br  *blobref.BlobRef
+		br  blob.Ref
 		dat []byte // encrypted blob
 		err error
 	}
@@ -427,7 +427,7 @@ func (s *storage) readAllMetaBlobs() error {
 	enumErrc := make(chan error, 1)
 	go func() {
 		var wg sync.WaitGroup
-		enumErrc <- blobserver.EnumerateAll(s.meta, func(sb blobref.SizedBlobRef) error {
+		enumErrc <- blobserver.EnumerateAll(s.meta, func(sb blob.SizedRef) error {
 			select {
 			case <-stopEnumerate:
 				return errors.New("enumeration stopped")
@@ -439,13 +439,13 @@ func (s *storage) readAllMetaBlobs() error {
 			go func() {
 				defer wg.Done()
 				defer func() { <-gate }()
-				rc, _, err := s.meta.FetchStreaming(sb.BlobRef)
+				rc, _, err := s.meta.FetchStreaming(sb.Ref)
 				var all []byte
 				if err == nil {
 					all, err = ioutil.ReadAll(rc)
 					rc.Close()
 				}
-				metac <- metaBlob{sb.BlobRef, all, err}
+				metac <- metaBlob{sb.Ref, all, err}
 			}()
 			return nil
 		})
@@ -474,19 +474,19 @@ func (s *storage) readAllMetaBlobs() error {
 	return <-enumErrc
 }
 
-func encodeMetaValue(plainSize int64, iv []byte, encBR *blobref.BlobRef, encSize int) string {
+func encodeMetaValue(plainSize int64, iv []byte, encBR blob.Ref, encSize int) string {
 	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
 }
 
 type metaValue struct {
 	IV         []byte
-	EncBlobRef *blobref.BlobRef
+	EncBlobRef blob.Ref
 	EncSize    int64
 	PlainSize  int64
 }
 
 // returns os.ErrNotExist on cache miss
-func (s *storage) fetchMeta(b *blobref.BlobRef) (*metaValue, error) {
+func (s *storage) fetchMeta(b blob.Ref) (*metaValue, error) {
 	v, err := s.index.Get(b.String())
 	if err == index.ErrNotFound {
 		err = os.ErrNotExist
@@ -523,8 +523,9 @@ func parseMetaValue(v string) (mv *metaValue, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("bad iv in meta %q", v)
 	}
-	mv.EncBlobRef = blobref.Parse(f[2])
-	if mv.EncBlobRef == nil {
+	var ok bool
+	mv.EncBlobRef, ok = blob.Parse(f[2])
+	if !ok {
 		return nil, fmt.Errorf("bad blobref in meta %q", v)
 	}
 	mv.EncSize, err = strconv.ParseInt(f[3], 10, 64)

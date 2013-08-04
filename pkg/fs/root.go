@@ -23,7 +23,7 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
@@ -97,10 +97,10 @@ func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		return nil, fuse.ENOENT
 	}
 
-	br := blobref.Parse(name)
-	log.Printf("Root lookup of %q = %v", name, br)
-	if br != nil {
+	if br, ok := blob.Parse(name); ok {
+		log.Printf("Root lookup of blobref. %q => %v", name, br)
 		return &node{fs: n.fs, blobref: br}, nil
 	}
+	log.Printf("Bogus root lookup of %q", name)
 	return nil, fuse.ENOENT
 }

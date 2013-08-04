@@ -22,10 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
-func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 	it := ix.s.Find("have:" + after)
 	n := int(0)
@@ -35,16 +35,16 @@ func (ix *Index) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, 
 			break
 		}
 		n++
-		br := blobref.Parse(k[len("have:"):])
+		br, ok := blob.Parse(k[len("have:"):])
 		size, err := strconv.ParseInt(it.Value(), 10, 64)
-		if br != nil && err == nil {
-			dest <- blobref.SizedBlobRef{br, size}
+		if ok && err == nil {
+			dest <- blob.SizedRef{br, size}
 		}
 	}
 	return it.Close()
 }
 
-func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)
@@ -58,7 +58,7 @@ func (ix *Index) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.Bl
 		if err != nil {
 			return fmt.Errorf("invalid size for key %q = %q", key, v)
 		}
-		dest <- blobref.SizedBlobRef{br, size}
+		dest <- blob.SizedRef{br, size}
 	}
 	return nil
 }

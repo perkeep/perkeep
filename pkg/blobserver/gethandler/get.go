@@ -24,23 +24,24 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 	"unicode/utf8"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 )
 
-var kGetPattern = regexp.MustCompile(`/camli/` + blobref.Pattern + `$`)
+var kGetPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
 
 // Handler is the HTTP handler for serving GET requests of blobs.
 type Handler struct {
-	Fetcher blobref.StreamingFetcher
+	Fetcher blob.StreamingFetcher
 }
 
 // CreateGetHandler returns an http Handler for serving blobs from fetcher.
-func CreateGetHandler(fetcher blobref.StreamingFetcher) http.Handler {
+func CreateGetHandler(fetcher blob.StreamingFetcher) http.Handler {
 	return &Handler{Fetcher: fetcher}
 }
 
@@ -51,8 +52,8 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	blobRef := blobFromUrlPath(req.URL.Path)
-	if blobRef == nil {
+	blobRef := blobFromURLPath(req.URL.Path)
+	if !blobRef.Valid() {
 		http.Error(conn, "Malformed GET URL.", 400)
 		return
 	}
@@ -61,11 +62,11 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 }
 
 // ServeBlobRef serves a blob.
-func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef *blobref.BlobRef, fetcher blobref.StreamingFetcher) {
+func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.StreamingFetcher) {
 	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
 		fetcher = w.WrapContext(req)
 	}
-	seekFetcher := blobref.SeekerFromStreamingFetcher(fetcher)
+	seekFetcher := blob.SeekerFromStreamingFetcher(fetcher)
 
 	file, size, err := seekFetcher.Fetch(blobRef)
 	switch err {
@@ -111,8 +112,12 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef *blobref.Bl
 // This time is the first commit of the Camlistore project.
 var dummyModTime = time.Unix(1276213335, 0)
 
-func blobFromUrlPath(path string) *blobref.BlobRef {
-	return blobref.FromPattern(kGetPattern, path)
+func blobFromURLPath(path string) blob.Ref {
+	matches := kGetPattern.FindStringSubmatch(path)
+	if len(matches) != 3 {
+		return blob.Ref{}
+	}
+	return blob.ParseOrZero(strings.TrimPrefix(matches[0], "/camli/"))
 }
 
 // For client testing.

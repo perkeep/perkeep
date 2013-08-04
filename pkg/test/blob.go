@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 )
 
@@ -31,14 +31,14 @@ type Blob struct {
 	Contents string // the contents of the blob
 }
 
-func (tb *Blob) BlobRef() *blobref.BlobRef {
+func (tb *Blob) BlobRef() blob.Ref {
 	h := sha1.New()
 	h.Write([]byte(tb.Contents))
-	return blobref.FromHash(h)
+	return blob.RefFromHash(h)
 }
 
-func (tb *Blob) BlobRefSlice() []*blobref.BlobRef {
-	return []*blobref.BlobRef{tb.BlobRef()}
+func (tb *Blob) BlobRefSlice() []blob.Ref {
+	return []blob.Ref{tb.BlobRef()}
 }
 
 func (tb *Blob) Size() int64 {
@@ -49,12 +49,12 @@ func (tb *Blob) Reader() io.Reader {
 	return strings.NewReader(tb.Contents)
 }
 
-func (tb *Blob) AssertMatches(t *testing.T, sb blobref.SizedBlobRef) {
+func (tb *Blob) AssertMatches(t *testing.T, sb blob.SizedRef) {
 	if sb.Size != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}
-	if sb.BlobRef.String() != tb.BlobRef().String() {
-		t.Fatalf("Got blob %q; expected %q", sb.BlobRef.String(), tb.BlobRef())
+	if sb.Ref != tb.BlobRef() {
+		t.Fatalf("Got blob %q; expected %q", sb.Ref.String(), tb.BlobRef())
 	}
 }
 

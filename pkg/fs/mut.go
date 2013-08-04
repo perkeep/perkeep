@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -52,7 +52,7 @@ const (
 // Its br is the permanode with camliPath:entname attributes.
 type mutDir struct {
 	fs        *CamliFileSystem
-	permanode *blobref.BlobRef
+	permanode blob.Ref
 	parent    *mutDir // or nil, if the root within its roots.go root.
 	name      string  // ent name (base name within parent)
 
@@ -71,7 +71,7 @@ func (n *mutDir) fullPath() string {
 
 func (n *mutDir) Attr() fuse.Attr {
 	return fuse.Attr{
-		Inode: n.permanode.AsUint64(),
+		Inode: n.permanode.Sum64(),
 		Mode:  os.ModeDir | 0700,
 		Uid:   uint32(os.Getuid()),
 		Gid:   uint32(os.Getgid()),
@@ -123,7 +123,7 @@ func (n *mutDir) populate() error {
 			// This is a symlink.
 			n.children[name] = &mutFile{
 				fs:        n.fs,
-				permanode: blobref.Parse(childRef),
+				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
 				symLink:   true,
@@ -144,10 +144,10 @@ func (n *mutDir) populate() error {
 			}
 			n.children[name] = &mutFile{
 				fs:        n.fs,
-				permanode: blobref.Parse(childRef),
+				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
-				content:   blobref.Parse(contentRef),
+				content:   blob.ParseOrZero(contentRef),
 				size:      content.File.Size,
 			}
 			continue
@@ -155,7 +155,7 @@ func (n *mutDir) populate() error {
 		// This is a directory.
 		n.children[name] = &mutDir{
 			fs:        n.fs,
-			permanode: blobref.Parse(childRef),
+			permanode: blob.ParseOrZero(childRef),
 			parent:    n,
 			name:      name,
 		}
@@ -175,9 +175,9 @@ func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		var ino uint64
 		switch v := childNode.(type) {
 		case *mutDir:
-			ino = v.permanode.AsUint64()
+			ino = v.permanode.Sum64()
 		case *mutFile:
-			ino = v.permanode.AsUint64()
+			ino = v.permanode.Sum64()
 		default:
 			log.Printf("mutDir.ReadDir: unknown child type %T", childNode)
 		}
@@ -397,14 +397,14 @@ func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Int
 // mutFile is a mutable file, or symlink.
 type mutFile struct {
 	fs        *CamliFileSystem
-	permanode *blobref.BlobRef
+	permanode blob.Ref
 	parent    *mutDir
 	name      string // ent name (base name within parent)
 
-	mu           sync.Mutex       // protects all following fields
-	symLink      bool             // if true, is a symlink
-	target       string           // if a symlink
-	content      *blobref.BlobRef // if a regular file
+	mu           sync.Mutex // protects all following fields
+	symLink      bool       // if true, is a symlink
+	target       string     // if a symlink
+	content      blob.Ref   // if a regular file
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
 }
@@ -427,7 +427,7 @@ func (n *mutFile) Attr() fuse.Attr {
 	if size > 0 {
 		blocks = uint64(size)/512 + 1
 	}
-	inode := n.permanode.AsUint64()
+	inode := n.permanode.Sum64()
 	if n.symLink {
 		mode |= os.ModeSymlink
 	}
@@ -466,7 +466,7 @@ func (n *mutFile) modTime() time.Time {
 	return serverStart
 }
 
-func (n *mutFile) setContent(br *blobref.BlobRef, size int64) error {
+func (n *mutFile) setContent(br blob.Ref, size int64) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.content = br

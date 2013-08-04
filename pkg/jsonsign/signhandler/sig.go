@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/httputil"
@@ -44,8 +44,8 @@ type Handler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
 
-	pubKeyBlobRef *blobref.BlobRef
-	pubKeyFetcher blobref.StreamingFetcher
+	pubKeyBlobRef blob.Ref
+	pubKeyFetcher blob.StreamingFetcher
 
 	pubKeyBlobRefServeSuffix string // "camli/sha1-xxxx"
 	pubKeyHandler            http.Handler
@@ -89,7 +89,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 
 	armoredPublicKey, err := jsonsign.ArmoredPublicKey(h.entity)
 
-	ms := new(blobref.MemoryStore)
+	ms := new(blob.MemoryStore)
 	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, armoredPublicKey)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (h *Handler) DiscoveryMap(base string) map[string]interface{} {
 		"signHandler":   base + "camli/sig/sign",
 		"verifyHandler": base + "camli/sig/verify",
 	}
-	if h.pubKeyBlobRef != nil {
+	if h.pubKeyBlobRef.Valid() {
 		m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
 		m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
 	}

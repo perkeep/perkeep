@@ -19,15 +19,15 @@ package s3
 import (
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
-func (sto *s3Storage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	// TODO: do n stats in parallel
 	for _, br := range blobs {
 		size, err := sto.s3Client.Stat(br.String(), sto.bucket)
 		if err == nil {
-			dest <- blobref.SizedBlobRef{BlobRef: br, Size: size}
+			dest <- blob.SizedRef{Ref: br, Size: size}
 		} else {
 			// TODO: handle
 		}

@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
@@ -41,24 +41,24 @@ var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
 var multipartOverhead = calculateMultipartOverhead()
 
 type UploadHandle struct {
-	BlobRef  *blobref.BlobRef
+	BlobRef  blob.Ref
 	Size     int64 // or -1 if size isn't known
 	Contents io.Reader
 	Vivify   bool
 }
 
 type PutResult struct {
-	BlobRef *blobref.BlobRef
+	BlobRef blob.Ref
 	Size    int64
 	Skipped bool // already present on blobserver
 }
 
-func (pr *PutResult) SizedBlobRef() blobref.SizedBlobRef {
-	return blobref.SizedBlobRef{pr.BlobRef, pr.Size}
+func (pr *PutResult) SizedBlobRef() blob.SizedRef {
+	return blob.SizedRef{pr.BlobRef, pr.Size}
 }
 
 type statResponse struct {
-	HaveMap                    map[string]blobref.SizedBlobRef
+	HaveMap                    map[string]blob.SizedRef
 	maxUploadSize              int64
 	uploadUrl                  string
 	uploadUrlExpirationSeconds int
@@ -86,7 +86,7 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 func parseStatResponse(r io.Reader) (sr *statResponse, err error) {
 	var (
 		ok   bool
-		s    = &statResponse{HaveMap: make(map[string]blobref.SizedBlobRef)}
+		s    = &statResponse{HaveMap: make(map[string]blob.SizedRef)}
 		jmap = make(map[string]interface{})
 	)
 	if err := json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
@@ -137,18 +137,18 @@ func parseStatResponse(r io.Reader) (sr *statResponse, err error) {
 		if !ok {
 			return nil, newResFormatError("'stat' list item has non-number 'size' key")
 		}
-		br := blobref.Parse(blobRefStr)
-		if br == nil {
+		br, ok := blob.Parse(blobRefStr)
+		if !ok {
 			return nil, newResFormatError("'stat' list item has invalid 'blobRef' key")
 		}
-		s.HaveMap[br.String()] = blobref.SizedBlobRef{br, int64(size)}
+		s.HaveMap[br.String()] = blob.SizedRef{br, int64(size)}
 	}
 
 	return s, nil
 }
 
 func NewUploadHandleFromString(data string) *UploadHandle {
-	bref := blobref.SHA1FromString(data)
+	bref := blob.SHA1FromString(data)
 	r := strings.NewReader(data)
 	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: r}
 }
@@ -172,24 +172,24 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 
 // statReq is a request to stat a blob.
 type statReq struct {
-	br   *blobref.BlobRef
-	dest chan<- blobref.SizedBlobRef // written to on success
-	errc chan<- error                // written to on both failure and success (after any dest)
+	br   blob.Ref
+	dest chan<- blob.SizedRef // written to on success
+	errc chan<- error         // written to on both failure and success (after any dest)
 }
 
-func (c *Client) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	var needStat []*blobref.BlobRef
-	for _, blob := range blobs {
-		if blob == nil {
-			panic("nil blob")
+func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+	var needStat []blob.Ref
+	for _, br := range blobs {
+		if !br.Valid() {
+			panic("invalid blob")
 		}
-		if size, ok := c.haveCache.StatBlobCache(blob); ok {
-			dest <- blobref.SizedBlobRef{blob, size}
+		if size, ok := c.haveCache.StatBlobCache(br); ok {
+			dest <- blob.SizedRef{br, size}
 		} else {
 			if needStat == nil {
-				needStat = make([]*blobref.BlobRef, 0, len(blobs))
+				needStat = make([]blob.Ref, 0, len(blobs))
 			}
-			needStat = append(needStat, blob)
+			needStat = append(needStat, br)
 		}
 	}
 	if len(needStat) == 0 {
@@ -267,7 +267,7 @@ func (c *Client) doSomeStats() {
 		println("doing stat batch of", len(batch))
 	}
 
-	blobs := make([]*blobref.BlobRef, 0, len(batch))
+	blobs := make([]blob.Ref, 0, len(batch))
 	for _, reqs := range batch {
 		// Just the first waiter's blobref is fine. All
 		// reqs[n] have the same br. This is just to avoid
@@ -275,7 +275,7 @@ func (c *Client) doSomeStats() {
 		blobs = append(blobs, reqs[0].br)
 	}
 
-	ourDest := make(chan blobref.SizedBlobRef)
+	ourDest := make(chan blob.SizedRef)
 	errc := make(chan error, 1)
 	go func() {
 		// false for not gated, since we already grabbed the
@@ -285,7 +285,7 @@ func (c *Client) doSomeStats() {
 	}()
 
 	for sb := range ourDest {
-		for _, req := range batch[sb.BlobRef.String()] {
+		for _, req := range batch[sb.Ref.String()] {
 			req.dest <- sb
 		}
 	}
@@ -301,7 +301,7 @@ func (c *Client) doSomeStats() {
 
 // doStat does an HTTP request for the stat. the number of blobs is used verbatim. No extra splitting
 // or batching is done at this layer.
-func (c *Client) doStat(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration, gated bool) error {
+func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration, gated bool) error {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "camliversion=1")
 	if wait > 0 {
@@ -418,7 +418,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return nil, err
 	}
 	for _, sbr := range stat.HaveMap {
-		c.haveCache.NoteBlobExists(sbr.BlobRef, sbr.Size)
+		c.haveCache.NoteBlobExists(sbr.Ref, sbr.Size)
 	}
 	if !h.Vivify {
 		if _, ok := stat.HaveMap[blobrefStr]; ok {

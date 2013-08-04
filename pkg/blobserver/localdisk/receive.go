@@ -25,11 +25,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 )
 
-func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (blobGot blobref.SizedBlobRef, err error) {
+func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (blobGot blob.SizedRef, err error) {
 	pname := ds.partition
 	if pname != "" {
 		err = fmt.Errorf("refusing upload directly to queue partition %q", pname)
@@ -106,7 +106,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		defer keepDirectoryLock(filepath.Dir(filepath.Dir(partitionDir))).Unlock()
 
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
-			return blobref.SizedBlobRef{}, fmt.Errorf("localdisk.receive: MkdirAll(%q) after lock on it: %v", partitionDir, err)
+			return blob.SizedRef{}, fmt.Errorf("localdisk.receive: MkdirAll(%q) after lock on it: %v", partitionDir, err)
 		}
 		partitionFileName := ds.blobPath(pname, blobRef)
 		pfi, err := os.Stat(partitionFileName)
@@ -115,13 +115,13 @@ func (ds *DiskStorage) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (
 		} else {
 			if err = linkOrCopy(fileName, partitionFileName); err != nil && !linkAlreadyExists(err) {
 				log.Fatalf("got link or copy error %T %#v", err, err)
-				return blobref.SizedBlobRef{}, err
+				return blob.SizedRef{}, err
 			}
 			log.Printf("Mirrored blob %s to partition %q", blobRef, pname)
 		}
 	}
 
-	blobGot = blobref.SizedBlobRef{BlobRef: blobRef, Size: stat.Size()}
+	blobGot = blob.SizedRef{Ref: blobRef, Size: stat.Size()}
 	success = true
 
 	hub := ds.GetBlobHub()

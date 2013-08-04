@@ -397,7 +397,7 @@ func gitVersion(camRoot string) string {
 
 // verifyCamlistoreRoot crashes if dir isn't the Camlistore root directory.
 func verifyCamlistoreRoot(dir string) {
-	testFile := filepath.Join(dir, "pkg", "blobref", "blobref.go")
+	testFile := filepath.Join(dir, "pkg", "blob", "ref.go")
 	if _, err := os.Stat(testFile); err != nil {
 		log.Fatalf("make.go must be run from the Camlistore src root directory (where make.go is). Current working directory is %s", dir)
 	}

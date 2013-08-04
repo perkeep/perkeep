@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
@@ -226,9 +226,9 @@ func MustGet(req *http.Request, param string) string {
 
 // MustGetBlobRef returns a non-nil BlobRef from req, as given by param.
 // If it doesn't, it panics with a value understood by Recover or RecoverJSON.
-func MustGetBlobRef(req *http.Request, param string) *blobref.BlobRef {
-	br := blobref.Parse(MustGet(req, param))
-	if br == nil {
+func MustGetBlobRef(req *http.Request, param string) blob.Ref {
+	br, ok := blob.Parse(MustGet(req, param))
+	if !ok {
 		panic(InvalidParameterError(param))
 	}
 	return br

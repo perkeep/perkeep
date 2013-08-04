@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package s3
+package gethandler
 
 import (
+	"testing"
+
 	"camlistore.org/pkg/blob"
 )
 
-func (sto *s3Storage) RemoveBlobs(blobs []blob.Ref) error {
-	// TODO: do these in parallel
-	var reterr error
-	for _, blob := range blobs {
-		if err := sto.s3Client.Delete(sto.bucket, blob.String()); err != nil {
-			reterr = err
-		}
+func TestBlobFromURLPath(t *testing.T) {
+	br := blobFromURLPath("/foo/bar/camli/sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+	if !br.Valid() {
+		t.Fatal("nothing found")
 	}
-	return reterr
-
+	want := blob.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+	if want != br {
+		t.Fatalf("got = %v; want %v", br, want)
+	}
 }

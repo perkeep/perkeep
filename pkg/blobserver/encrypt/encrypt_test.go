@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/test"
 )
@@ -41,7 +41,7 @@ type testStorage struct {
 
 // fetchOrErrorString fetches br from sto and returns its body as a string.
 // If an error occurs the stringified error is returned, prefixed by "Error: ".
-func (ts *testStorage) fetchOrErrorString(br *blobref.BlobRef) string {
+func (ts *testStorage) fetchOrErrorString(br blob.Ref) string {
 	rc, _, err := ts.sto.FetchStreaming(br)
 	var slurp []byte
 	if err == nil {

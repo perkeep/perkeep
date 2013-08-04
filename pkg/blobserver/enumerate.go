@@ -19,19 +19,19 @@ package blobserver
 import (
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 // EnumerateAll runs fn for each blob in src.
 // If fn returns an error, iteration stops and fn isn't called again.
 // EnumerateAll will not return concurrently with fn.
-func EnumerateAll(src BlobEnumerator, fn func(blobref.SizedBlobRef) error) error {
+func EnumerateAll(src BlobEnumerator, fn func(blob.SizedRef) error) error {
 	const batchSize = 1000
 	var mu sync.Mutex // protects returning with an error while fn is still running
 	after := ""
 	errc := make(chan error, 1)
 	for {
-		ch := make(chan blobref.SizedBlobRef, 16)
+		ch := make(chan blob.SizedRef, 16)
 		n := 0
 		go func() {
 			var err error
@@ -42,7 +42,7 @@ func EnumerateAll(src BlobEnumerator, fn func(blobref.SizedBlobRef) error) error
 				mu.Lock()
 				err = fn(sb)
 				mu.Unlock()
-				after = sb.BlobRef.String()
+				after = sb.Ref.String()
 				n++
 			}
 			errc <- err

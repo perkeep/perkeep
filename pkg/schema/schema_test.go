@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	. "camlistore.org/pkg/test/asserts"
 )
 
@@ -112,7 +112,7 @@ func TestRFC3339(t *testing.T) {
 }
 
 func TestBlobFromReader(t *testing.T) {
-	br := blobref.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+	br := blob.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
 	blob, err := BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  `))
 	if err != nil {
 		t.Error(err)
@@ -132,7 +132,7 @@ func TestBlobFromReader(t *testing.T) {
 
 func TestAttribute(t *testing.T) {
 	tm := time.Unix(123, 456)
-	br := blobref.MustParse("xxx-123")
+	br := blob.MustParse("xxx-1234")
 	tests := []struct {
 		bb   *Builder
 		want string
@@ -144,7 +144,7 @@ func TestAttribute(t *testing.T) {
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "set-attribute",
-  "permaNode": "xxx-123",
+  "permaNode": "xxx-1234",
   "value": "val1"
 }`,
 		},
@@ -155,7 +155,7 @@ func TestAttribute(t *testing.T) {
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "add-attribute",
-  "permaNode": "xxx-123",
+  "permaNode": "xxx-1234",
   "value": "funny"
 }`,
 		},
@@ -166,7 +166,7 @@ func TestAttribute(t *testing.T) {
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "del-attribute",
-  "permaNode": "xxx-123"
+  "permaNode": "xxx-1234"
 }`,
 		},
 		{
@@ -193,19 +193,19 @@ func TestAttribute(t *testing.T) {
     {
       "attribute": "foo",
       "claimType": "set-attribute",
-      "permaNode": "xxx-123",
+      "permaNode": "xxx-1234",
       "value": "bar"
     },
     {
       "attribute": "foo",
       "claimType": "del-attribute",
-      "permaNode": "xxx-123",
+      "permaNode": "xxx-1234",
       "value": "specific-del"
     },
     {
       "attribute": "foo",
       "claimType": "del-attribute",
-      "permaNode": "xxx-123"
+      "permaNode": "xxx-1234"
     }
   ]
 }`,

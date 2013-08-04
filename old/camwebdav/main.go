@@ -20,7 +20,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"

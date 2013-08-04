@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"strings"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"net/url"
 )
 
@@ -35,7 +35,7 @@ type removeResponse struct {
 
 // Remove the list of blobs. An error is returned if the server failed to
 // remove a blob. Removing a non-existent blob isn't an error.
-func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (c *Client) RemoveBlobs(blobs []blob.Ref) error {
 	pfx, err := c.prefix()
 	if err != nil {
 		return err
@@ -44,8 +44,8 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	params := make(url.Values)           // "blobN" -> BlobRefStr
 	needsDelete := make(map[string]bool) // BlobRefStr -> true
 	for n, b := range blobs {
-		if b == nil {
-			return errors.New("Cannot delete nil blobref")
+		if !b.Valid() {
+			return errors.New("Cannot delete invalid blobref")
 		}
 		key := fmt.Sprintf("blob%v", n+1)
 		params.Add(key, b.String())
@@ -90,8 +90,8 @@ func (c *Client) RemoveBlobs(blobs []*blobref.BlobRef) error {
 
 // Remove the single blob. An error is returned if the server failed to remove
 // the blob. Removing a non-existent blob isn't an error.
-func (c *Client) RemoveBlob(b *blobref.BlobRef) error {
-	return c.RemoveBlobs([]*blobref.BlobRef{b})
+func (c *Client) RemoveBlob(b blob.Ref) error {
+	return c.RemoveBlobs([]blob.Ref{b})
 }
 
 func stringKeys(m map[string]bool) (s []string) {

@@ -36,7 +36,7 @@ import (
 	"os"
 	"regexp"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/types"
@@ -116,11 +116,11 @@ func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, error) {
 	return q, nil
 }
 
-func (ds *DiskStorage) FetchStreaming(blob *blobref.BlobRef) (io.ReadCloser, int64, error) {
+func (ds *DiskStorage) FetchStreaming(blob blob.Ref) (io.ReadCloser, int64, error) {
 	return ds.Fetch(blob)
 }
 
-func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (types.ReadSeekCloser, int64, error) {
+func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, int64, error) {
 	fileName := ds.blobPath("", blob)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
@@ -136,7 +136,7 @@ func (ds *DiskStorage) Fetch(blob *blobref.BlobRef) (types.ReadSeekCloser, int64
 	return file, stat.Size(), nil
 }
 
-func (ds *DiskStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {
 	for _, blob := range blobs {
 		fileName := ds.blobPath(ds.partition, blob)
 		err := os.Remove(fileName)

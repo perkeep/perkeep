@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
@@ -268,15 +268,15 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func wantsPermanode(req *http.Request) bool {
-	return req.Method == "GET" && blobref.Parse(req.FormValue("p")) != nil
+	return req.Method == "GET" && blob.ValidRefString(req.FormValue("p"))
 }
 
 func wantsBlobInfo(req *http.Request) bool {
-	return req.Method == "GET" && blobref.Parse(req.FormValue("b")) != nil
+	return req.Method == "GET" && blob.ValidRefString(req.FormValue("b"))
 }
 
 func wantsFileTreePage(req *http.Request) bool {
-	return req.Method == "GET" && blobref.Parse(req.FormValue("d")) != nil
+	return req.Method == "GET" && blob.ValidRefString(req.FormValue("d"))
 }
 
 func wantsClosure(req *http.Request) bool {
@@ -394,8 +394,8 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fbr := blobref.Parse(m[1])
-	if fbr == nil {
+	fbr, ok := blob.Parse(m[1])
+	if !ok {
 		http.Error(rw, "Invalid blobref", 400)
 		return
 	}
@@ -423,8 +423,8 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	width, _ := strconv.Atoi(query.Get("mw"))
 	height, _ := strconv.Atoi(query.Get("mh"))
-	blobref := blobref.Parse(m[1])
-	if blobref == nil {
+	blobref, ok := blob.Parse(m[1])
+	if !ok {
 		http.Error(rw, "Invalid blobref", 400)
 		return
 	}
@@ -459,8 +459,8 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	blobref := blobref.Parse(m[1])
-	if blobref == nil {
+	blobref, ok := blob.Parse(m[1])
+	if !ok {
 		http.Error(rw, "Invalid blobref", 400)
 		return
 	}

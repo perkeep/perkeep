@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/types"
 )
@@ -55,13 +55,13 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 	sort.Strings(tf.sorted)
 }
 
-func (tf *Fetcher) FetchStreaming(ref *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size int64, err error) {
 	return tf.Fetch(ref)
 }
 
 var dummyCloser = ioutil.NopCloser(nil)
 
-func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
+func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	if tf.m == nil {
@@ -83,7 +83,7 @@ func (tf *Fetcher) Fetch(ref *blobref.BlobRef) (file types.ReadSeekCloser, size 
 	}, size, nil
 }
 
-func (tf *Fetcher) BlobContents(br *blobref.BlobRef) (contents string, ok bool) {
+func (tf *Fetcher) BlobContents(br blob.Ref) (contents string, ok bool) {
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	b, ok := tf.m[br.String()]
@@ -93,8 +93,8 @@ func (tf *Fetcher) BlobContents(br *blobref.BlobRef) (contents string, ok bool) 
 	return b.Contents, true
 }
 
-func (tf *Fetcher) ReceiveBlob(br *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
-	sb := blobref.SizedBlobRef{}
+func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	sb := blob.SizedRef{}
 	h := br.Hash()
 	if h == nil {
 		return sb, fmt.Errorf("Unsupported blobref hash for %s", br)
@@ -106,12 +106,12 @@ func (tf *Fetcher) ReceiveBlob(br *blobref.BlobRef, source io.Reader) (blobref.S
 	if !br.HashMatches(h) {
 		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
 	}
-	blob := &Blob{Contents: string(all)}
-	tf.AddBlob(blob)
-	return blobref.SizedBlobRef{br, int64(len(all))}, nil
+	b := &Blob{Contents: string(all)}
+	tf.AddBlob(b)
+	return blob.SizedRef{br, int64(len(all))}, nil
 }
 
-func (tf *Fetcher) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (tf *Fetcher) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	if wait != 0 {
 		panic("non-zero Wait on test.Fetcher.StatBlobs not supported")
 	}
@@ -120,7 +120,7 @@ func (tf *Fetcher) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.
 		b, ok := tf.m[br.String()]
 		tf.l.Unlock()
 		if ok {
-			dest <- blobref.SizedBlobRef{br, int64(len(b.Contents))}
+			dest <- blob.SizedRef{br, int64(len(b.Contents))}
 		}
 	}
 	return nil
@@ -135,7 +135,7 @@ func (tf *Fetcher) BlobrefStrings() []string {
 	return s
 }
 
-func (tf *Fetcher) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+func (tf *Fetcher) EnumerateBlobs(dest chan<- blob.SizedRef,
 	after string,
 	limit int,
 	wait time.Duration) error {
@@ -151,7 +151,7 @@ func (tf *Fetcher) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 			continue
 		}
 		b := tf.m[k]
-		dest <- blobref.SizedBlobRef{b.BlobRef(), b.Size()}
+		dest <- blob.SizedRef{b.BlobRef(), b.Size()}
 		n++
 		if limit > 0 && n == limit {
 			break
@@ -160,7 +160,7 @@ func (tf *Fetcher) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
 	return nil
 }
 
-func (tf *Fetcher) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (tf *Fetcher) RemoveBlobs(blobs []blob.Ref) error {
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	for _, br := range blobs {

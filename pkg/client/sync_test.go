@@ -17,7 +17,7 @@ limitations under the License.
 package client
 
 import (
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"strings"
 	"testing"
 )
@@ -27,16 +27,16 @@ type lmdbTest struct {
 }
 
 func (lt *lmdbTest) run(t *testing.T) {
-	srcBlobs := make(chan blobref.SizedBlobRef, 100)
-	destBlobs := make(chan blobref.SizedBlobRef, 100)
+	srcBlobs := make(chan blob.SizedRef, 100)
+	destBlobs := make(chan blob.SizedRef, 100)
 	sendTestBlobs(srcBlobs, lt.source)
 	sendTestBlobs(destBlobs, lt.dest)
 
-	missing := make(chan blobref.SizedBlobRef)
+	missing := make(chan blob.SizedRef)
 	got := make([]string, 0)
 	go ListMissingDestinationBlobs(missing, nil, srcBlobs, destBlobs)
 	for sb := range missing {
-		got = append(got, sb.BlobRef.String())
+		got = append(got, sb.Ref.String())
 	}
 	gotJoined := strings.Join(got, ",")
 	if gotJoined != lt.expectedMissing {
@@ -45,31 +45,28 @@ func (lt *lmdbTest) run(t *testing.T) {
 	}
 }
 
-func sendTestBlobs(ch chan blobref.SizedBlobRef, list string) {
+func sendTestBlobs(ch chan blob.SizedRef, list string) {
 	defer close(ch)
 	if list == "" {
 		return
 	}
 	for _, b := range strings.Split(list, ",") {
-		br := blobref.Parse(b)
-		if br == nil {
-			panic("Invalid blobref: " + b)
-		}
-		ch <- blobref.SizedBlobRef{BlobRef: br, Size: 123}
+		br := blob.MustParse(b)
+		ch <- blob.SizedRef{Ref: br, Size: 123}
 	}
 }
 
 func TestListMissingDestinationBlobs(t *testing.T) {
 	tests := []lmdbTest{
-		{"foo-a,foo-b,foo-c", "", "foo-a,foo-b,foo-c"},
-		{"foo-a,foo-b,foo-c", "foo-a", "foo-b,foo-c"},
-		{"foo-a,foo-b,foo-c", "foo-b", "foo-a,foo-c"},
-		{"foo-a,foo-b,foo-c", "foo-c", "foo-a,foo-b"},
-		{"foo-a,foo-b,foo-c", "foo-a,foo-b", "foo-c"},
-		{"foo-a,foo-b,foo-c", "foo-b,foo-c", "foo-a"},
-		{"foo-a,foo-b,foo-c", "foo-a,foo-b,foo-c", ""},
-		{"", "foo-a,foo-b,foo-c", ""},
-		{"foo-f", "foo-a,foo-b,foo-c", "foo-f"},
+		{"foo-aa,foo-bb,foo-cc", "", "foo-aa,foo-bb,foo-cc"},
+		{"foo-aa,foo-bb,foo-cc", "foo-aa", "foo-bb,foo-cc"},
+		{"foo-aa,foo-bb,foo-cc", "foo-bb", "foo-aa,foo-cc"},
+		{"foo-aa,foo-bb,foo-cc", "foo-cc", "foo-aa,foo-bb"},
+		{"foo-aa,foo-bb,foo-cc", "foo-aa,foo-bb", "foo-cc"},
+		{"foo-aa,foo-bb,foo-cc", "foo-bb,foo-cc", "foo-aa"},
+		{"foo-aa,foo-bb,foo-cc", "foo-aa,foo-bb,foo-cc", ""},
+		{"", "foo-aa,foo-bb,foo-cc", ""},
+		{"foo-ff", "foo-aa,foo-bb,foo-cc", "foo-ff"},
 	}
 
 	for _, test := range tests {

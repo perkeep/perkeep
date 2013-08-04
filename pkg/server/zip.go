@@ -27,29 +27,29 @@ import (
 	"path"
 	"sort"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 )
 
 type zipHandler struct {
-	fetcher blobref.StreamingFetcher
+	fetcher blob.StreamingFetcher
 	search  *search.Handler
 	// the "parent" permanode of everything to zip.
 	// Either a directory permanode, or a permanode with members.
-	root *blobref.BlobRef
+	root blob.Ref
 	// Optional name to use in the response header
 	filename string
 }
 
-func (zh *zipHandler) storageSeekFetcher() blobref.SeekFetcher {
-	return blobref.SeekerFromStreamingFetcher(zh.fetcher)
+func (zh *zipHandler) storageSeekFetcher() blob.SeekFetcher {
+	return blob.SeekerFromStreamingFetcher(zh.fetcher)
 }
 
 // blobFile contains all the information we need about
 // a file blob to add the corresponding file to a zip.
 type blobFile struct {
-	blobRef *blobref.BlobRef
+	blobRef blob.Ref
 	// path is the full path of the file from the root of the zip.
 	// slashes are always forward slashes, per the zip spec.
 	path string
@@ -63,7 +63,7 @@ func (s sortedFiles) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // blobList returns the list of file blobs "under" dirBlob.
 // It traverses permanode directories and permanode with members (collections).
-func (zh *zipHandler) blobList(dirPath string, dirBlob *blobref.BlobRef) ([]*blobFile, error) {
+func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, error) {
 	dr := zh.search.NewDescribeRequest()
 	dr.Describe(dirBlob, 3)
 	res, err := dr.Result()
@@ -128,7 +128,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob *blobref.BlobRef) ([]*blo
 
 // blobsFromDir returns the list of file blobs in directory dirBlob.
 // It only traverses permanode directories.
-func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob *blobref.BlobRef) ([]*blobFile, error) {
+func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFile, error) {
 	var list []*blobFile
 	dr, err := schema.NewDirReader(zh.storageSeekFetcher(), dirBlob)
 	if err != nil {
@@ -158,7 +158,7 @@ func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob *blobref.BlobRef) ([]
 // It renames duplicate filepaths and returns a new slice, sorted by
 // file path.
 func renameDuplicates(bf []*blobFile) sortedFiles {
-	noDup := make(map[string]*blobref.BlobRef)
+	noDup := make(map[string]blob.Ref)
 	// use a map to detect duplicates and rename them
 	for _, file := range bf {
 		if _, ok := noDup[file.path]; ok {

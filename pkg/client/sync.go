@@ -17,7 +17,7 @@ limitations under the License.
 package client
 
 import (
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 // ListMissingDestinationBlobs reads from 'srcch' and 'dstch' (sorted
@@ -25,33 +25,38 @@ import (
 // 'destMissing' any blobs which appear on the source but not at the
 // destination.  destMissing is closed at the end.
 // sizeMismatch is never closed.
-func ListMissingDestinationBlobs(destMissing chan<- blobref.SizedBlobRef, sizeMismatch chan<- *blobref.BlobRef, srcch, dstch <-chan blobref.SizedBlobRef) {
+func ListMissingDestinationBlobs(destMissing chan<- blob.SizedRef, sizeMismatch chan<- blob.Ref, srcch, dstch <-chan blob.SizedRef) {
 	defer close(destMissing)
 
-	src := &blobref.ChanPeeker{Ch: srcch}
-	dst := &blobref.ChanPeeker{Ch: dstch}
+	src := &blob.ChanPeeker{Ch: srcch}
+	dst := &blob.ChanPeeker{Ch: dstch}
 
-	for src.Peek() != nil {
+	for {
+		_, ok := src.Peek()
+		if !ok {
+			break
+		}
+
 		// If the destination has reached its end, anything
 		// remaining in the source is needed.
-		if dst.Peek() == nil {
-			destMissing <- *(src.Take())
+		if _, ok := dst.Peek(); !ok {
+			destMissing <- src.MustTake()
 			continue
 		}
 
-		srcStr := src.Peek().BlobRef.String()
-		dstStr := dst.Peek().BlobRef.String()
+		srcStr := src.MustPeek().Ref.String()
+		dstStr := dst.MustPeek().Ref.String()
 
 		switch {
 		case srcStr == dstStr:
 			// Skip both
-			sb := src.Take()
-			db := dst.Take()
+			sb := src.MustTake()
+			db := dst.MustTake()
 			if sb.Size != db.Size {
-				sizeMismatch <- sb.BlobRef
+				sizeMismatch <- sb.Ref
 			}
 		case srcStr < dstStr:
-			destMissing <- *(src.Take())
+			destMissing <- src.MustTake()
 		case srcStr > dstStr:
 			dst.Take()
 		}

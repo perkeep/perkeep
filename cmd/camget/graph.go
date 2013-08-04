@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/schema"
 )
@@ -35,12 +35,12 @@ func check(err error) {
 }
 
 type node struct {
-	br *blobref.BlobRef
+	br blob.Ref
 	g  *graph
 
 	size  int64
 	blob  *schema.Blob
-	edges []*blobref.BlobRef
+	edges []blob.Ref
 }
 
 func (n *node) dotName() string {
@@ -56,7 +56,7 @@ func (n *node) dotLabel() string {
 }
 
 func (n *node) color() string {
-	if n.br.Equal(n.g.root) {
+	if n.br == n.g.root {
 		return "#a0ffa0"
 	}
 	if n.blob == nil {
@@ -91,8 +91,8 @@ func (n *node) load() {
 	}
 }
 
-func (n *node) addEdge(dst *blobref.BlobRef) {
-	if dst == nil {
+func (n *node) addEdge(dst blob.Ref) {
+	if !dst.Valid() {
 		return
 	}
 	n.g.startLoadNode(dst)
@@ -100,8 +100,8 @@ func (n *node) addEdge(dst *blobref.BlobRef) {
 }
 
 type graph struct {
-	src  blobref.StreamingFetcher
-	root *blobref.BlobRef
+	src  blob.StreamingFetcher
+	root blob.Ref
 
 	mu sync.Mutex // guards n
 	n  map[string]*node
@@ -109,7 +109,7 @@ type graph struct {
 	wg sync.WaitGroup
 }
 
-func (g *graph) startLoadNode(br *blobref.BlobRef) {
+func (g *graph) startLoadNode(br blob.Ref) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	key := br.String()
@@ -125,7 +125,7 @@ func (g *graph) startLoadNode(br *blobref.BlobRef) {
 	go n.load()
 }
 
-func printGraph(src blobref.StreamingFetcher, root *blobref.BlobRef) {
+func printGraph(src blob.StreamingFetcher, root blob.Ref) {
 	g := &graph{
 		src:  src,
 		root: root,

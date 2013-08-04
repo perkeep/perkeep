@@ -31,7 +31,7 @@ import (
 	"syscall"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
@@ -71,7 +71,7 @@ func main() {
 
 	var (
 		cl    *client.Client
-		root  *blobref.BlobRef // nil if only one arg
+		root  blob.Ref // nil if only one arg
 		camfs *fs.CamliFileSystem
 	)
 	if narg == 2 {
@@ -89,8 +89,9 @@ func main() {
 			}
 		} else {
 			cl = client.NewOrFail() // automatic from flags
-			root = blobref.Parse(rootArg)
-			if root == nil {
+			var ok bool
+			root, ok = blob.Parse(rootArg)
+			if !ok {
 				log.Fatalf("Error parsing root blobref: %q\n", rootArg)
 			}
 			cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
@@ -105,7 +106,7 @@ func main() {
 		log.Fatalf("Error setting up local disk cache: %v", err)
 	}
 	defer diskCacheFetcher.Clean()
-	if root != nil {
+	if root.Valid() {
 		var err error
 		camfs, err = fs.NewRootedCamliFileSystem(diskCacheFetcher, root)
 		if err != nil {

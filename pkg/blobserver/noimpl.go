@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
 )
 
@@ -36,32 +36,32 @@ func (nis *NoImplStorage) GetBlobHub() BlobHub {
 	return nil
 }
 
-func (nis *NoImplStorage) Fetch(*blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
+func (nis *NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (nis *NoImplStorage) FetchStreaming(*blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (nis *NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size int64, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (nis *NoImplStorage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (nis *NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
 	err = errors.New("ReceiveBlob not implemented")
 	return
 }
 
-func (nis *NoImplStorage) StatBlobs(dest chan<- blobref.SizedBlobRef,
-	blobs []*blobref.BlobRef,
+func (nis *NoImplStorage) StatBlobs(dest chan<- blob.SizedRef,
+	blobs []blob.Ref,
 	wait time.Duration) error {
 	return errors.New("Stat not implemented")
 }
 
-func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blob.SizedRef,
 	after string,
 	limit int,
 	wait time.Duration) error {
 	return errors.New("EnumerateBlobs not implemented")
 }
 
-func (nis *NoImplStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (nis *NoImplStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("Remove not implemented")
 }

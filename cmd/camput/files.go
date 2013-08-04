@@ -36,7 +36,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
@@ -138,7 +138,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 
 	if c.makePermanode || c.filePermanodes {
 		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
-		if testSigBlobRef == nil {
+		if !testSigBlobRef.Valid() {
 			return cmdmain.UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
 		}
 	}
@@ -287,10 +287,10 @@ func (c *fileCmd) initCaches(up *Uploader) {
 // it just collects statistics.
 type statsStatReceiver struct {
 	mu   sync.Mutex
-	have map[string]int64
+	have map[blob.Ref]int64
 }
 
-func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (sr *statsStatReceiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	n, err := io.Copy(ioutil.Discard, source)
 	if err != nil {
 		return
@@ -298,18 +298,18 @@ func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	if sr.have == nil {
-		sr.have = make(map[string]int64)
+		sr.have = make(map[blob.Ref]int64)
 	}
-	sr.have[blob.String()] = n
-	return blobref.SizedBlobRef{blob, n}, nil
+	sr.have[br] = n
+	return blob.SizedRef{br, n}, nil
 }
 
-func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, _ time.Duration) error {
+func (sr *statsStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, _ time.Duration) error {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	for _, br := range blobs {
-		if size, ok := sr.have[br.String()]; ok {
-			dest <- blobref.SizedBlobRef{br, size}
+		if size, ok := sr.have[br]; ok {
+			dest <- blob.SizedRef{br, size}
 		}
 	}
 	return nil
@@ -445,20 +445,20 @@ var atomicDigestOps int64 // number of files digested
 
 // wholeFileDigest returns the sha1 digest of the regular file's absolute
 // path given in fullPath.
-func (up *Uploader) wholeFileDigest(fullPath string) (*blobref.BlobRef, error) {
+func (up *Uploader) wholeFileDigest(fullPath string) (blob.Ref, error) {
 	// TODO(bradfitz): cache this.
 	file, err := up.open(fullPath)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	defer file.Close()
 	td := &trackDigestReader{r: file}
 	_, err = io.Copy(ioutil.Discard, td)
 	atomic.AddInt64(&atomicDigestOps, 1)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
-	return blobref.MustParse(td.Sum()), nil
+	return blob.MustParse(td.Sum()), nil
 }
 
 var noDupSearch = os.Getenv("CAMLI_NO_FILE_DUP_SEARCH") == "1"
@@ -479,12 +479,12 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	if err != nil {
 		return
 	}
-	dupFileRef, err := up.Client.SearchExistingFileSchema(blobref.MustParse(sum))
+	dupFileRef, err := up.Client.SearchExistingFileSchema(blob.MustParse(sum))
 	if err != nil {
 		log.Printf("Warning: error searching for already-uploaded copy of %s: %v", sum, err)
 		return nil, false
 	}
-	if dupFileRef == nil {
+	if !dupFileRef.Valid() {
 		return nil, false
 	}
 	if *cmdmain.FlagVerbose {
@@ -506,7 +506,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	if up.fileOpts.wantVivify() {
 		uh.Vivify = true
 	}
-	if !uh.Vivify && uh.BlobRef.Equal(dupFileRef) {
+	if !uh.Vivify && uh.BlobRef == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return &client.PutResult{BlobRef: dupFileRef, Size: int64(len(json)), Skipped: true}, true
 	}
@@ -542,7 +542,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	var (
 		size                           = n.fi.Size()
 		fileContents io.Reader         = io.LimitReader(file, size)
-		br           *blobref.BlobRef  // of file schemaref
+		br           blob.Ref          // of file schemaref
 		sum          string            // sha1 hashsum of the file to upload
 		pr           *client.PutResult // of the final "file" schema blob
 	)
@@ -576,7 +576,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		br = blobref.SHA1FromString(json)
+		br = blob.SHA1FromString(json)
 		h := &client.UploadHandle{
 			BlobRef:  br,
 			Size:     int64(len(json)),
@@ -591,7 +591,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return pr, nil
 	}
 
-	if br == nil {
+	if !br.Valid() {
 		// br still nil means fileMapFromDuplicate did not find the file on the server,
 		// and the file has not just been uploaded subsequently to a vivify request.
 		// So we do the full file + file schema upload here.
@@ -642,7 +642,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 // uploadFilePermanode creates and uploads the planned permanode (with sum as a
 // fixed key) associated with the file blobref fileRef.
 // It also sets the optional tags for this permanode.
-func (up *Uploader) uploadFilePermanode(sum string, fileRef *blobref.BlobRef, claimTime time.Time) error {
+func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime time.Time) error {
 	// Use a fixed time value for signing; not using modtime
 	// so two identical files don't have different modtimes?
 	// TODO(bradfitz): consider this more?

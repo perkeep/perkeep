@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 type EnumerateOpts struct {
@@ -33,11 +33,11 @@ type EnumerateOpts struct {
 }
 
 // Note: closes ch.
-func (c *Client) SimpleEnumerateBlobs(ch chan<- blobref.SizedBlobRef) error {
+func (c *Client) SimpleEnumerateBlobs(ch chan<- blob.SizedRef) error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
-func (c *Client) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (c *Client) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	if limit == 0 {
 		log.Printf("Warning: Client.EnumerateBlobs called with a limit of zero")
 		close(dest)
@@ -53,7 +53,7 @@ func (c *Client) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, 
 const enumerateBatchSize = 1000
 
 // Note: closes ch.
-func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts EnumerateOpts) error {
+func (c *Client) EnumerateBlobsOpts(ch chan<- blob.SizedRef, opts EnumerateOpts) error {
 	defer close(ch)
 	if opts.After != "" && opts.MaxWait != 0 {
 		return errors.New("client error: it's invalid to use enumerate After and MaxWaitSec together")
@@ -112,11 +112,11 @@ func (c *Client) EnumerateBlobsOpts(ch chan<- blobref.SizedBlobRef, opts Enumera
 			if !ok {
 				return error("item in 'blobs' was missing numeric 'size'", nil)
 			}
-			br := blobref.Parse(blobrefStr)
-			if br == nil {
+			br, ok := blob.Parse(blobrefStr)
+			if !ok {
 				return error("item in 'blobs' had invalid blobref.", nil)
 			}
-			ch <- blobref.SizedBlobRef{BlobRef: br, Size: size}
+			ch <- blob.SizedRef{Ref: br, Size: size}
 			nSent++
 			if opts.Limit == nSent {
 				// nSent can't be zero at this point, so opts.Limit being 0

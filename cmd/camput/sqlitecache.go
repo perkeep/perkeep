@@ -28,7 +28,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/osutil"
 )
@@ -224,8 +224,8 @@ func (c *SQLiteStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, 
 	if len(fields) > 2 {
 		return nil, fmt.Errorf("Invalid stat cache value; was expecting \"bref|size\", got %q", out)
 	}
-	br := blobref.Parse(fields[0])
-	if br == nil {
+	br, ok := blob.Parse(fields[0])
+	if !ok {
 		return nil, fmt.Errorf("Invalid blobref in stat cache: %q", fields[0])
 	}
 	blobSize, err := strconv.ParseInt(fields[1], 10, 64)
@@ -322,8 +322,8 @@ func (c *SQLiteHaveCache) startSQLiteChild() error {
 	return nil
 }
 
-func (c *SQLiteHaveCache) StatBlobCache(br *blobref.BlobRef) (size int64, ok bool) {
-	if br == nil {
+func (c *SQLiteHaveCache) StatBlobCache(br blob.Ref) (size int64, ok bool) {
+	if !br.Valid() {
 		return
 	}
 	// TODO(mpl): is it enough that we know it's a valid blobref to avoid any injection risk ?
@@ -353,11 +353,11 @@ func (c *SQLiteHaveCache) StatBlobCache(br *blobref.BlobRef) (size int64, ok boo
 	return size, true
 }
 
-func (c *SQLiteHaveCache) NoteBlobExists(br *blobref.BlobRef, size int64) {
+func (c *SQLiteHaveCache) NoteBlobExists(br blob.Ref, size int64) {
 	if size < 0 {
 		log.Fatalf("Got a negative blob size to note in have cache")
 	}
-	if br == nil {
+	if !br.Valid() {
 		return
 	}
 	repl := strings.NewReplacer("?1", br.String(), "?2", fmt.Sprint(size))

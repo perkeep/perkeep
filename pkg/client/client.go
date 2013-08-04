@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/misc"
@@ -186,15 +186,15 @@ func (o optionInsecure) modifyClient(c *Client) {
 	c.InsecureTLS = bool(o)
 }
 
-var shareURLRx = regexp.MustCompile(`^(.+)/(` + blobref.Pattern + ")$")
+var shareURLRx = regexp.MustCompile(`^(.+)/(` + blob.Pattern + ")$")
 
 // NewFromShareRoot uses shareBlobURL to set up and return a client that
 // will be used to fetch shared blobs.
-func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, target *blobref.BlobRef, err error) {
+func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, target blob.Ref, err error) {
 	var root string
 	m := shareURLRx.FindStringSubmatch(shareBlobURL)
 	if m == nil {
-		return nil, nil, fmt.Errorf("Unkown share URL base")
+		return nil, blob.Ref{}, fmt.Errorf("Unkown share URL base")
 	}
 	c = New(m[1])
 	c.discoOnce.Do(func() { /* nothing */
@@ -215,19 +215,19 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	req := c.newRequest("GET", shareBlobURL, nil)
 	res, err := c.doReqGated(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
 	}
 	defer res.Body.Close()
-	blob, err := schema.BlobFromReader(blobref.Parse(root), res.Body)
+	b, err := schema.BlobFromReader(blob.ParseOrZero(root), res.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
 	}
-	if blob.ShareAuthType() != schema.ShareHaveRef {
-		return nil, nil, fmt.Errorf("Unknown share authType of %q", blob.ShareAuthType())
+	if b.ShareAuthType() != schema.ShareHaveRef {
+		return nil, blob.Ref{}, fmt.Errorf("Unknown share authType of %q", b.ShareAuthType())
 	}
-	target = blob.ShareTarget()
-	if target == nil {
-		return nil, nil, fmt.Errorf("No target.")
+	target = b.ShareTarget()
+	if !target.Valid() {
+		return nil, blob.Ref{}, fmt.Errorf("No target.")
 	}
 	c.via[target.String()] = root
 	return c, target, nil
@@ -244,14 +244,14 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 
 // A HaveCache caches whether a remote blobserver has a blob.
 type HaveCache interface {
-	StatBlobCache(br *blobref.BlobRef) (size int64, ok bool)
-	NoteBlobExists(br *blobref.BlobRef, size int64)
+	StatBlobCache(br blob.Ref) (size int64, ok bool)
+	NoteBlobExists(br blob.Ref, size int64)
 }
 
 type noHaveCache struct{}
 
-func (noHaveCache) StatBlobCache(*blobref.BlobRef) (int64, bool) { return 0, false }
-func (noHaveCache) NoteBlobExists(*blobref.BlobRef, int64)       {}
+func (noHaveCache) StatBlobCache(blob.Ref) (int64, bool) { return 0, false }
+func (noHaveCache) NoteBlobExists(blob.Ref, int64)       {}
 
 func (c *Client) SetHaveCache(cache HaveCache) {
 	if cache == nil {
@@ -423,18 +423,18 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 // request to verify the file still exists on the server.  If so,
 // it returns that file schema's blobref.
 //
-// May return (nil, nil) on ENOENT. A non-nil error is only returned
+// May return (zero, nil) on ENOENT. A non-nil error is only returned
 // if there were problems searching.
-func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.BlobRef, error) {
+func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	url := sr + "camli/search/files?wholedigest=" + wholeRef.String()
 	req := c.newRequest("GET", url)
 	res, err := c.doReqGated(req)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	defer res.Body.Close()
 	var buf bytes.Buffer
@@ -444,30 +444,30 @@ func (c *Client) SearchExistingFileSchema(wholeRef *blobref.BlobRef) (*blobref.B
 	}
 	if res.StatusCode != 200 {
 		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
-		return nil, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
+		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
 	}
 	var ress struct {
-		Files []*blobref.BlobRef `json:"files"`
+		Files []blob.Ref `json:"files"`
 	}
 	if err := json.NewDecoder(body).Decode(&ress); err != nil {
 		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
-		return nil, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
+		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
 	}
 	if len(ress.Files) == 0 {
-		return nil, nil
+		return blob.Ref{}, nil
 	}
 	for _, f := range ress.Files {
 		if c.FileHasContents(f, wholeRef) {
 			return f, nil
 		}
 	}
-	return nil, nil
+	return blob.Ref{}, nil
 }
 
 // FileHasContents returns true iff f refers to a "file" or "bytes" schema blob,
 // the server is configured with a "download helper", and the server responds
 // that all chunks of 'f' are available and match the digest of wholeRef.
-func (c *Client) FileHasContents(f, wholeRef *blobref.BlobRef) bool {
+func (c *Client) FileHasContents(f, wholeRef blob.Ref) bool {
 	c.condDiscovery()
 	if c.discoErr != nil {
 		return false
@@ -790,7 +790,7 @@ func (c *Client) initEntityFetcher() {
 // If zero, the current time is used.
 func (c *Client) SignBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
 	camliSigBlobref := c.SignerPublicKeyBlobref()
-	if camliSigBlobref == nil {
+	if !camliSigBlobref.Valid() {
 		// TODO: more helpful error message
 		return "", errors.New("No public key configured.")
 	}

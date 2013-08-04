@@ -19,33 +19,33 @@ package blobserver
 import (
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 type BlobHub interface {
 	// For new blobs to notify
-	NotifyBlobReceived(blob *blobref.BlobRef)
+	NotifyBlobReceived(blob blob.Ref)
 
-	RegisterListener(ch chan *blobref.BlobRef)
-	UnregisterListener(ch chan *blobref.BlobRef)
+	RegisterListener(ch chan blob.Ref)
+	UnregisterListener(ch chan blob.Ref)
 
-	RegisterBlobListener(blob *blobref.BlobRef, ch chan *blobref.BlobRef)
-	UnregisterBlobListener(blob *blobref.BlobRef, ch chan *blobref.BlobRef)
+	RegisterBlobListener(blob blob.Ref, ch chan blob.Ref)
+	UnregisterBlobListener(blob blob.Ref, ch chan blob.Ref)
 }
 
 type SimpleBlobHub struct {
 	l sync.Mutex
 
-	listeners     map[chan *blobref.BlobRef]bool
-	blobListeners map[string]map[chan *blobref.BlobRef]bool
+	listeners     map[chan blob.Ref]bool
+	blobListeners map[string]map[chan blob.Ref]bool
 }
 
-func (h *SimpleBlobHub) NotifyBlobReceived(blob *blobref.BlobRef) {
+func (h *SimpleBlobHub) NotifyBlobReceived(br blob.Ref) {
 	h.l.Lock()
 	defer h.l.Unlock()
 
 	// Callback channels to notify, nil until non-empty
-	var notify []chan *blobref.BlobRef
+	var notify []chan blob.Ref
 
 	// Append global listeners
 	for ch, _ := range h.listeners {
@@ -54,7 +54,7 @@ func (h *SimpleBlobHub) NotifyBlobReceived(blob *blobref.BlobRef) {
 
 	// Append blob-specific listeners
 	if h.blobListeners != nil {
-		blobstr := blob.String()
+		blobstr := br.String()
 		if set, ok := h.blobListeners[blobstr]; ok {
 			for ch, _ := range set {
 				notify = append(notify, ch)
@@ -66,21 +66,21 @@ func (h *SimpleBlobHub) NotifyBlobReceived(blob *blobref.BlobRef) {
 	// callers if callbacks are slow.
 	go func() {
 		for _, ch := range notify {
-			ch <- blob
+			ch <- br
 		}
 	}()
 }
 
-func (h *SimpleBlobHub) RegisterListener(ch chan *blobref.BlobRef) {
+func (h *SimpleBlobHub) RegisterListener(ch chan blob.Ref) {
 	h.l.Lock()
 	defer h.l.Unlock()
 	if h.listeners == nil {
-		h.listeners = make(map[chan *blobref.BlobRef]bool)
+		h.listeners = make(map[chan blob.Ref]bool)
 	}
 	h.listeners[ch] = true
 }
 
-func (h *SimpleBlobHub) UnregisterListener(ch chan *blobref.BlobRef) {
+func (h *SimpleBlobHub) UnregisterListener(ch chan blob.Ref) {
 	h.l.Lock()
 	defer h.l.Unlock()
 	if h.listeners == nil {
@@ -89,21 +89,21 @@ func (h *SimpleBlobHub) UnregisterListener(ch chan *blobref.BlobRef) {
 	delete(h.listeners, ch)
 }
 
-func (h *SimpleBlobHub) RegisterBlobListener(blob *blobref.BlobRef, ch chan *blobref.BlobRef) {
+func (h *SimpleBlobHub) RegisterBlobListener(br blob.Ref, ch chan blob.Ref) {
 	h.l.Lock()
 	defer h.l.Unlock()
 	if h.blobListeners == nil {
-		h.blobListeners = make(map[string]map[chan *blobref.BlobRef]bool)
+		h.blobListeners = make(map[string]map[chan blob.Ref]bool)
 	}
-	bstr := blob.String()
+	bstr := br.String()
 	_, ok := h.blobListeners[bstr]
 	if !ok {
-		h.blobListeners[bstr] = make(map[chan *blobref.BlobRef]bool)
+		h.blobListeners[bstr] = make(map[chan blob.Ref]bool)
 	}
 	h.blobListeners[bstr][ch] = true
 }
 
-func (h *SimpleBlobHub) UnregisterBlobListener(blob *blobref.BlobRef, ch chan *blobref.BlobRef) {
+func (h *SimpleBlobHub) UnregisterBlobListener(blob blob.Ref, ch chan blob.Ref) {
 	h.l.Lock()
 	defer h.l.Unlock()
 	if h.blobListeners == nil {

@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
@@ -52,7 +52,7 @@ func init() {
 
 type Handler struct {
 	index Index
-	owner *blobref.BlobRef
+	owner blob.Ref
 }
 
 // IGetRecentPermanodes is the interface encapsulating the GetRecentPermanodes query.
@@ -68,7 +68,7 @@ var (
 	_ IGetRecentPermanodes = (*Handler)(nil)
 )
 
-func NewHandler(index Index, owner *blobref.BlobRef) *Handler {
+func NewHandler(index Index, owner blob.Ref) *Handler {
 	return &Handler{index: index, owner: owner}
 }
 
@@ -95,8 +95,8 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	if !ok {
 		return nil, fmt.Errorf("search config references invalid indexer %q (actually a %T)", indexPrefix, indexHandler)
 	}
-	ownerBlobRef := blobref.Parse(ownerBlobStr)
-	if ownerBlobRef == nil {
+	ownerBlobRef, ok := blob.Parse(ownerBlobStr)
+	if !ok {
 		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
 			ownerBlobStr)
 	}
@@ -108,7 +108,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 
 // TODO: figure out a plan for an owner having multiple active public keys, or public
 // key rotation
-func (h *Handler) Owner() *blobref.BlobRef {
+func (h *Handler) Owner() blob.Ref {
 	return h.owner
 }
 
@@ -208,8 +208,8 @@ func (r *RecentRequest) thumbnailSize() int {
 
 // WithAttrRequest is a request to get a WithAttrResponse.
 type WithAttrRequest struct {
-	N      int              // max number of results
-	Signer *blobref.BlobRef // if nil, will use the server's default owner (if configured)
+	N      int      // max number of results
+	Signer blob.Ref // if nil, will use the server's default owner (if configured)
 	// Requested attribute. If blank, all attributes are searched (for Value)
 	// as fulltext.
 	Attr string
@@ -221,13 +221,13 @@ type WithAttrRequest struct {
 }
 
 func (r *WithAttrRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v", 
+	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v",
 		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N, r.ThumbnailSize)
 }
 
 // fromHTTP panics with an httputil value on failure
 func (r *WithAttrRequest) fromHTTP(req *http.Request) {
-	r.Signer = blobref.Parse(req.FormValue("signer"))
+	r.Signer = blob.ParseOrZero(req.FormValue("signer"))
 	r.Value = req.FormValue("value")
 	fuzzy := req.FormValue("fuzzy") // exact match if empty
 	fuzzyMatch := false
@@ -275,7 +275,7 @@ func (r *WithAttrRequest) thumbnailSize() int {
 
 // ClaimsRequest is a request to get a ClaimsResponse.
 type ClaimsRequest struct {
-	Permanode *blobref.BlobRef
+	Permanode blob.Ref
 }
 
 // fromHTTP panics with an httputil value on failure
@@ -285,8 +285,8 @@ func (r *ClaimsRequest) fromHTTP(req *http.Request) {
 
 // SignerPathsRequest is a request to get a SignerPathsResponse.
 type SignerPathsRequest struct {
-	Signer *blobref.BlobRef
-	Target *blobref.BlobRef
+	Signer blob.Ref
+	Target blob.Ref
 }
 
 // fromHTTP panics with an httputil value on failure
@@ -298,7 +298,7 @@ func (r *SignerPathsRequest) fromHTTP(req *http.Request) {
 // EdgesRequest is a request to get an EdgesResponse.
 type EdgesRequest struct {
 	// The blob we want to find as a reference.
-	ToRef *blobref.BlobRef
+	ToRef blob.Ref
 }
 
 // fromHTTP panics with an httputil value on failure
@@ -309,8 +309,8 @@ func (r *EdgesRequest) fromHTTP(req *http.Request) {
 // A MetaMap is a map from blobref to a DescribedBlob.
 type MetaMap map[string]*DescribedBlob
 
-func (m MetaMap) Get(br *blobref.BlobRef) *DescribedBlob {
-	if br == nil {
+func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
+	if !br.Valid() {
 		return nil
 	}
 	return m[br.String()]
@@ -372,44 +372,44 @@ type SignerPathsResponse struct {
 
 // A RecentItem is an item returned from $searchRoot/camli/search/recent in the "recent" list.
 type RecentItem struct {
-	BlobRef *blobref.BlobRef `json:"blobref"`
-	ModTime types.Time3339   `json:"modtime"`
-	Owner   *blobref.BlobRef `json:"owner"`
+	BlobRef blob.Ref       `json:"blobref"`
+	ModTime types.Time3339 `json:"modtime"`
+	Owner   blob.Ref       `json:"owner"`
 }
 
 // A WithAttrItem is an item returned from $searchRoot/camli/search/permanodeattr.
 type WithAttrItem struct {
-	Permanode *blobref.BlobRef `json:"permanode"`
+	Permanode blob.Ref `json:"permanode"`
 }
 
 // A ClaimsItem is an item returned from $searchRoot/camli/search/claims.
 type ClaimsItem struct {
-	BlobRef   *blobref.BlobRef `json:"blobref"`
-	Signer    *blobref.BlobRef `json:"signer"`
-	Permanode *blobref.BlobRef `json:"permanode"`
-	Date      types.Time3339   `json:"date"`
-	Type      string           `json:"type"`
-	Attr      string           `json:"attr,omitempty"`
-	Value     string           `json:"value,omitempty"`
+	BlobRef   blob.Ref       `json:"blobref"`
+	Signer    blob.Ref       `json:"signer"`
+	Permanode blob.Ref       `json:"permanode"`
+	Date      types.Time3339 `json:"date"`
+	Type      string         `json:"type"`
+	Attr      string         `json:"attr,omitempty"`
+	Value     string         `json:"value,omitempty"`
 }
 
 // A SignerPathsItem is an item returned from $searchRoot/camli/search/signerpaths.
 type SignerPathsItem struct {
-	ClaimRef *blobref.BlobRef `json:"claimRef"`
-	BaseRef  *blobref.BlobRef `json:"baseRef"`
-	Suffix   string           `json:"suffix"`
+	ClaimRef blob.Ref `json:"claimRef"`
+	BaseRef  blob.Ref `json:"baseRef"`
+	Suffix   string   `json:"suffix"`
 }
 
 // EdgesResponse is the JSON response from $searchRoot/camli/search/edgesto.
 type EdgesResponse struct {
-	ToRef   *blobref.BlobRef `json:"toRef"`
-	EdgesTo []*EdgeItem      `json:"edgesTo"`
+	ToRef   blob.Ref    `json:"toRef"`
+	EdgesTo []*EdgeItem `json:"edgesTo"`
 }
 
 // An EdgeItem is an item returned from $searchRoot/camli/search/edgesto.
 type EdgeItem struct {
-	From     *blobref.BlobRef `json:"from"`
-	FromType string           `json:"fromType"`
+	From     blob.Ref `json:"from"`
+	FromType string   `json:"fromType"`
 }
 
 func thumbnailSize(r *http.Request) int {
@@ -487,11 +487,11 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 // having the req.Value as a value.
 // See WithAttrRequest for more details about the query.
 func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
-	ch := make(chan *blobref.BlobRef, buffered)
+	ch := make(chan blob.Ref, buffered)
 	errch := make(chan error)
 	go func() {
 		signer := req.Signer
-		if signer == nil {
+		if !signer.Valid() {
 			signer = sh.owner
 		}
 		errch <- sh.index.SearchPermanodesWithAttr(ch,
@@ -543,7 +543,7 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 // GetClaims returns the claims on req.Permanode signed by sh.owner.
 func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	// TODO: rename GetOwnerClaims to GetClaims?
-	if req.Permanode == nil {
+	if !req.Permanode.Valid() {
 		return nil, errors.New("Error getting claims: nil permanode.")
 	}
 	claims, err := sh.index.GetOwnerClaims(req.Permanode, sh.owner)
@@ -586,10 +586,10 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 type DescribeRequest struct {
 	// BlobRefs are the blobs to describe. If length zero, BlobRef
 	// is used.
-	BlobRefs []*blobref.BlobRef
+	BlobRefs []blob.Ref
 
 	// BlobRef is the blob to describe.
-	BlobRef *blobref.BlobRef
+	BlobRef blob.Ref
 
 	// Depth is the optional traversal depth to describe from the
 	// root BlobRef. If zero, a default is used.
@@ -597,7 +597,7 @@ type DescribeRequest struct {
 
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.
-	sh *Handler
+	sh   *Handler
 	mu   sync.Mutex // protects following:
 	m    MetaMap
 	done map[string]bool  // blobref -> described
@@ -613,7 +613,7 @@ func (r *DescribeRequest) URLSuffix() string {
 		buf.WriteString("&blobref=")
 		buf.WriteString(br.String())
 	}
-	if len(r.BlobRefs) == 0 && r.BlobRef != nil {
+	if len(r.BlobRefs) == 0 && r.BlobRef.Valid() {
 		buf.WriteString("&blobref=")
 		buf.WriteString(r.BlobRef.String())
 	}
@@ -625,7 +625,7 @@ func (r *DescribeRequest) fromHTTP(req *http.Request) {
 	req.ParseForm()
 	if vv := req.Form["blobref"]; len(vv) > 1 {
 		for _, brs := range vv {
-			if br := blobref.Parse(brs); br != nil {
+			if br, ok := blob.Parse(brs); ok {
 				r.BlobRefs = append(r.BlobRefs, br)
 			} else {
 				panic(httputil.InvalidParameterError("blobref"))
@@ -640,10 +640,10 @@ func (r *DescribeRequest) fromHTTP(req *http.Request) {
 type DescribedBlob struct {
 	Request *DescribeRequest `json:"-"`
 
-	BlobRef   *blobref.BlobRef `json:"blobRef"`
-	MIMEType  string           `json:"mimeType"`
-	CamliType string           `json:"camliType"`
-	Size      int64            `json:"size,"`
+	BlobRef   blob.Ref `json:"blobRef"`
+	MIMEType  string   `json:"mimeType"`
+	CamliType string   `json:"camliType"`
+	Size      int64    `json:"size,"`
 
 	// if camliType "permanode"
 	Permanode *DescribedPermanode `json:"permanode,omitempty"`
@@ -667,13 +667,13 @@ type DescribedBlob struct {
 // and the blobref of its File camliContent.
 // If b isn't a permanode, or doesn't have a camliContent that
 // is a file blob, ok is false.
-func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, ok bool) {
+func (b *DescribedBlob) PermanodeFile() (path []blob.Ref, fi *FileInfo, ok bool) {
 	if b == nil || b.Permanode == nil {
 		return
 	}
 	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
 		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.File != nil {
-			return []*blobref.BlobRef{b.BlobRef, cdes.BlobRef}, cdes.File, true
+			return []blob.Ref{b.BlobRef, cdes.BlobRef}, cdes.File, true
 		}
 	}
 	return
@@ -683,13 +683,13 @@ func (b *DescribedBlob) PermanodeFile() (path []*blobref.BlobRef, fi *FileInfo, 
 // and the blobref of its Directory camliContent.
 // If b isn't a permanode, or doesn't have a camliContent that
 // is a directory blob, ok is false.
-func (b *DescribedBlob) PermanodeDir() (path []*blobref.BlobRef, fi *FileInfo, ok bool) {
+func (b *DescribedBlob) PermanodeDir() (path []blob.Ref, fi *FileInfo, ok bool) {
 	if b == nil || b.Permanode == nil {
 		return
 	}
 	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
 		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.Dir != nil {
-			return []*blobref.BlobRef{b.BlobRef, cdes.BlobRef}, cdes.Dir, true
+			return []blob.Ref{b.BlobRef, cdes.BlobRef}, cdes.Dir, true
 		}
 	}
 	return
@@ -740,7 +740,7 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 	m := make([]*DescribedBlob, 0)
 	if b.Permanode != nil {
 		for _, bstr := range b.Permanode.Attr["camliMember"] {
-			if br := blobref.Parse(bstr); br != nil {
+			if br, ok := blob.Parse(bstr); ok {
 				m = append(m, b.PeerBlob(br))
 			}
 		}
@@ -748,11 +748,10 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 	return m
 }
 
-func (b *DescribedBlob) ContentRef() (br *blobref.BlobRef, ok bool) {
+func (b *DescribedBlob) ContentRef() (br blob.Ref, ok bool) {
 	if b != nil && b.Permanode != nil {
 		if cref := b.Permanode.Attr.Get("camliContent"); cref != "" {
-			br = blobref.Parse(cref)
-			return br, br != nil
+			return blob.Parse(cref)
 		}
 	}
 	return
@@ -776,7 +775,7 @@ func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
 // If the blob was never loaded along with the the receiver (or if the
 // receiver is nil), a stub DescribedBlob is returned with its Stub
 // field set true.
-func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
+func (b *DescribedBlob) PeerBlob(br blob.Ref) *DescribedBlob {
 	if b.Request == nil {
 		return &DescribedBlob{BlobRef: br, Stub: true}
 	}
@@ -786,7 +785,7 @@ func (b *DescribedBlob) PeerBlob(br *blobref.BlobRef) *DescribedBlob {
 }
 
 // version of PeerBlob when b.Request.mu is already held.
-func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
+func (b *DescribedBlob) peerBlob(br blob.Ref) *DescribedBlob {
 	if peer, ok := b.Request.m[br.String()]; ok {
 		return peer
 	}
@@ -801,8 +800,8 @@ func (b *DescribedBlob) peerBlob(br *blobref.BlobRef) *DescribedBlob {
 //
 // TODO: don't linear scan here.  rewrite this in terms of ResolvePrefixHop,
 // passing down some policy perhaps?  or maybe that's enough.
-func (b *DescribedBlob) HasSecureLinkTo(other *blobref.BlobRef) bool {
-	if b == nil || other == nil {
+func (b *DescribedBlob) HasSecureLinkTo(other blob.Ref) bool {
+	if b == nil || !other.Valid() {
 		return false
 	}
 	ostr := other.String()
@@ -906,13 +905,13 @@ func (sh *Handler) initDescribeRequest(req *DescribeRequest) {
 
 // Given a blobref and a few hex characters of the digest of the next hop, return the complete
 // blobref of the prefix, if that's a valid next hop.
-func (sh *Handler) ResolvePrefixHop(parent *blobref.BlobRef, prefix string) (child *blobref.BlobRef, err error) {
+func (sh *Handler) ResolvePrefixHop(parent blob.Ref, prefix string) (child blob.Ref, err error) {
 	// TODO: this is a linear scan right now. this should be
 	// optimized to use a new database table of members so this is
 	// a quick lookup.  in the meantime it should be in memcached
 	// at least.
 	if len(prefix) < 8 {
-		return nil, fmt.Errorf("Member prefix %q too small", prefix)
+		return blob.Ref{}, fmt.Errorf("Member prefix %q too small", prefix)
 	}
 	dr := sh.NewDescribeRequest()
 	dr.Describe(parent, 1)
@@ -922,7 +921,7 @@ func (sh *Handler) ResolvePrefixHop(parent *blobref.BlobRef, prefix string) (chi
 	}
 	des, ok := res[parent.String()]
 	if !ok {
-		return nil, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
+		return blob.Ref{}, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
 	}
 	if des.Permanode != nil {
 		if cr, ok := des.ContentRef(); ok && strings.HasPrefix(cr.Digest(), prefix) {
@@ -934,7 +933,7 @@ func (sh *Handler) ResolvePrefixHop(parent *blobref.BlobRef, prefix string) (chi
 			}
 		}
 	}
-	return nil, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
+	return blob.Ref{}, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
 }
 
 type DescribeError map[string]error
@@ -993,7 +992,7 @@ func (dr *DescribeRequest) metaMapThumbs(thumbSize int) (map[string]*DescribedBl
 	return m, nil
 }
 
-func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
+func (dr *DescribeRequest) describedBlob(b blob.Ref) *DescribedBlob {
 	dr.mu.Lock()
 	defer dr.mu.Unlock()
 	bs := b.String()
@@ -1005,7 +1004,7 @@ func (dr *DescribeRequest) describedBlob(b *blobref.BlobRef) *DescribedBlob {
 	return des
 }
 
-func (dr *DescribeRequest) DescribeSync(br *blobref.BlobRef) (*DescribedBlob, error) {
+func (dr *DescribeRequest) DescribeSync(br blob.Ref) (*DescribedBlob, error) {
 	dr.Describe(br, 1)
 	res, err := dr.Result()
 	if err != nil {
@@ -1016,7 +1015,7 @@ func (dr *DescribeRequest) DescribeSync(br *blobref.BlobRef) (*DescribedBlob, er
 
 // Describe starts a lookup of br, down to the provided depth.
 // It returns immediately.
-func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) Describe(br blob.Ref, depth int) {
 	if depth <= 0 {
 		return
 	}
@@ -1037,7 +1036,7 @@ func (dr *DescribeRequest) Describe(br *blobref.BlobRef, depth int) {
 	}()
 }
 
-func (dr *DescribeRequest) addError(br *blobref.BlobRef, err error) {
+func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 	if err == nil {
 		return
 	}
@@ -1047,7 +1046,7 @@ func (dr *DescribeRequest) addError(br *blobref.BlobRef, err error) {
 	dr.errs[br.String()] = err
 }
 
-func (dr *DescribeRequest) describeReally(br *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 	mime, size, err := dr.sh.index.GetBlobMIMEType(br)
 	if err == os.ErrNotExist {
 		return
@@ -1109,7 +1108,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 	sh.initDescribeRequest(&dr)
 
-	if dr.BlobRef != nil {
+	if dr.BlobRef.Valid() {
 		dr.Describe(dr.BlobRef, dr.depth())
 	}
 	for _, br := range dr.BlobRefs {
@@ -1128,8 +1127,8 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJSON(rw, ret)
 
-	br := blobref.Parse(req.FormValue("wholedigest"))
-	if br == nil {
+	br, ok := blob.Parse(req.FormValue("wholedigest"))
+	if !ok {
 		ret["error"] = "Missing or invalid 'wholedigest' param"
 		ret["errorType"] = "input"
 		return
@@ -1150,7 +1149,7 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer *blobref.BlobRef, depth int) {
+func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer blob.Ref, depth int) {
 	pi.Attr = make(url.Values)
 	attr := pi.Attr
 
@@ -1202,15 +1201,15 @@ claimLoop:
 
 	// If the content permanode is now known, look up its type
 	if content, ok := attr["camliContent"]; ok && len(content) > 0 {
-		cbr := blobref.Parse(content[len(content)-1])
-		dr.Describe(cbr, depth-1)
+		if cbr, ok := blob.Parse(content[len(content)-1]); ok {
+			dr.Describe(cbr, depth-1)
+		}
 	}
 
 	// Resolve children
 	if members, ok := attr["camliMember"]; ok {
 		for _, member := range members {
-			membr := blobref.Parse(member)
-			if membr != nil {
+			if membr, ok := blob.Parse(member); ok {
 				dr.Describe(membr, depth-1)
 			}
 		}
@@ -1222,7 +1221,7 @@ claimLoop:
 			continue
 		}
 		for _, brs := range vv {
-			if br := blobref.Parse(brs); br != nil {
+			if br, ok := blob.Parse(brs); ok {
 				dr.Describe(br, depth-1)
 			}
 		}
@@ -1231,8 +1230,8 @@ claimLoop:
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
 type SignerAttrValueResponse struct {
-	Permanode *blobref.BlobRef `json:"permanode"`
-	Meta      MetaMap          `json:"meta"`
+	Permanode blob.Ref `json:"permanode"`
+	Meta      MetaMap  `json:"meta"`
 }
 
 func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
@@ -1350,10 +1349,10 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 
 // GetSignerPaths returns paths with a target of req.Target.
 func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
-	if req.Signer == nil {
+	if !req.Signer.Valid() {
 		return nil, errors.New("Error getting signer paths: nil signer.")
 	}
-	if req.Target == nil {
+	if !req.Target.Valid() {
 		return nil, errors.New("Error getting signer paths: nil target.")
 	}
 	paths, err := sh.index.PathsOfSignerTarget(req.Signer, req.Target)

@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 // MaxBlobSize is the size of a single blob in Camlistore.
@@ -38,7 +38,7 @@ var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// disk.
-	ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error)
+	ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error)
 }
 
 type BlobStatter interface {
@@ -47,14 +47,14 @@ type BlobStatter interface {
 	// or nil.  Stat() should NOT close the channel.
 	// wait is the max time to wait for the blobs to exist,
 	// or 0 for no delay.
-	StatBlobs(dest chan<- blobref.SizedBlobRef,
-		blobs []*blobref.BlobRef,
+	StatBlobs(dest chan<- blob.SizedRef,
+		blobs []blob.Ref,
 		wait time.Duration) error
 }
 
-func StatBlob(bs BlobStatter, br *blobref.BlobRef) (sb blobref.SizedBlobRef, err error) {
-	c := make(chan blobref.SizedBlobRef, 1)
-	err = bs.StatBlobs(c, []*blobref.BlobRef{br}, 0)
+func StatBlob(bs BlobStatter, br blob.Ref) (sb blob.SizedRef, err error) {
+	c := make(chan blob.SizedRef, 1)
+	err = bs.StatBlobs(c, []blob.Ref{br}, 0)
 	if err != nil {
 		return
 	}
@@ -97,7 +97,7 @@ type BlobEnumerator interface {
 	//
 	// after and waitSeconds can't be used together. One must be
 	// its zero value.
-	EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+	EnumerateBlobs(dest chan<- blob.SizedRef,
 		after string,
 		limit int,
 		wait time.Duration) error
@@ -105,7 +105,7 @@ type BlobEnumerator interface {
 
 // Cache is the minimal interface expected of a blob cache.
 type Cache interface {
-	blobref.SeekFetcher
+	blob.SeekFetcher
 	BlobReceiver
 	BlobStatter
 }
@@ -166,7 +166,7 @@ type Generationer interface {
 // Storage is the interface that must be implemented by a blobserver
 // storage type. (e.g. localdisk, s3, encrypt, shard, replica, remote)
 type Storage interface {
-	blobref.StreamingFetcher
+	blob.StreamingFetcher
 	BlobReceiver
 	BlobStatter
 	BlobEnumerator
@@ -180,7 +180,7 @@ type BlobRemover interface {
 	// RemoveBlobs removes 0 or more blobs.  Removal of
 	// non-existent items isn't an error.  Returns failure if any
 	// items existed but failed to be deleted.
-	RemoveBlobs(blobs []*blobref.BlobRef) error
+	RemoveBlobs(blobs []blob.Ref) error
 }
 
 type StorageConfiger interface {

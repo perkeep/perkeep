@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 )
 
@@ -35,14 +35,14 @@ const maxInMemorySlurp = 4 << 20 // 4MB.  *shrug*
 // for Amazon's Content-MD5 header, even if the original blobref
 // is e.g. sha1-xxxx)
 type amazonSlurper struct {
-	blob    *blobref.BlobRef // only used for tempfile's prefix
+	blob    blob.Ref // only used for tempfile's prefix
 	buf     *bytes.Buffer
 	md5     hash.Hash
 	file    *os.File // nil until allocated
 	reading bool     // transitions at most once from false -> true
 }
 
-func newAmazonSlurper(blob *blobref.BlobRef) *amazonSlurper {
+func newAmazonSlurper(blob blob.Ref) *amazonSlurper {
 	return &amazonSlurper{
 		blob: blob,
 		buf:  new(bytes.Buffer),
@@ -96,22 +96,22 @@ func (as *amazonSlurper) Cleanup() {
 	}
 }
 
-func (sto *s3Storage) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (outsb blobref.SizedBlobRef, outerr error) {
+func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
 	zero := outsb
-	slurper := newAmazonSlurper(blob)
+	slurper := newAmazonSlurper(b)
 	defer slurper.Cleanup()
 
-	hash := blob.Hash()
+	hash := b.Hash()
 	size, err := io.Copy(io.MultiWriter(hash, slurper), source)
 	if err != nil {
 		return zero, err
 	}
-	if !blob.HashMatches(hash) {
+	if !b.HashMatches(hash) {
 		return zero, blobserver.ErrCorruptBlob
 	}
-	err = sto.s3Client.PutObject(blob.String(), sto.bucket, slurper.md5, size, slurper)
+	err = sto.s3Client.PutObject(b.String(), sto.bucket, slurper.md5, size, slurper)
 	if err != nil {
 		return zero, err
 	}
-	return blobref.SizedBlobRef{BlobRef: blob, Size: size}, nil
+	return blob.SizedRef{Ref: b, Size: size}, nil
 }

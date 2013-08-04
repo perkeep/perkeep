@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
 )
 
@@ -44,10 +44,10 @@ func (c *removeCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.ErrUsage
 	}
-	refs := make([]*blobref.BlobRef, 0, len(args))
+	refs := make([]blob.Ref, 0, len(args))
 	for _, s := range args {
-		br := blobref.Parse(s)
-		if br == nil {
+		br, ok := blob.Parse(s)
+		if !ok {
 			return fmt.Errorf("Invalid blobref %q", s)
 		}
 		refs = append(refs, br)

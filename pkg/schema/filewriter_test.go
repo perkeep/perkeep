@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 func TestWriteFileMap(t *testing.T) {
@@ -100,7 +100,7 @@ func (r *randReader) Read(p []byte) (n int, err error) {
 // is probably going away at some point.
 type statsStatReceiver struct {
 	mu   sync.Mutex
-	have map[string]int64
+	have map[blob.Ref]int64
 }
 
 func (sr *statsStatReceiver) numBlobs() int {
@@ -119,7 +119,7 @@ func (sr *statsStatReceiver) sumBlobSize() int64 {
 	return sum
 }
 
-func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (sr *statsStatReceiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	n, err := io.Copy(ioutil.Discard, source)
 	if err != nil {
 		return
@@ -127,18 +127,18 @@ func (sr *statsStatReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	if sr.have == nil {
-		sr.have = make(map[string]int64)
+		sr.have = make(map[blob.Ref]int64)
 	}
-	sr.have[blob.String()] = n
-	return blobref.SizedBlobRef{blob, n}, nil
+	sr.have[br] = n
+	return blob.SizedRef{br, n}, nil
 }
 
-func (sr *statsStatReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, _ time.Duration) error {
+func (sr *statsStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, _ time.Duration) error {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	for _, br := range blobs {
-		if size, ok := sr.have[br.String()]; ok {
-			dest <- blobref.SizedBlobRef{br, size}
+		if size, ok := sr.have[br]; ok {
+			dest <- blob.SizedRef{br, size}
 		}
 	}
 	return nil

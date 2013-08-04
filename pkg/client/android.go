@@ -35,7 +35,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/schema"
 )
@@ -270,11 +270,11 @@ type AndroidStatusReceiver struct {
 	Path string
 }
 
-func (asr AndroidStatusReceiver) noteChunkOnServer(sb blobref.SizedBlobRef) {
-	Androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.BlobRef, asr.Path)
+func (asr AndroidStatusReceiver) noteChunkOnServer(sb blob.SizedRef) {
+	Androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.Ref, asr.Path)
 }
 
-func (asr AndroidStatusReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Reader) (blobref.SizedBlobRef, error) {
+func (asr AndroidStatusReceiver) ReceiveBlob(blob blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	// Sniff the first 1KB of it and don't print the stats if it looks like it was just a schema
 	// blob.  We won't update the progress bar for that yet.
 	var buf [1024]byte
@@ -287,8 +287,8 @@ func (asr AndroidStatusReceiver) ReceiveBlob(blob *blobref.BlobRef, source io.Re
 	return sb, err
 }
 
-func (asr AndroidStatusReceiver) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	midc := make(chan blobref.SizedBlobRef)
+func (asr AndroidStatusReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+	midc := make(chan blob.SizedRef)
 	errc := make(chan error, 1)
 	go func() {
 		err := asr.Sr.StatBlobs(midc, blobs, wait)

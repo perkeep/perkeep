@@ -27,7 +27,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -159,7 +159,7 @@ func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) error {
 }
 
 // Returns blobref of signer's public key, or nil if unconfigured.
-func (c *Client) SignerPublicKeyBlobref() *blobref.BlobRef {
+func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 	return SignerPublicKeyBlobref()
 }
 
@@ -189,26 +189,26 @@ func fileExists(name string) bool {
 
 var (
 	signerPublicKeyRefOnce sync.Once
-	signerPublicKeyRef     *blobref.BlobRef
+	signerPublicKeyRef     blob.Ref
 )
 
 // TODO: move to config package?
-func SignerPublicKeyBlobref() *blobref.BlobRef {
+func SignerPublicKeyBlobref() blob.Ref {
 	signerPublicKeyRefOnce.Do(initSignerPublicKeyBlobref)
 	return signerPublicKeyRef
 }
 
 func initSignerPublicKeyBlobref() {
-	signerPublicKeyRef = getSignerPublicKeyBlobref()
+	signerPublicKeyRef, _ = getSignerPublicKeyBlobref()
 }
 
-func getSignerPublicKeyBlobref() *blobref.BlobRef {
+func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
 	configOnce.Do(parseConfig)
 	key := "keyId"
 	keyId, ok := config[key].(string)
 	if !ok {
 		log.Printf("No key %q in JSON configuration file %q; have you run \"camput init\"?", key, osutil.UserClientConfigPath())
-		return nil
+		return
 	}
 	keyRing, hasKeyRing := config["secretRing"].(string)
 	if !hasKeyRing {
@@ -218,32 +218,32 @@ func getSignerPublicKeyBlobref() *blobref.BlobRef {
 			keyRing = fn
 		} else {
 			log.Printf("Couldn't find keyId %q; no 'secretRing' specified in config file, and no standard secret ring files exist.")
-			return nil
+			return
 		}
 	}
 	entity, err := jsonsign.EntityFromSecring(keyId, keyRing)
 	if err != nil {
 		log.Printf("Couldn't find keyId %q in secret ring: %v", keyId, err)
-		return nil
+		return
 	}
 	armored, err := jsonsign.ArmoredPublicKey(entity)
 	if err != nil {
 		log.Printf("Error serializing public key: %v", err)
-		return nil
+		return
 	}
 
 	selfPubKeyDir, ok := config["selfPubKeyDir"].(string)
 	if !ok {
 		log.Printf("No 'selfPubKeyDir' defined in %q", osutil.UserClientConfigPath())
-		return nil
+		return
 	}
 	fi, err := os.Stat(selfPubKeyDir)
 	if err != nil || !fi.IsDir() {
 		log.Printf("selfPubKeyDir of %q doesn't exist or not a directory", selfPubKeyDir)
-		return nil
+		return
 	}
 
-	br := blobref.SHA1FromString(armored)
+	br := blob.SHA1FromString(armored)
 
 	pubFile := filepath.Join(selfPubKeyDir, br.String()+".camli")
 	fi, err = os.Stat(pubFile)
@@ -251,16 +251,16 @@ func getSignerPublicKeyBlobref() *blobref.BlobRef {
 		err = ioutil.WriteFile(pubFile, []byte(armored), 0644)
 		if err != nil {
 			log.Printf("Error writing public key to %q: %v", pubFile, err)
-			return nil
+			return
 		}
 	}
 
-	return br
+	return br, true
 }
 
-func (c *Client) GetBlobFetcher() blobref.SeekFetcher {
+func (c *Client) GetBlobFetcher() blob.SeekFetcher {
 	// Use blobref.NewSeriesFetcher(...all configured fetch paths...)
-	return blobref.NewConfigDirFetcher()
+	return blob.NewConfigDirFetcher()
 }
 
 // config[trustedCerts] is the list of trusted certificates fingerprints.

@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
@@ -31,16 +31,16 @@ import (
 const oneYear = 365 * 86400 * time.Second
 
 type DownloadHandler struct {
-	Fetcher   blobref.StreamingFetcher
+	Fetcher   blob.StreamingFetcher
 	Cache     blobserver.Storage
 	ForceMime string // optional
 }
 
-func (dh *DownloadHandler) storageSeekFetcher() blobref.SeekFetcher {
-	return blobref.SeekerFromStreamingFetcher(dh.Fetcher) // TODO: pass dh.Cache?
+func (dh *DownloadHandler) storageSeekFetcher() blob.SeekFetcher {
+	return blob.SeekerFromStreamingFetcher(dh.Fetcher) // TODO: pass dh.Cache?
 }
 
-func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file *blobref.BlobRef) {
+func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	if req.Method != "GET" && req.Method != "HEAD" {
 		http.Error(rw, "Invalid download method", 400)
 		return
@@ -80,8 +80,8 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	}
 
 	if req.Method == "HEAD" && req.FormValue("verifycontents") != "" {
-		vbr := blobref.Parse(req.FormValue("verifycontents"))
-		if vbr == nil {
+		vbr, ok := blob.Parse(req.FormValue("verifycontents"))
+		if !ok {
 			return
 		}
 		hash := vbr.Hash()

@@ -19,12 +19,12 @@ package handlers
 import (
 	"net/http"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver/gethandler"
 )
 
 // CreateGetHandler returns an http Handler for serving blobs from fetcher.
-func CreateGetHandler(fetcher blobref.StreamingFetcher) http.Handler {
+func CreateGetHandler(fetcher blob.StreamingFetcher) http.Handler {
 	return gethandler.CreateGetHandler(fetcher)
 }
 

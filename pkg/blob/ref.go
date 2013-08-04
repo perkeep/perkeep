@@ -75,6 +75,9 @@ func (r Ref) String() string {
 	for _, b := range bs {
 		buf = append(buf, hexDigit[b>>4], hexDigit[b&0xf])
 	}
+	if o, ok := r.digest.(otherDigest); ok && o.odd {
+		buf = buf[:len(buf)-1]
+	}
 	return string(buf)
 }
 
@@ -98,6 +101,9 @@ func (r Ref) Digest() string {
 	defer putBuf(buf)
 	for _, b := range bs {
 		buf = append(buf, hexDigit[b>>4], hexDigit[b&0xf])
+	}
+	if o, ok := r.digest.(otherDigest); ok && o.odd {
+		buf = buf[:len(buf)-1]
 	}
 	return string(buf)
 }
@@ -218,15 +224,43 @@ func hexVal(b byte, bad *bool) byte {
 	return 0
 }
 
+func validDigestName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if 'a' <= r && r <= 'z' {
+			continue
+		}
+		if '0' <= r && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // parseUnknown parses a blobref where the digest type isn't known to this server.
 // e.g. ("foo-ababab")
 func parseUnknown(digest, hex string) (ref Ref, ok bool) {
+	if !validDigestName(digest) {
+		return
+	}
+
+	// TODO: remove this short hack and don't allow odd numbers of hex digits.
+	odd := false
+	if len(hex)%2 != 0 {
+		hex += "0"
+		odd = true
+	}
+
 	if len(hex) < 2 || len(hex)%2 != 0 || len(hex) > maxOtherDigestLen*2 {
 		return
 	}
 	o := otherDigest{
 		name:   digest,
 		sumLen: len(hex) / 2,
+		odd:    odd,
 	}
 	bad := false
 	for i := 0; i < len(hex); i += 2 {
@@ -282,7 +316,8 @@ const maxOtherDigestLen = 128
 type otherDigest struct {
 	name   string
 	sum    [maxOtherDigestLen]byte
-	sumLen int // bytes in sum that are valid
+	sumLen int  // bytes in sum that are valid
+	odd    bool // odd number of hex digits in input
 }
 
 func (d otherDigest) digestName() string { return d.name }

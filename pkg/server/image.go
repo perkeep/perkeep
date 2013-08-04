@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/magic"
@@ -40,15 +40,15 @@ import (
 const imageDebug = false
 
 type ImageHandler struct {
-	Fetcher             blobref.StreamingFetcher
+	Fetcher             blob.StreamingFetcher
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
 	sc                  ScaledImage // optional cache for scaled images
 }
 
-func (ih *ImageHandler) storageSeekFetcher() blobref.SeekFetcher {
-	return blobref.SeekerFromStreamingFetcher(ih.Fetcher) // TODO: pass ih.Cache?
+func (ih *ImageHandler) storageSeekFetcher() blob.SeekFetcher {
+	return blob.SeekerFromStreamingFetcher(ih.Fetcher) // TODO: pass ih.Cache?
 }
 
 type subImager interface {
@@ -75,7 +75,7 @@ func squareImage(i image.Image) image.Image {
 	return si.SubImage(newB)
 }
 
-func (ih *ImageHandler) cache(tr io.Reader, name string) (*blobref.BlobRef, error) {
+func (ih *ImageHandler) cache(tr io.Reader, name string) (blob.Ref, error) {
 	br, err := schema.WriteFileFromReader(ih.Cache, name, tr)
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
@@ -99,8 +99,8 @@ func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 
 // cached returns a FileReader for the given file schema blobref.
 // The FileReader should be closed when done reading.
-func (ih *ImageHandler) cached(fileRef *blobref.BlobRef) (*schema.FileReader, error) {
-	fetchSeeker := blobref.SeekerFromStreamingFetcher(ih.Cache)
+func (ih *ImageHandler) cached(fileRef blob.Ref) (*schema.FileReader, error) {
+	fetchSeeker := blob.SeekerFromStreamingFetcher(ih.Cache)
 	fr, err := schema.NewFileReader(fetchSeeker, fileRef)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func cacheKey(bref string, width int, height int) string {
 
 // ScaledCached reads the scaled version of the image in file,
 // if it is in cache. On success, the image format is returned.
-func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err error) {
+func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
 	name := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
 	br, err := ih.sc.Get(name)
 	if err != nil {
@@ -148,7 +148,7 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file *blobref.BlobRef) (
 	return pieces[1], nil
 }
 
-func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (format string, err error) {
+func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
 	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), file)
 	if err != nil {
 		return format, err
@@ -191,7 +191,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file *blobref.BlobRef) (fo
 	return format, nil
 }
 
-func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file *blobref.BlobRef) {
+func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	if req.Method != "GET" && req.Method != "HEAD" {
 		http.Error(rw, "Invalid method", 400)
 		return

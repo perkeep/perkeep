@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 func cleanUp(ds *DiskStorage) {
@@ -68,7 +68,7 @@ func TestReceiveStat(t *testing.T) {
 	tb := &test.Blob{"Foo"}
 	tb.MustUpload(t, ds)
 
-	ch := make(chan blobref.SizedBlobRef, 0)
+	ch := make(chan blob.SizedRef, 0)
 	errch := make(chan error, 1)
 	go func() {
 		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), 0)
@@ -91,7 +91,7 @@ func TestStatWait(t *testing.T) {
 
 	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
 	wait := 2 * time.Second
-	ch := make(chan blobref.SizedBlobRef, 0)
+	ch := make(chan blob.SizedRef, 0)
 	errch := make(chan error, 1)
 	go func() {
 		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), wait)
@@ -131,18 +131,18 @@ func TestMultiStat(t *testing.T) {
 	need[blobfoo.BlobRef().String()] = true
 	need[blobbar.BlobRef().String()] = true
 
-	ch := make(chan blobref.SizedBlobRef, 0)
+	ch := make(chan blob.SizedRef, 0)
 	errch := make(chan error, 1)
 	go func() {
 		errch <- ds.StatBlobs(ch,
-			[]*blobref.BlobRef{blobfoo.BlobRef(), blobbar.BlobRef()},
+			[]blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()},
 			0)
 		close(ch)
 	}()
 	got := 0
 	for sb := range ch {
 		got++
-		br := sb.BlobRef
+		br := sb.Ref
 		brstr := br.String()
 		Expect(t, need[brstr], "need stat of blobref "+brstr)
 		delete(need, brstr)

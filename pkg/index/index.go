@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
@@ -140,11 +140,11 @@ type Index struct {
 
 	s Storage
 
-	KeyFetcher blobref.StreamingFetcher // for verifying claims
+	KeyFetcher blob.StreamingFetcher // for verifying claims
 
 	// Used for fetching blobs to find the complete sha1s of file & bytes
 	// schema blobs.
-	BlobSource blobref.StreamingFetcher
+	BlobSource blob.StreamingFetcher
 }
 
 var _ blobserver.Storage = (*Index)(nil)
@@ -189,7 +189,7 @@ func closeIterator(it Iterator, perr *error) {
 }
 
 // isDeleted returns whether br (a blobref or a claim) should be considered deleted.
-func (x *Index) isDeleted(br *blobref.BlobRef) bool {
+func (x *Index) isDeleted(br blob.Ref) bool {
 	var err error
 	it := x.queryPrefix(keyDeleted, br)
 	defer closeIterator(it, &err)
@@ -200,8 +200,8 @@ func (x *Index) isDeleted(br *blobref.BlobRef) bool {
 		if len(parts) != 3 {
 			continue
 		}
-		delClaimRef := blobref.Parse(parts[2])
-		if delClaimRef == nil {
+		delClaimRef, ok := blob.Parse(parts[2])
+		if !ok {
 			panic(fmt.Errorf("invalid deleted claim for %v", parts[1]))
 		}
 		// The recursive call on the blobref of the delete claim
@@ -215,7 +215,7 @@ func (x *Index) isDeleted(br *blobref.BlobRef) bool {
 	return false
 }
 
-func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.BlobRef, limit int) (err error) {
+func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, limit int) (err error) {
 	defer close(dest)
 
 	keyId, err := x.keyId(owner)
@@ -243,8 +243,8 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 		if mTime, err := time.Parse(time.RFC3339, unreverseTimeString(parts[2])); err == nil {
 			mTimeSec = mTime.Unix()
 		}
-		permaRef := blobref.Parse(permaStr)
-		if permaRef == nil {
+		permaRef, ok := blob.Parse(permaStr)
+		if !ok {
 			continue
 		}
 		if x.isDeleted(permaRef) {
@@ -266,7 +266,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner *blobref.Blo
 	return nil
 }
 
-func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.ClaimList, err error) {
+func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl search.ClaimList, err error) {
 	keyId, err := x.keyId(owner)
 	if err == ErrNotFound {
 		err = nil
@@ -284,8 +284,8 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 		if len(keyPart) < 5 || len(valPart) < 3 {
 			continue
 		}
-		claimRef := blobref.Parse(keyPart[4])
-		if claimRef == nil {
+		claimRef, ok := blob.Parse(keyPart[4])
+		if !ok {
 			continue
 		}
 		date, _ := time.Parse(time.RFC3339, keyPart[3])
@@ -302,7 +302,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner *blobref.BlobRef) (cl search.Cla
 	return
 }
 
-func (x *Index) GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64, err error) {
+func (x *Index) GetBlobMIMEType(blob blob.Ref) (mime string, size int64, err error) {
 	key := "meta:" + blob.String()
 	meta, err := x.s.Get(key)
 	if err == ErrNotFound {
@@ -321,32 +321,32 @@ func (x *Index) GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64,
 }
 
 // maps from blobref of openpgp ascii-armored public key => gpg keyid like "2931A67C26F5ABDA"
-func (x *Index) keyId(signer *blobref.BlobRef) (string, error) {
+func (x *Index) keyId(signer blob.Ref) (string, error) {
 	return x.s.Get("signerkeyid:" + signer.String())
 }
 
-func (x *Index) PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (permaNode *blobref.BlobRef, err error) {
+func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {
 	keyId, err := x.keyId(signer)
 	if err == ErrNotFound {
-		return nil, os.ErrNotExist
+		return blob.Ref{}, os.ErrNotExist
 	}
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
 	if it.Next() {
-		permaRef := blobref.Parse(it.Value())
-		if permaRef != nil && !x.isDeleted(permaRef) {
+		permaRef, ok := blob.Parse(it.Value())
+		if ok && !x.isDeleted(permaRef) {
 			return permaRef, nil
 		}
 	}
-	return nil, os.ErrNotExist
+	return blob.Ref{}, os.ErrNotExist
 }
 
 // This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
 // If request.Query is "", it is not used in the prefix search.
-func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *search.PermanodeByAttrRequest) (err error) {
+func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *search.PermanodeByAttrRequest) (err error) {
 	defer close(dest)
 	if request.FuzzyMatch {
 		// TODO(bradfitz): remove this for now? figure out how to handle it generically?
@@ -372,8 +372,8 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	}
 	defer closeIterator(it, &err)
 	for it.Next() {
-		pn := blobref.Parse(it.Value())
-		if pn == nil {
+		pn, ok := blob.Parse(it.Value())
+		if !ok {
 			continue
 		}
 		if x.isDeleted(pn) {
@@ -393,7 +393,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef, request *
 	return nil
 }
 
-func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*search.Path, err error) {
+func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*search.Path, err error) {
 	paths = []*search.Path{}
 	keyId, err := x.keyId(signer)
 	if err != nil {
@@ -414,9 +414,12 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 		if len(keyPart) < 3 || len(valPart) < 4 {
 			continue
 		}
-		claimRef := blobref.Parse(keyPart[2])
-		baseRef := blobref.Parse(valPart[1])
-		if claimRef == nil || baseRef == nil {
+		claimRef, ok := blob.Parse(keyPart[2])
+		if !ok {
+			continue
+		}
+		baseRef, ok := blob.Parse(valPart[1])
+		if !ok {
 			continue
 		}
 		claimDate := valPart[0]
@@ -445,7 +448,7 @@ func (x *Index) PathsOfSignerTarget(signer, target *blobref.BlobRef) (paths []*s
 	return paths, nil
 }
 
-func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths []*search.Path, err error) {
+func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*search.Path, err error) {
 	paths = []*search.Path{}
 	keyId, err := x.keyId(signer)
 	if err != nil {
@@ -463,14 +466,20 @@ func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths
 		if len(keyPart) < 5 || len(valPart) < 2 {
 			continue
 		}
-		claimRef := blobref.Parse(keyPart[4])
-		baseRef := blobref.Parse(keyPart[1])
-		if claimRef == nil || baseRef == nil {
+		claimRef, ok := blob.Parse(keyPart[4])
+		if !ok {
+			continue
+		}
+		baseRef, ok := blob.Parse(keyPart[1])
+		if !ok {
 			continue
 		}
 		claimDate := unreverseTimeString(keyPart[3])
 		suffix := urld(keyPart[2])
-		target := blobref.Parse(valPart[1])
+		target, ok := blob.Parse(valPart[1])
+		if !ok {
+			continue
+		}
 
 		// TODO(bradfitz): investigate what's up with deleted
 		// forward path claims here.  Needs docs with the
@@ -490,7 +499,7 @@ func (x *Index) PathsLookup(signer, base *blobref.BlobRef, suffix string) (paths
 	return
 }
 
-func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time.Time) (*search.Path, error) {
+func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*search.Path, error) {
 	paths, err := x.PathsLookup(signer, base, suffix)
 	if err != nil {
 		return nil, err
@@ -528,7 +537,7 @@ func (x *Index) PathLookup(signer, base *blobref.BlobRef, suffix string, at time
 	return best, nil
 }
 
-func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err error) {
+func (x *Index) ExistingFileSchemas(wholeRef blob.Ref) (schemaRefs []blob.Ref, err error) {
 	it := x.queryPrefix(keyWholeToFileRef, wholeRef)
 	defer closeIterator(it, &err)
 	for it.Next() {
@@ -536,8 +545,8 @@ func (x *Index) ExistingFileSchemas(wholeRef *blobref.BlobRef) (schemaRefs []*bl
 		if len(keyPart) < 2 {
 			continue
 		}
-		ref := blobref.Parse(keyPart[1])
-		if ref != nil {
+		ref, ok := blob.Parse(keyPart[1])
+		if ok {
 			schemaRefs = append(schemaRefs, ref)
 		}
 	}
@@ -549,7 +558,7 @@ func (x *Index) loadKey(key string, val *string, err *error, wg *sync.WaitGroup)
 	*val, *err = x.s.Get(key)
 }
 
-func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) {
+func (x *Index) GetFileInfo(fileRef blob.Ref) (*search.FileInfo, error) {
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
 	wg := new(sync.WaitGroup)
@@ -600,7 +609,7 @@ func (x *Index) GetFileInfo(fileRef *blobref.BlobRef) (*search.FileInfo, error) 
 	return fi, nil
 }
 
-func (x *Index) GetImageInfo(fileRef *blobref.BlobRef) (*search.ImageInfo, error) {
+func (x *Index) GetImageInfo(fileRef blob.Ref) (*search.ImageInfo, error) {
 	// it might be that the key does not exist because image.DecodeConfig failed earlier
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
@@ -631,18 +640,18 @@ func (x *Index) GetImageInfo(fileRef *blobref.BlobRef) (*search.ImageInfo, error
 	return imgInfo, nil
 }
 
-func (x *Index) EdgesTo(ref *blobref.BlobRef, opts *search.EdgesToOpts) (edges []*search.Edge, err error) {
+func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search.Edge, err error) {
 	it := x.queryPrefix(keyEdgeBackward, ref)
 	defer closeIterator(it, &err)
-	permanodeParents := map[string]*blobref.BlobRef{} // blobref key => blobref set
+	permanodeParents := map[string]blob.Ref{} // blobref key => blobref set
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")[1:]
 		if len(keyPart) < 2 {
 			continue
 		}
 		parent := keyPart[1]
-		parentRef := blobref.Parse(parent)
-		if parentRef == nil {
+		parentRef, ok := blob.Parse(parent)
+		if !ok {
 			continue
 		}
 		valPart := strings.Split(it.Value(), "|")

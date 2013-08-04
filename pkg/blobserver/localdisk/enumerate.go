@@ -26,11 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 type readBlobRequest struct {
-	ch      chan<- blobref.SizedBlobRef
+	ch      chan<- blob.SizedRef
 	after   string
 	remain  *int // limit countdown
 	dirRoot string
@@ -120,9 +120,8 @@ func readBlobs(opts readBlobRequest) error {
 			if blobName <= opts.after {
 				continue
 			}
-			blobRef := blobref.Parse(blobName)
-			if blobRef != nil {
-				opts.ch <- blobref.SizedBlobRef{BlobRef: blobRef, Size: fi.Size()}
+			if blobRef, ok := blob.Parse(blobName); ok {
+				opts.ch <- blob.SizedRef{Ref: blobRef, Size: fi.Size()}
 				(*opts.remain)--
 			}
 			continue
@@ -132,7 +131,7 @@ func readBlobs(opts readBlobRequest) error {
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 	if limit == 0 {
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
@@ -159,7 +158,7 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after st
 	// The case where we have to wait for wait for any blob
 	// to possibly appear.
 	hub := ds.GetBlobHub()
-	ch := make(chan *blobref.BlobRef, 1)
+	ch := make(chan blob.Ref, 1)
 	hub.RegisterListener(ch)
 	defer hub.UnregisterListener(ch)
 	timer := time.NewTimer(wait)

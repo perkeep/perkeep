@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
@@ -57,8 +57,8 @@ func (c *shareCmd) RunCommand(args []string) error {
 	if len(args) != 1 {
 		return cmdmain.UsageError("share takes exactly one argument, a blobref")
 	}
-	br := blobref.Parse(args[0])
-	if br == nil {
+	br, ok := blob.Parse(args[0])
+	if !ok {
 		return cmdmain.UsageError("invalid blobref")
 	}
 	pr, err := getUploader().UploadShare(br, c.transitive)
@@ -66,7 +66,7 @@ func (c *shareCmd) RunCommand(args []string) error {
 	return nil
 }
 
-func (up *Uploader) UploadShare(target *blobref.BlobRef, transitive bool) (*client.PutResult, error) {
+func (up *Uploader) UploadShare(target blob.Ref, transitive bool) (*client.PutResult, error) {
 	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
 	return up.UploadAndSignBlob(unsigned)
 }

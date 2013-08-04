@@ -36,7 +36,7 @@ import (
 	"io"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -74,19 +74,19 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *shardStorage) shard(b *blobref.BlobRef) blobserver.Storage {
+func (sto *shardStorage) shard(b blob.Ref) blobserver.Storage {
 	return sto.shards[int(sto.shardNum(b))]
 }
 
-func (sto *shardStorage) shardNum(b *blobref.BlobRef) uint32 {
+func (sto *shardStorage) shardNum(b blob.Ref) uint32 {
 	return b.Sum32() % uint32(len(sto.shards))
 }
 
-func (sto *shardStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (sto *shardStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
 	return sto.shard(b).FetchStreaming(b)
 }
 
-func (sto *shardStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (sto *shardStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	sb, err = sto.shard(b).ReceiveBlob(b, source)
 	if err == nil {
 		hub := sto.GetBlobHub()
@@ -95,8 +95,8 @@ func (sto *shardStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (sb b
 	return
 }
 
-func (sto *shardStorage) batchedShards(blobs []*blobref.BlobRef, fn func(blobserver.Storage, []*blobref.BlobRef) error) error {
-	m := make(map[uint32][]*blobref.BlobRef)
+func (sto *shardStorage) batchedShards(blobs []blob.Ref, fn func(blobserver.Storage, []blob.Ref) error) error {
+	m := make(map[uint32][]blob.Ref)
 	for _, b := range blobs {
 		sn := sto.shardNum(b)
 		m[sn] = append(m[sn], b)
@@ -118,19 +118,19 @@ func (sto *shardStorage) batchedShards(blobs []*blobref.BlobRef, fn func(blobser
 	return reterr
 }
 
-func (sto *shardStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
-	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) error {
+func (sto *shardStorage) RemoveBlobs(blobs []blob.Ref) error {
+	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
 		return s.RemoveBlobs(blobs)
 	})
 }
 
-func (sto *shardStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
-	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []*blobref.BlobRef) error {
+func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
 		return s.StatBlobs(dest, blobs, wait)
 	})
 }
 
-func (sto *shardStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (sto *shardStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	return blobserver.MergedEnumerate(dest, sto.shards, after, limit, wait)
 }
 

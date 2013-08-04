@@ -34,7 +34,7 @@ import (
 	"appengine/blobstore"
 	"appengine/datastore"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -85,15 +85,15 @@ func (b *blobEnt) inNamespace(ns string) (out bool) {
 	return false
 }
 
-func entKey(c appengine.Context, br *blobref.BlobRef) *datastore.Key {
+func entKey(c appengine.Context, br blob.Ref) *datastore.Key {
 	return datastore.NewKey(c, blobKind, br.String(), 0, nil)
 }
 
-func (s *appengineStorage) memKey(c appengine.Context, br *blobref.BlobRef) *datastore.Key {
+func (s *appengineStorage) memKey(c appengine.Context, br blob.Ref) *datastore.Key {
 	return datastore.NewKey(c, memKind, fmt.Sprintf("%s|%s", s.namespace, br.String()), 0, nil)
 }
 
-func fetchEnt(c appengine.Context, br *blobref.BlobRef) (*blobEnt, error) {
+func fetchEnt(c appengine.Context, br blob.Ref) (*blobEnt, error) {
 	row := new(blobEnt)
 	err := datastore.Get(c, entKey(c, br), row)
 	if err != nil {
@@ -130,7 +130,7 @@ func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
 
 var dummyCloser = ioutil.NopCloser(strings.NewReader(""))
 
-func (sto *appengineStorage) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
 	ctx := sto.ctx
 	var loan ContextLoan
 	if ctx == nil {
@@ -183,7 +183,7 @@ func (oc *onceCloser) Close() error {
 
 var crossGroupTransaction = &datastore.TransactionOptions{XG: true}
 
-func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb blobref.SizedBlobRef, err error) {
+func (sto *appengineStorage) ReceiveBlob(br blob.Ref, in io.Reader) (sb blob.SizedRef, err error) {
 	ctx := sto.ctx
 	if ctx == nil {
 		loan := ctxPool.Get()
@@ -280,11 +280,11 @@ func (sto *appengineStorage) ReceiveBlob(br *blobref.BlobRef, in io.Reader) (sb 
 		}
 		return
 	}
-	return blobref.SizedBlobRef{br, written}, nil
+	return blob.SizedRef{br, written}, nil
 }
 
 // NOTE(bslatkin): No fucking clue if this works.
-func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (sto *appengineStorage) RemoveBlobs(blobs []blob.Ref) error {
 	ctx := sto.ctx
 	if ctx == nil {
 		loan := ctxPool.Get()
@@ -292,7 +292,7 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 		ctx = loan
 	}
 
-	tryFunc := func(tc appengine.Context, br *blobref.BlobRef) error {
+	tryFunc := func(tc appengine.Context, br blob.Ref) error {
 		// TODO(bslatkin): Make the DB gets in this a multi-get.
 		// Remove the namespace from the blobEnt
 		row, err := fetchEnt(tc, br)
@@ -338,7 +338,7 @@ func (sto *appengineStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	return nil
 }
 
-func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	ctx := sto.ctx
 	if ctx == nil {
 		loan := ctxPool.Get()
@@ -373,12 +373,12 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs [
 			continue
 		}
 		ent := out[i].(*memEnt)
-		dest <- blobref.SizedBlobRef{br, ent.Size}
+		dest <- blob.SizedRef{br, ent.Size}
 	}
 	return err
 }
 
-func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (sto *appengineStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 
 	ctx := sto.ctx
@@ -403,7 +403,7 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, af
 		if err != nil {
 			return err
 		}
-		dest <- blobref.SizedBlobRef{blobref.Parse(key.StringID()[len(prefix):]), row.Size}
+		dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), row.Size}
 	}
 	return nil
 }

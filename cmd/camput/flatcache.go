@@ -31,7 +31,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/osutil"
 )
@@ -122,7 +122,7 @@ func NewFlatStatCache(gen string) *FlatStatCache {
 		fc.m[filename] = fileInfoPutRes{
 			Fingerprint: fp,
 			Result: client.PutResult{
-				BlobRef: blobref.Parse(blobrefStr),
+				BlobRef: blob.ParseOrZero(blobrefStr),
 				Size:    blobSize,
 				Skipped: true, // is this used?
 			},
@@ -235,14 +235,14 @@ func NewFlatHaveCache(gen string) *FlatHaveCache {
 	return c
 }
 
-func (c *FlatHaveCache) StatBlobCache(br *blobref.BlobRef) (size int64, ok bool) {
+func (c *FlatHaveCache) StatBlobCache(br blob.Ref) (size int64, ok bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	size, ok = c.m[br.String()]
 	return
 }
 
-func (c *FlatHaveCache) NoteBlobExists(br *blobref.BlobRef, size int64) {
+func (c *FlatHaveCache) NoteBlobExists(br blob.Ref, size int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if size < 0 {

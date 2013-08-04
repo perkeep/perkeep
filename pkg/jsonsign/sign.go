@@ -29,7 +29,7 @@ import (
 	"time"
 	"unicode"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/misc/gpgagent"
 	"camlistore.org/pkg/misc/pinentry"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
@@ -163,7 +163,7 @@ func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {
 
 type SignRequest struct {
 	UnsignedJSON string
-	Fetcher      interface{} // blobref.Fetcher or blobref.StreamingFetcher
+	Fetcher      interface{} // blobref.Fetcher or blob.StreamingFetcher
 	ServerMode   bool        // if true, can't use pinentry or gpg-agent, etc.
 
 	// Optional signature time. If zero, time.Now() is used.
@@ -209,16 +209,16 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	}
 
 	camliSignerStr, _ := camliSigner.(string)
-	signerBlob := blobref.Parse(camliSignerStr)
-	if signerBlob == nil {
+	signerBlob, ok := blob.Parse(camliSignerStr)
+	if !ok {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
 
 	var pubkeyReader io.ReadCloser
 	switch fetcher := sr.Fetcher.(type) {
-	case blobref.SeekFetcher:
+	case blob.SeekFetcher:
 		pubkeyReader, _, err = fetcher.Fetch(signerBlob)
-	case blobref.StreamingFetcher:
+	case blob.StreamingFetcher:
 		pubkeyReader, _, err = fetcher.FetchStreaming(signerBlob)
 	default:
 		panic(fmt.Sprintf("jsonsign: bogus SignRequest.Fetcher of type %T", sr.Fetcher))

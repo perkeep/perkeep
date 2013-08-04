@@ -21,15 +21,15 @@ import (
 
 	"path/filepath"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"net/url"
 )
 
-func blobFileBaseName(b *blobref.BlobRef) string {
+func blobFileBaseName(b blob.Ref) string {
 	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
 }
 
-func (ds *DiskStorage) blobDirectory(partition string, b *blobref.BlobRef) string {
+func (ds *DiskStorage) blobDirectory(partition string, b blob.Ref) string {
 	d := b.Digest()
 	if len(d) < 6 {
 		d = d + "______"
@@ -37,7 +37,7 @@ func (ds *DiskStorage) blobDirectory(partition string, b *blobref.BlobRef) strin
 	return filepath.Join(ds.PartitionRoot(partition), b.HashName(), d[0:3], d[3:6])
 }
 
-func (ds *DiskStorage) blobPath(partition string, b *blobref.BlobRef) string {
+func (ds *DiskStorage) blobPath(partition string, b blob.Ref) string {
 	return filepath.Join(ds.blobDirectory(partition, b), blobFileBaseName(b))
 }
 

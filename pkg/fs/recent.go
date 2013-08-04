@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/search"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
@@ -72,8 +72,8 @@ func (n *recentDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 		if meta == nil || meta.Permanode == nil {
 			continue
 		}
-		cc := blobref.Parse(meta.Permanode.Attr.Get("camliContent"))
-		if cc == nil {
+		cc, ok := blob.Parse(meta.Permanode.Attr.Get("camliContent"))
+		if !ok {
 			continue
 		}
 		ccMeta := res.Meta.Get(cc)

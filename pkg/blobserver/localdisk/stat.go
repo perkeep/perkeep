@@ -21,24 +21,24 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 const maxParallelStats = 20
 
-func (ds *DiskStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	if len(blobs) == 0 {
 		return nil
 	}
 
 	var missingLock sync.Mutex
-	var missing []*blobref.BlobRef
+	var missing []blob.Ref
 
-	statSend := func(ref *blobref.BlobRef, appendMissing bool) error {
+	statSend := func(ref blob.Ref, appendMissing bool) error {
 		fi, err := os.Stat(ds.blobPath(ds.partition, ref))
 		switch {
 		case err == nil && !fi.IsDir():
-			dest <- blobref.SizedBlobRef{BlobRef: ref, Size: fi.Size()}
+			dest <- blob.SizedRef{Ref: ref, Size: fi.Size()}
 		case err != nil && appendMissing && os.IsNotExist(err):
 			missingLock.Lock()
 			missing = append(missing, ref)
@@ -58,7 +58,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blob
 		errCh := make(chan error)
 		rateLimiter := make(chan bool, maxParallelStats)
 		for _, ref := range blobs {
-			go func(ref *blobref.BlobRef) {
+			go func(ref blob.Ref) {
 				rateLimiter <- true
 				errCh <- statSend(ref, wait > 0)
 				<-rateLimiter
@@ -72,12 +72,12 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blob
 	}
 
 	if needed := len(missing); needed > 0 {
-		if wait > 1 * time.Minute {
+		if wait > 1*time.Minute {
 			// TODO: use a flag, defaulting to a minute?
 			wait = 1 * time.Minute
 		}
 		hub := ds.GetBlobHub()
-		ch := make(chan *blobref.BlobRef, 1)
+		ch := make(chan blob.Ref, 1)
 		for _, missblob := range missing {
 			hub.RegisterBlobListener(missblob, ch)
 			defer hub.UnregisterBlobListener(missblob, ch)

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/types"
 )
@@ -41,7 +41,7 @@ type FileReader struct {
 	*io.SectionReader             // provides Read, etc.
 	parent            *FileReader // or nil for sub-region readers to find the ssm map in getSuperset
 	rootOff           int64       // this FileReader's offset from the root
-	fetcher           blobref.SeekFetcher
+	fetcher           blob.SeekFetcher
 	ss                *superset
 	size              int64 // total number of bytes
 
@@ -56,12 +56,12 @@ type FileReader struct {
 // schema blob.
 //
 // The caller should call Close on the FileReader when done reading.
-func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*FileReader, error) {
+func NewFileReader(fetcher blob.SeekFetcher, fileBlobRef blob.Ref) (*FileReader, error) {
 	// TODO(bradfitz): make this take a blobref.FetcherAt instead?
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still
 	//                 named FileReader, but can also read a "bytes" schema.
-	if fileBlobRef == nil {
-		return nil, errors.New("schema/filereader: NewFileReader blobref was nil")
+	if !fileBlobRef.Valid() {
+		return nil, errors.New("schema/filereader: NewFileReader blobref invalid")
 	}
 	rsc, _, err := fetcher.Fetch(fileBlobRef)
 	if err != nil {
@@ -82,7 +82,7 @@ func NewFileReader(fetcher blobref.SeekFetcher, fileBlobRef *blobref.BlobRef) (*
 	return fr, nil
 }
 
-func (b *Blob) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, error) {
+func (b *Blob) NewFileReader(fetcher blob.SeekFetcher) (*FileReader, error) {
 	return b.ss.NewFileReader(fetcher)
 }
 
@@ -94,7 +94,7 @@ func (b *Blob) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, error) {
 //
 // An error is only returned if the type of the superset is not either
 // "file" or "bytes".
-func (ss *superset) NewFileReader(fetcher blobref.SeekFetcher) (*FileReader, error) {
+func (ss *superset) NewFileReader(fetcher blob.SeekFetcher) (*FileReader, error) {
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
 	}
@@ -192,13 +192,13 @@ func (fr *FileReader) sendPartsChunks(c chan<- int64, off int64, parts []*BytesP
 	var errcs []chan error
 	for _, p := range parts {
 		switch {
-		case p.BlobRef != nil && p.BytesRef != nil:
+		case p.BlobRef.Valid() && p.BytesRef.Valid():
 			return fmt.Errorf("part illegally contained both a blobRef and bytesRef")
-		case p.BlobRef == nil && p.BytesRef == nil:
+		case !p.BlobRef.Valid() && !p.BytesRef.Valid():
 			// Don't send
-		case p.BlobRef != nil:
+		case p.BlobRef.Valid():
 			c <- off
-		case p.BytesRef != nil:
+		case p.BytesRef.Valid():
 			errc := make(chan error, 1)
 			errcs = append(errcs, errc)
 			br := p.BytesRef
@@ -241,7 +241,7 @@ func (fr *FileReader) rootReader() *FileReader {
 	return fr
 }
 
-func (fr *FileReader) getSuperset(br *blobref.BlobRef) (*superset, error) {
+func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 	if root := fr.rootReader(); root != fr {
 		return root.getSuperset(br)
 	}
@@ -303,13 +303,13 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	var rsc types.ReadSeekCloser
 	var err error
 	switch {
-	case p0.BlobRef != nil && p0.BytesRef != nil:
+	case p0.BlobRef.Valid() && p0.BytesRef.Valid():
 		return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
-	case p0.BlobRef == nil && p0.BytesRef == nil:
+	case !p0.BlobRef.Valid() && !p0.BytesRef.Valid():
 		return &nZeros{int(p0.Size - uint64(offRemain))}, nil
-	case p0.BlobRef != nil:
+	case p0.BlobRef.Valid():
 		rsc, _, err = fr.fetcher.Fetch(p0.BlobRef)
-	case p0.BytesRef != nil:
+	case p0.BytesRef.Valid():
 		var ss *superset
 		ss, err = fr.getSuperset(p0.BytesRef)
 		if err != nil {

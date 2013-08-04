@@ -27,7 +27,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	var cl *client.Client
-	var items []*blobref.BlobRef
+	var items []blob.Ref
 
 	if *flagShared != "" {
 		if client.ExplicitServer() != "" {
@@ -82,8 +82,8 @@ func main() {
 		cl = client.NewOrFail()
 		for n := 0; n < flag.NArg(); n++ {
 			arg := flag.Arg(n)
-			br := blobref.Parse(arg)
-			if br == nil {
+			br, ok := blob.Parse(arg)
+			if !ok {
 				log.Fatalf("Failed to parse argument %q as a blobref.", arg)
 			}
 			items = append(items, br)
@@ -146,7 +146,7 @@ func main() {
 	}
 }
 
-func fetch(src blobref.StreamingFetcher, br *blobref.BlobRef) (r io.ReadCloser, err error) {
+func fetch(src blob.StreamingFetcher, br blob.Ref) (r io.ReadCloser, err error) {
 	if *flagVerbose {
 		log.Printf("Fetching %s", br.String())
 	}
@@ -161,7 +161,7 @@ func fetch(src blobref.StreamingFetcher, br *blobref.BlobRef) (r io.ReadCloser, 
 const sniffSize = 900 * 1024
 
 // smartFetch the things that blobs point to, not just blobs.
-func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) error {
+func smartFetch(src blob.StreamingFetcher, targ string, br blob.Ref) error {
 	rc, err := fetch(src, br)
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 	}
 
 	sniffer.Parse()
-	blob, ok := sniffer.SchemaBlob()
+	b, ok := sniffer.SchemaBlob()
 
 	if !ok {
 		if *flagVerbose {
@@ -194,21 +194,21 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		return err
 	}
 
-	switch blob.Type() {
+	switch b.Type() {
 	case "directory":
-		dir := filepath.Join(targ, blob.FileName())
+		dir := filepath.Join(targ, b.FileName())
 		if *flagVerbose {
 			log.Printf("Fetching directory %v into %s", br, dir)
 		}
-		if err := os.MkdirAll(dir, blob.FileMode()); err != nil {
+		if err := os.MkdirAll(dir, b.FileMode()); err != nil {
 			return err
 		}
-		if err := setFileMeta(dir, blob); err != nil {
+		if err := setFileMeta(dir, b); err != nil {
 			log.Print(err)
 		}
-		entries := blob.DirectoryEntries()
-		if entries == nil {
-			return fmt.Errorf("bad entries blobref in dir %v", blob.BlobRef())
+		entries, ok := b.DirectoryEntries()
+		if !ok {
+			return fmt.Errorf("bad entries blobref in dir %v", b.BlobRef())
 		}
 		return smartFetch(src, dir, entries)
 	case "static-set":
@@ -219,10 +219,10 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		// directory entries
 		const numWorkers = 10
 		type work struct {
-			br   *blobref.BlobRef
+			br   blob.Ref
 			errc chan<- error
 		}
-		members := blob.StaticSetMembers()
+		members := b.StaticSetMembers()
 		workc := make(chan work, len(members))
 		defer close(workc)
 		for i := 0; i < numWorkers; i++ {
@@ -245,7 +245,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		}
 		return nil
 	case "file":
-		seekFetcher := blobref.SeekerFromStreamingFetcher(src)
+		seekFetcher := blob.SeekerFromStreamingFetcher(src)
 		fr, err := schema.NewFileReader(seekFetcher, br)
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)
@@ -253,7 +253,7 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		fr.LoadAllChunks()
 		defer fr.Close()
 
-		name := filepath.Join(targ, blob.FileName())
+		name := filepath.Join(targ, b.FileName())
 
 		if fi, err := os.Stat(name); err == nil && fi.Size() == fi.Size() {
 			if *flagVerbose {
@@ -274,12 +274,12 @@ func smartFetch(src blobref.StreamingFetcher, targ string, br *blobref.BlobRef) 
 		if _, err := io.Copy(f, fr); err != nil {
 			return fmt.Errorf("Copying %s to %s: %v", br, name, err)
 		}
-		if err := setFileMeta(name, blob); err != nil {
+		if err := setFileMeta(name, b); err != nil {
 			log.Print(err)
 		}
 		return nil
 	default:
-		return errors.New("unknown blob type: " + blob.Type())
+		return errors.New("unknown blob type: " + b.Type())
 	}
 	panic("unreachable")
 }

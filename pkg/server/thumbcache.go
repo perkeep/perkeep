@@ -19,7 +19,7 @@ package server
 import (
 	"errors"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/lru"
 )
 
@@ -33,14 +33,14 @@ const cacheSize = 1024
 // it to square). This string packing should not be parsed by a ScaledImage
 // implementation and is not guaranteed to be stable over time.
 type ScaledImage interface {
-	Get(key string) (*blobref.BlobRef, error) // returns ErrCacheMiss when item not in cache
-	Put(key string, br *blobref.BlobRef) error
+	Get(key string) (blob.Ref, error) // returns ErrCacheMiss when item not in cache
+	Put(key string, br blob.Ref) error
 }
 
 var ErrCacheMiss = errors.New("not in cache")
 
 type ScaledImageLRU struct {
-	nameToBlob *lru.Cache // string (see key format) -> *blobref.BlobRef
+	nameToBlob *lru.Cache // string (see key format) -> blob.Ref
 }
 
 func NewScaledImageLRU() *ScaledImageLRU {
@@ -50,15 +50,15 @@ func NewScaledImageLRU() *ScaledImageLRU {
 	return sc
 }
 
-func (sc *ScaledImageLRU) Get(key string) (*blobref.BlobRef, error) {
+func (sc *ScaledImageLRU) Get(key string) (blob.Ref, error) {
 	br, ok := sc.nameToBlob.Get(key)
 	if !ok {
-		return nil, ErrCacheMiss
+		return blob.Ref{}, ErrCacheMiss
 	}
-	return br.(*blobref.BlobRef), nil
+	return br.(blob.Ref), nil
 }
 
-func (sc *ScaledImageLRU) Put(key string, br *blobref.BlobRef) error {
+func (sc *ScaledImageLRU) Put(key string, br blob.Ref) error {
 	sc.nameToBlob.Add(key, br)
 	return nil
 }

@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
@@ -216,7 +216,7 @@ func (sh *SyncHandler) addErrorToLog(err error) {
 }
 
 type copyResult struct {
-	sb  blobref.SizedBlobRef
+	sb  blob.SizedRef
 	err error
 }
 
@@ -224,7 +224,7 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc blobserver.Storage, longP
 	if longPollWait != 0 {
 		sh.setStatus("Idle; waiting for new blobs")
 	}
-	enumch := make(chan blobref.SizedBlobRef)
+	enumch := make(chan blob.SizedRef)
 	errch := make(chan error, 1)
 	go func() {
 		errch <- enumSrc.EnumerateBlobs(enumch, "", 1000, longPollWait)
@@ -233,7 +233,7 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc blobserver.Storage, longP
 	nCopied := 0
 	toCopy := 0
 
-	workch := make(chan blobref.SizedBlobRef, 1000)
+	workch := make(chan blob.SizedRef, 1000)
 	resch := make(chan copyResult, 8)
 	for sb := range enumch {
 		toCopy++
@@ -275,7 +275,7 @@ func (sh *SyncHandler) syncQueueLoop() {
 	})
 }
 
-func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blobref.SizedBlobRef) {
+func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blob.SizedRef) {
 	for sb := range work {
 		res <- copyResult{sb, sh.copyBlob(sb)}
 	}
@@ -289,8 +289,8 @@ type status string
 
 func (s status) String() string { return string(s) }
 
-func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
-	key := sb.BlobRef.String()
+func (sh *SyncHandler) copyBlob(sb blob.SizedRef) error {
+	key := sb.Ref.String()
 	set := func(s fmt.Stringer) {
 		sh.setBlobStatus(key, s)
 	}
@@ -298,7 +298,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 
 	errorf := func(s string, args ...interface{}) error {
 		// TODO: increment error stats
-		pargs := []interface{}{sh.fromqName, sb.BlobRef}
+		pargs := []interface{}{sh.fromqName, sb.Ref}
 		pargs = append(pargs, args...)
 		err := fmt.Errorf("replication error for queue %q, blob %s: "+s, pargs...)
 		sh.addErrorToLog(err)
@@ -306,7 +306,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 	}
 
 	set(status("sending GET to source"))
-	rc, fromSize, err := sh.from.FetchStreaming(sb.BlobRef)
+	rc, fromSize, err := sh.from.FetchStreaming(sb.Ref)
 	if err != nil {
 		return errorf("source fetch: %v", err)
 	}
@@ -319,7 +319,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 	set(statusFunc(func() string {
 		return fmt.Sprintf("copying: %d/%d bytes", bytesCopied, sb.Size)
 	}))
-	newsb, err := sh.to.ReceiveBlob(sb.BlobRef, readerutil.CountingReader{rc, &bytesCopied})
+	newsb, err := sh.to.ReceiveBlob(sb.Ref, readerutil.CountingReader{rc, &bytesCopied})
 	if err != nil {
 		return errorf("dest write: %v", err)
 	}
@@ -327,7 +327,7 @@ func (sh *SyncHandler) copyBlob(sb blobref.SizedBlobRef) error {
 		return errorf("write size mismatch: source_read=%d but dest_write=%d", sb.Size, newsb.Size)
 	}
 	set(status("copied; removing from queue"))
-	err = sh.fromq.RemoveBlobs([]*blobref.BlobRef{sb.BlobRef})
+	err = sh.fromq.RemoveBlobs([]blob.Ref{sb.Ref})
 	if err != nil {
 		return errorf("source queue delete: %v", err)
 	}

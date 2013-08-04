@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign/signhandler"
@@ -66,25 +66,25 @@ func wrapReceiveConfiger(cw blobserver.ContextWrapper,
 // vivify verifies that all the chunks for the file described by fileblob are on the blobserver.
 // It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
 // on that permanode for fileblob, signs it, and uploads it to the blobserver.
-func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedBlobRef) error {
-	sf, ok := blobReceiver.(blobref.StreamingFetcher)
+func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef) error {
+	sf, ok := blobReceiver.(blob.StreamingFetcher)
 	if !ok {
 		return fmt.Errorf("BlobReceiver is not a StreamingFetcher")
 	}
-	fetcher := blobref.SeekerFromStreamingFetcher(sf)
-	fr, err := schema.NewFileReader(fetcher, fileblob.BlobRef)
+	fetcher := blob.SeekerFromStreamingFetcher(sf)
+	fr, err := schema.NewFileReader(fetcher, fileblob.Ref)
 	if err != nil {
-		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.BlobRef.String(), err)
+		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.Ref.String(), err)
 	}
 	defer fr.Close()
 
 	h := sha1.New()
 	n, err := io.Copy(h, fr)
 	if err != nil {
-		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.BlobRef.String(), err)
+		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.Ref.String(), err)
 	}
 	if n != fr.Size() {
-		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.BlobRef.String(), fr.Size(), n)
+		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
 	}
 
 	config := blobReceiver.Config()
@@ -119,26 +119,26 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blobref.SizedB
 	}
 
 	permanodeBB := schema.NewHashPlannedPermanode(h)
-	permanodeBB.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	permanodeBB.SetSigner(blob.MustParse(publicKeyBlobRef))
 	permanodeBB.SetClaimDate(claimDate)
 	permanodeSigned, err := sigHelper.Sign(permanodeBB)
 	if err != nil {
 		return fmt.Errorf("Signing permanode %v: %v", permanodeSigned, err)
 	}
-	permanodeRef := blobref.SHA1FromString(permanodeSigned)
+	permanodeRef := blob.SHA1FromString(permanodeSigned)
 	_, err = blobReceiver.ReceiveBlob(permanodeRef, strings.NewReader(permanodeSigned))
 	if err != nil {
 		return fmt.Errorf("While uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
 	}
 
-	contentClaimBB := schema.NewSetAttributeClaim(permanodeRef, "camliContent", fileblob.BlobRef.String())
-	contentClaimBB.SetSigner(blobref.MustParse(publicKeyBlobRef))
+	contentClaimBB := schema.NewSetAttributeClaim(permanodeRef, "camliContent", fileblob.Ref.String())
+	contentClaimBB.SetSigner(blob.MustParse(publicKeyBlobRef))
 	contentClaimBB.SetClaimDate(claimDate)
 	contentClaimSigned, err := sigHelper.Sign(contentClaimBB)
 	if err != nil {
 		return fmt.Errorf("Signing camliContent claim: %v", err)
 	}
-	contentClaimRef := blobref.SHA1FromString(contentClaimSigned)
+	contentClaimRef := blob.SHA1FromString(contentClaimSigned)
 	_, err = blobReceiver.ReceiveBlob(contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
 		return fmt.Errorf("While uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
@@ -157,7 +157,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		return
 	}
 
-	receivedBlobs := make([]blobref.SizedBlobRef, 0, 10)
+	receivedBlobs := make([]blob.SizedRef, 0, 10)
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
@@ -198,8 +198,8 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		}
 
 		formName := params["name"]
-		ref := blobref.Parse(formName)
-		if ref == nil {
+		ref, ok := blob.Parse(formName)
+		if !ok {
 			addError(fmt.Sprintf("Ignoring form key %q", formName))
 			continue
 		}
@@ -238,7 +238,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
 		blob := make(map[string]interface{})
-		blob["blobRef"] = got.BlobRef.String()
+		blob["blobRef"] = got.Ref.String()
 		blob["size"] = got.Size
 		received = append(received, blob)
 	}
@@ -248,9 +248,9 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		for _, got := range receivedBlobs {
 			err := vivify(blobReceiver, got)
 			if err != nil {
-				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.BlobRef.String(), err))
+				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.Ref.String(), err))
 			} else {
-				conn.Header().Add("X-Camlistore-Vivified", got.BlobRef.String())
+				conn.Header().Add("X-Camlistore-Vivified", got.Ref.String())
 			}
 		}
 	}

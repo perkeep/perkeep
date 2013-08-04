@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/schema"
@@ -42,7 +42,7 @@ var serverStart = time.Now()
 var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
 type CamliFileSystem struct {
-	fetcher blobref.SeekFetcher
+	fetcher blob.SeekFetcher
 	client  *client.Client // or nil, if not doing search queries
 	root    fuse.Node
 
@@ -52,13 +52,13 @@ type CamliFileSystem struct {
 	IgnoreOwners bool
 
 	blobToSchema *lru.Cache // ~map[blobstring]*schema.Blob
-	nameToBlob   *lru.Cache // ~map[string]*blobref.BlobRef
+	nameToBlob   *lru.Cache // ~map[string]blob.Ref
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
 
 var _ fuse.FS = (*CamliFileSystem)(nil)
 
-func newCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
+func newCamliFileSystem(fetcher blob.SeekFetcher) *CamliFileSystem {
 	return &CamliFileSystem{
 		fetcher:      fetcher,
 		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?
@@ -69,7 +69,7 @@ func newCamliFileSystem(fetcher blobref.SeekFetcher) *CamliFileSystem {
 
 // NewCamliFileSystem returns a filesystem with a generic base, from which users
 // can navigate by blobref, tag, date, etc.
-func NewCamliFileSystem(client *client.Client, fetcher blobref.SeekFetcher) *CamliFileSystem {
+func NewCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) *CamliFileSystem {
 	if client == nil || fetcher == nil {
 		panic("nil argument")
 	}
@@ -81,7 +81,7 @@ func NewCamliFileSystem(client *client.Client, fetcher blobref.SeekFetcher) *Cam
 
 // NewRootedCamliFileSystem returns a CamliFileSystem with root as its
 // base.
-func NewRootedCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef) (*CamliFileSystem, error) {
+func NewRootedCamliFileSystem(fetcher blob.SeekFetcher, root blob.Ref) (*CamliFileSystem, error) {
 	fs := newCamliFileSystem(fetcher)
 
 	blob, err := fs.fetchSchemaMeta(root)
@@ -101,7 +101,7 @@ func NewRootedCamliFileSystem(fetcher blobref.SeekFetcher, root *blobref.BlobRef
 // "directory" blob.
 type node struct {
 	fs      *CamliFileSystem
-	blobref *blobref.BlobRef
+	blobref blob.Ref
 
 	pnodeModTime time.Time // optionally set by recent.go; modtime of permanode
 
@@ -111,7 +111,7 @@ type node struct {
 	mu      sync.Mutex // guards rest
 	attr    fuse.Attr
 	meta    *schema.Blob
-	lookMap map[string]*blobref.BlobRef
+	lookMap map[string]blob.Ref
 }
 
 func (n *node) Attr() (attr fuse.Attr) {
@@ -123,11 +123,11 @@ func (n *node) Attr() (attr fuse.Attr) {
 	return n.attr
 }
 
-func (n *node) addLookupEntry(name string, ref *blobref.BlobRef) {
+func (n *node) addLookupEntry(name string, ref blob.Ref) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.lookMap == nil {
-		n.lookMap = make(map[string]*blobref.BlobRef)
+		n.lookMap = make(map[string]blob.Ref)
 	}
 	n.lookMap[name] = ref
 }
@@ -315,7 +315,7 @@ func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsRespo
 // Errors returned are:
 //    os.ErrNotExist -- blob not found
 //    os.ErrInvalid -- not JSON or a camli schema blob
-func (fs *CamliFileSystem) fetchSchemaMeta(br *blobref.BlobRef) (*schema.Blob, error) {
+func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 	blobStr := br.String()
 	if blob, ok := fs.blobToSchema.Get(blobStr); ok {
 		return blob.(*schema.Blob), nil

@@ -24,9 +24,9 @@ import (
 
 var response = `{
    "stat": [
-      {"blobRef": "foo-abc",
+      {"blobRef": "foo-abcd",
        "size": 123},
-      {"blobRef": "foo-def",
+      {"blobRef": "foo-cdef",
        "size": 999}
    ],
    "maxUploadSize": 1048576,
@@ -54,11 +54,11 @@ func TestParseStatResponse(t *testing.T) {
 		t.Errorf(" Got: %#v\nWant: %#v", res, want)
 	}
 
-	if sb, ok := hm["foo-abc"]; !ok || sb.Size != 123 {
+	if sb, ok := hm["foo-abcd"]; !ok || sb.Size != 123 {
 		t.Errorf("Got unexpected map: %#v", hm)
 	}
 
-	if sb, ok := hm["foo-def"]; !ok || sb.Size != 999 {
+	if sb, ok := hm["foo-cdef"]; !ok || sb.Size != 999 {
 		t.Errorf("Got unexpected map: %#v", hm)
 	}
 }

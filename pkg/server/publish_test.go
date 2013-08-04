@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
@@ -37,41 +37,41 @@ var publishURLTests = []publishURLTest{
 	// URL to a single picture permanoe (returning its HTML wrapper page)
 	{
 		path:    "/pics/singlepic",
-		subject: "picpn-123",
+		subject: "picpn-1234",
 	},
 
 	// URL to a gallery permanode (returning its HTML wrapper page)
 	{
 		path:    "/pics/camping",
-		subject: "gal-123",
+		subject: "gal-1234",
 	},
 
 	// URL to a picture permanode within a gallery (following one hop, returning HTML)
 	{
 		path:    "/pics/camping/-/h9876543210",
-		subject: "picpn-98765432100",
+		subject: "picpn-9876543210",
 	},
 
 	// URL to a gallery -> picture permanode -> its file
 	// (following two hops, returning HTML)
 	{
-		path:    "/pics/camping/-/h9876543210/hf00f00f00a",
-		subject: "picfile-f00f00f00a5",
+		path:    "/pics/camping/-/h9876543210/hf00ff00f00a",
+		subject: "picfile-f00ff00f00a5",
 	},
 
 	// URL to a gallery -> picture permanode -> its file
 	// (following two hops, returning the file download)
 	{
-		path:    "/pics/camping/-/h9876543210/hf00f00f00a/=f/marshmallow.jpg",
-		subject: "picfile-f00f00f00a5",
+		path:    "/pics/camping/-/h9876543210/hf00ff00f00a/=f/marshmallow.jpg",
+		subject: "picfile-f00ff00f00a5",
 		subres:  "/=f/marshmallow.jpg",
 	},
 
 	// URL to a gallery -> picture permanode -> its file
 	// (following two hops, returning the file, scaled as an image)
 	{
-		path:    "/pics/camping/-/h9876543210/hf00f00f00a/=i/marshmallow.jpg?mw=200&mh=200",
-		subject: "picfile-f00f00f00a5",
+		path:    "/pics/camping/-/h9876543210/hf00ff00f00a/=i/marshmallow.jpg?mw=200&mh=200",
+		subject: "picfile-f00ff00f00a5",
 		subres:  "/=i/marshmallow.jpg",
 	},
 
@@ -87,14 +87,14 @@ var publishURLTests = []publishURLTest{
 }
 
 func TestPublishURLs(t *testing.T) {
-	owner := blobref.MustParse("owner-123")
-	picNode := blobref.MustParse("picpn-123")
-	galRef := blobref.MustParse("gal-123")
-	rootRef := blobref.MustParse("root-abc")
-	camp0 := blobref.MustParse("picpn-98765432100")
-	camp1 := blobref.MustParse("picpn-98765432111")
-	camp0f := blobref.MustParse("picfile-f00f00f00a5")
-	camp1f := blobref.MustParse("picfile-f00f00f00b6")
+	owner := blob.MustParse("owner-1234")
+	picNode := blob.MustParse("picpn-1234")
+	galRef := blob.MustParse("gal-1234")
+	rootRef := blob.MustParse("root-abcd")
+	camp0 := blob.MustParse("picpn-9876543210")
+	camp1 := blob.MustParse("picpn-9876543211")
+	camp0f := blob.MustParse("picfile-f00ff00f00a5")
+	camp1f := blob.MustParse("picfile-f00ff00f00b6")
 
 	rootName := "foo"
 
@@ -108,10 +108,10 @@ func TestPublishURLs(t *testing.T) {
 		}
 
 		idx.AddMeta(owner, "text/x-openpgp-public-key", 100)
-		for _, br := range []*blobref.BlobRef{picNode, galRef, rootRef, camp0, camp1} {
+		for _, br := range []blob.Ref{picNode, galRef, rootRef, camp0, camp1} {
 			idx.AddMeta(br, "application/json; camliType=permanode", 100)
 		}
-		for _, br := range []*blobref.BlobRef{camp0f, camp1f} {
+		for _, br := range []blob.Ref{camp0f, camp1f} {
 			idx.AddMeta(br, "application/json; camliType=file", 100)
 		}
 

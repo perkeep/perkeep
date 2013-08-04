@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
@@ -39,15 +39,15 @@ import (
 // An indexOwnerer is something that knows who owns the index.
 // It is implemented by indexAndOwner for use by TestHandler.
 type indexOwnerer interface {
-	IndexOwner() *blobref.BlobRef
+	IndexOwner() blob.Ref
 }
 
 type indexAndOwner struct {
 	Index
-	owner *blobref.BlobRef
+	owner blob.Ref
 }
 
-func (io indexAndOwner) IndexOwner() *blobref.BlobRef {
+func (io indexAndOwner) IndexOwner() blob.Ref {
 	return io.owner
 }
 
@@ -67,7 +67,7 @@ type handlerTest struct {
 	want map[string]interface{}
 }
 
-var owner = blobref.MustParse("abcown-123")
+var owner = blob.MustParse("abcown-123")
 
 func parseJSON(s string) map[string]interface{} {
 	m := make(map[string]interface{})
@@ -92,7 +92,7 @@ var handlerTests = []handlerTest{
 	{
 		name: "describe-jpeg-blob",
 		setup: func(fi *test.FakeIndex) Index {
-			fi.AddMeta(blobref.MustParse("abc-555"), "image/jpeg", 999)
+			fi.AddMeta(blob.MustParse("abc-555"), "image/jpeg", 999)
 			return fi
 		},
 		query: "describe?blobref=abc-555",
@@ -111,10 +111,10 @@ var handlerTests = []handlerTest{
 	{
 		name: "describe-permanode",
 		setup: func(fi *test.FakeIndex) Index {
-			pn := blobref.MustParse("perma-123")
+			pn := blob.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
-			fi.AddMeta(blobref.MustParse("foo-232"), "foo/bar", 878)
+			fi.AddMeta(blob.MustParse("foo-232"), "foo/bar", 878)
 
 			// Test deleting all attributes
 			fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "x")
@@ -157,11 +157,11 @@ var handlerTests = []handlerTest{
 	{
 		name: "describe-permanode-follows-camliPath",
 		setup: func(fi *test.FakeIndex) Index {
-			pn := blobref.MustParse("perma-123")
+			pn := blob.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliPath:foo", "bar-123")
 
-			fi.AddMeta(blobref.MustParse("bar-123"), "other/thing", 123)
+			fi.AddMeta(blob.MustParse("bar-123"), "other/thing", 123)
 			return fi
 		},
 		query: "describe?blobref=perma-123",
@@ -238,7 +238,7 @@ var handlerTests = []handlerTest{
 			if err != nil {
 				panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
 			}
-			uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+			uploadFile := func(file string, modTime time.Time) blob.Ref {
 				fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
 				contents, err := ioutil.ReadFile(fileName)
 				if err != nil {
@@ -310,7 +310,7 @@ var handlerTests = []handlerTest{
 			if err != nil {
 				panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
 			}
-			uploadFile := func(file string, modTime time.Time) *blobref.BlobRef {
+			uploadFile := func(file string, modTime time.Time) blob.Ref {
 				fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
 				contents, err := ioutil.ReadFile(fileName)
 				if err != nil {

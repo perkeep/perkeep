@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 )
@@ -41,7 +41,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		storage = w.WrapContext(req)
 	}
 
-	toStat := make([]*blobref.BlobRef, 0)
+	toStat := make([]blob.Ref, 0)
 	switch req.Method {
 	case "POST":
 		fallthrough
@@ -64,8 +64,8 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 				httputil.BadRequestError(conn, "Too many stat blob checks")
 				return
 			}
-			ref := blobref.Parse(value)
-			if ref == nil {
+			ref, ok := blob.Parse(value)
+			if !ok {
 				httputil.BadRequestError(conn, "Bogus blobref for key "+key)
 				return
 			}
@@ -93,7 +93,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 
 	statRes := make([]map[string]interface{}, 0)
 	if len(toStat) > 0 {
-		blobch := make(chan blobref.SizedBlobRef)
+		blobch := make(chan blob.SizedRef)
 		resultch := make(chan error, 1)
 		go func() {
 			err := storage.StatBlobs(blobch, toStat, time.Duration(waitSeconds)*time.Second)
@@ -103,7 +103,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 
 		for sb := range blobch {
 			ah := make(map[string]interface{})
-			ah["blobRef"] = sb.BlobRef.String()
+			ah["blobRef"] = sb.Ref.String()
 			ah["size"] = sb.Size
 			statRes = append(statRes, ah)
 		}

@@ -19,7 +19,7 @@ package blobserver
 import (
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 const buffered = 8
@@ -27,19 +27,19 @@ const buffered = 8
 // TODO: it'd be nice to make sources be []BlobEnumerator, but that
 // makes callers more complex since assignable interfaces' slice forms
 // aren't assignable.
-func MergedEnumerate(dest chan<- blobref.SizedBlobRef, sources []Storage, after string, limit int, wait time.Duration) error {
+func MergedEnumerate(dest chan<- blob.SizedRef, sources []Storage, after string, limit int, wait time.Duration) error {
 	defer close(dest)
 
-	startEnum := func(source Storage) (*blobref.ChanPeeker, <-chan error) {
-		ch := make(chan blobref.SizedBlobRef, buffered)
+	startEnum := func(source Storage) (*blob.ChanPeeker, <-chan error) {
+		ch := make(chan blob.SizedRef, buffered)
 		errch := make(chan error, 1)
 		go func() {
 			errch <- source.EnumerateBlobs(ch, after, limit, wait)
 		}()
-		return &blobref.ChanPeeker{Ch: ch}, errch
+		return &blob.ChanPeeker{Ch: ch}, errch
 	}
 
-	peekers := make([]*blobref.ChanPeeker, 0, len(sources))
+	peekers := make([]*blob.ChanPeeker, 0, len(sources))
 	errs := make([]<-chan error, 0, len(sources))
 	for _, source := range sources {
 		peeker, errch := startEnum(source)
@@ -51,18 +51,18 @@ func MergedEnumerate(dest chan<- blobref.SizedBlobRef, sources []Storage, after 
 	lastSent := ""
 	for nSent < limit {
 		lowestIdx := -1
-		var lowest blobref.SizedBlobRef
+		var lowest blob.SizedRef
 		for idx, peeker := range peekers {
-			for !peeker.Closed() && peeker.Peek().BlobRef.String() <= lastSent {
+			for !peeker.Closed() && peeker.MustPeek().Ref.String() <= lastSent {
 				peeker.Take()
 			}
 			if peeker.Closed() {
 				continue
 			}
-			sb := peeker.Peek() // can't be nil if not Closed
-			if lowestIdx == -1 || sb.BlobRef.String() < lowest.BlobRef.String() {
+			sb := peeker.MustPeek() // can't be nil if not Closed
+			if lowestIdx == -1 || sb.Ref.String() < lowest.Ref.String() { // TODO: add cheaper Ref comparison function, avoiding String
 				lowestIdx = idx
-				lowest = *sb
+				lowest = sb
 			}
 		}
 		if lowestIdx == -1 {
@@ -72,7 +72,7 @@ func MergedEnumerate(dest chan<- blobref.SizedBlobRef, sources []Storage, after 
 
 		dest <- lowest
 		nSent++
-		lastSent = lowest.BlobRef.String()
+		lastSent = lowest.Ref.String()
 	}
 
 	// Once we've gotten enough, ignore the rest of whatever's

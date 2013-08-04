@@ -43,7 +43,7 @@ import (
 	"net/http"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -114,7 +114,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *replicaStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (sto *replicaStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
 	for _, replica := range sto.replicas {
 		file, size, err = replica.FetchStreaming(b)
 		if err == nil {
@@ -124,23 +124,23 @@ func (sto *replicaStorage) FetchStreaming(b *blobref.BlobRef) (file io.ReadClose
 	return
 }
 
-func (sto *replicaStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*blobref.BlobRef, wait time.Duration) error {
+func (sto *replicaStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
 	if wait > 0 {
 		// TODO: handle wait in-memory, waiting on the blobhub, not going
 		// to the replicas?
 	}
 
-	need := make(map[string]*blobref.BlobRef)
+	need := make(map[string]blob.Ref)
 	for _, br := range blobs {
 		need[br.String()] = br
 	}
 
-	ch := make(chan blobref.SizedBlobRef, buffered)
+	ch := make(chan blob.SizedRef, buffered)
 	donechan := make(chan bool)
 
 	go func() {
 		for sb := range ch {
-			bstr := sb.BlobRef.String()
+			bstr := sb.Ref.String()
 			if _, needed := need[bstr]; needed {
 				dest <- sb
 				delete(need, bstr)
@@ -176,11 +176,11 @@ func (sto *replicaStorage) StatBlobs(dest chan<- blobref.SizedBlobRef, blobs []*
 }
 
 type sizedBlobAndError struct {
-	sb  blobref.SizedBlobRef
+	sb  blob.SizedRef
 	err error
 }
 
-func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (_ blobref.SizedBlobRef, err error) {
+func (sto *replicaStorage) ReceiveBlob(b blob.Ref, source io.Reader) (_ blob.SizedRef, err error) {
 	nReplicas := len(sto.replicas)
 	rpipe, wpipe, writer := make([]*io.PipeReader, nReplicas), make([]*io.PipeWriter, nReplicas), make([]io.Writer, nReplicas)
 	for idx := range sto.replicas {
@@ -235,7 +235,7 @@ func (sto *replicaStorage) ReceiveBlob(b *blobref.BlobRef, source io.Reader) (_ 
 	return
 }
 
-func (sto *replicaStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
+func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 	errch := make(chan error, buffered)
 	removeFrom := func(s blobserver.Storage) {
 		s = blobserver.MaybeWrapContext(s, sto.ctx)
@@ -262,7 +262,7 @@ func (sto *replicaStorage) RemoveBlobs(blobs []*blobref.BlobRef) error {
 	return reterr
 }
 
-func (sto *replicaStorage) EnumerateBlobs(dest chan<- blobref.SizedBlobRef, after string, limit int, wait time.Duration) error {
+func (sto *replicaStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
 	// TODO: option to enumerate from one or from all merged.  for
 	// now we'll just do all, even though it's kinda a waste.  at
 	// least then we don't miss anything if a certain node is

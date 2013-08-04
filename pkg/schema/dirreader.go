@@ -22,22 +22,22 @@ import (
 	"fmt"
 	"io"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 // A DirReader reads the entries of a "directory" schema blob's
 // referenced "static-set" blob.
 type DirReader struct {
-	fetcher blobref.SeekFetcher
+	fetcher blob.SeekFetcher
 	ss      *superset
 
-	staticSet []*blobref.BlobRef
+	staticSet []blob.Ref
 	current   int
 }
 
 // NewDirReader creates a new directory reader and prepares to
 // fetch the static-set entries
-func NewDirReader(fetcher blobref.SeekFetcher, dirBlobRef *blobref.BlobRef) (*DirReader, error) {
+func NewDirReader(fetcher blob.SeekFetcher, dirBlobRef blob.Ref) (*DirReader, error) {
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, dirBlobRef)
 	if err != nil {
@@ -54,20 +54,20 @@ func NewDirReader(fetcher blobref.SeekFetcher, dirBlobRef *blobref.BlobRef) (*Di
 	return dr, nil
 }
 
-func (b *Blob) NewDirReader(fetcher blobref.SeekFetcher) (*DirReader, error) {
+func (b *Blob) NewDirReader(fetcher blob.SeekFetcher) (*DirReader, error) {
 	return b.ss.NewDirReader(fetcher)
 }
 
-func (ss *superset) NewDirReader(fetcher blobref.SeekFetcher) (*DirReader, error) {
+func (ss *superset) NewDirReader(fetcher blob.SeekFetcher) (*DirReader, error) {
 	if ss.Type != "directory" {
 		return nil, fmt.Errorf("Superset not of type \"directory\"")
 	}
 	return &DirReader{fetcher: fetcher, ss: ss}, nil
 }
 
-func (ss *superset) setFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.BlobRef) error {
-	if blobRef == nil {
-		return errors.New("schema/filereader: blobref was nil")
+func (ss *superset) setFromBlobRef(fetcher blob.SeekFetcher, blobRef blob.Ref) error {
+	if !blobRef.Valid() {
+		return errors.New("schema/filereader: blobref invalid")
 	}
 	ss.BlobRef = blobRef
 	rsc, _, err := fetcher.Fetch(blobRef)
@@ -82,12 +82,12 @@ func (ss *superset) setFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref
 }
 
 // StaticSet returns the whole of the static set members of that directory
-func (dr *DirReader) StaticSet() ([]*blobref.BlobRef, error) {
+func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 	if dr.staticSet != nil {
 		return dr.staticSet, nil
 	}
 	staticSetBlobref := dr.ss.Entries
-	if staticSetBlobref == nil {
+	if !staticSetBlobref.Valid() {
 		return nil, fmt.Errorf("schema/filereader: Invalid blobref\n")
 	}
 	rsc, _, err := dr.fetcher.Fetch(staticSetBlobref)
@@ -102,7 +102,7 @@ func (dr *DirReader) StaticSet() ([]*blobref.BlobRef, error) {
 		return nil, fmt.Errorf("schema/filereader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
 	}
 	for _, member := range ss.Members {
-		if member == nil {
+		if !member.Valid() {
 			return nil, fmt.Errorf("schema/filereader: invalid (static-set member) blobref\n")
 		}
 		dr.staticSet = append(dr.staticSet, member)
@@ -146,7 +146,7 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	for _, entRef := range sts[dr.current:up] {
 		c := make(chan res, 1)
 		cs = append(cs, c)
-		go func(entRef *blobref.BlobRef) {
+		go func(entRef blob.Ref) {
 			entry, err := NewDirectoryEntryFromBlobRef(dr.fetcher, entRef)
 			c <- res{entry, err}
 		}(entRef)

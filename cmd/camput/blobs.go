@@ -25,7 +25,7 @@ import (
 	"io"
 	"os"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 )
@@ -87,13 +87,13 @@ func stdinBlobHandle() (uh *client.UploadHandle, err error) {
 	}
 	// TODO(bradfitz,mpl): limit this buffer size?
 	file := buf.Bytes()
-	h := blobref.NewHash()
+	h := blob.NewHash()
 	size, err = io.Copy(h, bytes.NewReader(file))
 	if err != nil {
 		return
 	}
 	return &client.UploadHandle{
-		BlobRef:  blobref.FromHash(h),
+		BlobRef:  blob.RefFromHash(h),
 		Size:     size,
 		Contents: io.LimitReader(bytes.NewReader(file), size),
 	}, nil
@@ -122,12 +122,12 @@ func fileBlobHandle(up *Uploader, path string) (uh *client.UploadHandle, err err
 	}, nil
 }
 
-func blobDetails(contents io.ReadSeeker) (bref *blobref.BlobRef, size int64, err error) {
+func blobDetails(contents io.ReadSeeker) (bref blob.Ref, size int64, err error) {
 	s1 := sha1.New()
 	contents.Seek(0, 0)
 	size, err = io.Copy(s1, contents)
 	if err == nil {
-		bref = blobref.FromHash(s1)
+		bref = blob.RefFromHash(s1)
 	}
 	contents.Seek(0, 0)
 	return

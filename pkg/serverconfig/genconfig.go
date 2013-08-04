@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 )
@@ -40,7 +40,7 @@ type configPrefixesParams struct {
 	keyId            string
 	indexerPath      string
 	blobPath         string
-	searchOwner      *blobref.BlobRef
+	searchOwner      blob.Ref
 	shareHandlerPath string
 }
 
@@ -536,7 +536,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		keyId:            keyId,
 		indexerPath:      indexerPath,
 		blobPath:         blobPath,
-		searchOwner:      blobref.SHA1FromString(armoredPublicKey),
+		searchOwner:      blob.SHA1FromString(armoredPublicKey),
 		shareHandlerPath: shareHandlerPath,
 	}
 

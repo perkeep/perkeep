@@ -20,18 +20,18 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/schema"
 )
 
 type FileTreeHandler struct {
-	Fetcher blobref.StreamingFetcher
-	file    *blobref.BlobRef
+	Fetcher blob.StreamingFetcher
+	file    blob.Ref
 }
 
-func (fth *FileTreeHandler) storageSeekFetcher() blobref.SeekFetcher {
-	return blobref.SeekerFromStreamingFetcher(fth.Fetcher) // TODO: pass ih.Cache?
+func (fth *FileTreeHandler) storageSeekFetcher() blob.SeekFetcher {
+	return blob.SeekerFromStreamingFetcher(fth.Fetcher) // TODO: pass ih.Cache?
 }
 
 func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

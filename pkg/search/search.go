@@ -23,13 +23,13 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
 )
 
 type Result struct {
-	BlobRef     *blobref.BlobRef
-	Signer      *blobref.BlobRef // may be nil
+	BlobRef     blob.Ref
+	Signer      blob.Ref // may be nil
 	LastModTime int64            // seconds since epoch; TODO: time.Time?
 }
 
@@ -50,7 +50,7 @@ func (s Results) String() string {
 
 // TODO: move this to schema or something?
 type Claim struct {
-	BlobRef, Signer, Permanode *blobref.BlobRef
+	BlobRef, Signer, Permanode blob.Ref
 
 	Date time.Time
 	Type string // "set-attribute", "add-attribute", etc
@@ -124,7 +124,7 @@ type ImageInfo struct {
 }
 
 type Path struct {
-	Claim, Base, Target *blobref.BlobRef
+	Claim, Base, Target blob.Ref
 	ClaimDate           string
 	Suffix              string
 }
@@ -135,7 +135,7 @@ func (p *Path) String() string {
 }
 
 type PermanodeByAttrRequest struct {
-	Signer *blobref.BlobRef
+	Signer blob.Ref
 
 	// Attribute to search. currently supported: "tag", "title"
 	// If FuzzyMatch is set, this can be blank to search all
@@ -158,10 +158,10 @@ type EdgesToOpts struct {
 }
 
 type Edge struct {
-	From      *blobref.BlobRef
+	From      blob.Ref
 	FromType  string // "permanode", "directory", etc
 	FromTitle string // name of source permanode or directory
-	To        *blobref.BlobRef
+	To        blob.Ref
 }
 
 func (e *Edge) String() string {
@@ -172,7 +172,7 @@ type Index interface {
 	// dest must be closed, even when returning an error.
 	// limit is <= 0 for default.  smallest possible default is 0
 	GetRecentPermanodes(dest chan *Result,
-		owner *blobref.BlobRef,
+		owner blob.Ref,
 		limit int) error
 
 	// SearchPermanodes finds permanodes matching the provided
@@ -188,13 +188,13 @@ type Index interface {
 	// restricted  to the named attribute.
 	//
 	// dest is always closed, regardless of the error return value.
-	SearchPermanodesWithAttr(dest chan<- *blobref.BlobRef,
+	SearchPermanodesWithAttr(dest chan<- blob.Ref,
 		request *PermanodeByAttrRequest) error
 
-	GetOwnerClaims(permaNode, owner *blobref.BlobRef) (ClaimList, error)
+	GetOwnerClaims(permaNode, owner blob.Ref) (ClaimList, error)
 
 	// os.ErrNotExist should be returned if the blob isn't known
-	GetBlobMIMEType(blob *blobref.BlobRef) (mime string, size int64, err error)
+	GetBlobMIMEType(blob blob.Ref) (mime string, size int64, err error)
 
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
 	// (TODO(bradfitz): or file?) schema blobs that represent the
@@ -213,13 +213,13 @@ type Index interface {
 	// can be avoided if at least one of the returned schemaRefs
 	// can be validated (with a validating HEAD request) to still
 	// all exist on the blob server.
-	ExistingFileSchemas(wholeFileRef *blobref.BlobRef) (schemaRefs []*blobref.BlobRef, err error)
+	ExistingFileSchemas(wholeFileRef blob.Ref) (schemaRefs []blob.Ref, err error)
 
 	// Should return os.ErrNotExist if not found.
-	GetFileInfo(fileRef *blobref.BlobRef) (*FileInfo, error)
+	GetFileInfo(fileRef blob.Ref) (*FileInfo, error)
 
 	// Should return os.ErrNotExist if not found.
-	GetImageInfo(fileRef *blobref.BlobRef) (*ImageInfo, error)
+	GetImageInfo(fileRef blob.Ref) (*ImageInfo, error)
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has
@@ -227,7 +227,7 @@ type Index interface {
 	// Returns os.ErrNotExist if none is found.
 	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
 	// Only attributes white-listed by IsIndexedAttribute are valid.
-	PermanodeOfSignerAttrValue(signer *blobref.BlobRef, attr, val string) (*blobref.BlobRef, error)
+	PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (blob.Ref, error)
 
 	// PathsOfSignerTarget queries the index about "camliPath:"
 	// URL-dispatch attributes.
@@ -239,14 +239,14 @@ type Index interface {
 	// the name resolution tree backwards ultimately to a
 	// camliRoot permanode (which should know its base URL), and
 	// then the complete URL(s) of a target can be found.
-	PathsOfSignerTarget(signer, target *blobref.BlobRef) ([]*Path, error)
+	PathsOfSignerTarget(signer, target blob.Ref) ([]*Path, error)
 
 	// All Path claims for (signer, base, suffix)
-	PathsLookup(signer, base *blobref.BlobRef, suffix string) ([]*Path, error)
+	PathsLookup(signer, base blob.Ref, suffix string) ([]*Path, error)
 
 	// Most recent Path claim for (signer, base, suffix) as of
 	// provided time 'at', or most recent if 'at' is nil.
-	PathLookup(signer, base *blobref.BlobRef, suffix string, at time.Time) (*Path, error)
+	PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*Path, error)
 
 	// EdgesTo finds references to the provided ref.
 	//
@@ -257,7 +257,7 @@ type Index interface {
 	// This is a way to go "up" or "back" in a hierarchy.
 	//
 	// opts may be nil to accept the defaults.
-	EdgesTo(ref *blobref.BlobRef, opts *EdgesToOpts) ([]*Edge, error)
+	EdgesTo(ref blob.Ref, opts *EdgesToOpts) ([]*Edge, error)
 }
 
 // TODO(bradfitz): rename this? This is really about signer-attr-value

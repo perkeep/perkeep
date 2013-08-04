@@ -17,7 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	. "camlistore.org/pkg/test/asserts"
 	"testing"
 	"time"
@@ -25,10 +25,10 @@ import (
 
 func TestHubRegistration(t *testing.T) {
 	hub := &SimpleBlobHub{}
-	ch := make(chan *blobref.BlobRef)
-	ch2 := make(chan *blobref.BlobRef)
-	b1 := blobref.Parse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
-	b2 := blobref.Parse("sha1-62cdb7020ff920e5aa642c3d4066950dd1f01f4d")
+	ch := make(chan blob.Ref)
+	ch2 := make(chan blob.Ref)
+	b1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	b2 := blob.MustParse("sha1-62cdb7020ff920e5aa642c3d4066950dd1f01f4d")
 
 	Expect(t, hub.listeners == nil, "hub.listeners is nil before RegisterListener")
 
@@ -67,15 +67,15 @@ func TestHubRegistration(t *testing.T) {
 
 func TestHubFiring(t *testing.T) {
 	hub := &SimpleBlobHub{}
-	ch := make(chan *blobref.BlobRef)
-	bch := make(chan *blobref.BlobRef)
-	blob := blobref.Parse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
-	blobsame := blobref.Parse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	ch := make(chan blob.Ref)
+	bch := make(chan blob.Ref)
+	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	blobsame := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 
-	hub.NotifyBlobReceived(blob) // no-op
+	hub.NotifyBlobReceived(blob1) // no-op
 
 	hub.RegisterListener(ch)
-	hub.RegisterBlobListener(blob, bch)
+	hub.RegisterBlobListener(blob1, bch)
 
 	hub.NotifyBlobReceived(blobsame)
 
@@ -84,7 +84,7 @@ func TestHubFiring(t *testing.T) {
 	case <-tmr1.C:
 		t.Fatal("timer expired on receiving from ch")
 	case got := <-ch:
-		if !blob.Equal(got) {
+		if got != blob1 {
 			t.Fatalf("got wrong blob")
 		}
 	}
@@ -93,7 +93,7 @@ func TestHubFiring(t *testing.T) {
 	case <-tmr1.C:
 		t.Fatal("timer expired on receiving from bch")
 	case got := <-bch:
-		if !blob.Equal(got) {
+		if got != blob1 {
 			t.Fatalf("got wrong blob")
 		}
 	}

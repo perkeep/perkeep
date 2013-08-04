@@ -6,3 +6,8 @@ Tests needed
 -- blobserver/{cond,replica,remote,shard} have no tests. should be easier now
    that test.Fetcher is a full blobserver? see encrypt's nascent tests for
    examples.
+
+-- app engine integration tests (before we make a release, for sure,
+   but probably in presubmit)
+
+-- cross-compiling to freebsd and windows etc still works.

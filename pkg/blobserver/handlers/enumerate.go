@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 )
 
@@ -32,7 +32,7 @@ const defaultMaxEnumerate = 10000
 const defaultEnumerateSize = 100
 
 type blobInfo struct {
-	*blobref.BlobRef
+	blob.Ref
 	os.FileInfo
 	error
 }
@@ -92,7 +92,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	conn.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
 
-	blobch := make(chan blobref.SizedBlobRef, 100)
+	blobch := make(chan blob.SizedRef, 100)
 	resultch := make(chan error, 1)
 	go func() {
 		resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1, time.Duration(waitSeconds)*time.Second)
@@ -120,7 +120,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 				// But we don't return this blob.
 				continue
 			}
-			blobName := sb.BlobRef.String()
+			blobName := sb.Ref.String()
 			if needsComma {
 				fmt.Fprintf(conn, ",\n")
 			}

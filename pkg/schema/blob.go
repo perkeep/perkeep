@@ -24,7 +24,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 )
 
 // A MissingFieldError represents a missing JSON field in a schema blob.
@@ -53,7 +53,7 @@ type Buildable interface {
 // A Blob represents a Camlistore schema blob.
 // It is immutable.
 type Blob struct {
-	br  *blobref.BlobRef
+	br  blob.Ref
 	str string
 	ss  *superset
 }
@@ -62,7 +62,7 @@ type Blob struct {
 func (b *Blob) Type() string { return b.ss.Type }
 
 // BlobRef returns the schema blob's blobref.
-func (b *Blob) BlobRef() *blobref.BlobRef { return b.br }
+func (b *Blob) BlobRef() blob.Ref { return b.br }
 
 // JSON returns the JSON bytes of the schema blob.
 func (b *Blob) JSON() string { return b.str }
@@ -120,7 +120,7 @@ func (b *Blob) Builder() *Builder {
 
 // AsClaim returns a Claim if the receiver Blob has all the required fields.
 func (b *Blob) AsClaim() (c Claim, ok bool) {
-	if b.ss.Signer != nil && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsZero() {
+	if b.ss.Signer.Valid() && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsZero() {
 		return Claim{b}, true
 	}
 	return
@@ -132,28 +132,27 @@ func (b *Blob) AsShare() (s Share, ok bool) {
 	if !ok {
 		return
 	}
-	if b.ss.ClaimType == claimTypeShare && b.ss.AuthType == ShareHaveRef && b.ss.Target != nil {
+	if b.ss.ClaimType == claimTypeShare && b.ss.AuthType == ShareHaveRef && b.ss.Target.Valid() {
 		return Share{c}, true
 	}
 	return
 }
 
-// DirectoryEntries the "entries" field if valid and b's type is "directory", else
-// it returns nil
-func (b *Blob) DirectoryEntries() *blobref.BlobRef {
+// DirectoryEntries the "entries" field if valid and b's type is "directory".
+func (b *Blob) DirectoryEntries() (br blob.Ref, ok bool) {
 	if b.Type() != "directory" {
-		return nil
+		return
 	}
-	return b.ss.Entries
+	return b.ss.Entries, true
 }
 
-func (b *Blob) StaticSetMembers() []*blobref.BlobRef {
+func (b *Blob) StaticSetMembers() []blob.Ref {
 	if b.Type() != "static-set" {
 		return nil
 	}
-	s := make([]*blobref.BlobRef, 0, len(b.ss.Members))
+	s := make([]blob.Ref, 0, len(b.ss.Members))
 	for _, ref := range b.ss.Members {
-		if ref != nil {
+		if ref.Valid() {
 			s = append(s, ref)
 		}
 	}
@@ -168,10 +167,10 @@ func (b *Blob) ShareAuthType() string {
 	return s.AuthType()
 }
 
-func (b *Blob) ShareTarget() *blobref.BlobRef {
+func (b *Blob) ShareTarget() blob.Ref {
 	s, ok := b.AsShare()
 	if !ok {
-		return nil
+		return blob.Ref{}
 	}
 	return s.Target()
 }
@@ -201,7 +200,7 @@ func (c Claim) Value() string { return c.b.ss.Value }
 
 // ModifiedPermanode returns the claim's "permaNode" field, if it's
 // a claim that modifies a permanode. Otherwise nil is returned.
-func (c Claim) ModifiedPermanode() *blobref.BlobRef {
+func (c Claim) ModifiedPermanode() blob.Ref {
 	return c.b.ss.Permanode
 }
 
@@ -218,7 +217,7 @@ func (s Share) AuthType() string {
 }
 
 // Target returns the blob referenced by the Share.
-func (s Share) Target() *blobref.BlobRef {
+func (s Share) Target() blob.Ref {
 	return s.b.ss.Target
 }
 
@@ -260,12 +259,12 @@ func (bb *Builder) Blob() *Blob {
 	if err != nil {
 		panic(err)
 	}
-	h := blobref.NewHash()
+	h := blob.NewHash()
 	h.Write([]byte(json))
 	return &Blob{
 		str: json,
 		ss:  ss,
-		br:  blobref.FromHash(h),
+		br:  blob.RefFromHash(h),
 	}
 }
 
@@ -280,7 +279,7 @@ func (bb *Builder) JSON() (string, error) {
 }
 
 // SetSigner sets the camliSigner field.
-func (bb *Builder) SetSigner(signer *blobref.BlobRef) *Builder {
+func (bb *Builder) SetSigner(signer blob.Ref) *Builder {
 	bb.m["camliSigner"] = signer.String()
 	return bb
 }
@@ -367,7 +366,7 @@ func (bb *Builder) ModTime() (t time.Time, ok bool) {
 
 // PopulateDirectoryMap sets the type of *Builder to "directory" and sets
 // the "entries" field to the provided staticSet blobref.
-func (bb *Builder) PopulateDirectoryMap(staticSetRef *blobref.BlobRef) *Builder {
+func (bb *Builder) PopulateDirectoryMap(staticSetRef blob.Ref) *Builder {
 	bb.m["camliType"] = "directory"
 	bb.m["entries"] = staticSetRef.String()
 	return bb

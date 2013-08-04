@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/client"
@@ -236,7 +236,7 @@ func (c *syncCmd) discoClient() *client.Client {
 	return cl
 }
 
-func enumerateAllBlobs(s blobserver.Storage, destc chan<- blobref.SizedBlobRef) error {
+func enumerateAllBlobs(s blobserver.Storage, destc chan<- blob.SizedRef) error {
 	// Use *client.Client's support for enumerating all blobs if
 	// possible, since it could probably do a better job knowing
 	// HTTP boundaries and such.
@@ -245,7 +245,7 @@ func enumerateAllBlobs(s blobserver.Storage, destc chan<- blobref.SizedBlobRef) 
 	}
 
 	defer close(destc)
-	return blobserver.EnumerateAll(s, func(sb blobref.SizedBlobRef) error {
+	return blobserver.EnumerateAll(s, func(sb blob.SizedRef) error {
 		destc <- sb
 		return nil
 	})
@@ -258,8 +258,8 @@ func enumerateAllBlobs(s blobserver.Storage, destc chan<- blobref.SizedBlobRef) 
 //     directly to dest. (sneakernet mode, copying to a portable drive
 //     and transporting thirdLeg to dest)
 func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStats, retErr error) {
-	srcBlobs := make(chan blobref.SizedBlobRef, 100)
-	destBlobs := make(chan blobref.SizedBlobRef, 100)
+	srcBlobs := make(chan blob.SizedRef, 100)
+	destBlobs := make(chan blob.SizedRef, 100)
 	srcErr := make(chan error, 1)
 	destErr := make(chan error, 1)
 
@@ -274,7 +274,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 
 	if c.dest == "stdout" {
 		for sb := range srcBlobs {
-			fmt.Printf("%s %d\n", sb.BlobRef, sb.Size)
+			fmt.Printf("%s %d\n", sb.Ref, sb.Size)
 		}
 		checkSourceError()
 		return
@@ -289,13 +289,13 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		}
 	}
 
-	destNotHaveBlobs := make(chan blobref.SizedBlobRef)
-	sizeMismatch := make(chan *blobref.BlobRef)
+	destNotHaveBlobs := make(chan blob.SizedRef)
+	sizeMismatch := make(chan blob.Ref)
 	readSrcBlobs := srcBlobs
 	if c.verbose {
 		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
 	}
-	mismatches := []*blobref.BlobRef{}
+	mismatches := []blob.Ref{}
 	go client.ListMissingDestinationBlobs(destNotHaveBlobs, sizeMismatch, readSrcBlobs, destBlobs)
 
 	// Handle three-legged mode if tc is provided.
@@ -303,7 +303,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	syncBlobs := destNotHaveBlobs
 	firstHopDest := dest
 	if thirdLeg != nil {
-		thirdBlobs := make(chan blobref.SizedBlobRef, 100)
+		thirdBlobs := make(chan blob.SizedRef, 100)
 		thirdErr := make(chan error, 1)
 		go func() {
 			thirdErr <- enumerateAllBlobs(thirdLeg, thirdBlobs)
@@ -313,7 +313,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 				retErr = fmt.Errorf("Enumerate error from third leg: %v", err)
 			}
 		}
-		thirdNeedBlobs := make(chan blobref.SizedBlobRef)
+		thirdNeedBlobs := make(chan blob.SizedRef)
 		go client.ListMissingDestinationBlobs(thirdNeedBlobs, sizeMismatch, destNotHaveBlobs, thirdBlobs)
 		syncBlobs = thirdNeedBlobs
 		firstHopDest = thirdLeg
@@ -332,31 +332,31 @@ For:
 			}
 			fmt.Printf("Destination needs blob: %s\n", sb)
 
-			blobReader, size, err := src.FetchStreaming(sb.BlobRef)
+			blobReader, size, err := src.FetchStreaming(sb.Ref)
 			if err != nil {
 				stats.ErrorCount++
-				log.Printf("Error fetching %s: %v", sb.BlobRef, err)
+				log.Printf("Error fetching %s: %v", sb.Ref, err)
 				continue
 			}
 			if size != sb.Size {
 				stats.ErrorCount++
 				log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
-					sb.Size, sb.BlobRef, size)
+					sb.Size, sb.Ref, size)
 				continue
 			}
 
-			if _, err := firstHopDest.ReceiveBlob(sb.BlobRef, blobReader); err != nil {
+			if _, err := firstHopDest.ReceiveBlob(sb.Ref, blobReader); err != nil {
 				stats.ErrorCount++
-				log.Printf("Upload of %s to destination blobserver failed: %v", sb.BlobRef, err)
+				log.Printf("Upload of %s to destination blobserver failed: %v", sb.Ref, err)
 				continue
 			}
 			stats.BlobsCopied++
 			stats.BytesCopied += size
 
 			if c.removeSrc {
-				if err = src.RemoveBlobs([]*blobref.BlobRef{sb.BlobRef}); err != nil {
+				if err = src.RemoveBlobs([]blob.Ref{sb.Ref}); err != nil {
 					stats.ErrorCount++
-					log.Printf("Failed to delete %s from source: %v", sb.BlobRef, err)
+					log.Printf("Failed to delete %s from source: %v", sb.Ref, err)
 				}
 			}
 		}
@@ -371,8 +371,8 @@ For:
 	return stats, retErr
 }
 
-func loggingBlobRefChannel(ch <-chan blobref.SizedBlobRef) chan blobref.SizedBlobRef {
-	ch2 := make(chan blobref.SizedBlobRef)
+func loggingBlobRefChannel(ch <-chan blob.SizedRef) chan blob.SizedRef {
+	ch2 := make(chan blob.SizedRef)
 	go func() {
 		defer close(ch2)
 		var last time.Time
@@ -384,7 +384,7 @@ func loggingBlobRefChannel(ch <-chan blobref.SizedBlobRef) chan blobref.SizedBlo
 			now := time.Now()
 			if last.IsZero() || now.After(last.Add(1*time.Second)) {
 				last = now
-				log.Printf("At source blob %v (%d blobs, %d bytes)", v.BlobRef, nblob, nbyte)
+				log.Printf("At source blob %v (%d blobs, %d bytes)", v.Ref, nblob, nbyte)
 			}
 		}
 		log.Printf("Total blobs: %d, %d bytes", nblob, nbyte)

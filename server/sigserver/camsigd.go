@@ -31,7 +31,7 @@ import (
 	"net/http"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/webserver"
 )

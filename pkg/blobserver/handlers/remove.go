@@ -21,7 +21,7 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 )
@@ -56,7 +56,7 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 	}
 
 	n := 0
-	toRemove := make([]*blobref.BlobRef, 0)
+	toRemove := make([]blob.Ref, 0)
 	toRemoveStr := make([]string, 0)
 	for {
 		n++
@@ -70,8 +70,8 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		if value == "" {
 			break
 		}
-		ref := blobref.Parse(value)
-		if ref == nil {
+		ref, ok := blob.Parse(value)
+		if !ok {
 			httputil.BadRequestError(conn, "Bogus blobref for key "+key)
 			return
 		}

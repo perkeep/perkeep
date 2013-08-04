@@ -22,14 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	. "camlistore.org/pkg/test/asserts"
 )
 
 type emptyEnumerator struct {
 }
 
-func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blobref.SizedBlobRef,
+func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blob.SizedRef,
 	after string,
 	limit int,
 	wait time.Duration) error {

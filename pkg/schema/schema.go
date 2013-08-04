@@ -37,7 +37,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
@@ -54,7 +54,7 @@ var (
 
 type StatHasher interface {
 	Lstat(fileName string) (os.FileInfo, error)
-	Hash(fileName string) (*blobref.BlobRef, error)
+	Hash(fileName string) (blob.Ref, error)
 }
 
 // File is the interface returned when opening a DirectoryEntry that
@@ -98,7 +98,7 @@ type DirectoryEntry interface {
 	CamliType() string
 
 	FileName() string
-	BlobRef() *blobref.BlobRef
+	BlobRef() blob.Ref
 
 	File() (File, error)           // if camliType is "file"
 	Directory() (Directory, error) // if camliType is "directory"
@@ -108,7 +108,7 @@ type DirectoryEntry interface {
 // dirEntry is the default implementation of DirectoryEntry
 type dirEntry struct {
 	ss      superset
-	fetcher blobref.SeekFetcher
+	fetcher blob.SeekFetcher
 	fr      *FileReader // or nil if not a file
 	dr      *DirReader  // or nil if not a directory
 }
@@ -121,7 +121,7 @@ func (de *dirEntry) FileName() string {
 	return de.ss.FileNameString()
 }
 
-func (de *dirEntry) BlobRef() *blobref.BlobRef {
+func (de *dirEntry) BlobRef() blob.Ref {
 	return de.ss.BlobRef
 }
 
@@ -161,12 +161,12 @@ func (de *dirEntry) Symlink() (Symlink, error) {
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func newDirectoryEntry(fetcher blobref.SeekFetcher, ss *superset) (DirectoryEntry, error) {
+func newDirectoryEntry(fetcher blob.SeekFetcher, ss *superset) (DirectoryEntry, error) {
 	if ss == nil {
 		return nil, errors.New("ss was nil")
 	}
-	if ss.BlobRef == nil {
-		return nil, errors.New("ss.BlobRef was nil")
+	if !ss.BlobRef.Valid() {
+		return nil, errors.New("ss.BlobRef was invalid")
 	}
 	switch ss.Type {
 	case "file", "directory", "symlink":
@@ -182,7 +182,7 @@ func newDirectoryEntry(fetcher blobref.SeekFetcher, ss *superset) (DirectoryEntr
 // DirectoryEntry if the BlobRef contains a type "file", "directory"
 // or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.BlobRef) (DirectoryEntry, error) {
+func NewDirectoryEntryFromBlobRef(fetcher blob.SeekFetcher, blobRef blob.Ref) (DirectoryEntry, error) {
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, blobRef)
 	if err != nil {
@@ -197,20 +197,20 @@ func NewDirectoryEntryFromBlobRef(fetcher blobref.SeekFetcher, blobRef *blobref.
 type superset struct {
 	// BlobRef isn't for a particular metadata blob field, but included
 	// for convenience.
-	BlobRef *blobref.BlobRef
+	BlobRef blob.Ref
 
 	Version int    `json:"camliVersion"`
 	Type    string `json:"camliType"`
 
-	Signer *blobref.BlobRef `json:"camliSigner"`
-	Sig    string           `json:"camliSig"`
+	Signer blob.Ref `json:"camliSigner"`
+	Sig    string   `json:"camliSig"`
 
 	ClaimType string         `json:"claimType"`
 	ClaimDate types.Time3339 `json:"claimDate"`
 
-	Permanode *blobref.BlobRef `json:"permaNode"`
-	Attribute string           `json:"attribute"`
-	Value     string           `json:"value"`
+	Permanode blob.Ref `json:"permaNode"`
+	Attribute string   `json:"attribute"`
+	Value     string   `json:"value"`
 
 	// FileName and FileNameBytes represent one of the two
 	// representations of file names in schema blobs.  They should
@@ -235,11 +235,11 @@ type superset struct {
 	// See doc/schema/bytes.txt and doc/schema/files/file.txt.
 	Parts []*BytesPart `json:"parts"`
 
-	Entries *blobref.BlobRef   `json:"entries"` // for directories, a blobref to a static-set
-	Members []*blobref.BlobRef `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
+	Entries blob.Ref   `json:"entries"` // for directories, a blobref to a static-set
+	Members []blob.Ref `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
 
 	// Target is a "share" blob's target (the thing being shared)
-	Target *blobref.BlobRef `json:"target"`
+	Target blob.Ref `json:"target"`
 	// Transitive is a property of a "share" blob.
 	Transitive bool `json:"transitive"`
 	// AuthType is a "share" blob's authentication type that is required.
@@ -260,9 +260,9 @@ func parseSuperset(r io.Reader) (*superset, error) {
 // which should be the body of the provided blobref.
 // Note: the hash checksum is not verified. Call (*Blob).Verify()
 // to validate that the digest matches.
-func BlobFromReader(ref *blobref.BlobRef, r io.Reader) (*Blob, error) {
-	if ref == nil {
-		return nil, errors.New("schema.BlobFromReader: nil blobref")
+func BlobFromReader(ref blob.Ref, r io.Reader) (*Blob, error) {
+	if !ref.Valid() {
+		return nil, errors.New("schema.BlobFromReader: invalid blobref")
 	}
 	var buf bytes.Buffer
 	tee := io.TeeReader(r, &buf)
@@ -313,11 +313,12 @@ type BytesPart struct {
 	// Size is the number of bytes that this part contributes to the overall segment.
 	Size uint64 `json:"size"`
 
-	// At most one of BlobRef or BytesRef must be set, but it's illegal for both to be set.
+	// At most one of BlobRef or BytesRef must be non-zero
+	// (Valid), but it's illegal for both.
 	// If neither are set, this BytesPart represents Size zero bytes.
 	// BlobRef refers to raw bytes. BytesRef references a "bytes" schema blob.
-	BlobRef  *blobref.BlobRef `json:"blobRef,omitempty"`
-	BytesRef *blobref.BlobRef `json:"bytesRef,omitempty"`
+	BlobRef  blob.Ref `json:"blobRef,omitempty"`
+	BytesRef blob.Ref `json:"bytesRef,omitempty"`
 
 	// Offset optionally specifies the offset into BlobRef to skip
 	// when reading Size bytes.
@@ -457,26 +458,26 @@ func (d *defaultStatHasher) Lstat(fileName string) (os.FileInfo, error) {
 	return os.Lstat(fileName)
 }
 
-func (d *defaultStatHasher) Hash(fileName string) (*blobref.BlobRef, error) {
+func (d *defaultStatHasher) Hash(fileName string) (blob.Ref, error) {
 	s1 := sha1.New()
 	file, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	defer file.Close()
 	_, err = io.Copy(s1, file)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
-	return blobref.FromHash(s1), nil
+	return blob.RefFromHash(s1), nil
 }
 
 type StaticSet struct {
 	l    sync.Mutex
-	refs []*blobref.BlobRef
+	refs []blob.Ref
 }
 
-func (ss *StaticSet) Add(ref *blobref.BlobRef) {
+func (ss *StaticSet) Add(ref blob.Ref) {
 	ss.l.Lock()
 	defer ss.l.Unlock()
 	ss.refs = append(ss.refs, ref)
@@ -610,11 +611,11 @@ func populateParts(m map[string]interface{}, size int64, parts []BytesPart) erro
 		mpart := make(map[string]interface{})
 		mparts[idx] = mpart
 		switch {
-		case part.BlobRef != nil && part.BytesRef != nil:
+		case part.BlobRef.Valid() && part.BytesRef.Valid():
 			return errors.New("schema: part contains both BlobRef and BytesRef")
-		case part.BlobRef != nil:
+		case part.BlobRef.Valid():
 			mpart["blobRef"] = part.BlobRef.String()
-		case part.BytesRef != nil:
+		case part.BytesRef.Valid():
 			mpart["bytesRef"] = part.BytesRef.String()
 		default:
 			return errors.New("schema: part must contain either a BlobRef or BytesRef")
@@ -651,13 +652,13 @@ type claimParam struct {
 	claimType ClaimType
 
 	// Params specific to *Attribute claims:
-	permanode *blobref.BlobRef // modified permanode
-	attribute string           // required
-	value     string           // optional if Type == DelAttribute
+	permanode blob.Ref // modified permanode
+	attribute string   // required
+	value     string   // optional if Type == DelAttribute
 
 	// Params specific to "share" claims:
 	authType   string
-	target     *blobref.BlobRef
+	target     blob.Ref
 	transitive bool
 }
 
@@ -696,7 +697,7 @@ func populateClaimMap(m map[string]interface{}, cp *claimParam) {
 }
 
 // NewShareRef creates a *Builder for a "share" claim.
-func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Builder {
+func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
 	return NewClaim(&claimParam{
 		claimType:  claimTypeShare,
 		authType:   authType,
@@ -705,7 +706,7 @@ func NewShareRef(authType string, target *blobref.BlobRef, transitive bool) *Bui
 	})
 }
 
-func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
+func NewSetAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
 		claimType: SetAttribute,
@@ -714,7 +715,7 @@ func NewSetAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Build
 	})
 }
 
-func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Builder {
+func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
 		claimType: AddAttribute,
@@ -723,7 +724,7 @@ func NewAddAttributeClaim(permaNode *blobref.BlobRef, attr, value string) *Build
 	})
 }
 
-func NewDelAttributeClaim(permaNode *blobref.BlobRef, attr string) *Builder {
+func NewDelAttributeClaim(permaNode blob.Ref, attr string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
 		claimType: DelAttribute,

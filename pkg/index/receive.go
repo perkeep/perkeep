@@ -31,7 +31,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign"
@@ -47,7 +47,7 @@ func (ix *Index) GetBlobHub() blobserver.BlobHub {
 
 var reindexMu sync.Mutex
 
-func (ix *Index) reindex(br *blobref.BlobRef) {
+func (ix *Index) reindex(br blob.Ref) {
 	// TODO: cap how many of these can be going at once, probably more than 1,
 	// and be more efficient than just blocking goroutines. For now, this:
 	reindexMu.Lock()
@@ -73,7 +73,7 @@ func (ix *Index) reindex(br *blobref.BlobRef) {
 	log.Printf("index: successfully reindexed %v", sb)
 }
 
-func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb blobref.SizedBlobRef, err error) {
+func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.SizedRef, err error) {
 	sniffer := NewBlobSniffer(blobRef)
 	hash := blobRef.Hash()
 	var written int64
@@ -107,14 +107,14 @@ func (ix *Index) ReceiveBlob(blobRef *blobref.BlobRef, source io.Reader) (retsb 
 	// mimeType := sniffer.MIMEType()
 	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
-	return blobref.SizedBlobRef{blobRef, written}, nil
+	return blob.SizedRef{blobRef, written}, nil
 }
 
 // populateMutation populates keys & values into the provided BatchMutation.
 //
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
-func (ix *Index) populateMutation(br *blobref.BlobRef, sniffer *BlobSniffer, bm BatchMutation) error {
+func (ix *Index) populateMutation(br blob.Ref, sniffer *BlobSniffer, bm BatchMutation) error {
 	bm.Set("have:"+br.String(), fmt.Sprintf("%d", sniffer.Size()))
 	bm.Set("meta:"+br.String(), fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()))
 
@@ -160,13 +160,13 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 // blobref: of the file or schema blob
 //      blob: the parsed file schema blob
 //      bm: keys to populate
-func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
+func (ix *Index) populateFile(b *schema.Blob, bm BatchMutation) error {
 	var times []time.Time // all creation or mod times seen; may be zero
-	times = append(times, blob.ModTime())
+	times = append(times, b.ModTime())
 
-	blobRef := blob.BlobRef()
-	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
-	fr, err := blob.NewFileReader(seekFetcher)
+	blobRef := b.BlobRef()
+	seekFetcher := blob.SeekerFromStreamingFetcher(ix.BlobSource)
+	fr, err := b.NewFileReader(seekFetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
@@ -202,10 +202,10 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 			bm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		}
 		if ft, err := schema.FileTime(bytes.NewReader(imageBuf.Bytes)); err == nil {
-			log.Printf("filename %q exif = %v, %v", blob.FileName(), ft, err)
+			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 			times = append(times, ft)
 		} else {
-			log.Printf("filename %q exif = %v, %v", blob.FileName(), ft, err)
+			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 		}
 	}
 
@@ -225,9 +225,9 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 		time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
 	}
 
-	wholeRef := blobref.FromHash(sha1)
+	wholeRef := blob.RefFromHash(sha1)
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
-	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, blob.FileName(), mime))
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime))
 	bm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 	return nil
 }
@@ -235,12 +235,12 @@ func (ix *Index) populateFile(blob *schema.Blob, bm BatchMutation) error {
 // blobref: of the file or schema blob
 //      ss: the parsed file schema blob
 //      bm: keys to populate
-func (ix *Index) populateDir(blob *schema.Blob, bm BatchMutation) error {
-	blobRef := blob.BlobRef()
+func (ix *Index) populateDir(b *schema.Blob, bm BatchMutation) error {
+	blobRef := b.BlobRef()
 	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto
 
-	seekFetcher := blobref.SeekerFromStreamingFetcher(ix.BlobSource)
-	dr, err := blob.NewDirReader(seekFetcher)
+	seekFetcher := blob.SeekerFromStreamingFetcher(ix.BlobSource)
+	dr, err := b.NewDirReader(seekFetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
@@ -254,27 +254,27 @@ func (ix *Index) populateDir(blob *schema.Blob, bm BatchMutation) error {
 		return nil
 	}
 
-	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), blob.FileName(), ""))
+	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), b.FileName(), ""))
 	return nil
 }
 
-func (ix *Index) populateClaim(blob *schema.Blob, bm BatchMutation) error {
-	br := blob.BlobRef()
+func (ix *Index) populateClaim(b *schema.Blob, bm BatchMutation) error {
+	br := b.BlobRef()
 
-	claim, ok := blob.AsClaim()
+	claim, ok := b.AsClaim()
 	if !ok {
 		// Skip bogus claim with malformed permanode.
 		return nil
 	}
 
 	pnbr := claim.ModifiedPermanode()
-	if pnbr == nil {
+	if !pnbr.Valid() {
 		// A different type of claim; not modifying a permanode.
 		return nil
 	}
 	attr, value := claim.Attribute(), claim.Value()
 
-	vr := jsonsign.NewVerificationRequest(blob.JSON(), ix.KeyFetcher)
+	vr := jsonsign.NewVerificationRequest(b.JSON(), ix.KeyFetcher)
 	if !vr.Verify() {
 		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
 		// later if it's not permanent? or maybe do this up a level?
@@ -294,8 +294,8 @@ func (ix *Index) populateClaim(blob *schema.Blob, bm BatchMutation) error {
 	bm.Set(claimKey, pipes(urle(claim.ClaimType()), urle(attr), urle(value)))
 
 	if strings.HasPrefix(attr, "camliPath:") {
-		targetRef := blobref.Parse(value)
-		if targetRef != nil {
+		targetRef, ok := blob.Parse(value)
+		if ok {
 			// TODO: deal with set-attribute vs. del-attribute
 			// properly? I think we get it for free when
 			// del-attribute has no Value, but we need to deal
@@ -325,8 +325,8 @@ func (ix *Index) populateClaim(blob *schema.Blob, bm BatchMutation) error {
 	}
 
 	if search.IsBlobReferenceAttribute(attr) {
-		targetRef := blobref.Parse(value)
-		if targetRef != nil {
+		targetRef, ok := blob.Parse(value)
+		if ok {
 			key := keyEdgeBackward.Key(targetRef, pnbr, br)
 			bm.Set(key, keyEdgeBackward.Val("permanode", ""))
 		}

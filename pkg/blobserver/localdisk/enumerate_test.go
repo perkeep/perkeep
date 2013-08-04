@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	. "camlistore.org/pkg/test/asserts"
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 func TestEnumerate(t *testing.T) {
@@ -44,14 +44,14 @@ func TestEnumerate(t *testing.T) {
 
 	limit := 5000
 	waitSeconds := time.Duration(0)
-	ch := make(chan blobref.SizedBlobRef)
+	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch, "", limit, waitSeconds)
 	}()
 
 	var (
-		sb blobref.SizedBlobRef
+		sb blob.SizedRef
 		ok bool
 	)
 	sb, ok = <-ch
@@ -68,7 +68,7 @@ func TestEnumerate(t *testing.T) {
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 
 	// Now again, but skipping foo's blob
-	ch = make(chan blobref.SizedBlobRef)
+	ch = make(chan blob.SizedRef)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch,
 			foo.BlobRef().String(),
@@ -91,7 +91,7 @@ func TestEnumerateEmpty(t *testing.T) {
 
 	limit := 5000
 	wait := time.Duration(0)
-	ch := make(chan blobref.SizedBlobRef)
+	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
@@ -108,7 +108,7 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 
 	limit := 5000
 	wait := 1 * time.Second
-	ch := make(chan blobref.SizedBlobRef)
+	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
@@ -123,21 +123,21 @@ func TestEnumerateEmptyLongPoll(t *testing.T) {
 	sb, ok := <-ch
 	Assert(t, ok, "got a blob")
 	ExpectInt(t, 3, int(sb.Size), "blob size")
-	ExpectString(t, "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", sb.BlobRef.String(), "got the right blob")
+	ExpectString(t, "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", sb.Ref.String(), "got the right blob")
 
 	sb, ok = <-ch
 	Expect(t, !ok, "only one blob returned")
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
-type SortedSizedBlobs []blobref.SizedBlobRef
+type SortedSizedBlobs []blob.SizedRef
 
 func (sb SortedSizedBlobs) Len() int {
 	return len(sb)
 }
 
 func (sb SortedSizedBlobs) Less(i, j int) bool {
-	return sb[i].BlobRef.String() < sb[j].BlobRef.String()
+	return sb[i].Ref.String() < sb[j].Ref.String()
 }
 
 func (sb SortedSizedBlobs) Swap(i, j int) {
@@ -184,12 +184,12 @@ func TestEnumerateIsSorted(t *testing.T) {
 	}
 	for _, test := range tests {
 		limit := test.limit
-		ch := make(chan blobref.SizedBlobRef)
+		ch := make(chan blob.SizedRef)
 		errCh := make(chan error)
 		go func() {
 			errCh <- ds.EnumerateBlobs(ch, test.after, limit, 0)
 		}()
-		var got = make([]blobref.SizedBlobRef, 0, blobsToMake)
+		var got = make([]blob.SizedRef, 0, blobsToMake)
 		for sb := range ch {
 			got = append(got, sb)
 		}

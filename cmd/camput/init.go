@@ -31,7 +31,7 @@ import (
 	"os/exec"
 	"path"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -159,7 +159,7 @@ func (c *initCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	bref := blobref.SHA1FromString(string(pubArmor))
+	bref := blob.SHA1FromString(string(pubArmor))
 
 	keyBlobPath := path.Join(blobDir, bref.String()+".camli")
 	if err = ioutil.WriteFile(keyBlobPath, pubArmor, 0644); err != nil {

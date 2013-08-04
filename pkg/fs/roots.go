@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
@@ -37,7 +37,7 @@ type rootsDir struct {
 
 	mu        sync.Mutex // guards following
 	lastQuery time.Time
-	m         map[string]*blobref.BlobRef // ent name => permanode
+	m         map[string]blob.Ref // ent name => permanode
 }
 
 func (n *rootsDir) Attr() fuse.Attr {
@@ -69,7 +69,7 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 		return nil, err
 	}
 	br := n.m[name]
-	if br == nil {
+	if !br.Valid() {
 		return nil, fuse.ENOENT
 	}
 	nod := &mutDir{
@@ -106,7 +106,7 @@ func (n *rootsDir) condRefresh() fuse.Error {
 		return fuse.EIO
 	}
 
-	n.m = make(map[string]*blobref.BlobRef)
+	n.m = make(map[string]blob.Ref)
 
 	for _, wi := range wres.WithAttr {
 		pn := wi.Permanode

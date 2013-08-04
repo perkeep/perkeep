@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/singleflight"
@@ -31,19 +31,19 @@ import (
 
 // NewCachingFetcher returns a CachingFetcher that fetches from
 // fetcher and writes to and serves from cache.
-func NewCachingFetcher(cache blobserver.Cache, fetcher blobref.StreamingFetcher) *CachingFetcher {
+func NewCachingFetcher(cache blobserver.Cache, fetcher blob.StreamingFetcher) *CachingFetcher {
 	return &CachingFetcher{c: cache, sf: fetcher}
 }
 
-// A CachingFetcher is a blobref.StreamingFetcher and a blobref.SeekFetcher.
+// A CachingFetcher is a blob.StreamingFetcher and a blob.SeekFetcher.
 type CachingFetcher struct {
 	c  blobserver.Cache
-	sf blobref.StreamingFetcher
+	sf blob.StreamingFetcher
 
 	g singleflight.Group
 }
 
-func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadCloser, size int64, err error) {
+func (cf *CachingFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return
@@ -54,7 +54,7 @@ func (cf *CachingFetcher) FetchStreaming(br *blobref.BlobRef) (file io.ReadClose
 	return cf.c.Fetch(br)
 }
 
-func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file types.ReadSeekCloser, size int64, err error) {
+func (cf *CachingFetcher) Fetch(br blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return
@@ -65,7 +65,7 @@ func (cf *CachingFetcher) Fetch(br *blobref.BlobRef) (file types.ReadSeekCloser,
 	return cf.c.Fetch(br)
 }
 
-func (cf *CachingFetcher) faultIn(br *blobref.BlobRef) error {
+func (cf *CachingFetcher) faultIn(br blob.Ref) error {
 	_, err := cf.g.Do(br.String(), func() (interface{}, error) {
 		sblob, _, err := cf.sf.FetchStreaming(br)
 		if err != nil {
@@ -78,9 +78,9 @@ func (cf *CachingFetcher) faultIn(br *blobref.BlobRef) error {
 	return err
 }
 
-// A DiskCache is a blobref.StreamingFetcher and blobref.SeekFetcher
+// A DiskCache is a blob.StreamingFetcher and blob.SeekFetcher
 // that serves from a local temp directory and is backed by a another
-// blobref.StreamingFetcher (usually the pkg/client HTTP client).
+// blob.StreamingFetcher (usually the pkg/client HTTP client).
 type DiskCache struct {
 	*CachingFetcher
 
@@ -92,7 +92,7 @@ type DiskCache struct {
 // NewDiskCache returns a new DiskCache from a StreamingFetcher, which
 // is usually the pkg/client HTTP client (which typically has much
 // higher latency and lower bandwidth than local disk).
-func NewDiskCache(fetcher blobref.StreamingFetcher) (*DiskCache, error) {
+func NewDiskCache(fetcher blob.StreamingFetcher) (*DiskCache, error) {
 	// TODO: max disk size, keep LRU of access, smarter cleaning,
 	// persistent directory per-user, etc.
 
@@ -118,8 +118,8 @@ func (dc *DiskCache) Clean() {
 }
 
 var (
-	_ blobref.StreamingFetcher = (*CachingFetcher)(nil)
-	_ blobref.SeekFetcher      = (*CachingFetcher)(nil)
-	_ blobref.StreamingFetcher = (*DiskCache)(nil)
-	_ blobref.SeekFetcher      = (*DiskCache)(nil)
+	_ blob.StreamingFetcher = (*CachingFetcher)(nil)
+	_ blob.SeekFetcher      = (*CachingFetcher)(nil)
+	_ blob.StreamingFetcher = (*DiskCache)(nil)
+	_ blob.SeekFetcher      = (*DiskCache)(nil)
 )

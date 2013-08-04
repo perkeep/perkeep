@@ -19,14 +19,14 @@ package main
 import (
 	"os"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 )
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.
 type HaveCache interface {
-	StatBlobCache(br *blobref.BlobRef) (size int64, ok bool)
-	NoteBlobExists(br *blobref.BlobRef, size int64)
+	StatBlobCache(br blob.Ref) (size int64, ok bool)
+	NoteBlobExists(br blob.Ref, size int64)
 }
 
 // UploadCache is the "stat cache" for regular files.  Given a current

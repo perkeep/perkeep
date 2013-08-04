@@ -20,7 +20,7 @@ import (
 	"io"
 	"net/http"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/schema"
 )
@@ -33,7 +33,7 @@ type uploadHelperResponse struct {
 type uploadHelperGotItem struct {
 	FileName string           `json:"filename"`
 	FormName string           `json:"formname"`
-	FileRef  *blobref.BlobRef `json:"fileref"`
+	FileRef  blob.Ref `json:"fileref"`
 }
 
 func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {

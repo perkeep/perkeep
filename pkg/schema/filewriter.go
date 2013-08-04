@@ -24,7 +24,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blobref"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/rollsum"
 )
@@ -61,7 +61,7 @@ const (
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
-func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (*blobref.BlobRef, error) {
+func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
 	m := NewFileMap(filename)
 	return WriteFileMap(bs, m, r)
 }
@@ -69,12 +69,12 @@ func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reade
 // WriteFileMap uploads chunks of r to bs while populating file and
 // finally uploading file's Blob. The returned blobref is of file's
 // JSON blob.
-func WriteFileMap(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*blobref.BlobRef, error) {
+func WriteFileMap(bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
 	return writeFileMapRolling(bs, file, r)
 }
 
 // This is the simple 1MB chunk version. The rolling checksum version is below.
-func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*blobref.BlobRef, error) {
+func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
 	parts, size := []BytesPart{}, int64(0)
 
 	var buf bytes.Buffer
@@ -82,26 +82,26 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*b
 		buf.Reset()
 		n, err := io.Copy(&buf, io.LimitReader(r, maxBlobSize))
 		if err != nil {
-			return nil, err
+			return blob.Ref{}, err
 		}
 		if n == 0 {
 			break
 		}
 
-		hash := blobref.NewHash()
+		hash := blob.NewHash()
 		io.Copy(hash, bytes.NewReader(buf.Bytes()))
-		br := blobref.FromHash(hash)
+		br := blob.RefFromHash(hash)
 		hasBlob, err := serverHasBlob(bs, br)
 		if err != nil {
-			return nil, err
+			return blob.Ref{}, err
 		}
 		if !hasBlob {
 			sb, err := bs.ReceiveBlob(br, &buf)
 			if err != nil {
-				return nil, err
+				return blob.Ref{}, err
 			}
-			if expect := (blobref.SizedBlobRef{br, n}); !expect.Equal(sb) {
-				return nil, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
+			if want := (blob.SizedRef{br, n}); sb != want {
+				return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s, expect", sb, want)
 			}
 		}
 
@@ -115,26 +115,26 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*b
 
 	err := file.PopulateParts(size, parts)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 
 	json := file.Blob().JSON()
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
-	br := blobref.SHA1FromString(json)
+	br := blob.SHA1FromString(json)
 	sb, err := bs.ReceiveBlob(br, strings.NewReader(json))
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
-	if expect := (blobref.SizedBlobRef{br, int64(len(json))}); !expect.Equal(sb) {
-		return nil, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
+	if expect := (blob.SizedRef{br, int64(len(json))}); expect != sb {
+		return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
 	}
 
 	return br, nil
 }
 
-func serverHasBlob(bs blobserver.BlobStatter, br *blobref.BlobRef) (have bool, err error) {
+func serverHasBlob(bs blobserver.BlobStatter, br blob.Ref) (have bool, err error) {
 	_, err = blobserver.StatBlob(bs, br)
 	if err == nil {
 		have = true
@@ -147,7 +147,7 @@ func serverHasBlob(bs blobserver.BlobStatter, br *blobref.BlobRef) (have bool, e
 type span struct {
 	from, to int64
 	bits     int
-	br       *blobref.BlobRef
+	br       blob.Ref
 	children []span
 }
 
@@ -178,20 +178,20 @@ func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func uploadString(bs blobserver.StatReceiver, br *blobref.BlobRef, s string) (*blobref.BlobRef, error) {
-	if br == nil {
-		panic("nil blobref")
+func uploadString(bs blobserver.StatReceiver, br blob.Ref, s string) (blob.Ref, error) {
+	if !br.Valid() {
+		panic("invalid blobref")
 	}
 	hasIt, err := serverHasBlob(bs, br)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	if hasIt {
 		return br, nil
 	}
 	_, err = bs.ReceiveBlob(br, strings.NewReader(s))
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	return br, nil
 }
@@ -225,7 +225,7 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 	}
 
 	json := bb.Blob().JSON()
-	br := blobref.SHA1FromString(json)
+	br := blob.SHA1FromString(json)
 	future.br = br
 	go func() {
 		_, err := uploadString(bs, br, json)
@@ -243,21 +243,21 @@ func newUploadBytesFuture() *uploadBytesFuture {
 // An uploadBytesFuture is an eager result of a still-in-progress uploadBytes call.
 // Call Get to wait and get its final result.
 type uploadBytesFuture struct {
-	br       *blobref.BlobRef
+	br       blob.Ref
 	errc     chan error
 	children []*uploadBytesFuture
 }
 
 // BlobRef returns the optimistic blobref of this uploadBytes call without blocking.
-func (f *uploadBytesFuture) BlobRef() *blobref.BlobRef {
+func (f *uploadBytesFuture) BlobRef() blob.Ref {
 	return f.br
 }
 
 // Get blocks for all children and returns any final error.
-func (f *uploadBytesFuture) Get() (*blobref.BlobRef, error) {
+func (f *uploadBytesFuture) Get() (blob.Ref, error) {
 	for _, f := range f.children {
 		if _, err := f.Get(); err != nil {
-			return nil, err
+			return blob.Ref{}, err
 		}
 	}
 	return f.br, <-f.errc
@@ -303,10 +303,10 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span, p
 // writeFileMap uploads chunks of r to bs while populating fileMap and
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob. It uses rolling checksum for the chunks sizes.
-func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader) (*blobref.BlobRef, error) {
+func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
 	n, spans, err := writeFileChunks(bs, file, r)
 	if err != nil {
-		return nil, err
+		return blob.Ref{}, err
 	}
 	// The top-level content parts
 	return uploadBytes(bs, file, n, spans).Get()
@@ -348,7 +348,7 @@ func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n 
 	uploadLastSpan := func() bool {
 		chunk := buf.String()
 		buf.Reset()
-		br := blobref.SHA1FromString(chunk)
+		br := blob.SHA1FromString(chunk)
 		spans[len(spans)-1].br = br
 		select {
 		case outerr = <-firsterrc:
