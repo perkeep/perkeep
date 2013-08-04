@@ -148,7 +148,7 @@ camlistore.BlobItem.prototype.setClippingWidth = function(w) {
   var el = this.getElement();
   el.style.width = w + 'px';
 
-  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb');
+  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb', el);
   thumbEl.style.left =
       -Math.floor((this.getThumbWidth() - w) / 2) + "px";
 };
