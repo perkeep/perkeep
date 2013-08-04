@@ -593,7 +593,7 @@ func embedClosure(closureDir, embedFile string) error {
 		if err != nil {
 			return err
 		}
-		f, err := w.Create(suffix)
+		f, err := w.Create(filepath.ToSlash(suffix))
 		if err != nil {
 			log.Fatal(err)
 		}
