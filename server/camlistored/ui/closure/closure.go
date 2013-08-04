@@ -19,17 +19,15 @@ package closure
 import (
 	"archive/zip"
 	"bytes"
-	"sync"
-
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-
 	"net/http"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
