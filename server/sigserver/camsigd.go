@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
 // The sigserver is a stand-alone JSON signing and verification server.
 //
 // TODO(bradfitz): as of 2012-01-10 this is very old and superceded by
@@ -45,7 +44,7 @@ var flagPubKeyDir = flag.String("pubkey-dir", "test/pubkey-blobs",
 // interface for fetching public keys is the "local, from disk"
 // implementation used for testing.  In reality we'd want to be able
 // to fetch these from blobservers.
-var pubKeyFetcher = blobref.NewSimpleDirectoryFetcher(*flagPubKeyDir)
+var pubKeyFetcher = blob.NewSimpleDirectoryFetcher(*flagPubKeyDir)
 
 func handleRoot(conn http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(conn, "camsigd")
