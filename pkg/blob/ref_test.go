@@ -68,6 +68,7 @@ func TestParse(t *testing.T) {
 		if dig := r.Digest(); dig != wantDig {
 			t.Errorf("Digest(%q) = %q; want %q", tt.in, dig, wantDig)
 		}
+		_ = r == r // test that concrete type of r supports equality
 	}
 }
 
