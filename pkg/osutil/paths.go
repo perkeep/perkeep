@@ -51,7 +51,15 @@ func cacheDir() string {
 	case "darwin":
 		return filepath.Join(HomeDir(), "Library", "Caches", "Camlistore")
 	case "windows":
-		panic("CacheDir not implemented on OS == " + runtime.GOOS)
+		// Per http://technet.microsoft.com/en-us/library/cc749104(v=ws.10).aspx
+		// these should both exist. But that page overwhelms me. Just try them
+		// both. This seems to work.
+		for _, ev := range []string{"TEMP", "TMP"} {
+			if v := os.Getenv(ev); v != "" {
+				return filepath.Join(v, "Camlistore")
+			}
+		}
+		panic("No Windows TEMP or TMP environment variables found; please file a bug report.")
 	}
 	return filepath.Join(HomeDir(), ".cache", "camlistore")
 }
