@@ -27,12 +27,15 @@ On Debian/Ubuntu, some deps to get started:
 
 $ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
 
-Then we use the following scripts to run a hermetic, self-contained
-environment independent (with its own config files & storage space):
+During development, rather than use the main binaries ("camput",
+"camget", "camtool", "cammount", etc) directly, we instead use
+wrappers that automatically configure the environment to use the
+test server & test environment:
 
-$ ./dev-server
 $ ./dev-camput
 $ ./dev-camget
+$ ./dev-camtool
+$ ./dev-cammount
 ... etc.
 
 We are in the process of migrating those scripts to a go command
@@ -40,15 +43,16 @@ with subcommands: devcam. To install (assuming your GOPATH is set):
 
 $ go install ./dev/devcam
 
-./dev/server has already been replaced by:
+The old ./dev-server script has already been replaced by:
 
 $ devcam server
 
-e.g.
-  - Upload a file (make sure this works):
-      ~/camlistore/dev-camput file ~/camlistore/COPYING
+Then, once the dev server is running,
+
+  - Upload a file:
+      ./dev-camput file ~/camlistore/COPYING
   - Create a permanode:
-      ~/camlistore/dev-camput permanode
+      ./dev-camput permanode
   - Use the UI: http://localhost:3179/ui/
 
 Please update this file as appropriate.
