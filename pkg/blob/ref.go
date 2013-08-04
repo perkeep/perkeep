@@ -18,6 +18,7 @@ limitations under the License.
 package blob
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"hash"
@@ -47,12 +48,17 @@ type SizedRef struct {
 	Size int64
 }
 
+func (sr SizedRef) String() string {
+	return fmt.Sprintf("[%s; %d bytes]", sr.Ref.String(), sr.Size)
+}
+
 // digestType is an interface type, but any type implementing it must
 // be of concrete type [N]byte, so it supports equality with ==,
 // which is a requirement for ref.
 type digestType interface {
 	bytes() []byte
 	digestName() string
+	newHash() hash.Hash
 }
 
 func (r Ref) String() string {
@@ -62,7 +68,8 @@ func (r Ref) String() string {
 	// TODO: maybe memoize this.
 	dname := r.digest.digestName()
 	bs := r.digest.bytes()
-	buf := make([]byte, 0, len(dname)+1+len(bs)*2)
+	buf := getBuf(len(dname) + 1 + len(bs)*2)[:0]
+	defer putBuf(buf)
 	buf = append(buf, dname...)
 	buf = append(buf, '-')
 	for _, b := range bs {
@@ -71,11 +78,79 @@ func (r Ref) String() string {
 	return string(buf)
 }
 
+// HashName returns the lowercase hash function name of the reference.
+// It panics if r is zero.
+func (r Ref) HashName() string {
+	if r.digest == nil {
+		panic("HashName called on invalid Ref")
+	}
+	return r.digest.digestName()
+}
+
+// Digest returns the lower hex digest of the blobref, without
+// the e.g. "sha1-" prefix. It panics if r is zero.
+func (r Ref) Digest() string {
+	if r.digest == nil {
+		panic("Digest called on invalid Ref")
+	}
+	bs := r.digest.bytes()
+	buf := getBuf(len(bs) * 2)[:0]
+	defer putBuf(buf)
+	for _, b := range bs {
+		buf = append(buf, hexDigit[b>>4], hexDigit[b&0xf])
+	}
+	return string(buf)
+}
+
+func (r Ref) DigestPrefix(digits int) string {
+	v := r.Digest()
+	if len(v) < digits {
+		return v
+	}
+	return v[:digits]
+}
+
+func (r Ref) DomID() string {
+	if !r.Valid() {
+		return ""
+	}
+	return "camli-" + r.String()
+}
+
+func (r Ref) Sum32() uint32 {
+	var v uint32
+	for _, b := range r.digest.bytes()[:4] {
+		v = v<<8 | uint32(b)
+	}
+	return v
+}
+
+func (r Ref) Sum64() uint64 {
+	var v uint64
+	for _, b := range r.digest.bytes()[:8] {
+		v = v<<8 | uint64(b)
+	}
+	return v
+}
+
+// Hash returns a new hash.Hash of r's type.
+// It panics if r is zero.
+func (r Ref) Hash() hash.Hash {
+	return r.digest.newHash()
+}
+
+func (r Ref) HashMatches(h hash.Hash) bool {
+	if r.digest == nil {
+		return false
+	}
+	return bytes.Equal(h.Sum(nil), r.digest.bytes())
+}
+
 const hexDigit = "0123456789abcdef"
 
-func (r *Ref) Valid() bool { return r.digest != nil }
+func (r Ref) Valid() bool { return r.digest != nil }
 
-func (r *Ref) IsSupported() bool {
+func (r Ref) IsSupported() bool {
 	if !r.Valid() {
 		return false
 	}
@@ -94,13 +169,14 @@ func Parse(s string) (ref Ref, ok bool) {
 	hex := s[i+1:]
 	meta, ok := metaFromString[name]
 	if !ok {
-		return parseUnknown(s)
+		return parseUnknown(name, hex)
+	}
+	if len(hex) != meta.size*2 {
+		ok = false
+		return
 	}
 	buf := getBuf(meta.size)
 	defer putBuf(buf)
-	if len(hex) != len(buf)*2 {
-		return
-	}
 	bad := false
 	for i := 0; i < len(hex); i += 2 {
 		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
@@ -142,10 +218,24 @@ func hexVal(b byte, bad *bool) byte {
 	return 0
 }
 
-// parseUnknown parses s where s is a blobref of a digest type not known
-// to this server. e.g. ("foo-ababab")
-func parseUnknown(s string) (ref Ref, ok bool) {
-	panic("TODO")
+// parseUnknown parses a blobref where the digest type isn't known to this server.
+// e.g. ("foo-ababab")
+func parseUnknown(digest, hex string) (ref Ref, ok bool) {
+	if len(hex) < 2 || len(hex)%2 != 0 || len(hex) > maxOtherDigestLen*2 {
+		return
+	}
+	o := otherDigest{
+		name:   digest,
+		sumLen: len(hex) / 2,
+	}
+	bad := false
+	for i := 0; i < len(hex); i += 2 {
+		o.sum[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
+	}
+	if bad {
+		return
+	}
+	return Ref{o}, true
 }
 
 func fromSHA1Bytes(b []byte) digestType {
@@ -157,9 +247,9 @@ func fromSHA1Bytes(b []byte) digestType {
 	return a
 }
 
-// FromHash returns a blobref representing the given hash.
+// RefFromHash returns a blobref representing the given hash.
 // It panics if the hash isn't of a known type.
-func FromHash(h hash.Hash) Ref {
+func RefFromHash(h hash.Hash) Ref {
 	meta, ok := metaFromType[reflect.TypeOf(h)]
 	if !ok {
 		panic(fmt.Sprintf("Currently-unsupported hash type %T", h))
@@ -171,26 +261,33 @@ func FromHash(h hash.Hash) Ref {
 func SHA1FromString(s string) Ref {
 	s1 := sha1.New()
 	s1.Write([]byte(s))
-	return FromHash(s1)
+	return RefFromHash(s1)
 }
 
 // SHA1FromBytes returns a SHA-1 blobref of the provided bytes.
 func SHA1FromBytes(b []byte) Ref {
 	s1 := sha1.New()
 	s1.Write(b)
-	return FromHash(s1)
+	return RefFromHash(s1)
 }
 
 type sha1Digest [20]byte
 
+func (s sha1Digest) digestName() string { return "sha1" }
+func (s sha1Digest) bytes() []byte      { return s[:] }
+func (s sha1Digest) newHash() hash.Hash { return sha1.New() }
+
+const maxOtherDigestLen = 128
+
 type otherDigest struct {
 	name   string
-	sum    [128]byte
+	sum    [maxOtherDigestLen]byte
 	sumLen int // bytes in sum that are valid
 }
 
-func (s sha1Digest) digestName() string { return "sha1" }
-func (s sha1Digest) bytes() []byte      { return s[:] }
+func (d otherDigest) digestName() string { return d.name }
+func (d otherDigest) bytes() []byte      { return d.sum[:d.sumLen] }
+func (d otherDigest) newHash() hash.Hash { return nil }
 
 var sha1Meta = &digestMeta{
 	ctor: fromSHA1Bytes,
@@ -219,4 +316,34 @@ func getBuf(size int) []byte {
 
 func putBuf(b []byte) {
 	// TODO: pool
+}
+
+// NewHash returns a new hash.Hash of the currently recommended hash type.
+// Currently this is just SHA-1, but will likely change within the next
+// year or so.
+func NewHash() hash.Hash {
+	return sha1.New()
+}
+
+func ValidRefString(s string) bool {
+	// TODO: optimize to not allocate
+	return ParseOrZero(s).Valid()
+}
+
+func (r *Ref) UnmarshalJSON(d []byte) error {
+	if len(d) < 2 || d[0] != '"' || d[len(d)-1] != '"' {
+		return fmt.Errorf("blob: expecting a JSON string to unmarshal, got %q", d)
+	}
+	refStr := string(d[1 : len(d)-1])
+	p, ok := Parse(refStr)
+	if !ok {
+		return fmt.Errorf("blobref: invalid blobref %q (%d)", refStr, len(refStr))
+	}
+	*r = p
+	return nil
+}
+
+func (r Ref) MarshalJSON() ([]byte, error) {
+	// TODO: do just one allocation here if we cared.
+	return []byte(fmt.Sprintf("%q", r.String())), nil
 }
