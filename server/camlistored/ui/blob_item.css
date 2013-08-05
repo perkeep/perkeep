@@ -10,6 +10,10 @@
   vertical-align: top;
 }
 
+.cam-blobitem.cam-blobitem-notimage {
+  border: 1px solid #ddd;
+}
+
 .cam-blobitem-thumb {
   display: block;
   /* So that we can reposition the thumb horizontally within the container */
