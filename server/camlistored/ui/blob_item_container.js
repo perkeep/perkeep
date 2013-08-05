@@ -50,6 +50,13 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   this.currentCollec_ = "";
 
   /**
+   * Whether our content has changed since last layout.
+   * @type {boolean}
+   * @private
+   */
+  this.isLayoutDirty_ = false;
+
+  /**
    * @type {goog.events.EventHandler}
    * @private
    */
@@ -189,6 +196,26 @@ camlistore.BlobItemContainer.prototype.disposeInternal = function() {
 };
 
 
+/** @override */
+camlistore.BlobItemContainer.prototype.addChildAt =
+function(child, index, opt_render) {
+  goog.base(this, "addChildAt", child, index, opt_render);
+  if (!this.isLayoutDirty_) {
+    var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
+      window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+    // It's OK if raf not supported, the timer loop we have going will pick up
+    // the layout a little later.
+    if (raf) {
+      raf(goog.bind(function() {
+        this.layout_(false);
+      }, this, false));
+    }
+
+    this.isLayoutDirty_ = true;
+  }
+};
+
+
 /**
  * Called when component's element is known to be in the document.
  */
@@ -208,7 +235,9 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
 
   // We can't catch everything that could cause us to need to relayout. Instead,
   // be lazy and just poll every second.
-  window.setInterval(goog.bind(this.layout_, this, false), 1000);
+  window.setInterval(goog.bind(function() {
+    this.layout_(false);
+  }, this, false), 1000);
 };
 
 
@@ -461,8 +490,6 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
     var item = new camlistore.BlobItem(blobRef, result.meta);
     this.addChild(item, true);
   }
-
-  this.layout_(true);
 };
 
 /**
@@ -472,10 +499,11 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
   var el = this.getElement();
   var availWidth = el.clientWidth;
 
-  if (!force && availWidth == this.lastClientWidth_) {
+  if (!force && !this.isLayoutDirty_ && availWidth == this.lastClientWidth_) {
     return;
   }
 
+  this.isLayoutDirty_ = false;
   this.lastClientWidth_ = availWidth;
 
   // If you change blobItemMarginWidth, also change .cam-blobitem in
