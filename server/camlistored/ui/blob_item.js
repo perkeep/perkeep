@@ -142,15 +142,36 @@ camlistore.BlobItem.prototype.getBlobRef = function() {
 
 
 /**
- * @param {number} The width to clip the image to.
+ * Sets the horizontal width that the item consumes in BlobItemContainer. The
+ * thumbnail is centered within this space. If the frame is less than the width
+ * of the thumbnail, then the thumbnail is clipped horizontally to fit.
+ *
+ * @param {number} The width of the frame.
  */
-camlistore.BlobItem.prototype.setClippingWidth = function(w) {
+camlistore.BlobItem.prototype.setFrameWidth = function(w) {
   var el = this.getElement();
   el.style.width = w + 'px';
 
-  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb');
-  thumbEl.style.left =
-      -Math.floor((this.getThumbWidth() - w) / 2) + "px";
+  var offset = (w - this.getThumbWidth()) / 2;
+  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb', el);
+  thumbEl.style.left = offset + 'px';
+};
+
+
+/**
+ * Resets the frame to the width of the thumbnail.
+ */
+camlistore.BlobItem.prototype.resetFrameWidth = function() {
+  this.setFrameWidth(this.getThumbWidth());
+};
+
+
+/**
+ * Determine whether the blob is a permanode for an image.
+ * @return {boolean}
+ */
+camlistore.BlobItem.prototype.isImage = function() {
+  return Boolean(this.resolvedMetaData_.image);
 };
 
 
@@ -266,6 +287,9 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
+  if (!this.isImage()) {
+    goog.dom.classes.add(el, 'cam-blobitem-notimage');
+  }
 
   var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
   thumbEl.src = this.getThumbSrc_();

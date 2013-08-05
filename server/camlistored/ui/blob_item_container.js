@@ -481,12 +481,13 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
   // If you change blobItemMarginWidth, also change .cam-blobitem in
   // blob_item.css.
   var blobItemMarginWidth = 1;
-  var currentLeft = 0;
+  var currentWidth = 0;
   var rowStart = 0;
 
   if (this.hasCreateItem_) {
     var createItem = this.getChildAt(0);
-    currentLeft = createItem.getElement().offsetWidth + blobItemMarginWidth * 2;
+    currentWidth = createItem.getElement().offsetWidth +
+        blobItemMarginWidth * 2;
     rowStart++;
   }
 
@@ -497,29 +498,104 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
 
   for (var i = rowStart, n = this.getChildCount(); i < n; i++) {
     var item = this.getChildAt(i);
-    currentLeft += item.getThumbWidth() + blobItemMarginWidth * 2;
-    if (currentLeft >= availWidth) {
-      this.layoutRow_(rowStart, i, currentLeft - availWidth);
-      el.insertBefore(this.dom_.createElement('br'),
-                      item.getElement().nextSibling);
-      currentLeft = 0;
-      rowStart = i + 1;
+
+    var nextWidth = currentWidth + item.getThumbWidth() +
+        blobItemMarginWidth * 2;
+    if (nextWidth < availWidth) {
+      currentWidth = nextWidth;
+      continue;
+    }
+
+    rowStart = this.layoutRow_(rowStart, i, currentWidth, nextWidth,
+                               availWidth);
+    el.insertBefore(this.dom_.createElement('br'),
+                    this.getChildAt(rowStart - 1).getElement().nextSibling);
+    currentWidth = 0;
+
+    // If we didn't end up using the last element of this row, then it will be
+    // the start of the next row.
+    if (rowStart == i) {
+      i--;
     }
   }
 
-  if (i < n) {
-    this.layoutRow_(i, n - 1, 0);
+  // Any remaining items just get their intrinsic width.
+  for (var i = rowStart; i < n; i++) {
+    var item = this.getChildAt(i);
+    item.resetFrameWidth();
   }
 };
 
+/**
+ * @return {Number} The starting index of the next row. This can be either
+ * endIndex or endIndex+1, depending on whether we were able to squeeze all the
+ * items onto one row.
+ */
 camlistore.BlobItemContainer.prototype.layoutRow_ =
-function(startIndex, endIndex, overflow) {
+function(startIndex, endIndex, widthWithoutLastItem, widthWithLastItem,
+         availWidth) {
+  // We are trying to create rows that completely fill their container. There
+  // are two ways we can do that, and we need to decide which is better:
+  //
+  // - For images, we can set the frame narrower than the image actually
+  //   requires, clipping some of the horizontal width.
+  // - For non-images, clipping doesn't look good because they use icons and
+  //   it's obvious when they've been clipped. For these, we can do the opposite
+  //   and add additional horizontal padding.
+  //
+  // To determine which strategy to use, we calculate how much each item would
+  // change, and use the strategy with the lowest per-item impact.
+  var clipLayoutData = {
+    items: [],
+    endIndex: endIndex,
+    width: widthWithLastItem
+  };
+  var stretchLayoutData = {
+    items: [],
+    endIndex: endIndex - 1,
+    width: widthWithoutLastItem
+  };
+
   for (var i = startIndex; i <= endIndex; i++) {
     var item = this.getChildAt(i);
-    var numVictimsLeft = endIndex - i + 1;
-    var clipAmount = Math.ceil(overflow / numVictimsLeft);
-    item.setClippingWidth(item.getThumbWidth() - clipAmount);
-    overflow -= clipAmount;
+    if (item.isImage()) {
+      clipLayoutData.items.push(i);
+    } else if (i < endIndex) {
+      stretchLayoutData.items.push(i);
+    }
+  }
+
+  function perItemChange(layoutData) {
+    // If we don't have any items with this layout type, then no amount of
+    // per-item change will help.
+    if (!layoutData.items.length) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return Math.abs((availWidth - layoutData.width) / layoutData.items.length);
+  }
+
+  function setFrames(layoutData) {
+    var overflow = layoutData.width - availWidth;
+    for (var i = startIndex; i <= layoutData.endIndex; i++) {
+      var item = this.getChildAt(i);
+      if (i == layoutData.items[0]) {
+        var portion = Math.ceil(overflow / layoutData.items.length);
+        item.setFrameWidth(item.getThumbWidth() - portion);
+        layoutData.items.shift();
+        overflow -= portion;
+      } else {
+        item.resetFrameWidth();
+      }
+    }
+  }
+
+  if (perItemChange(clipLayoutData) <= perItemChange(stretchLayoutData)) {
+    setFrames.call(this, clipLayoutData);
+    return endIndex + 1;
+  } else {
+    setFrames.call(this, stretchLayoutData);
+    return endIndex;
   }
 };
 
