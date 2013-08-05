@@ -114,7 +114,9 @@ func (t *Tag) convertVals() {
 
 	switch t.Fmt {
 	case 2: // ascii string
-		t.strVal = string(t.Val[:len(t.Val)-1])
+		if len(t.Val) > 0 {
+			t.strVal = string(t.Val[:len(t.Val)-1])
+		}
 	case 1:
 		var v uint8
 		t.intVals = make([]int64, int(t.Ncomp))
