@@ -19,6 +19,7 @@ package serverconfig
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -473,10 +474,14 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	if baseURL != "" {
-		if strings.HasSuffix(baseURL, "/") {
-			baseURL = baseURL[:len(baseURL)-1]
+		obj["baseURL"] = strings.TrimSuffix(baseURL, "/")
+		u, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", baseURL, err)
 		}
-		obj["baseURL"] = baseURL
+		if u.Path != "/" {
+			return nil, errors.New("baseURL can't have a path, only a scheme, host, and optional port.")
+		}
 	}
 	if listen != "" {
 		obj["listen"] = listen
