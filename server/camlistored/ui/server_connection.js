@@ -110,7 +110,15 @@ function(success, fail, e) {
 	var error = !xhr.isSuccess();
 	var result = null;
 	if (!error) {
-		result = xhr.getResponseJson();
+		try {
+			result = xhr.getResponseJson();
+		} catch(err) {
+			console.log("Response was not valid JSON: " + xhr.getResponseText());
+			if (fail) {
+				fail();
+			}
+			return;
+		}
 		error = !result;
 	}
 	if (error) {
@@ -154,7 +162,9 @@ function(success, opt_fail) {
 
 	this.sendXhr_(path,
 		goog.bind(this.handleXhrResponseJson_, this,
-			success, this.safeFail_(opt_fail)
+			success, function(msg) {
+				console.log("serverStatus error: " + msg);
+			}
 		)
 	);
 };
