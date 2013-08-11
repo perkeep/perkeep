@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os/user"
 	"sort"
 	"sync"
 	"time"
@@ -66,14 +65,14 @@ func init() {
 }
 
 func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
-	u, err := user.Current()
+	username, err := getUserName()
 	if err != nil {
 		return
 	}
 	root := &RootHandler{
 		BlobRoot:   conf.OptionalString("blobRoot", ""),
 		SearchRoot: conf.OptionalString("searchRoot", ""),
-		OwnerName:  conf.OptionalString("ownerName", u.Name),
+		OwnerName:  conf.OptionalString("ownerName", username),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
