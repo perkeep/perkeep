@@ -8,6 +8,7 @@
          "handlerArgs": {
              "ownerName": "TODO:AppEngineOwnerName",
              "blobRoot": "/bs-and-maybe-also-index/",
+             "statusRoot": "/status/",
              "searchRoot": "/my-search/",
              "stealth": false
          }
@@ -19,6 +20,10 @@
         "jsonSignRoot": "/sighelper/"
       }
     },
+
+     "/status/": {
+         "handler": "status"
+     },
 
     "/bs-and-maybe-also-index/": {
       "handler": "storage-cond",
