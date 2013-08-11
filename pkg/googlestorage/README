@@ -7,7 +7,7 @@ Server configuration
 
 High-level server config is formatted like:
 
-	"google": "clientId:clientSecret:refreshToken:bucketName"
+	"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName"
 
 
 Testing

@@ -74,7 +74,7 @@
 		},
 
 		"/bs/": {
-			"handler": "storage-google",
+			"handler": "storage-googlecloudstorage",
 			"handlerArgs": {
 				"auth": {
 					"client_id": "clientId",

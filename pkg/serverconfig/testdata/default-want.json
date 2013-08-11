@@ -120,8 +120,8 @@
 			}
 		},
 
-		"/sto-google/": {
-			"handler": "storage-google",
+		"/sto-googlecloudstorage/": {
+			"handler": "storage-googlecloudstorage",
 			"handlerArgs": {
 				"auth": {
 					"client_id": "clientId",
@@ -132,11 +132,31 @@
 			}
 		},
 
-		"/sync-to-google/": {
+		"/sync-to-googlecloudstorage/": {
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"to": "/sto-google/"
+				"to": "/sto-googlecloudstorage/"
+			}
+		},
+
+		"/sto-googledrive/": {
+			"handler": "storage-googledrive",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"parent_id": "parentDirId"
+			}
+		},
+
+		"/sync-to-googledrive/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/sto-googledrive/"
 			}
 		}
 

@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package google registers the "google" blob storage type, storing blobs
+// Package cloudstorage registers the "googlecloudstorage" blob storage type, storing blobs
 // on Google Cloud Storage (not Google Drive).
-package google
+// See https://cloud.google.com/products/cloud-storage
+package cloudstorage
 
 import (
 	"bytes"
@@ -140,5 +141,5 @@ func (gs *Storage) GetBlobHub() blobserver.BlobHub {
 }
 
 func init() {
-	blobserver.RegisterStorageConstructor("google", blobserver.StorageConstructor(newFromConfig))
+	blobserver.RegisterStorageConstructor("googlecloudstorage", blobserver.StorageConstructor(newFromConfig))
 }

@@ -248,10 +248,60 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	return nil
 }
 
-func addGoogleConfig(prefixes jsonconfig.Obj, highCfg string) error {
+func addGoogleDriveConfig(prefixes jsonconfig.Obj, highCfg string) error {
 	f := strings.SplitN(highCfg, ":", 4)
 	if len(f) != 4 {
-		return errors.New(`genconfig: expected "google" field to be of form "client_id:client_secret:refresh_token:bucket"`)
+		return errors.New(`genconfig: expected "googledrive" field to be of form "client_id:client_secret:refresh_token:parent_id"`)
+	}
+	clientId, secret, refreshToken, parentId := f[0], f[1], f[2], f[3]
+
+	isPrimary := false
+	if _, ok := prefixes["/bs/"]; !ok {
+		isPrimary = true
+	}
+
+	prefix := ""
+	if isPrimary {
+		prefix = "/bs/"
+	} else {
+		prefix = "/sto-googledrive/"
+	}
+	prefixes[prefix] = map[string]interface{}{
+		"handler": "storage-googledrive",
+		"handlerArgs": map[string]interface{}{
+			"parent_id": parentId,
+			"auth": map[string]interface{}{
+				"client_id":     clientId,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		},
+	}
+
+	if isPrimary {
+		prefixes["/cache/"] = map[string]interface{}{
+			"handler": "storage-filesystem",
+			"handlerArgs": map[string]interface{}{
+				"path": filepath.Join(tempDir(), "camli-cache"),
+			},
+		}
+	} else {
+		prefixes["/sync-to-googledrive/"] = map[string]interface{}{
+			"handler": "sync",
+			"handlerArgs": map[string]interface{}{
+				"from": "/bs/",
+				"to":   prefix,
+			},
+		}
+	}
+
+	return nil
+}
+
+func addGoogleCloudStorageConfig(prefixes jsonconfig.Obj, highCfg string) error {
+	f := strings.SplitN(highCfg, ":", 4)
+	if len(f) != 4 {
+		return errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket"`)
 	}
 	clientId, secret, refreshToken, bucket := f[0], f[1], f[2], f[3]
 
@@ -264,11 +314,11 @@ func addGoogleConfig(prefixes jsonconfig.Obj, highCfg string) error {
 	if isPrimary {
 		gsPrefix = "/bs/"
 	} else {
-		gsPrefix = "/sto-google/"
+		gsPrefix = "/sto-googlecloudstorage/"
 	}
 
 	prefixes[gsPrefix] = map[string]interface{}{
-		"handler": "storage-google",
+		"handler": "storage-googlecloudstorage",
 		"handlerArgs": map[string]interface{}{
 			"bucket": bucket,
 			"auth": map[string]interface{}{
@@ -292,7 +342,7 @@ func addGoogleConfig(prefixes jsonconfig.Obj, highCfg string) error {
 			},
 		}
 	} else {
-		prefixes["/sync-to-google/"] = map[string]interface{}{
+		prefixes["/sync-to-googlecloudstorage/"] = map[string]interface{}{
 			"handler": "sync",
 			"handlerArgs": map[string]interface{}{
 				"from": "/bs/",
@@ -425,9 +475,10 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
 
 		// Blob storage options
-		blobPath = conf.OptionalString("blobPath", "")
-		s3       = conf.OptionalString("s3", "")     // "access_key_id:secret_access_key:bucket"
-		gstorage = conf.OptionalString("google", "") // "clientId:clientSecret:refreshToken:bucket"
+		blobPath           = conf.OptionalString("blobPath", "")
+		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket"
+		googlecloudstorage = conf.OptionalString("googlecloudstorage", "") // "clientId:clientSecret:refreshToken:bucket"
+		googledrive        = conf.OptionalString("googledrive", "")        // "clientId:clientSecret:refreshToken:parentId"
 		// Enable the share handler. If true, and shareHandlerPath is empty,
 		// then shareHandlerPath defaults to "/share/".
 		shareHandler = conf.OptionalBool("shareHandler", false)
@@ -523,8 +574,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	nolocaldisk := blobPath == ""
-	if nolocaldisk && s3 == "" && gstorage == "" {
-		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or google configured for a blobserver.")
+	if nolocaldisk && s3 == "" && googlecloudstorage == "" {
+		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or googlecloudstorage configured for a blobserver.")
 	}
 
 	if shareHandler && shareHandlerPath == "" {
@@ -587,8 +638,13 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			return nil, err
 		}
 	}
-	if gstorage != "" {
-		if err := addGoogleConfig(prefixes, gstorage); err != nil {
+	if googledrive != "" {
+		if err := addGoogleDriveConfig(prefixes, googledrive); err != nil {
+			return nil, err
+		}
+	}
+	if googlecloudstorage != "" {
+		if err := addGoogleCloudStorageConfig(prefixes, googlecloudstorage); err != nil {
 			return nil, err
 		}
 	}
