@@ -79,6 +79,9 @@ func serverKeyId() string {
 }
 
 func parseConfig() {
+	if onAndroid() {
+		return
+	}
 	configPath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'camput init' to generate it.", configPath)

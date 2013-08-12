@@ -166,7 +166,7 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 		httpStats.VerboseLog = tc.Verbose
 	}
 	transport = httpStats
-	if AndroidOutput() {
+	if onAndroid() {
 		transport = &AndroidStatsTransport{transport}
 	}
 	return transport
