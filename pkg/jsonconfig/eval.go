@@ -84,17 +84,17 @@ func (c *ConfigParser) ReadFile(path string) (m map[string]interface{}, err erro
 // Decodes and evaluates a json config file, watching for include cycles.
 func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[string]interface{}, err error) {
 
-	configPath, err = filepath.Abs(configPath)
+	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to expand absolute path for %s", configPath)
 	}
-	if c.touchedFiles[configPath] {
+	if c.touchedFiles[absConfigPath] {
 		return nil, fmt.Errorf("ConfigParser include cycle detected reading config: %v",
-			configPath)
+			absConfigPath)
 	}
-	c.touchedFiles[configPath] = true
+	c.touchedFiles[absConfigPath] = true
 
-	c.includeStack.Push(configPath)
+	c.includeStack.Push(absConfigPath)
 	defer c.includeStack.Pop()
 
 	var f File
