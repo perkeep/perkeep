@@ -191,7 +191,7 @@ func setup() {
 				log.Fatalf("problem with cache dir: %v", err)
 			}
 		}
-		setCurrentTask("git clone https://camlistore.org/r/p/camlistore " + camliRoot)
+		setCurrentTask("git clone https://camlistore.googlesource.com/camlistore " + camliRoot)
 		_, err = runCmd(getCurrentTask().Cmd)
 		if err != nil {
 			log.Fatalf("problem with git clone: %v", err)

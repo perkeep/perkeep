@@ -3,7 +3,7 @@
 <p>The latest release is <a href="/docs/release/0.3">0.3 ("Glebe")</a>.</p>
 
 <p>Or, the canonical git repo is:</p>
-<pre>$ git clone https://camlistore.org/r/p/camlistore</pre>
+<pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
 
 <p>It's also on Github at <a href="http://github.com/bradfitz/camlistore">github.com/bradfitz/camlistore</a>. See <a href="/docs/contributing">the contribution docs</a>.</p>
 
