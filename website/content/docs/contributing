@@ -22,17 +22,12 @@
 <h1>Code Review</h1>
 <ul class='lispaced'>
 	<li>Camlistore requires changes to be reviewed before they are committed.</li>
-	<li>Sign in to Gerrit at <a href="http://camlistore.org/r/">http://camlistore.org/r/</a> and set your username + SSH key(s).
-            If your Gerrit username is not the same as your local machine's $USER, add a section like:
-<pre>
-Host camlistore.org
-  User &lt;your-gerrit-username&gt;
-</pre>
-            to your ssh config file (probably <tt>~/.ssh/config</tt>).</li>
+        <li>Update your <tt>~/.netrc</tt> file with a Gerrit username and password.  Click the <b>"Generate a new password"</b> link from the top of <a href="https://camlistore.googlesource.com/">https://camlistore.googlesource.com/</a>.</li>
+
 	<li>Usual Work Flow</li>
 		<ul>
                         <li>Create a topic branch. Commit away. If you modify or squash your commits during review, don't touch <a href="http://gerrit.googlecode.com/svn/documentation/2.2.1/user-changeid.html">the Change-Id line</a>.</li>
-                        <li>Send for review, with:<pre>./misc/review</pre> (assuming your Gerrit username is the same as your local machine's $USER)</li>
+                        <li>Send for review, with:<pre>./misc/review</pre></li>
 			<li>... (review, modify, git add [changed files], git commit --amend, running ./misc/review again during review, until change is merged) ... </li>
 			<li>Finally, if you have any questions don't hesitate to ask the <a href='/lists'>mailing list</a> if you have questions.</li>
 		</ul>

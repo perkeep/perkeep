@@ -45,8 +45,6 @@ var (
 	httpAddr        = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
 	httpsAddr       = flag.String("https", "", "HTTPS service address")
 	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
-	gitwebScript    = flag.String("gitwebscript", "/usr/lib/cgi-bin/gitweb.cgi", "Path to gitweb.cgi, or blank to disable.")
-	gitwebFiles     = flag.String("gitwebfiles", "/usr/share/gitweb/static", "Path to gitweb's static files.")
 	logDir          = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
 	logStdout       = flag.Bool("logstdout", true, "Write to stdout?")
 	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
@@ -223,20 +221,6 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 	servePage(rw, title, "", data)
 }
 
-type gitwebHandler struct {
-	Cgi    http.Handler
-	Static http.Handler
-}
-
-func (h *gitwebHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/code/" ||
-		strings.HasPrefix(r.URL.Path, "/code/?") {
-		h.Cgi.ServeHTTP(rw, r)
-	} else {
-		h.Static.ServeHTTP(rw, r)
-	}
-}
-
 func isBot(r *http.Request) bool {
 	agent := r.Header.Get("User-Agent")
 	return strings.Contains(agent, "Baidu") || strings.Contains(agent, "bingbot") ||
@@ -262,16 +246,6 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
-}
-
-func fixupGitwebFiles() {
-	fi, err := os.Stat(*gitwebFiles)
-	if err != nil || !fi.IsDir() {
-		if *gitwebFiles == "/usr/share/gitweb/static" {
-			// Old Debian/Ubuntu location
-			*gitwebFiles = "/usr/share/gitweb"
-		}
-	}
 }
 
 // runAsChild runs res as a child process and
@@ -306,13 +280,6 @@ func main() {
 		}
 	}
 	readTemplates()
-	fixupGitwebFiles()
-
-	latestGits := filepath.Join(*root, "latestgits")
-	os.Mkdir(latestGits, 0700)
-	if *gerritHost != "" {
-		go rsyncFromGerrit(latestGits)
-	}
 
 	mux := http.DefaultServeMux
 	mux.Handle("/favicon.ico", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
@@ -322,19 +289,7 @@ func main() {
 	mux.Handle(pkgPattern, godocHandler{})
 	mux.Handle(cmdPattern, godocHandler{})
 
-	gerritUrl, _ := url.Parse(fmt.Sprintf("http://%s:8000/", *gerritHost))
-	var gerritHandler http.Handler = httputil.NewSingleHostReverseProxy(gerritUrl)
-	if *httpsAddr != "" {
-		proxyHandler := gerritHandler
-		gerritHandler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			if req.TLS != nil {
-				proxyHandler.ServeHTTP(rw, req)
-				return
-			}
-			http.Redirect(rw, req, "https://camlistore.org"+req.URL.RequestURI(), http.StatusFound)
-		})
-	}
-	mux.Handle("/r/", gerritHandler)
+	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
 
 	testCgi := &cgi.Handler{Path: filepath.Join(*root, "test.cgi"),
@@ -342,21 +297,7 @@ func main() {
 	}
 	mux.Handle("/test.cgi", testCgi)
 	mux.Handle("/test.cgi/foo", testCgi)
-	mux.Handle("/code", http.RedirectHandler("/code/", http.StatusFound))
-	if *gitwebScript != "" {
-		env := os.Environ()
-		env = append(env, "GITWEB_CONFIG="+filepath.Join(*root, "gitweb-camli.conf"))
-		env = append(env, "CAMWEB_ROOT="+filepath.Join(*root))
-		env = append(env, "CAMWEB_GITDIR="+latestGits)
-		mux.Handle("/code/", &fixUpGitwebUrls{&gitwebHandler{
-			Cgi: &cgi.Handler{
-				Path: *gitwebScript,
-				Root: "/code/",
-				Env:  env,
-			},
-			Static: http.StripPrefix("/code/", http.FileServer(http.Dir(*gitwebFiles))),
-		}})
-	}
+
 	mux.HandleFunc("/issue/", issueRedirect)
 	mux.HandleFunc("/", mainHandler)
 
@@ -415,8 +356,12 @@ func issueRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "https://code.google.com/p/camlistore/issues/detail?id="+m[1], http.StatusFound)
 }
 
-type fixUpGitwebUrls struct {
-	handler http.Handler
+func gerritRedirect(w http.ResponseWriter, r *http.Request) {
+	dest := "https://camlistore-review.googlesource.com/"
+	if len(r.URL.Path) > len("/r/") {
+		dest += r.URL.Path[1:]
+	}
+	http.Redirect(w, r, dest, http.StatusFound)
 }
 
 // Not sure what's making these broken URLs like:
@@ -426,6 +371,7 @@ type fixUpGitwebUrls struct {
 // ... but something is.  Maybe Buzz?  For now just re-write them
 // . Doesn't seem to be a bug in the CGI implementation, though, which
 // is what I'd originally suspected.
+/*
 func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	oldUrl := req.URL.String()
 	newUrl := strings.Replace(oldUrl, "%3B", ";", -1)
@@ -435,16 +381,7 @@ func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 	}
 	http.Redirect(rw, req, newUrl, http.StatusFound)
 }
-
-func rsyncFromGerrit(dest string) {
-	for {
-		err := exec.Command("rsync", "-avPW", *gerritUser+"@"+*gerritHost+":gerrit/git/", dest+"/").Run()
-		if err != nil {
-			log.Printf("rsync from gerrit = %v", err)
-		}
-		time.Sleep(10e9)
-	}
-}
+*/
 
 func ipHandler(w http.ResponseWriter, r *http.Request) {
 	out, _ := exec.Command("ip", "-f", "inet", "addr", "show", "dev", "eth0").Output()
