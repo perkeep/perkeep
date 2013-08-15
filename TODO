@@ -152,7 +152,7 @@ Client libraries:
 
 [X] Go
 [X] JavaScript
-[/] Python (Brett)
+[/] Python (Brett); but see https://github.com/tsileo/camlipy
 [ ] Perl
 [ ] Ruby
 [ ] PHP
