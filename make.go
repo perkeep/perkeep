@@ -112,7 +112,7 @@ func main() {
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
-			log.Printf("On Windows, .... click stuff? TODO: fill this in")
+			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
 		}
 		os.Exit(2)
 	}
