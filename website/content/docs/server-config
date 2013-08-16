@@ -53,7 +53,7 @@ to <code>pkg/genconfig</code> welcome.</p>
 <p>Unless <b><code>runIndex</code></b> is set to <code>false</code>, exactly one of these must be set:</p>
 <ul>
 <li><b><code>sqlite</code></b>: path to SQLite database file to use for indexing</li>
-<li><b><code>mongo</code></b>: user@host:password</li>
+<li><b><code>mongo</code></b>: user:password@host</li>
 <li><b><code>mysql</code></b>: user@host:password</li>
 <li><b><code>postgres</code></b>: user@host:password</li>
 </ul>
@@ -75,6 +75,30 @@ config, as used by <code>devcam server</code>.</p>
 }
 </pre>
 <p>One can create any permanode with camput or the UI and use it as the rootPermanode.</p>
+
+<h2 id="windows">Windows</h2>
+
+<p>
+The default configuration comes with SQLite for the indexer. However, getting <a href="https://github.com/mattn/go-sqlite3">mattn go-sqlite3</a> to work on windows is not straightforward, so we suggest using one of the other indexers, like MySQL.
+</p>
+<p>
+The following steps should get you started with MySQL:
+<ul>
+<li> Dowload and install <a href="https://downloads.mariadb.org/mariadb/5.5.32/">MariaDB</a> or <a href="http://dev.mysql.com/downloads/windows/installer/">MySQL</a> (the latter requires .NET).</li>
+<li> Edit your server configuration file (if it does not exit yet, running <b>camlistored</b> will automatically create it):
+	<ul>
+	<li> Remove the <b>sqlite</b> option.</li>
+	<li> Add a <b>dbname</b> option. (ex: "dbname": "camliprod")</li>
+	<li> Add a <b>mysql</b> option. (ex: "mysql": "foo@localhost:bar")</li>
+	</ul></li>
+<li> Create a dedicated user/password for your mysql server.</li>
+<li> Initialize the database with <b>camtool</b>: <code>camtool dbinit --user=foo --password=bar --host=localhost --dbname=camliprod --wipe </code></li>
+</ul>
+</p>
+
+<p>
+Setting up MongoDB is even simpler, but the MongoDB indexer is not as well tested as the MySQL one.
+</p>
 
 <h2>App Engine</h2>
 

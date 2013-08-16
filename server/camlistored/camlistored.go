@@ -25,6 +25,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -268,7 +269,8 @@ func newDefaultConfigFile(path string) error {
 			}
 		}
 	} else {
-		log.Printf("Wrote config file assuming SQLite, but SQLite is not available. Recompile with SQLite or modify %s and pick an index type.", path)
+		log.Printf("Wrote config file assuming SQLite, but SQLite is not available. Recompile with SQLite or modify %s and pick an index type. Please see http://camlistore.org/docs/server-config#windows", path)
+		return errors.New("Newly written configuration not usable.")
 	}
 	return nil
 }
