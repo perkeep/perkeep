@@ -84,3 +84,18 @@ to use the App Engine Blobstore and Datastore, as well as App Engine's
 user auth mechanisms. But as of 2013-06-12 we don't yet recommend running
 on App Engine; there are still some sharp corners.
 </p>
+
+<p>
+The UI requires some static resources that are not included by default in the App Engine application directory (<code>server/appengine/</code>). You can define that directory in the server configuration file (<code>server/appengine/config.json</code>), with the <b><code>sourceRoot</code></b> parameter, like so:
+<pre>
+  "/ui/": {
+    "handler": "ui",
+    "handlerArgs": {
+      "sourceRoot": "dir_name",
+      "jsonSignRoot": "/sighelper/"
+    }
+  },
+</pre>
+You will then have to populate that directory with all the necessary resources (UI static files and closure library files).</br>
+Alternatively, you can run <b><code>./dev-appengine</code></b> once, which will create and populate the default directory (<code>server/appengine/source_root</code>).
+</p>

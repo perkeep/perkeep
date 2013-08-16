@@ -159,6 +159,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		}
 	}
 
+	// TODO(mpl): check that it works on appengine too.
 	if ph.sourceRoot == "" {
 		ph.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
 	}
