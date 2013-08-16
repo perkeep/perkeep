@@ -158,6 +158,19 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 	if ui.sourceRoot == "" {
 		ui.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
+		if uistatic.IsAppEngine {
+			if _, err = os.Stat(filepath.Join(uistatic.GaeSourceRoot,
+				filepath.FromSlash("server/camlistored/ui/index.html"))); err != nil {
+				hint := fmt.Sprintf("\"sourceRoot\" was not specified in the config,"+
+					" and the default sourceRoot dir %v does not exist or does not contain"+
+					" \"server/camlistored/ui/index.html\". dev-appengine can do that for you.",
+					uistatic.GaeSourceRoot)
+				log.Print(hint)
+				return nil, errors.New("No sourceRoot found; UI not available.")
+			}
+			log.Printf("Using the default \"%v\" as the sourceRoot for AppEngine", uistatic.GaeSourceRoot)
+			ui.sourceRoot = uistatic.GaeSourceRoot
+		}
 	}
 	if ui.sourceRoot != "" {
 		ui.uiDir = filepath.Join(ui.sourceRoot, filepath.FromSlash("server/camlistored/ui"))
@@ -168,6 +181,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		uistatic.Files = &fileembed.Files{
 			DirFallback: ui.uiDir,
 			Listable:    true,
+			// In dev_appserver, allow edit-and-reload without
+			// restarting. In production, though, it's faster to just
+			// slurp it in.
+			SlurpToMemory: uistatic.IsProdAppEngine,
 		}
 	}
 
@@ -202,7 +219,7 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 // 3) a path on disk to the root of camlistore's source (which
 //    contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
-	// devcam server environment variable takes precendence:
+	// devcam server environment variable takes precedence:
 	if d := os.Getenv("CAMLI_DEV_CLOSURE_DIR"); d != "" {
 		log.Printf("%v: serving Closure from devcam server's $CAMLI_DEV_CLOSURE_DIR: %v", handlerName, d)
 		return http.FileServer(http.Dir(d)), nil

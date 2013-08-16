@@ -38,8 +38,27 @@ if ($opt_port) {
 push @args, @ARGV;
 
 chdir "$Bin/server/appengine" or die "$!";
-push @args, ".";
 
+my $sourceRoot = "$Bin/server/appengine/source_root";
+# import in the appengine dir all the static files, so they get uploaded
+# TODO(mpl): do a smarter mirroring when we convert this to go
+unless (-d $sourceRoot) {
+  # copy ui files
+  system("mkdir", "-p", $sourceRoot) and die "Failed to create $sourceRoot.\n";
+  my $dest = "$sourceRoot/server/camlistored";
+  system("mkdir", "-p", $dest) and die "Failed to create uiDir.\n";
+  system("cp", "-a", "$Bin/server/camlistored/ui", $dest) and die "Failed to cp uiDir.\n";
+  # copy closure files
+  $dest = "$sourceRoot/third_party/closure/lib";
+  system("mkdir", "-p", $dest) and die "Failed to create closureDir.\n";
+  system("cp", "-a", "$Bin/third_party/closure/lib/closure", $dest) and die "Failed to cp uiDir.\n";
+  # copy favicon.ico
+  $dest = "$sourceRoot/pkg/server";
+  system("mkdir", "-p", $dest) and die "Failed to create pkg/server.\n";
+  system("cp", "$Bin/pkg/server/favicon.ico", $dest) and die "Failed to cp favicon.ico.\n";
+}
+
+push @args, ".";
 print "\$ @args\n";
 
 exec(@args);

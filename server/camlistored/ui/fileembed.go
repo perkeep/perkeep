@@ -23,4 +23,9 @@ import (
 	"camlistore.org/pkg/fileembed"
 )
 
-var Files *fileembed.Files
+const GaeSourceRoot = "source_root"
+
+var (
+	Files                        *fileembed.Files
+	IsAppEngine, IsProdAppEngine bool
+)
