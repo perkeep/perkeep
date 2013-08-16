@@ -95,7 +95,7 @@ cloud platforms if they're not able to run their own servers between
 different geographical areas. (e.g. cross-replicating between
 different big disks stored within a family)</p>
 
-<p>A Camlistore server compromises several parts, all of which are
+<p>A Camlistore server comprises several parts, all of which are
 optional and can be turn on or off per-instance:</p>
 
 <ul>
