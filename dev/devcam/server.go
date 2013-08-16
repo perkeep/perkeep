@@ -317,7 +317,7 @@ func (c *serverCmd) setFullClosure() error {
 
 func handleKillCamliSignal(camliProc *os.Process) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	for {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
@@ -325,8 +325,8 @@ func handleKillCamliSignal(camliProc *os.Process) {
 			log.Fatal("Not a unix signal")
 		}
 		switch sysSig {
-		case syscall.SIGTERM, syscall.SIGINT:
-			log.Print("Received kill signal, terminating.")
+		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
+			log.Printf("Received %v signal, terminating.", sig)
 			err := camliProc.Kill()
 			if err != nil {
 				log.Fatalf("Failed to kill camli: %v ", err)
