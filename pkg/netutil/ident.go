@@ -128,8 +128,10 @@ func (p maybeBrackets) String() string {
 	return s
 }
 
-// Store in a var so we can override for testing.
-var uidFromUsername = func(username string) (uid int, err error) {
+// Changed by tests.
+var uidFromUsername = uidFromUsernameFn
+
+func uidFromUsernameFn(username string) (uid int, err error) {
 	if uid := os.Getuid(); uid != 0 && username == os.Getenv("USER") {
 		return uid, nil
 	}
