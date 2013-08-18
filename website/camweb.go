@@ -170,15 +170,26 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 	servePage(w, "File "+relpath, "", contents)
 }
 
+var commitHash = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
+
 func mainHandler(rw http.ResponseWriter, req *http.Request) {
 	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
 	if strings.Contains(relPath, "..") {
 		return
 	}
 
+	// Example:
+	// /code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed
+	if strings.HasPrefix(relPath, "code/") {
+		m := commitHash.FindStringSubmatch(req.URL.RawQuery)
+		if len(m) == 2 {
+			http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/"+m[1], http.StatusFound)
+		}
+	}
+
 	if strings.HasPrefix(relPath, "gw/") {
 		path := relPath[3:]
-		http.Redirect(rw, req, "http://camlistore.org/code/?p=camlistore.git;f="+path+";hb=master", http.StatusFound)
+		http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/HEAD/"+path, http.StatusFound)
 		return
 	}
 

@@ -1064,7 +1064,7 @@ func goRepoURL(hash string) string {
 }
 
 func camliRepoURL(hash string) string {
-	return "http://camlistore.org/code/?p=camlistore.git;a=commit;h=" + hash
+	return "https://camlistore.googlesource.com/camlistore/+/" + hash
 }
 
 // style inspired from $GOROOT/misc/dashboard/app/build/ui.html
