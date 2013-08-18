@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -84,10 +85,12 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 			localv4, remotev4)
 	}
 
-	if runtime.GOOS == "darwin" || runtime.GOOS == "freebsd" {
+	switch runtime.GOOS {
+	case "darwin":
 		return uidFromLsof(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
-	}
-	if runtime.GOOS == "linux" {
+	case "freebsd":
+		return uidFromSockstat(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port)
+	case "linux":
 		file := "/proc/net/tcp"
 		if !localv4 {
 			file = "/proc/net/tcp6"
@@ -97,7 +100,7 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 			return -1, fmt.Errorf("Error opening %s: %v", file, err)
 		}
 		defer f.Close()
-		return uidFromReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
+		return uidFromProcReader(lAddr.IP, lAddr.Port, rAddr.IP, rAddr.Port, f)
 	}
 	return 0, ErrUnsupportedOS
 }
@@ -123,6 +126,19 @@ func (p maybeBrackets) String() string {
 		return "[" + s + "]"
 	}
 	return s
+}
+
+// Store in a var so we can override for testing.
+var uidFromUsername = func(username string) (uid int, err error) {
+	if uid := os.Getuid(); uid != 0 && username == os.Getenv("USER") {
+		return uid, nil
+	}
+	u, err := user.Lookup(username)
+	if err == nil {
+		uid, err := strconv.Atoi(u.Uid)
+		return uid, err
+	}
+	return 0, err
 }
 
 func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err error) {
@@ -169,21 +185,52 @@ func uidFromLsof(lip net.IP, lport int, rip net.IP, rport int) (uid int, err err
 			continue
 		}
 		username := string(f[2])
-		if uid := os.Getuid(); uid != 0 && username == os.Getenv("USER") {
-			return uid, nil
-		}
-		u, err := user.Lookup(username)
-		if err == nil {
-			uid, err := strconv.Atoi(u.Uid)
-			return uid, err
-		}
-		return 0, err
+		return uidFromUsername(username)
 	}
 	return -1, ErrNotFound
 
 }
 
-func uidFromReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
+func uidFromSockstat(lip net.IP, lport int, rip net.IP, rport int) (int, error) {
+	cmd := exec.Command("sockstat", "-Ptcp")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return -1, err
+	}
+	defer cmd.Wait()
+	defer stdout.Close()
+	err = cmd.Start()
+	if err != nil {
+		return -1, err
+	}
+	defer cmd.Process.Kill()
+
+	return uidFromSockstatReader(lip, lport, rip, rport, stdout)
+}
+
+func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (int, error) {
+	pat, err := regexp.Compile(fmt.Sprintf(`^([^ ]+).*%s:%d *%s:%d$`,
+		lip.String(), lport, rip.String(), rport))
+	if err != nil {
+		return -1, err
+	}
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		l := scanner.Text()
+		m := pat.FindStringSubmatch(l)
+		if len(m) == 2 {
+			return uidFromUsername(m[1])
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return -1, err
+	}
+
+	return -1, ErrNotFound
+}
+
+func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
 	buf := bufio.NewReader(r)
 
 	localHex := ""

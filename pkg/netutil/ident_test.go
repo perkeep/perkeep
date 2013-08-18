@@ -127,13 +127,62 @@ func TestHTTPAuth(t *testing.T) {
 	}
 }
 
+func testUidFromUsername(username string) (int, error) {
+	switch username {
+	case "really-long-user":
+		return 1000, nil
+	case "root":
+		return 0, nil
+	}
+	panic("Unhandled username specified in test")
+}
+
+func TestParseFreeBSDSockstat(t *testing.T) {
+	uidFromUsername = testUidFromUsername
+	pairs := []struct {
+		uid          int
+		lip, rip     net.IP
+		lport, rport int
+	}{
+		{
+			// "really-long-user"
+			uid: 1000,
+			lip: net.ParseIP("192.168.123.5"), lport: 8000,
+			rip: net.ParseIP("192.168.123.21"), rport: 49826,
+		},
+		{
+			// "really-long-user"
+			uid: 1000,
+			lip: net.ParseIP("192.168.123.5"), lport: 9000,
+			rip: net.ParseIP("192.168.123.21"), rport: 49866,
+		},
+		{
+			// "root"
+			uid: 0,
+			lip: net.ParseIP("192.168.123.5"), lport: 22,
+			rip: net.ParseIP("192.168.123.21"), rport: 49747,
+		},
+	}
+
+	for _, p := range pairs {
+		uid, err := uidFromSockstatReader(p.lip, p.lport, p.rip, p.rport, strings.NewReader(sockstatPtcp))
+		if err != nil {
+			t.Error(err)
+		}
+
+		if p.uid != uid {
+			t.Error("Got", uid, "want", p.uid)
+		}
+	}
+}
+
 func TestParseLinuxTCPStat4(t *testing.T) {
 	lip, lport := net.ParseIP("67.218.110.129"), 43436
 	rip, rport := net.ParseIP("207.7.148.195"), 80
 
 	// 816EDA43:A9AC C39407CF:0050
 	//          43436         80
-	uid, err := uidFromReader(lip, lport, rip, rport, strings.NewReader(tcpstat4))
+	uid, err := uidFromProcReader(lip, lport, rip, rport, strings.NewReader(tcpstat4))
 	if err != nil {
 		t.Error(err)
 	}
@@ -156,4 +205,44 @@ var tcpstat4 = `  sl  local_address rem_address   st tx_queue rx_queue tr tm->wh
 11: 816EDA43:A9AC C39407CF:0050 01 00000000:00000000 00:00000000 00000000 61652        0 8754873 1 ffff88006712db00 27 0 0 3 -1                    
 12: 816EDA43:AFEF 51357D4A:01BB 01 00000000:00000000 02:00000685 00000000 61652        0 8752937 2 ffff880136375480 87 4 2 4 -1                    
 13: 0100007F:D981 0100007F:C204 01 00000000:00000000 00:00000000 00000000 61652        0 8722933 1 ffff880036b30d00 21 4 0 3 -1                    
+`
+
+// Output of 'sockstat -Ptcp'. User 'really-long-user' running two instances
+// of nc copied to 'really-only-process-name' and 'spc in name' run with -l
+// 8000 and -l 9000 respectively.  Two connections were then open from
+// 192.167.123.21 using 'nc 192.168.123.5 8000' and 'nc 192.168.123.5 9000'.
+var sockstatPtcp = `
+sockstat -Ptcp
+USER     COMMAND    PID   FD PROTO  LOCAL ADDRESS         FOREIGN ADDRESS      
+really-long-user spc in nam63210 3 tcp4 *:9000            *:*
+really-long-user spc in nam63210 4 tcp4 192.168.123.5:9000192.168.123.21:49866
+www      nginx      62982 7  tcp4   *:80                  *:*
+www      nginx      62982 8  tcp6   *:80                  *:*
+really-long-user really-lon62928 3 tcp4 *:8000            *:*
+really-long-user really-lon62928 4 tcp4 192.168.123.5:8000192.168.123.21:49826
+root     sshd       62849 5  tcp4   192.168.123.5:22      192.168.123.21:49819
+root     sshd       61819 5  tcp4   192.168.123.5:22      192.168.123.21:49747
+camlistore sshd     61746 5  tcp4   192.168.123.5:22      192.168.123.21:49739
+root     sshd       61744 5  tcp4   192.168.123.5:22      192.168.123.21:49739
+camlistore camlistore10941 7 tcp4 6 *:3179                *:*
+camlistore sshd     91620 5  tcp4   192.168.123.5:22      192.168.123.2:13404
+root     sshd       91618 5  tcp4   192.168.123.5:22      192.168.123.2:13404
+root     sshd       2309  4  tcp6   *:22                  *:*
+root     sshd       2309  5  tcp4   *:22                  *:*
+root     nginx      2152  7  tcp4   *:80                  *:*
+root     nginx      2152  8  tcp6   *:80                  *:*
+root     python2.7  2076  3  tcp4   127.0.0.1:9042        *:*
+root     python2.7  2076  6  tcp4   127.0.0.1:9042        127.0.0.1:51930
+root     python2.7  2076  7  tcp4   127.0.0.1:9042        127.0.0.1:20433
+root     python2.7  2076  8  tcp4   127.0.0.1:9042        127.0.0.1:55807
+root     rpc.statd  1630  5  tcp6   *:664                 *:*
+root     rpc.statd  1630  7  tcp4   *:664                 *:*
+root     nfsd       1618  5  tcp4   *:2049                *:*
+root     nfsd       1618  6  tcp6   *:2049                *:*
+root     mountd     1604  6  tcp6   *:792                 *:*
+root     mountd     1604  8  tcp4   *:792                 *:*
+root     rpcbind    1600  8  tcp6   *:111                 *:*
+root     rpcbind    1600  11 tcp4   *:111                 *:*
+?        ?          ?     ?  tcp4   *:895                 *:*
+?        ?          ?     ?  tcp6   *:777                 *:*
 `
