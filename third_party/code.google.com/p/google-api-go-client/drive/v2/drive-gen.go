@@ -4,7 +4,7 @@
 //
 // Usage example:
 //
-//   import "code.google.com/p/google-api-go-client/drive/v2"
+//   import "camlistore.org/third_party/code.google.com/p/google-api-go-client/drive/v2"
 //   ...
 //   driveService, err := drive.New(oauthHttpClient)
 package driveclient
