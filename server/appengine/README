@@ -1,5 +1,4 @@
-We typically just use the "dev-appengine" script in the project root
-to hack on this code.
+We typically just use the "devcam appengine" command to hack on this code. (To build devcam: go install ../../dev/devcam).
 
 But to run by hand:
 

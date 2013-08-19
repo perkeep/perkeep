@@ -122,5 +122,5 @@ The UI requires some static resources that are not included by default in the Ap
   },
 </pre>
 You will then have to populate that directory with all the necessary resources (UI static files and closure library files).</br>
-Alternatively, you can run <b><code>./dev-appengine</code></b> once, which will create and populate the default directory (<code>server/appengine/source_root</code>).
+Alternatively, you can run <b><code>devcam appengine</code></b> once, which will create and populate the default directory (<code>server/appengine/source_root</code>). Please see the <a href="https://camlistore.googlesource.com/camlistore/+/master/HACKING">HACKING</a> doc to build devcam.
 </p>

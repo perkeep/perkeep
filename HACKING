@@ -43,9 +43,10 @@ with subcommands: devcam. To install (assuming your GOPATH is set):
 
 $ go install ./dev/devcam
 
-The old ./dev-server script has already been replaced by:
+The ./dev-server and ./dev-appengine scripts have already been replaced by:
 
 $ devcam server
+$ devcam appengine
 
 Then, once the dev server is running,
 

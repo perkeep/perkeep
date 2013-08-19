@@ -25,11 +25,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/osutil"
@@ -96,7 +94,7 @@ func (c *serverCmd) Examples() []string {
 }
 
 func (c *serverCmd) Describe() string {
-	return "Start the camlistored server."
+	return "run the stand-alone camlistored in dev mode."
 }
 
 func (c *serverCmd) checkFlags(args []string) error {
@@ -288,7 +286,7 @@ func (c *serverCmd) syncTemplateBlobs() error {
 			return err
 		}
 		blobsDir := filepath.Join(c.camliRoot, "sha1")
-		if err := cpDir(templateDir, blobsDir); err != nil {
+		if err := cpDir(templateDir, blobsDir, nil); err != nil {
 			return fmt.Errorf("Could not cp template blobs: %v", err)
 		}
 	}
@@ -313,28 +311,6 @@ func (c *serverCmd) setFullClosure() error {
 		setenv("CAMLI_DEV_CLOSURE_DIR", "third_party/closure/lib/closure")
 	}
 	return nil
-}
-
-func handleKillCamliSignal(camliProc *os.Process) {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-	for {
-		sig := <-c
-		sysSig, ok := sig.(syscall.Signal)
-		if !ok {
-			log.Fatal("Not a unix signal")
-		}
-		switch sysSig {
-		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
-			log.Printf("Received %v signal, terminating.", sig)
-			err := camliProc.Kill()
-			if err != nil {
-				log.Fatalf("Failed to kill camli: %v ", err)
-			}
-		default:
-			log.Fatal("Received another signal, should not happen.")
-		}
-	}
 }
 
 func (c *serverCmd) RunCommand(args []string) error {
@@ -387,7 +363,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("Could not start camlistored: %v", err)
 	}
-	go handleKillCamliSignal(cmd.Process)
+	go handleSignals(cmd.Process)
 	cmd.Wait()
 	return nil
 }
