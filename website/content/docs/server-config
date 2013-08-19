@@ -46,6 +46,7 @@ web browser and restart the server.</p>
 <li><b><code>s3</code></b>: "<code>key:secret:bucket</code>" (with colons, but no quotes).</li>
 <li><b><code>googlecloudstorage</code></b>: "<code>clientId:clientSecret:refreshToken:bucketName</code>"</li>
 </ul>
+<p>For now, if more than one storage option is set, one of them is the primary storage and the other ones are set up as mirrors. The precedence order is the same as the order they are listed above.</p>
 <p>Others aren't yet supported by the simple config mode. Patches
 to <code>pkg/genconfig</code> welcome.</p>
 
