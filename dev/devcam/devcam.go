@@ -21,7 +21,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"camlistore.org/pkg/cmdmain"
 )
@@ -33,10 +36,17 @@ func setenv(key, value string) {
 	}
 }
 
-func cpDir(src, dst string) error {
+// cpDir copies the contents of src dir into dst dir.
+// filter is a list of file suffixes to skip. ex: ".go"
+func cpDir(src, dst string, filter []string) error {
 	return filepath.Walk(src, func(fullpath string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		for _, suffix := range filter {
+			if strings.HasSuffix(fi.Name(), suffix) {
+				return nil
+			}
 		}
 		suffix, err := filepath.Rel(src, fullpath)
 		if err != nil {
@@ -82,6 +92,28 @@ func cpFile(src, dst string) error {
 		err = cerr
 	}
 	return err
+}
+
+func handleSignals(camliProc *os.Process) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	for {
+		sig := <-c
+		sysSig, ok := sig.(syscall.Signal)
+		if !ok {
+			log.Fatal("Not a unix signal")
+		}
+		switch sysSig {
+		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
+			log.Printf("Received %v signal, terminating.", sig)
+			err := camliProc.Kill()
+			if err != nil {
+				log.Fatalf("Failed to kill child: %v ", err)
+			}
+		default:
+			log.Fatal("Received another signal, should not happen.")
+		}
+	}
 }
 
 func main() {

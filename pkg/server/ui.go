@@ -163,7 +163,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 				filepath.FromSlash("server/camlistored/ui/index.html"))); err != nil {
 				hint := fmt.Sprintf("\"sourceRoot\" was not specified in the config,"+
 					" and the default sourceRoot dir %v does not exist or does not contain"+
-					" \"server/camlistored/ui/index.html\". dev-appengine can do that for you.",
+					" \"server/camlistored/ui/index.html\". devcam appengine can do that for you.",
 					uistatic.GaeSourceRoot)
 				log.Print(hint)
 				return nil, errors.New("No sourceRoot found; UI not available.")

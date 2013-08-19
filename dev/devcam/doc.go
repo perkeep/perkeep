@@ -25,7 +25,8 @@ Usage:
 
 Modes:
 
-  server: Start the camlistored server.
+  appengine: run the App Engine camlistored in dev mode.
+  server: run the stand-alone camlistored in dev mode.
 
 Examples:
 
