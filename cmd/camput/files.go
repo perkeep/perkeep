@@ -223,6 +223,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
+			if up.fileOpts.wantFilePermanode() && up.Client.IsIgnoredFile(filename) {
+				continue
+			}
 			lastPut, err = up.UploadFile(filename)
 		}
 		if handleResult("file", lastPut, err) != nil {
@@ -874,6 +877,9 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 			t.stattedc <- nod
 		}
 	}()
+	if t.up.fileOpts.wantFilePermanode() && t.up.Client.IsIgnoredFile(fullPath) {
+		return nil, nil
+	}
 	if fi == nil {
 		fi, err = t.up.lstat(fullPath)
 		if err != nil {
@@ -905,7 +911,9 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 		if err != nil {
 			return nil, err
 		}
-		n.children = append(n.children, depn)
+		if depn != nil {
+			n.children = append(n.children, depn)
+		}
 	}
 	return n, nil
 }

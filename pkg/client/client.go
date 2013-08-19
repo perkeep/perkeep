@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -74,6 +75,7 @@ type Client struct {
 	httpClient *http.Client
 	haveCache  HaveCache
 
+	initTrustedCertsOnce sync.Once
 	// We define a certificate fingerprint as the 10 digits lowercase prefix
 	// of the SHA1 of the complete certificate (in ASN.1 DER encoding).
 	// It is the same as what 'openssl x509 -fingerprint' shows and what
@@ -88,6 +90,12 @@ type Client struct {
 	trustedCerts []string
 	// if set, we also skip the check against trustedCerts
 	InsecureTLS bool
+
+	initIgnoredFilesOnce sync.Once
+	// list of files that camput should ignore when using -filenodes.
+	// Defaults to empty, but camput init creates a config with a non
+	// empty list.
+	ignoredFiles []string
 
 	pendStatMu sync.Mutex           // guards pendStat
 	pendStat   map[string][]statReq // blobref -> reqs; for next batch(es)
@@ -832,4 +840,17 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 		return nil, err
 	}
 	return c.uploadString(signed)
+}
+
+// IsIgnoredFile returns whether the file name in fullpath
+// is in the list of file names that should be ignored when
+// uploading with camput -filenodes.
+func (c *Client) IsIgnoredFile(fullpath string) bool {
+	filename := filepath.Base(fullpath)
+	for _, v := range c.getIgnoredFiles() {
+		if filename == v {
+			return true
+		}
+	}
+	return false
 }

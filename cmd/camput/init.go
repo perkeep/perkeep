@@ -186,6 +186,7 @@ func (c *initCmd) RunCommand(args []string) error {
 		m["server"] = "http://localhost:3179/"
 		m["selfPubKeyDir"] = blobDir
 		m["auth"] = "localhost"
+		m["ignoredFiles"] = []string{".DS_Store"}
 
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {

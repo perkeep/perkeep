@@ -271,8 +271,6 @@ func (c *Client) GetBlobFetcher() blob.SeekFetcher {
 // See Client.trustedCerts in client.go
 const trustedCerts = "trustedCerts"
 
-var initTrustedCertsOnce sync.Once
-
 func (c *Client) initTrustedCerts() {
 	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
 		c.trustedCerts = []string{e}
@@ -295,6 +293,37 @@ func (c *Client) initTrustedCerts() {
 }
 
 func (c *Client) GetTrustedCerts() []string {
-	initTrustedCertsOnce.Do(func() { c.initTrustedCerts() })
+	c.initTrustedCertsOnce.Do(func() { c.initTrustedCerts() })
 	return c.trustedCerts
+}
+
+// config[ignoredFiles] is the list of files that camput should ignore
+// and not try to upload when using -filenodes.
+// See Client.ignoredFiles in client.go
+const ignoredFiles = "ignoredFiles"
+
+func (c *Client) initIgnoredFiles() {
+	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
+		c.ignoredFiles = []string{e}
+		return
+	}
+	c.ignoredFiles = []string{}
+	configOnce.Do(parseConfig)
+	val, ok := config[ignoredFiles].([]interface{})
+	if !ok {
+		return
+	}
+	for _, v := range val {
+		ignoredFile, ok := v.(string)
+		if !ok {
+			log.Printf("ignoredFile: was expecting a string, got %T", v)
+			return
+		}
+		c.ignoredFiles = append(c.ignoredFiles, ignoredFile)
+	}
+}
+
+func (c *Client) getIgnoredFiles() []string {
+	c.initIgnoredFilesOnce.Do(func() { c.initIgnoredFiles() })
+	return c.ignoredFiles
 }
