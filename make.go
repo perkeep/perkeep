@@ -248,9 +248,18 @@ func envPair(key, value string) string {
 }
 
 // cleanGoEnv returns a copy of the current environment with GOPATH and GOBIN removed.
+// it also sets GOOS and GOARCH as needed when cross-compiling.
 func cleanGoEnv() (clean []string) {
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "GOPATH=") || strings.HasPrefix(env, "GOBIN=") {
+			continue
+		}
+		// We skip these two as well, otherwise they'd take precedence over the
+		// ones appended below.
+		if *buildOS != runtime.GOOS && strings.HasPrefix(env, "GOOS=") {
+			continue
+		}
+		if *buildARCH != runtime.GOARCH && strings.HasPrefix(env, "GOARCH=") {
 			continue
 		}
 		clean = append(clean, env)
