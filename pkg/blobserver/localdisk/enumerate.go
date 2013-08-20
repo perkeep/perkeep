@@ -18,7 +18,6 @@ package localdisk
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -55,8 +54,8 @@ func readBlobs(opts readBlobRequest) error {
 		return &enumerateError{"localdisk: opening directory " + dirFullPath, err}
 	}
 	defer dir.Close()
-	names, err := dir.Readdirnames(32768)
-	if err == io.EOF {
+	names, err := dir.Readdirnames(-1)
+	if err == nil && len(names) == 0 {
 		// remove empty blob dir if we are in a queue but not the queue root itself
 		if strings.Contains(dirFullPath, "queue-") &&
 			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
@@ -104,7 +103,7 @@ func readBlobs(opts readBlobRequest) error {
 				if len(opts.after) < compareLen {
 					compareLen = len(opts.after)
 				}
-				if newBlobPrefix[0:compareLen] < opts.after[0:compareLen] {
+				if newBlobPrefix[:compareLen] < opts.after[:compareLen] {
 					continue
 				}
 			}
@@ -116,7 +115,7 @@ func readBlobs(opts readBlobRequest) error {
 		}
 
 		if !fi.IsDir() && strings.HasSuffix(name, ".dat") {
-			blobName := name[0 : len(name)-4]
+			blobName := name[:len(name)-len(".dat")]
 			if blobName <= opts.after {
 				continue
 			}
