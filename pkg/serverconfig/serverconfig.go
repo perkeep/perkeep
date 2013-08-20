@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -412,5 +413,26 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		}
 	}
 	hl.setupAll()
+
+	if os.Getenv("CAMLI_HTTP_PPROF") != "" {
+		hi.Handle("/debug/pprof/", &ProfileHandler{})
+	}
 	return nil
+}
+
+// ProfileHandler publishes server profile information.
+type ProfileHandler struct {
+}
+
+func (ph *ProfileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	switch req.URL.Path {
+	case "/debug/pprof/cmdline":
+		pprof.Cmdline(rw, req)
+	case "/debug/pprof/profile":
+		pprof.Profile(rw, req)
+	case "/debug/pprof/symbol":
+		pprof.Symbol(rw, req)
+	default:
+		pprof.Index(rw, req)
+	}
 }
