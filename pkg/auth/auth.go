@@ -203,10 +203,6 @@ type UserPass struct {
 }
 
 func (up *UserPass) AllowedAccess(req *http.Request) Operation {
-	if up.OrLocalhost && localhostAuthorized(req) {
-		return OpAll
-	}
-
 	user, pass, err := basicAuth(req)
 	if err != nil {
 		return 0
@@ -219,6 +215,11 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 			return OpVivify
 		}
 	}
+
+	if up.OrLocalhost && localhostAuthorized(req) {
+		return OpAll
+	}
+
 	return 0
 }
 
@@ -256,12 +257,6 @@ type DevAuth struct {
 }
 
 func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
-	// First see if the local TCP port is owned by the same
-	// non-root user as this server.
-	if localhostAuthorized(req) {
-		return OpAll
-	}
-
 	_, pass, err := basicAuth(req)
 	if err != nil {
 		return 0
@@ -272,6 +267,14 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 	if pass == da.VivifyPass {
 		return OpVivify
 	}
+
+	// See if the local TCP port is owned by the same non-root user as this
+	// server.  This check performed last as it may require reading from the
+	// kernel or exec'ing a program.
+	if localhostAuthorized(req) {
+		return OpAll
+	}
+
 	return 0
 }
 
