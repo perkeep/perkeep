@@ -41,6 +41,8 @@ type SyncHandler struct {
 	fromName, fromqName, toName string
 	from, fromq, to             blobserver.Storage
 
+	idle bool // if true, the handler does nothing other than providing the discovery.
+
 	copierPoolSize int
 
 	lk             sync.Mutex // protects following
@@ -62,8 +64,16 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	to := conf.RequiredString("to")
 	fullSync := conf.OptionalBool("fullSyncOnStart", false)
 	blockFullSync := conf.OptionalBool("blockingFullSyncOnStart", false)
+	idle := conf.OptionalBool("idle", false)
 	if err = conf.Validate(); err != nil {
 		return
+	}
+	if idle {
+		synch, err := createIdleSyncHandler(from, to)
+		if err != nil {
+			return nil, err
+		}
+		return synch, nil
 	}
 	fromBs, err := ld.GetStorage(from)
 	if err != nil {
@@ -142,6 +152,16 @@ func createSyncHandler(fromName, toName string, from blobserver.StorageQueueCrea
 	return h, nil
 }
 
+func createIdleSyncHandler(fromName, toName string) (*SyncHandler, error) {
+	h := &SyncHandler{
+		fromName: fromName,
+		toName:   toName,
+		idle:     true,
+		status:   "disabled",
+	}
+	return h, nil
+}
+
 func (sh *SyncHandler) discoveryMap() map[string]interface{} {
 	// TODO(mpl): more status info
 	return map[string]interface{}{
@@ -156,6 +176,9 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	fmt.Fprintf(rw, "<h1>%s to %s Sync Status</h1><p><b>Current status: </b>%s</p>",
 		sh.fromName, sh.toName, html.EscapeString(sh.status))
+	if sh.idle {
+		return
+	}
 
 	fmt.Fprintf(rw, "<h2>Stats:</h2><ul>")
 	fmt.Fprintf(rw, "<li>Blobs copied: %d</li>", sh.totalCopies)
