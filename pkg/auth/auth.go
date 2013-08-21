@@ -204,15 +204,14 @@ type UserPass struct {
 
 func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 	user, pass, err := basicAuth(req)
-	if err != nil {
-		return 0
-	}
-	if user == up.Username {
-		if pass == up.Password {
-			return OpAll
-		}
-		if pass == up.VivifyPass {
-			return OpVivify
+	if err == nil {
+		if user == up.Username {
+			if pass == up.Password {
+				return OpAll
+			}
+			if pass == up.VivifyPass {
+				return OpVivify
+			}
 		}
 	}
 
@@ -258,14 +257,13 @@ type DevAuth struct {
 
 func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 	_, pass, err := basicAuth(req)
-	if err != nil {
-		return 0
-	}
-	if pass == da.Password {
-		return OpAll
-	}
-	if pass == da.VivifyPass {
-		return OpVivify
+	if err == nil {
+		if pass == da.Password {
+			return OpAll
+		}
+		if pass == da.VivifyPass {
+			return OpVivify
+		}
 	}
 
 	// See if the local TCP port is owned by the same non-root user as this
