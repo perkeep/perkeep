@@ -18,7 +18,6 @@ package s3
 
 import (
 	"log"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -28,7 +27,7 @@ var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
 func (sto *s3Storage) MaxEnumerate() int { return 1000 }
 
-func (sto *s3Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (sto *s3Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	objs, err := sto.s3Client.ListBucket(sto.bucket, after, limit)
 	if err != nil {

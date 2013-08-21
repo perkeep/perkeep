@@ -246,11 +246,12 @@ type copyResult struct {
 func (sh *SyncHandler) runSync(srcName string, enumSrc blobserver.Storage, longPollWait time.Duration) int {
 	if longPollWait != 0 {
 		sh.setStatus("Idle; waiting for new blobs")
+		// TODO: use longPollWait somehow.
 	}
 	enumch := make(chan blob.SizedRef)
 	errch := make(chan error, 1)
 	go func() {
-		errch <- enumSrc.EnumerateBlobs(enumch, "", 1000, longPollWait)
+		errch <- enumSrc.EnumerateBlobs(enumch, "", 1000)
 	}()
 
 	nCopied := 0

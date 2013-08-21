@@ -47,7 +47,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -77,8 +76,6 @@ $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 // http://godoc.org/code.google.com/p/go.crypto/scrypt
 
 type storage struct {
-	*blobserver.SimpleBlobHubPartitionMap
-
 	// index is the meta index.
 	// it's keyed by plaintext blobref.
 	// the value is the meta key (encodeMetaValue)
@@ -218,7 +215,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	panic("TODO: implement")
 }
 
-func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		v, err := s.index.Get(br.String())
 		if err == index.ErrNotFound {
@@ -257,7 +254,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	}
 
 	encBR := blob.SHA1FromBytes(buf.Bytes())
-	_, err = s.blobs.ReceiveBlob(encBR, bytes.NewReader(buf.Bytes()))
+	_, err = blobserver.Receive(s.blobs, encBR, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		log.Printf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
 		return sb, errors.New("encrypt: error writing encrypted blob")
@@ -265,7 +262,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 
 	meta := encodeMetaValue(plainSize, iv, encBR, buf.Len())
 	metaBlob := s.makeSingleMetaBlob(plainBR, meta)
-	_, err = s.meta.ReceiveBlob(blob.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
+	_, err = blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
 	if err != nil {
 		log.Printf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 		return sb, errors.New("encrypt: error writing encrypted meta")
@@ -328,10 +325,7 @@ func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int
 	}, plainSize, nil
 }
 
-func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
-	if wait != 0 {
-		panic("TODO: support wait in EnumerateBlobs")
-	}
+func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	iter := s.index.Find(after)
 	n := 0
@@ -543,7 +537,6 @@ func init() {
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.Storage, err error) {
 	sto := &storage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
 		index: index.NewMemoryStorage(), // TODO: temporary for development; let be configurable (mysql, etc)
 	}
 	agreement := config.OptionalString("I_AGREE", "")

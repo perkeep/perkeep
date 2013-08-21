@@ -34,7 +34,6 @@ package remote
 
 import (
 	"io"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -45,8 +44,7 @@ import (
 // remoteStorage is a blobserver.Storage proxy for a remote camlistore
 // blobserver.
 type remoteStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap // but not really
-	client                                *client.Client
+	client *client.Client
 }
 
 var _ = blobserver.Storage((*remoteStorage)(nil))
@@ -77,7 +75,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		// correct.
 		// TODO(bradfitz,mpl): skip this operation smartly if it turns out this is annoying/slow for whatever reason.
 		c := make(chan blob.SizedRef, 1)
-		err = sto.EnumerateBlobs(c, "", 1, 0)
+		err = sto.EnumerateBlobs(c, "", 1)
 		if err != nil {
 			return nil, err
 		}
@@ -89,12 +87,12 @@ func (sto *remoteStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return sto.client.RemoveBlobs(blobs)
 }
 
-func (sto *remoteStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (sto *remoteStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	// TODO: cache the stat response's uploadUrl to save a future
 	// stat later?  otherwise clients will just Stat + Upload, but
 	// Upload will also Stat.  should be smart and make sure we
 	// avoid ReceiveBlob's Stat whenever it would be redundant.
-	return sto.client.StatBlobs(dest, blobs, wait)
+	return sto.client.StatBlobs(dest, blobs)
 }
 
 func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
@@ -117,11 +115,10 @@ func (sto *remoteStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size i
 
 func (sto *remoteStorage) MaxEnumerate() int { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (sto *remoteStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
-		After:   after,
-		MaxWait: wait,
-		Limit:   limit,
+		After: after,
+		Limit: limit,
 	})
 }
 

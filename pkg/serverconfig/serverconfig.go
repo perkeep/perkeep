@@ -269,7 +269,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	hl.curPrefix = prefix
 
 	if strings.HasPrefix(h.htype, "storage-") {
-		stype := h.htype[len("storage-"):]
+		stype := strings.TrimPrefix(h.htype, "storage-")
 		// Assume a storage interface
 		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
 		if err != nil {

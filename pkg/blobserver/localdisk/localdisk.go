@@ -45,7 +45,6 @@ import (
 // DiskStorage implements the blobserver.Storage interface using the
 // local filesystem.
 type DiskStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap
 	root string
 
 	// the sub-partition (queue) to write to / read from, or "" for none.
@@ -71,8 +70,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
 	}
 	ds := &DiskStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		root:                      root,
+		root: root,
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
@@ -103,9 +101,8 @@ func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, error) {
 			name, ds.partition)
 	}
 	q := &DiskStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		root:                      ds.root,
-		partition:                 "queue-" + name,
+		root:      ds.root,
+		partition: "queue-" + name,
 	}
 	baseDir := ds.PartitionRoot(q.partition)
 	if err := os.MkdirAll(baseDir, 0700); err != nil {

@@ -43,7 +43,6 @@ import (
 )
 
 type s3Storage struct {
-	*blobserver.SimpleBlobHubPartitionMap
 	s3Client *s3.Client
 	bucket   string
 }
@@ -57,9 +56,8 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		HttpClient: http.DefaultClient,
 	}
 	sto := &s3Storage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		s3Client:                  client,
-		bucket:                    config.RequiredString("bucket"),
+		s3Client: client,
+		bucket:   config.RequiredString("bucket"),
 	}
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {

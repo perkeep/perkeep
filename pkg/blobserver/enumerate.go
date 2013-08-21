@@ -47,7 +47,7 @@ func EnumerateAll(src BlobEnumerator, fn func(blob.SizedRef) error) error {
 			}
 			errc <- err
 		}()
-		err := src.EnumerateBlobs(ch, after, batchSize, 0)
+		err := src.EnumerateBlobs(ch, after, batchSize)
 		if err != nil {
 			mu.Lock() // make sure fn callback finished; no need to unlock
 			return err

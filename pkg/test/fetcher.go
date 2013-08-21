@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -35,7 +34,6 @@ import (
 // interface.  It started as just a fetcher and grew. It also includes
 // other convenience methods for testing.
 type Fetcher struct {
-	blobserver.SimpleBlobHubPartitionMap
 	l      sync.Mutex
 	m      map[string]*Blob // keyed by blobref string
 	sorted []string         // blobrefs sorted
@@ -104,6 +102,8 @@ func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 		return sb, err
 	}
 	if !br.HashMatches(h) {
+		// This is a somewhat redundant check, since
+		// blobserver.Receive now does it.
 		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
 	}
 	b := &Blob{Contents: string(all)}
@@ -111,10 +111,7 @@ func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 	return blob.SizedRef{br, int64(len(all))}, nil
 }
 
-func (tf *Fetcher) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
-	if wait != 0 {
-		panic("non-zero Wait on test.Fetcher.StatBlobs not supported")
-	}
+func (tf *Fetcher) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		tf.l.Lock()
 		b, ok := tf.m[br.String()]
@@ -135,13 +132,7 @@ func (tf *Fetcher) BlobrefStrings() []string {
 	return s
 }
 
-func (tf *Fetcher) EnumerateBlobs(dest chan<- blob.SizedRef,
-	after string,
-	limit int,
-	wait time.Duration) error {
-	if wait != 0 {
-		panic("TestFetcher can't wait")
-	}
+func (tf *Fetcher) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	tf.l.Lock()
 	defer tf.l.Unlock()

@@ -177,7 +177,7 @@ type statReq struct {
 	errc chan<- error         // written to on both failure and success (after any dest)
 }
 
-func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	var needStat []blob.Ref
 	for _, br := range blobs {
 		if !br.Valid() {
@@ -194,10 +194,6 @@ func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait tim
 	}
 	if len(needStat) == 0 {
 		return nil
-	}
-	if wait > 0 {
-		// No batching on wait requests.
-		return c.doStat(dest, needStat, wait, true)
 	}
 
 	// Here begins all the batching logic. In a SPDY world, this

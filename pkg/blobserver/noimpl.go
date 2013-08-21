@@ -20,7 +20,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
@@ -31,10 +30,6 @@ import (
 type NoImplStorage struct{}
 
 var _ Storage = (*NoImplStorage)(nil)
-
-func (nis *NoImplStorage) GetBlobHub() BlobHub {
-	return nil
-}
 
 func (nis *NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
 	return nil, 0, os.ErrNotExist
@@ -49,16 +44,11 @@ func (nis *NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, er
 	return
 }
 
-func (nis *NoImplStorage) StatBlobs(dest chan<- blob.SizedRef,
-	blobs []blob.Ref,
-	wait time.Duration) error {
+func (nis *NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	return errors.New("Stat not implemented")
 }
 
-func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blob.SizedRef,
-	after string,
-	limit int,
-	wait time.Duration) error {
+func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	return errors.New("EnumerateBlobs not implemented")
 }
 

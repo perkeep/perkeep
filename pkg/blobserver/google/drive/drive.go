@@ -50,7 +50,6 @@ const (
 )
 
 type driveStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap
 	service *service.DriveService
 }
 
@@ -77,8 +76,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 
 	service, err := service.New(transport, config.RequiredString("parent_id"))
 	sto := &driveStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		service:                   service,
+		service: service,
 	}
 	return sto, err
 }

@@ -20,12 +20,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blob"
 )
 
-func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	it := ix.s.Find("have:" + after)
 	n := int(0)
@@ -44,7 +43,7 @@ func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit i
 	return it.Close()
 }
 
-func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)

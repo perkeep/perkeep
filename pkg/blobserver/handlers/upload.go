@@ -31,6 +31,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign/signhandler"
+	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 )
 
@@ -218,10 +219,15 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			}
 		}
 
-		// TODO: wrap the mimePart reader in a LimitReader-ish
-		// wrapper, setting an error flag after reading
-		// blobserver.MaxBlobSize+1 bytes, then failing.
-		blobGot, err := blobReceiver.ReceiveBlob(ref, mimePart)
+		var tooBig int64 = blobserver.MaxBlobSize + 1
+		var readBytes int64
+		blobGot, err := blobserver.Receive(blobReceiver, ref, &readerutil.CountingReader{
+			io.LimitReader(mimePart, tooBig),
+			&readBytes,
+		})
+		if readBytes == tooBig {
+			err = fmt.Errorf("blob over the limit of %d bytes", blobserver.MaxBlobSize)
+		}
 		if err != nil {
 			addError(fmt.Sprintf("Error receiving blob %v: %v\n", ref, err))
 			break

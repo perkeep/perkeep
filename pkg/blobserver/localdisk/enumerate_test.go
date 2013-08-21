@@ -22,7 +22,6 @@ import (
 	"os"
 	"sort"
 	"testing"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
@@ -43,11 +42,10 @@ func TestEnumerate(t *testing.T) {
 	baz.MustUpload(t, ds)
 
 	limit := 5000
-	waitSeconds := time.Duration(0)
 	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, "", limit, waitSeconds)
+		errCh <- ds.EnumerateBlobs(ch, "", limit)
 	}()
 
 	var (
@@ -72,7 +70,7 @@ func TestEnumerate(t *testing.T) {
 	go func() {
 		errCh <- ds.EnumerateBlobs(ch,
 			foo.BlobRef().String(),
-			limit, waitSeconds)
+			limit)
 	}()
 	sb, ok = <-ch
 	Assert(t, ok, "got 1st blob, skipping foo")
@@ -90,43 +88,14 @@ func TestEnumerateEmpty(t *testing.T) {
 	defer cleanUp(ds)
 
 	limit := 5000
-	wait := time.Duration(0)
 	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
+		errCh <- ds.EnumerateBlobs(ch, "", limit)
 	}()
 
 	_, ok := <-ch
 	Expect(t, !ok, "no first blob")
-	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
-}
-
-func TestEnumerateEmptyLongPoll(t *testing.T) {
-	ds := NewStorage(t)
-	defer cleanUp(ds)
-
-	limit := 5000
-	wait := 1 * time.Second
-	ch := make(chan blob.SizedRef)
-	errCh := make(chan error)
-	go func() {
-		errCh <- ds.EnumerateBlobs(ch, "", limit, wait)
-	}()
-
-	foo := &test.Blob{"foo"} // 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
-	go func() {
-		time.Sleep(100e6) // 100 ms
-		foo.MustUpload(t, ds)
-	}()
-
-	sb, ok := <-ch
-	Assert(t, ok, "got a blob")
-	ExpectInt(t, 3, int(sb.Size), "blob size")
-	ExpectString(t, "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", sb.Ref.String(), "got the right blob")
-
-	sb, ok = <-ch
-	Expect(t, !ok, "only one blob returned")
 	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
 }
 
@@ -187,7 +156,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 		ch := make(chan blob.SizedRef)
 		errCh := make(chan error)
 		go func() {
-			errCh <- ds.EnumerateBlobs(ch, test.after, limit, 0)
+			errCh <- ds.EnumerateBlobs(ch, test.after, limit)
 		}()
 		var got = make([]blob.SizedRef, 0, blobsToMake)
 		for sb := range ch {

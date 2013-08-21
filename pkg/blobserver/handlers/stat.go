@@ -41,7 +41,8 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		storage = w.WrapContext(req)
 	}
 
-	toStat := make([]blob.Ref, 0)
+	needStat := map[blob.Ref]bool{}
+
 	switch req.Method {
 	case "POST":
 		fallthrough
@@ -69,7 +70,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 				httputil.BadRequestError(conn, "Bogus blobref for key "+key)
 				return
 			}
-			toStat = append(toStat, ref)
+			needStat[ref] = true
 		}
 	default:
 		httputil.BadRequestError(conn, "Invalid method.")
@@ -92,11 +93,22 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 	}
 
 	statRes := make([]map[string]interface{}, 0)
-	if len(toStat) > 0 {
+	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
+
+	toStat := make([]blob.Ref, 0, len(needStat))
+	buildToStat := func() {
+		toStat = toStat[:0]
+		for br := range needStat {
+			toStat = append(toStat, br)
+		}
+	}
+
+	for len(needStat) > 0 {
+		buildToStat()
 		blobch := make(chan blob.SizedRef)
 		resultch := make(chan error, 1)
 		go func() {
-			err := storage.StatBlobs(blobch, toStat, time.Duration(waitSeconds)*time.Second)
+			err := storage.StatBlobs(blobch, toStat)
 			close(blobch)
 			resultch <- err
 		}()
@@ -106,6 +118,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 			ah["blobRef"] = sb.Ref.String()
 			ah["size"] = sb.Size
 			statRes = append(statRes, ah)
+			delete(needStat, sb.Ref)
 		}
 
 		err := <-resultch
@@ -114,6 +127,13 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 			conn.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		if len(needStat) == 0 || waitSeconds == 0 || time.Now().After(deadline) {
+			break
+		}
+
+		buildToStat()
+		blobserver.WaitForBlob(storage, deadline, toStat)
 	}
 
 	configer, _ := storage.(blobserver.Configer)

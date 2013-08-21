@@ -45,16 +45,14 @@ type BlobStatter interface {
 	// Stat checks for the existence of blobs, writing their sizes
 	// (if found back to the dest channel), and returning an error
 	// or nil.  Stat() should NOT close the channel.
-	// wait is the max time to wait for the blobs to exist,
-	// or 0 for no delay.
-	StatBlobs(dest chan<- blob.SizedRef,
-		blobs []blob.Ref,
-		wait time.Duration) error
+	// TODO(bradfitz): redefine this to close the channel? Or document
+	// better what the synchronization rules are.
+	StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error
 }
 
 func StatBlob(bs BlobStatter, br blob.Ref) (sb blob.SizedRef, err error) {
 	c := make(chan blob.SizedRef, 1)
-	err = bs.StatBlobs(c, []blob.Ref{br}, 0)
+	err = bs.StatBlobs(c, []blob.Ref{br})
 	if err != nil {
 		return
 	}
@@ -90,17 +88,11 @@ type BlobEnumerator interface {
 	// sorted, as long as they are lexigraphically greater than
 	// after (if provided).
 	// limit will be supplied and sanity checked by caller.
-	// wait is the max time to wait for any blobs to exist,
-	// or 0 for no delay.
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain)
-	//
-	// after and waitSeconds can't be used together. One must be
-	// its zero value.
 	EnumerateBlobs(dest chan<- blob.SizedRef,
 		after string,
-		limit int,
-		wait time.Duration) error
+		limit int) error
 }
 
 // Cache is the minimal interface expected of a blob cache.
@@ -136,7 +128,7 @@ type GenerationNotSupportedError string
 
 func (s GenerationNotSupportedError) Error() string { return string(s) }
 
-/* 
+/*
 The optional Generationer interface is an optimization and paranoia
 facility for clients which can be implemented by Storage
 implementations.
@@ -171,9 +163,6 @@ type Storage interface {
 	BlobStatter
 	BlobEnumerator
 	BlobRemover
-
-	// GetBlobHub returns the blob notification bus.
-	GetBlobHub() BlobHub
 }
 
 type BlobRemover interface {

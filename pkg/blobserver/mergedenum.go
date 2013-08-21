@@ -17,8 +17,6 @@ limitations under the License.
 package blobserver
 
 import (
-	"time"
-
 	"camlistore.org/pkg/blob"
 )
 
@@ -27,14 +25,14 @@ const buffered = 8
 // TODO: it'd be nice to make sources be []BlobEnumerator, but that
 // makes callers more complex since assignable interfaces' slice forms
 // aren't assignable.
-func MergedEnumerate(dest chan<- blob.SizedRef, sources []Storage, after string, limit int, wait time.Duration) error {
+func MergedEnumerate(dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
 	defer close(dest)
 
 	startEnum := func(source Storage) (*blob.ChanPeeker, <-chan error) {
 		ch := make(chan blob.SizedRef, buffered)
 		errch := make(chan error, 1)
 		go func() {
-			errch <- source.EnumerateBlobs(ch, after, limit, wait)
+			errch <- source.EnumerateBlobs(ch, after, limit)
 		}()
 		return &blob.ChanPeeker{Ch: ch}, errch
 	}
@@ -59,7 +57,7 @@ func MergedEnumerate(dest chan<- blob.SizedRef, sources []Storage, after string,
 			if peeker.Closed() {
 				continue
 			}
-			sb := peeker.MustPeek() // can't be nil if not Closed
+			sb := peeker.MustPeek()                                       // can't be nil if not Closed
 			if lowestIdx == -1 || sb.Ref.String() < lowest.Ref.String() { // TODO: add cheaper Ref comparison function, avoiding String
 				lowestIdx = idx
 				lowest = sb

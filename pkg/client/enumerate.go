@@ -37,16 +37,15 @@ func (c *Client) SimpleEnumerateBlobs(ch chan<- blob.SizedRef) error {
 	return c.EnumerateBlobsOpts(ch, EnumerateOpts{})
 }
 
-func (c *Client) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (c *Client) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	if limit == 0 {
 		log.Printf("Warning: Client.EnumerateBlobs called with a limit of zero")
 		close(dest)
 		return nil
 	}
 	return c.EnumerateBlobsOpts(dest, EnumerateOpts{
-		After:   after,
-		Limit:   limit,
-		MaxWait: wait,
+		After: after,
+		Limit: limit,
 	})
 }
 

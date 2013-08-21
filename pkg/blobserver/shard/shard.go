@@ -34,7 +34,6 @@ package shard
 import (
 	"errors"
 	"io"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -42,21 +41,14 @@ import (
 )
 
 type shardStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap
-
 	shardPrefixes []string
 	shards        []blobserver.Storage
 }
 
-func (sto *shardStorage) GetBlobHub() blobserver.BlobHub {
-	return sto.SimpleBlobHubPartitionMap.GetBlobHub()
-}
-
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &shardStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		shardPrefixes: config.RequiredList("backends"),
 	}
-	sto.shardPrefixes = config.RequiredList("backends")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -87,12 +79,7 @@ func (sto *shardStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size in
 }
 
 func (sto *shardStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	sb, err = sto.shard(b).ReceiveBlob(b, source)
-	if err == nil {
-		hub := sto.GetBlobHub()
-		hub.NotifyBlobReceived(b)
-	}
-	return
+	return sto.shard(b).ReceiveBlob(b, source)
 }
 
 func (sto *shardStorage) batchedShards(blobs []blob.Ref, fn func(blobserver.Storage, []blob.Ref) error) error {
@@ -124,14 +111,14 @@ func (sto *shardStorage) RemoveBlobs(blobs []blob.Ref) error {
 	})
 }
 
-func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
-		return s.StatBlobs(dest, blobs, wait)
+		return s.StatBlobs(dest, blobs)
 	})
 }
 
-func (sto *shardStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
-	return blobserver.MergedEnumerate(dest, sto.shards, after, limit, wait)
+func (sto *shardStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+	return blobserver.MergedEnumerate(dest, sto.shards, after, limit)
 }
 
 func init() {

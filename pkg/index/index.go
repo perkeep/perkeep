@@ -135,7 +135,6 @@ func (b *batch) Set(key, value string) {
 }
 
 type Index struct {
-	*blobserver.SimpleBlobHubPartitionMap
 	*blobserver.NoImplStorage
 
 	s Storage
@@ -151,10 +150,7 @@ var _ blobserver.Storage = (*Index)(nil)
 var _ search.Index = (*Index)(nil)
 
 func New(s Storage) *Index {
-	return &Index{
-		s: s,
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-	}
+	return &Index{s: s}
 }
 
 type prefixIter struct {

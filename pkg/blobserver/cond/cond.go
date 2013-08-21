@@ -56,26 +56,11 @@ const buffered = 8
 type storageFunc func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error)
 
 type condStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap
-
 	storageForReceive storageFunc
 	read              blobserver.Storage
 	remove            blobserver.Storage
 
 	ctx *http.Request // optional per-request context
-}
-
-var _ blobserver.ContextWrapper = (*condStorage)(nil)
-
-func (sto *condStorage) GetBlobHub() blobserver.BlobHub {
-	return sto.SimpleBlobHubPartitionMap.GetBlobHub()
-}
-
-func (sto *condStorage) WrapContext(req *http.Request) blobserver.Storage {
-	s2 := new(condStorage)
-	*s2 = *sto
-	s2.ctx = req
-	return s2
 }
 
 func (sto *condStorage) StorageGeneration() (initTime time.Time, random string, err error) {
@@ -94,9 +79,7 @@ func (sto *condStorage) ResetStorageGeneration() error {
 }
 
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (storage blobserver.Storage, err error) {
-	sto := &condStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-	}
+	sto := &condStorage{}
 
 	receive := conf.OptionalStringOrObject("write")
 	read := conf.RequiredString("read")
@@ -181,22 +164,20 @@ func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	}
 }
 
-func (sto *condStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
+func (sto *condStorage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	destSto, overRead, err := sto.storageForReceive(source)
 	if err != nil {
 		return
 	}
 	if len(overRead) > 0 {
-		source = io.MultiReader(bytes.NewBuffer(overRead), source)
+		source = io.MultiReader(bytes.NewReader(overRead), source)
 	}
-	destSto = blobserver.MaybeWrapContext(destSto, sto.ctx)
-	return destSto.ReceiveBlob(b, source)
+	return blobserver.Receive(destSto, br, source)
 }
 
 func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
 	if sto.remove != nil {
-		rsto := blobserver.MaybeWrapContext(sto.remove, sto.ctx)
-		return rsto.RemoveBlobs(blobs)
+		return sto.remove.RemoveBlobs(blobs)
 	}
 	return errors.New("cond: Remove not configured")
 }
@@ -208,25 +189,22 @@ func (sto *condStorage) IsFetcherASeeker() bool {
 
 func (sto *condStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
 	if sto.read != nil {
-		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
-		return rsto.FetchStreaming(b)
+		return sto.read.FetchStreaming(b)
 	}
 	err = errors.New("cond: Read not configured")
 	return
 }
 
-func (sto *condStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (sto *condStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	if sto.read != nil {
-		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
-		return rsto.StatBlobs(dest, blobs, wait)
+		return sto.read.StatBlobs(dest, blobs)
 	}
 	return errors.New("cond: Read not configured")
 }
 
-func (sto *condStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (sto *condStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	if sto.read != nil {
-		rsto := blobserver.MaybeWrapContext(sto.read, sto.ctx)
-		return rsto.EnumerateBlobs(dest, after, limit, wait)
+		return sto.read.EnumerateBlobs(dest, after, limit)
 	}
 	return errors.New("cond: Read not configured")
 }

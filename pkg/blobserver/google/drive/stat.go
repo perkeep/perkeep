@@ -17,12 +17,10 @@ limitations under the License.
 package drive
 
 import (
-	"time"
-
 	"camlistore.org/pkg/blob"
 )
 
-func (sto *driveStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (sto *driveStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		size, err := sto.service.Stat(br.String())
 		if err == nil {

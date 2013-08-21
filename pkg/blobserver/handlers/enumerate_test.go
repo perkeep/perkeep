@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	. "camlistore.org/pkg/test/asserts"
@@ -29,10 +28,7 @@ import (
 type emptyEnumerator struct {
 }
 
-func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blob.SizedRef,
-	after string,
-	limit int,
-	wait time.Duration) error {
+func (ee *emptyEnumerator) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	close(dest)
 	return nil
 }

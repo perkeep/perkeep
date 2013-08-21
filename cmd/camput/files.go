@@ -307,7 +307,7 @@ func (sr *statsStatReceiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob
 	return blob.SizedRef{br, n}, nil
 }
 
-func (sr *statsStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, _ time.Duration) error {
+func (sr *statsStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	for _, br := range blobs {

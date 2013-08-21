@@ -17,12 +17,10 @@ limitations under the License.
 package s3
 
 import (
-	"time"
-
 	"camlistore.org/pkg/blob"
 )
 
-func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	// TODO: do n stats in parallel
 	for _, br := range blobs {
 		size, err := sto.s3Client.Stat(br.String(), sto.bucket)

@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blob"
 )
@@ -130,7 +129,7 @@ func readBlobs(opts readBlobRequest) error {
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	if limit == 0 {
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
@@ -138,40 +137,10 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, l
 
 	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
-	var err error
-	doScan := func() {
-		err = readBlobs(readBlobRequest{
-			ch:      dest,
-			dirRoot: dirRoot,
-			after:   after,
-			remain:  &limitMutable,
-		})
-	}
-	doScan()
-
-	// The not waiting case:
-	if err != nil || limitMutable != limit || wait == 0 {
-		return err
-	}
-
-	// The case where we have to wait for wait for any blob
-	// to possibly appear.
-	hub := ds.GetBlobHub()
-	ch := make(chan blob.Ref, 1)
-	hub.RegisterListener(ch)
-	defer hub.UnregisterListener(ch)
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		// Done waiting.
-		return nil
-	case <-ch:
-		// Don't actually care what it is, but _something_
-		// arrived.  We can just re-scan.
-		// TODO: might be better to just stat this one item
-		// so there's no race?  But this is easier:
-		doScan()
-	}
-	return err
+	return readBlobs(readBlobRequest{
+		ch:      dest,
+		dirRoot: dirRoot,
+		after:   after,
+		remain:  &limitMutable,
+	})
 }

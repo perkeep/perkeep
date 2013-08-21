@@ -26,14 +26,12 @@ import (
 	"path/filepath"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 )
 
-func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (blobGot blob.SizedRef, err error) {
+func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob.SizedRef, err error) {
 	pname := ds.partition
 	if pname != "" {
-		err = fmt.Errorf("refusing upload directly to queue partition %q", pname)
-		return
+		return ref, fmt.Errorf("refusing upload directly to queue partition %q", pname)
 	}
 	hashedDirectory := ds.blobDirectory(pname, blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
@@ -54,8 +52,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (blobGot 
 		}
 	}()
 
-	hash := blobRef.Hash()
-	written, err := io.Copy(io.MultiWriter(hash, tempFile), source)
+	written, err := io.Copy(tempFile, source)
 	if err != nil {
 		return
 	}
@@ -63,10 +60,6 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (blobGot 
 		return
 	}
 	if err = tempFile.Close(); err != nil {
-		return
-	}
-	if !blobRef.HashMatches(hash) {
-		err = blobserver.ErrCorruptBlob
 		return
 	}
 	stat, err := os.Lstat(tempFile.Name())
@@ -121,15 +114,8 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (blobGot 
 		}
 	}
 
-	blobGot = blob.SizedRef{Ref: blobRef, Size: stat.Size()}
 	success = true
-
-	hub := ds.GetBlobHub()
-	hub.NotifyBlobReceived(blobRef)
-	for _, mirror := range ds.mirrorPartitions {
-		mirror.GetBlobHub().NotifyBlobReceived(blobRef)
-	}
-	return
+	return blob.SizedRef{Ref: blobRef, Size: stat.Size()}, nil
 }
 
 func linkAlreadyExists(err error) bool {

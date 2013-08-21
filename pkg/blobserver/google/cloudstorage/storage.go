@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -33,7 +32,6 @@ import (
 )
 
 type Storage struct {
-	hub    *blobserver.SimpleBlobHub
 	bucket string // the gs bucket containing blobs
 	client *googlestorage.Client
 }
@@ -46,9 +44,8 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	auth := config.RequiredObject("auth")
 
 	gs := &Storage{
-		&blobserver.SimpleBlobHub{},
-		config.RequiredString("bucket"),
-		googlestorage.NewClient(googlestorage.MakeOauthTransport(
+		bucket: config.RequiredString("bucket"),
+		client: googlestorage.NewClient(googlestorage.MakeOauthTransport(
 			auth.RequiredString("client_id"),
 			auth.RequiredString("client_secret"),
 			auth.RequiredString("refresh_token"))),
@@ -62,7 +59,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return gs, nil
 }
 
-func (gs *Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (gs *Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	objs, err := gs.client.EnumerateObjects(gs.bucket, after, limit)
 	if err != nil {
@@ -81,13 +78,9 @@ func (gs *Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit
 
 func (gs *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	buf := &bytes.Buffer{}
-	hash := br.Hash()
-	size, err := io.Copy(io.MultiWriter(hash, buf), source)
+	size, err := io.Copy(buf, source)
 	if err != nil {
 		return blob.SizedRef{}, err
-	}
-	if !br.HashMatches(hash) {
-		return blob.SizedRef{}, blobserver.ErrCorruptBlob
 	}
 
 	for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
@@ -102,7 +95,7 @@ func (gs *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 	return blob.SizedRef{Ref: br, Size: size}, nil
 }
 
-func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	var reterr error
 
 	// TODO: do a batch API call, or at least keep N of these in flight at a time. No need to do them all serially.
@@ -134,10 +127,6 @@ func (gs *Storage) RemoveBlobs(blobs []blob.Ref) error {
 		}
 	}
 	return reterr
-}
-
-func (gs *Storage) GetBlobHub() blobserver.BlobHub {
-	return gs.hub
 }
 
 func init() {

@@ -41,10 +41,6 @@ import (
 	"camlistore.org/pkg/types"
 )
 
-func (ix *Index) GetBlobHub() blobserver.BlobHub {
-	return ix.SimpleBlobHubPartitionMap.GetBlobHub()
-}
-
 var reindexMu sync.Mutex
 
 func (ix *Index) reindex(br blob.Ref) {

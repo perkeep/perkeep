@@ -163,7 +163,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	// TODO(mpl): probably needs the transport setup for trusted certs here.
 	cl.SetupAuth()
 	cl.SetLogger(c.logger)
-	return noHub{cl}, nil
+	return cl, nil
 }
 
 func looksLikePath(v string) bool {
@@ -210,7 +210,7 @@ func (c *syncCmd) syncAll() error {
 		if c.verbose {
 			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
 		}
-		stats, err := c.doPass(noHub{from}, noHub{to}, nil)
+		stats, err := c.doPass(from, to, nil)
 		if c.verbose {
 			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
 		}
@@ -240,8 +240,8 @@ func enumerateAllBlobs(s blobserver.Storage, destc chan<- blob.SizedRef) error {
 	// Use *client.Client's support for enumerating all blobs if
 	// possible, since it could probably do a better job knowing
 	// HTTP boundaries and such.
-	if nh, ok := s.(noHub); ok {
-		return nh.Client.SimpleEnumerateBlobs(destc)
+	if c, ok := s.(*client.Client); ok {
+		return c.SimpleEnumerateBlobs(destc)
 	}
 
 	defer close(destc)
@@ -390,12 +390,4 @@ func loggingBlobRefChannel(ch <-chan blob.SizedRef) chan blob.SizedRef {
 		log.Printf("Total blobs: %d, %d bytes", nblob, nbyte)
 	}()
 	return ch2
-}
-
-type noHub struct {
-	*client.Client
-}
-
-func (noHub) GetBlobHub() blobserver.BlobHub {
-	panic("not needed, nor implemented")
 }

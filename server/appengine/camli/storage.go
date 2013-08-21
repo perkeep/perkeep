@@ -192,13 +192,8 @@ func (sto *appengineStorage) ReceiveBlob(br blob.Ref, in io.Reader) (sb blob.Siz
 	}
 
 	var b bytes.Buffer
-	hash := br.Hash()
-	written, err := io.Copy(io.MultiWriter(hash, &b), in)
+	written, err := io.Copy(&b, in)
 	if err != nil {
-		return
-	}
-	if !br.HashMatches(hash) {
-		err = blobserver.ErrCorruptBlob
 		return
 	}
 

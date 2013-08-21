@@ -24,7 +24,7 @@ import (
 )
 
 func TestHubRegistration(t *testing.T) {
-	hub := &SimpleBlobHub{}
+	hub := &memHub{}
 	ch := make(chan blob.Ref)
 	ch2 := make(chan blob.Ref)
 	b1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
@@ -66,7 +66,7 @@ func TestHubRegistration(t *testing.T) {
 }
 
 func TestHubFiring(t *testing.T) {
-	hub := &SimpleBlobHub{}
+	hub := &memHub{}
 	ch := make(chan blob.Ref)
 	bch := make(chan blob.Ref)
 	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")

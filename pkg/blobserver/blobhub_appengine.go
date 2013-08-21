@@ -1,3 +1,5 @@
+// +build appengine
+
 /*
 Copyright 2013 Google Inc.
 
@@ -14,19 +16,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package drive
+package blobserver
 
-import (
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-)
-
-var _ blobserver.MaxEnumerateConfig = (*driveStorage)(nil)
-
-func (sto *driveStorage) MaxEnumerate() int { return 1000 }
-
-func (sto *driveStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
-	defer close(dest)
-	panic("not implemented")
-	return nil
+func init() {
+	// Multiple front-ends on App Engine, so we long-poll for now instead
+	// of trusting that we have exactly one server.
+	// TODO: use channel API or some sort of App Engine-specific pubsub.
+	canLongPoll = false
 }

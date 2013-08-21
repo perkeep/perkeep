@@ -92,49 +92,61 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	conn.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
 
-	blobch := make(chan blob.SizedRef, 100)
-	resultch := make(chan error, 1)
-	go func() {
-		resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1, time.Duration(waitSeconds)*time.Second)
-	}()
-
-	after := ""
+	loop := true
 	needsComma := false
+	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
+	after := ""
+	for loop && (waitSeconds == 0 || time.Now().After(deadline)) {
+		if waitSeconds == 0 {
+			loop = false
+		}
 
-	endsReached := 0
-	gotBlobs := 0
-	for endsReached < 2 {
-		select {
-		case sb, ok := <-blobch:
-			if !ok {
-				endsReached++
-				if gotBlobs <= limit {
-					after = ""
+		blobch := make(chan blob.SizedRef, 100)
+		resultch := make(chan error, 1)
+		go func() {
+			resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1)
+		}()
+
+		endsReached := 0
+		gotBlobs := 0
+		for endsReached < 2 {
+			select {
+			case sb, ok := <-blobch:
+				if !ok {
+					endsReached++
+					if gotBlobs <= limit {
+						after = ""
+					}
+					continue
 				}
-				continue
+				gotBlobs++
+				loop = false
+				if gotBlobs > limit {
+					// We requested one more from storage than the user asked for.
+					// Now we know to return a "continueAfter" response key.
+					// But we don't return this blob.
+					continue
+				}
+				blobName := sb.Ref.String()
+				if needsComma {
+					fmt.Fprintf(conn, ",\n")
+				}
+				fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d}",
+					blobName, sb.Size)
+				after = blobName
+				needsComma = true
+			case err := <-resultch:
+				if err != nil {
+					log.Printf("Error during enumerate: %v", err)
+					fmt.Fprintf(conn, "{{{ SERVER ERROR }}}")
+					return
+				}
+				endsReached++
 			}
-			gotBlobs++
-			if gotBlobs > limit {
-				// We requested one more from storage than the user asked for.
-				// Now we know to return a "continueAfter" response key.
-				// But we don't return this blob.
-				continue
-			}
-			blobName := sb.Ref.String()
-			if needsComma {
-				fmt.Fprintf(conn, ",\n")
-			}
-			fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d}",
-				blobName, sb.Size)
-			after = blobName
-			needsComma = true
-		case err := <-resultch:
-			if err != nil {
-				log.Printf("Error during enumerate: %v", err)
-				fmt.Fprintf(conn, "{{{ SERVER ERROR }}}")
-				return
-			}
-			endsReached++
+		}
+
+		if loop {
+			blobserver.WaitForBlob(storage, deadline, nil)
 		}
 	}
 	fmt.Fprintf(conn, "\n  ]")

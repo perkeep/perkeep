@@ -21,7 +21,6 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
@@ -71,7 +70,7 @@ func TestReceiveStat(t *testing.T) {
 	ch := make(chan blob.SizedRef, 0)
 	errch := make(chan error, 1)
 	go func() {
-		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), 0)
+		errch <- ds.StatBlobs(ch, tb.BlobRefSlice())
 		close(ch)
 	}()
 	got := 0
@@ -82,40 +81,6 @@ func TestReceiveStat(t *testing.T) {
 	}
 	AssertInt(t, 1, got, "number stat results")
 	AssertNil(t, <-errch, "result from stat")
-}
-
-func TestStatWait(t *testing.T) {
-	ds := NewStorage(t)
-	defer cleanUp(ds)
-	tb := &test.Blob{"Foo"}
-
-	// Do a stat before the blob exists, but wait 2 seconds for it to arrive.
-	wait := 2 * time.Second
-	ch := make(chan blob.SizedRef, 0)
-	errch := make(chan error, 1)
-	go func() {
-		errch <- ds.StatBlobs(ch, tb.BlobRefSlice(), wait)
-		close(ch)
-	}()
-
-	// Sum and verify the stat results, writing the total number of returned matches
-	// to statCountCh (expected: 1)
-	statCountCh := make(chan int)
-	go func() {
-		got := 0
-		for sb := range ch {
-			got++
-			tb.AssertMatches(t, sb)
-		}
-		statCountCh <- got
-	}()
-
-	// Now upload the blob, now that everything else is in-flight.
-	// Sleep a bit to make sure the ds.Stat above has had a chance to fail and sleep.
-	time.Sleep(1e9 / 5) // 200ms in nanos
-	tb.MustUpload(t, ds)
-
-	AssertInt(t, 1, <-statCountCh, "number stat results")
 }
 
 func TestMultiStat(t *testing.T) {
@@ -135,8 +100,7 @@ func TestMultiStat(t *testing.T) {
 	errch := make(chan error, 1)
 	go func() {
 		errch <- ds.StatBlobs(ch,
-			[]blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()},
-			0)
+			[]blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()})
 		close(ch)
 	}()
 	got := 0

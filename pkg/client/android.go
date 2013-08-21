@@ -33,7 +33,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -287,11 +286,11 @@ func (asr AndroidStatusReceiver) ReceiveBlob(blob blob.Ref, source io.Reader) (b
 	return sb, err
 }
 
-func (asr AndroidStatusReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
+func (asr AndroidStatusReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	midc := make(chan blob.SizedRef)
 	errc := make(chan error, 1)
 	go func() {
-		err := asr.Sr.StatBlobs(midc, blobs, wait)
+		err := asr.Sr.StatBlobs(midc, blobs)
 		errc <- err
 		close(midc)
 	}()
