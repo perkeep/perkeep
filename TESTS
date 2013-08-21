@@ -11,3 +11,6 @@ Tests needed
    but probably in presubmit)
 
 -- cross-compiling to freebsd and windows etc still works.
+
+-- pkg/auth -- not enough tests. see regression at
+   https://camlistore-review.googlesource.com/#/c/556/1
