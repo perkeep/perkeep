@@ -29,7 +29,6 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 )
 
@@ -63,9 +62,6 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 
 // ServeBlobRef serves a blob.
 func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.StreamingFetcher) {
-	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
-		fetcher = w.WrapContext(req)
-	}
 	seekFetcher := blob.SeekerFromStreamingFetcher(fetcher)
 
 	file, size, err := seekFetcher.Fetch(blobRef)

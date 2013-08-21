@@ -76,15 +76,6 @@ type storageAndConfig struct {
 	config *blobserver.Config
 }
 
-var _ blobserver.ContextWrapper = (*storageAndConfig)(nil)
-
-func (sc *storageAndConfig) WrapContext(req *http.Request) blobserver.Storage {
-	if w, ok := sc.Storage.(blobserver.ContextWrapper); ok {
-		return &storageAndConfig{w.WrapContext(req), sc.config}
-	}
-	return sc
-}
-
 func parseCamliPath(path string) (action string, err error) {
 	camIdx := strings.Index(path, camliPrefix)
 	if camIdx == -1 {
@@ -170,10 +161,6 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
 		handler(conn, req)
 	})
-}
-
-func (hl *handlerLoader) GetRequestContext() (req *http.Request, ok bool) {
-	return hl.context, hl.context != nil
 }
 
 func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {

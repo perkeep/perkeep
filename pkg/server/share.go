@@ -77,9 +77,6 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 		httputil.BadRequestError(conn, "Invalid method")
 		return
 	}
-	if w, ok := fetcher.(blobserver.ContextWrapper); ok {
-		fetcher = w.WrapContext(req)
-	}
 
 	viaPathOkay := false
 	startTime := time.Now()

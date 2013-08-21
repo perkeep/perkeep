@@ -19,7 +19,6 @@ package blobserver
 import (
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"time"
 
@@ -180,40 +179,4 @@ type StorageConfiger interface {
 type StorageQueueCreator interface {
 	Storage
 	QueueCreator
-}
-
-// ContextWrapper is an optional interface for App Engine.
-//
-// While Camlistore's internals are separated out into a part which
-// maps HTTP requests to the interfaces in this file
-// (pkg/blobserver/handlers) and parts which map these
-// interfaces to implementations (localdisk, s3, etc), the App Engine
-// implementation requires access to the original HTTP
-// request. (because a security token is stored on the incoming HTTP
-// request in a magic header).  All the handlers will do an interface
-// check on this type and use the resulting Storage instead.
-type ContextWrapper interface {
-	WrapContext(*http.Request) Storage
-}
-
-func MaybeWrapContext(sto Storage, req *http.Request) Storage {
-	if req == nil {
-		return sto
-	}
-	w, ok := sto.(ContextWrapper)
-	if !ok {
-		return sto
-	}
-	return w.WrapContext(req)
-}
-
-// Unwrap returns the wrapped Storage interface, if wrapped, else returns sto.
-func Unwrap(sto interface{}) interface{} {
-	type get interface {
-		GetStorage() Storage
-	}
-	if g, ok := sto.(get); ok {
-		return Unwrap(g.GetStorage())
-	}
-	return sto
 }

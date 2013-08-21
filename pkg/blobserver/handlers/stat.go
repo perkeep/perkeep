@@ -37,10 +37,6 @@ func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {
 const maxStatBlobs = 1000
 
 func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
-	if w, ok := storage.(blobserver.ContextWrapper); ok {
-		storage = w.WrapContext(req)
-	}
-
 	needStat := map[blob.Ref]bool{}
 
 	switch req.Method {

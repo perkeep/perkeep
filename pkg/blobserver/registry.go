@@ -62,11 +62,6 @@ type Loader interface {
 	// GetStorage is like GetHandler but requires that the Handler be
 	// a storage Handler.
 	GetStorage(prefix string) (Storage, error)
-
-	// If we're loading configuration in response to a web request
-	// (as we do with App Engine), then this returns a request and
-	// true.
-	GetRequestContext() (ctx *http.Request, ok bool)
 }
 
 // A StorageConstructor returns a Storage implementation from a Loader

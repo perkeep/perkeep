@@ -103,11 +103,6 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		}
 		h.pubKeyDest = sto
 		if sto != nil {
-			if ctxReq, ok := ld.GetRequestContext(); ok {
-				if w, ok := sto.(blobserver.ContextWrapper); ok {
-					sto = w.WrapContext(ctxReq)
-				}
-			}
 			err := h.uploadPublicKey(sto, armoredPublicKey)
 			if err != nil {
 				return nil, fmt.Errorf("Error seeding self public key in storage: %v", err)

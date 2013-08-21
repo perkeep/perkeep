@@ -46,17 +46,13 @@ func CreateEnumerateHandler(storage blobserver.BlobEnumerator) http.Handler {
 const errMsgMaxWaitSecWithAfter = "Can't use 'maxwaitsec' with 'after'.\n"
 
 func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator) {
-	if w, ok := storage.(blobserver.ContextWrapper); ok {
-		storage = w.WrapContext(req)
-	}
-
 	// Potential input parameters
 	formValueLimit := req.FormValue("limit")
 	formValueMaxWaitSec := req.FormValue("maxwaitsec")
 	formValueAfter := req.FormValue("after")
 
 	maxEnumerate := defaultMaxEnumerate
-	if config, ok := blobserver.Unwrap(storage).(blobserver.MaxEnumerateConfig); ok {
+	if config, ok := storage.(blobserver.MaxEnumerateConfig); ok {
 		maxEnumerate = config.MaxEnumerate() - 1 // Since we'll add one below.
 	}
 

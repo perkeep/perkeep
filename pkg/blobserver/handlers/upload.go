@@ -49,21 +49,6 @@ func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
 	})
 }
 
-func wrapReceiveConfiger(cw blobserver.ContextWrapper,
-	req *http.Request,
-	oldRC blobserver.BlobReceiveConfiger) blobserver.BlobReceiveConfiger {
-
-	newRC := cw.WrapContext(req)
-	if brc, ok := newRC.(blobserver.BlobReceiveConfiger); ok {
-		return brc
-	}
-	type mixAndMatch struct {
-		blobserver.BlobReceiver
-		blobserver.Configer
-	}
-	return &mixAndMatch{newRC, oldRC}
-}
-
 // vivify verifies that all the chunks for the file described by fileblob are on the blobserver.
 // It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
 // on that permanode for fileblob, signs it, and uploads it to the blobserver.
@@ -148,10 +133,6 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 }
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
-	if w, ok := blobReceiver.(blobserver.ContextWrapper); ok {
-		blobReceiver = wrapReceiveConfiger(w, req, blobReceiver)
-	}
-
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		log.Printf("Inconfigured handler upload handler")
 		httputil.BadRequestError(conn, "Inconfigured handler.")

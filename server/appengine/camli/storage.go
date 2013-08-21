@@ -23,12 +23,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"appengine"
 	"appengine/blobstore"
@@ -47,9 +45,7 @@ const (
 var _ blobserver.Storage = (*appengineStorage)(nil)
 
 type appengineStorage struct {
-	*blobserver.SimpleBlobHubPartitionMap
 	namespace string // never empty; config initializes to at least "-"
-	ctx       appengine.Context
 }
 
 // blobEnt is stored once per unique blob, keyed by blobref.
@@ -104,9 +100,8 @@ func fetchEnt(c appengine.Context, br blob.Ref) (*blobEnt, error) {
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &appengineStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
+		namespace: config.OptionalString("namespace", ""),
 	}
-	sto.namespace = config.OptionalString("namespace", "")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -117,31 +112,16 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-// TODO(bradfitz): delete all this context wrapper stuff
-var _ blobserver.ContextWrapper = (*appengineStorage)(nil)
-
-// TODO(bradfitz): delete all this context wrapper stuff
-func (sto *appengineStorage) WrapContext(req *http.Request) blobserver.Storage {
-	s2 := new(appengineStorage)
-	*s2 = *sto
-	s2.ctx = appengine.NewContext(req)
-	return s2
-}
-
 var dummyCloser = ioutil.NopCloser(strings.NewReader(""))
 
 func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
-	ctx := sto.ctx
-	var loan ContextLoan
-	if ctx == nil {
-		loan = ctxPool.Get()
-		ctx = loan
-		defer func() {
-			if loan != nil {
-				loan.Return()
-			}
-		}()
-	}
+	loan := ctxPool.Get()
+	ctx := loan
+	defer func() {
+		if loan != nil {
+			loan.Return()
+		}
+	}()
 
 	row, err := fetchEnt(ctx, br)
 	if err == datastore.ErrNoSuchEntity {
@@ -155,14 +135,11 @@ func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, si
 		err = os.ErrNotExist
 		return
 	}
-	var c io.Closer
-	if loan != nil {
-		closeLoan := loan
-		c = &onceCloser{fn: func() { closeLoan.Return() }}
-		loan = nil // take it, so it's not defer-closed
-	} else {
-		c = dummyCloser
-	}
+
+	closeLoan := loan
+	var c io.Closer = &onceCloser{fn: func() { closeLoan.Return() }}
+	loan = nil // take it, so it's not defer-closed
+
 	reader := blobstore.NewReader(ctx, appengine.BlobKey(string(row.BlobKey)))
 	type readCloser struct {
 		io.Reader
@@ -184,12 +161,9 @@ func (oc *onceCloser) Close() error {
 var crossGroupTransaction = &datastore.TransactionOptions{XG: true}
 
 func (sto *appengineStorage) ReceiveBlob(br blob.Ref, in io.Reader) (sb blob.SizedRef, err error) {
-	ctx := sto.ctx
-	if ctx == nil {
-		loan := ctxPool.Get()
-		defer loan.Return()
-		ctx = loan
-	}
+	loan := ctxPool.Get()
+	defer loan.Return()
+	ctx := loan
 
 	var b bytes.Buffer
 	written, err := io.Copy(&b, in)
@@ -280,12 +254,9 @@ func (sto *appengineStorage) ReceiveBlob(br blob.Ref, in io.Reader) (sb blob.Siz
 
 // NOTE(bslatkin): No fucking clue if this works.
 func (sto *appengineStorage) RemoveBlobs(blobs []blob.Ref) error {
-	ctx := sto.ctx
-	if ctx == nil {
-		loan := ctxPool.Get()
-		defer loan.Return()
-		ctx = loan
-	}
+	loan := ctxPool.Get()
+	defer loan.Return()
+	ctx := loan
 
 	tryFunc := func(tc appengine.Context, br blob.Ref) error {
 		// TODO(bslatkin): Make the DB gets in this a multi-get.
@@ -333,13 +304,10 @@ func (sto *appengineStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return nil
 }
 
-func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration) error {
-	ctx := sto.ctx
-	if ctx == nil {
-		loan := ctxPool.Get()
-		defer loan.Return()
-		ctx = loan
-	}
+func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+	loan := ctxPool.Get()
+	defer loan.Return()
+	ctx := loan
 
 	var (
 		keys = make([]*datastore.Key, 0, len(blobs))
@@ -373,15 +341,12 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.R
 	return err
 }
 
-func (sto *appengineStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int, wait time.Duration) error {
+func (sto *appengineStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 
-	ctx := sto.ctx
-	if ctx == nil {
-		loan := ctxPool.Get()
-		defer loan.Return()
-		ctx = loan
-	}
+	loan := ctxPool.Get()
+	defer loan.Return()
+	ctx := loan
 
 	prefix := sto.namespace + "|"
 	keyBegin := datastore.NewKey(ctx, memKind, prefix+after, 0, nil)
@@ -421,8 +386,7 @@ func (sto *appengineStorage) CreateQueue(name string) (blobserver.Storage, error
 			name, sto.namespace)
 	}
 	q := &appengineStorage{
-		SimpleBlobHubPartitionMap: &blobserver.SimpleBlobHubPartitionMap{},
-		namespace:                 "queue-" + name,
+		namespace: "queue-" + name,
 	}
 	return q, nil
 }
