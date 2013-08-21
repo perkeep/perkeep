@@ -97,7 +97,7 @@ var NameToCmd = map[string]string{
 	"prepRepo7":   "git pull",
 	"prepRepo8":   "git rev-parse HEAD",
 	"buildGoTip1": "./make.bash",
-	"buildCamli1": "make forcefull",
+	"buildCamli1": "go run make.go -v",
 	"buildCamli2": "go build -o devcam ./dev/devcam/",
 	"buildCamli3": "make presubmit",
 	"runCamli":    "./devcam server --wipe --mysql",
