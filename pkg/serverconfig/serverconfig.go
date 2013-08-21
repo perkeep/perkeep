@@ -414,17 +414,16 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	}
 	hl.setupAll()
 
-	if os.Getenv("CAMLI_HTTP_PPROF") != "" {
-		hi.Handle("/debug/pprof/", &ProfileHandler{})
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
+		hi.Handle("/debug/pprof/", profileHandler{})
 	}
 	return nil
 }
 
-// ProfileHandler publishes server profile information.
-type ProfileHandler struct {
-}
+// profileHandler publishes server profile information.
+type profileHandler struct{}
 
-func (ph *ProfileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (profileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch req.URL.Path {
 	case "/debug/pprof/cmdline":
 		pprof.Cmdline(rw, req)
