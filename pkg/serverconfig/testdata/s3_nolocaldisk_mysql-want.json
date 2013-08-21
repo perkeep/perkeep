@@ -21,31 +21,31 @@
 				"scaledImage": "lrucache"
 			}
 		},
-
-		"/setup/": {
+	
+ 		"/setup/": {
 			"handler": "setup"
-		},
+        },
 
-		"/status/": {
+ 		"/status/": {
 			"handler": "status"
 		},
 
-		"/share/": {
+ 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {
 				"blobRoot": "/bs/"
 			}
 		},
 
-		"/sync/": {
+ 		"/sync/": {
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"to": "/index-mem/",
+				"to": "/index-mysql/",
 				"idle": true
 			}
 		},
-
+	
 		"/sighelper/": {
 			"handler": "jsonsign",
 			"handlerArgs": {
@@ -54,14 +54,14 @@
 				"publicKeyDest": "/bs-and-index/"
 			}
 		},
-
+	
 		"/bs-and-index/": {
 			"handler": "storage-replica",
 			"handlerArgs": {
-				"backends": ["/bs/", "/index-mem/"]
+				"backends": ["/bs/", "/index-mysql/"]
 			}
 		},
-
+	
 		"/bs-and-maybe-also-index/": {
 			"handler": "storage-cond",
 			"handlerArgs": {
@@ -73,37 +73,39 @@
 				"read": "/bs/"
 			}
 		},
-
+	
 		"/bs/": {
-			"handler": "storage-googlecloudstorage",
+			"handler": "storage-s3",
 			"handlerArgs": {
-				"auth": {
-					"client_id": "clientId",
-					"client_secret": "clientSecret",
-					"refresh_token": "refreshToken"
-				},
-				"bucket": "bucketName"
+				"aws_access_key": "key",
+				"aws_secret_access_key": "secret",
+				"bucket": "bucket"
 			}
 		},
-
+	
 		"/cache/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/camli-cache"
 			}
 		},
-
-		"/index-mem/": {
-			"handler": "storage-memory-only-dev-indexer",
+	
+		"/index-mysql/": {
+			"enabled": true,
+			"handler": "storage-mysqlindexer",
 			"handlerArgs": {
-				"blobSource": "/bs/"
+				"blobSource": "/bs/",
+				"database": "camlitest",
+				"host": "localhost",
+				"password": "password",
+				"user": "user"
 			}
 		},
-
+	
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-mem/",
+				"index": "/index-mysql/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
 			}
 		}
@@ -111,4 +113,3 @@
 	}
 
 }
-

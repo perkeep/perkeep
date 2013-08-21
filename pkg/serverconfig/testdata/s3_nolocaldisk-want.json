@@ -41,7 +41,8 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"to": "/index-mem/"
+				"to": "/index-mem/",
+				"idle": true
 			}
 		},
 	

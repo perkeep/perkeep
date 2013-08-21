@@ -424,12 +424,25 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 	}
 
 	if haveIndex {
+		syncArgs := map[string]interface{}{
+			"from": "/bs/",
+			"to":   params.indexerPath,
+		}
+		// TODO(mpl): Brad says the cond should be dest == /index-*.
+		// But what about when dest is index-mem and we have a local disk;
+		// don't we want to have an active synchandler to do the fullSyncOnStart?
+		// Anyway, that condition works for now.
+		if params.blobPath == "" {
+			// When our primary blob store is remote (s3 or google cloud),
+			// i.e not an efficient replication source, we do not want the
+			// synchandler to mirror to the indexer. But we still want a
+			// synchandler to provide the discovery for e.g tools like
+			// camtool sync. See http://camlistore.org/issue/201
+			syncArgs["idle"] = true
+		}
 		m["/sync/"] = map[string]interface{}{
-			"handler": "sync",
-			"handlerArgs": map[string]interface{}{
-				"from": "/bs/",
-				"to":   params.indexerPath,
-			},
+			"handler":     "sync",
+			"handlerArgs": syncArgs,
 		}
 
 		m["/bs-and-index/"] = map[string]interface{}{
@@ -579,8 +592,13 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	nolocaldisk := blobPath == ""
-	if nolocaldisk && s3 == "" && googlecloudstorage == "" {
-		return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or googlecloudstorage configured for a blobserver.")
+	if nolocaldisk {
+		if s3 == "" && googlecloudstorage == "" {
+			return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or googlecloudstorage configured for a blobserver.")
+		}
+		if s3 != "" && googlecloudstorage != "" {
+			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
+		}
 	}
 
 	if shareHandler && shareHandlerPath == "" {
