@@ -364,6 +364,5 @@ func (c *serverCmd) RunCommand(args []string) error {
 		return fmt.Errorf("Could not start camlistored: %v", err)
 	}
 	go handleSignals(cmd.Process)
-	cmd.Wait()
-	return nil
+	return cmd.Wait()
 }
