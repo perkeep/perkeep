@@ -17,18 +17,34 @@ limitations under the License.
 package s3
 
 import (
+	"fmt"
+
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/gate"
 )
 
+var statGate = gate.New(20) // arbitrary
+
 func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	// TODO: do n stats in parallel
+	errc := make(chan error, len(blobs))
 	for _, br := range blobs {
-		size, err := sto.s3Client.Stat(br.String(), sto.bucket)
-		if err == nil {
-			dest <- blob.SizedRef{Ref: br, Size: size}
-		} else {
-			// TODO: handle
+		statGate.Start()
+		go func(br blob.Ref) {
+			defer statGate.Done()
+			size, err := sto.s3Client.Stat(br.String(), sto.bucket)
+			if err == nil {
+				dest <- blob.SizedRef{Ref: br, Size: size}
+				errc <- nil
+			} else {
+				errc <- fmt.Errorf("error statting %v: %v", br, err)
+			}
+		}(br)
+	}
+	var firstErr error
+	for _ = range blobs {
+		if err := <-errc; err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
-	return nil
+	return firstErr
 }

@@ -7,8 +7,6 @@ Offline list:
 -- verify all ReceiveBlob calls and see which should be blobserver.Receive
    instead, or ReceiveNoHash.  git grep -E "\.ReceiveBlob\("
 
--- remove ContextWrapper stuff.
-
 -- union storage target. sharder can be thought of a specialization
    of union. sharder already unions, but has a hard-coded policy
    of where to put new blobs. union could a library (used by sharder)
@@ -17,14 +15,6 @@ Offline list:
 -- support for running cammount under camlistored. especially for OS X,
    where the lifetime of the background daemon will be the same as the
    user's login session.
-
--- verify that the HTTP blob upload interface caps uploads at MaxBlobSize
-   before giving it to storage impls
-
--- add pkg/gate w/ chan(struct {}, size) internally
-
--- use pkg/gate in s3 Stat method. (there's a TODO there now to stat
-   in parallel)
 
 -- support syncing from a storage type that doesn't support
    QueueCreator by using local disk instead. writes go to both 1) that
@@ -100,9 +90,6 @@ Offline list:
 
 -- get webdav server working again, for mounting on Windows.  This worked before Go 1
    but bitrot when we moved pkg/fs to use the rsc/fuse.
-
--- read/write fuse.  using search / camliMember, permanode per inode
-   (https://github.com/hanwen/go-fuse + Go camlistore client == easy?)
 
 -- work on runsit more, so I can start using this more often.  runsit should
    be able to reload itself, and also watch for binaries changing and restart
