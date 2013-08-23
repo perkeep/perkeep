@@ -24,6 +24,7 @@ push @args, "--buildbot_host=build.camlistore.org";
 push @args, "--buildbot_backend=http://c1.danga.com:8080";
 push @args, "--also_run=$Bin/scripts/run-blobserver";
 if ($in_prod) {
+    push @args, "--email_dest=camlistore-commits\@googlegroups.com";
     push @args, "--http=:8080";
     push @args, "--https=:4430";
     push @args, "--gerrithost=ec2-107-22-182-135.compute-1.amazonaws.com";
