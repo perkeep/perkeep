@@ -188,7 +188,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if strings.HasPrefix(relPath, "gw/") {
 		path := relPath[3:]
-		http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/HEAD/"+path, http.StatusFound)
+		http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/"+path, http.StatusFound)
 		return
 	}
 

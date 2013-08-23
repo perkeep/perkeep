@@ -217,6 +217,7 @@ type defaultConfigFile struct {
 	BlobPath           string        `json:"blobPath"`
 	MySQL              string        `json:"mysql"`
 	Mongo              string        `json:"mongo"`
+	Postgres           string        `json:"postgres"`
 	SQLite             string        `json:"sqlite"`
 	S3                 string        `json:"s3"`
 	ReplicateTo        []interface{} `json:"replicateTo"`
