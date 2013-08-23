@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+git push origin master
+git push github master
+curl http://camlistore.org/mailnow
