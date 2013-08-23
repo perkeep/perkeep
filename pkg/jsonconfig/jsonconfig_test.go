@@ -42,7 +42,7 @@ func TestIncludeLoop(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error about import cycles.")
 	}
-	if !strings.Contains(err.Error(), "include cycle detected"){
+	if !strings.Contains(err.Error(), "include cycle detected") {
 		t.Fatal("expected an error about import cycles; got: %v", err)
 	}
 }
@@ -50,18 +50,33 @@ func TestIncludeLoop(t *testing.T) {
 func TestBoolEnvs(t *testing.T) {
 	os.Setenv("TEST_EMPTY", "")
 	os.Setenv("TEST_TRUE", "true")
+	os.Setenv("TEST_ONE", "1")
+	os.Setenv("TEST_ZERO", "0")
+	os.Setenv("TEST_FALSE", "false")
 	obj, err := ReadFile("testdata/boolenv.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if str := obj.RequiredString("str"); str != "" {
+	if str := obj.RequiredString("emptystr"); str != "" {
 		t.Errorf("str = %q, want empty", str)
 	}
-	if v := obj.RequiredBool("false"); v != false {
-		t.Error("key 'false' is true")
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{"def_false", false},
+		{"def_true", true},
+		{"set_true_def_false", true},
+		{"set_false_def_true", false},
+		{"lit_true", true},
+		{"lit_false", false},
+		{"one", true},
+		{"zero", false},
 	}
-	if v := obj.RequiredBool("true"); v != true {
-		t.Error("key 'true' is false")
+	for _, tt := range tests {
+		if v := obj.RequiredBool(tt.key); v != tt.want {
+			t.Errorf("key %q = %v; want %v", tt.key, v, tt.want)
+		}
 	}
 	if err := obj.Validate(); err != nil {
 		t.Error(err)
@@ -77,8 +92,8 @@ func TestListExpansion(t *testing.T) {
 	s := obj.RequiredString("str")
 	l := obj.RequiredList("list")
 	if err := obj.Validate(); err != nil {
-                t.Error(err)
-        }
+		t.Error(err)
+	}
 	want := []string{"foo", "bar"}
 	if !reflect.DeepEqual(l, want) {
 		t.Errorf("got = %#v\nwant = %#v", l, want)

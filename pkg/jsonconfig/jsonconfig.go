@@ -21,6 +21,7 @@ package jsonconfig
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ import (
 type Obj map[string]interface{}
 
 // Reads json config data from the specified open file, expanding
-// all expressions 
+// all expressions
 func ReadFile(configPath string) (Obj, error) {
 	var c ConfigParser
 	return c.ReadFile(configPath)
@@ -132,12 +133,19 @@ func (jc Obj) bool(key string, def *bool) bool {
 		jc.appendError(fmt.Errorf("Missing required config key %q (boolean)", key))
 		return false
 	}
-	b, ok := ei.(bool)
-	if !ok {
+	switch v := ei.(type) {
+	case bool:
+		return v
+	case string:
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			jc.appendError(fmt.Errorf("Config key %q has bad boolean format %q", key, v))
+		}
+		return b
+	default:
 		jc.appendError(fmt.Errorf("Expected config key %q to be a boolean", key))
 		return false
 	}
-	return b
 }
 
 func (jc Obj) RequiredInt(key string) int {
