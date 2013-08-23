@@ -5,7 +5,6 @@
 package fileutil
 
 import (
-	"fmt"
 	"os"
 )
 
