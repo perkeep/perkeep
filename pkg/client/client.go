@@ -100,6 +100,11 @@ type Client struct {
 	pendStatMu sync.Mutex             // guards pendStat
 	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
 
+	initSelfPubKeyDirOnce sync.Once
+	// dir containing the public key(s) blob(s).
+	// Defaults to osutil.KeyblobsDir().
+	selfPubKeyDir string
+
 	statsMutex sync.Mutex
 	stats      Stats
 
