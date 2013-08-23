@@ -60,6 +60,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
 	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
+	_ "camlistore.org/pkg/index/kvfile"
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
 	_ "camlistore.org/pkg/index/postgres"
