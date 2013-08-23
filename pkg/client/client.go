@@ -97,8 +97,8 @@ type Client struct {
 	// empty list.
 	ignoredFiles []string
 
-	pendStatMu sync.Mutex           // guards pendStat
-	pendStat   map[string][]statReq // blobref -> reqs; for next batch(es)
+	pendStatMu sync.Mutex             // guards pendStat
+	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
 
 	statsMutex sync.Mutex
 	stats      Stats

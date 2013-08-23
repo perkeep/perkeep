@@ -208,13 +208,12 @@ func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	c.pendStatMu.Lock()
 	{
 		if c.pendStat == nil {
-			c.pendStat = make(map[string][]statReq)
+			c.pendStat = make(map[blob.Ref][]statReq)
 		}
 		for _, blob := range needStat {
 			errc := make(chan error, 1)
 			errcs = append(errcs, errc)
-			brStr := blob.String()
-			c.pendStat[brStr] = append(c.pendStat[brStr], statReq{blob, dest, errc})
+			c.pendStat[blob] = append(c.pendStat[blob], statReq{blob, dest, errc})
 		}
 	}
 	c.pendStatMu.Unlock()
@@ -238,7 +237,7 @@ func (c *Client) doSomeStats() {
 	c.requestHTTPToken()
 	defer c.releaseHTTPToken()
 
-	var batch map[string][]statReq
+	var batch map[blob.Ref][]statReq
 
 	c.pendStatMu.Lock()
 	{
@@ -247,10 +246,10 @@ func (c *Client) doSomeStats() {
 			c.pendStatMu.Unlock()
 			return
 		}
-		batch = make(map[string][]statReq)
-		for blobStr, reqs := range c.pendStat {
-			batch[blobStr] = reqs
-			delete(c.pendStat, blobStr)
+		batch = make(map[blob.Ref][]statReq)
+		for br, reqs := range c.pendStat {
+			batch[br] = reqs
+			delete(c.pendStat, br)
 			if len(batch) == maxStatPerReq {
 				go c.doSomeStats() // kick off next batch
 				break
@@ -264,11 +263,8 @@ func (c *Client) doSomeStats() {
 	}
 
 	blobs := make([]blob.Ref, 0, len(batch))
-	for _, reqs := range batch {
-		// Just the first waiter's blobref is fine. All
-		// reqs[n] have the same br. This is just to avoid
-		// blobref.Parse from the 'batch' map's string key.
-		blobs = append(blobs, reqs[0].br)
+	for br := range batch {
+		blobs = append(blobs, br)
 	}
 
 	ourDest := make(chan blob.SizedRef)
@@ -281,7 +277,7 @@ func (c *Client) doSomeStats() {
 	}()
 
 	for sb := range ourDest {
-		for _, req := range batch[sb.Ref.String()] {
+		for _, req := range batch[sb.Ref] {
 			req.dest <- sb
 		}
 	}
