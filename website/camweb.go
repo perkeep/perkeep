@@ -210,10 +210,32 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	switch {
-	case !fi.IsDir():
+	if !fi.IsDir() {
+		if checkLastModified(rw, req, fi.ModTime()) {
+			return
+		}
 		serveFile(rw, req, relPath, absPath)
 	}
+}
+
+// modtime is the modification time of the resource to be served, or IsZero().
+// return value is whether this request is now complete.
+func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time) bool {
+	if modtime.IsZero() {
+		return false
+	}
+
+	// The Date-Modified header truncates sub-second precision, so
+	// use mtime < t+1s instead of mtime <= t to check for unmodified.
+	if t, err := time.Parse(http.TimeFormat, r.Header.Get("If-Modified-Since")); err == nil && modtime.Before(t.Add(1*time.Second)) {
+		h := w.Header()
+		delete(h, "Content-Type")
+		delete(h, "Content-Length")
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+	w.Header().Set("Last-Modified", modtime.UTC().Format(http.TimeFormat))
+	return false
 }
 
 func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
