@@ -167,7 +167,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	if err != nil {
 		// TODO: not really either an inputfail or an execfail.. but going
 		// with exec for now.
-		return execfail(fmt.Sprintf("failed to find public key %s", signerBlob.String()))
+		return execfail(fmt.Sprintf("failed to find public key %s: %v", signerBlob.String(), err))
 	}
 
 	pubk, err := openArmoredPublicKeyFile(pubkeyReader)

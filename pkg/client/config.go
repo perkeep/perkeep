@@ -235,10 +235,11 @@ func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
 		return
 	}
 
+	// TODO(mpl): integrate with getSelfPubKeyDir if possible.
 	selfPubKeyDir, ok := config["selfPubKeyDir"].(string)
 	if !ok {
-		log.Printf("No 'selfPubKeyDir' defined in %q", osutil.UserClientConfigPath())
-		return
+		selfPubKeyDir = osutil.KeyBlobsDir()
+		log.Printf("No 'selfPubKeyDir' defined in %q, defaulting to %v", osutil.UserClientConfigPath(), selfPubKeyDir)
 	}
 	fi, err := os.Stat(selfPubKeyDir)
 	if err != nil || !fi.IsDir() {
@@ -263,7 +264,31 @@ func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
 
 func (c *Client) GetBlobFetcher() blob.SeekFetcher {
 	// Use blobref.NewSeriesFetcher(...all configured fetch paths...)
-	return blob.NewConfigDirFetcher()
+	return blob.NewSimpleDirectoryFetcher(c.getSelfPubKeyDir())
+}
+
+// config[selfPubKeyDir] is the dir containing the public key(s) blob(s)
+const selfPubKeyDir = "selfPubKeyDir"
+
+func (c *Client) initSelfPubKeyDir() {
+	if e := os.Getenv("CAMLI_DEV_KEYBLOBS"); e != "" {
+		c.selfPubKeyDir = e
+		return
+	}
+	configOnce.Do(parseConfig)
+	v, ok := config[selfPubKeyDir].(string)
+	if !ok {
+		c.selfPubKeyDir = osutil.KeyBlobsDir()
+		log.Printf("selfPubKeyDir: was expecting a string, got %T. Defaulting to %v", v, c.selfPubKeyDir)
+		return
+	}
+	c.selfPubKeyDir = v
+}
+
+// TODO(mpl): integrate with getSignerPublicKeyBlobref above.
+func (c *Client) getSelfPubKeyDir() string {
+	c.initSelfPubKeyDirOnce.Do(c.initSelfPubKeyDir)
+	return c.selfPubKeyDir
 }
 
 // config[trustedCerts] is the list of trusted certificates fingerprints.
@@ -293,7 +318,7 @@ func (c *Client) initTrustedCerts() {
 }
 
 func (c *Client) GetTrustedCerts() []string {
-	c.initTrustedCertsOnce.Do(func() { c.initTrustedCerts() })
+	c.initTrustedCertsOnce.Do(c.initTrustedCerts)
 	return c.trustedCerts
 }
 

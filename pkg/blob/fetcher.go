@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -91,8 +90,7 @@ func NewSimpleDirectoryFetcher(dir string) *DirFetcher {
 }
 
 func NewConfigDirFetcher() *DirFetcher {
-	configDir := filepath.Join(osutil.CamliConfigDir(), "keyblobs")
-	return NewSimpleDirectoryFetcher(configDir)
+	return NewSimpleDirectoryFetcher(osutil.KeyBlobsDir())
 }
 
 type serialFetcher struct {

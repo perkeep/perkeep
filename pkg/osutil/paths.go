@@ -110,6 +110,12 @@ func IdentitySecretRing() string {
 	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
 }
 
+// KeyBlobsDir returns the path to the directory containing
+// the blob(s) for the public gpg key(s)
+func KeyBlobsDir() string {
+	return filepath.Join(CamliConfigDir(), "keyblobs")
+}
+
 // Find the correct absolute path corresponding to a relative path,
 // searching the following sequence of directories:
 // 1. Working Directory
