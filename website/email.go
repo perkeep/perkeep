@@ -158,6 +158,7 @@ func commitEmailLoop() error {
 		select {
 		case <-time.After(1 * time.Minute):
 		case <-fetchc:
+			log.Printf("Polling git due to explicit trigger.")
 		}
 	}
 }
@@ -170,6 +171,9 @@ func pollCommits(dir string) {
 		log.Printf("Error running git fetch origin master in %s: %v\n%s", dir, err, out)
 		return
 	}
+	log.Printf("Ran git fetch.")
+	// TODO: see if .git/refs/remotes/origin/master changed. quicker.
+
 	hashes, err := recentCommits(dir)
 	if err != nil {
 		log.Print(err)
@@ -205,12 +209,15 @@ func recentCommits(dir string) (hashes []string, err error) {
 func mailNowHandler(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-tokenc:
+		log.Printf("/mailnow got a token")
 	default:
 		// Too many requests. Ignore.
+		log.Printf("Ignoring /mailnow request; too soon.")
 		return
 	}
 	select {
 	case fetchc <- true:
+		log.Printf("/mailnow triggered a git fetch")
 	default:
 	}
 }
