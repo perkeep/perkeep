@@ -140,3 +140,22 @@ func TestSizedBlobRefString(t *testing.T) {
 		t.Errorf("SizedRef.String() = %q, want %q", got, want)
 	}
 }
+
+func TestMarshalBinary(t *testing.T) {
+	br := MustParse("abc-00ff4869")
+	data, _ := br.MarshalBinary()
+	if got, want := string(data), "abc-\x00\xffHi"; got != want {
+		t.Fatalf("MarshalBinary = %q; want %q", got, want)
+	}
+	br2 := new(Ref)
+	if err := br2.UnmarshalBinary(data); err != nil {
+		t.Fatal(err)
+	}
+	if *br2 != br {
+		t.Error("UnmarshalBinary result != original")
+	}
+
+	if err := br2.UnmarshalBinary(data); err == nil {
+		t.Error("expect error on second UnmarshalBinary")
+	}
+}

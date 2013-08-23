@@ -20,6 +20,7 @@ package blob
 import (
 	"bytes"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"hash"
 	"reflect"
@@ -366,6 +367,9 @@ func ValidRefString(s string) bool {
 }
 
 func (r *Ref) UnmarshalJSON(d []byte) error {
+	if r.digest != nil {
+		return errors.New("Can't UnmarshalJSON into a non-zero Ref")
+	}
 	if len(d) < 2 || d[0] != '"' || d[len(d)-1] != '"' {
 		return fmt.Errorf("blob: expecting a JSON string to unmarshal, got %q", d)
 	}
@@ -381,4 +385,44 @@ func (r *Ref) UnmarshalJSON(d []byte) error {
 func (r Ref) MarshalJSON() ([]byte, error) {
 	// TODO: do just one allocation here if we cared.
 	return []byte(fmt.Sprintf("%q", r.String())), nil
+}
+
+// MarshalBinary implements Go's encoding.BinaryMarshaler interface.
+func (r Ref) MarshalBinary() (data []byte, err error) {
+	dname := r.digest.digestName()
+	bs := r.digest.bytes()
+	data = make([]byte, 0, len(dname)+1+len(bs))
+	data = append(data, dname...)
+	data = append(data, '-')
+	data = append(data, bs...)
+	return
+}
+
+// UnmarshalBinary implements Go's encoding.BinaryUnmarshaler interface.
+func (r *Ref) UnmarshalBinary(data []byte) error {
+	if r.digest != nil {
+		return errors.New("Can't UnmarshalBinary into a non-zero Ref")
+	}
+	i := bytes.IndexByte(data, '-')
+	if i < 1 {
+		return errors.New("no digest name")
+	}
+
+	digName := string(data[:i])
+	buf := data[i+1:]
+
+	meta, ok := metaFromString[digName]
+	if !ok {
+		r2, ok := parseUnknown(digName, fmt.Sprintf("%x", buf))
+		if !ok {
+			return errors.New("invalid blobref binary data")
+		}
+		*r = r2
+		return nil
+	}
+	if len(buf) != meta.size {
+		return errors.New("wrong size of data for digest " + digName)
+	}
+	r.digest = meta.ctor(buf)
+	return nil
 }
