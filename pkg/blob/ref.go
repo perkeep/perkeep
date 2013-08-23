@@ -71,6 +71,12 @@ func (r Ref) String() string {
 	bs := r.digest.bytes()
 	buf := getBuf(len(dname) + 1 + len(bs)*2)[:0]
 	defer putBuf(buf)
+	return string(r.appendString(buf))
+}
+
+func (r Ref) appendString(buf []byte) []byte {
+	dname := r.digest.digestName()
+	bs := r.digest.bytes()
 	buf = append(buf, dname...)
 	buf = append(buf, '-')
 	for _, b := range bs {
@@ -79,7 +85,7 @@ func (r Ref) String() string {
 	if o, ok := r.digest.(otherDigest); ok && o.odd {
 		buf = buf[:len(buf)-1]
 	}
-	return string(buf)
+	return buf
 }
 
 // HashName returns the lowercase hash function name of the reference.
@@ -383,8 +389,13 @@ func (r *Ref) UnmarshalJSON(d []byte) error {
 }
 
 func (r Ref) MarshalJSON() ([]byte, error) {
-	// TODO: do just one allocation here if we cared.
-	return []byte(fmt.Sprintf("%q", r.String())), nil
+	dname := r.digest.digestName()
+	bs := r.digest.bytes()
+	buf := make([]byte, 0, 3+len(dname)+len(bs)*2)
+	buf = append(buf, '"')
+	buf = r.appendString(buf)
+	buf = append(buf, '"')
+	return buf, nil
 }
 
 // MarshalBinary implements Go's encoding.BinaryMarshaler interface.
