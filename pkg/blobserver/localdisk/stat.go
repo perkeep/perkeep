@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/gate"
 )
 
 const maxParallelStats = 20
@@ -45,17 +46,18 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 		return statSend(blobs[0])
 	}
 
-	errCh := make(chan error)
-	rateLimiter := make(chan bool, maxParallelStats)
+	errc := make(chan error, len(blobs))
+
+	gt := gate.New(maxParallelStats)
 	for _, ref := range blobs {
-		rateLimiter <- true
+		gt.Start()
 		go func(ref blob.Ref) {
-			errCh <- statSend(ref)
-			<-rateLimiter
+			defer gt.Done()
+			errc <- statSend(ref)
 		}(ref)
 	}
 	for _ = range blobs {
-		if err := <-errCh; err != nil {
+		if err := <-errc; err != nil {
 			return err
 		}
 	}

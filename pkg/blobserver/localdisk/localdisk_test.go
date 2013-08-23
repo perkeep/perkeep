@@ -19,6 +19,7 @@ package localdisk
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -96,11 +97,19 @@ func TestMultiStat(t *testing.T) {
 	need[blobfoo.BlobRef().String()] = true
 	need[blobbar.BlobRef().String()] = true
 
+	blobs := []blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()}
+
+	// In addition to the two "foo" and "bar" blobs, add
+	// maxParallelStats other dummy blobs, to exercise the stat
+	// rate-limiting (which had a deadlock once after a cleanup)
+	for i := 0; i < maxParallelStats; i++ {
+		blobs = append(blobs, blob.SHA1FromString(strconv.Itoa(i)))
+	}
+
 	ch := make(chan blob.SizedRef, 0)
 	errch := make(chan error, 1)
 	go func() {
-		errch <- ds.StatBlobs(ch,
-			[]blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()})
+		errch <- ds.StatBlobs(ch, blobs)
 		close(ch)
 	}()
 	got := 0
