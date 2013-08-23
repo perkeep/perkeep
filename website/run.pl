@@ -17,7 +17,7 @@ print STDERR "Running camweb in $Bin on port 8080\n";
 my $in_prod = -e "$HOME/etc/ssl.key"; # heuristic. good enough.
 
 my @args;
-push @args, "go", "run", "camweb.go", "logging.go", "godoc.go", "format.go", "dirtrees.go";
+push @args, "go", "run", "camweb.go", "logging.go", "godoc.go", "format.go", "dirtrees.go", "email.go";
 push @args, "--root=$Bin";
 push @args, "--logdir=$logdir";
 push @args, "--buildbot_host=build.camlistore.org";
@@ -43,6 +43,7 @@ if ($in_prod) {
         close($fh);
     }
     push @args, "--http=127.0.0.1:8080"; # localhost avoids Mac firewall warning
+    push @args, @ARGV;
     exec(@args);
     die "Failed to exec: $!";
 }

@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/cgi"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -303,12 +302,6 @@ func main() {
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
 
-	testCgi := &cgi.Handler{Path: filepath.Join(*root, "test.cgi"),
-		Root: "/test.cgi",
-	}
-	mux.Handle("/test.cgi", testCgi)
-	mux.Handle("/test.cgi/foo", testCgi)
-
 	mux.HandleFunc("/issue/", issueRedirect)
 	mux.HandleFunc("/", mainHandler)
 
@@ -327,11 +320,12 @@ func main() {
 		handler = NewLoggingHandler(handler, *logDir, *logStdout)
 	}
 
+	errc := make(chan error)
+	startEmailCommitLoop(errc)
+
 	if *alsoRun != "" {
 		runAsChild(*alsoRun)
 	}
-
-	errch := make(chan error)
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -340,7 +334,7 @@ func main() {
 		WriteTimeout: 30 * time.Minute,
 	}
 	go func() {
-		errch <- httpServer.ListenAndServe()
+		errc <- httpServer.ListenAndServe()
 	}()
 
 	if *httpsAddr != "" {
@@ -349,11 +343,11 @@ func main() {
 		*httpsServer = *httpServer
 		httpsServer.Addr = *httpsAddr
 		go func() {
-			errch <- httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
+			errc <- httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 		}()
 	}
 
-	log.Fatalf("Serve error: %v", <-errch)
+	log.Fatalf("Serve error: %v", <-errc)
 }
 
 var issueNum = regexp.MustCompile(`^/issue/(\d+)$`)
