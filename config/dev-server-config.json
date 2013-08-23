@@ -69,8 +69,8 @@
           "handlerArgs": {
               "from": "/bs/",
               "to": ["_env", "${CAMLI_INDEXER_PATH}"],
-              "fullSyncOnStart": true,
-              "blockingFullSyncOnStart": true
+              "fullSyncOnStart": ["_env", "${CAMLI_MEMINDEX_ENABLED}"],
+              "blockingFullSyncOnStart": ["_env", "${CAMLI_MEMINDEX_ENABLED}"]
           }
       },
 
@@ -191,9 +191,19 @@
      },
 
      "/index-mem/": {
+         "enabled": ["_env", "${CAMLI_MEMINDEX_ENABLED}"],
          "handler": "storage-memory-only-dev-indexer",
          "handlerArgs": {
              "blobSource": "/bs/"
+         }
+     },
+
+     "/index-kv/": {
+         "enabled": ["_env", "${CAMLI_KVINDEX_ENABLED}"],
+         "handler": "storage-kvfileindexer",
+         "handlerArgs": {
+             "blobSource": "/bs/",
+             "file": ["_env", "${CAMLI_KVINDEX_FILE}", ""]
          }
      },
 

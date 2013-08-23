@@ -45,6 +45,7 @@ type serverCmd struct {
 	mongo    bool
 	mysql    bool
 	postgres bool
+	memindex bool // memory index; default is kvfile
 
 	slow     bool
 	throttle int
@@ -69,9 +70,10 @@ func init() {
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
 
-		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql and -postgres.")
-		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo and -postgres.")
-		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo and -mysql.")
+		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -memindex.")
+		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -memindex.")
+		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -memindex.")
+		flags.BoolVar(&cmd.memindex, "memindex", false, "Use memory as the indexer. Excludes -mongo, -mysql, -postgres.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
@@ -101,8 +103,14 @@ func (c *serverCmd) checkFlags(args []string) error {
 	if len(args) != 0 {
 		c.Usage()
 	}
-	if (c.mongo && c.mysql) || (c.mongo && c.postgres) || (c.mysql && c.postgres) {
-		return fmt.Errorf("-mongo, -mysql, and -postgres are mutually exclusive.")
+	nindex := 0
+	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.memindex} {
+		if v {
+			nindex++
+		}
+	}
+	if nindex > 1 {
+		return fmt.Errorf("Only one index option allowed")
 	}
 
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
@@ -180,6 +188,8 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_MYSQL_ENABLED", "false")
 	setenv("CAMLI_MONGO_ENABLED", "false")
 	setenv("CAMLI_POSTGRES_ENABLED", "false")
+	setenv("CAMLI_KVINDEX_ENABLED", "false")
+	setenv("CAMLI_MEMINDEX_ENABLED", "false")
 	switch {
 	case c.mongo:
 		setenv("CAMLI_MONGO_ENABLED", "true")
@@ -190,8 +200,16 @@ func (c *serverCmd) setEnvVars() error {
 	case c.mysql:
 		setenv("CAMLI_MYSQL_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mysql/")
-	default:
+	case c.memindex:
+		setenv("CAMLI_MEMINDEX_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mem/")
+	default:
+		setenv("CAMLI_KVINDEX_ENABLED", "true")
+		setenv("CAMLI_INDEXER_PATH", "/index-kv/")
+		if c.camliRoot == "" {
+			panic("no camliRoot set")
+		}
+		setenv("CAMLI_KVINDEX_FILE", filepath.Join(c.camliRoot, "kvindex.db"))
 	}
 
 	base := "http://localhost:" + c.port
