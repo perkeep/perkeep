@@ -164,7 +164,7 @@ func commitEmailLoop() error {
 }
 
 func pollCommits(dir string) {
-	cmd := exec.Command("git", "fetch", "origin", "master")
+	cmd := exec.Command("git", "fetch", "origin")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
