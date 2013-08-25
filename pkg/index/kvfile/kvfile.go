@@ -38,42 +38,23 @@ func init() {
 }
 
 func NewStorage(file string) (index.Storage, io.Closer, error) {
-	lk, err := osutil.Lock(file + ".lock")
-	if err != nil {
-		return nil, nil, err
-	}
 	createOpen := kv.Open
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		createOpen = kv.Create
 	}
-	db, err := createOpen(file, &kv.Options{})
+	db, err := createOpen(file, &kv.Options{
+		Locker: func(dbname string) (io.Closer, error) {
+			lkfile := dbname + ".lock"
+			return osutil.Lock(lkfile)
+		},
+	})
 	if err != nil {
-		lk.Close()
 		return nil, nil, err
 	}
-	closer := &closerFunc{fn: func() error {
-		defer lk.Close()
-		return db.Close()
-	}}
 	is := &kvis{
 		db: db,
 	}
-	return is, closer, nil
-}
-
-type closerFunc struct {
-	once sync.Once
-	err  error
-	fn   func() error
-}
-
-func (c *closerFunc) Close() error {
-	c.once.Do(c.close)
-	return c.err
-}
-
-func (c *closerFunc) close() {
-	c.err = c.fn()
+	return is, struct{ io.Closer }{db}, nil
 }
 
 type kvis struct {
