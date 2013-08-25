@@ -25,7 +25,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -215,6 +214,7 @@ type defaultConfigFile struct {
 	Auth               string        `json:"auth"`
 	Identity           string        `json:"identity"`
 	IdentitySecretRing string        `json:"identitySecretRing"`
+	KVFile             string        `json:"kvIndexFile"`
 	BlobPath           string        `json:"blobPath"`
 	MySQL              string        `json:"mysql"`
 	Mongo              string        `json:"mongo"`
@@ -237,7 +237,16 @@ func newDefaultConfigFile(path string) error {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	conf.BlobPath = blobDir
-	conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
+	if sqlite.CompiledIn() {
+		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
+		if fi, err := os.Stat(conf.SQLite); os.IsNotExist(err) || (fi != nil && fi.Size() == 0) {
+			if err := initSQLiteDB(conf.SQLite); err != nil {
+				log.Printf("Error initializing DB %s: %v", conf.SQLite, err)
+			}
+		}
+	} else {
+		conf.KVFile = filepath.Join(osutil.CamliVarDir(), "camli-index.kvdb")
+	}
 
 	var keyId string
 	secRing := osutil.IdentitySecretRing()
@@ -265,16 +274,6 @@ func newDefaultConfigFile(path string) error {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
 
-	if sqlite.CompiledIn() {
-		if fi, err := os.Stat(conf.SQLite); os.IsNotExist(err) || (fi != nil && fi.Size() == 0) {
-			if err := initSQLiteDB(conf.SQLite); err != nil {
-				log.Printf("Error initializing DB %s: %v", conf.SQLite, err)
-			}
-		}
-	} else {
-		log.Printf("Wrote config file assuming SQLite, but SQLite is not available. Recompile with SQLite or modify %s and pick an index type. Please see http://camlistore.org/docs/server-config#windows", path)
-		return errors.New("Newly written configuration not usable.")
-	}
 	return nil
 }
 

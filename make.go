@@ -43,9 +43,11 @@ import (
 	"time"
 )
 
+var haveSQLite = checkHaveSQLite()
+
 var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed the closure library.")
-	wantSQLite     = flag.Bool("sqlite", true, "Whether you want SQLite in your build. If you don't have any other database, you generally do.")
+	sql            = flag.Bool("sqlite", haveSQLite, "Whether you want SQLite in your build.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
@@ -75,15 +77,25 @@ func main() {
 	verifyCamlistoreRoot(camRoot)
 
 	if runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH {
-		if *wantSQLite {
+		if *sql {
 			log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
 		}
 	}
-
-	sql := *wantSQLite && haveSQLite()
+	if *sql && !haveSQLite {
+		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
+		switch runtime.GOOS {
+		case "darwin":
+			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
+		case "linux":
+			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
+		case "windows":
+			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
+		}
+		os.Exit(2)
+	}
 
 	buildBaseDir := "build-gopath"
-	if !sql {
+	if !*sql {
 		buildBaseDir += "-nosqlite"
 	}
 
@@ -99,22 +111,9 @@ func main() {
 
 	if *verbose {
 		log.Printf("Camlistore version = %s", version)
-		log.Printf("SQLite available: %v", sql)
+		log.Printf("SQLite included: %v", *sql)
 		log.Printf("Temporary source: %s", buildSrcDir)
 		log.Printf("Output binaries: %s", binDir)
-	}
-
-	if !sql && *wantSQLite {
-		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
-		switch runtime.GOOS {
-		case "darwin":
-			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
-		case "linux":
-			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
-		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
-		}
-		os.Exit(2)
 	}
 
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
@@ -158,7 +157,7 @@ func main() {
 	deleteUnwantedOldMirrorFiles(buildSrcDir)
 
 	tags := ""
-	if sql && *wantSQLite {
+	if *sql {
 		tags = "with_sqlite"
 	}
 	baseArgs := []string{"install", "-v"}
@@ -527,7 +526,7 @@ func deleteUnwantedOldMirrorFiles(dir string) {
 	})
 }
 
-func haveSQLite() bool {
+func checkHaveSQLite() bool {
 	if runtime.GOOS == "windows" {
 		// TODO: Find some other non-pkg-config way to test, like
 		// just compiling a small Go program that sees whether
@@ -538,14 +537,7 @@ func haveSQLite() bool {
 	}
 	_, err := exec.LookPath("pkg-config")
 	if err != nil {
-		if runtime.GOOS == "darwin" {
-			// OS X usually doesn't have pkg-config installed. Don't
-			// call Fatalf() so that the nicer error message in main()
-			// can be printed.
-			return false
-		}
-
-		log.Fatalf("No pkg-config found. Can't determine whether sqlite3 is available, and where.")
+		return false
 	}
 	cmd := exec.Command("pkg-config", "--libs", "sqlite3")
 	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
