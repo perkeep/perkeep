@@ -120,7 +120,7 @@ func (o *Options) clone() *Options {
 		return o
 	}
 
-	return &Options{Compare: o.Compare}
+	return &Options{Compare: o.Compare, Locker: o.Locker}
 }
 
 func (o *Options) check(dbname string, new, lock bool) (err error) {
