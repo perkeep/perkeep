@@ -35,7 +35,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -80,8 +79,9 @@ var (
 	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
-	listenFlag     = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
-	flagPollParent bool
+	listenFlag      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
+	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
+	flagPollParent  bool
 )
 
 func init() {
@@ -186,7 +186,7 @@ func genSelfTLS(listen string) error {
 // to the user's configuration directory.
 // If file is empty, a default high-level config is written
 // for the user.
-func findConfigFile(file string) (absPath string, err error) {
+func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
 	switch {
 	case file == "":
 		absPath = osutil.UserServerConfigPath()
@@ -197,7 +197,9 @@ func findConfigFile(file string) (absPath string, err error) {
 				return
 			}
 			log.Printf("Generating template config file %s", absPath)
-			err = newDefaultConfigFile(absPath)
+			if err = newDefaultConfigFile(absPath); err == nil {
+				isNewConfig = true
+			}
 		}
 		return
 	case filepath.IsAbs(file):
@@ -393,7 +395,7 @@ func main() {
 		return
 	}
 
-	fileName, err := findConfigFile(*flagConfigFile)
+	fileName, isNewConfig, err := findConfigFile(*flagConfigFile)
 	if err != nil {
 		exitf("Error finding config file %q: %v", fileName, err)
 	}
@@ -417,22 +419,19 @@ func main() {
 		exitf("Listen: %v", err)
 	}
 
-	urlOpened := false
-	if config.UIPath != "" {
-		uiURL := ws.ListenURL() + config.UIPath
-		if baseURL != "" {
-			uiURL = baseURL + config.UIPath
-		}
-		log.Printf("UI available at %s", uiURL)
-		if runtime.GOOS == "windows" {
-			// Might be double-clicking an icon with no shell window?
-			// Just open the URL for them.
-			urlOpened = true
-			go osutil.OpenURL(uiURL)
-		}
+	urlToOpen := ws.ListenURL()
+	if baseURL != "" {
+		urlToOpen = baseURL
 	}
-	if *flagConfigFile == "" && !urlOpened {
-		go osutil.OpenURL(ws.ListenURL())
+	if !isNewConfig {
+		// user may like to configure the server at the initial startup,
+		// open UI if this is not the first run with a new config file.
+		urlToOpen += config.UIPath
+	}
+
+	log.Printf("Available on %s", urlToOpen)
+	if *flagOpenBrowser {
+		go osutil.OpenURL(urlToOpen)
 	}
 
 	go ws.Serve()
