@@ -58,7 +58,7 @@ func lockFcntl(name string) (io.Closer, error) {
 
 	f, err := os.Create(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Lock Create of %s (abs: %s) failed: %v", name, abs, err)
 	}
 
 	// This type matches C's "struct flock" defined in /usr/include/sys/fcntl.h.
