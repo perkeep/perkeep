@@ -7,6 +7,7 @@ package kv
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -52,7 +53,7 @@ type DB struct {
 	gracePeriod   time.Duration // WAL grace period
 	isMem         bool          // No signal capture
 	lastCommitErr error         // from failed EndUpdate
-	lock          *os.File      // The DB file lock
+	lock          io.Closer     // The DB file lock
 	root          *lldb.BTree   // The KV layer
 	wal           *os.File      // WAL if any
 }
@@ -64,6 +65,7 @@ type DB struct {
 //
 // For the meaning of opts please see documentation of Options.
 func Create(name string, opts *Options) (db *DB, err error) {
+	opts = opts.clone()
 	opts._ACID = _ACIDFull
 	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
@@ -77,9 +79,7 @@ func create(f *os.File, filer lldb.Filer, opts *Options, isMem bool) (db *DB, er
 	defer func() {
 		lock := opts.lock
 		if err != nil && lock != nil {
-			n := lock.Name()
 			lock.Close()
-			os.Remove(n)
 			db = nil
 		}
 	}()
@@ -137,6 +137,7 @@ func create(f *os.File, filer lldb.Filer, opts *Options, isMem bool) (db *DB, er
 //
 // For the meaning of opts please see documentation of Options.
 func CreateMem(opts *Options) (db *DB, err error) {
+	opts = opts.clone()
 	opts._ACID = _ACIDTransactions
 	f := lldb.NewMemFiler()
 	return create(nil, f, opts, true)
@@ -152,6 +153,7 @@ func CreateMem(opts *Options) (db *DB, err error) {
 //
 // For the meaning of opts please see documentation of Options.
 func CreateTemp(dir, prefix, suffix string, opts *Options) (db *DB, err error) {
+	opts = opts.clone()
 	opts._ACID = _ACIDFull
 	f, err := fileutil.TempFile(dir, prefix, suffix)
 	if err != nil {
@@ -170,13 +172,12 @@ func CreateTemp(dir, prefix, suffix string, opts *Options) (db *DB, err error) {
 //
 // For the meaning of opts please see documentation of Options.
 func Open(name string, opts *Options) (db *DB, err error) {
+	opts = opts.clone()
 	opts._ACID = _ACIDFull
 	defer func() {
 		lock := opts.lock
 		if err != nil && lock != nil {
-			n := lock.Name()
 			lock.Close()
-			os.Remove(n)
 			db = nil
 		}
 		if err != nil {
@@ -285,14 +286,9 @@ func (db *DB) Close() (err error) {
 	}
 
 	if lock := db.lock; lock != nil {
-		n := lock.Name()
 		e1 := lock.Close()
-		e2 := os.Remove(n)
 		if err == nil {
 			err = e1
-		}
-		if err == nil {
-			err = e2
 		}
 	}
 	return
@@ -668,9 +664,12 @@ func (db *DB) Put(dst, key []byte, upd func(key, old []byte) (new []byte, write 
 	return
 }
 
-// Seek returns an enumerator with "position" or an error if any. Normally the
-// position is on a KV pair such that key >= KV.key. Then hit is key == KV.key.
-// The position is possibly "after" the last KV pair, but that is not an error.
+// Seek returns an enumerator or an error if any. Normally the enumerator is
+// positioned on a KV pair such that 'key' >= KV.key and 'hit' is key ==
+// KV.key.  If 'key' collates after any existing key in the DB then the
+// enumerator's position is effectively "after" the last KV pair, but that is
+// not an error.  However, such enumerator will return err set to io.EOF from
+// its Next/Prev methods.
 //
 // Seek is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) Seek(key []byte) (enum *Enumerator, hit bool, err error) {
@@ -693,7 +692,7 @@ func (db *DB) Seek(key []byte) (enum *Enumerator, hit bool, err error) {
 }
 
 // SeekFirst returns an enumerator positioned on the first KV pair in the DB,
-// if any. For an empty DB, err == io.EOF is returend.
+// if any. For an empty DB, err == io.EOF is returned.
 //
 // SeekFirst is atomic and it is safe for concurrent use by multiple
 // goroutines.
@@ -717,7 +716,7 @@ func (db *DB) SeekFirst() (enum *Enumerator, err error) {
 }
 
 // SeekLast returns an enumerator positioned on the last KV pair in the DB,
-// if any. For an empty DB, err == io.EOF is returend.
+// if any. For an empty DB, err == io.EOF is returned.
 //
 // SeekLast is atomic and it is safe for concurrent use by multiple
 // goroutines.
@@ -759,7 +758,7 @@ func (db *DB) Set(key, value []byte) (err error) {
 // enumerator is aware of any mutations made to the tree in the process of
 // enumerating it and automatically resumes the enumeration.
 //
-// Multiple consurrently executing enumerations may be in progress.
+// Multiple concurrently executing enumerations may be in progress.
 type Enumerator struct {
 	db   *DB
 	enum *lldb.BTreeEnumerator

@@ -65,6 +65,11 @@ type Options struct {
 	//	+1 if x >  y
 	Compare func(x, y []byte) int
 
+	// Locker specifies a function to lock a named file.
+	// On success it returns an io.Closer to release the lock.
+	// If nil, a default implementation is used.
+	Locker func(name string) (io.Closer, error)
+
 	// See the ACID* constants documentation.
 	_ACID int
 
@@ -98,17 +103,29 @@ type Options struct {
 	// and they may not be always honored.
 	_GracePeriod time.Duration
 	wal          *os.File
-	lock         *os.File
+	lock         io.Closer
+
+	noClone bool // test hook
+}
+
+func (o *Options) locker(dbname string) (io.Closer, error) {
+	if o == nil || o.Locker == nil {
+		return defaultLocker(dbname)
+	}
+	return o.Locker(dbname)
+}
+
+func (o *Options) clone() *Options {
+	if o.noClone {
+		return o
+	}
+
+	return &Options{Compare: o.Compare}
 }
 
 func (o *Options) check(dbname string, new, lock bool) (err error) {
-	var lname string
 	if lock {
-		lname = o.lockName(dbname)
-		if o.lock, err = os.OpenFile(lname, os.O_CREATE|os.O_EXCL|os.O_RDONLY, 0666); err != nil {
-			if os.IsExist(err) {
-				err = fmt.Errorf("cannot access DB %q: lock file %q exists", dbname, lname)
-			}
+		if o.lock, err = o.locker(dbname); err != nil {
 			return
 		}
 	}
@@ -120,9 +137,6 @@ func (o *Options) check(dbname string, new, lock bool) (err error) {
 	case _ACIDFull:
 		o._GracePeriod = time.Second
 		o._WAL = o.walName(dbname, o._WAL)
-		if lname == o._WAL {
-			panic("internal error")
-		}
 
 		switch new {
 		case true:
@@ -143,13 +157,6 @@ func (o *Options) check(dbname string, new, lock bool) (err error) {
 	}
 
 	return
-}
-
-func (o *Options) lockName(dbname string) (r string) {
-	base := filepath.Base(filepath.Clean(dbname)) + "lockfile"
-	h := sha1.New()
-	io.WriteString(h, base)
-	return filepath.Join(filepath.Dir(dbname), fmt.Sprintf(".%x", h.Sum(nil)))
 }
 
 func (o *Options) walName(dbname, wal string) (r string) {

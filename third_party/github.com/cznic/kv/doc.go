@@ -54,10 +54,10 @@ isolated iff their execution is serialized.
 
 Durability
 
-Transactions are commited using the two phase commit protocol(2PC)[2] and a
+Transactions are committed using the two phase commit protocol(2PC)[2] and a
 write ahead log(WAL)[3]. DB recovery after a crash is performed automatically
 using data from the WAL. Last transaction data, either of an in progress
-transaction or a transaction being commited at the moment of the crash, can get
+transaction or a transaction being committed at the moment of the crash, can get
 lost.
 
 No protection from non readable files, files corrupted by other processes or by

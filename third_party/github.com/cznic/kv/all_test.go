@@ -34,7 +34,7 @@ var dbg = func(s string, va ...interface{}) {
 func TestCreate(t *testing.T) {
 	const name = "_testdata/tempname"
 	os.Remove(name)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := Create(name, o)
 	if err != nil {
 		t.Fatal(err)
@@ -53,19 +53,19 @@ func TestCreate(t *testing.T) {
 		}
 	}()
 
-	if _, err = Create(name, &Options{}); err == nil {
+	if _, err = Create(name, &Options{noClone: true}); err == nil {
 		t.Error("unexpected success")
 		return
 	}
 
-	if _, err = Open(name, &Options{}); err == nil {
+	if _, err = Open(name, &Options{noClone: true}); err == nil {
 		t.Error("unexpected success")
 		return
 	}
 }
 
 func TestCreateMem(t *testing.T) {
-	db, err := CreateMem(&Options{})
+	db, err := CreateMem(&Options{noClone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestCreateMem(t *testing.T) {
 }
 
 func TestCreateTemp(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestCreateTemp(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
-	db, err := Open("_testdata/open.db", &Options{})
+	db, err := Open("_testdata/open.db", &Options{noClone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestOpen(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestName(t *testing.T) {
 }
 
 func TestSize(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestSize(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -238,7 +238,7 @@ func TestDelete(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -309,7 +309,7 @@ func BenchmarkDelete16(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -360,7 +360,7 @@ func TestExtract(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -443,7 +443,7 @@ func BenchmarkExtract16(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -490,7 +490,7 @@ func BenchmarkExtract16(b *testing.B) {
 }
 
 func TestFirst(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -618,7 +618,7 @@ func BenchmarkFirst16(b *testing.B) {
 	const n = 5000
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -651,7 +651,7 @@ func TestGet(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -720,7 +720,7 @@ func BenchmarkGet16(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -769,7 +769,7 @@ func BenchmarkGet16(b *testing.B) {
 func TestInc(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -850,7 +850,7 @@ func TestInc2(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -909,7 +909,7 @@ func BenchmarkInc(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -941,7 +941,7 @@ func BenchmarkInc(b *testing.B) {
 }
 
 func TestLast(t *testing.T) {
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -1069,7 +1069,7 @@ func BenchmarkLast16(b *testing.B) {
 	const n = 5000
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -1102,7 +1102,7 @@ func TestPut(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -1175,7 +1175,7 @@ func BenchmarkPut16(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -1226,7 +1226,7 @@ func TestSet(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
@@ -1296,7 +1296,7 @@ func BenchmarkSet16(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -1356,7 +1356,7 @@ func TestSeekNext(t *testing.T) {
 
 	for i, test := range table {
 		up := test.keys
-		db, err := CreateMem(&Options{})
+		db, err := CreateMem(&Options{noClone: true})
 		if err != nil {
 			t.Fatal(i, err)
 		}
@@ -1450,7 +1450,7 @@ func TestSeekPrev(t *testing.T) {
 
 	for i, test := range table {
 		down := test.keys
-		db, err := CreateMem(&Options{})
+		db, err := CreateMem(&Options{noClone: true})
 		if err != nil {
 			t.Fatal(i, err)
 		}
@@ -1532,7 +1532,7 @@ func BenchmarkSeek(b *testing.B) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -1581,7 +1581,7 @@ func BenchmarkNext1e3(b *testing.B) {
 	const N = int(1e3)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
-	o := &Options{}
+	o := &Options{noClone: true}
 	db, err := CreateTemp("_testdata", "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
@@ -1627,7 +1627,7 @@ func BenchmarkNext1e3(b *testing.B) {
 }
 
 func TestSeekFirst(t *testing.T) {
-	db, err := CreateMem(&Options{})
+	db, err := CreateMem(&Options{noClone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1701,7 +1701,7 @@ func TestSeekFirst(t *testing.T) {
 }
 
 func TestSeekLast(t *testing.T) {
-	db, err := CreateMem(&Options{})
+	db, err := CreateMem(&Options{noClone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1775,7 +1775,7 @@ func TestSeekLast(t *testing.T) {
 }
 
 func TestWALName(t *testing.T) {
-	db, err := CreateTemp("", "kv-wal-name", ".test", &Options{})
+	db, err := CreateTemp("", "kv-wal-name", ".test", &Options{noClone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
