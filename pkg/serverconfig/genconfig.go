@@ -45,7 +45,10 @@ type configPrefixesParams struct {
 	shareHandlerPath string
 }
 
-var tempDir = os.TempDir
+var (
+	tempDir = os.TempDir
+	noMkdir bool // for tests to not call os.Mkdir
+)
 
 func addPublishedConfig(prefixes jsonconfig.Obj,
 	published jsonconfig.Obj,
@@ -201,6 +204,16 @@ func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
 		"file":       file,
 	}
 	prefixes["/index-sqlite/"] = ob
+}
+
+func addKVConfig(prefixes jsonconfig.Obj, file string) {
+	prefixes["/index-kv/"] = map[string]interface{}{
+		"handler": "storage-kvfileindexer",
+		"handlerArgs": map[string]interface{}{
+			"blobSource": "/bs/",
+			"file":       file,
+		},
+	}
 }
 
 func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
@@ -507,6 +520,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		memIndex   = conf.OptionalBool("memIndex", false)
 		mongo      = conf.OptionalString("mongo", "")
 		sqliteFile = conf.OptionalString("sqlite", "")
+		kvFile     = conf.OptionalString("kvIndexFile", "")
 
 		_       = conf.OptionalList("replicateTo")
 		publish = conf.OptionalObject("publish")
@@ -562,14 +576,14 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	var indexerPath string
-	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, memIndex)
+	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, memIndex, kvFile)
 	switch {
 	case runIndex && numIndexers == 0:
-		return nil, fmt.Errorf("Unless wantIndex is set to false, you must specify an index option (mongo, mysql, postgres, sqlite, memIndex).")
+		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite, memIndex).")
 	case runIndex && numIndexers != 1:
-		return nil, fmt.Errorf("With wantIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, memIndex).")
+		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, memIndex).")
 	case !runIndex && numIndexers != 0:
-		return nil, fmt.Errorf("With wantIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite, memIndex.")
+		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite, memIndex.")
 	case mysql != "":
 		indexerPath = "/index-mysql/"
 	case postgres != "":
@@ -578,6 +592,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		indexerPath = "/index-mongo/"
 	case sqliteFile != "":
 		indexerPath = "/index-sqlite/"
+	case kvFile != "":
+		indexerPath = "/index-kv/"
 	case memIndex:
 		indexerPath = "/index-mem/"
 	}
@@ -623,10 +639,12 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// See http://code.google.com/p/camlistore/issues/detail?id=85
 		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
-		cacheDir = filepath.Join(blobPath, "/cache")
+		cacheDir = filepath.Join(blobPath, "cache")
 	}
-	if err := os.MkdirAll(cacheDir, 0700); err != nil {
-		return nil, fmt.Errorf("Could not create blobs cache dir %s: %v", cacheDir, err)
+	if !noMkdir {
+		if err := os.MkdirAll(cacheDir, 0700); err != nil {
+			return nil, fmt.Errorf("Could not create blobs cache dir %s: %v", cacheDir, err)
+		}
 	}
 
 	published := []interface{}{}
@@ -655,6 +673,9 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 	if sqliteFile != "" {
 		addSQLiteConfig(prefixes, sqliteFile)
+	}
+	if kvFile != "" {
+		addKVConfig(prefixes, kvFile)
 	}
 	if s3 != "" {
 		if err := addS3Config(prefixes, s3); err != nil {

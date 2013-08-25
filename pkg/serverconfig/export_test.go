@@ -21,3 +21,7 @@ var GenLowLevelConfig = genLowLevelConfig
 func SetTempDirFunc(f func() string) {
 	tempDir = f
 }
+
+func SetNoMkdir(v bool) {
+	noMkdir = v
+}

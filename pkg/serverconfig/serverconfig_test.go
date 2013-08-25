@@ -36,6 +36,7 @@ import (
 func init() {
 	// Avoid Linux vs. OS X differences in tests.
 	serverconfig.SetTempDirFunc(func() string { return "/tmp" })
+	serverconfig.SetNoMkdir(true)
 }
 
 func sortedKeys(m map[string]interface{}) (keys []string) {

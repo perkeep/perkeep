@@ -7,7 +7,7 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"ownerName": "Alice",
+				"ownerName": "Brad",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -42,7 +42,7 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"to": "/index-kv/"
+				"to": "/index-mem/"
 			}
 		},
 
@@ -58,7 +58,7 @@
 		"/bs-and-index/": {
 			"handler": "storage-replica",
 			"handlerArgs": {
-				"backends": ["/bs/", "/index-kv/"]
+				"backends": ["/bs/", "/index-mem/"]
 			}
 		},
 
@@ -88,19 +88,75 @@
 			}
 		},
 
-		"/index-kv/": {
-			"handler": "storage-kvfileindexer",
+		"/index-mem/": {
+			"handler": "storage-memory-only-dev-indexer",
 			"handlerArgs": {
-				"blobSource": "/bs/",
-                                "file": "/path/to/indexkv.db"
+				"blobSource": "/bs/"
 			}
 		},
 
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-kv/",
+				"index": "/index-mem/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
+			}
+		},
+
+		"/sto-s3/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "key",
+				"aws_secret_access_key": "secret",
+				"bucket": "bucket"
+			}
+		},
+
+		"/sync-to-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/sto-s3/"
+			}
+		},
+
+		"/sto-googlecloudstorage/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"bucket": "bucketName"
+			}
+		},
+
+		"/sync-to-googlecloudstorage/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/sto-googlecloudstorage/"
+			}
+		},
+
+		"/sto-googledrive/": {
+			"handler": "storage-googledrive",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"parent_id": "parentDirId"
+			}
+		},
+
+		"/sync-to-googledrive/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/sto-googledrive/"
 			}
 		}
 
