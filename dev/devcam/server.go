@@ -53,6 +53,8 @@ type serverCmd struct {
 
 	noBuild     bool
 	fullClosure bool
+
+	openBrowser bool
 	// end of flag vars
 
 	camliSrcRoot string // the camlistore source tree
@@ -81,6 +83,8 @@ func init() {
 
 		flags.BoolVar(&cmd.noBuild, "nobuild", false, "Do not rebuild anything.")
 		flags.BoolVar(&cmd.fullClosure, "fullclosure", false, "Use the ondisk closure library.")
+
+		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		return cmd
 	})
 }
@@ -374,7 +378,8 @@ func (c *serverCmd) RunCommand(args []string) error {
 	camliBin := filepath.Join(c.camliSrcRoot, "bin", "camlistored")
 	cmdArgs := []string{
 		"-configfile=" + filepath.Join(c.camliSrcRoot, "config", "dev-server-config.json"),
-		"-listen=" + c.listen}
+		"-listen=" + c.listen,
+		"-openbrowser=" + strconv.FormatBool(c.openBrowser)}
 	cmd := exec.Command(camliBin, cmdArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
