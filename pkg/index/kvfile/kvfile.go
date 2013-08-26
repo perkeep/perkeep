@@ -28,7 +28,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/osutil"
+	"camlistore.org/third_party/github.com/camlistore/lock"
 	"camlistore.org/third_party/github.com/cznic/kv"
 )
 
@@ -45,7 +45,7 @@ func NewStorage(file string) (index.Storage, io.Closer, error) {
 	db, err := createOpen(file, &kv.Options{
 		Locker: func(dbname string) (io.Closer, error) {
 			lkfile := dbname + ".lock"
-			return osutil.Lock(lkfile)
+			return lock.Lock(lkfile)
 		},
 	})
 	if err != nil {
