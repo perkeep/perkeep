@@ -88,7 +88,7 @@ func (c *gaeCmd) RunCommand(args []string) error {
 		fmt.Sprintf("--port=%s", c.port),
 	}
 	if c.all {
-		cmdArgs = append(cmdArgs, "-a", "0.0.0.0")
+		cmdArgs = append(cmdArgs, "--host", "0.0.0.0")
 	}
 	if c.wipe {
 		cmdArgs = append(cmdArgs, "--clear_datastore")
