@@ -50,9 +50,10 @@ var (
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
-	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
-	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
-	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	// TODO(mpl): looks like ifModsSince is not used anywhere?
+	ifModsSince = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
+	buildARCH   = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
+	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 var (

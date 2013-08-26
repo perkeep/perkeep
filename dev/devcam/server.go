@@ -130,16 +130,21 @@ func (c *serverCmd) build(name string) error {
 		return fmt.Errorf("Could not build, invalid target: %v", name)
 	}
 	binPath := filepath.Join(c.camliSrcRoot, "bin", name)
+	var modtime int64
 	fi, err := os.Stat(binPath)
 	if err != nil {
-		return fmt.Errorf("Could not stat %v: %v", binPath, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("Could not stat %v: %v", binPath, err)
+		}
+	} else {
+		modtime = fi.ModTime().Unix()
 	}
 	args := []string{
 		"run", "make.go",
 		"--quiet",
 		"--embed_static=false",
 		"--sqlite=false",
-		fmt.Sprintf("--if_mods_since=%d", fi.ModTime().Unix()),
+		fmt.Sprintf("--if_mods_since=%d", modtime),
 		"--targets=" + target,
 	}
 	cmd := exec.Command("go", args...)
