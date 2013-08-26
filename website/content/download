@@ -1,6 +1,6 @@
 <h1>Download Camlistore</h1>
 
-<p>The latest release is <a href="/docs/release/0.3">0.3 ("Glebe")</a>.</p>
+<p>The latest release is <a href="/docs/release/0.4">0.4 ("Oyens")</a>.</p>
 
 <p>Or, the canonical git repo is:</p>
 <pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
@@ -17,6 +17,8 @@
 <li><a href="/docs/release/0.2">0.2 ("Portland")</a>, 2013-06-22</li>
 
 <li><a href="/docs/release/0.3">0.3 ("Glebe")</a>, 2013-07-28</li>
+
+<li><a href="/docs/release/0.4">0.4 ("Oyens")</a>, 2013-08-26</li>
 
 </ul>
 
