@@ -97,6 +97,7 @@ func (w *World) Start() error {
 	{
 		w.server = exec.Command(
 			filepath.Join(w.camRoot, "bin", "camlistored"),
+			"--openbrowser=false",
 			"--configfile="+filepath.Join(w.camRoot, "pkg", "test", "testdata", "server-config.json"),
 			"--listen=FD:3",
 			"--pollparent=true",
