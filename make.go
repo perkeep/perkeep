@@ -39,6 +39,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -47,7 +48,7 @@ var haveSQLite = checkHaveSQLite()
 
 var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed the closure library.")
-	sql            = flag.Bool("sqlite", haveSQLite, "Whether you want SQLite in your build.")
+	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: yes, no, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
@@ -76,12 +77,21 @@ func main() {
 	}
 	verifyCamlistoreRoot(camRoot)
 
-	if runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH {
-		if *sql {
-			log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
+	cross := runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH
+	var sql bool
+	if *sqlFlag == "auto" {
+		sql = !cross && haveSQLite
+	} else {
+		sql, err = strconv.ParseBool(*sqlFlag)
+		if err != nil {
+			log.Fatalf("Bad boolean --sql flag %q", *sqlFlag)
 		}
 	}
-	if *sql && !haveSQLite {
+
+	if cross && sql {
+		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
+	}
+	if sql && !haveSQLite {
 		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
 		switch runtime.GOOS {
 		case "darwin":
@@ -95,7 +105,7 @@ func main() {
 	}
 
 	buildBaseDir := "build-gopath"
-	if !*sql {
+	if !sql {
 		buildBaseDir += "-nosqlite"
 	}
 
@@ -111,7 +121,7 @@ func main() {
 
 	if *verbose {
 		log.Printf("Camlistore version = %s", version)
-		log.Printf("SQLite included: %v", *sql)
+		log.Printf("SQLite included: %v", sql)
 		log.Printf("Temporary source: %s", buildSrcDir)
 		log.Printf("Output binaries: %s", binDir)
 	}
@@ -157,7 +167,7 @@ func main() {
 	deleteUnwantedOldMirrorFiles(buildSrcDir)
 
 	tags := ""
-	if *sql {
+	if sql {
 		tags = "with_sqlite"
 	}
 	baseArgs := []string{"install", "-v"}
