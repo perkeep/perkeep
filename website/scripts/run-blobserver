@@ -11,6 +11,7 @@ go run make.go \
 	-embed_static=false \
 	-targets=camlistore.org/server/camlistored && \
 ./bin/camlistored \
+	-openbrowser=false \
 	-configfile=$Bin/blobserver-example/example-blobserver-config.json \
 	-listen=:3179 "$@"
 
