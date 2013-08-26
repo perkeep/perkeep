@@ -48,7 +48,14 @@ func TestLockInChild(t *testing.T) {
 
 	lk, err := lock(f)
 	if err != nil {
-		log.Fatal("Lock failed: %v", err)
+		log.Fatalf("Lock failed: %v", err)
+	}
+
+	if v, _ := strconv.ParseBool(os.Getenv("TEST_LOCK_CRASH")); v {
+		// Simulate a crash, or at least not unlocking the
+		// lock.  We still exit 0 just to simplify the parent
+		// process exec code.
+		os.Exit(0)
 	}
 	lk.Close()
 }
@@ -67,37 +74,51 @@ func testLock(t *testing.T, portable bool) {
 
 	path := filepath.Join(td, "foo.lock")
 
-	childLock := func() error {
+	childLock := func(crash bool) error {
 		cmd := exec.Command(os.Args[0], "-test.run=LockInChild$")
 		cmd.Env = []string{"TEST_LOCK_FILE=" + path}
 		if portable {
 			cmd.Env = append(cmd.Env, "TEST_LOCK_PORTABLE=1")
 		}
+		if crash {
+			cmd.Env = append(cmd.Env, "TEST_LOCK_CRASH=1")
+		}
 		out, err := cmd.CombinedOutput()
+		t.Logf("Child output: %q (err %v)", out, err)
 		if err != nil {
 			return fmt.Errorf("Child Process lock of %s failed: %v %s", path, err, out)
 		}
 		return nil
 	}
 
-	if err := childLock(); err != nil {
-		t.Fatalf("lock in child process: %v", err)
+	t.Logf("Locking in crashing child...")
+	if err := childLock(true); err != nil {
+		t.Fatalf("first lock in child process: %v", err)
 	}
 
+	t.Logf("Locking+unlocking in child...")
+	if err := childLock(false); err != nil {
+		t.Fatalf("lock in child process after crashing child: %v", err)
+	}
+
+	t.Logf("Locking in parent...")
 	lk1, err := lock(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	t.Logf("Again in parent...")
 	_, err = lock(path)
 	if err == nil {
 		t.Fatal("expected second lock to fail")
 	}
 
-	if childLock() == nil {
+	t.Logf("Locking in child...")
+	if childLock(false) == nil {
 		t.Fatalf("expected lock in child process to fail")
 	}
 
+	t.Logf("Unlocking lock in parent")
 	if err := lk1.Close(); err != nil {
 		t.Fatal(err)
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package lock
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -59,14 +60,55 @@ func lockPortable(name string) (io.Closer, error) {
 	}
 	fi, err := os.Stat(absName)
 	if err == nil && fi.Size() > 0 {
-		return nil, fmt.Errorf("can't Lock file %q: has non-zero size", name)
+		if isStaleLock(absName) {
+			os.Remove(absName)
+		} else {
+			return nil, fmt.Errorf("can't Lock file %q: has non-zero size", name)
+		}
 	}
 	f, err := os.OpenFile(absName, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create lock file %s %v", absName, err)
 	}
+	if err := json.NewEncoder(f).Encode(&pidLockMeta{OwnerPID: os.Getpid()}); err != nil {
+		return nil, err
+	}
 	return &lockCloser{f: f, abs: absName}, nil
 }
+
+type pidLockMeta struct {
+	OwnerPID int
+}
+
+func isStaleLock(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	var meta pidLockMeta
+	if json.NewDecoder(f).Decode(&meta) != nil {
+		return false
+	}
+	if meta.OwnerPID == 0 {
+		return false
+	}
+	p, err := os.FindProcess(meta.OwnerPID)
+	if err != nil {
+		// e.g. on Windows
+		return true
+	}
+	// On unix, os.FindProcess always is true, so we have to send
+	// it a signal to see if it's alive.
+	if signalZero != nil {
+		if p.Signal(signalZero) != nil {
+			return true
+		}
+	}
+	return false
+}
+
+var signalZero os.Signal // nil or set by lock_sigzero.go
 
 type lockCloser struct {
 	f    *os.File
