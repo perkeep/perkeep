@@ -95,16 +95,10 @@ Offline list:
    be able to reload itself, and also watch for binaries changing and restart
    when binaries change.  (or symlinks to binaries)
 
--- BUG: ./dev-server and hitting http://localhost:3179/ shouldn't mention
-   the /setup handler.
-
 -- add gofmt check to "make presubmit". also add "make fmt" target.
 
 -- BUG: osutil paths.go on OS X: should use Library everywhere instead of mix of
    Library and ~/.camlistore?
-
--- camput: support for skipping common cache/temp files (most of the support is
-   there now, just need to modify cmd/camput/files.go)
 
 OLD:
 

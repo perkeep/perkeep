@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -140,14 +141,18 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	configLink := ""
-	if auth.IsLocalhost(req) {
+	if auth.IsLocalhost(req) && !isDevServer() {
 		configLink = "<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>"
 	}
 	fmt.Fprintf(rw, "<html><body>This is camlistored, a "+
 		"<a href='http://camlistore.org'>Camlistore</a> server."+
 		"%s"+
-		"<p>To manage your content, access the <a href='/ui'>/ui</a>.</p></body></html>\n",
+		"<p>To manage your content, access the <a href='/ui/'>/ui/</a>.</p></body></html>\n",
 		configLink)
+}
+
+func isDevServer() bool {
+	return os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
 }
 
 type byFromTo []*SyncHandler
