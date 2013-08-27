@@ -19,6 +19,7 @@ package index
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -676,4 +677,15 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search
 	return edges, nil
 }
 
+// Storage returns the index's underlying Storage implementation.
 func (x *Index) Storage() Storage { return x.s }
+
+// Close closes the underlying Storage, if the storage has a Close method.
+// The return value is the return value of the underlying Close, or
+// nil otherwise.
+func (x *Index) Close() error {
+	if cl, ok := x.s.(io.Closer); ok {
+		return cl.Close()
+	}
+	return nil
+}

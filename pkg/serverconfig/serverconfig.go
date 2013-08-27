@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -56,6 +57,7 @@ type handlerLoader struct {
 	config    map[string]*handlerConfig // prefix -> config
 	handler   map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
 	curPrefix string
+	closers   []io.Closer
 
 	// optional context (for App Engine, the first request that
 	// started up the process).  we may need this if setting up
@@ -265,6 +267,9 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 		hl.handler[h.prefix] = pstorage
 		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
+		if cl, ok := pstorage.(blobserver.ShutdownStorage); ok {
+			hl.closers = append(hl.closers, cl)
+		}
 		return
 	}
 
@@ -344,19 +349,22 @@ func (config *Config) checkValidAuth() error {
 //
 // baseURL is required and specifies the root of this webserver, without trailing slash.
 // context may be nil (used and required by App Engine only)
-func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (outerr error) {
+//
+// The returned shutdown value can be used to cleanly shut down the
+// handlers.
+func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (shutdown io.Closer, err error) {
 	defer func() {
-		if err := recover(); err != nil {
-			outerr = fmt.Errorf("%v", err)
+		if e := recover(); e != nil {
+			err = fmt.Errorf("%v", e)
 		}
 	}()
 
 	if err := config.checkValidAuth(); err != nil {
-		return fmt.Errorf("error while configuring auth: %v", err)
+		return nil, fmt.Errorf("error while configuring auth: %v", err)
 	}
 	prefixes := config.RequiredObject("prefixes")
 	if err := config.Validate(); err != nil {
-		return fmt.Errorf("configuration error in root object's keys: %v", err)
+		return nil, fmt.Errorf("configuration error in root object's keys: %v", err)
 	}
 
 	hl := &handlerLoader{
@@ -404,7 +412,18 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
-	return nil
+	return multiCloser(hl.closers), nil
+}
+
+type multiCloser []io.Closer
+
+func (s multiCloser) Close() (err error) {
+	for _, cl := range s {
+		if err1 := cl.Close(); err == nil && err1 != nil {
+			err = err1
+		}
+	}
+	return
 }
 
 // profileHandler publishes server profile information.

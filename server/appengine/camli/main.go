@@ -99,7 +99,7 @@ func realInit(w http.ResponseWriter, r *http.Request) bool {
 	ctx.Infof("baseurl = %q", baseURL)
 
 	root.mux = http.NewServeMux()
-	err = config.InstallHandlers(root.mux, baseURL, r)
+	_, err = config.InstallHandlers(root.mux, baseURL, r)
 	if err != nil {
 		return errf("Error installing handlers: %v", err)
 	}

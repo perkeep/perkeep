@@ -27,6 +27,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -348,9 +349,10 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 	ws.SetTLS(cert, key)
 }
 
-func handleSignals() {
+func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
+	signal.Notify(c, syscall.SIGINT)
 	for {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
@@ -363,6 +365,23 @@ func handleSignals() {
 			err := osutil.RestartProcess()
 			if err != nil {
 				log.Fatal("Failed to restart: " + err.Error())
+			}
+		case syscall.SIGINT:
+			log.Print("Got SIGTERM: shutting down")
+			donec := make(chan bool)
+			go func() {
+				cl := <-shutdownc
+				if err := cl.Close(); err != nil {
+					exitf("Error shutting down: %v", err)
+				}
+				donec <- true
+			}()
+			select {
+			case <-donec:
+				log.Printf("Shut down.")
+				os.Exit(0)
+			case <-time.After(2 * time.Second):
+				exitf("Timeout shutting down. Exiting uncleanly.")
 			}
 		default:
 			log.Fatal("Received another signal, should not happen.")
@@ -394,6 +413,9 @@ func main() {
 		return
 	}
 
+	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
+	go handleSignals(shutdownc)
+
 	fileName, isNewConfig, err := findConfigFile(*flagConfigFile)
 	if err != nil {
 		exitf("Error finding config file %q: %v", fileName, err)
@@ -408,10 +430,11 @@ func main() {
 	listen, baseURL := listenAndBaseURL(config)
 
 	setupTLS(ws, config, listen)
-	err = config.InstallHandlers(ws, baseURL, nil)
+	shutdownCloser, err := config.InstallHandlers(ws, baseURL, nil)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
+	shutdownc <- shutdownCloser
 
 	err = ws.Listen(listen)
 	if err != nil {
@@ -434,7 +457,6 @@ func main() {
 	}
 
 	go ws.Serve()
-	go handleSignals()
 	if flagPollParent {
 		osutil.DieOnParentDeath()
 	}

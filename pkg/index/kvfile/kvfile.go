@@ -22,6 +22,7 @@ package kvfile
 import (
 	"errors"
 	"io"
+	"log"
 	"os"
 	"sync"
 
@@ -134,6 +135,11 @@ func (is *kvis) CommitBatch(bm index.BatchMutation) error {
 
 	good = true
 	return is.db.Commit()
+}
+
+func (is *kvis) Close() error {
+	log.Printf("Closing kvfile database")
+	return is.db.Close()
 }
 
 type iter struct {
