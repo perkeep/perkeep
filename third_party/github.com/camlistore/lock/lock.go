@@ -130,3 +130,24 @@ func (lc *lockCloser) close() {
 		lc.err = err
 	}
 }
+
+// unlocker is used by the darwin and linux implementations with fcntl
+// advisory locks.
+type unlocker struct {
+	f   *os.File
+	abs string
+}
+
+func (u *unlocker) Close() error {
+	lockmu.Lock()
+	// Remove is not necessary but it's nice for us to clean up.
+	// If we do do this, though, it needs to be before the
+	// u.f.Close below.
+	os.Remove(u.abs)
+	if err := u.f.Close(); err != nil {
+		return err
+	}
+	delete(locked, u.abs)
+	lockmu.Unlock()
+	return nil
+}

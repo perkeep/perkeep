@@ -84,18 +84,3 @@ func lockFcntl(name string) (io.Closer, error) {
 	}
 	return &unlocker{f, abs}, nil
 }
-
-type unlocker struct {
-	f   *os.File
-	abs string
-}
-
-func (u *unlocker) Close() error {
-	lockmu.Lock()
-	if err := u.f.Close(); err != nil {
-		return err
-	}
-	delete(locked, u.abs)
-	lockmu.Unlock()
-	return nil
-}
