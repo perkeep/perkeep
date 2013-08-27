@@ -68,20 +68,6 @@ type StatReceiver interface {
 	BlobStatter
 }
 
-// QueueCreator is implemented by Storage interfaces which support
-// creating queues in which all new uploads go to both the root
-// storage as well as the named queue, which is then returned.  This
-// is used by replication.
-type QueueCreator interface {
-	CreateQueue(name string) (Storage, error)
-}
-
-type MaxEnumerateConfig interface {
-	// Returns the max that this storage interface is capable
-	// of enumerating at once.
-	MaxEnumerate() int
-}
-
 type BlobEnumerator interface {
 	// EnumerateBobs sends at most limit SizedBlobRef into dest,
 	// sorted, as long as they are lexigraphically greater than
@@ -116,8 +102,29 @@ type Config struct {
 	HandlerFinder FindHandlerByTyper
 }
 
-type Configer interface {
-	Config() *Config
+type BlobRemover interface {
+	// RemoveBlobs removes 0 or more blobs.  Removal of
+	// non-existent items isn't an error.  Returns failure if any
+	// items existed but failed to be deleted.
+	RemoveBlobs(blobs []blob.Ref) error
+}
+
+// Storage is the interface that must be implemented by a blobserver
+// storage type. (e.g. localdisk, s3, encrypt, shard, replica, remote)
+type Storage interface {
+	blob.StreamingFetcher
+	BlobReceiver
+	BlobStatter
+	BlobEnumerator
+	BlobRemover
+}
+
+// Optional interface for storage implementations which can be asked
+// to shut down cleanly. Regardless, all implementations should
+// be able to survive crashes without data loss.
+type ShutdownStorage interface {
+	Storage
+	io.Closer
 }
 
 // A GenerationNotSupportedError explains why a Storage
@@ -154,21 +161,8 @@ type Generationer interface {
 	ResetStorageGeneration() error
 }
 
-// Storage is the interface that must be implemented by a blobserver
-// storage type. (e.g. localdisk, s3, encrypt, shard, replica, remote)
-type Storage interface {
-	blob.StreamingFetcher
-	BlobReceiver
-	BlobStatter
-	BlobEnumerator
-	BlobRemover
-}
-
-type BlobRemover interface {
-	// RemoveBlobs removes 0 or more blobs.  Removal of
-	// non-existent items isn't an error.  Returns failure if any
-	// items existed but failed to be deleted.
-	RemoveBlobs(blobs []blob.Ref) error
+type Configer interface {
+	Config() *Config
 }
 
 type StorageConfiger interface {
@@ -176,7 +170,23 @@ type StorageConfiger interface {
 	Configer
 }
 
+// StorageQueueCreator is implemented by Storage interfaces which support
+// creating queues in which all new uploads go to both the root
+// storage as well as the named queue, which is then returned.  This
+// is used by replication.
 type StorageQueueCreator interface {
 	Storage
-	QueueCreator
+
+	CreateQueue(name string) (Storage, error)
+}
+
+// MaxEnumerateConfig is an optional interface implemented by Storage
+// interfaces to advertise their max value for how many items can
+// be enumerated at once.
+type MaxEnumerateConfig interface {
+	Storage
+
+	// MaxEnumerate returns the max that this storage interface is
+	// capable of enumerating at once.
+	MaxEnumerate() int
 }
