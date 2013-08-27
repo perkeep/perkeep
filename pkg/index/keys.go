@@ -240,4 +240,16 @@ var (
 			{"height", typeStr},
 		},
 	}
+
+	// Audio attributes (e.g., ID3 tags). Uses generic terms like
+	// "artist", "title", "album", etc.
+	keyAudioTag = &keyType{
+		"audiotag",
+		[]part{
+			{"tag", typeStr},
+			{"value", typeStr},
+			{"wholeRef", typeBlobRef}, // wholeRef for song
+		},
+		nil,
+	}
 )

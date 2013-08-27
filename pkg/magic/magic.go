@@ -39,6 +39,7 @@ var prefixTable = []prefixEntry{
 	{[]byte("\xff\xd8\xff\xdb"), "image/jpeg"},
 	{[]byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, "image/png"},
 	{[]byte("-----BEGIN PGP PUBLIC KEY BLOCK---"), "text/x-openpgp-public-key"},
+	{[]byte{'I', 'D', '3'}, "audio/mpeg"},
 	// TODO(bradfitz): popular audio & video formats at least
 }
 
