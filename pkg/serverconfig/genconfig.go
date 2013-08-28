@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 )
@@ -567,10 +568,11 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	obj["https"] = tlsOn
 	obj["auth"] = auth
 
+	username := ""
 	if dbname == "" {
-		username := os.Getenv("USER")
+		username = osutil.Username()
 		if username == "" {
-			return nil, fmt.Errorf("USER env var not set; needed to define dbname")
+			return nil, fmt.Errorf("USER (USERNAME on windows) env var not set; needed to define dbname")
 		}
 		dbname = "camli" + username
 	}
