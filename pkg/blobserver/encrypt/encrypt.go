@@ -64,9 +64,9 @@ const (
 /*
 Dev notes:
 
-$ ./dev-camput --path=/enc/ blob dev-camput
+$ devcam put --path=/enc/ blob dev-camput
 sha1-282c0feceeb5cdf4c5086c191b15356fadfb2392
-$ ./dev-camget --path=/enc/ sha1-282c0feceeb5cdf4c5086c191b15356fadfb2392
+$ devcam get --path=/enc/ sha1-282c0feceeb5cdf4c5086c191b15356fadfb2392
 $ find /tmp/camliroot-$USER/port3179/encblob/
 $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 

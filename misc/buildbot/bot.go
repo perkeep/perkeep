@@ -102,10 +102,10 @@ var NameToCmd = map[string]string{
 	"buildCamli3": "make presubmit",
 	"runCamli":    "./devcam server --wipe --mysql",
 	"hitCamliUi1": "http://localhost:3179/ui/",
-	"camget":      "./dev-camget ",
-	"camput1":     "./dev-camput file --permanode " + testFile[0],
-	"camput2":     "./dev-camput file --vivify " + testFile[1],
-	"camput3":     "./dev-camput file --filenodes pkg",
+	"camget":      "./devcam get ",
+	"camput1":     "./devcam put file --permanode " + testFile[0],
+	"camput2":     "./devcam put file --vivify " + testFile[1],
+	"camput3":     "./devcam put file --filenodes pkg",
 }
 
 func usage() {

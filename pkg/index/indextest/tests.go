@@ -211,7 +211,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 		now:           time.Unix(1322443956, 123456),
 		Fataler:       logFataler{},
 	}
-	// Add dev-camput's test key public key, keyid 26F5ABDA,
+	// Add dev client test key public key, keyid 26F5ABDA,
 	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
 	if g, w := id.SignerBlobRef.String(), "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"; g != w {
 		id.Fatalf("unexpected signer blobref; got signer = %q; want %q", g, w)

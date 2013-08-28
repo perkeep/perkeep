@@ -21,14 +21,21 @@ so they can be used by developers to ease hacking on camlistore.
 
 Usage:
 
-	devcam [globalopts] <mode> [commandopts] [commandargs]
+	devcam <mode> [modeopts] -- [commandargs]
 
 Modes:
 
   appengine: run the App Engine camlistored in dev mode.
+  get: run camget in dev mode.
+  put: run camput in dev mode.
   server: run the stand-alone camlistored in dev mode.
 
 Examples:
+
+  devcam get <blobref>
+  devcam get -- --shared http://localhost:3169/share/<blobref>
+
+  devcam put file --filenodes /mnt/camera/DCIM
 
   devcam server -wipe -mysql -fullclosure
 

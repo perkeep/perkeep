@@ -243,7 +243,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_BASEURL", base)
 
 	setenv("CAMLI_DEV_CAMLI_ROOT", c.camliSrcRoot)
-	setenv("CAMLI_AUTH", "devauth:pass"+c.port)
+	setenv("CAMLI_AUTH", "devauth:pass3179")
 	fullSuffix := func(name string) string {
 		return filepath.Join(c.camliRoot, name)
 	}
@@ -376,8 +376,8 @@ func (c *serverCmd) RunCommand(args []string) error {
 		return fmt.Errorf("Could not setup the closure lib: %v", err)
 	}
 
-	log.Printf("Starting dev server on %v/ui/ with password \"pass%v\"\n",
-		os.Getenv("CAMLI_BASEURL"), c.port)
+	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
+		os.Getenv("CAMLI_BASEURL"))
 
 	camliBin := filepath.Join(c.camliSrcRoot, "bin", "camlistored")
 	cmdArgs := []string{

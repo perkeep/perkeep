@@ -33,9 +33,7 @@ foreach my $d (qw{
  clients/chrome
  lib
  old
- dev-camget
  dev-cammount
- dev-camput
  dev-camtool
  dev-db
  dev-pass-camput

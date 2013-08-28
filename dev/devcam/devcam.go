@@ -117,5 +117,7 @@ func handleSignals(camliProc *os.Process) {
 }
 
 func main() {
+	// TODO(mpl): usage error is not really correct for devcam.
+	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()
 }

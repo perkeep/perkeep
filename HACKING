@@ -32,8 +32,6 @@ During development, rather than use the main binaries ("camput",
 wrappers that automatically configure the environment to use the
 test server & test environment:
 
-$ ./dev-camput
-$ ./dev-camget
 $ ./dev-camtool
 $ ./dev-cammount
 ... etc.
@@ -43,17 +41,19 @@ with subcommands: devcam. To install (assuming your GOPATH is set):
 
 $ go install ./dev/devcam
 
-The ./dev-server and ./dev-appengine scripts have already been replaced by:
+The ./dev-server, ./dev-camput, ./dev-camget, and ./dev-appengine scripts have already been replaced by:
 
 $ devcam server
+$ devcam put
+$ devcam get
 $ devcam appengine
 
 Then, once the dev server is running,
 
   - Upload a file:
-      ./dev-camput file ~/camlistore/COPYING
+      devcam put file ~/camlistore/COPYING
   - Create a permanode:
-      ./dev-camput permanode
+      devcam put permanode
   - Use the UI: http://localhost:3179/ui/
 
 Please update this file as appropriate.
