@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 
 	"camlistore.org/pkg/errorutil"
@@ -222,6 +223,10 @@ func (c *ConfigParser) expandEnv(v []interface{}) (interface{}, error) {
 	expanded := envPattern.ReplaceAllStringFunc(s, func(match string) string {
 		envVar := match[2 : len(match)-1]
 		val := os.Getenv(envVar)
+		// Special case:
+		if val == "" && envVar == "USER" && runtime.GOOS == "windows" {
+			val = os.Getenv("USERNAME")
+		}
 		if val == "" {
 			if hasDefault {
 				return def
