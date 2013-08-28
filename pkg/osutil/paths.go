@@ -36,6 +36,13 @@ func HomeDir() string {
 	return os.Getenv("HOME")
 }
 
+func Username() string {
+	if runtime.GOOS == "windows" {
+		return os.Getenv("USERNAME")
+	}
+	return os.Getenv("USER")
+}
+
 var cacheDirOnce sync.Once
 
 func CacheDir() string {

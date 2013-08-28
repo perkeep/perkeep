@@ -161,9 +161,9 @@ func (c *serverCmd) build(name string) error {
 }
 
 func (c *serverCmd) setCamliRoot() error {
-	user := os.Getenv("USER")
+	user := osutil.Username()
 	if user == "" {
-		return errors.New("Could not get USER env var")
+		return errors.New("Could not get username from environment")
 	}
 	c.camliRoot = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
 	if c.wipe {
@@ -189,9 +189,9 @@ func (c *serverCmd) setEnvVars() error {
 	if c.debug {
 		setenv("CAMLI_HTTP_DEBUG", "1")
 	}
-	user := os.Getenv("USER")
+	user := osutil.Username()
 	if user == "" {
-		return errors.New("Could not get USER env var")
+		return errors.New("Could not get username from environment")
 	}
 	setenv("CAMLI_DBNAME", "devcamli"+user)
 	setenv("CAMLI_MYSQL_ENABLED", "false")

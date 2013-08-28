@@ -20,13 +20,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/postgres"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/test"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
@@ -65,7 +65,7 @@ WHERE
 }
 
 func makeIndex() *index.Index {
-	dbname := "camlitest_" + os.Getenv("USER")
+	dbname := "camlitest_" + osutil.Username()
 	closeAllSessions(dbname)
 	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
 	do(rootdb, "CREATE DATABASE "+dbname)
