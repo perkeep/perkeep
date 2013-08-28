@@ -171,24 +171,36 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 
 var commitHash = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
 
-func mainHandler(rw http.ResponseWriter, req *http.Request) {
-	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
-	if strings.Contains(relPath, "..") {
-		return
-	}
-
+// empty return value means don't redirect.
+func redirectPath(u *url.URL) string {
 	// Example:
 	// /code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed
-	if strings.HasPrefix(relPath, "code/") {
-		m := commitHash.FindStringSubmatch(req.URL.RawQuery)
+	if strings.HasPrefix(u.Path, "/code/") {
+		m := commitHash.FindStringSubmatch(u.RawQuery)
 		if len(m) == 2 {
-			http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/"+m[1], http.StatusFound)
+			return "https://camlistore.googlesource.com/camlistore/+/" + m[1]
 		}
 	}
 
-	if strings.HasPrefix(relPath, "gw/") {
-		path := relPath[3:]
-		http.Redirect(rw, req, "https://camlistore.googlesource.com/camlistore/+/"+path, http.StatusFound)
+	if strings.HasPrefix(u.Path, "/gw/") {
+		path := strings.TrimPrefix(u.Path, "/gw/")
+		if strings.HasPrefix(path, "doc") || strings.HasPrefix(path, "clients") {
+			return "https://camlistore.googlesource.com/camlistore/+/master/" + path
+		}
+		// Assume it's a commit
+		return "https://camlistore.googlesource.com/camlistore/+/" + path
+	}
+	return ""
+}
+
+func mainHandler(rw http.ResponseWriter, req *http.Request) {
+	if target := redirectPath(req.URL); target != "" {
+		http.Redirect(rw, req, target, http.StatusFound)
+		return
+	}
+
+	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
+	if strings.Contains(relPath, "..") {
 		return
 	}
 
