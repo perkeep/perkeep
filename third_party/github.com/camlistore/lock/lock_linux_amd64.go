@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -32,11 +31,6 @@ import (
 func init() {
 	lockFn = lockFcntl
 }
-
-var (
-	lockmu sync.Mutex
-	locked = map[string]bool{}
-)
 
 func lockFcntl(name string) (io.Closer, error) {
 	abs, err := filepath.Abs(name)

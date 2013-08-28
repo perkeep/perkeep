@@ -131,6 +131,11 @@ func (lc *lockCloser) close() {
 	}
 }
 
+var (
+	lockmu sync.Mutex
+	locked = map[string]bool{} // abs path -> true
+)
+
 // unlocker is used by the darwin and linux implementations with fcntl
 // advisory locks.
 type unlocker struct {
