@@ -36,6 +36,8 @@ func HomeDir() string {
 	return os.Getenv("HOME")
 }
 
+// Username returns the current user's username, as
+// reported by the relevant environment variable.
 func Username() string {
 	if runtime.GOOS == "windows" {
 		return os.Getenv("USERNAME")
