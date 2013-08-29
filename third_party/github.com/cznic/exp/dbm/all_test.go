@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"camlistore.org/third_party/github.com/cznic/exp/lldb"
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 )
 
 var (
@@ -795,7 +796,7 @@ func TestSlice0(t *testing.T) {
 			ga = append(ga, strings.Join(a, ","))
 			return true, nil
 		}); err != nil {
-			if err != io.EOF {
+			if !fileutil.IsEOF(err) {
 				t.Fatal(i, err)
 			}
 		}
@@ -2116,7 +2117,7 @@ func TestFileReadAtWriteAt(t *testing.T) {
 			from, to = 0, n2
 		}
 		n, err := f.ReadAt(b[from:to], int64(from))
-		if err != nil && (err != io.EOF && n != 0) {
+		if err != nil && (!fileutil.IsEOF(err) && n != 0) {
 			t.Error(fsz(), from, to, err)
 			return
 		}

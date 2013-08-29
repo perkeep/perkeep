@@ -11,6 +11,7 @@ import (
 
 	"camlistore.org/third_party/github.com/cznic/exp/lldb"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 )
 
 /*
@@ -375,7 +376,7 @@ func (f *File) ReadFrom(r io.Reader) (n int64, err error) {
 			n += int64(rn)
 		}
 	}
-	if rerr != io.EOF {
+	if !fileutil.IsEOF(rerr) {
 		err = rerr
 	}
 	return
@@ -439,7 +440,7 @@ func (f *File) WriteTo(w io.Writer) (n int64, err error) {
 			n += int64(wn)
 		}
 	}
-	if rerr != io.EOF {
+	if !fileutil.IsEOF(rerr) {
 		err = rerr
 	}
 	return

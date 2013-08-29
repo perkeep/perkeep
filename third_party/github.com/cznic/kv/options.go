@@ -85,8 +85,9 @@ type Options struct {
 	// used. If it is of zero size then a clean shutdown of the DB is
 	// assumed, otherwise an automatic DB recovery is performed.
 	//
-	// On creating a new DB the WAL file must not exist. It's not safe to
-	// write to a WAL file as it may contain unprocessed DB recovery data.
+	// On creating a new DB the WAL file must not exist or it must be
+	// empty. It's not safe to write to a non empty WAL file as it may
+	// contain unprocessed DB recovery data.
 	_WAL string
 
 	// Time to collect transactions before committing them into the WAL.
@@ -142,7 +143,16 @@ func (o *Options) check(dbname string, new, lock bool) (err error) {
 		case true:
 			if o.wal, err = os.OpenFile(o._WAL, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666); err != nil {
 				if os.IsExist(err) {
-					err = fmt.Errorf("cannot create DB %q: WAL file %q exists", dbname, o._WAL)
+					fi, e := os.Stat(o._WAL)
+					if e != nil {
+						return e
+					}
+
+					if sz := fi.Size(); sz != 0 {
+						return fmt.Errorf("cannot create DB %q: non empty WAL file %q (size %d) exists", dbname, o._WAL, sz)
+					}
+
+					o.wal, err = os.OpenFile(o._WAL, os.O_RDWR, 0666)
 				}
 				return
 			}

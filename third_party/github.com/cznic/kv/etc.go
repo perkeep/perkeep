@@ -7,7 +7,8 @@ package kv
 import (
 	"bytes"
 	"fmt"
-	"io"
+
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 )
 
 type header struct {
@@ -48,7 +49,7 @@ func h2b(b []byte, h int64) []byte {
 }
 
 func noEof(e error) (err error) {
-	if e != io.EOF {
+	if !fileutil.IsEOF(e) {
 		err = e
 	}
 	return
