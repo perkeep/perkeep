@@ -7,6 +7,7 @@
 package fileutil
 
 import (
+	"io"
 	"os"
 )
 
@@ -21,3 +22,6 @@ func PunchHole(f *os.File, off, len int64) error {
 func Fadvise(f *os.File, off, len int64, advice FadviseAdvice) error {
 	return nil
 }
+
+// IsEOF reports whether err is an EOF condition.
+func IsEOF(err error) bool { return err == io.EOF }

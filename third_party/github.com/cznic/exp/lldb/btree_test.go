@@ -10,13 +10,13 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"io"
 	"math"
 	"math/rand"
 	"os"
 	"runtime"
 	"testing"
 
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
@@ -632,15 +632,15 @@ func TestbTreeNext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err = enum.current(); err != io.EOF {
+	if _, _, err = enum.current(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
-	if err = enum.next(); err != io.EOF {
+	if err = enum.next(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
-	if err = enum.prev(); err != io.EOF {
+	if err = enum.prev(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -683,7 +683,7 @@ func TestbTreeNext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = enum.next(); N > 1 && err != io.EOF {
+	if err = enum.next(); N > 1 && !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -697,11 +697,11 @@ func TestbTreeNext(t *testing.T) {
 	}
 
 	// index: N
-	if _, _, err = enum.current(); err != io.EOF {
+	if _, _, err = enum.current(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
-	if err = enum.next(); N > 1 && err != io.EOF {
+	if err = enum.next(); N > 1 && !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -727,7 +727,7 @@ func TestbTreeNext(t *testing.T) {
 
 		switch {
 		case i == N:
-			if err := enum.next(); err != io.EOF {
+			if err := enum.next(); !fileutil.IsEOF(err) {
 				t.Fatal(err)
 			}
 		default:
@@ -747,15 +747,15 @@ func TestbTreePrev(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err = enum.current(); err != io.EOF {
+	if _, _, err = enum.current(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
-	if err = enum.next(); err != io.EOF {
+	if err = enum.next(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
-	if err = enum.prev(); err != io.EOF {
+	if err = enum.prev(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -780,7 +780,7 @@ func TestbTreePrev(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = enum.prev(); err != io.EOF {
+	if err = enum.prev(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -812,7 +812,7 @@ func TestbTreePrev(t *testing.T) {
 	}
 
 	// index: N
-	if _, _, err = enum.current(); err != io.EOF {
+	if _, _, err = enum.current(); !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -842,7 +842,7 @@ func TestbTreePrev(t *testing.T) {
 
 		switch {
 		case i == 1:
-			if err := enum.prev(); err != io.EOF {
+			if err := enum.prev(); !fileutil.IsEOF(err) {
 				t.Fatal(err)
 			}
 		default:
@@ -1095,7 +1095,7 @@ func TestseekFirst(t *testing.T) {
 	bt := NewBTree(nil)
 
 	enum, err := bt.seekFirst()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1106,12 +1106,12 @@ func TestseekFirst(t *testing.T) {
 	}
 
 	err = enum.prev()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
 	err = enum.next()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1131,7 +1131,7 @@ func TestseekFirst(t *testing.T) {
 	}
 
 	err = enum.prev()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1163,7 +1163,7 @@ func TestseekLast(t *testing.T) {
 	bt := NewBTree(nil)
 
 	enum, err := bt.seekFirst()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1174,12 +1174,12 @@ func TestseekLast(t *testing.T) {
 	}
 
 	err = enum.prev()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
 	err = enum.next()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1199,7 +1199,7 @@ func TestseekLast(t *testing.T) {
 	}
 
 	err = enum.next()
-	if err != io.EOF {
+	if !fileutil.IsEOF(err) {
 		t.Fatal(err)
 	}
 
@@ -1597,7 +1597,7 @@ func TestBTreeSeekNext(t *testing.T) {
 
 				k, v, err := en.Next()
 				if err != nil {
-					if err != io.EOF {
+					if !fileutil.IsEOF(err) {
 						t.Fatal(i, err)
 					}
 
@@ -1687,7 +1687,7 @@ func TestBTreeSeekPrev(t *testing.T) {
 
 				k, v, err := en.Prev()
 				if err != nil {
-					if err != io.EOF {
+					if !fileutil.IsEOF(err) {
 						t.Fatal(i, err)
 					}
 

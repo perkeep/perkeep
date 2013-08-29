@@ -291,6 +291,13 @@ func (db *DB) Close() (err error) {
 			err = e1
 		}
 	}
+	if wal := db.wal; wal != nil {
+		e := wal.Close()
+		db.wal = nil
+		if err == nil {
+			err = e
+		}
+	}
 	return
 }
 
@@ -664,12 +671,10 @@ func (db *DB) Put(dst, key []byte, upd func(key, old []byte) (new []byte, write 
 	return
 }
 
-// Seek returns an enumerator or an error if any. Normally the enumerator is
-// positioned on a KV pair such that 'key' >= KV.key and 'hit' is key ==
-// KV.key.  If 'key' collates after any existing key in the DB then the
-// enumerator's position is effectively "after" the last KV pair, but that is
-// not an error.  However, such enumerator will return err set to io.EOF from
-// its Next/Prev methods.
+// Seek returns an enumerator positioned on the first key/value pair whose key
+// is 'greater than or equal to' the given key. There may be no such pair, in
+// which case the Next,Prev methods of the returned enumerator will always
+// return io.EOF.
 //
 // Seek is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) Seek(key []byte) (enum *Enumerator, hit bool, err error) {

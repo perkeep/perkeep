@@ -7,10 +7,10 @@ package dbm
 import (
 	"bytes"
 	"fmt"
-	"io"
 
 	"camlistore.org/third_party/github.com/cznic/exp/lldb"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 )
 
 type header struct {
@@ -149,7 +149,7 @@ func encVal(val interface{}) (r []byte, err error) {
 }
 
 func noEof(e error) (err error) {
-	if e != io.EOF {
+	if !fileutil.IsEOF(e) {
 		err = e
 	}
 	return

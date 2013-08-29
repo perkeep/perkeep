@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
@@ -161,7 +162,7 @@ func NewACIDFiler(db Filer, wal *os.File) (r *ACIDFiler0, err error) {
 			for {
 				k, v, err := enum.current()
 				if err != nil {
-					if err == io.EOF {
+					if fileutil.IsEOF(err) {
 						break
 					}
 
@@ -173,7 +174,7 @@ func NewACIDFiler(db Filer, wal *os.File) (r *ACIDFiler0, err error) {
 				}
 
 				if err = enum.next(); err != nil {
-					if err == io.EOF {
+					if fileutil.IsEOF(err) {
 						break
 					}
 
@@ -299,7 +300,7 @@ func (a *ACIDFiler0) recoverDb(db Filer) (err error) {
 			for {
 				k, v, err := enum.current()
 				if err != nil {
-					if err == io.EOF {
+					if fileutil.IsEOF(err) {
 						break
 					}
 
@@ -311,7 +312,7 @@ func (a *ACIDFiler0) recoverDb(db Filer) (err error) {
 				}
 
 				if err = enum.next(); err != nil {
-					if err == io.EOF {
+					if fileutil.IsEOF(err) {
 						break
 					}
 

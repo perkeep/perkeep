@@ -54,6 +54,7 @@ import (
 	"fmt"
 	"io"
 
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
@@ -151,7 +152,7 @@ func (f *bitFiler) ReadAt(b []byte, off int64) (n int, err error) {
 			pg = &bitPage{}
 			if f.parent != nil {
 				_, err = f.parent.ReadAt(pg.data[:], off&^bfMask)
-				if err != nil && err != io.EOF {
+				if err != nil && !fileutil.IsEOF(err) {
 					return
 				}
 
@@ -209,7 +210,7 @@ func (f *bitFiler) WriteAt(b []byte, off int64) (n int, err error) {
 			pg = &bitPage{}
 			if f.parent != nil {
 				_, err = f.parent.ReadAt(pg.data[:], off&^bfMask)
-				if err != nil && err != io.EOF {
+				if err != nil && !fileutil.IsEOF(err) {
 					return
 				}
 

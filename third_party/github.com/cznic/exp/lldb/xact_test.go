@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
@@ -182,12 +183,12 @@ func TestRollbackFiler3(t *testing.T) {
 	}
 
 	n, err := r.ReadAt([]byte{0}, 0)
-	if n != 0 || err != io.EOF {
+	if n != 0 || !fileutil.IsEOF(err) {
 		t.Fatal(n, err)
 	}
 
 	n, err = r.ReadAt([]byte{0}, 1e6)
-	if n != 0 || err != io.EOF {
+	if n != 0 || !fileutil.IsEOF(err) {
 		t.Fatal(n, err)
 	}
 

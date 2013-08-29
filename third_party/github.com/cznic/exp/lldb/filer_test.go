@@ -7,12 +7,13 @@ package lldb
 import (
 	"bytes"
 	"encoding/hex"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"runtime"
 	"testing"
+
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 )
 
 // Bench knobs.
@@ -284,7 +285,7 @@ func testFilerReadAtWriteAt(t *testing.T, nf newFunc) {
 			from, to = 0, n2
 		}
 		n, err := f.ReadAt(b[from:to], int64(from))
-		if err != nil && (err != io.EOF && n != 0) {
+		if err != nil && (!fileutil.IsEOF(err) && n != 0) {
 			fsz, err = f.Size()
 			if err != nil {
 				t.Error(err)

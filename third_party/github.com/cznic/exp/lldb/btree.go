@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"camlistore.org/third_party/github.com/cznic/bufs"
+	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/sortutil"
 )
 
@@ -184,7 +185,7 @@ func (t *BTree) Dump(w io.Writer) (err error) {
 
 		err = enum.next()
 		if err != nil {
-			if err == io.EOF {
+			if fileutil.IsEOF(err) {
 				err = nil
 				break
 			}
