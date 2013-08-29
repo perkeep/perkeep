@@ -4,6 +4,10 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- use 'int' instead of 'int64' for blob sizes everywhere.  blobs
+   have a max size of 10-32 MB anyway.  definitely not bigger than
+   what will fit in memory (which is what int means)
+
 -- verify all ReceiveBlob calls and see which should be blobserver.Receive
    instead, or ReceiveNoHash.  git grep -E "\.ReceiveBlob\("
 
