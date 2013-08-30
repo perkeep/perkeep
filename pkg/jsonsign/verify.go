@@ -22,9 +22,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/camerrors"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
 )
@@ -136,7 +138,12 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 	reader, _, err := vr.fetcher.FetchStreaming(vr.CamliSigner)
 	if err != nil {
-		return vr.fail(fmt.Sprintf("error fetching public key blob: %v", err))
+		log.Printf("error fetching public key blob: %v", err)
+		// TODO(mpl): we're losing some info here, so maybe
+		// create an error type that contains the reason,
+		// instead of logging the reason.
+		vr.Err = camerrors.MissingKeyBlob
+		return false
 	}
 	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
