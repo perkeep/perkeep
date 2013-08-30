@@ -27,6 +27,7 @@ import (
 type HaveCache interface {
 	StatBlobCache(br blob.Ref) (size int64, ok bool)
 	NoteBlobExists(br blob.Ref, size int64)
+	Close() error
 }
 
 // UploadCache is the "stat cache" for regular files.  Given a current
@@ -45,4 +46,5 @@ type UploadCache interface {
 	// for this file when it was uploaded (with -filenodes), and the cache entry
 	// will reflect that.
 	AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult, withPermanode bool)
+	Close() error
 }
