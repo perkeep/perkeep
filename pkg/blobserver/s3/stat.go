@@ -18,6 +18,7 @@ package s3
 
 import (
 	"fmt"
+	"os"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/gate"
@@ -32,10 +33,13 @@ func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) err
 		go func(br blob.Ref) {
 			defer statGate.Done()
 			size, err := sto.s3Client.Stat(br.String(), sto.bucket)
-			if err == nil {
+			switch err {
+			case nil:
 				dest <- blob.SizedRef{Ref: br, Size: size}
 				errc <- nil
-			} else {
+			case os.ErrNotExist:
+				errc <- nil
+			default:
 				errc <- fmt.Errorf("error statting %v: %v", br, err)
 			}
 		}(br)
