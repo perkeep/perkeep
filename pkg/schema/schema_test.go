@@ -223,3 +223,44 @@ func TestAttribute(t *testing.T) {
 		}
 	}
 }
+
+func TestAsClaimAndAsShare(t *testing.T) {
+	br := blob.MustParse("xxx-1234")
+	signer := blob.MustParse("yyy-5678")
+
+	bb := NewSetAttributeClaim(br, "title", "Test Title")
+	bb = bb.SetSigner(signer)
+	bb = bb.SetClaimDate(time.Now())
+	c1 := bb.Blob()
+	c1.ss.Sig = "non-null-sig" // required by AsShare
+
+	bb = NewShareRef(ShareHaveRef, br, true)
+	bb = bb.SetSigner(signer)
+	bb = bb.SetClaimDate(time.Now())
+	c2 := bb.Blob()
+	c2.ss.Sig = "non-null-sig" // required by AsShare
+
+	if !br.Valid() {
+		t.Error("Blobref not valid")
+	}
+
+	_, ok := c1.AsClaim()
+	if !ok {
+		t.Error("Claim 1 not returned as claim")
+	}
+
+	_, ok = c2.AsClaim()
+	if !ok {
+		t.Error("Claim 2 not returned as claim")
+	}
+
+	s, ok := c1.AsShare()
+	if ok {
+		t.Error("Title claim returned share", s)
+	}
+
+	s, ok = c2.AsShare()
+	if !ok {
+		t.Error("Share claim failed to return share")
+	}
+}
