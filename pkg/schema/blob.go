@@ -128,14 +128,15 @@ func (b *Blob) AsClaim() (c Claim, ok bool) {
 
 // AsShare returns a Share if the receiver Blob has all the required fields.
 func (b *Blob) AsShare() (s Share, ok bool) {
-	c, ok := b.AsClaim()
-	if !ok {
+	c, isClaim := b.AsClaim()
+	if !isClaim {
 		return
 	}
+
 	if b.ss.ClaimType == claimTypeShare && b.ss.AuthType == ShareHaveRef && b.ss.Target.Valid() {
 		return Share{c}, true
 	}
-	return
+	return s, false
 }
 
 // DirectoryEntries the "entries" field if valid and b's type is "directory".
