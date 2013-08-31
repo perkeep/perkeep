@@ -209,6 +209,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.UsageError("No files or directories given.")
 	}
+	if c.havecache {
+		defer up.haveCache.Close()
+	}
+	if c.statcache {
+		defer up.statCache.Close()
+	}
 	for _, filename := range args {
 		fi, err := os.Stat(filename)
 		if err != nil {
@@ -266,23 +272,11 @@ func (c *fileCmd) initCaches(up *Uploader) {
 		return
 	}
 	if c.statcache {
-		var cache UploadCache
-		if flagUseSQLiteChildCache {
-			cache = NewSQLiteStatCache(gen)
-		} else {
-			cache = NewFlatStatCache(gen)
-		}
-		up.statCache = cache
+		up.statCache = NewKvStatCache(gen)
 	}
 	if c.havecache {
-		var cache HaveCache
-		if flagUseSQLiteChildCache {
-			cache = NewSQLiteHaveCache(gen)
-		} else {
-			cache = NewFlatHaveCache(gen)
-		}
-		up.haveCache = cache
-		up.Client.SetHaveCache(cache)
+		up.haveCache = NewKvHaveCache(gen)
+		up.Client.SetHaveCache(up.haveCache)
 	}
 }
 
