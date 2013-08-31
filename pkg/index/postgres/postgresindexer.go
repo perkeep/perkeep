@@ -125,7 +125,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
 	}
 	if version != requiredSchemaVersion {
-		if os.Getenv("CAMLI_ADVERTISED_PASSWORD") != "" {
+		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
 			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)

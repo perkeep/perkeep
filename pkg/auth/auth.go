@@ -85,6 +85,7 @@ var authConstructor = map[string]AuthConfigParser{
 	"none":      newNoneAuth,
 	"localhost": newLocalhostAuth,
 	"userpass":  newUserPassAuth,
+	"devauth":   newDevAuth,
 }
 
 // RegisterAuth registers a new authentication scheme.
@@ -100,7 +101,12 @@ func newNoneAuth(string) (AuthMode, error) {
 }
 
 func newLocalhostAuth(string) (AuthMode, error) {
-	return None{}, nil
+	return Localhost{}, nil
+}
+
+func newDevAuth(pw string) (AuthMode, error) {
+	// the vivify mode password is automatically set to "vivi" + Password
+	return &DevAuth{pw, "vivi" + pw}, nil
 }
 
 func newUserPassAuth(arg string) (AuthMode, error) {
@@ -131,8 +137,7 @@ var ErrNoAuth = errors.New("auth: no configured authentication")
 // FromConfig parses authConfig and accordingly sets up the AuthMode
 // that will be used for all upcoming authentication exchanges. The
 // supported modes are UserPass and DevAuth. UserPass requires an authConfig
-// of the kind "userpass:joe:ponies". If the CAMLI_ADVERTISED_PASSWORD
-// environment variable is defined, the mode will default to DevAuth.
+// of the kind "userpass:joe:ponies".
 //
 // If the input string is empty, the error will be ErrNoAuth.
 func FromConfig(authConfig string) (AuthMode, error) {
@@ -144,12 +149,6 @@ func FromConfig(authConfig string) (AuthMode, error) {
 		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)
 	}
 	authType := pieces[0]
-
-	if pw := os.Getenv("CAMLI_ADVERTISED_PASSWORD"); pw != "" {
-		// the vivify mode password is automatically set to "vivi" + Password
-		mode := &DevAuth{pw, "vivi" + pw}
-		return mode, nil
-	}
 
 	if fn, ok := authConstructor[authType]; ok {
 		arg := ""
@@ -240,15 +239,15 @@ type Localhost struct {
 	None
 }
 
-func (Localhost) AllowedAccess(req *http.Request) Operation {
+func (Localhost) AllowedAccess(req *http.Request) (out Operation) {
 	if localhostAuthorized(req) {
 		return OpAll
 	}
 	return 0
 }
 
-// DevAuth is used when the env var CAMLI_ADVERTISED_PASSWORD
-// is defined
+// DevAuth is used for development.  It has one password and one vivify password, but
+// also accepts all passwords from localhost. Usernames are ignored.
 type DevAuth struct {
 	Password string
 	// Password for the vivify mode, automatically set to "vivi" + Password

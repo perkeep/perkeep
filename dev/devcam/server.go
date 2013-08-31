@@ -243,8 +243,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_BASEURL", base)
 
 	setenv("CAMLI_DEV_CAMLI_ROOT", c.camliSrcRoot)
-	setenv("CAMLI_AUTH", "userpass:camlistore:pass"+c.port+":+localhost")
-	setenv("CAMLI_ADVERTISED_PASSWORD", "pass"+c.port)
+	setenv("CAMLI_AUTH", "devauth:pass"+c.port)
 	fullSuffix := func(name string) string {
 		return filepath.Join(c.camliRoot, name)
 	}

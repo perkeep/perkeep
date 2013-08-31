@@ -1,5 +1,4 @@
-
-CAMLI_ADVERTISED_PASSWORD:
-  If set, authentication is set to DevAuth mode.  This is also used to as an
-indicator we're running the devcam server, and can provide slightly more
-useful error messages in some situations.
+CAMLI_DEV_CAMLI_ROOT:
+  If set, the base directory of Camlistore when in dev mode.  This is
+also used to as an indicator we're running the devcam server, and can
+provide slightly more useful error messages in some situations.
