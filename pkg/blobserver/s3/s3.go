@@ -53,7 +53,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 			AccessKey:       config.RequiredString("aws_access_key"),
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
 		},
-		HttpClient: http.DefaultClient,
+		HTTPClient: http.DefaultClient,
 	}
 	sto := &s3Storage{
 		s3Client: client,

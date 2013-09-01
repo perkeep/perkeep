@@ -35,7 +35,7 @@ import (
 
 type Client struct {
 	*Auth
-	HttpClient *http.Client // or nil for default client
+	HTTPClient *http.Client // or nil for default client
 }
 
 type Bucket struct {
@@ -44,8 +44,8 @@ type Bucket struct {
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HttpClient != nil {
-		return c.HttpClient
+	if c.HTTPClient != nil {
+		return c.HTTPClient
 	}
 	return http.DefaultClient
 }
