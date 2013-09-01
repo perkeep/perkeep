@@ -25,7 +25,6 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 )
 
 const maxInMemorySlurp = 4 << 20 // 4MB.  *shrug*
@@ -96,22 +95,17 @@ func (as *amazonSlurper) Cleanup() {
 	}
 }
 
-func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
-	zero := outsb
+func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
 	slurper := newAmazonSlurper(b)
 	defer slurper.Cleanup()
 
-	hash := b.Hash()
-	size, err := io.Copy(io.MultiWriter(hash, slurper), source)
+	size, err := io.Copy(slurper, source)
 	if err != nil {
-		return zero, err
-	}
-	if !b.HashMatches(hash) {
-		return zero, blobserver.ErrCorruptBlob
+		return sr, err
 	}
 	err = sto.s3Client.PutObject(b.String(), sto.bucket, slurper.md5, size, slurper)
 	if err != nil {
-		return zero, err
+		return sr, err
 	}
 	return blob.SizedRef{Ref: b, Size: size}, nil
 }

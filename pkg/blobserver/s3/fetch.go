@@ -22,7 +22,6 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
-func (sto *s3Storage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size int64, reterr error) {
-	file, size, reterr = sto.s3Client.Get(sto.bucket, blob.String())
-	return
+func (sto *s3Storage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size int64, err error) {
+	return sto.s3Client.Get(sto.bucket, blob.String())
 }
