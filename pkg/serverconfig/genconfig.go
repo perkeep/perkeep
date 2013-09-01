@@ -25,9 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
+	"camlistore.org/pkg/osutil"
 )
 
 const (
@@ -218,12 +218,15 @@ func addKVConfig(prefixes jsonconfig.Obj, file string) {
 }
 
 func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
-	f := strings.SplitN(s3, ":", 3)
-	if len(f) != 3 {
+	f := strings.SplitN(s3, ":", 4)
+	if len(f) < 3 {
 		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket"`)
 	}
 	accessKey, secret, bucket := f[0], f[1], f[2]
-
+	var hostname string
+	if len(f) == 4 {
+		hostname = f[3]
+	}
 	isPrimary := false
 	if _, ok := prefixes["/bs/"]; !ok {
 		isPrimary = true
@@ -234,13 +237,17 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 	} else {
 		s3Prefix = "/sto-s3/"
 	}
+	args := map[string]interface{}{
+		"aws_access_key":        accessKey,
+		"aws_secret_access_key": secret,
+		"bucket":                bucket,
+	}
+	if hostname != "" {
+		args["hostname"] = hostname
+	}
 	prefixes[s3Prefix] = map[string]interface{}{
-		"handler": "storage-s3",
-		"handlerArgs": map[string]interface{}{
-			"aws_access_key":        accessKey,
-			"aws_secret_access_key": secret,
-			"bucket":                bucket,
-		},
+		"handler":     "storage-s3",
+		"handlerArgs": args,
 	}
 	if isPrimary {
 		// TODO(mpl): s3CacheBucket
@@ -504,7 +511,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 		// Blob storage options
 		blobPath           = conf.OptionalString("blobPath", "")
-		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket"
+		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket[:hostname]"
 		googlecloudstorage = conf.OptionalString("googlecloudstorage", "") // "clientId:clientSecret:refreshToken:bucket"
 		googledrive        = conf.OptionalString("googledrive", "")        // "clientId:clientSecret:refreshToken:parentId"
 		// Enable the share handler. If true, and shareHandlerPath is empty,

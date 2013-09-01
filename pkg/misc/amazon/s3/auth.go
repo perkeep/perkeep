@@ -34,6 +34,20 @@ import (
 type Auth struct {
 	AccessKey       string
 	SecretAccessKey string
+
+	// Hostname is the S3 hostname to use.
+	// If empty, the stanard US region of "s3.amazonaws.com" is
+	// used.
+	Hostname string
+}
+
+const standardUSRegionAWS = "s3.amazonaws.com"
+
+func (a *Auth) hostname() string {
+	if a.Hostname != "" {
+		return a.Hostname
+	}
+	return standardUSRegionAWS
 }
 
 func (a *Auth) SignRequest(req *http.Request) {
@@ -41,7 +55,7 @@ func (a *Auth) SignRequest(req *http.Request) {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 	}
 	hm := hmac.New(sha1.New, []byte(a.SecretAccessKey))
-	ss := stringToSign(req)
+	ss := a.stringToSign(req)
 	io.WriteString(hm, ss)
 
 	authHeader := new(bytes.Buffer)
@@ -69,7 +83,7 @@ func firstNonEmptyString(strs ...string) string {
 //	 Date + "\n" +
 //	 CanonicalizedAmzHeaders +
 //	 CanonicalizedResource;
-func stringToSign(req *http.Request) string {
+func (a *Auth) stringToSign(req *http.Request) string {
 	buf := new(bytes.Buffer)
 	buf.WriteString(req.Method)
 	buf.WriteByte('\n')
@@ -81,8 +95,8 @@ func stringToSign(req *http.Request) string {
 		buf.WriteString(req.Header.Get("Date"))
 	}
 	buf.WriteByte('\n')
-	writeCanonicalizedAmzHeaders(buf, req)
-	writeCanonicalizedResource(buf, req)
+	a.writeCanonicalizedAmzHeaders(buf, req)
+	a.writeCanonicalizedResource(buf, req)
 	return buf.String()
 }
 
@@ -98,7 +112,7 @@ func hasPrefixCaseInsensitive(s, pfx string) bool {
 	return shead == pfx || shead == strings.ToLower(pfx)
 }
 
-func writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request) {
+func (a *Auth) writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request) {
 	amzHeaders := make([]string, 0)
 	vals := make(map[string][]string)
 	for k, vv := range req.Header {
@@ -136,8 +150,8 @@ func writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request) {
 // CanonicalizedResource = [ "/" + Bucket ] +
 // 	  <HTTP-Request-URI, from the protocol name up to the query string> +
 // 	  [ sub-resource, if present. For example "?acl", "?location", "?logging", or "?torrent"];
-func writeCanonicalizedResource(buf *bytes.Buffer, req *http.Request) {
-	if bucket := bucketFromHostname(req); bucket != "" {
+func (a *Auth) writeCanonicalizedResource(buf *bytes.Buffer, req *http.Request) {
+	if bucket := a.bucketFromHostname(req); bucket != "" {
 		buf.WriteByte('/')
 		buf.WriteString(bucket)
 	}
@@ -145,19 +159,21 @@ func writeCanonicalizedResource(buf *bytes.Buffer, req *http.Request) {
 	// TODO: subresource
 }
 
-const standardUSRegionAWSSuffix = ".s3.amazonaws.com"
-const standardUSRegionAWS = "s3.amazonaws.com"
+// hasDotSuffix reports whether s ends with "." + suffix.
+func hasDotSuffix(s string, suffix string) bool {
+	return len(s) >= len(suffix)+1 && strings.HasSuffix(s, suffix) && s[len(s)-len(suffix)-1] == '.'
+}
 
-func bucketFromHostname(req *http.Request) string {
+func (a *Auth) bucketFromHostname(req *http.Request) string {
 	host := req.Host
 	if host == "" {
 		host = req.URL.Host
 	}
-	if host == standardUSRegionAWS {
+	if host == a.hostname() {
 		return ""
 	}
-	if strings.HasSuffix(host, standardUSRegionAWSSuffix) {
-		return host[:len(host)-len(standardUSRegionAWSSuffix)]
+	if hostSuffix := a.hostname(); hasDotSuffix(host, hostSuffix) {
+		return host[:len(host)-len(hostSuffix)-1]
 	}
 	if lastColon := strings.LastIndex(host, ":"); lastColon != -1 {
 		return host[:lastColon]

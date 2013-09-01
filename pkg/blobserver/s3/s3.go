@@ -47,11 +47,12 @@ type s3Storage struct {
 	bucket   string
 }
 
-func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	client := &s3.Client{
 		Auth: &s3.Auth{
 			AccessKey:       config.RequiredString("aws_access_key"),
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
+			Hostname:        config.OptionalString("hostname", ""),
 		},
 		HTTPClient: http.DefaultClient,
 	}

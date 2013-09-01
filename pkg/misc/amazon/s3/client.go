@@ -33,6 +33,7 @@ import (
 	"strconv"
 )
 
+// Client is an Amazon S3 client.
 type Client struct {
 	*Auth
 	HTTPClient *http.Client // or nil for default client
@@ -60,7 +61,7 @@ func newReq(url_ string) *http.Request {
 }
 
 func (c *Client) Buckets() ([]*Bucket, error) {
-	req := newReq("https://s3.amazonaws.com/")
+	req := newReq("https://" + c.hostname() + "/")
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
 	if err != nil {
@@ -88,7 +89,7 @@ func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
 func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
-	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
+	req := newReq("http://" + bucket + "." + c.hostname() + "/" + name)
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
@@ -105,7 +106,7 @@ func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
 }
 
 func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
-	req := newReq("http://" + bucket + ".s3.amazonaws.com/" + name)
+	req := newReq("http://" + bucket + "." + c.hostname() + "/" + name)
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
@@ -177,8 +178,8 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*
 			fetchN = s3APIMaxFetch
 		}
 		var bres listBucketResults
-		url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/?marker=%s&max-keys=%d",
-			bucket, url.QueryEscape(marker(after)), fetchN)
+		url_ := fmt.Sprintf("http://%s.%s/?marker=%s&max-keys=%d",
+			bucket, c.hostname(), url.QueryEscape(marker(after)), fetchN)
 		req := newReq(url_)
 		c.Auth.SignRequest(req)
 		res, err := c.httpClient().Do(req)
@@ -204,7 +205,7 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*
 }
 
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
-	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	url_ := fmt.Sprintf("http://%s.%s/%s", bucket, c.hostname(), key)
 	req := newReq(url_)
 	c.Auth.SignRequest(req)
 	var res *http.Response
@@ -229,7 +230,7 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 }
 
 func (c *Client) Delete(bucket, key string) error {
-	url_ := fmt.Sprintf("http://%s.s3.amazonaws.com/%s", bucket, key)
+	url_ := fmt.Sprintf("http://%s.%s/%s", bucket, c.hostname(), key)
 	req := newReq(url_)
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)

@@ -37,6 +37,7 @@ func req(s string) *http.Request {
 }
 
 func TestStringToSign(t *testing.T) {
+	var a Auth
 	tests := []reqAndExpected{
 		{`GET /photos/puppy.jpg HTTP/1.1
 Host: johnsmith.s3.amazonaws.com
@@ -86,7 +87,7 @@ Content-Length: 5913339
 			"PUT\n4gJE4saaMU4BqNR0kLY+lw==\napplication/x-download\nTue, 27 Mar 2007 21:06:08 +0000\nx-amz-acl:public-read\nx-amz-meta-checksumalgorithm:crc32\nx-amz-meta-filechecksum:0x02661779\nx-amz-meta-reviewedby:joe@johnsmith.net,jane@johnsmith.net\n/static.johnsmith.net/db-backup.dat.gz"},
 	}
 	for idx, test := range tests {
-		got := stringToSign(req(test.req))
+		got := a.stringToSign(req(test.req))
 		if got != test.expected {
 			t.Errorf("test %d: expected %q", idx, test.expected)
 			t.Errorf("test %d:      got %q", idx, got)
@@ -95,6 +96,7 @@ Content-Length: 5913339
 }
 
 func TestBucketFromHostname(t *testing.T) {
+	var a Auth
 	tests := []reqAndExpected{
 		{"GET / HTTP/1.0\n\n", ""},
 		{"GET / HTTP/1.0\nHost: s3.amazonaws.com\n\n", ""},
@@ -103,7 +105,7 @@ func TestBucketFromHostname(t *testing.T) {
 		{"GET / HTTP/1.0\nHost: bar.com\n\n", "bar.com"},
 	}
 	for idx, test := range tests {
-		got := bucketFromHostname(req(test.req))
+		got := a.bucketFromHostname(req(test.req))
 		if got != test.expected {
 			t.Errorf("test %d: expected %q; got %q", idx, test.expected, got)
 		}
@@ -112,7 +114,7 @@ func TestBucketFromHostname(t *testing.T) {
 
 func TestSignRequest(t *testing.T) {
 	r := req("GET /foo HTTP/1.1\n\n")
-	auth := &Auth{"key", "secretkey"}
+	auth := &Auth{AccessKey: "key", SecretAccessKey: "secretkey"}
 	auth.SignRequest(r)
 	if r.Header.Get("Date") == "" {
 		t.Error("expected a Date set")
@@ -121,5 +123,17 @@ func TestSignRequest(t *testing.T) {
 	auth.SignRequest(r)
 	if e, g := r.Header.Get("Authorization"), "AWS key:kHpCR/N7Rw3PwRlDd8+5X40CFVc="; e != g {
 		t.Errorf("got header %q; expected %q", g, e)
+	}
+}
+
+func TestHasDotSuffix(t *testing.T) {
+	if !hasDotSuffix("foo.com", "com") {
+		t.Error()
+	}
+	if hasDotSuffix("foocom", "com") {
+		t.Error()
+	}
+	if hasDotSuffix("com", "com") {
+		t.Error()
 	}
 }

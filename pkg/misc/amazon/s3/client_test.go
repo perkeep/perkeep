@@ -33,7 +33,7 @@ func getTestClient(t *testing.T) bool {
 		t.Logf("Skipping test; no AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY_SECRET set in environment")
 		return false
 	}
-	tc = &Client{&Auth{accessKey, secret}, http.DefaultClient}
+	tc = &Client{&Auth{AccessKey: accessKey, SecretAccessKey: secret}, http.DefaultClient}
 	return true
 }
 
@@ -45,7 +45,7 @@ func TestBuckets(t *testing.T) {
 }
 
 func TestMarker(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		s, want string
 	}{
 		{"", ""},
