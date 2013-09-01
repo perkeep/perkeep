@@ -95,15 +95,7 @@ func (c *gaeCmd) RunCommand(args []string) error {
 	}
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, c.applicationDir)
-	cmd := exec.Command(devAppServerBin, cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not start dev_appserver.py: %v", err)
-	}
-	go handleSignals(cmd.Process)
-	cmd.Wait()
-	return nil
+	return runExec(devAppServerBin, cmdArgs)
 }
 
 func (c *gaeCmd) checkFlags(args []string) error {

@@ -99,14 +99,7 @@ func (c *getCmd) RunCommand(args []string) error {
 		cmdArgs = append(cmdArgs, "-server="+blobserver)
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmd := exec.Command(cmdBin, cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not run camget: %v", err)
-	}
-	go handleSignals(cmd.Process)
-	return cmd.Wait()
+	return runExec(cmdBin, cmdArgs)
 }
 
 func (c *getCmd) checkFlags(args []string) error {

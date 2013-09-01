@@ -383,13 +383,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	cmdArgs := []string{
 		"-configfile=" + filepath.Join(c.camliSrcRoot, "config", "dev-server-config.json"),
 		"-listen=" + c.listen,
-		"-openbrowser=" + strconv.FormatBool(c.openBrowser)}
-	cmd := exec.Command(camliBin, cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not start camlistored: %v", err)
+		"-openbrowser=" + strconv.FormatBool(c.openBrowser),
 	}
-	go handleSignals(cmd.Process)
-	return cmd.Wait()
+	return runExec(camliBin, cmdArgs)
 }

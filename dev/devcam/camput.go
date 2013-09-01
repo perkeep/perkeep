@@ -98,14 +98,7 @@ func (c *putCmd) RunCommand(args []string) error {
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmd := exec.Command(cmdBin, cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not run camput: %v", err)
-	}
-	go handleSignals(cmd.Process)
-	return cmd.Wait()
+	return runExec(cmdBin, cmdArgs)
 }
 
 func (c *putCmd) checkFlags(args []string) error {

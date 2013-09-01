@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,26 @@ import (
 
 	"camlistore.org/pkg/cmdmain"
 )
+
+// sysExec is set to syscall.Exec on platforms that support it.
+var sysExec func(argv0 string, argv []string, envv []string) (err error)
+
+// runExec execs bin. If the platform doesn't support exec, it runs it and waits
+// for it to finish.
+func runExec(bin string, args []string) error {
+	if sysExec != nil {
+		sysExec(bin, append([]string{filepath.Base(bin)}, args...), os.Environ())
+	}
+
+	cmd := exec.Command(bin, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("Could not run camput: %v", err)
+	}
+	go handleSignals(cmd.Process)
+	return cmd.Wait()
+}
 
 func setenv(key, value string) {
 	err := os.Setenv(key, value)
