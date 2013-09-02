@@ -49,6 +49,7 @@ import (
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
+	_ "camlistore.org/pkg/blobserver/diskpacked"
 	_ "camlistore.org/pkg/blobserver/encrypt"
 	_ "camlistore.org/pkg/blobserver/google/cloudstorage"
 	_ "camlistore.org/pkg/blobserver/google/drive"
