@@ -39,6 +39,8 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
+
+	"camlistore.org/third_party/taglib"
 )
 
 var reindexMu sync.Mutex
@@ -225,7 +227,46 @@ func (ix *Index) populateFile(b *schema.Blob, bm BatchMutation) error {
 	bm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime))
 	bm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
+
+	if strings.HasPrefix(mime, "audio/") {
+		tag, err := taglib.Decode(fr, fr.Size())
+		if err == nil {
+			indexMusic(tag, wholeRef, bm)
+		} else {
+			log.Print("index: error parsing tag: ", err)
+		}
+	}
+
 	return nil
+}
+
+// indexMusic adds mutations to index the wholeRef by most of the
+// fields in gotaglib.GenericTag.
+func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, bm BatchMutation) {
+	const justYearLayout = "2006"
+
+	var yearStr, trackStr string
+	if !tag.Year().IsZero() {
+		yearStr = tag.Year().Format(justYearLayout)
+	}
+	if tag.Track() != 0 {
+		trackStr = fmt.Sprintf("%d", tag.Track())
+	}
+
+	tags := map[string]string{
+		"title":  tag.Title(),
+		"artist": tag.Artist(),
+		"album":  tag.Album(),
+		"genre":  tag.Genre(),
+		"year":   yearStr,
+		"track":  trackStr,
+	}
+
+	for tag, value := range tags {
+		if value != "" {
+			bm.Set(keyAudioTag.Key(tag, strings.ToLower(value), wholeRef), "1")
+		}
+	}
 }
 
 // blobref: of the file or schema blob
