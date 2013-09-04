@@ -28,27 +28,38 @@ On Debian/Ubuntu, some deps to get started:
 $ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
 
 During development, rather than use the main binaries ("camput",
-"camget", "camtool", "cammount", etc) directly, we instead use
-wrappers that automatically configure the environment to use the
-test server & test environment:
+"camget", "camtool", "cammount", etc) directly, we instead use a
+wrapper (devcam) that automatically configure the environment to use
+the test server & test environment.
+
+To build devcam:
+
+$ go run make.go
+
+And devcam will be in <camroot>/bin/devcam.  You'll probably want to
+symlink it into your $PATH.
+
+Alternatively, if your Camlistore root is checked out at
+$GOPATH/src/camlistore.org (optional, but natural for Go users), you
+can just:
+
+$ go install ./dev/devcam
+
+The subcommands of devcam start the server or run camput/camget/etc:
+
+$ devcam server      # main server
+$ devcam appengine   # App Engine version of the server
+$ devcam put         # camput
+$ devcam get         # camget
+
+Some old wrapper scripts haven't been converted yet to be part of
+devcam.  For now, they're at:
 
 $ ./dev-camtool
 $ ./dev-cammount
 ... etc.
 
-We are in the process of migrating those scripts to a go command
-with subcommands: devcam. To install (assuming your GOPATH is set):
-
-$ go install ./dev/devcam
-
-The ./dev-server, ./dev-camput, ./dev-camget, and ./dev-appengine scripts have already been replaced by:
-
-$ devcam server
-$ devcam put
-$ devcam get
-$ devcam appengine
-
-Then, once the dev server is running,
+Once the dev server is running,
 
   - Upload a file:
       devcam put file ~/camlistore/COPYING

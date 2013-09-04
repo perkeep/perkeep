@@ -128,7 +128,7 @@ func main() {
 	}
 
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{"cmd", "pkg", "server/camlistored", "third_party"}
+	goDirs := []string{"cmd", "pkg", "dev", "server/camlistored", "third_party"}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
 	var latestSrcMod time.Time
@@ -183,6 +183,7 @@ func main() {
 	// under <camlistore_root>/bin:
 	buildAll := true
 	targs := []string{
+		"camlistore.org/dev/devcam",
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
