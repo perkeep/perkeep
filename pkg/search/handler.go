@@ -437,7 +437,7 @@ var testHookBug121 = func() {}
 // GetRecentPermanodes returns recently-modified permanodes.
 func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ch := make(chan *Result)
-	errch := make(chan error)
+	errch := make(chan error, 1)
 	go func() {
 		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, req.n())
 	}()
@@ -488,18 +488,20 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 // See WithAttrRequest for more details about the query.
 func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
 	ch := make(chan blob.Ref, buffered)
-	errch := make(chan error)
+	errch := make(chan error, 1)
 	go func() {
 		signer := req.Signer
 		if !signer.Valid() {
 			signer = sh.owner
 		}
 		errch <- sh.index.SearchPermanodesWithAttr(ch,
-			&PermanodeByAttrRequest{Attribute: req.Attr,
+			&PermanodeByAttrRequest{
+				Attribute:  req.Attr,
 				Query:      req.Value,
 				Signer:     signer,
 				FuzzyMatch: req.Fuzzy,
-				MaxResults: req.N})
+				MaxResults: req.N,
+			})
 	}()
 
 	dr := sh.NewDescribeRequest()
@@ -514,6 +516,10 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 
 	metaMap, err := dr.metaMapThumbs(req.thumbnailSize())
 	if err != nil {
+		return nil, err
+	}
+
+	if err := <-errch; err != nil {
 		return nil, err
 	}
 
