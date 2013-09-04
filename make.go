@@ -249,11 +249,7 @@ func main() {
 	}
 
 	if !*quiet {
-		// TODO: change this next line to call
-		// actualBinDir(binDir) instead. But the linker
-		// crashes (!!?!) right now if we do that.
-		// Bug to be filed once I'm off this plane.
-		log.Printf("Success. Binaries are in %s", binDir)
+		log.Printf("Success. Binaries are in %s", actualBinDir(binDir))
 	}
 }
 
