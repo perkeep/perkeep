@@ -58,8 +58,8 @@ type storage struct {
 	mu       sync.Mutex
 	current  *os.File
 	currentL io.Closer // provided by lock.Lock
-	currentN int64
-	currentO int64
+	currentN int64     // current file number we're appending to (0-based)
+	currentO int64     // current offset
 	closed   bool
 	closeErr error
 }
@@ -131,24 +131,17 @@ func (s *storage) openCurrent() error {
 		}
 	}
 
-	// If s.current is open, check its size and if it's too big close it,
-	// and advance currentN.
-	if s.current != nil {
-		fi, err := s.current.Stat()
-		if err != nil {
+	// If s.current is open and it's too big,close it and advance currentN.
+	if s.current != nil && s.currentO > s.maxFileSize {
+		f, l := s.current, s.currentL
+		s.current, s.currentL, s.currentO = nil, nil, 0
+		s.currentN++
+		if err := f.Close(); err != nil {
+			l.Close()
 			return err
 		}
-		if fi.Size() > s.maxFileSize {
-			f, l := s.current, s.currentL
-			s.current, s.currentL, s.currentO = nil, nil, 0
-			s.currentN++
-			if err = f.Close(); err != nil {
-				l.Close()
-				return err
-			}
-			if err = l.Close(); err != nil {
-				return err
-			}
+		if err := l.Close(); err != nil {
+			return err
 		}
 	}
 
@@ -230,6 +223,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 			if err2 != os.ErrNotExist {
 				err = err2
 			}
+			continue
 		}
 		dest <- m.SizedRef(br)
 	}
