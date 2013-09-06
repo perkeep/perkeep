@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -235,7 +236,7 @@ func androidTLSConfig() (*tls.Config, error) {
 }
 
 // TODO(mpl): distinguish CAMPUT, CAMGET, etc
-var androidOutput = os.Getenv("CAMPUT_ANDROID_OUTPUT") != ""
+var androidOutput, _ = strconv.ParseBool(os.Getenv("CAMPUT_ANDROID_OUTPUT"))
 
 func AndroidOutput() bool {
 	return androidOutput

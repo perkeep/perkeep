@@ -458,7 +458,7 @@ func (up *Uploader) wholeFileDigest(fullPath string) (blob.Ref, error) {
 	return blob.MustParse(td.Sum()), nil
 }
 
-var noDupSearch = os.Getenv("CAMLI_NO_FILE_DUP_SEARCH") == "1"
+var noDupSearch, _ = strconv.ParseBool(os.Getenv("CAMLI_NO_FILE_DUP_SEARCH"))
 
 // fileMapFromDuplicate queries the server's search interface for an
 // existing file with an entire contents of sum (a blobref string).

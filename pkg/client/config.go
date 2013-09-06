@@ -298,7 +298,7 @@ const trustedCerts = "trustedCerts"
 
 func (c *Client) initTrustedCerts() {
 	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
-		c.trustedCerts = []string{e}
+		c.trustedCerts = strings.Split(e, ",")
 		return
 	}
 	c.trustedCerts = []string{}
@@ -329,7 +329,7 @@ const ignoredFiles = "ignoredFiles"
 
 func (c *Client) initIgnoredFiles() {
 	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
-		c.ignoredFiles = []string{e}
+		c.ignoredFiles = strings.Split(e, ",")
 		return
 	}
 	c.ignoredFiles = []string{}

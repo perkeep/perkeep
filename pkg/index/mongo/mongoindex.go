@@ -142,16 +142,10 @@ func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobs
 	// Good enough, for now:
 	ix.KeyFetcher = ix.BlobSource
 
-	if wipe := os.Getenv("CAMLI_MONGO_WIPE"); wipe != "" {
-		dowipe, err := strconv.ParseBool(wipe)
+	if wipe, _ := strconv.ParseBool(os.Getenv("CAMLI_MONGO_WIPE")); wipe {
+		err = ix.Storage().Delete("")
 		if err != nil {
 			return nil, err
-		}
-		if dowipe {
-			err = ix.Storage().Delete("")
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 

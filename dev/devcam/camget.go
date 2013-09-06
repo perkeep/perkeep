@@ -146,9 +146,7 @@ func (c *getCmd) setEnvVars() error {
 	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
 	setenv("CAMLI_DEV_KEYBLOBS", filepath.Join(c.camliSrcRoot,
 		filepath.FromSlash("config/dev-client-dir/keyblobs")))
-	if e := os.Getenv("CAMLI_QUIET"); e != "" {
-		c.verbose = "true"
-	}
+	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
 }
 
