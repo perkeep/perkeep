@@ -6,9 +6,11 @@
         <string>org.camlistore.plist</string>
         <key>ProgramArguments</key>
         <array>
-            <string>camlistored</string>
+            <string>/Users/nickoneill/Projects/camlistore/bin/camlistored</string>
         </array>
         <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
         <true/>
     </dict>
 </plist>

@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D09CC82317D10E430015E056 /* org.camlistore.plist in Resources */ = {isa = PBXBuildFile; fileRef = D09CC82217D10E430015E056 /* org.camlistore.plist */; };
 		D0A09724178A648200D57EC5 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D0A09723178A648200D57EC5 /* Cocoa.framework */; };
 		D0A0972E178A648200D57EC5 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D0A0972C178A648200D57EC5 /* InfoPlist.strings */; };
 		D0A09730178A648200D57EC5 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A0972F178A648200D57EC5 /* main.m */; };
@@ -41,7 +40,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		D09CC82217D10E430015E056 /* org.camlistore.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.camlistore.plist; sourceTree = "<group>"; };
 		D0A09720178A648200D57EC5 /* camlistart.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = camlistart.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0A09723178A648200D57EC5 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D0A09726178A648200D57EC5 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
@@ -164,7 +162,6 @@
 				D0A0972F178A648200D57EC5 /* main.m */,
 				D0A09731178A648200D57EC5 /* camlistart-Prefix.pch */,
 				D0A09732178A648200D57EC5 /* Credits.rtf */,
-				D09CC82217D10E430015E056 /* org.camlistore.plist */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -292,7 +289,6 @@
 				D0A0976E178B942F00D57EC5 /* menuicon-selected@2x.png in Resources */,
 				D0A0976F178B942F00D57EC5 /* menuicon.png in Resources */,
 				D0A09770178B942F00D57EC5 /* menuicon@2x.png in Resources */,
-				D09CC82317D10E430015E056 /* org.camlistore.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

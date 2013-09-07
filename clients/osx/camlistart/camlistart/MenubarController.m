@@ -1,3 +1,14 @@
+//
+//  CAAppDelegate.m
+//  camlistart
+//
+//  Created by Nick O'Neill on 7/7/13.
+//  Copyright (c) 2013 Camlistore. All rights reserved.
+//
+//  Based on code from Vadim Shpakovski
+//  https://github.com/shpakovski/Popup
+//
+
 #import "MenubarController.h"
 #import "StatusItemView.h"
 

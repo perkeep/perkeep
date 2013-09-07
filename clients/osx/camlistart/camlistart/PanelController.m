@@ -1,3 +1,14 @@
+//
+//  CAAppDelegate.m
+//  camlistart
+//
+//  Created by Nick O'Neill on 7/7/13.
+//  Copyright (c) 2013 Camlistore. All rights reserved.
+//
+//  Based on code from Vadim Shpakovski
+//  https://github.com/shpakovski/Popup
+//
+
 #import "PanelController.h"
 #import "BackgroundView.h"
 #import "StatusItemView.h"
@@ -8,7 +19,7 @@
 
 #define SEARCH_INSET 17
 
-#define POPUP_HEIGHT 122
+#define POPUP_HEIGHT 130
 #define PANEL_WIDTH 280
 
 #pragma mark -
@@ -146,6 +157,13 @@
 - (void)cancelOperation:(id)sender
 {
     self.hasActivePanel = NO;
+}
+
+- (void)controlTextDidEndEditing:(NSNotification *)obj
+{
+    NSLog(@"end editing %@",self.searchField);
+    
+//    [NSApp openURL:@""];
 }
 
 - (void)runSearch
