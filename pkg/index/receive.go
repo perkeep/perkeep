@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/magic"
@@ -73,17 +72,11 @@ func (ix *Index) reindex(br blob.Ref) {
 
 func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.SizedRef, err error) {
 	sniffer := NewBlobSniffer(blobRef)
-	hash := blobRef.Hash()
-	var written int64
-	written, err = io.Copy(io.MultiWriter(hash, sniffer), source)
+	written, err := io.Copy(sniffer, source)
 	if err != nil {
 		return
 	}
 
-	if !blobRef.HashMatches(hash) {
-		err = blobserver.ErrCorruptBlob
-		return
-	}
 	sniffer.Parse()
 
 	bm := ix.s.BeginBatch()
