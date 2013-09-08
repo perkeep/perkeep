@@ -171,6 +171,9 @@ func (sto *replicaStorage) ReceiveBlob(b blob.Ref, source io.Reader) (_ blob.Siz
 	}
 	size, err := io.Copy(io.MultiWriter(writer...), source)
 	if err != nil {
+		for i := range wpipe {
+			wpipe[i].CloseWithError(err)
+		}
 		return
 	}
 	for idx := range sto.replicas {
