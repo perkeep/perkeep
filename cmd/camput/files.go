@@ -209,10 +209,10 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.UsageError("No files or directories given.")
 	}
-	if c.havecache {
+	if up.haveCache != nil {
 		defer up.haveCache.Close()
 	}
-	if c.statcache {
+	if up.statCache != nil {
 		defer up.statCache.Close()
 	}
 	for _, filename := range args {
