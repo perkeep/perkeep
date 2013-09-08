@@ -96,29 +96,30 @@ func (sto *replicaStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size 
 	return
 }
 
+// StatBlobs stats all replicas.
+// See TODO on EnumerateBlobs.
 func (sto *replicaStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	need := make(map[string]blob.Ref)
+	need := make(map[blob.Ref]bool)
 	for _, br := range blobs {
-		need[br.String()] = br
+		need[br] = true
 	}
 
 	ch := make(chan blob.SizedRef, buffered)
-	donechan := make(chan bool)
+	donec := make(chan bool)
 
 	go func() {
 		for sb := range ch {
-			bstr := sb.Ref.String()
-			if _, needed := need[bstr]; needed {
+			if need[sb.Ref] {
 				dest <- sb
-				delete(need, bstr)
+				delete(need, sb.Ref)
 			}
 		}
-		donechan <- true
+		donec <- true
 	}()
 
-	errch := make(chan error, buffered)
+	errc := make(chan error, buffered)
 	statReplica := func(s blobserver.Storage) {
-		errch <- s.StatBlobs(ch, blobs)
+		errc <- s.StatBlobs(ch, blobs)
 	}
 
 	for _, replica := range sto.replicas {
@@ -127,12 +128,12 @@ func (sto *replicaStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref
 
 	var retErr error
 	for _ = range sto.replicas {
-		if err := <-errch; err != nil {
+		if err := <-errc; err != nil {
 			retErr = err
 		}
 	}
 	close(ch)
-	<-donechan
+	<-donec
 
 	// Safe to access need map now; as helper goroutine is
 	// done with it.
