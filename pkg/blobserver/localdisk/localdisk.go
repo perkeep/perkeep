@@ -35,6 +35,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -53,6 +54,10 @@ type DiskStorage struct {
 	// queue partitions to mirror new blobs into (when partition
 	// above is the empty string)
 	mirrorPartitions []*DiskStorage
+
+	// dirLockMu must be held for writing when deleting an empty directory
+	// and for read when receiving blobs.
+	dirLockMu sync.RWMutex
 }
 
 // New returns a new local disk storage implementation at the provided
@@ -91,6 +96,12 @@ func init() {
 }
 
 var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
+
+func (ds *DiskStorage) tryRemoveDir(dir string) {
+	ds.dirLockMu.Lock()
+	defer ds.dirLockMu.Unlock()
+	os.Remove(dir) // ignore error
+}
 
 func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, error) {
 	if !validQueueName.MatchString(name) {

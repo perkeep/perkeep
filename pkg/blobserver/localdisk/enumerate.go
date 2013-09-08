@@ -46,7 +46,7 @@ func (ee *enumerateError) Error() string {
 	return fmt.Sprintf("Enumerate error: %s: %v", ee.msg, ee.err)
 }
 
-func readBlobs(opts readBlobRequest) error {
+func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 	dirFullPath := filepath.Join(opts.dirRoot, opts.pathInto)
 	dir, err := os.Open(dirFullPath)
 	if err != nil {
@@ -58,13 +58,7 @@ func readBlobs(opts readBlobRequest) error {
 		// remove empty blob dir if we are in a queue but not the queue root itself
 		if strings.Contains(dirFullPath, "queue-") &&
 			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
-			// Grab a lock on the directory (to make sure we're not deleting it as another
-			// blob is coming in and creating this directory), then try to delete it,
-			// but ignore any error, because it might just be a new file appearing here
-			// (in the case of the directory already existing, but not being newly made)
-			dirLock := deleteDirectoryLock(dirFullPath)
-			os.Remove(dirFullPath)
-			dirLock.Unlock()
+			go ds.tryRemoveDir(dirFullPath)
 		}
 		return nil
 	}
@@ -109,7 +103,7 @@ func readBlobs(opts readBlobRequest) error {
 			ropts := opts
 			ropts.blobPrefix = newBlobPrefix
 			ropts.pathInto = opts.pathInto + "/" + name
-			readBlobs(ropts)
+			ds.readBlobs(ropts)
 			continue
 		}
 
@@ -137,7 +131,7 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, l
 
 	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
-	return readBlobs(readBlobRequest{
+	return ds.readBlobs(readBlobRequest{
 		ch:      dest,
 		dirRoot: dirRoot,
 		after:   after,

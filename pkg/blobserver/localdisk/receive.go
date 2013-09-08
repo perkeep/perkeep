@@ -23,12 +23,14 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 
 	"camlistore.org/pkg/blob"
 )
 
 func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob.SizedRef, err error) {
+	ds.dirLockMu.RLock()
+	defer ds.dirLockMu.RUnlock()
+
 	pname := ds.partition
 	if pname != "" {
 		return ref, fmt.Errorf("refusing upload directly to queue partition %q", pname)
@@ -91,12 +93,6 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 			panic("expected partition name")
 		}
 		partitionDir := ds.blobDirectory(pname, blobRef)
-
-		// Prevent the directory from being unlinked by
-		// enumerate code, which cleans up.
-		defer keepDirectoryLock(partitionDir).Unlock()
-		defer keepDirectoryLock(filepath.Dir(partitionDir)).Unlock()
-		defer keepDirectoryLock(filepath.Dir(filepath.Dir(partitionDir))).Unlock()
 
 		if err = os.MkdirAll(partitionDir, 0700); err != nil {
 			return blob.SizedRef{}, fmt.Errorf("localdisk.receive: MkdirAll(%q) after lock on it: %v", partitionDir, err)
