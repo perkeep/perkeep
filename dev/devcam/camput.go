@@ -40,7 +40,7 @@ type putCmd struct {
 	tls    bool
 	// end of flag vars
 
-	verbose      string // set by CAMLI_QUIET
+	verbose      bool   // set by CAMLI_QUIET
 	camliSrcRoot string // the camlistore source tree
 }
 
@@ -51,7 +51,6 @@ func init() {
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
-		cmd.verbose = "false"
 		return cmd
 	})
 }
@@ -94,7 +93,7 @@ func (c *putCmd) RunCommand(args []string) error {
 
 	cmdBin := filepath.Join(c.camliSrcRoot, "bin", "camput")
 	cmdArgs := []string{
-		"-verbose=" + c.verbose,
+		"-verbose=" + strconv.FormatBool(c.verbose),
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)

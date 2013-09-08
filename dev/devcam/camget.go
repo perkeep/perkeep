@@ -40,7 +40,7 @@ type getCmd struct {
 	tls  bool
 	// end of flag vars
 
-	verbose      string // set by CAMLI_QUIET
+	verbose      bool   // set by CAMLI_QUIET
 	camliSrcRoot string // the camlistore source tree
 }
 
@@ -50,7 +50,6 @@ func init() {
 		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
-		cmd.verbose = "false"
 		return cmd
 	})
 }
@@ -89,7 +88,7 @@ func (c *getCmd) RunCommand(args []string) error {
 
 	cmdBin := filepath.Join(c.camliSrcRoot, "bin", "camget")
 	cmdArgs := []string{
-		"-verbose=" + c.verbose,
+		"-verbose=" + strconv.FormatBool(c.verbose),
 	}
 	if !isSharedMode(args) {
 		blobserver := "http://localhost:" + c.port + c.path
