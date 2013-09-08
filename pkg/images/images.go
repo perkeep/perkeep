@@ -24,6 +24,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 
 	_ "image/gif"
 	_ "image/png"
@@ -258,8 +259,10 @@ func (opts *DecodeOpts) useEXIF() bool {
 	return !(opts.forcedRotate() || opts.forcedFlip())
 }
 
+var debug, _ = strconv.ParseBool(os.Getenv("CAM_DEBUG_IMAGES"))
+
 func imageDebug(msg string) {
-	if os.Getenv("CAM_DEBUG_IMAGES") != "" {
+	if debug {
 		log.Print(msg)
 	}
 }

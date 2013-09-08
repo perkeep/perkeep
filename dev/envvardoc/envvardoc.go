@@ -25,7 +25,7 @@ var (
 	prefixes = flag.String("prefixes", "CAM,DEV,AWS",
 		"comma-separated list of env var prefixes we care about. Empty implies all")
 
-	docVar         = regexp.MustCompile(`^(\w+):$`)
+	docVar         = regexp.MustCompile(`^(\w+) \(.+?\):$`)
 	literalEnvVar  = regexp.MustCompile(`os.Getenv\("(\w+)"\)`)
 	variableEnvVar = regexp.MustCompile(`os.Getenv\((\w+)\)`)
 )
@@ -127,7 +127,7 @@ func printMap(header string, m varMap) {
 }
 
 func (ec *envCollector) printAll() {
-	fmt.Println("All evironment variables")
+	fmt.Println("All environment variables")
 	printMap("Literal\tLocation", ec.literals)
 	fmt.Println()
 	printMap("Variable\tLocation", ec.variables)
@@ -149,7 +149,12 @@ func (ec *envCollector) printUndocumented(prefixes []string) bool {
 			}
 		}
 	}
-	printMap("Undocumented\tLocation", missing)
+
+	if len(missing) != 0 {
+		printMap("Undocumented\tLocation", missing)
+	} else {
+		fmt.Println("All environment variables are documented")
+	}
 	return len(missing) != 0
 }
 

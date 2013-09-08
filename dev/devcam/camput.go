@@ -151,8 +151,6 @@ func (c *putCmd) setEnvVars() error {
 		setenv("CAMLI_KEYID", "C7C3E176")
 		println("**\n** Note: password is \"foo\"\n**\n")
 	}
-	if e := os.Getenv("CAMLI_QUIET"); e != "" {
-		c.verbose = "true"
-	}
+	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
 }

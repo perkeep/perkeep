@@ -53,9 +53,10 @@ type Server struct {
 }
 
 func New() *Server {
+	verbose, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_DEBUG"))
 	return &Server{
 		mux:     http.NewServeMux(),
-		verbose: os.Getenv("CAMLI_HTTP_DEBUG") == "1",
+		verbose: verbose,
 	}
 }
 
