@@ -560,14 +560,15 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	if baseURL != "" {
-		obj["baseURL"] = strings.TrimSuffix(baseURL, "/")
 		u, err := url.Parse(baseURL)
 		if err != nil {
 			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", baseURL, err)
 		}
-		if u.Path != "/" {
-			return nil, errors.New("baseURL can't have a path, only a scheme, host, and optional port.")
+		if u.Path != "" && u.Path != "/" {
+			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port.")
 		}
+		u.Path = ""
+		obj["baseURL"] = u.String()
 	}
 	if listen != "" {
 		obj["listen"] = listen
