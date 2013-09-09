@@ -272,6 +272,9 @@ func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 	}
 
 	parts := bytes.SplitN(data, pipe, 3)
+	if len(parts) != 3 {
+		return fmt.Errorf("Bogus stat cache value; was expecting fingerprint|blobSize|blobRef, got %q", data)
+	}
 	fingerprint := string(parts[0])
 	buf := bytes.NewReader(parts[1])
 	var size int32
