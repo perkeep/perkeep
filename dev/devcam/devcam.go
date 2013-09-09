@@ -30,6 +30,10 @@ import (
 	"camlistore.org/pkg/cmdmain"
 )
 
+// The path to the Camlistore source tree. Any devcam command
+// should be run from there.
+var camliSrcRoot string
+
 // sysExec is set to syscall.Exec on platforms that support it.
 var sysExec func(argv0 string, argv []string, envv []string) (err error)
 
@@ -137,7 +141,22 @@ func handleSignals(camliProc *os.Process) {
 	}
 }
 
+func checkCamliSrcRoot() {
+	if _, err := os.Stat("make.go"); err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatalf("Could not stat make.go: %v", err)
+		}
+		log.Fatal("./make.go not found; devcam needs to be run from the Camlistore source tree root.")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	camliSrcRoot = cwd
+}
+
 func main() {
+	checkCamliSrcRoot()
 	// TODO(mpl): usage error is not really correct for devcam.
 	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()
