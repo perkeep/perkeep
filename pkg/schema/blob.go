@@ -229,6 +229,11 @@ func (s Share) IsTransitive() bool {
 	return s.b.ss.Transitive
 }
 
+// IsExpired reports whether this share has expired.
+func (s Share) IsExpired() bool {
+	return clockNow().After(time.Time(s.b.ss.Expires))
+}
+
 // A Builder builds a JSON blob.
 // After mutating the Builder, call Blob to get the built blob.
 type Builder struct {
@@ -242,6 +247,20 @@ func NewBuilder() *Builder {
 	return &Builder{map[string]interface{}{
 		"camliVersion": "1",
 	}}
+}
+
+// SetShareExpiration sets the expiration time on share claim.
+// It panics if bb isn't a "share" claim type.
+// If t is zero, the expiration is removed.
+func (bb *Builder) SetShareExpiration(t time.Time) {
+	if bb.Type() != "claim" || bb.m["claimType"] != "share" {
+		panic("called SetShareExpiration on non-share")
+	}
+	if t.IsZero() {
+		delete(bb.m, "expires")
+	} else {
+		bb.m["expires"] = RFC3339FromTime(t)
+	}
 }
 
 // SetRawStringField sets a raw string field in the underlying map.

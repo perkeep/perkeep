@@ -130,6 +130,10 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				auth.SendUnauthorized(conn, req)
 				return
 			}
+			if share.IsExpired() {
+				auth.SendUnauthorized(conn, req)
+				return
+			}
 			if len(fetchChain) > 1 && fetchChain[1].String() != share.Target().String() {
 				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
 					br.String(), fetchChain[1].String(), share.Target().String())

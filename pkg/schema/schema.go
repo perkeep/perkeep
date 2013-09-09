@@ -52,6 +52,8 @@ var (
 	ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
 )
 
+var clockNow = time.Now
+
 type StatHasher interface {
 	Lstat(fileName string) (os.FileInfo, error)
 	Hash(fileName string) (blob.Ref, error)
@@ -245,7 +247,8 @@ type superset struct {
 	// AuthType is a "share" blob's authentication type that is required.
 	// Currently (2013-01-02) just "haveref" (if you know the share's blobref,
 	// you get access: the secret URL model)
-	AuthType string `json:"authType"`
+	AuthType string         `json:"authType"`
+	Expires  types.Time3339 `json:"expires"` // or zero for no expiration
 }
 
 func parseSuperset(r io.Reader) (*superset, error) {
@@ -657,14 +660,15 @@ type claimParam struct {
 	value     string   // optional if Type == DelAttribute
 
 	// Params specific to "share" claims:
-	authType   string
-	target     blob.Ref
-	transitive bool
+	authType     string
+	target       blob.Ref
+	transitive   bool
+	shareExpires time.Time // Zero means no expiration
 }
 
 func NewClaim(claims ...*claimParam) *Builder {
 	bb := base(1, "claim")
-	bb.SetClaimDate(time.Now())
+	bb.SetClaimDate(clockNow())
 	if len(claims) == 1 {
 		cp := claims[0]
 		populateClaimMap(bb.m, cp)

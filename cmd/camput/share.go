@@ -19,21 +19,23 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
 
 type shareCmd struct {
 	transitive bool
+	duration   time.Duration // zero means forever
 }
 
 func init() {
 	cmdmain.RegisterCommand("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(shareCmd)
 		flags.BoolVar(&cmd.transitive, "transitive", false, "share everything reachable from the given blobref")
+		flags.DurationVar(&cmd.duration, "duration", 0, "how long the share claim is valid for. The default of 0 means forever. For valid formats, see http://golang.org/pkg/time/#ParseDuration")
 		return cmd
 	})
 }
@@ -57,16 +59,16 @@ func (c *shareCmd) RunCommand(args []string) error {
 	if len(args) != 1 {
 		return cmdmain.UsageError("share takes exactly one argument, a blobref")
 	}
-	br, ok := blob.Parse(args[0])
+	target, ok := blob.Parse(args[0])
 	if !ok {
 		return cmdmain.UsageError("invalid blobref")
 	}
-	pr, err := getUploader().UploadShare(br, c.transitive)
+	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, c.transitive)
+	if c.duration != 0 {
+		unsigned.SetShareExpiration(time.Now().Add(c.duration))
+	}
+
+	pr, err := getUploader().UploadAndSignBlob(unsigned)
 	handleResult("share", pr, err)
 	return nil
-}
-
-func (up *Uploader) UploadShare(target blob.Ref, transitive bool) (*client.PutResult, error) {
-	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, transitive)
-	return up.UploadAndSignBlob(unsigned)
 }

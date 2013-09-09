@@ -264,3 +264,36 @@ func TestAsClaimAndAsShare(t *testing.T) {
 		t.Error("Share claim failed to return share")
 	}
 }
+
+func TestShareExpiration(t *testing.T) {
+	defer func() { clockNow = time.Now }()
+	blob, err := BlobFromReader(
+		blob.MustParse("sha1-64ffa72fa9bcb2f825e7ed40b9451e5cadca4c2c"),
+		strings.NewReader(`{"camliVersion": 1,
+  "authType": "haveref",
+  "camliSigner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+  "camliType": "claim",
+  "claimDate": "2013-09-08T23:58:53.656549677Z",
+  "claimType": "share",
+  "expires": "2013-09-09T23:58:53.65658012Z",
+  "target": "sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+  "transitive": false
+,"camliSig":"wsBcBAABCAAQBQJSLQ89CRApMaZ8JvWr2gAAcuEIABRQolhn+yKksfaBx6oLo18NWvWQ+aYweF+5Gu0TH0Ixur7t1o5HFtFSSfFISyggSZDJSjsxoxaawhWrvCe9dZuU2s/zgRpgUtd2xmBt82tLOn9JidnUavsNGFXbfCwdUBSkzN0vDYLmgXW0VtiybB354uIKfOInZor2j8Mq0p6pkWzK3qq9W0dku7iE96YFaTb4W7eOikqoSC6VpjC1/4MQWOYRHLcPcIEY6xJ8es2sYMMSNXuVaR9nMupz8ZcTygP4jh+lPR1OH61q/FSjpRp7GKt4wZ1PknYjMbnpIzVjiSz0MkYd65bpZwuPOwZh/h2kHW7wvHNQZfWUJHEsOAI==J2ID"}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := blob.AsShare()
+	if !ok {
+		t.Fatal("expected share")
+	}
+	clockNow = func() time.Time { return time.Unix(100, 0) }
+	if s.IsExpired() {
+		t.Error("expected not expired")
+	}
+	clockNow = func() time.Time { return time.Unix(1378687181+2*86400, 0) }
+	if !s.IsExpired() {
+		t.Error("expected expired")
+	}
+
+}
