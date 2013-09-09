@@ -19,6 +19,7 @@ appengine-sdk
 build/root
 .DS_Store
 bin/cam*
+bin/devcam
 bin/*_*
 tmp
 server/camlistored/newui/all.js
