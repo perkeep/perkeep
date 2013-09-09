@@ -37,6 +37,7 @@ var prefixTable = []prefixEntry{
 	{[]byte("\xff\xd8\xff\xe1"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xe0"), "image/jpeg"},
 	{[]byte("\xff\xd8\xff\xdb"), "image/jpeg"},
+	{[]byte("\x49\x49\x2a\x00\x10\x00\x00\x00\x43\x52\x02"), "image/cr2"},
 	{[]byte{137, 'P', 'N', 'G', '\r', '\n', 26, 10}, "image/png"},
 	{[]byte("-----BEGIN PGP PUBLIC KEY BLOCK---"), "text/x-openpgp-public-key"},
 	{[]byte{'I', 'D', '3'}, "audio/mpeg"},
