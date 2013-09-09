@@ -1441,7 +1441,7 @@ func (a *Allocator) Verify(bitmap Filer, log func(error) bool, stats *AllocStats
 	ok := fsz%16 == 0
 	totalAtoms := (fsz - fltSz) / atomLen
 	if !ok {
-		err = &ErrILSEQ{Type: ErrFileSize, Arg: fsz}
+		err = &ErrILSEQ{Type: ErrFileSize, Name: a.f.Name(), Arg: fsz}
 		log(err)
 		return
 	}

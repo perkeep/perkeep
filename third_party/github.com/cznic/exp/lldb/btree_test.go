@@ -1865,3 +1865,32 @@ func TestBTreeSeekLast(t *testing.T) {
 	}
 
 }
+
+// https://code.google.com/p/camlistore/issues/detail?id=216
+func TestBug216(t *testing.T) {
+	const S = 2*kKV + 2 // 2*kKV+1 ok
+	const N = 300000
+	rng, err := mathutil.NewFC32(math.MinInt32, math.MaxInt32, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := make([]byte, S/2)
+	v := make([]byte, S-S/2)
+	tr := NewBTree(nil)
+	for i := 0; i < N; i++ {
+		for i := range k {
+			k[i] = byte(rng.Next())
+		}
+		for i := range v {
+			v[i] = byte(rng.Next())
+		}
+
+		if err := tr.Set(h2b(k, int64(i)), h2b(v, int64(i))); err != nil {
+			t.Fatal(i, err)
+		}
+
+		if (i+1)%10000 == 0 {
+			//dbg("%v", i+1)
+		}
+	}
+}

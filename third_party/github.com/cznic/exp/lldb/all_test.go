@@ -7,6 +7,7 @@ package lldb
 import (
 	"encoding/hex"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -23,4 +24,9 @@ func hdump(b []byte) string {
 
 func die() {
 	os.Exit(1)
+}
+
+func stack() string {
+	buf := make([]byte, 1<<16)
+	return string(buf[:runtime.Stack(buf, false)])
 }

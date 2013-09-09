@@ -243,8 +243,8 @@ func (a *ACIDFiler0) recoverDb(db Filer) (err error) {
 		return &ErrILSEQ{Type: ErrInvalidWAL, Name: a.wal.Name(), More: err}
 	}
 
-	if fi.Size()%16 != 0 {
-		return err
+	if sz := fi.Size(); sz%16 != 0 {
+		return &ErrILSEQ{Type: ErrFileSize, Name: a.wal.Name(), Arg: sz}
 	}
 
 	f := bufio.NewReader(a.wal)

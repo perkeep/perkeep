@@ -62,7 +62,7 @@ const (
 	ErrFLT                   // Free block is invalid or referenced multiple times
 	ErrFLTLoad               // FLT truncated to .Off, need size >= .Arg
 	ErrFLTSize               // Free block size (.Arg) doesn't belong to its list min size: .Arg2
-	ErrFileSize              // File size (.Arg) != 0 (mod 16)
+	ErrFileSize              // File .Name size (.Arg) != 0 (mod 16)
 	ErrFreeChaining          // Free block, .prev.next doesn't point back to this block
 	ErrFreeTailBlock         // Last block is free
 	ErrHead                  // Head of a free block list has non zero Prev (.Arg)
@@ -114,7 +114,7 @@ func (e *ErrILSEQ) Error() string {
 	case ErrFLTSize:
 		return fmt.Sprintf("Free block at offset %#x has size (%#x) should be at least (%#x)", e.Off, e.Arg, e.Arg2)
 	case ErrFileSize:
-		return fmt.Sprintf("File size (%#x) != 0 (mod 16)", e.Arg)
+		return fmt.Sprintf("File %q size (%#x) != 0 (mod 16)", e.Name, e.Arg)
 	case ErrFreeChaining:
 		return fmt.Sprintf("Free block at offset %#x: .prev.next doesn point back here.", e.Off)
 	case ErrFreeTailBlock:
