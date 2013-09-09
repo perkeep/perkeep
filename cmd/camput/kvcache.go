@@ -167,7 +167,7 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 		return nil, errCacheMiss
 	}
 	cachelog.Printf("stat cache HIT on %q", binKey)
-	return &(val.Result), nil
+	return &val.Result, nil
 }
 
 func (c *KvStatCache) AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult, withPermanode bool) {
@@ -261,6 +261,8 @@ func (scv *statCacheValue) marshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+var pipe = []byte("|")
+
 func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 	if scv == nil {
 		return errors.New("Can't unmarshalBinary into a nil stat cache value")
@@ -269,7 +271,7 @@ func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 		return errors.New("Can't unmarshalBinary into a non empty stat cache value")
 	}
 
-	parts := bytes.SplitN(data, []byte("|"), 3)
+	parts := bytes.SplitN(data, pipe, 3)
 	fingerprint := string(parts[0])
 	buf := bytes.NewReader(parts[1])
 	var size int32
