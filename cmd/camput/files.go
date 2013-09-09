@@ -782,6 +782,9 @@ func (n *node) String() string {
 func (n *node) SetPutResult(res *client.PutResult, err error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if res == nil && err == nil {
+		panic("SetPutResult called with (nil, nil)")
+	}
 	n.res, n.err = res, err
 	n.cond.Signal()
 }
