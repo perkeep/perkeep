@@ -231,7 +231,8 @@ func (s Share) IsTransitive() bool {
 
 // IsExpired reports whether this share has expired.
 func (s Share) IsExpired() bool {
-	return clockNow().After(time.Time(s.b.ss.Expires))
+	t := time.Time(s.b.ss.Expires)
+	return !t.IsZero() && clockNow().After(t)
 }
 
 // A Builder builds a JSON blob.
