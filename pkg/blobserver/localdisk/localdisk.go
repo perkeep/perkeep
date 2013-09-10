@@ -57,7 +57,9 @@ type DiskStorage struct {
 
 	// dirLockMu must be held for writing when deleting an empty directory
 	// and for read when receiving blobs.
-	dirLockMu sync.RWMutex
+	// The same lock is shared between queues created from a parent,
+	// since they interact with overlapping sets of directories.
+	dirLockMu *sync.RWMutex
 }
 
 // New returns a new local disk storage implementation at the provided
@@ -75,7 +77,8 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
 	}
 	ds := &DiskStorage{
-		root: root,
+		root:      root,
+		dirLockMu: new(sync.RWMutex),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
@@ -114,6 +117,7 @@ func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, error) {
 	q := &DiskStorage{
 		root:      ds.root,
 		partition: "queue-" + name,
+		dirLockMu: ds.dirLockMu, // see comment on DiskStorage type
 	}
 	baseDir := ds.PartitionRoot(q.partition)
 	if err := os.MkdirAll(baseDir, 0700); err != nil {
