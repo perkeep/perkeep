@@ -35,6 +35,8 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+
+	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
 
 const imageDebug = false
@@ -166,7 +168,8 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 	}
 	b := i.Bounds()
 
-	useBytesUnchanged := !imConfig.Modified
+	useBytesUnchanged := !imConfig.Modified &&
+		format != "cr2" // always recompress CR2 files
 
 	isSquare := b.Dx() == b.Dy()
 	if ih.Square && !isSquare {
@@ -178,6 +181,10 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 	if !useBytesUnchanged {
 		// Encode as a new image
 		buf.Reset()
+		// Recompress CR2 files as JPEG
+		if format == "cr2" {
+			format = "jpeg"
+		}
 		switch format {
 		case "jpeg":
 			err = jpeg.Encode(buf, i, nil)
