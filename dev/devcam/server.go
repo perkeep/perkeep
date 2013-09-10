@@ -57,9 +57,8 @@ type serverCmd struct {
 	openBrowser bool
 	// end of flag vars
 
-	camliSrcRoot string // the camlistore source tree
-	listen       string // address + port to listen on
-	camliRoot    string // the temp dir where blobs are stored
+	listen    string // address + port to listen on
+	camliRoot string // the temp dir where blobs are stored
 }
 
 func init() {
@@ -133,7 +132,7 @@ func (c *serverCmd) build(name string) error {
 	default:
 		return fmt.Errorf("Could not build, invalid target: %v", name)
 	}
-	binPath := filepath.Join(c.camliSrcRoot, "bin", name)
+	binPath := filepath.Join("bin", name)
 	var modtime int64
 	fi, err := os.Stat(binPath)
 	if err != nil {
@@ -242,7 +241,7 @@ func (c *serverCmd) setEnvVars() error {
 	}
 	setenv("CAMLI_BASEURL", base)
 
-	setenv("CAMLI_DEV_CAMLI_ROOT", c.camliSrcRoot)
+	setenv("CAMLI_DEV_CAMLI_ROOT", camliSrcRoot)
 	setenv("CAMLI_AUTH", "devauth:pass3179")
 	fullSuffix := func(name string) string {
 		return filepath.Join(c.camliRoot, name)
@@ -263,7 +262,7 @@ func (c *serverCmd) setEnvVars() error {
 		setenv(k, v)
 	}
 	setenv("CAMLI_PORT", c.port)
-	setenv("CAMLI_SECRET_RING", filepath.Join(c.camliSrcRoot,
+	setenv("CAMLI_SECRET_RING", filepath.Join(camliSrcRoot,
 		filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
 	return nil
 }
@@ -292,7 +291,7 @@ func (c *serverCmd) setupIndexer() error {
 	} else {
 		args = append(args, "-ignoreexists")
 	}
-	binPath := filepath.Join(c.camliSrcRoot, "bin", "camtool")
+	binPath := filepath.Join("bin", "camtool")
 	cmd := exec.Command(binPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -304,7 +303,7 @@ func (c *serverCmd) setupIndexer() error {
 
 func (c *serverCmd) syncTemplateBlobs() error {
 	if c.wipe {
-		templateDir := filepath.Join(c.camliSrcRoot, "dev-server-template")
+		templateDir := "dev-server-template"
 		if _, err := os.Stat(templateDir); err != nil {
 			if os.IsNotExist(err) {
 				return nil
@@ -344,14 +343,6 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
-	c.camliSrcRoot, err = osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		return errors.New("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
-	}
-	err = os.Chdir(c.camliSrcRoot)
-	if err != nil {
-		return fmt.Errorf("Could not chdir to %v: %v", c.camliSrcRoot, err)
-	}
 	if !c.noBuild {
 		for _, name := range []string{"camlistored", "camtool"} {
 			err := c.build(name)
@@ -379,9 +370,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
 		os.Getenv("CAMLI_BASEURL"))
 
-	camliBin := filepath.Join(c.camliSrcRoot, "bin", "camlistored")
+	camliBin := filepath.Join("bin", "camlistored")
 	cmdArgs := []string{
-		"-configfile=" + filepath.Join(c.camliSrcRoot, "config", "dev-server-config.json"),
+		"-configfile=" + filepath.Join(camliSrcRoot, "config", "dev-server-config.json"),
 		"-listen=" + c.listen,
 		"-openbrowser=" + strconv.FormatBool(c.openBrowser),
 	}
