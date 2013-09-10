@@ -211,7 +211,7 @@
          "enabled": ["_env", "${CAMLI_MONGO_ENABLED}", true],
          "handler": "storage-mongodbindexer",
          "handlerArgs": {
-             "servers": "localhost",
+             "host": "localhost",
              "database": ["_env", "${CAMLI_DBNAME}"],
              "blobSource": "/bs/"
          }
