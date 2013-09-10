@@ -30,7 +30,7 @@ import (
 type Result struct {
 	BlobRef     blob.Ref
 	Signer      blob.Ref // may be nil
-	LastModTime int64            // seconds since epoch; TODO: time.Time?
+	LastModTime int64    // seconds since epoch; TODO: time.Time?
 }
 
 // Results exists mostly for debugging, to provide a String method on
@@ -170,7 +170,7 @@ func (e *Edge) String() string {
 
 type Index interface {
 	// dest must be closed, even when returning an error.
-	// limit is <= 0 for default.  smallest possible default is 0
+	// limit <= 0 means unlimited.
 	GetRecentPermanodes(dest chan *Result,
 		owner blob.Ref,
 		limit int) error
@@ -220,6 +220,13 @@ type Index interface {
 
 	// Should return os.ErrNotExist if not found.
 	GetImageInfo(fileRef blob.Ref) (*ImageInfo, error)
+
+	// GetDirMembers sends on dest the children of the static
+	// directory dirRef. It returns os.ErrNotExist if dirRef
+	// is nil.
+	// dest must be closed, even when returning an error.
+	// limit <= 0 means unlimited.
+	GetDirMembers(dirRef blob.Ref, dest chan<- blob.Ref, limit int) error
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has

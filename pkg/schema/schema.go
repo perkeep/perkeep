@@ -571,6 +571,11 @@ func NewFileMap(fileName string) *Builder {
 	return newCommonFilenameMap(fileName).SetType("file")
 }
 
+// NewDirMap returns a new builder of a type "directory" schema for the provided fileName.
+func NewDirMap(fileName string) *Builder {
+	return newCommonFilenameMap(fileName).SetType("directory")
+}
+
 func newCommonFilenameMap(fileName string) *Builder {
 	bb := base(1, "" /* no type yet */)
 	if fileName != "" {
