@@ -146,7 +146,23 @@ func main() {
 
 	verifyGoVersion()
 
-	if *embedResources {
+	buildAll := true
+	targs := []string{
+		"camlistore.org/dev/devcam",
+		"camlistore.org/cmd/camget",
+		"camlistore.org/cmd/camput",
+		"camlistore.org/cmd/camtool",
+		"camlistore.org/server/camlistored",
+	}
+	if *targets != "" {
+		if t := strings.Split(*targets, ","); len(t) != 0 {
+			targs = t
+			buildAll = false
+		}
+	}
+
+	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
+	if *embedResources && withCamlistored {
 		if *verbose {
 			log.Printf("Embedding resources...")
 		}
@@ -165,7 +181,7 @@ func main() {
 		}
 	}
 
-	deleteUnwantedOldMirrorFiles(buildSrcDir)
+	deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
 
 	tags := ""
 	if sql {
@@ -181,20 +197,6 @@ func main() {
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
-	buildAll := true
-	targs := []string{
-		"camlistore.org/dev/devcam",
-		"camlistore.org/cmd/camget",
-		"camlistore.org/cmd/camput",
-		"camlistore.org/cmd/camtool",
-		"camlistore.org/server/camlistored",
-	}
-	if *targets != "" {
-		if t := strings.Split(*targets, ","); len(t) != 0 {
-			targs = t
-			buildAll = false
-		}
-	}
 	args := append(baseArgs, targs...)
 	if buildAll {
 		switch *buildOS {
@@ -302,6 +304,15 @@ func setEnv(env []string, key, value string) []string {
 	}
 	env = append(env, envPair(key, value))
 	return env
+}
+
+func stringListContains(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }
 
 // buildSrcPath returns the full path concatenation
@@ -527,7 +538,7 @@ func mirrorFile(src, dst string) error {
 	return err
 }
 
-func deleteUnwantedOldMirrorFiles(dir string) {
+func deleteUnwantedOldMirrorFiles(dir string, withCamlistored bool) {
 	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			log.Fatalf("Error stating while cleaning %s: %v", path, err)
@@ -536,6 +547,13 @@ func deleteUnwantedOldMirrorFiles(dir string) {
 			return nil
 		}
 		if !wantDestFile[path] {
+			if !withCamlistored && (strings.Contains(path, "zembed_") || strings.Contains(path, "z_data.go")) {
+				// If we're not building the camlistored binary,
+				// no need to clean up the embedded Closure, JS,
+				// CSS, HTML, etc. Doing so would just mean we'd
+				// have to put it back into place later.
+				return nil
+			}
 			if !*quiet {
 				log.Printf("Deleting old file from temp build dir: %s", path)
 			}

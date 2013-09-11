@@ -4,9 +4,6 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- make.go does too much work when just building camput. See:
-   $ go run make.go --targets=camlistore.org/cmd/camput -v
-
 -- can't SIGINT (control-C) camput on at least Mac, at least under
    devcam? Why not?
 
