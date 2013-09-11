@@ -34,10 +34,11 @@ import (
 
 type putCmd struct {
 	// start of flag vars
-	altkey bool
-	path   string
-	port   string
-	tls    bool
+	altkey  bool
+	path    string
+	port    string
+	tls     bool
+	noBuild bool
 	// end of flag vars
 
 	verbose      bool   // set by CAMLI_QUIET
@@ -51,6 +52,7 @@ func init() {
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
+		flags.BoolVar(&cmd.noBuild, "nobuild", false, "Do not rebuild anything.")
 		return cmd
 	})
 }
