@@ -241,6 +241,18 @@ var (
 		},
 	}
 
+	// child of a directory
+	keyStaticDirChild = &keyType{
+		"dirchild",
+		[]part{
+			{"dirref", typeBlobRef}, // blobref of "directory" schema blob
+			{"child", typeStr},      // blobref of the child
+		},
+		[]part{
+			{"1", typeStr},
+		},
+	}
+
 	// Audio attributes (e.g., ID3 tags). Uses generic terms like
 	// "artist", "title", "album", etc.
 	keyAudioTag = &keyType{

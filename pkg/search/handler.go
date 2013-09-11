@@ -600,6 +600,10 @@ type DescribeRequest struct {
 	// Depth is the optional traversal depth to describe from the
 	// root BlobRef. If zero, a default is used.
 	Depth int
+	// MaxDirChildren is the requested optional limit to the number
+	// of children that should be fetched when describing a static
+	// directory. If zero, a default is used.
+	MaxDirChildren int
 
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.
@@ -614,7 +618,7 @@ type DescribeRequest struct {
 
 func (r *DescribeRequest) URLSuffix() string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camli/search/describe?depth=%d", r.Depth)
+	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d", r.depth(), r.maxDirChildren())
 	for _, br := range r.BlobRefs {
 		buf.WriteString("&blobref=")
 		buf.WriteString(br.String())
@@ -641,6 +645,7 @@ func (r *DescribeRequest) fromHTTP(req *http.Request) {
 		r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
 	}
 	r.Depth = httputil.OptionalInt(req, "depth")
+	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
 }
 
 type DescribedBlob struct {
@@ -660,6 +665,8 @@ type DescribedBlob struct {
 	Dir *FileInfo `json:"dir,omitempty"`
 	// if camliType "file", and File.IsImage()
 	Image *ImageInfo `json:"image,omitempty"`
+	// if camliType "directory"
+	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
 
 	Thumbnail       string `json:"thumbnailSrc,omitempty"`
 	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
@@ -750,6 +757,18 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 				m = append(m, b.PeerBlob(br))
 			}
 		}
+	}
+	return m
+}
+
+func (b *DescribedBlob) DirMembers() []*DescribedBlob {
+	if b == nil || b.Dir == nil || len(b.DirChildren) == 0 {
+		return nil
+	}
+
+	m := make([]*DescribedBlob, 0)
+	for _, br := range b.DirChildren {
+		m = append(m, b.PeerBlob(br))
 	}
 	return m
 }
@@ -930,12 +949,26 @@ func (sh *Handler) ResolvePrefixHop(parent blob.Ref, prefix string) (child blob.
 		return blob.Ref{}, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
 	}
 	if des.Permanode != nil {
-		if cr, ok := des.ContentRef(); ok && strings.HasPrefix(cr.Digest(), prefix) {
+		cr, ok := des.ContentRef()
+		if ok && strings.HasPrefix(cr.Digest(), prefix) {
 			return cr, nil
 		}
 		for _, member := range des.Members() {
 			if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
 				return member.BlobRef, nil
+			}
+		}
+		_, err := dr.DescribeSync(cr)
+		if err != nil {
+			return blob.Ref{}, fmt.Errorf("Failed to describe content %q of parent %q", cr, parent)
+		}
+		if _, _, ok := des.PermanodeDir(); ok {
+			return sh.ResolvePrefixHop(cr, prefix)
+		}
+	} else if des.Dir != nil {
+		for _, child := range des.DirChildren {
+			if strings.HasPrefix(child.Digest(), prefix) {
+				return child, nil
 			}
 		}
 	}
@@ -971,6 +1004,10 @@ func (dr *DescribeRequest) depth() int {
 		return dr.Depth
 	}
 	return 4
+}
+
+func (dr *DescribeRequest) maxDirChildren() int {
+	return sanitizeNumResults(dr.MaxDirChildren)
 }
 
 func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
@@ -1103,7 +1140,18 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			} else {
 				dr.addError(br, err)
 			}
+			return
 		}
+		members, err := dr.getDirMembers(br, depth)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Printf("index.GetDirMembers(directory %s) failed; index stale?", br)
+			} else {
+				dr.addError(br, err)
+			}
+			return
+		}
+		des.DirChildren = members
 	}
 }
 
@@ -1232,6 +1280,25 @@ claimLoop:
 			}
 		}
 	}
+}
+
+func (dr *DescribeRequest) getDirMembers(br blob.Ref, depth int) ([]blob.Ref, error) {
+	limit := dr.maxDirChildren()
+	ch := make(chan blob.Ref)
+	errch := make(chan error)
+	go func() {
+		errch <- dr.sh.index.GetDirMembers(br, ch, limit)
+	}()
+
+	var members []blob.Ref
+	for child := range ch {
+		dr.Describe(child, depth)
+		members = append(members, child)
+	}
+	if err := <-errch; err != nil {
+		return nil, err
+	}
+	return members, nil
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue

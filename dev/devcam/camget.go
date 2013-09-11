@@ -19,7 +19,6 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -30,7 +29,6 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/osutil"
 )
 
 type getCmd struct {
@@ -40,8 +38,7 @@ type getCmd struct {
 	tls  bool
 	// end of flag vars
 
-	verbose      bool   // set by CAMLI_QUIET
-	camliSrcRoot string // the camlistore source tree
+	verbose bool // set by CAMLI_QUIET
 }
 
 func init() {
@@ -74,19 +71,14 @@ func (c *getCmd) RunCommand(args []string) error {
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
-	c.camliSrcRoot, err = osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		return errors.New("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
-	}
-	err = os.Chdir(c.camliSrcRoot)
-	if err != nil {
-		return fmt.Errorf("Could not chdir to %v: %v", c.camliSrcRoot, err)
+	if err := c.build(); err != nil {
+		return fmt.Errorf("Could not build camget: %v", err)
 	}
 	if err := c.setEnvVars(); err != nil {
 		return fmt.Errorf("Could not setup the env vars: %v", err)
 	}
 
-	cmdBin := filepath.Join(c.camliSrcRoot, "bin", "camget")
+	cmdBin := filepath.Join("bin", "camget")
 	cmdArgs := []string{
 		"-verbose=" + strconv.FormatBool(c.verbose),
 	}
@@ -108,10 +100,10 @@ func (c *getCmd) checkFlags(args []string) error {
 	return nil
 }
 
-func (c *getCmd) build(name string) error {
+func (c *getCmd) build() error {
 	cmdName := "camget"
 	target := filepath.Join("camlistore.org", "cmd", cmdName)
-	binPath := filepath.Join(c.camliSrcRoot, "bin", cmdName)
+	binPath := filepath.Join("bin", cmdName)
 	var modtime int64
 	fi, err := os.Stat(binPath)
 	if err != nil {
@@ -138,13 +130,11 @@ func (c *getCmd) build(name string) error {
 }
 
 func (c *getCmd) setEnvVars() error {
-	setenv("CAMLI_CONFIG_DIR", filepath.Join(c.camliSrcRoot, "config", "dev-client-dir"))
-	setenv("CAMLI_SECRET_RING", filepath.Join(c.camliSrcRoot,
-		filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
+	setenv("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
 	setenv("CAMLI_KEYID", "26F5ABDA")
 	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
-	setenv("CAMLI_DEV_KEYBLOBS", filepath.Join(c.camliSrcRoot,
-		filepath.FromSlash("config/dev-client-dir/keyblobs")))
+	setenv("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
 	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
 }

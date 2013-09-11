@@ -677,6 +677,31 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search
 	return edges, nil
 }
 
+// GetDirMembers sends on dest the children of the static directory dir.
+func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) error {
+	defer close(dest)
+
+	sent := 0
+	it := x.queryPrefix(keyStaticDirChild, dir.String())
+	for it.Next() {
+		keyPart := strings.Split(it.Key(), "|")
+		if len(keyPart) != 3 {
+			return fmt.Errorf("index: bogus key keyStaticDirChild = %q", it.Key())
+		}
+
+		child, ok := blob.Parse(keyPart[2])
+		if !ok {
+			continue
+		}
+		dest <- child
+		sent++
+		if sent == limit {
+			break
+		}
+	}
+	return nil
+}
+
 // Storage returns the index's underlying Storage implementation.
 func (x *Index) Storage() Storage { return x.s }
 

@@ -285,6 +285,9 @@ func (ix *Index) populateDir(b *schema.Blob, bm BatchMutation) error {
 	}
 
 	bm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), b.FileName(), ""))
+	for _, br := range sts {
+		bm.Set(keyStaticDirChild.Key(blobRef, br.String()), "1")
+	}
 	return nil
 }
 

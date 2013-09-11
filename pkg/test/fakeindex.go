@@ -149,6 +149,10 @@ func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (*search.ImageInfo, error) {
 	panic("NOIMPL")
 }
 
+func (fi *FakeIndex) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) error {
+	panic("NOIMPL")
+}
+
 func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (blob.Ref, error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()

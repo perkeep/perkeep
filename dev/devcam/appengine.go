@@ -19,7 +19,6 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -27,7 +26,6 @@ import (
 	"strconv"
 
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/osutil"
 )
 
 type gaeCmd struct {
@@ -37,9 +35,6 @@ type gaeCmd struct {
 	sdk  string
 	wipe bool
 	// end of flag vars
-
-	camliSrcRoot   string // the camlistore source tree
-	applicationDir string // App Engine application dir: camliSrcRoot/server/appengine
 }
 
 func init() {
@@ -66,18 +61,14 @@ func (c *gaeCmd) RunCommand(args []string) error {
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
-	c.camliSrcRoot, err = osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		return errors.New("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
-	}
-	c.applicationDir = filepath.Join(c.camliSrcRoot, "server", "appengine")
-	if _, err := os.Stat(c.applicationDir); err != nil {
-		return fmt.Errorf("Appengine application dir not found at %s", c.applicationDir)
+	applicationDir := filepath.Join("server", "appengine")
+	if _, err := os.Stat(applicationDir); err != nil {
+		return fmt.Errorf("Appengine application dir not found at %s", applicationDir)
 	}
 	if err = c.checkSDK(); err != nil {
 		return err
 	}
-	if err = c.mirrorSourceRoot(); err != nil {
+	if err = c.mirrorSourceRoot(applicationDir); err != nil {
 		return err
 	}
 
@@ -93,7 +84,7 @@ func (c *gaeCmd) RunCommand(args []string) error {
 		cmdArgs = append(cmdArgs, "--clear_datastore")
 	}
 	cmdArgs = append(cmdArgs, args...)
-	cmdArgs = append(cmdArgs, c.applicationDir)
+	cmdArgs = append(cmdArgs, applicationDir)
 	return runExec(devAppServerBin, cmdArgs)
 }
 
@@ -105,7 +96,7 @@ func (c *gaeCmd) checkFlags(args []string) error {
 }
 
 func (c *gaeCmd) checkSDK() error {
-	defaultSDK := filepath.Join(c.camliSrcRoot, "appengine-sdk")
+	defaultSDK := "appengine-sdk"
 	if c.sdk == "" {
 		c.sdk = defaultSDK
 	}
@@ -115,11 +106,11 @@ func (c *gaeCmd) checkSDK() error {
 	return nil
 }
 
-func (c *gaeCmd) mirrorSourceRoot() error {
+func (c *gaeCmd) mirrorSourceRoot(gaeAppDir string) error {
 	uiDirs := []string{"server/camlistored/ui", "third_party/closure/lib/closure", "pkg/server"}
 	for _, dir := range uiDirs {
-		oriPath := filepath.Join(c.camliSrcRoot, filepath.FromSlash(dir))
-		dstPath := filepath.Join(c.applicationDir, "source_root", filepath.FromSlash(dir))
+		oriPath := filepath.Join(camliSrcRoot, filepath.FromSlash(dir))
+		dstPath := filepath.Join(gaeAppDir, "source_root", filepath.FromSlash(dir))
 		if err := cpDir(oriPath, dstPath, []string{".go"}); err != nil {
 			return fmt.Errorf("Error while mirroring %s to %s: %v", oriPath, dstPath, err)
 		}

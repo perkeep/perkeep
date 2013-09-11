@@ -181,6 +181,40 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 	return
 }
 
+// If modTime is zero, it's not used.
+func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time.Time) blob.Ref {
+	// static-set entries blob
+	ss := new(schema.StaticSet)
+	for _, child := range children {
+		ss.Add(child)
+	}
+	ssjson := ss.Blob().JSON()
+	ssb := &test.Blob{Contents: ssjson}
+	id.BlobSource.AddBlob(ssb)
+	_, err := id.Index.ReceiveBlob(ssb.BlobRef(), ssb.Reader())
+	if err != nil {
+		id.Fatalf("UploadDir.ReceiveBlob: %v", err)
+	}
+
+	// directory blob
+	bb := schema.NewDirMap(dirName)
+	bb.PopulateDirectoryMap(ssb.BlobRef())
+	if !modTime.IsZero() {
+		bb.SetModTime(modTime)
+	}
+	dirjson, err := bb.JSON()
+	if err != nil {
+		id.Fatalf("UploadDir.JSON: %v", err)
+	}
+	dirb := &test.Blob{Contents: dirjson}
+	id.BlobSource.AddBlob(dirb)
+	_, err = id.Index.ReceiveBlob(dirb.BlobRef(), dirb.Reader())
+	if err != nil {
+		id.Fatalf("UploadDir.ReceiveBlob: %v", err)
+	}
+	return dirb.BlobRef()
+}
+
 // NewIndexDeps returns an IndexDeps helper for populating and working
 // with the provided index for tests.
 func NewIndexDeps(index *index.Index) *IndexDeps {
@@ -282,6 +316,13 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		jpegFileRef = uploadFile("dude.jpg", noTime)
 		exifFileRef = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
 	}
+
+	// Upload the dir containing the two previous images
+	imagesDirRef := id.UploadDir(
+		"testdata",
+		[]blob.Ref{jpegFileRef, exifFileRef},
+		time.Now(),
+	)
 
 	lastPermanodeMutation := id.lastTime()
 	id.dumpIndex(t)
@@ -438,6 +479,36 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			if !found {
 				t.Errorf("GetRecentPermanode: %v was not found.\n got: %v\nwant: %v",
 					w, search.Results(got), search.Results(want))
+			}
+		}
+	}
+
+	// GetDirMembers
+	{
+		ch := make(chan blob.Ref, 10) // expect 2 results
+		err := id.Index.GetDirMembers(imagesDirRef, ch, 50)
+		if err != nil {
+			t.Fatalf("GetDirMembers = %v", err)
+		}
+		got := []blob.Ref{}
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{jpegFileRef, exifFileRef}
+		if len(got) != len(want) {
+			t.Errorf("GetDirMembers results differ.\n got: %v\nwant: %v",
+				got, want)
+		}
+		for _, w := range want {
+			found := false
+			for _, g := range got {
+				if w.String() == g.String() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("GetDirMembers: %v was not found.", w)
 			}
 		}
 	}
