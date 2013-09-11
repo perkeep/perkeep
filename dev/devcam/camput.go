@@ -91,7 +91,7 @@ func (c *putCmd) RunCommand(args []string) error {
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	return runExec(cmdBin, cmdArgs)
+	return runExec(cmdBin, cmdArgs, nil)
 }
 
 func (c *putCmd) checkFlags(args []string) error {

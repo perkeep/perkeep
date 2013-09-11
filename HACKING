@@ -67,4 +67,8 @@ Once the dev server is running,
       devcam put permanode
   - Use the UI: http://localhost:3179/ui/
 
+Before submitting a patch, you should check that all the tests pass with:
+
+$ devcam test
+
 Please update this file as appropriate.

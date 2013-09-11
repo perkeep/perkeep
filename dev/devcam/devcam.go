@@ -39,16 +39,21 @@ var sysExec func(argv0 string, argv []string, envv []string) (err error)
 
 // runExec execs bin. If the platform doesn't support exec, it runs it and waits
 // for it to finish.
-func runExec(bin string, args []string) error {
+func runExec(bin string, args []string, env []string) error {
+	envv := os.Environ()
+	if env != nil {
+		envv = env
+	}
 	if sysExec != nil {
-		sysExec(bin, append([]string{filepath.Base(bin)}, args...), os.Environ())
+		sysExec(bin, append([]string{filepath.Base(bin)}, args...), envv)
 	}
 
 	cmd := exec.Command(bin, args...)
+	cmd.Env = envv
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not run camput: %v", err)
+		return fmt.Errorf("Could not run %v: %v", bin, err)
 	}
 	go handleSignals(cmd.Process)
 	return cmd.Wait()

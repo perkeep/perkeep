@@ -53,6 +53,7 @@ var (
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
+	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
 	// TODO(mpl): looks like ifModsSince is not used anywhere?
 	ifModsSince = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH   = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
@@ -65,7 +66,7 @@ var (
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:go|html|js|css|png|jpg|gif|ico))$`)
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:go|html|js|css|png|jpg|gif|ico|gpg|json|err|camli))$`)
 )
 
 func main() {
@@ -127,8 +128,13 @@ func main() {
 		log.Printf("Output binaries: %s", binDir)
 	}
 
+	// TODO(mpl): main is getting long. We could probably move all the mirroring
+	// dance to its own func.
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
 	goDirs := []string{"cmd", "pkg", "dev", "server/camlistored", "third_party"}
+	if *onlysync {
+		goDirs = append(goDirs, "server/appengine", "config")
+	}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
 	var latestSrcMod time.Time
@@ -145,6 +151,13 @@ func main() {
 	}
 
 	verifyGoVersion()
+
+	if *onlysync {
+		mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
+		deleteUnwantedOldMirrorFiles(buildSrcDir, true)
+		fmt.Println(buildGoPath)
+		return
+	}
 
 	buildAll := true
 	targs := []string{
@@ -468,13 +481,9 @@ func mirrorDir(src, dst string) (maxMod time.Time, err error) {
 		}
 		base := fi.Name()
 		if fi.IsDir() {
-			if base == "testdata" {
-				return filepath.SkipDir
-			}
+			return nil
 		}
-		if strings.HasSuffix(base, "_test.go") ||
-			strings.HasPrefix(base, ".#") ||
-			!rxMirrored.MatchString(base) {
+		if strings.HasPrefix(base, ".#") || !rxMirrored.MatchString(base) {
 			return nil
 		}
 		suffix, err := filepath.Rel(src, path)

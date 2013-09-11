@@ -5,6 +5,7 @@
 <ul class='lispaced'>
    <li>Join the <a href="/lists">mailing list</a>.  Say hi.</li>
    <li>Pick an area to tackle.  Discuss it first, especially if it's large and/or not well designed yet.</li>
+   <li>See the <a href="https://camlistore.googlesource.com/camlistore/+/master/HACKING">HACKING</a> file at the root of the source to get started.</li>
    <li>Put your changes online somewhere for review &amp; git pulling.</li>
    <li>Note that you'll need to agree to the appropriate Contributor License Agreement:
        <ul>

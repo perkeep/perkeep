@@ -19,6 +19,7 @@ package schema
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func TestJSON(t *testing.T) {
 func TestRegularFile(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, err := os.Lstat(fileName)
-	AssertNil(t, err, "test-symlink stat")
+	AssertNil(t, err, "schema_test.go stat")
 	m := NewCommonFileMap("schema_test.go", fi)
 	json, err := m.JSON()
 	if err != nil {
@@ -59,7 +60,18 @@ func TestRegularFile(t *testing.T) {
 }
 
 func TestSymlink(t *testing.T) {
-	fileName := "testdata/test-symlink"
+	// We create the symlink now because make.go does not mirror
+	// symlinks properly, and it is less intrusive to do that here.
+	defer os.RemoveAll("testdata")
+	err := os.Mkdir("testdata", 0755)
+	AssertNil(t, err, "Mkdir")
+	err = os.Chdir("testdata")
+	AssertNil(t, err, "Chdir")
+	err = os.Symlink("test-target", "test-symlink")
+	AssertNil(t, err, "creating test-symlink")
+	err = os.Chdir("..")
+	AssertNil(t, err, "Chdir")
+	fileName := filepath.Join("testdata", "test-symlink")
 	fi, err := os.Lstat(fileName)
 	AssertNil(t, err, "test-symlink stat")
 	m := NewCommonFileMap(fileName, fi)
