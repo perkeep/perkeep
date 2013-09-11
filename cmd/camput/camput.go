@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/gate"
 	"camlistore.org/pkg/httputil"
 )
 
@@ -127,6 +128,7 @@ func newUploader() *Uploader {
 		Client:    cc,
 		transport: httpStats,
 		pwd:       pwd,
+		fdGate:    gate.New(100), // gate things that waste fds, assuming a low system limit
 	}
 }
 

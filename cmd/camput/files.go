@@ -370,6 +370,18 @@ func (up *Uploader) open(path string) (http.File, error) {
 	return up.fs.Open(path)
 }
 
+func (n *node) directoryStaticSet() (*schema.StaticSet, error) {
+	ss := new(schema.StaticSet)
+	for _, c := range n.children {
+		pr, err := c.PutResult()
+		if err != nil {
+			return nil, fmt.Errorf("Error populating directory static set for child %q: %v", c.fullPath, err)
+		}
+		ss.Add(pr.BlobRef)
+	}
+	return ss, nil
+}
+
 func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	fi := n.fi
 	mode := fi.Mode()
@@ -395,13 +407,9 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	default:
 		return nil, fmt.Errorf("camput.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case fi.IsDir():
-		ss := new(schema.StaticSet)
-		for _, c := range n.children {
-			pr, err := c.PutResult()
-			if err != nil {
-				return nil, fmt.Errorf("Error populating directory static set for child %q: %v", c.fullPath, err)
-			}
-			ss.Add(pr.BlobRef)
+		ss, err := n.directoryStaticSet()
+		if err != nil {
+			return nil, err
 		}
 		sspr, err := up.UploadBlob(ss)
 		if err != nil {
@@ -518,6 +526,10 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
 	filebb.SetType("file")
+
+	up.fdGate.Start()
+	defer up.fdGate.Done()
+
 	file, err := up.open(n.fullPath)
 	if err != nil {
 		return nil, err
@@ -785,6 +797,9 @@ func (n *node) SetPutResult(res *client.PutResult, err error) {
 	if res == nil && err == nil {
 		panic("SetPutResult called with (nil, nil)")
 	}
+	if n.res != nil || n.err != nil {
+		panic("SetPutResult called twice on node " + n.fullPath)
+	}
 	n.res, n.err = res, err
 	n.cond.Signal()
 }
@@ -915,8 +930,6 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 	return n, nil
 }
 
-const uploadWorkers = 5
-
 func (t *TreeUpload) run() {
 	defer close(t.donec)
 
@@ -972,7 +985,7 @@ func (t *TreeUpload) run() {
 			}
 		})
 	} else {
-		upload = NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
+		upload = NewNodeWorker(-1, func(n *node, ok bool) {
 			if !ok {
 				log.Printf("done with all uploads.")
 				uploadsdonec <- true

@@ -22,11 +22,15 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/gate"
 	"camlistore.org/pkg/httputil"
 )
 
 type Uploader struct {
 	*client.Client
+
+	// fdGate guards gates the creation of file descriptors.
+	fdGate *gate.Gate
 
 	fileOpts *fileOptions // per-file options; may be nil
 
