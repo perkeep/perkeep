@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/leak"
 )
 
 // Storage implements the index.Storage interface using an *sql.DB.
@@ -156,11 +157,13 @@ func (s *Storage) Delete(key string) error {
 }
 
 func (s *Storage) Find(key string) index.Iterator {
-	return &iter{
-		s:   s,
-		low: key,
-		op:  ">=",
+	it := &iter{
+		s:          s,
+		low:        key,
+		op:         ">=",
+		closeCheck: leak.NewChecker(),
 	}
+	return it
 }
 
 // iter is a iterator over sorted key/value pairs in rows.
@@ -169,6 +172,8 @@ type iter struct {
 	low string
 	op  string // ">=" initially, then ">"
 	err error  // accumulated error, returned at Close
+
+	closeCheck *leak.Checker
 
 	rows *sql.Rows // if non-nil, the rows we're reading from
 
@@ -185,6 +190,7 @@ func (t *iter) Key() string   { return t.key }
 func (t *iter) Value() string { return t.value }
 
 func (t *iter) Close() error {
+	t.closeCheck.Close()
 	if t.rows != nil {
 		t.rows.Close()
 	}
