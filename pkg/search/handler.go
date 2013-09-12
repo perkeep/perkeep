@@ -35,6 +35,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 )
 
@@ -1132,26 +1133,21 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			}
 		}
 	case "directory":
-		var err error
-		des.Dir, err = dr.sh.index.GetFileInfo(br)
-		if err != nil {
+		var g syncutil.Group
+		g.Go(func() (err error) {
+			des.Dir, err = dr.sh.index.GetFileInfo(br)
 			if os.IsNotExist(err) {
 				log.Printf("index.GetFileInfo(directory %s) failed; index stale?", br)
-			} else {
-				dr.addError(br, err)
 			}
 			return
-		}
-		members, err := dr.getDirMembers(br, depth)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Printf("index.GetDirMembers(directory %s) failed; index stale?", br)
-			} else {
-				dr.addError(br, err)
-			}
+		})
+		g.Go(func() (err error) {
+			des.DirChildren, err = dr.getDirMembers(br, depth)
 			return
+		})
+		if err := g.Err(); err != nil {
+			dr.addError(br, err)
 		}
-		des.DirChildren = members
 	}
 }
 
