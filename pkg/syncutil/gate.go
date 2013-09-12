@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gate provides a mechanism to control a maximum number of
-// operations happening at once.
-package gate
+// Package syncutil provides various concurrency mechanisms.
+package syncutil
 
 // A Gate limits concurrency.
 type Gate struct {
 	c chan struct{}
 }
 
-// New returns a new gate that will only permit max operations at once.
-func New(max int) *Gate {
+// NewGate returns a new gate that will only permit max operations at once.
+func NewGate(max int) *Gate {
 	return &Gate{make(chan struct{}, max)}
 }
 

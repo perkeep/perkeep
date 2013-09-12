@@ -28,8 +28,8 @@ import (
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/gate"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/syncutil"
 )
 
 const buffered = 16 // arbitrary
@@ -128,7 +128,7 @@ func newUploader() *Uploader {
 		Client:    cc,
 		transport: httpStats,
 		pwd:       pwd,
-		fdGate:    gate.New(100), // gate things that waste fds, assuming a low system limit
+		fdGate:    syncutil.NewGate(100), // gate things that waste fds, assuming a low system limit
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/gate"
+	"camlistore.org/pkg/syncutil"
 )
 
 const maxParallelStats = 20
@@ -48,7 +48,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 
 	errc := make(chan error, len(blobs))
 
-	gt := gate.New(maxParallelStats)
+	gt := syncutil.NewGate(maxParallelStats)
 	for _, ref := range blobs {
 		gt.Start()
 		go func(ref blob.Ref) {

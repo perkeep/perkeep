@@ -26,8 +26,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/gate"
 	"camlistore.org/pkg/rollsum"
+	"camlistore.org/pkg/syncutil"
 )
 
 const (
@@ -340,7 +340,7 @@ func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n 
 	blobSize := 0 // of the next blob being built, should be same as buf.Len()
 
 	const chunksInFlight = 32 // at ~64 KB chunks, this is ~2MB memory per file
-	gatec := gate.New(chunksInFlight)
+	gatec := syncutil.NewGate(chunksInFlight)
 	firsterrc := make(chan error, 1)
 
 	// uploadLastSpan runs in the same goroutine as the loop below and is responsible for

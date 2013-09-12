@@ -21,10 +21,10 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/gate"
+	"camlistore.org/pkg/syncutil"
 )
 
-var statGate = gate.New(20) // arbitrary
+var statGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	errc := make(chan error, len(blobs))
