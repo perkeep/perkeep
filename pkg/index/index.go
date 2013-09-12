@@ -678,11 +678,12 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search
 }
 
 // GetDirMembers sends on dest the children of the static directory dir.
-func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) error {
+func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (err error) {
 	defer close(dest)
 
 	sent := 0
 	it := x.queryPrefix(keyStaticDirChild, dir.String())
+	defer closeIterator(it, &err)
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")
 		if len(keyPart) != 3 {
