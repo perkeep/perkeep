@@ -17,10 +17,12 @@ limitations under the License.
 package sqlite_test
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"sync"
 	"testing"
 
@@ -127,5 +129,49 @@ func TestConcurrency(t *testing.T) {
 		if err := <-ch; err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
+	}
+}
+
+func numFDs(t *testing.T) int {
+	lsofPath, err := exec.LookPath("lsof")
+	if err != nil {
+		t.Skipf("No lsof available; skipping test")
+	}
+	out, err := exec.Command(lsofPath, "-n", "-p", fmt.Sprint(os.Getpid())).Output()
+	if err != nil {
+		t.Skipf("Error running lsof; skipping test: %s", err)
+	}
+	return bytes.Count(out, []byte("\n")) - 1 // hacky
+}
+
+func TestFDLeak(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping in short mode.")
+	}
+	fd0 := numFDs(t)
+	t.Logf("fd0 = %d", fd0)
+
+	s, clean := makeStorage(t)
+	defer clean()
+
+	bm := s.BeginBatch()
+	const numRows = 150 // 3x the batchSize of 50 in sqlindex.go; to gaurantee we do multiple batches
+	for i := 0; i < numRows; i++ {
+		bm.Set(fmt.Sprintf("key:%05d", i), fmt.Sprint(i))
+	}
+	if err := s.CommitBatch(bm); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		it := s.Find("key:")
+		n := 0
+		for it.Next() {
+			n++
+		}
+		if n != numRows {
+			t.Errorf("iterated over %d rows; want %d", n, numRows)
+		}
+		it.Close()
+		t.Logf("fd after iteration %d = %d", i, numFDs(t))
 	}
 }

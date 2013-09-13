@@ -224,6 +224,7 @@ func (t *iter) Next() bool {
 	}
 	if !t.rows.Next() {
 		if t.seen == t.batchSize {
+			t.rows.Close() // required for <= Go 1.1, but not Go 1.2, iirc.
 			t.rows = nil
 			return t.Next()
 		}
