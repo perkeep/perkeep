@@ -459,15 +459,35 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// GetRecentPermanodes
 	{
-		ch := make(chan camtypes.RecentPermanode, 10) // expect 2 results, but maybe more if buggy.
-		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50, time.Now())
-		if err != nil {
-			t.Fatalf("GetRecentPermanodes = %v", err)
+		verify := func(prefix string, want []camtypes.RecentPermanode, before time.Time) {
+			ch := make(chan camtypes.RecentPermanode, 10) // expect 2 results, but maybe more if buggy.
+			err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50, before)
+			if err != nil {
+				t.Fatalf("[%s] GetRecentPermanodes = %v", prefix, err)
+			}
+			got := []camtypes.RecentPermanode{}
+			for r := range ch {
+				got = append(got, r)
+			}
+			if len(got) != len(want) {
+				t.Errorf("[%s] GetRecentPermanode results differ.\n got: %v\nwant: %v",
+					prefix, searchResults(got), searchResults(want))
+			}
+			for _, w := range want {
+				found := false
+				for _, g := range got {
+					if g.Equal(w) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("[%s] GetRecentPermanode: %v was not found.\n got: %v\nwant: %v",
+						prefix, w, searchResults(got), searchResults(want))
+				}
+			}
 		}
-		got := []camtypes.RecentPermanode{}
-		for r := range ch {
-			got = append(got, r)
-		}
+
 		want := []camtypes.RecentPermanode{
 			{
 				Permanode:   pn,
@@ -480,23 +500,14 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 				LastModTime: br3Time,
 			},
 		}
-		if len(got) != len(want) {
-			t.Errorf("GetRecentPermanode results differ.\n got: %v\nwant: %v",
-				searchResults(got), searchResults(want))
-		}
-		for _, w := range want {
-			found := false
-			for _, g := range got {
-				if g.Equal(w) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("GetRecentPermanode: %v was not found.\n got: %v\nwant: %v",
-					w, searchResults(got), searchResults(want))
-			}
-		}
+
+		before := time.Time{}
+		verify("Zero before", want, before)
+
+		before = lastPermanodeMutation
+		t.Log("lastPermanodeMutation", lastPermanodeMutation,
+			lastPermanodeMutation.Unix())
+		verify("Non-zero before", want[1:], before)
 	}
 
 	// GetDirMembers
