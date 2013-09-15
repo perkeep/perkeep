@@ -390,6 +390,7 @@ func (pr *publishRequest) serveHTTP() {
 	}
 
 	if pr.Debug() {
+		pr.rw.Header().Set("Content-Type", "text/html")
 		pr.pf("I am publish handler at base %q, serving root %q (permanode=%s), suffix %q, subreq %q<hr>",
 			pr.base, pr.ph.RootName, pr.rootpn, html.EscapeString(pr.suffix), html.EscapeString(pr.subres))
 	}
