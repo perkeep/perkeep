@@ -167,6 +167,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 		return format, err
 	}
 	b := i.Bounds()
+	format = imConfig.Format
 
 	useBytesUnchanged := !imConfig.Modified &&
 		format != "cr2" // always recompress CR2 files
@@ -181,15 +182,15 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 	if !useBytesUnchanged {
 		// Encode as a new image
 		buf.Reset()
-		// Recompress CR2 files as JPEG
-		if format == "cr2" {
-			format = "jpeg"
-		}
 		switch format {
-		case "jpeg":
-			err = jpeg.Encode(buf, i, nil)
-		default:
+		case "png":
 			err = png.Encode(buf, i)
+		case "cr":
+			// Recompress CR2 files as JPEG
+			format = "jpeg"
+			fallthrough
+		default:
+			err = jpeg.Encode(buf, i, nil)
 		}
 		if err != nil {
 			return format, err
