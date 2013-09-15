@@ -42,7 +42,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 	switch req.Method {
 	case "POST":
 		fallthrough
-	case "GET":
+	case "GET", "HEAD":
 		camliVersion := req.FormValue("camliversion")
 		if camliVersion == "" {
 			httputil.BadRequestError(conn, "No camliversion")

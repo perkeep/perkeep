@@ -19,8 +19,10 @@ limitations under the License.
 package appengine
 
 import (
-	"camlistore.org/pkg/auth"
 	"net/http"
+
+	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/httputil"
 
 	"appengine"
 	"appengine/user"
@@ -60,7 +62,7 @@ func (o *ownerAuth) AllowedAccess(req *http.Request) auth.Operation {
 }
 
 func (o *ownerAuth) SendUnauthorized(rw http.ResponseWriter, req *http.Request) bool {
-	if req.Method != "GET" {
+	if !httputil.IsGet(req) {
 		return false
 	}
 	c := appengine.NewContext(req)
@@ -72,7 +74,6 @@ func (o *ownerAuth) SendUnauthorized(rw http.ResponseWriter, req *http.Request) 
 	http.Redirect(rw, req, loginURL, http.StatusFound)
 	return true
 }
-
 
 func (o *ownerAuth) AddAuthHeader(req *http.Request) {
 	// TODO(bradfitz): split the auth interface into a server part

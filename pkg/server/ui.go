@@ -275,7 +275,7 @@ func camliMode(req *http.Request) string {
 }
 
 func wantsDiscovery(req *http.Request) bool {
-	return req.Method == "GET" &&
+	return httputil.IsGet(req) &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
 			camliMode(req) == "config")
 }
@@ -285,19 +285,19 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func wantsPermanode(req *http.Request) bool {
-	return req.Method == "GET" && blob.ValidRefString(req.FormValue("p"))
+	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p"))
 }
 
 func wantsBlobInfo(req *http.Request) bool {
-	return req.Method == "GET" && blob.ValidRefString(req.FormValue("b"))
+	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("b"))
 }
 
 func wantsFileTreePage(req *http.Request) bool {
-	return req.Method == "GET" && blob.ValidRefString(req.FormValue("d"))
+	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("d"))
 }
 
 func wantsClosure(req *http.Request) bool {
-	if req.Method == "GET" {
+	if httputil.IsGet(req) {
 		suffix := httputil.PathSuffix(req)
 		return closurePattern.MatchString(suffix)
 	}

@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
@@ -199,7 +200,7 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 }
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
-	if req.Method != "GET" && req.Method != "HEAD" {
+	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", 400)
 		return
 	}

@@ -33,6 +33,11 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
+// IsGet reports whether r.Method is a GET or HEAD request.
+func IsGet(r *http.Request) bool {
+	return r.Method == "GET" || r.Method == "HEAD"
+}
+
 func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
 	http.Error(conn, "Handlers wired up wrong; this path shouldn't be hit", 500)
 	log.Printf("Internal routing error on %q", req.URL.Path)
@@ -214,7 +219,7 @@ func (ServerError) HTTPCode() int   { return http.StatusInternalServerError }
 // MustGet returns a non-empty GET (or HEAD) parameter param and panics
 // with a special error as caught by a deferred httputil.Recover.
 func MustGet(req *http.Request, param string) string {
-	if req.Method != "GET" && req.Method != "HEAD" {
+	if !IsGet(req) {
 		panic(InvalidMethodError{})
 	}
 	v := req.FormValue(param)

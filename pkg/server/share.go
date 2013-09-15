@@ -73,7 +73,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	blobRef blob.Ref, fetcher blob.StreamingFetcher) {
-	if req.Method != "GET" && req.Method != "HEAD" {
+	if !httputil.IsGet(req) {
 		httputil.BadRequestError(conn, "Invalid method")
 		return
 	}

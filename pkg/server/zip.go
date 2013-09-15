@@ -28,6 +28,7 @@ import (
 	"sort"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 )
@@ -203,7 +204,7 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// and then making a dummy ReadSeeker for ServeContent that can seek to the end,
 	// and then seek back to the beginning, but then seeks forward make it remember
 	// to skip that many bytes from the archive/zip writer when answering Reads.
-	if req.Method != "GET" {
+	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", http.StatusMethodNotAllowed)
 		return
 	}

@@ -143,7 +143,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	base := httputil.PathBase(req)
 	subPath := httputil.PathSuffix(req)
 	switch req.Method {
-	case "GET":
+	case "GET", "HEAD":
 		switch subPath {
 		case "":
 			http.Redirect(rw, req, base+"camli/sig/discovery", http.StatusFound)

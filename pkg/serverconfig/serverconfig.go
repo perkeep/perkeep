@@ -105,7 +105,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	handler := unsupportedHandler
 	op := auth.OpAll
 	switch req.Method {
-	case "GET":
+	case "GET", "HEAD":
 		switch action {
 		case "enumerate-blobs":
 			handler = handlers.CreateEnumerateHandler(storage).ServeHTTP

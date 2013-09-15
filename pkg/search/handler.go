@@ -129,7 +129,7 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	suffix := httputil.PathSuffix(req)
 
-	if req.Method == "GET" {
+	if httputil.IsGet(req) {
 		switch suffix {
 		case "camli/search/recent":
 			sh.serveRecentPermanodes(rw, req)
