@@ -935,7 +935,7 @@ func (ph *PublishHandler) signUpload(jsonSign *signhandler.Handler, name string,
 		return blob.Ref{}, fmt.Errorf("error signing %s: %v", name, err)
 	}
 	uh := client.NewUploadHandleFromString(signed)
-	_, err = ph.Storage.ReceiveBlob(uh.BlobRef, uh.Contents)
+	_, err = blobserver.Receive(ph.Storage, uh.BlobRef, uh.Contents)
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("error uploading %s: %v", name, err)
 	}

@@ -11,8 +11,11 @@ Offline list:
    have a max size of 10-32 MB anyway.  definitely not bigger than
    what will fit in memory (which is what int means)
 
--- verify all ReceiveBlob calls and see which should be blobserver.Receive
-   instead, or ReceiveNoHash.  git grep -E "\.ReceiveBlob\("
+-- verify all ReceiveBlob calls and see which should be
+   blobserver.Receive instead, or ReceiveNoHash.  git grep -E
+   "\.ReceiveBlob\(" And maybe ReceiveNoHash should go away and be
+   replaced with a "ReceiveString" method which combines the
+   blobref-from-string and ReceiveNoHash at once.
 
 -- union storage target. sharder can be thought of a specialization
    of union. sharder already unions, but has a hard-coded policy

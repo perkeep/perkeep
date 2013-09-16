@@ -122,7 +122,7 @@ func (h *Handler) uploadPublicKey(sto blobserver.Storage, key string) error {
 	if err == nil {
 		return nil
 	}
-	_, err = sto.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(key))
+	_, err = blobserver.Receive(sto, h.pubKeyBlobRef, strings.NewReader(key))
 	return err
 }
 

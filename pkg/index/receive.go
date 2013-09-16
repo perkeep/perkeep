@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/magic"
@@ -62,7 +63,7 @@ func (ix *Index) reindex(br blob.Ref) {
 		return
 	}
 	defer rc.Close()
-	sb, err := ix.ReceiveBlob(br, rc)
+	sb, err := blobserver.Receive(ix, br, rc)
 	if err != nil {
 		log.Printf("index: reindex of %v failed: %v", br, err)
 		return

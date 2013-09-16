@@ -112,7 +112,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 		return fmt.Errorf("Signing permanode %v: %v", permanodeSigned, err)
 	}
 	permanodeRef := blob.SHA1FromString(permanodeSigned)
-	_, err = blobReceiver.ReceiveBlob(permanodeRef, strings.NewReader(permanodeSigned))
+	_, err = blobserver.ReceiveNoHash(blobReceiver, permanodeRef, strings.NewReader(permanodeSigned))
 	if err != nil {
 		return fmt.Errorf("While uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
 	}
@@ -125,7 +125,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 		return fmt.Errorf("Signing camliContent claim: %v", err)
 	}
 	contentClaimRef := blob.SHA1FromString(contentClaimSigned)
-	_, err = blobReceiver.ReceiveBlob(contentClaimRef, strings.NewReader(contentClaimSigned))
+	_, err = blobserver.ReceiveNoHash(blobReceiver, contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
 		return fmt.Errorf("While uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
 	}

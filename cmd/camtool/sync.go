@@ -345,7 +345,7 @@ For:
 				continue
 			}
 
-			if _, err := firstHopDest.ReceiveBlob(sb.Ref, blobReader); err != nil {
+			if _, err := blobserver.Receive(firstHopDest, sb.Ref, blobReader); err != nil {
 				stats.ErrorCount++
 				log.Printf("Upload of %s to destination blobserver failed: %v", sb.Ref, err)
 				continue
