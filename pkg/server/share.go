@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,9 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	blobRoot := conf.RequiredString("blobRoot")
 	if blobRoot == "" {
 		return nil, errors.New("No blobRoot defined for share handler")
+	}
+	if err = conf.Validate(); err != nil {
+		return
 	}
 
 	share := &shareHandler{
@@ -171,13 +175,23 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 
 	viaPathOkay = true
 
-	gethandler.ServeBlobRef(conn, req, blobRef, fetcher)
+	if assemble, _ := strconv.ParseBool(req.FormValue("assemble")); assemble {
+		dh := &DownloadHandler{
+			Fetcher: fetcher,
+			// TODO(aa): It would be nice to specify a local cache here, as the UI handler does.
+		}
+		dh.ServeHTTP(conn, req, blobRef)
+	} else {
+		gethandler.ServeBlobRef(conn, req, blobRef, fetcher)
+	}
 }
 
 func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	blobRef, ok := blob.Parse(httputil.PathSuffix(req))
+	pathSuffix := httputil.PathSuffix(req)
+	pathParts := strings.SplitN(pathSuffix, "/", 2)
+	blobRef, ok := blob.Parse(pathParts[0])
 	if !ok {
-		http.Error(rw, "Malformed share URL.", 400)
+		http.Error(rw, fmt.Sprintf("Malformed share pathSuffix: %s", pathSuffix), 400)
 		return
 	}
 	handleGetViaSharing(rw, req, blobRef, h.fetcher)
