@@ -85,7 +85,7 @@ func (c *gaeCmd) RunCommand(args []string) error {
 	}
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, applicationDir)
-	return runExec(devAppServerBin, cmdArgs)
+	return runExec(devAppServerBin, cmdArgs, nil)
 }
 
 func (c *gaeCmd) checkFlags(args []string) error {

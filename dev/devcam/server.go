@@ -376,5 +376,5 @@ func (c *serverCmd) RunCommand(args []string) error {
 		"-listen=" + c.listen,
 		"-openbrowser=" + strconv.FormatBool(c.openBrowser),
 	}
-	return runExec(camliBin, cmdArgs)
+	return runExec(camliBin, cmdArgs, nil)
 }
