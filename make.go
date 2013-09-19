@@ -93,7 +93,7 @@ func main() {
 		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
 	}
 	if sql && !haveSQLite {
-		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false")
+		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false  See https://code.google.com/p/camlistore/wiki/SQLite")
 		switch runtime.GOOS {
 		case "darwin":
 			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")

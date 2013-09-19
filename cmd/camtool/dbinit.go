@@ -232,7 +232,7 @@ func exitf(format string, args ...interface{}) {
 
 var WithSQLite = false
 
-var ErrNoSQLite = errors.New("the command was not built with SQLite support. Rebuild with go get/install --tags=with_sqlite " + compileHint())
+var ErrNoSQLite = errors.New("the command was not built with SQLite support. See https://code.google.com/p/camlistore/wiki/SQLite" + compileHint())
 
 func compileHint() string {
 	if _, err := os.Stat("/etc/apt"); err == nil {
