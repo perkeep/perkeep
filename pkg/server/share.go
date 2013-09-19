@@ -75,6 +75,8 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 }
 
 // Unauthenticated user.  Be paranoid.
+//
+// TODO: check IsTransitive on the share blob? http://camlistore.org/issue/226
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	blobRef blob.Ref, fetcher blob.StreamingFetcher) {
 	if !httputil.IsGet(req) {
@@ -176,12 +178,14 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	viaPathOkay = true
 
 	if assemble, _ := strconv.ParseBool(req.FormValue("assemble")); assemble {
+		// TODO: check IsTransitive on the share blob? http://camlistore.org/issue/226
 		dh := &DownloadHandler{
 			Fetcher: fetcher,
 			// TODO(aa): It would be nice to specify a local cache here, as the UI handler does.
 		}
 		dh.ServeHTTP(conn, req, blobRef)
 	} else {
+		// TODO: check IsTransitive on the share blob? http://camlistore.org/issue/226
 		gethandler.ServeBlobRef(conn, req, blobRef, fetcher)
 	}
 }
