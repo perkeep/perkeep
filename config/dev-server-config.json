@@ -203,7 +203,7 @@
          "handler": "storage-kvfileindexer",
          "handlerArgs": {
              "blobSource": "/bs/",
-             "file": ["_env", "${CAMLI_KVINDEX_FILE}", ""]
+             "file": ["_env", "${CAMLI_DBNAME}", ""]
          }
      },
 
@@ -237,6 +237,15 @@
              "user": "postgres",
              "password": "postgres",
              "host": "127.0.0.1",
+             "blobSource": "/bs/"
+         }
+     },
+
+     "/index-sqlite/": {
+         "enabled": ["_env", "${CAMLI_SQLITE_ENABLED}", true],
+         "handler": "storage-sqliteindexer",
+         "handlerArgs": {
+             "file": ["_env", "${CAMLI_DBNAME}"],
              "blobSource": "/bs/"
          }
      },
