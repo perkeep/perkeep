@@ -88,6 +88,10 @@ CAMLI_NO_FILE_DUP_SEARCH (bool):
 CAMLI_QUIET (bool):
   Used by devcam to enable -verbose flag for camput/camget.
 
+CAMLI_SECRET_RING (string):
+  Path to the GPG secret keyring, which is otherwise set by identitySecretRing
+  in the server config, and secretRing in the client config.
+
 CAMLI_TRACK_FS_STATS (bool):
   Enable operation counts for fuse filesystem.
 

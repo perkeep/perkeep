@@ -115,7 +115,13 @@ func UserClientConfigPath() string {
 	return filepath.Join(CamliConfigDir(), "client-config.json")
 }
 
+// IdentitySecretRing returns the path to the default GPG
+// secret keyring. It is overriden by the CAMLI_SECRET_RING
+// environment variable.
 func IdentitySecretRing() string {
+	if e := os.Getenv("CAMLI_SECRET_RING"); e != "" {
+		return e
+	}
 	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
 }
 
