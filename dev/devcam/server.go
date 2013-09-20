@@ -33,6 +33,13 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
+const (
+	// default secret ring used in tests and in devcam commands
+	defaultSecring = "pkg/jsonsign/testdata/test-secring.gpg"
+	// public ID of the GPG key in defaultSecring  
+	defaultKeyID = "26F5ABDA"
+)
+
 type serverCmd struct {
 	// start of flag vars
 	all      bool
@@ -273,7 +280,8 @@ func (c *serverCmd) setEnvVars() error {
 	}
 	setenv("CAMLI_PORT", c.port)
 	setenv("CAMLI_SECRET_RING", filepath.Join(camliSrcRoot,
-		filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+		filepath.FromSlash(defaultSecring)))
+	setenv("CAMLI_KEYID", defaultKeyID)
 	return nil
 }
 
