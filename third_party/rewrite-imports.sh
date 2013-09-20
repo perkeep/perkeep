@@ -1,5 +1,6 @@
 #!/bin/sh
 
+#TODO(mpl): patch github.com/cznic/zappy on the fly to make it pure Go.
 if [ "$1" = "-l" ]
 then
 	find . -type f -name '*.go' -exec grep -E -l '"code.google.com/' {} \;
