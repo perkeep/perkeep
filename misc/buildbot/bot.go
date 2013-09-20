@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -85,7 +86,25 @@ var (
 	// For "If-Modified-Since" requests on the status page.
 	// Updated every time a new test suite starts or ends.
 	lastModified time.Time
+
+	// Override the os.Stderr used by the default logger so we can provide
+	// more debug info on status page.
+	logStderr = new(lockedBuffer)
 )
+
+// lockedBuffer protects all Write calls with a mutex.  Users of lockedBuffer
+// must wrap any calls to Bytes, and use of the resulting slice with calls to
+// Lock/Unlock.
+type lockedBuffer struct {
+	sync.Mutex // guards Buffer
+	bytes.Buffer
+}
+
+func (lb *lockedBuffer) Write(b []byte) (int, error) {
+	lb.Lock()
+	defer lb.Unlock()
+	return lb.Buffer.Write(b)
+}
 
 var NameToCmd = map[string]string{
 	"prepRepo1":   "hg pull",
@@ -134,6 +153,10 @@ func (dbg *debugger) Println(v ...interface{}) {
 }
 
 func setup() {
+	// Install custom stderr for display in status webpage.
+	w := io.MultiWriter(logStderr, os.Stderr)
+	log.SetOutput(w)
+
 	var err error
 	defaultDir, err = os.Getwd()
 	if err != nil {
@@ -143,7 +166,7 @@ func setup() {
 	if defaultPATH == "" {
 		log.Fatal("PATH not set")
 	}
-	dbg = &debugger{log.New(os.Stderr, "", log.LstdFlags)}
+	dbg = &debugger{log.New(w, "", log.LstdFlags)}
 
 	// check go tip tree
 	goTipDir, err = filepath.Abs(*gotipdir)
@@ -463,7 +486,14 @@ func runCmd(tsk string) (string, error) {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("%v: %v\n", stdout.String(), stderr.String())
+		var sout, serr string
+		if sout = stdout.String(); sout == "" {
+			sout = "(empty)"
+		}
+		if serr = stderr.String(); serr == "" {
+			serr = "(empty)"
+		}
+		return "", fmt.Errorf("%v\n\nStdout:\n%s\n\nStderr:\n%s\n", err, sout, serr)
 	}
 	return stdout.String(), nil
 }
@@ -820,6 +850,7 @@ func main() {
 	http.HandleFunc(okPrefix, okHandler)
 	http.HandleFunc(failPrefix, failHandler)
 	http.HandleFunc(currentPrefix, progressHandler)
+	http.HandleFunc(stderrPrefix, logHandler)
 	http.HandleFunc("/", statusHandler)
 	go http.ListenAndServe(*host, nil)
 
@@ -901,6 +932,7 @@ var (
 	okPrefix      = "/ok/"
 	failPrefix    = "/fail/"
 	currentPrefix = "/current"
+	stderrPrefix  = "/stderr"
 	statusTpl     = template.Must(template.New("status").Funcs(tmplFuncs).Parse(reportHTML))
 	taskTpl       = template.Must(template.New("task").Parse(taskHTML))
 	testSuiteTpl  = template.Must(template.New("ok").Parse(testSuiteHTML))
@@ -953,6 +985,24 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 	}
 	w.Header().Set("Last-Modified", modtime.UTC().Format(http.TimeFormat))
 	return false
+}
+
+func logHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, `<!doctype html>
+<html><meta http-equiv="refresh" content="5">
+<body><pre>`)
+	switch r.URL.Path {
+	case stderrPrefix:
+		logStderr.Lock()
+		_, err := w.Write(logStderr.Bytes())
+		logStderr.Unlock()
+		if err != nil {
+			log.Println("Error serving logStderr:", err)
+		}
+	default:
+		fmt.Fprintln(w, "Unknown log file path passed to logHandler:", r.URL.Path)
+		log.Println("Unknown log file path passed to logHandler:", r.URL.Path)
+	}
 }
 
 func okHandler(w http.ResponseWriter, r *http.Request) {
@@ -1134,6 +1184,9 @@ var styleHTML = `
 	.paginate a.inactive {
 		color: #999;
 	}
+	.pull-right {
+		float: right;
+	}
 	.fail {
 		color: #C00;
 	}
@@ -1149,7 +1202,7 @@ var reportHTML = `
 	</head>
 	<body>
 
-	<h1>Camlibot status</h1>
+	<h1>Camlibot status<span class="pull-right"><a href="` + stderrPrefix + `">stderr</a></span></h1>
 
 	<table class="build">
 	<colgroup class="col-hash" span="1"></colgroup>
