@@ -45,6 +45,7 @@ type serverCmd struct {
 	mongo    bool
 	mysql    bool
 	postgres bool
+	sqlite   bool
 	memindex bool // memory index; default is kvfile
 
 	slow     bool
@@ -71,10 +72,11 @@ func init() {
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
 
-		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -memindex.")
-		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -memindex.")
-		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -memindex.")
-		flags.BoolVar(&cmd.memindex, "memindex", false, "Use memory as the indexer. Excludes -mongo, -mysql, -postgres.")
+		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -sqlite, -memindex.")
+		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -sqlite, -memindex.")
+		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -sqlite, -memindex.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the indexer. Excludes -mongo, -mysql, -postgres, -memindex.")
+		flags.BoolVar(&cmd.memindex, "memindex", false, "Use memory as the indexer. Excludes -mongo, -mysql, -sqlite, -postgres.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
@@ -107,7 +109,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		c.Usage()
 	}
 	nindex := 0
-	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.memindex} {
+	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite, c.memindex} {
 		if v {
 			nindex++
 		}
@@ -146,7 +148,7 @@ func (c *serverCmd) build(name string) error {
 		"run", "make.go",
 		"--quiet",
 		"--embed_static=false",
-		"--sqlite=false",
+		"--sqlite=" + strconv.FormatBool(c.sqlite),
 		fmt.Sprintf("--if_mods_since=%d", modtime),
 		"--targets=" + target,
 	}
@@ -196,6 +198,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_MYSQL_ENABLED", "false")
 	setenv("CAMLI_MONGO_ENABLED", "false")
 	setenv("CAMLI_POSTGRES_ENABLED", "false")
+	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
 	setenv("CAMLI_MEMINDEX_ENABLED", "false")
 	switch {
@@ -208,6 +211,13 @@ func (c *serverCmd) setEnvVars() error {
 	case c.mysql:
 		setenv("CAMLI_MYSQL_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mysql/")
+	case c.sqlite:
+		setenv("CAMLI_SQLITE_ENABLED", "true")
+		setenv("CAMLI_INDEXER_PATH", "/index-sqlite/")
+		if c.camliRoot == "" {
+			panic("no camliRoot set")
+		}
+		setenv("CAMLI_DBNAME", filepath.Join(c.camliRoot, "sqliteindex.db"))
 	case c.memindex:
 		setenv("CAMLI_MEMINDEX_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mem/")
@@ -217,7 +227,7 @@ func (c *serverCmd) setEnvVars() error {
 		if c.camliRoot == "" {
 			panic("no camliRoot set")
 		}
-		setenv("CAMLI_KVINDEX_FILE", filepath.Join(c.camliRoot, "kvindex.db"))
+		setenv("CAMLI_DBNAME", filepath.Join(c.camliRoot, "kvindex.db"))
 	}
 
 	base := "http://localhost:" + c.port
@@ -282,6 +292,10 @@ func (c *serverCmd) setupIndexer() error {
 			"-user=root",
 			"-password=root",
 			"-host=localhost",
+			"-dbname="+os.Getenv("CAMLI_DBNAME"))
+	case c.sqlite:
+		args = append(args,
+			"-dbtype=sqlite",
 			"-dbname="+os.Getenv("CAMLI_DBNAME"))
 	default:
 		return nil
