@@ -99,7 +99,7 @@ var NameToCmd = map[string]string{
 	"buildGoTip1": "./make.bash",
 	"buildCamli1": "go run make.go -v",
 	"buildCamli2": "go build -o devcam ./dev/devcam/",
-	"buildCamli3": "devcam test",
+	"buildCamli3": "./devcam test",
 	"runCamli":    "./devcam server --wipe --mysql",
 	"hitCamliUi1": "http://localhost:3179/ui/",
 	"camget":      "./devcam get ",

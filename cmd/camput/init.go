@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO(mpl): Shouldn't we move this subcommand to camtool? e.g as 'camtool configinit' ?
-// It does not feel like a good fit in camput since this does not send anything
-// to a server.
-
 package main
 
 import (
@@ -40,6 +36,7 @@ import (
 type initCmd struct {
 	newKey bool
 	gpgkey string
+	noconfig bool
 }
 
 func init() {
@@ -47,6 +44,7 @@ func init() {
 		cmd := new(initCmd)
 		flags.BoolVar(&cmd.newKey, "newkey", false, "Automatically generate a new identity in a new secret ring.")
 		flags.StringVar(&cmd.gpgkey, "gpgkey", "", "GPG key to use for signing (overrides $GPGKEY environment)")
+		flags.BoolVar(&cmd.noconfig, "noconfig", false, "Stop after creating the public key blob, and do not try and create a config file.")
 		return cmd
 	})
 }
@@ -171,6 +169,10 @@ func (c *initCmd) RunCommand(args []string) error {
 	}
 
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
+
+	if c.noconfig {
+		return nil
+	}
 
 	configFilePath := osutil.UserClientConfigPath()
 	_, err = os.Stat(configFilePath)

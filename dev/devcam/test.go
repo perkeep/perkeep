@@ -67,6 +67,9 @@ func (c *testCmd) RunCommand(args []string) error {
 	if err := c.buildSelf(); err != nil {
 		return err
 	}
+	if err := c.genKeyBlob(); err != nil {
+		return err
+	}
 	if err := c.runTests(); err != nil {
 		return err
 	}
@@ -84,27 +87,6 @@ func (c *testCmd) syncSrc() error {
 	}
 	c.buildGoPath = strings.TrimSpace(string(out))
 	return nil
-}
-
-func (c *testCmd) runTests() error {
-	args := []string{"test"}
-	if !strings.HasSuffix(c.buildGoPath, "-nosqlite") {
-		args = append(args, "--tags=with_sqlite")
-	}
-	if c.short {
-		args = append(args, "-short")
-	}
-	args = append(args, []string{
-		"./pkg/...",
-		"./server/camlistored",
-		"./server/appengine",
-		"./cmd/...",
-	}...)
-	env := append(cleanGoEnv(),
-		"SKIP_DEP_TESTS=1",
-		"GOPATH="+c.buildGoPath,
-	)
-	return runExec("go", args, env)
 }
 
 // cleanGoEnv returns a copy of the current environment with GOPATH and
@@ -142,4 +124,46 @@ func (c *testCmd) buildSelf() error {
 		return fmt.Errorf("Error building devcam: %v", err)
 	}
 	return nil
+}
+
+func (c *testCmd) genKeyBlob() error {
+	cmdBin := filepath.FromSlash("./bin/devcam")
+	args := []string{
+		"put",
+		"init",
+		"--gpgkey="+defaultKeyID,
+		"--noconfig",
+	}
+	cmd := exec.Command(cmdBin, args...)
+	cmd.Env = append(cleanGoEnv(),
+		"CAMLI_SECRET_RING="+filepath.FromSlash(defaultSecring),
+		"GOPATH="+c.buildGoPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Error generating keyblobs: %v", err)
+	}
+	return nil
+}
+
+func (c *testCmd) runTests() error {
+	args := []string{"test"}
+	if !strings.HasSuffix(c.buildGoPath, "-nosqlite") {
+		args = append(args, "--tags=with_sqlite")
+	}
+	if c.short {
+		args = append(args, "-short")
+	}
+	args = append(args, []string{
+		"./pkg/...",
+		"./server/camlistored",
+		"./server/appengine",
+		"./cmd/...",
+	}...)
+	env := append(cleanGoEnv(),
+		"SKIP_DEP_TESTS=1",
+		"GOPATH="+c.buildGoPath,
+	)
+	return runExec("go", args, env)
 }

@@ -78,6 +78,11 @@ CAMLI_INCLUDE_PATH (string):
   directory. It should be in the OS path form, i.e. unix-like systems would be
   /path/1:/path/two:/some/other/path, and Windows would be C:\path\one;D:\path\2
 
+CAMLI_KEYID (string):
+  devcam commands only, used by config/dev-server-config.json, and
+  config/dev-client-dir/client-config.json: public ID of the GPG key
+  to use for signing.
+
 CAMLI_MONGO_WIPE (bool):
   Wipe out mongo based index on startup.
 

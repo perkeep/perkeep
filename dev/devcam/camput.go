@@ -132,8 +132,8 @@ func (c *putCmd) build() error {
 
 func (c *putCmd) setEnvVars() error {
 	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
-	setenv("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
-	setenv("CAMLI_KEYID", "26F5ABDA")
+	setenv("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+	setenv("CAMLI_KEYID", defaultKeyID)
 	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
 	setenv("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
 	if c.altkey {
