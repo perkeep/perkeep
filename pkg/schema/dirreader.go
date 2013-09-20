@@ -94,6 +94,7 @@ func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
+	defer rsc.Close()
 	ss, err := parseSuperset(rsc)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding schema blob %s: %v", staticSetBlobref, err)
