@@ -41,8 +41,6 @@ const fetchFailureDelay = 200 * time.Millisecond
 
 // ShareHandler handles the requests for "share" (and shared) blobs.
 type shareHandler struct {
-	blobRoot string
-
 	fetcher blob.StreamingFetcher
 }
 
@@ -59,12 +57,10 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 		return
 	}
 
-	share := &shareHandler{
-		blobRoot: blobRoot,
-	}
-	bs, err := ld.GetStorage(share.blobRoot)
+	share := &shareHandler{}
+	bs, err := ld.GetStorage(blobRoot)
 	if err != nil {
-		return nil, fmt.Errorf("Share handler's blobRoot of %q error: %v", share.blobRoot, err)
+		return nil, fmt.Errorf("Share handler's blobRoot of %q error: %v", blobRoot, err)
 	}
 	fetcher, ok := bs.(blob.StreamingFetcher)
 	if !ok {
@@ -137,12 +133,18 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				return
 			}
 			if share.IsExpired() {
+				log.Print("Share is expired")
 				auth.SendUnauthorized(conn, req)
 				return
 			}
 			if len(fetchChain) > 1 && fetchChain[1].String() != share.Target().String() {
 				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
 					br.String(), fetchChain[1].String(), share.Target().String())
+				auth.SendUnauthorized(conn, req)
+				return
+			}
+			if len(fetchChain) > 2 && !share.IsTransitive() {
+				log.Print("Share is not transitive")
 				auth.SendUnauthorized(conn, req)
 				return
 			}
@@ -166,7 +168,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 				return
 			}
 			saught := fetchChain[i+1].String()
-			if bytes.IndexAny(slurpBytes, saught) == -1 {
+			if bytes.Index(slurpBytes, []byte(saught)) == -1 {
 				log.Printf("Fetch chain %d of %s failed; no reference to %s",
 					i, br.String(), saught)
 				auth.SendUnauthorized(conn, req)
