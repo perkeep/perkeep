@@ -497,6 +497,10 @@ func mirrorDir(src, dst string) (maxMod time.Time, err error) {
 
 var wantDestFile = make(map[string]bool) // full dest filename => true
 
+func isExecMode(mode os.FileMode) bool {
+	return (mode & 0111) != 0
+}
+
 func mirrorFile(src, dst string) error {
 	wantDestFile[dst] = true
 	sfi, err := os.Stat(src)
@@ -508,6 +512,7 @@ func mirrorFile(src, dst string) error {
 	}
 	dfi, err := os.Stat(dst)
 	if err == nil &&
+		isExecMode(sfi.Mode()) == isExecMode(dfi.Mode()) &&
 		(dfi.Mode()&os.ModeType == 0) &&
 		dfi.Size() == sfi.Size() &&
 		dfi.ModTime().Unix() == sfi.ModTime().Unix() {
@@ -537,6 +542,9 @@ func mirrorFile(src, dst string) error {
 	cerr := df.Close()
 	if err == nil {
 		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(dst, sfi.Mode())
 	}
 	if err == nil {
 		err = os.Chtimes(dst, sfi.ModTime(), sfi.ModTime())
