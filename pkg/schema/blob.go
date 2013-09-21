@@ -264,6 +264,17 @@ func (bb *Builder) SetShareExpiration(t time.Time) {
 	}
 }
 
+func (bb *Builder) SetShareIsTransitive(b bool) {
+	if bb.Type() != "claim" || bb.m["claimType"] != "share" {
+		panic("called SetShareIsTransitive on non-share")
+	}
+	if !b {
+		delete(bb.m, "transitive")
+	} else {
+		bb.m["transitive"] = true
+	}
+}
+
 // SetRawStringField sets a raw string field in the underlying map.
 func (bb *Builder) SetRawStringField(key, value string) *Builder {
 	bb.m[key] = value
