@@ -36,6 +36,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -208,19 +209,28 @@ func main() {
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
 		"--tags="+tags)
 
-	// First install command: build just the final binaries, installed to a GOBIN
-	// under <camlistore_root>/bin:
-	args := append(baseArgs, targs...)
 	if buildAll {
 		switch *buildOS {
 		case "linux", "darwin":
-			args = append(args, "camlistore.org/cmd/cammount")
+			targs = append(targs, "camlistore.org/cmd/cammount")
 		}
 	}
+
+	// First install command: build just the final binaries, installed to a GOBIN
+	// under <camlistore_root>/bin:
+	args := append(baseArgs, targs...)
+
+	if buildAll {
+		args = append(args,
+			"camlistore.org/pkg/...",
+			"camlistore.org/server/...",
+			"camlistore.org/third_party/...",
+		)
+	}
+
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
-		"GOBIN="+binDir,
 	)
 	var output bytes.Buffer
 	if *quiet {
@@ -237,29 +247,16 @@ func main() {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
 	}
 
-	if buildAll {
-		// Now do another build, but including everything, just to make
-		// sure everything compiles. But if there are any binaries (package main) in here,
-		// put them in a junk GOBIN (the default location), rather than polluting
-		// the GOBIN that the user will look in.
-		cmd = exec.Command("go", append(baseArgs,
-			"camlistore.org/pkg/...",
-			"camlistore.org/server/...",
-			"camlistore.org/third_party/...",
-		)...)
-		cmd.Env = append(cleanGoEnv(), "GOPATH="+buildGoPath)
-		if *quiet {
-			cmd.Stdout = &output
-			cmd.Stderr = &output
-		} else {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
-		if *verbose {
-			log.Printf("Running full go install with args %s", cmd.Args)
-		}
-		if err := cmd.Run(); err != nil {
-			log.Fatalf("Error building full install: %v\n%s", err, output.String())
+	// Copy the binaries from $CAMROOT/tmp/build-gopath-foo/bin to $CAMROOT/bin.
+	// This is necessary (instead of just using GOBIN environment variable) so
+	// each tmp/build-gopath-* has its own binary modtimes for its own build tags.
+	// Otherwise switching sqlite true<->false doesn't necessarily cause a rebuild.
+	// See camlistore.org/issue/229
+	for _, targ := range targs {
+		src := exeName(filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), pathpkg.Base(targ)))
+		dst := exeName(filepath.Join(actualBinDir(binDir), pathpkg.Base(targ)))
+		if err := mirrorFile(src, dst); err != nil {
+			log.Fatalf("Error copying %s to %s: %v", src, dst, err)
 		}
 	}
 
@@ -715,4 +712,11 @@ func quote(dest *bytes.Buffer, bs []byte) {
 		fmt.Fprintf(dest, "\\x%02x", b)
 	}
 	dest.WriteByte('"')
+}
+
+func exeName(s string) string {
+	if *buildOS == "windows" {
+		return s + ".exe"
+	}
+	return s
 }
