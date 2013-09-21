@@ -4,9 +4,6 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- can't SIGINT (control-C) camput on at least Mac, at least under
-   devcam? Why not?
-
 -- use 'int' instead of 'int64' for blob sizes everywhere.  blobs
    have a max size of 10-32 MB anyway.  definitely not bigger than
    what will fit in memory (which is what int means)
@@ -89,6 +86,7 @@ Offline list:
    delete any claim, and verify the share system and indexer all
    support it.  I think the indexer might, but not the share system.
    Also TODO: "camput delete" or "rescind" subcommand.
+   Also TODO: document share claims in doc/schema/ and on website.
 
 -- make the -transitive flag for "camput share -transitive" be a tri-state:
    unset, true, false, and unset should then mean default to true for "file"
