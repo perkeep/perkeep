@@ -36,7 +36,6 @@ foreach my $d (qw{
  dev-cammount
  dev-camtool
  dev-db
- dev-pass-camput
 }) {
     system("git", "rm", "-r", $d) and die "Failed to git rm -r $d";
 }
