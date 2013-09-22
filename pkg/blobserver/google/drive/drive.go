@@ -73,8 +73,11 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		Config:    oauthConf,
 		Transport: http.DefaultTransport,
 	}
-
-	service, err := service.New(transport, config.RequiredString("parent_id"))
+	parent := config.RequiredString("parent_id")
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	service, err := service.New(transport, parent)
 	sto := &driveStorage{
 		service: service,
 	}

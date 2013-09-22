@@ -34,6 +34,9 @@ func init() {
 }
 
 func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+	if err := conf.Validate(); err != nil {
+		return nil, err
+	}
 	return &StatusHandler{}, nil
 }
 
