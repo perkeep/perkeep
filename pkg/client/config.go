@@ -192,7 +192,8 @@ func fileExists(name string) bool {
 
 var (
 	signerPublicKeyRefOnce sync.Once
-	signerPublicKeyRef     blob.Ref
+	signerPublicKeyRef     blob.Ref // of publicKeyArmored
+	publicKeyArmored       string
 )
 
 // TODO: move to config package?
@@ -202,10 +203,10 @@ func SignerPublicKeyBlobref() blob.Ref {
 }
 
 func initSignerPublicKeyBlobref() {
-	signerPublicKeyRef, _ = getSignerPublicKeyBlobref()
+	signerPublicKeyRef, publicKeyArmored, _ = getSignerPublicKeyBlobref()
 }
 
-func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
+func getSignerPublicKeyBlobref() (signerRef blob.Ref, armored string, ok bool) {
 	configOnce.Do(parseConfig)
 	key := "keyId"
 	keyId, ok := config[key].(string)
@@ -229,7 +230,7 @@ func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
 		log.Printf("Couldn't find keyId %q in secret ring: %v", keyId, err)
 		return
 	}
-	armored, err := jsonsign.ArmoredPublicKey(entity)
+	armored, err = jsonsign.ArmoredPublicKey(entity)
 	if err != nil {
 		log.Printf("Error serializing public key: %v", err)
 		return
@@ -259,7 +260,7 @@ func getSignerPublicKeyBlobref() (signerRef blob.Ref, ok bool) {
 		}
 	}
 
-	return br, true
+	return br, armored, true
 }
 
 func (c *Client) GetBlobFetcher() blob.SeekFetcher {

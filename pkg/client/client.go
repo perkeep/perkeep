@@ -802,13 +802,13 @@ func (c *Client) initEntityFetcher() {
 // sigTime optionally specifies the signature time.
 // If zero, the current time is used.
 func (c *Client) SignBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
-	camliSigBlobref := c.SignerPublicKeyBlobref()
-	if !camliSigBlobref.Valid() {
+	sigRef := c.SignerPublicKeyBlobref()
+	if !sigRef.Valid() {
 		// TODO: more helpful error message
 		return "", errors.New("No public key configured.")
 	}
 
-	b := bb.Builder().SetSigner(camliSigBlobref).Blob()
+	b := bb.Builder().SetSigner(sigRef).Blob()
 	return c.Sign(&jsonsign.SignRequest{
 		UnsignedJSON:  b.JSON(),
 		SignatureTime: sigTime,
@@ -820,6 +820,20 @@ func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// sigRef is guaranteed valid at this point, because SignBlob
+	// succeeded.  If we don't know for sure that the server
+	// already has this public key, upload it.  And do it serially
+	// so by the time we do the second upload of the signed blob,
+	// any synchronous indexing on the server won't fail due to a
+	// missing public key.
+	sigRef := c.SignerPublicKeyBlobref()
+	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
+		if _, err := c.uploadString(publicKeyArmored); err != nil {
+			return nil, err
+		}
+	}
+
 	return c.uploadString(signed)
 }
 

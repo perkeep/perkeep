@@ -4,6 +4,15 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- camput's havecache initialization should move up a layer to
+   to be global to all commands, not specific to "camput file".
+   (the statcache can stay in file).  otherwise, we have no haveCache
+   on the pkg/client.*Client and the UploadAndSignBlob call (for
+   creating permanodes and other claims) can't efficiently upload its
+   public key if the server doesn't already have it.  currently it
+   has to try to upload it (doing a remote HTTP stat) each time
+   when using "camput permanode" or "camput attr".
+
 -- use 'int' instead of 'int64' for blob sizes everywhere.  blobs
    have a max size of 10-32 MB anyway.  definitely not bigger than
    what will fit in memory (which is what int means)
