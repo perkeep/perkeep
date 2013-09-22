@@ -185,10 +185,17 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 // The channel c is closed before the function returns, regardless of error.
 func (fr *FileReader) GetChunkOffsets(c chan<- int64) error {
 	defer close(c)
-	return fr.sendPartsChunks(c, 0, fr.ss.Parts)
+	firstErrc := make(chan error, 1)
+	return fr.sendPartsChunks(c, firstErrc, 0, fr.ss.Parts)
 }
 
-func (fr *FileReader) sendPartsChunks(c chan<- int64, off int64, parts []*BytesPart) error {
+// firstErrc is a communication mechanism amongst all outstanding
+// superset-fetching goroutines to see if anybody else has failed.  If
+// so (a non-blocking read returns something), then the recursive call
+// to sendPartsChunks is skipped, hopefully preventing unnecessary
+// work.  Whenever a caller receives on firstErrc, it should also send
+// back to it.  It's buffered.
+func (fr *FileReader) sendPartsChunks(c chan<- int64, firstErrc chan error, off int64, parts []*BytesPart) error {
 	var errcs []chan error
 	for _, p := range parts {
 		switch {
@@ -202,24 +209,40 @@ func (fr *FileReader) sendPartsChunks(c chan<- int64, off int64, parts []*BytesP
 			errc := make(chan error, 1)
 			errcs = append(errcs, errc)
 			br := p.BytesRef
-			offNow := off
-			go func() {
-				ss, err := fr.getSuperset(br)
-				if err != nil {
+			go func(off int64) (err error) {
+				defer func() {
 					errc <- err
+					if err != nil {
+						select {
+						case firstErrc <- err: // pump
+						default:
+						}
+					}
+				}()
+				select {
+				case err = <-firstErrc:
+					// There was already an error elsewhere in the file.
+					// Avoid doing more work.
 					return
+				default:
+					ss, err := fr.getSuperset(br)
+					if err != nil {
+						return err
+					}
+					return fr.sendPartsChunks(c, firstErrc, off, ss.Parts)
 				}
-				errc <- fr.sendPartsChunks(c, offNow, ss.Parts)
-			}()
+			}(off)
 		}
 		off += int64(p.Size)
 	}
+
+	var retErr error
 	for _, errc := range errcs {
-		if err := <-errc; err != nil {
-			return err
+		if err := <-errc; err != nil && retErr == nil {
+			retErr = err
 		}
 	}
-	return nil
+	return retErr
 }
 
 type sliceWriter struct {

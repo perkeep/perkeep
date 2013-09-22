@@ -37,6 +37,10 @@ type Fetcher struct {
 	l      sync.Mutex
 	m      map[string]*Blob // keyed by blobref string
 	sorted []string         // blobrefs sorted
+
+	// FetchErr, if non-nil, specifies the error to return on the next fetch call.
+	// If it returns nil, fetches proceed as normal.
+	FetchErr func() error
 }
 
 var _ blobserver.Storage = (*Fetcher)(nil)
@@ -60,6 +64,11 @@ func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size int64,
 var dummyCloser = ioutil.NopCloser(nil)
 
 func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
+	if tf.FetchErr != nil {
+		if err = tf.FetchErr(); err != nil {
+			return
+		}
+	}
 	tf.l.Lock()
 	defer tf.l.Unlock()
 	if tf.m == nil {
@@ -103,7 +112,8 @@ func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 	}
 	if !br.HashMatches(h) {
 		// This is a somewhat redundant check, since
-		// blobserver.Receive now does it.
+		// blobserver.Receive now does it. But for testing code,
+		// it's worth the cost.
 		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
 	}
 	b := &Blob{Contents: string(all)}
