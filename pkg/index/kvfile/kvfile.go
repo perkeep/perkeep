@@ -21,6 +21,7 @@ package kvfile
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -46,7 +47,11 @@ func NewStorage(file string) (index.Storage, io.Closer, error) {
 	db, err := createOpen(file, &kv.Options{
 		Locker: func(dbname string) (io.Closer, error) {
 			lkfile := dbname + ".lock"
-			return lock.Lock(lkfile)
+			cl, err := lock.Lock(lkfile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to acquire lock on %s: %v", lkfile, err)
+			}
+			return cl, nil
 		},
 	})
 	if err != nil {
