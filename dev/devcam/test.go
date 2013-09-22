@@ -77,6 +77,16 @@ func (c *testCmd) RunCommand(args []string) error {
 	return nil
 }
 
+func (c *testCmd) env() *Env {
+	if c.buildGoPath == "" {
+		panic("called too early")
+	}
+	env := NewCopyEnv()
+	env.NoGo()
+	env.Set("GOPATH", c.buildGoPath)
+	return env
+}
+
 func (c *testCmd) syncSrc() error {
 	args := []string{"run", "make.go", "--onlysync"}
 	cmd := exec.Command("go", args...)
@@ -89,21 +99,6 @@ func (c *testCmd) syncSrc() error {
 	return nil
 }
 
-// cleanGoEnv returns a copy of the current environment with GOPATH and
-// GOBIN removed.
-func cleanGoEnv() (clean []string) {
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "GOPATH=") {
-			continue
-		}
-		if strings.HasPrefix(env, "GOBIN=") {
-			continue
-		}
-		clean = append(clean, env)
-	}
-	return
-}
-
 func (c *testCmd) buildSelf() error {
 	args := []string{
 		"install",
@@ -114,10 +109,9 @@ func (c *testCmd) buildSelf() error {
 	if err != nil {
 		return fmt.Errorf("Error setting GOBIN: %v", err)
 	}
-	cmd.Env = append(cleanGoEnv(),
-		"GOBIN="+binDir,
-		"GOPATH="+c.buildGoPath,
-	)
+	env := c.env()
+	env.Set("GOBIN", binDir)
+	cmd.Env = env.Flat()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -131,14 +125,13 @@ func (c *testCmd) genKeyBlob() error {
 	args := []string{
 		"put",
 		"init",
-		"--gpgkey="+defaultKeyID,
+		"--gpgkey=" + defaultKeyID,
 		"--noconfig",
 	}
 	cmd := exec.Command(cmdBin, args...)
-	cmd.Env = append(cleanGoEnv(),
-		"CAMLI_SECRET_RING="+filepath.FromSlash(defaultSecring),
-		"GOPATH="+c.buildGoPath,
-	)
+	env := c.env()
+	env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+	cmd.Env = env.Flat()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -161,9 +154,7 @@ func (c *testCmd) runTests() error {
 		"./server/appengine",
 		"./cmd/...",
 	}...)
-	env := append(cleanGoEnv(),
-		"SKIP_DEP_TESTS=1",
-		"GOPATH="+c.buildGoPath,
-	)
+	env := c.env()
+	env.Set("SKIP_DEP_TESTS", "1")
 	return runExec("go", args, env)
 }

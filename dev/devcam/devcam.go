@@ -39,17 +39,13 @@ var sysExec func(argv0 string, argv []string, envv []string) (err error)
 
 // runExec execs bin. If the platform doesn't support exec, it runs it and waits
 // for it to finish.
-func runExec(bin string, args []string, env []string) error {
-	envv := os.Environ()
-	if env != nil {
-		envv = env
-	}
+func runExec(bin string, args []string, env *Env) error {
 	if sysExec != nil {
-		sysExec(bin, append([]string{filepath.Base(bin)}, args...), envv)
+		sysExec(bin, append([]string{filepath.Base(bin)}, args...), env.Flat())
 	}
 
 	cmd := exec.Command(bin, args...)
-	cmd.Env = envv
+	cmd.Env = env.Flat()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -57,13 +53,6 @@ func runExec(bin string, args []string, env []string) error {
 	}
 	go handleSignals(cmd.Process)
 	return cmd.Wait()
-}
-
-func setenv(key, value string) {
-	err := os.Setenv(key, value)
-	if err != nil {
-		log.Fatalf("Could not set env var %v to %v: %v", key, value, err)
-	}
 }
 
 // cpDir copies the contents of src dir into dst dir.

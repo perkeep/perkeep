@@ -39,11 +39,14 @@ type getCmd struct {
 	// end of flag vars
 
 	verbose bool // set by CAMLI_QUIET
+	env     *Env
 }
 
 func init() {
 	cmdmain.RegisterCommand("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := new(getCmd)
+		cmd := &getCmd{
+			env: NewCopyEnv(),
+		}
 		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
@@ -90,7 +93,7 @@ func (c *getCmd) RunCommand(args []string) error {
 		cmdArgs = append(cmdArgs, "-server="+blobserver)
 	}
 	cmdArgs = append(cmdArgs, args...)
-	return runExec(cmdBin, cmdArgs, nil)
+	return runExec(cmdBin, cmdArgs, c.env)
 }
 
 func (c *getCmd) checkFlags(args []string) error {
@@ -130,11 +133,11 @@ func (c *getCmd) build() error {
 }
 
 func (c *getCmd) setEnvVars() error {
-	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
-	setenv("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
-	setenv("CAMLI_KEYID", defaultKeyID)
-	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
-	setenv("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
+	c.env.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
+	c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+	c.env.Set("CAMLI_KEYID", defaultKeyID)
+	c.env.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
+	c.env.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
 	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
 }

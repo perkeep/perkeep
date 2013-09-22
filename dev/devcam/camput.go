@@ -40,11 +40,14 @@ type putCmd struct {
 	// end of flag vars
 
 	verbose bool // set by CAMLI_QUIET
+	env     *Env
 }
 
 func init() {
 	cmdmain.RegisterCommand("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := new(putCmd)
+		cmd := &putCmd{
+			env: NewCopyEnv(),
+		}
 		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
@@ -91,7 +94,7 @@ func (c *putCmd) RunCommand(args []string) error {
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)
-	return runExec(cmdBin, cmdArgs, nil)
+	return runExec(cmdBin, cmdArgs, c.env)
 }
 
 func (c *putCmd) checkFlags(args []string) error {
@@ -131,14 +134,14 @@ func (c *putCmd) build() error {
 }
 
 func (c *putCmd) setEnvVars() error {
-	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
-	setenv("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
-	setenv("CAMLI_KEYID", defaultKeyID)
-	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
-	setenv("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
+	c.env.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
+	c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+	c.env.Set("CAMLI_KEYID", defaultKeyID)
+	c.env.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
+	c.env.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
 	if c.altkey {
-		setenv("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg"))
-		setenv("CAMLI_KEYID", "C7C3E176")
+		c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg"))
+		c.env.Set("CAMLI_KEYID", "C7C3E176")
 		println("**\n** Note: password is \"foo\"\n**\n")
 	}
 	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))

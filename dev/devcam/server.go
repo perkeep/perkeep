@@ -36,7 +36,7 @@ import (
 const (
 	// default secret ring used in tests and in devcam commands
 	defaultSecring = "pkg/jsonsign/testdata/test-secring.gpg"
-	// public ID of the GPG key in defaultSecring  
+	// public ID of the GPG key in defaultSecring
 	defaultKeyID = "26F5ABDA"
 )
 
@@ -67,11 +67,14 @@ type serverCmd struct {
 
 	listen    string // address + port to listen on
 	camliRoot string // the temp dir where blobs are stored
+	env       *Env
 }
 
 func init() {
 	cmdmain.RegisterCommand("server", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := new(serverCmd)
+		cmd := &serverCmd{
+			env: NewCopyEnv(),
+		}
 		flags.BoolVar(&cmd.all, "all", false, "Listen on all interfaces.")
 		flags.StringVar(&cmd.hostname, "hostname", "", "Hostname to advertise, defaults to the hostname reported by the kernel.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port to listen on.")
@@ -190,6 +193,9 @@ func (c *serverCmd) makeSuffixdir(fullpath string) {
 }
 
 func (c *serverCmd) setEnvVars() error {
+	setenv := func(k, v string) {
+		c.env.Set(k, v)
+	}
 	if c.slow {
 		setenv("DEV_THROTTLE_KBPS", fmt.Sprintf("%d", c.throttle))
 		setenv("DEV_THROTTLE_LATENCY_MS", fmt.Sprintf("%d", c.latency))
@@ -355,7 +361,7 @@ func (c *serverCmd) setFullClosure() error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("Could not run updatelibrary.go: %v", err)
 		}
-		setenv("CAMLI_DEV_CLOSURE_DIR", "third_party/closure/lib/closure")
+		c.env.Set("CAMLI_DEV_CLOSURE_DIR", "third_party/closure/lib/closure")
 	}
 	return nil
 }
@@ -398,5 +404,5 @@ func (c *serverCmd) RunCommand(args []string) error {
 		"-listen=" + c.listen,
 		"-openbrowser=" + strconv.FormatBool(c.openBrowser),
 	}
-	return runExec(camliBin, cmdArgs, nil)
+	return runExec(camliBin, cmdArgs, c.env)
 }
