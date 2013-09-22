@@ -38,6 +38,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	statspkg "camlistore.org/pkg/blobserver/stats"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
@@ -130,9 +131,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 	}
 	up := getUploader()
 	if c.memstats {
-		sr := new(statsStatReceiver)
+		sr := new(statspkg.Receiver)
 		up.altStatReceiver = sr
-		defer func() { sr.DumpStats(c.histo) }()
+		defer func() { DumpStats(sr, c.histo) }()
 	}
 	c.initCaches(up)
 
@@ -280,43 +281,11 @@ func (c *fileCmd) initCaches(up *Uploader) {
 	}
 }
 
-// statsStatReceiver is a dummy blobserver.StatReceiver that doesn't store anything;
-// it just collects statistics.
-type statsStatReceiver struct {
-	mu   sync.Mutex
-	have map[blob.Ref]int64
-}
-
-func (sr *statsStatReceiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	n, err := io.Copy(ioutil.Discard, source)
-	if err != nil {
-		return
-	}
-	sr.mu.Lock()
-	defer sr.mu.Unlock()
-	if sr.have == nil {
-		sr.have = make(map[blob.Ref]int64)
-	}
-	sr.have[br] = n
-	return blob.SizedRef{br, n}, nil
-}
-
-func (sr *statsStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	sr.mu.Lock()
-	defer sr.mu.Unlock()
-	for _, br := range blobs {
-		if size, ok := sr.have[br]; ok {
-			dest <- blob.SizedRef{br, size}
-		}
-	}
-	return nil
-}
-
 // DumpStats creates the destFile and writes a line per received blob,
 // with its blob size.
-func (sr *statsStatReceiver) DumpStats(destFile string) {
-	sr.mu.Lock()
-	defer sr.mu.Unlock()
+func DumpStats(sr *statspkg.Receiver, destFile string) {
+	sr.Lock()
+	defer sr.Unlock()
 
 	f, err := os.Create(destFile)
 	if err != nil {
@@ -324,10 +293,10 @@ func (sr *statsStatReceiver) DumpStats(destFile string) {
 	}
 
 	var sum int64
-	for _, size := range sr.have {
+	for _, size := range sr.Have {
 		fmt.Fprintf(f, "%d\n", size)
 	}
-	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.have), sum)
+	fmt.Printf("In-memory blob stats: %d blobs, %d bytes\n", len(sr.Have), sum)
 
 	err = f.Close()
 	if err != nil {
