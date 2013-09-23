@@ -144,6 +144,6 @@ func (c *putCmd) setEnvVars() error {
 		c.env.Set("CAMLI_KEYID", "C7C3E176")
 		println("**\n** Note: password is \"foo\"\n**\n")
 	}
-	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	c.verbose, _ = strconv.ParseBool(c.env.m["CAMLI_QUIET"])
 	return nil
 }
