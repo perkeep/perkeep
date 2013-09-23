@@ -140,8 +140,8 @@ func (id *IndexDeps) AddAttribute(permaNode blob.Ref, attr, value string) blob.R
 	return id.uploadAndSign(m)
 }
 
-func (id *IndexDeps) DelAttribute(permaNode blob.Ref, attr string) blob.Ref {
-	m := schema.NewDelAttributeClaim(permaNode, attr)
+func (id *IndexDeps) DelAttribute(permaNode blob.Ref, attr, value string) blob.Ref {
+	m := schema.NewDelAttributeClaim(permaNode, attr, value)
 	m.SetClaimDate(id.advanceTime())
 	return id.uploadAndSign(m)
 }

@@ -316,7 +316,7 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 
 func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	// Remove the camliPath:name attribute from the directory permanode.
-	claim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.Name)
+	claim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.Name, "")
 	_, err := n.fs.client.UploadAndSignBlob(claim)
 	if err != nil {
 		log.Println("mutDir.Create:", err)
@@ -369,7 +369,7 @@ func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Int
 		return fuse.EIO
 	}
 
-	delClaim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.OldName)
+	delClaim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.OldName, "")
 	delClaim.SetClaimDate(now)
 	_, err = n.fs.client.UploadAndSignBlob(delClaim)
 	if err != nil {
