@@ -300,17 +300,17 @@ func (c *serverCmd) setupIndexer() error {
 			"-user=postgres",
 			"-password=postgres",
 			"-host=localhost",
-			"-dbname="+os.Getenv("CAMLI_DBNAME"))
+			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	case c.mysql:
 		args = append(args,
 			"-user=root",
 			"-password=root",
 			"-host=localhost",
-			"-dbname="+os.Getenv("CAMLI_DBNAME"))
+			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	case c.sqlite:
 		args = append(args,
 			"-dbtype=sqlite",
-			"-dbname="+os.Getenv("CAMLI_DBNAME"))
+			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	default:
 		return nil
 	}
@@ -396,7 +396,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	}
 
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
-		os.Getenv("CAMLI_BASEURL"))
+		c.env.m["CAMLI_BASEURL"])
 
 	camliBin := filepath.Join("bin", "camlistored")
 	cmdArgs := []string{
