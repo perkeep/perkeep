@@ -37,6 +37,48 @@ import (
 	"camlistore.org/pkg/schema"
 )
 
+type responseType int
+
+const (
+	badRequest responseType = iota
+	unauthorizedRequest
+)
+
+type errorCode int
+
+const (
+	assembleNonTransitive errorCode = iota
+	invalidMethod
+	invalidURL
+	invalidVia
+	shareBlobInvalid
+	shareBlobTooLarge
+	shareExpired
+	shareFetchFailed
+	shareReadFailed
+	shareTargetInvalid
+	shareNotTransitive
+	viaChainFetchFailed
+	viaChainInvalidLink
+	viaChainReadFailed
+)
+
+type shareError struct {
+	code     errorCode
+	response responseType
+	message  string
+}
+
+func (e *shareError) Error() string {
+	return e.message
+}
+
+func unauthorized(code errorCode, format string, args ...interface{}) *shareError {
+	return &shareError{
+		code: code, response: unauthorizedRequest, message: fmt.Sprintf(format, args...),
+	}
+}
+
 const fetchFailureDelay = 200 * time.Millisecond
 
 // ShareHandler handles the requests for "share" (and shared) blobs.
@@ -72,10 +114,9 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-	blobRef blob.Ref, fetcher blob.StreamingFetcher) {
+	blobRef blob.Ref, fetcher blob.StreamingFetcher) error {
 	if !httputil.IsGet(req) {
-		httputil.BadRequestError(conn, "Invalid method")
-		return
+		return &shareError{code: invalidMethod, response: badRequest, message: "Invalid method"}
 	}
 
 	viaPathOkay := false
@@ -94,8 +135,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			if br, ok := blob.Parse(vs); ok {
 				viaBlobs = append(viaBlobs, br)
 			} else {
-				httputil.BadRequestError(conn, "Malformed blobref in via param")
-				return
+				return &shareError{code: invalidVia, response: badRequest, message: "Malformed blobref in via param"}
 			}
 		}
 	}
@@ -109,44 +149,31 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 		case 0:
 			file, size, err := fetcher.FetchStreaming(br)
 			if err != nil {
-				log.Printf("Fetch chain 0 of %s failed: %v", br.String(), err)
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareFetchFailed, "Fetch chain 0 of %s failed: %v", br, err)
 			}
 			defer file.Close()
 			if size > schema.MaxSchemaBlobSize {
-				log.Printf("Fetch chain 0 of %s too large", br.String())
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareBlobTooLarge, "Fetch chain 0 of %s too large", br)
 			}
 			blob, err := schema.BlobFromReader(br, file)
 			if err != nil {
-				log.Printf("Can't create a blob from %v: %v", br.String(), err)
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareReadFailed, "Can't create a blob from %v: %v", br, err)
 			}
 			share, ok := blob.AsShare()
 			if !ok {
-				log.Printf("Fetch chain 0 of %s wasn't a valid Share", br.String())
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareBlobInvalid, "Fetch chain 0 of %s wasn't a valid Share", br)
 			}
 			if share.IsExpired() {
-				log.Print("Share is expired")
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareExpired, "Share is expired")
 			}
 			if len(fetchChain) > 1 && fetchChain[1].String() != share.Target().String() {
-				log.Printf("Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
-					br.String(), fetchChain[1].String(), share.Target().String())
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareTargetInvalid,
+					"Fetch chain 0->1 (%s -> %q) unauthorized, expected hop to %q",
+					br, fetchChain[1], share.Target())
 			}
 			isTransitive = share.IsTransitive()
 			if len(fetchChain) > 2 && !isTransitive {
-				log.Print("Share is not transitive")
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(shareNotTransitive, "Share is not transitive")
 			}
 		case len(fetchChain) - 1:
 			// Last one is fine (as long as its path up to here has been proven, and it's
@@ -155,32 +182,26 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 		default:
 			file, _, err := fetcher.FetchStreaming(br)
 			if err != nil {
-				log.Printf("Fetch chain %d of %s failed: %v", i, br.String(), err)
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(viaChainFetchFailed, "Fetch chain %d of %s failed: %v", i, br, err)
 			}
 			defer file.Close()
 			lr := io.LimitReader(file, schema.MaxSchemaBlobSize)
 			slurpBytes, err := ioutil.ReadAll(lr)
 			if err != nil {
-				log.Printf("Fetch chain %d of %s failed in slurp: %v", i, br.String(), err)
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(viaChainReadFailed,
+					"Fetch chain %d of %s failed in slurp: %v", i, br, err)
 			}
 			saught := fetchChain[i+1].String()
 			if bytes.Index(slurpBytes, []byte(saught)) == -1 {
-				log.Printf("Fetch chain %d of %s failed; no reference to %s",
-					i, br.String(), saught)
-				auth.SendUnauthorized(conn, req)
-				return
+				return unauthorized(viaChainInvalidLink,
+					"Fetch chain %d of %s failed; no reference to %s", i, br, saught)
 			}
 		}
 	}
 
 	if assemble, _ := strconv.ParseBool(req.FormValue("assemble")); assemble {
 		if !isTransitive {
-			auth.SendUnauthorized(conn, req)
-			return
+			return unauthorized(assembleNonTransitive, "Cannot assemble non-transitive share")
 		}
 		dh := &DownloadHandler{
 			Fetcher: fetcher,
@@ -191,15 +212,36 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 		gethandler.ServeBlobRef(conn, req, blobRef, fetcher)
 	}
 	viaPathOkay = true
+	return nil
 }
 
-func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *shareHandler) serveHTTP(rw http.ResponseWriter, req *http.Request) error {
+	var err error
 	pathSuffix := httputil.PathSuffix(req)
+	if len(pathSuffix) == 0 {
+		// This happens during testing because we don't go through PrefixHandler
+		pathSuffix = strings.TrimLeft(req.URL.Path, "/")
+	}
 	pathParts := strings.SplitN(pathSuffix, "/", 2)
 	blobRef, ok := blob.Parse(pathParts[0])
 	if !ok {
-		http.Error(rw, fmt.Sprintf("Malformed share pathSuffix: %s", pathSuffix), 400)
-		return
+		err = &shareError{code: invalidURL, response: badRequest,
+			message: fmt.Sprintf("Malformed share pathSuffix: %s", pathSuffix)}
+	} else {
+		err = handleGetViaSharing(rw, req, blobRef, h.fetcher)
 	}
-	handleGetViaSharing(rw, req, blobRef, h.fetcher)
+	if se, ok := err.(*shareError); ok {
+		switch se.response {
+		case badRequest:
+			httputil.BadRequestError(rw, err.Error())
+		case unauthorizedRequest:
+			log.Print(err)
+			auth.SendUnauthorized(rw, req)
+		}
+	}
+	return err
+}
+
+func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	h.serveHTTP(rw, req)
 }

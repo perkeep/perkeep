@@ -1,5 +1,5 @@
 /*
-Copyright 2013 Google Inc.
+Copyright 2013 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 package server
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,25 +25,34 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/test"
-	. "camlistore.org/pkg/test/asserts"
 )
 
 func TestHandleGetViaSharing(t *testing.T) {
-	// TODO(aa): It would be good if we could test that we are failing for
-	// the right reason for all of these (some kind of internal error code).
-
 	sto := &test.Fetcher{}
-	handler := &httputil.PrefixHandler{"/", &shareHandler{sto}}
-	wr := &httptest.ResponseRecorder{}
+	handler := &shareHandler{fetcher: sto}
+	var wr *httptest.ResponseRecorder
 
-	get := func(path string) *httptest.ResponseRecorder {
+	putRaw := func(ref blob.Ref, data string) {
+		if _, err := blobserver.Receive(sto, ref, strings.NewReader(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	put := func(blob *schema.Blob) {
+		putRaw(blob.BlobRef(), blob.JSON())
+	}
+
+	get := func(path string) *shareError {
 		wr = httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "http://unused/"+path, nil)
-		handler.ServeHTTP(wr, req)
-		return wr
+		err := handler.serveHTTP(wr, req)
+		if err != nil {
+			return err.(*shareError)
+		}
+		return nil
 	}
 
 	content := "monkey"
@@ -59,53 +68,56 @@ func TestHandleGetViaSharing(t *testing.T) {
 		SetSigner(blob.SHA1FromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 
-	log.Print("Should fail because first link does not exist")
-	get(share.Blob().BlobRef().String())
-	ExpectInt(t, 401, wr.Code, "")
+	var err *shareError
 
-	log.Print("Should fail because share target does not match next link")
-	sto.ReceiveBlob(share.Blob().BlobRef(), strings.NewReader(share.Blob().JSON()))
-	get(contentRef.String() + "?via=" + share.Blob().BlobRef().String())
-	ExpectInt(t, 401, wr.Code, "")
+	if err = get(share.Blob().BlobRef().String()); err == nil || err.code != shareFetchFailed {
+		t.Error("Expected missing blob error")
+	}
 
-	log.Print("Should fail because first link is not a share")
-	sto.ReceiveBlob(linkRef, strings.NewReader(link))
-	get(linkRef.String())
-	ExpectInt(t, 401, wr.Code, "")
-	log.Print("Should successfully fetch share")
-	get(share.Blob().BlobRef().String())
-	ExpectInt(t, 200, wr.Code, "")
+	put(share.Blob())
+	if err = get(fmt.Sprintf("%s?via=%s", contentRef, share.Blob().BlobRef())); err == nil || err.code != shareTargetInvalid {
+		t.Error("Expected invalid target error")
+	}
 
-	log.Print("Should successfully fetch link via share")
-	get(linkRef.String() + "?via=" + share.Blob().BlobRef().String())
-	ExpectInt(t, 200, wr.Code, "")
+	putRaw(linkRef, link)
+	if err = get(linkRef.String()); err == nil || err.code != shareReadFailed {
+		t.Error("Expected invalid share blob error")
+	}
 
-	log.Print("Should fail because share is not transitive")
-	get(contentRef.String() + "?via=" + share.Blob().BlobRef().String() + "," + linkRef.String())
-	ExpectInt(t, 401, wr.Code, "")
+	if err = get(share.Blob().BlobRef().String()); err != nil {
+		t.Error("Expected to successfully fetch share, but got: %s", err)
+	}
 
-	log.Print("Should fail because link content does not contain target")
+	if err = get(fmt.Sprintf("%s?via=%s", linkRef, share.Blob().BlobRef())); err != nil {
+		t.Error("Expected to successfully fetch link via share, but got: %s", err)
+	}
+
+	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != shareNotTransitive {
+		t.Error("Expected share not transitive error")
+	}
+
 	share.SetShareIsTransitive(true)
-	sto.ReceiveBlob(share.Blob().BlobRef(), strings.NewReader(share.Blob().JSON()))
-	get(linkRef.String() + "?via=" + share.Blob().BlobRef().String() + "," + linkRef.String())
-	ExpectInt(t, 401, wr.Code, "")
+	put(share.Blob())
+	if err = get(fmt.Sprintf("%s?via=%s,%s", linkRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != viaChainInvalidLink {
+		t.Error("Expected via chain invalid link err")
+	}
 
-	log.Print("Should successfully fetch content via link via share")
-	sto.ReceiveBlob(contentRef, strings.NewReader(content))
-	get(contentRef.String() + "?via=" + share.Blob().BlobRef().String() + "," + linkRef.String())
-	ExpectInt(t, 200, wr.Code, "")
+	putRaw(contentRef, content)
+	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
+		t.Error("Expected to succesfully fetch via link via share, but got: %s", err)
+	}
 
-	log.Print("Should fail because share is expired")
 	share.SetShareExpiration(time.Now().Add(-time.Duration(10) * time.Minute))
-	sto.ReceiveBlob(share.Blob().BlobRef(), strings.NewReader(share.Blob().JSON()))
-	get(contentRef.String() + "?via=" + share.Blob().BlobRef().String() + "," + linkRef.String())
-	ExpectInt(t, 401, wr.Code, "")
+	put(share.Blob())
+	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != shareExpired {
+		t.Error("Expected share expired error")
+	}
 
-	log.Print("Should succeed because share has not expired")
 	share.SetShareExpiration(time.Now().Add(time.Duration(10) * time.Minute))
-	sto.ReceiveBlob(share.Blob().BlobRef(), strings.NewReader(share.Blob().JSON()))
-	get(contentRef.String() + "?via=" + share.Blob().BlobRef().String() + "," + linkRef.String())
-	ExpectInt(t, 200, wr.Code, "")
+	put(share.Blob())
+	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
+		t.Error("Expected to successfully fetch unexpired share, but got: %s", err)
+	}
 
 	// TODO(aa): assemble
 }
