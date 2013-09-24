@@ -18,7 +18,6 @@ package fs
 
 import (
 	"errors"
-	"log"
 	"os/exec"
 	"runtime"
 	"time"
@@ -27,18 +26,28 @@ import (
 // Unmount attempts to unmount the provided FUSE mount point, forcibly
 // if necessary.
 func Unmount(point string) error {
-	if runtime.GOOS == "darwin" {
-		errc := make(chan error, 1)
-		go func() {
-			errc <- exec.Command("diskutil", "umount", "force", point).Run()
-		}()
-		select {
-		case <-time.After(1 * time.Second):
-			return errors.New("unmount timeout")
-		case err := <-errc:
-			log.Printf("diskutil unmount = %v", err)
-			return err
-		}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("diskutil", "umount", "force", point)
+	case "linux":
+		cmd = exec.Command("fusermount", "-u", point)
+	default:
+		return errors.New("unmount: unimplemented")
 	}
-	return errors.New("unmount: unimplemented")
+
+	errc := make(chan error, 1)
+	go func() {
+		if err := exec.Command("umount", point).Run(); err == nil {
+			errc <- err
+		}
+		// retry to unmount with the fallback cmd
+		errc <- cmd.Run()
+	}()
+	select {
+	case <-time.After(1 * time.Second):
+		return errors.New("umount timeout")
+	case err := <-errc:
+		return err
+	}
 }
