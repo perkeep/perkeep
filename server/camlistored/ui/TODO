@@ -1,7 +1,15 @@
-New UI:
-- Replace "create item" link with dialog that lets you create a new collection or select a file to upload using the standard file finding dialog.
 - Show a placeholder item while an upload is in progress.
-- Hook through upload progress percentage from the camli javascript API to the upload placeholder item.
-- Fix smaller/larger magnify to clear all children before refectching recent list, otherwise it does this weird two-step resizing thing, where the thumbnails are too big for half a second.
-- When a list of items is selected, have a toolbar option or button to add them into one of the collections; have that pop up a blob container that shows just container type blobs.
-- Have a way to disable drag/drop on a blob item container and prevent uploads.
+- Hook through upload progress percentage from the camli javascript
+  API to the upload placeholder item.
+- Add dragdrop of selected blobs to put them in sets?
+- Make images a few stops bigger by default
+- Fix resample quality - looks pretty crappy right now
+- Get better folder/file icons
+- Can we put the name of the folder/file within the icon?
+- Permanode functionality is just weird... do we need this in the main
+  UI? should be a command-line only thing I think
+- Add support for uploading entire folders
+- Make the toolbar a Medium/Quip style floating thing - get temporary
+  icons from the noun project
+- Infinite scroll
+  - bonus: some cool effect as items load!

@@ -69,11 +69,16 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   this.dragEndTimer_ = 0;
 
   /**
-   * Whether users can drag items onto this container to upload.
+   * Whether the blobItems within can be selected.
    * @type {boolean}
-   * @private
    */
-  this.enableDragDrop_ = false;
+  this.isSelectionEnabled = false;
+
+  /**
+   * Whether users can drag files onto the container to upload.
+   * @type {boolean}
+   */
+  this.isFileDragEnabled = false;
 
   this.setFocusable(false);
 };
@@ -115,13 +120,6 @@ camlistore.BlobItemContainer.EventType = {
  * @private
  */
 camlistore.BlobItemContainer.prototype.thumbnailSize_ = 100;
-
-/**
- *@param {boolean}
- */
-camlistore.BlobItemContainer.prototype.setDragDropEnabled = function(val) {
-  this.enableDragDrop_ = val;
-}
 
 /**
  * @return {boolean}
@@ -189,6 +187,7 @@ camlistore.BlobItemContainer.prototype.disposeInternal = function() {
 camlistore.BlobItemContainer.prototype.addChildAt =
 function(child, index, opt_render) {
   goog.base(this, "addChildAt", child, index, opt_render);
+  child.setEnabled(this.isSelectionEnabled);
   if (!this.isLayoutDirty_) {
     var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
       window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
@@ -214,7 +213,7 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
   this.resetChildren_();
   this.listenToBlobItemEvents_();
 
-  if (this.enableDragDrop_) {
+  if (this.isFileDragEnabled) {
     this.fileDragListener_ = goog.bind(this.handleFileDrag_, this);
     this.eh_.listen(document,
                     goog.events.EventType.DRAGOVER,
@@ -449,15 +448,11 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
     }
     this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
   } else {
-    // unselect all chosen items.
-    goog.array.forEach(this.checkedBlobItems_, function(item) {
-      item.setState(goog.ui.Component.State.CHECKED, false);
-    });
+    blobItem.setState(goog.ui.Component.State.CHECKED, isCheckingItem);
     if (isCheckingItem) {
-      blobItem.setState(goog.ui.Component.State.CHECKED, true);
-      this.checkedBlobItems_ = [blobItem];
+      this.checkedBlobItems_.push(blobItem);
     } else {
-      this.checkedBlobItems_ = [];
+      goog.array.remove(this.checkedBlobItems_, blobItem);
     }
     this.dispatchEvent(camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN);
   }
@@ -623,20 +618,21 @@ function(startIndex, endIndex, widthWithoutLastItem, widthWithLastItem,
  * @private
  */
 camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
-	this.resetChildren_();
-	if (!result) {
-		return;
-	}
-	var results = result.withAttr;
-	var meta = result.meta;
-	if (!results || !meta) {
-		return;
-	}
-	for (var i = 0, n = results.length; i < n; i++) {
-		var blobRef = results[i].permanode;
-		var item = new camlistore.BlobItem(blobRef, meta);
-		this.addChild(item, true);
-	}
+  this.resetChildren_();
+  if (!result) {
+    return;
+  }
+  var results = result.withAttr;
+  var meta = result.meta;
+  if (!results || !meta) {
+    return;
+  }
+
+  for (var i = 0, n = results.length; i < n; i++) {
+    var blobRef = results[i].permanode;
+    var item = new camlistore.BlobItem(blobRef, meta);
+    this.addChild(item, true);
+  }
 };
 
 /**
@@ -764,14 +760,7 @@ camlistore.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
       activeElement = this;
     }
   } else if (e) {
-    // TODO(aa): Seems like there should be an easier way to do this.
-    var viewportPoint = goog.style.getClientPosition(this.getElement());
-    var viewportRect = goog.style.getBounds(this.getElement());
-    viewportRect.x = viewportPoint.x;
-    viewportRect.y = viewportPoint.y;
-    if (viewportRect.contains(goog.style.getClientPosition(e))) {
-      activeElement = this;
-    }
+    activeElement = this;
   }
 
   if (activeElement == this.dragActiveElement_) {

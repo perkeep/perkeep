@@ -49,6 +49,7 @@ camlistore.SearchPage = function(config, opt_domHelper) {
 	 */
 	this.blobItemContainer_ = new camlistore.BlobItemContainer(
 		this.connection_, opt_domHelper);
+	this.blobItemContainer_.isSelectionEnabled = true;
 
 	/**
 	 * @type {camlistore.Toolbar}
@@ -118,7 +119,7 @@ camlistore.SearchPage.prototype.decorateInternal = function(element) {
 	goog.dom.appendChild(searchForm, searchText);
 	goog.dom.appendChild(searchForm, btnSearch);
 	goog.dom.appendChild(el, searchForm);
-	
+
 	this.addChild(this.blobItemContainer_, true);
 };
 

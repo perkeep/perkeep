@@ -16,6 +16,7 @@
 
 .cam-blobitem-thumb {
   display: block;
+  border: 0;
   /* So that we can reposition the thumb horizontally within the container */
   position: relative;
 }
@@ -63,10 +64,6 @@
   font-size: 14px;
 }
 
-.cam-blobitem.goog-control-checked {
-  outline: 2px solid #66f;
-}
-
 .cam-blobitem-thumbtitle {
   background: rgba(255, 255, 255, 0.75);
   bottom: 0;
@@ -80,13 +77,46 @@
   text-decoration: none;
   text-overflow: ellipsis;
   width: 100%;
-}
-.cam-blobitem-thumbtitle:hover {
-  text-decoration: underline;
+  pointer-events: none;
 }
 
 .cam-blobitem.cam-dropactive {
   border: 1px solid #acf!important;
   outline: 1px solid #acf!important;
   background: #e5efff;
+}
+
+.cam-blobitem .checkmark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 35px;
+  height: 35px;
+  padding: 5px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.cam-blobitem.goog-control-disabled .checkmark {
+  display: none;
+}
+
+.cam-blobitem .checkmark circle {
+  transition: fill 0.1s ease;
+}
+
+.cam-blobitem.goog-control-hover .checkmark {
+  opacity: 0.6;
+}
+
+.cam-blobitem.goog-control-hover .checkmark:hover {
+  opacity: 1!important;
+}
+
+.cam-blobitem.goog-control-checked .checkmark {
+  opacity: 1!important;
+}
+.cam-blobitem.goog-control-checked .checkmark circle {
+  fill: #66f;
 }

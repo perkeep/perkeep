@@ -70,8 +70,9 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(
       this.blobRef_, this.metaBag_);
 
-  // Blob items support the CHECKED state.
   this.setSupportedState(goog.ui.Component.State.CHECKED, true);
+  this.setSupportedState(goog.ui.Component.State.DISABLED, true);
+  this.setAutoStates(goog.ui.Component.State.CHECKED, false);
 
   // Blob items dispatch state when checked.
   this.setDispatchTransitionEvents(
@@ -281,19 +282,57 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
+
+  var link = this.dom_.createDom('a', 'cam-blobitem-thumb');
+  link.href = this.getLink_();
+
+  var thumb = this.dom_.createDom('img');
+  thumb.src = this.getThumbSrc_();
+  thumb.height = this.getThumbHeight_();
+  thumb.width = this.getThumbWidth();
+  link.appendChild(thumb);
+
+  el.appendChild(link);
+  this.loadCheckmark_();
+
   if (!this.isImage()) {
     goog.dom.classes.add(el, 'cam-blobitem-notimage');
+    var label = this.dom_.createDom('a', 'cam-blobitem-thumbtitle');
+    this.dom_.setTextContent(label, this.getTitle_());
+    el.appendChild(label);
   }
 
-  var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
-  thumbEl.src = this.getThumbSrc_();
-  thumbEl.height = this.getThumbHeight_();
-  thumbEl.width = this.getThumbWidth();
+  this.getElement().addEventListener('click', this.handleClick_.bind(this));
+  this.setEnabled(false);
+};
 
-  var linkEl = this.dom_.createDom('a', 'cam-blobitem-thumbtitle');
-  linkEl.href = this.getLink_();
-  this.dom_.setTextContent(linkEl, this.getTitle_());
+/**
+ * @private
+ */
+camlistore.BlobItem.prototype.loadCheckmark_ = function() {
+  var req = new XMLHttpRequest();
+  req.open("GET", 'checkmark.svg', true);
+  req.onload = goog.bind(function() {
+    var temp = document.createElement('div');
+    temp.innerHTML = req.responseText;
+    this.checkmark_ = temp.getElementsByTagName('svg')[0];
+    this.checkmark_.setAttribute('class', 'checkmark');
+    this.getElement().appendChild(this.checkmark_);
+  }, this);
+  req.send(null);
+};
 
-  this.dom_.appendChild(el, thumbEl);
-  this.dom_.appendChild(el, linkEl);
+/**
+ * @param {goog.events.Event} e The drag drop event.
+ * @private
+ */
+camlistore.BlobItem.prototype.handleClick_ = function(e) {
+  if (!this.checkmark_) {
+    return;
+  }
+
+  if (e.target == this.checkmark_ || this.checkmark_.contains(e.target)) {
+    this.setChecked(!this.isChecked());
+    e.preventDefault();
+  }
 };

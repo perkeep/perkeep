@@ -47,7 +47,8 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    */
   this.blobItemContainer_ = new camlistore.BlobItemContainer(
       this.connection_, opt_domHelper);
-  this.blobItemContainer_.setDragDropEnabled(true);
+  this.blobItemContainer_.isSelectionEnabled = true;
+  this.blobItemContainer_.isFileDragEnabled = true;
 
   /**
    * @type {Element}
