@@ -70,12 +70,6 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(
       this.blobRef_, this.metaBag_);
 
-  /**
-   * @type {goog.events.EventHandler}
-   * @private
-   */
-  this.eh_ = new goog.events.EventHandler(this);
-
   // Blob items support the CHECKED state.
   this.setSupportedState(goog.ui.Component.State.CHECKED, true);
 
@@ -302,70 +296,4 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   this.dom_.appendChild(el, thumbEl);
   this.dom_.appendChild(el, linkEl);
-};
-
-
-/** @override */
-camlistore.BlobItem.prototype.disposeInternal = function() {
-  camlistore.BlobItem.superClass_.disposeInternal.call(this);
-  this.eh_.dispose();
-};
-
-
-/**
- * Called when component's element is known to be in the document.
- */
-camlistore.BlobItem.prototype.enterDocument = function() {
-	camlistore.BlobItem.superClass_.enterDocument.call(this);
-
-	var thumbLink = goog.dom.getFirstElementChild(this.getElement());
-	this.eh_.listen(
-		thumbLink,
-		goog.events.EventType.DRAGENTER,
-		this.handleFileDragEnter_);
-	this.eh_.listen(
-		thumbLink,
-		goog.events.EventType.DRAGLEAVE,
-		this.handleFileDragLeave_);
-};
-
-
-/**
- * @param {goog.events.Event} e The drag drop event.
- * @private
- */
-camlistore.BlobItem.prototype.handleFileDragEnter_ = function(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	if (this.isCollection()) {
-		goog.dom.classes.add(this.getElement(), 'cam-blobitem-dropactive');
-		// we could dispatch another custom event to the container, but why bother
-		// since we can directly access it?
-		var container = this.getParent();
-		container.notifyDragEnter_(this);
-	}
-};
-
-/**
- * @param {goog.events.Event} e The drag drop event.
- * @private
- */
-camlistore.BlobItem.prototype.handleFileDragLeave_ = function(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	if (this.isCollection()) {
-		goog.dom.classes.remove(this.getElement(), 'cam-blobitem-dropactive');
-		var container = this.getParent();
-		container.notifyDragLeave_(this);
-	}
-};
-
-
-/**
- * Called when component's element is known to have been removed from the
- * document.
- */
-camlistore.BlobItem.prototype.exitDocument = function() {
-  camlistore.BlobItem.superClass_.exitDocument.call(this);
-  this.eh_.removeAll();
 };

@@ -85,11 +85,8 @@
   text-decoration: underline;
 }
 
-.cam-blobitem-dropactive {
-  outline: 0;  /* Do not show an outline when container has focus. */
-  border-width: 5px;
-  border-color: #acf;
-  border-style: dashed;
-  position: relative;
-  border-radius: 5px;
+.cam-blobitem.cam-dropactive {
+  border: 1px solid #acf!important;
+  outline: 1px solid #acf!important;
+  background: #e5efff;
 }

@@ -47,7 +47,7 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    */
   this.blobItemContainer_ = new camlistore.BlobItemContainer(
       this.connection_, opt_domHelper);
-  this.blobItemContainer_.setHasCreateItem(true);
+  this.blobItemContainer_.setDragDropEnabled(true);
 
   /**
    * @type {Element}
@@ -114,11 +114,11 @@ camlistore.IndexPage.prototype.disposeInternal = function() {
 camlistore.IndexPage.prototype.enterDocument = function() {
   camlistore.IndexPage.superClass_.enterDocument.call(this);
 
-	this.connection_.serverStatus(
-		goog.bind(function(resp) {
-			this.handleServerStatus_(resp);
-		}, this)
-	);
+  this.connection_.serverStatus(
+    goog.bind(function(resp) {
+      this.handleServerStatus_(resp);
+    }, this)
+  );
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
@@ -148,6 +148,17 @@ camlistore.IndexPage.prototype.enterDocument = function() {
         var blobItems = this.blobItemContainer_.getCheckedBlobItems();
         this.createNewSetWithItems_(blobItems);
       });
+
+  this.eh_.listen(
+    this.toolbar_, camlistore.Toolbar.EventType.CREATE_PERMANODE,
+    function() {
+      this.connection_.createPermanode(
+        function(p) {
+          window.location = './?p=' + p;
+        }, function(failMsg) {
+          console.error('Failed to create permanode: ' + failMsg);
+        });
+    });
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,

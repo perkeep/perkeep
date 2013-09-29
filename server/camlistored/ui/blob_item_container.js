@@ -13,7 +13,6 @@ goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Container');
 goog.require('camlistore.BlobItem');
-goog.require('camlistore.CreateItem');
 goog.require('camlistore.ServerConnection');
 
 
@@ -62,6 +61,20 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
    */
   this.eh_ = new goog.events.EventHandler(this);
 
+  /**
+    * An id for a timer we use to know when the drag has ended.
+    * @type {number}
+    * @private
+    */
+  this.dragEndTimer_ = 0;
+
+  /**
+   * Whether users can drag items onto this container to upload.
+   * @type {boolean}
+   * @private
+   */
+  this.enableDragDrop_ = false;
+
   this.setFocusable(false);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
@@ -88,13 +101,6 @@ camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
 
 
 /**
- * @type {number}
- * @private
- */
-camlistore.BlobItemContainer.prototype.dragDepth_ = 0;
-
-
-/**
  * Constants for events fired by BlobItemContainer
  * @enum {string}
  */
@@ -110,13 +116,12 @@ camlistore.BlobItemContainer.EventType = {
  */
 camlistore.BlobItemContainer.prototype.thumbnailSize_ = 100;
 
-
 /**
- * @type {boolean}
- * @private
+ *@param {boolean}
  */
-camlistore.BlobItemContainer.prototype.hasCreateItem_ = false;
-
+camlistore.BlobItemContainer.prototype.setDragDropEnabled = function(val) {
+  this.enableDragDrop_ = val;
+}
 
 /**
  * @return {boolean}
@@ -153,14 +158,6 @@ camlistore.BlobItemContainer.prototype.bigger = function() {
 
 
 /**
- * @param {boolean} v
- */
-camlistore.BlobItemContainer.prototype.setHasCreateItem = function(v) {
-  this.hasCreateItem_ = v;
-};
-
-
-/**
  * Creates an initial DOM representation for the component.
  */
 camlistore.BlobItemContainer.prototype.createDom = function() {
@@ -178,14 +175,6 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitemcontainer');
   goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
-
-  var dropMessageEl = this.dom_.createDom(
-      'div', 'cam-blobitemcontainer-drag-message',
-      'Drag & drop item to upload.');
-  var dropIndicatorEl = this.dom_.createDom(
-      'div', 'cam-blobitemcontainer-drag-indicator');
-  this.dom_.appendChild(dropIndicatorEl, dropMessageEl);
-  this.dom_.appendChild(el, dropIndicatorEl);
 };
 
 
@@ -225,13 +214,22 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
   this.resetChildren_();
   this.listenToBlobItemEvents_();
 
-  this.fileDropHandler_ = new goog.events.FileDropHandler(
-      this.getElement());
-  this.registerDisposable(this.fileDropHandler_);
-  this.eh_.listen(
+  if (this.enableDragDrop_) {
+    this.fileDragListener_ = goog.bind(this.handleFileDrag_, this);
+    this.eh_.listen(document,
+                    goog.events.EventType.DRAGOVER,
+                    this.fileDragListener_);
+    this.eh_.listen(document,
+                    goog.events.EventType.DRAGENTER,
+                    this.fileDragListener_);
+
+    this.fileDropHandler_ = new goog.events.FileDropHandler(document);
+    this.registerDisposable(this.fileDropHandler_);
+    this.eh_.listen(
       this.fileDropHandler_,
       goog.events.FileDropHandler.EventType.DROP,
       this.handleFileDrop_);
+  }
 
   // We can't catch everything that could cause us to need to relayout. Instead,
   // be lazy and just poll every second.
@@ -512,13 +510,6 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
   var currentWidth = 0;
   var rowStart = 0;
 
-  if (this.hasCreateItem_) {
-    var createItem = this.getChildAt(0);
-    currentWidth = createItem.getElement().offsetWidth +
-        blobItemMarginWidth * 2;
-    rowStart++;
-  }
-
   var breaks = el.querySelectorAll('br');
   for (var i = 0; i < breaks.length; i++) {
     breaks[i].parentNode.removeChild(breaks[i]);
@@ -671,21 +662,6 @@ function(permanode, result) {
  */
 camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
   this.removeChildren(true);
-  if (this.hasCreateItem_) {
-    var createItem = new camlistore.CreateItem();
-    this.addChild(createItem, true);
-    this.eh_.listen(
-      createItem.getElement(), goog.events.EventType.CLICK,
-      function() {
-        this.connection_.createPermanode(
-            function(p) {
-              window.location = "./?p=" + p;
-            },
-            function(failMsg) {
-              console.log("Failed to create permanode: " + failMsg);
-            });
-      });
-  }
 };
 
 
@@ -694,24 +670,23 @@ camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
-	var recipient = this.dragActiveElement_;
-	// TODO(mpl): I should adapt resetDragState_, but maybe Brett wanted
-	// to do something different with the whole d&d story, so leaving it
-	// as it is for now, and not using it.
-	this.dragActiveElement_ = null;
-	if (!recipient) {
-		console.log("No valid target to drag and drop on.");
-		return;
-	}
-	goog.dom.classes.remove(recipient.getElement(), 'cam-blobitem-dropactive');
-	var files = e.getBrowserEvent().dataTransfer.files;
-	for (var i = 0, n = files.length; i < n; i++) {
-	var file = files[i];
-	// TODO(bslatkin): Add an uploading item placeholder while the upload
-	// is in progress. Somehow pipe through the POST progress.
-	this.connection_.uploadFile(
-		file, goog.bind(this.handleUploadSuccess_, this, file, recipient.blobRef_));
-	}
+  var recipient = this.dragActiveElement_;
+  if (!recipient) {
+    console.log("No valid target to drag and drop on.");
+    return;
+  }
+
+  goog.dom.classes.remove(recipient.getElement(), 'cam-dropactive');
+  this.dragActiveElement_ = null;
+
+  var files = e.getBrowserEvent().dataTransfer.files;
+  for (var i = 0, n = files.length; i < n; i++) {
+    var file = files[i];
+    // TODO(bslatkin): Add an uploading item placeholder while the upload
+    // is in progress. Somehow pipe through the POST progress.
+    this.connection_.uploadFile(
+      file, goog.bind(this.handleUploadSuccess_, this, file, recipient.blobRef_));
+  }
 };
 
 
@@ -765,79 +740,54 @@ function(file, recipient, blobRef, permanode) {
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
   function(recipient, permanode, describeResult) {
 	var item = new camlistore.BlobItem(permanode, describeResult.meta);
-	this.addChildAt(item, this.hasCreateItem_ ? 1 : 0, true);
+	this.addChildAt(item, 0, true);
 	if (!recipient) {
 		return;
-	}
-	if (this.hasCreateItem_) {
-		var createItem = this.getChildAt(0);
-		if (!createItem || recipient == createItem) {
-			return;
-		}
 	}
 	this.connection_.newAddAttributeClaim(
 		recipient, 'camliMember', permanode);
 };
 
-
-/**
- * @private
- */
-camlistore.BlobItemContainer.prototype.resetDragState_ = function() {
-  goog.dom.classes.remove(this.getElement(),
-                          'cam-blobitemcontainer-dropactive');
-  this.dragActiveElement_ = null;
-  this.dragDepth_ = 0;
-};
-
-/**
- * @param {camlistore.BlobItem} blobitem the target collection where we want to drop
- * @private
- */
-camlistore.BlobItemContainer.prototype.notifyDragEnter_ =
-function(blobitem) {
-		if (this.dragActiveElement_ == null) {
-			// TODO(mpl): show the drag-message; need to figure out the flickering issue
-			this.dragActiveElement_ = blobitem;
-		}
-};
-
-/**
- * @param {camlistore.BlobItem} blobitem the target collection where we want to drop
- * @private
- */
-camlistore.BlobItemContainer.prototype.notifyDragLeave_ =
-function(blobitem) {
-		if (this.dragActiveElement_ === blobitem) {
-  			this.dragActiveElement_ = null;
-		}
-};
-
-// TODO(mpl): not using it anymore. remove if Brett is ok with it.
 /**
  * @param {goog.events.Event} e The drag enter event.
  * @private
  */
-camlistore.BlobItemContainer.prototype.handleFileDragEnter_ = function(e) {
-  if (this.dragActiveElement_ == null) {
-    goog.dom.classes.add(this.getElement(), 'cam-blobitemcontainer-dropactive');
+camlistore.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
+  if (this.dragEndTimer_) {
+    this.dragEndTimer_ = window.clearTimeout(this.dragEndTimer_);
   }
-  this.dragDepth_ += 1;
-  this.dragActiveElement_ = e.target;
-};
+  this.dragEndTimer_ = window.setTimeout(this.fileDragListener_, 2000);
 
+  var activeElement = e ? this.getOwnerControl(e.target) : e;
+  if (activeElement) {
+    if (!activeElement.isCollection()) {
+      activeElement = this;
+    }
+  } else if (e) {
+    // TODO(aa): Seems like there should be an easier way to do this.
+    var viewportPoint = goog.style.getClientPosition(this.getElement());
+    var viewportRect = goog.style.getBounds(this.getElement());
+    viewportRect.x = viewportPoint.x;
+    viewportRect.y = viewportPoint.y;
+    if (viewportRect.contains(goog.style.getClientPosition(e))) {
+      activeElement = this;
+    }
+  }
 
-// TODO(mpl): not using it anymore. remove if Brett is ok with it.
-/**
- * @param {goog.events.Event} e The drag leave event.
- * @private
- */
-camlistore.BlobItemContainer.prototype.handleFileDragLeave_ = function(e) {
-  this.dragDepth_ -= 1;
-  if (this.dragActiveElement_ === this.getElement() &&
-      e.target == this.getElement() ||
-      this.dragDepth_ == 0) {
-    this.resetDragState_();
+  if (activeElement == this.dragActiveElement_) {
+    return;
+  }
+
+  if (this.dragActiveElement_) {
+    goog.dom.classes.remove(this.dragActiveElement_.getElement(),
+                            'cam-dropactive');
+  }
+
+  this.dragActiveElement_ = activeElement;
+
+  if (this.dragActiveElement_) {
+    goog.dom.classes.add(this.dragActiveElement_.getElement(),
+                         'cam-dropactive');
   }
 };
 

@@ -50,6 +50,14 @@ camlistore.Toolbar = function(opt_domHelper) {
    */
   this.checkedItemsCreateSetButton_ = new goog.ui.ToolbarButton('');
   this.checkedItemsCreateSetButton_.addClassName('cam-checked-items');
+  this.checkedItemsCreateSetButton_.setVisible(false);
+
+  /**
+   * @type {goog.ui.ToolbarButton}
+   * @private
+   */
+  this.createPermanodeButton_ = new goog.ui.ToolbarButton('New Permanode');
+  this.createPermanodeButton_.addClassName('cam-toolbar-createpermanode');
 
   /**
    * @type {goog.ui.ToolbarButton}
@@ -126,7 +134,8 @@ camlistore.Toolbar.EventType = {
   HELP: 'Camlistore_Toolbar_Help',
   CHECKED_ITEMS_ADDTO_SET: 'Camlistore_Toolbar_Checked_Items_Addto_set',
   SELECT_COLLEC: 'Camlistore_Toolbar_Select_collec',
-  CHECKED_ITEMS_CREATE_SET: 'Camlistore_Toolbar_Checked_Items_Create_set'
+  CHECKED_ITEMS_CREATE_SET: 'Camlistore_Toolbar_Checked_Items_Create_set',
+  CREATE_PERMANODE: 'Camlistore_Toolbar_Create_Permanode',
 };
 
 /**
@@ -147,14 +156,21 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.biggerButton_, true);
   this.addChild(this.smallerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
+  this.addChild(this.createPermanodeButton_, true);
   this.addChild(this.setAsCollecButton_, true);
   this.addChild(this.checkedItemsAddToSetButton_, true);
-  if (this.isSearch == true) {
-    this.addChild(this.rootsButton_, true);
-    this.addChild(this.homeButton_, true);
-    this.addChild(this.helpButton_, true);
+  this.addChild(this.rootsButton_, true);
+  this.addChild(this.homeButton_, true);
+  this.addChild(this.helpButton_, true);
+  this.addChild(this.goSearchButton_, true);
+
+  if (this.isSearch) {
+    this.goSearchButton_.setVisible(false);
+    this.createPermanodeButton_.setVisible(false);
   } else {
-    this.addChild(this.goSearchButton_, true);
+    this.rootsButton_.setVisible(false);
+    this.homeButton_.setVisible(false);
+    this.helpButton_.setVisible(false);
   }
 };
 
@@ -210,6 +226,12 @@ camlistore.Toolbar.prototype.enterDocument = function() {
                 camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET));
 
   this.eh_.listen(
+      this.createPermanodeButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this,
+                camlistore.Toolbar.EventType.CREATE_PERMANODE));
+
+  this.eh_.listen(
       this.setAsCollecButton_.getElement(),
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this,
@@ -250,10 +272,10 @@ camlistore.Toolbar.prototype.setCheckedBlobItemCount = function(count) {
   if (count) {
     var txt = 'Create set w/ ' + count + ' item' + (count > 1 ? 's' : '');
     this.checkedItemsCreateSetButton_.setContent(txt);
-    this.checkedItemsCreateSetButton_.setEnabled(true);
+    this.checkedItemsCreateSetButton_.setVisible(true);
   } else {
     this.checkedItemsCreateSetButton_.setContent('');
-    this.checkedItemsCreateSetButton_.setEnabled(false);
+    this.checkedItemsCreateSetButton_.setVisible(false);
   }
 };
 
