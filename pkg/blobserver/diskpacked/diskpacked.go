@@ -88,8 +88,12 @@ func newStorage(root string, maxFileSize int64) (s *storage, err error) {
 		return nil, err
 	}
 	defer func() {
-		if err != nil {
-			index.Close()
+		closeErr := index.Close()
+		// just returning the first error - if the index or disk is corrupt
+		// and can't close, it's very likely these two errors are related and
+		// have the same root cause.
+		if err == nil {
+			err = closeErr
 		}
 	}()
 	if maxFileSize <= 0 {
