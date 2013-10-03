@@ -733,11 +733,15 @@ func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	})
 }
 
-func NewDelAttributeClaim(permaNode blob.Ref, attr string) *Builder {
+// NewDelAttributeClaim creates a new claim to remove value from the
+// values set for the attribute attr of permaNode. If value is empty then
+// all the values for attribute are cleared.
+func NewDelAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
 		claimType: DelAttribute,
 		attribute: attr,
+		value:     value,
 	})
 }
 

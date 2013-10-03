@@ -439,7 +439,7 @@ var handlerTests = []handlerTest{
 			member := id.NewPlannedPermanode("member") // always sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae
 			id.AddAttribute(parent1, "camliMember", member.String())
 			id.AddAttribute(parent2, "camliMember", member.String())
-			id.DelAttribute(parent2, "camliMember")
+			id.DelAttribute(parent2, "camliMember", "")
 			return indexAndOwner{idx, id.SignerBlobRef}
 		},
 		query: "edgesto?blobref=sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
