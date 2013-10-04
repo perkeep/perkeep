@@ -51,12 +51,6 @@ camlistore.IndexPage = function(config, opt_domHelper) {
   this.blobItemContainer_.isFileDragEnabled = true;
 
   /**
-   * @type {Element}
-   * @private
-   */
-  this.serverInfo_;
-
-  /**
    * @type {camlistore.Toolbar}
    * @private
    */
@@ -90,12 +84,7 @@ camlistore.IndexPage.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-index-page');
 
-  var titleEl = this.dom_.createDom('h1', 'cam-index-title');
-  this.dom_.setTextContent(titleEl, this.config_.ownerName + '\'s Vault');
-  this.dom_.appendChild(el, titleEl);
-
-  this.serverInfo_ = this.dom_.createDom('div', 'cam-index-serverinfo');
-  this.dom_.appendChild(el, this.serverInfo_);
+  document.title = this.config_.ownerName + '\'s Vault';
 
   this.addChild(this.toolbar_, true);
   this.addChild(this.blobItemContainer_, true);
@@ -304,20 +293,13 @@ camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
 };
 
 /**
- * @param {camlistore.ServerType.StatusResponse} resp response for a status request
+ * @param {camlistore.ServerType.StatusResponse} resp response for a status
+ * request
  * @private
  */
-camlistore.IndexPage.prototype.handleServerStatus_ =
-function(resp) {
-	if (resp == null) {
-		return;
-	}
-	goog.dom.removeChildren(this.serverInfo_);
-	if (resp.version) {
-		var version = "Camlistore version: " + resp.version + "\n";
-		var div = this.dom_.createDom('div');
-		goog.dom.setTextContent(div, version);
-		goog.dom.appendChild(this.serverInfo_, div);
-	}
+camlistore.IndexPage.prototype.handleServerStatus_ = function(resp) {
+  if (resp && resp.version) {
+    this.toolbar_.setStatus('v' + resp.version);
+  }
 };
 

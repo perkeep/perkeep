@@ -1,3 +1,7 @@
+body {
+  margin: 0;
+}
+
 /* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
 *, *:before, *:after {
   -moz-box-sizing: border-box;
@@ -14,10 +18,4 @@
 
 .cam-index-title {
   display: inline-block;
-}
-
-.cam-index-serverinfo {
-  display: inline;
-  float: right;
-  font-size: small;
 }

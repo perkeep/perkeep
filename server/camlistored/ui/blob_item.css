@@ -1,83 +1,54 @@
 /* Tile view of BlobItem */
 .cam-blobitem {
-  /* If you change margin, also change blobItemMarginWidth in
-     BlobItemContainer.prototype.layout(). */
-  margin: 1px;
   display: inline-block;
-  outline: 0;
-  overflow: hidden;
-  position: relative;
-  vertical-align: top;
 }
 
-.cam-blobitem.cam-blobitem-notimage {
-  border: 1px solid #ddd;
+.cam-blobitem>a {
+  text-decoration: none;
+}
+
+.cam-blobitem-thumbclip {
+  position: relative;
+  overflow: hidden;
 }
 
 .cam-blobitem-thumb {
   display: block;
-  border: 0;
-  /* So that we can reposition the thumb horizontally within the container */
   position: relative;
 }
 
-.cam-blobitemcontainer-50 .cam-blobitem {
-  height: 50px;
-}
 .cam-blobitemcontainer-50 .cam-blobitem-thumbtitle {
   font-size: 10px;
 }
 
-.cam-blobitemcontainer-75 .cam-blobitem {
-  height: 75px;
-}
 .cam-blobitemcontainer-75 .cam-blobitem-thumbtitle {
   font-size: 12px;
-}
-
-.cam-blobitemcontainer-100 .cam-blobitem {
-  height: 100px;
 }
 
 .cam-blobitemcontainer-100 .cam-blobitem-thumbtitle {
   font-size: 12px;
 }
 
-.cam-blobitemcontainer-150 .cam-blobitem {
-  height: 150px;
-}
 .cam-blobitemcontainer-150 .cam-blobitem-thumbtitle {
   font-size: 13px;
 }
 
-.cam-blobitemcontainer-200 .cam-blobitem {
-  height: 200px;
-}
 .cam-blobitemcontainer-200 .cam-blobitem-thumbtitle {
   font-size: 14px;
 }
 
-.cam-blobitemcontainer-250 .cam-blobitem {
-  height: 250px;
-}
 .cam-blobitemcontainer-250 .cam-blobitem-thumbtitle {
   font-size: 14px;
 }
 
 .cam-blobitem-thumbtitle {
-  background: rgba(255, 255, 255, 0.75);
-  bottom: 0;
-  color: #222!important;
+  color: #222;
   font-size: 0.8em;
-  left: 0;
-  margin: 0;
   overflow: hidden;
-  padding: 0.2ex 1ex;
-  position: absolute;
-  text-decoration: none;
+  padding: 0 1ex;
+  text-align: center;
   text-overflow: ellipsis;
-  width: 100%;
-  pointer-events: none;
+  display: block;
 }
 
 .cam-blobitem.cam-dropactive {

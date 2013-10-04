@@ -114,6 +114,11 @@ camlistore.Toolbar = function(opt_domHelper) {
   this.goSearchButton_.addClassName('cam-checked-items');
 
   /**
+   * Used to display random statusy stuff.
+   */
+  this.status_ = null;
+
+  /**
    * @type {goog.events.EventHandler}
    * @private
    */
@@ -138,6 +143,15 @@ camlistore.Toolbar.EventType = {
   CREATE_PERMANODE: 'Camlistore_Toolbar_Create_Permanode',
 };
 
+
+/**
+ * @return {goog.ui.Control}
+ */
+camlistore.Toolbar.prototype.setStatus = function(text) {
+  goog.dom.setTextContent(this.status_, text);
+};
+
+
 /**
  * Creates an initial DOM representation for the component.
  */
@@ -153,8 +167,8 @@ camlistore.Toolbar.prototype.createDom = function() {
 camlistore.Toolbar.prototype.decorateInternal = function(el) {
   camlistore.Toolbar.superClass_.decorateInternal.call(this, el);
   goog.dom.classes.add(this.getElement(), 'cam-toolbar');
-  this.addChild(this.biggerButton_, true);
   this.addChild(this.smallerButton_, true);
+  this.addChild(this.biggerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
   this.addChild(this.createPermanodeButton_, true);
   this.addChild(this.setAsCollecButton_, true);
@@ -172,6 +186,9 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
     this.homeButton_.setVisible(false);
     this.helpButton_.setVisible(false);
   }
+
+  this.status_ = this.dom_.createDom('div', 'cam-toolbar-status');
+  this.getElement().appendChild(this.status_);
 };
 
 

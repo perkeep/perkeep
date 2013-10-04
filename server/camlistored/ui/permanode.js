@@ -237,6 +237,7 @@ function(permanode, describeResult) {
 		var useFileBlobrefAsLink = "true";
 		var blobItem = new camlistore.BlobItem(permanode, meta, useFileBlobrefAsLink);
 		blobItem.decorate(content);
+		blobItem.setSize(300, 300);
 		// TODO(mpl): ideally this should be done by handleType, but it's easier
 		// to do it now that we have a blobItem object to work with.
 		var isdir = blobItem.getDirBlobref_()

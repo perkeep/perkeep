@@ -2,10 +2,9 @@
 - Hook through upload progress percentage from the camli javascript
   API to the upload placeholder item.
 - Add dragdrop of selected blobs to put them in sets?
-- Make images a few stops bigger by default
 - Fix resample quality - looks pretty crappy right now
-- Get better folder/file icons
-- Can we put the name of the folder/file within the icon?
+- Can we put the type o a file within the icon, or other kind of
+   preview-type information?
 - Permanode functionality is just weird... do we need this in the main
   UI? should be a command-line only thing I think
 - Add support for uploading entire folders

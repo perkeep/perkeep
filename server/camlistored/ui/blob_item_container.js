@@ -86,9 +86,23 @@ goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
 
 
 /**
+ * Margin between items in the layout.
+ * @type {number}
+ */
+camlistore.BlobItemContainer.BLOB_ITEM_MARGIN = 7;
+
+/**
+ * If the last row uses at least this much of the available width before
+ * adjustments, we'll call it "close enough" and adjust things so that it fills
+ * the entire row. Less than this, and we'll leave the last row unaligned.
+ */
+camlistore.BlobItemContainer.LAST_ROW_CLOSE_ENOUGH_TO_FULL = 0.85;
+
+
+/**
  * @type {Array.<number>}
  */
-camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [50, 75, 100, 150, 200, 250];
+camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [75, 100, 150, 200, 250];
 
 
 /**
@@ -119,7 +133,7 @@ camlistore.BlobItemContainer.EventType = {
  * @type {number}
  * @private
  */
-camlistore.BlobItemContainer.prototype.thumbnailSize_ = 100;
+camlistore.BlobItemContainer.prototype.thumbnailSize_ = 200;
 
 /**
  * @return {boolean}
@@ -169,6 +183,7 @@ camlistore.BlobItemContainer.prototype.createDom = function() {
  */
 camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
   camlistore.BlobItemContainer.superClass_.decorateInternal.call(this, element);
+  this.layout_();
 
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitemcontainer');
@@ -487,6 +502,7 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
 
 /**
  * @param {bool} Whether to force layout.
+ * @private
  */
 camlistore.BlobItemContainer.prototype.layout_ = function(force) {
   var el = this.getElement();
@@ -499,122 +515,105 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
   this.isLayoutDirty_ = false;
   this.lastClientWidth_ = availWidth;
 
-  // If you change blobItemMarginWidth, also change .cam-blobitem in
-  // blob_item.css.
-  var blobItemMarginWidth = 1;
-  var currentWidth = 0;
+  var currentTop = this.constructor.BLOB_ITEM_MARGIN;
+  var currentWidth = this.constructor.BLOB_ITEM_MARGIN;
   var rowStart = 0;
+  var lastItem = this.getChildCount() - 1;
 
-  var breaks = el.querySelectorAll('br');
-  for (var i = 0; i < breaks.length; i++) {
-    breaks[i].parentNode.removeChild(breaks[i]);
-  }
-
-  for (var i = rowStart, n = this.getChildCount(); i < n; i++) {
+  for (var i = rowStart; i <= lastItem; i++) {
     var item = this.getChildAt(i);
 
-    var nextWidth = currentWidth + item.getThumbWidth() +
-        blobItemMarginWidth * 2;
-    if (nextWidth < availWidth) {
+    var nextWidth = currentWidth + this.thumbnailSize_ * item.getThumbAspect() +
+      this.constructor.BLOB_ITEM_MARGIN;
+    if (i != lastItem && nextWidth < availWidth) {
       currentWidth = nextWidth;
       continue;
     }
 
-    rowStart = this.layoutRow_(rowStart, i, currentWidth, nextWidth,
-                               availWidth);
-    el.insertBefore(this.dom_.createElement('br'),
-                    this.getChildAt(rowStart - 1).getElement().nextSibling);
-    currentWidth = 0;
-
-    // If we didn't end up using the last element of this row, then it will be
-    // the start of the next row.
-    if (rowStart == i) {
-      i--;
+    var rowEnd, rowWidth;
+    if (i == lastItem) {
+      rowEnd = lastItem;
+      rowWidth = nextWidth;
+      if (nextWidth / availWidth <
+          this.constructor.LAST_ROW_CLOSE_ENOUGH_TO_FULL) {
+        availWidth = nextWidth;
+      }
+    } else if (availWidth - currentWidth <= nextWidth - availWidth) {
+      rowEnd = i - 1;
+      rowWidth = currentWidth;
+    } else {
+      rowEnd = i;
+      rowWidth = nextWidth;
     }
+
+    currentTop += this.layoutRow_(rowStart, rowEnd, availWidth, rowWidth,
+                                  currentTop) +
+      this.constructor.BLOB_ITEM_MARGIN;
+
+    currentWidth = this.constructor.BLOB_ITEM_MARGIN;
+    rowStart = rowEnd + 1;
+    i = rowEnd;
   }
 
-  // Any remaining items just get their intrinsic width.
-  for (var i = rowStart; i < n; i++) {
-    var item = this.getChildAt(i);
-    item.resetFrameWidth();
-  }
+  el.style.height = currentTop + this.constructor.BLOB_ITEM_MARGIN + 'px';
 };
 
 /**
- * @return {Number} The starting index of the next row. This can be either
- * endIndex or endIndex+1, depending on whether we were able to squeeze all the
- * items onto one row.
+ * @param {Number} startIndex The index of the first item in the row.
+ * @param {Number} endIndex The index of the last item in the row.
+ * @param {Number} availWidth The width available to the row for layout.
+ * @param {Number} usedWidth The width that the contents of the row consume
+ * using their initial dimensions, before any scaling or clipping.
+ * @param {Number} top The position of the top of the row.
+ * @return {Number} The height of the row after layout.
+ * @private
  */
 camlistore.BlobItemContainer.prototype.layoutRow_ =
-function(startIndex, endIndex, widthWithoutLastItem, widthWithLastItem,
-         availWidth) {
-  // We are trying to create rows that completely fill their container. There
-  // are two ways we can do that, and we need to decide which is better:
-  //
-  // - For images, we can set the frame narrower than the image actually
-  //   requires, clipping some of the horizontal width.
-  // - For non-images, clipping doesn't look good because they use icons and
-  //   it's obvious when they've been clipped. For these, we can do the opposite
-  //   and add additional horizontal padding.
-  //
-  // To determine which strategy to use, we calculate how much each item would
-  // change, and use the strategy with the lowest per-item impact.
-  var clipLayoutData = {
-    items: [],
-    endIndex: endIndex,
-    width: widthWithLastItem
-  };
-  var stretchLayoutData = {
-    items: [],
-    endIndex: endIndex - 1,
-    width: widthWithoutLastItem
-  };
+function(startIndex, endIndex, availWidth, usedWidth, top) {
+  var currentLeft = 0;
+  var rowHeight = Number.POSITIVE_INFINITY;
+
+  var numItems = endIndex - startIndex + 1;
+  var availThumbWidth = availWidth -
+    (this.constructor.BLOB_ITEM_MARGIN * (numItems + 1));
+  var usedThumbWidth = usedWidth -
+    (this.constructor.BLOB_ITEM_MARGIN * (numItems + 1));
 
   for (var i = startIndex; i <= endIndex; i++) {
     var item = this.getChildAt(i);
-    if (item.isImage()) {
-      clipLayoutData.items.push(i);
-    } else if (i < endIndex) {
-      stretchLayoutData.items.push(i);
-    }
+
+    // We figure out the amount to adjust each item in this slightly non-
+    // intuitive way so that the adjustment is split up as fairly as possible.
+    // Figuring out a ratio up front and applying it to all items uniformly can
+    // end up with a large amount left over because of rounding.
+    var numItemsLeft = (endIndex + 1) - i;
+    var delta = Math.round((availThumbWidth - usedThumbWidth) / numItemsLeft);
+    var originalWidth = this.thumbnailSize_ * item.getThumbAspect();
+    var width = originalWidth + delta;
+    var ratio = width / originalWidth;
+    var height = Math.round(this.thumbnailSize_ * ratio);
+
+    var elm = item.getElement();
+    elm.style.position = 'absolute';
+    elm.style.left = currentLeft + this.constructor.BLOB_ITEM_MARGIN + 'px';
+    elm.style.top = top + 'px';
+    item.setSize(width, height);
+
+    currentLeft += width + this.constructor.BLOB_ITEM_MARGIN;
+    usedThumbWidth += delta;
+    rowHeight = Math.min(rowHeight, height);
   }
 
-  function perItemChange(layoutData) {
-    // If we don't have any items with this layout type, then no amount of
-    // per-item change will help.
-    if (!layoutData.items.length) {
-      return Number.POSITIVE_INFINITY;
-    }
-
-    return Math.abs((availWidth - layoutData.width) / layoutData.items.length);
+  for (var i = startIndex; i <= endIndex; i++) {
+    this.getChildAt(i).setHeight(rowHeight);
   }
 
-  function setFrames(layoutData) {
-    var overflow = layoutData.width - availWidth;
-    for (var i = startIndex; i <= layoutData.endIndex; i++) {
-      var item = this.getChildAt(i);
-      if (i == layoutData.items[0]) {
-        var portion = Math.ceil(overflow / layoutData.items.length);
-        item.setFrameWidth(item.getThumbWidth() - portion);
-        layoutData.items.shift();
-        overflow -= portion;
-      } else {
-        item.resetFrameWidth();
-      }
-    }
-  }
-
-  if (perItemChange(clipLayoutData) <= perItemChange(stretchLayoutData)) {
-    setFrames.call(this, clipLayoutData);
-    return endIndex + 1;
-  } else {
-    setFrames.call(this, stretchLayoutData);
-    return endIndex;
-  }
+  return rowHeight;
 };
 
 /**
- * @param {camlistore.ServerType.SearchWithAttrResponse} result JSON response to this request.
+ * @param {camlistore.ServerType.SearchWithAttrResponse} result JSON response to
+ * this request.
  * @private
  */
 camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
