@@ -27,28 +27,23 @@ import (
 var statGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	errc := make(chan error, len(blobs))
+	var wg syncutil.Group
+
 	for _, br := range blobs {
 		statGate.Start()
-		go func(br blob.Ref) {
+		wg.Go(func() error {
 			defer statGate.Done()
+
 			size, err := sto.s3Client.Stat(br.String(), sto.bucket)
-			switch err {
-			case nil:
+			if err == nil {
 				dest <- blob.SizedRef{Ref: br, Size: size}
-				errc <- nil
-			case os.ErrNotExist:
-				errc <- nil
-			default:
-				errc <- fmt.Errorf("error statting %v: %v", br, err)
+				return nil
 			}
-		}(br)
+			if err == os.ErrNotExist {
+				return nil
+			}
+			return fmt.Errorf("error statting %v: %v", br, err)
+		})
 	}
-	var firstErr error
-	for _ = range blobs {
-		if err := <-errc; err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+	return wg.Err()
 }

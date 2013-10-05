@@ -18,16 +18,21 @@ package s3
 
 import (
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/syncutil"
 )
 
+var removeGate = syncutil.NewGate(20) // arbitrary
+
 func (sto *s3Storage) RemoveBlobs(blobs []blob.Ref) error {
-	// TODO: do these in parallel
-	var reterr error
+	var wg syncutil.Group
+
 	for _, blob := range blobs {
-		if err := sto.s3Client.Delete(sto.bucket, blob.String()); err != nil {
-			reterr = err
-		}
+		removeGate.Start()
+		wg.Go(func() error {
+			defer removeGate.Done()
+			return sto.s3Client.Delete(sto.bucket, blob.String())
+		})
 	}
-	return reterr
+	return wg.Err()
 
 }

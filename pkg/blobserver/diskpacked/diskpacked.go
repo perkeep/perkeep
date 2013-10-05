@@ -44,11 +44,12 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
 )
 
-const defaultMaxFileSize = 512 << 20  // 512MB
+const defaultMaxFileSize = 512 << 20 // 512MB
 
 type storage struct {
 	root        string
@@ -221,19 +222,28 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("diskpacked: RemoveBlobs not implemented")
 }
 
+var statGate = syncutil.NewGate(20) // arbitrary
+
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
-	// TODO(adg): parallelize. steal code from s3 Stat code.
+	var wg syncutil.Group
+
 	for _, br := range blobs {
-		m, err2 := s.meta(br)
-		if err2 != nil {
-			if err2 != os.ErrNotExist {
-				err = err2
+		statGate.Start()
+		wg.Go(func() error {
+			defer statGate.Done()
+
+			m, err := s.meta(br)
+			if err == nil {
+				dest <- m.SizedRef(br)
+				return nil
 			}
-			continue
-		}
-		dest <- m.SizedRef(br)
+			if err == os.ErrNotExist {
+				return nil
+			}
+			return err
+		})
 	}
-	return nil
+	return wg.Err()
 }
 
 func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) (err error) {

@@ -25,6 +25,8 @@ import (
 
 const maxParallelStats = 20
 
+var statGate = syncutil.NewGate(maxParallelStats)
+
 func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	if len(blobs) == 0 {
 		return nil
@@ -46,20 +48,13 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 		return statSend(blobs[0])
 	}
 
-	errc := make(chan error, len(blobs))
-
-	gt := syncutil.NewGate(maxParallelStats)
+	var wg syncutil.Group
 	for _, ref := range blobs {
-		gt.Start()
-		go func(ref blob.Ref) {
-			defer gt.Done()
-			errc <- statSend(ref)
-		}(ref)
+		statGate.Start()
+		wg.Go(func() error {
+			defer statGate.Done()
+			return statSend(ref)
+		})
 	}
-	for _ = range blobs {
-		if err := <-errc; err != nil {
-			return err
-		}
-	}
-	return nil
+	return wg.Err()
 }

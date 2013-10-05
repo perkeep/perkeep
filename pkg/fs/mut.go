@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/syncutil"
 
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
@@ -339,13 +340,11 @@ func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Int
 		return fuse.EIO
 	}
 
-	// TODO: do these populates in parallel:
-	if err := n.populate(); err != nil {
+	var wg syncutil.Group
+	wg.Go(n.populate)
+	wg.Go(n2.populate)
+	if err := wg.Err(); err != nil {
 		log.Printf("*mutDir.Rename src dir populate = %v", err)
-		return fuse.EIO
-	}
-	if err := n2.populate(); err != nil {
-		log.Printf("*mutDir.Rename dst dir populate = %v", err)
 		return fuse.EIO
 	}
 
