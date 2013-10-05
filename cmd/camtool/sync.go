@@ -155,7 +155,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	if looksLikePath(val) {
 		disk, err := localdisk.New(val)
 		if err != nil {
-			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %v", val, err)
+			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %v", which, val, err)
 		}
 		return disk, nil
 	}
