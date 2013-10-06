@@ -47,13 +47,8 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    */
   this.blobItemContainer_ = new camlistore.BlobItemContainer(
       this.connection_, opt_domHelper);
-  this.blobItemContainer_.setHasCreateItem(true);
-
-  /**
-   * @type {Element}
-   * @private
-   */
-  this.serverInfo_;
+  this.blobItemContainer_.isSelectionEnabled = true;
+  this.blobItemContainer_.isFileDragEnabled = true;
 
   /**
    * @type {camlistore.Toolbar}
@@ -89,12 +84,7 @@ camlistore.IndexPage.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-index-page');
 
-  var titleEl = this.dom_.createDom('h1', 'cam-index-title');
-  this.dom_.setTextContent(titleEl, this.config_.ownerName + '\'s Vault');
-  this.dom_.appendChild(el, titleEl);
-
-  this.serverInfo_ = this.dom_.createDom('div', 'cam-index-serverinfo');
-  this.dom_.appendChild(el, this.serverInfo_);
+  document.title = this.config_.ownerName + '\'s Vault';
 
   this.addChild(this.toolbar_, true);
   this.addChild(this.blobItemContainer_, true);
@@ -114,11 +104,11 @@ camlistore.IndexPage.prototype.disposeInternal = function() {
 camlistore.IndexPage.prototype.enterDocument = function() {
   camlistore.IndexPage.superClass_.enterDocument.call(this);
 
-	this.connection_.serverStatus(
-		goog.bind(function(resp) {
-			this.handleServerStatus_(resp);
-		}, this)
-	);
+  this.connection_.serverStatus(
+    goog.bind(function(resp) {
+      this.handleServerStatus_(resp);
+    }, this)
+  );
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.BIGGER,
@@ -148,6 +138,17 @@ camlistore.IndexPage.prototype.enterDocument = function() {
         var blobItems = this.blobItemContainer_.getCheckedBlobItems();
         this.createNewSetWithItems_(blobItems);
       });
+
+  this.eh_.listen(
+    this.toolbar_, camlistore.Toolbar.EventType.CREATE_PERMANODE,
+    function() {
+      this.connection_.createPermanode(
+        function(p) {
+          window.location = './?p=' + p;
+        }, function(failMsg) {
+          console.error('Failed to create permanode: ' + failMsg);
+        });
+    });
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.CHECKED_ITEMS_ADDTO_SET,
@@ -292,20 +293,13 @@ camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
 };
 
 /**
- * @param {camlistore.ServerType.StatusResponse} resp response for a status request
+ * @param {camlistore.ServerType.StatusResponse} resp response for a status
+ * request
  * @private
  */
-camlistore.IndexPage.prototype.handleServerStatus_ =
-function(resp) {
-	if (resp == null) {
-		return;
-	}
-	goog.dom.removeChildren(this.serverInfo_);
-	if (resp.version) {
-		var version = "Camlistore version: " + resp.version + "\n";
-		var div = this.dom_.createDom('div');
-		goog.dom.setTextContent(div, version);
-		goog.dom.appendChild(this.serverInfo_, div);
-	}
+camlistore.IndexPage.prototype.handleServerStatus_ = function(resp) {
+  if (resp && resp.version) {
+    this.toolbar_.setStatus('v' + resp.version);
+  }
 };
 

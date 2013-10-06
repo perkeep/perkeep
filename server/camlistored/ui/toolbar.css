@@ -22,3 +22,12 @@
   position: relative;
   zoom: 1; /* The toolbar element must have layout on IE. */
 }
+
+.cam-toolbar-status {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  margin-top: -0.75em;
+  line-height: 1.5em;
+  color: #666;
+}

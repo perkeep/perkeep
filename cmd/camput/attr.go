@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 
@@ -51,37 +50,54 @@ func (c *attrCmd) Usage() {
 
 func (c *attrCmd) Examples() []string {
 	return []string{
-		"<permanode> <name> <value>         Set attribute",
-		"--add <permanode> <name> <value>   Adds attribute (e.g. \"tag\")",
-		"--del <permanode> <name> [<value>] Deletes named attribute [value",
+		"<permanode> <name> <value>       Set attribute",
+		"--add <permanode> <name> <value> Adds attribute (e.g. \"tag\")",
+		"--del <permanode> <name> [<value>] Deletes named attribute",
 	}
 }
 
 func (c *attrCmd) RunCommand(args []string) error {
-	if len(args) != 3 {
-		return errors.New("Attr takes 3 args: <permanode> <attr> <value>")
+	if err := c.checkArgs(args); err != nil {
+		return err
 	}
-	permanode, attr, value := args[0], args[1], args[2]
-
-	var err error
+	permanode, attr := args[0], args[1]
+	value := ""
+	if len(args) > 2 {
+		value = args[2]
+	}
 
 	pn, ok := blob.Parse(permanode)
 	if !ok {
 		return fmt.Errorf("Error parsing blobref %q", permanode)
 	}
-	bb := schema.NewSetAttributeClaim(pn, attr, value)
-	if c.add {
-		if c.del {
-			return errors.New("Add and del options are exclusive")
+	claimFunc := func() func(blob.Ref, string, string) *schema.Builder {
+		switch {
+		case c.add:
+			return schema.NewAddAttributeClaim
+		case c.del:
+			return schema.NewDelAttributeClaim
+		default:
+			return schema.NewSetAttributeClaim
 		}
-		bb = schema.NewAddAttributeClaim(pn, attr, value)
-	} else {
-		// TODO: del, which can make <value> be optional
-		if c.del {
-			return errors.New("del not yet implemented")
-		}
-	}
+	}()
+	bb := claimFunc(pn, attr, value)
 	put, err := getUploader().UploadAndSignBlob(bb)
 	handleResult(bb.Type(), put, err)
+	return nil
+}
+
+func (c *attrCmd) checkArgs(args []string) error {
+	if c.del {
+		if c.add {
+			return cmdmain.UsageError("Add and del options are exclusive")
+		}
+		if len(args) < 2 {
+			return cmdmain.UsageError("Attr -del takes at least 2 args: <permanode> <attr> [<value>]")
+		}
+		return nil
+	}
+	if len(args) != 3 {
+		return cmdmain.UsageError("Attr takes 3 args: <permanode> <attr> <value>")
+	}
 	return nil
 }

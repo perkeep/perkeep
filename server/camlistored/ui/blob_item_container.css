@@ -1,42 +1,13 @@
 .cam-blobitemcontainer {
   outline: 0;  /* Do not show an outline when container has focus. */
-  border-width: 5px;
-  border-color: rgba(0, 0, 0, 0);
-  border-style: dashed;
+  border: 1px solid rgba(0,0,0,0);
   position: relative;
-  border-radius: 5px;
   white-space: nowrap;
 }
-.cam-blobitemcontainer-dropactive {
+.cam-blobitemcontainer.cam-dropactive {
   border-color: #acf;
+  background: #e5efff;
 }
-.cam-blobitemcontainer-drag-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  display: none;
-}
-.cam-blobitemcontainer-dropactive .cam-blobitemcontainer-drag-indicator {
-  display: block;
-}
-.cam-blobitemcontainer-drag-message {
-  display: block;
-  margin: 0 auto;
-  border: 10px solid #acf;
-  padding: 25px;
-  background-color: #def;
-  color: #000;
-  font-size: 16px;
-  font-family: sans-serif;
-  width: 250px;
-  opacity: 0.8;
-  text-align: center;
-  border-radius: 10px;
-  margin-top: 30px;
-}
-
 .cam-blobitemcontainer-hidden {
   display: none;
 }

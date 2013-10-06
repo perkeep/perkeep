@@ -172,9 +172,20 @@ func TestAttribute(t *testing.T) {
 }`,
 		},
 		{
-			bb: NewDelAttributeClaim(br, "attr1"),
+			bb: NewDelAttributeClaim(br, "attr1", "val1"),
 			want: `{"camliVersion": 1,
   "attribute": "attr1",
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "del-attribute",
+  "permaNode": "xxx-1234",
+  "value": "val1"
+}`,
+		},
+		{
+			bb: NewDelAttributeClaim(br, "attr2", ""),
+			want: `{"camliVersion": 1,
+  "attribute": "attr2",
   "camliType": "claim",
   "claimDate": "1970-01-01T00:02:03.000000456Z",
   "claimType": "del-attribute",

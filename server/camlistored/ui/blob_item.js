@@ -70,14 +70,9 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(
       this.blobRef_, this.metaBag_);
 
-  /**
-   * @type {goog.events.EventHandler}
-   * @private
-   */
-  this.eh_ = new goog.events.EventHandler(this);
-
-  // Blob items support the CHECKED state.
   this.setSupportedState(goog.ui.Component.State.CHECKED, true);
+  this.setSupportedState(goog.ui.Component.State.DISABLED, true);
+  this.setAutoStates(goog.ui.Component.State.CHECKED, false);
 
   // Blob items dispatch state when checked.
   this.setDispatchTransitionEvents(
@@ -85,6 +80,13 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
       true);
 };
 goog.inherits(camlistore.BlobItem, goog.ui.Control);
+
+
+/**
+ * Amount of space to reserve vertically for the title, in the cases it is
+ * shown.
+ */
+camlistore.BlobItem.TITLE_HEIGHT = 21;
 
 
 /**
@@ -142,27 +144,111 @@ camlistore.BlobItem.prototype.getBlobRef = function() {
 
 
 /**
- * Sets the horizontal width that the item consumes in BlobItemContainer. The
- * thumbnail is centered within this space. If the frame is less than the width
- * of the thumbnail, then the thumbnail is clipped horizontally to fit.
- *
- * @param {number} The width of the frame.
+ * Gets the aspect ratio (w/h) of the thumbnail.
+ * @return {number}
  */
-camlistore.BlobItem.prototype.setFrameWidth = function(w) {
-  var el = this.getElement();
-  el.style.width = w + 'px';
-
-  var offset = (w - this.getThumbWidth()) / 2;
-  var thumbEl = this.dom_.getElementByClass('cam-blobitem-thumb', el);
-  thumbEl.style.left = offset + 'px';
+camlistore.BlobItem.prototype.getThumbAspect = function() {
+  if (!this.metaData_.thumbnailWidth || !this.metaData_.thumbnailHeight) {
+    return 0;
+  }
+  return this.metaData_.thumbnailWidth / this.metaData_.thumbnailHeight;
 };
 
 
 /**
- * Resets the frame to the width of the thumbnail.
+ * @return {number}
  */
-camlistore.BlobItem.prototype.resetFrameWidth = function() {
-  this.setFrameWidth(this.getThumbWidth());
+camlistore.BlobItem.prototype.getWidth = function() {
+  return parseInt(this.getElement().style.width);
+};
+
+
+/**
+ * @return {number}
+ */
+camlistore.BlobItem.prototype.getHeight = function() {
+  return parseInt(this.getElement().style.height);
+};
+
+
+/**
+ * @param {number} w
+ */
+camlistore.BlobItem.prototype.setWidth = function(w) {
+  this.setSize(w, this.getHeight());
+};
+
+
+/**
+ * @param {number} h
+ */
+camlistore.BlobItem.prototype.setHeight = function(h) {
+  this.setSize(this.getWidth(), h);
+};
+
+
+/**
+ * Sets the display size of the item. The thumbnail will be scaled, centered,
+ * and clipped within this size as appropriate.
+ * @param {number} w
+ * @param {number} h
+ */
+camlistore.BlobItem.prototype.setSize = function(w, h) {
+  this.getElement().style.width = w + 'px';
+  this.getElement().style.height = h + 'px';
+
+  var thumbHeight = h;
+  if (!this.isImage()) {
+    thumbHeight -= this.constructor.TITLE_HEIGHT;
+  }
+  this.setThumbSize(w, thumbHeight);
+};
+
+
+/**
+ * Sets the display size of just the thumbnail. It will be scaled, centered, and
+ * clipped within this size as appropriate.
+ * @param {number} w
+ * @param {number} h
+ */
+camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
+  // In the case of images, we don't want a full bleed to both w and h, so we
+  // clip the bigger dimension as necessary. It's not easy to notice that a few
+  // pixels have been shaved off the edge of a photo.
+  //
+  // In the case of non-images, we have an icon with text underneath, so we
+  // cannot clip. Instead, just constrain the icon to fit the available space.
+  var adjustedHeight;
+  if (this.isImage()) {
+    adjustedHeight = this.getThumbAspect() < w / h ?
+      w / this.getThumbAspect() : h;
+  } else {
+    adjustedHeight = this.getThumbAspect() < w / h ?
+      h : w / this.getThumbAspect();
+  }
+  var adjustedWidth = adjustedHeight * this.getThumbAspect();
+
+  this.thumb_.width = Math.round(adjustedWidth);
+  this.thumb_.height = Math.round(adjustedHeight);
+
+  this.thumbClip_.style.width = w + 'px';
+  this.thumbClip_.style.height = h + 'px';
+
+  this.thumb_.style.top = Math.round((h - adjustedHeight) / 2) + 'px';
+  this.thumb_.style.left = Math.round((w - adjustedWidth) / 2) + 'px';
+
+  // Load a differently sized image from server if necessary.
+  if (!this.thumb_.src || adjustedWidth > this.thumb_.width ||
+      adjustedHeight > this.thumb_.height) {
+    // Round the height up to the nearest 20% to increase the probability of
+    // cache hits.
+    var rh = Math.ceil(adjustedHeight / 5) * 5;
+
+    // TODO(aa): This is kind of a hack, it would be better if the server just
+    // returned the base URL and the aspect ratio, rather than specific
+    // dimensions.
+    this.thumb_.src = this.getThumbSrc_().split('?')[0] + '?mh=' + rh;
+  }
 };
 
 
@@ -180,22 +266,6 @@ camlistore.BlobItem.prototype.isImage = function() {
  */
 camlistore.BlobItem.prototype.getThumbSrc_ = function() {
   return './' + this.metaData_.thumbnailSrc;
-};
-
-
-/**
- * @return {number}
- */
-camlistore.BlobItem.prototype.getThumbHeight_ = function() {
-  return this.metaData_.thumbnailHeight || 0;
-};
-
-
-/**
- * @return {number}
- */
-camlistore.BlobItem.prototype.getThumbWidth = function() {
-  return this.metaData_.thumbnailWidth || 0;
 };
 
 
@@ -287,85 +357,56 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
+
+  var link = this.dom_.createDom('a');
+  link.href = this.getLink_();
+
+  this.thumbClip_ = this.dom_.createDom('div', 'cam-blobitem-thumbclip');
+  link.appendChild(this.thumbClip_);
+
+  this.thumb_ = this.dom_.createDom('img', 'cam-blobitem-thumb');
+  this.thumbClip_.appendChild(this.thumb_);
+
+  el.appendChild(link);
+  this.loadCheckmark_();
+
   if (!this.isImage()) {
-    goog.dom.classes.add(el, 'cam-blobitem-notimage');
+    var label = this.dom_.createDom('span', 'cam-blobitem-thumbtitle');
+    label.appendChild(document.createTextNode(this.getTitle_()));
+    link.appendChild(label);
   }
 
-  var thumbEl = this.dom_.createDom('img', 'cam-blobitem-thumb');
-  thumbEl.src = this.getThumbSrc_();
-  thumbEl.height = this.getThumbHeight_();
-  thumbEl.width = this.getThumbWidth();
-
-  var linkEl = this.dom_.createDom('a', 'cam-blobitem-thumbtitle');
-  linkEl.href = this.getLink_();
-  this.dom_.setTextContent(linkEl, this.getTitle_());
-
-  this.dom_.appendChild(el, thumbEl);
-  this.dom_.appendChild(el, linkEl);
+  this.getElement().addEventListener('click', this.handleClick_.bind(this));
+  this.setEnabled(false);
 };
-
-
-/** @override */
-camlistore.BlobItem.prototype.disposeInternal = function() {
-  camlistore.BlobItem.superClass_.disposeInternal.call(this);
-  this.eh_.dispose();
-};
-
 
 /**
- * Called when component's element is known to be in the document.
- */
-camlistore.BlobItem.prototype.enterDocument = function() {
-	camlistore.BlobItem.superClass_.enterDocument.call(this);
-
-	var thumbLink = goog.dom.getFirstElementChild(this.getElement());
-	this.eh_.listen(
-		thumbLink,
-		goog.events.EventType.DRAGENTER,
-		this.handleFileDragEnter_);
-	this.eh_.listen(
-		thumbLink,
-		goog.events.EventType.DRAGLEAVE,
-		this.handleFileDragLeave_);
-};
-
-
-/**
- * @param {goog.events.Event} e The drag drop event.
  * @private
  */
-camlistore.BlobItem.prototype.handleFileDragEnter_ = function(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	if (this.isCollection()) {
-		goog.dom.classes.add(this.getElement(), 'cam-blobitem-dropactive');
-		// we could dispatch another custom event to the container, but why bother
-		// since we can directly access it?
-		var container = this.getParent();
-		container.notifyDragEnter_(this);
-	}
+camlistore.BlobItem.prototype.loadCheckmark_ = function() {
+  var req = new XMLHttpRequest();
+  req.open("GET", 'checkmark.svg', true);
+  req.onload = goog.bind(function() {
+    var temp = document.createElement('div');
+    temp.innerHTML = req.responseText;
+    this.checkmark_ = temp.getElementsByTagName('svg')[0];
+    this.checkmark_.setAttribute('class', 'checkmark');
+    this.getElement().appendChild(this.checkmark_);
+  }, this);
+  req.send(null);
 };
 
 /**
  * @param {goog.events.Event} e The drag drop event.
  * @private
  */
-camlistore.BlobItem.prototype.handleFileDragLeave_ = function(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	if (this.isCollection()) {
-		goog.dom.classes.remove(this.getElement(), 'cam-blobitem-dropactive');
-		var container = this.getParent();
-		container.notifyDragLeave_(this);
-	}
-};
+camlistore.BlobItem.prototype.handleClick_ = function(e) {
+  if (!this.checkmark_) {
+    return;
+  }
 
-
-/**
- * Called when component's element is known to have been removed from the
- * document.
- */
-camlistore.BlobItem.prototype.exitDocument = function() {
-  camlistore.BlobItem.superClass_.exitDocument.call(this);
-  this.eh_.removeAll();
+  if (e.target == this.checkmark_ || this.checkmark_.contains(e.target)) {
+    this.setChecked(!this.isChecked());
+    e.preventDefault();
+  }
 };

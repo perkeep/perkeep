@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 /*
-#fileembed pattern .+\.(js|css|html|png)$
+The below is read by genfileembed.go to determine the files to embed in the
+server binary. Crazy, but true.
+#fileembed pattern .+\.(js|css|html|png|svg)$
 */
 package ui
 
