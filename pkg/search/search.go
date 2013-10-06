@@ -29,7 +29,7 @@ import (
 
 type Result struct {
 	BlobRef     blob.Ref
-	Signer      blob.Ref // may be nil
+	Signer      blob.Ref // may be zero (!Valid())
 	LastModTime int64    // seconds since epoch; TODO: time.Time?
 }
 
