@@ -467,7 +467,7 @@ func verifyGoVersion() {
 	version := fields[2]
 	switch version {
 	case "go1", "go1.0.1", "go1.0.2", "go1.0.3":
-		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.1 or later.")
+		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.1 or later.", version)
 	}
 }
 
