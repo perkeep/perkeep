@@ -129,7 +129,7 @@
     camliPath:bar.txt = $blobref_bartxt_permanode
     </pre>
     It will appear as a directory containing "dir2" and
-    "bar.txt". (NOTE(hjfreyer): is the value necessarily a permanode?).
+    "bar.txt".
     <br>
     These are used by a few things, including the website UI, the
     "publish" code (declaring you want a photo at a URL and then the
@@ -138,5 +138,3 @@
     read/write filesystem code.
   </li>
 </ul>
-
-NOTE(hjfreyer): did I miss anything?

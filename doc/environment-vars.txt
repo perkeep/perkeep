@@ -62,6 +62,9 @@ CAMLI_DEV_KEYBLOBS (string):
 CAMLI_HTTP_DEBUG (bool):
   Enable per-request logging in pkg/webserver.
 
+CAMLI_HTTP_EXPVAR (bool):
+  Enable json export of expvars at /debug/vars
+
 CAMLI_HTTP_PPROF (bool):
   Enable standard library's pprof handler at /debug/pprof/
 
