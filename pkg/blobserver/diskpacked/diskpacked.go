@@ -48,7 +48,7 @@ import (
 	"camlistore.org/third_party/github.com/camlistore/lock"
 )
 
-const defaultMaxFileSize = 512 << 20
+const defaultMaxFileSize = 512 << 20  // 512MB
 
 type storage struct {
 	root        string
@@ -64,7 +64,9 @@ type storage struct {
 	closeErr error
 }
 
-func New(root string) (*storage, error) {
+// newStorage returns a new storage in path root with the given maxFileSize,
+// or defaultMaxFileSize (512MB) if <= 0
+func newStorage(root string, maxFileSize int64) (*storage, error) {
 	fi, err := os.Stat(root)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("storage root %q doesn't exist", root)
@@ -76,7 +78,10 @@ func New(root string) (*storage, error) {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
 	}
 	index, _, err := kvfile.NewStorage(filepath.Join(root, "index.kv"))
-	s := &storage{root: root, index: index, maxFileSize: defaultMaxFileSize}
+	if maxFileSize <= 0 {
+		maxFileSize = defaultMaxFileSize
+	}
+	s := &storage{root: root, index: index, maxFileSize: maxFileSize}
 	if err := s.openCurrent(); err != nil {
 		return nil, err
 	}
@@ -85,10 +90,11 @@ func New(root string) (*storage, error) {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	path := config.RequiredString("path")
+	maxFileSize := config.OptionalInt("maxFileSize", 0)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return New(path)
+	return newStorage(path, int64(maxFileSize))
 }
 
 func init() {
