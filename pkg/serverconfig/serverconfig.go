@@ -22,6 +22,7 @@ package serverconfig
 import (
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -409,6 +410,9 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	}
 	hl.setupAll()
 
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_EXPVAR")); v {
+		hi.Handle("/debug/vars", expvarHandler{})
+	}
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
@@ -424,6 +428,23 @@ func (s multiCloser) Close() (err error) {
 		}
 	}
 	return
+}
+
+// expvarHandler publishes expvar stats.
+type expvarHandler struct{}
+
+func (expvarHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, "{\n")
+	first := true
+	expvar.Do(func(kv expvar.KeyValue) {
+		if !first {
+			fmt.Fprintf(w, ",\n")
+		}
+		first = false
+		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
+	})
+	fmt.Fprintf(w, "\n}\n")
 }
 
 // profileHandler publishes server profile information.
