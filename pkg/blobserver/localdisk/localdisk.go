@@ -39,6 +39,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/types"
 )
@@ -60,6 +61,9 @@ type DiskStorage struct {
 	// The same lock is shared between queues created from a parent,
 	// since they interact with overlapping sets of directories.
 	dirLockMu *sync.RWMutex
+
+	// gen will be nil if partition != ""
+	gen *local.Generationer
 }
 
 // New returns a new local disk storage implementation at the provided
@@ -79,6 +83,7 @@ func New(root string) (*DiskStorage, error) {
 	ds := &DiskStorage{
 		root:      root,
 		dirLockMu: new(sync.RWMutex),
+		gen:       local.NewGenerationer(root),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)

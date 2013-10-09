@@ -41,6 +41,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/jsonconfig"
@@ -48,7 +49,7 @@ import (
 	"camlistore.org/third_party/github.com/camlistore/lock"
 )
 
-const defaultMaxFileSize = 512 << 20  // 512MB
+const defaultMaxFileSize = 512 << 20 // 512MB
 
 type storage struct {
 	root        string
@@ -62,6 +63,8 @@ type storage struct {
 	currentO int64     // current offset
 	closed   bool
 	closeErr error
+
+	*local.Generationer
 }
 
 // newStorage returns a new storage in path root with the given maxFileSize,
@@ -81,9 +84,14 @@ func newStorage(root string, maxFileSize int64) (*storage, error) {
 	if maxFileSize <= 0 {
 		maxFileSize = defaultMaxFileSize
 	}
-	s := &storage{root: root, index: index, maxFileSize: maxFileSize}
+	s := &storage{root: root, index: index, maxFileSize: maxFileSize,
+		Generationer: local.NewGenerationer(root),
+	}
 	if err := s.openCurrent(); err != nil {
 		return nil, err
+	}
+	if _, _, err := s.StorageGeneration(); err != nil {
+		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
 	}
 	return s, nil
 }
