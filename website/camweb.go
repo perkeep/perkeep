@@ -304,7 +304,7 @@ func runAsChild(res string) {
 	cmd.Stdout = os.Stdout
 	log.Printf("Running %v", res)
 	if err := cmd.Start(); err != nil {
-		log.Fatal("Program %v failed to start: %v", res, err)
+		log.Fatalf("Program %v failed to start: %v", res, err)
 	}
 	go func() {
 		if err := cmd.Wait(); err != nil {
