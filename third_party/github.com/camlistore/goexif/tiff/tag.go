@@ -186,16 +186,16 @@ func (t *Tag) convertVals() {
 			t.ratVals[i] = []int64{int64(n), int64(d)}
 		}
 	case 11: // float32
+		t.floatVals = make([]float64, int(t.Ncomp))
 		for i := 0; i < int(t.Ncomp); i++ {
-			t.floatVals = make([]float64, int(t.Ncomp))
 			var v float32
 			err := binary.Read(r, t.order, &v)
 			panicOn(err)
 			t.floatVals[i] = float64(v)
 		}
 	case 12: // float64 (double)
+		t.floatVals = make([]float64, int(t.Ncomp))
 		for i := 0; i < int(t.Ncomp); i++ {
-			t.floatVals = make([]float64, int(t.Ncomp))
 			var u float64
 			err := binary.Read(r, t.order, &u)
 			panicOn(err)

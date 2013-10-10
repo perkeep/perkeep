@@ -58,15 +58,61 @@ type Exif struct {
 
 // Decode parses EXIF-encoded data from r and returns a queryable Exif object.
 func Decode(r io.Reader) (*Exif, error) {
-	sec, err := newAppSec(0xE1, r)
+	// EXIF data in JPEG is stored in the APP1 marker. EXIF data uses the TIFF
+	// format to store data.
+	// If we're parsing a TIFF image, we don't need to strip away any data.
+	// If we're parsing a JPEG image, we need to strip away the JPEG APP1
+	// marker and also the EXIF header.
+	header := make([]byte, 4)
+	n, err := r.Read(header)
+	if n < len(header) {
+		return nil, errors.New("exif: short read on header")
+	}
 	if err != nil {
 		return nil, err
 	}
-	er, err := sec.exifReader()
-	if err != nil {
-		return nil, err
+
+	var isTiff bool
+	switch string(header) {
+	case "II*\x00":
+		// TIFF - Little endian (Intel)
+		isTiff = true
+	case "MM\x00*":
+		// TIFF - Big endian (Motorola)
+		isTiff = true
+	default:
+		// Not TIFF, assume JPEG
 	}
-	tif, err := tiff.Decode(er)
+
+	// Put the header bytes back into the reader.
+	r = io.MultiReader(bytes.NewReader(header), r)
+	var (
+		er  *bytes.Reader
+		tif *tiff.Tiff
+	)
+
+	if isTiff {
+		// Functions below need the IFDs from the TIFF data to be stored in a
+		// *bytes.Reader.  We use TeeReader to get a copy of the bytes as a
+		// side-effect of tiff.Decode() doing its work.
+		b := &bytes.Buffer{}
+		tr := io.TeeReader(r, b)
+		tif, err = tiff.Decode(tr)
+		er = bytes.NewReader(b.Bytes())
+	} else {
+		// Strip away JPEG APP1 header.
+		sec, err := newAppSec(0xE1, r)
+		if err != nil {
+			return nil, err
+		}
+		// Strip away EXIF header.
+		er, err = sec.exifReader()
+		if err != nil {
+			return nil, err
+		}
+		tif, err = tiff.Decode(er)
+	}
+
 	if err != nil {
 		return nil, errors.New("exif: decode failed: " + err.Error())
 	}

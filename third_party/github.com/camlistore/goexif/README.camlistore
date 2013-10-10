@@ -1,0 +1,82 @@
+Changing code under third_party/github.com/camlistore/goexif
+============================================================
+
+These instructions assume you have a github.com account.
+
+Sync github.com/rwcarlsen/goexif -> github.com/camlistore/goexif
+----------------------------------------------------------------
+1.  Issue a pull request at https://github.com/camlistore/goexif/pulls, set
+	the base fork to camlistore/goexif go1 branch, and the head fork as
+	rwcarlsen/goexif go1 branch.  Follow the normal github workflow until
+	someone on the camlistore project merges in the changes.
+
+Sync github.com/camlistore/goexif -> camlistore.org/third_party/github.com/camlistore/goexif
+--------------------------------------------------------------------------------------------
+1.  Once someone on the camlistore team merges in the latest from upstream,
+	checkout a local copy:
+
+	$ git clone https://github.com/camlistore/goexif 
+	$ cd goexif
+
+2.  Make a patch to apply to the camlistore.org copy.  You'll need to know the
+	git rev of github.com/camlistore/goexif that was last merged to
+	camlistore.org/third_party, for this example we'll use 030a4566:
+
+	# Create individual patches that have been applied upstream.
+	$ git format-patch -o /tmp/patches 030a4566
+	$ cd /path/to/camlistore.org/third_party/github.com/camlistore/goexif
+	# Create new branch to temporarily apply each upstream change.
+	$ git checkout -b patches_individual
+	# Apply patches.
+	$ git am --directory=third_party/github.com/camlistore/goexif /tmp/patches/*
+
+	# If something fails to apply try:
+	$ git apply <PATCH THAT FAILED> --reject
+	$ edit edit edit
+	$ git add <ANY FIXED FILES>
+	$ git am --resolved
+
+	# If it is a patch camlistore already had, because we created it and
+	# pushed it upstream, you can skip it with:
+	$ git am --skip
+
+	# Now create a new branch to squash all the changes into one. Keeping a
+	# record of upstream commits in the default commit message of a single
+	# commit.
+	$ git checkout -b patches_squashed master
+	$ git merge --squash patches_individual
+
+	# Verify no new files have been added that require import path updating:
+	$ cd /path/to/camlistore.org/third_party/
+	$ ./rewrite-imports.sh -l
+	# If any rewrites are required, run:
+	$ ./rewrite-imports.sh -w
+
+	# Now create a commit that will be sent for review.
+	$ git commit -v 
+
+	# Enter your commit message on the first line per usual.
+	# You should see summaries of all the changes merged in the commit
+	# message. Leave these, they will be useful next sync as we'll know what
+	# commits were sync'd. Send the change for review.
+	$ ./misc/review
+
+Sync camlistore.org/third_party/github.com/camlistore/goexif -> github.com/camlistore/goexif
+----------------------------------------------------------------------------------------------
+1.  TODO(wathiede): this should follow a similar process as 'Sync
+	github.com/camlistore/goexif ->
+	camlistore.org/third_party/github.com/camlistore/goexif'  Basically use
+	format-patch to generate a patch for each change we've made in
+	camlistore.org's repo and apply to a fork of github.com/camlistore/goexif.
+	Maybe skip the 'merge --squash' step, and keep each change in the log of
+	github.com/camlistore/goexif.
+
+Sync github.com/camlistore/goexif -> github.com/rwcarlsen/goexif 
+--------------------------------------------------------------------
+1.  This should follow the standard github pull-request workflow.  Issue a
+	pull request at https://github.com/request/goexif/pulls, set the base fork
+	to rwcarlsen/goexif go1 branch, and the head fork as camlistore/goexif go1
+	branch.
+
+2.  Address any feedback during review and rwcarlsen will merge changes to
+	github.com/rwcarlsen/goexif as appropriate.
