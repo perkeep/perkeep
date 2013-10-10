@@ -54,8 +54,9 @@ type fileOptions struct {
 	// the above permanode.
 	tag string
 	// perform for the client the actions needing gpg signing when uploading a file.
-	vivify   bool
-	exifTime bool // use the time in exif metadata as the modtime if possible.
+	vivify     bool
+	exifTime   bool // use the time in exif metadata as the modtime if possible.
+	capCtime bool // use mtime as ctime if ctime > mtime
 }
 
 func (o *fileOptions) tags() []string {
@@ -71,6 +72,10 @@ func (o *fileOptions) wantFilePermanode() bool {
 
 func (o *fileOptions) wantVivify() bool {
 	return o != nil && o.vivify
+}
+
+func (o *fileOptions) wantCapCtime() bool {
+	return o != nil && o.capCtime
 }
 
 func (up *Uploader) uploadString(s string) (*client.PutResult, error) {

@@ -52,6 +52,7 @@ type fileCmd struct {
 	filePermanodes bool // make planned permanodes for each file (based on their digest)
 	vivify         bool
 	exifTime       bool // use metadata (such as in EXIF) to find the creation time of the file
+	capCtime       bool // use mtime as creation time of the file, if it would be bigger than modification time
 	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
 	argsFromInput  bool // Android mode: filenames piped into stdin, one at a time.
 
@@ -84,6 +85,7 @@ func init() {
 			flags.BoolVar(&cmd.havecache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+			flags.BoolVar(&cmd.capCtime, "capctime", false, "For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
 			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "Use sqlite for the statcache and havecache instead of a flat cache.")
 		} else {
 			cmd.havecache = true
@@ -148,6 +150,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 		tag:       c.tag,
 		vivify:    c.vivify,
 		exifTime:  c.exifTime,
+		capCtime:  c.capCtime,
 	}
 
 	var (
@@ -515,6 +518,9 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		} else {
 			filebb.SetModTime(modtime)
 		}
+	}
+	if up.fileOpts.capCtime {
+		filebb.CapCreationTime()
 	}
 
 	var (

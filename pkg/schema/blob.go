@@ -383,6 +383,19 @@ func (bb *Builder) SetModTime(t time.Time) *Builder {
 	return bb
 }
 
+// CapCreationTime caps the "unixCtime" field to be less or equal than "unixMtime"
+func (bb *Builder) CapCreationTime() *Builder {
+	ctime, ok := bb.m["unixCtime"].(string)
+	if !ok {
+		return bb
+	}
+	mtime, ok := bb.m["unixMtime"].(string)
+	if ok && ctime > mtime {
+		bb.m["unixCtime"] = mtime
+	}
+	return bb
+}
+
 // ModTime returns the "unixMtime" modtime field, if set.
 func (bb *Builder) ModTime() (t time.Time, ok bool) {
 	s, ok := bb.m["unixMtime"].(string)
