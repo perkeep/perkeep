@@ -17,11 +17,13 @@ limitations under the License.
 package diskpacked
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/jsonconfig"
@@ -50,7 +52,12 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blo
 	}
 	return s, func() {
 		s.Close()
-		os.RemoveAll(dir)
+
+		if camliDebug {
+			t.Logf("CAMLI_DEBUG set, skipping cleanup of dir %q", dir)
+		} else {
+			os.RemoveAll(dir)
+		}
 	}
 }
 
@@ -105,5 +112,87 @@ func TestDoubleReceive(t *testing.T) {
 	sizePostDelete := size(1)
 	if sizePostDelete < blobSize {
 		t.Fatalf("after packfile delete + reupload, not big enough. want size of a blob")
+	}
+}
+
+func TestDelete(t *testing.T) {
+	sto, cleanup := newTempDiskpacked(t)
+	defer cleanup()
+
+	var (
+		A = &test.Blob{Contents: "some small blob"}
+		B = &test.Blob{Contents: strings.Repeat("some middle blob", 100)}
+		C = &test.Blob{Contents: strings.Repeat("A 8192 bytes length largish blob", 8192/32)}
+	)
+
+	type step func() error
+
+	stepAdd := func(tb *test.Blob) step { // add the blob
+		return func() error {
+			sb, err := sto.ReceiveBlob(tb.BlobRef(), tb.Reader())
+			if err != nil {
+				return fmt.Errorf("ReceiveBlob of %s: %v", sb, err)
+			}
+			if sb != tb.SizedRef() {
+				return fmt.Errorf("Received %v; want %v", sb, tb.SizedRef())
+			}
+			return nil
+		}
+	}
+
+	stepCheck := func(want ...*test.Blob) step { // check the blob
+		wantRefs := make([]blob.SizedRef, len(want))
+		for i, tb := range want {
+			wantRefs[i] = tb.SizedRef()
+		}
+		return func() error {
+			if err := storagetest.CheckEnumerate(sto, wantRefs); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	stepDelete := func(tb *test.Blob) step {
+		return func() error {
+			if err := sto.RemoveBlobs([]blob.Ref{tb.BlobRef()}); err != nil {
+				return fmt.Errorf("RemoveBlob(%s): %v", tb.BlobRef(), err)
+			}
+			return nil
+		}
+	}
+
+	var deleteTests = [][]step{
+		[]step{
+			stepAdd(A),
+			stepDelete(A),
+			stepCheck(),
+			stepAdd(B),
+			stepCheck(B),
+			stepDelete(B),
+			stepCheck(),
+			stepAdd(C),
+			stepCheck(C),
+			stepAdd(A),
+			stepCheck(A, C),
+			stepDelete(A),
+			stepDelete(C),
+			stepCheck(),
+		},
+		[]step{
+			stepAdd(A),
+			stepAdd(B),
+			stepAdd(C),
+			stepCheck(A, B, C),
+			stepDelete(C),
+			stepCheck(A, B),
+		},
+	}
+	for i, steps := range deleteTests {
+		for j, s := range steps {
+			if err := s(); err != nil {
+				t.Errorf("error at test %d, step %d: %v", i+1, j+1, err)
+			}
+		}
 	}
 }
