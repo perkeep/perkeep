@@ -50,6 +50,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 
 	var wg syncutil.Group
 	for _, ref := range blobs {
+		ref := ref
 		statGate.Start()
 		wg.Go(func() error {
 			defer statGate.Done()

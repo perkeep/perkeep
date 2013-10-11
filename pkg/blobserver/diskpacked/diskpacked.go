@@ -236,6 +236,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 	var wg syncutil.Group
 
 	for _, br := range blobs {
+		br := br
 		statGate.Start()
 		wg.Go(func() error {
 			defer statGate.Done()

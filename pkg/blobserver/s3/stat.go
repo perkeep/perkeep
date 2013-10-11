@@ -30,6 +30,7 @@ func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) err
 	var wg syncutil.Group
 
 	for _, br := range blobs {
+		br := br
 		statGate.Start()
 		wg.Go(func() error {
 			defer statGate.Done()
