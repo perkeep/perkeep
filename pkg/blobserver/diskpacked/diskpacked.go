@@ -45,6 +45,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
@@ -209,15 +210,14 @@ func (s *storage) Fetch(br blob.Ref) (types.ReadSeekCloser, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	// TODO(adg): pool open file descriptors
-	f, err := os.Open(s.filename(meta.file))
+	rac, err := readerutil.OpenSingle(s.filename(meta.file))
 	if err != nil {
 		return nil, 0, err
 	}
 	rsc := struct {
 		io.ReadSeeker
 		io.Closer
-	}{io.NewSectionReader(f, meta.offset, meta.size), f}
+	}{io.NewSectionReader(rac, meta.offset, meta.size), rac}
 	return rsc, meta.size, nil
 }
 

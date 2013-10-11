@@ -103,3 +103,8 @@ type ReadSeekCloser interface {
 	io.Seeker
 	io.Closer
 }
+
+type ReaderAtCloser interface {
+	io.ReaderAt
+	io.Closer
+}
