@@ -93,9 +93,9 @@ func TestMultiStat(t *testing.T) {
 	blobfoo.MustUpload(t, ds)
 	blobbar.MustUpload(t, ds)
 
-	need := make(map[string]bool)
-	need[blobfoo.BlobRef().String()] = true
-	need[blobbar.BlobRef().String()] = true
+	need := make(map[blob.Ref]bool)
+	need[blobfoo.BlobRef()] = true
+	need[blobbar.BlobRef()] = true
 
 	blobs := []blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()}
 
@@ -115,14 +115,20 @@ func TestMultiStat(t *testing.T) {
 	got := 0
 	for sb := range ch {
 		got++
-		br := sb.Ref
-		brstr := br.String()
-		Expect(t, need[brstr], "need stat of blobref "+brstr)
-		delete(need, brstr)
+		if !need[sb.Ref] {
+			t.Errorf("didn't need %s", sb.Ref)
+		}
+		delete(need, sb.Ref)
 	}
-	ExpectInt(t, 2, got, "number stat results")
-	ExpectNil(t, <-errch, "result from stat")
-	ExpectInt(t, 0, len(need), "all stat results needed returned")
+	if want := 2; got != want {
+		t.Errorf("number stats = %d; want %d", got, want)
+	}
+	if err := <-errch; err != nil {
+		t.Errorf("StatBlobs: %v", err)
+	}
+	if len(need) != 0 {
+		t.Errorf("Not all stat results returned; still need %d", len(need))
+	}
 }
 
 func TestMissingGetReturnsNoEnt(t *testing.T) {
