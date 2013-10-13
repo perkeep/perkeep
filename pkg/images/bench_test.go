@@ -25,9 +25,13 @@ func benchRescale(b *testing.B, w, h, thumbW, thumbH int) {
 	// Most JPEGs are YCbCr, so bench with that.
 	im := image.NewYCbCr(image.Rect(0, 0, w, h), image.YCbCrSubsampleRatio422)
 	o := &DecodeOpts{MaxWidth: thumbW, MaxHeight: thumbH}
+	sw, sh, needRescale := o.rescaleDimensions(im.Bounds(), false)
+	if !needRescale {
+		b.Fatal("opts.rescaleDimensions failed to indicate image needs rescale")
+	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = rescale(im, o, false)
+		_ = rescale(im, sw, sh)
 	}
 }
 
