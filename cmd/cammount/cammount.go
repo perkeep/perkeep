@@ -147,7 +147,7 @@ func main() {
 		}
 	}
 
-	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 
 	doneServe := make(chan error, 1)
 	go func() {
