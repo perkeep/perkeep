@@ -40,9 +40,10 @@ import (
 )
 
 const (
-	interval    = 60 * time.Second // polling frequency
-	warmup      = 60 * time.Second // duration before we test if devcam server has started properly
-	historySize = 30
+	interval      = 60 * time.Second // polling frequency
+	warmup        = 60 * time.Second // duration before we test if devcam server has started properly
+	historySize   = 30
+	maxStderrSize = 1 << 20 // Keep last 1 MB of logging.
 )
 
 var (
@@ -89,21 +90,67 @@ var (
 
 	// Override the os.Stderr used by the default logger so we can provide
 	// more debug info on status page.
-	logStderr = new(lockedBuffer)
+	logStderr = newLockedBuffer()
 )
 
 // lockedBuffer protects all Write calls with a mutex.  Users of lockedBuffer
 // must wrap any calls to Bytes, and use of the resulting slice with calls to
 // Lock/Unlock.
 type lockedBuffer struct {
-	sync.Mutex // guards Buffer
-	bytes.Buffer
+	sync.Mutex // guards ringBuffer
+	*ringBuffer
+}
+
+func newLockedBuffer() *lockedBuffer {
+	return &lockedBuffer{ringBuffer: newRingBuffer(maxStderrSize)}
 }
 
 func (lb *lockedBuffer) Write(b []byte) (int, error) {
 	lb.Lock()
 	defer lb.Unlock()
-	return lb.Buffer.Write(b)
+	return lb.ringBuffer.Write(b)
+}
+
+type ringBuffer struct {
+	buf []byte
+	off int // End of ring buffer.
+	l   int // Length of ring buffer filled.
+}
+
+func newRingBuffer(maxSize int) *ringBuffer {
+	return &ringBuffer{
+		buf: make([]byte, maxSize),
+	}
+}
+
+func (rb *ringBuffer) Bytes() []byte {
+	if (rb.off - rb.l) >= 0 {
+		// Partially full buffer with no wrap.
+		return rb.buf[rb.off-rb.l : rb.off]
+	}
+
+	// Buffer has been wrapped, copy second half then first half.
+	start := rb.off - rb.l
+	if start < 0 {
+		start = rb.off
+	}
+	b := make([]byte, 0, cap(rb.buf))
+	b = append(b, rb.buf[start:]...)
+	b = append(b, rb.buf[:start]...)
+	return b
+}
+
+func (rb *ringBuffer) Write(buf []byte) (int, error) {
+	ringLen := cap(rb.buf)
+	for i, b := range buf {
+		rb.buf[(rb.off+i)%ringLen] = b
+	}
+	rb.off = (rb.off + len(buf)) % ringLen
+	rb.l = rb.l + len(buf)
+	if rb.l > ringLen {
+		rb.l = ringLen
+	}
+	return len(buf), nil
 }
 
 var NameToCmd = map[string]string{
