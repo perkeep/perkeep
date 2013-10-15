@@ -48,8 +48,6 @@ var (
 	logStdout       = flag.Bool("logstdout", true, "Write to stdout?")
 	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile      = flag.String("tlskey", "", "TLS private key file")
-	gerritUser      = flag.String("gerrituser", "ubuntu", "Gerrit host's username")
-	gerritHost      = flag.String("gerrithost", "", "Gerrit host, or empty.")
 	buildbotBackend = flag.String("buildbot_backend", "", "Build bot status backend URL")
 	buildbotHost    = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	alsoRun         = flag.String("also_run", "", "Optional path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
@@ -169,6 +167,8 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 	servePage(w, "File "+relpath, "", contents)
 }
 
+const gerritURLPrefix = "https://camlistore.googlesource.com/camlistore/+/"
+
 var commitHash = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
 
 // empty return value means don't redirect.
@@ -178,17 +178,17 @@ func redirectPath(u *url.URL) string {
 	if strings.HasPrefix(u.Path, "/code/") {
 		m := commitHash.FindStringSubmatch(u.RawQuery)
 		if len(m) == 2 {
-			return "https://camlistore.googlesource.com/camlistore/+/" + m[1]
+			return gerritURLPrefix + m[1]
 		}
 	}
 
 	if strings.HasPrefix(u.Path, "/gw/") {
 		path := strings.TrimPrefix(u.Path, "/gw/")
 		if strings.HasPrefix(path, "doc") || strings.HasPrefix(path, "clients") {
-			return "https://camlistore.googlesource.com/camlistore/+/master/" + path
+			return gerritURLPrefix + "master/" + path
 		}
 		// Assume it's a commit
-		return "https://camlistore.googlesource.com/camlistore/+/" + path
+		return gerritURLPrefix + path
 	}
 	return ""
 }
