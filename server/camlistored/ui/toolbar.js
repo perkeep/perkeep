@@ -26,92 +26,64 @@ camlistore.Toolbar = function(opt_domHelper) {
   goog.base(this, opt_domHelper);
 
   /**
-   * @type {boolean}
-   */
-  this.isSearch = false;
-
-  /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {HTMLFormElement}
    * @private
    */
-  this.biggerButton_ = new goog.ui.ToolbarButton('+');
-  this.biggerButton_.addClassName('cam-toolbar-magnify');
+  this.searchform_ = this.dom_.createDom('form', 'cam-searchform');
 
   /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.smallerButton_ = new goog.ui.ToolbarButton('\u2212');
-  this.smallerButton_.addClassName('cam-toolbar-magnify');
+  this.biggerButton_ = new goog.ui.Button('+');
+  this.biggerButton_.addClassName('cam-bigger');
 
   /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.checkedItemsCreateSetButton_ = new goog.ui.ToolbarButton('');
+  this.smallerButton_ = new goog.ui.Button('\u2212');
+  this.smallerButton_.addClassName('cam-smaller');
+
+  /**
+   * @type {goog.ui.Button}
+   * @private
+   */
+  this.checkedItemsCreateSetButton_ = new goog.ui.Button('');
   this.checkedItemsCreateSetButton_.addClassName('cam-checked-items');
   this.checkedItemsCreateSetButton_.setVisible(false);
 
   /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.createPermanodeButton_ = new goog.ui.ToolbarButton('New Permanode');
+  this.createPermanodeButton_ = new goog.ui.Button('New Permanode');
   this.createPermanodeButton_.addClassName('cam-toolbar-createpermanode');
 
   /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.checkedItemsAddToSetButton_ = new goog.ui.ToolbarButton('Add to Set');
+  this.checkedItemsAddToSetButton_ = new goog.ui.Button('Add to Set');
   this.checkedItemsAddToSetButton_.addClassName('cam-checked-items');
   this.checkedItemsAddToSetButton_.setEnabled(false);
 
   /**
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.setAsCollecButton_ = new goog.ui.ToolbarButton('Select as current Set');
+  this.setAsCollecButton_ = new goog.ui.Button('Select as current Set');
   this.setAsCollecButton_.addClassName('cam-checked-items');
   this.setAsCollecButton_.setEnabled(false);
 
 
   /**
    * Used only on the search page
-   * @type {goog.ui.ToolbarButton}
+   * @type {goog.ui.Button}
    * @private
    */
-  this.rootsButton_ = new goog.ui.ToolbarButton('Search Roots');
+  this.rootsButton_ = new goog.ui.Button('Search Roots');
   this.rootsButton_.addClassName('cam-checked-items');
-
-  /**
-   * Used only on the search page
-   * @type {goog.ui.ToolbarButton}
-   * @private
-   */
-  this.homeButton_ = new goog.ui.ToolbarButton('Home');
-  this.homeButton_.addClassName('cam-checked-items');
-
-  /**
-   * Used only on the search page
-   * @type {goog.ui.ToolbarMenuButton}
-   * @private
-   */
-  // TODO(mpl): figure out why it is acting retarded with the positioning.
-  this.helpButton_ = new goog.ui.ToolbarMenuButton('Help');
-  this.helpButton_.addItem(new goog.ui.MenuItem('Usage examples (omit the double-quotes):'));
-  this.helpButton_.addItem(new goog.ui.MenuItem("Search for 'foo' in tags: \"tag:foo\""));
-  this.helpButton_.addItem(new goog.ui.MenuItem("Search for 'bar' in titles: \"title:bar\""));
-  this.helpButton_.addItem(new goog.ui.MenuItem("Search for permanode with blobref XXX: \"bref:XXX\""));
-  this.helpButton_.addItem(new goog.ui.MenuItem("(Fuzzy) Search for 'baz' in all attributes: \"baz\" (broken atm?)"));
-
-  /**
-   * Used only on the index page
-   * @type {goog.ui.ToolbarButton}
-   * @private
-   */
-  this.goSearchButton_ = new goog.ui.ToolbarButton('Search');
-  this.goSearchButton_.addClassName('cam-checked-items');
 
   /**
    * Used to display random statusy stuff.
@@ -131,12 +103,10 @@ goog.inherits(camlistore.Toolbar, goog.ui.Toolbar);
  * @enum {string}
  */
 camlistore.Toolbar.EventType = {
+  SEARCH: 'Camlistore_Toolbar_Search',
   BIGGER: 'Camlistore_Toolbar_Bigger',
   SMALLER: 'Camlistore_Toolbar_Smaller',
-  HOME: 'Camlistore_Toolbar_Home',
   ROOTS: 'Camlistore_Toolbar_SearchRoots',
-  GOSEARCH: 'Camlistore_Toolbar_GoSearch',
-  HELP: 'Camlistore_Toolbar_Help',
   CHECKED_ITEMS_ADDTO_SET: 'Camlistore_Toolbar_Checked_Items_Addto_set',
   SELECT_COLLEC: 'Camlistore_Toolbar_Select_collec',
   CHECKED_ITEMS_CREATE_SET: 'Camlistore_Toolbar_Checked_Items_Create_set',
@@ -149,6 +119,11 @@ camlistore.Toolbar.EventType = {
  */
 camlistore.Toolbar.prototype.setStatus = function(text) {
   goog.dom.setTextContent(this.status_, text);
+};
+
+
+camlistore.Toolbar.prototype.getSearchText = function() {
+  return this.searchbox_.value;
 };
 
 
@@ -166,7 +141,14 @@ camlistore.Toolbar.prototype.createDom = function() {
  */
 camlistore.Toolbar.prototype.decorateInternal = function(el) {
   camlistore.Toolbar.superClass_.decorateInternal.call(this, el);
-  goog.dom.classes.add(this.getElement(), 'cam-toolbar');
+  this.getElement().className = 'cam-toolbar';
+
+  this.searchbox_ = this.dom_.createDom('input', 'cam-searchbox');
+  this.searchbox_.setAttribute('placeholder', 'Search...');
+  this.searchbox_.title = '"title:monkey", "tag:cheese", "bref:<hash>", etc...';
+  this.searchform_.appendChild(this.searchbox_);
+  this.getElement().appendChild(this.searchform_);
+
   this.addChild(this.smallerButton_, true);
   this.addChild(this.biggerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
@@ -174,18 +156,6 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.setAsCollecButton_, true);
   this.addChild(this.checkedItemsAddToSetButton_, true);
   this.addChild(this.rootsButton_, true);
-  this.addChild(this.homeButton_, true);
-  this.addChild(this.helpButton_, true);
-  this.addChild(this.goSearchButton_, true);
-
-  if (this.isSearch) {
-    this.goSearchButton_.setVisible(false);
-    this.createPermanodeButton_.setVisible(false);
-  } else {
-    this.rootsButton_.setVisible(false);
-    this.homeButton_.setVisible(false);
-    this.helpButton_.setVisible(false);
-  }
 
   this.status_ = this.dom_.createDom('div', 'cam-toolbar-status');
   this.getElement().appendChild(this.status_);
@@ -204,6 +174,16 @@ camlistore.Toolbar.prototype.disposeInternal = function() {
  */
 camlistore.Toolbar.prototype.enterDocument = function() {
   camlistore.Toolbar.superClass_.enterDocument.call(this);
+  goog.style.setUnselectable(this.searchbox_, false);
+
+  this.eh_.listen(
+      this.searchform_,
+      goog.events.EventType.SUBMIT,
+      function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        this.dispatch_(camlistore.Toolbar.EventType.SEARCH);
+      }.bind(this));
 
   this.eh_.listen(
       this.biggerButton_.getElement(),
@@ -215,26 +195,10 @@ camlistore.Toolbar.prototype.enterDocument = function() {
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.SMALLER));
 
-  if (this.isSearch == true) {
-
-    this.eh_.listen(
+  this.eh_.listen(
       this.rootsButton_.getElement(),
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.ROOTS));
-
-    this.eh_.listen(
-      this.homeButton_.getElement(),
-      goog.events.EventType.CLICK,
-      goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.HOME));
-
-  } else {
-
-    this.eh_.listen(
-      this.goSearchButton_.getElement(),
-      goog.events.EventType.CLICK,
-      goog.bind(this.dispatch_, this, camlistore.Toolbar.EventType.GOSEARCH));
-
-  }
 
   this.eh_.listen(
       this.checkedItemsCreateSetButton_.getElement(),

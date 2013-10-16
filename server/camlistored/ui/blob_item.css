@@ -58,23 +58,20 @@
 }
 
 .cam-blobitem .checkmark {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 35px;
-  height: 35px;
-  padding: 5px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  background-image: url('checkmark-black-25.png');
+  background-size: 100% 100%;
   cursor: pointer;
+  height: 25px;
+  left: 5px;
+  opacity: 0;
+  position: absolute;
+  top: 5px;
+  transition: opacity 0.2s ease;
+  width: 25px;
 }
 
 .cam-blobitem.goog-control-disabled .checkmark {
   display: none;
-}
-
-.cam-blobitem .checkmark circle {
-  transition: fill 0.1s ease;
 }
 
 .cam-blobitem.goog-control-hover .checkmark {
@@ -88,6 +85,7 @@
 .cam-blobitem.goog-control-checked .checkmark {
   opacity: 1!important;
 }
-.cam-blobitem.goog-control-checked .checkmark circle {
-  fill: #66f;
+
+.cam-blobitem.goog-control-checked .checkmark {
+  background-image: url('checkmark-blue-25.png');
 }

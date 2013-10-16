@@ -1,33 +1,86 @@
-.cam-toolbar-magnify {
-  display: block;
-  vertical-align: middle;
-  text-align: center;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.cam-toolbar-magnify .goog-toolbar-button-inner-box {
-  width: 20px;
-}
-
-/* copied from third_party/closure/lib/closure/goog/css/toolbar.css */
 .cam-toolbar {
-  background: #fafafa url(closure-toolbar-bg.png) repeat-x bottom left;
-  border-bottom: 1px solid #d5d5d5;
-  cursor: default;
-  font: normal 12px Arial, sans-serif;
-  margin: 0;
-  outline: none;
-  padding: 2px;
+  align-items: stretch;
+  display: flex;
+  margin: 7px 7px 11px 7px;
+  outline: none!important;
   position: relative;
-  zoom: 1; /* The toolbar element must have layout on IE. */
+}
+
+.cam-searchform {
+  display: inline;
+  display: flex;
+  flex-grow: 1;
+}
+
+.cam-searchbox {
+  background: #f9f9f9;
+  border:1px solid #d3d3d3;
+  flex-grow: 1;
+  font-size: 1em;
+  margin: 0 0.5em 0 0;
+  padding: 6px;
+  transition-duration: 0.1s;
+  transition-property: background,border-color;
+  vertical-align: middle;
+  width: 250px;
+}
+
+.cam-searchbox:hover {
+  background: #fafafa;
+  border:1px solid #b3b3b3;
+}
+
+.cam-searchbox:focus {
+  background: white;
+  border:1px solid #999;
+  outline: none;
+}
+
+.cam-toolbar>.goog-button {
+  background: #f9f9f9;
+  border-color: #e3e3e3 #b3b3b3 #b3b3b3 #e3e3e3!important;
+  border: 1px solid;
+  color: #666;
+  font-size: 0.8em;
+  margin: 0 0 0 0.5em;
+  padding: 0.5em 1em!important;
+  transition-duration: 0.1s;
+  transition-property: background,border-color;
+}
+
+.cam-toolbar>.goog-button:hover,
+.cam-toolbar>.goog-button:focus {
+  background: #fcfcfc;
+  border-color: #eee #939393 #939393 #eee!important;
+  outline: none;
+}
+
+.cam-toolbar>.goog-button:active {
+  background: #f8f8f8;
+  border-color: #939393 #eee #eee #939393!important;
+  outline: none;
+}
+
+.cam-toolbar>.goog-button.goog-button-disabled {
+  background: #f9f9f9;
+  border-color: #eee #ddd #ddd #eee!important;
+  color: #aaa;
+}
+
+.cam-toolbar>.cam-smaller {
+  margin-right: 0!important;
+}
+
+.cam-toolbar>.cam-bigger {
+  margin-left: 0!important;
+  border-left: none;
 }
 
 .cam-toolbar-status {
   position: absolute;
-  top: 50%;
-  right: 8px;
-  margin-top: -0.75em;
-  line-height: 1.5em;
+  top: 100%;
+  margin-top: 2px;
+  right: 0;
   color: #666;
+  font-size: 11px;
 }

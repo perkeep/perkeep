@@ -368,7 +368,9 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   this.thumbClip_.appendChild(this.thumb_);
 
   el.appendChild(link);
-  this.loadCheckmark_();
+
+  this.checkmark_ = this.dom_.createDom('div', 'checkmark');
+  this.getElement().appendChild(this.checkmark_);
 
   if (!this.isImage()) {
     var label = this.dom_.createDom('span', 'cam-blobitem-thumbtitle');
@@ -378,22 +380,6 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   this.getElement().addEventListener('click', this.handleClick_.bind(this));
   this.setEnabled(false);
-};
-
-/**
- * @private
- */
-camlistore.BlobItem.prototype.loadCheckmark_ = function() {
-  var req = new XMLHttpRequest();
-  req.open("GET", 'checkmark.svg', true);
-  req.onload = goog.bind(function() {
-    var temp = document.createElement('div');
-    temp.innerHTML = req.responseText;
-    this.checkmark_ = temp.getElementsByTagName('svg')[0];
-    this.checkmark_.setAttribute('class', 'checkmark');
-    this.getElement().appendChild(this.checkmark_);
-  }, this);
-  req.send(null);
 };
 
 /**
