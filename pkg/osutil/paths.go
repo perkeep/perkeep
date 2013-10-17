@@ -70,6 +70,9 @@ func cacheDir() string {
 		}
 		panic("No Windows TEMP or TMP environment variables found; please file a bug report.")
 	}
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+		return filepath.Join(xdg, "camlistore")
+	}
 	return filepath.Join(HomeDir(), ".cache", "camlistore")
 }
 
