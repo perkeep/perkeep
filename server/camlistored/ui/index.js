@@ -10,6 +10,7 @@ goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.string');
+goog.require('goog.Uri');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Textarea');
 goog.require('camlistore.BlobItemContainer');
@@ -122,6 +123,8 @@ camlistore.IndexPage.prototype.enterDocument = function() {
     }, this)
   );
 
+  this.eh_.listen(
+      window, goog.events.EventType.POPSTATE, this.handleUrl_);
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.SEARCH,
@@ -232,7 +235,7 @@ camlistore.IndexPage.prototype.enterDocument = function() {
         }
       });
 
-  this.blobItemContainer_.showRecent();
+  this.handleUrl_();
 };
 
 
@@ -323,11 +326,27 @@ camlistore.IndexPage.prototype.handleServerStatus_ = function(resp) {
 /**
  * @param {goog.events.Event} e The title form submit event.
  * @private
- * TODO(aa): This should really pushState() the URL, then we should listen to
- * URL changes to implement search. That way the searches can have unique URLs.
  */
 camlistore.IndexPage.prototype.handleTextSearch_ = function(e) {
   var searchText = goog.string.trim(this.toolbar_.getSearchText());
+  var uri = new goog.Uri(location.href);
+  uri.setParameterValue('q', searchText);
+  if (history.pushState) {
+    history.pushState(null, '', uri.toString());
+    this.handleUrl_();
+  } else {
+    location.href = uri.toString();
+  }
+};
+
+
+/**
+ * Updates the UI based on the current URL.
+ * @private
+ */
+camlistore.IndexPage.prototype.handleUrl_ = function() {
+  var uri = new goog.Uri(location.href);
+  var searchText = uri.getParameterValue('q');
   if (!searchText) {
     this.blobItemContainer_.showRecent();
     return;

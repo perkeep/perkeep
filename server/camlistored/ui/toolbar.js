@@ -145,7 +145,7 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
 
   this.searchbox_ = this.dom_.createDom('input', 'cam-searchbox');
   this.searchbox_.setAttribute('placeholder', 'Search...');
-  this.searchbox_.title = '"title:monkey", "tag:cheese", "bref:<hash>", etc...';
+  this.searchbox_.title = '"title:monkey", "tag:cheese", etc...';
   this.searchform_.appendChild(this.searchbox_);
   this.getElement().appendChild(this.searchform_);
 
