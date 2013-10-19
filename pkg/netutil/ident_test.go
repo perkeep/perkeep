@@ -98,7 +98,7 @@ func testLocalListener(t *testing.T, ln net.Listener) {
 func TestHTTPAuth(t *testing.T) {
 	var ts *httptest.Server
 	ts = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		from, err := HostPortToIP(r.RemoteAddr)
+		from, err := HostPortToIP(r.RemoteAddr, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -18,6 +18,10 @@ package auth
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -49,5 +53,80 @@ func TestFromConfig(t *testing.T) {
 		if !reflect.DeepEqual(am, tt.want) {
 			t.Errorf("FromConfig(%q) = %#v; want %#v", tt.in, am, tt.want)
 		}
+	}
+}
+
+func testServer(t *testing.T, l net.Listener) *httptest.Server {
+	ts := &httptest.Server{
+		Listener: l,
+		Config: &http.Server{
+			Handler: http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if localhostAuthorized(r) {
+					fmt.Fprintf(rw, "authorized")
+					return
+				}
+				fmt.Fprintf(rw, "unauthorized")
+			}),
+		},
+	}
+	ts.Start()
+
+	return ts
+}
+
+func TestLocalhostAuthIPv6(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skip("skipping IPv6 test; can't listen on [::1]:0")
+	}
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ts := testServer(t, l)
+	defer ts.Close()
+
+	// Use an explicit transport to force IPv6 (http.Get resolves localhost in IPv4 otherwise)
+	trans := &http.Transport{
+		Dial: func(network, addr string) (net.Conn, error) {
+			c, err := net.Dial("tcp6", addr)
+			return c, err
+		},
+	}
+
+	testLoginRequest(t, &http.Client{Transport: trans}, "http://[::1]:"+port)
+	testLoginRequest(t, &http.Client{Transport: trans}, "http://localhost:"+port)
+}
+
+func TestLocalhostAuthIPv4(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("skipping IPv4 test; can't listen on 127.0.0.1:0")
+	}
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ts := testServer(t, l)
+	defer ts.Close()
+
+	testLoginRequest(t, &http.Client{}, "http://127.0.0.1:"+port)
+	testLoginRequest(t, &http.Client{}, "http://localhost:"+port)
+}
+
+func testLoginRequest(t *testing.T, client *http.Client, URL string) {
+	res, err := client.Get(URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const exp = "authorized"
+	if string(body) != exp {
+		t.Errorf("got %q (instead of %v)", string(body), exp)
 	}
 }
