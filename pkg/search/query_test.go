@@ -46,8 +46,6 @@ func wantRes(t *testing.T, res *SearchResult, wanted ...blob.Ref) {
 func TestQuery(t *testing.T) {
 	id, h := querySetup(t)
 	fileRef, wholeRef := id.UploadFile("file.txt", "the content", time.Unix(1382073153, 0))
-	t.Logf("Fileref: %s", fileRef)
-	t.Logf("wholeRef: %s", wholeRef)
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
@@ -60,7 +58,6 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dumpRes(t, sres)
 	wantRes(t, sres, fileRef, wholeRef)
 }
 
@@ -128,4 +125,115 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 			t.Errorf("matched blob %s didn't begin with sha1-0", brStr)
 		}
 	}
+}
+
+func TestQueryLogicalOr(t *testing.T) {
+	id, h := querySetup(t)
+
+	// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+	// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+	_, bar := id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "or",
+				A: &Constraint{
+					BlobRefPrefix: "sha1-0beec7b5ea3f0fdbc95d0dd",
+				},
+				B: &Constraint{
+					BlobRefPrefix: "sha1-08ef767ba2c93f8f40",
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, foo, bar)
+}
+
+func TestQueryLogicalAnd(t *testing.T) {
+	id, h := querySetup(t)
+
+	// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+	// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+	id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "and",
+				A: &Constraint{
+					BlobRefPrefix: "sha1-0",
+				},
+				B: &Constraint{
+					BlobSize: &BlobSizeConstraint{
+						Max: len("foo"), // excludes "bar.."
+					},
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, foo)
+}
+
+func TestQueryLogicalXor(t *testing.T) {
+	id, h := querySetup(t)
+
+	// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+	// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+	id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "xor",
+				A: &Constraint{
+					BlobRefPrefix: "sha1-0",
+				},
+				B: &Constraint{
+					BlobRefPrefix: "sha1-08ef767ba2c93f8f40",
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, foo)
+}
+
+func TestQueryLogicalNot(t *testing.T) {
+	id, h := querySetup(t)
+
+	// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+	// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+	_, bar := id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "not",
+				A: &Constraint{
+					CamliType: "file",
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, foo, bar)
 }
