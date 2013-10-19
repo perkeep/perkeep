@@ -1,6 +1,7 @@
 package search_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -78,4 +79,25 @@ func TestQueryFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantRes(t, sres, fileRef)
+}
+
+func TestQueryBlobSize(t *testing.T) {
+	id, h := querySetup(t)
+
+	_, smallFileRef := id.UploadFile("file.txt", strings.Repeat("x", 5<<10), time.Unix(1382073153, 0))
+	id.UploadFile("file.txt", strings.Repeat("x", 20<<10), time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			BlobSize: &BlobSizeConstraint{
+				Min: 4 << 10,
+				Max: 6 << 10,
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, smallFileRef)
 }
