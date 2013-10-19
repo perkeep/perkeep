@@ -259,6 +259,15 @@
          }
      },
 
+     "/importer-dummy/": {
+         "handler": "importer-dummy",
+         "handlerArgs": {
+             "url": "http://localhost:8080/foo.json",
+             "username": "alice",
+             "authToken": "xyz"
+         }
+     },
+
      "/share/": {
          "handler": "share",
          "handlerArgs": {

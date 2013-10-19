@@ -69,6 +69,9 @@ import (
 	// Handlers:
 	_ "camlistore.org/pkg/search"
 	_ "camlistore.org/pkg/server" // UI, publish, etc
+
+	// Importers:
+	_ "camlistore.org/pkg/importer/dummy"
 )
 
 const (

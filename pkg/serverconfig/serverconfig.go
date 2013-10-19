@@ -37,6 +37,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
 )
 
@@ -274,11 +275,25 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		return
 	}
 
-	hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
-	if err != nil {
-		exitFailure("error instantiating handler for prefix %q, type %q: %v",
-			h.prefix, h.htype, err)
+	var hh http.Handler
+
+	if strings.HasPrefix(h.htype, "importer-") {
+		itype := strings.TrimPrefix(h.htype, "importer-")
+		imp, err := importer.Create(itype, hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating importer for prefix %q, type %q: %v",
+				h.prefix, itype, err)
+		}
+		hh = imp
+	} else {
+		var err error
+		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating handler for prefix %q, type %q: %v",
+				h.prefix, h.htype, err)
+		}
 	}
+
 	hl.handler[prefix] = hh
 	var wrappedHandler http.Handler = &httputil.PrefixHandler{prefix, hh}
 	if handerTypeWantsAuth(h.htype) {
