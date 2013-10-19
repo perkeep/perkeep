@@ -74,6 +74,7 @@ type Constraint struct {
 	Anything bool
 
 	CamliType     string // camliType of the JSON blob
+	AnyCamliType  bool   // if true, any camli JSON blob matches
 	BlobRefPrefix string
 
 	// For claims:
@@ -176,6 +177,8 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 	return s.res, nil
 }
 
+const camliTypeMIME = "application/json; camliType="
+
 type blobMatcher interface {
 	blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (bool, error)
 }
@@ -184,6 +187,10 @@ type matchFn func(*search, blob.Ref, BlobMeta) (bool, error)
 
 func alwaysMatch(*search, blob.Ref, BlobMeta) (bool, error) {
 	return true, nil
+}
+
+func anyCamliType(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+	return strings.HasPrefix(bm.MIMEType, camliTypeMIME), nil
 }
 
 func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (bool, error) {
@@ -199,9 +206,11 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	}
 	if c.CamliType != "" {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-			const pfx = "application/json; camliType="
-			return strings.TrimPrefix(bm.MIMEType, pfx) == c.CamliType, nil
+			return strings.TrimPrefix(bm.MIMEType, camliTypeMIME) == c.CamliType, nil
 		})
+	}
+	if c.AnyCamliType {
+		addCond(anyCamliType)
 	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {

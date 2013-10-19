@@ -61,7 +61,7 @@ func TestQuery(t *testing.T) {
 	wantRes(t, sres, fileRef, wholeRef)
 }
 
-func TestQueryFile(t *testing.T) {
+func TestQueryCamliType(t *testing.T) {
 	id, h := querySetup(t)
 
 	fileRef, _ := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
@@ -69,6 +69,23 @@ func TestQueryFile(t *testing.T) {
 	sq := &SearchQuery{
 		Constraint: &Constraint{
 			CamliType: "file",
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, fileRef)
+}
+
+func TestQueryAnyCamliType(t *testing.T) {
+	id, h := querySetup(t)
+
+	fileRef, _ := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			AnyCamliType: true,
 		},
 	}
 	sres, err := h.Query(sq)
