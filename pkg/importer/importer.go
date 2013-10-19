@@ -22,6 +22,7 @@ package importer
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 
@@ -47,10 +48,61 @@ type Host struct {
 	running      bool
 	stopreq      chan struct{} // closed to signal importer to stop and return an error
 	lastProgress *ProgressMessage
+	lastRunErr   error
+}
+
+func (h *Host) String() string {
+	return fmt.Sprintf("%s (a %T)", h.imp.Prefix(), h.imp)
 }
 
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "I am an importer of type %T", h.imp)
+	switch r.FormValue("mode") {
+	case "":
+	case "start":
+		h.start()
+	case "stop":
+		h.stop()
+	default:
+		fmt.Fprintf(w, "Unknown mode")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	fmt.Fprintf(w, "I am an importer of type %T; running=%v; last progress=%#v",
+		h.imp, h.running, h.lastProgress)
+}
+
+func (h *Host) start() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.running {
+		return
+	}
+	h.running = true
+	stopCh := make(chan struct{})
+	h.stopreq = stopCh
+	go func() {
+		log.Printf("Starting importer %s", h)
+		err := h.imp.Run(h, stopCh)
+		if err != nil {
+			log.Printf("Importer %s error: %v", h, err)
+		} else {
+			log.Printf("Importer %s finished.", h)
+		}
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.running = false
+		h.lastRunErr = err
+	}()
+}
+
+func (h *Host) stop() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.running {
+		return
+	}
+	h.running = false
+	close(h.stopreq)
 }
 
 // HTTPClient returns the HTTP client to use.
@@ -90,6 +142,12 @@ func (i Interrupt) ShouldStop() bool {
 type Importer interface {
 	// Run runs a full or increment import.
 	Run(*Host, Interrupt) error
+
+	// Prefix returns the unique prefix for this importer.
+	// It should be of the form "serviceType:username".
+	// Further colons are added to form the names of planned
+	// permanodes.
+	Prefix() string
 
 	// CanHandleURL returns whether a URL (such as one a user is
 	// viewing in their browser and dragged onto Camlistore) is a

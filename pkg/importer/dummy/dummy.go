@@ -18,6 +18,10 @@ limitations under the License.
 package dummy
 
 import (
+	"fmt"
+	"log"
+	"time"
+
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -47,7 +51,16 @@ type imp struct {
 func (im *imp) CanHandleURL(url string) bool { return false }
 func (im *imp) ImportURL(url string) error   { panic("unused") }
 
+func (im *imp) Prefix() string {
+	return fmt.Sprintf("dummy:%s", im.username)
+}
+
 func (im *imp) Run(h *importer.Host, intr importer.Interrupt) error {
-	// TODO
+	log.Printf("running dummy importer")
+	select {
+	case <-time.After(5 * time.Second):
+	case <-intr:
+		log.Printf("dummy importer interrupted")
+	}
 	return nil
 }
