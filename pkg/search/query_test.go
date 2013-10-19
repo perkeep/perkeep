@@ -101,3 +101,31 @@ func TestQueryBlobSize(t *testing.T) {
 	}
 	wantRes(t, sres, smallFileRef)
 }
+
+func TestQueryBlobRefPrefix(t *testing.T) {
+	id, h := querySetup(t)
+
+	// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+	id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+	// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+	id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			BlobRefPrefix: "sha1-0",
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sres.Blobs) < 2 {
+		t.Errorf("expected at least 2 matches; got %d", len(sres.Blobs))
+	}
+	for _, res := range sres.Blobs {
+		brStr := res.Blob.String()
+		if !strings.HasPrefix(brStr, "sha1-0") {
+			t.Errorf("matched blob %s didn't begin with sha1-0", brStr)
+		}
+	}
+}
