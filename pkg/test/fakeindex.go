@@ -186,3 +186,7 @@ func (fi *FakeIndex) PathLookup(signer, base blob.Ref, suffix string, at time.Ti
 func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) ([]*search.Edge, error) {
 	panic("NOIMPL")
 }
+
+func (fi *FakeIndex) EnumerateBlobMeta(ch chan<- search.BlobMeta) error {
+	panic("NOIMPL")
+}

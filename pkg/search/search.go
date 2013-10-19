@@ -265,6 +265,13 @@ type Index interface {
 	//
 	// opts may be nil to accept the defaults.
 	EdgesTo(ref blob.Ref, opts *EdgesToOpts) ([]*Edge, error)
+
+	// EnumerateBlobMeta sends ch information about all blobs
+	// known to the indexer (which may be a subset of all total
+	// blobs, since the indexer is typically configured to not see
+	// non-metadata blobs) and then closes ch.  When it returns an
+	// error, it also closes ch.
+	EnumerateBlobMeta(ch chan<- BlobMeta) error
 }
 
 // TODO(bradfitz): rename this? This is really about signer-attr-value

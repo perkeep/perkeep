@@ -703,6 +703,35 @@ func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (er
 	return nil
 }
 
+// EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
+func (x *Index) EnumerateBlobMeta(ch chan<- search.BlobMeta) (err error) {
+	defer close(ch)
+	it := x.queryPrefixString("meta:")
+	defer closeIterator(it, &err)
+	for it.Next() {
+		refStr := strings.TrimPrefix(it.Key(), "meta:")
+		br, ok := blob.Parse(refStr)
+		if !ok {
+			continue
+		}
+		v := it.Value()
+		pipe := strings.Index(v, "|")
+		if pipe < 0 {
+			continue
+		}
+		size, err := strconv.Atoi(v[:pipe])
+		if err != nil {
+			continue
+		}
+		ch <- search.BlobMeta{
+			Ref:      br,
+			Size:     size,
+			MIMEType: v[pipe+1:],
+		}
+	}
+	return err
+}
+
 // Storage returns the index's underlying Storage implementation.
 func (x *Index) Storage() Storage { return x.s }
 
