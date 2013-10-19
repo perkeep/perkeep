@@ -881,7 +881,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 
 			// TODO: different thumbnails based on peer.File.MIMEType.
 			const fileIconAspectRatio = 260.0 / 300.0
-			var width = int(math.Floor(float64(thumbSize) * fileIconAspectRatio + 0.5))
+			var width = int(math.Floor(float64(thumbSize)*fileIconAspectRatio + 0.5))
 			return "file.png", width, thumbSize, true
 		}
 		if peer.Dir != nil {

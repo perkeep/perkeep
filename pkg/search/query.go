@@ -19,6 +19,7 @@ package search
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -155,6 +156,7 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 	optConstraint := optimizePlan(q.Constraint)
 
 	for meta := range ch {
+		log.Printf("Got meta: %#v", meta)
 		match, err := optConstraint.blobMatches(s, meta.Ref, meta)
 		if err != nil {
 			// drain ch
@@ -198,7 +200,10 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 		addCond(alwaysMatch)
 	}
 	if c.CamliType != "" {
-		panic("TODO")
+		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+			const pfx = "application/json; camliType="
+			return strings.TrimPrefix(bm.MIMEType, pfx) == c.CamliType, nil
+		})
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
 		addCond(func(*search, blob.Ref, BlobMeta) (bool, error) {
