@@ -62,6 +62,7 @@ const (
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
+// The filename is optional.
 func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
 	m := NewFileMap(filename)
 	return WriteFileMap(bs, m, r)
