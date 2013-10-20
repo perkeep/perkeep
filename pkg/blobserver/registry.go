@@ -64,6 +64,13 @@ type Loader interface {
 	GetStorage(prefix string) (Storage, error)
 }
 
+// HandlerIniter is an optional interface which can be implemented
+// by Storage or http.Handlers (from StorageConstructor or HandlerConstructor)
+// to be called once all the handlers have been created.
+type HandlerIniter interface {
+	InitHandler(FindHandlerByTyper) error
+}
+
 // A StorageConstructor returns a Storage implementation from a Loader
 // environment and a configuration.
 type StorageConstructor func(Loader, jsonconfig.Obj) (Storage, error)

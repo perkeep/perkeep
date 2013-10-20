@@ -29,15 +29,14 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/server"
 )
 
 // A Host is the environment hosting an importer.
 type Host struct {
 	imp Importer
 
-	// target is the blobserver to populate.
 	target blobserver.StatReceiver
-
 	search *search.Handler
 
 	// client optionally specifies how to fetch external network
@@ -190,8 +189,24 @@ func Create(name string, hl blobserver.Loader, cfg jsonconfig.Obj) (*Host, error
 	}
 	h := &Host{
 		imp: imp,
-		// TODO: get search & blobserver from the HandlerLoader
-		// via the "root" type.
 	}
 	return h, nil
+}
+
+func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	_, handler, err := hl.FindHandlerByType("root")
+	if err != nil || handler == nil {
+		return errors.New("importer requires a 'root' handler")
+	}
+	rh := handler.(*server.RootHandler)
+	searchHandler, ok := rh.SearchHandler()
+	if !ok {
+		return errors.New("importer requires a 'root' handler with 'searchRoot' defined.")
+	}
+	h.search = searchHandler
+	if rh.Storage == nil {
+		return errors.New("importer requires a 'root' handler with 'blobRoot' defined.")
+	}
+	h.target = rh.Storage
+	return nil
 }

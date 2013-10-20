@@ -425,6 +425,16 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	}
 	hl.setupAll()
 
+	// Now that everything is setup, run any handlers' InitHandler
+	// methods.
+	for pfx, handler := range hl.handler {
+		if in, ok := handler.(blobserver.HandlerIniter); ok {
+			if err := in.InitHandler(hl); err != nil {
+				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
+			}
+		}
+	}
+
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_EXPVAR")); v {
 		hi.Handle("/debug/vars", expvarHandler{})
 	}
