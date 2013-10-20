@@ -716,7 +716,7 @@ func init() {
 	}
 
 	if n := len(zeros); n < 15 {
-		panic(fmt.Errorf("not enough zeros: %s", n))
+		panic(fmt.Errorf("not enough zeros: %d", n))
 	}
 }
 
@@ -1225,7 +1225,7 @@ func (p btreeDataPage) contentField(off int) (b []byte, h int64) {
 		b = append([]byte(nil), p[1:1+kSz]...)
 		h = b2h(p[kH:])
 	default: // content is embedded
-		b, h = p[1:1+n], 0
+		b, h = append([]byte(nil), p[1:1+n]...), 0
 	}
 	return
 }
