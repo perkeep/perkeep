@@ -54,6 +54,14 @@ func (h *Host) String() string {
 	return fmt.Sprintf("%s (a %T)", h.imp.Prefix(), h.imp)
 }
 
+func (h *Host) Target() blobserver.StatReceiver {
+	return h.target
+}
+
+func (h *Host) Search() *search.Handler {
+	return h.search
+}
+
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.FormValue("mode") {
 	case "":
