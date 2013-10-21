@@ -104,7 +104,26 @@ func TestLocalhostAuthIPv6(t *testing.T) {
 	}
 
 	testLoginRequest(t, &http.Client{Transport: trans}, "http://[::1]:"+port)
-	testLoginRequest(t, &http.Client{Transport: trans}, "http://localhost:"+port)
+
+	// See if we can get an IPv6 from resolving localhost
+	localips, err := net.LookupIP("localhost")
+	if err != nil {
+		t.Skipf("skipping IPv6 test; resolving localhost failed with %v", err)
+	}
+	if hasIPv6(localips) {
+		testLoginRequest(t, &http.Client{Transport: trans}, "http://localhost:"+port)
+	} else {
+		t.Logf("incomplete IPv6 test; resolving localhost didn't return any IPv6 addresses")
+	}
+}
+
+func hasIPv6(ips []net.IP) bool {
+	for _, ip := range ips {
+		if ip.To4() == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func TestLocalhostAuthIPv4(t *testing.T) {
