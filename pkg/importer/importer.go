@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"sync"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/search"
@@ -125,6 +126,57 @@ type ProgressMessage struct {
 	BytesDone, BytesTotal int64
 }
 
+// An Object is wrapper around a permanode that the importer uses
+// to synchronize.
+type Object struct {
+	pn blob.Ref // permanode ref
+}
+
+// PermanodeRef returns the permanode that this object wraps.
+func (o *Object) PermanodeRef() blob.Ref {
+	return o.pn
+}
+
+// Attr returns the object's attribute value for the provided attr,
+// or the empty string if unset.  To distinguish between unset,
+// an empty string, or multiple attribute values, use Attrs.
+func (o *Object) Attr(attr string) string {
+	panic("TODO")
+}
+
+// Attrs returns the attribute values for the provided attr.
+func (o *Object) Attrs(attr string) []string {
+	panic("TODO")
+}
+
+// ChildPathObject returns (creating if necessary) the child object
+// from the permanode o, given by the "camliPath:xxxx" attribute,
+// where xxx is the provided path.
+func (o *Object) ChildPathObject(path string) (*Object, error) {
+	panic("TODO")
+}
+
+// RootObject returns the root permanode for this importer account.
+func (h *Host) RootObject() (*Object, error) {
+	res, err := h.search.GetPermanodesWithAttr(&search.WithAttrRequest{
+		N:     2, // only expect 1
+		Attr:  "camliImportRoot",
+		Value: h.imp.Prefix(),
+	})
+	if err != nil {
+		log.Printf("RootObject: %v", err)
+		return nil, err
+	}
+	// TODO: if 0 matches, vivify the permanode + attribute
+	_ = res
+	panic("TODO")
+}
+
+// ObjectFromRef returns the object given by the named permanode
+func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
+	panic("TODO")
+}
+
 // ErrInterrupted should be returned by importers
 // when an Interrupt fires.
 var ErrInterrupted = errors.New("import interrupted by request")
@@ -168,6 +220,7 @@ type Importer interface {
 	ImportURL(url string) error
 }
 
+// Constructor is the function type that importers must register at init time.
 type Constructor func(jsonconfig.Obj) (Importer, error)
 
 var (
