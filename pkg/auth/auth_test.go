@@ -84,6 +84,14 @@ func TestLocalhostAuthIPv6(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// See if IPv6 works on this machine first. It seems the above
+	// Listen can pass on Linux but fail here in the dial.
+	c, err := net.Dial("tcp6", l.Addr().String())
+	if err != nil {
+		t.Skipf("skipping IPv6 test; dial back to %s failed with %v", l.Addr(), err)
+	}
+	c.Close()
+
 	ts := testServer(t, l)
 	defer ts.Close()
 
