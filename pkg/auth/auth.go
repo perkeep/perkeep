@@ -281,11 +281,11 @@ func (da *DevAuth) AddAuthHeader(req *http.Request) {
 
 func localhostAuthorized(req *http.Request) bool {
 	uid := os.Getuid()
-	from, err := netutil.HostPortToIP(req.RemoteAddr)
+	from, err := netutil.HostPortToIP(req.RemoteAddr, nil)
 	if err != nil {
 		return false
 	}
-	to, err := netutil.HostPortToIP(req.Host)
+	to, err := netutil.HostPortToIP(req.Host, from)
 	if err != nil {
 		return false
 	}

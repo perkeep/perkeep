@@ -46,9 +46,9 @@ func ConnUserid(conn net.Conn) (uid int, err error) {
 	return AddrPairUserid(conn.LocalAddr(), conn.RemoteAddr())
 }
 
-// HostPortToIP parses a host:port to a TCPAddr without resolving names
-// other than localhost. It will return an error instead of resolving.
-func HostPortToIP(hostport string) (hostaddr *net.TCPAddr, err error) {
+// HostPortToIP parses a host:port to a TCPAddr without resolving names.
+// If given a context IP, it will resolve localhost to match the context's IP family.
+func HostPortToIP(hostport string, ctx *net.TCPAddr) (hostaddr *net.TCPAddr, err error) {
 	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {
 		return nil, err
@@ -58,8 +58,12 @@ func HostPortToIP(hostport string) (hostaddr *net.TCPAddr, err error) {
 		return nil, fmt.Errorf("invalid port %s", iport)
 	}
 	var addr net.IP
-	if host == "localhost" {
-		addr = net.IPv4(127, 0, 0, 1)
+	if ctx != nil && host == "localhost" {
+		if ctx.IP.To4() != nil {
+			addr = net.IPv4(127, 0, 0, 1)
+		} else {
+			addr = net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+		}
 	} else if addr = net.ParseIP(host); addr == nil {
 		return nil, fmt.Errorf("could not parse IP %s", host)
 	}
