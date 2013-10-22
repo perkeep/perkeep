@@ -32,10 +32,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/schema"
 )
@@ -73,7 +73,7 @@ func (ni *namedInt) Incr(delta int64) {
 	ni.val += delta
 	nv := ni.val
 	ni.Unlock()
-	Androidf("STAT %s %d\n", ni.name, nv)
+	android.Printf("STAT %s %d\n", ni.name, nv)
 }
 
 var (
@@ -235,23 +235,10 @@ func androidTLSConfig() (*tls.Config, error) {
 	return cfg, nil
 }
 
-// TODO(mpl): distinguish CAMPUT, CAMGET, etc
-var androidOutput, _ = strconv.ParseBool(os.Getenv("CAMPUT_ANDROID_OUTPUT"))
-
-func AndroidOutput() bool {
-	return androidOutput
-}
-
-var androidOutMu sync.Mutex
-
-func Androidf(format string, args ...interface{}) {
-	androidOutMu.Lock()
-	defer androidOutMu.Unlock()
-	fmt.Printf(format, args...)
-}
-
+// NoteFileUploaded is a hook for camput to report that a file
+// was uploaded.  TODO: move this to pkg/client/android probably.
 func NoteFileUploaded(fullPath string, uploaded bool) {
-	if !AndroidOutput() {
+	if !android.IsChild() {
 		return
 	}
 	if uploaded {
@@ -259,7 +246,7 @@ func NoteFileUploaded(fullPath string, uploaded bool) {
 	} else {
 		statFileExisted.Incr(1)
 	}
-	Androidf("FILE_UPLOADED %s\n", fullPath)
+	android.Printf("FILE_UPLOADED %s\n", fullPath)
 }
 
 // androidStatusReceiver is a blobserver.StatReceiver wrapper that
@@ -271,7 +258,7 @@ type AndroidStatusReceiver struct {
 }
 
 func (asr AndroidStatusReceiver) noteChunkOnServer(sb blob.SizedRef) {
-	Androidf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.Ref, asr.Path)
+	android.Printf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.Ref, asr.Path)
 }
 
 func (asr AndroidStatusReceiver) ReceiveBlob(blob blob.Ref, source io.Reader) (blob.SizedRef, error) {

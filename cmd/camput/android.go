@@ -19,7 +19,7 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/client/android"
 )
 
 type allStats struct {
@@ -35,7 +35,7 @@ func printAndroidCamputStatus(t *TreeUpload) {
 	}
 	lastStatBroadcast = bcast
 
-	client.Androidf("STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n",
+	android.Printf("STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n",
 		t.total.files, t.total.bytes,
 		t.skipped.files, t.skipped.bytes,
 		t.uploaded.files, t.uploaded.bytes)
