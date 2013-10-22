@@ -51,13 +51,8 @@ $ devcam server      # main server
 $ devcam appengine   # App Engine version of the server
 $ devcam put         # camput
 $ devcam get         # camget
-
-Some old wrapper scripts haven't been converted yet to be part of
-devcam.  For now, they're at:
-
-$ ./dev-camtool
-$ ./dev-cammount
-... etc.
+$ devcam tool        # camtool
+$ devcam mount       # cammount
 
 Once the dev server is running,
 

@@ -14,85 +14,110 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "put" subcommand to devcam, to run camput against the dev server.
+// This file adds the "mount" subcommand to devcam, to run cammount against the dev server.
 
 package main
 
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/cmdmain"
 )
 
-type putCmd struct {
+type mountCmd struct {
 	// start of flag vars
 	altkey bool
 	path   string
 	port   string
 	tls    bool
+	debug  bool
+	xterm  bool
 	// end of flag vars
 
 	env *Env
 }
 
+const mountpoint = "/tmp/cammount-dir"
+
 func init() {
-	cmdmain.RegisterCommand("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := &putCmd{
+	cmdmain.RegisterCommand("mount", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		cmd := &mountCmd{
 			env: NewCopyEnv(),
 		}
 		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
+		flags.BoolVar(&cmd.debug, "debug", false, "print debugging messages.")
+		flags.BoolVar(&cmd.xterm, "xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
 		return cmd
 	})
 }
 
-func (c *putCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam put [put_opts] camput_args\n")
+func (c *mountCmd) Usage() {
+	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam mount [mount_opts] [<root-blobref>|<share URL>]\n")
 }
 
-func (c *putCmd) Examples() []string {
+func (c *mountCmd) Examples() []string {
 	return []string{
-		"file --filenodes /mnt/camera/DCIM",
+		"",
+		"http://localhost:3169/share/<blobref>",
 	}
 }
 
-func (c *putCmd) Describe() string {
-	return "run camput in dev mode."
+func (c *mountCmd) Describe() string {
+	return "run cammount in dev mode."
 }
 
-func (c *putCmd) RunCommand(args []string) error {
+func tryUnmount(dir string) error {
+	if runtime.GOOS == "darwin" {
+		return exec.Command("diskutil", "umount", "force", dir).Run()
+	}
+	return exec.Command("fusermount", "-u", dir).Run()
+}
+
+func (c *mountCmd) RunCommand(args []string) error {
 	err := c.checkFlags(args)
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "camput")); err != nil {
-			return fmt.Errorf("Could not build camput: %v", err)
+		if err := build(filepath.Join("cmd", "cammount")); err != nil {
+			return fmt.Errorf("Could not build cammount: %v", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
+
+	tryUnmount(mountpoint)
+	if err := os.Mkdir(mountpoint, 0700); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("Could not make mount point: %v", err)
+	}
 
 	blobserver := "http://localhost:" + c.port + c.path
 	if c.tls {
 		blobserver = strings.Replace(blobserver, "http://", "https://", 1)
 	}
 
-	cmdBin := filepath.Join("bin", "camput")
+	cmdBin := filepath.Join("bin", "cammount")
 	cmdArgs := []string{
-		"-verbose=" + strconv.FormatBool(*cmdmain.FlagVerbose || !quiet),
+		"-xterm=" + strconv.FormatBool(c.xterm),
+		"-debug=" + strconv.FormatBool(c.debug),
 		"-server=" + blobserver,
+		mountpoint,
 	}
 	cmdArgs = append(cmdArgs, args...)
+	fmt.Printf("Cammount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
 	return runExec(cmdBin, cmdArgs, c.env)
 }
 
-func (c *putCmd) checkFlags(args []string) error {
+func (c *mountCmd) checkFlags(args []string) error {
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
 		return fmt.Errorf("Invalid -port value: %q", c.port)
 	}

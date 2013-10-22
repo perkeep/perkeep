@@ -21,8 +21,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -33,13 +31,13 @@ import (
 
 type getCmd struct {
 	// start of flag vars
-	path string
-	port string
-	tls  bool
+	altkey bool
+	path   string
+	port   string
+	tls    bool
 	// end of flag vars
 
-	verbose bool // set by CAMLI_QUIET
-	env     *Env
+	env *Env
 }
 
 func init() {
@@ -47,6 +45,7 @@ func init() {
 		cmd := &getCmd{
 			env: NewCopyEnv(),
 		}
+		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
 		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
@@ -74,16 +73,16 @@ func (c *getCmd) RunCommand(args []string) error {
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
-	if err := c.build(); err != nil {
-		return fmt.Errorf("Could not build camget: %v", err)
+	if !*noBuild {
+		if err := build(filepath.Join("cmd", "camget")); err != nil {
+			return fmt.Errorf("Could not build camget: %v", err)
+		}
 	}
-	if err := c.setEnvVars(); err != nil {
-		return fmt.Errorf("Could not setup the env vars: %v", err)
-	}
+	c.env.SetCamdevVars(c.altkey)
 
 	cmdBin := filepath.Join("bin", "camget")
 	cmdArgs := []string{
-		"-verbose=" + strconv.FormatBool(c.verbose),
+		"-verbose=" + strconv.FormatBool(*cmdmain.FlagVerbose || !quiet),
 	}
 	if !isSharedMode(args) {
 		blobserver := "http://localhost:" + c.port + c.path
@@ -100,45 +99,6 @@ func (c *getCmd) checkFlags(args []string) error {
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
 		return fmt.Errorf("Invalid -port value: %q", c.port)
 	}
-	return nil
-}
-
-func (c *getCmd) build() error {
-	cmdName := "camget"
-	target := filepath.Join("camlistore.org", "cmd", cmdName)
-	binPath := filepath.Join("bin", cmdName)
-	var modtime int64
-	fi, err := os.Stat(binPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("Could not stat %v: %v", binPath, err)
-		}
-	} else {
-		modtime = fi.ModTime().Unix()
-	}
-	args := []string{
-		"run", "make.go",
-		"--quiet",
-		"--embed_static=false",
-		fmt.Sprintf("--if_mods_since=%d", modtime),
-		"--targets=" + target,
-	}
-	cmd := exec.Command("go", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Error building %v: %v", target, err)
-	}
-	return nil
-}
-
-func (c *getCmd) setEnvVars() error {
-	c.env.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
-	c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
-	c.env.Set("CAMLI_KEYID", defaultKeyID)
-	c.env.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
-	c.env.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
-	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
 }
 
