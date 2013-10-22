@@ -171,6 +171,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	}
 
 	pubk, err := openArmoredPublicKeyFile(pubkeyReader)
+	pubkeyReader.Close()
 	if err != nil {
 		return execfail(fmt.Sprintf("failed to parse public key from blobref %s: %v", signerBlob.String(), err))
 	}

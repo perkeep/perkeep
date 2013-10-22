@@ -40,6 +40,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	statspkg "camlistore.org/pkg/blobserver/stats"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 )
@@ -91,7 +92,7 @@ func init() {
 			cmd.havecache = true
 			cmd.statcache = true
 		}
-		if client.AndroidOutput() {
+		if android.IsChild() {
 			flags.BoolVar(&cmd.argsFromInput, "stdinargs", false, "If true, filenames to upload are sent one-per-line on stdin. EOF means to quit the process with exit status 0.")
 		}
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
@@ -412,7 +413,7 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 		// see TODO in cmd/camput/uploader.go
 		statReceiver = up.Client
 	}
-	if client.AndroidOutput() && n != nil && n.fi.Mode()&os.ModeType == 0 {
+	if android.IsChild() && n != nil && n.fi.Mode()&os.ModeType == 0 {
 		return client.AndroidStatusReceiver{Sr: statReceiver, Path: n.fullPath}
 	}
 	return statReceiver
@@ -639,7 +640,11 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 
 	contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", fileRef.String())
 	contentAttr.SetClaimDate(claimTime)
-	signed, err := up.SignBlob(contentAttr, claimTime)
+	signer, err := up.Signer()
+	if err != nil {
+		return err
+	}
+	signed, err := contentAttr.SignAt(signer, claimTime)
 	if err != nil {
 		return fmt.Errorf("Failed to sign content claim: %v", err)
 	}
@@ -655,7 +660,7 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 			go func(tag string) {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				m.SetClaimDate(claimTime)
-				signed, err := up.SignBlob(m, claimTime)
+				signed, err := m.SignAt(signer, claimTime)
 				if err != nil {
 					errch <- fmt.Errorf("Failed to sign tag claim: %v", err)
 					return
@@ -925,7 +930,7 @@ func (t *TreeUpload) run() {
 
 	var lastStat, lastUpload string
 	dumpStats := func() {
-		if client.AndroidOutput() {
+		if android.IsChild() {
 			printAndroidCamputStatus(t)
 			return
 		}

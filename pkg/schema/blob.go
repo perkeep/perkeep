@@ -311,9 +311,29 @@ func (bb *Builder) JSON() (string, error) {
 }
 
 // SetSigner sets the camliSigner field.
+// Calling SetSigner is unnecessary if using Sign.
 func (bb *Builder) SetSigner(signer blob.Ref) *Builder {
 	bb.m["camliSigner"] = signer.String()
 	return bb
+}
+
+// SignAt sets the blob builder's camliSigner field with SetSigner
+// and returns the signed JSON using the provided signer.
+func (bb *Builder) Sign(signer *Signer) (string, error) {
+	return bb.SignAt(signer, time.Time{})
+}
+
+// SignAt sets the blob builder's camliSigner field with SetSigner
+// and returns the signed JSON using the provided signer.
+// The provided sigTime is the time of the signature, used mostly
+// for planned permanodes. If the zero value, the current time is used.
+func (bb *Builder) SignAt(signer *Signer, sigTime time.Time) (string, error) {
+	switch bb.Type() {
+	case "permanode", "claim":
+	default:
+		return "", fmt.Errorf("can't sign camliType %q", bb.Type())
+	}
+	return signer.SignJSON(bb.SetSigner(signer.pubref).Blob().JSON(), sigTime)
 }
 
 // SetType sets the camliType field.

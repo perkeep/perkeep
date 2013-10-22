@@ -202,6 +202,11 @@ func SignerPublicKeyBlobref() blob.Ref {
 	return signerPublicKeyRef
 }
 
+func signerPublicKey() (armRef blob.Ref, armored string) {
+	signerPublicKeyRefOnce.Do(initSignerPublicKeyBlobref)
+	return signerPublicKeyRef, publicKeyArmored
+}
+
 func initSignerPublicKeyBlobref() {
 	signerPublicKeyRef, publicKeyArmored, _ = getSignerPublicKeyBlobref()
 }

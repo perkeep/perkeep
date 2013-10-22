@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "get" subcommand to devcam, to run camget against the dev server.
+// This file adds the "tool" subcommand to devcam, to run camtool against
+// the dev server.
 
 package main
 
@@ -24,18 +25,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"camlistore.org/pkg/cmdmain"
 )
 
-type getCmd struct {
+type toolCmd struct {
 	// start of flag vars
-	path string
-	port string
-	tls  bool
+	altkey  bool
+	noBuild bool
 	// end of flag vars
 
 	verbose bool // set by CAMLI_QUIET
@@ -43,68 +41,44 @@ type getCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := &getCmd{
+	cmdmain.RegisterCommand("tool", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		cmd := &toolCmd{
 			env: NewCopyEnv(),
 		}
-		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
-		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
-		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
+		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
+		flags.BoolVar(&cmd.noBuild, "nobuild", false, "Do not rebuild anything.")
 		return cmd
 	})
 }
 
-func (c *getCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam get [get_opts] -- camget_args\n")
+func (c *toolCmd) Usage() {
+	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam tool [globalopts] <mode> [commandopts] [commandargs]\n")
 }
 
-func (c *getCmd) Examples() []string {
+func (c *toolCmd) Examples() []string {
 	return []string{
-		"<blobref>",
-		"-- --shared http://localhost:3169/share/<blobref>",
+		"sync --all",
 	}
 }
 
-func (c *getCmd) Describe() string {
-	return "run camget in dev mode."
+func (c *toolCmd) Describe() string {
+	return "run camtool in dev mode."
 }
 
-func (c *getCmd) RunCommand(args []string) error {
-	err := c.checkFlags(args)
-	if err != nil {
-		return cmdmain.UsageError(fmt.Sprint(err))
-	}
+func (c *toolCmd) RunCommand(args []string) error {
 	if err := c.build(); err != nil {
-		return fmt.Errorf("Could not build camget: %v", err)
+		return fmt.Errorf("Could not build camtool: %v", err)
 	}
 	if err := c.setEnvVars(); err != nil {
 		return fmt.Errorf("Could not setup the env vars: %v", err)
 	}
 
-	cmdBin := filepath.Join("bin", "camget")
-	cmdArgs := []string{
-		"-verbose=" + strconv.FormatBool(c.verbose),
-	}
-	if !isSharedMode(args) {
-		blobserver := "http://localhost:" + c.port + c.path
-		if c.tls {
-			blobserver = strings.Replace(blobserver, "http://", "https://", 1)
-		}
-		cmdArgs = append(cmdArgs, "-server="+blobserver)
-	}
-	cmdArgs = append(cmdArgs, args...)
-	return runExec(cmdBin, cmdArgs, c.env)
+	cmdBin := filepath.Join("bin", "camtool")
+	return runExec(cmdBin, args, c.env)
 }
 
-func (c *getCmd) checkFlags(args []string) error {
-	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
-		return fmt.Errorf("Invalid -port value: %q", c.port)
-	}
-	return nil
-}
-
-func (c *getCmd) build() error {
-	cmdName := "camget"
+func (c *toolCmd) build() error {
+	cmdName := "camtool"
 	target := filepath.Join("camlistore.org", "cmd", cmdName)
 	binPath := filepath.Join("bin", cmdName)
 	var modtime int64
@@ -132,22 +106,17 @@ func (c *getCmd) build() error {
 	return nil
 }
 
-func (c *getCmd) setEnvVars() error {
+func (c *toolCmd) setEnvVars() error {
 	c.env.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
 	c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
 	c.env.Set("CAMLI_KEYID", defaultKeyID)
 	c.env.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
 	c.env.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
+	if c.altkey {
+		c.env.Set("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg"))
+		c.env.Set("CAMLI_KEYID", "C7C3E176")
+		println("**\n** Note: password is \"foo\"\n**\n")
+	}
 	c.verbose, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	return nil
-}
-
-func isSharedMode(args []string) bool {
-	sharedRgx := regexp.MustCompile("--?shared")
-	for _, v := range args {
-		if sharedRgx.MatchString(v) {
-			return true
-		}
-	}
-	return false
 }

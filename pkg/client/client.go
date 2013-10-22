@@ -39,7 +39,6 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -67,8 +66,9 @@ type Client struct {
 	storageGen     string      // storage generation, or "" if not reported
 	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
 
-	entityFetcherOnce sync.Once
-	entityFetcher     jsonsign.EntityFetcher
+	signerOnce sync.Once
+	signer     *schema.Signer
+	signerErr  error
 
 	authMode auth.AuthMode
 
@@ -774,49 +774,36 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	}
 }
 
-// Sign signs JSON as described in req.
-// If req's EntityFetcher is nil, the client's entity fetcher is used.
-// If req's Fetcher is nil, the client is used.
-func (c *Client) Sign(req *jsonsign.SignRequest) (signedJSON string, err error) {
-	if req.Fetcher == nil {
-		req.Fetcher = c.GetBlobFetcher()
-	}
-	if req.EntityFetcher == nil {
-		req.EntityFetcher = c.SignerEntityFetcher()
-	}
-	return req.Sign()
+func (c *Client) Signer() (*schema.Signer, error) {
+	c.signerOnce.Do(c.signerInit)
+	return c.signer, c.signerErr
 }
 
-// SignerEntityFetcher returns the client's configured GPG entity fetcher.
-func (c *Client) SignerEntityFetcher() jsonsign.EntityFetcher {
-	c.entityFetcherOnce.Do(c.initEntityFetcher)
-	return c.entityFetcher
+func (c *Client) signerInit() {
+	c.signer, c.signerErr = c.buildSigner()
 }
 
-func (c *Client) initEntityFetcher() {
-	c.entityFetcher = &jsonsign.CachingEntityFetcher{
-		Fetcher: &jsonsign.FileEntityFetcher{File: c.SecretRingFile()},
+func (c *Client) buildSigner() (*schema.Signer, error) {
+	pubKeyRef, armored := signerPublicKey()
+	if !pubKeyRef.Valid() {
+		// TODO: more helpful error message
+		return nil, errors.New("No public key configured.")
 	}
+	return schema.NewSigner(pubKeyRef, strings.NewReader(armored), c.SecretRingFile())
 }
 
 // sigTime optionally specifies the signature time.
 // If zero, the current time is used.
-func (c *Client) SignBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
-	sigRef := c.SignerPublicKeyBlobref()
-	if !sigRef.Valid() {
-		// TODO: more helpful error message
-		return "", errors.New("No public key configured.")
+func (c *Client) signBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
+	signer, err := c.Signer()
+	if err != nil {
+		return "", err
 	}
-
-	b := bb.Builder().SetSigner(sigRef).Blob()
-	return c.Sign(&jsonsign.SignRequest{
-		UnsignedJSON:  b.JSON(),
-		SignatureTime: sigTime,
-	})
+	return bb.Builder().SignAt(signer, sigTime)
 }
 
 func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
-	signed, err := c.SignBlob(b.Blob(), time.Time{})
+	signed, err := c.signBlob(b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +841,7 @@ func (c *Client) UploadNewPermanode() (*PutResult, error) {
 
 func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResult, error) {
 	unsigned := schema.NewPlannedPermanode(key)
-	signed, err := c.SignBlob(unsigned, sigTime)
+	signed, err := c.signBlob(unsigned, sigTime)
 	if err != nil {
 		return nil, err
 	}
