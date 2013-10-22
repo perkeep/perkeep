@@ -126,6 +126,11 @@ type ProgressMessage struct {
 	BytesDone, BytesTotal int64
 }
 
+// NewObject creates a new permanode and returns its Object wrapper.
+func (h *Host) NewObject() (*Object, error) {
+	return nil, errors.New("TODO: NewObject")
+}
+
 // An Object is wrapper around a permanode that the importer uses
 // to synchronize.
 type Object struct {
@@ -149,6 +154,10 @@ func (o *Object) Attrs(attr string) []string {
 	panic("TODO")
 }
 
+func (o *Object) SetAttr(key, value string) error {
+	panic("TODO")
+}
+
 // ChildPathObject returns (creating if necessary) the child object
 // from the permanode o, given by the "camliPath:xxxx" attribute,
 // where xxx is the provided path.
@@ -164,12 +173,23 @@ func (h *Host) RootObject() (*Object, error) {
 		Value: h.imp.Prefix(),
 	})
 	if err != nil {
-		log.Printf("RootObject: %v", err)
+		log.Printf("RootObject searching GetPermanodesWithAttr: %v", err)
 		return nil, err
 	}
-	// TODO: if 0 matches, vivify the permanode + attribute
-	_ = res
-	panic("TODO")
+	if len(res.WithAttr) == 0 {
+		obj, err := h.NewObject()
+		if err != nil {
+			return nil, err
+		}
+		if err := obj.SetAttr("camliImportRoot", h.imp.Prefix()); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	}
+	if len(res.WithAttr) > 1 {
+		return nil, fmt.Errorf("Found %d import roots for %q; want 1", len(res.WithAttr), h.imp.Prefix())
+	}
+	return h.ObjectFromRef(res.WithAttr[0].Permanode)
 }
 
 // ObjectFromRef returns the object given by the named permanode
@@ -269,5 +289,9 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		return errors.New("importer requires a 'root' handler with 'blobRoot' defined.")
 	}
 	h.target = rh.Storage
+
+	ro, err := h.RootObject()
+	log.Printf("Got a %#v, %v", ro, err)
+
 	return nil
 }
