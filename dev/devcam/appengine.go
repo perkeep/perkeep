@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program runs the development appengine
-// camlistore with dev_appserver.py.
+// This file adds the "appengine" subcommand to devcam, to run the
+// development appengine camlistore with dev_appserver.py.
+
 package main
 
 import (
