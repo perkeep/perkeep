@@ -44,18 +44,34 @@ type Signer struct {
 
 // NewSigner returns an Signer given an armored public key's blobref,
 // its armored content, and its associated private key entity.
-func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKey *openpgp.Entity) (*Signer, error) {
+// The privateKeySource must be either an *openpgp.Entity or a string filename to a secret key.
+func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource interface{}) (*Signer, error) {
 	hash := pubKeyRef.Hash()
 	keyId, armoredPubKeyString, err := jsonsign.ParseArmoredPublicKey(io.TeeReader(armoredPubKey, hash))
+	println("keyId = ", keyId)
 	if err != nil {
 		return nil, err
 	}
 	if !pubKeyRef.HashMatches(hash) {
 		return nil, fmt.Errorf("pubkey ref of %v doesn't match provided armored public key", pubKeyRef)
 	}
+
+	var privateKey *openpgp.Entity
+	switch v := privateKeySource.(type) {
+	case *openpgp.Entity:
+		privateKey = v
+	case string:
+		privateKey, err = jsonsign.EntityFromSecring(keyId, v)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid privateKeySource type %T", v)
+	}
 	if privateKey == nil {
 		return nil, errors.New("nil privateKey")
 	}
+
 	return &Signer{
 		keyId:      keyId,
 		pubref:     pubKeyRef,

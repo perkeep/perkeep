@@ -639,7 +639,11 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 
 	contentAttr := schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", fileRef.String())
 	contentAttr.SetClaimDate(claimTime)
-	signed, err := up.SignBlob(contentAttr, claimTime)
+	signer, err := up.Signer()
+	if err != nil {
+		return err
+	}
+	signed, err := contentAttr.SignAt(signer, claimTime)
 	if err != nil {
 		return fmt.Errorf("Failed to sign content claim: %v", err)
 	}
@@ -655,7 +659,7 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 			go func(tag string) {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				m.SetClaimDate(claimTime)
-				signed, err := up.SignBlob(m, claimTime)
+				signed, err := m.SignAt(signer, claimTime)
 				if err != nil {
 					errch <- fmt.Errorf("Failed to sign tag claim: %v", err)
 					return
