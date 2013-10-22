@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program runs camlistored in "dev" mode,
-// to facilitate hacking on camlistore.
+// This file adds the "server" subcommand to devcam, to run camlistored.
+
 package main
 
 import (
