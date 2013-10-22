@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program runs the full test suite of the project.
+// This file adds the "test" subcommand to devcam, to run the full test suite.
+
 package main
 
 import (

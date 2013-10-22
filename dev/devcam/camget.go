@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program runs camget in "dev" mode,
-// to facilitate hacking on camlistore.
+// This file adds the "get" subcommand to devcam, to run camget against the dev server.
+
 package main
 
 import (
