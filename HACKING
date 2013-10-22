@@ -71,4 +71,16 @@ Before submitting a patch, you should check that all the tests pass with:
 
 $ devcam test
 
+You can use your usual git workflow to commit your changes, but for each
+change to be reviewed you should merge your commits into one before submitting
+to gerrit for review with:
+
+$ ./misc/review
+
+You can optionally use our pre-commit hook so that your code gets gofmt'ed
+before being submitted (which should be done anyway).
+
+$ cd .git/hooks
+$ ln -s ../../misc/pre-commit.githook pre-commit
+
 Please update this file as appropriate.
