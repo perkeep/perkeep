@@ -68,14 +68,27 @@ $ devcam test
 
 You can use your usual git workflow to commit your changes, but for each
 change to be reviewed you should merge your commits into one before submitting
-to gerrit for review with:
+to gerrit for review.
+You should also try to write a meaningful commit message, which at least states
+in the first sentence what part of camlistore this commit is affecting. The
+following text should state what problem the change is addressing, and how.
+An example would be:
 
-$ ./misc/review
+"
+HACKING: add tips about writing a commit message.
+
+First time committers are not always aware about good commit message etiquette.
+These few notes should help them.
+"
 
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
 
 $ cd .git/hooks
 $ ln -s ../../misc/pre-commit.githook pre-commit
+
+Finally, submit your code to gerrit with:
+
+$ ./misc/review
 
 Please update this file as appropriate.
