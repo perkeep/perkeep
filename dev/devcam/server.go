@@ -333,6 +333,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
+		withSqlite = c.sqlite
 		for _, name := range []string{
 			filepath.Join("server", "camlistored"),
 			filepath.Join("cmd", "camtool"),

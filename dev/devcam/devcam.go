@@ -35,6 +35,9 @@ import (
 var (
 	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
 	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	// Whether to build the subcommand with sqlite support. This only
+	// concerns the server subcommand, which sets it to serverCmd.sqlite.
+	withSqlite bool
 )
 
 // The path to the Camlistore source tree. Any devcam command
@@ -174,6 +177,7 @@ func build(path string) error {
 		"run", "make.go",
 		"--quiet",
 		"--embed_static=false",
+		"--sqlite=" + strconv.FormatBool(withSqlite),
 		fmt.Sprintf("--if_mods_since=%d", modtime),
 		"--targets=" + target,
 	}
