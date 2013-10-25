@@ -168,12 +168,23 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 }
 
 func (hl *handlerLoader) FindHandlerByType(htype string) (prefix string, handler interface{}, err error) {
-	for prefix, config := range hl.config {
+	nFound := 0
+	for pfx, config := range hl.config {
 		if config.htype == htype {
-			return prefix, hl.handler[prefix], nil
+			nFound++
+			prefix, handler = pfx, hl.handler[pfx]
 		}
 	}
-	return "", nil, blobserver.ErrHandlerTypeNotFound
+	if nFound == 0 {
+		return "", nil, blobserver.ErrHandlerTypeNotFound
+	}
+	if htype == "jsonsign" && nFound > 1 {
+		// TODO: do this for all handler types later? audit
+		// callers of FindHandlerByType and see if that's
+		// feasible. For now I'm only paranoid about jsonsign.
+		return "", nil, fmt.Errorf("%d handlers found of type %q; ambiguous", nFound, htype)
+	}
+	return
 }
 
 func (hl *handlerLoader) setupAll() {

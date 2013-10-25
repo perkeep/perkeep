@@ -29,6 +29,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign/signhandler"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 )
@@ -39,6 +41,7 @@ type Host struct {
 
 	target blobserver.StatReceiver
 	search *search.Handler
+	signer *schema.Signer
 
 	// client optionally specifies how to fetch external network
 	// resources.  If nil, http.DefaultClient is used.
@@ -290,8 +293,17 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	}
 	h.target = rh.Storage
 
+	_, handler, _ = hl.FindHandlerByType("jsonsign")
+	if sigh, ok := handler.(*signhandler.Handler); ok {
+		h.signer = sigh.Signer()
+	}
+	if h.signer == nil {
+		return errors.New("importer requires a 'jsonsign' handler")
+	}
+
 	ro, err := h.RootObject()
 	log.Printf("Got a %#v, %v", ro, err)
+	log.Printf("Signer = %s", h.signer)
 
 	return nil
 }

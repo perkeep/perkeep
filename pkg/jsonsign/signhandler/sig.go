@@ -55,7 +55,10 @@ type Handler struct {
 	pubKeyWritten bool
 
 	entity *openpgp.Entity
+	signer *schema.Signer
 }
+
+func (h *Handler) Signer() *schema.Signer { return h.signer }
 
 func (h *Handler) secretRingPath() string {
 	if h.secretRing != "" {
@@ -112,6 +115,11 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
 	h.pubKeyHandler = &gethandler.Handler{
 		Fetcher: ms,
+	}
+
+	h.signer, err = schema.NewSigner(h.pubKeyBlobRef, strings.NewReader(armoredPublicKey), h.entity)
+	if err != nil {
+		return nil, err
 	}
 
 	return h, nil
