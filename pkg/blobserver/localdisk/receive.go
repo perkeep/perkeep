@@ -75,7 +75,9 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 
 	fileName := ds.blobPath("", blobRef)
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
-		return
+		if err = mapRenameError(err, tempFile.Name(), fileName); err != nil {
+			return
+		}
 	}
 
 	stat, err = os.Lstat(fileName)

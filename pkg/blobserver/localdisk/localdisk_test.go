@@ -18,7 +18,10 @@ package localdisk
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -142,5 +145,46 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	}
 	if blob != nil {
 		t.Errorf("expected nil blob; got a value")
+	}
+}
+
+func rename(old, new string) error {
+	if err := os.Rename(old, new); err != nil {
+		if renameErr := mapRenameError(err, old, new); renameErr != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type file struct {
+	name     string
+	contents string
+}
+
+func TestRename(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Skipping test if not on windows")
+	}
+	files := []file{
+		file{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},
+		file{name: filepath.Join(os.TempDir(), "bar"), contents: "barr"},
+		file{name: filepath.Join(os.TempDir(), "baz"), contents: "foo"},
+	}
+	for _, v := range files {
+		if err := ioutil.WriteFile(v.name, []byte(v.contents), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// overwriting "bar" with "foo" should not be allowed
+	if err := rename(files[0].name, files[1].name); err == nil {
+		t.Fatalf("Renaming %v into %v should not succeed", files[0].name, files[1].name)
+	}
+
+	// but overwriting "baz" with "foo" is ok because they have the same
+	// contents
+	if err := rename(files[0].name, files[2].name); err != nil {
+		t.Fatal(err)
 	}
 }

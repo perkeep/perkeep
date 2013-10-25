@@ -16,6 +16,43 @@ limitations under the License.
 
 package localdisk
 
+import (
+	"fmt"
+	"os"
+	"syscall"
+)
+
 func linkOrCopy(src, dst string) error {
 	return copyFile(src, dst)
+}
+
+// mapRenameError returns nil if and only if
+// 1) the input err is the error returned on windows when trying to rename
+// a file over one that already exists
+// 2) oldfile and newfile are the same files (i.e have the same size)
+func mapRenameError(err error, oldfile, newfile string) error {
+	linkErr, ok := err.(*os.LinkError)
+	if !ok {
+		return err
+	}
+	if linkErr.Err != error(syscall.ERROR_ALREADY_EXISTS) {
+		return err
+	}
+	// TODO(mpl): actually on linux at least, os.Rename apparently
+	// erases the destination with no error even if it is different
+	// from the source.
+	// So why don't we allow the same for windows? and if needed,
+	// do the check size before renaming?
+	statNew, err := os.Stat(newfile)
+	if err != nil {
+		return err
+	}
+	statOld, err := os.Stat(oldfile)
+	if err != nil {
+		return err
+	}
+	if statNew.Size() != statOld.Size() {
+		return fmt.Errorf("Will not overwrite destination file %v with source file %v, as they are different.", newfile, oldfile)
+	}
+	return nil
 }
