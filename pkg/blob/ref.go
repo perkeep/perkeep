@@ -298,6 +298,12 @@ func RefFromHash(h hash.Hash) Ref {
 	return Ref{meta.ctor(h.Sum(nil))}
 }
 
+// RefFromString returns a blobref from the given string, for the currently
+// recommended hash function
+func RefFromString(s string) Ref {
+	return SHA1FromString(s)
+}
+
 // SHA1FromString returns a SHA-1 blobref of the provided string.
 func SHA1FromString(s string) Ref {
 	s1 := sha1.New()
