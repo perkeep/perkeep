@@ -52,7 +52,6 @@ func (s *Signer) String() string {
 func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource interface{}) (*Signer, error) {
 	hash := pubKeyRef.Hash()
 	keyId, armoredPubKeyString, err := jsonsign.ParseArmoredPublicKey(io.TeeReader(armoredPubKey, hash))
-	println("keyId = ", keyId)
 	if err != nil {
 		return nil, err
 	}

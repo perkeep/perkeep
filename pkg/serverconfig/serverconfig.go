@@ -381,10 +381,10 @@ func (config *Config) checkValidAuth() error {
 // handlers.
 func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (shutdown io.Closer, err error) {
 	defer func() {
-		//if e := recover(); e != nil {
-		//if fmt.Sprint(e) == "TODO" {
-		//err = fmt.Errorf("Caught panic: %v", e)
-		///		}
+		if e := recover(); e != nil {
+			log.Printf("Caught panic installer handlers: %v", e)
+			err = fmt.Errorf("Caught panic: %v", e)
+		}
 	}()
 
 	if err := config.checkValidAuth(); err != nil {
