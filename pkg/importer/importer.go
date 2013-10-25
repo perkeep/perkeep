@@ -129,15 +129,37 @@ type ProgressMessage struct {
 	BytesDone, BytesTotal int64
 }
 
+func (h *Host) upload(bb *schema.Builder) (br blob.Ref, err error) {
+	signed, err := bb.Sign(h.signer)
+	if err != nil {
+		return
+	}
+	sb, err := blobserver.ReceiveString(h.target, signed)
+	if err != nil {
+		return
+	}
+	return sb.Ref, nil
+}
+
 // NewObject creates a new permanode and returns its Object wrapper.
 func (h *Host) NewObject() (*Object, error) {
-	return nil, errors.New("TODO: NewObject")
+	pn, err := h.upload(schema.NewUnsignedPermanode())
+	if err != nil {
+		return nil, err
+	}
+	// No need to do a describe query against it: we know it's
+	// empty (has no claims against it yet).
+	return &Object{h: h, pn: pn}, nil
 }
 
 // An Object is wrapper around a permanode that the importer uses
 // to synchronize.
 type Object struct {
+	h  *Host
 	pn blob.Ref // permanode ref
+
+	mu   sync.RWMutex
+	attr map[string][]string
 }
 
 // PermanodeRef returns the permanode that this object wraps.
@@ -149,23 +171,41 @@ func (o *Object) PermanodeRef() blob.Ref {
 // or the empty string if unset.  To distinguish between unset,
 // an empty string, or multiple attribute values, use Attrs.
 func (o *Object) Attr(attr string) string {
-	panic("TODO")
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if v := o.attr[attr]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }
 
 // Attrs returns the attribute values for the provided attr.
 func (o *Object) Attrs(attr string) []string {
-	panic("TODO")
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.attr[attr]
 }
 
 func (o *Object) SetAttr(key, value string) error {
-	panic("TODO")
+	_, err := o.h.upload(schema.NewSetAttributeClaim(o.pn, key, value))
+	if err != nil {
+		return err
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.attr == nil {
+		o.attr = make(map[string][]string)
+	}
+	o.attr[key] = []string{value}
+	return nil
 }
 
 // ChildPathObject returns (creating if necessary) the child object
 // from the permanode o, given by the "camliPath:xxxx" attribute,
 // where xxx is the provided path.
 func (o *Object) ChildPathObject(path string) (*Object, error) {
-	panic("TODO")
+	log.Printf("TODO: ChildPathObject not implemented")
+	return nil, errors.New("TODO: ChildPathObject not implemented")
 }
 
 // RootObject returns the root permanode for this importer account.
@@ -184,6 +224,7 @@ func (h *Host) RootObject() (*Object, error) {
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("No root object found. Created %v", obj.pn)
 		if err := obj.SetAttr("camliImportRoot", h.imp.Prefix()); err != nil {
 			return nil, err
 		}
@@ -192,12 +233,32 @@ func (h *Host) RootObject() (*Object, error) {
 	if len(res.WithAttr) > 1 {
 		return nil, fmt.Errorf("Found %d import roots for %q; want 1", len(res.WithAttr), h.imp.Prefix())
 	}
-	return h.ObjectFromRef(res.WithAttr[0].Permanode)
+	pn := res.WithAttr[0].Permanode
+	log.Printf("Root permanode of %s is %v", h, pn)
+	return h.ObjectFromRef(pn)
 }
 
 // ObjectFromRef returns the object given by the named permanode
 func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
-	panic("TODO")
+	res, err := h.search.Describe(&search.DescribeRequest{
+		BlobRef: permanodeRef,
+		Depth:   1,
+	})
+	if err != nil {
+		return nil, err
+	}
+	db, ok := res.Meta[permanodeRef.String()]
+	if !ok {
+		return nil, fmt.Errorf("permanode %v wasn't in Describe response", permanodeRef)
+	}
+	if db.Permanode == nil {
+		return nil, fmt.Errorf("permanode %v had no DescribedPermanode in Describe response", permanodeRef)
+	}
+	return &Object{
+		h:    h,
+		pn:   permanodeRef,
+		attr: map[string][]string(db.Permanode.Attr),
+	}, nil
 }
 
 // ErrInterrupted should be returned by importers
