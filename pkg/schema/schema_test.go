@@ -195,17 +195,17 @@ func TestAttribute(t *testing.T) {
 		{
 			bb: NewClaim(&claimParam{
 				permanode: br,
-				claimType: SetAttribute,
+				claimType: SetAttributeClaim,
 				attribute: "foo",
 				value:     "bar",
 			}, &claimParam{
 				permanode: br,
-				claimType: DelAttribute,
+				claimType: DelAttributeClaim,
 				attribute: "foo",
 				value:     "specific-del",
 			}, &claimParam{
 				permanode: br,
-				claimType: DelAttribute,
+				claimType: DelAttributeClaim,
 				attribute: "foo",
 			}),
 			want: `{"camliVersion": 1,
@@ -244,6 +244,31 @@ func TestAttribute(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("%d.\t got:\n%s\n\twant:q\n%s", i, got, tt.want)
 		}
+	}
+}
+
+func TestDeleteClaim(t *testing.T) {
+	tm := time.Unix(123, 456)
+	br := blob.MustParse("xxx-1234")
+	delTest := struct {
+		bb   *Builder
+		want string
+	}{
+		bb: NewDeleteClaim(br),
+		want: `{"camliVersion": 1,
+  "camliType": "claim",
+  "claimDate": "1970-01-01T00:02:03.000000456Z",
+  "claimType": "delete",
+  "target": "xxx-1234"
+}`,
+	}
+	delTest.bb.SetClaimDate(tm)
+	got, err := delTest.bb.JSON()
+	if err != nil {
+		t.Fatalf("JSON error = %v", err)
+	}
+	if got != delTest.want {
+		t.Fatalf("got:\n%s\n\twant:q\n%s", got, delTest.want)
 	}
 }
 
