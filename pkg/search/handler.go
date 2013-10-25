@@ -605,6 +605,8 @@ type DescribeRequest struct {
 	// directory. If zero, a default is used.
 	MaxDirChildren int
 
+	ThumbnailSize int // or zero for none
+
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.
 	sh   *Handler
@@ -646,6 +648,7 @@ func (r *DescribeRequest) fromHTTP(req *http.Request) {
 	}
 	r.Depth = httputil.OptionalInt(req, "depth")
 	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
+	r.ThumbnailSize = thumbnailSize(req)
 }
 
 type DescribedBlob struct {
@@ -1152,26 +1155,32 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 	}
 }
 
-func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	defer httputil.RecoverJSON(rw, req)
-	var dr DescribeRequest
-	dr.fromHTTP(req)
-
-	sh.initDescribeRequest(&dr)
-
+func (sh *Handler) Describe(dr *DescribeRequest) (*DescribeResponse, error) {
+	sh.initDescribeRequest(dr)
 	if dr.BlobRef.Valid() {
 		dr.Describe(dr.BlobRef, dr.depth())
 	}
 	for _, br := range dr.BlobRefs {
 		dr.Describe(br, dr.depth())
 	}
+	metaMap, err := dr.metaMapThumbs(dr.ThumbnailSize)
+	if err != nil {
+		return nil, err
+	}
+	return &DescribeResponse{metaMap}, nil
+}
 
-	metaMap, err := dr.metaMapThumbs(thumbnailSize(req))
+func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
+	defer httputil.RecoverJSON(rw, req)
+	var dr DescribeRequest
+	dr.fromHTTP(req)
+
+	res, err := sh.Describe(&dr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
 	}
-	httputil.ReturnJSON(rw, &DescribeResponse{metaMap})
+	httputil.ReturnJSON(rw, res)
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
