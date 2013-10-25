@@ -18,6 +18,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -67,4 +68,17 @@ func NewCopyEnv() *Env {
 		}
 	}
 	return env
+}
+
+func (e *Env) SetCamdevVars(altkey bool) {
+	e.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
+	e.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+	e.Set("CAMLI_KEYID", defaultKeyID)
+	e.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
+	e.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
+	if altkey {
+		e.Set("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg"))
+		e.Set("CAMLI_KEYID", "C7C3E176")
+		println("**\n** Note: password is \"foo\"\n**\n")
+	}
 }

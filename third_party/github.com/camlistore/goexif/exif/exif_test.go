@@ -19,7 +19,7 @@ func TestDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	if x == nil {
-		t.Fatal("No error and yet %v was not decoded\n", name)
+		t.Fatalf("No error and yet %v was not decoded\n", name)
 	}
 
 	val, err := x.Get("Model")

@@ -68,6 +68,7 @@ var (
 	camliHeadHash           string
 	camliRoot               string
 	dbg                     *debugger
+	defaultDir              string
 	doBuildGo, doBuildCamli bool
 	goTipDir                string
 	goTipHash               string
@@ -321,9 +322,9 @@ func setup() {
 	log.SetOutput(multiWriter)
 
 	var err error
-	cwd, err := os.Getwd()
+	defaultDir, err = os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Could not get current dir: %v", err)
 	}
 	dbg = &debugger{log.New(multiWriter, "", log.LstdFlags)}
 
@@ -378,8 +379,8 @@ func setup() {
 	}
 
 	// get camlistore source
-	if err := os.Chdir(cwd); err != nil {
-		log.Fatal("Could not cd to %v: %v", cwd, err)
+	if err := os.Chdir(defaultDir); err != nil {
+		log.Fatalf("Could not cd to %v: %v", defaultDir, err)
 	}
 	camliRoot, err = filepath.Abs("camlistore.org")
 	if err != nil {
@@ -464,19 +465,21 @@ func pollGoChange() (string, error) {
 	return hash, nil
 }
 
+var plausibleHashRx = regexp.MustCompile(`^[a-f0-9]{40}$`)
+
 func altCamliPolling() (string, error) {
 	resp, err := http.Get(*altCamliRevURL)
 	if err != nil {
-		return "", fmt.Errorf("Could not get camliHash through %v: %v", altCamliRevURL, err)
+		return "", fmt.Errorf("Could not get camliHash from %v: %v", *altCamliRevURL, err)
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Could not read camliHash from %v's response: %v", altCamliRevURL, err)
+		return "", fmt.Errorf("Could not read camliHash from %v's response: %v", *altCamliRevURL, err)
 	}
 	hash := strings.TrimSpace(string(body))
-	if hash == "" {
-		return "", fmt.Errorf("Got empty hash from %v's response", altCamliRevURL)
+	if !plausibleHashRx.MatchString(hash) {
+		return "", fmt.Errorf("%v's response does not look like a git hash.", *altCamliRevURL)
 	}
 	return hash, nil
 }
@@ -490,7 +493,9 @@ func pollCamliChange() (string, error) {
 		rev, err = altCamliPolling()
 		if err != nil {
 			log.Print(err)
+			dbg.Println("Defaulting to the camli repo instead")
 		} else {
+			dbg.Printf("Got camli rev %v from %v\n", rev, *altCamliRevURL)
 			altDone = true
 		}
 	}
@@ -532,7 +537,29 @@ func buildBuilder() error {
 	// approach. Whatever's cleaner.
 	source := *builderSrc
 	if source == "" {
+		if *altCamliRevURL != "" {
+			// since we used altCamliRevURL (and not git pull), our camli tree
+			// and hence our buildbot source code, might not be up to date.
+			if err := os.Chdir(camliRoot); err != nil {
+				log.Fatalf("Could not cd to %v: %v", camliRoot, err)
+			}
+			out, err := gitRevCmd.run()
+			if err != nil {
+				return fmt.Errorf("Could not get camli tree revision with %v: %v\n", gitRevCmd.String(), err)
+			}
+			rev := strings.TrimRight(out, "\n")
+			if rev != camliHeadHash {
+				// camli tree needs to be updated
+				_, err := gitPullCmd.run()
+				if err != nil {
+					log.Printf("Could not update the Camli repo with %v: %v\n", gitPullCmd.String(), err)
+				}
+			}
+		}
 		source = filepath.Join(camliRoot, filepath.FromSlash("misc/buildbot/builder/builder.go"))
+	}
+	if err := os.Chdir(defaultDir); err != nil {
+		log.Fatalf("Could not cd to %v: %v", defaultDir, err)
 	}
 	tsk := newTask(
 		"go",
@@ -549,6 +576,9 @@ func buildBuilder() error {
 }
 
 func startBuilder(goHash, camliHash string) (*exec.Cmd, error) {
+	if err := os.Chdir(defaultDir); err != nil {
+		log.Fatalf("Could not cd to %v: %v", defaultDir, err)
+	}
 	dbg.Println("Starting builder bot")
 	builderHost := "localhost:" + *builderPort
 	ourHost, ourPort, err := net.SplitHostPort(*host)
@@ -660,10 +690,34 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 	return false
 }
 
+func isLocalhost(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// all of this should not happen since addr should be
+		// an http.Request.RemoteAddr but never knows...
+		addrErr, ok := err.(*net.AddrError)
+		if !ok {
+			log.Println(err)
+			return false
+		}
+		if addrErr.Err != "missing port in address" {
+			log.Println(err)
+			return false
+		}
+		host = addr
+	}
+	return host == "localhost" || host == "127.0.0.1" || host == "[::1]"
+}
+
 func reportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		log.Println("Invalid method for report handler")
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	if !isLocalhost(r.RemoteAddr) {
+		dbg.Printf("Refusing remote report from %v for now", r.RemoteAddr)
+		http.Error(w, "No remote bot", http.StatusUnauthorized)
 		return
 	}
 	body, err := ioutil.ReadAll(r.Body)

@@ -28,7 +28,7 @@ do
 	javafile=`echo $c | grep -E '.*\.java$'`
 	if [ -n "$gofile" ]
 	then
-		fmtdiff=`gofmt -d $c 2>&1`
+		fmtdiff=`git show ":$c" | gofmt -d 2>&1`
 		if [ -n "$fmtdiff" ]
 		then
 			echo "gofmt needed on "$c

@@ -59,7 +59,6 @@ type serverCmd struct {
 	throttle int
 	latency  int
 
-	noBuild     bool
 	fullClosure bool
 
 	openBrowser bool
@@ -92,7 +91,6 @@ func init() {
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
 		flags.IntVar(&cmd.latency, "latency", 90, "If -slow, this is the added latency, in ms.")
 
-		flags.BoolVar(&cmd.noBuild, "nobuild", false, "Do not rebuild anything.")
 		flags.BoolVar(&cmd.fullClosure, "fullclosure", false, "Use the ondisk closure library.")
 
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
@@ -130,43 +128,6 @@ func (c *serverCmd) checkFlags(args []string) error {
 
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
 		return fmt.Errorf("Invalid -port value: %q", c.port)
-	}
-	return nil
-}
-
-func (c *serverCmd) build(name string) error {
-	var target string
-	switch name {
-	case "camlistored":
-		target = filepath.Join("camlistore.org", "server", "camlistored")
-	case "camtool":
-		target = filepath.Join("camlistore.org", "cmd", "camtool")
-	default:
-		return fmt.Errorf("Could not build, invalid target: %v", name)
-	}
-	binPath := filepath.Join("bin", name)
-	var modtime int64
-	fi, err := os.Stat(binPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("Could not stat %v: %v", binPath, err)
-		}
-	} else {
-		modtime = fi.ModTime().Unix()
-	}
-	args := []string{
-		"run", "make.go",
-		"--quiet",
-		"--embed_static=false",
-		"--sqlite=" + strconv.FormatBool(c.sqlite),
-		fmt.Sprintf("--if_mods_since=%d", modtime),
-		"--targets=" + target,
-	}
-	cmd := exec.Command("go", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Error building %v: %v", target, err)
 	}
 	return nil
 }
@@ -371,9 +332,13 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
-	if !c.noBuild {
-		for _, name := range []string{"camlistored", "camtool"} {
-			err := c.build(name)
+	if !*noBuild {
+		withSqlite = c.sqlite
+		for _, name := range []string{
+			filepath.Join("server", "camlistored"),
+			filepath.Join("cmd", "camtool"),
+		} {
+			err := build(name)
 			if err != nil {
 				return fmt.Errorf("Could not build %v: %v", name, err)
 			}

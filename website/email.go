@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/osutil"
@@ -124,6 +125,11 @@ https://camlistore.googlesource.com/camlistore/+/%s
 	return wc.Close()
 }
 
+var latestHash struct {
+	sync.Mutex
+	s string // hash of the most recent camlistore revision
+}
+
 func commitEmailLoop() error {
 	http.HandleFunc("/mailnow", mailNowHandler)
 
@@ -149,6 +155,10 @@ func commitEmailLoop() error {
 	for _, commit := range hashes {
 		knownCommit[commit] = true
 	}
+	latestHash.Lock()
+	latestHash.s = hashes[0]
+	latestHash.Unlock()
+	http.HandleFunc("/latesthash", latestHashHandler)
 
 	for {
 		pollCommits(dir)
@@ -179,6 +189,9 @@ func pollCommits(dir string) {
 		log.Print(err)
 		return
 	}
+	latestHash.Lock()
+	latestHash.s = hashes[0]
+	latestHash.Unlock()
 	for _, commit := range hashes {
 		if knownCommit[commit] {
 			continue
@@ -220,4 +233,10 @@ func mailNowHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("/mailnow triggered a git fetch")
 	default:
 	}
+}
+
+func latestHashHandler(w http.ResponseWriter, r *http.Request) {
+	latestHash.Lock()
+	defer latestHash.Unlock()
+	fmt.Fprint(w, latestHash.s)
 }

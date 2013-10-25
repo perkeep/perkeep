@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -24,10 +25,19 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"camlistore.org/pkg/cmdmain"
+)
+
+var (
+	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
+	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	// Whether to build the subcommand with sqlite support. This only
+	// concerns the server subcommand, which sets it to serverCmd.sqlite.
+	withSqlite bool
 )
 
 // The path to the Camlistore source tree. Any devcam command
@@ -147,6 +157,37 @@ func checkCamliSrcRoot() {
 		log.Fatal(err)
 	}
 	camliSrcRoot = cwd
+}
+
+// Build builds the camlistore command at the given path from the source tree root.
+func build(path string) error {
+	_, cmdName := filepath.Split(path)
+	target := filepath.Join("camlistore.org", path)
+	binPath := filepath.Join("bin", cmdName)
+	var modtime int64
+	fi, err := os.Stat(binPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("Could not stat %v: %v", binPath, err)
+		}
+	} else {
+		modtime = fi.ModTime().Unix()
+	}
+	args := []string{
+		"run", "make.go",
+		"--quiet",
+		"--embed_static=false",
+		"--sqlite=" + strconv.FormatBool(withSqlite),
+		fmt.Sprintf("--if_mods_since=%d", modtime),
+		"--targets=" + target,
+	}
+	cmd := exec.Command("go", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Error building %v: %v", target, err)
+	}
+	return nil
 }
 
 func main() {
