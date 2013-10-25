@@ -278,7 +278,7 @@ type Index interface {
 // (PermanodeOfSignerAttrValue), and not about indexed attributes in general.
 func IsIndexedAttribute(attr string) bool {
 	switch attr {
-	case "camliRoot", "tag", "title":
+	case "camliRoot", "camliImportRoot", "tag", "title":
 		return true
 	}
 	return false
