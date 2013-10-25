@@ -19,9 +19,16 @@ package blobserver
 import (
 	"hash"
 	"io"
+	"strings"
 
 	"camlistore.org/pkg/blob"
 )
+
+// ReceiveString uploads the blob given by the string s to dst
+// and returns its blobref and size.
+func ReceiveString(dst BlobReceiver, s string) (blob.SizedRef, error) {
+	return Receive(dst, blob.RefFromString(s), strings.NewReader(s))
+}
 
 // Receive wraps calling a BlobReceiver's ReceiveBlob method,
 // additionally providing verification of the src digest, and also
