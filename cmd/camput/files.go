@@ -414,7 +414,7 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 		statReceiver = up.Client
 	}
 	if android.IsChild() && n != nil && n.fi.Mode()&os.ModeType == 0 {
-		return client.AndroidStatusReceiver{Sr: statReceiver, Path: n.fullPath}
+		return android.StatusReceiver{Sr: statReceiver, Path: n.fullPath}
 	}
 	return statReceiver
 }
@@ -541,7 +541,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			pr, ok = up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum)
 			if ok {
 				br = pr.BlobRef
-				client.NoteFileUploaded(n.fullPath, !pr.Skipped)
+				android.NoteFileUploaded(n.fullPath, !pr.Skipped)
 				if up.fileOpts.wantVivify() {
 					// we can return early in that case, because the other options
 					// are disallowed in the vivify case.
@@ -572,7 +572,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		client.NoteFileUploaded(n.fullPath, true)
+		android.NoteFileUploaded(n.fullPath, true)
 		return pr, nil
 	}
 
@@ -1002,7 +1002,7 @@ func (t *TreeUpload) run() {
 			if err == nil {
 				n.SetPutResult(cachedRes, nil)
 				cachelog.Printf("Cache HIT on %q -> %v", n.fullPath, cachedRes)
-				client.NoteFileUploaded(n.fullPath, false)
+				android.NoteFileUploaded(n.fullPath, false)
 				skippedc <- n
 				return
 			}

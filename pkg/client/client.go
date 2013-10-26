@@ -38,6 +38,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
@@ -179,8 +180,8 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 		httpStats.VerboseLog = tc.Verbose
 	}
 	transport = httpStats
-	if onAndroid() {
-		transport = &AndroidStatsTransport{transport}
+	if android.OnAndroid() {
+		transport = &android.StatsTransport{transport}
 	}
 	return transport
 }
@@ -715,10 +716,10 @@ func (c *Client) TLSConfig() (*tls.Config, error) {
 	if len(trustedCerts) > 0 {
 		return &tls.Config{InsecureSkipVerify: true}, nil
 	}
-	if !onAndroid() {
+	if !android.OnAndroid() {
 		return nil, nil
 	}
-	return androidTLSConfig()
+	return android.TLSConfig()
 }
 
 // DialFunc returns the adequate dial function, depending on
@@ -731,9 +732,9 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	trustedCerts := c.GetTrustedCerts()
 	if !c.useTLS() || (!c.InsecureTLS && len(trustedCerts) == 0) {
 		// No TLS, or TLS with normal/full verification
-		if onAndroid() {
+		if android.OnAndroid() {
 			return func(network, addr string) (net.Conn, error) {
-				return androidDial(network, addr)
+				return android.Dial(network, addr)
 			}
 		}
 		return nil
@@ -742,8 +743,8 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	return func(network, addr string) (net.Conn, error) {
 		var conn *tls.Conn
 		var err error
-		if onAndroid() {
-			con, err := androidDial(network, addr)
+		if android.OnAndroid() {
+			con, err := android.Dial(network, addr)
 			if err != nil {
 				return nil, err
 			}

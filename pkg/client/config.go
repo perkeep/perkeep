@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -79,7 +80,7 @@ func serverKeyId() string {
 }
 
 func parseConfig() {
-	if onAndroid() {
+	if android.OnAndroid() {
 		return
 	}
 	configPath := osutil.UserClientConfigPath()
