@@ -61,7 +61,7 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 			return nil, fmt.Errorf("Wrong type for %s; was expecting map[string]interface{}, got %T", k, v)
 		}
 		rootName := strings.Replace(k, "/", "", -1) + "Root"
-		rootPermanode, template, style := "", "", ""
+		rootPermanode, goTemplate, style, js := "", "", "", ""
 		for pk, pv := range p {
 			val, ok := pv.(string)
 			if !ok {
@@ -70,16 +70,18 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 			switch pk {
 			case "rootPermanode":
 				rootPermanode = val
-			case "template":
-				template = val
+			case "goTemplate":
+				goTemplate = val
 			case "style":
 				style = val
+			case "js":
+				js = val
 			default:
 				return nil, fmt.Errorf("Unexpected key %q in config for %s", pk, k)
 			}
 		}
-		if rootPermanode == "" || template == "" {
-			return nil, fmt.Errorf("Missing key in configuration for %s, need \"rootPermanode\" and \"template\"", k)
+		if rootPermanode == "" || goTemplate == "" {
+			return nil, fmt.Errorf("Missing key in configuration for %s, need \"rootPermanode\" and \"goTemplate\"", k)
 		}
 		ob := map[string]interface{}{}
 		ob["handler"] = "publish"
@@ -93,19 +95,10 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 		if sourceRoot != "" {
 			handlerArgs["sourceRoot"] = sourceRoot
 		}
-		switch template {
-		case "gallery":
-			if style == "" {
-				style = "pics.css"
-			}
-			handlerArgs["css"] = []interface{}{style}
-			handlerArgs["js"] = []interface{}{"pics.js"}
-			handlerArgs["scaledImage"] = "lrucache"
-		case "blog":
-			if style != "" {
-				handlerArgs["css"] = []interface{}{style}
-			}
-		}
+		handlerArgs["goTemplate"] = goTemplate
+		handlerArgs["css"] = []interface{}{style}
+		handlerArgs["js"] = []interface{}{js}
+		handlerArgs["scaledImage"] = "lrucache"
 		ob["handlerArgs"] = handlerArgs
 		prefixes[k] = ob
 		pubPrefixes = append(pubPrefixes, k)

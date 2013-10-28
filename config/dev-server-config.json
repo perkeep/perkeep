@@ -24,6 +24,7 @@
               "blobRoot": "/bs-and-maybe-also-index/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
+              "goTemplate": "blog.html",
               "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },
@@ -38,6 +39,7 @@
               "scaledImage": "lrucache",
               "css": ["pics.css"],
               "js": ["pics.js"],
+              "goTemplate": "gallery.html",
               "devBootstrapPermanodeUsing": "/sighelper/"
           }
       },
