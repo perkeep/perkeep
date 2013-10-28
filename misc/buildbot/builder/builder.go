@@ -24,6 +24,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -43,6 +45,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"camlistore.org/pkg/osutil"
 )
 
 const (
@@ -389,6 +393,47 @@ func endOfSuite(err error) {
 	}
 }
 
+func masterHostsReader(r io.Reader) ([]string, error) {
+	hosts := []string{}
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		l := scanner.Text()
+		u, err := url.Parse(l)
+		if err != nil {
+			return nil, err
+		}
+		if u.Host == "" {
+			return nil, fmt.Errorf("URL missing Host: %q", l)
+		}
+		hosts = append(hosts, u.String())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return hosts, nil
+}
+
+var masterHostsFile = filepath.Join(osutil.CamliConfigDir(), "builderbot-config")
+
+func loadMasterHosts() error {
+	r, err := os.Open(masterHostsFile)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	hosts, err := masterHostsReader(r)
+	if err != nil {
+		return err
+	}
+	if *masterHosts != "" {
+		*masterHosts += ","
+	}
+	log.Println("Additional host(s) to send our build reports:", hosts)
+	*masterHosts += strings.Join(hosts, ",")
+	return nil
+}
+
 func setup() {
 	var err error
 	defaultPATH = os.Getenv("PATH")
@@ -397,6 +442,16 @@ func setup() {
 	}
 	log.SetPrefix("BUILDER: ")
 	dbg = &debugger{log.New(os.Stderr, "BUILDER: ", log.LstdFlags)}
+
+	err = loadMasterHosts()
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("%q missing. No additional remote master(s) will receive build report.", masterHostsFile)
+		} else {
+			log.Println("Error parsing master hosts file %q: %v",
+				masterHostsFile, err)
+		}
+	}
 
 	// the OS we run on
 	if *ourOS == "" {
@@ -870,6 +925,43 @@ func runTests() error {
 
 const reportPrefix = "/report"
 
+func postToURL(u string, r io.Reader) (*http.Response, error) {
+	// Default to plain HTTP.
+	if !(strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")) {
+		u = "http://" + u
+	}
+	uri, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the URL explicitly specifies "/" or something else, we'll POST to
+	// that, otherwise default to build-time default.
+	if uri.Path == "" {
+		uri.Path = reportPrefix
+	}
+
+	// Save user/pass if specified in the URL.
+	user := uri.User
+	// But don't send user/pass in URL to server.
+	uri.User = nil
+
+	req, err := http.NewRequest("POST", uri.String(), r)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "text/javascript")
+	// If user/pass set on original URL, set the auth header for the request.
+	if user != nil {
+		pass, ok := user.Password()
+		if !ok {
+			log.Println("Password not set for", user.Username(), "in", u)
+		}
+		req.SetBasicAuth(user.Username(), pass)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 func sendReport() {
 	biSuitelk.Lock()
 	// we make a copy so we can release the lock quickly enough
@@ -888,7 +980,6 @@ func sendReport() {
 		Ts:     currentBiSuiteCpy,
 	}
 	for _, v := range masters {
-		reportURL := "http://" + v + reportPrefix
 		// TODO(mpl): ipv6 too I suppose. just make a IsLocalhost func or whatever.
 		// probably can borrow something from camli code for that.
 		if strings.HasPrefix(v, "localhost") || strings.HasPrefix(v, "127.0.0.1") {
@@ -899,10 +990,10 @@ func sendReport() {
 		report, err := json.MarshalIndent(toReport, "", "  ")
 		if err != nil {
 			log.Printf("JSON serialization error: %v", err)
-			continue
+			return
 		}
 		r := bytes.NewReader(report)
-		resp, err := http.Post(reportURL, "text/javascript", r)
+		resp, err := postToURL(v, r)
 		if err != nil {
 			log.Printf("Could not send report: %v", err)
 			continue

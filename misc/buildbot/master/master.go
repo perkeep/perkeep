@@ -382,7 +382,7 @@ func setup() {
 	if err := os.Chdir(defaultDir); err != nil {
 		log.Fatalf("Could not cd to %v: %v", defaultDir, err)
 	}
-	camliRoot, err = filepath.Abs("camlistore.org")
+	camliRoot, err = filepath.Abs("src/camlistore.org")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -395,6 +395,10 @@ func setup() {
 		if _, err := cloneCmd.run(); err != nil {
 			log.Fatalf("Could not git clone into %v: %v", camliRoot, err)
 		}
+	}
+	// override GOPATH to only point to our freshly updated camlistore source.
+	if err := os.Setenv("GOPATH", defaultDir); err != nil {
+		log.Fatalf("Could not set GOPATH to %v: %v", defaultDir, err)
 	}
 }
 
