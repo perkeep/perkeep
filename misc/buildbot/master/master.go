@@ -1150,7 +1150,7 @@ var taskHTML = `
 	<body>
 {{if .TaskErr}}
 	<h2>Task:</h2>
-	<p>{{.TaskErr}}</p>
+	<pre>{{.TaskErr}}</pre>
 {{end}}
 {{if .TsErr}}
 	<h2>Error:</h2>
