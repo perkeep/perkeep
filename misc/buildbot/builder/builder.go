@@ -26,6 +26,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -67,6 +68,7 @@ var (
 	ourOS        = flag.String("os", "", "The OS we report the master(s). Defaults to runtime.GOOS.")
 	skipGo1Build = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
 	verbose      = flag.Bool("verbose", false, "print what's going on")
+	skipTLSCheck = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
 )
 
 var (
@@ -75,6 +77,7 @@ var (
 	camliHeadHash           string
 	camliRoot               string
 	camputCacheDir          string
+	client                  = http.DefaultClient
 	dbg                     *debugger
 	defaultPATH             string
 	doBuildGo, doBuildCamli bool
@@ -231,6 +234,13 @@ func main() {
 	flag.Parse()
 	if *help {
 		usage()
+	}
+
+	if *skipTLSCheck {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client = &http.Client{Transport: tr}
 	}
 
 	go handleSignals()
@@ -959,7 +969,7 @@ func postToURL(u string, r io.Reader) (*http.Response, error) {
 		}
 		req.SetBasicAuth(user.Username(), pass)
 	}
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }
 
 func sendReport() {

@@ -18,17 +18,14 @@ limitations under the License.
 package auth
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"regexp"
-	"runtime"
 	"strings"
 
-	"camlistore.org/pkg/netutil"
+	"camlistore.org/pkg/httputil"
 )
 
 // Operation represents a bitmask of operations. See the OpX constants.
@@ -47,8 +44,6 @@ const (
 	OpVivify = OpUpload | OpStat | OpGet | OpDiscovery
 	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign | OpDiscovery
 )
-
-var kBasicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 var (
 	mode AuthMode // the auth logic depending on the choosen auth mechanism
@@ -165,29 +160,6 @@ func SetMode(m AuthMode) {
 	mode = m
 }
 
-func basicAuth(req *http.Request) (string, string, error) {
-	auth := req.Header.Get("Authorization")
-	if auth == "" {
-		return "", "", fmt.Errorf("Missing \"Authorization\" in header")
-	}
-	matches := kBasicAuthPattern.FindStringSubmatch(auth)
-	if len(matches) != 2 {
-		return "", "", fmt.Errorf("Bogus Authorization header")
-	}
-	encoded := matches[1]
-	enc := base64.StdEncoding
-	decBuf := make([]byte, enc.DecodedLen(len(encoded)))
-	n, err := enc.Decode(decBuf, []byte(encoded))
-	if err != nil {
-		return "", "", err
-	}
-	pieces := strings.SplitN(string(decBuf[0:n]), ":", 2)
-	if len(pieces) != 2 {
-		return "", "", fmt.Errorf("didn't get two pieces")
-	}
-	return pieces[0], pieces[1], nil
-}
-
 // UserPass is used when the auth string provided in the config
 // is of the kind "userpass:username:pass"
 // Possible options appended to the config string are
@@ -202,7 +174,7 @@ type UserPass struct {
 }
 
 func (up *UserPass) AllowedAccess(req *http.Request) Operation {
-	user, pass, err := basicAuth(req)
+	user, pass, err := httputil.BasicAuth(req)
 	if err == nil {
 		if user == up.Username {
 			if pass == up.Password {
@@ -214,7 +186,7 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 		}
 	}
 
-	if up.OrLocalhost && localhostAuthorized(req) {
+	if up.OrLocalhost && httputil.IsLocalhost(req) {
 		return OpAll
 	}
 
@@ -240,7 +212,7 @@ type Localhost struct {
 }
 
 func (Localhost) AllowedAccess(req *http.Request) (out Operation) {
-	if localhostAuthorized(req) {
+	if httputil.IsLocalhost(req) {
 		return OpAll
 	}
 	return 0
@@ -255,7 +227,7 @@ type DevAuth struct {
 }
 
 func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
-	_, pass, err := basicAuth(req)
+	_, pass, err := httputil.BasicAuth(req)
 	if err == nil {
 		if pass == da.Password {
 			return OpAll
@@ -268,7 +240,7 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 	// See if the local TCP port is owned by the same non-root user as this
 	// server.  This check performed last as it may require reading from the
 	// kernel or exec'ing a program.
-	if localhostAuthorized(req) {
+	if httputil.IsLocalhost(req) {
 		return OpAll
 	}
 
@@ -279,45 +251,12 @@ func (da *DevAuth) AddAuthHeader(req *http.Request) {
 	req.SetBasicAuth("", da.Password)
 }
 
-func localhostAuthorized(req *http.Request) bool {
-	uid := os.Getuid()
-	from, err := netutil.HostPortToIP(req.RemoteAddr, nil)
-	if err != nil {
-		return false
-	}
-	to, err := netutil.HostPortToIP(req.Host, from)
-	if err != nil {
-		return false
-	}
-
-	// If our OS doesn't support uid.
-	// TODO(bradfitz): netutil on OS X uses "lsof" to figure out
-	// ownership of tcp connections, but when fuse is mounted and a
-	// request is outstanding (for instance, a fuse request that's
-	// making a request to camlistored and landing in this code
-	// path), lsof then blocks forever waiting on a lock held by the
-	// VFS, leading to a deadlock.  Instead, on darwin, just trust
-	// any localhost connection here, which is kinda lame, but
-	// whatever.  Macs aren't very multi-user anyway.
-	if uid == -1 || runtime.GOOS == "darwin" {
-		return from.IP.IsLoopback() && to.IP.IsLoopback()
-	}
-
-	if uid > 0 {
-		owner, err := netutil.AddrPairUserid(from, to)
-		if err == nil && owner == uid {
-			return true
-		}
-	}
-	return false
-}
-
 func isLocalhost(addrPort net.IP) bool {
 	return addrPort.IsLoopback()
 }
 
 func IsLocalhost(req *http.Request) bool {
-	return localhostAuthorized(req)
+	return httputil.IsLocalhost(req)
 }
 
 // TODO(mpl): if/when we ever need it:
