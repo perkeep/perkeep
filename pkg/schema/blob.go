@@ -133,7 +133,7 @@ func (b *Blob) AsShare() (s Share, ok bool) {
 		return
 	}
 
-	if b.ss.ClaimType == claimTypeShare && b.ss.AuthType == ShareHaveRef && b.ss.Target.Valid() {
+	if ClaimType(b.ss.ClaimType) == ShareClaim && b.ss.AuthType == ShareHaveRef && b.ss.Target.Valid() {
 		return Share{c}, true
 	}
 	return s, false
@@ -200,9 +200,18 @@ func (c Claim) Attribute() string { return c.b.ss.Attribute }
 func (c Claim) Value() string { return c.b.ss.Value }
 
 // ModifiedPermanode returns the claim's "permaNode" field, if it's
-// a claim that modifies a permanode. Otherwise nil is returned.
+// a claim that modifies a permanode. Otherwise a zero blob.Ref is
+// returned.
 func (c Claim) ModifiedPermanode() blob.Ref {
 	return c.b.ss.Permanode
+}
+
+// Target returns the blob referenced by the Share if it's
+// a ShareClaim claim, or the object being deleted if it's a
+// DeleteClaim claim.
+// Otherwise a zero blob.Ref is returned.
+func (c Claim) Target() blob.Ref {
+	return c.b.ss.Target
 }
 
 // A Share is a claim for giving access to a user's blob(s).
@@ -215,11 +224,6 @@ type Share struct {
 // AuthType returns the AuthType of the Share.
 func (s Share) AuthType() string {
 	return s.b.ss.AuthType
-}
-
-// Target returns the blob referenced by the Share.
-func (s Share) Target() blob.Ref {
-	return s.b.ss.Target
 }
 
 // IsTransitive returns whether the Share transitively
@@ -254,7 +258,7 @@ func NewBuilder() *Builder {
 // It panics if bb isn't a "share" claim type.
 // If t is zero, the expiration is removed.
 func (bb *Builder) SetShareExpiration(t time.Time) {
-	if bb.Type() != "claim" || bb.m["claimType"] != "share" {
+	if bb.Type() != "claim" || bb.m["claimType"].(ClaimType) != ShareClaim {
 		panic("called SetShareExpiration on non-share")
 	}
 	if t.IsZero() {
@@ -265,7 +269,7 @@ func (bb *Builder) SetShareExpiration(t time.Time) {
 }
 
 func (bb *Builder) SetShareIsTransitive(b bool) {
-	if bb.Type() != "claim" || bb.m["claimType"] != "share" {
+	if bb.Type() != "claim" || bb.m["claimType"].(ClaimType) != ShareClaim {
 		panic("called SetShareIsTransitive on non-share")
 	}
 	if !b {

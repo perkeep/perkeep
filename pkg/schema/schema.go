@@ -241,6 +241,7 @@ type superset struct {
 	Members []blob.Ref `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
 
 	// Target is a "share" blob's target (the thing being shared)
+	// Or it is the object being deleted in a DeleteClaim claim.
 	Target blob.Ref `json:"target"`
 	// Transitive is a property of a "share" blob.
 	Transitive bool `json:"transitive"`
@@ -645,15 +646,18 @@ func newBytes() *Builder {
 	return base(1, "bytes")
 }
 
+// ClaimType is one of the valid "claimType" fields in a "claim" schema blob. See doc/schema/claims/.
 type ClaimType string
 
 const (
-	SetAttribute ClaimType = "set-attribute"
-	AddAttribute ClaimType = "add-attribute"
-	DelAttribute ClaimType = "del-attribute"
+	SetAttributeClaim ClaimType = "set-attribute"
+	AddAttributeClaim ClaimType = "add-attribute"
+	DelAttributeClaim ClaimType = "del-attribute"
+	ShareClaim        ClaimType = "share"
+	// DeleteClaim deletes a permanode or another claim.
+	// A delete claim can itself be deleted, and so on.
+	DeleteClaim ClaimType = "delete"
 )
-
-const claimTypeShare = "share"
 
 // claimParam is used to populate a claim map when building a new claim
 type claimParam struct {
@@ -662,13 +666,15 @@ type claimParam struct {
 	// Params specific to *Attribute claims:
 	permanode blob.Ref // modified permanode
 	attribute string   // required
-	value     string   // optional if Type == DelAttribute
+	value     string   // optional if Type == DelAttributeClaim
 
-	// Params specific to "share" claims:
+	// Params specific to ShareClaim claims:
 	authType     string
-	target       blob.Ref
 	transitive   bool
 	shareExpires time.Time // Zero means no expiration
+
+	// Params specific to ShareClaim and DeleteClaim claims.
+	target blob.Ref
 }
 
 func NewClaim(claims ...*claimParam) *Builder {
@@ -691,24 +697,27 @@ func NewClaim(claims ...*claimParam) *Builder {
 }
 
 func populateClaimMap(m map[string]interface{}, cp *claimParam) {
-	m["claimType"] = string(cp.claimType)
-	if cp.claimType != claimTypeShare {
-		m["permaNode"] = cp.permanode.String()
-		m["attribute"] = cp.attribute
-		if !(cp.claimType == DelAttribute && cp.value == "") {
-			m["value"] = cp.value
-		}
-	} else {
+	m["claimType"] = cp.claimType
+	switch cp.claimType {
+	case ShareClaim:
 		m["authType"] = cp.authType
 		m["target"] = cp.target.String()
 		m["transitive"] = cp.transitive
+	case DeleteClaim:
+		m["target"] = cp.target.String()
+	default:
+		m["permaNode"] = cp.permanode.String()
+		m["attribute"] = cp.attribute
+		if !(cp.claimType == DelAttributeClaim && cp.value == "") {
+			m["value"] = cp.value
+		}
 	}
 }
 
 // NewShareRef creates a *Builder for a "share" claim.
 func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
 	return NewClaim(&claimParam{
-		claimType:  claimTypeShare,
+		claimType:  ShareClaim,
 		authType:   authType,
 		target:     target,
 		transitive: transitive,
@@ -718,7 +727,7 @@ func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
 func NewSetAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
-		claimType: SetAttribute,
+		claimType: SetAttributeClaim,
 		attribute: attr,
 		value:     value,
 	})
@@ -727,7 +736,7 @@ func NewSetAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
-		claimType: AddAttribute,
+		claimType: AddAttributeClaim,
 		attribute: attr,
 		value:     value,
 	})
@@ -739,9 +748,17 @@ func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 func NewDelAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 	return NewClaim(&claimParam{
 		permanode: permaNode,
-		claimType: DelAttribute,
+		claimType: DelAttributeClaim,
 		attribute: attr,
 		value:     value,
+	})
+}
+
+// NewDeleteClaim creates a new claim to delete a target claim or permanode.
+func NewDeleteClaim(target blob.Ref) *Builder {
+	return NewClaim(&claimParam{
+		target:    target,
+		claimType: DeleteClaim,
 	})
 }
 
