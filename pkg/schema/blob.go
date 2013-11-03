@@ -258,7 +258,7 @@ func NewBuilder() *Builder {
 // It panics if bb isn't a "share" claim type.
 // If t is zero, the expiration is removed.
 func (bb *Builder) SetShareExpiration(t time.Time) {
-	if bb.Type() != "claim" || bb.m["claimType"].(ClaimType) != ShareClaim {
+	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
 		panic("called SetShareExpiration on non-share")
 	}
 	if t.IsZero() {
@@ -269,7 +269,7 @@ func (bb *Builder) SetShareExpiration(t time.Time) {
 }
 
 func (bb *Builder) SetShareIsTransitive(b bool) {
-	if bb.Type() != "claim" || bb.m["claimType"].(ClaimType) != ShareClaim {
+	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
 		panic("called SetShareIsTransitive on non-share")
 	}
 	if !b {
@@ -350,6 +350,14 @@ func (bb *Builder) SetType(t string) *Builder {
 func (bb *Builder) Type() string {
 	if s, ok := bb.m["camliType"].(string); ok {
 		return s
+	}
+	return ""
+}
+
+// ClaimType returns the claimType value, or the empty string.
+func (bb *Builder) ClaimType() ClaimType {
+	if s, ok := bb.m["claimType"].(string); ok {
+		return ClaimType(s)
 	}
 	return ""
 }
