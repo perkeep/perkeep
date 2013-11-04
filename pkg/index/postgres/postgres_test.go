@@ -150,3 +150,11 @@ func TestEdgesTo_Postgres(t *testing.T) {
 	}
 	postgresTester{}.test(t, indextest.EdgesTo)
 }
+
+func TestIsDeleted_Postgres(t *testing.T) {
+	postgresTester{}.test(t, indextest.IsDeleted)
+}
+
+func TestDeletedAt_Postgres(t *testing.T) {
+	postgresTester{}.test(t, indextest.DeletedAt)
+}

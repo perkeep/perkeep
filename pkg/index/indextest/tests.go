@@ -20,6 +20,7 @@ limitations under the License.
 package indextest
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -67,6 +68,10 @@ func (logFataler) Fatalf(format string, args ...interface{}) {
 func (id *IndexDeps) Get(key string) string {
 	v, _ := id.Index.Storage().Get(key)
 	return v
+}
+
+func (id *IndexDeps) Set(key, value string) error {
+	return id.Index.Storage().Set(key, value)
 }
 
 func (id *IndexDeps) dumpIndex(t *testing.T) {
@@ -142,6 +147,12 @@ func (id *IndexDeps) AddAttribute(permaNode blob.Ref, attr, value string) blob.R
 
 func (id *IndexDeps) DelAttribute(permaNode blob.Ref, attr, value string) blob.Ref {
 	m := schema.NewDelAttributeClaim(permaNode, attr, value)
+	m.SetClaimDate(id.advanceTime())
+	return id.uploadAndSign(m)
+}
+
+func (id *IndexDeps) Delete(target blob.Ref) blob.Ref {
+	m := schema.NewDeleteClaim(target)
 	m.SetClaimDate(id.advanceTime())
 	return id.uploadAndSign(m)
 }
@@ -718,4 +729,153 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 			t.Errorf("Wrong edge.\n GOT: %v\nWANT: %v", got, want)
 		}
 	}
+}
+
+func IsDeleted(t *testing.T, initIdx func() *index.Index) {
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+	defer id.dumpIndex(t)
+	pn1 := id.NewPermanode()
+
+	// delete pn1
+	// TODO(mpl): For now receive.go does not deal with deletions,
+	// so we just write deleted entries by hand in the index. That
+	// test will evolve in the next CLs.
+	delpn1 := id.Delete(pn1)
+	delTime := reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
+	delKey := pipes("deleted", pn1.String(), delTime, delpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	delKey = pipes("deletes", delpn1.String(), pn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	// keep the deletes cache in sync manually for now
+	if err := idx.UpdateDeletesCache(pn1, id.lastTime()); err != nil {
+		t.Fatal(err)
+	}
+	deleted := idx.IsDeleted(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
+
+	// undelete pn1
+	deldelpn1 := id.Delete(delpn1)
+	delTime = reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
+	delKey = pipes("deleted", delpn1.String(), delTime, deldelpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	delKey = pipes("deletes", deldelpn1.String(), delpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.UpdateDeletesCache(delpn1, id.lastTime()); err != nil {
+		t.Fatal(err)
+	}
+	deleted = idx.IsDeleted(pn1)
+	if deleted {
+		t.Fatal("pn1 should be undeleted")
+	}
+}
+
+func DeletedAt(t *testing.T, initIdx func() *index.Index) {
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+	defer id.dumpIndex(t)
+	pn1 := id.NewPermanode()
+
+	// Test the never, ever, deleted case
+	deleted, when := idx.DeletedAt(pn1)
+	if deleted || !when.IsZero() {
+		t.Fatal("pn1 should never have been deleted")
+	}
+
+	// delete pn1
+	// TODO(mpl): For now receive.go does not deal with deletions,
+	// so we just write deleted entries by hand in the index. That
+	// test will evolve in the next CLs.
+	delpn1 := id.Delete(pn1)
+	delTime := reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
+	delKey := pipes("deleted", pn1.String(), delTime, delpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	delKey = pipes("deletes", delpn1.String(), pn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	// keep the deletes cache in sync manually for now
+	if err := idx.UpdateDeletesCache(pn1, id.lastTime()); err != nil {
+		t.Fatal(err)
+	}
+	deleted, when = idx.DeletedAt(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
+	if reverseTimeString(schema.RFC3339FromTime(when)) != delTime {
+		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
+	}
+
+	// undelete pn1
+	deldelpn1 := id.Delete(delpn1)
+	delTime = reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
+	delKey = pipes("deleted", delpn1.String(), delTime, deldelpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	delKey = pipes("deletes", deldelpn1.String(), delpn1.String())
+	if err := id.Set(delKey, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.UpdateDeletesCache(delpn1, id.lastTime()); err != nil {
+		t.Fatal(err)
+	}
+	deleted, when = idx.DeletedAt(pn1)
+	if deleted {
+		t.Fatal("pn1 should be undeleted")
+	}
+	if reverseTimeString(schema.RFC3339FromTime(when)) != delTime {
+		t.Fatalf("pn1 should have been undeleted at %v, not %v", delTime, when)
+	}
+}
+
+// TODO(mpl): remove all these below once we have the next CLs with higher level tests.
+// pipes returns args separated by pipes
+func pipes(args ...interface{}) string {
+	var buf bytes.Buffer
+	for n, arg := range args {
+		if n > 0 {
+			buf.WriteString("|")
+		}
+		if s, ok := arg.(string); ok {
+			buf.WriteString(s)
+		} else {
+			buf.WriteString(arg.(fmt.Stringer).String())
+		}
+	}
+	return buf.String()
+}
+
+func reverseTimeString(s string) string {
+	b := make([]byte, 0, len(s)+2)
+	b = append(b, 'r')
+	b = append(b, 't')
+	b = appendReverseString(b, s)
+	return string(b)
+}
+
+func appendReverseString(b []byte, s string) []byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			b = append(b, '0'+('9'-c))
+		} else {
+			b = append(b, c)
+		}
+	}
+	return b
 }

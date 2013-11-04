@@ -59,6 +59,14 @@ func TestEdgesTo_Memory(t *testing.T) {
 	indextest.EdgesTo(t, index.NewMemoryIndex)
 }
 
+func TestIsDeleted_Memory(t *testing.T) {
+	indextest.IsDeleted(t, index.NewMemoryIndex)
+}
+
+func TestDeletedAt_Memory(t *testing.T) {
+	indextest.DeletedAt(t, index.NewMemoryIndex)
+}
+
 var (
 	// those dirs are not packages implementing indexers,
 	// hence we do not want to check them.

@@ -275,6 +275,7 @@ func (c *serverCmd) setupIndexer() error {
 	default:
 		return nil
 	}
+	// TODO(mpl): I think we're forgetting to wipe mongo here.
 	if c.wipe {
 		args = append(args, "-wipe")
 	} else {

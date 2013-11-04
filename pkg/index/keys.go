@@ -21,6 +21,10 @@ import (
 	"fmt"
 )
 
+// requiredSchemaVersion is incremented every time
+// an index key type is added, changed, or removed.
+const requiredSchemaVersion = 1
+
 type keyType struct {
 	name     string
 	keyParts []part
@@ -109,6 +113,15 @@ const (
 )
 
 var (
+	// keySchemaVersion indexes the index schema version.
+	keySchemaVersion = &keyType{
+		"schemaversion",
+		nil,
+		[]part{
+			{"version", typeIntStr},
+		},
+	}
+
 	keyRecentPermanode = &keyType{
 		"recpn",
 		[]part{
@@ -199,12 +212,25 @@ var (
 		},
 	}
 
-	// TODO(mpl): we might want to add signer/owner
+	// keyDeleted indexes a claim that deletes an entity. It ties the deleted
+	// entity to the date it was deleted, and to the deleter claim.
 	keyDeleted = &keyType{
 		"deleted",
 		[]part{
-			{"blobref", typeBlobRef},  // the thing being deleted (a permanode or another claim)
-			{"claimref", typeBlobRef}, // the blobref with the delete claim
+			{"deleted", typeBlobRef}, // the deleted entity (a permanode or another claim)
+			{"claimdate", typeReverseTime},
+			{"deleter", typeBlobRef}, // the deleter claim blobref
+		},
+		nil,
+	}
+
+	// keyDeletes indexes a claim that deletes an entity. It ties the deleter
+	// claim to the deleted entity.
+	keyDeletes = &keyType{
+		"deletes",
+		[]part{
+			{"deleter", typeBlobRef}, // the deleter claim blobref
+			{"deleted", typeBlobRef}, // the deleted entity (a permanode or another claim)
 		},
 		nil,
 	}
