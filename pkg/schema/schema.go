@@ -697,7 +697,7 @@ func NewClaim(claims ...*claimParam) *Builder {
 }
 
 func populateClaimMap(m map[string]interface{}, cp *claimParam) {
-	m["claimType"] = cp.claimType
+	m["claimType"] = string(cp.claimType)
 	switch cp.claimType {
 	case ShareClaim:
 		m["authType"] = cp.authType
