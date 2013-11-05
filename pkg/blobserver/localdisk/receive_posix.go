@@ -33,3 +33,7 @@ func linkOrCopy(src, dst string) error {
 	}
 	return err
 }
+
+func handleRenameError(err error, oldfile, newfile string) error {
+	return err
+}
