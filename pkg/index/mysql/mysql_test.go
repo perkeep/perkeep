@@ -108,3 +108,11 @@ func TestFiles_MySQL(t *testing.T) {
 func TestEdgesTo_MySQL(t *testing.T) {
 	mysqlTester{}.test(t, indextest.EdgesTo)
 }
+
+func TestIsDeleted_MySQL(t *testing.T) {
+	mysqlTester{}.test(t, indextest.IsDeleted)
+}
+
+func TestDeletedAt_MySQL(t *testing.T) {
+	mysqlTester{}.test(t, indextest.DeletedAt)
+}

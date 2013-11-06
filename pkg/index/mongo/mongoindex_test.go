@@ -97,3 +97,11 @@ func TestFiles_Mongo(t *testing.T) {
 func TestEdgesTo_Mongo(t *testing.T) {
 	mongoTester{}.test(t, indextest.EdgesTo)
 }
+
+func TestIsDeleted_Mongo(t *testing.T) {
+	mongoTester{}.test(t, indextest.IsDeleted)
+}
+
+func TestDeletedAt_Mongo(t *testing.T) {
+	mongoTester{}.test(t, indextest.DeletedAt)
+}

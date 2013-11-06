@@ -145,13 +145,39 @@ type Index struct {
 	// Used for fetching blobs to find the complete sha1s of file & bytes
 	// schema blobs.
 	BlobSource blob.StreamingFetcher
+
+	// deletes is a cache to keep track of the deletion status (deleted vs undeleted)
+	// of the blobs in the index. It makes for faster reads than the otherwise
+	// recursive calls on the index.
+	deletes *deletionCache
 }
 
 var _ blobserver.Storage = (*Index)(nil)
 var _ search.Index = (*Index)(nil)
 
 func New(s Storage) *Index {
-	return &Index{s: s}
+	idx := &Index{s: s}
+	schemaVersion := idx.schemaVersion()
+	if schemaVersion != 0 {
+		if schemaVersion != requiredSchemaVersion {
+			if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+				// Good signal that we're using the devcam server, so help out
+				// the user with a more useful tip:
+				log.Fatalf("index schema version is %d; required one is %d (run \"devcam server --wipe\" to wipe both your blobs and reindex.)", schemaVersion, requiredSchemaVersion)
+			}
+			log.Fatalf("index schema version is %d; required one is %d. You need to reindex. See 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync'.)",
+				schemaVersion, requiredSchemaVersion)
+		}
+	} else {
+		err := idx.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
+		if err != nil {
+			panic(fmt.Errorf("Could not write index schema version %q: %v", requiredSchemaVersion, err))
+		}
+	}
+	if err := idx.initDeletesCache(); err != nil {
+		panic(fmt.Errorf("Could not initialize index's deletes cache: %v", err))
+	}
+	return idx
 }
 
 type prefixIter struct {
@@ -185,21 +211,205 @@ func closeIterator(it Iterator, perr *error) {
 	}
 }
 
-// isDeleted returns whether br (a blobref or a claim) should be considered deleted.
-func (x *Index) isDeleted(br blob.Ref) bool {
+// schemaVersion returns the version of schema as it is found
+// in the currently used index. If not found, it returns 0.
+func (x *Index) schemaVersion() int {
+	schemaVersionStr, err := x.s.Get(keySchemaVersion.name)
+	if err != nil {
+		if err == ErrNotFound {
+			return 0
+		}
+		panic(fmt.Errorf("Could not get index schema version: %v", err))
+	}
+	schemaVersion, err := strconv.Atoi(schemaVersionStr)
+	if err != nil {
+		panic(fmt.Errorf("Bogus index schema version: %q", schemaVersionStr))
+	}
+	return schemaVersion
+}
+
+type deletionStatus struct {
+	deleted bool      // whether the concerned blob should be considered deleted.
+	when    time.Time // time of the most recent (un)deletion
+}
+
+type deletionCache struct {
+	sync.RWMutex
+	m map[blob.Ref]deletionStatus
+}
+
+// initDeletesCache creates and populates the deletion status cache used by the index
+// for faster calls to IsDeleted and DeletedAt. It is called by New.
+func (x *Index) initDeletesCache() error {
+	x.deletes = &deletionCache{
+		m: make(map[blob.Ref]deletionStatus),
+	}
 	var err error
-	it := x.queryPrefix(keyDeleted, br)
+	it := x.queryPrefix(keyDeleted)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		// parts are ["deleted", br.String(), blobref-of-delete-claim].
-		// see keyDeleted in keys.go
-		parts := strings.SplitN(it.Key(), "|", 3)
-		if len(parts) != 3 {
+		parts := strings.SplitN(it.Key(), "|", 4)
+		if len(parts) != 4 {
+			return fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
+		}
+		deleter := parts[3]
+		deleterRef, ok := blob.Parse(deleter)
+		if !ok {
+			return fmt.Errorf("invalid deleter blobref %q in keyDeleted entry %q", deleter, it.Key())
+		}
+		deleted := parts[1]
+		deletedRef, ok := blob.Parse(deleted)
+		if !ok {
+			return fmt.Errorf("invalid deleted blobref %q in keyDeleted entry %q", deleted, it.Key())
+		}
+		delTimeStr := parts[2]
+		delTime, err := time.Parse(time.RFC3339, unreverseTimeString(delTimeStr))
+		if err != nil {
+			return fmt.Errorf("invalid time %q in keyDeleted entry %q: %v", delTimeStr, it.Key(), err)
+		}
+		deleterIsDeleted, when := x.deletedAtNoCache(deleterRef)
+		if when.IsZero() {
+			when = delTime
+		}
+		previousStatus, ok := x.deletes.m[deletedRef]
+		if ok && when.Before(previousStatus.when) {
+			// previously noted status wins because it is the most recent
 			continue
 		}
-		delClaimRef, ok := blob.Parse(parts[2])
+		x.deletes.m[deletedRef] = deletionStatus{
+			deleted: !deleterIsDeleted,
+			when:    when,
+		}
+	}
+	return err
+}
+
+// UpdateDeletesCache updates the index deletes cache with the deletion
+// (and its potential consequences) of deletedRef at when.
+func (x *Index) UpdateDeletesCache(deletedRef blob.Ref, when time.Time) error {
+	// TODO(mpl): This one will go away as soon as receive.go handles delete claims and is in charge
+	// of keeping the cache updated. Or at least it won't have to be public. Now I need it public
+	// for the tests.
+	var err error
+	if x.deletes == nil {
+		return fmt.Errorf("Index has no deletes cache")
+	}
+	x.deletes.Lock()
+	defer x.deletes.Unlock()
+	previousStatus := x.deletes.m[deletedRef]
+	if when.Before(previousStatus.when) {
+		// ignore new value because it's older than what's in cache
+		return err
+	}
+	x.deletes.m[deletedRef] = deletionStatus{
+		deleted: true,
+		when:    when,
+	}
+	// And now deal with the consequences
+	isDeleted := true
+	for {
+		isDeleted = !isDeleted
+		deleterRef := deletedRef
+		it := x.queryPrefix(keyDeletes, deleterRef)
+		defer closeIterator(it, &err)
+		if !it.Next() {
+			break
+		}
+		parts := strings.SplitN(it.Key(), "|", 3)
+		if len(parts) != 3 {
+			return fmt.Errorf("Bogus keyDeletes entry key: want |\"deletes\"|<deleter claim>|<deleted blob>|, got %q", it.Key())
+		}
+		deleted := parts[2]
+		var ok bool
+		deletedRef, ok = blob.Parse(deleted)
 		if !ok {
-			panic(fmt.Errorf("invalid deleted claim for %v", parts[1]))
+			return fmt.Errorf("invalid deleted blobref %q in keyDeletes entry %q", deleted, it.Key())
+		}
+		x.deletes.m[deletedRef] = deletionStatus{
+			deleted: isDeleted,
+			when:    when,
+		}
+	}
+	return err
+}
+
+// DeletedAt returns whether br (a blobref or a claim) should be considered deleted,
+// and at what time the latest deletion or undeletion occured. If it was never deleted,
+// it returns false, time.Time{}.
+func (x *Index) DeletedAt(br blob.Ref) (bool, time.Time) {
+	if x.deletes == nil {
+		// We still allow the slow path, in case someone creates
+		// their own Index without a deletes cache.
+		return x.deletedAtNoCache(br)
+	}
+	x.deletes.RLock()
+	defer x.deletes.RUnlock()
+	st := x.deletes.m[br]
+	return st.deleted, st.when
+}
+
+func (x *Index) deletedAtNoCache(br blob.Ref) (bool, time.Time) {
+	var err error
+	it := x.queryPrefix(keyDeleted, br)
+	if it.Next() {
+		parts := strings.SplitN(it.Key(), "|", 4)
+		if len(parts) != 4 {
+			panic(fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key()))
+		}
+		deleter := parts[3]
+		deleterRef, ok := blob.Parse(deleter)
+		if !ok {
+			panic(fmt.Errorf("invalid deleter blobref %q in keyDeleted entry %q", deleter, it.Key()))
+		}
+		delTime := parts[2]
+		mTime, err := time.Parse(time.RFC3339, unreverseTimeString(delTime))
+		if err != nil {
+			panic(fmt.Errorf("invalid time %q in keyDeleted entry %q: %v", delTime, it.Key(), err))
+		}
+		closeIterator(it, &err)
+		if err != nil {
+			// TODO: Do better?
+			panic(fmt.Errorf("Could not close iterator on keyDeleted: %v", err))
+		}
+		del, when := x.deletedAtNoCache(deleterRef)
+		if when.IsZero() {
+			when = mTime
+		}
+		return !del, when
+	}
+	closeIterator(it, &err)
+	if err != nil {
+		// TODO: Do better?
+		panic(fmt.Errorf("Could not close iterator on keyDeleted: %v", err))
+	}
+	return false, time.Time{}
+}
+
+// isDeleted returns whether br (a blobref or a claim) should be considered deleted.
+func (x *Index) IsDeleted(br blob.Ref) bool {
+	if x.deletes == nil {
+		// We still allow the slow path, in case someone creates
+		// their own Index without a deletes cache.
+		return x.isDeletedNoCache(br)
+	}
+	x.deletes.RLock()
+	defer x.deletes.RUnlock()
+	st := x.deletes.m[br]
+	return st.deleted
+}
+
+func (x *Index) isDeletedNoCache(br blob.Ref) bool {
+	var err error
+	it := x.queryPrefix(keyDeleted, br)
+	if it.Next() {
+		parts := strings.SplitN(it.Key(), "|", 4)
+		if len(parts) != 4 {
+			panic(fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key()))
+		}
+		deleter := parts[3]
+		delClaimRef, ok := blob.Parse(deleter)
+		if !ok {
+			panic(fmt.Errorf("invalid deleter blobref %q in keyDeleted entry %q", deleter, it.Key()))
 		}
 		// The recursive call on the blobref of the delete claim
 		// checks that the claim itself was not deleted, in which case
@@ -207,7 +417,17 @@ func (x *Index) isDeleted(br blob.Ref) bool {
 		// TODO(mpl): Each delete and undo delete adds a level of
 		// recursion so this could recurse far. is there a way to
 		// go faster in a worst case scenario?
-		return !x.isDeleted(delClaimRef)
+		closeIterator(it, &err)
+		if err != nil {
+			// TODO: Do better?
+			panic(fmt.Errorf("Could not close iterator on keyDeleted: %v", err))
+		}
+		return !x.isDeletedNoCache(delClaimRef)
+	}
+	closeIterator(it, &err)
+	if err != nil {
+		// TODO: Do better?
+		panic(fmt.Errorf("Could not close iterator on keyDeleted: %v", err))
 	}
 	return false
 }
@@ -244,7 +464,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, li
 		if !ok {
 			continue
 		}
-		if x.isDeleted(permaRef) {
+		if x.IsDeleted(permaRef) {
 			continue
 		}
 		if seenPermanode.Dup(permaStr) {
@@ -334,7 +554,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (p
 	defer closeIterator(it, &err)
 	if it.Next() {
 		permaRef, ok := blob.Parse(it.Value())
-		if ok && !x.isDeleted(permaRef) {
+		if ok && !x.IsDeleted(permaRef) {
 			return permaRef, nil
 		}
 	}
@@ -373,7 +593,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *search.P
 		if !ok {
 			continue
 		}
-		if x.isDeleted(pn) {
+		if x.IsDeleted(pn) {
 			continue
 		}
 		pnstr := pn.String()
