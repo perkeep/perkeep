@@ -122,6 +122,24 @@ var (
 		},
 	}
 
+	// keyPermanodeClaim indexes when a permanode is modified (or deleted) by a claim.
+	// It ties the affected permanode to the date of the modification, the responsible
+	// claim, and the nature of the modification.
+	keyPermanodeClaim = &keyType{
+		"claim",
+		[]part{
+			{"permanode", typeBlobRef}, // modified permanode
+			{"signer", typeKeyId},
+			{"claimDate", typeTime},
+			{"claim", typeBlobRef},
+		},
+		[]part{
+			{"claimType", typeStr},
+			{"attr", typeStr},
+			{"value", typeStr},
+		},
+	}
+
 	keyRecentPermanode = &keyType{
 		"recpn",
 		[]part{

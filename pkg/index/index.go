@@ -492,8 +492,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl search.ClaimList, 
 	if err != nil {
 		return nil, err
 	}
-	prefix := pipes("claim", permaNode, keyId, "")
-	it := x.queryPrefixString(prefix)
+	it := x.queryPrefix(keyPermanodeClaim, permaNode, keyId)
 	defer closeIterator(it, &err)
 	for it.Next() {
 		keyPart := strings.Split(it.Key(), "|")
