@@ -83,7 +83,6 @@ type Constraint struct {
 	Claim *ClaimConstraint
 
 	BlobSize *BlobSizeConstraint
-	Type     *BlobTypeConstraint
 
 	// For permanodes:
 	Attribute *AttributeConstraint
@@ -99,11 +98,6 @@ type LogicalConstraint struct {
 	Op string // "and", "or", "xor", "not"
 	A  *Constraint
 	B  *Constraint // only valid if Op == "not"
-}
-
-type BlobTypeConstraint struct {
-	IsJSON  bool
-	IsImage bool // chunk header looks like an image. likely just first chunk.
 }
 
 type BlobSizeConstraint struct {
