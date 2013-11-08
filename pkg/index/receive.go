@@ -324,8 +324,8 @@ func (ix *Index) populateClaim(b *schema.Blob, bm BatchMutation) error {
 	recentKey := keyRecentPermanode.Key(verifiedKeyId, claim.ClaimDateString(), br)
 	bm.Set(recentKey, pnbr.String())
 
-	claimKey := pipes("claim", pnbr, verifiedKeyId, claim.ClaimDateString(), br)
-	bm.Set(claimKey, pipes(urle(claim.ClaimType()), urle(attr), urle(value)))
+	claimKey := keyPermanodeClaim.Key(pnbr, verifiedKeyId, claim.ClaimDateString(), br)
+	bm.Set(claimKey, keyPermanodeClaim.Val(claim.ClaimType(), attr, value))
 
 	if strings.HasPrefix(attr, "camliPath:") {
 		targetRef, ok := blob.Parse(value)
