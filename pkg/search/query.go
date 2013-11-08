@@ -79,6 +79,8 @@ type Constraint struct {
 	AnyCamliType  bool   // if true, any camli JSON blob matches
 	BlobRefPrefix string
 
+	File *FileConstraint
+
 	// For claims:
 	Claim *ClaimConstraint
 
@@ -86,6 +88,64 @@ type Constraint struct {
 
 	// For permanodes:
 	Attribute *AttributeConstraint
+}
+
+type FileConstraint struct {
+	// (All non-zero fields must match)
+
+	MinSize  int64 // inclusive
+	MaxSize  int64 // inclusive. if zero, ignored.
+	IsImage  bool
+	FileName *StringConstraint
+	MIMEType *StringConstraint
+	Time     *TimeConstraint
+	ModTime  *TimeConstraint
+	EXIF     *EXIFConstraint
+}
+
+type EXIFConstraint struct {
+	// TODO.  need to put this in the index probably.
+	// Maybe: GPS *LocationConstraint
+	// ISO, Aperature, Camera Make/Model, etc.
+}
+
+type StringConstraint struct {
+	// All non-zero must match.
+
+	// TODO: CaseInsensitive bool?
+	Empty     bool // matches empty string
+	Equals    string
+	Contains  string
+	HasPrefix string
+	HasSuffix string
+}
+
+func (c *StringConstraint) stringMatches(s string) bool {
+	if c.Empty && len(s) > 0 {
+		return false
+	}
+	if c.Equals != "" && s != c.Equals {
+		return false
+	}
+	for _, pair := range []struct {
+		v  string
+		fn func(string, string) bool
+	}{
+		{c.Contains, strings.Contains},
+		{c.HasPrefix, strings.HasPrefix},
+		{c.HasSuffix, strings.HasSuffix},
+	} {
+		if pair.v != "" && !pair.fn(s, pair.v) {
+			return false
+		}
+	}
+	return true
+}
+
+type TimeConstraint struct {
+	Before time.Time     // <
+	After  time.Time     // >=
+	InLast time.Duration // >=
 }
 
 type ClaimConstraint struct {
@@ -217,6 +277,10 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	}
 	if c.Attribute != nil {
 		addCond(c.Attribute.blobMatches)
+	}
+	// TODO: ClaimConstraint
+	if c.File != nil {
+		addCond(c.File.blobMatches)
 	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
@@ -361,4 +425,36 @@ func (c *AttributeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (
 	log.Printf("br=%v meta=%+v: %#v", br, bm, dr)
 	panic("TODO: not implemented")
 	return false, nil
+}
+
+func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+	if bm.MIMEType != "application/json; camliType=file" {
+		return false, nil
+	}
+	fi, err := s.h.index.GetFileInfo(br)
+	if err == os.ErrNotExist {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if fi.Size < c.MinSize {
+		return false, nil
+	}
+	if c.MaxSize != 0 && fi.Size > c.MaxSize {
+		return false, nil
+	}
+	if c.IsImage && !strings.HasPrefix(fi.MIMEType, "image/") {
+		return false, nil
+	}
+	if sc := c.FileName; sc != nil && !sc.stringMatches(fi.FileName) {
+		return false, nil
+	}
+	if sc := c.MIMEType; sc != nil && !sc.stringMatches(fi.MIMEType) {
+		return false, nil
+	}
+	// TOOD: Time timeconstraint
+	// TOOD: ModTime timeconstraint
+	// TOOD: EXIF timeconstraint
+	return true, nil
 }
