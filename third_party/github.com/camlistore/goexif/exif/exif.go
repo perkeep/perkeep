@@ -101,7 +101,8 @@ func Decode(r io.Reader) (*Exif, error) {
 		er = bytes.NewReader(b.Bytes())
 	} else {
 		// Strip away JPEG APP1 header.
-		sec, err := newAppSec(0xE1, r)
+		var sec *appSec
+		sec, err = newAppSec(0xE1, r)
 		if err != nil {
 			return nil, err
 		}
