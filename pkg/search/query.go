@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -33,13 +34,7 @@ import (
 
 type SortType int
 
-// TODO: extend/merge/delete this type? probably dups in this package.
-type BlobMeta struct {
-	Ref      blob.Ref
-	Size     int
-	MIMEType string
-}
-
+// TODO: add MarshalJSON and UnmarshalJSON to SortType
 const (
 	UnspecifiedSort SortType = iota
 	LastModifiedDesc
@@ -48,6 +43,13 @@ const (
 	CreatedAsc
 )
 
+// TODO: extend/merge/delete this type? probably dups in this package.
+type BlobMeta struct {
+	Ref      blob.Ref
+	Size     int
+	MIMEType string
+}
+
 type SearchQuery struct {
 	Constraint *Constraint `json:"constraint"`
 	Limit      int         `json:"limit"` // optional. default is automatic.
@@ -55,7 +57,7 @@ type SearchQuery struct {
 }
 
 func (q *SearchQuery) fromHTTP(req *http.Request) error {
-	dec := json.NewDecoder(req.Body)
+	dec := json.NewDecoder(io.LimitReader(req.Body, 1<<20))
 	if err := dec.Decode(q); err != nil {
 		return err
 	}
