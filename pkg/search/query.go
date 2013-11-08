@@ -19,6 +19,7 @@ package search
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -121,6 +122,7 @@ type AttributeConstraint struct {
 	Value        string      // if non-zero, absolute match
 	ValueAny     []string    // Value is any of these strings
 	ValueMatches *Constraint // if non-zero, Attr value is blobref in this set of matches
+	ValueSet     bool        // value is set to something non-blank
 }
 
 // search is the state of an in-progress search
@@ -212,6 +214,9 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	if c.AnyCamliType {
 		addCond(anyCamliType)
 	}
+	if c.Attribute != nil {
+		addCond(c.Attribute.blobMatches)
+	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
 			if bm.Size < bs.Min {
@@ -291,4 +296,38 @@ func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bo
 	default:
 		return false, fmt.Errorf("In LogicalConstraint, unknown operation %q", c.Op)
 	}
+}
+
+func (c *AttributeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+	if bm.MIMEType != "application/json; camliType=permanode" {
+		return false, nil
+	}
+	dr, err := s.h.Describe(&DescribeRequest{
+		BlobRef: br,
+	})
+	if err != nil {
+		return false, err
+	}
+	db := dr.Meta[br.String()]
+	if db == nil || db.Permanode == nil {
+		return false, nil
+	}
+	attrs := db.Permanode.Attr // url.Values: a map[string][]string
+	if c.Value != "" {
+		got := attrs.Get(c.Attr)
+		return got == c.Value, nil
+	}
+	if len(c.ValueAny) > 0 {
+		got := attrs.Get(c.Attr)
+		for _, want := range c.ValueAny {
+			if want == got {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	log.Printf("br=%v meta=%+v: %#v", br, bm, dr)
+	panic("TODO: not implemented")
+	return false, nil
 }

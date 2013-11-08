@@ -254,3 +254,49 @@ func TestQueryLogicalNot(t *testing.T) {
 	}
 	wantRes(t, sres, foo, bar)
 }
+
+func TestQueryPermanodeAttrExact(t *testing.T) {
+	id, h := querySetup(t)
+
+	p1 := id.NewPlannedPermanode("1")
+	p2 := id.NewPlannedPermanode("2")
+	id.SetAttribute(p1, "someAttr", "value1")
+	id.SetAttribute(p2, "someAttr", "value2")
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Attribute: &AttributeConstraint{
+				Attr:  "someAttr",
+				Value: "value1",
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, p1)
+}
+
+func TestQueryPermanodeAttrAny(t *testing.T) {
+	id, h := querySetup(t)
+
+	p1 := id.NewPlannedPermanode("1")
+	p2 := id.NewPlannedPermanode("2")
+	id.SetAttribute(p1, "someAttr", "value1")
+	id.SetAttribute(p2, "someAttr", "value2")
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Attribute: &AttributeConstraint{
+				Attr:     "someAttr",
+				ValueAny: []string{"value1", "value3"},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, p1)
+}
