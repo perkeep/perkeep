@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -118,6 +119,7 @@ type AttributeConstraint struct {
 
 	// Attr is the attribute to match.
 	// e.g. "camliContent", "camliMember", "tag"
+	// TODO: field to control whether first vs. all permanode values are considered?
 	Attr         string
 	Value        string      // if non-zero, absolute match
 	ValueAny     []string    // Value is any of these strings
@@ -133,6 +135,11 @@ type search struct {
 
 	mu      sync.Mutex
 	matches map[blob.Ref]bool
+}
+
+func (s *search) blobMeta(br blob.Ref) (BlobMeta, error) {
+	mime, size, err := s.h.index.GetBlobMIMEType(br)
+	return BlobMeta{Ref: br, Size: int(size), MIMEType: mime}, err
 }
 
 // optimizePlan returns an optimized version of c which will hopefully
@@ -331,6 +338,27 @@ func (c *AttributeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (
 		for _, attr := range attrs[c.Attr] {
 			if attr != "" {
 				return true, nil
+			}
+		}
+		return false, nil
+	}
+	if subc := c.ValueMatches; subc != nil {
+		for _, attr := range attrs[c.Attr] {
+			if attrBr, ok := blob.Parse(attr); ok {
+				meta, err := s.blobMeta(attrBr)
+				if err == os.ErrNotExist {
+					continue
+				}
+				if err != nil {
+					return false, err
+				}
+				matches, err := subc.blobMatches(s, attrBr, meta)
+				if err != nil {
+					return false, err
+				}
+				if matches {
+					return true, nil
+				}
 			}
 		}
 		return false, nil

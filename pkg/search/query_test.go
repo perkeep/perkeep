@@ -323,3 +323,33 @@ func TestQueryPermanodeAttrSet(t *testing.T) {
 	}
 	wantRes(t, sres, p2)
 }
+
+// find a permanode (p2) that has a property being a blobref pointing
+// to a sub-query
+func TestQueryPermanodeValueMatches(t *testing.T) {
+	id, h := querySetup(t)
+
+	p1 := id.NewPlannedPermanode("1")
+	id.SetAttribute(p1, "bar", "baz")
+	p2 := id.NewPlannedPermanode("2")
+	id.SetAttribute(p2, "foo", p1.String())
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Attribute: &AttributeConstraint{
+				Attr: "foo",
+				ValueMatches: &Constraint{
+					Attribute: &AttributeConstraint{
+						Attr:  "bar",
+						Value: "baz",
+					},
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, p2)
+}
