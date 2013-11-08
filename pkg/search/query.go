@@ -318,9 +318,18 @@ func (c *AttributeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (
 		return got == c.Value, nil
 	}
 	if len(c.ValueAny) > 0 {
-		got := attrs.Get(c.Attr)
-		for _, want := range c.ValueAny {
-			if want == got {
+		for _, attr := range attrs[c.Attr] {
+			for _, want := range c.ValueAny {
+				if want == attr {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	}
+	if c.ValueSet {
+		for _, attr := range attrs[c.Attr] {
+			if attr != "" {
 				return true, nil
 			}
 		}

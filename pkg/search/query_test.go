@@ -300,3 +300,26 @@ func TestQueryPermanodeAttrAny(t *testing.T) {
 	}
 	wantRes(t, sres, p1)
 }
+
+func TestQueryPermanodeAttrSet(t *testing.T) {
+	id, h := querySetup(t)
+
+	p1 := id.NewPlannedPermanode("1")
+	id.SetAttribute(p1, "x", "y")
+	p2 := id.NewPlannedPermanode("2")
+	id.SetAttribute(p2, "someAttr", "value2")
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Attribute: &AttributeConstraint{
+				Attr:     "someAttr",
+				ValueSet: true,
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, p2)
+}
