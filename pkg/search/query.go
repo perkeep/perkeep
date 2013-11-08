@@ -17,10 +17,13 @@ limitations under the License.
 package search
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -47,17 +50,30 @@ const (
 )
 
 type SearchQuery struct {
-	Constraint *Constraint
-	Limit      int      // optional. default is automatic.
-	Sort       SortType // optional. default is automatic or unsorted.
+	Constraint *Constraint `json:"constraint"`
+	Limit      int         `json:"limit"` // optional. default is automatic.
+	Sort       SortType    `json:"sort"`  // optional. default is automatic or unsorted.
+}
+
+func (q *SearchQuery) fromHTTP(req *http.Request) error {
+	dec := json.NewDecoder(req.Body)
+	if err := dec.Decode(q); err != nil {
+		return err
+	}
+
+	if q.Constraint == nil {
+		return errors.New("query must have at least a root Constraint")
+	}
+
+	return nil
 }
 
 type SearchResult struct {
-	Blobs []*SearchResultBlob
+	Blobs []*SearchResultBlob `json:"blobs"`
 }
 
 type SearchResultBlob struct {
-	Blob blob.Ref
+	Blob blob.Ref `json:"blob"`
 	// ... file info, permanode info, blob info ... ?
 }
 
@@ -70,61 +86,61 @@ func (r *SearchResultBlob) String() string {
 // A zero constraint matches nothing.
 type Constraint struct {
 	// If Logical is non-nil, all other fields are ignored.
-	Logical *LogicalConstraint
+	Logical *LogicalConstraint `json:"logical"`
 
 	// Anything, if true, matches all blobs.
-	Anything bool
+	Anything bool `json:"anything"`
 
-	CamliType     string // camliType of the JSON blob
-	AnyCamliType  bool   // if true, any camli JSON blob matches
-	BlobRefPrefix string
+	CamliType     string `json:"camliType"`    // camliType of the JSON blob
+	AnyCamliType  bool   `json:"anyCamliType"` // if true, any camli JSON blob matches
+	BlobRefPrefix string `json:"blobRefPrefix"`
 
 	// For claims:
-	Claim *ClaimConstraint
+	Claim *ClaimConstraint `json:"claim"`
 
-	BlobSize *BlobSizeConstraint
-	Type     *BlobTypeConstraint
+	BlobSize *BlobSizeConstraint `json:"blobSize"`
+	Type     *BlobTypeConstraint `json:"type"`
 
 	// For permanodes:
-	Attribute *AttributeConstraint
+	Attribute *AttributeConstraint `json:"attribute"`
 }
 
 type ClaimConstraint struct {
-	SignedBy     string // identity
-	SignedAfter  time.Time
-	SignedBefore time.Time
+	SignedBy     string    `json:"signedBy"` // identity
+	SignedAfter  time.Time `json:"signedAfter"`
+	SignedBefore time.Time `json:"signedBefore"`
 }
 
 type LogicalConstraint struct {
-	Op string // "and", "or", "xor", "not"
-	A  *Constraint
-	B  *Constraint // only valid if Op == "not"
+	Op string      `json:"op"` // "and", "or", "xor", "not"
+	A  *Constraint `json:"a"`
+	B  *Constraint `json:"b"` // only valid if Op == "not"
 }
 
 type BlobTypeConstraint struct {
-	IsJSON  bool
-	IsImage bool // chunk header looks like an image. likely just first chunk.
+	IsJSON  bool `json:"isJSON"`
+	IsImage bool `json:"isImage"` // chunk header looks like an image. likely just first chunk.
 }
 
 type BlobSizeConstraint struct {
-	Min int // inclusive
-	Max int // inclusive. if zero, ignored.
+	Min int `json:"min"` // inclusive
+	Max int `json:"max"` // inclusive. if zero, ignored.
 }
 
 type AttributeConstraint struct {
 	// At specifies the time at which to pretend we're resolving attributes.
 	// Attribute claims after this point in time are ignored.
 	// If zero, the current time is used.
-	At time.Time
+	At time.Time `json:"at"`
 
 	// Attr is the attribute to match.
 	// e.g. "camliContent", "camliMember", "tag"
 	// TODO: field to control whether first vs. all permanode values are considered?
-	Attr         string
-	Value        string      // if non-zero, absolute match
-	ValueAny     []string    // Value is any of these strings
-	ValueMatches *Constraint // if non-zero, Attr value is blobref in this set of matches
-	ValueSet     bool        // value is set to something non-blank
+	Attr         string      `json:"attr"`
+	Value        string      `json:"value"`        // if non-zero, absolute match
+	ValueAny     []string    `json:"valueAny"`     // Value is any of these strings
+	ValueMatches *Constraint `json:"valueMatches"` // if non-zero, Attr value is blobref in this set of matches
+	ValueSet     bool        `json:"valueSet"`     // value is set to something non-blank
 }
 
 // search is the state of an in-progress search

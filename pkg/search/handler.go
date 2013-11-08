@@ -156,6 +156,13 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+	if req.Method == "POST" {
+		switch suffix {
+		case "camli/search/query":
+			sh.serveQuery(rw, req)
+			return
+		}
+	}
 
 	// TODO: discovery for the endpoints & better error message with link to discovery info
 	ret["error"] = "Unsupported search path or method"
@@ -1424,6 +1431,24 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	httputil.ReturnJSON(rw, res)
+}
+
+func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
+	defer httputil.RecoverJSON(rw, req)
+
+	var sq SearchQuery
+	if err := sq.fromHTTP(req); err != nil {
+		httputil.ServeJSONError(rw, err)
+		return
+	}
+
+	sr, err := sh.Query(&sq)
+	if err != nil {
+		httputil.ServeJSONError(rw, err)
+		return
+	}
+
+	httputil.ReturnJSON(rw, sr)
 }
 
 // GetSignerPaths returns paths with a target of req.Target.
