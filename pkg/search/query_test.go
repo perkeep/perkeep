@@ -355,14 +355,14 @@ func TestQueryPermanodeValueMatches(t *testing.T) {
 }
 
 // find permanodes matching a certain file query
-func TestQueryPermanodeValueMatches(t *testing.T) {
+func TestQueryFileConstraint(t *testing.T) {
 	id, h := querySetup(t)
 
-	fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123))
+	fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
 	p1 := id.NewPlannedPermanode("1")
 	id.SetAttribute(p1, "camliContent", fileRef.String())
 
-	fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(123))
+	fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(456, 0))
 	p2 := id.NewPlannedPermanode("2")
 	id.SetAttribute(p2, "camliContent", fileRef2.String())
 
