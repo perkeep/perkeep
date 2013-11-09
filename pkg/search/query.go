@@ -97,6 +97,7 @@ type Constraint struct {
 	BlobRefPrefix string `json:"blobRefPrefix"`
 
 	File *FileConstraint
+	Dir  *DirConstraint
 
 	// For claims:
 	Claim *ClaimConstraint `json:"claim"`
@@ -118,6 +119,28 @@ type FileConstraint struct {
 	Time     *TimeConstraint
 	ModTime  *TimeConstraint
 	EXIF     *EXIFConstraint
+}
+
+type DirConstraint struct {
+	// (All non-zero fields must match)
+
+	// TODO: implement. mostly need more things in the index.
+
+	FileName *StringConstraint
+
+	TopFileSize, // not recursive
+	TopFileCount, // not recursive
+	FileSize,
+	FileCount *IntConstraint
+
+	// TODO: these would need thought on how to index efficiently:
+	// (Also: top-only variants?)
+	// ContainsFile *FileConstraint
+	// ContainsDir  *DirConstraint
+}
+
+type IntConstraint struct {
+	Min, Max int64
 }
 
 type EXIFConstraint struct {
@@ -298,6 +321,9 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	// TODO: ClaimConstraint
 	if c.File != nil {
 		addCond(c.File.blobMatches)
+	}
+	if c.Dir != nil {
+		addCond(c.Dir.blobMatches)
 	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
@@ -503,4 +529,13 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 		}
 	}
 	return true
+}
+
+func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+	if bm.MIMEType != "application/json; camliType=directory" {
+		return false, nil
+	}
+
+	// TODO: implement
+	panic("TODO: implement DirConstraint.blobMatches")
 }
