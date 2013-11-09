@@ -470,8 +470,37 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool,
 	if sc := c.MIMEType; sc != nil && !sc.stringMatches(fi.MIMEType) {
 		return false, nil
 	}
-	// TOOD: Time timeconstraint
-	// TOOD: ModTime timeconstraint
+	if tc := c.Time; tc != nil {
+		if fi.Time == nil || !tc.timeMatches(fi.Time.Time()) {
+			return false, nil
+		}
+	}
+	if tc := c.ModTime; tc != nil {
+		if fi.ModTime == nil || !tc.timeMatches(fi.ModTime.Time()) {
+			return false, nil
+		}
+	}
 	// TOOD: EXIF timeconstraint
 	return true, nil
+}
+
+func (c *TimeConstraint) timeMatches(t time.Time) bool {
+	if t.IsZero() {
+		return false
+	}
+	if !c.Before.IsZero() {
+		if !t.Before(c.Before) {
+			return false
+		}
+	}
+	after := c.After
+	if after.IsZero() && c.InLast > 0 {
+		after = time.Now().Add(-c.InLast)
+	}
+	if !after.IsZero() {
+		if !(t.Equal(after) || t.After(after)) { // after is >=
+			return false
+		}
+	}
+	return true
 }
