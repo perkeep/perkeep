@@ -454,6 +454,10 @@ var handlerTests = []handlerTest{
 }
 
 func TestHandler(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+		return
+	}
 	seen := map[string]bool{}
 	defer SetTestHookBug121(func() {})
 	for _, tt := range handlerTests {
