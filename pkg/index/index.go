@@ -385,7 +385,8 @@ func (x *Index) deletedAtNoCache(br blob.Ref) (bool, time.Time) {
 	return false, time.Time{}
 }
 
-// isDeleted returns whether br (a blobref or a claim) should be considered deleted.
+// IsDeleted reports whether the provided blobref (of a permanode or
+// claim) should be considered deleted.
 func (x *Index) IsDeleted(br blob.Ref) bool {
 	if x.deletes == nil {
 		// We still allow the slow path, in case someone creates
