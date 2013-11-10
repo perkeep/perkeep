@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- bring in the google glog package to third_party and use it in
+   places that want selective logging (e.g. pkg/index/receive.go)
+
 -- camput's havecache initialization should move up a layer to
    to be global to all commands, not specific to "camput file".
    (the statcache can stay in file).  otherwise, we have no haveCache
