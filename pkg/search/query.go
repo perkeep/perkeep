@@ -140,7 +140,22 @@ type DirConstraint struct {
 }
 
 type IntConstraint struct {
-	Min, Max int64
+	// Min and Max are both optional.
+	// Zero means don't check.
+	Min     int64
+	Max     int64
+	ZeroMin bool
+	ZeroMax bool
+}
+
+func (c *IntConstraint) matchesInt(v int64) bool {
+	if (c.Min != 0 || c.ZeroMin) && v < c.Min {
+		return false
+	}
+	if (c.Max != 0 || c.ZeroMax) && v > c.Max {
+		return false
+	}
+	return true
 }
 
 type EXIFConstraint struct {
