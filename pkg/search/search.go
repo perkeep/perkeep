@@ -72,8 +72,7 @@ func (cl ClaimList) Len() int {
 }
 
 func (cl ClaimList) Less(i, j int) bool {
-	// TODO: memoize Seconds in unexported Claim field
-	return cl[i].Date.Unix() < cl[j].Date.Unix()
+	return cl[i].Date.Before(cl[j].Date)
 }
 
 func (cl ClaimList) Swap(i, j int) {
