@@ -903,7 +903,8 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 }
 
 type DescribedPermanode struct {
-	Attr url.Values `json:"attr"` // a map[string][]string
+	Attr    url.Values `json:"attr"` // a map[string][]string
+	ModTime time.Time
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
@@ -1231,6 +1232,8 @@ func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, s
 claimLoop:
 	for _, cl := range claims {
 		switch cl.Type {
+		default:
+			continue
 		case "del-attribute":
 			if cl.Value == "" {
 				delete(attr, cl.Attr)
@@ -1264,6 +1267,7 @@ claimLoop:
 			}
 			attr[cl.Attr] = append(sl, cl.Value)
 		}
+		pi.ModTime = cl.Date
 	}
 
 	// If the content permanode is now known, look up its type

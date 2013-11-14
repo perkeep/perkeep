@@ -265,7 +265,7 @@ func TestQueryPermanodeAttrExact(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			Attribute: &AttributeConstraint{
+			Permanode: &PermanodeConstraint{
 				Attr:  "someAttr",
 				Value: "value1",
 			},
@@ -288,7 +288,7 @@ func TestQueryPermanodeAttrAny(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			Attribute: &AttributeConstraint{
+			Permanode: &PermanodeConstraint{
 				Attr:     "someAttr",
 				ValueAny: []string{"value1", "value3"},
 			},
@@ -311,7 +311,7 @@ func TestQueryPermanodeAttrSet(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			Attribute: &AttributeConstraint{
+			Permanode: &PermanodeConstraint{
 				Attr:     "someAttr",
 				ValueSet: true,
 			},
@@ -326,7 +326,7 @@ func TestQueryPermanodeAttrSet(t *testing.T) {
 
 // find a permanode (p2) that has a property being a blobref pointing
 // to a sub-query
-func TestQueryPermanodeValueMatches(t *testing.T) {
+func TestQueryPermanodeAttrValueMatches(t *testing.T) {
 	id, h := querySetup(t)
 
 	p1 := id.NewPlannedPermanode("1")
@@ -336,10 +336,10 @@ func TestQueryPermanodeValueMatches(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			Attribute: &AttributeConstraint{
+			Permanode: &PermanodeConstraint{
 				Attr: "foo",
 				ValueMatches: &Constraint{
-					Attribute: &AttributeConstraint{
+					Permanode: &PermanodeConstraint{
 						Attr:  "bar",
 						Value: "baz",
 					},
@@ -368,7 +368,7 @@ func TestQueryFileConstraint(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			Attribute: &AttributeConstraint{
+			Permanode: &PermanodeConstraint{
 				Attr: "camliContent",
 				ValueMatches: &Constraint{
 					File: &FileConstraint{
@@ -386,4 +386,32 @@ func TestQueryFileConstraint(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantRes(t, sres, p1)
+}
+
+func TestQueryPermanodeModtime(t *testing.T) {
+	id, h := querySetup(t)
+
+	// indextest advances time one second per operation:
+	p1 := id.NewPlannedPermanode("1")
+	p2 := id.NewPlannedPermanode("2")
+	p3 := id.NewPlannedPermanode("3")
+	id.SetAttribute(p1, "someAttr", "value1") // 2011-11-28 01:32:37.000123456 +0000 UTC 1322443957
+	id.SetAttribute(p2, "someAttr", "value2") // 2011-11-28 01:32:38.000123456 +0000 UTC 1322443958
+	id.SetAttribute(p3, "someAttr", "value3") // 2011-11-28 01:32:39.000123456 +0000 UTC 1322443959
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			Permanode: &PermanodeConstraint{
+				ModTime: &TimeConstraint{
+					After:  time.Unix(1322443957, 456789),
+					Before: time.Unix(1322443959, 0),
+				},
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, p2)
 }
