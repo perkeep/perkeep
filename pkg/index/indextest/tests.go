@@ -253,7 +253,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
 		SignerBlobRef: pubKey.BlobRef(),
-		now:           time.Unix(1322443956, 123456),
+		now:           test.ClockOrigin,
 		Fataler:       logFataler{},
 	}
 	// Add dev client test key public key, keyid 26F5ABDA,

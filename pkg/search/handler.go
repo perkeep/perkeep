@@ -904,7 +904,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 
 type DescribedPermanode struct {
 	Attr    url.Values `json:"attr"` // a map[string][]string
-	ModTime time.Time
+	ModTime time.Time  `json:"modtime,omitempty"`
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
