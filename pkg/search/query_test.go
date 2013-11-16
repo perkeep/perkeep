@@ -144,6 +144,29 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 	}
 }
 
+func TestQueryTwoConstraints(t *testing.T) {
+	id, h := querySetup(t)
+
+	id.UploadString("a")      // 86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
+	b := id.UploadString("b") // e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98
+	id.UploadString("c4")     // e4666a670f042877c67a84473a71675ee0950a08
+
+	sq := &SearchQuery{
+		Constraint: &Constraint{
+			BlobRefPrefix: "sha1-e", // matches b and c4
+			BlobSize: &IntConstraint{ // matches a and b
+				Min: 1,
+				Max: 1,
+			},
+		},
+	}
+	sres, err := h.Query(sq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRes(t, sres, b)
+}
+
 func TestQueryLogicalOr(t *testing.T) {
 	id, h := querySetup(t)
 

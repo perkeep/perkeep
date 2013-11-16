@@ -159,15 +159,20 @@ func (id *IndexDeps) Delete(target blob.Ref) blob.Ref {
 
 var noTime = time.Time{}
 
+func (id *IndexDeps) UploadString(v string) blob.Ref {
+	cb := &test.Blob{Contents: v}
+	id.BlobSource.AddBlob(cb)
+	br := cb.BlobRef()
+	_, err := id.Index.ReceiveBlob(br, cb.Reader())
+	if err != nil {
+		id.Fatalf("UploadString: %v", err)
+	}
+	return br
+}
+
 // If modTime is zero, it's not used.
 func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
-	cb := &test.Blob{Contents: contents}
-	id.BlobSource.AddBlob(cb)
-	wholeRef = cb.BlobRef()
-	_, err := id.Index.ReceiveBlob(wholeRef, cb.Reader())
-	if err != nil {
-		id.Fatalf("UploadFile.ReceiveBlob: %v", err)
-	}
+	wholeRef = id.UploadString(contents)
 
 	m := schema.NewFileMap(fileName)
 	m.PopulateParts(int64(len(contents)), []schema.BytesPart{

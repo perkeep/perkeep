@@ -368,7 +368,13 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	case 1:
 		return conds[0](s, br, blobMeta)
 	default:
-		panic("TODO")
+		for _, condFn := range conds {
+			match, err := condFn(s, br, blobMeta)
+			if !match || err != nil {
+				return match, err
+			}
+		}
+		return true, nil
 	}
 }
 
