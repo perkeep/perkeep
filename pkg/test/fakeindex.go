@@ -28,6 +28,8 @@ import (
 	"camlistore.org/pkg/search"
 )
 
+var ClockOrigin = time.Unix(1322443956, 123456)
+
 // A FakeIndex implements parts of search.Index and provides methods
 // to controls the results, such as AddMeta, AddClaim,
 // AddSignerAttrValue.
@@ -39,8 +41,8 @@ type FakeIndex struct {
 	signerAttrValue map[string]blob.Ref         // "<signer>\0<attr>\0<value>" -> blobref
 	path            map[string]*search.Path     // "<signer>\0<base>\0<suffix>" -> path
 
-	cllk  sync.Mutex
-	clock int64 // TODO(bradfitz): make this a time.Time
+	cllk  sync.RWMutex
+	clock time.Time
 }
 
 var _ search.Index = (*FakeIndex)(nil)
@@ -52,6 +54,7 @@ func NewFakeIndex() *FakeIndex {
 		ownerClaims:     make(map[string]search.ClaimList),
 		signerAttrValue: make(map[string]blob.Ref),
 		path:            make(map[string]*search.Path),
+		clock:           ClockOrigin,
 	}
 }
 
@@ -61,10 +64,15 @@ func NewFakeIndex() *FakeIndex {
 
 func (fi *FakeIndex) nextDate() time.Time {
 	fi.cllk.Lock()
-	fi.clock++ // TODO: fi.clock.Add(1 * time.Second)
-	clock := fi.clock
-	fi.cllk.Unlock()
-	return time.Unix(clock, 0).UTC()
+	defer fi.cllk.Unlock()
+	fi.clock = fi.clock.Add(1 * time.Second)
+	return fi.clock.UTC()
+}
+
+func (fi *FakeIndex) LastTime() time.Time {
+	fi.cllk.RLock()
+	defer fi.cllk.RUnlock()
+	return fi.clock
 }
 
 func (fi *FakeIndex) AddMeta(blob blob.Ref, mime string, size int64) {

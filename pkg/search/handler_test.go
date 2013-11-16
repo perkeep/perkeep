@@ -78,6 +78,12 @@ func parseJSON(s string) map[string]interface{} {
 	return m
 }
 
+// addToClockOrigin returns the given Duration added
+// to test.ClockOrigin, in UTC, and RFC3339Nano formatted.
+func addToClockOrigin(d time.Duration) string {
+	return test.ClockOrigin.Add(d).UTC().Format(time.RFC3339Nano)
+}
+
 var handlerTests = []handlerTest{
 	{
 		name:  "describe-missing",
@@ -146,7 +152,8 @@ var handlerTests = []handlerTest{
 						"attr": {
 							"camliContent": [ "foo-232" ],
 							"only-delete-b": [ "a", "c" ]
-						}
+						},
+						"modtime": "` + addToClockOrigin(8*time.Second) + `"
 					}
 				}
 			}
@@ -183,7 +190,8 @@ var handlerTests = []handlerTest{
           "camliPath:foo": [
             "bar-123"
           ]
-        }
+        },
+		"modtime": "` + addToClockOrigin(1*time.Second) + `"
       }
     }
   }
@@ -216,7 +224,8 @@ var handlerTests = []handlerTest{
 		 "camliType": "permanode",
                  "mimeType": "application/json; camliType=permanode",
                  "permanode": {
-                   "attr": { "title": [ "Some title" ] }
+                   "attr": { "title": [ "Some title" ] },
+					"modtime": "` + addToClockOrigin(1*time.Second) + `"
                  },
                  "size": 534
                      }
@@ -270,7 +279,8 @@ var handlerTests = []handlerTest{
 		          "camliContent": [
 		            "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
 		          ]
-		        }
+		        },
+				"modtime": "` + addToClockOrigin(1*time.Second) + `"
 		      },
                  "size": 534
                      },
@@ -351,7 +361,8 @@ var handlerTests = []handlerTest{
 		          "camliMember": [
 		            "sha1-7ca7743e38854598680d94ef85348f2c48a44513"
 		          ]
-		        }
+		        },
+				"modtime": "` + addToClockOrigin(2*time.Second) + `"
 		      }
 		    },
 		    "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
@@ -364,7 +375,8 @@ var handlerTests = []handlerTest{
 		          "camliContent": [
 		            "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
 		          ]
-		        }
+		        },
+				"modtime": "` + addToClockOrigin(1*time.Second) + `"
 		      }
 		    },
 		    "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
@@ -412,7 +424,8 @@ var handlerTests = []handlerTest{
 		 "camliType": "permanode",
                  "mimeType": "application/json; camliType=permanode",
                  "permanode": {
-                   "attr": { "title": [ "Some title" ] }
+                   "attr": { "title": [ "Some title" ] },
+					"modtime": "` + addToClockOrigin(1*time.Second) + `"
                  },
                  "size": 534,
                  "thumbnailHeight": 100,
