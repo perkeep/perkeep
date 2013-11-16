@@ -103,7 +103,7 @@ func TestQueryBlobSize(t *testing.T) {
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
-			BlobSize: &BlobSizeConstraint{
+			BlobSize: &IntConstraint{
 				Min: 4 << 10,
 				Max: 6 << 10,
 			},
@@ -188,8 +188,8 @@ func TestQueryLogicalAnd(t *testing.T) {
 					BlobRefPrefix: "sha1-0",
 				},
 				B: &Constraint{
-					BlobSize: &BlobSizeConstraint{
-						Max: len("foo"), // excludes "bar.."
+					BlobSize: &IntConstraint{
+						Max: int64(len("foo")), // excludes "bar.."
 					},
 				},
 			},

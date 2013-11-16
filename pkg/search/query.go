@@ -99,8 +99,8 @@ type Constraint struct {
 	File *FileConstraint
 	Dir  *DirConstraint
 
-	Claim    *ClaimConstraint    `json:"claim"`
-	BlobSize *BlobSizeConstraint `json:"blobSize"`
+	Claim    *ClaimConstraint `json:"claim"`
+	BlobSize *IntConstraint   `json:"blobSize"`
 
 	Permanode *PermanodeConstraint `json:"permanode"`
 }
@@ -145,7 +145,7 @@ type IntConstraint struct {
 	ZeroMax bool
 }
 
-func (c *IntConstraint) matchesInt(v int64) bool {
+func (c *IntConstraint) intMatches(v int64) bool {
 	if (c.Min != 0 || c.ZeroMin) && v < c.Min {
 		return false
 	}
@@ -210,11 +210,6 @@ type LogicalConstraint struct {
 	Op string      `json:"op"` // "and", "or", "xor", "not"
 	A  *Constraint `json:"a"`
 	B  *Constraint `json:"b"` // only valid if Op == "not"
-}
-
-type BlobSizeConstraint struct {
-	Min int `json:"min"` // inclusive
-	Max int `json:"max"` // inclusive. if zero, ignored.
 }
 
 // PermanodeConstraint matches permanodes.
@@ -358,13 +353,7 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	}
 	if bs := c.BlobSize; bs != nil {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-			if bm.Size < bs.Min {
-				return false, nil
-			}
-			if bs.Max > 0 && bm.Size > bs.Max {
-				return false, nil
-			}
-			return true, nil
+			return bs.intMatches(int64(bm.Size)), nil
 		})
 
 	}
