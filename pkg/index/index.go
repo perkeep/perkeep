@@ -150,6 +150,8 @@ type Index struct {
 	// of the blobs in the index. It makes for faster reads than the otherwise
 	// recursive calls on the index.
 	deletes *deletionCache
+
+	corpus *Corpus // or nil, if not being kept in memory
 }
 
 var _ blobserver.Storage = (*Index)(nil)
