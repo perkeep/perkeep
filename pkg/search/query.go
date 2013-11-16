@@ -45,9 +45,9 @@ const (
 
 // TODO: extend/merge/delete this type? probably dups in this package.
 type BlobMeta struct {
-	Ref      blob.Ref
-	Size     int
-	MIMEType string
+	Ref       blob.Ref
+	Size      int
+	CamliType string // or empty if unknown
 }
 
 type SearchQuery struct {
@@ -252,9 +252,19 @@ type search struct {
 	matches map[blob.Ref]bool
 }
 
+// "application/json; camliType=file" => "file"
+// "image/gif" => ""
+func camliTypeFromMIME(mime string) string {
+	if v := strings.TrimPrefix(mime, camliTypeMIME); v != mime {
+		return v
+	}
+	return ""
+}
+
 func (s *search) blobMeta(br blob.Ref) (BlobMeta, error) {
 	mime, size, err := s.h.index.GetBlobMIMEType(br)
-	return BlobMeta{Ref: br, Size: int(size), MIMEType: mime}, err
+	camliType := camliTypeFromMIME(mime)
+	return BlobMeta{Ref: br, Size: int(size), CamliType: camliType}, err
 }
 
 // optimizePlan returns an optimized version of c which will hopefully
@@ -314,7 +324,7 @@ func alwaysMatch(*search, blob.Ref, BlobMeta) (bool, error) {
 }
 
 func anyCamliType(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-	return strings.HasPrefix(bm.MIMEType, camliTypeMIME), nil
+	return bm.CamliType != "", nil
 }
 
 func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (bool, error) {
@@ -330,7 +340,7 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	}
 	if c.CamliType != "" {
 		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-			return strings.TrimPrefix(bm.MIMEType, camliTypeMIME) == c.CamliType, nil
+			return bm.CamliType == c.CamliType, nil
 		})
 	}
 	if c.AnyCamliType {
@@ -428,7 +438,7 @@ func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bo
 }
 
 func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-	if bm.MIMEType != "application/json; camliType=permanode" {
+	if bm.CamliType != "permanode" {
 		return false, nil
 	}
 	dr, err := s.h.Describe(&DescribeRequest{
@@ -508,7 +518,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, dp *DescribedPerma
 }
 
 func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-	if bm.MIMEType != "application/json; camliType=file" {
+	if bm.CamliType != "file" {
 		return false, nil
 	}
 	fi, err := s.h.index.GetFileInfo(br)
@@ -569,7 +579,7 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 }
 
 func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
-	if bm.MIMEType != "application/json; camliType=directory" {
+	if bm.CamliType != "directory" {
 		return false, nil
 	}
 
