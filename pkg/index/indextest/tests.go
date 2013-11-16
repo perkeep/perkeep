@@ -35,8 +35,8 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 // An IndexDeps is a helper for populating and querying an Index for tests.
@@ -406,7 +406,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// SearchPermanodesWithAttr - match attr type "tag" and value "foo1"
 	{
 		ch := make(chan blob.Ref, 10)
-		req := &search.PermanodeByAttrRequest{
+		req := &camtypes.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
 			Attribute: "tag",
 			Query:     "foo1"}
@@ -427,7 +427,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// SearchPermanodesWithAttr - match all with attr type "tag"
 	{
 		ch := make(chan blob.Ref, 10)
-		req := &search.PermanodeByAttrRequest{
+		req := &camtypes.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
 			Attribute: "tag"}
 		err := id.Index.SearchPermanodesWithAttr(ch, req)
@@ -459,42 +459,42 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// GetRecentPermanodes
 	{
-		ch := make(chan *search.Result, 10) // expect 2 results, but maybe more if buggy.
+		ch := make(chan camtypes.RecentPermanode, 10) // expect 2 results, but maybe more if buggy.
 		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
 		if err != nil {
 			t.Fatalf("GetRecentPermanodes = %v", err)
 		}
-		got := []*search.Result{}
+		got := []camtypes.RecentPermanode{}
 		for r := range ch {
 			got = append(got, r)
 		}
-		want := []*search.Result{
-			&search.Result{
-				BlobRef:     pn,
+		want := []camtypes.RecentPermanode{
+			{
+				Permanode:   pn,
 				Signer:      id.SignerBlobRef,
-				LastModTime: lastPermanodeMutation.Unix(),
+				LastModTime: lastPermanodeMutation,
 			},
-			&search.Result{
-				BlobRef:     pnChild,
+			{
+				Permanode:   pnChild,
 				Signer:      id.SignerBlobRef,
-				LastModTime: br3Time.Unix(),
+				LastModTime: br3Time,
 			},
 		}
 		if len(got) != len(want) {
 			t.Errorf("GetRecentPermanode results differ.\n got: %v\nwant: %v",
-				search.Results(got), search.Results(want))
+				searchResults(got), searchResults(want))
 		}
 		for _, w := range want {
 			found := false
 			for _, g := range got {
-				if reflect.DeepEqual(g, w) {
+				if g.Equal(w) {
 					found = true
 					break
 				}
 			}
 			if !found {
 				t.Errorf("GetRecentPermanode: %v was not found.\n got: %v\nwant: %v",
-					w, search.Results(got), search.Results(want))
+					w, searchResults(got), searchResults(want))
 			}
 		}
 	}
@@ -518,7 +518,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		for _, w := range want {
 			found := false
 			for _, g := range got {
-				if w.String() == g.String() {
+				if w == g {
 					found = true
 					break
 				}
@@ -554,8 +554,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Errorf("GetOwnerClaims = %v", err)
 		} else {
-			want := search.ClaimList([]*search.Claim{
-				&search.Claim{
+			want := camtypes.ClaimList([]*camtypes.Claim{
+				&camtypes.Claim{
 					BlobRef:   br1,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -564,7 +564,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "tag",
 					Value:     "foo1",
 				},
-				&search.Claim{
+				&camtypes.Claim{
 					BlobRef:   br2,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -573,7 +573,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "tag",
 					Value:     "foo2",
 				},
-				&search.Claim{
+				&camtypes.Claim{
 					BlobRef:   rootClaim,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -582,7 +582,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "camliRoot",
 					Value:     "rootval",
 				},
-				&search.Claim{
+				&camtypes.Claim{
 					BlobRef:   memberRef,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -725,7 +725,7 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 		if len(edges) != 1 {
 			t.Fatalf("num edges = %d; want 1", len(edges))
 		}
-		wantEdge := &search.Edge{
+		wantEdge := &camtypes.Edge{
 			From:     pn1,
 			To:       pn2,
 			FromType: "permanode",
@@ -883,4 +883,17 @@ func appendReverseString(b []byte, s string) []byte {
 		}
 	}
 	return b
+}
+
+type searchResults []camtypes.RecentPermanode
+
+func (s searchResults) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "[%d search results: ", len(s))
+	for _, r := range s {
+		fmt.Fprintf(&buf, "{BlobRef: %s, Signer: %s, LastModTime: %d}",
+			r.Permanode, r.Signer, r.LastModTime.Unix())
+	}
+	buf.WriteString("]")
+	return buf.String()
 }

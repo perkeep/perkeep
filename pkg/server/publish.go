@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
 
@@ -902,7 +903,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 
 // Given a described blob, optionally follows a camliContent and
 // returns the file's schema blobref and its fileinfo (if found).
-func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (fileref blob.Ref, fileinfo *search.FileInfo, ok bool) {
+func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (fileref blob.Ref, fileinfo *camtypes.FileInfo, ok bool) {
 	if des == nil {
 		http.NotFound(pr.rw, pr.req)
 		return

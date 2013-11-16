@@ -37,7 +37,6 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
 
 	"camlistore.org/third_party/taglib"
@@ -367,12 +366,12 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 		}
 	}
 
-	if search.IsIndexedAttribute(attr) {
+	if IsIndexedAttribute(attr) {
 		key := keySignerAttrValue.Key(verifiedKeyId, attr, value, claim.ClaimDateString(), br)
 		mm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
 
-	if search.IsBlobReferenceAttribute(attr) {
+	if IsBlobReferenceAttribute(attr) {
 		targetRef, ok := blob.Parse(value)
 		if ok {
 			key := keyEdgeBackward.Key(targetRef, pnbr, br)

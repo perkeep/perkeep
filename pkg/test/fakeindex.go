@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 var ClockOrigin = time.Unix(1322443956, 123456)
@@ -37,23 +37,21 @@ type FakeIndex struct {
 	lk              sync.Mutex
 	mimeType        map[string]string // blobref -> type
 	size            map[string]int64
-	ownerClaims     map[string]search.ClaimList // "<permanode>/<owner>" -> ClaimList
-	signerAttrValue map[string]blob.Ref         // "<signer>\0<attr>\0<value>" -> blobref
-	path            map[string]*search.Path     // "<signer>\0<base>\0<suffix>" -> path
+	ownerClaims     map[string]camtypes.ClaimList // "<permanode>/<owner>" -> ClaimList
+	signerAttrValue map[string]blob.Ref           // "<signer>\0<attr>\0<value>" -> blobref
+	path            map[string]*camtypes.Path     // "<signer>\0<base>\0<suffix>" -> path
 
 	cllk  sync.RWMutex
 	clock time.Time
 }
 
-var _ search.Index = (*FakeIndex)(nil)
-
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
 		mimeType:        make(map[string]string),
 		size:            make(map[string]int64),
-		ownerClaims:     make(map[string]search.ClaimList),
+		ownerClaims:     make(map[string]camtypes.ClaimList),
 		signerAttrValue: make(map[string]blob.Ref),
-		path:            make(map[string]*search.Path),
+		path:            make(map[string]*camtypes.Path),
 		clock:           ClockOrigin,
 	}
 }
@@ -87,7 +85,7 @@ func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value 
 	defer fi.lk.Unlock()
 	date := fi.nextDate()
 
-	claim := &search.Claim{
+	claim := &camtypes.Claim{
 		Permanode: permanode,
 		Signer:    blob.Ref{},
 		BlobRef:   blob.Ref{},
@@ -101,7 +99,7 @@ func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value 
 
 	if claimType == "set-attribute" && strings.HasPrefix(attr, "camliPath:") {
 		suffix := attr[len("camliPath:"):]
-		path := &search.Path{
+		path := &camtypes.Path{
 			Target: blob.MustParse(value),
 			Suffix: suffix,
 		}
@@ -119,16 +117,16 @@ func (fi *FakeIndex) AddSignerAttrValue(signer blob.Ref, attr, val string, lates
 // Interface implementation
 //
 
-func (fi *FakeIndex) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, limit int) error {
+func (fi *FakeIndex) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) error {
 	panic("NOIMPL")
 }
 
 // TODO(mpl): write real tests
-func (fi *FakeIndex) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *search.PermanodeByAttrRequest) error {
+func (fi *FakeIndex) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes.PermanodeByAttrRequest) error {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetOwnerClaims(permaNode, owner blob.Ref) (search.ClaimList, error) {
+func (fi *FakeIndex) GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
@@ -149,11 +147,11 @@ func (fi *FakeIndex) ExistingFileSchemas(bytesRef blob.Ref) ([]blob.Ref, error) 
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetFileInfo(fileRef blob.Ref) (*search.FileInfo, error) {
+func (fi *FakeIndex) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (*search.ImageInfo, error) {
+func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error) {
 	panic("NOIMPL")
 }
 
@@ -170,15 +168,15 @@ func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val strin
 	return blob.Ref{}, os.ErrNotExist
 }
 
-func (fi *FakeIndex) PathsOfSignerTarget(signer, target blob.Ref) ([]*search.Path, error) {
+func (fi *FakeIndex) PathsOfSignerTarget(signer, target blob.Ref) ([]*camtypes.Path, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathsLookup(signer, base blob.Ref, suffix string) ([]*search.Path, error) {
+func (fi *FakeIndex) PathsLookup(signer, base blob.Ref, suffix string) ([]*camtypes.Path, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*search.Path, error) {
+func (fi *FakeIndex) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
 	if !at.IsZero() {
 		panic("PathLookup with non-zero 'at' time not supported")
 	}
@@ -191,10 +189,10 @@ func (fi *FakeIndex) PathLookup(signer, base blob.Ref, suffix string, at time.Ti
 	return nil, os.ErrNotExist
 }
 
-func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) ([]*search.Edge, error) {
+func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) ([]*camtypes.Edge, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) EnumerateBlobMeta(ch chan<- search.BlobMeta) error {
+func (fi *FakeIndex) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
 	panic("NOIMPL")
 }

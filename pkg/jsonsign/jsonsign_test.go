@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package jsonsign
+package jsonsign_test
 
 import (
 	"bytes"
@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	. "camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/test"
 	. "camlistore.org/pkg/test/asserts"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"

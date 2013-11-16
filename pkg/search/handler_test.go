@@ -43,7 +43,7 @@ type indexOwnerer interface {
 }
 
 type indexAndOwner struct {
-	Index
+	index.Interface
 	owner blob.Ref
 }
 
@@ -59,7 +59,7 @@ type handlerTest struct {
 	// generally then returned as the Index to use, but an
 	// alternate Index may be returned instead, in which case the
 	// FakeIndex is not used.
-	setup func(fi *test.FakeIndex) Index
+	setup func(fi *test.FakeIndex) index.Interface
 
 	name  string // test name
 	query string // the HTTP path + optional query suffix after "camli/search/"
@@ -87,7 +87,7 @@ func addToClockOrigin(d time.Duration) string {
 var handlerTests = []handlerTest{
 	{
 		name:  "describe-missing",
-		setup: func(fi *test.FakeIndex) Index { return fi },
+		setup: func(fi *test.FakeIndex) index.Interface { return fi },
 		query: "describe?blobref=eabc-555",
 		want: parseJSON(`{
 			"meta": {
@@ -97,7 +97,7 @@ var handlerTests = []handlerTest{
 
 	{
 		name: "describe-jpeg-blob",
-		setup: func(fi *test.FakeIndex) Index {
+		setup: func(fi *test.FakeIndex) index.Interface {
 			fi.AddMeta(blob.MustParse("abc-555"), "image/jpeg", 999)
 			return fi
 		},
@@ -116,7 +116,7 @@ var handlerTests = []handlerTest{
 
 	{
 		name: "describe-permanode",
-		setup: func(fi *test.FakeIndex) Index {
+		setup: func(fi *test.FakeIndex) index.Interface {
 			pn := blob.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
@@ -163,7 +163,7 @@ var handlerTests = []handlerTest{
 	// test that describe follows camliPath:foo attributes
 	{
 		name: "describe-permanode-follows-camliPath",
-		setup: func(fi *test.FakeIndex) Index {
+		setup: func(fi *test.FakeIndex) index.Interface {
 			pn := blob.MustParse("perma-123")
 			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliPath:foo", "bar-123")
@@ -201,7 +201,7 @@ var handlerTests = []handlerTest{
 	// Test recent permanodes
 	{
 		name: "recent-1",
-		setup: func(*test.FakeIndex) Index {
+		setup: func(*test.FakeIndex) index.Interface {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
 			idx := index.NewMemoryIndex()
@@ -215,7 +215,7 @@ var handlerTests = []handlerTest{
 		want: parseJSON(`{
                 "recent": [
                     {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-                     "modtime": "2011-11-28T01:32:37Z",
+                     "modtime": "2011-11-28T01:32:37.000123456Z",
                      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
                 ],
                 "meta": {
@@ -236,7 +236,7 @@ var handlerTests = []handlerTest{
 	// Test recent permanode of a file
 	{
 		name: "recent-file",
-		setup: func(*test.FakeIndex) Index {
+		setup: func(*test.FakeIndex) index.Interface {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
 			idx := index.NewMemoryIndex()
@@ -266,7 +266,7 @@ var handlerTests = []handlerTest{
 		want: parseJSON(`{
                 "recent": [
                     {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-                     "modtime": "2011-11-28T01:32:37Z",
+                     "modtime": "2011-11-28T01:32:37.000123456Z",
                      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
                 ],
                 "meta": {
@@ -306,7 +306,7 @@ var handlerTests = []handlerTest{
 	// Test recent permanode of a file, in a collection
 	{
 		name: "recent-file-collec",
-		setup: func(*test.FakeIndex) Index {
+		setup: func(*test.FakeIndex) index.Interface {
 			SetTestHookBug121(func() {
 				time.Sleep(2 * time.Second)
 			})
@@ -341,12 +341,12 @@ var handlerTests = []handlerTest{
 		  "recent": [
 		    {
 		      "blobref": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
-		      "modtime": "2011-11-28T01:32:38Z",
+		      "modtime": "2011-11-28T01:32:38.000123456Z",
 		      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 		    },
 		    {
 		      "blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-		      "modtime": "2011-11-28T01:32:37Z",
+		      "modtime": "2011-11-28T01:32:37.000123456Z",
 		      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 		    }
 		  ],
@@ -401,7 +401,7 @@ var handlerTests = []handlerTest{
 	// Test recent permanodes with thumbnails
 	{
 		name: "recent-thumbs",
-		setup: func(*test.FakeIndex) Index {
+		setup: func(*test.FakeIndex) index.Interface {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
 			idx := index.NewMemoryIndex()
@@ -415,7 +415,7 @@ var handlerTests = []handlerTest{
 		want: parseJSON(`{
                 "recent": [
                     {"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-                     "modtime": "2011-11-28T01:32:37Z",
+                     "modtime": "2011-11-28T01:32:37.000123456Z",
                      "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
                 ],
                 "meta": {
@@ -441,7 +441,7 @@ var handlerTests = []handlerTest{
 	// back from member only reveal the first parent.
 	{
 		name: "edge-to",
-		setup: func(*test.FakeIndex) Index {
+		setup: func(*test.FakeIndex) index.Interface {
 			// Ignore the fakeindex and use the real (but in-memory) implementation,
 			// using IndexDeps to populate it.
 			idx := index.NewMemoryIndex()
@@ -515,7 +515,8 @@ func TestHandler(t *testing.T) {
 		if bytes.Equal(got2, want) {
 			continue
 		}
+		diff := test.Diff(want, got2)
 
-		t.Errorf("test %s:\nwant: %s\n got: %s", tt.name, want, got)
+		t.Errorf("test %s:\nwant: %s\n got: %s\ndiff:\n%s", tt.name, want, got, diff)
 	}
 }

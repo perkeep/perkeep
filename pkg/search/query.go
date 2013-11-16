@@ -30,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 type SortType int
@@ -42,13 +43,6 @@ const (
 	CreatedDesc
 	CreatedAsc
 )
-
-// TODO: extend/merge/delete this type? probably dups in this package.
-type BlobMeta struct {
-	Ref       blob.Ref
-	Size      int
-	CamliType string // or empty if unknown; TODO: replace with small int enum?
-}
 
 type SearchQuery struct {
 	Constraint *Constraint `json:"constraint"`
@@ -256,10 +250,10 @@ func camliTypeFromMIME(mime string) string {
 	return ""
 }
 
-func (s *search) blobMeta(br blob.Ref) (BlobMeta, error) {
+func (s *search) blobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	mime, size, err := s.h.index.GetBlobMIMEType(br)
 	camliType := camliTypeFromMIME(mime)
-	return BlobMeta{Ref: br, Size: int(size), CamliType: camliType}, err
+	return camtypes.BlobMeta{Ref: br, Size: int(size), CamliType: camliType}, err
 }
 
 // optimizePlan returns an optimized version of c which will hopefully
@@ -277,7 +271,7 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 		res:     res,
 		matches: make(map[blob.Ref]bool),
 	}
-	ch := make(chan BlobMeta, buffered)
+	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
 	go func() {
 		errc <- h.index.EnumerateBlobMeta(ch)
@@ -309,20 +303,20 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 const camliTypeMIME = "application/json; camliType="
 
 type blobMatcher interface {
-	blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (bool, error)
+	blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error)
 }
 
-type matchFn func(*search, blob.Ref, BlobMeta) (bool, error)
+type matchFn func(*search, blob.Ref, camtypes.BlobMeta) (bool, error)
 
-func alwaysMatch(*search, blob.Ref, BlobMeta) (bool, error) {
+func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 	return true, nil
 }
 
-func anyCamliType(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
 }
 
-func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (bool, error) {
+func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
 	var conds []matchFn
 	addCond := func(fn matchFn) {
 		conds = append(conds, fn)
@@ -334,7 +328,7 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 		addCond(alwaysMatch)
 	}
 	if c.CamliType != "" {
-		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+		addCond(func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 			return bm.CamliType == c.CamliType, nil
 		})
 	}
@@ -352,13 +346,13 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 		addCond(c.Dir.blobMatches)
 	}
 	if bs := c.BlobSize; bs != nil {
-		addCond(func(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+		addCond(func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 			return bs.intMatches(int64(bm.Size)), nil
 		})
 
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
-		addCond(func(*search, blob.Ref, BlobMeta) (bool, error) {
+		addCond(func(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 			return strings.HasPrefix(br.String(), pfx), nil
 		})
 	}
@@ -378,7 +372,7 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta BlobMeta) (boo
 	}
 }
 
-func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	switch c.Op {
 	case "and", "xor":
 		if c.A == nil || c.B == nil {
@@ -432,7 +426,7 @@ func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bo
 	}
 }
 
-func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
@@ -512,7 +506,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, dp *DescribedPerma
 	return false, nil
 }
 
-func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "file" {
 		return false, nil
 	}
@@ -573,7 +567,7 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 	return true
 }
 
-func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm BlobMeta) (bool, error) {
+func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "directory" {
 		return false, nil
 	}

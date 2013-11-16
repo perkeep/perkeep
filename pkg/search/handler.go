@@ -35,9 +35,11 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 const buffered = 32     // arbitrary channel buffer size
@@ -54,7 +56,7 @@ func init() {
 
 // Handler handles search queries.
 type Handler struct {
-	index Index
+	index index.Interface
 	owner blob.Ref
 }
 
@@ -71,7 +73,7 @@ var (
 	_ IGetRecentPermanodes = (*Handler)(nil)
 )
 
-func NewHandler(index Index, owner blob.Ref) *Handler {
+func NewHandler(index index.Interface, owner blob.Ref) *Handler {
 	return &Handler{index: index, owner: owner}
 }
 
@@ -95,7 +97,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	if err != nil {
 		return nil, fmt.Errorf("search config references unknown handler %q", indexPrefix)
 	}
-	indexer, ok := indexHandler.(Index)
+	indexer, ok := indexHandler.(index.Interface)
 	if !ok {
 		return nil, fmt.Errorf("search config references invalid indexer %q (actually a %T)", indexPrefix, indexHandler)
 	}
@@ -124,7 +126,7 @@ func (h *Handler) Owner() blob.Ref {
 	return h.owner
 }
 
-func (h *Handler) Index() Index {
+func (h *Handler) Index() index.Interface {
 	return h.index
 }
 
@@ -451,7 +453,7 @@ var testHookBug121 = func() {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
 func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
-	ch := make(chan *Result)
+	ch := make(chan camtypes.RecentPermanode)
 	errch := make(chan error, 1)
 	go func() {
 		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, req.n())
@@ -461,11 +463,11 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 
 	var recent []*RecentItem
 	for res := range ch {
-		dr.Describe(res.BlobRef, 2)
+		dr.Describe(res.Permanode, 2)
 		recent = append(recent, &RecentItem{
-			BlobRef: res.BlobRef,
+			BlobRef: res.Permanode,
 			Owner:   res.Signer,
-			ModTime: types.Time3339(time.Unix(res.LastModTime, 0)),
+			ModTime: types.Time3339(res.LastModTime),
 		})
 		testHookBug121() // http://camlistore.org/issue/121
 	}
@@ -510,7 +512,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 			signer = sh.owner
 		}
 		errch <- sh.index.SearchPermanodesWithAttr(ch,
-			&PermanodeByAttrRequest{
+			&camtypes.PermanodeByAttrRequest{
 				Attribute:  req.Attr,
 				Query:      req.Value,
 				Signer:     signer,
@@ -678,11 +680,11 @@ type DescribedBlob struct {
 	Permanode *DescribedPermanode `json:"permanode,omitempty"`
 
 	// if camliType "file"
-	File *FileInfo `json:"file,omitempty"`
+	File *camtypes.FileInfo `json:"file,omitempty"`
 	// if camliType "directory"
-	Dir *FileInfo `json:"dir,omitempty"`
+	Dir *camtypes.FileInfo `json:"dir,omitempty"`
 	// if camliType "file", and File.IsImage()
-	Image *ImageInfo `json:"image,omitempty"`
+	Image *camtypes.ImageInfo `json:"image,omitempty"`
 	// if camliType "directory"
 	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
 
@@ -698,7 +700,7 @@ type DescribedBlob struct {
 // and the blobref of its File camliContent.
 // If b isn't a permanode, or doesn't have a camliContent that
 // is a file blob, ok is false.
-func (b *DescribedBlob) PermanodeFile() (path []blob.Ref, fi *FileInfo, ok bool) {
+func (b *DescribedBlob) PermanodeFile() (path []blob.Ref, fi *camtypes.FileInfo, ok bool) {
 	if b == nil || b.Permanode == nil {
 		return
 	}
@@ -714,7 +716,7 @@ func (b *DescribedBlob) PermanodeFile() (path []blob.Ref, fi *FileInfo, ok bool)
 // and the blobref of its Directory camliContent.
 // If b isn't a permanode, or doesn't have a camliContent that
 // is a directory blob, ok is false.
-func (b *DescribedBlob) PermanodeDir() (path []blob.Ref, fi *FileInfo, ok bool) {
+func (b *DescribedBlob) PermanodeDir() (path []blob.Ref, fi *camtypes.FileInfo, ok bool) {
 	if b == nil || b.Permanode == nil {
 		return
 	}
@@ -1375,7 +1377,7 @@ func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 		err  error
 	}
 	resc := make(chan edgeOrError)
-	verify := func(edge *Edge) {
+	verify := func(edge *camtypes.Edge) {
 		db, err := sh.NewDescribeRequest().DescribeSync(edge.From)
 		if err != nil {
 			resc <- edgeOrError{err: err}
@@ -1384,7 +1386,7 @@ func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 		found := false
 		if db.Permanode != nil {
 			for attr, vv := range db.Permanode.Attr {
-				if IsBlobReferenceAttribute(attr) {
+				if index.IsBlobReferenceAttribute(attr) {
 					for _, v := range vv {
 						if v == toRefStr {
 							found = true

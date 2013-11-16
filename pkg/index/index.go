@@ -29,8 +29,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 var ErrNotFound = errors.New("index: key not found")
@@ -155,7 +155,7 @@ type Index struct {
 }
 
 var _ blobserver.Storage = (*Index)(nil)
-var _ search.Index = (*Index)(nil)
+var _ Interface = (*Index)(nil)
 
 func New(s Storage) *Index {
 	idx := &Index{s: s}
@@ -435,7 +435,7 @@ func (x *Index) isDeletedNoCache(br blob.Ref) bool {
 	return false
 }
 
-func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, limit int) (err error) {
+func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) (err error) {
 	defer close(dest)
 
 	keyId, err := x.keyId(owner)
@@ -459,10 +459,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, li
 		if len(parts) != 4 {
 			continue
 		}
-		var mTimeSec int64
-		if mTime, err := time.Parse(time.RFC3339, unreverseTimeString(parts[2])); err == nil {
-			mTimeSec = mTime.Unix()
-		}
+		mTime, _ := time.Parse(time.RFC3339, unreverseTimeString(parts[2]))
 		permaRef, ok := blob.Parse(permaStr)
 		if !ok {
 			continue
@@ -473,10 +470,10 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, li
 		if seenPermanode.Dup(permaStr) {
 			continue
 		}
-		dest <- &search.Result{
-			BlobRef:     permaRef,
+		dest <- camtypes.RecentPermanode{
+			Permanode:   permaRef,
 			Signer:      owner, // TODO(bradfitz): kinda. usually. for now.
-			LastModTime: mTimeSec,
+			LastModTime: mTime,
 		}
 		sent++
 		if sent == limit {
@@ -486,7 +483,7 @@ func (x *Index) GetRecentPermanodes(dest chan *search.Result, owner blob.Ref, li
 	return nil
 }
 
-func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl search.ClaimList, err error) {
+func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl camtypes.ClaimList, err error) {
 	keyId, err := x.keyId(owner)
 	if err == ErrNotFound {
 		err = nil
@@ -508,7 +505,7 @@ func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl search.ClaimList, 
 			continue
 		}
 		date, _ := time.Parse(time.RFC3339, keyPart[3])
-		cl = append(cl, &search.Claim{
+		cl = append(cl, &camtypes.Claim{
 			BlobRef:   claimRef,
 			Signer:    owner,
 			Permanode: permaNode,
@@ -565,7 +562,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (p
 
 // This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
 // If request.Query is "", it is not used in the prefix search.
-func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *search.PermanodeByAttrRequest) (err error) {
+func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes.PermanodeByAttrRequest) (err error) {
 	defer close(dest)
 	if request.FuzzyMatch {
 		// TODO(bradfitz): remove this for now? figure out how to handle it generically?
@@ -612,8 +609,8 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *search.P
 	return nil
 }
 
-func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*search.Path, err error) {
-	paths = []*search.Path{}
+func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.Path, err error) {
+	paths = []*camtypes.Path{}
 	keyId, err := x.keyId(signer)
 	if err != nil {
 		if err == ErrNotFound {
@@ -622,7 +619,7 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*search.Pa
 		return
 	}
 
-	mostRecent := make(map[string]*search.Path)
+	mostRecent := make(map[string]*camtypes.Path)
 	maxClaimDates := make(map[string]string)
 
 	it := x.queryPrefix(keyPathBackward, keyId, target)
@@ -649,7 +646,7 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*search.Pa
 		if claimDate > maxClaimDates[key] {
 			maxClaimDates[key] = claimDate
 			if active == "Y" {
-				mostRecent[key] = &search.Path{
+				mostRecent[key] = &camtypes.Path{
 					Claim:     claimRef,
 					ClaimDate: claimDate,
 					Base:      baseRef,
@@ -667,8 +664,8 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*search.Pa
 	return paths, nil
 }
 
-func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*search.Path, err error) {
-	paths = []*search.Path{}
+func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*camtypes.Path, err error) {
+	paths = []*camtypes.Path{}
 	keyId, err := x.keyId(signer)
 	if err != nil {
 		if err == ErrNotFound {
@@ -706,7 +703,7 @@ func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*sear
 		active := valPart[0]
 		_ = active
 
-		path := &search.Path{
+		path := &camtypes.Path{
 			Claim:     claimRef,
 			ClaimDate: claimDate,
 			Base:      baseRef,
@@ -718,7 +715,7 @@ func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*sear
 	return
 }
 
-func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*search.Path, error) {
+func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
 	paths, err := x.PathsLookup(signer, base, suffix)
 	if err != nil {
 		return nil, err
@@ -726,7 +723,7 @@ func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (
 	var (
 		newest    = int64(0)
 		atSeconds = int64(0)
-		best      *search.Path
+		best      *camtypes.Path
 	)
 
 	if !at.IsZero() {
@@ -777,7 +774,7 @@ func (x *Index) loadKey(key string, val *string, err *error, wg *sync.WaitGroup)
 	*val, *err = x.s.Get(key)
 }
 
-func (x *Index) GetFileInfo(fileRef blob.Ref) (*search.FileInfo, error) {
+func (x *Index) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
 	wg := new(sync.WaitGroup)
@@ -811,7 +808,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (*search.FileInfo, error) {
 		return nil, os.ErrNotExist
 	}
 	fileName := urld(valPart[1])
-	fi := &search.FileInfo{
+	fi := &camtypes.FileInfo{
 		Size:     size,
 		FileName: fileName,
 		MIMEType: urld(valPart[2]),
@@ -828,7 +825,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (*search.FileInfo, error) {
 	return fi, nil
 }
 
-func (x *Index) GetImageInfo(fileRef blob.Ref) (*search.ImageInfo, error) {
+func (x *Index) GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error) {
 	// it might be that the key does not exist because image.DecodeConfig failed earlier
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
@@ -852,14 +849,14 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (*search.ImageInfo, error) {
 		return nil, fmt.Errorf("index: bogus integer at position 1 in key %q: %q", key, valPart[1])
 	}
 
-	imgInfo := &search.ImageInfo{
+	imgInfo := &camtypes.ImageInfo{
 		Width:  width,
 		Height: height,
 	}
 	return imgInfo, nil
 }
 
-func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search.Edge, err error) {
+func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camtypes.Edge, err error) {
 	it := x.queryPrefix(keyEdgeBackward, ref)
 	defer closeIterator(it, &err)
 	permanodeParents := map[string]blob.Ref{} // blobref key => blobref set
@@ -881,7 +878,7 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search
 		if parentType == "permanode" {
 			permanodeParents[parent] = parentRef
 		} else {
-			edges = append(edges, &search.Edge{
+			edges = append(edges, &camtypes.Edge{
 				From:      parentRef,
 				FromType:  parentType,
 				FromTitle: parentName,
@@ -890,7 +887,7 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *search.EdgesToOpts) (edges []*search
 		}
 	}
 	for _, parentRef := range permanodeParents {
-		edges = append(edges, &search.Edge{
+		edges = append(edges, &camtypes.Edge{
 			From:     parentRef,
 			FromType: "permanode",
 			To:       ref,
@@ -926,7 +923,7 @@ func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (er
 }
 
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
-func (x *Index) EnumerateBlobMeta(ch chan<- search.BlobMeta) (err error) {
+func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
 	defer close(ch)
 	it := x.queryPrefixString("meta:")
 	defer closeIterator(it, &err)
@@ -945,7 +942,7 @@ func (x *Index) EnumerateBlobMeta(ch chan<- search.BlobMeta) (err error) {
 		if err != nil {
 			continue
 		}
-		ch <- search.BlobMeta{
+		ch <- camtypes.BlobMeta{
 			Ref:       br,
 			Size:      size,
 			CamliType: camliTypeFromMIME(v[pipe+1:]),
@@ -974,4 +971,34 @@ func camliTypeFromMIME(mime string) string {
 		return v
 	}
 	return ""
+}
+
+// TODO(bradfitz): rename this? This is really about signer-attr-value
+// (PermanodeOfSignerAttrValue), and not about indexed attributes in general.
+func IsIndexedAttribute(attr string) bool {
+	switch attr {
+	case "camliRoot", "camliImportRoot", "tag", "title":
+		return true
+	}
+	return false
+}
+
+// IsBlobReferenceAttribute returns whether attr is an attribute whose
+// value is a blob reference (e.g. camliMember) and thus something the
+// indexers should keep inverted indexes on for parent/child-type
+// relationships.
+func IsBlobReferenceAttribute(attr string) bool {
+	switch attr {
+	case "camliMember":
+		return true
+	}
+	return false
+}
+
+func IsFulltextAttribute(attr string) bool {
+	switch attr {
+	case "tag", "title":
+		return true
+	}
+	return false
 }

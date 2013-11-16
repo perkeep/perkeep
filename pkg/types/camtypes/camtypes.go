@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2013 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,5 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package search describes and answers Camlistore search queries.
-package search
+// Package camtypes is like the types package, but higher-level and contains
+// Camlistore-specific types.  It exists mostly to break circular dependencies
+// between index, search, and schema.
+package camtypes
