@@ -79,6 +79,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
 	ownerBlobStr := conf.RequiredString("owner")
 	devBlockStartupPrefix := conf.OptionalString("devBlockStartupOn", "")
+	slurpToMemory := conf.OptionalBool("slurpToMemory", false)
 	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
@@ -102,6 +103,13 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	if !ok {
 		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
 			ownerBlobStr)
+	}
+	if slurpToMemory {
+		// TODO: tell the index to do so. Something like:
+		// ii := indexer.(*index.Index)
+		// if _, err := ii.KeepInMemory(); err != nil {
+		//   return nil, fmt.Errorf("error slurping index to memory: %v", err)
+		// }
 	}
 	return &Handler{
 		index: indexer,

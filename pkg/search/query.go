@@ -47,7 +47,7 @@ const (
 type BlobMeta struct {
 	Ref       blob.Ref
 	Size      int
-	CamliType string // or empty if unknown
+	CamliType string // or empty if unknown; TODO: replace with small int enum?
 }
 
 type SearchQuery struct {
