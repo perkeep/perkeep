@@ -1,6 +1,8 @@
 package index
 
 import (
+	"errors"
+	"log"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -15,7 +17,9 @@ type Corpus struct {
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
 	files      map[blob.Ref]*FileMeta
 	permanodes map[blob.Ref]*PermanodeMeta
-	deletedBy  map[blob.Ref]blob.Ref // key is deleted by value
+
+	// TOOD: use deletedCache instead?
+	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
 }
 
 type FileMeta struct {
@@ -29,8 +33,23 @@ type PermanodeMeta struct {
 	// Claims     ClaimList
 }
 
+func newCorpus() *Corpus {
+	return &Corpus{
+		blobs:      make(map[blob.Ref]camtypes.BlobMeta),
+		files:      make(map[blob.Ref]*FileMeta),
+		permanodes: make(map[blob.Ref]*PermanodeMeta),
+		deletedBy:  make(map[blob.Ref]blob.Ref),
+	}
+}
+
 func NewCorpusFromStorage(s Storage) (*Corpus, error) {
-	panic("TODO")
+	if s == nil {
+		return nil, errors.New("storage is nil")
+	}
+	c := newCorpus()
+	// TODO: slurp from storage
+	log.Printf("TODO: NewCorpusFromStorage should slurp from storage")
+	return c, nil
 }
 
 func (x *Index) KeepInMemory() (*Corpus, error) {

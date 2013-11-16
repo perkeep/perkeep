@@ -58,6 +58,12 @@ func init() {
 type Handler struct {
 	index index.Interface
 	owner blob.Ref
+
+	// Corpus optionally specifies the full in-memory metadata corpus
+	// to use.
+	// TODO: this may be required in the future, or folded into the index
+	// interface.
+	corpus *index.Corpus
 }
 
 // IGetRecentPermanodes is the interface encapsulating the GetRecentPermanodes query.
@@ -106,17 +112,19 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
 			ownerBlobStr)
 	}
-	if slurpToMemory {
-		// TODO: tell the index to do so. Something like:
-		// ii := indexer.(*index.Index)
-		// if _, err := ii.KeepInMemory(); err != nil {
-		//   return nil, fmt.Errorf("error slurping index to memory: %v", err)
-		// }
-	}
-	return &Handler{
+	h := &Handler{
 		index: indexer,
 		owner: ownerBlobRef,
-	}, nil
+	}
+	if slurpToMemory {
+		ii := indexer.(*index.Index)
+		corpus, err := ii.KeepInMemory()
+		if err != nil {
+			return nil, fmt.Errorf("error slurping index to memory: %v", err)
+		}
+		h.corpus = corpus
+	}
+	return h, nil
 }
 
 // Owner returns Handler owner's public key blobref.
