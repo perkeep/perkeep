@@ -491,21 +491,51 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 	return nil
 }
 
-func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl camtypes.ClaimList, err error) {
-	keyId, err := x.KeyId(owner)
-	if err == ErrNotFound {
-		err = nil
-		return
+func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+	signerFilter blob.Ref,
+	attrFilter string) ([]camtypes.Claim, error) {
+	var (
+		keyId string
+		err   error
+		it    *prefixIter
+	)
+	if signerFilter.Valid() {
+		keyId, err = x.KeyId(signerFilter)
+		if err == ErrNotFound {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		it = x.queryPrefix(keyPermanodeClaim, permaNode, keyId)
+	} else {
+		// TODO: for the Signer field below, we'll need a keyId->blob.Ref lookup
+		// too. For now just bail.
+		panic("TODO: not implemented. See comment.")
+		it = x.queryPrefix(keyPermanodeClaim, permaNode)
 	}
-	if err != nil {
-		return nil, err
-	}
-	it := x.queryPrefix(keyPermanodeClaim, permaNode, keyId)
 	defer closeIterator(it, &err)
+
+	// In the common case, an attribute filter is just a plain
+	// token ("camliContent") unescaped. If so, fast path that
+	// check to skip the row before we even split it.
+	var mustHave string
+	if attrFilter != "" && urle(attrFilter) == attrFilter {
+		mustHave = attrFilter
+	}
+
 	for it.Next() {
+		val := it.Value()
+		if mustHave != "" && !strings.Contains(val, mustHave) {
+			continue
+		}
 		keyPart := strings.Split(it.Key(), "|")
-		valPart := strings.Split(it.Value(), "|")
+		valPart := strings.Split(val, "|")
 		if len(keyPart) < 5 || len(valPart) < 3 {
+			continue
+		}
+		attr := urld(valPart[1])
+		if attrFilter != "" && attr != attrFilter {
 			continue
 		}
 		claimRef, ok := blob.Parse(keyPart[4])
@@ -513,17 +543,17 @@ func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl camtypes.ClaimList
 			continue
 		}
 		date, _ := time.Parse(time.RFC3339, keyPart[3])
-		cl = append(cl, &camtypes.Claim{
+		dst = append(dst, camtypes.Claim{
 			BlobRef:   claimRef,
-			Signer:    owner,
+			Signer:    signerFilter,
 			Permanode: permaNode,
 			Date:      date,
 			Type:      urld(valPart[0]),
-			Attr:      urld(valPart[1]),
+			Attr:      attr,
 			Value:     urld(valPart[2]),
 		})
 	}
-	return
+	return dst, nil
 }
 
 func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {

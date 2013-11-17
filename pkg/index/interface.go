@@ -22,13 +22,17 @@ type Interface interface {
 	// The error is ErrNotFound if not found.
 	KeyId(blob.Ref) (string, error)
 
+	// AppendClaims appends to dst claims on the given permanode.
+	// The signerFilter and attrFilter are both optional.  If non-zero,
+	// they filter the return items to only claims made by the given signer
+	// or claims about the given attribute, respectively.
+	// Deleted claims are never returned.
+	AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+		signerFilter blob.Ref,
+		attrFilter string) ([]camtypes.Claim, error)
+
 	// TODO(bradfitz): methods below this line are slated for a redesign
 	// to work efficiently for the new in-memory index.
-
-	// TODO: drop owner param and name "Owner". replace with keyId string.
-	// TODO: rename AppendClaims, make this append to a provided slice (and of []Claim, not ClaimList) instead if returning a slice.
-	// TODO: consider providing a filter attribute, for only claims affecting a given attribute.
-	GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error)
 
 	// dest must be closed, even when returning an error.
 	// limit <= 0 means unlimited.

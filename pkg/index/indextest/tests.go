@@ -548,14 +548,14 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	// GetOwnerClaims
+	// AppendClaims
 	{
-		claims, err := id.Index.GetOwnerClaims(pn, id.SignerBlobRef)
+		claims, err := id.Index.AppendClaims(nil, pn, id.SignerBlobRef, "")
 		if err != nil {
-			t.Errorf("GetOwnerClaims = %v", err)
+			t.Errorf("AppendClaims = %v", err)
 		} else {
-			want := camtypes.ClaimList([]*camtypes.Claim{
-				&camtypes.Claim{
+			want := []camtypes.Claim{
+				{
 					BlobRef:   br1,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -564,7 +564,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "tag",
 					Value:     "foo1",
 				},
-				&camtypes.Claim{
+				{
 					BlobRef:   br2,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -573,7 +573,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "tag",
 					Value:     "foo2",
 				},
-				&camtypes.Claim{
+				{
 					BlobRef:   rootClaim,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -582,7 +582,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "camliRoot",
 					Value:     "rootval",
 				},
-				&camtypes.Claim{
+				{
 					BlobRef:   memberRef,
 					Permanode: pn,
 					Signer:    id.SignerBlobRef,
@@ -591,9 +591,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Attr:      "camliMember",
 					Value:     pnChild.String(),
 				},
-			})
+			}
 			if !reflect.DeepEqual(claims, want) {
-				t.Errorf("GetOwnerClaims results differ.\n got: %v\nwant: %v",
+				t.Errorf("AppendClaims results differ.\n got: %v\nwant: %v",
 					claims, want)
 			}
 		}

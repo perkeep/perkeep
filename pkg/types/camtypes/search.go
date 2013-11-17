@@ -56,21 +56,21 @@ func (c *Claim) String() string {
 		c.BlobRef, c.Signer, c.Permanode, c.Date, c.Type, c.Attr, c.Value)
 }
 
-type ClaimList []*Claim
+type ClaimsByDate []Claim
 
-func (cl ClaimList) Len() int {
+func (cl ClaimsByDate) Len() int {
 	return len(cl)
 }
 
-func (cl ClaimList) Less(i, j int) bool {
+func (cl ClaimsByDate) Less(i, j int) bool {
 	return cl[i].Date.Before(cl[j].Date)
 }
 
-func (cl ClaimList) Swap(i, j int) {
+func (cl ClaimsByDate) Swap(i, j int) {
 	cl[i], cl[j] = cl[j], cl[i]
 }
 
-func (cl ClaimList) String() string {
+func (cl ClaimsByDate) String() string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "[%d claims: ", len(cl))
 	for _, r := range cl {

@@ -36,7 +36,7 @@ var ClockOrigin = time.Unix(1322443956, 123456)
 type FakeIndex struct {
 	lk              sync.Mutex
 	meta            map[blob.Ref]camtypes.BlobMeta
-	ownerClaims     map[string]camtypes.ClaimList // "<permanode>/<owner>" -> ClaimList
+	claims          map[blob.Ref][]camtypes.Claim // permanode -> claims
 	signerAttrValue map[string]blob.Ref           // "<signer>\0<attr>\0<value>" -> blobref
 	path            map[string]*camtypes.Path     // "<signer>\0<base>\0<suffix>" -> path
 
@@ -47,7 +47,7 @@ type FakeIndex struct {
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
 		meta:            make(map[blob.Ref]camtypes.BlobMeta),
-		ownerClaims:     make(map[string]camtypes.ClaimList),
+		claims:          make(map[blob.Ref][]camtypes.Claim),
 		signerAttrValue: make(map[string]blob.Ref),
 		path:            make(map[string]*camtypes.Path),
 		clock:           ClockOrigin,
@@ -93,17 +93,16 @@ func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value 
 	defer fi.lk.Unlock()
 	date := fi.nextDate()
 
-	claim := &camtypes.Claim{
+	claim := camtypes.Claim{
 		Permanode: permanode,
-		Signer:    blob.Ref{},
+		Signer:    owner,
 		BlobRef:   blob.Ref{},
 		Date:      date,
 		Type:      claimType,
 		Attr:      attr,
 		Value:     value,
 	}
-	key := permanode.String() + "/" + owner.String()
-	fi.ownerClaims[key] = append(fi.ownerClaims[key], claim)
+	fi.claims[permanode] = append(fi.claims[permanode], claim)
 
 	if claimType == "set-attribute" && strings.HasPrefix(attr, "camliPath:") {
 		suffix := attr[len("camliPath:"):]
@@ -138,10 +137,22 @@ func (fi *FakeIndex) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *cam
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error) {
+func (fi *FakeIndex) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+	signerFilter blob.Ref,
+	attrFilter string) ([]camtypes.Claim, error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
-	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
+
+	for _, cl := range fi.claims[permaNode] {
+		if signerFilter.Valid() && cl.Signer != signerFilter {
+			continue
+		}
+		if attrFilter != "" && cl.Attr != attrFilter {
+			continue
+		}
+		dst = append(dst, cl)
+	}
+	return dst, nil
 }
 
 func (fi *FakeIndex) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {

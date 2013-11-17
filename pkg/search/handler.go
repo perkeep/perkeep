@@ -577,15 +577,15 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 
 // GetClaims returns the claims on req.Permanode signed by sh.owner.
 func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
-	// TODO: rename GetOwnerClaims to GetClaims?
 	if !req.Permanode.Valid() {
 		return nil, errors.New("Error getting claims: nil permanode.")
 	}
-	claims, err := sh.index.GetOwnerClaims(req.Permanode, sh.owner)
+	var claims []camtypes.Claim
+	claims, err := sh.index.AppendClaims(claims, req.Permanode, sh.owner, "")
 	if err != nil {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}
-	sort.Sort(claims)
+	sort.Sort(camtypes.ClaimsByDate(claims))
 	var jclaims []*ClaimsItem
 	for _, claim := range claims {
 		jclaim := &ClaimsItem{
@@ -1249,14 +1249,14 @@ func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, s
 	pi.Attr = make(url.Values)
 	attr := pi.Attr
 
-	claims, err := dr.sh.index.GetOwnerClaims(pn, signer)
+	claims, err := dr.sh.index.AppendClaims(nil, pn, signer, "")
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
 		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
 		return
 	}
 
-	sort.Sort(claims)
+	sort.Sort(camtypes.ClaimsByDate(claims))
 claimLoop:
 	for _, cl := range claims {
 		switch cl.Type {
