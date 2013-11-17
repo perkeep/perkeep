@@ -15,7 +15,12 @@ import (
 
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
 type Corpus struct {
-	mu    sync.RWMutex
+	mu sync.RWMutex
+
+	// gen is incremented on every blob received.
+	// It's used as a query cache invalidator.
+	gen int64
+
 	strs  map[string]string // interned strings
 	blobs map[blob.Ref]camtypes.BlobMeta
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
@@ -116,6 +121,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 func (c *Corpus) addBlob(br blob.Ref, mm mutationMap) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.gen++
 	for k, v := range mm {
 		kt := typeOfKey(k)
 		if fn, ok := corpusMergeFunc[kt]; ok {
