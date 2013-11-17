@@ -271,7 +271,8 @@
      "/importer-flickr/": {
          "handler": "importer-flickr",
          "handlerArgs": {
-             "miniToken": ""
+             "appKey": "",
+             "appSecret": ""
          }
      },
 
