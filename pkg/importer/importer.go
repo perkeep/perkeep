@@ -57,7 +57,7 @@ type Host struct {
 }
 
 func (h *Host) String() string {
-	return fmt.Sprintf("%s (a %T)", h.imp.Prefix(), h.imp)
+	return fmt.Sprintf("%T(%s)", h, h.imp)
 }
 
 func (h *Host) Target() blobserver.StatReceiver {
@@ -371,10 +371,6 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if h.signer == nil {
 		return errors.New("importer requires a 'jsonsign' handler")
 	}
-
-	ro, err := h.RootObject()
-	log.Printf("Got a %#v, %v", ro, err)
-	log.Printf("Signer = %s", h.signer)
 
 	return nil
 }

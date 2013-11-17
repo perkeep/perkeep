@@ -38,9 +38,8 @@ func init() {
 }
 
 type imp struct {
-	authToken string
-	userId    string
-	host      *importer.Host
+	host *importer.Host
+	user *userInfo // nil if the user isn't authenticated
 }
 
 func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
@@ -51,8 +50,10 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	user, _ := readCredentials()
 	return &imp{
 		host: host,
+		user: user,
 	}, nil
 }
 
@@ -60,7 +61,19 @@ func (im *imp) CanHandleURL(url string) bool { return false }
 func (im *imp) ImportURL(url string) error   { panic("unused") }
 
 func (im *imp) Prefix() string {
-	return fmt.Sprintf("flickr:%s", im.userId)
+	// This should only get called when we're importing, so it's OK to
+	// assume we're authenticated.
+	return fmt.Sprintf("flickr:%s", im.user.Id)
+}
+
+func (im *imp) String() string {
+	// We use this in logging when we're not authenticated, so it should do
+	// something reasonable in that case.
+	userId := "<unauthenticated>"
+	if im.user != nil {
+		userId = im.user.Id
+	}
+	return fmt.Sprintf("flickr:%s", userId)
 }
 
 type photoMeta struct {
@@ -117,14 +130,13 @@ func (im *imp) Run(intr importer.Interrupt) error {
 }
 
 func (im *imp) flickrRequest(form url.Values, result interface{}) error {
-	cred, err := readCredentials()
-	if err != nil {
+	if im.user == nil {
 		return errors.New("Not logged in. Go to /importer-flickr/login.")
 	}
 
 	form.Set("format", "json")
 	form.Set("nojsoncallback", "1")
-	res, err := oauthClient.Get(im.host.HTTPClient(), cred, apiURL, form)
+	res, err := oauthClient.Get(im.host.HTTPClient(), im.user.Cred, apiURL, form)
 	if err != nil {
 		return err
 	}
