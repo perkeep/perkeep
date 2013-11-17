@@ -195,15 +195,23 @@ func (p *prefixIter) Next() bool {
 	return v
 }
 
-func (x *Index) queryPrefix(key *keyType, args ...interface{}) *prefixIter {
-	return x.queryPrefixString(key.Prefix(args...))
+func queryPrefixString(s Storage, prefix string) *prefixIter {
+	return &prefixIter{
+		prefix:   prefix,
+		Iterator: s.Find(prefix),
+	}
 }
 
 func (x *Index) queryPrefixString(prefix string) *prefixIter {
-	return &prefixIter{
-		prefix:   prefix,
-		Iterator: x.s.Find(prefix),
-	}
+	return queryPrefixString(x.s, prefix)
+}
+
+func queryPrefix(s Storage, key *keyType, args ...interface{}) *prefixIter {
+	return queryPrefixString(s, key.Prefix(args...))
+}
+
+func (x *Index) queryPrefix(key *keyType, args ...interface{}) *prefixIter {
+	return x.queryPrefixString(key.Prefix(args...))
 }
 
 func closeIterator(it Iterator, perr *error) {
@@ -922,10 +930,8 @@ func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (er
 	return nil
 }
 
-// EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
-func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
-	defer close(ch)
-	it := x.queryPrefixString("meta:")
+func enumerateBlobMeta(s Storage, cb func(camtypes.BlobMeta) error) (err error) {
+	it := queryPrefixString(s, "meta:")
 	defer closeIterator(it, &err)
 	for it.Next() {
 		refStr := strings.TrimPrefix(it.Key(), "meta:")
@@ -942,13 +948,27 @@ func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
 		if err != nil {
 			continue
 		}
-		ch <- camtypes.BlobMeta{
+		if err := cb(camtypes.BlobMeta{
 			Ref:       br,
 			Size:      size,
 			CamliType: camliTypeFromMIME(v[pipe+1:]),
+		}); err != nil {
+			return err
 		}
 	}
-	return err
+	return nil
+}
+
+// EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
+func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
+	if x.corpus != nil {
+		return x.corpus.EnumerateBlobMeta(ch)
+	}
+	defer close(ch)
+	return enumerateBlobMeta(x.s, func(bm camtypes.BlobMeta) error {
+		ch <- bm
+		return nil
+	})
 }
 
 // Storage returns the index's underlying Storage implementation.

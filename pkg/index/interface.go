@@ -109,6 +109,6 @@ type Interface interface {
 	// known to the indexer (which may be a subset of all total
 	// blobs, since the indexer is typically configured to not see
 	// non-metadata blobs) and then closes ch.  When it returns an
-	// error, it also closes ch.
+	// error, it also closes ch. The blobs may be sent in any order.
 	EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error
 }

@@ -38,6 +38,7 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
+	"camlistore.org/pkg/types/camtypes"
 
 	"camlistore.org/third_party/taglib"
 )
@@ -92,6 +93,16 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 
 	if err := ix.commit(mm); err != nil {
 		return retsb, err
+	}
+
+	if c := ix.corpus; c != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.blobs[blobRef] = camtypes.BlobMeta{
+			Ref:       blobRef,
+			Size:      int(written),
+			CamliType: sniffer.CamliType(),
+		}
 	}
 
 	// TODO(bradfitz): log levels? These are generally noisy

@@ -2,7 +2,6 @@ package index
 
 import (
 	"errors"
-	"log"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -47,8 +46,15 @@ func NewCorpusFromStorage(s Storage) (*Corpus, error) {
 		return nil, errors.New("storage is nil")
 	}
 	c := newCorpus()
-	// TODO: slurp from storage
-	log.Printf("TODO: NewCorpusFromStorage should slurp from storage")
+	err := enumerateBlobMeta(s, func(bm camtypes.BlobMeta) error {
+		c.blobs[bm.Ref] = bm
+		// TODO: populate blobref intern table
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// TODO: slurp more from storage
 	return c, nil
 }
 
@@ -56,4 +62,14 @@ func (x *Index) KeepInMemory() (*Corpus, error) {
 	var err error
 	x.corpus, err = NewCorpusFromStorage(x.s)
 	return x.corpus, err
+}
+
+func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
+	defer close(ch)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, bm := range c.blobs {
+		ch <- bm
+	}
+	return nil
 }

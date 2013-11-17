@@ -28,10 +28,11 @@ import (
 type BlobSniffer struct {
 	br blob.Ref
 
-	header   []byte
-	written  int64
-	meta     *schema.Blob // or nil
-	mimeType string
+	header    []byte
+	written   int64
+	meta      *schema.Blob // or nil
+	mimeType  string
+	camliType string
 }
 
 func NewBlobSniffer(ref blob.Ref) *BlobSniffer {
@@ -80,9 +81,12 @@ func (sn *BlobSniffer) Body() ([]byte, error) {
 // the form "application/json; camliType=foo".
 func (sn *BlobSniffer) MIMEType() string { return sn.mimeType }
 
+func (sn *BlobSniffer) CamliType() string { return sn.mimeType }
+
 func (sn *BlobSniffer) Parse() {
 	if sn.bufferIsCamliJSON() {
-		sn.mimeType = "application/json; camliType=" + sn.meta.Type()
+		sn.camliType = sn.meta.Type()
+		sn.mimeType = "application/json; camliType=" + sn.camliType
 	} else {
 		sn.mimeType = magic.MIMEType(sn.header)
 	}

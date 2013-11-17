@@ -11,8 +11,24 @@ import (
 	. "camlistore.org/pkg/search"
 )
 
+// indexType is one of the three ways we test the query handler code.
+type indexType int
+
+const (
+	indexClassic     indexType = iota // sorted key/value pairs from index.Storage
+	indexCorpusScan                   // *Corpus scanned from key/value pairs on start
+	indexCorpusBuild                  // empty *Corpus, built iteratively as blob received.
+)
+
+type queryTest struct {
+	t  *testing.T
+	id *indextest.IndexDeps
+
+	Handler func() *Handler
+}
+
 func querySetup(t *testing.T) (*indextest.IndexDeps, *Handler) {
-	idx := index.NewMemoryIndex()
+	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
 	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
 	h := NewHandler(idx, id.SignerBlobRef)
@@ -24,6 +40,10 @@ func dumpRes(t *testing.T, res *SearchResult) {
 	for i, got := range res.Blobs {
 		t.Logf(" %d. %s", i, got)
 	}
+}
+
+func (qt *queryTest) wantRes(res *SearchResult, wanted ...blob.Ref) {
+	wantRes(qt.t, res, wanted...)
 }
 
 func wantRes(t *testing.T, res *SearchResult, wanted ...blob.Ref) {
@@ -78,21 +98,45 @@ func TestQueryCamliType(t *testing.T) {
 	wantRes(t, sres, fileRef)
 }
 
-func TestQueryAnyCamliType(t *testing.T) {
-	id, h := querySetup(t)
+func testQuery(t *testing.T, fn func(*queryTest), itype indexType) {
+	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
+	if itype == indexCorpusBuild {
+		if _, err := idx.KeepInMemory(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	qt := &queryTest{
+		t:  t,
+		id: indextest.NewIndexDeps(idx),
+	}
+	qt.id.Fataler = t
+	qt.Handler = func() *Handler {
+		if itype == indexCorpusScan {
+			if _, err := idx.KeepInMemory(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return NewHandler(idx, qt.id.SignerBlobRef)
+	}
+	fn(qt)
+}
 
-	fileRef, _ := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
+func TestQueryAnyCamliType(t *testing.T)       { testQuery(t, testQueryAnyCamliType, indexClassic) }
+func TestQueryAnyCamliType_Scan(t *testing.T)  { testQuery(t, testQueryAnyCamliType, indexCorpusScan) }
+func TestQueryAnyCamliType_Build(t *testing.T) { testQuery(t, testQueryAnyCamliType, indexCorpusBuild) }
+func testQueryAnyCamliType(qt *queryTest) {
+	fileRef, _ := qt.id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
 			AnyCamliType: true,
 		},
 	}
-	sres, err := h.Query(sq)
+	sres, err := qt.Handler().Query(sq)
 	if err != nil {
-		t.Fatal(err)
+		qt.t.Fatal(err)
 	}
-	wantRes(t, sres, fileRef)
+	qt.wantRes(sres, fileRef)
 }
 
 func TestQueryBlobSize(t *testing.T) {
