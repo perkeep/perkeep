@@ -19,11 +19,33 @@ package index
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // requiredSchemaVersion is incremented every time
 // an index key type is added, changed, or removed.
 const requiredSchemaVersion = 1
+
+// type of key returns the identifier in k before the first ":" or "|".
+// (Originally we packed keys by hand and there are a mix of styles)
+func typeOfKey(k string) string {
+	c := strings.Index(k, ":")
+	p := strings.Index(k, "|")
+	if c < 0 && p < 0 {
+		return ""
+	}
+	if c < 0 {
+		return k[:p]
+	}
+	if p < 0 {
+		return k[:c]
+	}
+	min := c
+	if p < min {
+		min = p
+	}
+	return k[:min]
+}
 
 type keyType struct {
 	name     string

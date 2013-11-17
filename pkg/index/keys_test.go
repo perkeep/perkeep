@@ -25,3 +25,20 @@ func TestKeyPrefix(t *testing.T) {
 		t.Errorf("recpn = %q; want %q", g, e)
 	}
 }
+
+func TestTypeOfKey(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"foo:bar", "foo"},
+		{"foo|bar", "foo"},
+		{"foo|bar:blah", "foo"},
+		{"foo:bar|blah", "foo"},
+		{"fooo", ""},
+	}
+	for _, tt := range tests {
+		if got := typeOfKey(tt.in); got != tt.want {
+			t.Errorf("typeOfKey(%q) = %q; want %q", tt.in, got, tt.want)
+		}
+	}
+}

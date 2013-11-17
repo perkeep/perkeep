@@ -3,7 +3,9 @@ package index
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -17,7 +19,8 @@ type Corpus struct {
 	strs  map[string]string // interned strings
 	blobs map[blob.Ref]camtypes.BlobMeta
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
-	files      map[blob.Ref]*FileMeta
+	keyId      map[blob.Ref]string
+	files      map[blob.Ref]FileMeta
 	permanodes map[blob.Ref]*PermanodeMeta
 
 	// TOOD: use deletedCache instead?
@@ -38,9 +41,10 @@ type PermanodeMeta struct {
 func newCorpus() *Corpus {
 	return &Corpus{
 		blobs:      make(map[blob.Ref]camtypes.BlobMeta),
-		files:      make(map[blob.Ref]*FileMeta),
+		files:      make(map[blob.Ref]FileMeta),
 		permanodes: make(map[blob.Ref]*PermanodeMeta),
 		deletedBy:  make(map[blob.Ref]blob.Ref),
+		keyId:      make(map[blob.Ref]string),
 	}
 }
 
@@ -49,17 +53,7 @@ func NewCorpusFromStorage(s Storage) (*Corpus, error) {
 		return nil, errors.New("storage is nil")
 	}
 	c := newCorpus()
-	err := enumerateBlobMeta(s, func(bm camtypes.BlobMeta) error {
-		bm.CamliType = c.strLocked(bm.CamliType)
-		c.blobs[bm.Ref] = bm
-		// TODO: populate blobref intern table
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	// TODO: slurp more from storage
-	return c, nil
+	return c, c.scanFromStorage(s)
 }
 
 func (x *Index) KeepInMemory() (*Corpus, error) {
@@ -87,24 +81,73 @@ func (s crashStorage) Find(key string) Iterator {
 	panic(fmt.Sprintf("unexpected index.Storage.Find(%q) called", key))
 }
 
-func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
-	defer close(ch)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	for _, bm := range c.blobs {
-		ch <- bm
+// *********** Updating the corpus
+
+func (c *Corpus) scanFromStorage(s Storage) error {
+	for _, prefix := range []string{"meta:", "signerkeyid:"} {
+		if err := c.scanPrefix(s, prefix); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	bm, ok := c.blobs[br]
+func (c *Corpus) scanPrefix(s Storage, prefix string) (err error) {
+	fn, ok := corpusMergeFunc[typeOfKey(prefix)]
 	if !ok {
-		return camtypes.BlobMeta{}, os.ErrNotExist
+		panic("No registered merge func for prefix " + prefix)
 	}
-	return bm, nil
+	it := queryPrefixString(s, prefix)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		if err := fn(c, it.Key(), it.Value()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
+	"have":        nil, // redundant with "meta"
+	"meta":        (*Corpus).mergeMetaRow,
+	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
+}
+
+func (c *Corpus) addBlob(br blob.Ref, mm mutationMap) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k, v := range mm {
+		kt := typeOfKey(k)
+		if fn, ok := corpusMergeFunc[kt]; ok {
+			if fn != nil {
+				if err := fn(c, k, v); err != nil {
+					return err
+				}
+			}
+		} else {
+			log.Printf("TODO: receiving blob %v, unsupported key type %q to merge mutation %q -> %q", br, kt, k, v)
+		}
+	}
+	return nil
+}
+
+func (c *Corpus) mergeMetaRow(k, v string) error {
+	bm, ok := kvBlobMeta(k, v)
+	if !ok {
+		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
+	}
+	bm.CamliType = c.strLocked(bm.CamliType)
+	c.blobs[bm.Ref] = bm
+	return nil
+}
+
+func (c *Corpus) mergeSignerKeyIdRow(k, v string) error {
+	br, ok := blob.Parse(strings.TrimPrefix(k, "signerkeyid:"))
+	if !ok {
+		return fmt.Errorf("bogus signerid row: %q -> %q", k, v)
+	}
+	c.keyId[br] = v
+	return nil
 }
 
 // str returns s, interned.
@@ -127,4 +170,35 @@ func (c *Corpus) strLocked(s string) string {
 	}
 	c.strs[s] = s
 	return s
+}
+
+// *********** Reading from the corpus
+
+func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
+	defer close(ch)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, bm := range c.blobs {
+		ch <- bm
+	}
+	return nil
+}
+
+func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	bm, ok := c.blobs[br]
+	if !ok {
+		return camtypes.BlobMeta{}, os.ErrNotExist
+	}
+	return bm, nil
+}
+
+func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if v, ok := c.keyId[signer]; ok {
+		return v, nil
+	}
+	return "", ErrNotFound
 }

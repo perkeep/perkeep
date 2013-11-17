@@ -446,7 +446,7 @@ func (x *Index) isDeletedNoCache(br blob.Ref) bool {
 func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) (err error) {
 	defer close(dest)
 
-	keyId, err := x.keyId(owner)
+	keyId, err := x.KeyId(owner)
 	if err == ErrNotFound {
 		log.Printf("No recent permanodes because keyId for owner %v not found", owner)
 		return nil
@@ -492,7 +492,7 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 }
 
 func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl camtypes.ClaimList, err error) {
-	keyId, err := x.keyId(owner)
+	keyId, err := x.KeyId(owner)
 	if err == ErrNotFound {
 		err = nil
 		return
@@ -551,13 +551,15 @@ func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	}, nil
 }
 
-// maps from blobref of openpgp ascii-armored public key => gpg keyid like "2931A67C26F5ABDA"
-func (x *Index) keyId(signer blob.Ref) (string, error) {
+func (x *Index) KeyId(signer blob.Ref) (string, error) {
+	if x.corpus != nil {
+		return x.corpus.KeyId(signer)
+	}
 	return x.s.Get("signerkeyid:" + signer.String())
 }
 
 func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {
-	keyId, err := x.keyId(signer)
+	keyId, err := x.KeyId(signer)
 	if err == ErrNotFound {
 		return blob.Ref{}, os.ErrNotExist
 	}
@@ -587,7 +589,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes
 		return errors.New("index: missing Attribute in SearchPermanodesWithAttr")
 	}
 
-	keyId, err := x.keyId(request.Signer)
+	keyId, err := x.KeyId(request.Signer)
 	if err == ErrNotFound {
 		return nil
 	}
@@ -626,7 +628,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes
 
 func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.Path, err error) {
 	paths = []*camtypes.Path{}
-	keyId, err := x.keyId(signer)
+	keyId, err := x.KeyId(signer)
 	if err != nil {
 		if err == ErrNotFound {
 			err = nil
@@ -681,7 +683,7 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.
 
 func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*camtypes.Path, err error) {
 	paths = []*camtypes.Path{}
-	keyId, err := x.keyId(signer)
+	keyId, err := x.KeyId(signer)
 	if err != nil {
 		if err == ErrNotFound {
 			err = nil
@@ -936,33 +938,55 @@ func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (er
 	return nil
 }
 
+func kvBlobMeta(k, v string) (bm camtypes.BlobMeta, ok bool) {
+	refStr := strings.TrimPrefix(k, "meta:")
+	if refStr == k {
+		return // didn't trim
+	}
+	br, ok := blob.Parse(refStr)
+	if !ok {
+		return
+	}
+	pipe := strings.Index(v, "|")
+	if pipe < 0 {
+		return
+	}
+	size, err := strconv.Atoi(v[:pipe])
+	if err != nil {
+		return
+	}
+	return camtypes.BlobMeta{
+		Ref:       br,
+		Size:      size,
+		CamliType: camliTypeFromMIME(v[pipe+1:]),
+	}, true
+}
+
 func enumerateBlobMeta(s Storage, cb func(camtypes.BlobMeta) error) (err error) {
 	it := queryPrefixString(s, "meta:")
 	defer closeIterator(it, &err)
 	for it.Next() {
-		refStr := strings.TrimPrefix(it.Key(), "meta:")
-		br, ok := blob.Parse(refStr)
+		bm, ok := kvBlobMeta(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
-		v := it.Value()
-		pipe := strings.Index(v, "|")
-		if pipe < 0 {
-			continue
-		}
-		size, err := strconv.Atoi(v[:pipe])
-		if err != nil {
-			continue
-		}
-		if err := cb(camtypes.BlobMeta{
-			Ref:       br,
-			Size:      size,
-			CamliType: camliTypeFromMIME(v[pipe+1:]),
-		}); err != nil {
+		if err := cb(bm); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func enumerateSignerKeyId(s Storage, cb func(blob.Ref, string)) (err error) {
+	const pfx = "signerkeyid:"
+	it := queryPrefixString(s, pfx)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		if br, ok := blob.Parse(strings.TrimPrefix(it.Key(), pfx)); ok {
+			cb(br, it.Value())
+		}
+	}
+	return
 }
 
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.

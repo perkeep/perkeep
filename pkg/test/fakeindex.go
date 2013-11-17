@@ -125,6 +125,10 @@ func (fi *FakeIndex) AddSignerAttrValue(signer blob.Ref, attr, val string, lates
 // Interface implementation
 //
 
+func (fi *FakeIndex) KeyId(blob.Ref) (string, error) {
+	panic("NOIMPL")
+}
+
 func (fi *FakeIndex) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) error {
 	panic("NOIMPL")
 }

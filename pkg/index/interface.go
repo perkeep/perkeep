@@ -30,6 +30,11 @@ type Interface interface {
 	SearchPermanodesWithAttr(dest chan<- blob.Ref,
 		request *camtypes.PermanodeByAttrRequest) error
 
+	// KeyId returns the GPG keyid (e.g. "2931A67C26F5ABDA)
+	// given the blobref of its ASCII-armored blobref.
+	// The error is ErrNotFound if not found.
+	KeyId(blob.Ref) (string, error)
+
 	GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error)
 
 	// os.ErrNotExist should be returned if the blob isn't known
