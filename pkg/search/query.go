@@ -260,12 +260,14 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 		res:     res,
 		matches: make(map[blob.Ref]bool),
 	}
+
+	optConstraint := optimizePlan(q.Constraint)
+
 	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
 	go func() {
-		errc <- h.index.EnumerateBlobMeta(ch)
+		errc <- optConstraint.sendAllCandidates(s, ch)
 	}()
-	optConstraint := optimizePlan(q.Constraint)
 
 	for meta := range ch {
 		match, err := optConstraint.blobMatches(s, meta.Ref, meta)
@@ -291,10 +293,6 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 
 const camliTypeMIME = "application/json; camliType="
 
-type blobMatcher interface {
-	blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error)
-}
-
 type matchFn func(*search, blob.Ref, camtypes.BlobMeta) (bool, error)
 
 func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
@@ -303,6 +301,19 @@ func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 
 func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
+}
+
+// sendAllCandidates sends all possible matches to dst.
+// dst must be closed, regardless of error.
+func (c *Constraint) sendAllCandidates(s *search, dst chan<- camtypes.BlobMeta) error {
+	corpus := s.h.corpus
+	if corpus != nil {
+		if c.AnyCamliType || c.CamliType != "" {
+			camType := c.CamliType // empty means all
+			return corpus.EnumerateCamliBlobs(camType, dst)
+		}
+	}
+	return s.h.index.EnumerateBlobMeta(dst)
 }
 
 func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
@@ -419,6 +430,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
+	// TODO(bradfitz): optimized version for when there's a Corpus
 	dr, err := s.h.Describe(&DescribeRequest{
 		BlobRef: br,
 	})

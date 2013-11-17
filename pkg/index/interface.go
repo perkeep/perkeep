@@ -115,5 +115,7 @@ type Interface interface {
 	// blobs, since the indexer is typically configured to not see
 	// non-metadata blobs) and then closes ch.  When it returns an
 	// error, it also closes ch. The blobs may be sent in any order.
+	// TODO: add a context here with a Done() channel so the caller
+	// can abort early without blocking the sender.
 	EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error
 }

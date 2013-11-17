@@ -115,13 +115,16 @@ func testQuery(t *testing.T, fn func(*queryTest), itype indexType) {
 	}
 	qt.id.Fataler = t
 	qt.Handler = func() *Handler {
+		h := NewHandler(idx, qt.id.SignerBlobRef)
 		if itype == indexCorpusScan {
-			if _, err := idx.KeepInMemory(); err != nil {
+			if corpus, err := idx.KeepInMemory(); err != nil {
 				t.Fatal(err)
+			} else {
+				h.SetCorpus(corpus)
 			}
 			idx.PreventStorageAccessForTesting(t)
 		}
-		return NewHandler(idx, qt.id.SignerBlobRef)
+		return h
 	}
 	fn(qt)
 }

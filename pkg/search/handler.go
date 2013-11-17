@@ -83,6 +83,10 @@ func NewHandler(index index.Interface, owner blob.Ref) *Handler {
 	return &Handler{index: index, owner: owner}
 }
 
+func (h *Handler) SetCorpus(c *index.Corpus) {
+	h.corpus = c
+}
+
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
 	ownerBlobStr := conf.RequiredString("owner")

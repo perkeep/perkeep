@@ -22,7 +22,12 @@ type Corpus struct {
 	gen int64
 
 	strs  map[string]string // interned strings
-	blobs map[blob.Ref]camtypes.BlobMeta
+	blobs map[blob.Ref]*camtypes.BlobMeta
+
+	// camlBlobs maps from camliType ("file") to blobref to the meta.
+	// The value is the same one in blobs.
+	camBlobs map[string]map[blob.Ref]*camtypes.BlobMeta
+
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
 	keyId      map[blob.Ref]string
 	files      map[blob.Ref]FileMeta
@@ -45,7 +50,8 @@ type PermanodeMeta struct {
 
 func newCorpus() *Corpus {
 	return &Corpus{
-		blobs:      make(map[blob.Ref]camtypes.BlobMeta),
+		blobs:      make(map[blob.Ref]*camtypes.BlobMeta),
+		camBlobs:   make(map[string]map[blob.Ref]*camtypes.BlobMeta),
 		files:      make(map[blob.Ref]FileMeta),
 		permanodes: make(map[blob.Ref]*PermanodeMeta),
 		deletedBy:  make(map[blob.Ref]blob.Ref),
@@ -143,7 +149,15 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
 	}
 	bm.CamliType = c.strLocked(bm.CamliType)
-	c.blobs[bm.Ref] = bm
+	c.blobs[bm.Ref] = &bm
+	if bm.CamliType != "" {
+		m, ok := c.camBlobs[bm.CamliType]
+		if !ok {
+			m = make(map[blob.Ref]*camtypes.BlobMeta)
+			c.camBlobs[bm.CamliType] = m
+		}
+		m[bm.Ref] = &bm
+	}
 	return nil
 }
 
@@ -180,12 +194,31 @@ func (c *Corpus) strLocked(s string) string {
 
 // *********** Reading from the corpus
 
+// EnumerateCamliBlobs sends just camlistore meta blobs to ch.
+// If camType is empty, all camlistore blobs are sent, otherwise it specifies
+// the camliType to send.
+// ch is closed at the end. It never returns an error.
+func (c *Corpus) EnumerateCamliBlobs(camType string, ch chan<- camtypes.BlobMeta) error {
+	defer close(ch)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for t, m := range c.camBlobs {
+		if camType != "" && camType != t {
+			continue
+		}
+		for _, bm := range m {
+			ch <- *bm
+		}
+	}
+	return nil
+}
+
 func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, bm := range c.blobs {
-		ch <- bm
+		ch <- *bm
 	}
 	return nil
 }
@@ -197,7 +230,7 @@ func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	if !ok {
 		return camtypes.BlobMeta{}, os.ErrNotExist
 	}
-	return bm, nil
+	return *bm, nil
 }
 
 func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
