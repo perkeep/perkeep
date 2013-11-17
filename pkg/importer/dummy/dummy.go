@@ -37,7 +37,6 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 		url:       cfg.RequiredString("url"),
 		username:  cfg.RequiredString("username"),
 		authToken: cfg.RequiredString("authToken"),
-		host:      host,
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -49,7 +48,6 @@ type imp struct {
 	url       string
 	username  string
 	authToken string
-	host      *importer.Host
 }
 
 func (im *imp) CanHandleURL(url string) bool { return false }
