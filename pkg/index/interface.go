@@ -8,6 +8,28 @@ import (
 )
 
 type Interface interface {
+	// os.ErrNotExist should be returned if the blob isn't known
+	GetBlobMeta(blob.Ref) (camtypes.BlobMeta, error)
+
+	// Should return os.ErrNotExist if not found.
+	GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error)
+
+	// Should return os.ErrNotExist if not found.
+	GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error)
+
+	// KeyId returns the GPG keyid (e.g. "2931A67C26F5ABDA)
+	// given the blobref of its ASCII-armored blobref.
+	// The error is ErrNotFound if not found.
+	KeyId(blob.Ref) (string, error)
+
+	// TODO(bradfitz): methods below this line are slated for a redesign
+	// to work efficiently for the new in-memory index.
+
+	// TODO: drop owner param and name "Owner". replace with keyId string.
+	// TODO: rename AppendClaims, make this append to a provided slice (and of []Claim, not ClaimList) instead if returning a slice.
+	// TODO: consider providing a filter attribute, for only claims affecting a given attribute.
+	GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error)
+
 	// dest must be closed, even when returning an error.
 	// limit <= 0 means unlimited.
 	GetRecentPermanodes(dest chan<- camtypes.RecentPermanode,
@@ -30,19 +52,6 @@ type Interface interface {
 	SearchPermanodesWithAttr(dest chan<- blob.Ref,
 		request *camtypes.PermanodeByAttrRequest) error
 
-	// KeyId returns the GPG keyid (e.g. "2931A67C26F5ABDA)
-	// given the blobref of its ASCII-armored blobref.
-	// The error is ErrNotFound if not found.
-	KeyId(blob.Ref) (string, error)
-
-	// TODO: drop owner param and name "Owner". replace with keyId string.
-	// TODO: rename AppendClaims, make this append to a provided slice (and of []Claim, not ClaimList) instead if returning a slice.
-	// TODO: consider providing a filter attribute, for only claims affecting a given attribute.
-	GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error)
-
-	// os.ErrNotExist should be returned if the blob isn't known
-	GetBlobMeta(blob.Ref) (camtypes.BlobMeta, error)
-
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
 	// (TODO(bradfitz): or file?) schema blobs that represent the
 	// bytes of a file given in bytesRef.  The file schema blobs
@@ -62,12 +71,6 @@ type Interface interface {
 	// all exist on the blob server.
 	ExistingFileSchemas(wholeFileRef blob.Ref) (schemaRefs []blob.Ref, err error)
 
-	// Should return os.ErrNotExist if not found.
-	GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error)
-
-	// Should return os.ErrNotExist if not found.
-	GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error)
-
 	// GetDirMembers sends on dest the children of the static
 	// directory dirRef. It returns os.ErrNotExist if dirRef
 	// is nil.
@@ -79,8 +82,9 @@ type Interface interface {
 	// and specific 'value', find the most recent permanode that has
 	// a corresponding 'set-attribute' claim attached.
 	// Returns os.ErrNotExist if none is found.
-	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
 	// Only attributes white-listed by IsIndexedAttribute are valid.
+	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
+	// TODO(bradfitz): use keyId instead of signer?
 	PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (blob.Ref, error)
 
 	// PathsOfSignerTarget queries the index about "camliPath:"
