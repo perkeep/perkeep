@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/schema"
@@ -37,8 +38,9 @@ import (
 
 // A Host is the environment hosting an importer.
 type Host struct {
-	imp Importer
+	BaseURL string
 
+	imp    Importer
 	target blobserver.StatReceiver
 	search *search.Handler
 	signer *schema.Signer
@@ -67,19 +69,24 @@ func (h *Host) Search() *search.Handler {
 }
 
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.FormValue("mode") {
-	case "":
-	case "start":
-		h.start()
-	case "stop":
-		h.stop()
-	default:
-		fmt.Fprintf(w, "Unknown mode")
+	if httputil.PathSuffix(r) == "" {
+		switch r.FormValue("mode") {
+		case "":
+		case "start":
+			h.start()
+		case "stop":
+			h.stop()
+		default:
+			fmt.Fprintf(w, "Unknown mode")
+		}
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		fmt.Fprintf(w, "I am an importer of type %T; running=%v; last progress=%#v",
+			h.imp, h.running, h.lastProgress)
+	} else {
+		// TODO(aa): Remove this temporary hack once the UI has a way to configure importers.
+		h.imp.ServeHTTP(w, r)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	fmt.Fprintf(w, "I am an importer of type %T; running=%v; last progress=%#v",
-		h.imp, h.running, h.lastProgress)
 }
 
 func (h *Host) start() {
@@ -93,7 +100,7 @@ func (h *Host) start() {
 	h.stopreq = stopCh
 	go func() {
 		log.Printf("Starting importer %s", h)
-		err := h.imp.Run(h, stopCh)
+		err := h.imp.Run(stopCh)
 		if err != nil {
 			log.Printf("Importer %s error: %v", h, err)
 		} else {
@@ -284,7 +291,7 @@ func (i Interrupt) ShouldStop() bool {
 // An Importer imports from a third-party site.
 type Importer interface {
 	// Run runs a full or increment import.
-	Run(*Host, Interrupt) error
+	Run(Interrupt) error
 
 	// Prefix returns the unique prefix for this importer.
 	// It should be of the form "serviceType:username".
@@ -302,10 +309,12 @@ type Importer interface {
 	// stub these and return false/errors. They're unused.
 	CanHandleURL(url string) bool
 	ImportURL(url string) error
+
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 // Constructor is the function type that importers must register at init time.
-type Constructor func(jsonconfig.Obj) (Importer, error)
+type Constructor func(jsonconfig.Obj, *Host) (Importer, error)
 
 var (
 	mu    sync.Mutex
@@ -321,20 +330,21 @@ func Register(name string, fn Constructor) {
 	ctors[name] = fn
 }
 
-func Create(name string, hl blobserver.Loader, cfg jsonconfig.Obj) (*Host, error) {
+func Create(name string, hl blobserver.Loader, baseURL string, cfg jsonconfig.Obj) (*Host, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	fn := ctors[name]
 	if fn == nil {
 		return nil, fmt.Errorf("Unknown importer type %q", name)
 	}
-	imp, err := fn(cfg)
+	h := &Host{
+		BaseURL: baseURL,
+	}
+	imp, err := fn(cfg, h)
 	if err != nil {
 		return nil, err
 	}
-	h := &Host{
-		imp: imp,
-	}
+	h.imp = imp
 	return h, nil
 }
 

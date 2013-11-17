@@ -18,24 +18,19 @@ limitations under the License.
 package flickr
 
 import (
-	"crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strings"
 
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
 const (
-	authURL   = "http://www.flickr.com/auth-72157636676651636"
-	apiURL    = "http://api.flickr.com/services/rest/"
-	apiSecret = "6ed517d5f44946c9"
-	apiKey    = "b5801cdbc870073e7b136f24fb50396f"
+	apiURL = "http://api.flickr.com/services/rest/"
 )
 
 func init() {
@@ -45,22 +40,20 @@ func init() {
 type imp struct {
 	authToken string
 	userId    string
+	host      *importer.Host
 }
 
-func newFromConfig(cfg jsonconfig.Obj) (importer.Importer, error) {
-	// TODO(aa): miniToken config is temporary. There should be UI to auth using oauth.
-	miniToken := cfg.RequiredString("miniToken")
+func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
+	oauthClient.Credentials = oauth.Credentials{
+		Token:  cfg.OptionalString("appKey", ""),
+		Secret: cfg.OptionalString("appSecret", ""),
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	im := &imp{}
-	if miniToken != "" {
-		if err := im.authenticate(http.DefaultClient, miniToken); err != nil {
-			return nil, err
-		}
-	}
-	return im, nil
+	return &imp{
+		host: host,
+	}, nil
 }
 
 func (im *imp) CanHandleURL(url string) bool { return false }
@@ -104,16 +97,12 @@ type searchPhotosResult struct {
 	Stat string
 }
 
-func (im *imp) Run(h *importer.Host, intr importer.Interrupt) error {
-	if im.authToken == "" {
-		return fmt.Errorf("miniToken config key required. Go to %s to get one.", authURL)
-	}
-
+func (im *imp) Run(intr importer.Interrupt) error {
 	resp := searchPhotosResult{}
-	if err := im.flickrRequest(h.HTTPClient(), map[string]string{
-		"method":  "flickr.photos.search",
-		"user_id": "me",
-		"extras":  "description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"},
+	if err := im.flickrRequest(url.Values{
+		"method":  {"flickr.photos.search"},
+		"user_id": {"me"},
+		"extras":  {"description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"}},
 		&resp); err != nil {
 		return err
 	}
@@ -124,63 +113,18 @@ func (im *imp) Run(h *importer.Host, intr importer.Interrupt) error {
 		fmt.Println(camliIdFramgment, photoContentHint)
 		// TODO(aa): Stuff
 	}
-
 	return nil
 }
 
-type getFullAuthTokenResp struct {
-	Auth struct {
-		Token struct {
-			Content string `json:"_content"`
-		}
-		User struct {
-			Nsid string
-		}
-	}
-	Stat string
-}
-
-func (im *imp) authenticate(httpClient *http.Client, miniToken string) error {
-	resp := getFullAuthTokenResp{}
-	if err := im.flickrRequest(httpClient, map[string]string{
-		"method":     "flickr.auth.getFullToken",
-		"mini_token": miniToken}, &resp); err != nil {
-		return err
-	}
-	im.userId = resp.Auth.User.Nsid
-	im.authToken = resp.Auth.Token.Content
-	return nil
-}
-
-func (im *imp) flickrRequest(httpClient *http.Client, params map[string]string, result interface{}) error {
-	params["api_key"] = apiKey
-	params["format"] = "json"
-	params["nojsoncallback"] = "1"
-
-	if im.authToken != "" {
-		params["auth_token"] = im.authToken
+func (im *imp) flickrRequest(form url.Values, result interface{}) error {
+	cred, err := readCredentials()
+	if err != nil {
+		return errors.New("Not logged in. Go to /importer-flickr/login.")
 	}
 
-	paramList := make([]string, 0, len(params))
-	for key, val := range params {
-		paramList = append(paramList, key+val)
-	}
-	sort.Strings(paramList)
-
-	hash := md5.New()
-	body := apiSecret + strings.Join(paramList, "")
-	io.WriteString(hash, body)
-	digest := hash.Sum(nil)
-
-	reqURL, _ := url.Parse(apiURL)
-	q := reqURL.Query()
-	for key, val := range params {
-		q.Set(key, val)
-	}
-	q.Set("api_sig", fmt.Sprintf("%x", digest))
-	reqURL.RawQuery = q.Encode()
-
-	res, err := httpClient.Get(reqURL.String())
+	form.Set("format", "json")
+	form.Set("nojsoncallback", "1")
+	res, err := oauthClient.Get(im.host.HTTPClient(), cred, apiURL, form)
 	if err != nil {
 		return err
 	}

@@ -20,8 +20,10 @@ package dummy
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -30,11 +32,12 @@ func init() {
 	importer.Register("dummy", newFromConfig)
 }
 
-func newFromConfig(cfg jsonconfig.Obj) (importer.Importer, error) {
+func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
 	im := &imp{
 		url:       cfg.RequiredString("url"),
 		username:  cfg.RequiredString("username"),
 		authToken: cfg.RequiredString("authToken"),
+		host:      host,
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -46,6 +49,7 @@ type imp struct {
 	url       string
 	username  string
 	authToken string
+	host      *importer.Host
 }
 
 func (im *imp) CanHandleURL(url string) bool { return false }
@@ -55,7 +59,7 @@ func (im *imp) Prefix() string {
 	return fmt.Sprintf("dummy:%s", im.username)
 }
 
-func (im *imp) Run(h *importer.Host, intr importer.Interrupt) error {
+func (im *imp) Run(intr importer.Interrupt) error {
 	log.Printf("running dummy importer")
 	select {
 	case <-time.After(5 * time.Second):
@@ -63,4 +67,8 @@ func (im *imp) Run(h *importer.Host, intr importer.Interrupt) error {
 		log.Printf("dummy importer interrupted")
 	}
 	return nil
+}
+
+func (im *imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	httputil.BadRequestError(w, "Unexpected path: %s", r.URL.Path)
 }

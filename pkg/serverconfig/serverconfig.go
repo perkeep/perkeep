@@ -290,7 +290,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 
 	if strings.HasPrefix(h.htype, "importer-") {
 		itype := strings.TrimPrefix(h.htype, "importer-")
-		imp, err := importer.Create(itype, hl, h.conf)
+		imp, err := importer.Create(itype, hl, hl.baseURL+h.prefix, h.conf)
 		if err != nil {
 			exitFailure("error instantiating importer for prefix %q, type %q: %v",
 				h.prefix, itype, err)
