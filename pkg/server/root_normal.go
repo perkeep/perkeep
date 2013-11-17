@@ -20,11 +20,16 @@ package server
 
 import (
 	"os/user"
+
+	"camlistore.org/pkg/osutil"
 )
 
 func getUserName() (string, error) {
 	u, err := user.Current()
 	if err != nil {
+		if v := osutil.Username(); v != "" {
+			return v, nil
+		}
 		return "", err
 	}
 	return u.Name, nil
