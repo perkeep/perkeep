@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
@@ -38,40 +37,42 @@ var (
 		TokenRequestURI:               "http://www.flickr.com/services/oauth/access_token",
 	}
 
-	credentialsMu   sync.Mutex
-	credentialsFile = filepath.Join(osutil.CamliConfigDir(), "flickr-credentials.json")
+	userFile = filepath.Join(osutil.CamliConfigDir(), "flickr-credentials.json")
 )
 
-func writeCredentials(cred *oauth.Credentials) {
-	// TODO(aa): Support multiple instances of the importer per camlistore user.
-	// TODO(aa): Consider storing this within camlistore itself!
-	credentialsMu.Lock()
-	defer credentialsMu.Unlock()
-	fi, err := os.Create(credentialsFile)
+// userInfo represents the Flickr user whose account we are interacting with.
+// This struct is also serialized to <config-dir>/flickr-credentials.json.
+// TODO(aa): Store this state within camlistore itself!
+// TODO(aa): Support multiple instances of the importer per camlistore user.
+type userInfo struct {
+	Id   string             `json:"id"`
+	Cred *oauth.Credentials `json:"creds"`
+}
+
+func writeCredentials(user *userInfo) {
+	fi, err := os.Create(userFile)
 	if err != nil {
 		log.Printf("Error creating flickr credentials file: %s", err)
 		return
 	}
 
-	if err = json.NewEncoder(fi).Encode(cred); err != nil {
+	if err = json.NewEncoder(fi).Encode(user); err != nil {
 		log.Printf("Error writing flickr credentials: %s", err)
 	}
 }
 
-func readCredentials() (*oauth.Credentials, error) {
-	credentialsMu.Lock()
-	defer credentialsMu.Unlock()
-	fi, err := os.Open(credentialsFile)
+func readCredentials() (*userInfo, error) {
+	fi, err := os.Open(userFile)
 	if err != nil {
 		return nil, err
 	}
 	defer fi.Close()
-	cred := &oauth.Credentials{}
-	err = json.NewDecoder(fi).Decode(cred)
+	user := &userInfo{}
+	err = json.NewDecoder(fi).Decode(user)
 	if err != nil {
 		return nil, err
 	}
-	return cred, nil
+	return user, nil
 }
 
 func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
@@ -88,28 +89,33 @@ func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
 		httputil.ForbiddenError(w, "Error getting temp cred: %s", err)
 		return
 	}
-	writeCredentials(tempCred)
+	writeCredentials(&userInfo{Cred: tempCred})
 	authURL := oauthClient.AuthorizationURL(tempCred, url.Values{"perms": {"read"}})
 	http.Redirect(w, r, authURL, 302)
 }
 
 func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
-	tempCred, err := readCredentials()
+	tempUser, err := readCredentials()
 	if err != nil {
 		httputil.BadRequestError(w, err.Error())
 		return
 	}
-	if tempCred.Token != r.FormValue("oauth_token") {
+	if tempUser.Cred.Token != r.FormValue("oauth_token") {
 		httputil.ForbiddenError(w, "Unknown oauth_token.")
 		return
 	}
-	tokenCred, _, err := oauthClient.RequestToken(im.host.HTTPClient(), tempCred,
-		r.FormValue("oauth_verifier"))
+	tokenCred, form, err := oauthClient.RequestToken(im.host.HTTPClient(),
+		tempUser.Cred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		httputil.ForbiddenError(w, "Error getting request token: %s ", err)
 		return
 	}
-	writeCredentials(tokenCred)
+
+	im.user = &userInfo{
+		Id:   form.Get("user_nsid"),
+		Cred: tokenCred,
+	}
+	writeCredentials(im.user)
 	http.Redirect(w, r, im.host.BaseURL+"?mode=start", 302)
 }
 
