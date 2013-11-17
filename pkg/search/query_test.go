@@ -422,19 +422,22 @@ func TestQueryPermanodeAttrValueMatches(t *testing.T) {
 // find permanodes matching a certain file query
 func TestQueryFileConstraint(t *testing.T) { testQuery(t, testQueryFileConstraint, indexClassic) }
 func TestQueryFileConstraint_Scan(t *testing.T) {
-	t.Skip("TODO: implement. put FileInfo in the Corpus")
+	t.Skip("TODO: remove this skip and finish implementing")
 	testQuery(t, testQueryFileConstraint, indexCorpusScan)
 }
 func TestQueryFileConstraint_Build(t *testing.T) {
+	t.Skip("TODO: remove this skip and finish implementing")
 	testQuery(t, testQueryFileConstraint, indexCorpusBuild)
 }
 func testQueryFileConstraint(qt *queryTest) {
 	id := qt.id
 	fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+	qt.t.Logf("fileRef = %q", fileRef)
 	p1 := id.NewPlannedPermanode("1")
 	id.SetAttribute(p1, "camliContent", fileRef.String())
 
 	fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(456, 0))
+	qt.t.Logf("fileRef2 = %q", fileRef2)
 	p2 := id.NewPlannedPermanode("2")
 	id.SetAttribute(p2, "camliContent", fileRef2.String())
 

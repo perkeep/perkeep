@@ -526,22 +526,29 @@ func (x *Index) GetOwnerClaims(permaNode, owner blob.Ref) (cl camtypes.ClaimList
 	return
 }
 
-func (x *Index) GetBlobMIMEType(blob blob.Ref) (mime string, size int64, err error) {
-	key := "meta:" + blob.String()
+func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
+	if x.corpus != nil {
+		return x.corpus.GetBlobMeta(br)
+	}
+	key := "meta:" + br.String()
 	meta, err := x.s.Get(key)
 	if err == ErrNotFound {
 		err = os.ErrNotExist
 	}
 	if err != nil {
-		return
+		return camtypes.BlobMeta{}, err
 	}
 	pos := strings.Index(meta, "|")
 	if pos < 0 {
 		panic(fmt.Sprintf("Bogus index row for key %q: got value %q", key, meta))
 	}
-	size, _ = strconv.ParseInt(meta[:pos], 10, 64)
-	mime = meta[pos+1:]
-	return
+	size, _ := strconv.ParseInt(meta[:pos], 10, 64)
+	mime := meta[pos+1:]
+	return camtypes.BlobMeta{
+		Ref:       br,
+		Size:      int(size),
+		CamliType: camliTypeFromMIME(mime),
+	}, nil
 }
 
 // maps from blobref of openpgp ascii-armored public key => gpg keyid like "2931A67C26F5ABDA"

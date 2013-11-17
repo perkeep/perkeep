@@ -2,6 +2,8 @@ package index
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 	"testing"
 
@@ -78,13 +80,11 @@ type crashStorage struct {
 }
 
 func (s crashStorage) Get(key string) (string, error) {
-	s.t.Fatalf("unexpected index.Storage.Get(%q) called", key)
-	panic("")
+	panic(fmt.Sprintf("unexpected index.Storage.Get(%q) called", key))
 }
 
 func (s crashStorage) Find(key string) Iterator {
-	s.t.Fatalf("unexpected index.Storage.Find(%q) called", key)
-	panic("")
+	panic(fmt.Sprintf("unexpected index.Storage.Find(%q) called", key))
 }
 
 func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
@@ -95,6 +95,16 @@ func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
 		ch <- bm
 	}
 	return nil
+}
+
+func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	bm, ok := c.blobs[br]
+	if !ok {
+		return camtypes.BlobMeta{}, os.ErrNotExist
+	}
+	return bm, nil
 }
 
 // str returns s, interned.

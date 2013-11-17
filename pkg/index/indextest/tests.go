@@ -529,22 +529,22 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	// GetBlobMIMEType
+	// GetBlobMeta
 	{
-		mime, size, err := id.Index.GetBlobMIMEType(pn)
+		meta, err := id.Index.GetBlobMeta(pn)
 		if err != nil {
-			t.Errorf("GetBlobMIMEType(%q) = %v", pn, err)
+			t.Errorf("GetBlobMeta(%q) = %v", pn, err)
 		} else {
-			if e := "application/json; camliType=permanode"; mime != e {
-				t.Errorf("GetBlobMIMEType(%q) mime = %q, want %q", pn, mime, e)
+			if e := "permanode"; meta.CamliType != e {
+				t.Errorf("GetBlobMeta(%q) mime = %q, want %q", pn, meta.CamliType, e)
 			}
-			if size == 0 {
-				t.Errorf("GetBlobMIMEType(%q) size is zero", pn)
+			if meta.Size == 0 {
+				t.Errorf("GetBlobMeta(%q) size is zero", pn)
 			}
 		}
-		_, _, err = id.Index.GetBlobMIMEType(blob.ParseOrZero("abc-123"))
+		_, err = id.Index.GetBlobMeta(blob.ParseOrZero("abc-123"))
 		if err != os.ErrNotExist {
-			t.Errorf("GetBlobMIMEType(dummy blobref) = %v; want os.ErrNotExist", err)
+			t.Errorf("GetBlobMeta(dummy blobref) = %v; want os.ErrNotExist", err)
 		}
 	}
 

@@ -1121,7 +1121,7 @@ func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 }
 
 func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
-	mime, size, err := dr.sh.index.GetBlobMIMEType(br)
+	meta, err := dr.sh.index.GetBlobMeta(br)
 	if err == os.ErrNotExist {
 		return
 	}
@@ -1134,8 +1134,10 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 	// DescribedBlob/DescribedPermanode/DescribedFile, not json
 	// maps.  Then add JSON marhsallers to those types. Add tests.
 	des := dr.describedBlob(br)
-	des.setMIMEType(mime)
-	des.Size = size
+	if meta.CamliType != "" {
+		des.setMIMEType("application/json; camliType=" + meta.CamliType)
+	}
+	des.Size = int64(meta.Size)
 
 	switch des.CamliType {
 	case "permanode":

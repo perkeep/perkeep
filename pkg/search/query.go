@@ -241,19 +241,8 @@ type search struct {
 	matches map[blob.Ref]bool
 }
 
-// "application/json; camliType=file" => "file"
-// "image/gif" => ""
-func camliTypeFromMIME(mime string) string {
-	if v := strings.TrimPrefix(mime, camliTypeMIME); v != mime {
-		return v
-	}
-	return ""
-}
-
 func (s *search) blobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
-	mime, size, err := s.h.index.GetBlobMIMEType(br)
-	camliType := camliTypeFromMIME(mime)
-	return camtypes.BlobMeta{Ref: br, Size: int(size), CamliType: camliType}, err
+	return s.h.index.GetBlobMeta(br)
 }
 
 // optimizePlan returns an optimized version of c which will hopefully

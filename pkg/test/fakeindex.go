@@ -35,8 +35,7 @@ var ClockOrigin = time.Unix(1322443956, 123456)
 // AddSignerAttrValue.
 type FakeIndex struct {
 	lk              sync.Mutex
-	mimeType        map[string]string // blobref -> type
-	size            map[string]int64
+	meta            map[blob.Ref]camtypes.BlobMeta
 	ownerClaims     map[string]camtypes.ClaimList // "<permanode>/<owner>" -> ClaimList
 	signerAttrValue map[string]blob.Ref           // "<signer>\0<attr>\0<value>" -> blobref
 	path            map[string]*camtypes.Path     // "<signer>\0<base>\0<suffix>" -> path
@@ -47,8 +46,7 @@ type FakeIndex struct {
 
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
-		mimeType:        make(map[string]string),
-		size:            make(map[string]int64),
+		meta:            make(map[blob.Ref]camtypes.BlobMeta),
 		ownerClaims:     make(map[string]camtypes.ClaimList),
 		signerAttrValue: make(map[string]blob.Ref),
 		path:            make(map[string]*camtypes.Path),
@@ -73,11 +71,21 @@ func (fi *FakeIndex) LastTime() time.Time {
 	return fi.clock
 }
 
-func (fi *FakeIndex) AddMeta(blob blob.Ref, mime string, size int64) {
+func camliTypeFromMime(mime string) string {
+	if v := strings.TrimPrefix(mime, "application/json; camliType="); v != mime {
+		return v
+	}
+	return ""
+}
+
+func (fi *FakeIndex) AddMeta(br blob.Ref, mime string, size int64) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
-	fi.mimeType[blob.String()] = mime
-	fi.size[blob.String()] = size
+	fi.meta[br] = camtypes.BlobMeta{
+		Ref:       br,
+		Size:      int(size),
+		CamliType: camliTypeFromMime(mime),
+	}
 }
 
 func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value string) {
@@ -132,15 +140,14 @@ func (fi *FakeIndex) GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimLi
 	return fi.ownerClaims[permaNode.String()+"/"+owner.String()], nil
 }
 
-func (fi *FakeIndex) GetBlobMIMEType(blob blob.Ref) (mime string, size int64, err error) {
+func (fi *FakeIndex) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
-	bs := blob.String()
-	mime, ok := fi.mimeType[bs]
+	bm, ok := fi.meta[br]
 	if !ok {
-		return "", 0, os.ErrNotExist
+		return camtypes.BlobMeta{}, os.ErrNotExist
 	}
-	return mime, fi.size[bs], nil
+	return bm, nil
 }
 
 func (fi *FakeIndex) ExistingFileSchemas(bytesRef blob.Ref) ([]blob.Ref, error) {

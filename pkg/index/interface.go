@@ -33,7 +33,7 @@ type Interface interface {
 	GetOwnerClaims(permaNode, owner blob.Ref) (camtypes.ClaimList, error)
 
 	// os.ErrNotExist should be returned if the blob isn't known
-	GetBlobMIMEType(blob blob.Ref) (mime string, size int64, err error)
+	GetBlobMeta(blob.Ref) (camtypes.BlobMeta, error)
 
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
 	// (TODO(bradfitz): or file?) schema blobs that represent the
