@@ -269,14 +269,6 @@
          }
      },
 
-     "/importer-flickr/": {
-         "handler": "importer-flickr",
-         "handlerArgs": {
-             "appKey": "",
-             "appSecret": ""
-         }
-     },
-
      "/share/": {
          "handler": "share",
          "handlerArgs": {

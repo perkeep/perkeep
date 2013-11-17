@@ -23,6 +23,8 @@ web browser and restart the server.</p>
 
 <li><b><code>baseURL</code></b>: Optional. If non-empty, this is the root of your URL prefix for your Camlistore server. Useful for when running behind a reverse proxy. Should not end in a slash. e.g. <code>https://yourserver.example.com</code></li>
 
+<li><b><code>flickr</code></b>: Optional, and doesn't do anything yet. Support for continuous import from Flickr. Enter two child keys: <code>appKey</code> and <code>appSecret</code>, which you can get by filling out <a href="http://www.flickr.com/services/apps/create/noncommercial/">this form</a>.</li>
+
 <li><b><code>https</code></b>: if "true", HTTPS is used
   <ul>
     <li><b><code>HTTPSCertFile</code></b>: if using https</li>

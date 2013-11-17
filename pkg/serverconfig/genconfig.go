@@ -44,6 +44,7 @@ type configPrefixesParams struct {
 	blobPath         string
 	searchOwner      blob.Ref
 	shareHandlerPath string
+	flickr           map[string]interface{}
 }
 
 var (
@@ -444,6 +445,13 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 	}
 
+	if len(params.flickr) > 0 {
+		m["/importer-flickr/"] = map[string]interface{}{
+			"handler":     "importer-flickr",
+			"handlerArgs": params.flickr,
+		}
+	}
+
 	if haveIndex {
 		syncArgs := map[string]interface{}{
 			"from": "/bs/",
@@ -529,6 +537,9 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		mongo      = conf.OptionalString("mongo", "")
 		sqliteFile = conf.OptionalString("sqlite", "")
 		kvFile     = conf.OptionalString("kvIndexFile", "")
+
+		// Importer options
+		flickr = conf.OptionalObject("flickr")
 
 		_       = conf.OptionalList("replicateTo")
 		publish = conf.OptionalObject("publish")
@@ -638,6 +649,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		blobPath:         blobPath,
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
 		shareHandlerPath: shareHandlerPath,
+		flickr:           flickr,
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams, ownerName)
