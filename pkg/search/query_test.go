@@ -42,7 +42,11 @@ func dumpRes(t *testing.T, res *SearchResult) {
 	}
 }
 
-func (qt *queryTest) wantRes(res *SearchResult, wanted ...blob.Ref) {
+func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
+	res, err := qt.Handler().Query(req)
+	if err != nil {
+		qt.t.Fatal(err)
+	}
 	wantRes(qt.t, res, wanted...)
 }
 
@@ -115,6 +119,7 @@ func testQuery(t *testing.T, fn func(*queryTest), itype indexType) {
 			if _, err := idx.KeepInMemory(); err != nil {
 				t.Fatal(err)
 			}
+			idx.PreventStorageAccessForTesting(t)
 		}
 		return NewHandler(idx, qt.id.SignerBlobRef)
 	}
@@ -132,18 +137,15 @@ func testQueryAnyCamliType(qt *queryTest) {
 			AnyCamliType: true,
 		},
 	}
-	sres, err := qt.Handler().Query(sq)
-	if err != nil {
-		qt.t.Fatal(err)
-	}
-	qt.wantRes(sres, fileRef)
+	qt.wantRes(sq, fileRef)
 }
 
-func TestQueryBlobSize(t *testing.T) {
-	id, h := querySetup(t)
-
-	_, smallFileRef := id.UploadFile("file.txt", strings.Repeat("x", 5<<10), time.Unix(1382073153, 0))
-	id.UploadFile("file.txt", strings.Repeat("x", 20<<10), time.Unix(1382073153, 0))
+func TestQueryBlobSize(t *testing.T)       { testQuery(t, testQueryBlobSize, indexClassic) }
+func TestQueryBlobSize_Scan(t *testing.T)  { testQuery(t, testQueryBlobSize, indexCorpusScan) }
+func TestQueryBlobSize_Build(t *testing.T) { testQuery(t, testQueryBlobSize, indexCorpusBuild) }
+func testQueryBlobSize(qt *queryTest) {
+	_, smallFileRef := qt.id.UploadFile("file.txt", strings.Repeat("x", 5<<10), time.Unix(1382073153, 0))
+	qt.id.UploadFile("file.txt", strings.Repeat("x", 20<<10), time.Unix(1382073153, 0))
 
 	sq := &SearchQuery{
 		Constraint: &Constraint{
@@ -153,11 +155,7 @@ func TestQueryBlobSize(t *testing.T) {
 			},
 		},
 	}
-	sres, err := h.Query(sq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantRes(t, sres, smallFileRef)
+	qt.wantRes(sq, smallFileRef)
 }
 
 func TestQueryBlobRefPrefix(t *testing.T) {
@@ -422,9 +420,16 @@ func TestQueryPermanodeAttrValueMatches(t *testing.T) {
 }
 
 // find permanodes matching a certain file query
-func TestQueryFileConstraint(t *testing.T) {
-	id, h := querySetup(t)
-
+func TestQueryFileConstraint(t *testing.T) { testQuery(t, testQueryFileConstraint, indexClassic) }
+func TestQueryFileConstraint_Scan(t *testing.T) {
+	t.Skip("TODO: implement. put FileInfo in the Corpus")
+	testQuery(t, testQueryFileConstraint, indexCorpusScan)
+}
+func TestQueryFileConstraint_Build(t *testing.T) {
+	testQuery(t, testQueryFileConstraint, indexCorpusBuild)
+}
+func testQueryFileConstraint(qt *queryTest) {
+	id := qt.id
 	fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
 	p1 := id.NewPlannedPermanode("1")
 	id.SetAttribute(p1, "camliContent", fileRef.String())
@@ -448,11 +453,7 @@ func TestQueryFileConstraint(t *testing.T) {
 			},
 		},
 	}
-	sres, err := h.Query(sq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantRes(t, sres, p1)
+	qt.wantRes(sq, p1)
 }
 
 func TestQueryPermanodeModtime(t *testing.T) {

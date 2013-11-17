@@ -81,7 +81,7 @@ func (sn *BlobSniffer) Body() ([]byte, error) {
 // the form "application/json; camliType=foo".
 func (sn *BlobSniffer) MIMEType() string { return sn.mimeType }
 
-func (sn *BlobSniffer) CamliType() string { return sn.mimeType }
+func (sn *BlobSniffer) CamliType() string { return sn.camliType }
 
 func (sn *BlobSniffer) Parse() {
 	if sn.bufferIsCamliJSON() {

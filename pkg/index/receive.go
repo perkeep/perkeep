@@ -101,7 +101,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 		c.blobs[blobRef] = camtypes.BlobMeta{
 			Ref:       blobRef,
 			Size:      int(written),
-			CamliType: sniffer.CamliType(),
+			CamliType: c.strLocked(sniffer.CamliType()),
 		}
 	}
 
