@@ -435,21 +435,23 @@ func main() {
 	listen, baseURL := listenAndBaseURL(config)
 
 	setupTLS(ws, config, listen)
-	shutdownCloser, err := config.InstallHandlers(ws, baseURL, nil)
-	if err != nil {
-		exitf("Error parsing config: %v", err)
-	}
-	shutdownc <- shutdownCloser
 
 	err = ws.Listen(listen)
 	if err != nil {
 		exitf("Listen: %v", err)
 	}
 
-	urlToOpen := ws.ListenURL()
-	if baseURL != "" {
-		urlToOpen = baseURL
+	if baseURL == "" {
+		baseURL = ws.ListenURL()
 	}
+
+	shutdownCloser, err := config.InstallHandlers(ws, baseURL, nil)
+	if err != nil {
+		exitf("Error parsing config: %v", err)
+	}
+	shutdownc <- shutdownCloser
+
+	urlToOpen := baseURL
 	if !isNewConfig {
 		// user may like to configure the server at the initial startup,
 		// open UI if this is not the first run with a new config file.
