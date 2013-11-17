@@ -211,6 +211,19 @@ func (o *Object) SetAttr(key, value string) error {
 // from the permanode o, given by the "camliPath:xxxx" attribute,
 // where xxx is the provided path.
 func (o *Object) ChildPathObject(path string) (*Object, error) {
+	if v := o.Attr("camliPath:" + path); v != "" {
+		br, ok := blob.Parse(v)
+		if ok {
+			return o.h.ObjectFromRef(br)
+		}
+	}
+
+	// TODO: else, create a new permanode w/ the schema
+	// package. sign + upload it. See how SetAttr does it above.
+	// Then once you have the permanode's blobref, call SetAttr
+	// on this node's "camliPath:foo" to that blobref, and call
+	// the load path as seen earlier in this function.
+
 	log.Printf("TODO: ChildPathObject not implemented")
 	return nil, errors.New("TODO: ChildPathObject not implemented")
 }
