@@ -1142,8 +1142,7 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 		des.Permanode = new(DescribedPermanode)
 		dr.populatePermanodeFields(des.Permanode, br, dr.sh.owner, depth)
 	case "file":
-		var err error
-		des.File, err = dr.sh.index.GetFileInfo(br)
+		fi, err := dr.sh.index.GetFileInfo(br)
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("index.GetFileInfo(file %s) failed; index stale?", br)
@@ -1152,8 +1151,9 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			}
 			return
 		}
+		des.File = &fi
 		if des.File.IsImage() {
-			des.Image, err = dr.sh.index.GetImageInfo(br)
+			imgInfo, err := dr.sh.index.GetImageInfo(br)
 			if err != nil {
 				if os.IsNotExist(err) {
 					log.Printf("index.GetImageInfo(file %s) failed; index stale?", br)
@@ -1161,13 +1161,17 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 					dr.addError(br, err)
 				}
 			}
+			des.Image = &imgInfo
 		}
 	case "directory":
 		var g syncutil.Group
 		g.Go(func() (err error) {
-			des.Dir, err = dr.sh.index.GetFileInfo(br)
+			fi, err := dr.sh.index.GetFileInfo(br)
 			if os.IsNotExist(err) {
 				log.Printf("index.GetFileInfo(directory %s) failed; index stale?", br)
+			}
+			if err == nil {
+				des.Dir = &fi
 			}
 			return
 		})

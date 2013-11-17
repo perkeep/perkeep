@@ -147,11 +147,11 @@ func (fi *FakeIndex) ExistingFileSchemas(bytesRef blob.Ref) ([]blob.Ref, error) 
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
+func (fi *FakeIndex) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error) {
+func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	panic("NOIMPL")
 }
 

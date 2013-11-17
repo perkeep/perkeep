@@ -782,7 +782,7 @@ func (x *Index) loadKey(key string, val *string, err *error, wg *sync.WaitGroup)
 	*val, *err = x.s.Get(key)
 }
 
-func (x *Index) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
+func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
 	wg := new(sync.WaitGroup)
@@ -795,10 +795,10 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
 
 	if ierr == ErrNotFound {
 		go x.reindex(fileRef) // kinda a hack. Issue 103.
-		return nil, os.ErrNotExist
+		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	if ierr != nil {
-		return nil, ierr
+		return camtypes.FileInfo{}, ierr
 	}
 	if terr == ErrNotFound {
 		// Old index; retry. TODO: index versioning system.
@@ -808,15 +808,15 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
 	valPart := strings.Split(iv, "|")
 	if len(valPart) < 3 {
 		log.Printf("index: bogus key %q = %q", ikey, iv)
-		return nil, os.ErrNotExist
+		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
 		log.Printf("index: bogus integer at position 0 in key %q = %q", ikey, iv)
-		return nil, os.ErrNotExist
+		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	fileName := urld(valPart[1])
-	fi := &camtypes.FileInfo{
+	fi := camtypes.FileInfo{
 		Size:     size,
 		FileName: fileName,
 		MIMEType: urld(valPart[2]),
@@ -833,7 +833,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error) {
 	return fi, nil
 }
 
-func (x *Index) GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error) {
+func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	// it might be that the key does not exist because image.DecodeConfig failed earlier
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
@@ -842,26 +842,25 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error) {
 		err = os.ErrNotExist
 	}
 	if err != nil {
-		return nil, err
+		return camtypes.ImageInfo{}, err
 	}
 	valPart := strings.Split(dim, "|")
 	if len(valPart) != 2 {
-		return nil, fmt.Errorf("index: bogus key %q = %q", key, dim)
+		return camtypes.ImageInfo{}, fmt.Errorf("index: bogus key %q = %q", key, dim)
 	}
 	width, err := strconv.Atoi(valPart[0])
 	if err != nil {
-		return nil, fmt.Errorf("index: bogus integer at position 0 in key %q: %q", key, valPart[0])
+		return camtypes.ImageInfo{}, fmt.Errorf("index: bogus integer at position 0 in key %q: %q", key, valPart[0])
 	}
 	height, err := strconv.Atoi(valPart[1])
 	if err != nil {
-		return nil, fmt.Errorf("index: bogus integer at position 1 in key %q: %q", key, valPart[1])
+		return camtypes.ImageInfo{}, fmt.Errorf("index: bogus integer at position 1 in key %q: %q", key, valPart[1])
 	}
 
-	imgInfo := &camtypes.ImageInfo{
+	return camtypes.ImageInfo{
 		Width:  width,
 		Height: height,
-	}
-	return imgInfo, nil
+	}, nil
 }
 
 func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camtypes.Edge, err error) {

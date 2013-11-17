@@ -55,10 +55,10 @@ type Interface interface {
 	ExistingFileSchemas(wholeFileRef blob.Ref) (schemaRefs []blob.Ref, err error)
 
 	// Should return os.ErrNotExist if not found.
-	GetFileInfo(fileRef blob.Ref) (*camtypes.FileInfo, error)
+	GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error)
 
 	// Should return os.ErrNotExist if not found.
-	GetImageInfo(fileRef blob.Ref) (*camtypes.ImageInfo, error)
+	GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error)
 
 	// GetDirMembers sends on dest the children of the static
 	// directory dirRef. It returns os.ErrNotExist if dirRef
