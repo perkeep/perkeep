@@ -844,6 +844,9 @@ func (x *Index) loadKey(key string, val *string, err *error, wg *sync.WaitGroup)
 }
 
 func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
+	if x.corpus != nil {
+		return x.corpus.GetFileInfo(fileRef)
+	}
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
 	wg := new(sync.WaitGroup)
@@ -885,13 +888,20 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 
 	if tv != "" {
 		times := strings.Split(urld(tv), ",")
-		fi.Time = types.ParseTime3339OrZil(times[0])
-		if len(times) == 2 {
-			fi.ModTime = types.ParseTime3339OrZil(times[1])
-		}
+		updateFileInfoTimes(&fi, times)
 	}
 
 	return fi, nil
+}
+
+func updateFileInfoTimes(fi *camtypes.FileInfo, times []string) {
+	if len(times) == 0 {
+		return
+	}
+	fi.Time = types.ParseTime3339OrZil(times[0])
+	if len(times) == 2 {
+		fi.ModTime = types.ParseTime3339OrZil(times[1])
+	}
 }
 
 func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {

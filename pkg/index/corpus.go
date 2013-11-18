@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -30,17 +32,14 @@ type Corpus struct {
 
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
 	keyId      map[blob.Ref]string
-	files      map[blob.Ref]FileMeta
+	files      map[blob.Ref]camtypes.FileInfo
 	permanodes map[blob.Ref]*PermanodeMeta
 
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
-}
 
-type FileMeta struct {
-	size      int64
-	mimeType  string
-	wholeRefs []blob.Ref
+	// scratch string slice
+	ss []string
 }
 
 type PermanodeMeta struct {
@@ -52,7 +51,7 @@ func newCorpus() *Corpus {
 	return &Corpus{
 		blobs:      make(map[blob.Ref]*camtypes.BlobMeta),
 		camBlobs:   make(map[string]map[blob.Ref]*camtypes.BlobMeta),
-		files:      make(map[blob.Ref]FileMeta),
+		files:      make(map[blob.Ref]camtypes.FileInfo),
 		permanodes: make(map[blob.Ref]*PermanodeMeta),
 		deletedBy:  make(map[blob.Ref]blob.Ref),
 		keyId:      make(map[blob.Ref]string),
@@ -94,8 +93,23 @@ func (s crashStorage) Find(key string) Iterator {
 
 // *********** Updating the corpus
 
+var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
+	"have":        nil, // redundant with "meta"
+	"meta":        (*Corpus).mergeMetaRow,
+	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
+	"claim":       (*Corpus).mergeClaimRow,
+	"fileinfo":    (*Corpus).mergeFileInfoRow,
+	"filetimes":   (*Corpus).mergeFileTimesRow,
+}
+
 func (c *Corpus) scanFromStorage(s Storage) error {
-	for _, prefix := range []string{"meta:", "signerkeyid:", "claim|"} {
+	for _, prefix := range []string{
+		"meta:",
+		"signerkeyid:",
+		"claim|",
+		"fileinfo|",
+		"filetimes|",
+	} {
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
 		}
@@ -116,13 +130,6 @@ func (c *Corpus) scanPrefix(s Storage, prefix string) (err error) {
 		}
 	}
 	return nil
-}
-
-var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
-	"have":        nil, // redundant with "meta"
-	"meta":        (*Corpus).mergeMetaRow,
-	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
-	"claim":       (*Corpus).mergeClaimRow,
 }
 
 func (c *Corpus) addBlob(br blob.Ref, mm mutationMap) error {
@@ -188,6 +195,59 @@ func (c *Corpus) mergeClaimRow(k, v string) error {
 	}
 	pm.Claims = append(pm.Claims, cl)
 	return nil
+}
+
+func (c *Corpus) mergeFileInfoRow(k, v string) error {
+	// fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b" "5|some-stuff.txt|"
+	c.ss = strutil.AppendSplitN(c.ss[:0], k, "|", 2)
+	if len(c.ss) != 2 {
+		return fmt.Errorf("unexpected fileinfo key %q", k)
+	}
+	br, ok := blob.Parse(c.ss[1])
+	if !ok {
+		return fmt.Errorf("unexpected fileinfo blobref in key %q", k)
+	}
+	c.ss = strutil.AppendSplitN(c.ss[:0], v, "|", 3)
+	if len(c.ss) != 3 {
+		return fmt.Errorf("unexpected fileinfo value %q", k)
+	}
+	size, err := strconv.ParseInt(c.ss[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("unexpected fileinfo value %q", k)
+	}
+	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
+		fi.Size = size
+		fi.FileName = c.str(c.ss[1])
+		fi.MIMEType = c.str(c.ss[2])
+	})
+	return nil
+}
+
+func (c *Corpus) mergeFileTimesRow(k, v string) error {
+	if v == "" {
+		return nil
+	}
+	// "filetimes|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b" "1970-01-01T00%3A02%3A03Z"
+	c.ss = strutil.AppendSplitN(c.ss[:0], k, "|", 2)
+	if len(c.ss) != 2 {
+		return fmt.Errorf("unexpected filetimes key %q", k)
+	}
+	br, ok := blob.Parse(c.ss[1])
+	if !ok {
+		return fmt.Errorf("unexpected filetimes blobref in key %q", k)
+	}
+	c.ss = strutil.AppendSplitN(c.ss[:0], v, ",", -1)
+	times := c.ss
+	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
+		updateFileInfoTimes(fi, times)
+	})
+	return nil
+}
+
+func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
+	fi := c.files[br] // use zero value if not present
+	fn(&fi)
+	c.files[br] = fi
 }
 
 // str returns s, interned.
@@ -294,4 +354,14 @@ func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		dst = append(dst, cl)
 	}
 	return dst, nil
+}
+
+func (c *Corpus) GetFileInfo(fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	fi, ok := c.files[fileRef]
+	if !ok {
+		err = os.ErrNotExist
+	}
+	return
 }
