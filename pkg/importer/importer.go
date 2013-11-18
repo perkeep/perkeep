@@ -194,6 +194,9 @@ func (o *Object) Attrs(attr string) []string {
 }
 
 func (o *Object) SetAttr(key, value string) error {
+	if o.Attr("key") == value {
+		return nil
+	}
 	_, err := o.h.upload(schema.NewSetAttributeClaim(o.pn, key, value))
 	if err != nil {
 		return err
@@ -211,21 +214,27 @@ func (o *Object) SetAttr(key, value string) error {
 // from the permanode o, given by the "camliPath:xxxx" attribute,
 // where xxx is the provided path.
 func (o *Object) ChildPathObject(path string) (*Object, error) {
-	if v := o.Attr("camliPath:" + path); v != "" {
+	attrName := "camliPath:" + path
+	if v := o.Attr(attrName); v != "" {
 		br, ok := blob.Parse(v)
 		if ok {
 			return o.h.ObjectFromRef(br)
 		}
 	}
 
-	// TODO: else, create a new permanode w/ the schema
-	// package. sign + upload it. See how SetAttr does it above.
-	// Then once you have the permanode's blobref, call SetAttr
-	// on this node's "camliPath:foo" to that blobref, and call
-	// the load path as seen earlier in this function.
+	childBlobRef, err := o.h.upload(schema.NewUnsignedPermanode())
+	if err != nil {
+		return nil, err
+	}
 
-	log.Printf("TODO: ChildPathObject not implemented")
-	return nil, errors.New("TODO: ChildPathObject not implemented")
+	if err := o.SetAttr(attrName, childBlobRef.String()); err != nil {
+		return nil, err
+	}
+
+	return &Object{
+		h:  o.h,
+		pn: childBlobRef,
+	}, nil
 }
 
 // RootObject returns the root permanode for this importer account.
@@ -254,7 +263,6 @@ func (h *Host) RootObject() (*Object, error) {
 		return nil, fmt.Errorf("Found %d import roots for %q; want 1", len(res.WithAttr), h.imp.Prefix())
 	}
 	pn := res.WithAttr[0].Permanode
-	log.Printf("Root permanode of %s is %v", h, pn)
 	return h.ObjectFromRef(pn)
 }
 
