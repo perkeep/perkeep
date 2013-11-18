@@ -21,11 +21,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
@@ -104,7 +106,7 @@ type searchPhotosResult struct {
 		Pages   int
 		Perpage int
 		Total   int `json:",string"`
-		Photo   []photoMeta
+		Photo   []*photoMeta
 	}
 
 	Stat string
@@ -112,7 +114,7 @@ type searchPhotosResult struct {
 
 func (im *imp) Run(intr importer.Interrupt) error {
 	resp := searchPhotosResult{}
-	if err := im.flickrRequest(url.Values{
+	if err := im.flickrAPIRequest(url.Values{
 		"method":  {"flickr.photos.search"},
 		"user_id": {"me"},
 		"extras":  {"description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"}},
@@ -120,31 +122,118 @@ func (im *imp) Run(intr importer.Interrupt) error {
 		return err
 	}
 
-	for _, item := range resp.Photos.Photo {
-		camliIdFramgment := fmt.Sprintf("photo-%s", item.Id)
-		photoContentHint := item.Lastupdate
-		fmt.Println(camliIdFramgment, photoContentHint)
-		// TODO(aa): Stuff
+	photos, err := im.getPhotosNode()
+	if err != nil {
+		return err
 	}
+	log.Printf("Importing %d photos into permanode %s",
+		len(resp.Photos.Photo), photos.PermanodeRef().String())
+
+	for _, item := range resp.Photos.Photo {
+		if err := im.importPhoto(photos, item); err != nil {
+			log.Printf("Flickr importer: error importing %s: %s", item.Id, err)
+			continue
+		}
+	}
+
 	return nil
 }
 
-func (im *imp) flickrRequest(form url.Values, result interface{}) error {
-	if im.user == nil {
-		return errors.New("Not logged in. Go to /importer-flickr/login.")
-	}
+// TODO(aa):
+// * Parallelize: http://golang.org/doc/effective_go.html#concurrency
+// * Record lastmodified and don't reimport photos that haven't changed
+// * Do more than one "page" worth of results
+// * Report progress and errors back through host interface
+// * All the rest of the metadata (see photoMeta)
+// * What happens when changes at Flickr conflict with changes made through the Camlistore UI?
+// * Test!
+func (im *imp) importPhoto(parent *importer.Object, photo *photoMeta) error {
+	filename := fmt.Sprintf("%s.%s", photo.Id, photo.Originalformat)
 
-	form.Set("format", "json")
-	form.Set("nojsoncallback", "1")
-	res, err := oauthClient.Get(im.host.HTTPClient(), im.user.Cred, apiURL, form)
+	res, err := im.flickrRequest(photo.URL, url.Values{})
+	if err != nil {
+		log.Printf("Flickr importer: Could not fetch %s: %s", photo.URL, err)
+		return err
+	}
+	defer res.Body.Close()
+
+	fileRef, err := schema.WriteFileFromReader(im.host.Target(), filename, res.Body)
 	if err != nil {
 		return err
 	}
 
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("Auth request failed with: %s", res.Status)
+	photoNode, err := parent.ChildPathObject(filename)
+	if err != nil {
+		return err
 	}
 
+	if err := photoNode.SetAttr("camliContent", fileRef.String()); err != nil {
+		return err
+	}
+
+	if photo.Title != "" {
+		photoNode.SetAttr("title", photo.Title)
+	}
+	if photo.Description.Content != "" {
+		photoNode.SetAttr("description", photo.Description.Content)
+	}
+
+	return nil
+}
+
+func (im *imp) getPhotosNode() (*importer.Object, error) {
+	root, err := im.getRootNode()
+	if err != nil {
+		return nil, err
+	}
+
+	photos, err := root.ChildPathObject("photos")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := photos.SetAttr("title", "Photos"); err != nil {
+		return nil, err
+	}
+	return photos, nil
+}
+
+func (im *imp) getRootNode() (*importer.Object, error) {
+	root, err := im.host.RootObject()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := root.SetAttr("title", "Flickr Import Root"); err != nil {
+		return nil, err
+	}
+	return root, nil
+}
+
+func (im *imp) flickrAPIRequest(form url.Values, result interface{}) error {
+	form.Set("format", "json")
+	form.Set("nojsoncallback", "1")
+	res, err := im.flickrRequest(apiURL, form)
+	if err != nil {
+		return err
+	}
 	defer res.Body.Close()
 	return json.NewDecoder(res.Body).Decode(result)
+}
+
+func (im *imp) flickrRequest(url string, form url.Values) (*http.Response, error) {
+	if im.user == nil {
+		return nil, errors.New("Not logged in. Go to /importer-flickr/login.")
+	}
+
+	res, err := oauthClient.Get(im.host.HTTPClient(), im.user.Cred, url, form)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Auth request failed with: %s", res.Status)
+	}
+
+	return res, nil
 }
