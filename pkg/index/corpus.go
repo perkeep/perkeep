@@ -44,8 +44,8 @@ type FileMeta struct {
 }
 
 type PermanodeMeta struct {
-	OwnerKeyId string
-	// Claims     ClaimList
+	// TODO: OwnerKeyId string
+	Claims []camtypes.Claim
 }
 
 func newCorpus() *Corpus {
@@ -95,7 +95,7 @@ func (s crashStorage) Find(key string) Iterator {
 // *********** Updating the corpus
 
 func (c *Corpus) scanFromStorage(s Storage) error {
-	for _, prefix := range []string{"meta:", "signerkeyid:"} {
+	for _, prefix := range []string{"meta:", "signerkeyid:", "claim|"} {
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
 		}
@@ -122,6 +122,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"have":        nil, // redundant with "meta"
 	"meta":        (*Corpus).mergeMetaRow,
 	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
+	"claim":       (*Corpus).mergeClaimRow,
 }
 
 func (c *Corpus) addBlob(br blob.Ref, mm mutationMap) error {
@@ -148,7 +149,7 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 	if !ok {
 		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
 	}
-	bm.CamliType = c.strLocked(bm.CamliType)
+	bm.CamliType = c.str(bm.CamliType)
 	c.blobs[bm.Ref] = &bm
 	if bm.CamliType != "" {
 		m, ok := c.camBlobs[bm.CamliType]
@@ -170,15 +171,27 @@ func (c *Corpus) mergeSignerKeyIdRow(k, v string) error {
 	return nil
 }
 
-// str returns s, interned.
-func (c *Corpus) str(s string) string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.strLocked(s)
+func (c *Corpus) mergeClaimRow(k, v string) error {
+	cl, ok := kvClaim(k, v)
+	if !ok || !cl.Permanode.Valid() {
+		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
+	}
+	cl.Type = c.str(cl.Type)
+	cl.Attr = c.str(cl.Attr)
+	cl.Value = c.str(cl.Value) // less likely to intern, but some (tags) do
+
+	pn := cl.Permanode
+	pm, ok := c.permanodes[pn]
+	if !ok {
+		pm = new(PermanodeMeta)
+		c.permanodes[pn] = pm
+	}
+	pm.Claims = append(pm.Claims, cl)
+	return nil
 }
 
-// strLocked returns s, interned.
-func (c *Corpus) strLocked(s string) string {
+// str returns s, interned.
+func (c *Corpus) str(s string) string {
 	if s == "" {
 		return ""
 	}
@@ -240,4 +253,45 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 		return v, nil
 	}
 	return "", ErrNotFound
+}
+
+func (c *Corpus) isDeletedLocked(br blob.Ref) bool {
+	// TODO: implement
+	return false
+}
+
+func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+	signerFilter blob.Ref,
+	attrFilter string) ([]camtypes.Claim, error) {
+	needSort := false
+	defer func() {
+		if needSort {
+			// TODO: schedule sort of these.  It's not
+			// required by the interface, but we know our
+			// caller will want to do it, so make their
+			// job easier and give it to them
+			// pre-sorted. We do it here rather than
+			// during on-start scanning to save CPU, to do
+			// it fewer times per permanode.
+		}
+	}()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	pm, ok := c.permanodes[permaNode]
+	if !ok {
+		return nil, nil
+	}
+	for _, cl := range pm.Claims {
+		if c.isDeletedLocked(cl.BlobRef) {
+			continue
+		}
+		if signerFilter.Valid() && cl.Signer != signerFilter {
+			continue
+		}
+		if attrFilter != "" && cl.Attr != attrFilter {
+			continue
+		}
+		dst = append(dst, cl)
+	}
+	return dst, nil
 }

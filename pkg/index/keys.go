@@ -24,7 +24,7 @@ import (
 
 // requiredSchemaVersion is incremented every time
 // an index key type is added, changed, or removed.
-const requiredSchemaVersion = 1
+const requiredSchemaVersion = 2
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
@@ -159,6 +159,11 @@ var (
 			{"claimType", typeStr},
 			{"attr", typeStr},
 			{"value", typeStr},
+			// And the signerRef, which seems redundant
+			// with the signer keyId in the jey, but the
+			// Claim struct needs this, and there's 1:m
+			// for keyId:blobRef, so:
+			{"signerRef", typeBlobRef},
 		},
 	}
 

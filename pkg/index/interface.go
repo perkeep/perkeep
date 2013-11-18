@@ -27,6 +27,7 @@ type Interface interface {
 	// they filter the return items to only claims made by the given signer
 	// or claims about the given attribute, respectively.
 	// Deleted claims are never returned.
+	// The items may be appended in any order.
 	AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		signerFilter blob.Ref,
 		attrFilter string) ([]camtypes.Claim, error)

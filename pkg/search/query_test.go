@@ -425,7 +425,7 @@ func TestQueryPermanodeAttrValueMatches(t *testing.T) {
 // find permanodes matching a certain file query
 func TestQueryFileConstraint(t *testing.T) { testQuery(t, testQueryFileConstraint, indexClassic) }
 func TestQueryFileConstraint_Scan(t *testing.T) {
-	t.Skip("TODO: claims in memory")
+	t.Skip("TODO: fileinfo in memory")
 	testQuery(t, testQueryFileConstraint, indexCorpusScan)
 }
 func TestQueryFileConstraint_Build(t *testing.T) {

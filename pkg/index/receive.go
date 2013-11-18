@@ -344,7 +344,7 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 	mm.Set(recentKey, pnbr.String())
 
 	claimKey := keyPermanodeClaim.Key(pnbr, verifiedKeyId, claim.ClaimDateString(), br)
-	mm.Set(claimKey, keyPermanodeClaim.Val(claim.ClaimType(), attr, value))
+	mm.Set(claimKey, keyPermanodeClaim.Val(claim.ClaimType(), attr, value, vr.CamliSigner))
 
 	if strings.HasPrefix(attr, "camliPath:") {
 		targetRef, ok := blob.Parse(value)

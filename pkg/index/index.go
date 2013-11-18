@@ -494,6 +494,9 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	signerFilter blob.Ref,
 	attrFilter string) ([]camtypes.Claim, error) {
+	if x.corpus != nil {
+		return x.corpus.AppendClaims(dst, permaNode, signerFilter, attrFilter)
+	}
 	var (
 		keyId string
 		err   error
@@ -509,9 +512,6 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		}
 		it = x.queryPrefix(keyPermanodeClaim, permaNode, keyId)
 	} else {
-		// TODO: for the Signer field below, we'll need a keyId->blob.Ref lookup
-		// too. For now just bail.
-		panic("TODO: not implemented. See comment.")
 		it = x.queryPrefix(keyPermanodeClaim, permaNode)
 	}
 	defer closeIterator(it, &err)
@@ -529,31 +529,53 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		if mustHave != "" && !strings.Contains(val, mustHave) {
 			continue
 		}
-		keyPart := strings.Split(it.Key(), "|")
-		valPart := strings.Split(val, "|")
-		if len(keyPart) < 5 || len(valPart) < 3 {
-			continue
-		}
-		attr := urld(valPart[1])
-		if attrFilter != "" && attr != attrFilter {
-			continue
-		}
-		claimRef, ok := blob.Parse(keyPart[4])
+		cl, ok := kvClaim(it.Key(), val)
 		if !ok {
 			continue
 		}
-		date, _ := time.Parse(time.RFC3339, keyPart[3])
-		dst = append(dst, camtypes.Claim{
-			BlobRef:   claimRef,
-			Signer:    signerFilter,
-			Permanode: permaNode,
-			Date:      date,
-			Type:      urld(valPart[0]),
-			Attr:      attr,
-			Value:     urld(valPart[2]),
-		})
+		if attrFilter != "" && cl.Attr != attrFilter {
+			continue
+		}
+		if signerFilter.Valid() && cl.Signer != signerFilter {
+			continue
+		}
+		dst = append(dst, cl)
 	}
 	return dst, nil
+}
+
+func kvClaim(k, v string) (c camtypes.Claim, ok bool) {
+	// TODO(bradfitz): remove the strings.Split calls to reduce allocations.
+	keyPart := strings.Split(k, "|")
+	valPart := strings.Split(v, "|")
+	if len(keyPart) < 5 || len(valPart) < 4 {
+		return
+	}
+	signerRef, ok := blob.Parse(valPart[3])
+	if !ok {
+		return
+	}
+	permaNode, ok := blob.Parse(keyPart[1])
+	if !ok {
+		return
+	}
+	claimRef, ok := blob.Parse(keyPart[4])
+	if !ok {
+		return
+	}
+	date, err := time.Parse(time.RFC3339, keyPart[3])
+	if err != nil {
+		return
+	}
+	return camtypes.Claim{
+		BlobRef:   claimRef,
+		Signer:    signerRef,
+		Permanode: permaNode,
+		Date:      date,
+		Type:      urld(valPart[0]),
+		Attr:      urld(valPart[1]),
+		Value:     urld(valPart[2]),
+	}, true
 }
 
 func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
