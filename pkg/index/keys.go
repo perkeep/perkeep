@@ -24,7 +24,7 @@ import (
 
 // requiredSchemaVersion is incremented every time
 // an index key type is added, changed, or removed.
-const requiredSchemaVersion = 2
+const requiredSchemaVersion = 3
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)

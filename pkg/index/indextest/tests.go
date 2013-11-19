@@ -74,7 +74,7 @@ func (id *IndexDeps) Set(key, value string) error {
 	return id.Index.Storage().Set(key, value)
 }
 
-func (id *IndexDeps) dumpIndex(t *testing.T) {
+func (id *IndexDeps) DumpIndex(t *testing.T) {
 	t.Logf("Begin index dump:")
 	it := id.Index.Storage().Find("")
 	for it.Next() {
@@ -341,7 +341,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	)
 
 	lastPermanodeMutation := id.lastTime()
-	id.dumpIndex(t)
+	id.DumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
@@ -610,7 +610,7 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 	claim2 := id.SetAttribute(pn, "camliPath:with|pipe", "targ-124")
 	t.Logf("made path claims %q and %q", claim1, claim2)
 
-	id.dumpIndex(t)
+	id.DumpIndex(t)
 
 	type test struct {
 		blobref string
@@ -657,7 +657,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 	fileTime := time.Unix(1361250375, 0)
 	fileRef, wholeRef := id.UploadFile("foo.html", "<html>I am an html file.</html>", fileTime)
 	t.Logf("uploaded fileref %q, wholeRef %q", fileRef, wholeRef)
-	id.dumpIndex(t)
+	id.DumpIndex(t)
 
 	// ExistingFileSchemas
 	{
@@ -714,7 +714,7 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 
 	t.Logf("edge %s --> %s", pn1, pn2)
 
-	id.dumpIndex(t)
+	id.DumpIndex(t)
 
 	// Look for pn1
 	{
@@ -740,7 +740,7 @@ func IsDeleted(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
 	id := NewIndexDeps(idx)
 	id.Fataler = t
-	defer id.dumpIndex(t)
+	defer id.DumpIndex(t)
 	pn1 := id.NewPermanode()
 
 	// delete pn1
@@ -790,7 +790,7 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
 	id := NewIndexDeps(idx)
 	id.Fataler = t
-	defer id.dumpIndex(t)
+	defer id.DumpIndex(t)
 	pn1 := id.NewPermanode()
 
 	// Test the never, ever, deleted case
