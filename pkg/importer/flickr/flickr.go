@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -45,14 +46,22 @@ type imp struct {
 }
 
 func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
-	oauthClient.Credentials = oauth.Credentials{
-		Token:  cfg.OptionalString("appKey", ""),
-		Secret: cfg.OptionalString("appSecret", ""),
-	}
+	apiKey := cfg.RequiredString("apiKey")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	user, _ := readCredentials()
+	parts := strings.Split(apiKey, ":")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("Flickr importer: Invalid apiKey configuration: %q", apiKey)
+	}
+	oauthClient.Credentials = oauth.Credentials{
+		Token:  parts[0],
+		Secret: parts[1],
+	}
+	user, err := readCredentials()
+	if err != nil {
+		return nil, err
+	}
 	return &imp{
 		host: host,
 		user: user,
