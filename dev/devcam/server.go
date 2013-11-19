@@ -61,7 +61,8 @@ type serverCmd struct {
 
 	fullClosure bool
 
-	openBrowser bool
+	openBrowser  bool
+	flickrAPIKey string
 	// end of flag vars
 
 	listen    string // address + port to listen on
@@ -94,6 +95,7 @@ func init() {
 		flags.BoolVar(&cmd.fullClosure, "fullclosure", false, "Use the ondisk closure library.")
 
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
+		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		return cmd
 	})
 }
@@ -143,6 +145,7 @@ func (c *serverCmd) setCamliRoot() error {
 		if err := os.RemoveAll(c.camliRoot); err != nil {
 			return fmt.Errorf("Could not wipe %v: %v", c.camliRoot, err)
 		}
+		os.Remove(filepath.Join("config", "flickr-credentials.json"))
 	}
 	return nil
 }
@@ -249,6 +252,11 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_SECRET_RING", filepath.Join(camliSrcRoot,
 		filepath.FromSlash(defaultSecring)))
 	setenv("CAMLI_KEYID", defaultKeyID)
+	if c.flickrAPIKey != "" {
+		setenv("CAMLI_FLICKR_ENABLED", "true")
+		setenv("CAMLI_FLICKR_API_KEY", c.flickrAPIKey)
+	}
+	setenv("CAMLI_CONFIG_DIR", "config")
 	return nil
 }
 

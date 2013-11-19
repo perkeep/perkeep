@@ -44,7 +44,7 @@ type configPrefixesParams struct {
 	blobPath         string
 	searchOwner      blob.Ref
 	shareHandlerPath string
-	flickr           map[string]interface{}
+	flickr           string
 }
 
 var (
@@ -445,10 +445,9 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 	}
 
-	if len(params.flickr) > 0 {
+	if params.flickr != "" {
 		m["/importer-flickr/"] = map[string]interface{}{
-			"handler":     "importer-flickr",
-			"handlerArgs": params.flickr,
+			"apiKey": params.flickr,
 		}
 	}
 
@@ -539,7 +538,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		kvFile     = conf.OptionalString("kvIndexFile", "")
 
 		// Importer options
-		flickr = conf.OptionalObject("flickr")
+		flickr = conf.OptionalString("flickr", "")
 
 		_       = conf.OptionalList("replicateTo")
 		publish = conf.OptionalObject("publish")

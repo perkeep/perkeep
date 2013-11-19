@@ -61,8 +61,12 @@ func writeCredentials(user *userInfo) {
 	}
 }
 
+// This returns nil,nil if the file doesn't exist. Any other error bad.
 func readCredentials() (*userInfo, error) {
 	fi, err := os.Open(userFile)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -269,6 +269,14 @@
          }
      },
 
+    "/importer-flickr/": {
+      "handler": "importer-flickr",
+      "enabled": ["_env", "${CAMLI_FLICKR_ENABLED}", false],
+      "handlerArgs": {
+        "apiKey": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
+      }
+    },
+
      "/share/": {
          "handler": "share",
          "handlerArgs": {
