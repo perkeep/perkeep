@@ -98,7 +98,7 @@ var handlerTests = []handlerTest{
 	{
 		name: "describe-jpeg-blob",
 		setup: func(fi *test.FakeIndex) index.Interface {
-			fi.AddMeta(blob.MustParse("abc-555"), "image/jpeg", 999)
+			fi.AddMeta(blob.MustParse("abc-555"), "", 999)
 			return fi
 		},
 		query: "describe?blobref=abc-555",
@@ -106,8 +106,6 @@ var handlerTests = []handlerTest{
 			"meta": {
 				"abc-555": {
 					"blobRef":  "abc-555",
-					"mimeType": "image/jpeg",
-					"camliType": "",
 					"size":     999
 				}
 			}
@@ -118,9 +116,9 @@ var handlerTests = []handlerTest{
 		name: "describe-permanode",
 		setup: func(fi *test.FakeIndex) index.Interface {
 			pn := blob.MustParse("perma-123")
-			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
+			fi.AddMeta(pn, "permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
-			fi.AddMeta(blob.MustParse("foo-232"), "foo/bar", 878)
+			fi.AddMeta(blob.MustParse("foo-232"), "", 878)
 
 			// Test deleting all attributes
 			fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "x")
@@ -139,13 +137,10 @@ var handlerTests = []handlerTest{
 			"meta": {
 				"foo-232": {
 					"blobRef":  "foo-232",
-					"mimeType": "foo/bar",
-					"camliType": "",
 					"size":     878
 				},
 				"perma-123": {
 					"blobRef":   "perma-123",
-					"mimeType":  "application/json; camliType=permanode",
 					"camliType": "permanode",
 					"size":      123,
 					"permanode": {
@@ -165,10 +160,10 @@ var handlerTests = []handlerTest{
 		name: "describe-permanode-follows-camliPath",
 		setup: func(fi *test.FakeIndex) index.Interface {
 			pn := blob.MustParse("perma-123")
-			fi.AddMeta(pn, "application/json; camliType=permanode", 123)
+			fi.AddMeta(pn, "permanode", 123)
 			fi.AddClaim(owner, pn, "set-attribute", "camliPath:foo", "bar-123")
 
-			fi.AddMeta(blob.MustParse("bar-123"), "other/thing", 123)
+			fi.AddMeta(blob.MustParse("bar-123"), "", 123)
 			return fi
 		},
 		query: "describe?blobref=perma-123",
@@ -176,13 +171,10 @@ var handlerTests = []handlerTest{
   "meta": {
     "bar-123": {
       "blobRef": "bar-123",
-      "mimeType": "other/thing",
-      "camliType": "",
       "size": 123
     },
     "perma-123": {
       "blobRef": "perma-123",
-      "mimeType": "application/json; camliType=permanode",
       "camliType": "permanode",
       "size": 123,
       "permanode": {
@@ -222,7 +214,6 @@ var handlerTests = []handlerTest{
                       "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
 		 "camliType": "permanode",
-                 "mimeType": "application/json; camliType=permanode",
                  "permanode": {
                    "attr": { "title": [ "Some title" ] },
 					"modtime": "` + addToClockOrigin(1*time.Second) + `"
@@ -273,7 +264,6 @@ var handlerTests = []handlerTest{
                       "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
 		 "camliType": "permanode",
-                 "mimeType": "application/json; camliType=permanode",
                  "permanode": {
 		        "attr": {
 		          "camliContent": [
@@ -286,7 +276,6 @@ var handlerTests = []handlerTest{
                      },
 		    "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
 		      "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
-		      "mimeType": "application/json; camliType=file",
 		      "camliType": "file",
 		      "size": 184,
 		      "file": {
@@ -353,7 +342,6 @@ var handlerTests = []handlerTest{
 		  "meta": {
 		    "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf": {
 		      "blobRef": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
-		      "mimeType": "application/json; camliType=permanode",
 		      "camliType": "permanode",
 		      "size": 534,
 		      "permanode": {
@@ -367,7 +355,6 @@ var handlerTests = []handlerTest{
 		    },
 		    "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		      "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
-		      "mimeType": "application/json; camliType=permanode",
 		      "camliType": "permanode",
 		      "size": 534,
 		      "permanode": {
@@ -381,7 +368,6 @@ var handlerTests = []handlerTest{
 		    },
 		    "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
 		      "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
-		      "mimeType": "application/json; camliType=file",
 		      "camliType": "file",
 		      "size": 184,
 		      "file": {
@@ -422,7 +408,6 @@ var handlerTests = []handlerTest{
                    "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
 		 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
 		 "camliType": "permanode",
-                 "mimeType": "application/json; camliType=permanode",
                  "permanode": {
                    "attr": { "title": [ "Some title" ] },
 					"modtime": "` + addToClockOrigin(1*time.Second) + `"

@@ -78,13 +78,13 @@ func camliTypeFromMime(mime string) string {
 	return ""
 }
 
-func (fi *FakeIndex) AddMeta(br blob.Ref, mime string, size int64) {
+func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size int64) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	fi.meta[br] = camtypes.BlobMeta{
 		Ref:       br,
 		Size:      int(size),
-		CamliType: camliTypeFromMime(mime),
+		CamliType: camliType,
 	}
 }
 

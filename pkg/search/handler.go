@@ -684,8 +684,7 @@ type DescribedBlob struct {
 	Request *DescribeRequest `json:"-"`
 
 	BlobRef   blob.Ref `json:"blobRef"`
-	MIMEType  string   `json:"mimeType"`
-	CamliType string   `json:"camliType"`
+	CamliType string   `json:"camliType,omitempty"`
 	Size      int64    `json:"size,"`
 
 	// if camliType "permanode"
@@ -1536,8 +1535,7 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 const camliTypePrefix = "application/json; camliType="
 
 func (d *DescribedBlob) setMIMEType(mime string) {
-	d.MIMEType = mime
 	if strings.HasPrefix(mime, camliTypePrefix) {
-		d.CamliType = mime[len(camliTypePrefix):]
+		d.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
 	}
 }

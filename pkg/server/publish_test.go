@@ -107,12 +107,12 @@ func TestPublishURLs(t *testing.T) {
 			Search:   sh,
 		}
 
-		idx.AddMeta(owner, "text/x-openpgp-public-key", 100)
+		idx.AddMeta(owner, "", 100)
 		for _, br := range []blob.Ref{picNode, galRef, rootRef, camp0, camp1} {
-			idx.AddMeta(br, "application/json; camliType=permanode", 100)
+			idx.AddMeta(br, "permanode", 100)
 		}
 		for _, br := range []blob.Ref{camp0f, camp1f} {
-			idx.AddMeta(br, "application/json; camliType=file", 100)
+			idx.AddMeta(br, "file", 100)
 		}
 
 		idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:singlepic", picNode.String())
