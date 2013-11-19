@@ -23,7 +23,7 @@ web browser and restart the server.</p>
 
 <li><b><code>baseURL</code></b>: Optional. If non-empty, this is the root of your URL prefix for your Camlistore server. Useful for when running behind a reverse proxy. Should not end in a slash. e.g. <code>https://yourserver.example.com</code></li>
 
-<li><b><code>flickr</code></b>: Optional, and doesn't do anything yet. Support for continuous import from Flickr. Enter two child keys: <code>appKey</code> and <code>appSecret</code>, which you can get by filling out <a href="http://www.flickr.com/services/apps/create/noncommercial/">this form</a>.</li>
+<li><b><code>flickr</code></b>: Optional, and doesn't do anything yet. Support for continuous import from Flickr. Should be an API key and secret formatted as <code>key</code>:<code>secret</code>. Get yours by filling out <a href="http://www.flickr.com/services/apps/create/noncommercial/">this form</a>.</li>
 
 <li><b><code>https</code></b>: if "true", HTTPS is used
   <ul>
@@ -67,17 +67,20 @@ to <code>pkg/genconfig</code> welcome.</p>
 config, as used by <code>devcam server</code>.</p>
 
 <h2 id="publishing">Publishing options</h2>
-<p>Although limited, publishing can be configured through the <b><code>publish</code></b> key. There is only support for an image gallery view (even though it will display thumbnails for other kinds of items), which is not really customizable. Here is an example of a value if one wanted to publish some items under <code>/pics/</code>:</p>
+<p>Camlistore uses Go html templates to publish pages, and publishing can be configured through the <b><code>publish</code></b> key. There is already support for an image gallery view, which can be enabled similarly to the example below (obviously, the rootPermanode will be different).</p>
 <pre>
-{
-  "/pics/": {
-    "rootPermanode": "sha1-09888624be84fcb3ae67e8aa2f29682b4ff515d7",
-    "style": "pics.css",
-    "template": "gallery"
-  }
+"publish": {
+	"/pics/": {
+		"rootPermanode": "sha1-6cbe9e1c35e854eab028cba43d099d35ceae0de8",
+		"style": "pics.css",
+		"js": "pics.js",
+		"goTemplate": "gallery.html"
+	}
 }
 </pre>
 <p>One can create any permanode with camput or the UI and use it as the rootPermanode.</p>
+
+<p>Please see the <a href="/gw/doc/publishing/README"">publishing README</a> if you want to make/contribute more publishing views.</p>
 
 <h2 id="windows">Windows</h2>
 

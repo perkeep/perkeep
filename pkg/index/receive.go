@@ -26,6 +26,7 @@ import (
 	_ "image/png"
 	"io"
 	"log"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -126,6 +127,8 @@ func (ix *Index) commit(mm mutationMap) error {
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
 func (ix *Index) populateMutationMap(br blob.Ref, sniffer *BlobSniffer) (mutationMap, error) {
+	// TODO(mpl): shouldn't we remove these two from the map (so they don't get committed) when
+	// e.g in populateClaim we detect a bogus claim (which does not yield an error)?
 	mm := mutationMap{
 		"have:" + br.String(): fmt.Sprintf("%d", sniffer.Size()),
 		"meta:" + br.String(): fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()),
@@ -137,10 +140,6 @@ func (ix *Index) populateMutationMap(br blob.Ref, sniffer *BlobSniffer) (mutatio
 			if err := ix.populateClaim(blob, mm); err != nil {
 				return nil, err
 			}
-		case "permanode":
-			//if err := mi.populatePermanode(blobRef, camli, mm); err != nil {
-			//return nil, err
-			//}
 		case "file":
 			if err := ix.populateFile(blob, mm); err != nil {
 				return nil, err
@@ -311,6 +310,41 @@ func (ix *Index) populateDir(b *schema.Blob, mm mutationMap) error {
 	return nil
 }
 
+// populateDeleteClaim adds to mm the entries resulting from the delete claim cl.
+// It is assumed cl is a valid claim, and vr has already been verified.
+func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm mutationMap) {
+	br := cl.Blob().BlobRef()
+	target := cl.Target()
+	if !target.Valid() {
+		log.Print(fmt.Errorf("no valid target for delete claim %v", br))
+		return
+	}
+	meta, err := ix.GetBlobMeta(target)
+	if err != nil {
+		if err == os.ErrNotExist {
+			// TODO: return a dependency error type, to schedule re-indexing in the future
+		}
+		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %v", target, err))
+		return
+	}
+	// TODO(mpl): create consts somewhere for "claim" and "permanode" as camliTypes, and use them,
+	// instead of hardcoding. Unless they already exist ? (didn't find them).
+	if meta.CamliType != "permanode" && meta.CamliType != "claim" {
+		log.Print(fmt.Errorf("delete claim target in %v is neither a permanode nor a claim: %v", br, meta.CamliType))
+		return
+	}
+	mm.Set(keyDeleted.Key(target, cl.ClaimDateString(), br), "")
+	mm.Set(keyDeletes.Key(br, target), "")
+	if meta.CamliType == "claim" {
+		return
+	}
+	recentKey := keyRecentPermanode.Key(vr.SignerKeyId, cl.ClaimDateString(), br)
+	mm.Set(recentKey, target.String())
+	attr, value := cl.Attribute(), cl.Value()
+	claimKey := keyPermanodeClaim.Key(target, vr.SignerKeyId, cl.ClaimDateString(), br)
+	mm.Set(claimKey, keyPermanodeClaim.Val(cl.ClaimType(), attr, value, vr.CamliSigner))
+}
+
 func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 	br := b.BlobRef()
 
@@ -319,13 +353,6 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 		// Skip bogus claim with malformed permanode.
 		return nil
 	}
-
-	pnbr := claim.ModifiedPermanode()
-	if !pnbr.Valid() {
-		// A different type of claim; not modifying a permanode.
-		return nil
-	}
-	attr, value := claim.Attribute(), claim.Value()
 
 	vr := jsonsign.NewVerificationRequest(b.JSON(), ix.KeyFetcher)
 	if !vr.Verify() {
@@ -337,12 +364,22 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 		return errors.New("index: populateClaim verification failure")
 	}
 	verifiedKeyId := vr.SignerKeyId
-
 	mm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
+	if claim.ClaimType() == string(schema.DeleteClaim) {
+		ix.populateDeleteClaim(claim, vr, mm)
+		return nil
+	}
+
+	pnbr := claim.ModifiedPermanode()
+	if !pnbr.Valid() {
+		// A different type of claim; not modifying a permanode.
+		return nil
+	}
+
+	attr, value := claim.Attribute(), claim.Value()
 	recentKey := keyRecentPermanode.Key(verifiedKeyId, claim.ClaimDateString(), br)
 	mm.Set(recentKey, pnbr.String())
-
 	claimKey := keyPermanodeClaim.Key(pnbr, verifiedKeyId, claim.ClaimDateString(), br)
 	mm.Set(claimKey, keyPermanodeClaim.Val(claim.ClaimType(), attr, value, vr.CamliSigner))
 

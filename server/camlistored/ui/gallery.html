@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+{{if $header := call .Header}}
+	<head>
+	<title>{{$header.Title}}</title>
+	{{range $js := $header.JSDeps}}
+		<script src='{{$js}}'></script>
+	{{end}}
+	{{if $header.CamliClosure}}
+		<script>goog.require('{{$header.CamliClosure}}');</script>
+	{{end}}
+	{{range $css := $header.CSSFiles}}
+		<link rel='stylesheet' type='text/css' href='{{$css}}'>
+	{{end}}
+	<script>
+	var camliViewIsOwner = {{$header.ViewerIsOwner}};
+	var camliPagePermanode = {{$header.Subject}};
+	var camliPageMeta =
+	{{$header.Meta}};
+	</script>
+	</head>
+	<body>
+	<h1>{{$header.Title}}</h1>
+	{{if $file := call .File}}
+		<div>File: {{$file.FileName}}, {{$file.Size}} bytes, type {{$file.MIMEType}}</div>
+		{{if $file.IsImage}}
+			<a href='{{$file.DownloadURL}}'><img src='{{$file.ThumbnailURL}}'></a>
+		{{end}}
+		<div id='{{$file.DomID}}' class='camlifile'>[<a href='{{$file.DownloadURL}}'>download</a>]</div>
+		{{if $nav := call $file.Nav}}
+			<div class='camlifile'>
+			{{if $prev := $nav.PrevPath}}[<a href='{{$prev}}'>prev</a>] {{end}}
+			{{if $up := $nav.ParentPath}}[<a href='{{$up}}'>up</a>] {{end}}
+			{{if $next := $nav.NextPath}}[<a href='{{$next}}'>next</a>] {{end}}
+			</div>
+		{{end}}
+	{{else}}
+	{{if $membersData := call .Members}}
+		<div><a href='{{$membersData.SubjectPath}}/=z/{{html $membersData.ZipName | urlquery}}'>{{html $membersData.ZipName}}</a></div>
+<!-- TODO(mpl): something's messed up with the hidden edit title position, it should appear under the image. -->
+		<ul id='members'>
+		{{range $member := $membersData.Members}}
+			<li id='{{call $membersData.DomID $member}}'>
+			<a href='{{call $membersData.Path $member}}'>
+			{{$fileInfo := call $membersData.FileInfo $member}}
+			<img src='{{if $fileInfo}}{{$fileInfo.FileThumbnailURL}}{{end}}'>
+			<span>{{call $membersData.Title $member}}</span></a>
+			{{call $membersData.Description $member}}
+			<div id='{{if $fileInfo}}{{$fileInfo.FileDomID}}{{end}}' class='camlifile'>
+			<a href='{{if $fileInfo}}{{$fileInfo.FilePath}}{{end}}'>file</a>
+			</div>
+			</li>
+		{{end}}
+		</ul>
+	{{end}}
+	{{end}}
+	{{if $header.CamliClosure}}
+	{{if $header.ViewerIsOwner}}
+		<script>
+			var page = new {{$header.CamliClosure}}(CAMLISTORE_CONFIG);
+			page.decorate(document.body);
+		</script>
+	{{end}}
+	{{end}}
+{{end}}
+</body>
+</html>
