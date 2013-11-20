@@ -145,15 +145,31 @@ func (im *imp) Run(intr importer.Interrupt) error {
 
 // TODO(aa):
 // * Parallelize: http://golang.org/doc/effective_go.html#concurrency
-// * Record lastmodified and don't reimport photos that haven't changed
 // * Do more than one "page" worth of results
 // * Report progress and errors back through host interface
 // * All the rest of the metadata (see photoMeta)
-// * What happens when changes at Flickr conflict with changes made through the Camlistore UI?
+// * Conflicts: For all metadata changes, prefer any non-imported claims
 // * Test!
 func (im *imp) importPhoto(parent *importer.Object, photo *photoMeta) error {
 	filename := fmt.Sprintf("%s.%s", photo.Id, photo.Originalformat)
+	photoNode, err := parent.ChildPathObject(filename)
+	if err != nil {
+		return err
+	}
 
+	// Import all the metadata. SetAttrs() is a no-op if the value hasn't changed, so there's no cost to doing these on every run.
+	// And this way if we add more things to import, they will get picked up.
+	if err := photoNode.SetAttrs(
+		"flickrId", photo.Id,
+		"title", photo.Title,
+		"description", photo.Description.Content); err != nil {
+		return err
+	}
+
+	// Import the photo itself. Since it is expensive to fetch the image, we store its lastupdate and only refetch if it might have changed.
+	if photoNode.Attr("flickrLastupdate") == photo.Lastupdate {
+		return nil
+	}
 	res, err := im.flickrRequest(photo.URL, url.Values{})
 	if err != nil {
 		log.Printf("Flickr importer: Could not fetch %s: %s", photo.URL, err)
@@ -165,21 +181,12 @@ func (im *imp) importPhoto(parent *importer.Object, photo *photoMeta) error {
 	if err != nil {
 		return err
 	}
-
-	photoNode, err := parent.ChildPathObject(filename)
-	if err != nil {
-		return err
-	}
-
 	if err := photoNode.SetAttr("camliContent", fileRef.String()); err != nil {
 		return err
 	}
-
-	if photo.Title != "" {
-		photoNode.SetAttr("title", photo.Title)
-	}
-	if photo.Description.Content != "" {
-		photoNode.SetAttr("description", photo.Description.Content)
+	// Write lastupdate last, so that if any of the preceding fails, we will try again next time.
+	if err := photoNode.SetAttr("flickrLastupdate", photo.Lastupdate); err != nil {
+		return err
 	}
 
 	return nil

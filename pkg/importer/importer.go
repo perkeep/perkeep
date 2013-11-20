@@ -194,7 +194,7 @@ func (o *Object) Attrs(attr string) []string {
 	return o.attr[attr]
 }
 
-// SetAttrs sets the attribute key to value.
+// SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
 	if o.Attr(key) == value {
 		return nil
