@@ -17,16 +17,12 @@ limitations under the License.
 package flickr
 
 import (
-	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
@@ -36,47 +32,56 @@ var (
 		ResourceOwnerAuthorizationURI: "http://www.flickr.com/services/oauth/authorize",
 		TokenRequestURI:               "http://www.flickr.com/services/oauth/access_token",
 	}
-
-	userFile = filepath.Join(osutil.CamliConfigDir(), "flickr-credentials.json")
 )
 
-// userInfo represents the Flickr user whose account we are interacting with.
-// This struct is also serialized to <config-dir>/flickr-credentials.json.
-// TODO(aa): Store this state within camlistore itself!
-// TODO(aa): Support multiple instances of the importer per camlistore user.
 type userInfo struct {
-	Id   string             `json:"id"`
-	Cred *oauth.Credentials `json:"creds"`
+	Id       string
+	Username string
+	Cred     *oauth.Credentials
 }
 
-func writeCredentials(user *userInfo) {
-	fi, err := os.Create(userFile)
-	if err != nil {
-		log.Printf("Error creating flickr credentials file: %s", err)
-		return
+func (u *userInfo) Valid() error {
+	if u.Id != "" || u.Username != "" || u.Cred.Token != "" || u.Cred.Secret != "" {
+		return fmt.Errorf("Flickr importer: Invalid user: %v", u)
 	}
-
-	if err = json.NewEncoder(fi).Encode(user); err != nil {
-		log.Printf("Error writing flickr credentials: %s", err)
-	}
+	return nil
 }
 
-// This returns nil,nil if the file doesn't exist. Any other error bad.
-func readCredentials() (*userInfo, error) {
-	fi, err := os.Open(userFile)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+func (im *imp) writeCredentials() error {
+	root, err := im.getRootNode()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer fi.Close()
-	user := &userInfo{}
-	err = json.NewDecoder(fi).Decode(user)
+	if err := root.SetAttrs(
+		"flickrUserId", im.user.Id,
+		"flickrUsername", im.user.Username,
+		"flickrToken", im.user.Cred.Token,
+		"flickrSecret", im.user.Cred.Secret); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (im *imp) readCredentials() error {
+	root, err := im.getRootNode()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return user, nil
+
+	u := &userInfo{
+		Id:       root.Attr("flickrUserId"),
+		Username: root.Attr("flickrUsername"),
+		Cred: &oauth.Credentials{
+			Token:  root.Attr("flickrToken"),
+			Secret: root.Attr("flickrSecret"),
+		},
+	}
+	if err := u.Valid(); err != nil {
+		return err
+	}
+
+	im.user = u
+	return nil
 }
 
 func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
@@ -90,36 +95,38 @@ func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
 	callback := im.host.BaseURL + "callback"
 	tempCred, err := oauthClient.RequestTemporaryCredentials(im.host.HTTPClient(), callback, nil)
 	if err != nil {
-		httputil.ForbiddenError(w, "Error getting temp cred: %s", err)
+		httputil.ServeError(w, r, fmt.Errorf("Flickr importer: Error getting temp cred: %s", err))
 		return
 	}
-	writeCredentials(&userInfo{Cred: tempCred})
-	authURL := oauthClient.AuthorizationURL(tempCred, url.Values{"perms": {"read"}})
+
+	// TODO(aa): If we ever have multiple frontends running this code, storing this temporary state here won't work.
+	im.user = &userInfo{Cred: tempCred}
+
+	authURL := oauthClient.AuthorizationURL(im.user.Cred, url.Values{"perms": {"read"}})
 	http.Redirect(w, r, authURL, 302)
 }
 
 func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
-	tempUser, err := readCredentials()
-	if err != nil {
-		httputil.BadRequestError(w, err.Error())
+	if im.user == nil {
+		httputil.BadRequestError(w, "Flickr importer: unexpected state: expected temporary oauth session")
 		return
 	}
-	if tempUser.Cred.Token != r.FormValue("oauth_token") {
-		httputil.ForbiddenError(w, "Unknown oauth_token.")
+	if im.user.Cred.Token != r.FormValue("oauth_token") {
+		httputil.BadRequestError(w, "Flickr importer: unexpected oauth_token")
 		return
 	}
-	tokenCred, form, err := oauthClient.RequestToken(im.host.HTTPClient(),
-		tempUser.Cred, r.FormValue("oauth_verifier"))
+	tokenCred, form, err := oauthClient.RequestToken(im.host.HTTPClient(), im.user.Cred, r.FormValue("oauth_verifier"))
 	if err != nil {
-		httputil.ForbiddenError(w, "Error getting request token: %s ", err)
+		httputil.ServeError(w, r, fmt.Errorf("Flickr importer: error getting request token: %s ", err))
 		return
 	}
 
 	im.user = &userInfo{
-		Id:   form.Get("user_nsid"),
-		Cred: tokenCred,
+		Id:       form.Get("user_nsid"),
+		Username: form.Get("username"),
+		Cred:     tokenCred,
 	}
-	writeCredentials(im.user)
+	im.writeCredentials()
 	http.Redirect(w, r, im.host.BaseURL+"?mode=start", 302)
 }
 

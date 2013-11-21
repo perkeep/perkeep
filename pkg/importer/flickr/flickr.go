@@ -58,13 +58,8 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 		Token:  parts[0],
 		Secret: parts[1],
 	}
-	user, err := readCredentials()
-	if err != nil {
-		return nil, err
-	}
 	return &imp{
 		host: host,
-		user: user,
 	}, nil
 }
 
@@ -213,8 +208,11 @@ func (im *imp) getRootNode() (*importer.Object, error) {
 		return nil, err
 	}
 
-	if err := root.SetAttr("title", "Flickr Import Root"); err != nil {
-		return nil, err
+	if root.Attr("title") == "" {
+		title := fmt.Sprintf("Flickr (%s)", im.user.Username)
+		if err := root.SetAttr("title", title); err != nil {
+			return nil, err
+		}
 	}
 	return root, nil
 }
