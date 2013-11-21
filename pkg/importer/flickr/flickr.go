@@ -82,15 +82,124 @@ func (im *imp) String() string {
 	return fmt.Sprintf("flickr:%s", userId)
 }
 
-type photoMeta struct {
-	Id          string
-	Title       string
-	Ispublic    int
-	Isfriend    int
-	Isfamily    int
-	Description struct {
-		Content string `json:"_content"`
+func (im *imp) Run(intr importer.Interrupt) error {
+	if err := im.importPhotosets(); err != nil {
+		return err
 	}
+	if err := im.importPhotos(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type photosetsGetList struct {
+	Photosets struct {
+		Page     int
+		Pages    int
+		Perpage  int
+		Total    int
+		Photoset []*photosetsGetListItem
+	}
+}
+
+type photosetsGetListItem struct {
+	Id             string
+	PrimaryPhotoId string `json:"primary"`
+	Title          contentString
+	Description    contentString
+}
+
+type photosetsGetPhotos struct {
+	Photoset struct {
+		Id    string
+		Photo []struct {
+			Id             string
+			Originalformat string
+		}
+	}
+}
+
+func (im *imp) importPhotosets() error {
+	resp := photosetsGetList{}
+	if err := im.flickrAPIRequest(&resp, "flickr.photosets.getList"); err != nil {
+		return err
+	}
+
+	setsNode, err := im.getTopLevelNode("sets", "Sets")
+	if err != nil {
+		return err
+	}
+	log.Printf("Importing %d sets", len(resp.Photosets.Photoset))
+
+	for _, item := range resp.Photosets.Photoset {
+		if err := im.importPhotoset(setsNode, item); err != nil {
+			log.Printf("Flickr importer: error importing photoset %s: %s", item.Id, err)
+			continue
+		}
+	}
+	return nil
+}
+
+func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetListItem) error {
+	photosetNode, err := parent.ChildPathObject(photoset.Id)
+	if err != nil {
+		return err
+	}
+
+	if err := photosetNode.SetAttrs(
+		"flickrId", photoset.Title.Content,
+		"title", photoset.Title.Content,
+		"description", photoset.Description.Content,
+		"primaryPhotoId", photoset.PrimaryPhotoId); err != nil {
+		return err
+	}
+
+	resp := photosetsGetPhotos{}
+	if err := im.flickrAPIRequest(&resp, "flickr.photosets.getPhotos",
+		"photoset_id", photoset.Id, "extras", "original_format"); err != nil {
+		return err
+	}
+
+	photosNode, err := im.getPhotosNode()
+	if err != nil {
+		return err
+	}
+
+	for _, item := range resp.Photoset.Photo {
+		filename := fmt.Sprintf("%s.%s", item.Id, item.Originalformat)
+		photoNode, err := photosNode.ChildPathObject(filename)
+		if err != nil {
+			log.Printf("Flickr importer: error finding photo node %s for addition to photoset %s: %s",
+				item.Id, photoset.Id, err)
+			continue
+		}
+		if err := photosetNode.SetAttr("camliPath:"+filename, photoNode.PermanodeRef().String()); err != nil {
+			log.Printf("Flickr importer: error adding photo %s to photoset %s: %s",
+				item.Id, photoset.Id, err)
+		}
+	}
+	return nil
+}
+
+type photosSearch struct {
+	Photos struct {
+		Page    int
+		Pages   int
+		Perpage int
+		Total   int `json:",string"`
+		Photo   []*photosSearchItem
+	}
+
+	Stat string
+}
+
+type photosSearchItem struct {
+	Id             string
+	Title          string
+	Ispublic       int
+	Isfriend       int
+	Isfamily       int
+	Description    contentString
 	Dateupload     string
 	Datetaken      string
 	Originalformat string
@@ -104,42 +213,25 @@ type photoMeta struct {
 	URL            string `json:"url_o"`
 }
 
-type searchPhotosResult struct {
-	Photos struct {
-		Page    int
-		Pages   int
-		Perpage int
-		Total   int `json:",string"`
-		Photo   []*photoMeta
-	}
-
-	Stat string
-}
-
-func (im *imp) Run(intr importer.Interrupt) error {
-	resp := searchPhotosResult{}
-	if err := im.flickrAPIRequest(url.Values{
-		"method":  {"flickr.photos.search"},
-		"user_id": {"me"},
-		"extras":  {"description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"}},
-		&resp); err != nil {
+func (im *imp) importPhotos() error {
+	resp := photosSearch{}
+	if err := im.flickrAPIRequest(&resp, "flickr.photos.search",
+		"extras", "description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"); err != nil {
 		return err
 	}
 
-	photos, err := im.getPhotosNode()
+	photosNode, err := im.getPhotosNode()
 	if err != nil {
 		return err
 	}
-	log.Printf("Importing %d photos into permanode %s",
-		len(resp.Photos.Photo), photos.PermanodeRef().String())
+	log.Printf("Importing %d photos", len(resp.Photos.Photo))
 
 	for _, item := range resp.Photos.Photo {
-		if err := im.importPhoto(photos, item); err != nil {
+		if err := im.importPhoto(photosNode, item); err != nil {
 			log.Printf("Flickr importer: error importing %s: %s", item.Id, err)
 			continue
 		}
 	}
-
 	return nil
 }
 
@@ -150,7 +242,7 @@ func (im *imp) Run(intr importer.Interrupt) error {
 // * All the rest of the metadata (see photoMeta)
 // * Conflicts: For all metadata changes, prefer any non-imported claims
 // * Test!
-func (im *imp) importPhoto(parent *importer.Object, photo *photoMeta) error {
+func (im *imp) importPhoto(parent *importer.Object, photo *photosSearchItem) error {
 	filename := fmt.Sprintf("%s.%s", photo.Id, photo.Originalformat)
 	photoNode, err := parent.ChildPathObject(filename)
 	if err != nil {
@@ -193,17 +285,21 @@ func (im *imp) importPhoto(parent *importer.Object, photo *photoMeta) error {
 }
 
 func (im *imp) getPhotosNode() (*importer.Object, error) {
+	return im.getTopLevelNode("photos", "Photos")
+}
+
+func (im *imp) getTopLevelNode(path string, title string) (*importer.Object, error) {
 	root, err := im.getRootNode()
 	if err != nil {
 		return nil, err
 	}
 
-	photos, err := root.ChildPathObject("photos")
+	photos, err := root.ChildPathObject(path)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := photos.SetAttr("title", "Photos"); err != nil {
+	if err := photos.SetAttr("title", title); err != nil {
 		return nil, err
 	}
 	return photos, nil
@@ -224,9 +320,20 @@ func (im *imp) getRootNode() (*importer.Object, error) {
 	return root, nil
 }
 
-func (im *imp) flickrAPIRequest(form url.Values, result interface{}) error {
+func (im *imp) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
+	if len(keyval)%2 == 1 {
+		panic("Incorrect number of keyval arguments")
+	}
+
+	form := url.Values{}
+	form.Set("method", method)
 	form.Set("format", "json")
 	form.Set("nojsoncallback", "1")
+	form.Set("user_id", im.user.Id)
+	for i := 0; i < len(keyval); i += 2 {
+		form.Set(keyval[i], keyval[i+1])
+	}
+
 	res, err := im.flickrRequest(apiURL, form)
 	if err != nil {
 		return err
@@ -250,4 +357,8 @@ func (im *imp) flickrRequest(url string, form url.Values) (*http.Response, error
 	}
 
 	return res, nil
+}
+
+type contentString struct {
+	Content string `json:"_content"`
 }
