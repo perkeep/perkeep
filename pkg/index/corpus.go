@@ -217,8 +217,8 @@ func (c *Corpus) mergeFileInfoRow(k, v string) error {
 	}
 	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
 		fi.Size = size
-		fi.FileName = c.str(c.ss[1])
-		fi.MIMEType = c.str(c.ss[2])
+		fi.FileName = c.str(urld(c.ss[1]))
+		fi.MIMEType = c.str(urld(c.ss[2]))
 	})
 	return nil
 }

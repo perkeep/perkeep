@@ -23,11 +23,14 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 func TestReverseTimeString(t *testing.T) {
@@ -161,4 +164,19 @@ func skipDir(name string) bool {
 		}
 	}
 	return false
+}
+
+func TestMergeFileInfoRow(t *testing.T) {
+	c := index.ExpNewCorpus()
+	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b",
+		"100|something%2egif|image%2Fgif")
+	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
+	want := camtypes.FileInfo{
+		Size:     100,
+		MIMEType: "image/gif",
+		FileName: "something.gif",
+	}
+	if !reflect.DeepEqual(want, fi) {
+		t.Errorf("Got %+v; want %+v", fi, want)
+	}
 }

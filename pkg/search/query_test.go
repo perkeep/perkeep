@@ -470,3 +470,35 @@ func TestQueryPermanodeModtime(t *testing.T) {
 		qt.wantRes(sq, p2)
 	})
 }
+
+// This really belongs in pkg/index for the index-vs-corpus tests, but
+// it's easier here for now.
+// TODO: make all the indextest/tests.go
+// also test the three memory build modes that testQuery does.
+func TestDecodeFileInfo(t *testing.T) {
+	t.Skip("TODO: finish; panics now on imageinfo calls")
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		fileRef, _ := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
+		res, err := qt.Handler().Describe(&DescribeRequest{
+			BlobRef: fileRef,
+		})
+		if err != nil {
+			qt.t.Error(err)
+			return
+		}
+		db := res.Meta[fileRef.String()]
+		if db == nil {
+			qt.t.Error("DescribedBlob missing")
+			return
+		}
+		if db.File == nil {
+			qt.t.Error("DescribedBlob.File is nil")
+			return
+		}
+		if db.File.MIMEType != "image/gif" {
+			qt.t.Error("DescribedBlob.File = %+v; mime type is not image/gif", db.File)
+			return
+		}
+	})
+}
