@@ -199,6 +199,11 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if dest, ok := issueRedirect(req.URL.Path); ok {
+		http.Redirect(rw, req, dest, http.StatusFound)
+		return
+	}
+
 	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
 	if strings.Contains(relPath, "..") {
 		return
@@ -336,7 +341,6 @@ func main() {
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
 
-	mux.HandleFunc("/issue/", issueRedirect)
 	mux.HandleFunc("/", mainHandler)
 
 	if *buildbotHost != "" && *buildbotBackend != "" {
@@ -384,15 +388,22 @@ func main() {
 	log.Fatalf("Serve error: %v", <-errc)
 }
 
-var issueNum = regexp.MustCompile(`^/issue/(\d+)$`)
+var issueNum = regexp.MustCompile(`^/(?:issue(?:s)?|bugs)(/\d*)?$`)
 
-func issueRedirect(w http.ResponseWriter, r *http.Request) {
-	m := issueNum.FindStringSubmatch(r.URL.Path)
+// issueRedirect returns whether the request should be redirected to the
+// issues tracker, and the url for that redirection if yes, the empty
+// string otherwise.
+func issueRedirect(urlPath string) (string, bool) {
+	m := issueNum.FindStringSubmatch(urlPath)
 	if m == nil {
-		http.Error(w, "Bad request", 400)
-		return
+		return "", false
 	}
-	http.Redirect(w, r, "https://code.google.com/p/camlistore/issues/detail?id="+m[1], http.StatusFound)
+	issueNumber := strings.TrimPrefix(m[1], "/")
+	suffix := "list"
+	if issueNumber != "" {
+		suffix = "detail?id=" + issueNumber
+	}
+	return "https://code.google.com/p/camlistore/issues/" + suffix, true
 }
 
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {

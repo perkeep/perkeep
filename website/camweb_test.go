@@ -43,3 +43,32 @@ func TestRedirect(t *testing.T) {
 	}
 
 }
+
+func TestIsIssueRequest(t *testing.T) {
+	wantNum := "https://code.google.com/p/camlistore/issues/detail?id=34"
+	wantList := "https://code.google.com/p/camlistore/issues/list"
+	tests := []struct {
+		urlPath   string
+		redirects bool
+		dest      string
+	}{
+		{"/issue", true, wantList},
+		{"/issue/", true, wantList},
+		{"/issue/34", true, wantNum},
+		{"/issue34", false, ""},
+		{"/issues", true, wantList},
+		{"/issues/", true, wantList},
+		{"/issues/34", true, wantNum},
+		{"/issues34", false, ""},
+		{"/bugs", true, wantList},
+		{"/bugs/", true, wantList},
+		{"/bugs/34", true, wantNum},
+		{"/bugs34", false, ""},
+	}
+	for _, tt := range tests {
+		dest, ok := issueRedirect(tt.urlPath)
+		if ok != tt.redirects || dest != tt.dest {
+			t.Errorf("issueRedirect(%q) = %q, %v; want %q, %v", tt.urlPath, dest, ok, tt.dest, tt.redirects)
+		}
+	}
+}
