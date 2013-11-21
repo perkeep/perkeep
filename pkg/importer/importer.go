@@ -194,7 +194,7 @@ func (o *Object) Attrs(attr string) []string {
 }
 
 func (o *Object) SetAttr(key, value string) error {
-	if o.Attr("key") == value {
+	if o.Attr(key) == value {
 		return nil
 	}
 	_, err := o.h.upload(schema.NewSetAttributeClaim(o.pn, key, value))
