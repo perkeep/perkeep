@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
+	"strings"
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/schema"
 )
 
 func init() {
@@ -37,6 +38,7 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 		url:       cfg.RequiredString("url"),
 		username:  cfg.RequiredString("username"),
 		authToken: cfg.RequiredString("authToken"),
+		host:      host,
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -48,6 +50,7 @@ type imp struct {
 	url       string
 	username  string
 	authToken string
+	host      *importer.Host
 }
 
 func (im *imp) CanHandleURL(url string) bool { return false }
@@ -57,14 +60,24 @@ func (im *imp) Prefix() string {
 	return fmt.Sprintf("dummy:%s", im.username)
 }
 
-func (im *imp) Run(intr importer.Interrupt) error {
-	log.Printf("running dummy importer")
-	select {
-	case <-time.After(5 * time.Second):
-	case <-intr:
-		log.Printf("dummy importer interrupted")
+func (im *imp) Run(intr importer.Interrupt) (err error) {
+	log.Printf("Running dummy importer.")
+	defer func() {
+		log.Printf("Dummy importer returned: %v", err)
+	}()
+	root, err := im.host.RootObject()
+	if err != nil {
+		return err
 	}
-	return nil
+	fileRef, err := schema.WriteFileFromReader(im.host.Target(), "foo.txt", strings.NewReader("Some file.\n"))
+	if err != nil {
+		return err
+	}
+	obj, err := root.ChildPathObject("foo.txt")
+	if err != nil {
+		return err
+	}
+	return obj.SetAttr("camliContent", fileRef.String())
 }
 
 func (im *imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
