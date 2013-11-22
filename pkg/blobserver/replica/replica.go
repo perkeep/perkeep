@@ -89,7 +89,13 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	for _, prefix := range sto.replicaPrefixes {
 		s, err := ld.GetStorage(prefix)
 		if err != nil {
-			return nil, err
+			// If it's not a storage interface, it might be an http Handler
+			// that also supports being a target (e.g. a sync handler).
+			h, _ := ld.GetHandler(prefix)
+			var ok bool
+			if s, ok = h.(blobserver.Storage); !ok {
+				return nil, err
+			}
 		}
 		sto.replicas = append(sto.replicas, s)
 	}

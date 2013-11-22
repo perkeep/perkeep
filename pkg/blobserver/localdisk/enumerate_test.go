@@ -126,6 +126,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 
 	// Make some fake blobs in other partitions to confuse the
 	// enumerate code.
+	// TODO(bradfitz): remove this eventually.
 	fakeDir := ds.root + "/partition/queue-indexer/sha1/1f0/710"
 	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating fakeDir")
 	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
@@ -158,12 +159,16 @@ func TestEnumerateIsSorted(t *testing.T) {
 		go func() {
 			errCh <- ds.EnumerateBlobs(ch, test.after, limit)
 		}()
-		var got = make([]blob.SizedRef, 0, blobsToMake)
+		got := make([]blob.SizedRef, 0, blobsToMake)
 		for sb := range ch {
 			got = append(got, sb)
 		}
+		if err := <-errCh; err != nil {
+			t.Errorf("case %+v; enumerate error: %v", test, err)
+			continue
+		}
 		if !sort.IsSorted(SortedSizedBlobs(got)) {
-			t.Errorf("expected sorted; offset=%q, limit=%d", test.after, limit)
+			t.Errorf("case %+v: expected sorted; got: %q", test, got)
 		}
 	}
 }

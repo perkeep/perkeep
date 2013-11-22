@@ -28,16 +28,10 @@ func TestPaths(t *testing.T) {
 	ds := &DiskStorage{root: "/tmp/dir"}
 
 	slash := filepath.ToSlash
-	if e, g := "/tmp/dir/digalg/abc/d__", slash(ds.blobDirectory("", br)); e != g {
+	if e, g := "/tmp/dir/digalg/abc/d__", slash(ds.blobDirectory(br)); e != g {
 		t.Errorf("short blobref dir; expected path %q; got %q", e, g)
 	}
-	if e, g := "/tmp/dir/digalg/abc/d__/digalg-abcd.dat", slash(ds.blobPath("", br)); e != g {
+	if e, g := "/tmp/dir/digalg/abc/d__/digalg-abcd.dat", slash(ds.blobPath(br)); e != g {
 		t.Errorf("short blobref path; expected path %q; got %q", e, g)
 	}
-
-	br = blob.MustParse("sha1-c22b5f9178342609428d6f51b2c5af4c0bde6a42")
-	if e, g := "/tmp/dir/partition/foo/sha1/c22/b5f", slash(ds.blobDirectory("foo", br)); e != g {
-		t.Errorf("amazon queue dir; expected path %q; got %q", e, g)
-	}
-
 }

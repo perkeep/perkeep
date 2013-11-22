@@ -34,7 +34,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -49,17 +48,8 @@ import (
 type DiskStorage struct {
 	root string
 
-	// the sub-partition (queue) to write to / read from, or "" for none.
-	partition string
-
-	// queue partitions to mirror new blobs into (when partition
-	// above is the empty string)
-	mirrorPartitions []*DiskStorage
-
 	// dirLockMu must be held for writing when deleting an empty directory
 	// and for read when receiving blobs.
-	// The same lock is shared between queues created from a parent,
-	// since they interact with overlapping sets of directories.
 	dirLockMu *sync.RWMutex
 
 	// gen will be nil if partition != ""
@@ -103,34 +93,10 @@ func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
 }
 
-var validQueueName = regexp.MustCompile(`^[a-zA-Z0-9\-\_]+$`)
-
 func (ds *DiskStorage) tryRemoveDir(dir string) {
 	ds.dirLockMu.Lock()
 	defer ds.dirLockMu.Unlock()
 	os.Remove(dir) // ignore error
-}
-
-func (ds *DiskStorage) CreateQueue(name string) (blobserver.Storage, error) {
-	if !validQueueName.MatchString(name) {
-		return nil, fmt.Errorf("invalid queue name %q", name)
-	}
-	if ds.partition != "" {
-		return nil, fmt.Errorf("can't create queue %q on existing queue %q",
-			name, ds.partition)
-	}
-	q := &DiskStorage{
-		root:      ds.root,
-		partition: "queue-" + name,
-		dirLockMu: ds.dirLockMu, // see comment on DiskStorage type
-	}
-	baseDir := ds.PartitionRoot(q.partition)
-	if err := os.MkdirAll(baseDir, 0700); err != nil {
-		return nil, fmt.Errorf("failed to create queue base dir: %v", err)
-	}
-
-	ds.mirrorPartitions = append(ds.mirrorPartitions, q)
-	return q, nil
 }
 
 func (ds *DiskStorage) FetchStreaming(blob blob.Ref) (io.ReadCloser, int64, error) {
@@ -138,7 +104,7 @@ func (ds *DiskStorage) FetchStreaming(blob blob.Ref) (io.ReadCloser, int64, erro
 }
 
 func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, int64, error) {
-	fileName := ds.blobPath("", blob)
+	fileName := ds.blobPath(blob)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
@@ -155,7 +121,7 @@ func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, int64, error)
 
 func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {
 	for _, blob := range blobs {
-		fileName := ds.blobPath(ds.partition, blob)
+		fileName := ds.blobPath(blob)
 		err := os.Remove(fileName)
 		switch {
 		case err == nil:

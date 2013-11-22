@@ -58,7 +58,6 @@ func NewStorage(t *testing.T) *DiskStorage {
 func TestUploadDup(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	ds.CreateQueue("some-queue")
 	tb := &test.Blob{"Foo"}
 	tb.MustUpload(t, ds)
 	tb.MustUpload(t, ds)

@@ -31,11 +31,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 	ds.dirLockMu.RLock()
 	defer ds.dirLockMu.RUnlock()
 
-	pname := ds.partition
-	if pname != "" {
-		return ref, fmt.Errorf("refusing upload directly to queue partition %q", pname)
-	}
-	hashedDirectory := ds.blobDirectory(pname, blobRef)
+	hashedDirectory := ds.blobDirectory(blobRef)
 	err = os.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		return
@@ -73,7 +69,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 		return
 	}
 
-	fileName := ds.blobPath("", blobRef)
+	fileName := ds.blobPath(blobRef)
 	if err = os.Rename(tempFile.Name(), fileName); err != nil {
 		if err = mapRenameError(err, tempFile.Name(), fileName); err != nil {
 			return
@@ -89,58 +85,6 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 		return
 	}
 
-	for _, mirror := range ds.mirrorPartitions {
-		pname := mirror.partition
-		if pname == "" {
-			panic("expected partition name")
-		}
-		partitionDir := ds.blobDirectory(pname, blobRef)
-
-		if err = os.MkdirAll(partitionDir, 0700); err != nil {
-			return blob.SizedRef{}, fmt.Errorf("localdisk.receive: MkdirAll(%q) after lock on it: %v", partitionDir, err)
-		}
-		partitionFileName := ds.blobPath(pname, blobRef)
-		pfi, err := os.Stat(partitionFileName)
-		if err == nil && !pfi.IsDir() {
-			log.Printf("Skipped dup on partition %q", pname)
-		} else {
-			if err = linkOrCopy(fileName, partitionFileName); err != nil && !linkAlreadyExists(err) {
-				log.Fatalf("got link or copy error %T %#v", err, err)
-				return blob.SizedRef{}, err
-			}
-			log.Printf("Mirrored blob %s to partition %q", blobRef, pname)
-		}
-	}
-
-	success = true
+	success = true // used in defer above
 	return blob.SizedRef{Ref: blobRef, Size: stat.Size()}, nil
-}
-
-func linkAlreadyExists(err error) bool {
-	if os.IsExist(err) {
-		return true
-	}
-	if le, ok := err.(*os.LinkError); ok && os.IsExist(le.Err) {
-		return true
-	}
-	return false
-}
-
-// Used by Windows (receive_windows.go) and when a posix filesystem doesn't
-// support a link operation (e.g. Linux with an exfat external USB disk).
-func copyFile(src, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	_, err = io.Copy(dstFile, srcFile)
-	return err
 }

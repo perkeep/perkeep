@@ -45,9 +45,9 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		fmt.Fprintf(conn, "Remove handler's blobserver.Storage isn't a blobserver.Configer; can't remove")
 		return
 	}
-	if !configer.Config().IsQueue {
+	if !configer.Config().Deletable {
 		conn.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(conn, "Can only remove blobs from a queue.\n")
+		fmt.Fprintf(conn, "storage does not permit deletes.\n")
 		return
 	}
 

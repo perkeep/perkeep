@@ -39,28 +39,6 @@ Offline list:
    where the lifetime of the background daemon will be the same as the
    user's login session.
 
--- Get rid of QueueCreator entirely. Plan:
-     -- sync handler still has a source and dest (one pair) but
-        instead of calling CreateQueue on the source, it instead
-        has an index.Storage (configured via a RequiredObject
-        so it can be a kvfile, leveldb, mysql, postgres etc)
-     -- make all the index.Storage types be instantiable
-        from a jsonconfig Object, perhaps with constructors keyed
-        on a "type" field.
-     -- make sync handler support blobserver.Receiver (or StatReceiver)
-        like indexes, so it can receive blobs.  but all it needs to
-        do to acknowledge the ReceiveBlob is write and flush to its
-        index.Storage. the syncing is async by default. (otherwise callers
-        could just use "replica" if they wanted sync replication).
-        But maybe for ease of configuration switching, we could also
-        support a sync mode.  when it needs to replicate a blob,
-        it uses the source.
-     -- future option: sync mirror to an alternate path on ReceiveBlob
-        that can delete. e.g. you're uploading to s3 and google,
-        but don't want to upload to both at once, so you use the localdisk
-        as a buffer to spread out your upstream bandwidth.
-     -- end result: no more hardlinks or queue creator.
-
 -- website: remove the "Installation" heading for /cmd/*, since
    they're misleading and people should use "go run make.go" in the
    general case.

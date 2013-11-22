@@ -19,6 +19,7 @@ package blobserver
 import (
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -93,9 +94,10 @@ type BlobReceiveConfiger interface {
 }
 
 type Config struct {
-	Writable, Readable bool
-	IsQueue            bool // supports deletes
-	CanLongPoll        bool
+	Writable    bool
+	Readable    bool
+	Deletable   bool
+	CanLongPoll bool
 
 	// the "http://host:port" and optional path (but without trailing slash) to have "/camli/*" appended
 	URLBase       string
@@ -117,6 +119,13 @@ type Storage interface {
 	BlobStatter
 	BlobEnumerator
 	BlobRemover
+}
+
+// StorageHandler is a storage implementation that also exports an HTTP
+// status page.
+type StorageHandler interface {
+	Storage
+	http.Handler
 }
 
 // Optional interface for storage implementations which can be asked
@@ -168,16 +177,6 @@ type Configer interface {
 type StorageConfiger interface {
 	Storage
 	Configer
-}
-
-// StorageQueueCreator is implemented by Storage interfaces which support
-// creating queues in which all new uploads go to both the root
-// storage as well as the named queue, which is then returned.  This
-// is used by replication.
-type StorageQueueCreator interface {
-	Storage
-
-	CreateQueue(name string) (Storage, error)
 }
 
 // MaxEnumerateConfig is an optional interface implemented by Storage

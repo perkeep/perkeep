@@ -17,7 +17,6 @@ limitations under the License.
 package localdisk
 
 import (
-	"fmt"
 	"time"
 
 	"camlistore.org/pkg/blobserver"
@@ -29,18 +28,11 @@ var _ blobserver.Generationer = (*DiskStorage)(nil)
 // StorageGeneration returns the generation's initialization time,
 // and the random string.
 func (ds *DiskStorage) StorageGeneration() (initTime time.Time, random string, err error) {
-	if ds.partition != "" {
-		err = fmt.Errorf("localdisk: can't call StorageGeneration on queue partition %q", ds.partition)
-		return
-	}
 	return ds.gen.StorageGeneration()
 }
 
 // ResetStorageGeneration reinitializes the generation by recreating the
 // GENERATION.dat file with a new random string
 func (ds *DiskStorage) ResetStorageGeneration() error {
-	if ds.partition != "" {
-		return fmt.Errorf("localdisk: can't call StorageGeneration on queue partition %q", ds.partition)
-	}
 	return ds.gen.ResetStorageGeneration()
 }

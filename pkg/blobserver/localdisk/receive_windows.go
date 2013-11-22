@@ -22,10 +22,6 @@ import (
 	"syscall"
 )
 
-func linkOrCopy(src, dst string) error {
-	return copyFile(src, dst)
-}
-
 // mapRenameError returns nil if and only if
 // 1) the input err is the error returned on windows when trying to rename
 // a file over one that already exists

@@ -33,7 +33,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 	}
 
 	statSend := func(ref blob.Ref) error {
-		fi, err := os.Stat(ds.blobPath(ds.partition, ref))
+		fi, err := os.Stat(ds.blobPath(ref))
 		switch {
 		case err == nil && fi.Mode().IsRegular():
 			dest <- blob.SizedRef{Ref: ref, Size: fi.Size()}

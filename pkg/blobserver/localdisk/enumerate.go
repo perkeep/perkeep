@@ -71,7 +71,8 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 			return nil
 		}
 		if name == "partition" || name == "cache" {
-			// "partition" is actually used by this package but
+			// The partition directory is old. (removed from codebase, but
+			// likely still on disk for some people)
 			// the "cache" directory is just a hack: it's used
 			// by the serverconfig/genconfig code, as a default
 			// location for most users to put their thumbnail
@@ -129,11 +130,10 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, l
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
 	}
 
-	dirRoot := ds.PartitionRoot(ds.partition)
 	limitMutable := limit
 	return ds.readBlobs(readBlobRequest{
 		ch:      dest,
-		dirRoot: dirRoot,
+		dirRoot: ds.root,
 		after:   after,
 		remain:  &limitMutable,
 	})
