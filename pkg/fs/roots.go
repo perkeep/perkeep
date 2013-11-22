@@ -21,12 +21,14 @@ package fs
 import (
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
 
@@ -87,9 +89,17 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	}
 	log.Printf("fs.roots: querying")
 
-	req := &search.WithAttrRequest{N: 100, Attr: "camliRoot"}
-	wres, err := n.fs.client.GetPermanodesWithAttr(req)
-	if err != nil {
+	var rootRes, impRes *search.WithAttrResponse
+	var grp syncutil.Group
+	grp.Go(func() (err error) {
+		rootRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliRoot"})
+		return
+	})
+	grp.Go(func() (err error) {
+		impRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliImportRoot"})
+		return
+	})
+	if err := grp.Err(); err != nil {
 		log.Printf("fs.recent: GetRecentPermanodes error in ReadDir: %v", err)
 		return fuse.EIO
 	}
@@ -97,7 +107,10 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	dr := &search.DescribeRequest{
 		Depth: 1,
 	}
-	for _, wi := range wres.WithAttr {
+	for _, wi := range rootRes.WithAttr {
+		dr.BlobRefs = append(dr.BlobRefs, wi.Permanode)
+	}
+	for _, wi := range impRes.WithAttr {
 		dr.BlobRefs = append(dr.BlobRefs, wi.Permanode)
 	}
 	dres, err := n.fs.client.Describe(dr)
@@ -108,7 +121,8 @@ func (n *rootsDir) condRefresh() fuse.Error {
 
 	n.m = make(map[string]blob.Ref)
 
-	for _, wi := range wres.WithAttr {
+	// Roots
+	for _, wi := range rootRes.WithAttr {
 		pn := wi.Permanode
 		db := dres.Meta[pn.String()]
 		if db != nil && db.Permanode != nil {
@@ -118,6 +132,21 @@ func (n *rootsDir) condRefresh() fuse.Error {
 			}
 		}
 	}
+
+	// Importers (mapped as roots for now)
+	for _, wi := range impRes.WithAttr {
+		pn := wi.Permanode
+		db := dres.Meta[pn.String()]
+		if db != nil && db.Permanode != nil {
+			name := db.Permanode.Attr.Get("camliImportRoot")
+			if name != "" {
+				name = strings.Replace(name, ":", "-", -1)
+				name = strings.Replace(name, "/", "-", -1)
+				n.m["importer-"+name] = pn
+			}
+		}
+	}
+
 	n.lastQuery = time.Now()
 	return nil
 }
