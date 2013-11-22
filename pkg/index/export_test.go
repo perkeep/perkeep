@@ -16,10 +16,27 @@ limitations under the License.
 
 package index
 
+import (
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/types/camtypes"
+)
+
 func ExpReverseTimeString(s string) string {
 	return reverseTimeString(s)
 }
 
 func ExpUnreverseTimeString(s string) string {
 	return unreverseTimeString(s)
+}
+
+func ExpNewCorpus() *Corpus {
+	return newCorpus()
+}
+
+func (c *Corpus) Exp_mergeFileInfoRow(k, v string) error {
+	return c.mergeFileInfoRow(k, v)
+}
+
+func (c *Corpus) Exp_files(br blob.Ref) camtypes.FileInfo {
+	return c.files[br]
 }

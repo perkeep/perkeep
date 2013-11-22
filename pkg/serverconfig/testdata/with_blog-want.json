@@ -21,7 +21,9 @@
 				"searchRoot": "/my-search/",
 				"rootPermanode": ["/sighelper/", "sha1-xxxxx"],
 				"cache": "/cache/",
-				"css": ["blog-purple.css"]
+				"goTemplate": "blog.html",
+				"css": ["blog-purple.css"],
+				"scaledImage": "lrucache"
 			}
 		},
 

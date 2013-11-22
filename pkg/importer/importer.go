@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
+	"camlistore.org/pkg/syncutil"
 )
 
 // A Host is the environment hosting an importer.
@@ -193,8 +194,9 @@ func (o *Object) Attrs(attr string) []string {
 	return o.attr[attr]
 }
 
+// SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
-	if o.Attr("key") == value {
+	if o.Attr(key) == value {
 		return nil
 	}
 	_, err := o.h.upload(schema.NewSetAttributeClaim(o.pn, key, value))
@@ -208,6 +210,24 @@ func (o *Object) SetAttr(key, value string) error {
 	}
 	o.attr[key] = []string{value}
 	return nil
+}
+
+// SetAttrs sets multiple attributes. The provided keyval should be an even number of alternating key/value pairs to set.
+func (o *Object) SetAttrs(keyval ...string) error {
+	if len(keyval)%2 == 1 {
+		panic("importer.SetAttrs: odd argument count")
+	}
+
+	g := syncutil.Group{}
+	for i := 0; i < len(keyval); i += 2 {
+		key, val := keyval[i], keyval[i+1]
+		if val != o.Attr(key) {
+			g.Go(func() error {
+				return o.SetAttr(key, val)
+			})
+		}
+	}
+	return g.Err()
 }
 
 // ChildPathObject returns (creating if necessary) the child object

@@ -145,7 +145,6 @@ func (c *serverCmd) setCamliRoot() error {
 		if err := os.RemoveAll(c.camliRoot); err != nil {
 			return fmt.Errorf("Could not wipe %v: %v", c.camliRoot, err)
 		}
-		os.Remove(filepath.Join("config", "flickr-credentials.json"))
 	}
 	return nil
 }

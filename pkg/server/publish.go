@@ -683,7 +683,9 @@ func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBl
 		Subject: pr.subject.String(),
 	}
 	header.JSDeps = pr.jsDeps()
-	header.CamliClosure = template.JS("camlistore." + pr.ph.closureName)
+	if pr.ph.closureName != "" {
+		header.CamliClosure = template.JS("camlistore." + pr.ph.closureName)
+	}
 	if pr.ViewerIsOwner() {
 		header.ViewerIsOwner = true
 	}
