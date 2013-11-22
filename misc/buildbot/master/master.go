@@ -25,6 +25,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -44,6 +46,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/osutil"
 )
 
 const (
@@ -62,6 +67,8 @@ var (
 	host           = flag.String("host", "0.0.0.0:8080", "listening hostname and port")
 	peers          = flag.String("peers", "", "comma separated list of host:port masters (besides this one) our builders will report to.")
 	verbose        = flag.Bool("verbose", false, "print what's going on")
+	certFile       = flag.String("tlsCertFile", "", "TLS public key in PEM format.  Must be used with -tlsKeyFile")
+	keyFile        = flag.String("tlsKeyFile", "", "TLS private key in PEM format.  Must be used with -tlsCertFile")
 )
 
 var (
@@ -90,6 +97,9 @@ var (
 	// more debug info on status page.
 	logStderr   = newLockedBuffer()
 	multiWriter io.Writer
+
+	// Set after flag parsing based on certFile & keyFile.
+	useTLS bool
 )
 
 // lockedBuffer protects all Write calls with a mutex.  Users of lockedBuffer
@@ -150,6 +160,115 @@ func (rb *ringBuffer) Write(buf []byte) (int, error) {
 		rb.l = ringLen
 	}
 	return len(buf), nil
+}
+
+var userAuthFile = filepath.Join(osutil.CamliConfigDir(), "masterbot-config.json")
+
+type userAuth struct {
+	sync.Mutex   // guards userPass map.
+	userPass     map[string]string
+	configFile   string
+	pollInterval time.Duration
+	lastModTime  time.Time
+}
+
+func newUserAuth(configFile string) (*userAuth, error) {
+	ua := &userAuth{
+		configFile:   configFile,
+		pollInterval: time.Minute,
+	}
+	if _, err := os.Stat(configFile); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		// It is okay to have no remote users configured.
+		log.Printf("no user config file found %q, remote reporting disabled",
+			configFile)
+	}
+
+	go ua.pollUsers()
+	return ua, nil
+}
+
+func (ua *userAuth) resetMissing(err error) error {
+	if os.IsNotExist(err) {
+		ua.Lock()
+		if ua.userPass != nil {
+			log.Printf("%q disappeared, remote reporting disabled",
+				ua.configFile)
+		}
+		ua.userPass = nil
+		ua.Unlock()
+		return nil
+	}
+	return err
+}
+
+func (ua *userAuth) loadUsers() error {
+	s, err := os.Stat(ua.configFile)
+	if err != nil {
+		return ua.resetMissing(err)
+	}
+
+	defer func() {
+		ua.lastModTime = s.ModTime()
+	}()
+
+	if ua.lastModTime.Before(s.ModTime()) {
+		r, err := os.Open(ua.configFile)
+		if err != nil {
+			return ua.resetMissing(err)
+		}
+		defer r.Close()
+
+		dec := json.NewDecoder(r)
+		// Use tmp map so failed parsing doesn't accidentally wipe out user
+		// list.
+		tmp := make(map[string]string)
+		err = dec.Decode(&tmp)
+		if err != nil {
+			return err
+		}
+
+		ua.Lock()
+		ua.userPass = tmp
+		ua.Unlock()
+
+		log.Println("Found", len(ua.userPass), "remote users in config",
+			ua.configFile)
+	}
+	return nil
+}
+
+func (ua *userAuth) pollUsers() {
+	for {
+		if err := ua.loadUsers(); err != nil {
+			log.Fatalf("Error loading user file %q: %v", ua.configFile, err)
+		}
+		time.Sleep(ua.pollInterval)
+	}
+}
+
+func hashPassword(pw string) string {
+	h := sha1.New()
+	fmt.Fprint(h, pw)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (ua *userAuth) auth(r *http.Request) bool {
+	user, pass, err := httputil.BasicAuth(r)
+	if user == "" || pass == "" || err != nil {
+		return false
+	}
+
+	ua.Lock()
+	defer ua.Unlock()
+	passHash, ok := ua.userPass[user]
+	if !ok {
+		return false
+	}
+
+	return passHash == hashPassword(pass)
 }
 
 var devcamBin = filepath.Join("bin", "devcam")
@@ -261,18 +380,41 @@ func main() {
 	if *help {
 		usage()
 	}
+	useTLS = *certFile != "" && *keyFile != ""
 
 	go handleSignals()
+	ua, err := newUserAuth(userAuthFile)
+	if err != nil {
+		log.Fatalf("Error creating user auth wrapper: %v", err)
+	}
+
+	authWrapper := func(f http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if !(httputil.IsLocalhost(r) || ua.auth(r)) {
+				w.Header().Set("WWW-Authenticate", `Basic realm="buildbot master"`)
+				http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+				return
+			}
+			f(w, r)
+		}
+	}
+
 	http.HandleFunc(okPrefix, okHandler)
 	http.HandleFunc(failPrefix, failHandler)
 	http.HandleFunc(progressPrefix, progressHandler)
 	http.HandleFunc(stderrPrefix, logHandler)
 	http.HandleFunc("/", statusHandler)
-	http.HandleFunc(reportPrefix, reportHandler)
+	http.HandleFunc(reportPrefix, authWrapper(reportHandler))
 	go func() {
 		log.Printf("Now starting to listen on %v", *host)
-		if err := http.ListenAndServe(*host, nil); err != nil {
-			log.Fatalf("Could not start listening on %v: %v", *host, err)
+		if useTLS {
+			if err := http.ListenAndServeTLS(*host, *certFile, *keyFile, nil); err != nil {
+				log.Fatalf("Could not start listening (TLS) on %v: %v", *host, err)
+			}
+		} else {
+			if err := http.ListenAndServe(*host, nil); err != nil {
+				log.Fatalf("Could not start listening on %v: %v", *host, err)
+			}
 		}
 	}()
 	setup()
@@ -537,8 +679,6 @@ func pollCamliChange() (string, error) {
 const builderBotBin = "builderBot"
 
 func buildBuilder() error {
-	// TODO(Bill, mpl): import common auth module for both the master and builder. Or the multi-files
-	// approach. Whatever's cleaner.
 	source := *builderSrc
 	if source == "" {
 		if *altCamliRevURL != "" {
@@ -593,6 +733,9 @@ func startBuilder(goHash, camliHash string) (*exec.Cmd, error) {
 		ourHost = "localhost"
 	}
 	masterHosts := ourHost + ":" + ourPort
+	if useTLS {
+		masterHosts = "https://" + masterHosts
+	}
 	if *peers != "" {
 		masterHosts += "," + *peers
 	}
@@ -694,34 +837,10 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 	return false
 }
 
-func isLocalhost(addr string) bool {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		// all of this should not happen since addr should be
-		// an http.Request.RemoteAddr but never knows...
-		addrErr, ok := err.(*net.AddrError)
-		if !ok {
-			log.Println(err)
-			return false
-		}
-		if addrErr.Err != "missing port in address" {
-			log.Println(err)
-			return false
-		}
-		host = addr
-	}
-	return host == "localhost" || host == "127.0.0.1" || host == "[::1]"
-}
-
 func reportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		log.Println("Invalid method for report handler")
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-		return
-	}
-	if !isLocalhost(r.RemoteAddr) {
-		dbg.Printf("Refusing remote report from %v for now", r.RemoteAddr)
-		http.Error(w, "No remote bot", http.StatusUnauthorized)
 		return
 	}
 	body, err := ioutil.ReadAll(r.Body)

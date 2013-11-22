@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 )
 
@@ -62,7 +61,7 @@ func RequestEntityTooLargeError(conn http.ResponseWriter) {
 
 func ServeError(conn http.ResponseWriter, req *http.Request, err error) {
 	conn.WriteHeader(http.StatusInternalServerError)
-	if auth.IsLocalhost(req) {
+	if IsLocalhost(req) {
 		fmt.Fprintf(conn, "Server error: %s\n", err)
 		return
 	}
