@@ -10,7 +10,8 @@
 	"publish": {
 		"/pics/": {
 			"rootPermanode": "sha1-xxxxx",
-			"template": "gallery",
+			"goTemplate": "gallery.html",
+			"js": "pics.js",
 			"style": "pics.css"
 		}
 	},

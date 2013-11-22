@@ -10,7 +10,7 @@
 	"publish": {
 		"/blog/": {
 			"rootPermanode": "sha1-xxxxx",
-			"template": "blog",
+			"goTemplate": "blog.html",
 			"style": "blog-purple.css"
 		}
 	},

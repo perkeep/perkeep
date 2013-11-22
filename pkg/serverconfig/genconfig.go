@@ -97,8 +97,12 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 			handlerArgs["sourceRoot"] = sourceRoot
 		}
 		handlerArgs["goTemplate"] = goTemplate
-		handlerArgs["css"] = []interface{}{style}
-		handlerArgs["js"] = []interface{}{js}
+		if style != "" {
+			handlerArgs["css"] = []interface{}{style}
+		}
+		if js != "" {
+			handlerArgs["js"] = []interface{}{js}
+		}
 		handlerArgs["scaledImage"] = "lrucache"
 		ob["handlerArgs"] = handlerArgs
 		prefixes[k] = ob

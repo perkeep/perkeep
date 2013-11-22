@@ -23,6 +23,7 @@
 				"cache": "/cache/",
 				"css": ["pics.css"],
 				"js": ["pics.js"],
+				"goTemplate": "gallery.html",
 				"scaledImage": "lrucache"
 			}
 		},
