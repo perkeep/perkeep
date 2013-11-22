@@ -138,3 +138,12 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 	}
 	return nil
 }
+
+func init() {
+	RegisterStorageType("memory", func(cfg jsonconfig.Obj) (Storage, error) {
+		if err := cfg.Validate(); err != nil {
+			return nil, err
+		}
+		return NewMemoryStorage(), nil
+	})
+}
