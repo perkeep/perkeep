@@ -4,6 +4,10 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- rename index.Storage to new package sorted.KeyValue; clarify
+   behavior of Delete (ErrNotFound or nil on delete of missing row?);
+   add unit tests for any KeyValue impl
+
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
 
