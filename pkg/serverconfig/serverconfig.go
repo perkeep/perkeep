@@ -54,12 +54,13 @@ type handlerConfig struct {
 }
 
 type handlerLoader struct {
-	installer HandlerInstaller
-	baseURL   string
-	config    map[string]*handlerConfig // prefix -> config
-	handler   map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
-	curPrefix string
-	closers   []io.Closer
+	installer   HandlerInstaller
+	baseURL     string
+	config      map[string]*handlerConfig // prefix -> config
+	handler     map[string]interface{}    // prefix -> http.Handler / func / blobserver.Storage
+	curPrefix   string
+	closers     []io.Closer
+	prefixStack []string
 
 	// optional context (for App Engine, the first request that
 	// started up the process).  we may need this if setting up
@@ -249,15 +250,18 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		// setup before the bottom loop got to it.
 		return
 	}
+	hl.prefixStack = append(hl.prefixStack, prefix)
 	if h.settingUp {
 		buf := make([]byte, 1024)
 		buf = buf[:runtime.Stack(buf, false)]
-		exitFailure("loop in configuration graph; %q tried to load itself indirectly. Stack:\n%s", prefix, buf)
+		exitFailure("loop in configuration graph; %q tried to load itself indirectly: %q\nStack:\n%s",
+			prefix, hl.prefixStack, buf)
 	}
 	h.settingUp = true
 	defer func() {
 		// log.Printf("Configured handler %q", prefix)
 		h.setupDone = true
+		hl.prefixStack = hl.prefixStack[:len(hl.prefixStack)-1]
 		r := recover()
 		if r == nil {
 			if hl.handler[prefix] == nil {
