@@ -42,9 +42,16 @@ const (
 	maxCopyTries = 17 // ~36 hours with retryCopyLoop(time.Second ...)
 )
 
-// TODO: rate control + tunable
-// TODO: expose copierPoolSize as tunable
+// The SyncHandler handles async replication in one direction between
+// a pair storage targets, a source and target.
+//
+// SyncHandler is a BlobReceiver but doesn't actually store incoming
+// blobs; instead, it records blobs it has received and queues them
+// for async replication soon, or whenever it can.
 type SyncHandler struct {
+	// TODO: rate control + tunable
+	// TODO: expose copierPoolSize as tunable
+
 	blobserver.NoImplStorage
 
 	fromName, toName string
@@ -471,3 +478,16 @@ func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, 
 	err = sh.queue.Set(br.String(), fmt.Sprint(n))
 	return blob.SizedRef{br, n}, err
 }
+
+// TODO(bradfitz): implement these? what do they mean? possibilities:
+// a) proxy to sh.from
+// b) proxy to sh.to
+// c) merge intersection of sh.from, sh.to, and sh.queue: that is, a blob this pair
+//    currently or eventually will have. The only missing blob would be one that
+//    sh.from has, sh.to doesn't have, and isn't in the queue to be replicated.
+//
+// For now, don't implement them. Wait until we need them.
+//
+// func (sh *SyncHandler) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+// func (sh *SyncHandler) FetchStreaming(br blob.Ref) (io.ReadCloser, int64, error) {
+// func (sh *SyncHandler) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {

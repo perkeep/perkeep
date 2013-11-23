@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- genconfig needs to be updated to route incoming blobs to sync handlers;
+   or should sync handlers subscribe to their source's blobhub?
+
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
 
