@@ -99,7 +99,8 @@
           "handler": "storage-replica",
           "handlerArgs": {
               "minWritesForSuccess": 3,
-              "backends": ["/bs/", "/sync-r1/", ["_env", "${CAMLI_INDEXER_PATH}"]]
+              "backends": ["/bs/", "/sync-r1/", ["_env", "${CAMLI_INDEXER_PATH}"]],
+              "readBackends": ["/bs/"]
           }
       },
 
