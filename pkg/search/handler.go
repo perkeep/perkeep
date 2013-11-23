@@ -889,9 +889,8 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	if b.Stub {
 		return "node.png", thumbSize, thumbSize, true
 	}
-	pnAttr := b.Permanode.Attr
 
-	if members := pnAttr["camliMember"]; len(members) > 0 {
+	if b.Permanode.IsContainer() {
 		return "folder.png", thumbSize, thumbSize, true
 	}
 
@@ -926,6 +925,20 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 type DescribedPermanode struct {
 	Attr    url.Values `json:"attr"` // a map[string][]string
 	ModTime time.Time  `json:"modtime,omitempty"`
+}
+
+// IsContainer returns whether the permanode has either named ("camliPath:"-prefixed) or unnamed
+// ("camliMember") member attributes.
+func (dp *DescribedPermanode) IsContainer() bool {
+	if members := dp.Attr["camliMember"]; len(members) > 0 {
+		return true
+	}
+	for k := range dp.Attr {
+		if strings.HasPrefix(k, "camliPath:") {
+			return true
+		}
+	}
+	return false
 }
 
 func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
