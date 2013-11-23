@@ -24,8 +24,22 @@ import (
 )
 
 type BlobHub interface {
-	// For new blobs to notify
-	NotifyBlobReceived(blob blob.Ref)
+	// TODO(bradfitz): no need for this to be an interface anymore. make GetHub return
+	// a concrete type instead? also, maybe remove all the async listener stuff, or
+	// audit its users and remove anything that is now unnecessary.
+
+	// NotifyBlobReceived notes that a storage target has successfully received
+	// a blob and asynchronously notifies registered listeners.
+	//
+	// If any synchronous receive hooks are registered, they're run before
+	// NotifyBlobReceived returns and their error is returned.
+	NotifyBlobReceived(blob blob.Ref) error
+
+	// AddReceiveHook adds a hook that is synchronously run
+	// whenever blobs are received.  All registered hooks are run
+	// on each blob upload but if more than one returns an error,
+	// NotifyBlobReceived will only return one of the errors.
+	AddReceiveHook(func(blob.Ref) error)
 
 	RegisterListener(ch chan<- blob.Ref)
 	UnregisterListener(ch chan<- blob.Ref)
@@ -35,12 +49,15 @@ type BlobHub interface {
 }
 
 var (
-	hubmu  sync.Mutex
+	hubmu  sync.RWMutex
 	stohub = map[interface{}]BlobHub{} // Storage -> hub
 )
 
-// GetHub return a BlobHub for the give storage implementation.
+// GetHub return a BlobHub for the given storage implementation.
 func GetHub(storage interface{}) BlobHub {
+	if h, ok := getHub(storage); ok {
+		return h
+	}
 	hubmu.Lock()
 	defer hubmu.Unlock()
 	h, ok := stohub[storage]
@@ -50,6 +67,13 @@ func GetHub(storage interface{}) BlobHub {
 	h = new(memHub)
 	stohub[storage] = h
 	return h
+}
+
+func getHub(storage interface{}) (BlobHub, bool) {
+	hubmu.RLock()
+	defer hubmu.RUnlock()
+	h, ok := stohub[storage]
+	return h, ok
 }
 
 // canLongPoll is set to false on App Engine. (multi-process environment...)
@@ -81,28 +105,28 @@ func WaitForBlob(storage interface{}, deadline time.Time, blobs []blob.Ref) {
 }
 
 type memHub struct {
-	l sync.Mutex
+	mu sync.RWMutex
 
+	hooks         []func(blob.Ref) error
 	listeners     map[chan<- blob.Ref]bool
-	blobListeners map[string]map[chan<- blob.Ref]bool
+	blobListeners map[blob.Ref]map[chan<- blob.Ref]bool
 }
 
-func (h *memHub) NotifyBlobReceived(br blob.Ref) {
-	h.l.Lock()
-	defer h.l.Unlock()
+func (h *memHub) NotifyBlobReceived(br blob.Ref) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 
 	// Callback channels to notify, nil until non-empty
 	var notify []chan<- blob.Ref
 
 	// Append global listeners
-	for ch, _ := range h.listeners {
+	for ch := range h.listeners {
 		notify = append(notify, ch)
 	}
 
 	// Append blob-specific listeners
 	if h.blobListeners != nil {
-		blobstr := br.String()
-		if set, ok := h.blobListeners[blobstr]; ok {
+		if set, ok := h.blobListeners[br]; ok {
 			for ch, _ := range set {
 				notify = append(notify, ch)
 			}
@@ -118,11 +142,20 @@ func (h *memHub) NotifyBlobReceived(br blob.Ref) {
 			}
 		}()
 	}
+
+	var ret error
+	for _, hook := range h.hooks {
+		if err := hook(br); err != nil && ret == nil {
+			ret = err
+		}
+	}
+
+	return ret
 }
 
 func (h *memHub) RegisterListener(ch chan<- blob.Ref) {
-	h.l.Lock()
-	defer h.l.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.listeners == nil {
 		h.listeners = make(map[chan<- blob.Ref]bool)
 	}
@@ -130,8 +163,8 @@ func (h *memHub) RegisterListener(ch chan<- blob.Ref) {
 }
 
 func (h *memHub) UnregisterListener(ch chan<- blob.Ref) {
-	h.l.Lock()
-	defer h.l.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.listeners == nil {
 		panic("blobhub: UnregisterListener called without RegisterListener")
 	}
@@ -139,49 +172,36 @@ func (h *memHub) UnregisterListener(ch chan<- blob.Ref) {
 }
 
 func (h *memHub) RegisterBlobListener(br blob.Ref, ch chan<- blob.Ref) {
-	h.l.Lock()
-	defer h.l.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.blobListeners == nil {
-		h.blobListeners = make(map[string]map[chan<- blob.Ref]bool)
+		h.blobListeners = make(map[blob.Ref]map[chan<- blob.Ref]bool)
 	}
-	bstr := br.String()
-	_, ok := h.blobListeners[bstr]
+	_, ok := h.blobListeners[br]
 	if !ok {
-		h.blobListeners[bstr] = make(map[chan<- blob.Ref]bool)
+		h.blobListeners[br] = make(map[chan<- blob.Ref]bool)
 	}
-	h.blobListeners[bstr][ch] = true
+	h.blobListeners[br][ch] = true
 }
 
-func (h *memHub) UnregisterBlobListener(blob blob.Ref, ch chan<- blob.Ref) {
-	h.l.Lock()
-	defer h.l.Unlock()
+func (h *memHub) UnregisterBlobListener(br blob.Ref, ch chan<- blob.Ref) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.blobListeners == nil {
 		panic("blobhub: UnregisterBlobListener called without RegisterBlobListener")
 	}
-	bstr := blob.String()
-	set, ok := h.blobListeners[bstr]
+	set, ok := h.blobListeners[br]
 	if !ok {
-		panic("blobhub: UnregisterBlobListener called without RegisterBlobListener for " + bstr)
+		panic("blobhub: UnregisterBlobListener called without RegisterBlobListener for " + br.String())
 	}
 	delete(set, ch)
 	if len(set) == 0 {
-		delete(h.blobListeners, bstr)
+		delete(h.blobListeners, br)
 	}
 }
 
-type memHubPartitionMap struct {
-	hubLock sync.Mutex
-	hub     BlobHub
-}
-
-func (spm *memHubPartitionMap) GetBlobHub() BlobHub {
-	spm.hubLock.Lock()
-	defer spm.hubLock.Unlock()
-	if spm.hub == nil {
-		// TODO: in the future, allow for different blob hub
-		// implementations rather than the
-		// everything-in-memory-on-a-single-machine memHub.
-		spm.hub = new(memHub)
-	}
-	return spm.hub
+func (h *memHub) AddReceiveHook(hook func(blob.Ref) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.hooks = append(h.hooks, hook)
 }

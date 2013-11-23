@@ -42,6 +42,7 @@ func ReceiveNoHash(dst BlobReceiver, br blob.Ref, src io.Reader) (blob.SizedRef,
 }
 
 func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb blob.SizedRef, err error) {
+	src = io.LimitReader(src, MaxBlobSize)
 	if checkHash {
 		src = &checkHashReader{br.Hash(), br, src}
 	}
@@ -49,7 +50,7 @@ func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb b
 	if err != nil {
 		return
 	}
-	GetHub(dst).NotifyBlobReceived(sb.Ref)
+	err = GetHub(dst).NotifyBlobReceived(sb.Ref)
 	return
 }
 

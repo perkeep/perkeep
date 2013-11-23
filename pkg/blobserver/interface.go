@@ -35,9 +35,21 @@ const MaxBlobSize = 16 << 20
 
 var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 
+// BlobReceiver is the interface for receiving
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
-	// disk.
+	// permanent storage.
+	//
+	// Implementations of BlobReceiver downstream of the HTTP
+	// server can trust that the source isn't larger than
+	// MaxBlobSize and that its digest matches the provided blob
+	// ref. (If not, the read of the source will fail before EOF)
+	//
+	// To ensure those guarantees, callers of ReceiveBlob should
+	// not call ReceiveBlob directly but instead use either
+	// blobserver.Receive or blobserver.ReceiveString, which also
+	// take care of notifying the BlobReceiver's "BlobHub"
+	// notification bus for observers.
 	ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error)
 }
 
