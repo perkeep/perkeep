@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -58,7 +59,7 @@ func newCorpus() *Corpus {
 	}
 }
 
-func NewCorpusFromStorage(s Storage) (*Corpus, error) {
+func NewCorpusFromStorage(s sorted.KeyValue) (*Corpus, error) {
 	if s == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -79,16 +80,16 @@ func (x *Index) PreventStorageAccessForTesting(t *testing.T) {
 }
 
 type crashStorage struct {
-	Storage
+	sorted.KeyValue
 	t *testing.T
 }
 
 func (s crashStorage) Get(key string) (string, error) {
-	panic(fmt.Sprintf("unexpected index.Storage.Get(%q) called", key))
+	panic(fmt.Sprintf("unexpected KeyValue.Get(%q) called", key))
 }
 
-func (s crashStorage) Find(key string) Iterator {
-	panic(fmt.Sprintf("unexpected index.Storage.Find(%q) called", key))
+func (s crashStorage) Find(key string) sorted.Iterator {
+	panic(fmt.Sprintf("unexpected KeyValue.Find(%q) called", key))
 }
 
 // *********** Updating the corpus
@@ -102,7 +103,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"filetimes":   (*Corpus).mergeFileTimesRow,
 }
 
-func (c *Corpus) scanFromStorage(s Storage) error {
+func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	for _, prefix := range []string{
 		"meta:",
 		"signerkeyid:",
@@ -117,7 +118,7 @@ func (c *Corpus) scanFromStorage(s Storage) error {
 	return nil
 }
 
-func (c *Corpus) scanPrefix(s Storage, prefix string) (err error) {
+func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 	fn, ok := corpusMergeFunc[typeOfKey(prefix)]
 	if !ok {
 		panic("No registered merge func for prefix " + prefix)
@@ -312,7 +313,7 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 	if v, ok := c.keyId[signer]; ok {
 		return v, nil
 	}
-	return "", ErrNotFound
+	return "", sorted.ErrNotFound
 }
 
 func (c *Corpus) isDeletedLocked(br blob.Ref) bool {

@@ -24,6 +24,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 
 	"appengine"
 	"appengine/datastore"
@@ -48,15 +49,15 @@ func (is *indexStorage) key(c appengine.Context, key string) *datastore.Key {
 	return datastore.NewKey(c, indexRowKind, key, 0, datastore.NewKey(c, indexRowKind, is.ns, 0, nil))
 }
 
-func (is *indexStorage) BeginBatch() index.BatchMutation {
-	return index.NewBatchMutation()
+func (is *indexStorage) BeginBatch() sorted.BatchMutation {
+	return sorted.NewBatchMutation()
 }
 
-func (is *indexStorage) CommitBatch(bm index.BatchMutation) error {
+func (is *indexStorage) CommitBatch(bm sorted.BatchMutation) error {
 	type mutationser interface {
-		Mutations() []index.Mutation
+		Mutations() []sorted.Mutation
 	}
-	var muts []index.Mutation
+	var muts []sorted.Mutation
 	if m, ok := bm.(mutationser); ok {
 		muts = m.Mutations()
 	} else {
@@ -96,7 +97,7 @@ func (is *indexStorage) Get(key string) (string, error) {
 	}
 	if err != nil {
 		if err == datastore.ErrNoSuchEntity {
-			err = index.ErrNotFound
+			err = sorted.ErrNotFound
 		}
 		return "", err
 	}
@@ -119,7 +120,7 @@ func (is *indexStorage) Delete(key string) error {
 	return datastore.Delete(c, is.key(c, key))
 }
 
-func (is *indexStorage) Find(key string) index.Iterator {
+func (is *indexStorage) Find(key string) sorted.Iterator {
 	c := ctxPool.Get()
 	if indexDebug {
 		c.Infof("IndexStorage Find(%q)", key)

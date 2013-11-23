@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package index
+// Package sorted provides a KeyValue interface and constructor registry.
+package sorted
 
 import (
 	"errors"
@@ -25,10 +26,9 @@ import (
 
 var ErrNotFound = errors.New("index: key not found")
 
-// Storage is the minimal interface that must be implemented by index
-// storage implementations. (e.g. mysql, postgres, mongo, sqlite,
-// leveldb, dynamo)
-type Storage interface {
+// KeyValue is a sorted, enumerable key-value interface supporting
+// batch mutations.
+type KeyValue interface {
 	// Get gets the value for the given key. It returns ErrNotFound if the DB
 	// does not contain the key.
 	Get(key string) (string, error)
@@ -49,7 +49,7 @@ type Storage interface {
 	Find(key string) Iterator
 }
 
-// Iterator iterates over an index Storage's key/value pairs in key order.
+// Iterator iterates over an index KeyValue's key/value pairs in key order.
 //
 // An iterator must be closed after use, but it is not necessary to read an
 // iterator until exhaustion.
@@ -126,24 +126,24 @@ func (b *batch) Set(key, value string) {
 }
 
 var (
-	storageCtor = make(map[string]func(jsonconfig.Obj) (Storage, error))
+	ctors = make(map[string]func(jsonconfig.Obj) (KeyValue, error))
 )
 
-func RegisterStorageType(typ string, fn func(jsonconfig.Obj) (Storage, error)) {
+func RegisterKeyValue(typ string, fn func(jsonconfig.Obj) (KeyValue, error)) {
 	if typ == "" || fn == nil {
 		panic("zero type or func")
 	}
-	if _, dup := storageCtor[typ]; dup {
+	if _, dup := ctors[typ]; dup {
 		panic("duplication registration of type " + typ)
 	}
-	storageCtor[typ] = fn
+	ctors[typ] = fn
 }
 
-func NewStorageFromConfig(cfg jsonconfig.Obj) (Storage, error) {
-	var s Storage
+func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
+	var s KeyValue
 	var err error
 	typ := cfg.RequiredString("type")
-	ctor, ok := storageCtor[typ]
+	ctor, ok := ctors[typ]
 	if typ != "" && !ok {
 		return nil, fmt.Errorf("Invalidate index storage type %q", typ)
 	}
@@ -155,3 +155,4 @@ func NewStorageFromConfig(cfg jsonconfig.Obj) (Storage, error) {
 	}
 	return s, cfg.Validate()
 }
+

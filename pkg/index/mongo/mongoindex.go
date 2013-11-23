@@ -29,6 +29,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 
 	"camlistore.org/third_party/labix.org/v2/mgo"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"
@@ -183,7 +184,7 @@ func (s mongoStrIterator) Close() error {
 	return nil
 }
 
-// Implementation of index.Storage
+// Implementation of sorted.KeyValue
 type mongoKeys struct {
 	mu sync.Mutex // guards db
 	db *mgo.Collection
@@ -197,7 +198,7 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	err := q.One(&res)
 	if err != nil {
 		if err == mgo.ErrNotFound {
-			return "", index.ErrNotFound
+			return "", sorted.ErrNotFound
 		} else {
 			return "", err
 		}
@@ -205,7 +206,7 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	return res[mgoValue].(string), err
 }
 
-func (mk *mongoKeys) Find(key string) index.Iterator {
+func (mk *mongoKeys) Find(key string) sorted.Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	// TODO(mpl): escape other special chars, or maybe replace $regex with something
@@ -234,15 +235,15 @@ func (mk *mongoKeys) Delete(key string) error {
 	return mk.db.Remove(&bson.M{mgoKey: key})
 }
 
-func (mk *mongoKeys) BeginBatch() index.BatchMutation {
-	return index.NewBatchMutation()
+func (mk *mongoKeys) BeginBatch() sorted.BatchMutation {
+	return sorted.NewBatchMutation()
 }
 
 type batch interface {
-	Mutations() []index.Mutation
+	Mutations() []sorted.Mutation
 }
 
-func (mk *mongoKeys) CommitBatch(bm index.BatchMutation) error {
+func (mk *mongoKeys) CommitBatch(bm sorted.BatchMutation) error {
 	b, ok := bm.(batch)
 	if !ok {
 		return errors.New("invalid batch type")

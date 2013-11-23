@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/sorted"
 )
 
 func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
@@ -47,7 +48,7 @@ func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)
-		if err == ErrNotFound {
+		if err == sorted.ErrNotFound {
 			continue
 		}
 		if err != nil {

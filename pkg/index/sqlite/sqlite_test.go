@@ -29,6 +29,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/sqlite"
+	"camlistore.org/pkg/sorted"
 
 	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
@@ -47,7 +48,7 @@ func do(db *sql.DB, sql string) {
 	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
-func makeStorage(t *testing.T) (s index.Storage, clean func()) {
+func makeStorage(t *testing.T) (s sorted.KeyValue, clean func()) {
 	f, err := ioutil.TempFile("", "sqlite-test")
 	if err != nil {
 		t.Fatal(err)

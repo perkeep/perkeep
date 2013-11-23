@@ -50,8 +50,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 )
 
 // Compaction constants
@@ -79,7 +79,7 @@ type storage struct {
 	// index is the meta index.
 	// it's keyed by plaintext blobref.
 	// the value is the meta key (encodeMetaValue)
-	index index.Storage
+	index sorted.KeyValue
 
 	// Encryption key.
 	key   []byte
@@ -218,7 +218,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		v, err := s.index.Get(br.String())
-		if err == index.ErrNotFound {
+		if err == sorted.ErrNotFound {
 			continue
 		}
 		if err != nil {
@@ -482,7 +482,7 @@ type metaValue struct {
 // returns os.ErrNotExist on cache miss
 func (s *storage) fetchMeta(b blob.Ref) (*metaValue, error) {
 	v, err := s.index.Get(b.String())
-	if err == index.ErrNotFound {
+	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -536,9 +536,8 @@ func init() {
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.Storage, err error) {
-	sto := &storage{
-		index: index.NewMemoryStorage(), // TODO: temporary for development; let be configurable (mysql, etc)
-	}
+	metaConf := config.RequiredObject("meta")
+	sto := &storage{}
 	agreement := config.OptionalString("I_AGREE", "")
 	const wantAgreement = "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change."
 	if agreement != wantAgreement {
@@ -565,6 +564,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	metaStorage := config.RequiredString("meta")
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+
+	sto.index, err = sorted.NewKeyValue(metaConf)
+	if err != nil {
+		return
 	}
 
 	sto.blobs, err = ld.GetStorage(blobStorage)

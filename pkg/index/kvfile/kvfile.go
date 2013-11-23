@@ -30,6 +30,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/third_party/github.com/camlistore/lock"
 	"camlistore.org/third_party/github.com/cznic/kv"
 )
@@ -39,7 +40,7 @@ func init() {
 		blobserver.StorageConstructor(newFromConfig))
 }
 
-func NewStorage(file string) (index.Storage, io.Closer, error) {
+func NewStorage(file string) (sorted.KeyValue, io.Closer, error) {
 	createOpen := kv.Open
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		createOpen = kv.Create
@@ -80,7 +81,7 @@ func (is *kvis) Get(key string) (string, error) {
 		return "", err
 	}
 	if val == nil {
-		return "", index.ErrNotFound
+		return "", sorted.ErrNotFound
 	}
 	return string(val), nil
 }
@@ -93,22 +94,22 @@ func (is *kvis) Delete(key string) error {
 	return is.db.Delete([]byte(key))
 }
 
-func (is *kvis) Find(key string) index.Iterator {
+func (is *kvis) Find(key string) sorted.Iterator {
 	return &iter{
 		db:      is.db,
 		initKey: key,
 	}
 }
 
-func (is *kvis) BeginBatch() index.BatchMutation {
-	return index.NewBatchMutation()
+func (is *kvis) BeginBatch() sorted.BatchMutation {
+	return sorted.NewBatchMutation()
 }
 
 type batch interface {
-	Mutations() []index.Mutation
+	Mutations() []sorted.Mutation
 }
 
-func (is *kvis) CommitBatch(bm index.BatchMutation) error {
+func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 	b, ok := bm.(batch)
 	if !ok {
 		return errors.New("invalid batch type")

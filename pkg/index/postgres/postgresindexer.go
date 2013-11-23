@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
 )
@@ -38,7 +39,7 @@ type myIndexStorage struct {
 	db                             *sql.DB
 }
 
-var _ index.Storage = (*myIndexStorage)(nil)
+var _ sorted.KeyValue = (*myIndexStorage)(nil)
 
 // postgres does not have REPLACE INTO (upsert), so we use that custom
 // one for Set operations instead
@@ -72,9 +73,9 @@ var replacePlaceHolders = func(query string) string {
 	return string(qmark.ReplaceAllFunc([]byte(query), dollarInc))
 }
 
-// NewStorage returns an index.Storage implementation of the described PostgreSQL database.
+// NewStorage returns an sorted.KeyValue implementation of the described PostgreSQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname, sslmode string) (index.Storage, error) {
+func NewStorage(host, user, password, dbname, sslmode string) (sorted.KeyValue, error) {
 	conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", user, dbname, host, password, sslmode)
 	db, err := sql.Open("postgres", conninfo)
 	if err != nil {

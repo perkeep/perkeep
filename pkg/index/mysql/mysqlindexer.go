@@ -27,6 +27,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
@@ -38,11 +39,11 @@ type myIndexStorage struct {
 	db                             *sql.DB
 }
 
-var _ index.Storage = (*myIndexStorage)(nil)
+var _ sorted.KeyValue = (*myIndexStorage)(nil)
 
-// NewStorage returns an index.Storage implementation of the described MySQL database.
+// NewStorage returns an sorted.KeyValue implementation of the described MySQL database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (index.Storage, error) {
+func NewStorage(host, user, password, dbname string) (sorted.KeyValue, error) {
 	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
 	dsn := dbname + "/" + user + "/" + password
 	db, err := sql.Open("mymysql", dsn)

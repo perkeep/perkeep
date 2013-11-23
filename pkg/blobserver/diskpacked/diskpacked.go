@@ -42,10 +42,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
-	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
@@ -55,7 +55,7 @@ const defaultMaxFileSize = 512 << 20 // 512MB
 
 type storage struct {
 	root        string
-	index       index.Storage
+	index       sorted.KeyValue
 	maxFileSize int64
 
 	mu       sync.Mutex
@@ -333,7 +333,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 func (s *storage) meta(br blob.Ref) (m blobMeta, err error) {
 	ms, err := s.index.Get(br.String())
 	if err != nil {
-		if err == index.ErrNotFound {
+		if err == sorted.ErrNotFound {
 			err = os.ErrNotExist
 		}
 		return

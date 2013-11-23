@@ -29,6 +29,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -36,7 +37,7 @@ import (
 type Index struct {
 	*blobserver.NoImplStorage
 
-	s Storage
+	s sorted.KeyValue
 
 	KeyFetcher blob.StreamingFetcher // for verifying claims
 
@@ -58,7 +59,7 @@ var (
 )
 
 // New returns a new index using the provided key/value storage implementation.
-func New(s Storage) *Index {
+func New(s sorted.KeyValue) *Index {
 	idx := &Index{s: s}
 	schemaVersion := idx.schemaVersion()
 	if schemaVersion != 0 {
@@ -84,7 +85,7 @@ func New(s Storage) *Index {
 }
 
 type prefixIter struct {
-	Iterator
+	sorted.Iterator
 	prefix string
 }
 
@@ -96,7 +97,7 @@ func (p *prefixIter) Next() bool {
 	return v
 }
 
-func queryPrefixString(s Storage, prefix string) *prefixIter {
+func queryPrefixString(s sorted.KeyValue, prefix string) *prefixIter {
 	return &prefixIter{
 		prefix:   prefix,
 		Iterator: s.Find(prefix),
@@ -107,7 +108,7 @@ func (x *Index) queryPrefixString(prefix string) *prefixIter {
 	return queryPrefixString(x.s, prefix)
 }
 
-func queryPrefix(s Storage, key *keyType, args ...interface{}) *prefixIter {
+func queryPrefix(s sorted.KeyValue, key *keyType, args ...interface{}) *prefixIter {
 	return queryPrefixString(s, key.Prefix(args...))
 }
 
@@ -115,7 +116,7 @@ func (x *Index) queryPrefix(key *keyType, args ...interface{}) *prefixIter {
 	return x.queryPrefixString(key.Prefix(args...))
 }
 
-func closeIterator(it Iterator, perr *error) {
+func closeIterator(it sorted.Iterator, perr *error) {
 	err := it.Close()
 	if err != nil && *perr == nil {
 		*perr = err
@@ -127,7 +128,7 @@ func closeIterator(it Iterator, perr *error) {
 func (x *Index) schemaVersion() int {
 	schemaVersionStr, err := x.s.Get(keySchemaVersion.name)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == sorted.ErrNotFound {
 			return 0
 		}
 		panic(fmt.Errorf("Could not get index schema version: %v", err))
@@ -348,7 +349,7 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 	defer close(dest)
 
 	keyId, err := x.KeyId(owner)
-	if err == ErrNotFound {
+	if err == sorted.ErrNotFound {
 		log.Printf("No recent permanodes because keyId for owner %v not found", owner)
 		return nil
 	}
@@ -405,7 +406,7 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	)
 	if signerFilter.Valid() {
 		keyId, err = x.KeyId(signerFilter)
-		if err == ErrNotFound {
+		if err == sorted.ErrNotFound {
 			return nil, nil
 		}
 		if err != nil {
@@ -485,7 +486,7 @@ func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	}
 	key := "meta:" + br.String()
 	meta, err := x.s.Get(key)
-	if err == ErrNotFound {
+	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -513,7 +514,7 @@ func (x *Index) KeyId(signer blob.Ref) (string, error) {
 
 func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {
 	keyId, err := x.KeyId(signer)
-	if err == ErrNotFound {
+	if err == sorted.ErrNotFound {
 		return blob.Ref{}, os.ErrNotExist
 	}
 	if err != nil {
@@ -543,7 +544,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes
 	}
 
 	keyId, err := x.KeyId(request.Signer)
-	if err == ErrNotFound {
+	if err == sorted.ErrNotFound {
 		return nil
 	}
 	if err != nil {
@@ -583,7 +584,7 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(signer)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == sorted.ErrNotFound {
 			err = nil
 		}
 		return
@@ -638,7 +639,7 @@ func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*camt
 	paths = []*camtypes.Path{}
 	keyId, err := x.KeyId(signer)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == sorted.ErrNotFound {
 			err = nil
 		}
 		return
@@ -758,14 +759,14 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	go x.loadKey(tkey, &tv, &terr, wg)
 	wg.Wait()
 
-	if ierr == ErrNotFound {
+	if ierr == sorted.ErrNotFound {
 		go x.reindex(fileRef) // kinda a hack. Issue 103.
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	if ierr != nil {
 		return camtypes.FileInfo{}, ierr
 	}
-	if terr == ErrNotFound {
+	if terr == sorted.ErrNotFound {
 		// Old index; retry. TODO: index versioning system.
 		x.reindex(fileRef)
 		tv, terr = x.s.Get(tkey)
@@ -810,7 +811,7 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	// (because of unsupported JPEG features like progressive mode).
 	key := keyImageSize.Key(fileRef.String())
 	dim, err := x.s.Get(key)
-	if err == ErrNotFound {
+	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
 	}
 	if err != nil {
@@ -925,7 +926,7 @@ func kvBlobMeta(k, v string) (bm camtypes.BlobMeta, ok bool) {
 	}, true
 }
 
-func enumerateBlobMeta(s Storage, cb func(camtypes.BlobMeta) error) (err error) {
+func enumerateBlobMeta(s sorted.KeyValue, cb func(camtypes.BlobMeta) error) (err error) {
 	it := queryPrefixString(s, "meta:")
 	defer closeIterator(it, &err)
 	for it.Next() {
@@ -940,7 +941,7 @@ func enumerateBlobMeta(s Storage, cb func(camtypes.BlobMeta) error) (err error) 
 	return nil
 }
 
-func enumerateSignerKeyId(s Storage, cb func(blob.Ref, string)) (err error) {
+func enumerateSignerKeyId(s sorted.KeyValue, cb func(blob.Ref, string)) (err error) {
 	const pfx = "signerkeyid:"
 	it := queryPrefixString(s, pfx)
 	defer closeIterator(it, &err)
@@ -965,9 +966,9 @@ func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
 }
 
 // Storage returns the index's underlying Storage implementation.
-func (x *Index) Storage() Storage { return x.s }
+func (x *Index) Storage() sorted.KeyValue { return x.s }
 
-// Close closes the underlying Storage, if the storage has a Close method.
+// Close closes the underlying sorted.KeyValue, if the storage has a Close method.
 // The return value is the return value of the underlying Close, or
 // nil otherwise.
 func (x *Index) Close() error {

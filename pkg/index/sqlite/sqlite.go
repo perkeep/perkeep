@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 )
 
 type storage struct {
@@ -37,7 +38,7 @@ type storage struct {
 	db   *sql.DB
 }
 
-var _ index.Storage = (*storage)(nil)
+var _ sorted.KeyValue = (*storage)(nil)
 
 var compiled = false
 
@@ -56,9 +57,9 @@ func compileHint() string {
 	return ""
 }
 
-// NewStorage returns an index.Storage implementation of the described SQLite database.
+// NewStorage returns an sorted.KeyValue implementation of the described SQLite database.
 // This exists mostly for testing and does not initialize the schema.
-func NewStorage(file string) (index.Storage, error) {
+func NewStorage(file string) (sorted.KeyValue, error) {
 	if !compiled {
 		return nil, ErrNotCompiled
 	}

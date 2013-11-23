@@ -30,9 +30,9 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
+	"camlistore.org/pkg/sorted"
 )
 
 var queueSyncInterval = 5 * time.Second
@@ -50,7 +50,7 @@ type SyncHandler struct {
 	fromName, toName string
 	from             blobserver.Storage
 	to               blobserver.BlobReceiver
-	queue            index.Storage
+	queue            sorted.KeyValue
 
 	idle bool // if true, the handler does nothing other than providing the discovery.
 
@@ -97,7 +97,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 	if len(queueConf) == 0 {
 		return nil, errors.New(`Missing required "queue" object`)
 	}
-	q, err := index.NewStorageFromConfig(queueConf)
+	q, err := sorted.NewKeyValue(queueConf)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ type timestampedError struct {
 
 func createSyncHandler(fromName, toName string,
 	from blobserver.Storage, to blobserver.BlobReceiver,
-	queue index.Storage) (*SyncHandler, error) {
+	queue sorted.KeyValue) (*SyncHandler, error) {
 
 	h := &SyncHandler{
 		copierPoolSize: 3,

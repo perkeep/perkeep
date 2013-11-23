@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sqlindex implements the index.Storage interface using an *sql.DB.
+// Package sqlindex implements the sorted.KeyValue interface using an *sql.DB.
 package sqlindex
 
 import (
@@ -25,11 +25,11 @@ import (
 	"strconv"
 	"sync"
 
-	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/leak"
+	"camlistore.org/pkg/sorted"
 )
 
-// Storage implements the index.Storage interface using an *sql.DB.
+// Storage implements the sorted.KeyValue interface using an *sql.DB.
 type Storage struct {
 	DB *sql.DB
 
@@ -96,7 +96,7 @@ func (b *batchTx) Delete(key string) {
 	_, b.err = b.tx.Exec(b.sql("DELETE FROM rows WHERE k=?"), key)
 }
 
-func (s *Storage) BeginBatch() index.BatchMutation {
+func (s *Storage) BeginBatch() sorted.BatchMutation {
 	if s.Serial {
 		s.mu.Lock()
 	}
@@ -109,7 +109,7 @@ func (s *Storage) BeginBatch() index.BatchMutation {
 	}
 }
 
-func (s *Storage) CommitBatch(b index.BatchMutation) error {
+func (s *Storage) CommitBatch(b sorted.BatchMutation) error {
 	if s.Serial {
 		defer s.mu.Unlock()
 	}
@@ -130,7 +130,7 @@ func (s *Storage) Get(key string) (value string, err error) {
 	}
 	err = s.DB.QueryRow(s.sql("SELECT v FROM rows WHERE k=?"), key).Scan(&value)
 	if err == sql.ErrNoRows {
-		err = index.ErrNotFound
+		err = sorted.ErrNotFound
 	}
 	return
 }
@@ -156,7 +156,7 @@ func (s *Storage) Delete(key string) error {
 	return err
 }
 
-func (s *Storage) Find(key string) index.Iterator {
+func (s *Storage) Find(key string) sorted.Iterator {
 	it := &iter{
 		s:          s,
 		low:        key,

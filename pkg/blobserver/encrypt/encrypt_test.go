@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 )
 
@@ -56,7 +56,7 @@ func (ts *testStorage) fetchOrErrorString(br blob.Ref) string {
 
 func newTestStorage() *testStorage {
 	sto := &storage{
-		index: index.NewMemoryStorage(),
+		index: sorted.NewMemoryKeyValue(),
 	}
 	if err := sto.setKey(testKey); err != nil {
 		panic(err)
