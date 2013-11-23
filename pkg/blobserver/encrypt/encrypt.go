@@ -536,7 +536,7 @@ func init() {
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.Storage, err error) {
-	metaConf := config.RequiredObject("meta")
+	metaConf := config.RequiredObject("metaIndex")
 	sto := &storage{}
 	agreement := config.OptionalString("I_AGREE", "")
 	const wantAgreement = "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change."

@@ -186,6 +186,7 @@
               "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
               "meta": "/encmeta/",
               "blobs": "/encblob/",
+              "metaIndex": { "type": "memory" },
               "key": "000102030405060708090a0b0c0d0e0f"
           }
       },
