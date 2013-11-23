@@ -68,6 +68,8 @@ func (w *fetcherToSeekerWrapper) Fetch(r Ref) (file types.ReadSeekCloser, size i
 	return
 }
 
+// StreamingFetcher is the minimal interface for retrieving a blob from storage.
+// The full storage interface is blobserver.Stoage.
 type StreamingFetcher interface {
 	// FetchStreaming returns a blob.  If the blob is not found then
 	// os.ErrNotExist should be returned for the error (not a wrapped

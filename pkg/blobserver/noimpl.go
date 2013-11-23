@@ -25,7 +25,7 @@ import (
 	"camlistore.org/pkg/types"
 )
 
-// NoImplStorage is an implementation of Storage that return a not
+// NoImplStorage is an implementation of Storage that returns a not
 // implemented error for all operations.
 type NoImplStorage struct{}
 
