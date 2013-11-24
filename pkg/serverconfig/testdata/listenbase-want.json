@@ -1,8 +1,8 @@
 {
-	"baseURL": "http://foo.com",
-        "listen": "1.2.3.4:80",
 	"auth": "userpass:camlistore:pass3179",
+	"baseURL": "http://foo.com",
 	"https": false,
+	"listen": "1.2.3.4:80",
 	"prefixes": {
 		"/": {
 			"handler": "root",
@@ -13,96 +13,85 @@
 				"stealth": false
 			}
 		},
-
-		"/ui/": {
-			"handler": "ui",
-			"handlerArgs": {
-				"jsonSignRoot": "/sighelper/",
-				"cache": "/cache/",
-				"scaledImage": "lrucache"
-			}
-		},
-
- 		"/setup/": {
-			"handler": "setup"
-        },
-
- 		"/status/": {
-			"handler": "status"
-		},
-
- 		"/share/": {
-			"handler": "share",
-			"handlerArgs": {
-				"blobRoot": "/bs/"
-			}
-		},
-
- 		"/sync/": {
-			"handler": "sync",
-			"handlerArgs": {
-				"from": "/bs/",
-				"to": "/index-mem/"
-			}
-		},
-	
-		"/sighelper/": {
-			"handler": "jsonsign",
-			"handlerArgs": {
-				"secretRing": "/path/to/secring",
-				"keyId": "26F5ABDA",
-				"publicKeyDest": "/bs-and-index/"
-			}
-		},
-	
 		"/bs-and-index/": {
 			"handler": "storage-replica",
 			"handlerArgs": {
-				"backends": ["/bs/", "/index-mem/"]
+				"backends": [
+					"/bs/",
+					"/index-mem/"
+				]
 			}
 		},
-	
 		"/bs-and-maybe-also-index/": {
 			"handler": "storage-cond",
 			"handlerArgs": {
+				"read": "/bs/",
 				"write": {
+					"else": "/bs/",
 					"if": "isSchema",
-					"then": "/bs-and-index/",
-					"else": "/bs/"
-				},
-				"read": "/bs/"
+					"then": "/bs-and-index/"
+				}
 			}
 		},
-	
 		"/bs/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs"
 			}
 		},
-	
 		"/cache/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs/cache"
 			}
 		},
-	
 		"/index-mem/": {
 			"handler": "storage-memory-only-dev-indexer",
 			"handlerArgs": {
 				"blobSource": "/bs/"
 			}
 		},
-	
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
 				"index": "/index-mem/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
 			}
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs-and-index/",
+				"secretRing": "/Users/bradfitz/src/camlistore.org/pkg/jsonsign/testdata/test-secring.gpg"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/index-mem/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"jsonSignRoot": "/sighelper/",
+				"scaledImage": "lrucache"
+			}
 		}
 	}
-
 }
-
