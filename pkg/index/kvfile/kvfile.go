@@ -40,7 +40,7 @@ func init() {
 		blobserver.StorageConstructor(newFromConfig))
 }
 
-func NewStorage(file string) (sorted.KeyValue, io.Closer, error) {
+func NewStorage(file string) (sorted.KeyValue, error) {
 	createOpen := kv.Open
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		createOpen = kv.Create
@@ -56,12 +56,12 @@ func NewStorage(file string) (sorted.KeyValue, io.Closer, error) {
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	is := &kvis{
 		db: db,
 	}
-	return is, struct{ io.Closer }{db}, nil
+	return is, nil
 }
 
 type kvis struct {
@@ -206,6 +206,18 @@ func (it *iter) Next() (ret bool) {
 	return true
 }
 
+func init() {
+	sorted.RegisterKeyValue("kv", newKeyValueFromConfig)
+}
+
+func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	file := cfg.RequiredString("file")
+	if file == "" {
+		return nil, errors.New("Missing 'file' parameter")
+	}
+	return NewStorage(file)
+}
+
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	blobPrefix := config.RequiredString("blobSource")
 	file := config.RequiredString("file")
@@ -213,14 +225,14 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		return nil, err
 	}
 
-	is, closer, err := NewStorage(file)
+	is, err := NewStorage(file)
 	if err != nil {
 		return nil, err
 	}
 
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
-		closer.Close()
+		is.Close()
 		return nil, err
 	}
 

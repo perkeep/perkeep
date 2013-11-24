@@ -71,7 +71,7 @@ type storage struct {
 
 // newStorage returns a new storage in path root with the given maxFileSize,
 // or defaultMaxFileSize (512MB) if <= 0
-func newStorage(root string, maxFileSize int64) (*storage, error) {
+func newStorage(root string, maxFileSize int64) (s *storage, err error) {
 	fi, err := os.Stat(root)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("storage root %q doesn't exist", root)
@@ -82,11 +82,22 @@ func newStorage(root string, maxFileSize int64) (*storage, error) {
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
 	}
-	index, _, err := kvfile.NewStorage(filepath.Join(root, "index.kv"))
+	index, err := kvfile.NewStorage(filepath.Join(root, "index.kv"))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			index.Close()
+		}
+	}()
 	if maxFileSize <= 0 {
 		maxFileSize = defaultMaxFileSize
 	}
-	s := &storage{root: root, index: index, maxFileSize: maxFileSize,
+	s = &storage{
+		root:         root,
+		index:        index,
+		maxFileSize:  maxFileSize,
 		Generationer: local.NewGenerationer(root),
 	}
 	if err := s.openCurrent(); err != nil {

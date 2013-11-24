@@ -108,6 +108,8 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 	return nil
 }
 
+func (mk *memKeys) Close() error { return nil }
+
 func init() {
 	RegisterKeyValue("memory", func(cfg jsonconfig.Obj) (KeyValue, error) {
 		if err := cfg.Validate(); err != nil {

@@ -138,6 +138,8 @@ func (is *indexStorage) Find(key string) sorted.Iterator {
 	return it
 }
 
+func (is *indexStorage) Close() error { return nil }
+
 type iter struct {
 	cl    ContextLoan
 	after string

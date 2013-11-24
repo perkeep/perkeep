@@ -264,3 +264,8 @@ func (mk *mongoKeys) CommitBatch(bm sorted.BatchMutation) error {
 	}
 	return nil
 }
+
+func (mk *mongoKeys) Close() error {
+	// TODO(mpl): Close the Session? Connection?
+	return nil
+}

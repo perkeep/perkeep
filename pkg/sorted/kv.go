@@ -47,6 +47,11 @@ type KeyValue interface {
 	// error-iterator will yield no key/value pairs and closing that iterator
 	// will return that error.
 	Find(key string) Iterator
+
+	// Close is a polite way for the server to shut down the storage.
+	// Implementations should never lose data after a Set, Delete,
+	// or CommmitBatch, though.
+	Close() error
 }
 
 // Iterator iterates over an index KeyValue's key/value pairs in key order.
@@ -155,4 +160,3 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	}
 	return s, cfg.Validate()
 }
-

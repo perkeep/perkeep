@@ -42,13 +42,13 @@ func (tester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		is, closer, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
+		is, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
 		if err != nil {
 			os.RemoveAll(td)
 			t.Fatal(err)
 		}
 		cleanup = append(cleanup, func() {
-			closer.Close()
+			is.Close()
 			os.RemoveAll(td)
 		})
 		return index.New(is)

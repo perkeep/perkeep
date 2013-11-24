@@ -156,6 +156,8 @@ func (s *Storage) Delete(key string) error {
 	return err
 }
 
+func (s *Storage) Close() error { return s.DB.Close() }
+
 func (s *Storage) Find(key string) sorted.Iterator {
 	it := &iter{
 		s:          s,
