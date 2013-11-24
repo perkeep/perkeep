@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -193,10 +194,9 @@ func (s *storage) Close() error {
 	defer s.mu.Unlock()
 	if !s.closed {
 		s.closed = true
-		// TODO(adg): uncomment once index.Storage has a Close method
-		//if err := s.index.Close(); err != nil {
-		//	log.Println("diskpacked: closing index:", err)
-		//}
+		if err := s.index.Close(); err != nil {
+			log.Println("diskpacked: closing index:", err)
+		}
 		if f := s.current; f != nil {
 			s.closeErr = f.Close()
 			s.current = nil
