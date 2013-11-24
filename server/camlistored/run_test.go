@@ -26,11 +26,9 @@ import (
 	"time"
 
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/test"
 )
 
 func TestStarts(t *testing.T) {
-	test.BrokenTest(t)
 	td, err := ioutil.TempDir("", "camlistored-test")
 	if err != nil {
 		t.Fatal(err)

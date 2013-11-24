@@ -215,7 +215,7 @@ func addKVConfig(prefixes jsonconfig.Obj, file string) {
 	}
 }
 
-func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
+func addS3Config(params *configPrefixesParams, prefixes jsonconfig.Obj, s3 string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
 		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket"`)
@@ -257,11 +257,18 @@ func addS3Config(prefixes jsonconfig.Obj, s3 string) error {
 			},
 		}
 	} else {
+		if params.blobPath == "" {
+			panic("unexpected empty blobpath with sync-to-s3")
+		}
 		prefixes["/sync-to-s3/"] = map[string]interface{}{
 			"handler": "sync",
 			"handlerArgs": map[string]interface{}{
 				"from": "/bs/",
 				"to":   s3Prefix,
+				"queue": map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(params.blobPath, "sync-to-s3-queue.kv"),
+				},
 			},
 		}
 	}
@@ -464,6 +471,11 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 			// synchandler to provide the discovery for e.g tools like
 			// camtool sync. See http://camlistore.org/issue/201
 			syncArgs["idle"] = true
+		} else {
+			syncArgs["queue"] = map[string]interface{}{
+				"type": "kv",
+				"file": filepath.Join(params.blobPath, "sync-to-index-queue.kv"),
+			}
 		}
 		m["/sync/"] = map[string]interface{}{
 			"handler":     "sync",
@@ -696,7 +708,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		addKVConfig(prefixes, kvFile)
 	}
 	if s3 != "" {
-		if err := addS3Config(prefixes, s3); err != nil {
+		if err := addS3Config(prefixesParams, prefixes, s3); err != nil {
 			return nil, err
 		}
 	}

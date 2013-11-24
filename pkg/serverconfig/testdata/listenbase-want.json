@@ -82,6 +82,10 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-index-queue.kv",
+					"type": "kv"
+				},
 				"to": "/index-mem/"
 			}
 		},
