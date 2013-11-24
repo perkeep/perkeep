@@ -18,12 +18,13 @@ package serverconfig_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -31,7 +32,10 @@ import (
 
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/serverconfig"
+	"camlistore.org/pkg/test"
 )
+
+var updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
 
 func init() {
 	// Avoid Linux vs. OS X differences in tests.
@@ -47,33 +51,12 @@ func sortedKeys(m map[string]interface{}) (keys []string) {
 	return
 }
 
-func prettyPrint(w io.Writer, i interface{}, indent int) {
-	switch ei := i.(type) {
-	case jsonconfig.Obj:
-		for _, k := range sortedKeys(map[string]interface{}(ei)) {
-			fmt.Fprintf(w, "\n")
-			fmt.Fprintf(w, "%s: ", k)
-			prettyPrint(w, ei[k], indent+1)
-		}
-		fmt.Fprintf(w, "\n")
-	case map[string]interface{}:
-		for _, k := range sortedKeys(ei) {
-			fmt.Fprintf(w, "\n")
-			for i := 0; i < indent; i++ {
-				fmt.Fprintf(w, "	")
-			}
-			fmt.Fprintf(w, "%s: ", k)
-			prettyPrint(w, ei[k], indent+1)
-		}
-		fmt.Fprintf(w, "\n")
-	case []interface{}:
-		fmt.Fprintf(w, "	")
-		for _, v := range ei {
-			prettyPrint(w, v, indent+1)
-		}
-	default:
-		fmt.Fprintf(w, "%v, ", i)
+func prettyPrint(t *testing.T, w io.Writer, i interface{}, indent int) {
+	out, err := json.MarshalIndent(i, "", "  ")
+	if err != nil {
+		t.Fatal(err)
 	}
+	w.Write(out)
 }
 
 func TestConfigs(t *testing.T) {
@@ -145,38 +128,25 @@ func testConfig(name string, t *testing.T) {
 		return
 	}
 
-	baseName := strings.Replace(filepath.Base(name), ".json", "", 1)
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)
 	if err != nil {
 		t.Fatalf("test %s: ReadFile: %v", name, err)
 	}
 	var got, want bytes.Buffer
-	prettyPrint(&got, lowLevelConf.Obj, 0)
-	prettyPrint(&want, wantConf, 0)
+	prettyPrint(t, &got, lowLevelConf.Obj, 0)
+	prettyPrint(t, &want, wantConf, 0)
 	if got.String() != want.String() {
-		tempGot := tempFile(baseName+"-got", got.Bytes())
-		tempWant := tempFile(baseName+"-want", want.Bytes())
-		defer os.Remove(tempGot.Name())
-		defer os.Remove(tempWant.Name())
-		diff, err := exec.Command("diff", "-u", tempWant.Name(), tempGot.Name()).Output()
-		if err != nil {
-			t.Logf("test %s diff failure: %v", name, err)
+		if *updateGolden {
+			contents, err := json.MarshalIndent(lowLevelConf.Obj, "", "\t")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ioutil.WriteFile(wantFile, contents, 0644); err != nil {
+				t.Fatal(err)
+			}
 		}
-		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff:\n%s",
-			name, &got, &want, diff)
+		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff (got -> want), %s:\n%s",
+			name, &got, &want, name, test.Diff(got.Bytes(), want.Bytes()))
 	}
-}
-
-func tempFile(prefix string, b []byte) *os.File {
-	f, err := ioutil.TempFile("", prefix+"-")
-	if err != nil {
-		panic(err)
-	}
-	_, err = f.Write(b)
-	if err != nil {
-		panic(err)
-	}
-	f.Close()
-	return f
 }
