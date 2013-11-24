@@ -48,20 +48,20 @@ func TestHubRegistration(t *testing.T) {
 
 	hub.RegisterBlobListener(b1, ch)
 	Expect(t, hub.blobListeners != nil, "hub.blobListeners is not nil before RegisterBlobListener")
-	Expect(t, hub.blobListeners[b1.String()] != nil, "b1 in hub.blobListeners map")
-	ExpectInt(t, 1, len(hub.blobListeners[b1.String()]), "hub.blobListeners[b1] size")
+	Expect(t, hub.blobListeners[b1] != nil, "b1 in hub.blobListeners map")
+	ExpectInt(t, 1, len(hub.blobListeners[b1]), "hub.blobListeners[b1] size")
 	ExpectInt(t, 1, len(hub.blobListeners), "hub.blobListeners size")
 
 	hub.RegisterBlobListener(b2, ch)
-	ExpectInt(t, 1, len(hub.blobListeners[b2.String()]), "hub.blobListeners[b1] size")
+	ExpectInt(t, 1, len(hub.blobListeners[b2]), "hub.blobListeners[b1] size")
 	ExpectInt(t, 2, len(hub.blobListeners), "hub.blobListeners size")
 
 	hub.UnregisterBlobListener(b2, ch)
-	Expect(t, hub.blobListeners[b2.String()] == nil, "b2 not in hub.blobListeners")
+	Expect(t, hub.blobListeners[b2] == nil, "b2 not in hub.blobListeners")
 	ExpectInt(t, 1, len(hub.blobListeners), "hub.blobListeners size")
 
 	hub.UnregisterBlobListener(b1, ch)
-	Expect(t, hub.blobListeners[b1.String()] == nil, "b1 not in hub.blobListeners")
+	Expect(t, hub.blobListeners[b1] == nil, "b1 not in hub.blobListeners")
 	ExpectInt(t, 0, len(hub.blobListeners), "hub.blobListeners size")
 }
 
