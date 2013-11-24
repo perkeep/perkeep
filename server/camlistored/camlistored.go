@@ -100,7 +100,7 @@ func exitf(pattern string, args ...interface{}) {
 		pattern = pattern + "\n"
 	}
 	fmt.Fprintf(os.Stderr, pattern, args...)
-	os.Exit(1)
+	osExit(1)
 }
 
 // 1) We do not want to force the user to buy a cert.
@@ -233,9 +233,11 @@ type defaultConfigFile struct {
 	Publish            struct{}      `json:"publish"`
 }
 
+var defaultListenAddr = ":3179"
+
 func newDefaultConfigFile(path string) error {
 	conf := defaultConfigFile{
-		Listen:      ":3179",
+		Listen:      defaultListenAddr,
 		HTTPS:       false,
 		Auth:        "localhost",
 		ReplicateTo: make([]interface{}, 0),
@@ -354,6 +356,8 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 	ws.SetTLS(cert, key)
 }
 
+var osExit = os.Exit // testing hook
+
 func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
@@ -384,7 +388,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 			select {
 			case <-donec:
 				log.Printf("Shut down.")
-				os.Exit(0)
+				osExit(0)
 			case <-time.After(2 * time.Second):
 				exitf("Timeout shutting down. Exiting uncleanly.")
 			}
@@ -410,7 +414,13 @@ func listenAndBaseURL(config *serverconfig.Config) (listen, baseURL string) {
 	return
 }
 
+// main wraps Main so tests (which generate their own func main) can still run Main.
 func main() {
+	Main(nil, nil)
+}
+
+// Main sends on up when it's running, and shuts down when it receives from down.
+func Main(up chan<- struct{}, down <-chan struct{}) {
 	flag.Parse()
 
 	if *flagVersion {
@@ -467,5 +477,9 @@ func main() {
 	if flagPollParent {
 		osutil.DieOnParentDeath()
 	}
-	select {}
+
+	// Block forever, except during tests.
+	up <- struct{}{}
+	<-down
+	osExit(0)
 }
