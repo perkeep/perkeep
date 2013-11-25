@@ -1,5 +1,8 @@
 Tests needed
 
+-- pkg/client --- test FetchVia against a server returning compressed content.
+   (fix in 3fa6d69405f036308931dd36e5070b2b19dbeadf without a new test)
+
 -cmd/camput/
 	-verify that stat caching works. verify that -filenodes does create the permanode even if the file was already uploaded (and cached) in a previous run.
 
