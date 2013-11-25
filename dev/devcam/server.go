@@ -140,6 +140,7 @@ func (c *serverCmd) setCamliRoot() error {
 		return errors.New("Could not get username from environment")
 	}
 	c.camliRoot = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
+	log.Printf("Temp dir root is %v", c.camliRoot)
 	if c.wipe {
 		log.Printf("Wiping %v", c.camliRoot)
 		if err := os.RemoveAll(c.camliRoot); err != nil {
