@@ -42,6 +42,7 @@ type configPrefixesParams struct {
 	keyId            string
 	indexerPath      string
 	blobPath         string
+	packBlobs        bool
 	searchOwner      blob.Ref
 	shareHandlerPath string
 	flickr           string
@@ -433,9 +434,13 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		},
 	}
 
+	storageType := "filesystem"
+	if params.packBlobs {
+		storageType = "diskpacked"
+	}
 	if params.blobPath != "" {
 		m["/bs/"] = map[string]interface{}{
-			"handler": "storage-filesystem",
+			"handler": "storage-" + storageType,
 			"handlerArgs": map[string]interface{}{
 				"path": params.blobPath,
 			},
@@ -527,6 +532,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 		// Blob storage options
 		blobPath           = conf.OptionalString("blobPath", "")
+		packBlobs          = conf.OptionalBool("packBlobs", false)      // use diskpacked instead of the default filestorage
 		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket[:hostname]"
 		googlecloudstorage = conf.OptionalString("googlecloudstorage", "") // "clientId:clientSecret:refreshToken:bucket"
 		googledrive        = conf.OptionalString("googledrive", "")        // "clientId:clientSecret:refreshToken:parentId"
@@ -655,6 +661,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		keyId:            keyId,
 		indexerPath:      indexerPath,
 		blobPath:         blobPath,
+		packBlobs:        packBlobs,
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
 		shareHandlerPath: shareHandlerPath,
 		flickr:           flickr,
