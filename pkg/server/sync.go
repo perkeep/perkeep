@@ -142,6 +142,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		go synch.syncQueueLoop()
 	}
 
+	blobserver.GetHub(fromBs).AddReceiveHook(synch.enqueue)
 	return synch, nil
 }
 
@@ -472,12 +473,21 @@ func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, 
 	if err != nil {
 		return
 	}
+	sb = blob.SizedRef{br, n}
+	return sb, sh.enqueue(sb)
+}
+
+func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 	// TODO: include current time in encoded value, to attempt to
 	// do in-order delivery to remote side later? Possible
 	// friendly optimization later. Might help peer's indexer have
 	// less missing deps.
-	err = sh.queue.Set(br.String(), fmt.Sprint(n))
-	return blob.SizedRef{br, n}, err
+	if err := sh.queue.Set(sb.Ref.String(), fmt.Sprint(sb.Size)); err != nil {
+		return err
+	}
+	// TODO(bradfitz): non-blocking send to wake up looping
+	// goroutine if it's sleeping.
+	return nil
 }
 
 // TODO(bradfitz): implement these? what do they mean? possibilities:

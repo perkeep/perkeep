@@ -50,7 +50,7 @@ func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb b
 	if err != nil {
 		return
 	}
-	err = GetHub(dst).NotifyBlobReceived(sb.Ref)
+	err = GetHub(dst).NotifyBlobReceived(sb)
 	return
 }
 

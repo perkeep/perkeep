@@ -17,10 +17,11 @@ limitations under the License.
 package blobserver
 
 import (
-	"camlistore.org/pkg/blob"
-	. "camlistore.org/pkg/test/asserts"
 	"testing"
 	"time"
+
+	"camlistore.org/pkg/blob"
+	. "camlistore.org/pkg/test/asserts"
 )
 
 func TestHubRegistration(t *testing.T) {
@@ -72,14 +73,14 @@ func TestHubFiring(t *testing.T) {
 	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	blobsame := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 
-	hub.NotifyBlobReceived(blob1) // no-op
+	hub.NotifyBlobReceived(blob.SizedRef{blob1, 123}) // no-op
 
 	hub.RegisterListener(ch)
 	hub.RegisterBlobListener(blob1, bch)
 
-	hub.NotifyBlobReceived(blobsame)
+	hub.NotifyBlobReceived(blob.SizedRef{blobsame, 456})
 
-	tmr1 := time.NewTimer(1e9)
+	tmr1 := time.NewTimer(1 * time.Second)
 	select {
 	case <-tmr1.C:
 		t.Fatal("timer expired on receiving from ch")

@@ -33,13 +33,13 @@ type BlobHub interface {
 	//
 	// If any synchronous receive hooks are registered, they're run before
 	// NotifyBlobReceived returns and their error is returned.
-	NotifyBlobReceived(blob blob.Ref) error
+	NotifyBlobReceived(blob.SizedRef) error
 
 	// AddReceiveHook adds a hook that is synchronously run
 	// whenever blobs are received.  All registered hooks are run
 	// on each blob upload but if more than one returns an error,
 	// NotifyBlobReceived will only return one of the errors.
-	AddReceiveHook(func(blob.Ref) error)
+	AddReceiveHook(func(blob.SizedRef) error)
 
 	RegisterListener(ch chan<- blob.Ref)
 	UnregisterListener(ch chan<- blob.Ref)
@@ -107,14 +107,16 @@ func WaitForBlob(storage interface{}, deadline time.Time, blobs []blob.Ref) {
 type memHub struct {
 	mu sync.RWMutex
 
-	hooks         []func(blob.Ref) error
+	hooks         []func(blob.SizedRef) error
 	listeners     map[chan<- blob.Ref]bool
 	blobListeners map[blob.Ref]map[chan<- blob.Ref]bool
 }
 
-func (h *memHub) NotifyBlobReceived(br blob.Ref) error {
+func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+
+	br := sb.Ref
 
 	// Callback channels to notify, nil until non-empty
 	var notify []chan<- blob.Ref
@@ -145,7 +147,7 @@ func (h *memHub) NotifyBlobReceived(br blob.Ref) error {
 
 	var ret error
 	for _, hook := range h.hooks {
-		if err := hook(br); err != nil && ret == nil {
+		if err := hook(sb); err != nil && ret == nil {
 			ret = err
 		}
 	}
@@ -200,7 +202,7 @@ func (h *memHub) UnregisterBlobListener(br blob.Ref, ch chan<- blob.Ref) {
 	}
 }
 
-func (h *memHub) AddReceiveHook(hook func(blob.Ref) error) {
+func (h *memHub) AddReceiveHook(hook func(blob.SizedRef) error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.hooks = append(h.hooks, hook)
