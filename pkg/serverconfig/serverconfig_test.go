@@ -37,7 +37,13 @@ import (
 
 var updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
 
-const secringPlaceholder = "/path/to/secring"
+const (
+	// relativeRing points to a real secret ring, but serverconfig
+	// rewrites it to be an absolute path.  We then canonicalize
+	// it to secringPlaceholder in the golden files.
+	relativeRing       = "../jsonsign/testdata/test-secring.gpg"
+	secringPlaceholder = "/path/to/secring"
+)
 
 func init() {
 	// Avoid Linux vs. OS X differences in tests.
@@ -144,9 +150,7 @@ func testConfig(name string, t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			secRing, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
-			contents = bytes.Replace(contents, []byte(secRing),
-				[]byte(secringPlaceholder), 1)
+			contents = canonicalizeGolden(t, contents)
 			if err := ioutil.WriteFile(wantFile, contents, 0644); err != nil {
 				t.Fatal(err)
 			}
@@ -154,4 +158,16 @@ func testConfig(name string, t *testing.T) {
 		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff (got -> want), %s:\n%s",
 			name, &got, &want, name, test.Diff(got.Bytes(), want.Bytes()))
 	}
+}
+
+func canonicalizeGolden(t *testing.T, v []byte) []byte {
+	localPath, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v = bytes.Replace(v, []byte(localPath), []byte(secringPlaceholder), 1)
+	if !bytes.HasSuffix(v, []byte("\n")) {
+		v = append(v, '\n')
+	}
+	return v
 }
