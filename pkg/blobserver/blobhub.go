@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/syncutil"
 )
 
 type BlobHub interface {
@@ -145,14 +146,13 @@ func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
 		}()
 	}
 
-	var ret error
-	for _, hook := range h.hooks {
-		if err := hook(sb); err != nil && ret == nil {
-			ret = err
-		}
+	var grp syncutil.Group
+	for i := range h.hooks {
+		hook := h.hooks[i]
+		grp.Go(func() error { return hook(sb) })
 	}
 
-	return ret
+	return grp.Err()
 }
 
 func (h *memHub) RegisterListener(ch chan<- blob.Ref) {
