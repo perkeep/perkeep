@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"regexp"
 	"runtime"
 	"time"
@@ -30,6 +31,9 @@ var (
 	goVersion  = runtime.Version()
 	dotNumbers = regexp.MustCompile(`\.\d+`)
 )
+
+// NopCloser is an io.Closer that does nothing.
+var NopCloser io.Closer = ioutil.NopCloser(nil)
 
 // Time3339 is a time.Time which encodes to and from JSON
 // as an RFC 3339 time in UTC.

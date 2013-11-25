@@ -18,14 +18,15 @@ package client
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"regexp"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types"
 )
 
 func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
@@ -64,7 +65,7 @@ func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
 
 var blobsRx = regexp.MustCompile(blob.Pattern)
 
-func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (io.ReadCloser, int64, error) {
+func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size int64, err error) {
 	pfx, err := c.blobPrefix()
 	if err != nil {
 		return nil, 0, err
@@ -88,14 +89,34 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (io.ReadCloser, int64, error
 	if err != nil {
 		return nil, 0, err
 	}
+	defer func() {
+		if err != nil {
+			resp.Body.Close()
+		}
+	}()
 
 	if resp.StatusCode != 200 {
-		return nil, 0, errors.New(fmt.Sprintf("Got status code %d from blobserver for %s", resp.StatusCode, b))
+		return nil, 0, fmt.Errorf("Got status code %d from blobserver for %s", resp.StatusCode, b)
 	}
 
-	size := resp.ContentLength
+	var buf bytes.Buffer
+	var reader io.Reader = io.MultiReader(&buf, resp.Body)
+	var closer io.Closer = resp.Body
+	size = resp.ContentLength
 	if size == -1 {
-		return nil, 0, errors.New("blobserver didn't return a Content-Length for blob")
+		// Might be compressed. Slurp it to memory.
+		n, err := io.CopyN(&buf, resp.Body, blobserver.MaxBlobSize+1)
+		if n > blobserver.MaxBlobSize {
+			return nil, 0, fmt.Errorf("Blob %b over %d bytes; not reading more", b, blobserver.MaxBlobSize)
+		}
+		if err == nil {
+			panic("unexpected")
+		} else if err == io.EOF {
+			size = n
+			reader, closer = &buf, types.NopCloser
+		} else {
+			return nil, 0, fmt.Errorf("Error reading %s: %v", b, err)
+		}
 	}
 
 	if c.via == nil {
@@ -104,11 +125,12 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (io.ReadCloser, int64, error
 	}
 
 	// Slurp 1 MB to find references to other blobrefs for the via path.
-	const maxSlurp = 1 << 20
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, io.LimitReader(resp.Body, maxSlurp))
-	if err != nil {
-		return nil, 0, err
+	if buf.Len() == 0 {
+		const maxSlurp = 1 << 20
+		_, err = io.Copy(&buf, io.LimitReader(resp.Body, maxSlurp))
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 	// If it looks like a JSON schema blob (starts with '{')
 	if schema.LikelySchemaBlob(buf.Bytes()) {
@@ -116,12 +138,10 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (io.ReadCloser, int64, error
 			c.via[blobstr] = b.String()
 		}
 	}
-	// Read from the multireader, but close the HTTP response body.
-	type rc struct {
+	return struct {
 		io.Reader
 		io.Closer
-	}
-	return rc{io.MultiReader(&buf, resp.Body), resp.Body}, size, nil
+	}{reader, closer}, size, nil
 }
 
 func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
