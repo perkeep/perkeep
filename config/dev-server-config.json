@@ -98,8 +98,8 @@
       "/bs-recv/": {
           "handler": "storage-replica",
           "handlerArgs": {
-              "minWritesForSuccess": 3,
-              "backends": ["/bs/", "/sync-r1/", ["_env", "${CAMLI_INDEXER_PATH}"]],
+              "minWritesForSuccess": 2,
+              "backends": ["/bs/", ["_env", "${CAMLI_INDEXER_PATH}"]],
               "readBackends": ["/bs/"]
           }
       },
