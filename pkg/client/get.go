@@ -119,9 +119,14 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size in
 		}
 	}
 
+	var rc io.ReadCloser = struct {
+		io.Reader
+		io.Closer
+	}{reader, closer}
+
 	if c.via == nil {
 		// Not in sharing mode, so return immediately.
-		return resp.Body, size, nil
+		return rc, size, nil
 	}
 
 	// Slurp 1 MB to find references to other blobrefs for the via path.
@@ -138,10 +143,7 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size in
 			c.via[blobstr] = b.String()
 		}
 	}
-	return struct {
-		io.Reader
-		io.Closer
-	}{reader, closer}, size, nil
+	return rc, size, nil
 }
 
 func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
