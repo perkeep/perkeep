@@ -89,7 +89,7 @@
 			"handlerArgs": {
 				"keyId": "26F5ABDA",
 				"publicKeyDest": "/bs-and-index/",
-				"secretRing": "/Users/bradfitz/src/camlistore.org/pkg/jsonsign/testdata/test-secring.gpg"
+				"secretRing": "/path/to/secring"
 			}
 		},
 		"/status/": {

@@ -37,6 +37,8 @@ import (
 
 var updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
 
+const secringPlaceholder = "/path/to/secring"
+
 func init() {
 	// Avoid Linux vs. OS X differences in tests.
 	serverconfig.SetTempDirFunc(func() string { return "/tmp" })
@@ -99,7 +101,7 @@ func configParser() *jsonconfig.ConfigParser {
 			if err != nil {
 				return nil, err
 			}
-			slurp := strings.Replace(string(slurpBytes), "/path/to/secring", secRing, 1)
+			slurp := strings.Replace(string(slurpBytes), secringPlaceholder, secRing, 1)
 			return namedReadSeeker{path, strings.NewReader(slurp)}, nil
 		},
 	}
@@ -142,6 +144,9 @@ func testConfig(name string, t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			secRing, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
+			contents = bytes.Replace(contents, []byte(secRing),
+				[]byte(secringPlaceholder), 1)
 			if err := ioutil.WriteFile(wantFile, contents, 0644); err != nil {
 				t.Fatal(err)
 			}
