@@ -75,7 +75,7 @@ func testQueryType(t *testing.T, fn func(*queryTest), itype indexType) {
 			} else {
 				h.SetCorpus(corpus)
 			}
-			idx.PreventStorageAccessForTesting(t)
+			idx.PreventStorageAccessForTesting()
 		}
 		return h
 	}

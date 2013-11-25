@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/sorted"
@@ -74,21 +73,20 @@ func (x *Index) KeepInMemory() (*Corpus, error) {
 }
 
 // PreventStorageAccessForTesting causes any access to the index's underlying
-// Storage interface to crash, calling Fatal on the provided t.
-func (x *Index) PreventStorageAccessForTesting(t *testing.T) {
-	x.s = crashStorage{t: t}
+// Storage interface to panic.
+func (x *Index) PreventStorageAccessForTesting() {
+	x.s = crashStorage{}
 }
 
 type crashStorage struct {
 	sorted.KeyValue
-	t *testing.T
 }
 
-func (s crashStorage) Get(key string) (string, error) {
+func (crashStorage) Get(key string) (string, error) {
 	panic(fmt.Sprintf("unexpected KeyValue.Get(%q) called", key))
 }
 
-func (s crashStorage) Find(key string) sorted.Iterator {
+func (crashStorage) Find(key string) sorted.Iterator {
 	panic(fmt.Sprintf("unexpected KeyValue.Find(%q) called", key))
 }
 
