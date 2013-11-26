@@ -42,13 +42,17 @@ type Claim struct {
 	// TODO: document/decide how to represent "multi" claims here. One Claim each? Add Multi in here?
 	// Move/merge this in with the schema package?
 
-	BlobRef, Signer, Permanode blob.Ref
+	BlobRef, Signer blob.Ref
 
 	Date time.Time
 	Type string // "set-attribute", "add-attribute", etc
 
 	// If an attribute modification
 	Attr, Value string
+	Permanode blob.Ref
+
+	// If a DeleteClaim or a ShareClaim
+	Target blob.Ref
 }
 
 func (c *Claim) String() string {

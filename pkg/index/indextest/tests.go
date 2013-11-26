@@ -758,9 +758,12 @@ func IsDeleted(t *testing.T, initIdx func() *index.Index) {
 		t.Fatal(err)
 	}
 	// keep the deletes cache in sync manually for now
-	if err := idx.UpdateDeletesCache(pn1, id.lastTime()); err != nil {
-		t.Fatal(err)
+	deleteClaim := camtypes.Claim{
+		BlobRef: delpn1,
+		Target:  pn1,
+		Date:    id.lastTime(),
 	}
+	idx.UpdateDeletesCache(deleteClaim)
 	deleted := idx.IsDeleted(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
@@ -777,9 +780,12 @@ func IsDeleted(t *testing.T, initIdx func() *index.Index) {
 	if err := id.Set(delKey, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := idx.UpdateDeletesCache(delpn1, id.lastTime()); err != nil {
-		t.Fatal(err)
+	deleteClaim = camtypes.Claim{
+		BlobRef: deldelpn1,
+		Target:  delpn1,
+		Date:    id.lastTime(),
 	}
+	idx.UpdateDeletesCache(deleteClaim)
 	deleted = idx.IsDeleted(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
@@ -814,9 +820,12 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 		t.Fatal(err)
 	}
 	// keep the deletes cache in sync manually for now
-	if err := idx.UpdateDeletesCache(pn1, id.lastTime()); err != nil {
-		t.Fatal(err)
+	deleteClaim := camtypes.Claim{
+		BlobRef: delpn1,
+		Target:  pn1,
+		Date:    id.lastTime(),
 	}
+	idx.UpdateDeletesCache(deleteClaim)
 	deleted, when = idx.DeletedAt(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
@@ -836,15 +845,15 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 	if err := id.Set(delKey, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := idx.UpdateDeletesCache(delpn1, id.lastTime()); err != nil {
-		t.Fatal(err)
+	deleteClaim = camtypes.Claim{
+		BlobRef: deldelpn1,
+		Target:  delpn1,
+		Date:    id.lastTime(),
 	}
-	deleted, when = idx.DeletedAt(pn1)
+	idx.UpdateDeletesCache(deleteClaim)
+	deleted, _ = idx.DeletedAt(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
-	}
-	if reverseTimeString(schema.RFC3339FromTime(when)) != delTime {
-		t.Fatalf("pn1 should have been undeleted at %v, not %v", delTime, when)
 	}
 }
 
