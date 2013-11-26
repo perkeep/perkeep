@@ -476,7 +476,6 @@ func TestQueryPermanodeModtime(t *testing.T) {
 // TODO: make all the indextest/tests.go
 // also test the three memory build modes that testQuery does.
 func TestDecodeFileInfo(t *testing.T) {
-	t.Skip("TODO: finish; panics now on imageinfo calls")
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 		fileRef, _ := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))

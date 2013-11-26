@@ -34,6 +34,7 @@ type Corpus struct {
 	keyId      map[blob.Ref]string
 	files      map[blob.Ref]camtypes.FileInfo
 	permanodes map[blob.Ref]*PermanodeMeta
+	imageInfo  map[blob.Ref]camtypes.ImageInfo
 
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
@@ -53,6 +54,7 @@ func newCorpus() *Corpus {
 		camBlobs:   make(map[string]map[blob.Ref]*camtypes.BlobMeta),
 		files:      make(map[blob.Ref]camtypes.FileInfo),
 		permanodes: make(map[blob.Ref]*PermanodeMeta),
+		imageInfo:  make(map[blob.Ref]camtypes.ImageInfo),
 		deletedBy:  make(map[blob.Ref]blob.Ref),
 		keyId:      make(map[blob.Ref]string),
 	}
@@ -99,6 +101,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"claim":       (*Corpus).mergeClaimRow,
 	"fileinfo":    (*Corpus).mergeFileInfoRow,
 	"filetimes":   (*Corpus).mergeFileTimesRow,
+	"imagesize":   (*Corpus).mergeImageSizeRow,
 }
 
 func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
@@ -108,6 +111,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		"claim|",
 		"fileinfo|",
 		"filetimes|",
+		"imagesize|",
 	} {
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
@@ -249,6 +253,16 @@ func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
 	c.files[br] = fi
 }
 
+func (c *Corpus) mergeImageSizeRow(k, v string) error {
+	br, okk := blob.Parse(k[len("imagesize|"):])
+	ii, okv := kvImageInfo(v)
+	if !okk || !okv {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	c.imageInfo[br] = ii
+	return nil
+}
+
 // str returns s, interned.
 func (c *Corpus) str(s string) string {
 	if s == "" {
@@ -359,6 +373,16 @@ func (c *Corpus) GetFileInfo(fileRef blob.Ref) (fi camtypes.FileInfo, err error)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	fi, ok := c.files[fileRef]
+	if !ok {
+		err = os.ErrNotExist
+	}
+	return
+}
+
+func (c *Corpus) GetImageInfo(fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	ii, ok := c.imageInfo[fileRef]
 	if !ok {
 		err = os.ErrNotExist
 	}
