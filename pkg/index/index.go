@@ -345,7 +345,7 @@ func (x *Index) isDeletedNoCache(br blob.Ref) bool {
 	return false
 }
 
-func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) (err error) {
+func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int, before time.Time) (err error) {
 	defer close(dest)
 
 	keyId, err := x.KeyId(owner)
@@ -361,6 +361,7 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 	sent := 0
 	var seenPermanode dupSkipper
 
+	// TODO(bradfitz): handle before efficiently. don't use queryPrefix.
 	it := x.queryPrefix(keyRecentPermanode, keyId)
 	defer closeIterator(it, &err)
 	for it.Next() {
@@ -378,6 +379,9 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 			continue
 		}
 		if seenPermanode.Dup(permaStr) {
+			continue
+		}
+		if mTime.After(before) {
 			continue
 		}
 		dest <- camtypes.RecentPermanode{

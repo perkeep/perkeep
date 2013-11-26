@@ -128,7 +128,7 @@ func (fi *FakeIndex) KeyId(blob.Ref) (string, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int) error {
+func (fi *FakeIndex) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int, before time.Time) error {
 	panic("NOIMPL")
 }
 

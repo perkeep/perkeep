@@ -39,7 +39,8 @@ type Interface interface {
 	// limit <= 0 means unlimited.
 	GetRecentPermanodes(dest chan<- camtypes.RecentPermanode,
 		owner blob.Ref,
-		limit int) error
+		limit int,
+		before time.Time) error
 
 	// SearchPermanodes finds permanodes matching the provided
 	// request and sends unique permanode blobrefs to dest.

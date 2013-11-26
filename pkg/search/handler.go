@@ -208,15 +208,21 @@ type RecentRequest struct {
 }
 
 func (r *RecentRequest) URLSuffix() string {
-	// TODO: Before
-	return fmt.Sprintf("camli/search/recent?n=%d&thumbnails=%d", r.n(), r.thumbnailSize())
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "camli/search/recent?n=%d&thumbnails=%d", r.n(), r.thumbnailSize())
+	if !r.Before.IsZero() {
+		fmt.Fprintf(&buf, "&before=%s", types.Time3339(r.Before))
+	}
+	return buf.String()
 }
 
 // fromHTTP panics with an httputil value on failure
 func (r *RecentRequest) fromHTTP(req *http.Request) {
 	r.N, _ = strconv.Atoi(req.FormValue("n"))
 	r.ThumbnailSize = thumbnailSize(req)
-	// TODO: populate Before
+	if before := req.FormValue("before"); before != "" {
+		r.Before = time.Time(types.ParseTime3339OrZero(before))
+	}
 }
 
 // n returns the sanitized maximum number of search results.
@@ -467,8 +473,12 @@ var testHookBug121 = func() {}
 func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ch := make(chan camtypes.RecentPermanode)
 	errch := make(chan error, 1)
+	before := time.Now()
+	if !req.Before.IsZero() {
+		before = req.Before
+	}
 	go func() {
-		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, req.n())
+		errch <- sh.index.GetRecentPermanodes(ch, sh.owner, req.n(), before)
 	}()
 
 	dr := sh.NewDescribeRequest()

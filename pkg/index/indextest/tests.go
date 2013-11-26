@@ -460,7 +460,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// GetRecentPermanodes
 	{
 		ch := make(chan camtypes.RecentPermanode, 10) // expect 2 results, but maybe more if buggy.
-		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50)
+		err := id.Index.GetRecentPermanodes(ch, id.SignerBlobRef, 50, time.Now())
 		if err != nil {
 			t.Fatalf("GetRecentPermanodes = %v", err)
 		}
