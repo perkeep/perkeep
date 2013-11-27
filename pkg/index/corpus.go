@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types/camtypes"
@@ -384,37 +385,58 @@ func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
 	return t, !t.IsZero()
 }
 
+// signerFilter is optional.
+// dst must start with length 0 (laziness, mostly)
 func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	permaNode blob.Ref,
 	attr string,
+	at time.Time,
 	signerFilter blob.Ref) []string {
+	if len(dst) > 0 {
+		panic("len(dst) must be 0")
+	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return dst
 	}
-	_ = pm
-	// TODO: finish
-	panic("TODO(bradfitz): finish implementing")
+	if at.IsZero() {
+		at = time.Now()
+	}
+	for _, cl := range pm.Claims {
+		if cl.Attr != attr || cl.Date.After(at) {
+			continue
+		}
+		if signerFilter.Valid() && signerFilter != cl.Signer {
+			continue
+		}
+		switch cl.Type {
+		case string(schema.DelAttributeClaim):
+			if cl.Value == "" {
+				dst = dst[:0] // delete all
+			} else {
+				for i := 0; i < len(dst); i++ {
+					v := dst[i]
+					if v == cl.Value {
+						copy(dst[i:], dst[i+1:])
+						dst = dst[:len(dst)-1]
+						i--
+					}
+				}
+			}
+		case string(schema.SetAttributeClaim):
+			dst = append(dst[:0], cl.Value)
+		case string(schema.AddAttributeClaim):
+			dst = append(dst, cl.Value)
+		}
+	}
 	return dst
 }
 
 func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	signerFilter blob.Ref,
 	attrFilter string) ([]camtypes.Claim, error) {
-	needSort := false
-	defer func() {
-		if needSort {
-			// TODO: schedule sort of these.  It's not
-			// required by the interface, but we know our
-			// caller will want to do it, so make their
-			// job easier and give it to them
-			// pre-sorted. We do it here rather than
-			// during on-start scanning to save CPU, to do
-			// it fewer times per permanode.
-		}
-	}()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	pm, ok := c.permanodes[permaNode]

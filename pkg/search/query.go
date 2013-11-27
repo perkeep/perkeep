@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -237,8 +236,10 @@ type search struct {
 	q   *SearchQuery
 	res *SearchResult
 
-	mu      sync.Mutex
-	matches map[blob.Ref]bool
+	// ss is a scratch string slice to avoid allocations.
+	// We assume (at least so far) that only 1 goroutine is used
+	// for a given search, so anything can use this.
+	ss []string // scratch
 }
 
 func (s *search) blobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
@@ -255,10 +256,9 @@ func optimizePlan(c *Constraint) *Constraint {
 func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 	res := new(SearchResult)
 	s := &search{
-		h:       h,
-		q:       q,
-		res:     res,
-		matches: make(map[blob.Ref]bool),
+		h:   h,
+		q:   q,
+		res: res,
 	}
 
 	optConstraint := optimizePlan(q.Constraint)
@@ -435,7 +435,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	corpus := s.h.corpus
 
 	var dp *DescribedPermanode
-	if corpus == nil || c.Attr != "" /* TODO: delete c.Attr once TODO below is done */ {
+	if corpus == nil {
 		dr, err := s.h.Describe(&DescribeRequest{BlobRef: br})
 		if err != nil {
 			return false, err
@@ -448,13 +448,17 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	}
 
 	if c.Attr != "" {
-		// TODO(bradfitz): use Corpus. Add method on Corpus to
-		// resolve the current value(s) of an attribute
-		if !c.At.IsZero() {
-			// TODO: this should be supported, with Corpus
-			panic("PermanodeConstraint.At not implemented")
+		if !c.At.IsZero() && corpus == nil {
+			panic("PermanodeConstraint.At not supported without an in-memory corpus")
 		}
-		vals := dp.Attr[c.Attr]
+		var vals []string
+		if corpus == nil {
+			vals = dp.Attr[c.Attr]
+		} else {
+			s.ss = corpus.AppendPermanodeAttrValues(
+				s.ss[:0], br, c.Attr, c.At, s.h.owner)
+			vals = s.ss
+		}
 		ok, err := c.permanodeMatchesAttr(s, vals)
 		if !ok || err != nil {
 			return false, err
