@@ -430,8 +430,11 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
+	var dr *DescribeResponse
+	var err error
+
 	// TODO(bradfitz): optimized version for when there's a Corpus
-	dr, err := s.h.Describe(&DescribeRequest{
+	dr, err = s.h.Describe(&DescribeRequest{
 		BlobRef: br,
 	})
 	if err != nil {
@@ -446,7 +449,8 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 		if !c.At.IsZero() {
 			panic("PermanodeConstraint.At not implemented")
 		}
-		ok, err := c.permanodeMatchesAttr(s, dp)
+		vals := dp.Attr[c.Attr]
+		ok, err := c.permanodeMatchesAttr(s, vals)
 		if !ok || err != nil {
 			return false, err
 		}
@@ -457,14 +461,19 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	return true, nil
 }
 
-func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, dp *DescribedPermanode) (bool, error) {
-	attrs := dp.Attr // url.Values: a map[string][]string
+// vals are the current permanode values of c.Attr.
+func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, vals []string) (bool, error) {
+	var first string
+	if len(vals) > 0 {
+		first = vals[0]
+	}
 	if c.Value != "" {
-		got := attrs.Get(c.Attr)
-		return got == c.Value, nil
+		// TODO: document/decide behavior of all these with
+		// respect to multi-valued attributes.
+		return c.Value == first, nil
 	}
 	if len(c.ValueAny) > 0 {
-		for _, attr := range attrs[c.Attr] {
+		for _, attr := range vals {
 			for _, want := range c.ValueAny {
 				if want == attr {
 					return true, nil
@@ -474,7 +483,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, dp *DescribedPerma
 		return false, nil
 	}
 	if c.ValueSet {
-		for _, attr := range attrs[c.Attr] {
+		for _, attr := range vals {
 			if attr != "" {
 				return true, nil
 			}
@@ -482,16 +491,16 @@ func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, dp *DescribedPerma
 		return false, nil
 	}
 	if subc := c.ValueMatches; subc != nil {
-		for _, attr := range attrs[c.Attr] {
-			if attrBr, ok := blob.Parse(attr); ok {
-				meta, err := s.blobMeta(attrBr)
+		for _, val := range vals {
+			if br, ok := blob.Parse(val); ok {
+				meta, err := s.blobMeta(br)
 				if err == os.ErrNotExist {
 					continue
 				}
 				if err != nil {
 					return false, err
 				}
-				matches, err := subc.blobMatches(s, attrBr, meta)
+				matches, err := subc.blobMatches(s, br, meta)
 				if err != nil {
 					return false, err
 				}
