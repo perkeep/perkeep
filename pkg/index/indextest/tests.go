@@ -509,7 +509,6 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			lastPermanodeMutation.Unix())
 		verify("Non-zero before", want[1:], before)
 	}
-
 	// GetDirMembers
 	{
 		ch := make(chan blob.Ref, 10) // expect 2 results
@@ -759,44 +758,13 @@ func IsDeleted(t *testing.T, initIdx func() *index.Index) {
 	// so we just write deleted entries by hand in the index. That
 	// test will evolve in the next CLs.
 	delpn1 := id.Delete(pn1)
-	delTime := reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
-	delKey := pipes("deleted", pn1.String(), delTime, delpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	delKey = pipes("deletes", delpn1.String(), pn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	// keep the deletes cache in sync manually for now
-	deleteClaim := camtypes.Claim{
-		BlobRef: delpn1,
-		Target:  pn1,
-		Date:    id.lastTime(),
-	}
-	idx.UpdateDeletesCache(deleteClaim)
 	deleted := idx.IsDeleted(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
 	}
 
 	// undelete pn1
-	deldelpn1 := id.Delete(delpn1)
-	delTime = reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
-	delKey = pipes("deleted", delpn1.String(), delTime, deldelpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	delKey = pipes("deletes", deldelpn1.String(), delpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	deleteClaim = camtypes.Claim{
-		BlobRef: deldelpn1,
-		Target:  delpn1,
-		Date:    id.lastTime(),
-	}
-	idx.UpdateDeletesCache(deleteClaim)
+	id.Delete(delpn1)
 	deleted = idx.IsDeleted(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
@@ -817,92 +785,23 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	// delete pn1
-	// TODO(mpl): For now receive.go does not deal with deletions,
-	// so we just write deleted entries by hand in the index. That
-	// test will evolve in the next CLs.
 	delpn1 := id.Delete(pn1)
-	delTime := reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
-	delKey := pipes("deleted", pn1.String(), delTime, delpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	delKey = pipes("deletes", delpn1.String(), pn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	// keep the deletes cache in sync manually for now
-	deleteClaim := camtypes.Claim{
-		BlobRef: delpn1,
-		Target:  pn1,
-		Date:    id.lastTime(),
-	}
-	idx.UpdateDeletesCache(deleteClaim)
+	delTime := id.lastTime()
 	deleted, when = idx.DeletedAt(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
 	}
-	if reverseTimeString(schema.RFC3339FromTime(when)) != delTime {
+	if !when.Equal(delTime) {
 		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
 	}
 
 	// undelete pn1
-	deldelpn1 := id.Delete(delpn1)
-	delTime = reverseTimeString(schema.RFC3339FromTime(id.lastTime()))
-	delKey = pipes("deleted", delpn1.String(), delTime, deldelpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	delKey = pipes("deletes", deldelpn1.String(), delpn1.String())
-	if err := id.Set(delKey, ""); err != nil {
-		t.Fatal(err)
-	}
-	deleteClaim = camtypes.Claim{
-		BlobRef: deldelpn1,
-		Target:  delpn1,
-		Date:    id.lastTime(),
-	}
-	idx.UpdateDeletesCache(deleteClaim)
-	deleted, _ = idx.DeletedAt(pn1)
+	id.Delete(delpn1)
+	delTime = id.lastTime()
+	deleted, when = idx.DeletedAt(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
 	}
-}
-
-// TODO(mpl): remove all these below once we have the next CLs with higher level tests.
-// pipes returns args separated by pipes
-func pipes(args ...interface{}) string {
-	var buf bytes.Buffer
-	for n, arg := range args {
-		if n > 0 {
-			buf.WriteString("|")
-		}
-		if s, ok := arg.(string); ok {
-			buf.WriteString(s)
-		} else {
-			buf.WriteString(arg.(fmt.Stringer).String())
-		}
-	}
-	return buf.String()
-}
-
-func reverseTimeString(s string) string {
-	b := make([]byte, 0, len(s)+2)
-	b = append(b, 'r')
-	b = append(b, 't')
-	b = appendReverseString(b, s)
-	return string(b)
-}
-
-func appendReverseString(b []byte, s string) []byte {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= '0' && c <= '9' {
-			b = append(b, '0'+('9'-c))
-		} else {
-			b = append(b, c)
-		}
-	}
-	return b
 }
 
 type searchResults []camtypes.RecentPermanode

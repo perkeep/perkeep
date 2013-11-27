@@ -183,24 +183,6 @@ func (x *Index) initDeletesCache() error {
 	return err
 }
 
-// UpdateDeletesCache updates the index deletes cache with the cl delete claim.
-func (x *Index) UpdateDeletesCache(cl camtypes.Claim) {
-	// TODO(mpl): move it as a private method in receive.go with signature:
-	// x.updateDeletesCache(cl schema.Claim) error
-	// since the tests won't need to call it directly as soon as receive.go
-	// handles delete claims.
-	x.deletes.Lock()
-	defer x.deletes.Unlock()
-	targetDeletions := append(x.deletes.m[cl.Target],
-		deletion{
-			deleter: cl.BlobRef,
-			when:    cl.Date,
-		})
-	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
-	x.deletes.m[cl.Target] = targetDeletions
-	return
-}
-
 func kvDeleted(k string) (c camtypes.Claim, ok bool) {
 	// TODO(bradfitz): garbage
 	keyPart := strings.Split(k, "|")

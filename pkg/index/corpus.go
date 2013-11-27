@@ -151,11 +151,11 @@ func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 	return nil
 }
 
-func (c *Corpus) addBlob(br blob.Ref, mm mutationMap) error {
+func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.gen++
-	for k, v := range mm {
+	for k, v := range mm.kv {
 		kt := typeOfKey(k)
 		if fn, ok := corpusMergeFunc[kt]; ok {
 			if fn != nil {
