@@ -212,6 +212,10 @@ func kvDeleted(k string) (c camtypes.Claim, ok bool) {
 	}, true
 }
 
+// TODO(mpl): it looks like we won't be needing DeletedAt after all since we're probably
+// not going to consider (un)deletions as modifications as far as modtime is concerned.
+// Remove once getRecentPerms is done and we're sure about that.
+
 // DeletedAt returns whether br (a blobref or a claim) should be considered deleted,
 // and if yes, at what time the latest deletion occured. If it was never deleted,
 // it returns false, time.Time{}.
@@ -425,6 +429,9 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		if !ok {
 			continue
 		}
+		if x.IsDeleted(cl.BlobRef) {
+			continue
+		}
 		if attrFilter != "" && cl.Attr != attrFilter {
 			continue
 		}
@@ -512,7 +519,7 @@ func (x *Index) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (p
 	}
 	it := x.queryPrefix(keySignerAttrValue, keyId, attr, val)
 	defer closeIterator(it, &err)
-	if it.Next() {
+	for it.Next() {
 		permaRef, ok := blob.Parse(it.Value())
 		if ok && !x.IsDeleted(permaRef) {
 			return permaRef, nil
@@ -549,25 +556,64 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes
 	}
 	defer closeIterator(it, &err)
 	for it.Next() {
-		pn, ok := blob.Parse(it.Value())
+		cl, ok := kvSignerAttrValue(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
-		if x.IsDeleted(pn) {
+		if x.IsDeleted(cl.BlobRef) {
 			continue
 		}
-		pnstr := pn.String()
+		if x.IsDeleted(cl.Permanode) {
+			continue
+		}
+		pnstr := cl.Permanode.String()
 		if seen[pnstr] {
 			continue
 		}
 		seen[pnstr] = true
 
-		dest <- pn
+		dest <- cl.Permanode
 		if len(seen) == request.MaxResults {
 			break
 		}
 	}
 	return nil
+}
+
+func kvSignerAttrValue(k, v string) (c camtypes.Claim, ok bool) {
+	// TODO(bradfitz): garbage
+	keyPart := strings.Split(k, "|")
+	valPart := strings.Split(v, "|")
+	if len(keyPart) != 6 || len(valPart) != 1 {
+		// TODO(mpl): use glog
+		log.Printf("bogus keySignerAttrValue index entry: %q = %q", k, v)
+		return
+	}
+	if keyPart[0] != "signerattrvalue" {
+		return
+	}
+	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
+	if err != nil {
+		log.Printf("bogus time in keySignerAttrValue index entry: %q", keyPart[4])
+		return
+	}
+	claimRef, ok := blob.Parse(keyPart[5])
+	if !ok {
+		log.Printf("bogus claim in keySignerAttrValue index entry: %q", keyPart[5])
+		return
+	}
+	permaNode, ok := blob.Parse(valPart[0])
+	if !ok {
+		log.Printf("bogus permanode in keySignerAttrValue index entry: %q", valPart[0])
+		return
+	}
+	return camtypes.Claim{
+		BlobRef:   claimRef,
+		Permanode: permaNode,
+		Date:      date,
+		Attr:      urld(keyPart[2]),
+		Value:     urld(keyPart[3]),
+	}, true
 }
 
 func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.Path, err error) {
@@ -581,39 +627,27 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.
 	}
 
 	mostRecent := make(map[string]*camtypes.Path)
-	maxClaimDates := make(map[string]string)
+	maxClaimDates := make(map[string]time.Time)
 
 	it := x.queryPrefix(keyPathBackward, keyId, target)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		keyPart := strings.Split(it.Key(), "|")[1:]
-		valPart := strings.Split(it.Value(), "|")
-		if len(keyPart) < 3 || len(valPart) < 4 {
-			continue
-		}
-		claimRef, ok := blob.Parse(keyPart[2])
+		p, ok, active := kvPathBackward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
-		baseRef, ok := blob.Parse(valPart[1])
-		if !ok {
+		if x.IsDeleted(p.Claim) {
 			continue
 		}
-		claimDate := valPart[0]
-		active := valPart[2]
-		suffix := urld(valPart[3])
-		key := baseRef.String() + "/" + suffix
+		if x.IsDeleted(p.Base) {
+			continue
+		}
 
-		if claimDate > maxClaimDates[key] {
-			maxClaimDates[key] = claimDate
-			if active == "Y" {
-				mostRecent[key] = &camtypes.Path{
-					Claim:     claimRef,
-					ClaimDate: claimDate,
-					Base:      baseRef,
-					Suffix:    suffix,
-					Target:    target,
-				}
+		key := p.Base.String() + "/" + p.Suffix
+		if p.ClaimDate.After(maxClaimDates[key]) {
+			maxClaimDates[key] = p.ClaimDate
+			if active {
+				mostRecent[key] = &p
 			} else {
 				delete(mostRecent, key)
 			}
@@ -623,6 +657,50 @@ func (x *Index) PathsOfSignerTarget(signer, target blob.Ref) (paths []*camtypes.
 		paths = append(paths, v)
 	}
 	return paths, nil
+}
+
+func kvPathBackward(k, v string) (p camtypes.Path, ok bool, active bool) {
+	// TODO(bradfitz): garbage
+	keyPart := strings.Split(k, "|")
+	valPart := strings.Split(v, "|")
+	if len(keyPart) != 4 || len(valPart) != 4 {
+		// TODO(mpl): use glog
+		log.Printf("bogus keyPathBackward index entry: %q = %q", k, v)
+		return
+	}
+	if keyPart[0] != "signertargetpath" {
+		return
+	}
+	target, ok := blob.Parse(keyPart[2])
+	if !ok {
+		log.Printf("bogus target in keyPathBackward index entry: %q", keyPart[2])
+		return
+	}
+	claim, ok := blob.Parse(keyPart[3])
+	if !ok {
+		log.Printf("bogus claim in keyPathBackward index entry: %q", keyPart[3])
+		return
+	}
+	date, err := time.Parse(time.RFC3339, valPart[0])
+	if err != nil {
+		log.Printf("bogus date in keyPathBackward index entry: %q", valPart[0])
+		return
+	}
+	base, ok := blob.Parse(valPart[1])
+	if !ok {
+		log.Printf("bogus base in keyPathBackward index entry: %q", valPart[1])
+		return
+	}
+	if valPart[2] == "Y" {
+		active = true
+	}
+	return camtypes.Path{
+		Claim:     claim,
+		Base:      base,
+		Target:    target,
+		ClaimDate: date,
+		Suffix:    urld(valPart[3]),
+	}, true, active
 }
 
 func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*camtypes.Path, err error) {
@@ -638,42 +716,69 @@ func (x *Index) PathsLookup(signer, base blob.Ref, suffix string) (paths []*camt
 	it := x.queryPrefix(keyPathForward, keyId, base, suffix)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		keyPart := strings.Split(it.Key(), "|")[1:]
-		valPart := strings.Split(it.Value(), "|")
-		if len(keyPart) < 5 || len(valPart) < 2 {
-			continue
-		}
-		claimRef, ok := blob.Parse(keyPart[4])
+		p, ok, active := kvPathForward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
-		baseRef, ok := blob.Parse(keyPart[1])
-		if !ok {
+		if x.IsDeleted(p.Claim) {
 			continue
 		}
-		claimDate := unreverseTimeString(keyPart[3])
-		suffix := urld(keyPart[2])
-		target, ok := blob.Parse(valPart[1])
-		if !ok {
+		if x.IsDeleted(p.Target) {
 			continue
 		}
 
 		// TODO(bradfitz): investigate what's up with deleted
 		// forward path claims here.  Needs docs with the
 		// interface too, and tests.
-		active := valPart[0]
 		_ = active
 
-		path := &camtypes.Path{
-			Claim:     claimRef,
-			ClaimDate: claimDate,
-			Base:      baseRef,
-			Suffix:    suffix,
-			Target:    target,
-		}
-		paths = append(paths, path)
+		paths = append(paths, &p)
 	}
 	return
+}
+
+func kvPathForward(k, v string) (p camtypes.Path, ok bool, active bool) {
+	// TODO(bradfitz): garbage
+	keyPart := strings.Split(k, "|")
+	valPart := strings.Split(v, "|")
+	if len(keyPart) != 6 || len(valPart) != 2 {
+		// TODO(mpl): use glog
+		log.Printf("bogus keyPathForward index entry: %q = %q", k, v)
+		return
+	}
+	if keyPart[0] != "path" {
+		return
+	}
+	base, ok := blob.Parse(keyPart[2])
+	if !ok {
+		log.Printf("bogus base in keyPathForward index entry: %q", keyPart[2])
+		return
+	}
+	date, err := time.Parse(time.RFC3339, unreverseTimeString(keyPart[4]))
+	if err != nil {
+		log.Printf("bogus date in keyPathForward index entry: %q", keyPart[4])
+		return
+	}
+	claim, ok := blob.Parse(keyPart[5])
+	if !ok {
+		log.Printf("bogus claim in keyPathForward index entry: %q", keyPart[5])
+		return
+	}
+	if valPart[0] == "Y" {
+		active = true
+	}
+	target, ok := blob.Parse(valPart[1])
+	if !ok {
+		log.Printf("bogus target in keyPathForward index entry: %q", valPart[1])
+		return
+	}
+	return camtypes.Path{
+		Claim:     claim,
+		Base:      base,
+		Target:    target,
+		ClaimDate: date,
+		Suffix:    urld(keyPart[3]),
+	}, true, active
 }
 
 func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
@@ -692,10 +797,7 @@ func (x *Index) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (
 	}
 
 	for _, path := range paths {
-		t, err := time.Parse(time.RFC3339, path.ClaimDate)
-		if err != nil {
-			continue
-		}
+		t := path.ClaimDate
 		secs := t.Unix()
 		if atSeconds != 0 && secs > atSeconds {
 			// Too new

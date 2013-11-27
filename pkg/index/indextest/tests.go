@@ -613,20 +613,111 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 	id := NewIndexDeps(initIdx())
 	id.Fataler = t
+	defer id.DumpIndex(t)
+	signer := id.SignerBlobRef
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 
 	claim1 := id.SetAttribute(pn, "camliPath:somedir", "targ-123")
+	claim1Time := id.lastTime().UTC()
 	claim2 := id.SetAttribute(pn, "camliPath:with|pipe", "targ-124")
+	claim2Time := id.lastTime().UTC()
 	t.Logf("made path claims %q and %q", claim1, claim2)
-
-	id.DumpIndex(t)
 
 	type test struct {
 		blobref string
 		want    int
 	}
 	tests := []test{
+		{"targ-123", 1},
+		{"targ-124", 1},
+		{"targ-125", 0},
+	}
+	for _, tt := range tests {
+		paths, err := id.Index.PathsOfSignerTarget(signer, blob.ParseOrZero(tt.blobref))
+		if err != nil {
+			t.Fatalf("PathsOfSignerTarget(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsOfSignerTarget(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
+		}
+		if tt.blobref == "targ-123" {
+			p := paths[0]
+			want := fmt.Sprintf(
+				"Path{Claim: %s, %v; Base: %s + Suffix \"somedir\" => Target targ-123}",
+				claim1, claim1Time, pn)
+			if g := p.String(); g != want {
+				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
+			}
+		}
+	}
+	tests = []test{
+		{"somedir", 1},
+		{"with|pipe", 1},
+		{"void", 0},
+	}
+	for _, tt := range tests {
+		paths, err := id.Index.PathsLookup(id.SignerBlobRef, pn, tt.blobref)
+		if err != nil {
+			t.Fatalf("PathsLookup(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsLookup(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
+		}
+		if tt.blobref == "with|pipe" {
+			p := paths[0]
+			want := fmt.Sprintf(
+				"Path{Claim: %s, %s; Base: %s + Suffix \"with|pipe\" => Target targ-124}",
+				claim2, claim2Time, pn)
+			if g := p.String(); g != want {
+				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
+			}
+		}
+	}
+
+	// now test deletions
+	// Delete an existing value
+	claim3 := id.Delete(claim2)
+	t.Logf("claim %q deletes path claim %q", claim3, claim2)
+	tests = []test{
+		{"targ-123", 1},
+		{"targ-124", 0},
+		{"targ-125", 0},
+	}
+	for _, tt := range tests {
+		signer := id.SignerBlobRef
+		paths, err := id.Index.PathsOfSignerTarget(signer, blob.ParseOrZero(tt.blobref))
+		if err != nil {
+			t.Fatalf("PathsOfSignerTarget(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsOfSignerTarget(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
+		}
+	}
+	tests = []test{
+		{"somedir", 1},
+		{"with|pipe", 0},
+		{"void", 0},
+	}
+	for _, tt := range tests {
+		paths, err := id.Index.PathsLookup(id.SignerBlobRef, pn, tt.blobref)
+		if err != nil {
+			t.Fatalf("PathsLookup(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsLookup(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
+		}
+	}
+
+	// recreate second path, and test if the previous deletion of it
+	// is indeed ignored.
+	claim4 := id.Delete(claim3)
+	t.Logf("delete claim %q deletes claim %q, which should undelete %q", claim4, claim3, claim2)
+	tests = []test{
 		{"targ-123", 1},
 		{"targ-124", 1},
 		{"targ-125", 0},
@@ -641,23 +732,41 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 			t.Fatalf("PathsOfSignerTarget(%q) got %d results; want %d",
 				tt.blobref, len(paths), tt.want)
 		}
-		if tt.blobref == "targ-123" {
+		// and check the modtime too
+		if tt.blobref == "targ-124" {
 			p := paths[0]
 			want := fmt.Sprintf(
-				"Path{Claim: %s, 2011-11-28T01:32:37.000123456Z; Base: %s + Suffix \"somedir\" => Target targ-123}",
-				claim1, pn)
+				"Path{Claim: %s, %v; Base: %s + Suffix \"with|pipe\" => Target targ-124}",
+				claim2, claim2Time, pn)
 			if g := p.String(); g != want {
 				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
 			}
 		}
 	}
-
-	path, err := id.Index.PathLookup(id.SignerBlobRef, pn, "with|pipe", time.Now())
-	if err != nil {
-		t.Fatalf("PathLookup = %v", err)
+	tests = []test{
+		{"somedir", 1},
+		{"with|pipe", 1},
+		{"void", 0},
 	}
-	if g, e := path.Target.String(), "targ-124"; g != e {
-		t.Errorf("PathLookup = %q; want %q", g, e)
+	for _, tt := range tests {
+		paths, err := id.Index.PathsLookup(id.SignerBlobRef, pn, tt.blobref)
+		if err != nil {
+			t.Fatalf("PathsLookup(%q): %v", tt.blobref, err)
+		}
+		if len(paths) != tt.want {
+			t.Fatalf("PathsLookup(%q) got %d results; want %d",
+				tt.blobref, len(paths), tt.want)
+		}
+		// and check that modtime is now claim4Time
+		if tt.blobref == "with|pipe" {
+			p := paths[0]
+			want := fmt.Sprintf(
+				"Path{Claim: %s, %s; Base: %s + Suffix \"with|pipe\" => Target targ-124}",
+				claim2, claim2Time, pn)
+			if g := p.String(); g != want {
+				t.Errorf("claim wrong.\n got: %s\nwant: %s", g, want)
+			}
+		}
 	}
 }
 
@@ -746,37 +855,16 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 	}
 }
 
-func IsDeleted(t *testing.T, initIdx func() *index.Index) {
+func Delete(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
 	id := NewIndexDeps(idx)
 	id.Fataler = t
 	defer id.DumpIndex(t)
 	pn1 := id.NewPermanode()
-
-	// delete pn1
-	// TODO(mpl): For now receive.go does not deal with deletions,
-	// so we just write deleted entries by hand in the index. That
-	// test will evolve in the next CLs.
-	delpn1 := id.Delete(pn1)
-	deleted := idx.IsDeleted(pn1)
-	if !deleted {
-		t.Fatal("pn1 should be deleted")
-	}
-
-	// undelete pn1
-	id.Delete(delpn1)
-	deleted = idx.IsDeleted(pn1)
-	if deleted {
-		t.Fatal("pn1 should be undeleted")
-	}
-}
-
-func DeletedAt(t *testing.T, initIdx func() *index.Index) {
-	idx := initIdx()
-	id := NewIndexDeps(idx)
-	id.Fataler = t
-	defer id.DumpIndex(t)
-	pn1 := id.NewPermanode()
+	t.Logf("uploaded permanode %q", pn1)
+	cl1 := id.SetAttribute(pn1, "tag", "foo1")
+	cl1Time := id.lastTime()
+	t.Logf("set attribute %q", cl1)
 
 	// Test the never, ever, deleted case
 	deleted, when := idx.DeletedAt(pn1)
@@ -787,6 +875,11 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 	// delete pn1
 	delpn1 := id.Delete(pn1)
 	delTime := id.lastTime()
+	t.Logf("del claim %q deletes %q", delpn1, pn1)
+	deleted = idx.IsDeleted(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
 	deleted, when = idx.DeletedAt(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
@@ -794,13 +887,145 @@ func DeletedAt(t *testing.T, initIdx func() *index.Index) {
 	if !when.Equal(delTime) {
 		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
 	}
+	// and try to find it with SearchPermanodesWithAttr (which should not work)
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
 
 	// undelete pn1
-	id.Delete(delpn1)
+	del2 := id.Delete(delpn1)
 	delTime = id.lastTime()
+	t.Logf("delete claim %q deletes %q, which should revive %q", del2, delpn1, pn1)
+	deleted = idx.IsDeleted(pn1)
+	if deleted {
+		t.Fatal("pn1 should be undeleted")
+	}
 	deleted, when = idx.DeletedAt(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
+	}
+	// we should now be able to find it again with SearchPermanodesWithAttr
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{pn1}
+		if len(got) < 1 || got[0].String() != want[0].String() {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
+
+	// Delete cl1
+	del3 := id.Delete(cl1)
+	t.Logf("del claim %q deletes claim %q", del3, cl1)
+	deleted = idx.IsDeleted(cl1)
+	if !deleted {
+		t.Fatal("cl1 should be deleted")
+	}
+	// we should not find anything with SearchPermanodesWithAttr
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
+	// and now check that AppendClaims finds nothing for pn
+	{
+		claims, err := id.Index.AppendClaims(nil, pn1, id.SignerBlobRef, "")
+		if err != nil {
+			t.Errorf("AppendClaims = %v", err)
+		} else {
+			want := []camtypes.Claim{}
+			if len(claims) != len(want) {
+				t.Errorf("id.Index.AppendClaims gives %q, want %q", claims, want)
+			}
+		}
+	}
+
+	// undelete cl1
+	del4 := id.Delete(del3)
+	t.Logf("del claim %q deletes del claim %q, which should undelete %q", del4, del3, cl1)
+	// We should now be able to find it again with both methods
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{pn1}
+		if len(got) < 1 || got[0].String() != want[0].String() {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
+	// and check that AppendClaims finds cl1, with the right modtime too
+	{
+		claims, err := id.Index.AppendClaims(nil, pn1, id.SignerBlobRef, "")
+		if err != nil {
+			t.Errorf("AppendClaims = %v", err)
+		} else {
+			want := []camtypes.Claim{
+				camtypes.Claim{
+					BlobRef:   cl1,
+					Permanode: pn1,
+					Signer:    id.SignerBlobRef,
+					Date:      cl1Time.UTC(),
+					Type:      "set-attribute",
+					Attr:      "tag",
+					Value:     "foo1",
+				},
+			}
+			if !reflect.DeepEqual(claims, want) {
+				t.Errorf("GetOwnerClaims results differ.\n got: %v\nwant: %v",
+					claims, want)
+			}
+		}
 	}
 }
 

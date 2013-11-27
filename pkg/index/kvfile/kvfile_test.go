@@ -73,10 +73,6 @@ func TestEdgesTo_KV(t *testing.T) {
 	tester{}.test(t, indextest.EdgesTo)
 }
 
-func TestIsDeleted_KV(t *testing.T) {
-	tester{}.test(t, indextest.IsDeleted)
-}
-
-func TestDeletedAt_KV(t *testing.T) {
-	tester{}.test(t, indextest.DeletedAt)
+func TestDelete_KV(t *testing.T) {
+	tester{}.test(t, indextest.Delete)
 }

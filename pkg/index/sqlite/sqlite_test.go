@@ -108,12 +108,8 @@ func TestEdgesTo_SQLite(t *testing.T) {
 	sqliteTester{}.test(t, indextest.EdgesTo)
 }
 
-func TestIsDeleted_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.IsDeleted)
-}
-
-func TestDeletedAt_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.DeletedAt)
+func TestDelete_SQLite(t *testing.T) {
+	sqliteTester{}.test(t, indextest.Delete)
 }
 
 func TestConcurrency(t *testing.T) {
