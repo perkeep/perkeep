@@ -71,10 +71,23 @@ func (ix *Index) reindex(br blob.Ref) {
 	log.Printf("index: successfully reindexed %v", sb)
 }
 
-type mutationMap map[string]string
+type mutationMap struct {
+	kv map[string]string // the keys and values we populate
+	// TODO(mpl): we only need to keep track of one claim so far,
+	// but I chose a slice for when we need to do multi-claims?
+	deletes []schema.Claim // we record if we get a delete claim, so we can update
+	// the deletes cache right after committing the mutation.
+}
 
-func (mm mutationMap) Set(k, v string) {
-	mm[k] = v
+func (mm *mutationMap) Set(k, v string) {
+	if mm.kv == nil {
+		mm.kv = make(map[string]string)
+	}
+	mm.kv[k] = v
+}
+
+func (mm *mutationMap) noteDelete(deleteClaim schema.Claim) {
+	mm.deletes = append(mm.deletes, deleteClaim)
 }
 
 func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.SizedRef, err error) {
@@ -112,13 +125,28 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 }
 
 // commit writes the contents of the mutationMap on a batch
-// mutation and commits that batch.
-func (ix *Index) commit(mm mutationMap) error {
+// mutation and commits that batch. It also updates the deletes
+// cache.
+func (ix *Index) commit(mm *mutationMap) error {
+	// We want the update of the deletes cache to be atomic
+	// with the transaction commit, so we lock here instead
+	// of within updateDeletesCache.
+	ix.deletes.Lock()
+	defer ix.deletes.Unlock()
 	bm := ix.s.BeginBatch()
-	for k, v := range mm {
+	for k, v := range mm.kv {
 		bm.Set(k, v)
 	}
-	return ix.s.CommitBatch(bm)
+	err := ix.s.CommitBatch(bm)
+	if err != nil {
+		return err
+	}
+	for _, cl := range mm.deletes {
+		if err := ix.updateDeletesCache(cl); err != nil {
+			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+		}
+	}
+	return nil
 }
 
 // populateMutationMap populates keys & values that will be committed
@@ -126,12 +154,14 @@ func (ix *Index) commit(mm mutationMap) error {
 //
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
-func (ix *Index) populateMutationMap(br blob.Ref, sniffer *BlobSniffer) (mutationMap, error) {
+func (ix *Index) populateMutationMap(br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
 	// TODO(mpl): shouldn't we remove these two from the map (so they don't get committed) when
 	// e.g in populateClaim we detect a bogus claim (which does not yield an error)?
-	mm := mutationMap{
-		"have:" + br.String(): fmt.Sprintf("%d", sniffer.Size()),
-		"meta:" + br.String(): fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()),
+	mm := &mutationMap{
+		kv: map[string]string{
+			"have:" + br.String(): fmt.Sprintf("%d", sniffer.Size()),
+			"meta:" + br.String(): fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()),
+		},
 	}
 
 	if blob, ok := sniffer.SchemaBlob(); ok {
@@ -171,7 +201,7 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 
 // b: the parsed file schema blob
 // mm: keys to populate
-func (ix *Index) populateFile(b *schema.Blob, mm mutationMap) error {
+func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) error {
 	var times []time.Time // all creation or mod times seen; may be zero
 	times = append(times, b.ModTime())
 
@@ -255,7 +285,7 @@ func (ix *Index) populateFile(b *schema.Blob, mm mutationMap) error {
 
 // indexMusic adds mutations to index the wholeRef by most of the
 // fields in gotaglib.GenericTag.
-func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm mutationMap) {
+func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm *mutationMap) {
 	const justYearLayout = "2006"
 
 	var yearStr, trackStr string
@@ -284,7 +314,7 @@ func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm mutationMap) {
 
 // b: the parsed file schema blob
 // mm: keys to populate
-func (ix *Index) populateDir(b *schema.Blob, mm mutationMap) error {
+func (ix *Index) populateDir(b *schema.Blob, mm *mutationMap) error {
 	blobRef := b.BlobRef()
 	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto
 
@@ -312,7 +342,7 @@ func (ix *Index) populateDir(b *schema.Blob, mm mutationMap) error {
 
 // populateDeleteClaim adds to mm the entries resulting from the delete claim cl.
 // It is assumed cl is a valid claim, and vr has already been verified.
-func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm mutationMap) {
+func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm *mutationMap) {
 	br := cl.Blob().BlobRef()
 	target := cl.Target()
 	if !target.Valid() {
@@ -345,7 +375,7 @@ func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest
 	mm.Set(claimKey, keyPermanodeClaim.Val(cl.ClaimType(), attr, value, vr.CamliSigner))
 }
 
-func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
+func (ix *Index) populateClaim(b *schema.Blob, mm *mutationMap) error {
 	br := b.BlobRef()
 
 	claim, ok := b.AsClaim()
@@ -368,6 +398,7 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 
 	if claim.ClaimType() == string(schema.DeleteClaim) {
 		ix.populateDeleteClaim(claim, vr, mm)
+		mm.noteDelete(claim)
 		return nil
 	}
 
@@ -425,18 +456,21 @@ func (ix *Index) populateClaim(b *schema.Blob, mm mutationMap) error {
 	return nil
 }
 
-// pipes returns args separated by pipes
-func pipes(args ...interface{}) string {
-	var buf bytes.Buffer
-	for n, arg := range args {
-		if n > 0 {
-			buf.WriteString("|")
-		}
-		if s, ok := arg.(string); ok {
-			buf.WriteString(s)
-		} else {
-			buf.WriteString(arg.(fmt.Stringer).String())
-		}
+// updateDeletesCache updates the index deletes cache with the cl delete claim.
+// deleteClaim is trusted to be a valid delete Claim.
+func (x *Index) updateDeletesCache(deleteClaim schema.Claim) error {
+	target := deleteClaim.Target()
+	deleter := deleteClaim.Blob()
+	when, err := deleter.ClaimDate()
+	if err != nil {
+		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
 	}
-	return buf.String()
+	targetDeletions := append(x.deletes.m[target],
+		deletion{
+			deleter: deleter.BlobRef(),
+			when:    when,
+		})
+	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
+	x.deletes.m[target] = targetDeletions
+	return nil
 }
