@@ -273,6 +273,8 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 		match, err := optConstraint.blobMatches(s, meta.Ref, meta)
 		if err != nil {
 			// drain ch
+			// TODO(bradfitz): instead of draining, send a context
+			// to sendAllCandidates and interrupt it.
 			go func() {
 				for _ = range ch {
 				}
@@ -430,23 +432,26 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
-	var dr *DescribeResponse
-	var err error
+	corpus := s.h.corpus
 
-	// TODO(bradfitz): optimized version for when there's a Corpus
-	dr, err = s.h.Describe(&DescribeRequest{
-		BlobRef: br,
-	})
-	if err != nil {
-		return false, err
+	var dp *DescribedPermanode
+	if corpus == nil || c.Attr != "" /* TODO: delete c.Attr once TODO below is done */ {
+		dr, err := s.h.Describe(&DescribeRequest{BlobRef: br})
+		if err != nil {
+			return false, err
+		}
+		db := dr.Meta[br.String()]
+		if db == nil || db.Permanode == nil {
+			return false, nil
+		}
+		dp = db.Permanode
 	}
-	db := dr.Meta[br.String()]
-	if db == nil || db.Permanode == nil {
-		return false, nil
-	}
-	dp := db.Permanode // DescribedPermanode
+
 	if c.Attr != "" {
+		// TODO(bradfitz): use Corpus. Add method on Corpus to
+		// resolve the current value(s) of an attribute
 		if !c.At.IsZero() {
+			// TODO: this should be supported, with Corpus
 			panic("PermanodeConstraint.At not implemented")
 		}
 		vals := dp.Attr[c.Attr]
@@ -455,8 +460,15 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			return false, err
 		}
 	}
-	if c.ModTime != nil && !c.ModTime.timeMatches(dp.ModTime) {
-		return false, nil
+	if c.ModTime != nil {
+		if corpus != nil {
+			mt, ok := corpus.PermanodeModtime(br)
+			if !ok || !c.ModTime.timeMatches(mt) {
+				return false, nil
+			}
+		} else if !c.ModTime.timeMatches(dp.ModTime) {
+			return false, nil
+		}
 	}
 	return true, nil
 }

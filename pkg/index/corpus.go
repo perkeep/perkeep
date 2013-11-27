@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/sorted"
@@ -331,6 +332,36 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 func (c *Corpus) isDeletedLocked(br blob.Ref) bool {
 	// TODO: implement
 	return false
+}
+
+// PermanodeModtime returns the latest modification time of the given
+// permanode.
+//
+// The ok value is true only if the permanode is known and has any
+// non-deleted claims. A deleted claim is ignored and neither its
+// claim date nor the date of the delete claim affect the modtime of
+// the permanode.
+func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	pm, ok := c.permanodes[pn]
+	if !ok {
+		return
+	}
+	// Note: We intentionally don't try to derive any information
+	// (except the owner, elsewhere) from the permanode blob
+	// itself. Even though the permanode blob sometimes has the
+	// GPG signature time, we intentionally ignore it.
+	for _, cl := range pm.Claims {
+		if c.isDeletedLocked(cl.BlobRef) {
+			continue
+		}
+		if cl.Date.After(t) {
+			t = cl.Date
+		}
+	}
+	return t, !t.IsZero()
+
 }
 
 func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
