@@ -4,8 +4,19 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- does a permanode's modtime include the max claim date of a delete
+   claim affecting a permanode attribute claim?  Yes, it changed, but
+   it was more of a undo (didn't mean to do that), and not a real
+   modification in the log.  That is: after GC, if you were to delete
+   all the claims, what would the eventually consistent modtime be?  I
+   argue for only using the <verb>-attribute claim dates, and not the
+   dates of delete claims.  TODO: see if we all agree, and then
+   document/test.
+
 -- genconfig needs to be updated to route incoming blobs to sync handlers;
    or should sync handlers subscribe to their source's blobhub?
+   No, see latest email to Bill Thiede: sync handlers already subscribe
+   with a blocking hook. Related: index should too.
 
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
