@@ -345,6 +345,13 @@ func (x *Index) isDeletedNoCache(br blob.Ref) bool {
 	return false
 }
 
+// GetRecentPermanodes sends results to dest filtered by owner, limit, and
+// before.  A zero value for before will default to the current time.  The
+// results will have duplicates supressed, with most recent permanode
+// returned.
+// Note, permanodes more recent than before will still be fetched from the
+// index then skipped. This means runtime scales linearly with the number of
+// nodes more recent than before.
 func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int, before time.Time) (err error) {
 	defer close(dest)
 
@@ -361,6 +368,9 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 	sent := 0
 	var seenPermanode dupSkipper
 
+	if before.IsZero() {
+		before = time.Now()
+	}
 	// TODO(bradfitz): handle before efficiently. don't use queryPrefix.
 	it := x.queryPrefix(keyRecentPermanode, keyId)
 	defer closeIterator(it, &err)
@@ -381,7 +391,8 @@ func (x *Index) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner 
 		if seenPermanode.Dup(permaStr) {
 			continue
 		}
-		if mTime.After(before) {
+		// Skip entries with an mTime less than or equal to before.
+		if !mTime.Before(before) {
 			continue
 		}
 		dest <- camtypes.RecentPermanode{
