@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,12 @@ import (
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
 type Corpus struct {
 	mu sync.RWMutex
+
+	// building is true at start while scanning all rows in the
+	// index.  While building, certain invariants (like things
+	// being sorted) can be temporarily violated and fixed at the
+	// end of scan.
+	building bool
 
 	// gen is incremented on every blob received.
 	// It's used as a query cache invalidator.
@@ -46,7 +53,7 @@ type Corpus struct {
 
 type PermanodeMeta struct {
 	// TODO: OwnerKeyId string
-	Claims []camtypes.Claim
+	Claims []camtypes.Claim // sorted by camtypes.ClaimsByDate
 }
 
 func newCorpus() *Corpus {
@@ -106,6 +113,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 }
 
 func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
+	c.building = true
 	for _, prefix := range []string{
 		"meta:",
 		"signerkeyid:",
@@ -118,6 +126,13 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 			return err
 		}
 	}
+
+	// Restore invariants violated during building:
+	for _, pm := range c.permanodes {
+		sort.Sort(camtypes.ClaimsByDate(pm.Claims))
+	}
+	c.building = false
+
 	return nil
 }
 
@@ -198,6 +213,11 @@ func (c *Corpus) mergeClaimRow(k, v string) error {
 		c.permanodes[pn] = pm
 	}
 	pm.Claims = append(pm.Claims, cl)
+	if !c.building {
+		// Unless we're still starting up (at which we sort at
+		// the end instead), keep this sorted.
+		sort.Sort(camtypes.ClaimsByDate(pm.Claims))
+	}
 	return nil
 }
 
