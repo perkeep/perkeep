@@ -342,6 +342,7 @@ func (c *Corpus) isDeletedLocked(br blob.Ref) bool {
 // claim date nor the date of the delete claim affect the modtime of
 // the permanode.
 func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
+	// TODO: figure out behavior wrt mutations by different people
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	pm, ok := c.permanodes[pn]
@@ -361,7 +362,22 @@ func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
 		}
 	}
 	return t, !t.IsZero()
+}
 
+func (c *Corpus) AppendPermanodeAttrValues(dst []string,
+	permaNode blob.Ref,
+	attr string,
+	signerFilter blob.Ref) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	pm, ok := c.permanodes[permaNode]
+	if !ok {
+		return dst
+	}
+	_ = pm
+	// TODO: finish
+	panic("TODO(bradfitz): finish implementing")
+	return dst
 }
 
 func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
