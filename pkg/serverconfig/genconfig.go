@@ -532,7 +532,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 
 		// Blob storage options
 		blobPath           = conf.OptionalString("blobPath", "")
-		packBlobs          = conf.OptionalBool("packBlobs", false)      // use diskpacked instead of the default filestorage
+		packBlobs          = conf.OptionalBool("packBlobs", false)         // use diskpacked instead of the default filestorage
 		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket[:hostname]"
 		googlecloudstorage = conf.OptionalString("googlecloudstorage", "") // "clientId:clientSecret:refreshToken:bucket"
 		googledrive        = conf.OptionalString("googledrive", "")        // "clientId:clientSecret:refreshToken:parentId"
