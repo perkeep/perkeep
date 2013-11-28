@@ -46,6 +46,7 @@ type configPrefixesParams struct {
 	searchOwner      blob.Ref
 	shareHandlerPath string
 	flickr           string
+	memoryIndex      bool
 }
 
 var (
@@ -506,12 +507,16 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 			},
 		}
 
-		m["/my-search/"] = map[string]interface{}{
-			"handler": "search",
-			"handlerArgs": map[string]interface{}{
+		searchArgs := map[string]interface{}{
 				"index": params.indexerPath,
 				"owner": params.searchOwner.String(),
-			},
+		}
+		if params.memoryIndex {
+			searchArgs["slurpToMemory"] = true
+		}
+		m["/my-search/"] = map[string]interface{}{
+			"handler": "search",
+			"handlerArgs": searchArgs,
 		}
 	}
 
@@ -543,14 +548,15 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		shareHandlerPath = conf.OptionalString("shareHandlerPath", "")
 
 		// Index options
-		runIndex   = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
-		dbname     = conf.OptionalString("dbname", "")   // for mysql, postgres, mongo
-		mysql      = conf.OptionalString("mysql", "")
-		postgres   = conf.OptionalString("postgres", "")
-		memIndex   = conf.OptionalBool("memIndex", false)
-		mongo      = conf.OptionalString("mongo", "")
-		sqliteFile = conf.OptionalString("sqlite", "")
-		kvFile     = conf.OptionalString("kvIndexFile", "")
+		memoryIndex = conf.OptionalBool("memoryIndex", false)
+		runIndex    = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
+		dbname      = conf.OptionalString("dbname", "")   // for mysql, postgres, mongo
+		mysql       = conf.OptionalString("mysql", "")
+		postgres    = conf.OptionalString("postgres", "")
+		memIndex    = conf.OptionalBool("memIndex", false)
+		mongo       = conf.OptionalString("mongo", "")
+		sqliteFile  = conf.OptionalString("sqlite", "")
+		kvFile      = conf.OptionalString("kvIndexFile", "")
 
 		// Importer options
 		flickr = conf.OptionalString("flickr", "")
@@ -665,6 +671,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
 		shareHandlerPath: shareHandlerPath,
 		flickr:           flickr,
+		memoryIndex:      memoryIndex,
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams, ownerName)
