@@ -64,26 +64,38 @@ var (
 func New(s sorted.KeyValue) *Index {
 	idx := &Index{s: s}
 	schemaVersion := idx.schemaVersion()
-	if schemaVersion != 0 {
-		if schemaVersion != requiredSchemaVersion {
-			if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
-				// Good signal that we're using the devcam server, so help out
-				// the user with a more useful tip:
-				log.Fatalf("index schema version is %d; required one is %d (run \"devcam server --wipe\" to wipe both your blobs and reindex.)", schemaVersion, requiredSchemaVersion)
-			}
-			log.Fatalf("index schema version is %d; required one is %d. You need to reindex. See 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync'.)",
-				schemaVersion, requiredSchemaVersion)
-		}
-	} else {
+	switch {
+	case schemaVersion == 0 && idx.isEmpty():
+		// New index.
 		err := idx.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
 		if err != nil {
 			panic(fmt.Sprintf("Could not write index schema version %q: %v", requiredSchemaVersion, err))
 		}
+	case schemaVersion != requiredSchemaVersion:
+		tip := ""
+		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+			// Good signal that we're using the devcam server, so help out
+			// the user with a more useful tip:
+			tip = `(For the dev server, run "devcam server --wipe" to wipe both your blobs and index)`
+		} else {
+			tip = "See 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
+		}
+		log.Fatalf("index schema version is %d; required one is %d. You need to reindex. %s",
+			schemaVersion, requiredSchemaVersion, tip)
 	}
 	if err := idx.initDeletesCache(); err != nil {
 		panic(fmt.Sprintf("Could not initialize index's deletes cache: %v", err))
 	}
 	return idx
+}
+
+func (x *Index) isEmpty() bool {
+	iter := x.s.Find("")
+	hasRows := iter.Next()
+	if err := iter.Close(); err != nil {
+		panic(err)
+	}
+	return !hasRows
 }
 
 type prefixIter struct {
