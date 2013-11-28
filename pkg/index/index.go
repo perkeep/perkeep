@@ -952,41 +952,59 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camtypes.Edge, err error) {
 	it := x.queryPrefix(keyEdgeBackward, ref)
 	defer closeIterator(it, &err)
-	permanodeParents := map[string]blob.Ref{} // blobref key => blobref set
+	permanodeParents := make(map[string]*camtypes.Edge)
 	for it.Next() {
-		keyPart := strings.Split(it.Key(), "|")[1:]
-		if len(keyPart) < 2 {
-			continue
-		}
-		parent := keyPart[1]
-		parentRef, ok := blob.Parse(parent)
+		edge, ok := kvEdgeBackward(it.Key(), it.Value())
 		if !ok {
 			continue
 		}
-		valPart := strings.Split(it.Value(), "|")
-		if len(valPart) < 2 {
+		if x.IsDeleted(edge.From) {
 			continue
 		}
-		parentType, parentName := valPart[0], valPart[1]
-		if parentType == "permanode" {
-			permanodeParents[parent] = parentRef
+		if x.IsDeleted(edge.BlobRef) {
+			continue
+		}
+		edge.To = ref
+		if edge.FromType == "permanode" {
+			permanodeParents[edge.From.String()] = edge
 		} else {
-			edges = append(edges, &camtypes.Edge{
-				From:      parentRef,
-				FromType:  parentType,
-				FromTitle: parentName,
-				To:        ref,
-			})
+			edges = append(edges, edge)
 		}
 	}
-	for _, parentRef := range permanodeParents {
-		edges = append(edges, &camtypes.Edge{
-			From:     parentRef,
-			FromType: "permanode",
-			To:       ref,
-		})
+	for _, e := range permanodeParents {
+		edges = append(edges, e)
 	}
 	return edges, nil
+}
+
+func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
+	// TODO(bradfitz): garbage
+	keyPart := strings.Split(k, "|")
+	valPart := strings.Split(v, "|")
+	if len(keyPart) != 4 || len(valPart) != 2 {
+		// TODO(mpl): use glog
+		log.Printf("bogus keyEdgeBackward index entry: %q = %q", k, v)
+		return
+	}
+	if keyPart[0] != "edgeback" {
+		return
+	}
+	parentRef, ok := blob.Parse(keyPart[2])
+	if !ok {
+		log.Printf("bogus parent in keyEdgeBackward index entry: %q", keyPart[2])
+		return
+	}
+	blobRef, ok := blob.Parse(keyPart[3])
+	if !ok {
+		log.Printf("bogus blobref in keyEdgeBackward index entry: %q", keyPart[3])
+		return
+	}
+	return &camtypes.Edge{
+		From:      parentRef,
+		FromType:  valPart[0],
+		FromTitle: valPart[1],
+		BlobRef:   blobRef,
+	}, true
 }
 
 // GetDirMembers sends on dest the children of the static directory dir.

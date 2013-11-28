@@ -825,17 +825,51 @@ func EdgesTo(t *testing.T, initIdx func() *index.Index) {
 	idx := initIdx()
 	id := NewIndexDeps(idx)
 	id.Fataler = t
+	defer id.DumpIndex(t)
 
 	// pn1 ---member---> pn2
 	pn1 := id.NewPermanode()
 	pn2 := id.NewPermanode()
-	id.AddAttribute(pn1, "camliMember", pn2.String())
+	claim1 := id.AddAttribute(pn1, "camliMember", pn2.String())
 
 	t.Logf("edge %s --> %s", pn1, pn2)
 
-	id.DumpIndex(t)
-
 	// Look for pn1
+	{
+		edges, err := idx.EdgesTo(pn2, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(edges) != 1 {
+			t.Fatalf("num edges = %d; want 1", len(edges))
+		}
+		wantEdge := &camtypes.Edge{
+			From:     pn1,
+			To:       pn2,
+			FromType: "permanode",
+		}
+		if got, want := edges[0].String(), wantEdge.String(); got != want {
+			t.Errorf("Wrong edge.\n GOT: %v\nWANT: %v", got, want)
+		}
+	}
+
+	// Delete claim -> break edge relationship.
+	del1 := id.Delete(claim1)
+	t.Logf("del claim %q deletes claim %q, breaks link between p1 and p2", del1, claim1)
+	// test that we can't find anymore pn1 from pn2
+	{
+		edges, err := idx.EdgesTo(pn2, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(edges) != 0 {
+			t.Fatalf("num edges = %d; want 0", len(edges))
+		}
+	}
+
+	// Undelete, should restore the link.
+	del2 := id.Delete(del1)
+	t.Logf("del claim %q deletes del claim %q, restores link between p1 and p2", del2, del1)
 	{
 		edges, err := idx.EdgesTo(pn2, nil)
 		if err != nil {
