@@ -20,8 +20,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-    "os"
 	"log"
+	"os"
 
 	"camlistore.org/pkg/blobserver/diskpacked"
 	"camlistore.org/pkg/cmdmain"
@@ -85,7 +85,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 			}
 			aconf := jsonconfig.Obj(handlerArgs)
 			path = aconf.RequiredString("path")
-            // no aconv.Validate, as this is a recover tool
+			// no aconv.Validate, as this is a recover tool
 			if path != "" {
 				break
 			}
