@@ -900,27 +900,14 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 	cl1Time := id.lastTime()
 	t.Logf("set attribute %q", cl1)
 
-	// Test the never, ever, deleted case
-	deleted, when := idx.DeletedAt(pn1)
-	if deleted || !when.IsZero() {
-		t.Fatal("pn1 should never have been deleted")
-	}
-
 	// delete pn1
 	delpn1 := id.Delete(pn1)
-	delTime := id.lastTime()
 	t.Logf("del claim %q deletes %q", delpn1, pn1)
-	deleted = idx.IsDeleted(pn1)
+	deleted := idx.IsDeleted(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
 	}
-	deleted, when = idx.DeletedAt(pn1)
-	if !deleted {
-		t.Fatal("pn1 should be deleted")
-	}
-	if !when.Equal(delTime) {
-		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
-	}
+
 	// and try to find it with SearchPermanodesWithAttr (which should not work)
 	{
 		ch := make(chan blob.Ref, 10)
@@ -944,29 +931,16 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 
 	// delete pn1 again with another claim
 	delpn1bis := id.Delete(pn1)
-	delTime = id.lastTime()
 	t.Logf("del claim %q deletes %q a second time", delpn1bis, pn1)
 	deleted = idx.IsDeleted(pn1)
 	if !deleted {
 		t.Fatal("pn1 should be deleted")
 	}
-	deleted, when = idx.DeletedAt(pn1)
-	if !deleted {
-		t.Fatal("pn1 should be deleted")
-	}
-	if !when.Equal(delTime) {
-		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
-	}
 
 	// verify that deleting delpn1 is not enough to make pn1 undeleted
 	del2 := id.Delete(delpn1)
-	delTime = id.lastTime()
 	t.Logf("delete claim %q deletes %q, which should not yet revive %q", del2, delpn1, pn1)
 	deleted = idx.IsDeleted(pn1)
-	if !deleted {
-		t.Fatal("pn1 should not yet be undeleted")
-	}
-	deleted, when = idx.DeletedAt(pn1)
 	if !deleted {
 		t.Fatal("pn1 should not yet be undeleted")
 	}
@@ -993,13 +967,8 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 
 	// delete delpn1bis as well -> should undelete pn1
 	del2bis := id.Delete(delpn1bis)
-	delTime = id.lastTime()
 	t.Logf("delete claim %q deletes %q, which should revive %q", del2bis, delpn1bis, pn1)
 	deleted = idx.IsDeleted(pn1)
-	if deleted {
-		t.Fatal("pn1 should be undeleted")
-	}
-	deleted, when = idx.DeletedAt(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
 	}

@@ -364,7 +364,6 @@ func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest
 		return
 	}
 	mm.Set(keyDeleted.Key(target, cl.ClaimDateString(), br), "")
-	mm.Set(keyDeletes.Key(br, target), "")
 	if meta.CamliType == "claim" {
 		return
 	}

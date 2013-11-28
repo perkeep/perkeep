@@ -1,4 +1,6 @@
 A claim can delete a permanode or another claim.
+(Un)Deletions are not considered as modifications, so the claimDate of a delete claim
+is never considered as a modtime in the context of time constrained searches.
 -----
 
 {"camliVersion": 1,"

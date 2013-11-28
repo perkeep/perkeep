@@ -224,65 +224,6 @@ func kvDeleted(k string) (c camtypes.Claim, ok bool) {
 	}, true
 }
 
-// TODO(mpl): it looks like we won't be needing DeletedAt after all since we're probably
-// not going to consider (un)deletions as modifications as far as modtime is concerned.
-// Remove once getRecentPerms is done and we're sure about that.
-
-// DeletedAt returns whether br (a blobref or a claim) should be considered deleted,
-// and if yes, at what time the latest deletion occured. If it was never deleted,
-// it returns false, time.Time{}.
-func (x *Index) DeletedAt(br blob.Ref) (bool, time.Time) {
-	if x.deletes == nil {
-		// We still allow the slow path, in case someone creates
-		// their own Index without a deletes cache.
-		return x.deletedAtNoCache(br)
-	}
-	x.deletes.RLock()
-	defer x.deletes.RUnlock()
-	return x.deletedAt(br)
-}
-
-// The caller must hold x.deletes.mu for read.
-func (x *Index) deletedAt(br blob.Ref) (bool, time.Time) {
-	deletes, ok := x.deletes.m[br]
-	if !ok {
-		return false, time.Time{}
-	}
-	for _, v := range deletes {
-		if deleterIsDeleted, _ := x.deletedAt(v.deleter); !deleterIsDeleted {
-			// We can exit early because the deletes are time sorted
-			return true, v.when
-		}
-	}
-	return false, time.Time{}
-}
-
-// Used when the Index has no deletes cache (x.deletes is nil).
-func (x *Index) deletedAtNoCache(br blob.Ref) (bool, time.Time) {
-	var err error
-	it := x.queryPrefix(keyDeleted, br)
-	deleted := false
-	var mostRecentDeletion time.Time
-	for it.Next() {
-		cl, ok := kvDeleted(it.Key())
-		if !ok {
-			panic(fmt.Sprintf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key()))
-		}
-		if deleterIsDeleted, _ := x.deletedAtNoCache(cl.BlobRef); !deleterIsDeleted {
-			deleted = true
-			mostRecentDeletion = cl.Date
-			// we can exit early because the iterator gives use time sorted entries for keyDeleted
-			break
-		}
-	}
-	closeIterator(it, &err)
-	if err != nil {
-		// TODO: Do better?
-		panic(fmt.Sprintf("Could not close iterator on keyDeleted: %v", err))
-	}
-	return deleted, mostRecentDeletion
-}
-
 // IsDeleted reports whether the provided blobref (of a permanode or
 // claim) should be considered deleted.
 func (x *Index) IsDeleted(br blob.Ref) bool {

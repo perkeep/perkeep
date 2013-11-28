@@ -269,17 +269,6 @@ var (
 		nil,
 	}
 
-	// keyDeletes indexes a claim that deletes an entity. It ties the deleter
-	// claim to the deleted entity.
-	keyDeletes = &keyType{
-		"deletes",
-		[]part{
-			{"deleter", typeBlobRef}, // the deleter claim blobref
-			{"deleted", typeBlobRef}, // the deleted entity (a permanode or another claim)
-		},
-		nil,
-	}
-
 	// Given a blobref (permanode or static file or directory), provide a mapping
 	// to potential parents (they may no longer be parents, in the case of permanodes).
 	// In the case of permanodes, camliMember or camliContent constitutes a forward
