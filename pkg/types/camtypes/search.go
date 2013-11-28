@@ -49,7 +49,7 @@ type Claim struct {
 
 	// If an attribute modification
 	Attr, Value string
-	Permanode blob.Ref
+	Permanode   blob.Ref
 
 	// If a DeleteClaim or a ShareClaim
 	Target blob.Ref
@@ -120,7 +120,7 @@ type ImageInfo struct {
 
 type Path struct {
 	Claim, Base, Target blob.Ref
-	ClaimDate           string // TODO: why is this a string?
+	ClaimDate           time.Time
 	Suffix              string // ??
 }
 

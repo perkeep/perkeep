@@ -98,10 +98,6 @@ func TestEdgesTo_Mongo(t *testing.T) {
 	mongoTester{}.test(t, indextest.EdgesTo)
 }
 
-func TestIsDeleted_Mongo(t *testing.T) {
-	mongoTester{}.test(t, indextest.IsDeleted)
-}
-
-func TestDeletedAt_Mongo(t *testing.T) {
-	mongoTester{}.test(t, indextest.DeletedAt)
+func TestDelete_Mongo(t *testing.T) {
+	mongoTester{}.test(t, indextest.Delete)
 }
