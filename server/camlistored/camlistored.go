@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -424,9 +425,13 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	flag.Parse()
 
 	if *flagVersion {
-		fmt.Fprintf(os.Stderr, "camlistored version: %s\n", buildinfo.Version())
+		fmt.Fprintf(os.Stderr, "camlistored version: %s\nGo version: %s (%s/%s)\n",
+			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
+
+	log.Printf("Starting camlistored version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+		runtime.GOOS, runtime.GOARCH)
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)
