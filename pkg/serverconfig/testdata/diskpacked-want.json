@@ -40,7 +40,7 @@
 			}
 		},
 		"/cache/": {
-			"handler": "storage-filesystem",
+			"handler": "storage-diskpacked",
 			"handlerArgs": {
 				"path": "/tmp/blobs/cache"
 			}

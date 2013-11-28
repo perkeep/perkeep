@@ -109,10 +109,6 @@ func TestEdgesTo_MySQL(t *testing.T) {
 	mysqlTester{}.test(t, indextest.EdgesTo)
 }
 
-func TestIsDeleted_MySQL(t *testing.T) {
-	mysqlTester{}.test(t, indextest.IsDeleted)
-}
-
-func TestDeletedAt_MySQL(t *testing.T) {
-	mysqlTester{}.test(t, indextest.DeletedAt)
+func TestDelete_MySQL(t *testing.T) {
+	mysqlTester{}.test(t, indextest.Delete)
 }

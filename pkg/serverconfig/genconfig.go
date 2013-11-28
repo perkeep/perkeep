@@ -447,7 +447,7 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 
 		m["/cache/"] = map[string]interface{}{
-			"handler": "storage-filesystem",
+			"handler": "storage-" + storageType,
 			"handlerArgs": map[string]interface{}{
 				"path": filepath.Join(params.blobPath, "/cache"),
 			},

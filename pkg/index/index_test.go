@@ -62,12 +62,8 @@ func TestEdgesTo_Memory(t *testing.T) {
 	indextest.EdgesTo(t, index.NewMemoryIndex)
 }
 
-func TestIsDeleted_Memory(t *testing.T) {
-	indextest.IsDeleted(t, index.NewMemoryIndex)
-}
-
-func TestDeletedAt_Memory(t *testing.T) {
-	indextest.DeletedAt(t, index.NewMemoryIndex)
+func TestDelete_Memory(t *testing.T) {
+	indextest.Delete(t, index.NewMemoryIndex)
 }
 
 var (
