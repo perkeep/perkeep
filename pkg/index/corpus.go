@@ -38,6 +38,7 @@ type Corpus struct {
 	// TODO: add map[blob.Ref]blob.Ref
 
 	blobs map[blob.Ref]*camtypes.BlobMeta
+	sumBlobBytes int64
 
 	// camlBlobs maps from camliType ("file") to blobref to the meta.
 	// The value is the same one in blobs.
@@ -157,14 +158,22 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	if ms1.Alloc < ms0.Alloc {
 		memUsed = 0
 	}
-	log.Printf("Corpus stats: %.2f MB (%d bytes), %d blobs; %d permanodes, %d files, %d images",
+	log.Printf("Corpus stats: %.3f MiB mem: %d blobs (%.3f GiB) (%d schema (%d permanode, %d file (%d image), ...)",
 		float64(memUsed)/(1<<20),
-		memUsed,
 		len(c.blobs),
+		float64(c.sumBlobBytes)/(1<<30),
+		c.numSchemaBlobsLocked(),
 		len(c.permanodes),
 		len(c.files),
 		len(c.imageInfo))
 	return nil
+}
+
+func (c *Corpus) numSchemaBlobsLocked() (n int64) {
+	for _, m := range c.camBlobs {
+		n += int64(len(m))
+	}
+	return
 }
 
 func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
@@ -206,8 +215,17 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 	if !ok {
 		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
 	}
+	if _, dup := c.blobs[bm.Ref]; dup {
+		// Um, shouldn't happen.  TODO(bradfitz): is it
+		// guaranteed elsewhere that duplicate blobs are never
+		// re-indexed? Do we ever make assumptions that it
+		// isn't the case? Summing onto sumBlobBytes below
+		// here is one such case.
+		return nil
+	}
 	bm.CamliType = c.str(bm.CamliType)
 	c.blobs[bm.Ref] = &bm
+	c.sumBlobBytes += int64(bm.Size)
 	if bm.CamliType != "" {
 		m, ok := c.camBlobs[bm.CamliType]
 		if !ok {
