@@ -908,10 +908,59 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	// undelete pn1
+	// delete pn1 again with another claim
+	delpn1bis := id.Delete(pn1)
+	delTime = id.lastTime()
+	t.Logf("del claim %q deletes %q a second time", delpn1bis, pn1)
+	deleted = idx.IsDeleted(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
+	deleted, when = idx.DeletedAt(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
+	if !when.Equal(delTime) {
+		t.Fatalf("pn1 should have been deleted at %v, not %v", delTime, when)
+	}
+
+	// verify that deleting delpn1 is not enough to make pn1 undeleted
 	del2 := id.Delete(delpn1)
 	delTime = id.lastTime()
-	t.Logf("delete claim %q deletes %q, which should revive %q", del2, delpn1, pn1)
+	t.Logf("delete claim %q deletes %q, which should not yet revive %q", del2, delpn1, pn1)
+	deleted = idx.IsDeleted(pn1)
+	if !deleted {
+		t.Fatal("pn1 should not yet be undeleted")
+	}
+	deleted, when = idx.DeletedAt(pn1)
+	if !deleted {
+		t.Fatal("pn1 should not yet be undeleted")
+	}
+	// we should not yet be able to find it again with SearchPermanodesWithAttr
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "foo1"}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("id.Index.SearchPermanodesWithAttr gives %q, want %q", got, want)
+		}
+	}
+
+	// delete delpn1bis as well -> should undelete pn1
+	del2bis := id.Delete(delpn1bis)
+	delTime = id.lastTime()
+	t.Logf("delete claim %q deletes %q, which should revive %q", del2bis, delpn1bis, pn1)
 	deleted = idx.IsDeleted(pn1)
 	if deleted {
 		t.Fatal("pn1 should be undeleted")
