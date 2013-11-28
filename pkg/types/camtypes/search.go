@@ -157,6 +157,7 @@ type Edge struct {
 	FromType  string // "permanode", "directory", etc
 	FromTitle string // name of source permanode or directory
 	To        blob.Ref
+	BlobRef   blob.Ref // the blob responsible for the edge relationship
 }
 
 func (e *Edge) String() string {
