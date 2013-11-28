@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +33,10 @@ type Corpus struct {
 	// It's used as a query cache invalidator.
 	gen int64
 
-	strs  map[string]string // interned strings
+	// Intern maps:
+	strs map[string]string // interned strings
+	// TODO: add map[blob.Ref]blob.Ref
+
 	blobs map[blob.Ref]*camtypes.BlobMeta
 
 	// camlBlobs maps from camliType ("file") to blobref to the meta.
@@ -113,16 +117,30 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"imagesize":   (*Corpus).mergeImageSizeRow,
 }
 
+func memstats() *runtime.MemStats {
+	ms := new(runtime.MemStats)
+	runtime.GC()
+	runtime.ReadMemStats(ms)
+	return ms
+}
+
 func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = true
-	for _, prefix := range []string{
+
+	ms0 := memstats()
+
+	log.Printf("Slurping corpus to memory from index...")
+	prefixes := []string{
 		"meta:",
 		"signerkeyid:",
 		"claim|",
 		"fileinfo|",
 		"filetimes|",
 		"imagesize|",
-	} {
+	}
+
+	for i, prefix := range prefixes {
+		log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+1, len(prefixes), prefix)
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
 		}
@@ -134,6 +152,18 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	}
 	c.building = false
 
+	ms1 := memstats()
+	memUsed := ms1.Alloc - ms0.Alloc
+	if ms1.Alloc < ms0.Alloc {
+		memUsed = 0
+	}
+	log.Printf("Corpus stats: %.2f MB (%d bytes), %d blobs; %d permanodes, %d files, %d images",
+		float64(memUsed)/(1<<20),
+		memUsed,
+		len(c.blobs),
+		len(c.permanodes),
+		len(c.files),
+		len(c.imageInfo))
 	return nil
 }
 
