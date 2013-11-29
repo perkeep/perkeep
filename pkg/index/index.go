@@ -446,11 +446,14 @@ func (x *Index) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	if pos < 0 {
 		panic(fmt.Sprintf("Bogus index row for key %q: got value %q", key, meta))
 	}
-	size, _ := strconv.ParseInt(meta[:pos], 10, 64)
+	size, err := strconv.ParseUint(meta[:pos], 10, 32)
+	if err != nil {
+		return camtypes.BlobMeta{}, err
+	}
 	mime := meta[pos+1:]
 	return camtypes.BlobMeta{
 		Ref:       br,
-		Size:      int(size),
+		Size:      uint32(size),
 		CamliType: camliTypeFromMIME(mime),
 	}, nil
 }
@@ -988,13 +991,13 @@ func kvBlobMeta(k, v string) (bm camtypes.BlobMeta, ok bool) {
 	if pipe < 0 {
 		return
 	}
-	size, err := strconv.Atoi(v[:pipe])
+	size, err := strconv.ParseUint(v[:pipe], 10, 32)
 	if err != nil {
 		return
 	}
 	return camtypes.BlobMeta{
 		Ref:       br,
-		Size:      size,
+		Size:      uint32(size),
 		CamliType: camliTypeFromMIME(v[pipe+1:]),
 	}, true
 }

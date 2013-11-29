@@ -168,8 +168,15 @@ func (e *Edge) String() string {
 	return fmt.Sprintf("[edge from:%s to:%s type:%s title:%s]", e.From, e.To, e.FromType, e.FromTitle)
 }
 
+// BlobMeta is the metadata kept for each known blob in the in-memory
+// search index. It's kept as small as possible to save memory.
 type BlobMeta struct {
-	Ref       blob.Ref
-	Size      int
+	Ref  blob.Ref
+	Size uint32
+
+	// CamliType is non-empty if this blob is a Camlistore JSON
+	// schema blob. If so, this is its "camliType" attribute.
 	CamliType string
+
+	// TODO(bradfitz): change CamliTypethis *string to save 8 bytes
 }

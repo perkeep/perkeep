@@ -19,6 +19,7 @@ package test
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -79,11 +80,14 @@ func camliTypeFromMime(mime string) string {
 }
 
 func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size int64) {
+	if size < 0 || size > math.MaxUint32 {
+		panic("bad size")
+	}
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	fi.meta[br] = camtypes.BlobMeta{
 		Ref:       br,
-		Size:      int(size),
+		Size:      uint32(size),
 		CamliType: camliType,
 	}
 }
