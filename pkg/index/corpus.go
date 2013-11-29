@@ -33,11 +33,10 @@ type Corpus struct {
 	// It's used as a query cache invalidator.
 	gen int64
 
-	// Intern maps:
-	strs map[string]string // interned strings
-	// TODO: add map[blob.Ref]blob.Ref
+	strs      map[string]string // interned strings
+	brInterns int64
 
-	blobs map[blob.Ref]*camtypes.BlobMeta
+	blobs        map[blob.Ref]*camtypes.BlobMeta
 	sumBlobBytes int64
 
 	// camlBlobs maps from camliType ("file") to blobref to the meta.
@@ -132,7 +131,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 
 	log.Printf("Slurping corpus to memory from index...")
 	prefixes := []string{
-		"meta:",
+		"meta:", // should be first, for blobref interning
 		"signerkeyid:",
 		"claim|",
 		"fileinfo|",
@@ -147,11 +146,23 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		}
 	}
 
-	// Restore invariants violated during building:
+	// Post-load optimizations and restoration of invariants.
 	for _, pm := range c.permanodes {
+		// Restore invariants violated during building:
 		sort.Sort(camtypes.ClaimsByDate(pm.Claims))
+
+		// And intern some stuff.
+		for i := range pm.Claims {
+			cl := &pm.Claims[i]
+			cl.BlobRef = c.br(cl.BlobRef)
+			cl.Signer = c.br(cl.Signer)
+			cl.Permanode = c.br(cl.Permanode)
+			cl.Target = c.br(cl.Target)
+		}
+
 	}
 	c.building = false
+	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
 	ms1 := memstats()
 	memUsed := ms1.Alloc - ms0.Alloc
@@ -224,6 +235,7 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 		return nil
 	}
 	bm.CamliType = c.str(bm.CamliType)
+
 	c.blobs[bm.Ref] = &bm
 	c.sumBlobBytes += int64(bm.Size)
 	if bm.CamliType != "" {
@@ -255,7 +267,7 @@ func (c *Corpus) mergeClaimRow(k, v string) error {
 	cl.Attr = c.str(cl.Attr)
 	cl.Value = c.str(cl.Value) // less likely to intern, but some (tags) do
 
-	pn := cl.Permanode
+	pn := c.br(cl.Permanode)
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		pm = new(PermanodeMeta)
@@ -318,6 +330,7 @@ func (c *Corpus) mergeFileTimesRow(k, v string) error {
 }
 
 func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
+	br = c.br(br)
 	fi := c.files[br] // use zero value if not present
 	fn(&fi)
 	c.files[br] = fi
@@ -329,6 +342,7 @@ func (c *Corpus) mergeImageSizeRow(k, v string) error {
 	if !okk || !okv {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
+	br = c.br(br)
 	c.imageInfo[br] = ii
 	return nil
 }
@@ -346,6 +360,15 @@ func (c *Corpus) str(s string) string {
 	}
 	c.strs[s] = s
 	return s
+}
+
+// br returns br, interned.
+func (c *Corpus) br(br blob.Ref) blob.Ref {
+	if bm, ok := c.blobs[br]; ok {
+		c.brInterns++
+		return bm.Ref
+	}
+	return br
 }
 
 // *********** Reading from the corpus
