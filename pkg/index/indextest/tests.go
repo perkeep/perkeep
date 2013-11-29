@@ -275,6 +275,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 func Index(t *testing.T, initIdx func() *index.Index) {
 	id := NewIndexDeps(initIdx())
 	id.Fataler = t
+	defer id.DumpIndex(t)
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "tag", "foo1")
@@ -341,7 +342,6 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	)
 
 	lastPermanodeMutation := id.lastTime()
-	id.DumpIndex(t)
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
@@ -409,7 +409,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		req := &camtypes.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
 			Attribute: "tag",
-			Query:     "foo1"}
+			Query:     "foo1",
+		}
 		err := id.Index.SearchPermanodesWithAttr(ch, req)
 		if err != nil {
 			t.Fatalf("SearchPermanodesWithAttr = %v", err)
@@ -429,7 +430,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		ch := make(chan blob.Ref, 10)
 		req := &camtypes.PermanodeByAttrRequest{
 			Signer:    id.SignerBlobRef,
-			Attribute: "tag"}
+			Attribute: "tag",
+		}
 		err := id.Index.SearchPermanodesWithAttr(ch, req)
 		if err != nil {
 			t.Fatalf("SearchPermanodesWithAttr = %v", err)
@@ -454,6 +456,32 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			if !found {
 				t.Errorf("SearchPermanodesWithAttr: %v was not found.\n", w)
 			}
+		}
+	}
+
+	// Delete value "pony" of type "title" (which does not actually exist) for pn
+	br4 := id.DelAttribute(pn, "title", "pony")
+	br4Time := id.lastTime()
+	// and verify it is not found when searching by attr
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "title",
+			Query:     "pony",
+		}
+		err := id.Index.SearchPermanodesWithAttr(ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
+				got, want)
 		}
 	}
 
@@ -492,7 +520,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			{
 				Permanode:   pn,
 				Signer:      id.SignerBlobRef,
-				LastModTime: lastPermanodeMutation,
+				LastModTime: br4Time,
 			},
 			{
 				Permanode:   pnChild,
@@ -600,6 +628,15 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 					Type:      "add-attribute",
 					Attr:      "camliMember",
 					Value:     pnChild.String(),
+				},
+				{
+					BlobRef:   br4,
+					Permanode: pn,
+					Signer:    id.SignerBlobRef,
+					Date:      br4Time.UTC(),
+					Type:      "del-attribute",
+					Attr:      "title",
+					Value:     "pony",
 				},
 			}
 			if !reflect.DeepEqual(claims, want) {
