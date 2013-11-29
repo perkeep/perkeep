@@ -439,7 +439,7 @@ func (ix *Index) populateClaim(b *schema.Blob, mm *mutationMap) error {
 		}
 	}
 
-	if IsIndexedAttribute(attr) {
+	if claim.ClaimType() != string(schema.DelAttributeClaim) && IsIndexedAttribute(attr) {
 		key := keySignerAttrValue.Key(verifiedKeyId, attr, value, claim.ClaimDateString(), br)
 		mm.Set(key, keySignerAttrValue.Val(pnbr))
 	}
