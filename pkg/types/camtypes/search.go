@@ -111,11 +111,15 @@ func (fi *FileInfo) IsImage() bool {
 }
 
 // ImageInfo describes an image file.
+//
+// The Width and Height are uint16s to save memory in index/corpus.go, and that's
+// the max size of a JPEG anyway. If we want to deal with larger sizes, we can use
+// MaxUint16 as a sentinel to mean to look elsewhere. Or ditch this optimization.
 type ImageInfo struct {
 	// Width is the visible width of the image (after any necessary EXIF rotation).
-	Width int `json:"width"`
+	Width uint16 `json:"width"`
 	// Height is the visible height of the image (after any necessary EXIF rotation).
-	Height int `json:"height"`
+	Height uint16 `json:"height"`
 }
 
 type Path struct {

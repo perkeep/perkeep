@@ -857,15 +857,16 @@ func kvImageInfo(v string) (ii camtypes.ImageInfo, ok bool) {
 	if pipei < 0 {
 		return
 	}
-	var err error
-	ii.Width, err = strconv.Atoi(v[:pipei])
+	w, err := strconv.ParseUint(v[:pipei], 10, 16)
 	if err != nil {
 		return
 	}
-	ii.Height, err = strconv.Atoi(v[pipei+1:])
+	h, err := strconv.ParseUint(v[pipei+1:], 10, 16)
 	if err != nil {
 		return
 	}
+	ii.Width = uint16(w)
+	ii.Height = uint16(h)
 	return ii, true
 }
 

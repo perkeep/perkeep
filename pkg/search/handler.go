@@ -912,7 +912,7 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 					url.QueryEscape(peer.File.FileName), thumbSize)
 				if peer.Image != nil {
 					mw, mh := images.ScaledDimensions(
-						peer.Image.Width, peer.Image.Height,
+						int(peer.Image.Width), int(peer.Image.Height),
 						MaxImageSize, thumbSize)
 					return image, mw, mh, true
 				}
