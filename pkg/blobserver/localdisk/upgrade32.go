@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// This file deals with the migration of stuff from the old xxx/yyy/sha1-xxxyyyzzz.dat
+// files to the xx/yy format.
+
 package localdisk
 
 import (
@@ -23,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blob"
 )
@@ -52,7 +56,6 @@ func (ds *DiskStorage) migrate3to2() error {
 	sort.Strings(three)
 	made := make(map[string]bool) // dirs made
 	for i, dir := range three {
-		oldDir := make(map[string]bool)
 		log.Printf("Migrating structure of %d/%d directories in %s; doing %q", i+1, len(three), sha1root, dir)
 		fullDir := filepath.Join(sha1root, dir)
 		err := filepath.Walk(fullDir, func(path string, fi os.FileInfo, err error) error {
@@ -60,6 +63,13 @@ func (ds *DiskStorage) migrate3to2() error {
 				return err
 			}
 			baseName := filepath.Base(path)
+
+			// Cases like "sha1-7ea231f1bd008e04c0629666ba695c399db76b8a.dat.tmp546786166"
+			if strings.Contains(baseName, ".dat.tmp") && fi.Mode().IsRegular() &&
+				fi.ModTime().Before(time.Now().Add(-24*time.Hour)) {
+				return ds.cleanupTempFile(path)
+			}
+
 			if !(fi.Mode().IsRegular() && strings.HasSuffix(baseName, ".dat")) {
 				return nil
 			}
@@ -81,31 +91,56 @@ func (ds *DiskStorage) migrate3to2() error {
 			if err := os.Rename(path, dst); err != nil {
 				return err
 			}
-			oldDir[filepath.Dir(path)] = true
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		tryDel := make([]string, 0, len(oldDir))
-		for dir := range oldDir {
-			tryDel = append(tryDel, dir)
-		}
-		sort.Sort(sort.Reverse(byStringLength(tryDel)))
-		for _, dir := range tryDel {
-			if err := os.Remove(dir); err != nil {
-				log.Printf("Failed to remove old dir %s: %v", dir, err)
-			}
-		}
-		if err := os.Remove(fullDir); err != nil {
+		if err := removeEmptyDirOrDirs(fullDir); err != nil {
 			log.Printf("Failed to remove old dir %s: %v", fullDir, err)
 		}
 	}
 	return nil
 }
 
-type byStringLength []string
+func removeEmptyDirOrDirs(dir string) error {
+	err := filepath.Walk(dir, func(subdir string, fi os.FileInfo, err error) error {
+		if subdir == dir {
+			// root.
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode().IsDir() {
+			removeEmptyDirOrDirs(subdir)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return os.Remove(dir)
+}
 
-func (s byStringLength) Len() int           { return len(s) }
-func (s byStringLength) Less(i, j int) bool { return len(s[i]) < len(s[j]) }
-func (s byStringLength) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (ds *DiskStorage) cleanupTempFile(path string) error {
+	base := filepath.Base(path)
+	i := strings.Index(base, ".dat.tmp")
+	if i < 0 {
+		return nil
+	}
+	br, ok := blob.Parse(base[:i])
+	if !ok {
+		return nil
+	}
+
+	// If it already exists at the good path, delete it.
+	goodPath := ds.blobPath(br)
+	if _, err := os.Stat(goodPath); err == nil {
+		return os.Remove(path)
+	}
+
+	// TODO(bradfitz): care whether it's correct digest or not?
+	return nil
+}
