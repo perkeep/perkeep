@@ -30,10 +30,10 @@ func blobFileBaseName(b blob.Ref) string {
 
 func (ds *DiskStorage) blobDirectory(b blob.Ref) string {
 	d := b.Digest()
-	if len(d) < 6 {
-		d = d + "______"
+	if len(d) < 4 {
+		d = d + "____"
 	}
-	return filepath.Join(ds.root, b.HashName(), d[0:3], d[3:6])
+	return filepath.Join(ds.root, b.HashName(), d[0:2], d[2:4])
 }
 
 func (ds *DiskStorage) blobPath(b blob.Ref) string {

@@ -24,14 +24,14 @@ import (
 )
 
 func TestPaths(t *testing.T) {
-	br := blob.MustParse("digalg-abcd")
+	br := blob.MustParse("digalg-abc")
 	ds := &DiskStorage{root: "/tmp/dir"}
 
 	slash := filepath.ToSlash
-	if e, g := "/tmp/dir/digalg/abc/d__", slash(ds.blobDirectory(br)); e != g {
+	if e, g := "/tmp/dir/digalg/ab/c_", slash(ds.blobDirectory(br)); e != g {
 		t.Errorf("short blobref dir; expected path %q; got %q", e, g)
 	}
-	if e, g := "/tmp/dir/digalg/abc/d__/digalg-abcd.dat", slash(ds.blobPath(br)); e != g {
+	if e, g := "/tmp/dir/digalg/ab/c_/digalg-abc.dat", slash(ds.blobPath(br)); e != g {
 		t.Errorf("short blobref path; expected path %q; got %q", e, g)
 	}
 }
