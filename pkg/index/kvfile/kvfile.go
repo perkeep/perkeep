@@ -59,12 +59,14 @@ func NewStorage(file string) (sorted.KeyValue, error) {
 		return nil, err
 	}
 	is := &kvis{
-		db: db,
+		db:   db,
+		path: file,
 	}
 	return is, nil
 }
 
 type kvis struct {
+	path string
 	db   *kv.DB
 	txmu sync.Mutex
 }
@@ -144,7 +146,7 @@ func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 }
 
 func (is *kvis) Close() error {
-	log.Printf("Closing kvfile database")
+	log.Printf("Closing kvfile database %s", is.path)
 	return is.db.Close()
 }
 
