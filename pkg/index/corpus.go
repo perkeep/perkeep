@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
@@ -33,8 +34,9 @@ type Corpus struct {
 	// It's used as a query cache invalidator.
 	gen int64
 
-	strs      map[string]string // interned strings
-	brInterns int64
+	strs      map[string]string   // interned strings
+	brOfStr   map[string]blob.Ref // blob.Parse fast path
+	brInterns int64               // blob.Ref -> blob.Ref, via br method
 
 	blobs        map[blob.Ref]*camtypes.BlobMeta
 	sumBlobBytes int64
@@ -70,6 +72,7 @@ func newCorpus() *Corpus {
 		imageInfo:  make(map[blob.Ref]camtypes.ImageInfo),
 		deletedBy:  make(map[blob.Ref]blob.Ref),
 		keyId:      make(map[blob.Ref]string),
+		brOfStr:    make(map[string]blob.Ref),
 	}
 }
 
@@ -128,19 +131,28 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = true
 
 	ms0 := memstats()
-
 	log.Printf("Slurping corpus to memory from index...")
+
+	// We do the "meta" rows first, before the prefixes below, because it
+	// populates the blobs map (used for blobref interning) and the camBlobs
+	// map (used for hinting the size of other maps)
+	log.Printf("Slurping corpus to memory from index... (1/6: meta rows)")
+	if err := c.scanPrefix(s, "meta:"); err != nil {
+		return err
+	}
+	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs["file"]))
+	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs["permanode"]))
+	cpu0 := osutil.CPUUsage()
+
 	prefixes := []string{
-		"meta:", // should be first, for blobref interning
 		"signerkeyid:",
 		"claim|",
 		"fileinfo|",
 		"filetimes|",
 		"imagesize|",
 	}
-
 	for i, prefix := range prefixes {
-		log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+1, len(prefixes), prefix)
+		log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(prefixes)+1, prefix)
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
 		}
@@ -161,8 +173,11 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		}
 
 	}
+	c.brOfStr = nil // drop this now.
 	c.building = false
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
+
+	cpu := osutil.CPUUsage() - cpu0
 
 	ms1 := memstats()
 	memUsed := ms1.Alloc - ms0.Alloc
@@ -177,6 +192,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		len(c.permanodes),
 		len(c.files),
 		len(c.imageInfo))
+	log.Printf("Corpus scanning CPU usage: %v", cpu)
 	return nil
 }
 
@@ -226,6 +242,10 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 	if !ok {
 		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
 	}
+	if useBlobParseCache && c.brOfStr != nil {
+		brstr := k[len("meta:"):]
+		c.brOfStr[brstr] = bm.Ref
+	}
 	if _, dup := c.blobs[bm.Ref]; dup {
 		// Um, shouldn't happen.  TODO(bradfitz): is it
 		// guaranteed elsewhere that duplicate blobs are never
@@ -259,7 +279,7 @@ func (c *Corpus) mergeSignerKeyIdRow(k, v string) error {
 }
 
 func (c *Corpus) mergeClaimRow(k, v string) error {
-	cl, ok := kvClaim(k, v)
+	cl, ok := kvClaim(k, v, c.blobParse)
 	if !ok || !cl.Permanode.Valid() {
 		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
@@ -288,7 +308,7 @@ func (c *Corpus) mergeFileInfoRow(k, v string) error {
 	if len(c.ss) != 2 {
 		return fmt.Errorf("unexpected fileinfo key %q", k)
 	}
-	br, ok := blob.Parse(c.ss[1])
+	br, ok := c.blobParse(c.ss[1])
 	if !ok {
 		return fmt.Errorf("unexpected fileinfo blobref in key %q", k)
 	}
@@ -317,7 +337,7 @@ func (c *Corpus) mergeFileTimesRow(k, v string) error {
 	if len(c.ss) != 2 {
 		return fmt.Errorf("unexpected filetimes key %q", k)
 	}
-	br, ok := blob.Parse(c.ss[1])
+	br, ok := c.blobParse(c.ss[1])
 	if !ok {
 		return fmt.Errorf("unexpected filetimes blobref in key %q", k)
 	}
@@ -337,7 +357,7 @@ func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
 }
 
 func (c *Corpus) mergeImageSizeRow(k, v string) error {
-	br, okk := blob.Parse(k[len("imagesize|"):])
+	br, okk := c.blobParse(k[len("imagesize|"):])
 	ii, okv := kvImageInfo(v)
 	if !okk || !okv {
 		return fmt.Errorf("bogus row %q = %q", k, v)
@@ -345,6 +365,24 @@ func (c *Corpus) mergeImageSizeRow(k, v string) error {
 	br = c.br(br)
 	c.imageInfo[br] = ii
 	return nil
+}
+
+// This enables the blob.Parse fast path cache, which reduces CPU (via
+// reduced GC from new garbage), but increases memory usage, even
+// though it shouldn't.  The GC should fully discard the brOfStr map
+// (which we nil out at the end of parsing), but the Go GC doesn't
+// seem to clear it all.
+// TODO: investigate / file bugs.
+const useBlobParseCache = false
+
+func (c *Corpus) blobParse(v string) (br blob.Ref, ok bool) {
+	if useBlobParseCache {
+		br, ok = c.brOfStr[v]
+		if ok {
+			return
+		}
+	}
+	return blob.Parse(v)
 }
 
 // str returns s, interned.

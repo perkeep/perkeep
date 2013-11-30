@@ -378,7 +378,7 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		if mustHave != "" && !strings.Contains(val, mustHave) {
 			continue
 		}
-		cl, ok := kvClaim(it.Key(), val)
+		cl, ok := kvClaim(it.Key(), val, blob.Parse)
 		if !ok {
 			continue
 		}
@@ -396,22 +396,22 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	return dst, nil
 }
 
-func kvClaim(k, v string) (c camtypes.Claim, ok bool) {
+func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
 	// TODO(bradfitz): remove the strings.Split calls to reduce allocations.
 	keyPart := strings.Split(k, "|")
 	valPart := strings.Split(v, "|")
 	if len(keyPart) < 5 || len(valPart) < 4 {
 		return
 	}
-	signerRef, ok := blob.Parse(valPart[3])
+	signerRef, ok := blobParse(valPart[3])
 	if !ok {
 		return
 	}
-	permaNode, ok := blob.Parse(keyPart[1])
+	permaNode, ok := blobParse(keyPart[1])
 	if !ok {
 		return
 	}
-	claimRef, ok := blob.Parse(keyPart[4])
+	claimRef, ok := blobParse(keyPart[4])
 	if !ok {
 		return
 	}
