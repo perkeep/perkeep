@@ -160,7 +160,7 @@
       },
 
      "/r1/": {
-         "handler": "storage-filesystem",
+         "handler": "storage-diskpacked",
          "handlerArgs": {
             "path": ["_env", "${CAMLI_ROOT_REPLICA1}"]
           }
