@@ -30,6 +30,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"runtime"
+	rpprof "runtime/pprof"
 	"strconv"
 	"strings"
 
@@ -397,6 +398,16 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	prefixes := config.RequiredObject("prefixes")
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration error in root object's keys: %v", err)
+	}
+
+	if v := os.Getenv("CAMLI_PPROF_START"); v != "" {
+		f, err := os.Create(v)
+		if err != nil {
+			log.Fatalf("Failed to create %s: %v", v, err)
+		}
+		defer f.Close()
+		rpprof.StartCPUProfile(f)
+		defer rpprof.StopCPUProfile()
 	}
 
 	hl := &handlerLoader{
