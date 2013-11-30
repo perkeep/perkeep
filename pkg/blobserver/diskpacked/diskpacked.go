@@ -238,7 +238,7 @@ func (s *storage) filename(file int64) string {
 
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	// TODO(adg): remove blob from index and pad data with spaces
-	return errors.New("diskpacked: RemoveBlobs not implemented")
+	return blobserver.ErrNotImplemented
 }
 
 var statGate = syncutil.NewGate(20) // arbitrary
@@ -268,7 +268,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 
 func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	t := s.index.Find(after)
-	for i := 0; i < limit && t.Next(); i++ {
+	for i := 0; i < limit && t.Next(); {
 		br, ok := blob.Parse(t.Key())
 		if !ok {
 			err = fmt.Errorf("diskpacked: couldn't parse index key %q", t.Key())
@@ -280,6 +280,7 @@ func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit 
 			continue
 		}
 		dest <- m.SizedRef(br)
+		i++
 	}
 	if err2 := t.Close(); err == nil && err2 != nil {
 		err = err2

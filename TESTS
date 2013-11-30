@@ -1,7 +1,5 @@
 Tests needed
 
--- finish storagetest.Test
-
 -- pkg/client --- test FetchVia against a server returning compressed content.
    (fix in 3fa6d69405f036308931dd36e5070b2b19dbeadf without a new test)
 

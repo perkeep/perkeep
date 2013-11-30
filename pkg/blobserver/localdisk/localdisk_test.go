@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/test"
 	. "camlistore.org/pkg/test/asserts"
 )
@@ -186,4 +188,11 @@ func TestRename(t *testing.T) {
 	if err := rename(files[0].name, files[2].name); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestLocaldisk(t *testing.T) {
+	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
+		ds := NewStorage(t)
+		return ds, func() { cleanUp(ds) }
+	})
 }

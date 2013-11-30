@@ -30,6 +30,7 @@ func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("diskpacked test dir is %q", dir)
 	s, err := newStorage(dir, 1<<20)
 	if err != nil {
 		t.Fatalf("newStorage: %v", err)
