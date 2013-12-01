@@ -199,20 +199,61 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// seekFetcherMissTracker is a blob.SeekFetcher that records which blob(s) it failed
+// to load from src.
+type seekFetcherMissTracker struct {
+	src     blob.SeekFetcher
+	mu      sync.Mutex // guards missing
+	missing []blob.Ref
+}
+
+func (f *seekFetcherMissTracker) Fetch(br blob.Ref) (blob types.ReadSeekCloser, size int64, err error) {
+	blob, size, err = f.src.Fetch(br)
+	if err == os.ErrNotExist {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.missing = append(f.missing, br)
+	}
+	return
+}
+
 // b: the parsed file schema blob
 // mm: keys to populate
-func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) error {
+func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 	var times []time.Time // all creation or mod times seen; may be zero
 	times = append(times, b.ModTime())
 
 	blobRef := b.BlobRef()
-	seekFetcher := blob.SeekerFromStreamingFetcher(ix.BlobSource)
-	fr, err := b.NewFileReader(seekFetcher)
+	fetcher := &seekFetcherMissTracker{
+		// TODO(bradfitz): cache this SeekFetcher on ix so it
+		// it's have to be re-made each time? Probably small.
+		src: blob.SeekerFromStreamingFetcher(ix.BlobSource),
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		fetcher.mu.Lock()
+		defer fetcher.mu.Unlock()
+		if len(fetcher.missing) == 0 {
+			return
+		}
+		// TODO(bradfitz): there was an error indexing this file, and
+		// we failed to load the blobs in f.missing.  Add those as dependencies
+		// somewhere so when we get one of those missing blobs, we kick off
+		// a re-index of this file for whenever the indexer is idle.
+	}()
+	fr, err := b.NewFileReader(fetcher)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
 		// future if blobs are only temporarily unavailable.
 		// Basically the same as the TODO just below.
+		//
+		// We'll also want to bump the schemaVersion after this,
+		// to fix anybody's index which is only partial due to
+		// this old bug where it would return nil instead of doing
+		// the necessary work.
 		log.Printf("index: error indexing file, creating NewFileReader %s: %v", blobRef, err)
 		return nil
 	}
@@ -234,6 +275,8 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) error {
 		// error and making the indexing try again (likely
 		// forever failing).  Both options suck.  For now just
 		// log and act like all's okay.
+		//
+		// See TODOs above, and the fetcher.missing stuff.
 		log.Printf("index: error indexing file %s: %v", blobRef, err)
 		return nil
 	}
