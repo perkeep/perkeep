@@ -37,6 +37,10 @@ func (tb *Blob) BlobRef() blob.Ref {
 	return blob.RefFromHash(h)
 }
 
+func (tb *Blob) SizedRef() blob.SizedRef {
+	return blob.SizedRef{tb.BlobRef(), int64(len(tb.Contents))}
+}
+
 func (tb *Blob) BlobRefSlice() []blob.Ref {
 	return []blob.Ref{tb.BlobRef()}
 }
