@@ -21,9 +21,9 @@ Offline list:
    has to try to upload it (doing a remote HTTP stat) each time
    when using "camput permanode" or "camput attr".
 
--- use 'int' instead of 'int64' for blob sizes everywhere.  blobs
-   have a max size of 10-32 MB anyway.  definitely not bigger than
-   what will fit in memory (which is what int means)
+-- use 'uint32' instead of 'int64' for blob sizes everywhere (notably
+   blob.SizedRef).  blobs have a max size of 10-32 MB anyway, and the
+   index.Corpus is now using uint32 to save memory.
 
 -- verify all ReceiveBlob calls and see which should be
    blobserver.Receive instead, or ReceiveNoHash.  git grep -E
