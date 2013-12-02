@@ -35,6 +35,9 @@ const MaxBlobSize = 16 << 20
 
 var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 
+// ErrNotImplemented should be returned in methods where the function is not implemented
+var ErrNotImplemented = errors.New("not implemented")
+
 // BlobReceiver is the interface for receiving
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
@@ -120,6 +123,7 @@ type BlobRemover interface {
 	// RemoveBlobs removes 0 or more blobs.  Removal of
 	// non-existent items isn't an error.  Returns failure if any
 	// items existed but failed to be deleted.
+	// ErrNotImplemented may be returned for storage types not implementing removal.
 	RemoveBlobs(blobs []blob.Ref) error
 }
 
