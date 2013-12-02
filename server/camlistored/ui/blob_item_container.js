@@ -80,6 +80,18 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
    */
   this.isFileDragEnabled = false;
 
+  /**
+   * @type {string}
+   * @private
+   */
+  this.lastRecentContinuation_ = "";
+
+  /**
+   * @type {boolean}
+   * @private
+   */
+  this.appendRecentPending_ = false;
+
   this.setFocusable(false);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
@@ -104,6 +116,14 @@ camlistore.BlobItemContainer.LAST_ROW_CLOSE_ENOUGH_TO_FULL = 0.85;
  */
 camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [75, 100, 150, 200, 250];
 
+
+/**
+ * Distance from the bottom of the page at which we will trigger loading more
+ * data.
+ * @type {number}
+ * @private
+ */
+camlistore.BlobItemContainer.INFINITE_SCROLL_THRESHOLD_PX_ = 100;
 
 /**
  * @type {goog.events.FileDropHandler}
@@ -239,11 +259,12 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
 
     this.fileDropHandler_ = new goog.events.FileDropHandler(document);
     this.registerDisposable(this.fileDropHandler_);
-    this.eh_.listen(
-      this.fileDropHandler_,
-      goog.events.FileDropHandler.EventType.DROP,
-      this.handleFileDrop_);
+    this.eh_.listen(this.fileDropHandler_,
+                    goog.events.FileDropHandler.EventType.DROP,
+                    this.handleFileDrop_);
   }
+
+  this.eh_.listen(document, goog.events.EventType.SCROLL, this.handleScroll_);
 
   // We can't catch everything that could cause us to need to relayout. Instead,
   // be lazy and just poll every second.
@@ -268,8 +289,7 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
  */
 camlistore.BlobItemContainer.prototype.showRecent = function() {
   this.connection_.getRecentlyUpdatedPermanodes(
-      goog.bind(this.showRecentDone_, this),
-      this.thumbnailSize_);
+    goog.bind(this.showRecentDone_, this), "", this.thumbnailSize_);
 };
 
 
@@ -471,11 +491,22 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
 }
 
 /**
- * @param {camlistore.ServerType.IndexerMetaBag} result JSON response to this request.
+ * @param {camlistore.ServerType.IndexerMetaBag} result JSON response to this
+ * request.
  * @private
  */
 camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
+  this.lastRecentContinuation_ =
+    result.recent[result.recent.length - 1].modtime;
   this.resetChildren_();
+  this.appendChildren_(result);
+};
+
+/**
+ * @param Array.<Object> result
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.appendChildren_ = function(result) {
   if (!result || !result.recent) {
     return;
   }
@@ -599,6 +630,52 @@ function(startIndex, endIndex, availWidth, usedWidth, top) {
 };
 
 /**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
+  var docHeight = goog.dom.getDocumentHeight();
+  var scroll = goog.dom.getDocumentScroll();
+  var viewportSize = goog.dom.getViewportSize();
+
+  if ((docHeight - scroll.y - viewportSize.height) >
+      this.constructor.INFINITE_SCROLL_THRESHOLD_PX_) {
+    return;
+  }
+
+  this.appendRecent_();
+};
+
+/**
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.appendRecent_ = function() {
+  if (this.appendRecentPending_) {
+    console.log("An appendRecent call is already in progress");
+    return;
+  }
+
+  this.appendRecentPending_ = true;
+  this.connection_.getRecentlyUpdatedPermanodes(
+    goog.bind(this.appendRecentDone_, this), this.lastRecentContinuation_,
+    this.thumbnailSize_);
+};
+
+/**
+ * @param Array.<Object> result
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.appendRecentDone_ = function(result) {
+  this.appendRecentPending_ = false;
+  if (!result.recent) {
+    console.log("No results from query. Looks like we're done");
+    return;
+  }
+  this.lastRecentContinuation_ =
+    result.recent[result.recent.length - 1].modtime;
+  this.appendChildren_(result);
+};
+
+/**
  * @param {camlistore.ServerType.SearchWithAttrResponse} result JSON response to
  * this request.
  * @private
@@ -691,11 +768,11 @@ camlistore.BlobItemContainer.prototype.handleUploadSuccess_ =
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
-    function(file, recipient, blobRef, permanode) {
+function(file, recipient, blobRef, permanode) {
   this.connection_.newSetAttributeClaim(
-      permanode, 'camliContent', blobRef,
-      goog.bind(this.handleSetAttributeSuccess_, this,
-                file, recipient, blobRef, permanode));
+    permanode, 'camliContent', blobRef,
+    goog.bind(this.handleSetAttributeSuccess_, this, file, recipient, blobRef,
+              permanode));
 };
 
 
