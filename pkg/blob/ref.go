@@ -443,3 +443,31 @@ func (r *Ref) UnmarshalBinary(data []byte) error {
 	r.digest = meta.ctor(buf)
 	return nil
 }
+
+// Less reports whether r sorts before o. Invalid references blobs sort first.
+func (r Ref) Less(o Ref) bool {
+	if r.Valid() != o.Valid() {
+		return o.Valid()
+	}
+	if !r.Valid() {
+		return false
+	}
+	if n1, n2 := r.digest.digestName(), o.digest.digestName(); n1 != n2 {
+		return n1 < n2
+	}
+	return bytes.Compare(r.digest.bytes(), o.digest.bytes()) < 0
+}
+
+// ByRef sorts blob references.
+type ByRef []Ref
+
+func (s ByRef) Len() int           { return len(s) }
+func (s ByRef) Less(i, j int) bool { return s[i].Less(s[j]) }
+func (s ByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// SizedByRef sorts SizedRefs by their blobref.
+type SizedByRef []SizedRef
+
+func (s SizedByRef) Len() int           { return len(s) }
+func (s SizedByRef) Less(i, j int) bool { return s[i].Less(s[j].Ref) }
+func (s SizedByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
