@@ -269,14 +269,19 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	t := s.index.Find(after)
 	for i := 0; i < limit && t.Next(); {
-		br, ok := blob.Parse(t.Key())
+		key := t.Key()
+		if key <= after {
+			// EnumerateBlobs' semantics are '>', but sorted.KeyValue.Find is '>='.
+			continue
+		}
+		br, ok := blob.Parse(key)
 		if !ok {
-			err = fmt.Errorf("diskpacked: couldn't parse index key %q", t.Key())
+			err = fmt.Errorf("diskpacked: couldn't parse index key %q", key)
 			continue
 		}
 		m, ok := parseBlobMeta(t.Value())
 		if !ok {
-			err = fmt.Errorf("diskpacked: couldn't parse index value %q: %q", t.Key(), t.Value())
+			err = fmt.Errorf("diskpacked: couldn't parse index value %q: %q", key, t.Value())
 			continue
 		}
 		dest <- m.SizedRef(br)
