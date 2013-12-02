@@ -50,6 +50,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 )
@@ -325,7 +326,7 @@ func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int
 	}, plainSize, nil
 }
 
-func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	iter := s.index.Find(after)
 	n := 0
@@ -341,7 +342,11 @@ func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit 
 		if !ok {
 			panic("Bogus encrypt index value: " + iter.Value())
 		}
-		dest <- blob.SizedRef{br, plainSize}
+		select {
+		case dest <- blob.SizedRef{br, plainSize}:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 		n++
 		if limit != 0 && n >= limit {
 			break
@@ -421,7 +426,7 @@ func (s *storage) readAllMetaBlobs() error {
 	enumErrc := make(chan error, 1)
 	go func() {
 		var wg sync.WaitGroup
-		enumErrc <- blobserver.EnumerateAll(s.meta, func(sb blob.SizedRef) error {
+		enumErrc <- blobserver.EnumerateAll(context.TODO(), s.meta, func(sb blob.SizedRef) error {
 			select {
 			case <-stopEnumerate:
 				return errors.New("enumeration stopped")

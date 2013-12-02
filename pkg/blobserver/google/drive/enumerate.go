@@ -19,13 +19,14 @@ package drive
 import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 )
 
 var _ blobserver.MaxEnumerateConfig = (*driveStorage)(nil)
 
 func (sto *driveStorage) MaxEnumerate() int { return 1000 }
 
-func (sto *driveStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *driveStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	panic("not implemented")
 	return nil

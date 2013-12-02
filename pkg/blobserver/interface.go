@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 )
 
 // MaxBlobSize is the size of a single blob in Camlistore.
@@ -90,8 +91,10 @@ type BlobEnumerator interface {
 	// after (if provided).
 	// limit will be supplied and sanity checked by caller.
 	// EnumerateBlobs must close the channel.  (even if limit
-	// was hit and more blobs remain)
-	EnumerateBlobs(dest chan<- blob.SizedRef,
+	// was hit and more blobs remain, or an error is returned, or
+	// the ctx is canceled)
+	EnumerateBlobs(ctx *context.Context,
+		dest chan<- blob.SizedRef,
 		after string,
 		limit int) error
 }

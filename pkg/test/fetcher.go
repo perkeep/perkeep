@@ -27,6 +27,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/types"
 )
 
@@ -142,7 +143,7 @@ func (tf *Fetcher) BlobrefStrings() []string {
 	return s
 }
 
-func (tf *Fetcher) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (tf *Fetcher) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	tf.l.Lock()
 	defer tf.l.Unlock()
@@ -152,7 +153,11 @@ func (tf *Fetcher) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit
 			continue
 		}
 		b := tf.m[k]
-		dest <- blob.SizedRef{b.BlobRef(), b.Size()}
+		select {
+		case dest <- blob.SizedRef{b.BlobRef(), b.Size()}:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 		n++
 		if limit > 0 && n == limit {
 			break

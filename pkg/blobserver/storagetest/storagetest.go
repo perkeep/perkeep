@@ -30,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types"
@@ -47,12 +48,6 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 	t.Logf("Testing blobserver storage %T", sto)
 
 	t.Logf("Testing Enumerate for empty")
-	dest := make(chan blob.SizedRef)
-	go func() {
-		if err := sto.EnumerateBlobs(dest, "", 1000); err != nil {
-			t.Fatalf("EnumerateBlob: %v", err)
-		}
-	}()
 	testEnumerate(t, sto, nil)
 
 	var blobs []*test.Blob
@@ -117,7 +112,7 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 	}
 
 	t.Logf("Testing Stat")
-	dest = make(chan blob.SizedRef)
+	dest := make(chan blob.SizedRef)
 	go func() {
 		if err := sto.StatBlobs(dest, blobRefs); err != nil {
 			t.Fatalf("error stating blobs %s: %v", blobRefs, err)
@@ -200,7 +195,7 @@ func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.Siz
 	var grp syncutil.Group
 	sawEnd := make(chan bool, 1)
 	grp.Go(func() error {
-		if err := sto.EnumerateBlobs(sbc, after, n); err != nil {
+		if err := sto.EnumerateBlobs(context.New(), sbc, after, n); err != nil {
 			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n)
 		}
 		return nil

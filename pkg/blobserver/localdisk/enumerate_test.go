@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
 	. "camlistore.org/pkg/test/asserts"
 )
@@ -45,7 +46,7 @@ func TestEnumerate(t *testing.T) {
 	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, "", limit)
+		errCh <- ds.EnumerateBlobs(context.New(), ch, "", limit)
 	}()
 
 	var (
@@ -68,7 +69,8 @@ func TestEnumerate(t *testing.T) {
 	// Now again, but skipping foo's blob
 	ch = make(chan blob.SizedRef)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch,
+		errCh <- ds.EnumerateBlobs(context.New(),
+			ch,
 			foo.BlobRef().String(),
 			limit)
 	}()
@@ -91,7 +93,7 @@ func TestEnumerateEmpty(t *testing.T) {
 	ch := make(chan blob.SizedRef)
 	errCh := make(chan error)
 	go func() {
-		errCh <- ds.EnumerateBlobs(ch, "", limit)
+		errCh <- ds.EnumerateBlobs(context.New(), ch, "", limit)
 	}()
 
 	_, ok := <-ch
@@ -157,7 +159,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 		ch := make(chan blob.SizedRef)
 		errCh := make(chan error)
 		go func() {
-			errCh <- ds.EnumerateBlobs(ch, test.after, limit)
+			errCh <- ds.EnumerateBlobs(context.New(), ch, test.after, limit)
 		}()
 		got := make([]blob.SizedRef, 0, blobsToMake)
 		for sb := range ch {

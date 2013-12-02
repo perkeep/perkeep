@@ -27,6 +27,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
 )
@@ -59,7 +60,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return gs, nil
 }
 
-func (gs *Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (gs *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	objs, err := gs.client.EnumerateObjects(gs.bucket, after, limit)
 	if err != nil {
@@ -71,7 +72,11 @@ func (gs *Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit
 		if !ok {
 			continue
 		}
-		dest <- blob.SizedRef{Ref: br, Size: obj.Size}
+		select {
+		case dest <- blob.SizedRef{Ref: br, Size: obj.Size}:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 	}
 	return nil
 }

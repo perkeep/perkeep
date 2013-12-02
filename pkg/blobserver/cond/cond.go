@@ -47,6 +47,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 )
@@ -202,9 +203,9 @@ func (sto *condStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) e
 	return errors.New("cond: Read not configured")
 }
 
-func (sto *condStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *condStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	if sto.read != nil {
-		return sto.read.EnumerateBlobs(dest, after, limit)
+		return sto.read.EnumerateBlobs(ctx, dest, after, limit)
 	}
 	return errors.New("cond: Read not configured")
 }

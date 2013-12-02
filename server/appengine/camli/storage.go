@@ -33,6 +33,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 )
 
@@ -340,19 +341,19 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.R
 	return err
 }
 
-func (sto *appengineStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *appengineStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 
 	loan := ctxPool.Get()
 	defer loan.Return()
-	ctx := loan
+	actx := loan
 
 	prefix := sto.namespace + "|"
-	keyBegin := datastore.NewKey(ctx, memKind, prefix+after, 0, nil)
-	keyEnd := datastore.NewKey(ctx, memKind, sto.namespace+"~", 0, nil)
+	keyBegin := datastore.NewKey(actx, memKind, prefix+after, 0, nil)
+	keyEnd := datastore.NewKey(actx, memKind, sto.namespace+"~", 0, nil)
 
 	q := datastore.NewQuery(memKind).Limit(int(limit)).Filter("__key__>", keyBegin).Filter("__key__<", keyEnd)
-	it := q.Run(ctx)
+	it := q.Run(actx)
 	var row memEnt
 	for {
 		key, err := it.Next(&row)
@@ -362,7 +363,11 @@ func (sto *appengineStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after str
 		if err != nil {
 			return err
 		}
-		dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), row.Size}
+		select {
+		case dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), row.Size}:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 	}
 	return nil
 }

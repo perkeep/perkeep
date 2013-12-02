@@ -38,6 +38,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 )
 
@@ -75,7 +76,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		// correct.
 		// TODO(bradfitz,mpl): skip this operation smartly if it turns out this is annoying/slow for whatever reason.
 		c := make(chan blob.SizedRef, 1)
-		err = sto.EnumerateBlobs(c, "", 1)
+		err = sto.EnumerateBlobs(context.TODO(), c, "", 1)
 		if err != nil {
 			return nil, err
 		}
@@ -115,8 +116,8 @@ func (sto *remoteStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size i
 
 func (sto *remoteStorage) MaxEnumerate() int { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
-	return sto.client.EnumerateBlobsOpts(dest, client.EnumerateOpts{
+func (sto *remoteStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+	return sto.client.EnumerateBlobsOpts(ctx, dest, client.EnumerateOpts{
 		After: after,
 		Limit: limit,
 	})

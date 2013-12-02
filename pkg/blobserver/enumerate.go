@@ -20,12 +20,13 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 )
 
 // EnumerateAll runs fn for each blob in src.
 // If fn returns an error, iteration stops and fn isn't called again.
 // EnumerateAll will not return concurrently with fn.
-func EnumerateAll(src BlobEnumerator, fn func(blob.SizedRef) error) error {
+func EnumerateAll(ctx *context.Context, src BlobEnumerator, fn func(blob.SizedRef) error) error {
 	const batchSize = 1000
 	var mu sync.Mutex // protects returning with an error while fn is still running
 	after := ""
@@ -47,7 +48,7 @@ func EnumerateAll(src BlobEnumerator, fn func(blob.SizedRef) error) error {
 			}
 			errc <- err
 		}()
-		err := src.EnumerateBlobs(ch, after, batchSize)
+		err := src.EnumerateBlobs(ctx, ch, after, batchSize)
 		if err != nil {
 			mu.Lock() // make sure fn callback finished; no need to unlock
 			return err

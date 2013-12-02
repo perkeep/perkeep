@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
@@ -266,8 +267,16 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 	return wg.Err()
 }
 
-func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+	defer close(dest)
+
 	t := s.index.Find(after)
+	defer func() {
+		closeErr := t.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 	for i := 0; i < limit && t.Next(); {
 		key := t.Key()
 		if key <= after {
@@ -276,22 +285,20 @@ func (s *storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit 
 		}
 		br, ok := blob.Parse(key)
 		if !ok {
-			err = fmt.Errorf("diskpacked: couldn't parse index key %q", key)
-			continue
+			return fmt.Errorf("diskpacked: couldn't parse index key %q", key)
 		}
 		m, ok := parseBlobMeta(t.Value())
 		if !ok {
-			err = fmt.Errorf("diskpacked: couldn't parse index value %q: %q", key, t.Value())
-			continue
+			return fmt.Errorf("diskpacked: couldn't parse index value %q: %q", key, t.Value())
 		}
-		dest <- m.SizedRef(br)
+		select {
+		case dest <- m.SizedRef(br):
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 		i++
 	}
-	if err2 := t.Close(); err == nil && err2 != nil {
-		err = err2
-	}
-	close(dest)
-	return
+	return nil
 }
 
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {

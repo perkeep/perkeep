@@ -22,26 +22,41 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
 )
 
-func (ix *Index) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 	it := ix.s.Find("have:" + after)
+	defer func() {
+		closeErr := it.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
+
 	n := int(0)
 	for n < limit && it.Next() {
 		k := it.Key()
+		if k <= after {
+			continue
+		}
 		if !strings.HasPrefix(k, "have:") {
 			break
 		}
 		n++
 		br, ok := blob.Parse(k[len("have:"):])
-		size, err := strconv.ParseInt(it.Value(), 10, 64)
+		size, err := strconv.ParseUint(it.Value(), 10, 32)
 		if ok && err == nil {
-			dest <- blob.SizedRef{br, size}
+			select {
+			case dest <- blob.SizedRef{br, int64(size)}:
+			case <-ctx.Done():
+				return context.ErrCanceled
+			}
 		}
 	}
-	return it.Close()
+	return nil
 }
 
 func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {

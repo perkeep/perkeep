@@ -26,6 +26,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 )
 
 const defaultMaxEnumerate = 10000
@@ -100,7 +101,7 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 		blobch := make(chan blob.SizedRef, 100)
 		resultch := make(chan error, 1)
 		go func() {
-			resultch <- storage.EnumerateBlobs(blobch, formValueAfter, limit+1)
+			resultch <- storage.EnumerateBlobs(context.TODO(), blobch, formValueAfter, limit+1)
 		}()
 
 		endsReached := 0

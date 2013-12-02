@@ -30,6 +30,7 @@ import (
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/context"
 )
 
 type syncCmd struct {
@@ -236,16 +237,16 @@ func (c *syncCmd) discoClient() *client.Client {
 	return cl
 }
 
-func enumerateAllBlobs(s blobserver.Storage, destc chan<- blob.SizedRef) error {
+func enumerateAllBlobs(ctx *context.Context, s blobserver.Storage, destc chan<- blob.SizedRef) error {
 	// Use *client.Client's support for enumerating all blobs if
 	// possible, since it could probably do a better job knowing
 	// HTTP boundaries and such.
 	if c, ok := s.(*client.Client); ok {
-		return c.SimpleEnumerateBlobs(destc)
+		return c.SimpleEnumerateBlobs(ctx, destc)
 	}
 
 	defer close(destc)
-	return blobserver.EnumerateAll(s, func(sb blob.SizedRef) error {
+	return blobserver.EnumerateAll(ctx, s, func(sb blob.SizedRef) error {
 		destc <- sb
 		return nil
 	})
@@ -263,8 +264,10 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	srcErr := make(chan error, 1)
 	destErr := make(chan error, 1)
 
+	ctx := context.TODO()
+	defer ctx.Cancel()
 	go func() {
-		srcErr <- enumerateAllBlobs(src, srcBlobs)
+		srcErr <- enumerateAllBlobs(ctx, src, srcBlobs)
 	}()
 	checkSourceError := func() {
 		if err := <-srcErr; err != nil {
@@ -281,7 +284,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	}
 
 	go func() {
-		destErr <- enumerateAllBlobs(dest, destBlobs)
+		destErr <- enumerateAllBlobs(ctx, dest, destBlobs)
 	}()
 	checkDestError := func() {
 		if err := <-destErr; err != nil {
@@ -306,7 +309,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		thirdBlobs := make(chan blob.SizedRef, 100)
 		thirdErr := make(chan error, 1)
 		go func() {
-			thirdErr <- enumerateAllBlobs(thirdLeg, thirdBlobs)
+			thirdErr <- enumerateAllBlobs(ctx, thirdLeg, thirdBlobs)
 		}()
 		checkThirdError = func() {
 			if err := <-thirdErr; err != nil {

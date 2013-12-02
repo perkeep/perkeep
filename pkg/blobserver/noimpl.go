@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/types"
 )
 
@@ -48,7 +49,7 @@ func (nis *NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref)
 	return errors.New("Stat not implemented")
 }
 
-func (nis *NoImplStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (nis *NoImplStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return errors.New("EnumerateBlobs not implemented")
 }
 

@@ -25,9 +25,11 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 )
 
 type readBlobRequest struct {
+	done    <-chan struct{}
 	ch      chan<- blob.SizedRef
 	after   string
 	remain  *int // limit countdown
@@ -148,7 +150,11 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 				continue
 			}
 			if blobRef, ok := blob.Parse(blobName); ok {
-				opts.ch <- blob.SizedRef{Ref: blobRef, Size: fi.Size()}
+				select {
+				case opts.ch <- blob.SizedRef{Ref: blobRef, Size: fi.Size()}:
+				case <-opts.done:
+					return context.ErrCanceled
+				}
 				(*opts.remain)--
 			}
 			continue
@@ -158,7 +164,7 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (ds *DiskStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	if limit == 0 {
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
@@ -166,6 +172,7 @@ func (ds *DiskStorage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, l
 
 	limitMutable := limit
 	return ds.readBlobs(readBlobRequest{
+		done:    ctx.Done(),
 		ch:      dest,
 		dirRoot: ds.root,
 		after:   after,

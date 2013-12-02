@@ -21,13 +21,14 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 )
 
 var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
 func (sto *s3Storage) MaxEnumerate() int { return 1000 }
 
-func (sto *s3Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *s3Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	objs, err := sto.s3Client.ListBucket(sto.bucket, after, limit)
 	if err != nil {
@@ -39,7 +40,11 @@ func (sto *s3Storage) EnumerateBlobs(dest chan<- blob.SizedRef, after string, li
 		if !ok {
 			continue
 		}
-		dest <- blob.SizedRef{Ref: br, Size: obj.Size}
+		select {
+		case dest <- blob.SizedRef{Ref: br, Size: obj.Size}:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 	}
 	return nil
 }

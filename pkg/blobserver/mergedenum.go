@@ -18,6 +18,7 @@ package blobserver
 
 import (
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 )
 
 const buffered = 8
@@ -25,14 +26,14 @@ const buffered = 8
 // TODO: it'd be nice to make sources be []BlobEnumerator, but that
 // makes callers more complex since assignable interfaces' slice forms
 // aren't assignable.
-func MergedEnumerate(dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
+func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
 	defer close(dest)
 
 	startEnum := func(source Storage) (*blob.ChanPeeker, <-chan error) {
 		ch := make(chan blob.SizedRef, buffered)
 		errch := make(chan error, 1)
 		go func() {
-			errch <- source.EnumerateBlobs(ch, after, limit)
+			errch <- source.EnumerateBlobs(ctx, ch, after, limit)
 		}()
 		return &blob.ChanPeeker{Ch: ch}, errch
 	}

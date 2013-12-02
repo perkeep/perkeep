@@ -30,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/sorted"
@@ -141,7 +142,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		go func() {
 			n := sh.runSync("queue", sh.enumerateQueuedBlobs)
 			sh.logf("Queue sync copied %d blobs", n)
-			n = sh.runSync("full", blobserverEnumerator(fromBs))
+			n = sh.runSync("full", blobserverEnumerator(context.TODO(), fromBs))
 			sh.logf("Full sync copied %d blobs", n)
 			didFullSync <- true
 			sh.syncQueueLoop()
@@ -286,9 +287,9 @@ type copyResult struct {
 	err error
 }
 
-func blobserverEnumerator(src blobserver.BlobEnumerator) func(chan<- blob.SizedRef, <-chan struct{}) error {
+func blobserverEnumerator(ctx *context.Context, src blobserver.BlobEnumerator) func(chan<- blob.SizedRef, <-chan struct{}) error {
 	return func(dst chan<- blob.SizedRef, intr <-chan struct{}) error {
-		return blobserver.EnumerateAll(src, func(sb blob.SizedRef) error {
+		return blobserver.EnumerateAll(ctx, src, func(sb blob.SizedRef) error {
 			select {
 			case dst <- sb:
 			case <-intr:
