@@ -276,15 +276,11 @@ camlistore.BlobItemContainer.prototype.showRecent = function() {
 /**
  * Show roots
  */
-camlistore.BlobItemContainer.prototype.showRoots =
-function(sigconf) {
-	this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef,
-		"camliRoot", "", false, 0, this.thumbnailSize_,
-		goog.bind(this.showWithAttrDone_, this),
-		function(msg) {
-			alert(msg);
-		}
-	);
+camlistore.BlobItemContainer.prototype.showRoots = function(sigconf) {
+  this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", "",
+                                      false, 0, this.thumbnailSize_,
+                                      goog.bind(this.showWithAttrDone_, this),
+                                      function(msg) { alert(msg); });
 };
 
 /**
@@ -297,29 +293,21 @@ function(sigconf) {
  */
 camlistore.BlobItemContainer.prototype.showWithAttr =
 function(sigconf, attr, value, fuzzy, max) {
-	this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef,
-		attr, value, fuzzy, max, this.thumbnailSize_,
-		goog.bind(this.showWithAttrDone_, this),
-		function(msg) {
-			alert(msg);
-		}
-	);
+  this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef, attr, value,
+                                      fuzzy, max, this.thumbnailSize_,
+                                      goog.bind(this.showWithAttrDone_, this),
+                                      function(msg) { alert(msg); });
 };
 
 /**
  * Search for a permanode with the required blobref
  * @param {string} blobref
  */
-camlistore.BlobItemContainer.prototype.findByBlobref_ =
-function(blobref) {
-	this.connection_.describeWithThumbnails(
-		blobref,
-		this.thumbnailSize_,
-		goog.bind(this.findByBlobrefDone_, this, blobref),
-		function(msg) {
-			alert(msg);
-		}
-	);
+camlistore.BlobItemContainer.prototype.findByBlobref_ = function(blobref) {
+  this.connection_.describeWithThumbnails(
+    blobref, this.thumbnailSize_,
+    goog.bind(this.findByBlobrefDone_, this, blobref),
+    function(msg) { alert(msg); });
 };
 
 /**
@@ -475,12 +463,11 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
 
 /**
  */
-camlistore.BlobItemContainer.prototype.unselectAll =
-function() {
-	goog.array.forEach(this.checkedBlobItems_, function(item) {
-		item.setState(goog.ui.Component.State.CHECKED, false);
-	});
-	this.checkedBlobItems_ = [];
+camlistore.BlobItemContainer.prototype.unselectAll = function() {
+  goog.array.forEach(this.checkedBlobItems_, function(item) {
+    item.setState(goog.ui.Component.State.CHECKED, false);
+  });
+  this.checkedBlobItems_ = [];
 }
 
 /**
@@ -640,16 +627,16 @@ camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
  */
 camlistore.BlobItemContainer.prototype.findByBlobrefDone_ =
 function(permanode, result) {
-	this.resetChildren_();
-	if (!result) {
-		return;
-	}
-	var meta = result.meta;
-	if (!meta || !meta[permanode]) {
-		return;
-	}
-	var item = new camlistore.BlobItem(permanode, meta);
-	this.addChild(item, true);
+  this.resetChildren_();
+  if (!result) {
+    return;
+  }
+  var meta = result.meta;
+  if (!meta || !meta[permanode]) {
+    return;
+  }
+  var item = new camlistore.BlobItem(permanode, meta);
+  this.addChild(item, true);
 };
 
 /**
@@ -720,10 +707,10 @@ camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ =
  */
 camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ =
 function(file, recipient, blobRef, permanode) {
-	this.connection_.describeWithThumbnails(
-		permanode,
-		this.thumbnailSize_,
-		goog.bind(this.handleDescribeSuccess_, this, recipient, permanode));
+  this.connection_.describeWithThumbnails(
+    permanode,
+    this.thumbnailSize_,
+    goog.bind(this.handleDescribeSuccess_, this, recipient, permanode));
 };
 
 
@@ -733,14 +720,14 @@ function(file, recipient, blobRef, permanode) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ =
-  function(recipient, permanode, describeResult) {
-	var item = new camlistore.BlobItem(permanode, describeResult.meta);
-	this.addChildAt(item, 0, true);
-	if (!recipient) {
-		return;
-	}
-	this.connection_.newAddAttributeClaim(
-		recipient, 'camliMember', permanode);
+function(recipient, permanode, describeResult) {
+  var item = new camlistore.BlobItem(permanode, describeResult.meta);
+  this.addChildAt(item, 0, true);
+  if (!recipient) {
+    return;
+  }
+  this.connection_.newAddAttributeClaim(
+    recipient, 'camliMember', permanode);
 };
 
 /**
