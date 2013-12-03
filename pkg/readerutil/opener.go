@@ -33,9 +33,11 @@ var (
 )
 
 type openFile struct {
+	// refCount must be 64-bit aligned for 32-bit platforms.
+	refCount int64 // starts at 1; only valid if initial increment >= 2
+
 	*os.File
-	refCount int64  // starts at 1; only valid if initial increment >= 2
-	path     string // map key of openFiles
+	path string // map key of openFiles
 }
 
 func (f *openFile) Close() error {
