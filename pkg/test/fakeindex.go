@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -219,6 +220,6 @@ func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) ([]*camty
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
+func (fi *FakeIndex) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
 	panic("NOIMPL")
 }

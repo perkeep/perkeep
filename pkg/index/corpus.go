@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
@@ -415,7 +416,7 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 // If camType is empty, all camlistore blobs are sent, otherwise it specifies
 // the camliType to send.
 // ch is closed at the end. It never returns an error.
-func (c *Corpus) EnumerateCamliBlobs(camType string, ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumerateCamliBlobs(ctx *context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -424,18 +425,66 @@ func (c *Corpus) EnumerateCamliBlobs(camType string, ch chan<- camtypes.BlobMeta
 			continue
 		}
 		for _, bm := range m {
-			ch <- *bm
+			select {
+			case ch <- *bm:
+			case <-ctx.Done():
+				return context.ErrCanceled
+			}
 		}
 	}
 	return nil
 }
 
-func (c *Corpus) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, bm := range c.blobs {
-		ch <- *bm
+		select {
+		case ch <- *bm:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
+	}
+	return nil
+}
+
+// pnAndTime is a value type wrapping a permanode blobref and its modtime.
+// It's used gby EnumeratePermanodesLastModified.
+type pnAndTime struct {
+	pn blob.Ref
+	t  time.Time
+}
+
+type byPermanodeModtime []pnAndTime
+
+func (s byPermanodeModtime) Len() int           { return len(s) }
+func (s byPermanodeModtime) Less(i, j int) bool { return s[i].t.Before(s[j].t) }
+func (s byPermanodeModtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
+// or until ctx is done.
+func (c *Corpus) EnumeratePermanodesLastModified(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+	defer close(ch)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	pns := make([]pnAndTime, 0, len(c.permanodes))
+	for pn := range c.permanodes {
+		if modt, ok := c.permanodeModtimeLocked(pn); ok {
+			pns = append(pns, pnAndTime{pn, modt})
+		}
+	}
+	sort.Sort(sort.Reverse(byPermanodeModtime(pns)))
+	for _, cand := range pns {
+		bm := c.blobs[cand.pn]
+		if bm == nil {
+			continue
+		}
+		select {
+		case ch <- *bm:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 	}
 	return nil
 }
@@ -475,6 +524,10 @@ func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO: figure out behavior wrt mutations by different people
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	return c.permanodeModtimeLocked(pn)
+}
+
+func (c *Corpus) permanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		return

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -45,8 +46,12 @@ const (
 
 type SearchQuery struct {
 	Constraint *Constraint `json:"constraint"`
-	Limit      int         `json:"limit"` // optional. default is automatic.
+	Limit      int         `json:"limit"` // optional. default is automatic. negative means no limit.
 	Sort       SortType    `json:"sort"`  // optional. default is automatic or unsorted.
+
+	// If Describe is specified, the matched blobs are also described,
+	// as if the Describe.BlobRefs field was populated.
+	Describe *DescribeRequest `json:"describe"`
 }
 
 func (q *SearchQuery) fromHTTP(req *http.Request) error {
@@ -62,8 +67,25 @@ func (q *SearchQuery) fromHTTP(req *http.Request) error {
 	return nil
 }
 
+func (q *SearchQuery) plannedQuery() *SearchQuery {
+	pq := new(SearchQuery)
+	*pq = *q
+
+	if pq.Sort == 0 {
+		if pq.Constraint.Permanode != nil {
+			pq.Sort = LastModifiedDesc
+		}
+	}
+	if pq.Limit == 0 {
+		pq.Limit = 200 // arbitrary
+	}
+	pq.Constraint = optimizePlan(q.Constraint)
+	return pq
+}
+
 type SearchResult struct {
-	Blobs []*SearchResultBlob `json:"blobs"`
+	Blobs    []*SearchResultBlob `json:"blobs"`
+	Describe *DescribeResponse   `json:"description"`
 }
 
 type SearchResultBlob struct {
@@ -253,7 +275,8 @@ func optimizePlan(c *Constraint) *Constraint {
 	return c
 }
 
-func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
+func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
+	q := rawq.plannedQuery()
 	res := new(SearchResult)
 	s := &search{
 		h:   h,
@@ -261,34 +284,48 @@ func (h *Handler) Query(q *SearchQuery) (*SearchResult, error) {
 		res: res,
 	}
 
-	optConstraint := optimizePlan(q.Constraint)
+	ctx := context.TODO()
 
 	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
+
+	sendCtx := ctx.New()
+	defer sendCtx.Cancel()
 	go func() {
-		errc <- optConstraint.sendAllCandidates(s, ch)
+		errc <- q.sendAllCandidates(sendCtx, s, ch)
 	}()
 
 	for meta := range ch {
-		match, err := optConstraint.blobMatches(s, meta.Ref, meta)
+		// TODO(bradfitz): rather than call
+		// q.Constraint.blobMatches in this loop, instead ask
+		// the q.Constraint for an optimized matcher function,
+		// to avoid all the work that it does. (appending
+		// matchFn onto cond, generating closures, etc)
+		match, err := q.Constraint.blobMatches(s, meta.Ref, meta)
 		if err != nil {
-			// drain ch
-			// TODO(bradfitz): instead of draining, send a context
-			// to sendAllCandidates and interrupt it.
-			go func() {
-				for _ = range ch {
-				}
-			}()
 			return nil, err
 		}
 		if match {
 			res.Blobs = append(res.Blobs, &SearchResultBlob{
 				Blob: meta.Ref,
 			})
+			if q.Limit > 0 && len(res.Blobs) == q.Limit && q.candidatesAreSorted(s) {
+				break
+			}
 		}
 	}
-	if err := <-errc; err != nil {
+	if err := <-errc; err != nil && err != context.ErrCanceled {
 		return nil, err
+	}
+	if !q.candidatesAreSorted(s) {
+		// TODO(bradfitz): sort them
+		if q.Limit > 0 && len(res.Blobs) > q.Limit {
+			res.Blobs = res.Blobs[:q.Limit]
+		}
+	}
+
+	if q.Describe != nil {
+		// TODO(bradfitz): describe them
 	}
 	return s.res, nil
 }
@@ -307,15 +344,30 @@ func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 
 // sendAllCandidates sends all possible matches to dst.
 // dst must be closed, regardless of error.
-func (c *Constraint) sendAllCandidates(s *search, dst chan<- camtypes.BlobMeta) error {
+func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
+		if q.Constraint.Permanode != nil && q.Sort == LastModifiedDesc {
+			return corpus.EnumeratePermanodesLastModified(ctx, dst)
+		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
-			return corpus.EnumerateCamliBlobs(camType, dst)
+			return corpus.EnumerateCamliBlobs(ctx, camType, dst)
 		}
 	}
-	return s.h.index.EnumerateBlobMeta(dst)
+	return s.h.index.EnumerateBlobMeta(ctx, dst)
+}
+
+func (q *SearchQuery) candidatesAreSorted(s *search) bool {
+	corpus := s.h.corpus
+	if corpus == nil {
+		return false
+	}
+	if q.Constraint.Permanode != nil && q.Sort == LastModifiedDesc {
+		return true
+	}
+	return false
 }
 
 func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {

@@ -30,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
@@ -1030,13 +1031,17 @@ func enumerateSignerKeyId(s sorted.KeyValue, cb func(blob.Ref, string)) (err err
 }
 
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
-func (x *Index) EnumerateBlobMeta(ch chan<- camtypes.BlobMeta) (err error) {
+func (x *Index) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) (err error) {
 	if x.corpus != nil {
-		return x.corpus.EnumerateBlobMeta(ch)
+		return x.corpus.EnumerateBlobMeta(ctx, ch)
 	}
 	defer close(ch)
 	return enumerateBlobMeta(x.s, func(bm camtypes.BlobMeta) error {
-		ch <- bm
+		select {
+		case ch <- bm:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 		return nil
 	})
 }
