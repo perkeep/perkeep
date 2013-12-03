@@ -325,7 +325,18 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	}
 
 	if q.Describe != nil {
-		// TODO(bradfitz): describe them
+		s.h.initDescribeRequest(q.Describe)
+		q.Describe.BlobRef = blob.Ref{}
+		blobs := make([]blob.Ref, 0, len(res.Blobs))
+		for _, srb := range res.Blobs {
+			blobs = append(blobs, srb.Blob)
+		}
+		q.Describe.BlobRefs = blobs
+		res, err := s.h.Describe(q.Describe)
+		if err != nil {
+			return nil, err
+		}
+		s.res.Describe = res
 	}
 	return s.res, nil
 }
