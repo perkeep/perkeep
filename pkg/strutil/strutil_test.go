@@ -48,3 +48,12 @@ func TestAppendSplitN(t *testing.T) {
 		}
 	}
 }
+
+func TestStringFromBytes(t *testing.T) {
+	for _, s := range []string{"foo", "permanode", "file", "zzzz"} {
+		got := StringFromBytes([]byte(s))
+		if got != s {
+			t.Errorf("StringFromBytes(%q) didn't round-trip; got %q instead", s, got)
+		}
+	}
+}
