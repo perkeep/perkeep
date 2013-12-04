@@ -17,8 +17,41 @@ limitations under the License.
 package test_test
 
 import (
+	"log"
+	"reflect"
+	"testing"
+
 	"camlistore.org/pkg/index"
 	. "camlistore.org/pkg/test"
 )
 
 var _ index.Interface = (*FakeIndex)(nil)
+
+type tbLogger struct {
+	TB
+	log []string
+}
+
+func (l *tbLogger) Log(args ...interface{}) {
+	l.log = append(l.log, args[0].(string))
+}
+
+func TestTLog(t *testing.T) {
+	tb := new(tbLogger)
+	defer TLog(tb)()
+	defer log.SetFlags(log.Flags())
+	log.SetFlags(0)
+
+	log.Printf("hello")
+	log.Printf("hello\n")
+	log.Printf("some text\nand more text\n")
+	want := []string{
+		"hello",
+		"hello",
+		"some text",
+		"and more text",
+	}
+	if !reflect.DeepEqual(tb.log, want) {
+		t.Errorf("Got %q; want %q", tb.log, want)
+	}
+}

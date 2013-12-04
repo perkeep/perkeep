@@ -34,9 +34,27 @@ func BrokenTest(t *testing.T) {
 	}
 }
 
+// TB is a copy of Go 1.2's testing.TB.
+type TB interface {
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fail()
+	FailNow()
+	Failed() bool
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+	Log(args ...interface{})
+	Logf(format string, args ...interface{})
+	Skip(args ...interface{})
+	SkipNow()
+	Skipf(format string, args ...interface{})
+	Skipped() bool
+}
+
 // TLog changes the log package's output to log to t and returns a function
 // to reset it back to stderr.
-func TLog(t *testing.T) func() {
+func TLog(t TB) func() {
+	// TODO(bradfitz): once we rely on Go 1.2, change this to take a testing.TB.
 	log.SetOutput(&twriter{t: t})
 	return func() {
 		log.SetOutput(os.Stderr)
@@ -44,7 +62,7 @@ func TLog(t *testing.T) func() {
 }
 
 type twriter struct {
-	t   *testing.T
+	t   TB
 	buf bytes.Buffer
 }
 
