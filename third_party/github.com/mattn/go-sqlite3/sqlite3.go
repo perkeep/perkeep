@@ -388,7 +388,10 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 					dest[i] = time.Time{}
 				}
 			default:
-				dest[i] = s
+				// NOTE(bradfitz): local hack, without internet access. I imagine
+				// this has been fixed upstream properly. (the database/sql/driver
+				// docs say that you can't return strings here)
+				dest[i] = []byte(s)
 			}
 
 		}
