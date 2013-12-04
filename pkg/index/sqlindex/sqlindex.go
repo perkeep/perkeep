@@ -161,7 +161,7 @@ func (s *Storage) Close() error { return s.DB.Close() }
 func (s *Storage) Find(key string) sorted.Iterator {
 	it := &iter{
 		s:          s,
-		low:        key,
+		low:        []byte(key),
 		op:         ">=",
 		closeCheck: leak.NewChecker(),
 	}
@@ -171,7 +171,7 @@ func (s *Storage) Find(key string) sorted.Iterator {
 // iter is a iterator over sorted key/value pairs in rows.
 type iter struct {
 	s   *Storage
-	low string
+	low []byte
 	op  string // ">=" initially, then ">"
 	err error  // accumulated error, returned at Close
 
@@ -182,14 +182,32 @@ type iter struct {
 	batchSize int // how big our LIMIT query was
 	seen      int // how many rows we've seen this query
 
-	key   string
-	value string
+	key        sql.RawBytes
+	val        sql.RawBytes
+	skey, sval *string // if non-nil, it's been stringified
 }
 
 var errClosed = errors.New("mysqlindexer: Iterator already closed")
 
-func (t *iter) Key() string   { return t.key }
-func (t *iter) Value() string { return t.value }
+func (t *iter) KeyBytes() []byte { return t.key }
+func (t *iter) Key() string {
+	if t.skey != nil {
+		return *t.skey
+	}
+	str := string(t.key)
+	t.skey = &str
+	return str
+}
+
+func (t *iter) ValueBytes() []byte { return t.val }
+func (t *iter) Value() string {
+	if t.sval != nil {
+		return *t.sval
+	}
+	str := string(t.val)
+	t.sval = &str
+	return str
+}
 
 func (t *iter) Close() error {
 	t.closeCheck.Close()
@@ -205,6 +223,7 @@ func (t *iter) Next() bool {
 	if t.err != nil {
 		return false
 	}
+	t.skey, t.sval = nil, nil
 	if t.rows == nil {
 		const batchSize = 50
 		t.batchSize = batchSize
@@ -213,7 +232,7 @@ func (t *iter) Next() bool {
 		}
 		t.rows, t.err = t.s.DB.Query(t.s.sql(
 			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k LIMIT "+strconv.Itoa(batchSize)),
-			t.low)
+			string(t.low))
 		if t.s.Serial {
 			t.s.mu.Unlock()
 		}
@@ -232,12 +251,12 @@ func (t *iter) Next() bool {
 		}
 		return false
 	}
-	t.err = t.rows.Scan(&t.key, &t.value)
+	t.err = t.rows.Scan(&t.key, &t.val)
 	if t.err != nil {
 		log.Printf("unexpected Scan error: %v", t.err)
 		return false
 	}
-	t.low = t.key
+	t.low = append(t.low[:0], t.key...)
 	t.seen++
 	return true
 }

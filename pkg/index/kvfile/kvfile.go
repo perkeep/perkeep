@@ -156,8 +156,9 @@ type iter struct {
 
 	enum *kv.Enumerator
 
-	valid    bool
-	key, val string
+	valid      bool
+	key, val   []byte
+	skey, sval *string // non-nil if valid
 
 	err    error
 	closed bool
@@ -168,24 +169,49 @@ func (it *iter) Close() error {
 	return it.err
 }
 
-func (it *iter) Key() string {
+func (it *iter) KeyBytes() []byte {
 	if !it.valid {
 		panic("not valid")
 	}
 	return it.key
 }
 
-func (it *iter) Value() string {
+func (it *iter) Key() string {
+	if !it.valid {
+		panic("not valid")
+	}
+	if it.skey != nil {
+		return *it.skey
+	}
+	str := string(it.key)
+	it.skey = &str
+	return str
+}
+
+func (it *iter) ValueBytes() []byte {
 	if !it.valid {
 		panic("not valid")
 	}
 	return it.val
 }
 
+func (it *iter) Value() string {
+	if !it.valid {
+		panic("not valid")
+	}
+	if it.sval != nil {
+		return *it.sval
+	}
+	str := string(it.val)
+	it.sval = &str
+	return str
+}
+
 func (it *iter) Next() (ret bool) {
 	if it.closed {
 		panic("Next called after Next returned value")
 	}
+	it.skey, it.sval = nil, nil
 	defer func() {
 		it.valid = ret
 		if !ret {
@@ -198,13 +224,12 @@ func (it *iter) Next() (ret bool) {
 			return false
 		}
 	}
-	key, val, err := it.enum.Next()
+	var err error
+	it.key, it.val, err = it.enum.Next()
 	if err == io.EOF {
 		it.err = nil
 		return false
 	}
-	it.key = string(key)
-	it.val = string(val)
 	return true
 }
 

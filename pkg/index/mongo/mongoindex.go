@@ -159,11 +159,11 @@ type mongoStrIterator struct {
 	*mgo.Iter
 }
 
-func (s mongoStrIterator) Next() bool {
+func (s *mongoStrIterator) Next() bool {
 	return s.Iter.Next(&s.res)
 }
 
-func (s mongoStrIterator) Key() (key string) {
+func (s *mongoStrIterator) Key() string {
 	key, ok := (s.res[mgoKey]).(string)
 	if !ok {
 		return ""
@@ -171,7 +171,14 @@ func (s mongoStrIterator) Key() (key string) {
 	return key
 }
 
-func (s mongoStrIterator) Value() (value string) {
+func (s *mongoStrIterator) KeyBytes() []byte {
+	// TODO(bradfitz,mpl): this is less efficient than the string way. we should
+	// do better here, somehow, like all the other sorted.KeyValue iterators.
+	// For now:
+	return []byte(s.Key())
+}
+
+func (s *mongoStrIterator) Value() string {
 	value, ok := (s.res[mgoValue]).(string)
 	if !ok {
 		return ""
@@ -179,7 +186,14 @@ func (s mongoStrIterator) Value() (value string) {
 	return value
 }
 
-func (s mongoStrIterator) Close() error {
+func (s *mongoStrIterator) ValueBytes() []byte {
+	// TODO(bradfitz,mpl): this is less efficient than the string way. we should
+	// do better here, somehow, like all the other sorted.KeyValue iterators.
+	// For now:
+	return []byte(s.Value())
+}
+
+func (s *mongoStrIterator) Close() error {
 	// TODO(mpl): think about anything more to be done here.
 	return nil
 }
@@ -213,7 +227,7 @@ func (mk *mongoKeys) Find(key string) sorted.Iterator {
 	// more suited if possible.
 	cleanedKey := strings.Replace(key, "|", `\|`, -1)
 	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedKey}}).Sort(mgoKey).Iter()
-	return mongoStrIterator{res: bson.M{}, Iter: iter}
+	return &mongoStrIterator{res: bson.M{}, Iter: iter}
 }
 
 func (mk *mongoKeys) Set(key, value string) error {

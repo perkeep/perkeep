@@ -43,15 +43,45 @@ type memKeys struct {
 // operates on []byte, to Camlistore's index.Iterator, which operates
 // on string.
 type stringIterator struct {
-	db.Iterator
+	lit  db.Iterator // underlying leveldb iterator
+	k, v *string     // if nil, not stringified yet
 }
 
-func (s stringIterator) Key() string {
-	return string(s.Iterator.Key())
+func (s *stringIterator) Next() bool {
+	s.k, s.v = nil, nil
+	return s.lit.Next()
 }
 
-func (s stringIterator) Value() string {
-	return string(s.Iterator.Value())
+func (s *stringIterator) Close() error {
+	err := s.lit.Close()
+	*s = stringIterator{} // to cause crashes on future access
+	return err
+}
+
+func (s *stringIterator) KeyBytes() []byte {
+	return s.lit.Key()
+}
+
+func (s *stringIterator) ValueBytes() []byte {
+	return s.lit.Value()
+}
+
+func (s *stringIterator) Key() string {
+	if s.k != nil {
+		return *s.k
+	}
+	str := string(s.KeyBytes())
+	s.k = &str
+	return str
+}
+
+func (s *stringIterator) Value() string {
+	if s.v != nil {
+		return *s.v
+	}
+	str := string(s.ValueBytes())
+	s.v = &str
+	return str
 }
 
 func (mk *memKeys) Get(key string) (string, error) {
@@ -67,8 +97,8 @@ func (mk *memKeys) Get(key string) (string, error) {
 func (mk *memKeys) Find(key string) Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	dit := mk.db.Find([]byte(key), nil)
-	return stringIterator{dit}
+	lit := mk.db.Find([]byte(key), nil)
+	return &stringIterator{lit: lit}
 }
 
 func (mk *memKeys) Set(key, value string) error {

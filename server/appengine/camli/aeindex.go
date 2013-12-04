@@ -189,6 +189,11 @@ func (it *iter) Next() bool {
 func (it *iter) Key() string   { return it.key }
 func (it *iter) Value() string { return it.value }
 
+// TODO(bradfit): optimize the string<->[]byte copies in this iterator, as done in the other
+// sorted.KeyValue iterators.
+func (it *iter) KeyBytes() []byte   { return []byte(it.key) }
+func (it *iter) ValueBytes() []byte { return []byte(it.value) }
+
 func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	is := &indexStorage{}
 	var (

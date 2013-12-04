@@ -70,9 +70,23 @@ type Iterator interface {
 	// Only valid after a call to Next returns true.
 	Key() string
 
+	// KeyBytes returns the key as bytes. The returned bytes
+	// should not be written and are invalid after the next call
+	// to Next or Close.
+	// TODO(bradfitz): rename this and change it to return a
+	// mem.RO instead?
+	KeyBytes() []byte
+
 	// Value returns the value of the current key/value pair.
 	// Only valid after a call to Next returns true.
 	Value() string
+
+	// ValueBytes returns the value as bytes. The returned bytes
+	// should not be written and are invalid after the next call
+	// to Next or Close.
+	// TODO(bradfitz): rename this and change it to return a
+	// mem.RO instead?
+	ValueBytes() []byte
 
 	// Close closes the iterator and returns any accumulated error. Exhausting
 	// all the key/value pairs in a table is not considered to be an error.
