@@ -60,6 +60,12 @@ func TestParse(t *testing.T) {
 			}
 			continue
 		}
+		{
+			r2, ok := ParseBytes([]byte(tt.in))
+			if r != r2 {
+				t.Errorf("ParseBytes(%q) = %v, %v; want %v", tt.in, r2, ok, r)
+			}
+		}
 		str := r.String()
 		if str != tt.in {
 			t.Errorf("Parsed %q but String() value differs: %q", tt.in, str)

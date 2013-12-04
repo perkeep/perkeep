@@ -200,6 +200,34 @@ func Parse(s string) (ref Ref, ok bool) {
 	return Ref{meta.ctor(buf)}, true
 }
 
+// ParseBytes is like Parse, but parses from a byte slice.
+func ParseBytes(s []byte) (ref Ref, ok bool) {
+	i := bytes.IndexByte(s, '-')
+	if i < 0 {
+		return
+	}
+	name := s[:i] // e.g. "sha1"
+	hex := s[i+1:]
+	meta, ok := metaFromBytes(name)
+	if !ok {
+		return parseUnknown(string(name), string(hex))
+	}
+	if len(hex) != meta.size*2 {
+		ok = false
+		return
+	}
+	buf := getBuf(meta.size)
+	defer putBuf(buf)
+	bad := false
+	for i := 0; i < len(hex); i += 2 {
+		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
+	}
+	if bad {
+		return
+	}
+	return Ref{meta.ctor(buf)}, true
+}
+
 // Parse parse s as a blobref. If s is invalid, a zero Ref is returned
 // which can be tested with the Valid method.
 func ParseOrZero(s string) Ref {
@@ -344,6 +372,31 @@ var sha1Meta = &digestMeta{
 
 var metaFromString = map[string]*digestMeta{
 	"sha1": sha1Meta,
+}
+
+type blobTypeAndMeta struct {
+	name []byte
+	meta *digestMeta
+}
+
+var metas []blobTypeAndMeta
+
+func metaFromBytes(name []byte) (meta *digestMeta, ok bool) {
+	for _, bm := range metas {
+		if bytes.Equal(name, bm.name) {
+			return bm.meta, true
+		}
+	}
+	return
+}
+
+func init() {
+	for name, meta := range metaFromString {
+		metas = append(metas, blobTypeAndMeta{
+			name: []byte(name),
+			meta: meta,
+		})
+	}
 }
 
 var sha1Type = reflect.TypeOf(sha1.New())
