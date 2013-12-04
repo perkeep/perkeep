@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- make leveldb memdb's iterator struct only 8 bytes, pointing to a recycled
+   object, and just nil out that pointer at EOF.
+
 -- genconfig needs to be updated to route incoming blobs to sync handlers;
    or should sync handlers subscribe to their source's blobhub?
    No, see latest email to Bill Thiede: sync handlers already subscribe
