@@ -74,7 +74,7 @@ func ParseTime3339OrZero(v string) Time3339 {
 	return Time3339(t)
 }
 
-func ParseTime3339OrZil(v string) *Time3339 {
+func ParseTime3339OrNil(v string) *Time3339 {
 	t, err := time.Parse(time.RFC3339Nano, v)
 	if err != nil {
 		return nil

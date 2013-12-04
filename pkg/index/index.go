@@ -853,9 +853,9 @@ func updateFileInfoTimes(fi *camtypes.FileInfo, times []string) {
 	if len(times) == 0 {
 		return
 	}
-	fi.Time = types.ParseTime3339OrZil(times[0])
+	fi.Time = types.ParseTime3339OrNil(times[0])
 	if len(times) == 2 {
-		fi.ModTime = types.ParseTime3339OrZil(times[1])
+		fi.ModTime = types.ParseTime3339OrNil(times[1])
 	}
 }
 
