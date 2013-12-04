@@ -19,3 +19,9 @@ package search
 func SetTestHookBug121(hook func()) {
 	testHookBug121 = hook
 }
+
+func ExportCandSource() string { return candSource }
+
+func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
+	return s.plannedQuery()
+}

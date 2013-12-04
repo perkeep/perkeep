@@ -1,7 +1,10 @@
 package search_test
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	. "camlistore.org/pkg/search"
+	"camlistore.org/pkg/test"
 )
 
 // indexType is one of the three ways we test the query handler code.
@@ -22,6 +26,24 @@ const (
 	indexCorpusScan                   // *Corpus scanned from key/value pairs on start
 	indexCorpusBuild                  // empty *Corpus, built iteratively as blob received.
 )
+
+var (
+	allIndexTypes = []indexType{indexClassic, indexCorpusScan, indexCorpusBuild}
+	memIndexTypes = []indexType{indexCorpusScan, indexCorpusBuild}
+)
+
+func (i indexType) String() string {
+	switch i {
+	case indexClassic:
+		return "classic"
+	case indexCorpusScan:
+		return "scan"
+	case indexCorpusBuild:
+		return "build"
+	default:
+		return fmt.Sprintf("unknown-index-type-%d", i)
+	}
+}
 
 type queryTest struct {
 	t  *testing.T
@@ -39,26 +61,26 @@ func querySetup(t *testing.T) (*indextest.IndexDeps, *Handler) {
 }
 
 func testQuery(t *testing.T, fn func(*queryTest)) {
-	types := []struct {
-		name  string
-		itype indexType
-	}{
-		{"classic", indexClassic},
-		{"scan", indexCorpusScan},
-		{"build", indexCorpusBuild},
-	}
-	for _, tt := range types {
-		if *queryType == "" || *queryType == tt.name {
-			t.Logf("Testing: --querytype=%s ...", tt.name)
-			testQueryType(t, fn, tt.itype)
+	testQueryTypes(t, allIndexTypes, fn)
+}
+
+func testQueryTypes(t *testing.T, types []indexType, fn func(*queryTest)) {
+	defer test.TLog(t)()
+	for _, it := range types {
+		if *queryType == "" || *queryType == it.String() {
+			t.Logf("Testing: --querytype=%s ...", it)
+			testQueryType(t, fn, it)
 		}
 	}
 }
 
 func testQueryType(t *testing.T, fn func(*queryTest), itype indexType) {
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
+	var err error
+	var corpus *index.Corpus
 	if itype == indexCorpusBuild {
-		if _, err := idx.KeepInMemory(); err != nil {
+		t.Logf("testing build")
+		if corpus, err = idx.KeepInMemory(); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -70,12 +92,13 @@ func testQueryType(t *testing.T, fn func(*queryTest), itype indexType) {
 	qt.Handler = func() *Handler {
 		h := NewHandler(idx, qt.id.SignerBlobRef)
 		if itype == indexCorpusScan {
-			if corpus, err := idx.KeepInMemory(); err != nil {
+			if corpus, err = idx.KeepInMemory(); err != nil {
 				t.Fatal(err)
-			} else {
-				h.SetCorpus(corpus)
 			}
 			idx.PreventStorageAccessForTesting()
+		}
+		if corpus != nil {
+			h.SetCorpus(corpus)
 		}
 		return h
 	}
@@ -500,4 +523,81 @@ func TestDecodeFileInfo(t *testing.T) {
 			return
 		}
 	})
+}
+
+func TestQueryRecentPermanodes(t *testing.T) {
+	// TODO: care about classic (allIndexTypes) too?
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "foo", "p1")
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "foo", "p2")
+		p3 := id.NewPlannedPermanode("3")
+		id.SetAttribute(p3, "foo", "p3")
+
+		req := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{},
+			},
+			Limit:    2,
+			Sort:     UnspecifiedSort,
+			Describe: &DescribeRequest{},
+		}
+		res, err := qt.Handler().Query(req)
+		if err != nil {
+			qt.t.Fatal(err)
+		}
+		if s := ExportCandSource(); s != "corpus_permanode_desc" {
+			t.Errorf("used candidate source strategy %q; want corpus_permanode_desc", s)
+		}
+		wantBlobs := []*SearchResultBlob{
+			{Blob: p3},
+			{Blob: p2},
+		}
+		if !reflect.DeepEqual(res.Blobs, wantBlobs) {
+			gotj, wantj := prettyJSON(res.Blobs), prettyJSON(wantBlobs)
+			t.Errorf("Got blobs:\n%s\nWant:\n%s\n", gotj, wantj)
+		}
+		if got := len(res.Describe.Meta); got != 2 {
+			t.Errorf("got %d described blobs; want 2", got)
+		}
+	})
+}
+
+func prettyJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func TestPlannedQuery(t *testing.T) {
+	tests := []struct {
+		in, want *SearchQuery
+	}{
+		{
+			in: &SearchQuery{
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{},
+				},
+			},
+			want: &SearchQuery{
+				Sort: LastModifiedDesc,
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{},
+				},
+				Limit: 200,
+			},
+		},
+	}
+	for i, tt := range tests {
+		got := tt.in.ExportPlannedQuery()
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%d. for input:\n%s\ngot:\n%s\nwant:\n%s\n", i,
+				prettyJSON(tt.in), prettyJSON(got), prettyJSON(tt.want))
+		}
+	}
 }

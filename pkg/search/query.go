@@ -325,8 +325,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	}
 
 	if q.Describe != nil {
-		s.h.initDescribeRequest(q.Describe)
-		q.Describe.BlobRef = blob.Ref{}
+		q.Describe.BlobRef = blob.Ref{} // zero this out, if caller set it
 		blobs := make([]blob.Ref, 0, len(res.Blobs))
 		for _, srb := range res.Blobs {
 			blobs = append(blobs, srb.Blob)
@@ -353,6 +352,13 @@ func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
 }
 
+// For testing only.
+// Not thread-safe.
+var (
+	// candSource is the most recent strategy that sendAllCandidates used.
+	candSource string
+)
+
 // sendAllCandidates sends all possible matches to dst.
 // dst must be closed, regardless of error.
 func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
@@ -360,13 +366,16 @@ func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst cha
 	corpus := s.h.corpus
 	if corpus != nil {
 		if q.Constraint.Permanode != nil && q.Sort == LastModifiedDesc {
+			candSource = "corpus_permanode_desc"
 			return corpus.EnumeratePermanodesLastModified(ctx, dst)
 		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
+			candSource = "camli_blob_meta"
 			return corpus.EnumerateCamliBlobs(ctx, camType, dst)
 		}
 	}
+	candSource = "all_blob_meta"
 	return s.h.index.EnumerateBlobMeta(ctx, dst)
 }
 
