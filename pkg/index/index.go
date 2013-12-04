@@ -17,6 +17,7 @@ limitations under the License.
 package index
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -102,12 +103,12 @@ func (x *Index) isEmpty() bool {
 
 type prefixIter struct {
 	sorted.Iterator
-	prefix string
+	prefix []byte
 }
 
 func (p *prefixIter) Next() bool {
 	v := p.Iterator.Next()
-	if v && !strings.HasPrefix(p.Key(), p.prefix) {
+	if v && !bytes.HasPrefix(p.KeyBytes(), p.prefix) {
 		return false
 	}
 	return v
@@ -115,7 +116,7 @@ func (p *prefixIter) Next() bool {
 
 func queryPrefixString(s sorted.KeyValue, prefix string) *prefixIter {
 	return &prefixIter{
-		prefix:   prefix,
+		prefix:   []byte(prefix),
 		Iterator: s.Find(prefix),
 	}
 }
@@ -984,10 +985,7 @@ func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (er
 }
 
 func kvBlobMeta(k, v string) (bm camtypes.BlobMeta, ok bool) {
-	refStr := strings.TrimPrefix(k, "meta:")
-	if refStr == k {
-		return // didn't trim
-	}
+	refStr := k[len("meta:"):]
 	br, ok := blob.Parse(refStr)
 	if !ok {
 		return
@@ -1004,6 +1002,27 @@ func kvBlobMeta(k, v string) (bm camtypes.BlobMeta, ok bool) {
 		Ref:       br,
 		Size:      uint32(size),
 		CamliType: camliTypeFromMIME(v[pipe+1:]),
+	}, true
+}
+
+func kvBlobMeta_bytes(k, v []byte) (bm camtypes.BlobMeta, ok bool) {
+	ref := k[len("meta:"):]
+	br, ok := blob.ParseBytes(ref)
+	if !ok {
+		return
+	}
+	pipe := bytes.IndexByte(v, '|')
+	if pipe < 0 {
+		return
+	}
+	size, err := strutil.ParseUintBytes(v[:pipe], 10, 32)
+	if err != nil {
+		return
+	}
+	return camtypes.BlobMeta{
+		Ref:       br,
+		Size:      uint32(size),
+		CamliType: camliTypeFromMIME_bytes(v[pipe+1:]),
 	}, true
 }
 
@@ -1063,11 +1082,22 @@ func (x *Index) Close() error {
 	return nil
 }
 
+const camliTypeMIMEPrefix = "application/json; camliType="
+
+var camliTypeMIMEPrefixBytes = []byte(camliTypeMIMEPrefix)
+
 // "application/json; camliType=file" => "file"
 // "image/gif" => ""
 func camliTypeFromMIME(mime string) string {
-	if v := strings.TrimPrefix(mime, "application/json; camliType="); v != mime {
+	if v := strings.TrimPrefix(mime, camliTypeMIMEPrefix); v != mime {
 		return v
+	}
+	return ""
+}
+
+func camliTypeFromMIME_bytes(mime []byte) string {
+	if v := bytes.TrimPrefix(mime, camliTypeMIMEPrefixBytes); len(v) != len(mime) {
+		return strutil.StringFromBytes(v)
 	}
 	return ""
 }

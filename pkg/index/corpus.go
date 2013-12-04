@@ -121,6 +121,10 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"imagesize":   (*Corpus).mergeImageSizeRow,
 }
 
+var corpusMergeFuncBytes = map[string]func(c *Corpus, k, v []byte) error{
+	"meta": (*Corpus).mergeMetaRow_bytes,
+}
+
 func memstats() *runtime.MemStats {
 	ms := new(runtime.MemStats)
 	runtime.GC()
@@ -211,14 +215,23 @@ func (c *Corpus) numSchemaBlobsLocked() (n int64) {
 }
 
 func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
-	fn, ok := corpusMergeFunc[typeOfKey(prefix)]
+	typeKey := typeOfKey(prefix)
+	fn, ok := corpusMergeFunc[typeKey]
 	if !ok {
 		panic("No registered merge func for prefix " + prefix)
 	}
+	fnb := corpusMergeFuncBytes[typeKey]
+
 	it := queryPrefixString(s, prefix)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		if err := fn(c, it.Key(), it.Value()); err != nil {
+		var err error
+		if fnb != nil {
+			err = fnb(c, it.KeyBytes(), it.ValueBytes())
+		} else {
+			err = fn(c, it.Key(), it.Value())
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -253,6 +266,18 @@ func (c *Corpus) mergeMetaRow(k, v string) error {
 		brstr := k[len("meta:"):]
 		c.brOfStr[brstr] = bm.Ref
 	}
+	return c.mergeBlobMeta(bm)
+}
+
+func (c *Corpus) mergeMetaRow_bytes(k, v []byte) error {
+	bm, ok := kvBlobMeta_bytes(k, v)
+	if !ok {
+		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
+	}
+	return c.mergeBlobMeta(bm)
+}
+
+func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	if _, dup := c.blobs[bm.Ref]; dup {
 		// Um, shouldn't happen.  TODO(bradfitz): is it
 		// guaranteed elsewhere that duplicate blobs are never
