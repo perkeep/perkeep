@@ -17,6 +17,10 @@ limitations under the License.
 package test
 
 import (
+	"bytes"
+	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
 	"testing"
@@ -27,5 +31,33 @@ import (
 func BrokenTest(t *testing.T) {
 	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
 		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
+	}
+}
+
+// TLog changes the log package's output to log to t and returns a function
+// to reset it back to stderr.
+func TLog(t *testing.T) func() {
+	log.SetOutput(&twriter{t: t})
+	return func() {
+		log.SetOutput(os.Stderr)
+	}
+}
+
+type twriter struct {
+	t   *testing.T
+	buf bytes.Buffer
+}
+
+func (w *twriter) Write(p []byte) (n int, err error) {
+	n, err = w.buf.Write(p)
+	for {
+		i := bytes.IndexByte(w.buf.Bytes(), '\n')
+		if i < 0 {
+			return
+		}
+		if i > 0 {
+			w.t.Log(string(w.buf.Bytes()[:i]))
+		}
+		io.CopyN(ioutil.Discard, &w.buf, int64(i)+1)
 	}
 }
