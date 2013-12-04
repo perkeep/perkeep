@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -94,4 +95,47 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 		}
 	}
 
+}
+
+func TestKVClaimAllocs(t *testing.T) {
+	n := testing.AllocsPerRun(20, func() {
+		kvClaim("claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
+			"set-attribute|tag|foo1|sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007",
+			blob.Parse)
+	})
+	t.Logf("%v allocations", n)
+}
+
+func TestKVClaim(t *testing.T) {
+	tests := []struct {
+		k, v string
+		ok   bool
+		want camtypes.Claim
+	}{
+		{
+			k:  "claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
+			v:  "set-attribute|tag|foo1|sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007",
+			ok: true,
+			want: camtypes.Claim{
+				BlobRef:   blob.MustParse("sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2"),
+				Signer:    blob.MustParse("sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"),
+				Permanode: blob.MustParse("sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d"),
+				Type:      "set-attribute",
+				Attr:      "tag",
+				Value:     "foo1",
+				Date:      time.Time(types.ParseTime3339OrZero("2011-11-28T01:32:37.000123456Z")),
+			},
+		},
+	}
+	for _, tt := range tests {
+		got, ok := kvClaim(tt.k, tt.v, blob.Parse)
+		if ok != tt.ok {
+			t.Errorf("kvClaim(%q, %q) = ok %v; want %v", tt.k, tt.v, ok, tt.ok)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("kvClaim(%q, %q) = %+v; want %+v", tt.k, tt.v, got, tt.want)
+			continue
+		}
+	}
 }

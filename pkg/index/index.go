@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -398,10 +399,13 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 }
 
 func kvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
-	// TODO(bradfitz): remove the strings.Split calls to reduce allocations.
-	keyPart := strings.Split(k, "|")
-	valPart := strings.Split(v, "|")
-	if len(keyPart) < 5 || len(valPart) < 4 {
+	const nKeyPart = 5
+	const nValPart = 4
+	var keya [nKeyPart]string
+	var vala [nValPart]string
+	keyPart := strutil.AppendSplitN(keya[:0], k, "|", -1)
+	valPart := strutil.AppendSplitN(vala[:0], v, "|", -1)
+	if len(keyPart) < nKeyPart || len(valPart) < nValPart {
 		return
 	}
 	signerRef, ok := blobParse(valPart[3])
