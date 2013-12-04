@@ -128,10 +128,15 @@ func memstats() *runtime.MemStats {
 	return ms
 }
 
+var logCorpusStats = true // set to false in tests
+
 func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = true
 
-	ms0 := memstats()
+	var ms0 *runtime.MemStats
+	if logCorpusStats {
+		ms0 = memstats()
+	}
 	log.Printf("Slurping corpus to memory from index...")
 
 	// We do the "meta" rows first, before the prefixes below, because it
@@ -178,22 +183,23 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = false
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
-	cpu := osutil.CPUUsage() - cpu0
-
-	ms1 := memstats()
-	memUsed := ms1.Alloc - ms0.Alloc
-	if ms1.Alloc < ms0.Alloc {
-		memUsed = 0
+	if logCorpusStats {
+		cpu := osutil.CPUUsage() - cpu0
+		ms1 := memstats()
+		memUsed := ms1.Alloc - ms0.Alloc
+		if ms1.Alloc < ms0.Alloc {
+			memUsed = 0
+		}
+		log.Printf("Corpus stats: %.3f MiB mem: %d blobs (%.3f GiB) (%d schema (%d permanode, %d file (%d image), ...)",
+			float64(memUsed)/(1<<20),
+			len(c.blobs),
+			float64(c.sumBlobBytes)/(1<<30),
+			c.numSchemaBlobsLocked(),
+			len(c.permanodes),
+			len(c.files),
+			len(c.imageInfo))
+		log.Printf("Corpus scanning CPU usage: %v", cpu)
 	}
-	log.Printf("Corpus stats: %.3f MiB mem: %d blobs (%.3f GiB) (%d schema (%d permanode, %d file (%d image), ...)",
-		float64(memUsed)/(1<<20),
-		len(c.blobs),
-		float64(c.sumBlobBytes)/(1<<30),
-		c.numSchemaBlobsLocked(),
-		len(c.permanodes),
-		len(c.files),
-		len(c.imageInfo))
-	log.Printf("Corpus scanning CPU usage: %v", cpu)
 	return nil
 }
 
