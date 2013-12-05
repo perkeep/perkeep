@@ -144,8 +144,7 @@ camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
  * @enum {string}
  */
 camlistore.BlobItemContainer.EventType = {
-  BLOB_ITEMS_CHOSEN: 'Camlistore_BlobItemContainer_BlobItems_Chosen',
-  SINGLE_NODE_CHOSEN: 'Camlistore_BlobItemContainer_SingleNode_Chosen'
+  SELECTION_CHANGED: 'Camlistore_BlobItemContainer_SelectionChanged',
 };
 
 
@@ -441,7 +440,6 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
         this.checkedBlobItems_.push(item);
       }
     }
-    this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
   } else if (isCtrlMultiSelect) {
     if (isCheckingItem) {
       blobItem.setState(goog.ui.Component.State.CHECKED, true);
@@ -469,7 +467,6 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
         }
       }
     }
-    this.dispatchEvent(camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN);
   } else {
     blobItem.setState(goog.ui.Component.State.CHECKED, isCheckingItem);
     if (isCheckingItem) {
@@ -477,8 +474,8 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
     } else {
       goog.array.remove(this.checkedBlobItems_, blobItem);
     }
-    this.dispatchEvent(camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN);
   }
+  this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
 };
 
 /**
@@ -488,6 +485,7 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
     item.setState(goog.ui.Component.State.CHECKED, false);
   });
   this.checkedBlobItems_ = [];
+  this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
 }
 
 /**

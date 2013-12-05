@@ -56,6 +56,13 @@ camlistore.Toolbar = function(opt_domHelper) {
   /**
    * @type {goog.ui.Button}
    * @private
+   * /
+  this.clearSelectionButton_ = new goog.ui.Button('Clear Selection');
+  this.clearSelectionButton_.setVisible(false);
+
+  /**
+   * @type {goog.ui.Button}
+   * @private
    */
   this.createPermanodeButton_ = new goog.ui.Button('New Permanode');
   this.createPermanodeButton_.addClassName('cam-toolbar-createpermanode');
@@ -108,6 +115,7 @@ camlistore.Toolbar.EventType = {
   SMALLER: 'Camlistore_Toolbar_Smaller',
   ROOTS: 'Camlistore_Toolbar_SearchRoots',
   CHECKED_ITEMS_ADDTO_SET: 'Camlistore_Toolbar_Checked_Items_Addto_set',
+  CLEAR_SELECTION: 'Clear_Selection',
   SELECT_COLLEC: 'Camlistore_Toolbar_Select_collec',
   CHECKED_ITEMS_CREATE_SET: 'Camlistore_Toolbar_Checked_Items_Create_set',
   CREATE_PERMANODE: 'Camlistore_Toolbar_Create_Permanode',
@@ -152,6 +160,7 @@ camlistore.Toolbar.prototype.decorateInternal = function(el) {
   this.addChild(this.smallerButton_, true);
   this.addChild(this.biggerButton_, true);
   this.addChild(this.checkedItemsCreateSetButton_, true);
+  this.addChild(this.clearSelectionButton_, true);
   this.addChild(this.createPermanodeButton_, true);
   this.addChild(this.setAsCollecButton_, true);
   this.addChild(this.checkedItemsAddToSetButton_, true);
@@ -207,6 +216,12 @@ camlistore.Toolbar.prototype.enterDocument = function() {
                 camlistore.Toolbar.EventType.CHECKED_ITEMS_CREATE_SET));
 
   this.eh_.listen(
+      this.clearSelectionButton_.getElement(),
+      goog.events.EventType.CLICK,
+      goog.bind(this.dispatch_, this,
+                camlistore.Toolbar.EventType.CLEAR_SELECTION));
+
+  this.eh_.listen(
       this.createPermanodeButton_.getElement(),
       goog.events.EventType.CLICK,
       goog.bind(this.dispatch_, this,
@@ -254,9 +269,11 @@ camlistore.Toolbar.prototype.setCheckedBlobItemCount = function(count) {
     var txt = 'Create set w/ ' + count + ' item' + (count > 1 ? 's' : '');
     this.checkedItemsCreateSetButton_.setContent(txt);
     this.checkedItemsCreateSetButton_.setVisible(true);
+    this.clearSelectionButton_.setVisible(true);
   } else {
     this.checkedItemsCreateSetButton_.setContent('');
     this.checkedItemsCreateSetButton_.setVisible(false);
+    this.clearSelectionButton_.setVisible(false);
   }
 };
 
