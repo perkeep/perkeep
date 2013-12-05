@@ -207,10 +207,13 @@ function(blobref, success, opt_fail) {
  * @param {?Function} opt_fail optional failure calback
  */
 camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodes =
-    function(success, opt_thumbnailSize, opt_fail) {
+  function(success, continuation, opt_thumbnailSize, opt_fail) {
 
   var path = goog.uri.utils.appendPath(
       this.config_.searchRoot, 'camli/search/recent');
+  if (continuation != "") {
+    path = goog.uri.utils.appendParam(path, 'before', continuation);
+  }
   if (!!opt_thumbnailSize) {
     path = goog.uri.utils.appendParam(path, 'thumbnails', opt_thumbnailSize);
   }
