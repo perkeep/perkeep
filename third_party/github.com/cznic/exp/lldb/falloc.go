@@ -786,18 +786,13 @@ func (a *Allocator) Realloc(handle int64, b []byte) (err error) {
 		return &ErrINVAL{"Allocator.Free: handle out of limits", handle}
 	}
 
-	if n, ok := a.m[handle]; ok {
-		a.lru.moveToFront(n)
-		a.cache.put(n)
-		n = a.cache.get(len(b))
-		n.h = handle
-		copy(n.b, b)
-		a.m[handle] = n
-	} else {
-		a.cadd(b, handle)
+	a.cfree(handle)
+	if err = a.realloc(handle, b); err != nil {
+		return
 	}
 
-	return a.realloc(handle, b)
+	a.cadd(b, handle)
+	return
 }
 
 func (a *Allocator) realloc(handle int64, b []byte) (err error) {
