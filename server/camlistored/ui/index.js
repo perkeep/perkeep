@@ -155,6 +155,10 @@ camlistore.IndexPage.prototype.enterDocument = function() {
       });
 
   this.eh_.listen(
+      this.toolbar_, camlistore.Toolbar.EventType.CLEAR_SELECTION,
+      this.blobItemContainer_.unselectAll.bind(this.blobItemContainer_));
+
+  this.eh_.listen(
     this.toolbar_, camlistore.Toolbar.EventType.CREATE_PERMANODE,
     function() {
       this.connection_.createPermanode(
@@ -193,28 +197,9 @@ camlistore.IndexPage.prototype.enterDocument = function() {
       this.blobItemContainer_.showRoots.bind(
         this.blobItemContainer_, this.config_.signing));
 
-  // TODO(mpl): those are getting large. make dedicated funcs.
   this.eh_.listen(
       this.blobItemContainer_,
-      camlistore.BlobItemContainer.EventType.BLOB_ITEMS_CHOSEN,
-      function() {
-        var blobItems = this.blobItemContainer_.getCheckedBlobItems();
-        this.toolbar_.setCheckedBlobItemCount(blobItems.length);
-        // set checkedItemsAddToSetButton_
-        if (this.blobItemContainer_.currentCollec_ &&
-          this.blobItemContainer_.currentCollec_ != "" &&
-          blobItems.length > 0) {
-          this.toolbar_.toggleAddToSetButton(true);
-        } else {
-          this.toolbar_.toggleAddToSetButton(false);
-        }
-        // set setAsCollecButton_
-        this.toolbar_.toggleCollecButton(false);
-      });
-
-  this.eh_.listen(
-      this.blobItemContainer_,
-      camlistore.BlobItemContainer.EventType.SINGLE_NODE_CHOSEN,
+      camlistore.BlobItemContainer.EventType.SELECTION_CHANGED,
       function() {
         var blobItems = this.blobItemContainer_.getCheckedBlobItems();
         this.toolbar_.setCheckedBlobItemCount(blobItems.length);
