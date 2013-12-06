@@ -140,13 +140,13 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	var ms0 *runtime.MemStats
 	if logCorpusStats {
 		ms0 = memstats()
+		log.Printf("Slurping corpus to memory from index...")
+		log.Printf("Slurping corpus to memory from index... (1/6: meta rows)")
 	}
-	log.Printf("Slurping corpus to memory from index...")
 
 	// We do the "meta" rows first, before the prefixes below, because it
 	// populates the blobs map (used for blobref interning) and the camBlobs
 	// map (used for hinting the size of other maps)
-	log.Printf("Slurping corpus to memory from index... (1/6: meta rows)")
 	if err := c.scanPrefix(s, "meta:"); err != nil {
 		return err
 	}
@@ -162,7 +162,9 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		"imagesize|",
 	}
 	for i, prefix := range prefixes {
-		log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(prefixes)+1, prefix)
+		if logCorpusStats {
+			log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(prefixes)+1, prefix)
+		}
 		if err := c.scanPrefix(s, prefix); err != nil {
 			return err
 		}

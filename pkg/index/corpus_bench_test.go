@@ -18,8 +18,6 @@ package index_test
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"sync"
 	"testing"
 	"time"
@@ -57,10 +55,6 @@ func BenchmarkCorpusFromStorage(b *testing.B) {
 		_, err := index.NewCorpusFromStorage(kvForBenchmark)
 		if err != nil {
 			b.Fatal(err)
-		}
-		if i == 0 {
-			// Only worth logging any failures in the first round.
-			log.SetOutput(ioutil.Discard)
 		}
 	}
 }
