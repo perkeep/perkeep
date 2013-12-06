@@ -56,7 +56,7 @@ camlistore.Toolbar = function(opt_domHelper) {
   /**
    * @type {goog.ui.Button}
    * @private
-   * /
+   */
   this.clearSelectionButton_ = new goog.ui.Button('Clear Selection');
   this.clearSelectionButton_.setVisible(false);
 
