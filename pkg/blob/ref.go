@@ -188,16 +188,11 @@ func Parse(s string) (ref Ref, ok bool) {
 		ok = false
 		return
 	}
-	buf := getBuf(meta.size)
-	bad := false
-	for i := 0; i < len(hex); i += 2 {
-		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
-	}
-	putBuf(buf)
-	if bad {
+	dt, ok := meta.ctors(hex)
+	if !ok {
 		return
 	}
-	return Ref{meta.ctor(buf)}, true
+	return Ref{dt}, true
 }
 
 // ParseBytes is like Parse, but parses from a byte slice.
@@ -216,16 +211,11 @@ func ParseBytes(s []byte) (ref Ref, ok bool) {
 		ok = false
 		return
 	}
-	buf := getBuf(meta.size)
-	bad := false
-	for i := 0; i < len(hex); i += 2 {
-		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
-	}
-	putBuf(buf)
-	if bad {
+	dt, ok := meta.ctorb(hex)
+	if !ok {
 		return
 	}
-	return Ref{meta.ctor(buf)}, true
+	return Ref{dt}, true
 }
 
 // Parse parse s as a blobref. If s is invalid, a zero Ref is returned
@@ -307,13 +297,38 @@ func parseUnknown(digest, hex string) (ref Ref, ok bool) {
 	return Ref{o}, true
 }
 
-func fromSHA1Bytes(b []byte) digestType {
-	var a sha1Digest
-	if len(b) != len(a) {
+func sha1FromBinary(b []byte) digestType {
+	var d sha1Digest
+	if len(d) != len(b) {
 		panic("bogus sha-1 length")
 	}
-	copy(a[:], b)
-	return a
+	copy(d[:], b)
+	return d
+}
+
+func sha1FromHexString(hex string) (digestType, bool) {
+	var d sha1Digest
+	var bad bool
+	for i := 0; i < len(hex); i += 2 {
+		d[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
+	}
+	if bad {
+		return nil, false
+	}
+	return d, true
+}
+
+// yawn. exact copy of sha1FromHexString.
+func sha1FromHexBytes(hex []byte) (digestType, bool) {
+	var d sha1Digest
+	var bad bool
+	for i := 0; i < len(hex); i += 2 {
+		d[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
+	}
+	if bad {
+		return nil, false
+	}
+	return d, true
 }
 
 // RefFromHash returns a blobref representing the given hash.
@@ -366,8 +381,10 @@ func (d otherDigest) bytes() []byte      { return d.sum[:d.sumLen] }
 func (d otherDigest) newHash() hash.Hash { return nil }
 
 var sha1Meta = &digestMeta{
-	ctor: fromSHA1Bytes,
-	size: sha1.Size,
+	ctor:  sha1FromBinary,
+	ctors: sha1FromHexString,
+	ctorb: sha1FromHexBytes,
+	size:  sha1.Size,
 }
 
 var metaFromString = map[string]*digestMeta{
@@ -406,8 +423,10 @@ var metaFromType = map[reflect.Type]*digestMeta{
 }
 
 type digestMeta struct {
-	ctor func(b []byte) digestType
-	size int // bytes of digest
+	ctor  func(binary []byte) digestType
+	ctors func(hex string) (digestType, bool)
+	ctorb func(hex []byte) (digestType, bool)
+	size  int // bytes of digest
 }
 
 var bufPool = make(chan []byte, 20)
