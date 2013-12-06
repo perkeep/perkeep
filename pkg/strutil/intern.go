@@ -43,9 +43,12 @@ func StringFromBytes(v []byte) string {
 
 // NOTE: must be sorted
 var commonStrings = []string{
+	"bytes",
 	"claim",
 	"directory",
 	"file",
 	"permanode",
+	"share",
 	"static-set",
+	"symlink",
 }
