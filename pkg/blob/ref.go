@@ -189,11 +189,11 @@ func Parse(s string) (ref Ref, ok bool) {
 		return
 	}
 	buf := getBuf(meta.size)
-	defer putBuf(buf)
 	bad := false
 	for i := 0; i < len(hex); i += 2 {
 		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
 	}
+	putBuf(buf)
 	if bad {
 		return
 	}
@@ -217,11 +217,11 @@ func ParseBytes(s []byte) (ref Ref, ok bool) {
 		return
 	}
 	buf := getBuf(meta.size)
-	defer putBuf(buf)
 	bad := false
 	for i := 0; i < len(hex); i += 2 {
 		buf[i/2] = hexVal(hex[i], &bad)<<4 | hexVal(hex[i+1], &bad)
 	}
+	putBuf(buf)
 	if bad {
 		return
 	}
@@ -410,13 +410,26 @@ type digestMeta struct {
 	size int // bytes of digest
 }
 
+var bufPool = make(chan []byte, 20)
+
 func getBuf(size int) []byte {
-	// TODO: pool
-	return make([]byte, size)
+	for {
+		select {
+		case b := <-bufPool:
+			if cap(b) >= size {
+				return b[:size]
+			}
+		default:
+			return make([]byte, size)
+		}
+	}
 }
 
 func putBuf(b []byte) {
-	// TODO: pool
+	select {
+	case bufPool <- b:
+	default:
+	}
 }
 
 // NewHash returns a new hash.Hash of the currently recommended hash type.

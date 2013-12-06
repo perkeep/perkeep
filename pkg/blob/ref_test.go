@@ -165,3 +165,17 @@ func TestMarshalBinary(t *testing.T) {
 		t.Error("expect error on second UnmarshalBinary")
 	}
 }
+
+func BenchmarkParseBlob(b *testing.B) {
+	b.ReportAllocs()
+	ref := "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"
+	refb := []byte(ref)
+	for i := 0; i < b.N; i++ {
+		if _, ok := Parse(ref); !ok {
+			b.Fatal()
+		}
+		if _, ok := ParseBytes(refb); !ok {
+			b.Fatal()
+		}
+	}
+}
