@@ -566,6 +566,42 @@ func TestQueryRecentPermanodes(t *testing.T) {
 	})
 }
 
+func TestLimitDoesntDeadlock(t *testing.T) {
+	// TODO: care about classic (allIndexTypes) too?
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		const limit = 2
+		for i := 0; i < ExportBufferedConst()+limit+1; i++ {
+			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			id.SetAttribute(pn, "foo", "bar")
+		}
+
+		req := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{},
+			},
+			Limit:    limit,
+			Sort:     UnspecifiedSort,
+			Describe: &DescribeRequest{},
+		}
+		h := qt.Handler()
+		gotRes := make(chan bool, 1)
+		go func() {
+			_, err := h.Query(req)
+			if err != nil {
+				qt.t.Error(err)
+			}
+			gotRes <- true
+		}()
+		select {
+		case <-gotRes:
+		case <-time.After(5 * time.Second):
+			t.Error("timeout; deadlock?")
+		}
+	})
+}
+
 func prettyJSON(v interface{}) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {

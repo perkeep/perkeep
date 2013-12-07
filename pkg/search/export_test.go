@@ -22,6 +22,8 @@ func SetTestHookBug121(hook func()) {
 
 func ExportCandSource() string { return candSource }
 
+func ExportBufferedConst() int { return buffered }
+
 func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
 	return s.plannedQuery()
 }
