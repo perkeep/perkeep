@@ -221,19 +221,13 @@ func rescale(im image.Image, opts *DecodeOpts) image.Image {
 		mh = int(mhf * float32(b.Dy()))
 	}
 
-	const huge = 2400
 	// If it's gigantic, it's more efficient to downsample first
 	// and then resize; resizing will smooth out the roughness.
 	// (trusting the moustachio guys on that one).
-	if b.Dx() > huge || b.Dy() > huge {
-		w, h := mw*2, mh*2
-		if b.Dx() > b.Dy() {
-			w = b.Dx() * h / b.Dy()
-		} else {
-			h = b.Dy() * w / b.Dx()
-		}
-		im = resize.Resample(im, b, w, h)
-		b = im.Bounds()
+	if b.Dx() > mw*2 || b.Dy() > mh*2 {
+		w, h := ScaledDimensions(b.Dx(), b.Dy(), mw*2, mh*2)
+		im = resize.ResampleInplace(im, b, w, h)
+		return resize.HalveInplace(im)
 	}
 	mw, mh = ScaledDimensions(b.Dx(), b.Dy(), mw, mh)
 	return resize.Resize(im, b, mw, mh)
