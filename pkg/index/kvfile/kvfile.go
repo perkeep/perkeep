@@ -20,6 +20,7 @@ limitations under the License.
 package kvfile
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -96,11 +97,14 @@ func (is *kvis) Delete(key string) error {
 	return is.db.Delete([]byte(key))
 }
 
-func (is *kvis) Find(key string) sorted.Iterator {
-	return &iter{
-		db:      is.db,
-		initKey: key,
+func (is *kvis) Find(start, end string) sorted.Iterator {
+	it := &iter{
+		db:       is.db,
+		startKey: start,
+		endKey:   []byte(end),
 	}
+	it.enum, _, it.err = it.db.Seek([]byte(start))
+	return it
 }
 
 func (is *kvis) BeginBatch() sorted.BatchMutation {
@@ -151,8 +155,9 @@ func (is *kvis) Close() error {
 }
 
 type iter struct {
-	db      *kv.DB
-	initKey string
+	db       *kv.DB
+	startKey string
+	endKey   []byte
 
 	enum *kv.Enumerator
 
@@ -207,29 +212,34 @@ func (it *iter) Value() string {
 	return str
 }
 
+func (it *iter) end() bool {
+	it.valid = false
+	it.closed = true
+	return false
+}
+
 func (it *iter) Next() (ret bool) {
+	if it.err != nil {
+		return false
+	}
 	if it.closed {
 		panic("Next called after Next returned value")
 	}
 	it.skey, it.sval = nil, nil
-	defer func() {
-		it.valid = ret
-		if !ret {
-			it.closed = true
-		}
-	}()
-	if it.enum == nil {
-		it.enum, _, it.err = it.db.Seek([]byte(it.initKey))
-		if it.err != nil {
-			return false
-		}
-	}
 	var err error
 	it.key, it.val, err = it.enum.Next()
 	if err == io.EOF {
 		it.err = nil
-		return false
+		return it.end()
 	}
+	if err != nil {
+		it.err = err
+		return it.end()
+	}
+	if len(it.endKey) > 0 && bytes.Compare(it.key, it.endKey) >= 0 {
+		return it.end()
+	}
+	it.valid = true
 	return true
 }
 

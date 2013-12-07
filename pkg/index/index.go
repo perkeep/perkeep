@@ -93,7 +93,7 @@ func New(s sorted.KeyValue) *Index {
 }
 
 func (x *Index) isEmpty() bool {
-	iter := x.s.Find("")
+	iter := x.s.Find("", "")
 	hasRows := iter.Next()
 	if err := iter.Close(); err != nil {
 		panic(err)
@@ -101,35 +101,27 @@ func (x *Index) isEmpty() bool {
 	return !hasRows
 }
 
-type prefixIter struct {
-	sorted.Iterator
-	prefix []byte
-}
-
-func (p *prefixIter) Next() bool {
-	v := p.Iterator.Next()
-	if v && !bytes.HasPrefix(p.KeyBytes(), p.prefix) {
-		return false
+func queryPrefixString(s sorted.KeyValue, prefix string) sorted.Iterator {
+	if prefix == "" {
+		return s.Find("", "")
 	}
-	return v
-}
-
-func queryPrefixString(s sorted.KeyValue, prefix string) *prefixIter {
-	return &prefixIter{
-		prefix:   []byte(prefix),
-		Iterator: s.Find(prefix),
+	lastByte := prefix[len(prefix)-1]
+	if lastByte == 0xff {
+		panic("unsupported query prefix ending in 0xff")
 	}
+	end := prefix[:len(prefix)-1] + string(lastByte+1)
+	return s.Find(prefix, end)
 }
 
-func (x *Index) queryPrefixString(prefix string) *prefixIter {
+func (x *Index) queryPrefixString(prefix string) sorted.Iterator {
 	return queryPrefixString(x.s, prefix)
 }
 
-func queryPrefix(s sorted.KeyValue, key *keyType, args ...interface{}) *prefixIter {
+func queryPrefix(s sorted.KeyValue, key *keyType, args ...interface{}) sorted.Iterator {
 	return queryPrefixString(s, key.Prefix(args...))
 }
 
-func (x *Index) queryPrefix(key *keyType, args ...interface{}) *prefixIter {
+func (x *Index) queryPrefix(key *keyType, args ...interface{}) sorted.Iterator {
 	return x.queryPrefixString(key.Prefix(args...))
 }
 
@@ -352,7 +344,7 @@ func (x *Index) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	var (
 		keyId string
 		err   error
-		it    *prefixIter
+		it    sorted.Iterator
 	)
 	if signerFilter.Valid() {
 		keyId, err = x.KeyId(signerFilter)
@@ -510,7 +502,7 @@ func (x *Index) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes
 		return err
 	}
 	seen := make(map[string]bool)
-	var it *prefixIter
+	var it sorted.Iterator
 	if request.Query == "" {
 		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute)
 	} else {

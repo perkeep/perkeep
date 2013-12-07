@@ -34,6 +34,8 @@ type KeyValue interface {
 	Get(key string) (string, error)
 
 	Set(key, value string) error
+
+	// Delete deletes keys. Deleting a non-existent key does not return an error.
 	Delete(key string) error
 
 	BeginBatch() BatchMutation
@@ -43,10 +45,16 @@ type KeyValue interface {
 	// whose key is 'greater than or equal to' the given key. There may be no
 	// such pair, in which case the iterator will return false on Next.
 	//
+	// The optional end value specifies the exclusive upper
+	// bound. If the empty string, the iterator returns keys
+	// where "key >= start".
+	// If non-empty, the iterator returns keys where
+	// "key >= start && key < endHint".
+	//
 	// Any error encountered will be implicitly returned via the iterator. An
 	// error-iterator will yield no key/value pairs and closing that iterator
 	// will return that error.
-	Find(key string) Iterator
+	Find(start, end string) Iterator
 
 	// Close is a polite way for the server to shut down the storage.
 	// Implementations should never lose data after a Set, Delete,

@@ -120,16 +120,17 @@ func (is *indexStorage) Delete(key string) error {
 	return datastore.Delete(c, is.key(c, key))
 }
 
-func (is *indexStorage) Find(key string) sorted.Iterator {
+func (is *indexStorage) Find(start, end string) sorted.Iterator {
 	c := ctxPool.Get()
 	if indexDebug {
-		c.Infof("IndexStorage Find(%q)", key)
+		c.Infof("IndexStorage Find(%q, %q)", start, end)
 	}
 	it := &iter{
-		is:    is,
-		cl:    c,
-		after: key,
-		nsk:   datastore.NewKey(c, indexRowKind, is.ns, 0, nil),
+		is:     is,
+		cl:     c,
+		after:  start,
+		endKey: end,
+		nsk:    datastore.NewKey(c, indexRowKind, is.ns, 0, nil),
 	}
 	it.Closer = &onceCloser{fn: func() {
 		c.Return()
@@ -141,8 +142,9 @@ func (is *indexStorage) Find(key string) sorted.Iterator {
 func (is *indexStorage) Close() error { return nil }
 
 type iter struct {
-	cl    ContextLoan
-	after string
+	cl     ContextLoan
+	after  string
+	endKey string // optional
 	io.Closer
 	nsk *datastore.Key
 	is  *indexStorage
@@ -160,7 +162,10 @@ func (it *iter) Next() bool {
 		return false
 	}
 	if it.it == nil {
-		q := datastore.NewQuery(indexRowKind).Limit(50).Filter("__key__>", it.is.key(it.cl, it.after))
+		q := datastore.NewQuery(indexRowKind).Filter("__key__>=", it.is.key(it.cl, it.after))
+		if it.endKey != "" {
+			q = q.Filter("__key__<", it.is.key(it.cl, it.endKey))
+		}
 		it.it = q.Run(it.cl)
 		it.n = 0
 	}

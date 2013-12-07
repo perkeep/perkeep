@@ -17,6 +17,7 @@ limitations under the License.
 package sorted
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 
@@ -39,34 +40,41 @@ type memKeys struct {
 	db db.DB
 }
 
-// stringIterator converts from leveldb's db.Iterator interface, which
+// memIter converts from leveldb's db.Iterator interface, which
 // operates on []byte, to Camlistore's index.Iterator, which operates
 // on string.
-type stringIterator struct {
+type memIter struct {
 	lit  db.Iterator // underlying leveldb iterator
 	k, v *string     // if nil, not stringified yet
+	end  []byte      // if len(end) > 0, the upper bound
 }
 
-func (s *stringIterator) Next() bool {
-	s.k, s.v = nil, nil
-	return s.lit.Next()
+func (t *memIter) Next() bool {
+	t.k, t.v = nil, nil
+	if !t.lit.Next() {
+		return false
+	}
+	if len(t.end) > 0 && bytes.Compare(t.KeyBytes(), t.end) >= 0 {
+		return false
+	}
+	return true
 }
 
-func (s *stringIterator) Close() error {
+func (s *memIter) Close() error {
 	err := s.lit.Close()
-	*s = stringIterator{} // to cause crashes on future access
+	*s = memIter{} // to cause crashes on future access
 	return err
 }
 
-func (s *stringIterator) KeyBytes() []byte {
+func (s *memIter) KeyBytes() []byte {
 	return s.lit.Key()
 }
 
-func (s *stringIterator) ValueBytes() []byte {
+func (s *memIter) ValueBytes() []byte {
 	return s.lit.Value()
 }
 
-func (s *stringIterator) Key() string {
+func (s *memIter) Key() string {
 	if s.k != nil {
 		return *s.k
 	}
@@ -75,7 +83,7 @@ func (s *stringIterator) Key() string {
 	return str
 }
 
-func (s *stringIterator) Value() string {
+func (s *memIter) Value() string {
 	if s.v != nil {
 		return *s.v
 	}
@@ -94,11 +102,15 @@ func (mk *memKeys) Get(key string) (string, error) {
 	return string(k), err
 }
 
-func (mk *memKeys) Find(key string) Iterator {
+func (mk *memKeys) Find(start, end string) Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	lit := mk.db.Find([]byte(key), nil)
-	return &stringIterator{lit: lit}
+	lit := mk.db.Find([]byte(start), nil)
+	it := &memIter{lit: lit}
+	if end != "" {
+		it.end = []byte(end)
+	}
+	return it
 }
 
 func (mk *memKeys) Set(key, value string) error {
@@ -110,7 +122,11 @@ func (mk *memKeys) Set(key, value string) error {
 func (mk *memKeys) Delete(key string) error {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
-	return mk.db.Delete([]byte(key), nil)
+	err := mk.db.Delete([]byte(key), nil)
+	if err == db.ErrNotFound {
+		return nil
+	}
+	return err
 }
 
 func (mk *memKeys) BeginBatch() BatchMutation {

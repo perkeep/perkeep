@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/leak"
@@ -159,50 +158,49 @@ func (s *Storage) Delete(key string) error {
 
 func (s *Storage) Close() error { return s.DB.Close() }
 
-func (s *Storage) Find(key string) sorted.Iterator {
+func (s *Storage) Find(start, end string) sorted.Iterator {
+	if s.Serial {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
+	var rows *sql.Rows
+	var err error
+	if end == "" {
+		rows, err = s.DB.Query(s.sql("SELECT k, v FROM rows WHERE k >= ? ORDER BY k "), start)
+	} else {
+		rows, err = s.DB.Query(s.sql("SELECT k, v FROM rows WHERE k >= ? AND k < ? ORDER BY k "), start, end)
+	}
+	if err != nil {
+		log.Printf("unexpected query error: %v", err)
+		return &iter{err: err}
+	}
+
 	it := &iter{
 		s:          s,
-		low:        []byte(key),
-		op:         ">=",
+		rows:       rows,
 		closeCheck: leak.NewChecker(),
-		batchSize:  batchSize(key),
 	}
 	return it
 }
 
 var wordThenPunct = regexp.MustCompile(`^\w+\W$`)
 
-// batchSize returns the size of the LIMIT query we'll use for the provided key.
-// A return value of 0 means no LIMIT clause (which is only used when we expect
-// a complete scan)
-func batchSize(key string) int {
-	const defaultBatchSize = 50
-	if wordThenPunct.MatchString(key) {
-		return 0
-	}
-	return defaultBatchSize
-}
-
 // iter is a iterator over sorted key/value pairs in rows.
 type iter struct {
 	s   *Storage
-	low []byte
-	op  string // ">=" initially, then ">"
+	end string // optional end bound
 	err error  // accumulated error, returned at Close
 
 	closeCheck *leak.Checker
 
 	rows *sql.Rows // if non-nil, the rows we're reading from
 
-	batchSize int // how big our LIMIT query was; 0 for none
-	seen      int // how many rows we've seen this query
-
 	key        sql.RawBytes
 	val        sql.RawBytes
 	skey, sval *string // if non-nil, it's been stringified
 }
 
-var errClosed = errors.New("mysqlindexer: Iterator already closed")
+var errClosed = errors.New("sqlkv: Iterator already closed")
 
 func (t *iter) KeyBytes() []byte { return t.key }
 func (t *iter) Key() string {
@@ -228,6 +226,7 @@ func (t *iter) Close() error {
 	t.closeCheck.Close()
 	if t.rows != nil {
 		t.rows.Close()
+		t.rows = nil
 	}
 	err := t.err
 	t.err = errClosed
@@ -239,33 +238,7 @@ func (t *iter) Next() bool {
 		return false
 	}
 	t.skey, t.sval = nil, nil
-	if t.rows == nil {
-		limit := ""
-		if t.batchSize > 0 {
-			limit = "LIMIT " + strconv.Itoa(t.batchSize)
-		}
-		if t.s.Serial {
-			t.s.mu.Lock()
-		}
-		t.rows, t.err = t.s.DB.Query(t.s.sql(
-			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k "+limit),
-			string(t.low))
-		if t.s.Serial {
-			t.s.mu.Unlock()
-		}
-		if t.err != nil {
-			log.Printf("unexpected query error: %v", t.err)
-			return false
-		}
-		t.seen = 0
-		t.op = ">"
-	}
 	if !t.rows.Next() {
-		if t.batchSize > 0 && t.seen == t.batchSize {
-			t.rows.Close() // required for <= Go 1.1, but not Go 1.2, iirc.
-			t.rows = nil
-			return t.Next()
-		}
 		return false
 	}
 	t.err = t.rows.Scan(&t.key, &t.val)
@@ -273,7 +246,5 @@ func (t *iter) Next() bool {
 		log.Printf("unexpected Scan error: %v", t.err)
 		return false
 	}
-	t.low = append(t.low[:0], t.key...)
-	t.seen++
 	return true
 }

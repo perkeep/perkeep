@@ -30,6 +30,7 @@ import (
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/sqlite"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvtest"
 
 	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
@@ -48,7 +49,7 @@ func do(db *sql.DB, sql string) {
 	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
-func makeStorage(t *testing.T) (s sorted.KeyValue, clean func()) {
+func makeSorted(t *testing.T) (s sorted.KeyValue, clean func()) {
 	f, err := ioutil.TempFile("", "sqlite-test")
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +72,12 @@ func makeStorage(t *testing.T) (s sorted.KeyValue, clean func()) {
 	return s, clean
 }
 
+func TestSortedKV(t *testing.T) {
+	kv, clean := makeSorted(t)
+	defer clean()
+	kvtest.TestSorted(t, kv)
+}
+
 type sqliteTester struct{}
 
 func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
@@ -83,7 +90,7 @@ func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)
 		}
 	}()
 	makeIndex := func() *index.Index {
-		s, cleanup := makeStorage(t)
+		s, cleanup := makeSorted(t)
 		mu.Lock()
 		cleanups = append(cleanups, cleanup)
 		mu.Unlock()
@@ -117,7 +124,7 @@ func TestConcurrency(t *testing.T) {
 		t.Logf("skipping for short mode")
 		return
 	}
-	s, clean := makeStorage(t)
+	s, clean := makeSorted(t)
 	defer clean()
 	const n = 100
 	ch := make(chan error)
@@ -156,7 +163,7 @@ func TestFDLeak(t *testing.T) {
 	fd0 := numFDs(t)
 	t.Logf("fd0 = %d", fd0)
 
-	s, clean := makeStorage(t)
+	s, clean := makeSorted(t)
 	defer clean()
 
 	bm := s.BeginBatch()
@@ -168,7 +175,7 @@ func TestFDLeak(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 5; i++ {
-		it := s.Find("key:")
+		it := s.Find("key:", "key~")
 		n := 0
 		for it.Next() {
 			n++

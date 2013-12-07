@@ -76,7 +76,7 @@ func (id *IndexDeps) Set(key, value string) error {
 
 func (id *IndexDeps) DumpIndex(t *testing.T) {
 	t.Logf("Begin index dump:")
-	it := id.Index.Storage().Find("")
+	it := id.Index.Storage().Find("", "")
 	for it.Next() {
 		t.Logf("  %q = %q", it.Key(), it.Value())
 	}

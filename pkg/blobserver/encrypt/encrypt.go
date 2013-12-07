@@ -328,7 +328,7 @@ func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	iter := s.index.Find(after)
+	iter := s.index.Find(after, "")
 	n := 0
 	for iter.Next() {
 		if iter.Key() == after {

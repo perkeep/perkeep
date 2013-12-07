@@ -270,7 +270,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 
-	t := s.index.Find(after)
+	t := s.index.Find(after, "")
 	defer func() {
 		closeErr := t.Close()
 		if err == nil {

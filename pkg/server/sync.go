@@ -302,7 +302,7 @@ func blobserverEnumerator(ctx *context.Context, src blobserver.BlobEnumerator) f
 
 func (sh *SyncHandler) enumerateQueuedBlobs(dst chan<- blob.SizedRef, intr <-chan struct{}) error {
 	defer close(dst)
-	it := sh.queue.Find("")
+	it := sh.queue.Find("", "")
 	for it.Next() {
 		br, ok := blob.Parse(it.Key())
 		size, err := strconv.ParseInt(it.Value(), 10, 64)

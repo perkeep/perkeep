@@ -25,33 +25,48 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/index/kvfile"
+	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvtest"
+	"camlistore.org/pkg/test"
 )
+
+func newSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
+	td, err := ioutil.TempDir("", "kvfile-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	is, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
+	if err != nil {
+		os.RemoveAll(td)
+		t.Fatal(err)
+	}
+	return is, func() {
+		is.Close()
+		os.RemoveAll(td)
+	}
+}
+
+func TestSortedKV(t *testing.T) {
+	kv, cleanup := newSorted(t)
+	defer cleanup()
+	kvtest.TestSorted(t, kv)
+}
 
 type tester struct{}
 
 func (tester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
-	var cleanup []func()
+	defer test.TLog(t)()
+	var cleanups []func()
 	defer func() {
-		for _, fn := range cleanup {
+		for _, fn := range cleanups {
 			fn()
 		}
 	}()
 
 	initIndex := func() *index.Index {
-		td, err := ioutil.TempDir("", "kvfile-test")
-		if err != nil {
-			t.Fatal(err)
-		}
-		is, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
-		if err != nil {
-			os.RemoveAll(td)
-			t.Fatal(err)
-		}
-		cleanup = append(cleanup, func() {
-			is.Close()
-			os.RemoveAll(td)
-		})
-		return index.New(is)
+		kv, cleanup := newSorted(t)
+		cleanups = append(cleanups, cleanup)
+		return index.New(kv)
 	}
 
 	tfn(t, initIndex)

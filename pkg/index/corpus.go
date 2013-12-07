@@ -105,8 +105,8 @@ func (crashStorage) Get(key string) (string, error) {
 	panic(fmt.Sprintf("unexpected KeyValue.Get(%q) called", key))
 }
 
-func (crashStorage) Find(key string) sorted.Iterator {
-	panic(fmt.Sprintf("unexpected KeyValue.Find(%q) called", key))
+func (crashStorage) Find(start, end string) sorted.Iterator {
+	panic(fmt.Sprintf("unexpected KeyValue.Find(%q, %q) called", start, end))
 }
 
 // *********** Updating the corpus

@@ -157,10 +157,19 @@ func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobs
 type mongoStrIterator struct {
 	res bson.M
 	*mgo.Iter
+	end string
 }
 
 func (s *mongoStrIterator) Next() bool {
-	return s.Iter.Next(&s.res)
+	if !s.Iter.Next(&s.res) {
+		return false
+	}
+	if s.end != "" {
+		if key, ok := (s.res[mgoKey]).(string); !ok || key >= s.end {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *mongoStrIterator) Key() string {
@@ -220,14 +229,14 @@ func (mk *mongoKeys) Get(key string) (string, error) {
 	return res[mgoValue].(string), err
 }
 
-func (mk *mongoKeys) Find(key string) sorted.Iterator {
+func (mk *mongoKeys) Find(start, end string) sorted.Iterator {
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	// TODO(mpl): escape other special chars, or maybe replace $regex with something
 	// more suited if possible.
-	cleanedKey := strings.Replace(key, "|", `\|`, -1)
-	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedKey}}).Sort(mgoKey).Iter()
-	return &mongoStrIterator{res: bson.M{}, Iter: iter}
+	cleanedStart := strings.Replace(start, "|", `\|`, -1)
+	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedStart}}).Sort(mgoKey).Iter()
+	return &mongoStrIterator{res: bson.M{}, Iter: iter, end: end}
 }
 
 func (mk *mongoKeys) Set(key, value string) error {

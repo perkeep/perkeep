@@ -28,7 +28,7 @@ import (
 
 func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
-	it := ix.s.Find("have:" + after)
+	it := ix.s.Find("have:"+after, "have~")
 	defer func() {
 		closeErr := it.Close()
 		if err == nil {
