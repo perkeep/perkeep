@@ -224,7 +224,7 @@ type ClaimConstraint struct {
 type LogicalConstraint struct {
 	Op string      `json:"op"` // "and", "or", "xor", "not"
 	A  *Constraint `json:"a"`
-	B  *Constraint `json:"b"` // only valid if Op == "not"
+	B  *Constraint `json:"b"` // only valid if Op != "not"
 }
 
 // PermanodeConstraint matches permanodes.
