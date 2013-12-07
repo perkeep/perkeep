@@ -310,6 +310,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 				Blob: meta.Ref,
 			})
 			if q.Limit > 0 && len(res.Blobs) == q.Limit && q.candidatesAreSorted(s) {
+				sendCtx.Cancel()
 				break
 			}
 		}
