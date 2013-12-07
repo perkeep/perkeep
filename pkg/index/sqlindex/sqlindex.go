@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"sync"
 
@@ -164,8 +165,22 @@ func (s *Storage) Find(key string) sorted.Iterator {
 		low:        []byte(key),
 		op:         ">=",
 		closeCheck: leak.NewChecker(),
+		batchSize:  batchSize(key),
 	}
 	return it
+}
+
+var wordThenPunct = regexp.MustCompile(`^\w+\W$`)
+
+// batchSize returns the size of the LIMIT query we'll use for the provided key.
+// A return value of 0 means no LIMIT clause (which is only used when we expect
+// a complete scan)
+func batchSize(key string) int {
+	const defaultBatchSize = 50
+	if wordThenPunct.MatchString(key) {
+		return 0
+	}
+	return defaultBatchSize
 }
 
 // iter is a iterator over sorted key/value pairs in rows.
@@ -179,7 +194,7 @@ type iter struct {
 
 	rows *sql.Rows // if non-nil, the rows we're reading from
 
-	batchSize int // how big our LIMIT query was
+	batchSize int // how big our LIMIT query was; 0 for none
 	seen      int // how many rows we've seen this query
 
 	key        sql.RawBytes
@@ -225,13 +240,15 @@ func (t *iter) Next() bool {
 	}
 	t.skey, t.sval = nil, nil
 	if t.rows == nil {
-		const batchSize = 50
-		t.batchSize = batchSize
+		limit := ""
+		if t.batchSize > 0 {
+			limit = "LIMIT " + strconv.Itoa(t.batchSize)
+		}
 		if t.s.Serial {
 			t.s.mu.Lock()
 		}
 		t.rows, t.err = t.s.DB.Query(t.s.sql(
-			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k LIMIT "+strconv.Itoa(batchSize)),
+			"SELECT k, v FROM rows WHERE k "+t.op+" ? ORDER BY k "+limit),
 			string(t.low))
 		if t.s.Serial {
 			t.s.mu.Unlock()
@@ -244,7 +261,7 @@ func (t *iter) Next() bool {
 		t.op = ">"
 	}
 	if !t.rows.Next() {
-		if t.seen == t.batchSize {
+		if t.batchSize > 0 && t.seen == t.batchSize {
 			t.rows.Close() // required for <= Go 1.1, but not Go 1.2, iirc.
 			t.rows = nil
 			return t.Next()
