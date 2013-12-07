@@ -34,8 +34,9 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-// These, if set, override the JSON config file ~/.camlistore/config
-// "server" and "password" keys.
+// These, if set, override the JSON config file
+// ~/.config/camlistore/client-config.json
+// (i.e. osutil.UserClientConfigPath()) "server" and "password" keys.
 //
 // A main binary must call AddFlags to expose these.
 var (
