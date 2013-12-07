@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -8,7 +9,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -111,7 +111,7 @@ func (crashStorage) Find(start, end string) sorted.Iterator {
 
 // *********** Updating the corpus
 
-var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
+var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"have":        nil, // redundant with "meta"
 	"meta":        (*Corpus).mergeMetaRow,
 	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
@@ -119,10 +119,6 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v string) error{
 	"fileinfo":    (*Corpus).mergeFileInfoRow,
 	"filetimes":   (*Corpus).mergeFileTimesRow,
 	"imagesize":   (*Corpus).mergeImageSizeRow,
-}
-
-var corpusMergeFuncBytes = map[string]func(c *Corpus, k, v []byte) error{
-	"meta": (*Corpus).mergeMetaRow_bytes,
 }
 
 func memstats() *runtime.MemStats {
@@ -222,18 +218,11 @@ func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 	if !ok {
 		panic("No registered merge func for prefix " + prefix)
 	}
-	fnb := corpusMergeFuncBytes[typeKey]
 
 	it := queryPrefixString(s, prefix)
 	defer closeIterator(it, &err)
 	for it.Next() {
-		var err error
-		if fnb != nil {
-			err = fnb(c, it.KeyBytes(), it.ValueBytes())
-		} else {
-			err = fn(c, it.Key(), it.Value())
-		}
-		if err != nil {
+		if err := fn(c, it.KeyBytes(), it.ValueBytes()); err != nil {
 			return err
 		}
 	}
@@ -248,7 +237,7 @@ func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 		kt := typeOfKey(k)
 		if fn, ok := corpusMergeFunc[kt]; ok {
 			if fn != nil {
-				if err := fn(c, k, v); err != nil {
+				if err := fn(c, []byte(k), []byte(v)); err != nil {
 					return err
 				}
 			}
@@ -259,19 +248,7 @@ func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 	return nil
 }
 
-func (c *Corpus) mergeMetaRow(k, v string) error {
-	bm, ok := kvBlobMeta(k, v)
-	if !ok {
-		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
-	}
-	if useBlobParseCache && c.brOfStr != nil {
-		brstr := k[len("meta:"):]
-		c.brOfStr[brstr] = bm.Ref
-	}
-	return c.mergeBlobMeta(bm)
-}
-
-func (c *Corpus) mergeMetaRow_bytes(k, v []byte) error {
+func (c *Corpus) mergeMetaRow(k, v []byte) error {
 	bm, ok := kvBlobMeta_bytes(k, v)
 	if !ok {
 		return fmt.Errorf("bogus meta row: %q -> %q", k, v)
@@ -303,17 +280,18 @@ func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	return nil
 }
 
-func (c *Corpus) mergeSignerKeyIdRow(k, v string) error {
-	br, ok := blob.Parse(strings.TrimPrefix(k, "signerkeyid:"))
+func (c *Corpus) mergeSignerKeyIdRow(k, v []byte) error {
+	br, ok := blob.ParseBytes(k[len("signerkeyid:"):])
 	if !ok {
 		return fmt.Errorf("bogus signerid row: %q -> %q", k, v)
 	}
-	c.keyId[br] = v
+	c.keyId[br] = string(v)
 	return nil
 }
 
-func (c *Corpus) mergeClaimRow(k, v string) error {
-	cl, ok := kvClaim(k, v, c.blobParse)
+func (c *Corpus) mergeClaimRow(k, v []byte) error {
+	// TODO: update kvClaim to take []byte instead of string
+	cl, ok := kvClaim(string(k), string(v), c.blobParse)
 	if !ok || !cl.Permanode.Valid() {
 		return fmt.Errorf("bogus claim row: %q -> %q", k, v)
 	}
@@ -336,17 +314,20 @@ func (c *Corpus) mergeClaimRow(k, v string) error {
 	return nil
 }
 
-func (c *Corpus) mergeFileInfoRow(k, v string) error {
+func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 	// fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b" "5|some-stuff.txt|"
-	c.ss = strutil.AppendSplitN(c.ss[:0], k, "|", 2)
-	if len(c.ss) != 2 {
+	pipe := bytes.IndexByte(k, '|')
+	if pipe < 0 {
 		return fmt.Errorf("unexpected fileinfo key %q", k)
 	}
-	br, ok := c.blobParse(c.ss[1])
+	br, ok := blob.ParseBytes(k[pipe+1:])
 	if !ok {
 		return fmt.Errorf("unexpected fileinfo blobref in key %q", k)
 	}
-	c.ss = strutil.AppendSplitN(c.ss[:0], v, "|", 3)
+
+	// TODO: could at least use strutil.ParseUintBytes to not stringify and retain
+	// the length bytes of v.
+	c.ss = strutil.AppendSplitN(c.ss[:0], string(v), "|", 3)
 	if len(c.ss) != 3 {
 		return fmt.Errorf("unexpected fileinfo value %q", k)
 	}
@@ -362,20 +343,20 @@ func (c *Corpus) mergeFileInfoRow(k, v string) error {
 	return nil
 }
 
-func (c *Corpus) mergeFileTimesRow(k, v string) error {
-	if v == "" {
+func (c *Corpus) mergeFileTimesRow(k, v []byte) error {
+	if len(v) == 0 {
 		return nil
 	}
 	// "filetimes|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b" "1970-01-01T00%3A02%3A03Z"
-	c.ss = strutil.AppendSplitN(c.ss[:0], k, "|", 2)
-	if len(c.ss) != 2 {
-		return fmt.Errorf("unexpected filetimes key %q", k)
+	pipe := bytes.IndexByte(k, '|')
+	if pipe < 0 {
+		return fmt.Errorf("unexpected fileinfo key %q", k)
 	}
-	br, ok := c.blobParse(c.ss[1])
+	br, ok := blob.ParseBytes(k[pipe+1:])
 	if !ok {
 		return fmt.Errorf("unexpected filetimes blobref in key %q", k)
 	}
-	c.ss = strutil.AppendSplitN(c.ss[:0], v, ",", -1)
+	c.ss = strutil.AppendSplitN(c.ss[:0], string(v), ",", -1)
 	times := c.ss
 	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
 		updateFileInfoTimes(fi, times)
@@ -390,8 +371,8 @@ func (c *Corpus) mutateFileInfo(br blob.Ref, fn func(*camtypes.FileInfo)) {
 	c.files[br] = fi
 }
 
-func (c *Corpus) mergeImageSizeRow(k, v string) error {
-	br, okk := c.blobParse(k[len("imagesize|"):])
+func (c *Corpus) mergeImageSizeRow(k, v []byte) error {
+	br, okk := blob.ParseBytes(k[len("imagesize|"):])
 	ii, okv := kvImageInfo(v)
 	if !okk || !okv {
 		return fmt.Errorf("bogus row %q = %q", k, v)

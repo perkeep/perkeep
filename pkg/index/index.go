@@ -853,16 +853,16 @@ func updateFileInfoTimes(fi *camtypes.FileInfo, times []string) {
 }
 
 // v is "width|height"
-func kvImageInfo(v string) (ii camtypes.ImageInfo, ok bool) {
-	pipei := strings.Index(v, "|")
+func kvImageInfo(v []byte) (ii camtypes.ImageInfo, ok bool) {
+	pipei := bytes.IndexByte(v, '|')
 	if pipei < 0 {
 		return
 	}
-	w, err := strconv.ParseUint(v[:pipei], 10, 16)
+	w, err := strutil.ParseUintBytes(v[:pipei], 10, 16)
 	if err != nil {
 		return
 	}
-	h, err := strconv.ParseUint(v[pipei+1:], 10, 16)
+	h, err := strutil.ParseUintBytes(v[pipei+1:], 10, 16)
 	if err != nil {
 		return
 	}
@@ -885,7 +885,7 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	if err != nil {
 		return camtypes.ImageInfo{}, err
 	}
-	ii, ok := kvImageInfo(v)
+	ii, ok := kvImageInfo([]byte(v))
 	if !ok {
 		return camtypes.ImageInfo{}, fmt.Errorf("index: bogus key %q = %q", key, v)
 	}

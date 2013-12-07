@@ -36,7 +36,7 @@ func ExpNewCorpus() *Corpus {
 }
 
 func (c *Corpus) Exp_mergeFileInfoRow(k, v string) error {
-	return c.mergeFileInfoRow(k, v)
+	return c.mergeFileInfoRow([]byte(k), []byte(v))
 }
 
 func (c *Corpus) Exp_files(br blob.Ref) camtypes.FileInfo {
