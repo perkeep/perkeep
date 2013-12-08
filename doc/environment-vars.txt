@@ -94,8 +94,9 @@ CAMLI_NO_FILE_DUP_SEARCH (bool):
   camput is uploading files.
 
 CAMLI_PPROF_START (string):
-  Filename to write a CPU profile out to during server start-up.
-  Used to profile index corpus scanning, mostly.
+  Filename base to write a "<base>.cpu" and "<base>.mem" profile out
+  to during server start-up.  Used to profile index corpus scanning,
+  mostly.
 
 CAMLI_QUIET (bool):
   Used by devcam to enable -verbose flag for camput/camget.

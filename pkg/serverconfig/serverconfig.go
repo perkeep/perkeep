@@ -401,13 +401,13 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 	}
 
 	if v := os.Getenv("CAMLI_PPROF_START"); v != "" {
-		f, err := os.Create(v)
-		if err != nil {
-			log.Fatalf("Failed to create %s: %v", v, err)
-		}
-		defer f.Close()
-		rpprof.StartCPUProfile(f)
+		cpuf := mustCreate(v + ".cpu")
+		defer cpuf.Close()
+		memf := mustCreate(v + ".mem")
+		defer memf.Close()
+		rpprof.StartCPUProfile(cpuf)
 		defer rpprof.StopCPUProfile()
+		defer rpprof.WriteHeapProfile(memf)
 	}
 
 	hl := &handlerLoader{
@@ -469,6 +469,14 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
 	return multiCloser(hl.closers), nil
+}
+
+func mustCreate(path string) *os.File {
+	f, err := os.Create(path)
+	if err != nil {
+		log.Fatalf("Failed to create %s: %v", path, err)
+	}
+	return f
 }
 
 type multiCloser []io.Closer
