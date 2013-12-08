@@ -83,7 +83,8 @@ goog.inherits(camlistore.IndexPage, goog.ui.Component);
 camlistore.IndexPage.SEARCH_PREFIX_ = {
   TAG: 'tag',
   TITLE: 'title',
-  BLOBREF: 'bre'
+  BLOBREF: 'bre',
+  RAW: 'raw'
 };
 
 
@@ -203,8 +204,14 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 
   this.eh_.listen(
       this.toolbar_, camlistore.Toolbar.EventType.ROOTS,
-      this.blobItemContainer_.showRoots.bind(
-        this.blobItemContainer_, this.config_.signing));
+      this.setUrlSearch_.bind(this, {
+        permanode: {
+          attr: 'camliRoot',
+          numValue: {
+            min: 1
+          }
+        }
+      }));
 
   this.eh_.listen(
       this.blobItemContainer_,
@@ -322,7 +329,18 @@ camlistore.IndexPage.prototype.handleServerStatus_ = function(resp) {
  * @private
  */
 camlistore.IndexPage.prototype.handleTextSearch_ = function(e) {
-  var searchText = goog.string.trim(this.toolbar_.getSearchText());
+  this.setUrlSearch_(this.toolbar_.getSearchText());
+};
+
+
+/**
+ * @param {string|Object}
+ * @private
+ */
+camlistore.IndexPage.prototype.setUrlSearch_ = function(search) {
+  var searchText = goog.isString(search) ? goog.string.trim(search) :
+      goog.string.subs('%s:%s', this.constructor.SEARCH_PREFIX_.RAW,
+                       JSON.stringify(search));
   var uri = new goog.Uri(location.href);
   uri.setParameterValue('q', searchText);
   if (history.pushState) {
@@ -362,6 +380,7 @@ camlistore.IndexPage.prototype.handleUrl_ = function() {
       case this.constructor.SEARCH_PREFIX_.TAG:
       case this.constructor.SEARCH_PREFIX_.TITLE:
       case this.constructor.SEARCH_PREFIX_.BLOBREF:
+      case this.constructor.SEARCH_PREFIX_.RAW:
         attr = parts[0];
         value = searchText.substr(attr.length + 1);
         fuzzy = false;
@@ -376,8 +395,14 @@ camlistore.IndexPage.prototype.handleUrl_ = function() {
     if (isPlausibleBlobRef(value)) {
       this.blobItemContainer_.findByBlobref_(value);
     }
+  } else if (attr == this.constructor.SEARCH_PREFIX_.RAW) {
+    this.blobItemContainer_.search(JSON.parse(value));
   } else {
-    this.blobItemContainer_.showWithAttr(this.config_.signing, attr, value,
-                                         fuzzy, this.maxInResponse_);
+    this.blobItemContainer_.search({
+      permanode: {
+        attr: attr,
+        value: value
+      }
+    });
   }
 };

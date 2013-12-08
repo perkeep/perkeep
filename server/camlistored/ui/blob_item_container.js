@@ -281,7 +281,7 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
  * Show recent blobs.
  */
 camlistore.BlobItemContainer.prototype.showRecent = function() {
-  this.search_({
+  this.search({
     camliType: 'permanode'
   });
 };
@@ -290,11 +290,11 @@ camlistore.BlobItemContainer.prototype.showRecent = function() {
  * @param {Object} callerConstraint
  * @param {string=} opt_continueBefore A date to fetch results prior to
  */
-camlistore.BlobItemContainer.prototype.search_ = function(callerConstraint,
-                                                          opt_continueBefore) {
-  if (!opt_continueBefore) {
-    opt_continueBefore = dateToRfc3339String(new Date());
-
+camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
+                                                         opt_continueBefore) {
+  var isContinuation = Boolean(opt_continueBefore);
+  var continueBefore = opt_continueBefore || dateToRfc3339String(new Date());
+  if (!isContinuation) {
     // Clear this out now in case the user scrolls while the request is
     // outstanding.
     this.scrollContinuation_ = null;
@@ -323,9 +323,9 @@ camlistore.BlobItemContainer.prototype.search_ = function(callerConstraint,
     }
   };
 
-  this.connection_.query(JSON.stringify(query),
-                         goog.bind(this.searchDone_, this, callerConstraint,
-                                   !opt_continueBefore));
+  this.connection_.search(JSON.stringify(query),
+                          goog.bind(this.searchDone_, this, callerConstraint,
+                                    !isContinuation));
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
@@ -343,36 +343,9 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
 
   var lastItem = result.description.meta[
     result.blobs[result.blobs.length - 1].blob];
-  this.scrollContinuation_ = this.search_.bind(this, constraint,
-                                               lastItem.permanode.modtime);
+  this.scrollContinuation_ = this.search.bind(this, constraint,
+                                              lastItem.permanode.modtime);
 
-};
-
-
-/**
- * Show roots
- */
-camlistore.BlobItemContainer.prototype.showRoots = function(sigconf) {
-  this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef, "camliRoot", "",
-                                      false, 0, this.thumbnailSize_,
-                                      goog.bind(this.showWithAttrDone_, this),
-                                      function(msg) { alert(msg); });
-};
-
-/**
- * Search and show permanodes matching the specified criteria.
- * @param {string} sigconf
- * @param {string} attr
- * @param {string} value
- * @param {boolean} fuzzy Noop because not supported yet.
- * @param {number} max max number of items in response.
- */
-camlistore.BlobItemContainer.prototype.showWithAttr =
-function(sigconf, attr, value, fuzzy, max) {
-  this.connection_.permanodesWithAttr(sigconf.publicKeyBlobRef, attr, value,
-                                      fuzzy, max, this.thumbnailSize_,
-                                      goog.bind(this.showWithAttrDone_, this),
-                                      function(msg) { alert(msg); });
 };
 
 /**
@@ -687,29 +660,6 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
   if (this.scrollContinuation_) {
     this.scrollContinuation_();
     this.scrollContinuation_ = null;
-  }
-};
-
-/**
- * @param {camlistore.ServerType.SearchWithAttrResponse} result JSON response to
- * this request.
- * @private
- */
-camlistore.BlobItemContainer.prototype.showWithAttrDone_ = function(result) {
-  this.resetChildren_();
-  if (!result) {
-    return;
-  }
-  var results = result.withAttr;
-  var meta = result.meta;
-  if (!results || !meta) {
-    return;
-  }
-
-  for (var i = 0, n = results.length; i < n; i++) {
-    var blobRef = results[i].permanode;
-    var item = new camlistore.BlobItem(blobRef, meta);
-    this.addChild(item, true);
   }
 };
 
