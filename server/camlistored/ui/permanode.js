@@ -48,6 +48,12 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
   this.config_ = config;
 
   /**
+   * @type {camlistore.ServerConnection}
+   * @private
+   */
+  this.connection_ = new camlistore.ServerConnection(config);
+
+  /**
    * For members, not content.
    * @type {camlistore.BlobItemContainer}
    * @private
@@ -62,12 +68,6 @@ camlistore.PermanodePage = function(config, opt_domHelper) {
    * @private
    */
   this.describeResponse_ = null;
-
-  /**
-   * @type {camlistore.ServerConnection}
-   * @private
-   */
-  this.connection_ = new camlistore.ServerConnection(config);
 };
 goog.inherits(camlistore.PermanodePage, goog.ui.Component);
 

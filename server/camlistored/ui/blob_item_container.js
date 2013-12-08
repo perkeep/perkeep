@@ -647,6 +647,11 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
  * @private
  */
 camlistore.BlobItemContainer.prototype.appendRecent_ = function() {
+  if (!this.lastRecentContinuation_) {
+    // We're showing something other than recent permanodes.
+    return;
+  }
+
   if (this.appendRecentPending_) {
     console.log("An appendRecent call is already in progress");
     return;
