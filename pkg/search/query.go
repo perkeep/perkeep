@@ -72,7 +72,7 @@ func (q *SearchQuery) plannedQuery() *SearchQuery {
 	*pq = *q
 
 	if pq.Sort == 0 {
-		if pq.Constraint.Permanode != nil {
+		if pq.Constraint.onlyMatchesPermanode() {
 			pq.Sort = LastModifiedDesc
 		}
 	}
@@ -118,6 +118,23 @@ type Constraint struct {
 	BlobSize *IntConstraint   `json:"blobSize"`
 
 	Permanode *PermanodeConstraint `json:"permanode"`
+}
+
+func (c *Constraint) onlyMatchesPermanode() bool {
+	if c.Permanode != nil || c.CamliType == "permanode" {
+		return true
+	}
+
+	if c.Logical != nil && c.Logical.Op == "and" {
+		if c.Logical.A.onlyMatchesPermanode() || c.Logical.B.onlyMatchesPermanode() {
+			return true
+		}
+	}
+
+	// TODO: There are other cases we can return true here, like:
+	// Logical:{Op:'or', A:PermanodeConstraint{...}, B:PermanodeConstraint{...}
+
+	return false
 }
 
 type FileConstraint struct {
@@ -366,7 +383,7 @@ func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst cha
 	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
-		if q.Constraint.Permanode != nil && q.Sort == LastModifiedDesc {
+		if c.onlyMatchesPermanode() && q.Sort == LastModifiedDesc {
 			candSource = "corpus_permanode_desc"
 			return corpus.EnumeratePermanodesLastModified(ctx, dst)
 		}
@@ -385,7 +402,7 @@ func (q *SearchQuery) candidatesAreSorted(s *search) bool {
 	if corpus == nil {
 		return false
 	}
-	if q.Constraint.Permanode != nil && q.Sort == LastModifiedDesc {
+	if q.Constraint.onlyMatchesPermanode() && q.Sort == LastModifiedDesc {
 		return true
 	}
 	return false

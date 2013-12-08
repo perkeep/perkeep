@@ -81,16 +81,10 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
   this.isFileDragEnabled = false;
 
   /**
-   * @type {string}
+   * @type {function}
    * @private
    */
-  this.lastRecentContinuation_ = "";
-
-  /**
-   * @type {boolean}
-   * @private
-   */
-  this.appendRecentPending_ = false;
+  this.scrollContinuation_ = null;
 
   this.setFocusable(false);
 };
@@ -287,8 +281,71 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
  * Show recent blobs.
  */
 camlistore.BlobItemContainer.prototype.showRecent = function() {
-  this.connection_.getRecentlyUpdatedPermanodes(
-    goog.bind(this.showRecentDone_, this), "", this.thumbnailSize_);
+  this.search_({
+    camliType: 'permanode'
+  });
+};
+
+/**
+ * @param {Object} callerConstraint
+ * @param {string=} opt_continueBefore A date to fetch results prior to
+ */
+camlistore.BlobItemContainer.prototype.search_ = function(callerConstraint,
+                                                          opt_continueBefore) {
+  if (!opt_continueBefore) {
+    opt_continueBefore = dateToRfc3339String(new Date());
+
+    // Clear this out now in case the user scrolls while the request is
+    // outstanding.
+    this.scrollContinuation_ = null;
+  }
+
+  var query = {
+    // TODO(aa): Get rid of thumbnail size from protocol -- server should just
+    // return aspect ratio for each image.
+    describe: {
+      thumbnailSize: this.thumbnailSize_
+    },
+    sort: 1,  // LastModifiedDesc
+    limit: 50,
+    constraint : {
+      logical: {
+        op: 'and',
+        a: callerConstraint,
+        b: {
+          permanode: {
+            modTime: {
+              before: opt_continueBefore
+            }
+          }
+        }
+      }
+    }
+  };
+
+  this.connection_.query(JSON.stringify(query),
+                         goog.bind(this.searchDone_, this, callerConstraint,
+                                   !opt_continueBefore));
+};
+
+camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
+                                                              reset, result) {
+  if (!result.blobs || !result.blobs.length) {
+    console.log("Did not get any results. We must be done!");
+    return;
+  }
+
+  if (reset) {
+    this.resetChildren_();
+  }
+
+  this.appendChildren_(result);
+
+  var lastItem = result.description.meta[
+    result.blobs[result.blobs.length - 1].blob];
+  this.scrollContinuation_ = this.search_.bind(this, constraint,
+                                               lastItem.permanode.modtime);
+
 };
 
 
@@ -486,18 +543,6 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
   });
   this.checkedBlobItems_ = [];
   this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
-}
-
-/**
- * @param {camlistore.ServerType.IndexerMetaBag} result JSON response to this
- * request.
- * @private
- */
-camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
-  this.lastRecentContinuation_ =
-    result.recent[result.recent.length - 1].modtime;
-  this.resetChildren_();
-  this.appendChildren_(result);
 };
 
 /**
@@ -505,13 +550,9 @@ camlistore.BlobItemContainer.prototype.showRecentDone_ = function(result) {
  * @private
  */
 camlistore.BlobItemContainer.prototype.appendChildren_ = function(result) {
-  if (!result || !result.recent) {
-    return;
-  }
-
-  for (var i = 0, n = result.recent.length; i < n; i++) {
-    var blobRef = result.recent[i].blobref;
-    var item = new camlistore.BlobItem(blobRef, result.meta);
+  for (var i = 0, blob; blob = result.blobs[i]; i++) {
+    var blobRef = blob.blob;
+    var item = new camlistore.BlobItem(blobRef, result.description.meta);
     this.addChild(item, true);
   }
 };
@@ -640,42 +681,10 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
     return;
   }
 
-  this.appendRecent_();
-};
-
-/**
- * @private
- */
-camlistore.BlobItemContainer.prototype.appendRecent_ = function() {
-  if (!this.lastRecentContinuation_) {
-    // We're showing something other than recent permanodes.
-    return;
+  if (this.scrollContinuation_) {
+    this.scrollContinuation_();
+    this.scrollContinuation_ = null;
   }
-
-  if (this.appendRecentPending_) {
-    console.log("An appendRecent call is already in progress");
-    return;
-  }
-
-  this.appendRecentPending_ = true;
-  this.connection_.getRecentlyUpdatedPermanodes(
-    goog.bind(this.appendRecentDone_, this), this.lastRecentContinuation_,
-    this.thumbnailSize_);
-};
-
-/**
- * @param Array.<Object> result
- * @private
- */
-camlistore.BlobItemContainer.prototype.appendRecentDone_ = function(result) {
-  this.appendRecentPending_ = false;
-  if (!result.recent) {
-    console.log("No results from query. Looks like we're done");
-    return;
-  }
-  this.lastRecentContinuation_ =
-    result.recent[result.recent.length - 1].modtime;
-  this.appendChildren_(result);
 };
 
 /**

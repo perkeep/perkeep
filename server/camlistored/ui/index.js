@@ -63,6 +63,15 @@ camlistore.IndexPage = function(config, opt_domHelper) {
    * @private
    */
   this.eh_ = new goog.events.EventHandler(this);
+
+  /**
+   * We have to store this because Firefox and Chrome disagree about whether to
+   * fire the popstate event at page load or not. Because of this we need to
+   * detect duplicate calls to handleUrl_().
+   * @type {string}
+   * @private
+   */
+  this.currentUrl_ = '';
 };
 goog.inherits(camlistore.IndexPage, goog.ui.Component);
 
@@ -330,6 +339,12 @@ camlistore.IndexPage.prototype.handleTextSearch_ = function(e) {
  * @private
  */
 camlistore.IndexPage.prototype.handleUrl_ = function() {
+  if (location.href == this.currentUrl_) {
+    console.log('Dropping duplicate handleUrl_ for %s', this.currentUrl_);
+    return;
+  }
+  this.currentUrl_ = location.href;
+
   var uri = new goog.Uri(location.href);
   var searchText = uri.getParameterValue('q');
   if (!searchText) {

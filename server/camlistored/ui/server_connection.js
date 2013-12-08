@@ -202,29 +202,6 @@ function(blobref, success, opt_fail) {
 
 
 /**
- * @param {function(camlistore.ServerType.SearchRecentResponse)} success callback with data.
- * @param {number=} opt_thumbnailSize
- * @param {?Function} opt_fail optional failure calback
- */
-camlistore.ServerConnection.prototype.getRecentlyUpdatedPermanodes =
-  function(success, continuation, opt_thumbnailSize, opt_fail) {
-
-  var path = goog.uri.utils.appendPath(
-      this.config_.searchRoot, 'camli/search/recent');
-  if (continuation != "") {
-    path = goog.uri.utils.appendParam(path, 'before', continuation);
-  }
-  if (!!opt_thumbnailSize) {
-    path = goog.uri.utils.appendParam(path, 'thumbnails', opt_thumbnailSize);
-  }
-
-  this.sendXhr_(
-      path,
-      goog.bind(this.genericHandleSearch_, this,
-                success, this.safeFail_(opt_fail)));
-};
-
-/**
  * @param {string} blobref Permanode blobref.
  * @param {number} thumbnailSize
  * @param {function(camlistore.ServerType.DescribeResponse)} success.
@@ -297,6 +274,16 @@ function(signer, attr, value, fuzzy, max, thumbsize, success, opt_fail) {
 			success, this.safeFail_(opt_fail)
 		)
 	);
+};
+
+camlistore.ServerConnection.prototype.query = function(query, callback) {
+  var path = goog.uri.utils.appendPath(
+    this.config_.searchRoot, 'camli/search/query');
+  this.sendXhr_(
+    path,
+    goog.bind(this.genericHandleSearch_, this, callback, this.safeFail_()),
+    "POST",
+    query);
 };
 
 // Where is the target accessed via? (paths it's at)
