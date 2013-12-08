@@ -1,0 +1,49 @@
+<html>
+<head>
+<script type="text/javascript">
+var ws;
+function init() {
+  console.log("init.");
+  var stuff = document.getElementById("stuff");
+  var status = document.getElementById("status");
+  function onOpen() {
+     status.innerText = "connected";
+     ws.send("hello message");
+  };
+  function onClose() {
+     status.innerHTML = "connection closed";
+  };
+  function onMessage(e) {
+     var m = JSON.parse(e.data);
+     console.log(m);
+     var d = document.createElement("div");
+     d.innerHTML = "Got: " + JSON.stringify(m)
+     stuff.insertBefore(d, stuff.firstChild)
+  };
+  function connect() {
+    if (ws != null) {
+       ws.close();
+       ws = null;
+    }
+    status.innerText = "connecting...";
+    var url = "ws://localhost:3179/my-search/camli/search/ws";
+    ws = new WebSocket(url);
+    ws.onopen = onOpen;
+    ws.onclose = onClose;
+    ws.onmessage = onMessage;
+  }
+  connect();
+}
+</script>
+<style>
+</style>
+</head>
+<body onLoad="init();">
+
+<h1>websocket debug</h1>
+
+<div id='status'></div>
+<div id='stuff'></div>
+
+</body>
+</html>

@@ -64,6 +64,9 @@ type Handler struct {
 	// TODO: this may be required in the future, or folded into the index
 	// interface.
 	corpus *index.Corpus
+
+	// WebSocket hub
+	wsHub *wsHub
 }
 
 // IGetRecentPermanodes is the interface encapsulating the GetRecentPermanodes query.
@@ -80,7 +83,13 @@ var (
 )
 
 func NewHandler(index index.Interface, owner blob.Ref) *Handler {
-	return &Handler{index: index, owner: owner}
+	sh := &Handler{
+		index: index,
+		owner: owner,
+	}
+	sh.wsHub = newWebsocketHub(sh)
+	go sh.wsHub.run()
+	return sh
 }
 
 func (h *Handler) SetCorpus(c *index.Corpus) {
@@ -116,10 +125,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
 			ownerBlobStr)
 	}
-	h := &Handler{
-		index: indexer,
-		owner: ownerBlobRef,
-	}
+	h := NewHandler(indexer, ownerBlobRef)
 	if slurpToMemory {
 		ii := indexer.(*index.Index)
 		corpus, err := ii.KeepInMemory()
@@ -146,35 +152,26 @@ func jsonMap() map[string]interface{} {
 	return make(map[string]interface{})
 }
 
+var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
+	"ws":              (*Handler).serveWebSocket,
+	"recent":          (*Handler).serveRecentPermanodes,
+	"permanodeattr":   (*Handler).servePermanodesWithAttr,
+	"describe":        (*Handler).serveDescribe,
+	"claims":          (*Handler).serveClaims,
+	"files":           (*Handler).serveFiles,
+	"signerattrvalue": (*Handler).serveSignerAttrValue,
+	"signerpaths":     (*Handler).serveSignerPaths,
+	"edgesto":         (*Handler).serveEdgesTo,
+}
+
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	suffix := httputil.PathSuffix(req)
 
 	if httputil.IsGet(req) {
-		switch suffix {
-		case "camli/search/recent":
-			sh.serveRecentPermanodes(rw, req)
-			return
-		case "camli/search/permanodeattr":
-			sh.servePermanodesWithAttr(rw, req)
-			return
-		case "camli/search/describe":
-			sh.serveDescribe(rw, req)
-			return
-		case "camli/search/claims":
-			sh.serveClaims(rw, req)
-			return
-		case "camli/search/files":
-			sh.serveFiles(rw, req)
-			return
-		case "camli/search/signerattrvalue":
-			sh.serveSignerAttrValue(rw, req)
-			return
-		case "camli/search/signerpaths":
-			sh.serveSignerPaths(rw, req)
-			return
-		case "camli/search/edgesto":
-			sh.serveEdgesTo(rw, req)
+		fn := getHandler[strings.TrimPrefix(suffix, "camli/search/")]
+		if fn != nil {
+			fn(sh, rw, req)
 			return
 		}
 	}
