@@ -89,7 +89,21 @@ func NewHandler(index index.Interface, owner blob.Ref) *Handler {
 	}
 	sh.wsHub = newWebsocketHub(sh)
 	go sh.wsHub.run()
+	sh.subscribeToNewBlobs()
 	return sh
+}
+
+func (sh *Handler) subscribeToNewBlobs() {
+	ch := make(chan blob.Ref, buffered)
+	blobserver.GetHub(sh.index).RegisterListener(ch)
+	go func() {
+		for br := range ch {
+			bm, err := sh.index.GetBlobMeta(br)
+			if err == nil {
+				sh.wsHub.newBlobRecv <- bm.CamliType
+			}
+		}
+	}()
 }
 
 func (h *Handler) SetCorpus(c *index.Corpus) {

@@ -17,9 +17,11 @@ limitations under the License.
 package search
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"camlistore.org/third_party/github.com/gorilla/websocket"
@@ -39,25 +41,25 @@ const (
 	maxMessageSize = 10 << 10
 )
 
-type wsConn struct {
-	ws   *websocket.Conn
-	send chan []byte // Buffered channel of outbound messages.
-	sh   *Handler
-}
-
 type wsHub struct {
-	sh         *Handler
-	register   chan *wsConn
-	unregister chan *wsConn
-	conns      map[*wsConn]bool
+	sh             *Handler
+	register       chan *wsConn
+	unregister     chan *wsConn
+	conns          map[*wsConn]bool
+	watchReq       chan watchReq
+	newBlobRecv    chan string // new blob received. string is camliType.
+	updatedResults chan *watchedQuery
 }
 
 func newWebsocketHub(sh *Handler) *wsHub {
 	return &wsHub{
-		sh:         sh,
-		register:   make(chan *wsConn),
-		unregister: make(chan *wsConn),
-		conns:      make(map[*wsConn]bool),
+		sh:             sh,
+		register:       make(chan *wsConn, buffered),
+		unregister:     make(chan *wsConn, buffered),
+		conns:          make(map[*wsConn]bool),
+		watchReq:       make(chan watchReq, buffered),
+		newBlobRecv:    make(chan string, buffered),
+		updatedResults: make(chan *watchedQuery, buffered),
 	}
 }
 
@@ -69,8 +71,124 @@ func (h *wsHub) run() {
 		case c := <-h.unregister:
 			delete(h.conns, c)
 			close(c.send)
+		case camliType := <-h.newBlobRecv:
+			if camliType == "" {
+				// TODO: something smarter. some
+				// queries might care about all blobs.
+				// But for now only re-kick off
+				// queries if schema blobs arrive.  We
+				// should track per-WatchdQuery which
+				// blob types the search cares about.
+				continue
+			}
+			// New blob was received. Kick off standing search queries to see if any changed.
+			for conn := range h.conns {
+				for _, wq := range conn.queries {
+					go h.doSearch(wq)
+				}
+			}
+		case wr := <-h.watchReq:
+			// Unsubscribe
+			if wr.q == nil {
+				delete(wr.conn.queries, wr.tag)
+				log.Printf("Removed subscription for %v, %q", wr.conn, wr.tag)
+				continue
+			}
+			// Very similar type, but semantically
+			// different, so separate for now:
+			wq := &watchedQuery{
+				conn: wr.conn,
+				tag:  wr.tag,
+				q:    wr.q,
+			}
+			wr.conn.queries[wr.tag] = wq
+			log.Printf("Added/updated search subscription for tag %q", wr.tag)
+			go h.doSearch(wq)
+
+		case wq := <-h.updatedResults:
+			if !h.conns[wq.conn] || wq.conn.queries[wq.tag] == nil {
+				// Client has since disconnected or unsubscribed.
+				continue
+			}
+			wq.mu.Lock()
+			lastres := wq.lastres
+			wq.mu.Unlock()
+			resb, err := json.Marshal(wsUpdateMessage{
+				Tag:    wq.tag,
+				Result: lastres,
+			})
+			if err != nil {
+				panic(err)
+			}
+			wq.conn.send <- resb
 		}
 	}
+}
+
+func (h *wsHub) doSearch(wq *watchedQuery) {
+	// Make our own copy, in case
+	q := new(SearchQuery)
+	*q = *wq.q // shallow copy, since Query will mutate its internal state fields
+	if q.Describe != nil {
+		q.Describe = new(DescribeRequest)
+		*q.Describe = *wq.q.Describe
+	}
+
+	res, err := h.sh.Query(q)
+	if err != nil {
+		log.Printf("Query error: %v", err)
+		return
+	}
+	resj, _ := json.Marshal(res)
+
+	wq.mu.Lock()
+	eq := bytes.Equal(wq.lastresj, resj)
+	wq.lastres = res
+	wq.lastresj = resj
+	wq.mu.Unlock()
+	if eq {
+		// No change in search. Ignore.
+		return
+	}
+	h.updatedResults <- wq
+}
+
+type wsConn struct {
+	ws   *websocket.Conn
+	send chan []byte // Buffered channel of outbound messages.
+	sh   *Handler
+
+	queries map[string]*watchedQuery // tag -> subscription
+}
+
+type watchedQuery struct {
+	conn *wsConn
+	tag  string
+	q    *SearchQuery
+
+	mu       sync.Mutex // guards lastRes
+	lastres  *SearchResult
+	lastresj []byte // as JSON
+}
+
+// watchReq is a (un)subscribe request.
+type watchReq struct {
+	conn *wsConn
+	tag  string       // required
+	q    *SearchQuery // if nil, subscribe
+}
+
+// Client->Server subscription message.
+type wsClientMessage struct {
+	// Tag is required.
+	Tag string `json:"tag"`
+	// Query is required to subscribe. If absent, it means unsubscribe.
+	Query *SearchQuery `json:"query,omitempty"`
+}
+
+type wsUpdateMessage struct {
+	Tag    string        `json:"tag"`
+	Result *SearchResult `json:"result,omitempty"`
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -88,7 +206,16 @@ func (c *wsConn) readPump() {
 			break
 		}
 		log.Printf("Got websocket message %q", message)
-		c.send <- []byte(fmt.Sprintf(`{"msg": "Server says hi to Javascript. Time is %v"}`, time.Now()))
+		cm := new(wsClientMessage)
+		if err := json.Unmarshal(message, cm); err != nil {
+			log.Printf("Ignoring bogus websocket message. Err: %v", err)
+			continue
+		}
+		c.sh.wsHub.watchReq <- watchReq{
+			conn: c,
+			tag:  cm.Tag,
+			q:    cm.Query,
+		}
 	}
 }
 
@@ -133,9 +260,10 @@ func (sh *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	c := &wsConn{
-		ws:   ws,
-		send: make(chan []byte, 256),
-		sh:   sh,
+		ws:      ws,
+		send:    make(chan []byte, 256),
+		sh:      sh,
+		queries: make(map[string]*watchedQuery),
 	}
 	sh.wsHub.register <- c
 	go c.writePump()

@@ -8,7 +8,16 @@ function init() {
   var status = document.getElementById("status");
   function onOpen() {
      status.innerText = "connected";
-     ws.send("hello message");
+     ws.send(JSON.stringify({
+        "tag": "q1",
+        "query": {
+           "limit": 5,
+           "describe": {},
+           "constraint": {
+              "permanode": {}
+           }
+        }
+     }));
   };
   function onClose() {
      status.innerHTML = "connection closed";
