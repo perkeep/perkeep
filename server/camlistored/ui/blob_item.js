@@ -212,9 +212,9 @@ camlistore.BlobItem.prototype.setSize = function(w, h) {
  * @param {number} h
  */
 camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
-  // In the case of images, we don't want a full bleed to both w and h, so we
-  // clip the bigger dimension as necessary. It's not easy to notice that a few
-  // pixels have been shaved off the edge of a photo.
+  // In the case of images, we want a full bleed to both w and h, so we clip the
+  // bigger dimension as necessary. It's not easy to notice that a few pixels
+  // have been shaved off the edge of a photo.
   //
   // In the case of non-images, we have an icon with text underneath, so we
   // cannot clip. Instead, just constrain the icon to fit the available space.
@@ -242,7 +242,8 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
       adjustedHeight > this.thumb_.height) {
     // Round the height up to the nearest 20% to increase the probability of
     // cache hits.
-    var rh = Math.ceil(adjustedHeight / 5) * 5;
+    var fraction = Math.ceil(this.metaData_.thumbnailHeight * 0.2);
+    var rh = Math.ceil(adjustedHeight / fraction) * fraction;
 
     // TODO(aa): This is kind of a hack, it would be better if the server just
     // returned the base URL and the aspect ratio, rather than specific

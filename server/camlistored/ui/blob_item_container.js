@@ -587,6 +587,9 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
       continue;
     }
 
+    // Decide how many items are going to be in this row. We choose the number
+    // that will result in the smallest adjustment to the image sizes having to
+    // be done.
     var rowEnd, rowWidth;
     if (i == lastItem) {
       rowEnd = lastItem;
