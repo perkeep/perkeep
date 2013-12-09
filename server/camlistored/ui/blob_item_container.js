@@ -330,13 +330,13 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
                                                               reset, result) {
+  if (reset) {
+    this.resetChildren_();
+  }
+
   if (!result.blobs || !result.blobs.length) {
     console.log("Did not get any results. We must be done!");
     return;
-  }
-
-  if (reset) {
-    this.resetChildren_();
   }
 
   this.appendChildren_(result);
