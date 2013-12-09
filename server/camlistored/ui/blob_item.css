@@ -59,7 +59,7 @@
 
 .cam-blobitem .checkmark {
   background-image: url('checkmark-black-25.png');
-  background-size: 100% 100%;
+  background-repeat: no-repeat;
   cursor: pointer;
   height: 25px;
   left: 5px;
