@@ -134,6 +134,20 @@ func KeyBlobsDir() string {
 	return filepath.Join(CamliConfigDir(), "keyblobs")
 }
 
+// DefaultTLSCert returns the path to the default TLS certificate
+// file that is used (creating if necessary) when TLS is specified
+// without the cert file.
+func DefaultTLSCert() string {
+	return filepath.Join(CamliConfigDir(), "selfgen_pem.crt")
+}
+
+// DefaultTLSKey returns the path to the default TLS key
+// file that is used (creating if necessary) when TLS is specified
+// without the key file.
+func DefaultTLSKey() string {
+	return filepath.Join(CamliConfigDir(), "selfgen_pem.key")
+}
+
 // Find the correct absolute path corresponding to a relative path,
 // searching the following sequence of directories:
 // 1. Working Directory

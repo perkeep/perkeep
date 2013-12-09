@@ -30,11 +30,6 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-const (
-	DefaultTLSCert = "config/selfgen_pem.crt"
-	DefaultTLSKey  = "config/selfgen_pem.key"
-)
-
 // various parameters derived from the high-level user config
 // and needed to set up the low-level config.
 type configPrefixesParams struct {
@@ -508,14 +503,14 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 
 		searchArgs := map[string]interface{}{
-				"index": params.indexerPath,
-				"owner": params.searchOwner.String(),
+			"index": params.indexerPath,
+			"owner": params.searchOwner.String(),
 		}
 		if params.memoryIndex {
 			searchArgs["slurpToMemory"] = true
 		}
 		m["/my-search/"] = map[string]interface{}{
-			"handler": "search",
+			"handler":     "search",
 			"handlerArgs": searchArgs,
 		}
 	}
@@ -585,8 +580,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			obj["TLSCertFile"] = tlsCert
 			obj["TLSKeyFile"] = tlsKey
 		} else {
-			obj["TLSCertFile"] = DefaultTLSCert
-			obj["TLSKeyFile"] = DefaultTLSKey
+			obj["TLSCertFile"] = osutil.DefaultTLSCert()
+			obj["TLSKeyFile"] = osutil.DefaultTLSKey()
 		}
 	}
 
