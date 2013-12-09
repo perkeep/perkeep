@@ -75,11 +75,13 @@ func testQueryTypes(t *testing.T, types []indexType, fn func(*queryTest)) {
 }
 
 func testQueryType(t *testing.T, fn func(*queryTest), itype indexType) {
+	defer index.SetVerboseCorpusLogging(true)
+	index.SetVerboseCorpusLogging(false)
+
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
 	var err error
 	var corpus *index.Corpus
 	if itype == indexCorpusBuild {
-		t.Logf("testing build")
 		if corpus, err = idx.KeepInMemory(); err != nil {
 			t.Fatal(err)
 		}
@@ -365,41 +367,53 @@ func TestQueryPermanodeAttrExact(t *testing.T) {
 	})
 }
 
-func TestQueryPermanodeAttrAny(t *testing.T) {
+func TestQueryPermanodeAttrMatches(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
 		p1 := id.NewPlannedPermanode("1")
 		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
 		id.SetAttribute(p1, "someAttr", "value1")
 		id.SetAttribute(p2, "someAttr", "value2")
+		id.SetAttribute(p3, "someAttr", "NOT starting with value")
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{
-					Attr:     "someAttr",
-					ValueAny: []string{"value1", "value3"},
+					Attr: "someAttr",
+					ValueMatches: &StringConstraint{
+						HasPrefix: "value",
+					},
 				},
 			},
 		}
-		qt.wantRes(sq, p1)
+		qt.wantRes(sq, p1, p2)
 	})
 }
 
-func TestQueryPermanodeAttrSet(t *testing.T) {
+func TestQueryPermanodeAttrNumValue(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
+		// TODO(bradfitz): if we set an empty attribute value here and try to search
+		// by NumValue IntConstraint Min = 1, it fails only in classic (no corpus) mode.
+		// Something there must be skipping empty values.
 		p1 := id.NewPlannedPermanode("1")
-		id.SetAttribute(p1, "x", "y")
+		id.AddAttribute(p1, "x", "1")
+		id.AddAttribute(p1, "x", "2")
 		p2 := id.NewPlannedPermanode("2")
-		id.SetAttribute(p2, "someAttr", "value2")
+		id.AddAttribute(p2, "x", "1")
+		id.AddAttribute(p2, "x", "2")
+		id.AddAttribute(p2, "x", "3")
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{
-					Attr:     "someAttr",
-					ValueSet: true,
+					Attr: "x",
+					NumValue: &IntConstraint{
+						Min: 3,
+					},
 				},
 			},
 		}
@@ -409,7 +423,7 @@ func TestQueryPermanodeAttrSet(t *testing.T) {
 
 // find a permanode (p2) that has a property being a blobref pointing
 // to a sub-query
-func TestQueryPermanodeAttrValueMatches(t *testing.T) {
+func TestQueryPermanodeAttrValueInSet(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
@@ -422,7 +436,7 @@ func TestQueryPermanodeAttrValueMatches(t *testing.T) {
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{
 					Attr: "foo",
-					ValueMatches: &Constraint{
+					ValueInSet: &Constraint{
 						Permanode: &PermanodeConstraint{
 							Attr:  "bar",
 							Value: "baz",
@@ -453,7 +467,7 @@ func TestQueryFileConstraint(t *testing.T) {
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{
 					Attr: "camliContent",
-					ValueMatches: &Constraint{
+					ValueInSet: &Constraint{
 						File: &FileConstraint{
 							FileName: &StringConstraint{
 								Contains: "-stuff",
@@ -563,6 +577,36 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		if got := len(res.Describe.Meta); got != 2 {
 			t.Errorf("got %d described blobs; want 2", got)
 		}
+	})
+}
+
+// Tests PermanodeConstraint.ValueAll
+func TestQueryPermanodeValueAll(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p1, "attr", "foo")
+		id.SetAttribute(p1, "attr", "barrrrr")
+		id.SetAttribute(p2, "attr", "foo")
+		id.SetAttribute(p2, "attr", "bar")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr:     "attr",
+					ValueAll: true,
+					ValueMatches: &StringConstraint{
+						ByteLength: &IntConstraint{
+							Min: 3,
+							Max: 3,
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p2)
 	})
 }
 

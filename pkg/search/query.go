@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -168,13 +167,14 @@ type DirConstraint struct {
 	// ContainsDir  *DirConstraint
 }
 
+// An IntConstraint specifies constraints on an integer.
 type IntConstraint struct {
-	// Min and Max are both optional.
+	// Min and Max are both optional and inclusive bounds.
 	// Zero means don't check.
-	Min     int64
-	Max     int64
-	ZeroMin bool
-	ZeroMax bool
+	Min     int64 `json:"min"`
+	Max     int64 `json:"max"`
+	ZeroMin bool  `json:"zeroMin"` // if true, min is actually zero
+	ZeroMax bool  `json:"zeroMax"` // if true, max is actually zero
 }
 
 func (c *IntConstraint) intMatches(v int64) bool {
@@ -193,15 +193,18 @@ type EXIFConstraint struct {
 	// ISO, Aperature, Camera Make/Model, etc.
 }
 
+// A StringConstraint specifies constraints on a string.
+// All non-zero must match.
 type StringConstraint struct {
-	// All non-zero must match.
+	Empty      bool           `json:"empty"` // matches empty string
+	Equals     string         `json:"equals"`
+	Contains   string         `json:"contains"`
+	HasPrefix  string         `json:"hasPrefix"`
+	HasSuffix  string         `json:"hasSuffix"`
+	ByteLength *IntConstraint `json:"byteLength"` // length in bytes (not chars)
 
+	// TODO: CharLength (assume UTF-8)
 	// TODO: CaseInsensitive bool?
-	Empty     bool // matches empty string
-	Equals    string
-	Contains  string
-	HasPrefix string
-	HasSuffix string
 }
 
 func (c *StringConstraint) stringMatches(s string) bool {
@@ -209,6 +212,9 @@ func (c *StringConstraint) stringMatches(s string) bool {
 		return false
 	}
 	if c.Equals != "" && s != c.Equals {
+		return false
+	}
+	if c.ByteLength != nil && !c.ByteLength.intMatches(int64(len(s))) {
 		return false
 	}
 	for _, pair := range []struct {
@@ -257,12 +263,31 @@ type PermanodeConstraint struct {
 
 	// Attr optionally specifies the attribute to match.
 	// e.g. "camliContent", "camliMember", "tag"
-	// TODO: field to control whether first vs. all permanode values are considered?
-	Attr         string      `json:"attr"`
-	Value        string      `json:"value"`        // if non-zero, absolute match
-	ValueAny     []string    `json:"valueAny"`     // Value is any of these strings
-	ValueMatches *Constraint `json:"valueMatches"` // if non-zero, Attr value is blobref in this set of matches
-	ValueSet     bool        `json:"valueSet"`     // value is set to something non-blank
+	// This is required if any of the items below are used.
+	Attr string `json:"attr"`
+
+	// NumValue optionally tests the number of values this
+	// permanode has for Attr.
+	NumValue *IntConstraint `json:"numValue"`
+
+	// ValueAll modifies the matching behavior when an attribute
+	// is multi-valued.  By default, when ValueAll is false, only
+	// one value of a multi-valued attribute needs to match. If
+	// ValueAll is true, all attributes must match.
+	ValueAll bool `json:"valueAllMatch"`
+
+	// Value specifies an exact string to match.
+	// This is a convenience form for the simple case of exact
+	// equality. The same can be accomplished with ValueMatches.
+	Value string `json:"value"` // if non-zero, absolute match
+
+	// ValueMatches optionally specifies a StringConstraint to
+	// match the value against.
+	ValueMatches *StringConstraint `json:"valueMatches"`
+
+	// ValueInSet optionally specifies a sub-query which the value
+	// (which must be a blobref) must be a part of.
+	ValueInSet *Constraint `json:"valueInSet"`
 
 	// TODO:
 	// NumClaims *IntConstraint  // by owner
@@ -441,7 +466,6 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobM
 		addCond(func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 			return bs.intMatches(int64(bm.Size)), nil
 		})
-
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
 		addCond(func(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
@@ -549,7 +573,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 				s.ss[:0], br, c.Attr, c.At, s.h.owner)
 			vals = s.ss
 		}
-		ok, err := c.permanodeMatchesAttr(s, vals)
+		ok, err := c.permanodeMatchesAttrVals(s, vals)
 		if !ok || err != nil {
 			return false, err
 		}
@@ -568,58 +592,51 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 }
 
 // vals are the current permanode values of c.Attr.
-func (c *PermanodeConstraint) permanodeMatchesAttr(s *search, vals []string) (bool, error) {
-	var first string
-	if len(vals) > 0 {
-		first = vals[0]
-	}
-	if c.Value != "" {
-		// TODO: document/decide behavior of all these with
-		// respect to multi-valued attributes.
-		return c.Value == first, nil
-	}
-	if len(c.ValueAny) > 0 {
-		for _, attr := range vals {
-			for _, want := range c.ValueAny {
-				if want == attr {
-					return true, nil
-				}
-			}
-		}
+func (c *PermanodeConstraint) permanodeMatchesAttrVals(s *search, vals []string) (bool, error) {
+	if c.NumValue != nil && !c.NumValue.intMatches(int64(len(vals))) {
 		return false, nil
 	}
-	if c.ValueSet {
-		for _, attr := range vals {
-			if attr != "" {
-				return true, nil
-			}
+	nmatch := 0
+	for _, val := range vals {
+		match, err := c.permanodeMatchesAttrVal(s, val)
+		if err != nil {
+			return false, err
 		}
+		if match {
+			nmatch++
+		}
+	}
+	if nmatch == 0 {
 		return false, nil
 	}
-	if subc := c.ValueMatches; subc != nil {
-		for _, val := range vals {
-			if br, ok := blob.Parse(val); ok {
-				meta, err := s.blobMeta(br)
-				if err == os.ErrNotExist {
-					continue
-				}
-				if err != nil {
-					return false, err
-				}
-				matches, err := subc.blobMatches(s, br, meta)
-				if err != nil {
-					return false, err
-				}
-				if matches {
-					return true, nil
-				}
-			}
-		}
+	if c.ValueAll {
+		return nmatch == len(vals), nil
+	}
+	return true, nil
+}
+
+func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bool, error) {
+	if c.Value != "" && c.Value != val {
 		return false, nil
 	}
-	log.Printf("PermanodeConstraint=%#v", c)
-	panic("TODO: not implemented")
-	return false, nil
+	if c.ValueMatches != nil && !c.ValueMatches.stringMatches(val) {
+		return false, nil
+	}
+	if subc := c.ValueInSet; subc != nil {
+		br, ok := blob.Parse(val)
+		if !ok {
+			return false, nil
+		}
+		meta, err := s.blobMeta(br)
+		if err == os.ErrNotExist {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return subc.blobMatches(s, br, meta)
+	}
+	return true, nil
 }
 
 func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
