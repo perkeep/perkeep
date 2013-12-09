@@ -130,6 +130,7 @@ func (crashStorage) Find(start, end string) sorted.Iterator {
 
 var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"have":        nil, // redundant with "meta"
+	"recpn":       nil, // unneeded.
 	"meta":        (*Corpus).mergeMetaRow,
 	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
 	"claim":       (*Corpus).mergeClaimRow,
@@ -685,4 +686,10 @@ func (c *Corpus) GetImageInfo(fileRef blob.Ref) (ii camtypes.ImageInfo, err erro
 		err = os.ErrNotExist
 	}
 	return
+}
+
+// SetVerboseCorpusLogging controls corpus setup verbosity. It's on by default
+// but used to disable verbose logging in tests.
+func SetVerboseCorpusLogging(v bool) {
+	logCorpusStats = v
 }

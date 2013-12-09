@@ -29,8 +29,6 @@ func ExpUnreverseTimeString(s string) string {
 	return unreverseTimeString(s)
 }
 
-func ExpSetLogCorpusStats(v bool) { logCorpusStats = v }
-
 func ExpNewCorpus() *Corpus {
 	return newCorpus()
 }

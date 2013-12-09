@@ -46,8 +46,8 @@ func BenchmarkCorpusFromStorage(b *testing.B) {
 			id.SetAttribute(pn, "camliContent", fileRef.String())
 		}
 	})
-	defer index.ExpSetLogCorpusStats(true)
-	index.ExpSetLogCorpusStats(false)
+	defer index.SetVerboseCorpusLogging(true)
+	index.SetVerboseCorpusLogging(false)
 
 	b.ResetTimer()
 
