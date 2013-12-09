@@ -377,7 +377,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 				log.Fatal("Failed to restart: " + err.Error())
 			}
 		case syscall.SIGINT:
-			log.Print("Got SIGTERM: shutting down")
+			log.Print("Got SIGINT: shutting down")
 			donec := make(chan bool)
 			go func() {
 				cl := <-shutdownc
