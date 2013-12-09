@@ -56,7 +56,7 @@
 }
 
 // starts uploading immediately
-- (void)addFile:(LACamliFile *)file
+- (void)addFile:(LACamliFile *)file withCompletion:(void (^)())completion
 {
     NSParameterAssert(file);
     
@@ -73,6 +73,8 @@
         LALog(@"finished op %@",file.blobRef);
         [self.uploadedBlobRefs addObject:file.blobRef];
         [self.uploadedBlobRefs writeToFile:[self uploadedBlobRefArchivePath] atomically:YES];
+
+        completion();
     };
     
     [self.uploadQueue addOperation:op];

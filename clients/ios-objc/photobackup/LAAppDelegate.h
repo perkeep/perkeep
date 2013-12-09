@@ -7,9 +7,19 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <CoreLocation/CoreLocation.h>
+#import "LACamliClient.h"
 
-@interface LAAppDelegate : UIResponder <UIApplicationDelegate>
+@class ALAssetsLibrary;
+
+@interface LAAppDelegate : UIResponder <UIApplicationDelegate,CLLocationManagerDelegate>
 
 @property (strong, nonatomic) UIWindow *window;
+@property CLLocationManager *locationManager;
+
+@property LACamliClient *client;
+// kicked out of the library if we don't have a reference and still want to play with the books
+@property ALAssetsLibrary *library;
+
 
 @end
