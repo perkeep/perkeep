@@ -472,7 +472,9 @@ func TestQueryFileConstraint(t *testing.T) {
 							FileName: &StringConstraint{
 								Contains: "-stuff",
 							},
-							MaxSize: 5,
+							FileSize: &IntConstraint{
+								Max: 5,
+							},
 						},
 					},
 				},

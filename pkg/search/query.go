@@ -41,6 +41,7 @@ const (
 	LastModifiedAsc
 	CreatedDesc
 	CreatedAsc
+	maxSortType
 )
 
 type SearchQuery struct {
@@ -82,6 +83,22 @@ func (q *SearchQuery) plannedQuery() *SearchQuery {
 	return pq
 }
 
+func (q *SearchQuery) checkValid() error {
+	if q.Limit < 0 {
+		return errors.New("negative limit")
+	}
+	if q.Sort >= maxSortType || q.Sort < 0 {
+		return errors.New("invalid sort type")
+	}
+	if q.Constraint == nil {
+		return errors.New("no constraint")
+	}
+	if err := q.Constraint.checkValid(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type SearchResult struct {
 	Blobs    []*SearchResultBlob `json:"blobs"`
 	Describe *DescribeResponse   `json:"description"`
@@ -119,6 +136,27 @@ type Constraint struct {
 	Permanode *PermanodeConstraint `json:"permanode"`
 }
 
+func (c *Constraint) checkValid() error {
+	type checker interface {
+		checkValid() error
+	}
+	if c.Claim != nil {
+		return errors.New("TODO: implement ClaimConstraint")
+	}
+	for _, cv := range []checker{
+		c.Logical,
+		c.File,
+		c.Dir,
+		c.BlobSize,
+		c.Permanode,
+	} {
+		if err := cv.checkValid(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Constraint) onlyMatchesPermanode() bool {
 	if c.Permanode != nil || c.CamliType == "permanode" {
 		return true
@@ -139,8 +177,7 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 type FileConstraint struct {
 	// (All non-zero fields must match)
 
-	MinSize  int64 // inclusive
-	MaxSize  int64 // inclusive. if zero, ignored.
+	FileSize *IntConstraint `json:"fileSize"`
 	IsImage  bool
 	FileName *StringConstraint
 	MIMEType *StringConstraint
@@ -175,6 +212,22 @@ type IntConstraint struct {
 	Max     int64 `json:"max"`
 	ZeroMin bool  `json:"zeroMin"` // if true, min is actually zero
 	ZeroMax bool  `json:"zeroMax"` // if true, max is actually zero
+}
+
+func (c *IntConstraint) checkValid() error {
+	if c == nil {
+		return nil
+	}
+	if c.ZeroMin && c.Min != 0 {
+		return errors.New("in IntConstraint, can't set both ZeroMin and Min")
+	}
+	if c.ZeroMax && c.Max != 0 {
+		return errors.New("in IntConstraint, can't set both ZeroMax and Max")
+	}
+	if c.Min > c.Max {
+		return errors.New("in InConstraint, min is greater than max")
+	}
+	return nil
 }
 
 func (c *IntConstraint) intMatches(v int64) bool {
@@ -244,6 +297,10 @@ type ClaimConstraint struct {
 	SignedBefore time.Time `json:"signedBefore"`
 }
 
+func (c *ClaimConstraint) checkValid() error {
+	return errors.New("TODO: implement blobMatches and checkValid on ClaimConstraint")
+}
+
 type LogicalConstraint struct {
 	Op string      `json:"op"` // "and", "or", "xor", "not"
 	A  *Constraint `json:"a"`
@@ -255,7 +312,6 @@ type PermanodeConstraint struct {
 	// At specifies the time at which to pretend we're resolving attributes.
 	// Attribute claims after this point in time are ignored.
 	// If zero, the current time is used.
-	// TODO: implement. not supported.
 	At time.Time `json:"at"`
 
 	// ModTime optionally matches on the last modtime of the permanode.
@@ -318,6 +374,9 @@ func optimizePlan(c *Constraint) *Constraint {
 }
 
 func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
+	if err := rawq.checkValid(); err != nil {
+		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)
+	}
 	q := rawq.plannedQuery()
 	res := new(SearchResult)
 	s := &search{
@@ -488,12 +547,34 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobM
 	}
 }
 
+func (c *LogicalConstraint) checkValid() error {
+	if c == nil {
+		return nil
+	}
+	if c.A == nil {
+		return errors.New("In LogicalConstraint, need to set A")
+	}
+	if err := c.A.checkValid(); err != nil {
+		return err
+	}
+	switch c.Op {
+	case "and", "xor", "or":
+		if c.B == nil {
+			return errors.New("In LogicalConstraint, need both A and B set")
+		}
+		if err := c.B.checkValid(); err != nil {
+			return err
+		}
+	case "not":
+	default:
+		return fmt.Errorf("In LogicalConstraint, unknown operation %q", c.Op)
+	}
+	return nil
+}
+
 func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	switch c.Op {
 	case "and", "xor":
-		if c.A == nil || c.B == nil {
-			return false, errors.New("In LogicalConstraint, need both A and B set")
-		}
 		var g syncutil.Group
 		var av, bv bool
 		g.Go(func() (err error) {
@@ -512,13 +593,8 @@ func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Blob
 			return av && bv, nil
 		case "xor":
 			return av != bv, nil
-		default:
-			panic("unreachable")
 		}
 	case "or":
-		if c.A == nil || c.B == nil {
-			return false, errors.New("In LogicalConstraint, need both A and B set")
-		}
 		av, err := c.A.blobMatches(s, br, bm)
 		if err != nil {
 			return false, err
@@ -529,17 +605,33 @@ func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Blob
 		}
 		return c.B.blobMatches(s, br, bm)
 	case "not":
-		if c.A == nil {
-			return false, errors.New("In LogicalConstraint, need to set A")
-		}
-		if c.B != nil {
-			return false, errors.New("In LogicalConstraint, can't specify B with Op \"not\"")
-		}
 		v, err := c.A.blobMatches(s, br, bm)
 		return !v, err
-	default:
-		return false, fmt.Errorf("In LogicalConstraint, unknown operation %q", c.Op)
 	}
+	panic("unreachable")
+}
+
+func (c *PermanodeConstraint) checkValid() error {
+	if c == nil {
+		return nil
+	}
+	if c.Attr != "" {
+		if c.NumValue == nil &&
+			c.Value == "" &&
+			c.ValueMatches == nil &&
+			c.ValueInSet == nil {
+			return errors.New("PermanodeConstraint with Attr requires also setting NumValue, Value, ValueMatches, or ValueInSet")
+		}
+		if nv := c.NumValue; nv != nil {
+			if nv.ZeroMin {
+				return errors.New("NumValue with ZeroMin makes no sense; matches everything")
+			}
+			if nv.Min < 0 || nv.Max < 0 {
+				return errors.New("NumValue with negative Min or Max makes no sense")
+			}
+		}
+	}
+	return nil
 }
 
 func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
@@ -639,6 +731,10 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bo
 	return true, nil
 }
 
+func (c *FileConstraint) checkValid() error {
+	return nil
+}
+
 func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "file" {
 		return false, nil
@@ -650,10 +746,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 	if err != nil {
 		return false, err
 	}
-	if fi.Size < c.MinSize {
-		return false, nil
-	}
-	if c.MaxSize != 0 && fi.Size > c.MaxSize {
+	if fs := c.FileSize; fs != nil && !fs.intMatches(fi.Size) {
 		return false, nil
 	}
 	if c.IsImage && !strings.HasPrefix(fi.MIMEType, "image/") {
@@ -698,6 +791,10 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 		}
 	}
 	return true
+}
+
+func (c *DirConstraint) checkValid() error {
+	return nil
 }
 
 func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
