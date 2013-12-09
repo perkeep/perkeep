@@ -29,6 +29,12 @@ type Interface interface {
 	// or claims about the given attribute, respectively.
 	// Deleted claims are never returned.
 	// The items may be appended in any order.
+	//
+	// TODO: this should take a context and a callback func
+	// instead of a dst, then it can append to a channel instead,
+	// and the context lets it be interrupted. The callback should
+	// take the context too, so the channel send's select can read
+	// from the Done channel.
 	AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		signerFilter blob.Ref,
 		attrFilter string) ([]camtypes.Claim, error)

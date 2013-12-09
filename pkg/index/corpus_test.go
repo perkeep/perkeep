@@ -30,9 +30,9 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 	c := newCorpus()
 	pn := blob.MustParse("abc-123")
 	tm := time.Unix(99, 0)
-	claim := func(verb, attr, val string) camtypes.Claim {
+	claim := func(verb, attr, val string) *camtypes.Claim {
 		tm = tm.Add(time.Second)
-		return camtypes.Claim{
+		return &camtypes.Claim{
 			Type:  verb + "-attribute",
 			Attr:  attr,
 			Value: val,
@@ -42,7 +42,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 	s := func(s ...string) []string { return s }
 
 	c.permanodes[pn] = &PermanodeMeta{
-		Claims: []camtypes.Claim{
+		Claims: []*camtypes.Claim{
 			claim("set", "foo", "foov"), // time 100
 
 			claim("add", "tag", "a"), // time 101

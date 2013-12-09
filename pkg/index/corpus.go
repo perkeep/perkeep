@@ -69,6 +69,27 @@ type Corpus struct {
 	permanodes map[blob.Ref]*PermanodeMeta
 	imageInfo  map[blob.Ref]camtypes.ImageInfo
 
+	// edge tracks "forward" edges. e.g. from a directory's static-set to
+	// its members. Permanodes' camliMembers aren't tracked, since they
+	// can be obtained from permanodes.Claims.
+	// TODO: implement
+	edge map[blob.Ref][]edge
+
+	// edgeBack tracks "backward" edges. e.g. from a file back to
+	// any directories it's part of.
+	// The map is from target (e.g. file) => owner (static-set).
+	// This only tracks static data structures, not permanodes.
+	// TODO: implement
+	edgeBack map[blob.Ref]map[blob.Ref]bool
+
+	// edgeBackClaim allows hopping backwards from a Claim's Value
+	// when the Value is a blobref.  It allows, for example,
+	// finding the parents of camliMember claims.  If a permanode
+	// parent set A has a camliMembers B and C, it allows finding
+	// A from either B and C.
+	// TODO: implement
+	edgeBackClaim map[blob.Ref]*camtypes.Claim
+
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
 
@@ -76,9 +97,14 @@ type Corpus struct {
 	ss []string
 }
 
+type edge struct {
+	edgeType string
+	peer     blob.Ref
+}
+
 type PermanodeMeta struct {
 	// TODO: OwnerKeyId string
-	Claims []camtypes.Claim // sorted by camtypes.ClaimsByDate
+	Claims []*camtypes.Claim // sorted by camtypes.ClaimsByDate
 }
 
 func newCorpus() *Corpus {
@@ -191,11 +217,10 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// Post-load optimizations and restoration of invariants.
 	for _, pm := range c.permanodes {
 		// Restore invariants violated during building:
-		sort.Sort(camtypes.ClaimsByDate(pm.Claims))
+		sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
 
 		// And intern some stuff.
-		for i := range pm.Claims {
-			cl := &pm.Claims[i]
+		for _, cl := range pm.Claims {
 			cl.BlobRef = c.br(cl.BlobRef)
 			cl.Signer = c.br(cl.Signer)
 			cl.Permanode = c.br(cl.Permanode)
@@ -339,11 +364,11 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		pm = new(PermanodeMeta)
 		c.permanodes[pn] = pm
 	}
-	pm.Claims = append(pm.Claims, cl)
+	pm.Claims = append(pm.Claims, &cl)
 	if !c.building {
 		// Unless we're still starting up (at which we sort at
 		// the end instead), keep this sorted.
-		sort.Sort(camtypes.ClaimsByDate(pm.Claims))
+		sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
 	}
 	return nil
 }
@@ -663,7 +688,7 @@ func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		if attrFilter != "" && cl.Attr != attrFilter {
 			continue
 		}
-		dst = append(dst, cl)
+		dst = append(dst, *cl)
 	}
 	return dst, nil
 }
