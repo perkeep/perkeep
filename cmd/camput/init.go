@@ -34,8 +34,8 @@ import (
 )
 
 type initCmd struct {
-	newKey bool
-	gpgkey string
+	newKey   bool
+	gpgkey   string
 	noconfig bool
 }
 
@@ -129,9 +129,10 @@ func (c *initCmd) RunCommand(args []string) error {
 		log.Fatal("--newkey and --gpgkey are mutually exclusive")
 	}
 
-	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
-	os.Mkdir(osutil.CamliConfigDir(), 0700)
-	os.Mkdir(blobDir, 0700)
+	blobDir := osutil.KeyBlobsDir()
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		return err
+	}
 
 	var keyId string
 	var err error
