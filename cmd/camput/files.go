@@ -49,13 +49,14 @@ type fileCmd struct {
 	title string
 	tag   string
 
-	makePermanode  bool // make new, unique permanode of the root (dir or file)
-	filePermanodes bool // make planned permanodes for each file (based on their digest)
-	vivify         bool
-	exifTime       bool // use metadata (such as in EXIF) to find the creation time of the file
-	capCtime       bool // use mtime as creation time of the file, if it would be bigger than modification time
-	diskUsage      bool // show "du" disk usage only (dry run mode), don't actually upload
-	argsFromInput  bool // Android mode: filenames piped into stdin, one at a time.
+	makePermanode     bool // make new, unique permanode of the root (dir or file)
+	filePermanodes    bool // make planned permanodes for each file (based on their digest)
+	vivify            bool
+	exifTime          bool // use metadata (such as in EXIF) to find the creation time of the file
+	capCtime          bool // use mtime as creation time of the file, if it would be bigger than modification time
+	diskUsage         bool // show "du" disk usage only (dry run mode), don't actually upload
+	argsFromInput     bool // Android mode: filenames piped into stdin, one at a time.
+	deleteAfterUpload bool // with fileNodes, deletes the input file once uploaded
 
 	havecache, statcache bool
 
@@ -71,6 +72,7 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
+		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, of if they've already been uploaded.")
 		flags.BoolVar(&cmd.vivify, "vivify", false,
 			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
@@ -131,6 +133,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 	}
 	if c.histo != "" && !c.memstats {
 		return cmdmain.UsageError("Can't use histo without memstats")
+	}
+	if c.deleteAfterUpload && !c.filePermanodes {
+		return cmdmain.UsageError("Can't set use --delete_after_upload without --filenodes")
 	}
 	up := getUploader()
 	if c.memstats {
@@ -238,6 +243,13 @@ func (c *fileCmd) RunCommand(args []string) error {
 				continue
 			}
 			lastPut, err = up.UploadFile(filename)
+			if err == nil && c.deleteAfterUpload {
+				if err := os.Remove(filename); err != nil {
+					log.Printf("Error deleting %v: %v", filename, err)
+				} else {
+					log.Printf("Deleted %v", filename)
+				}
+			}
 		}
 		if handleResult("file", lastPut, err) != nil {
 			return err
