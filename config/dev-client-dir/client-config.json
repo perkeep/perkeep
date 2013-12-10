@@ -2,7 +2,6 @@
   "server": ["_env", "${CAMLI_SERVER}", "http://localhost:3179/"],
   "ignoredFiles": [".DS_Store"],
   "auth": ["_env", "${CAMLI_AUTH}" ],
-  "selfPubKeyDir": ["_env", "${CAMLI_DEV_KEYBLOBS}" ],
-  "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
-  "keyId": ["_env", "${CAMLI_KEYID}"]
+  "identitySecretRing": ["_env", "${CAMLI_SECRET_RING}"],
+  "identity": ["_env", "${CAMLI_KEYID}"]
 }

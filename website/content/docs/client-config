@@ -1,0 +1,25 @@
+<h1>Configuring a client</h1>
+
+<p>The various clients (camput, camget, cammount...) use a common JSON config file. This page documents the configuration parameters in that file. Run <code>camtool env clientconfig</code> to see the default location for that file.</p>
+
+<h2>Generating a default config file</h2>
+
+See <code>camput init</code>
+
+<h2>Configuration Keys &amp; Values</h2>
+
+<ul>
+<li><b><code>auth</code></b>: the authentication mechanism to use. Only supported for now is HTTP basic authentication, of the form: <code>userpass:alice:secret</code>. Username "alice", password "secret".</br>
+If the server is not on the same host, it is highly recommended to use TLS or another form of secure connection to the server.
+</li>
+
+<li><b><code>server</code></b>: The camlistored server to connect to, of the form: "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be overriden with the "-server" command-line flag.</li>
+
+<li><b><code>identity</code></b>: your GPG fingerprint. See <code>camput init</code> for help on how to generate a new keypair.</li>
+
+<li><b><code>identitySecretRing</code></b>: Optional. If non-empty, it specifies the location of your GPG secret keyring. Defaults to <b>$HOME/.config/camlistore/identity-secring.gpg</b>. See <code>camput init</code> for help on how to generate a new keypair.</li>
+
+<li><b><code>trustedCerts</code></b>: Optional. The list of TLS server certificates fingerprints (truncated at 10 digits) that the client will trust blindly when using https. It is required when the server is using a self-signed certificate. Example: "trustedCerts": ["ffc7730f4b"].</li>
+
+<li><b><code>ignoredFiles</code></b>: Optional. The list of of files that camput should ignore and not try to upload when using -filenodes.</li>
+

@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/osutil"
+
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
@@ -95,15 +97,11 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	return pk, nil
 }
 
-func DefaultSecRingPath() string {
-	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
-}
-
 // keyFile defaults to $HOME/.gnupg/secring.gpg
 func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, error) {
 	keyId = strings.ToUpper(keyId)
 	if keyFile == "" {
-		keyFile = DefaultSecRingPath()
+		keyFile = osutil.IdentitySecretRing()
 	}
 	secring, err := os.Open(keyFile)
 	if err != nil {
@@ -200,6 +198,9 @@ func GenerateNewSecRing(secRing string) (keyId string, err error) {
 	ent, err := NewEntity()
 	if err != nil {
 		return "", fmt.Errorf("generating new identity: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(secRing), 0700); err != nil {
+		return "", err
 	}
 	f, err := os.OpenFile(secRing, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {

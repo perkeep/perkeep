@@ -34,8 +34,8 @@ import (
 )
 
 type initCmd struct {
-	newKey bool
-	gpgkey string
+	newKey   bool
+	gpgkey   string
 	noconfig bool
 }
 
@@ -110,14 +110,12 @@ func (c *initCmd) getPublicKeyArmoredFromFile(secretRingFileName, keyId string) 
 }
 
 func (c *initCmd) getPublicKeyArmored(keyId string) (b []byte, err error) {
-	files := []string{osutil.IdentitySecretRing(), jsonsign.DefaultSecRingPath()}
-	for _, file := range files {
-		b, err = c.getPublicKeyArmoredFromFile(file, keyId)
-		if err == nil {
-			return b, nil
-		}
+	file := osutil.IdentitySecretRing()
+	b, err = c.getPublicKeyArmoredFromFile(file, keyId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to export armored public key ID %q from %v: %v", keyId, file, err)
 	}
-	return nil, fmt.Errorf("failed to export armored public key ID %q from locations: %q", keyId, files)
+	return b, nil
 }
 
 func (c *initCmd) RunCommand(args []string) error {
@@ -129,9 +127,10 @@ func (c *initCmd) RunCommand(args []string) error {
 		log.Fatal("--newkey and --gpgkey are mutually exclusive")
 	}
 
-	blobDir := path.Join(osutil.CamliConfigDir(), "keyblobs")
-	os.Mkdir(osutil.CamliConfigDir(), 0700)
-	os.Mkdir(blobDir, 0700)
+	blobDir := osutil.KeyBlobsDir()
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		return err
+	}
 
 	var keyId string
 	var err error
@@ -183,10 +182,8 @@ func (c *initCmd) RunCommand(args []string) error {
 	if f, err := os.OpenFile(configFilePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
 		m := make(map[string]interface{})
-		m["keyId"] = keyId                    // TODO(bradfitz): make this 'identity' to match server config?
-		m["publicKeyBlobref"] = bref.String() // TODO(bradfitz): not used anymore?
-		m["server"] = "http://localhost:3179/"
-		m["selfPubKeyDir"] = blobDir
+		m["identity"] = keyId
+		m["server"] = "http://localhost:3179"
 		m["auth"] = "localhost"
 		m["ignoredFiles"] = []string{".DS_Store"}
 

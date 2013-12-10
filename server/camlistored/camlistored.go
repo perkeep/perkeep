@@ -265,13 +265,19 @@ func newDefaultConfigFile(path string) error {
 	switch {
 	case err == nil:
 		keyId, err = jsonsign.KeyIdFromRing(secRing)
+		if err != nil {
+			return fmt.Errorf("Could not find any keyId in file %q: %v", secRing, err)
+		}
 		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
 	case os.IsNotExist(err):
 		keyId, err = jsonsign.GenerateNewSecRing(secRing)
+		if err != nil {
+			return fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
+		}
 		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
 	}
 	if err != nil {
-		return fmt.Errorf("Secret ring: %v", err)
+		return fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
 	}
 	conf.Identity = keyId
 	conf.IdentitySecretRing = secRing

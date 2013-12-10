@@ -225,7 +225,8 @@ func (jc Obj) appendError(err error) {
 	}
 }
 
-func (jc Obj) lookForUnknownKeys() {
+// UnknownKeys returns the keys from the config that have not yet been discovered by one of the RequiredT or OptionalT calls.
+func (jc Obj) UnknownKeys() []string {
 	ei, ok := jc["_knownkeys"]
 	var known map[string]bool
 	if ok {
@@ -244,13 +245,14 @@ func (jc Obj) lookForUnknownKeys() {
 		unknown = append(unknown, k)
 	}
 	sort.Strings(unknown)
-	for _, k := range unknown {
-		jc.appendError(fmt.Errorf("Unknown key %q", k))
-	}
+	return unknown
 }
 
 func (jc Obj) Validate() error {
-	jc.lookForUnknownKeys()
+	unknown := jc.UnknownKeys()
+	for _, k := range unknown {
+		jc.appendError(fmt.Errorf("Unknown key %q", k))
+	}
 
 	ei, ok := jc["_errors"]
 	if !ok {
