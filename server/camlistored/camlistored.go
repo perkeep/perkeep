@@ -76,11 +76,6 @@ import (
 	_ "camlistore.org/pkg/importer/flickr"
 )
 
-const (
-	defCert = serverconfig.DefaultTLSCert
-	defKey  = serverconfig.DefaultTLSKey
-)
-
 var (
 	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
@@ -160,6 +155,8 @@ func genSelfTLS(listen string) error {
 		return fmt.Errorf("Failed to create certificate: %s", err)
 	}
 
+	defCert := osutil.DefaultTLSCert()
+	defKey := osutil.DefaultTLSKey()
 	certOut, err := os.Create(defCert)
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing: %s", defCert, err)
@@ -319,6 +316,8 @@ func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) 
 		exitf("TLSCertFile and TLSKeyFile must both be either present or absent")
 	}
 
+	defCert := osutil.DefaultTLSCert()
+	defKey := osutil.DefaultTLSKey()
 	if cert == defCert && key == defKey {
 		_, err1 := os.Stat(cert)
 		_, err2 := os.Stat(key)
