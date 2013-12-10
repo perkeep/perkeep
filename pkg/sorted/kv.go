@@ -172,7 +172,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	typ := cfg.RequiredString("type")
 	ctor, ok := ctors[typ]
 	if typ != "" && !ok {
-		return nil, fmt.Errorf("Invalidate index storage type %q", typ)
+		return nil, fmt.Errorf("Invalid sorted.KeyValue type %q", typ)
 	}
 	if ok {
 		s, err = ctor(cfg)
