@@ -34,6 +34,7 @@ import (
 
 var (
 	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
+	race     = flag.Bool("race", false, "build with race detector")
 	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	// Whether to build the subcommand with sqlite support. This only
 	// concerns the server subcommand, which sets it to serverCmd.sqlite.
@@ -176,6 +177,7 @@ func build(path string) error {
 	args := []string{
 		"run", "make.go",
 		"--quiet",
+		"--race=" + strconv.FormatBool(*race),
 		"--embed_static=false",
 		"--sqlite=" + strconv.FormatBool(withSqlite),
 		fmt.Sprintf("--if_mods_since=%d", modtime),
