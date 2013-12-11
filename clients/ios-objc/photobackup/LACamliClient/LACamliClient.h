@@ -28,8 +28,9 @@
 @property BOOL authorizing;
 
 - (id)initWithServer:(NSURL *)server username:(NSString *)username andPassword:(NSString *)password;
-
 - (void)discoveryWithUsername:(NSString *)user andPassword:(NSString *)pass;
+
+- (void)getRecentItemsWithCompletion:(void (^)(NSArray *objects))completion;
 
 - (BOOL)fileAlreadyUploaded:(LACamliFile *)file;
 - (void)addFile:(LACamliFile *)file withCompletion:(void (^)())completion;

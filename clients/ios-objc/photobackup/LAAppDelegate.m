@@ -8,6 +8,7 @@
 
 #import "LAAppDelegate.h"
 #import "LACamliFile.h"
+#import "LAViewController.h"
 #import <AssetsLibrary/AssetsLibrary.h>
 
 @implementation LAAppDelegate
@@ -27,7 +28,9 @@
     NSAssert(credentials[@"camlistore_password"], @"no camlistore password specified");
     
     self.client = [[LACamliClient alloc] initWithServer:[NSURL URLWithString:credentials[@"camlistore_url"]] username:credentials[@"camlistore_username"] andPassword:credentials[@"camlistore_password"]];
-    
+
+    [(LAViewController *)self.window.rootViewController setClient:self.client];
+
     self.library = [[ALAssetsLibrary alloc] init];
     
     return YES;
