@@ -188,15 +188,6 @@ func addMySQLConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	addSQLConfig("mysql", prefixes, dbname, dbinfo)
 }
 
-func addMemindexConfig(prefixes jsonconfig.Obj) {
-	ob := map[string]interface{}{}
-	ob["handler"] = "storage-memory-only-dev-indexer"
-	ob["handlerArgs"] = map[string]interface{}{
-		"blobSource": "/bs/",
-	}
-	prefixes["/index-mem/"] = ob
-}
-
 func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
 	ob := map[string]interface{}{}
 	ob["handler"] = "storage-sqliteindexer"
@@ -508,14 +499,14 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 
 		searchArgs := map[string]interface{}{
-				"index": params.indexerPath,
-				"owner": params.searchOwner.String(),
+			"index": params.indexerPath,
+			"owner": params.searchOwner.String(),
 		}
 		if params.memoryIndex {
 			searchArgs["slurpToMemory"] = true
 		}
 		m["/my-search/"] = map[string]interface{}{
-			"handler": "search",
+			"handler":     "search",
 			"handlerArgs": searchArgs,
 		}
 	}
@@ -548,12 +539,11 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		shareHandlerPath = conf.OptionalString("shareHandlerPath", "")
 
 		// Index options
-		memoryIndex = conf.OptionalBool("memoryIndex", false)
-		runIndex    = conf.OptionalBool("runIndex", true) // if false: no search, no UI, etc.
-		dbname      = conf.OptionalString("dbname", "")   // for mysql, postgres, mongo
+		memoryIndex = conf.OptionalBool("memoryIndex", true) // copy disk-based index to memory on start-up
+		runIndex    = conf.OptionalBool("runIndex", true)    // if false: no search, no UI, etc.
+		dbname      = conf.OptionalString("dbname", "")      // for mysql, postgres, mongo
 		mysql       = conf.OptionalString("mysql", "")
 		postgres    = conf.OptionalString("postgres", "")
-		memIndex    = conf.OptionalBool("memIndex", false)
 		mongo       = conf.OptionalString("mongo", "")
 		sqliteFile  = conf.OptionalString("sqlite", "")
 		kvFile      = conf.OptionalString("kvIndexFile", "")
@@ -617,14 +607,14 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	var indexerPath string
-	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, memIndex, kvFile)
+	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, kvFile)
 	switch {
 	case runIndex && numIndexers == 0:
-		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite, memIndex).")
+		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite).")
 	case runIndex && numIndexers != 1:
-		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, memIndex).")
+		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite).")
 	case !runIndex && numIndexers != 0:
-		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite, memIndex.")
+		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
 	case mysql != "":
 		indexerPath = "/index-mysql/"
 	case postgres != "":
@@ -635,8 +625,6 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		indexerPath = "/index-sqlite/"
 	case kvFile != "":
 		indexerPath = "/index-kv/"
-	case memIndex:
-		indexerPath = "/index-mem/"
 	}
 
 	entity, err := jsonsign.EntityFromSecring(keyId, secretRing)
@@ -735,9 +723,6 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		if err := addGoogleCloudStorageConfig(prefixes, googlecloudstorage); err != nil {
 			return nil, err
 		}
-	}
-	if indexerPath == "/index-mem/" {
-		addMemindexConfig(prefixes)
 	}
 
 	obj["prefixes"] = (map[string]interface{})(prefixes)

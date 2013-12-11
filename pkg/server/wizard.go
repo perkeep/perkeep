@@ -40,7 +40,6 @@ import (
 var ignoredFields = map[string]bool{
 	"gallery":     true,
 	"blog":        true,
-	"memIndex":    true,
 	"replicateTo": true,
 }
 
