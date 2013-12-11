@@ -30,11 +30,6 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-const (
-	DefaultTLSCert = "config/selfgen_pem.crt"
-	DefaultTLSKey  = "config/selfgen_pem.key"
-)
-
 // various parameters derived from the high-level user config
 // and needed to set up the low-level config.
 type configPrefixesParams struct {
@@ -575,8 +570,8 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 			obj["TLSCertFile"] = tlsCert
 			obj["TLSKeyFile"] = tlsKey
 		} else {
-			obj["TLSCertFile"] = DefaultTLSCert
-			obj["TLSKeyFile"] = DefaultTLSKey
+			obj["TLSCertFile"] = osutil.DefaultTLSCert()
+			obj["TLSKeyFile"] = osutil.DefaultTLSKey()
 		}
 	}
 

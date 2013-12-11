@@ -85,13 +85,6 @@ func (im *imp) readCredentials() error {
 }
 
 func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
-	if oauthClient.Credentials.Token == "" || oauthClient.Credentials.Secret == "" {
-		w.Write([]byte("<h1>Bonk</h1>"))
-		w.Write([]byte("<p>You need a Flickr API key to ride this attraction."))
-		w.Write([]byte("<p><a href='http://www.flickr.com/services/apps/create/noncommercial/'>Get yours here</a> then modify the 'importer-flickr' key in your server-config.json file and restart your server."))
-		return
-	}
-
 	callback := im.host.BaseURL + "callback"
 	tempCred, err := oauthClient.RequestTemporaryCredentials(im.host.HTTPClient(), callback, nil)
 	if err != nil {
