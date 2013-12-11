@@ -345,9 +345,37 @@ type PermanodeConstraint struct {
 	// (which must be a blobref) must be a part of.
 	ValueInSet *Constraint `json:"valueInSet"`
 
+	// Relation optionally specifies a constraint based on relations
+	// to other permanodes (e.g. camliMember or camliPath sets).
+	// You can use it to test the properties of a parent, ancestor,
+	// child, or progeny.
+	Relation *RelationConstraint
+
 	// TODO:
 	// NumClaims *IntConstraint  // by owner
 	// Owner  blob.Ref // search for permanodes by an owner
+}
+
+type RelationConstraint struct {
+	// Relation must be one of:
+	//
+	//   * "child"
+	//   * "progeny" (any level down)
+	//   * "parent" (immediate parent only)
+	//   * "ancestor" (any level up)
+	Relation string
+
+	// EdgeType optionally specifies an edge type.
+	// By default it matches "camliMember" and "camliPath:*".
+	EdgeType string
+
+	// After finding all the nodes matching the Relation and
+	// EdgeType, either one or all (depending on whether Any or
+	// All is set) must then match for the RelationConstraint
+	// itself to match.
+	//
+	// It is an error to set both.
+	Any, All *Constraint
 }
 
 // search is the state of an in-progress search

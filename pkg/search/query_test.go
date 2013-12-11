@@ -612,6 +612,62 @@ func TestQueryPermanodeValueAll(t *testing.T) {
 	})
 }
 
+// permanodes tagged "foo" or those in sets where the parent
+// permanode set itself is tagged "foo".
+func TestQueryPermanodeTaggedViaParent(t *testing.T) {
+	t.Skip("TODO: finish implementing")
+
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		ptagged := id.NewPlannedPermanode("tagged_photo")
+		pindirect := id.NewPlannedPermanode("via_parent")
+		pset := id.NewPlannedPermanode("set")
+		pboth := id.NewPlannedPermanode("both") // funny directly and via its parent
+		pnotfunny := id.NewPlannedPermanode("not_funny")
+
+		id.SetAttribute(ptagged, "tag", "funny")
+		id.SetAttribute(pset, "tag", "funny")
+		id.SetAttribute(pboth, "tag", "funny")
+		id.AddAttribute(pset, "camliMember", pindirect.String())
+		id.AddAttribute(pset, "camliMember", pboth.String())
+		id.SetAttribute(pnotfunny, "tag", "boring")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "or",
+
+					// Those tagged funny directly:
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr:  "tag",
+							Value: "funny",
+						},
+					},
+
+					// Those tagged funny indirectly:
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Relation: &RelationConstraint{
+								Relation: "ancestor", // "parent", "child", "progeny"
+								// Counter-part to "Any" is "All". Only one may be set.
+								Any: &Constraint{
+									Permanode: &PermanodeConstraint{
+										Attr:  "tag",
+										Value: "funny",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, ptagged, pset, pboth, pindirect)
+	})
+}
+
 func TestLimitDoesntDeadlock(t *testing.T) {
 	// TODO: care about classic (allIndexTypes) too?
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
