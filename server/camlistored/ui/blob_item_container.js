@@ -307,7 +307,7 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
       thumbnailSize: this.thumbnailSize_
     },
     sort: 1,  // LastModifiedDesc
-    limit: 50,
+    limit: 30,
     constraint : {
       logical: {
         op: 'and',
@@ -323,9 +323,28 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
     }
   };
 
-  this.connection_.search(JSON.stringify(query),
-                          goog.bind(this.searchDone_, this, callerConstraint,
-                                    !isContinuation));
+  var callback = goog.bind(this.searchDone_, this, callerConstraint,
+                           !isContinuation);
+  if (window.WebSocket) {
+    var uri = new goog.Uri(goog.uri.utils.appendPath(
+      this.connection_.config_.searchRoot, 'camli/search/ws'));
+    uri.setDomain(location.hostname);
+    uri.setPort(location.port);
+    uri.setScheme("ws");
+    var ws = new WebSocket(uri.toString());
+    ws.onopen = function() {
+      var message = {
+        tag: 'q1',
+        query: query
+      };
+      ws.send(JSON.stringify(message));
+    };
+    ws.onmessage = function(e) {
+      callback(JSON.parse(e.data).result);
+    }.bind(this);
+  } else {
+    this.connection_.search(JSON.stringify(query), callback);
+  }
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
