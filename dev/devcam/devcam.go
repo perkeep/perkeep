@@ -162,6 +162,10 @@ func checkCamliSrcRoot() {
 
 // Build builds the camlistore command at the given path from the source tree root.
 func build(path string) error {
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_FAST_DEV")); v {
+		// Demo mode. See dev/demo.sh.
+		return nil
+	}
 	_, cmdName := filepath.Split(path)
 	target := filepath.Join("camlistore.org", path)
 	binPath := filepath.Join("bin", cmdName)

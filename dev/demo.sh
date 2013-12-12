@@ -5,5 +5,6 @@
 # noisy)
 
 go run make.go
+go install camlistore.org/dev/devcam
 export CAMLI_QUIET=1
 export CAMLI_FAST_DEV=1
