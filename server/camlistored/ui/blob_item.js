@@ -28,6 +28,21 @@ goog.require('goog.ui.Control');
 camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
   goog.base(this, null, null, opt_domHelper);
 
+  this.update(blobRef, metaBag, opt_contentLink);
+
+  this.setSupportedState(goog.ui.Component.State.CHECKED, true);
+  this.setSupportedState(goog.ui.Component.State.DISABLED, true);
+  this.setAutoStates(goog.ui.Component.State.CHECKED, false);
+
+  // Blob items dispatch state when checked.
+  this.setDispatchTransitionEvents(
+      goog.ui.Component.State.CHECKED,
+      true);
+};
+goog.inherits(camlistore.BlobItem, goog.ui.Control);
+
+camlistore.BlobItem.prototype.update = function(blobRef, metaBag,
+                                                opt_contentLink) {
   // TODO(mpl): Hack so we know when to decorate with the blobref
   // of the contained file, instead of with the permanode, as the link.
   // Idiomatic alternative suggestion very welcome.
@@ -69,17 +84,7 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
    */
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(
       this.blobRef_, this.metaBag_);
-
-  this.setSupportedState(goog.ui.Component.State.CHECKED, true);
-  this.setSupportedState(goog.ui.Component.State.DISABLED, true);
-  this.setAutoStates(goog.ui.Component.State.CHECKED, false);
-
-  // Blob items dispatch state when checked.
-  this.setDispatchTransitionEvents(
-      goog.ui.Component.State.CHECKED,
-      true);
 };
-goog.inherits(camlistore.BlobItem, goog.ui.Control);
 
 
 /**
@@ -359,28 +364,42 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
   var el = this.getElement();
   goog.dom.classes.add(el, 'cam-blobitem');
 
-  var link = this.dom_.createDom('a');
-  link.href = this.getLink_();
+  this.link_ = this.dom_.createDom('a');
 
   this.thumbClip_ = this.dom_.createDom('div', 'cam-blobitem-thumbclip');
-  link.appendChild(this.thumbClip_);
+  this.link_.appendChild(this.thumbClip_);
 
   this.thumb_ = this.dom_.createDom('img', 'cam-blobitem-thumb');
   this.thumbClip_.appendChild(this.thumb_);
 
-  el.appendChild(link);
+  el.appendChild(this.link_);
 
   this.checkmark_ = this.dom_.createDom('div', 'checkmark');
   this.getElement().appendChild(this.checkmark_);
 
-  if (!this.isImage()) {
-    var label = this.dom_.createDom('span', 'cam-blobitem-thumbtitle');
-    label.appendChild(document.createTextNode(this.getTitle_()));
-    link.appendChild(label);
-  }
+  this.label_ = this.dom_.createDom('span', 'cam-blobitem-thumbtitle');
+  this.link_.appendChild(this.label_);
+
+  this.updateDom();
 
   this.getElement().addEventListener('click', this.handleClick_.bind(this));
   this.setEnabled(false);
+};
+
+/**
+ * The image src is not set here because that depends on layout. Instead, it
+ * gets set as a side-effect of BlobItemContainer.prototype.layout().
+ */
+camlistore.BlobItem.prototype.updateDom = function() {
+  this.link_.href = this.getLink_();
+
+  if (this.isImage()) {
+    this.addClassName('cam-blobitem-image');
+    this.label_.textContent = '';
+  } else {
+    this.removeClassName('cam-blobitem-image');
+    this.label_.textContent = this.getTitle_();
+  }
 };
 
 /**

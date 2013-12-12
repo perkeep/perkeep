@@ -86,6 +86,13 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
    */
   this.scrollContinuation_ = null;
 
+  /**
+   * A lookup of blobRef->camlistore.BlobItem. This allows us to quickly find
+   * and reuse existing controls when we're updating the UI in response to a
+   * server push.
+   */
+  this.itemCache_ = {};
+
   this.setFocusable(false);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
@@ -119,6 +126,14 @@ camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [75, 100, 150, 200, 250];
  */
 camlistore.BlobItemContainer.INFINITE_SCROLL_THRESHOLD_PX_ = 100;
 
+
+/**
+ * @type {number}
+ * @private
+ */
+camlistore.BlobItemContainer.NUM_ITEMS_PER_PAGE = 50;
+
+
 /**
  * @type {goog.events.FileDropHandler}
  * @private
@@ -141,6 +156,16 @@ camlistore.BlobItemContainer.EventType = {
   SELECTION_CHANGED: 'Camlistore_BlobItemContainer_SelectionChanged',
 };
 
+
+/**
+ * @enum {number}
+ * @private
+ */
+camlistore.BlobItemContainer.prototype.searchMode_ = {
+  NEW: 1,  // A brand new query the user has just navigated to
+  APPEND: 2,  // Append results to the existing query because of scrolling
+  UPDATE: 3  // Update the existing results in response to a server push
+};
 
 /**
  * @type {number}
@@ -291,13 +316,19 @@ camlistore.BlobItemContainer.prototype.showRecent = function() {
  * @param {string=} opt_continueBefore A date to fetch results prior to
  */
 camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
+                                                         opt_searchMode,
                                                          opt_continueBefore) {
-  var isContinuation = Boolean(opt_continueBefore);
-  var continueBefore = opt_continueBefore || dateToRfc3339String(new Date());
-  if (!isContinuation) {
-    // Clear this out now in case the user scrolls while the request is
-    // outstanding.
-    this.scrollContinuation_ = null;
+  var searchMode = opt_searchMode || this.searchMode_.NEW;
+
+  // Clear this out now in case the user scrolls while the request is
+  // outstanding.
+  this.scrollContinuation_ = null;
+
+  // TODO(aa): On big screens this will result in us never being able to
+  // get the rest of the data :(.
+  var limit = this.constructor.NUM_ITEMS_PER_PAGE;
+  if (searchMode == this.searchMode_.UPDATE) {
+    limit = Math.ceil(this.getChildCount() / limit) * limit;
   }
 
   var query = {
@@ -307,8 +338,11 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
       thumbnailSize: this.thumbnailSize_
     },
     sort: 1,  // LastModifiedDesc
-    limit: 50,
-    constraint : {
+    limit: limit
+  };
+
+  if (opt_continueBefore) {
+    query.constraint = {
       logical: {
         op: 'and',
         a: callerConstraint,
@@ -320,18 +354,25 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
           }
         }
       }
-    }
-  };
+    };
+  } else {
+    query.constraint = callerConstraint;
+  }
 
   this.connection_.search(JSON.stringify(query),
-                          goog.bind(this.searchDone_, this, callerConstraint,
-                                    !isContinuation));
+      goog.bind(this.searchDone_, this, callerConstraint, searchMode));
+
+  if (searchMode == this.searchMode_.NEW) {
+    this.startSocketQuery_(callerConstraint);
+  }
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
-                                                              reset, result) {
-  if (reset) {
+                                                              searchMode,
+                                                              result) {
+  if (searchMode == this.searchMode_.NEW) {
     this.resetChildren_();
+    this.itemCache_ = {};
   }
 
   if (!result.blobs || !result.blobs.length) {
@@ -339,13 +380,58 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
     return;
   }
 
-  this.appendChildren_(result);
+  var startIndex = 0;
+  if (searchMode == this.searchMode_.APPEND) {
+    startIndex = this.getChildCount();
+  }
+  this.populateChildren_(result, startIndex);
 
   var lastItem = result.description.meta[
     result.blobs[result.blobs.length - 1].blob];
   this.scrollContinuation_ = this.search.bind(this, constraint,
+                                              this.searchMode_.APPEND,
                                               lastItem.permanode.modtime);
 
+};
+
+/**
+ * Quick and dirty use of WebSocket to know when the current query may have
+ * changed. We don't use the response from the server directly, as it is quite
+ * hard to integrate into previous results reliably with the current protocol.
+ * Instead, we just use it as a tickle to redo the real query.
+ */
+camlistore.BlobItemContainer.prototype.startSocketQuery_ =
+function(callerConstraint) {
+  if (!window.WebSocket) {
+    return;
+  }
+
+  var uri = new goog.Uri(goog.uri.utils.appendPath(
+    this.connection_.config_.searchRoot, 'camli/search/ws'));
+  uri.setDomain(location.hostname);
+  uri.setPort(location.port);
+  uri.setScheme("ws");
+
+  var query = {
+    sort: 1,  // LastModifiedDesc
+    limit: this.constructor.NUM_ITEMS_PER_PAGE,
+    constraint : callerConstraint
+  };
+
+  var ws = new WebSocket(uri.toString());
+  ws.onopen = function() {
+    var message = {
+      tag: 'q1',
+      query: query
+    };
+    ws.send(JSON.stringify(message));
+  };
+  ws.onmessage = function() {
+    // Ignore the first response.
+    ws.onmessage = function() {
+      this.search(callerConstraint, this.searchMode_.UPDATE);
+    }.bind(this);
+  }.bind(this);
 };
 
 /**
@@ -522,11 +608,30 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
  * @param Array.<Object> result
  * @private
  */
-camlistore.BlobItemContainer.prototype.appendChildren_ = function(result) {
+camlistore.BlobItemContainer.prototype.populateChildren_ =
+function(result, startIndex) {
   for (var i = 0, blob; blob = result.blobs[i]; i++) {
     var blobRef = blob.blob;
-    var item = new camlistore.BlobItem(blobRef, result.description.meta);
-    this.addChild(item, true);
+    var item = this.itemCache_[blobRef];
+    var insertIndex = startIndex + i;
+
+    // If there's already an item for this blob, reuse it so that we don't lose
+    // any of the UI state (like whether it is selected).
+    if (item) {
+      item.update(blobRef, result.description.meta);
+      item.updateDom();
+      this.addChildAt(item, insertIndex, false);
+    } else {
+      item = new camlistore.BlobItem(blobRef, result.description.meta);
+      this.itemCache_[blobRef] = item;
+      this.addChildAt(item, insertIndex, true);
+    }
+  }
+
+  // Remove any children we don't need anymore.
+  var childCount = startIndex + result.blobs.length;
+  while (this.getChildCount() > childCount) {
+    this.removeChildAt(childCount, true);
   }
 };
 
@@ -659,7 +764,6 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
 
   if (this.scrollContinuation_) {
     this.scrollContinuation_();
-    this.scrollContinuation_ = null;
   }
 };
 
