@@ -406,11 +406,16 @@ function(callerConstraint) {
     return;
   }
 
+  var config = this.connection_.config_;
   var uri = new goog.Uri(goog.uri.utils.appendPath(
-    this.connection_.config_.searchRoot, 'camli/search/ws'));
+    config.searchRoot, 'camli/search/ws?authtoken=' + (config.wsAuthToken || '')));
   uri.setDomain(location.hostname);
   uri.setPort(location.port);
-  uri.setScheme("ws");
+  if (location.protocol == "https:") {
+    uri.setScheme("wss");
+  } else {
+    uri.setScheme("ws");
+  }
 
   var query = {
     sort: 1,  // LastModifiedDesc
