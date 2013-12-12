@@ -24,11 +24,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -383,6 +383,7 @@ type search struct {
 	h   *Handler
 	q   *SearchQuery
 	res *SearchResult
+	ctx *context.Context
 
 	// ss is a scratch string slice to avoid allocations.
 	// We assume (at least so far) that only 1 goroutine is used
@@ -411,14 +412,21 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		h:   h,
 		q:   q,
 		res: res,
+		ctx: context.TODO(),
 	}
+	defer s.ctx.Cancel()
 
-	ctx := context.TODO()
+	corpus := h.corpus
+	var unlockOnce sync.Once
+	if corpus != nil {
+		corpus.RLock()
+		defer unlockOnce.Do(corpus.RUnlock)
+	}
 
 	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
 
-	sendCtx := ctx.New()
+	sendCtx := s.ctx.New()
 	defer sendCtx.Cancel()
 	go func() {
 		errc <- q.sendAllCandidates(sendCtx, s, ch)
@@ -454,6 +462,10 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		}
 	}
 
+	if corpus != nil {
+		unlockOnce.Do(corpus.RUnlock)
+	}
+
 	if q.Describe != nil {
 		q.Describe.BlobRef = blob.Ref{} // zero this out, if caller set it
 		blobs := make([]blob.Ref, 0, len(res.Blobs))
@@ -482,12 +494,8 @@ func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
 }
 
-// For testing only.
-// Not thread-safe.
-var (
-	// candSource is the most recent strategy that sendAllCandidates used.
-	candSource string
-)
+// Test hook.
+var candSourceHook func(string)
 
 // sendAllCandidates sends all possible matches to dst.
 // dst must be closed, regardless of error.
@@ -496,16 +504,22 @@ func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst cha
 	corpus := s.h.corpus
 	if corpus != nil {
 		if c.onlyMatchesPermanode() && q.Sort == LastModifiedDesc {
-			candSource = "corpus_permanode_desc"
-			return corpus.EnumeratePermanodesLastModified(ctx, dst)
+			if candSourceHook != nil {
+				candSourceHook("corpus_permanode_desc")
+			}
+			return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
 		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
-			candSource = "camli_blob_meta"
-			return corpus.EnumerateCamliBlobs(ctx, camType, dst)
+			if candSourceHook != nil {
+				candSourceHook("camli_blob_meta")
+			}
+			return corpus.EnumerateCamliBlobsLocked(ctx, camType, dst)
 		}
 	}
-	candSource = "all_blob_meta"
+	if candSourceHook != nil {
+		candSourceHook("all_blob_meta")
+	}
 	return s.h.index.EnumerateBlobMeta(ctx, dst)
 }
 
@@ -601,40 +615,41 @@ func (c *LogicalConstraint) checkValid() error {
 }
 
 func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+	// Note: not using multiple goroutines here, because
+	// so far the *search type assumes it's
+	// single-threaded. (e.g. the .ss scratch type).
+	// Also, not using multiple goroutines means we can
+	// short-circuit when Op == "and" and av is false.
+
+	av, err := c.A.blobMatches(s, br, bm)
+	if err != nil {
+		return false, err
+	}
 	switch c.Op {
-	case "and", "xor":
-		var g syncutil.Group
-		var av, bv bool
-		g.Go(func() (err error) {
-			av, err = c.A.blobMatches(s, br, bm)
-			return
-		})
-		g.Go(func() (err error) {
-			bv, err = c.B.blobMatches(s, br, bm)
-			return
-		})
-		if err := g.Err(); err != nil {
-			return false, err
-		}
-		switch c.Op {
-		case "and":
-			return av && bv, nil
-		case "xor":
-			return av != bv, nil
+	case "not":
+		return !av, nil
+	case "and":
+		if !av {
+			// Short-circuit.
+			return false, nil
 		}
 	case "or":
-		av, err := c.A.blobMatches(s, br, bm)
-		if err != nil {
-			return false, err
-		}
 		if av {
 			// Short-circuit.
 			return true, nil
 		}
-		return c.B.blobMatches(s, br, bm)
-	case "not":
-		v, err := c.A.blobMatches(s, br, bm)
-		return !v, err
+	}
+
+	bv, err := c.B.blobMatches(s, br, bm)
+	if err != nil {
+		return false, err
+	}
+
+	switch c.Op {
+	case "and", "or":
+		return bv, nil
+	case "xor":
+		return av != bv, nil
 	}
 	panic("unreachable")
 }
@@ -689,7 +704,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 		if corpus == nil {
 			vals = dp.Attr[c.Attr]
 		} else {
-			s.ss = corpus.AppendPermanodeAttrValues(
+			s.ss = corpus.AppendPermanodeAttrValuesLocked(
 				s.ss[:0], br, c.Attr, c.At, s.h.owner)
 			vals = s.ss
 		}
@@ -700,7 +715,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	}
 	if c.ModTime != nil {
 		if corpus != nil {
-			mt, ok := corpus.PermanodeModtime(br)
+			mt, ok := corpus.PermanodeModtimeLocked(br)
 			if !ok || !c.ModTime.timeMatches(mt) {
 				return false, nil
 			}

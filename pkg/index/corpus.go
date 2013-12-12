@@ -41,6 +41,7 @@ import (
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
 type Corpus struct {
 	mu sync.RWMutex
+	//mu syncutil.RWMutexTracker   // when debugging
 
 	// building is true at start while scanning all rows in the
 	// index.  While building, certain invariants (like things
@@ -96,6 +97,12 @@ type Corpus struct {
 	// scratch string slice
 	ss []string
 }
+
+// RLock locks the Corpus for reads. It must be used for any "Locked" methods.
+func (c *Corpus) RLock() { c.mu.RLock() }
+
+// RUnlock unlocks the Corpus for reads.
+func (c *Corpus) RUnlock() { c.mu.RUnlock() }
 
 type edge struct {
 	edgeType string
@@ -485,14 +492,15 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 
 // *********** Reading from the corpus
 
-// EnumerateCamliBlobs sends just camlistore meta blobs to ch.
+// EnumerateCamliBlobsLocked sends just camlistore meta blobs to ch.
+//
+// The Corpus must already be locked with RLock.
+//
 // If camType is empty, all camlistore blobs are sent, otherwise it specifies
 // the camliType to send.
-// ch is closed at the end. It never returns an error.
-func (c *Corpus) EnumerateCamliBlobs(ctx *context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
+// ch is closed at the end. The err will either be nil or context.ErrCanceled.
+func (c *Corpus) EnumerateCamliBlobsLocked(ctx *context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	for t, m := range c.camBlobs {
 		if camType != "" && camType != t {
 			continue
@@ -508,10 +516,11 @@ func (c *Corpus) EnumerateCamliBlobs(ctx *context.Context, camType string, ch ch
 	return nil
 }
 
-func (c *Corpus) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+// EnumerateBlobMetaLocked sends all known blobs to ch, or until the context is canceled.
+//
+// The Corpus must already be locked with RLock.
+func (c *Corpus) EnumerateBlobMetaLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	for _, bm := range c.blobs {
 		select {
 		case ch <- *bm:
@@ -537,13 +546,15 @@ func (s byPermanodeModtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
 // or until ctx is done.
-func (c *Corpus) EnumeratePermanodesLastModified(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+//
+// The Corpus must already be locked with RLock.
+func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+
+	// TODO: keep these sorted in memory
 	pns := make([]pnAndTime, 0, len(c.permanodes))
 	for pn := range c.permanodes {
-		if modt, ok := c.permanodeModtimeLocked(pn); ok {
+		if modt, ok := c.PermanodeModtimeLocked(pn); ok {
 			pns = append(pns, pnAndTime{pn, modt})
 		}
 	}
@@ -555,6 +566,7 @@ func (c *Corpus) EnumeratePermanodesLastModified(ctx *context.Context, ch chan<-
 		}
 		select {
 		case ch <- *bm:
+			continue
 		case <-ctx.Done():
 			return context.ErrCanceled
 		}
@@ -597,10 +609,12 @@ func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO: figure out behavior wrt mutations by different people
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.permanodeModtimeLocked(pn)
+	return c.PermanodeModtimeLocked(pn)
 }
 
-func (c *Corpus) permanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
+// PermanodeModtimeLocked is like PermanodeModtime but for when the Corpus is
+// already locked via RLock.
+func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		return
@@ -627,11 +641,21 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	attr string,
 	at time.Time,
 	signerFilter blob.Ref) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.AppendPermanodeAttrValuesLocked(dst, permaNode, attr, at, signerFilter)
+}
+
+// AppendPermanodeAttrValuesLocked is the version of AppendPermanodeAttrValues that assumes
+// the Corpus is already locked with RLock.
+func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
+	permaNode blob.Ref,
+	attr string,
+	at time.Time,
+	signerFilter blob.Ref) []string {
 	if len(dst) > 0 {
 		panic("len(dst) must be 0")
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return dst

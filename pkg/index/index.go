@@ -1048,7 +1048,9 @@ func enumerateSignerKeyId(s sorted.KeyValue, cb func(blob.Ref, string)) (err err
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
 func (x *Index) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) (err error) {
 	if x.corpus != nil {
-		return x.corpus.EnumerateBlobMeta(ctx, ch)
+		x.corpus.RLock()
+		defer x.corpus.RUnlock()
+		return x.corpus.EnumerateBlobMetaLocked(ctx, ch)
 	}
 	defer close(ch)
 	return enumerateBlobMeta(x.s, func(bm camtypes.BlobMeta) error {

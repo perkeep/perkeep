@@ -553,6 +553,11 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		p3 := id.NewPlannedPermanode("3")
 		id.SetAttribute(p3, "foo", "p3")
 
+		var usedSource string
+		ExportSetCandidateSourceHook(func(s string) {
+			usedSource = s
+		})
+
 		req := &SearchQuery{
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{},
@@ -565,8 +570,8 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		if err != nil {
 			qt.t.Fatal(err)
 		}
-		if s := ExportCandSource(); s != "corpus_permanode_desc" {
-			t.Errorf("used candidate source strategy %q; want corpus_permanode_desc", s)
+		if usedSource != "corpus_permanode_desc" {
+			t.Errorf("used candidate source strategy %q; want corpus_permanode_desc", usedSource)
 		}
 		wantBlobs := []*SearchResultBlob{
 			{Blob: p3},
