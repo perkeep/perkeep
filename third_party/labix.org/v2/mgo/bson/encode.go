@@ -1,18 +1,18 @@
 // BSON library for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -28,6 +28,7 @@
 package bson
 
 import (
+	"fmt"
 	"math"
 	"net/url"
 	"reflect"
@@ -45,9 +46,11 @@ var (
 	typeMongoTimestamp = reflect.TypeOf(MongoTimestamp(0))
 	typeOrderKey       = reflect.TypeOf(MinKey)
 	typeDocElem        = reflect.TypeOf(DocElem{})
+	typeRawDocElem     = reflect.TypeOf(RawDocElem{})
 	typeRaw            = reflect.TypeOf(Raw{})
 	typeURL            = reflect.TypeOf(url.URL{})
 	typeTime           = reflect.TypeOf(time.Time{})
+	typeString         = reflect.TypeOf("")
 )
 
 const itoaCacheSize = 32
@@ -130,6 +133,18 @@ func (e *encoder) addStruct(v reflect.Value) {
 		panic(err)
 	}
 	var value reflect.Value
+	if sinfo.InlineMap >= 0 {
+		m := v.Field(sinfo.InlineMap)
+		if m.Len() > 0 {
+			for _, k := range m.MapKeys() {
+				ks := k.String()
+				if _, found := sinfo.FieldsMap[ks]; found {
+					panic(fmt.Sprintf("Can't have key %q in inlined map; conflicts with struct field", ks))
+				}
+				e.addElem(ks, m.MapIndex(k), false)
+			}
+		}
+	}
 	for _, info := range sinfo.FieldsList {
 		if info.Inline == nil {
 			value = v.Field(info.Num)
@@ -157,25 +172,56 @@ func isZero(v reflect.Value) bool {
 		return v.Int() == 0
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
 	case reflect.Bool:
 		return !v.Bool()
 	case reflect.Struct:
 		if v.Type() == typeTime {
 			return v.Interface().(time.Time).IsZero()
 		}
+		for i := v.NumField() - 1; i >= 0; i-- {
+			if !isZero(v.Field(i)) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
 
 func (e *encoder) addSlice(v reflect.Value) {
-	if d, ok := v.Interface().(D); ok {
+	vi := v.Interface()
+	if d, ok := vi.(D); ok {
 		for _, elem := range d {
 			e.addElem(elem.Name, reflect.ValueOf(elem.Value), false)
 		}
-	} else {
-		for i := 0; i != v.Len(); i++ {
-			e.addElem(itoa(i), v.Index(i), false)
+		return
+	}
+	if d, ok := vi.(RawD); ok {
+		for _, elem := range d {
+			e.addElem(elem.Name, reflect.ValueOf(elem.Value), false)
 		}
+		return
+	}
+	l := v.Len()
+	et := v.Type().Elem()
+	if et == typeDocElem {
+		for i := 0; i < l; i++ {
+			elem := v.Index(i).Interface().(DocElem)
+			e.addElem(elem.Name, reflect.ValueOf(elem.Value), false)
+		}
+		return
+	}
+	if et == typeRawDocElem {
+		for i := 0; i < l; i++ {
+			elem := v.Index(i).Interface().(RawDocElem)
+			e.addElem(elem.Name, reflect.ValueOf(elem.Value), false)
+		}
+		return
+	}
+	for i := 0; i < l; i++ {
+		e.addElem(itoa(i), v.Index(i), false)
 	}
 }
 
@@ -247,32 +293,27 @@ func (e *encoder) addElem(name string, v reflect.Value, minSize bool) {
 		}
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if v.Type().Kind() <= reflect.Int32 {
-			e.addElemName('\x10', name)
-			e.addInt32(int32(v.Int()))
-		} else {
-			switch v.Type() {
-			case typeMongoTimestamp:
-				e.addElemName('\x11', name)
-				e.addInt64(v.Int())
+		switch v.Type() {
+		case typeMongoTimestamp:
+			e.addElemName('\x11', name)
+			e.addInt64(v.Int())
 
-			case typeOrderKey:
-				if v.Int() == int64(MaxKey) {
-					e.addElemName('\x7F', name)
-				} else {
-					e.addElemName('\xFF', name)
-				}
+		case typeOrderKey:
+			if v.Int() == int64(MaxKey) {
+				e.addElemName('\x7F', name)
+			} else {
+				e.addElemName('\xFF', name)
+			}
 
-			default:
-				i := v.Int()
-				if minSize && i >= math.MinInt32 && i <= math.MaxInt32 {
-					// It fits into an int32, encode as such.
-					e.addElemName('\x10', name)
-					e.addInt32(int32(i))
-				} else {
-					e.addElemName('\x12', name)
-					e.addInt64(i)
-				}
+		default:
+			i := v.Int()
+			if (minSize || v.Type().Kind() != reflect.Int64) && i >= math.MinInt32 && i <= math.MaxInt32 {
+				// It fits into an int32, encode as such.
+				e.addElemName('\x10', name)
+				e.addInt32(int32(i))
+			} else {
+				e.addElemName('\x12', name)
+				e.addInt64(i)
 			}
 		}
 
@@ -294,7 +335,7 @@ func (e *encoder) addElem(name string, v reflect.Value, minSize bool) {
 		if et.Kind() == reflect.Uint8 {
 			e.addElemName('\x05', name)
 			e.addBinary('\x00', v.Bytes())
-		} else if et == typeDocElem {
+		} else if et == typeDocElem || et == typeRawDocElem {
 			e.addElemName('\x03', name)
 			e.addDoc(v)
 		} else {
@@ -347,7 +388,7 @@ func (e *encoder) addElem(name string, v reflect.Value, minSize bool) {
 		case time.Time:
 			// MongoDB handles timestamps as milliseconds.
 			e.addElemName('\x09', name)
-			e.addInt64(s.Unix() * 1000 + int64(s.Nanosecond() / 1e6))
+			e.addInt64(s.Unix()*1000 + int64(s.Nanosecond()/1e6))
 
 		case url.URL:
 			e.addElemName('\x02', name)

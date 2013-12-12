@@ -1,18 +1,18 @@
 // mgo - MongoDB driver for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -27,11 +27,11 @@
 package mgo
 
 import (
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"sync"
 )
 
@@ -91,13 +91,13 @@ func (socket *mongoSocket) resetNonce() {
 	op.limit = -1
 	op.replyFunc = func(err error, reply *replyOp, docNum int, docData []byte) {
 		if err != nil {
-			socket.kill(errors.New("getNonce: " + err.Error()), true)
+			socket.kill(errors.New("getNonce: "+err.Error()), true)
 			return
 		}
 		result := &getNonceResult{}
 		err = bson.Unmarshal(docData, &result)
 		if err != nil {
-			socket.kill(errors.New("Failed to unmarshal nonce: " + err.Error()), true)
+			socket.kill(errors.New("Failed to unmarshal nonce: "+err.Error()), true)
 			return
 		}
 		debugf("Socket %p to %s: nonce unmarshalled: %#v", socket, socket.addr, result)
@@ -125,7 +125,7 @@ func (socket *mongoSocket) resetNonce() {
 	}
 	err := socket.Query(op)
 	if err != nil {
-		socket.kill(errors.New("resetNonce: " + err.Error()), true)
+		socket.kill(errors.New("resetNonce: "+err.Error()), true)
 	}
 }
 
