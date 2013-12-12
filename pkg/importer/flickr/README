@@ -8,7 +8,8 @@ To use:
 
 1) Fill out http://www.flickr.com/services/apps/create/noncommercial/ to get a
    Flickr API key and secret.
-2) Start the server with the flag -flickrapikey=<apikey>:<secret>
+2) Start the devcam server with flickrapikey flag:
+   $ devcam server -flickrapikey=<apikey>:<secret>
 3) Navigate to http://<server>/importer-flickr/login
 4) Watch import progress on the command line
 
