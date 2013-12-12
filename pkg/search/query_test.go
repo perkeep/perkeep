@@ -535,7 +535,7 @@ func TestDecodeFileInfo(t *testing.T) {
 			return
 		}
 		if db.File.MIMEType != "image/gif" {
-			qt.t.Error("DescribedBlob.File = %+v; mime type is not image/gif", db.File)
+			qt.t.Errorf("DescribedBlob.File = %+v; mime type is not image/gif", db.File)
 			return
 		}
 	})
