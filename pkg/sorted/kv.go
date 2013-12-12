@@ -62,6 +62,11 @@ type KeyValue interface {
 	Close() error
 }
 
+type Wiper interface {
+	// Wipe removes all key/value pairs.
+	Wipe() error
+}
+
 // Iterator iterates over an index KeyValue's key/value pairs in key order.
 //
 // An iterator must be closed after use, but it is not necessary to read an

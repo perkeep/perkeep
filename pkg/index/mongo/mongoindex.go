@@ -19,276 +19,49 @@ limitations under the License.
 package mongo
 
 import (
-	"errors"
 	"os"
 	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-
-	"camlistore.org/third_party/labix.org/v2/mgo"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"camlistore.org/pkg/sorted/mongo"
 )
-
-// We explicitely separate the key and the value in a document,
-// instead of simply storing as key:value, to avoid problems
-// such as "." being an illegal char in a key name. Also because
-// there is no way to do partial matching for key names (one can
-// only check for their existence with bson.M{$exists: true}).
-const (
-	collectionName = "keys"
-	mgoKey         = "k"
-	mgoValue       = "v"
-)
-
-type MongoWrapper struct {
-	Servers    string
-	User       string
-	Password   string
-	Database   string
-	Collection string
-}
-
-func (mgw *MongoWrapper) url() string {
-	if mgw.User == "" || mgw.Password == "" {
-		return mgw.Servers
-	}
-	return mgw.User + ":" + mgw.Password + "@" + mgw.Servers + "/" + mgw.Database
-}
-
-// Note that Ping won't work with old (1.2) mongo servers.
-func (mgw *MongoWrapper) TestConnection(timeout time.Duration) bool {
-	session, err := mgo.DialWithTimeout(mgw.url(), timeout)
-	if err != nil {
-		return false
-	}
-	defer session.Close()
-	session.SetSyncTimeout(timeout)
-	if err = session.Ping(); err != nil {
-		return false
-	}
-	return true
-}
-
-func (mgw *MongoWrapper) getConnection() (*mgo.Session, error) {
-	// TODO(mpl): do some "client caching" as in mysql, to avoid systematically dialing?
-	session, err := mgo.Dial(mgw.url())
-	if err != nil {
-		return nil, err
-	}
-	session.SetMode(mgo.Monotonic, true)
-	session.SetSafe(&mgo.Safe{})
-	return session, nil
-}
-
-// TODO(mpl): I'm only calling getCollection at the beginning, and
-// keeping the collection around and reusing it everywhere, instead
-// of calling getCollection everytime, because that's the easiest.
-// But I can easily change that. Gustavo says it does not make
-// much difference either way.
-// Brad, what do you think?
-func (mgw *MongoWrapper) getCollection() (*mgo.Collection, error) {
-	session, err := mgw.getConnection()
-	if err != nil {
-		return nil, err
-	}
-	session.SetSafe(&mgo.Safe{})
-	session.SetMode(mgo.Strong, true)
-	c := session.DB(mgw.Database).C(mgw.Collection)
-	return c, nil
-}
 
 func init() {
 	blobserver.RegisterStorageConstructor("mongodbindexer",
-		blobserver.StorageConstructor(newMongoIndexFromConfig))
+		blobserver.StorageConstructor(newFromConfig))
 }
 
-func newMongoIndex(mgw *MongoWrapper) (*index.Index, error) {
-	db, err := mgw.getCollection()
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	blobPrefix := config.RequiredString("blobSource")
+	kv, err := mongo.NewKeyValue(config)
 	if err != nil {
 		return nil, err
 	}
-	mongoStorage := &mongoKeys{db: db}
-	return index.New(mongoStorage), nil
-}
-
-func newMongoIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
-	blobPrefix := config.RequiredString("blobSource")
-	mgw := &MongoWrapper{
-		Servers:    config.OptionalString("host", "localhost"),
-		Database:   config.RequiredString("database"),
-		User:       config.OptionalString("user", ""),
-		Password:   config.OptionalString("password", ""),
-		Collection: collectionName,
+	// TODO(mpl): hack. remove once dbinit supports mongo.
+	// https://camlistore-review.googlesource.com/1427
+	if wipe, _ := strconv.ParseBool(os.Getenv("CAMLI_MONGO_WIPE")); wipe {
+		wiper, ok := kv.(sorted.Wiper)
+		if !ok {
+			panic("mongo KeyValue not a Wiper")
+		}
+		err = wiper.Wipe()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
+	ix := index.New(kv)
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
 	}
 
-	ix, err := newMongoIndex(mgw)
-	if err != nil {
-		return nil, err
-	}
 	ix.BlobSource = sto
 
 	// Good enough, for now:
 	ix.KeyFetcher = ix.BlobSource
 
-	if wipe, _ := strconv.ParseBool(os.Getenv("CAMLI_MONGO_WIPE")); wipe {
-		err = ix.Storage().Delete("")
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return ix, err
-}
-
-// Implementation of index Iterator
-type mongoStrIterator struct {
-	res bson.M
-	*mgo.Iter
-	end string
-}
-
-func (s *mongoStrIterator) Next() bool {
-	if !s.Iter.Next(&s.res) {
-		return false
-	}
-	if s.end != "" {
-		if key, ok := (s.res[mgoKey]).(string); !ok || key >= s.end {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *mongoStrIterator) Key() string {
-	key, ok := (s.res[mgoKey]).(string)
-	if !ok {
-		return ""
-	}
-	return key
-}
-
-func (s *mongoStrIterator) KeyBytes() []byte {
-	// TODO(bradfitz,mpl): this is less efficient than the string way. we should
-	// do better here, somehow, like all the other sorted.KeyValue iterators.
-	// For now:
-	return []byte(s.Key())
-}
-
-func (s *mongoStrIterator) Value() string {
-	value, ok := (s.res[mgoValue]).(string)
-	if !ok {
-		return ""
-	}
-	return value
-}
-
-func (s *mongoStrIterator) ValueBytes() []byte {
-	// TODO(bradfitz,mpl): this is less efficient than the string way. we should
-	// do better here, somehow, like all the other sorted.KeyValue iterators.
-	// For now:
-	return []byte(s.Value())
-}
-
-func (s *mongoStrIterator) Close() error {
-	// TODO(mpl): think about anything more to be done here.
-	return nil
-}
-
-// Implementation of sorted.KeyValue
-type mongoKeys struct {
-	mu sync.Mutex // guards db
-	db *mgo.Collection
-}
-
-func (mk *mongoKeys) Get(key string) (string, error) {
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	res := bson.M{}
-	q := mk.db.Find(&bson.M{mgoKey: key})
-	err := q.One(&res)
-	if err != nil {
-		if err == mgo.ErrNotFound {
-			return "", sorted.ErrNotFound
-		} else {
-			return "", err
-		}
-	}
-	return res[mgoValue].(string), err
-}
-
-func (mk *mongoKeys) Find(start, end string) sorted.Iterator {
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	// TODO(mpl): escape other special chars, or maybe replace $regex with something
-	// more suited if possible.
-	cleanedStart := strings.Replace(start, "|", `\|`, -1)
-	iter := mk.db.Find(&bson.M{mgoKey: &bson.M{"$regex": "^" + cleanedStart}}).Sort(mgoKey).Iter()
-	return &mongoStrIterator{res: bson.M{}, Iter: iter, end: end}
-}
-
-func (mk *mongoKeys) Set(key, value string) error {
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	_, err := mk.db.Upsert(&bson.M{mgoKey: key}, &bson.M{mgoKey: key, mgoValue: value})
-	return err
-}
-
-// Delete removes the document with the matching key.
-// If key is "", it removes all documents.
-func (mk *mongoKeys) Delete(key string) error {
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	if key == "" {
-		_, err := mk.db.RemoveAll(nil)
-		return err
-	}
-	return mk.db.Remove(&bson.M{mgoKey: key})
-}
-
-func (mk *mongoKeys) BeginBatch() sorted.BatchMutation {
-	return sorted.NewBatchMutation()
-}
-
-type batch interface {
-	Mutations() []sorted.Mutation
-}
-
-func (mk *mongoKeys) CommitBatch(bm sorted.BatchMutation) error {
-	b, ok := bm.(batch)
-	if !ok {
-		return errors.New("invalid batch type")
-	}
-
-	mk.mu.Lock()
-	defer mk.mu.Unlock()
-	for _, m := range b.Mutations() {
-		if m.IsDelete() {
-			if err := mk.db.Remove(bson.M{mgoKey: m.Key()}); err != nil {
-				return err
-			}
-		} else {
-			if _, err := mk.db.Upsert(&bson.M{mgoKey: m.Key()}, &bson.M{mgoKey: m.Key(), mgoValue: m.Value()}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (mk *mongoKeys) Close() error {
-	// TODO(mpl): Close the Session? Connection?
-	return nil
 }
