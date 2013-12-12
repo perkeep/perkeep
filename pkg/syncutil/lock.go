@@ -17,11 +17,15 @@ limitations under the License.
 package syncutil
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"camlistore.org/pkg/strutil"
 )
 
 // RWMutexTracker is a sync.RWMutex that tracks who owns the current
@@ -39,20 +43,66 @@ type RWMutexTracker struct {
 
 	hmu    sync.Mutex
 	holder []byte
+	holdr  map[int64]bool // goroutines holding read lock
 }
 
 const stackBufSize = 16 << 20
 
+var stackBuf = make(chan []byte, 8)
+
+func getBuf() []byte {
+	select {
+	case b := <-stackBuf:
+		return b[:stackBufSize]
+	default:
+		return make([]byte, stackBufSize)
+	}
+}
+
+func putBuf(b []byte) {
+	select {
+	case stackBuf <- b:
+	default:
+	}
+}
+
+var goroutineSpace = []byte("goroutine ")
+
+func GoroutineID() int64 {
+	b := getBuf()
+	defer putBuf(b)
+	b = b[:runtime.Stack(b, false)]
+	// Parse the 4707 otu of "goroutine 4707 ["
+	b = bytes.TrimPrefix(b, goroutineSpace)
+	i := bytes.IndexByte(b, ' ')
+	if i < 0 {
+		panic(fmt.Sprintf("No space found in %q", b))
+	}
+	b = b[:i]
+	n, err := strutil.ParseUintBytes(b, 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to parse goroutine ID out of %q: %v", b, err))
+	}
+	return int64(n)
+}
+
 func (m *RWMutexTracker) startLogger() {
 	go func() {
+		var buf bytes.Buffer
 		for {
 			time.Sleep(1 * time.Second)
-			log.Printf("Mutex %p: waitW %d haveW %d   waitR %d haveR %d",
+			buf.Reset()
+			m.hmu.Lock()
+			for gid := range m.holdr {
+				fmt.Fprintf(&buf, " [%d]", gid)
+			}
+			m.hmu.Unlock()
+			log.Printf("Mutex %p: waitW %d haveW %d   waitR %d haveR %d %s",
 				m,
 				atomic.LoadInt32(&m.nwaitw),
 				atomic.LoadInt32(&m.nhavew),
 				atomic.LoadInt32(&m.nwaitr),
-				atomic.LoadInt32(&m.nhaver))
+				atomic.LoadInt32(&m.nhaver), buf.Bytes())
 		}
 	}()
 }
@@ -75,9 +125,7 @@ func (m *RWMutexTracker) Lock() {
 
 func (m *RWMutexTracker) Unlock() {
 	m.hmu.Lock()
-	m.holder = m.holder[:runtime.Stack(m.holder[:stackBufSize], false)]
-	log.Printf("Unlock at %s", m.holder)
-
+	m.holder = nil
 	m.hmu.Unlock()
 
 	atomic.AddInt32(&m.nhavew, -1)
@@ -90,10 +138,32 @@ func (m *RWMutexTracker) RLock() {
 	m.mu.RLock()
 	atomic.AddInt32(&m.nwaitr, -1)
 	atomic.AddInt32(&m.nhaver, 1)
+
+	gid := GoroutineID()
+	m.hmu.Lock()
+	if m.holdr == nil {
+		m.holdr = make(map[int64]bool)
+	}
+	if m.holdr[gid] {
+		panic("Recursive call to RLock")
+	}
+	m.holdr[gid] = true
+	m.hmu.Unlock()
+}
+
+func stack() []byte {
+	buf := make([]byte, 1024)
+	return buf[:runtime.Stack(buf, false)]
 }
 
 func (m *RWMutexTracker) RUnlock() {
 	atomic.AddInt32(&m.nhaver, -1)
+
+	gid := GoroutineID()
+	m.hmu.Lock()
+	delete(m.holdr, gid)
+	m.hmu.Unlock()
+
 	m.mu.RUnlock()
 }
 
