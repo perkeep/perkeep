@@ -540,9 +540,14 @@ type pnAndTime struct {
 
 type byPermanodeModtime []pnAndTime
 
-func (s byPermanodeModtime) Len() int           { return len(s) }
-func (s byPermanodeModtime) Less(i, j int) bool { return s[i].t.Before(s[j].t) }
-func (s byPermanodeModtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s byPermanodeModtime) Len() int      { return len(s) }
+func (s byPermanodeModtime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s byPermanodeModtime) Less(i, j int) bool {
+	if s[i].t.Equal(s[j].t) {
+		return s[i].pn.Less(s[j].pn)
+	}
+	return s[i].t.Before(s[j].t)
+}
 
 // EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
 // or until ctx is done.
