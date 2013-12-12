@@ -361,10 +361,6 @@ camlistore.BlobItemContainer.prototype.search = function(callerConstraint,
 
   this.connection_.search(JSON.stringify(query),
       goog.bind(this.searchDone_, this, callerConstraint, searchMode));
-
-  if (searchMode == this.searchMode_.NEW) {
-    this.startSocketQuery_(callerConstraint);
-  }
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
@@ -373,6 +369,7 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint,
   if (searchMode == this.searchMode_.NEW) {
     this.resetChildren_();
     this.itemCache_ = {};
+    this.startSocketQuery_(constraint);
   }
 
   if (!result.blobs || !result.blobs.length) {
@@ -636,6 +633,7 @@ function(result, startIndex) {
   // Remove any children we don't need anymore.
   var childCount = startIndex + result.blobs.length;
   while (this.getChildCount() > childCount) {
+    this.itemCache_[this.getChildAt(childCount).getBlobRef()] = null;
     this.removeChildAt(childCount, true);
   }
 };
