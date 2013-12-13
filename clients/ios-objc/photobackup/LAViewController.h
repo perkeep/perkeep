@@ -8,6 +8,10 @@
 
 #import <UIKit/UIKit.h>
 
+@class  LACamliClient;
+
 @interface LAViewController : UIViewController
+
+@property LACamliClient *client;
 
 @end

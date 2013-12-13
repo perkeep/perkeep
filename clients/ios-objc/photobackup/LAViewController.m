@@ -7,6 +7,7 @@
 //
 
 #import "LAViewController.h"
+#import "LACamliClient.h"
 
 @interface LAViewController ()
 
@@ -17,6 +18,10 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {
+        LALog(@"got objects: %@",objects);
+    }];
 }
 
 #pragma mark - collection methods
