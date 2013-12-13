@@ -7,6 +7,7 @@
 //
 
 #import "LAAppDelegate.h"
+#import "LACamliUtil.h"
 #import "LACamliFile.h"
 #import "LAViewController.h"
 #import <AssetsLibrary/AssetsLibrary.h>
@@ -15,78 +16,73 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
     [self.locationManager startMonitoringSignificantLocationChanges];
-    
-    NSString *credentialsPath = [[NSBundle mainBundle] pathForResource:@"credentials" ofType:@"plist"];
-    NSDictionary *credentials = [NSDictionary dictionaryWithContentsOfFile:credentialsPath];
-    
-    NSAssert(credentials[@"camlistore_url"], @"no camlistore url specified");
-    NSAssert(credentials[@"camlistore_username"], @"no camlistore username specified");
-    NSAssert(credentials[@"camlistore_password"], @"no camlistore password specified");
-    
-    self.client = [[LACamliClient alloc] initWithServer:[NSURL URLWithString:credentials[@"camlistore_url"]] username:credentials[@"camlistore_username"] andPassword:credentials[@"camlistore_password"]];
 
-    [(LAViewController *)self.window.rootViewController setClient:self.client];
+    [self loadCredentials];
 
     self.library = [[ALAssetsLibrary alloc] init];
-    
+    // TODO: request access to the library first
+
     return YES;
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations
 {
-    CLLocation *updatedLocation = [locations lastObject];
-    LALog(@"updated location: %@",updatedLocation);
+    [self checkForUploads];
+}
 
-    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
-    NSString *updatesLocation = [documents stringByAppendingPathComponent:@"locations.plist"];
+- (void)loadCredentials
+{
+    NSURL *serverURL = [NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey:CamliServerKey]];
+    NSString *username = [[NSUserDefaults standardUserDefaults] stringForKey:CamliUsernameKey];
 
-    NSMutableArray *locationArchive = [NSMutableArray arrayWithContentsOfFile:updatesLocation];
-    if (!locationArchive) {
-        locationArchive = [NSMutableArray array];
+    NSString *password = nil;
+    if (username) {
+        password = [LACamliUtil passwordForUsername:username];
     }
 
-    [locationArchive addObject:[updatedLocation timestamp]];
-    [locationArchive writeToFile:updatesLocation atomically:YES];
-    
-    if ([ALAssetsLibrary authorizationStatus] == ALAuthorizationStatusAuthorized) {
-        [self checkForUploads];
+    if (serverURL && username && password) {
+        self.client = [[LACamliClient alloc] initWithServer:serverURL username:username andPassword:password];
     }
+
+    [self checkForUploads];
 }
 
 - (void)checkForUploads
 {
-    NSInteger __block filesToUpload = 0;
-
     UIBackgroundTaskIdentifier assetCheckID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"assetCheck" expirationHandler:^{
         LALog(@"asset check task expired");
     }];
 
-    [self.library enumerateGroupsWithTypes:ALAssetsGroupSavedPhotos usingBlock:^(ALAssetsGroup *group, BOOL *stop) {
-        [group enumerateAssetsUsingBlock:^(ALAsset *result, NSUInteger index, BOOL *stop) {
-            
-            if (result && [result valueForProperty:ALAssetPropertyType] != ALAssetTypeVideo) { // enumerate returns null after the last item
-                LACamliFile *file = [[LACamliFile alloc] initWithAsset:result];
-                
-                if (![self.client fileAlreadyUploaded:file]) {
-                    filesToUpload++;
-                    [self.client addFile:file withCompletion:^{
-                        [UIApplication sharedApplication].applicationIconBadgeNumber--;
-                    }];
-                } else {
-                    LALog(@"file already uploaded: %@",file.blobRef);
+    if (self.client && [self.client readyToUpload]) {
+        NSInteger __block filesToUpload = 0;
+
+        __block LAAppDelegate *weakSelf = self;
+        [self.library enumerateGroupsWithTypes:ALAssetsGroupSavedPhotos usingBlock:^(ALAssetsGroup *group, BOOL *stop) {
+            [group enumerateAssetsUsingBlock:^(ALAsset *result, NSUInteger index, BOOL *stop) {
+
+                if (result && [result valueForProperty:ALAssetPropertyType] != ALAssetTypeVideo) { // enumerate returns null after the last item
+                    LACamliFile *file = [[LACamliFile alloc] initWithAsset:result];
+
+                    if (![weakSelf.client fileAlreadyUploaded:file]) {
+                        filesToUpload++;
+                        [weakSelf.client addFile:file withCompletion:^{
+                            [UIApplication sharedApplication].applicationIconBadgeNumber--;
+                        }];
+                    } else {
+                        LALog(@"file already uploaded: %@",file.blobRef);
+                    }
                 }
-            }
+            }];
+
+            [UIApplication sharedApplication].applicationIconBadgeNumber = filesToUpload;
+
+        } failureBlock:^(NSError *error) {
+            LALog(@"failed enumerate: %@",error);
         }];
-
-        [UIApplication sharedApplication].applicationIconBadgeNumber = filesToUpload;
-
-    } failureBlock:^(NSError *error) {
-        LALog(@"failed enumerate: %@",error);
-    }];
+    }
 
     [[UIApplication sharedApplication] endBackgroundTask:assetCheckID];
 }

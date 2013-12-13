@@ -11,6 +11,8 @@
 
 @implementation LACamliUtil
 
+static NSString *const serviceName = @"org.camlistore.credentials";
+
 // h/t AFNetworking
 + (NSString *)base64EncodedStringFromString:(NSString *)string
 {
@@ -42,6 +44,80 @@
     return [[NSString alloc] initWithData:mutableData encoding:NSASCIIStringEncoding];
 }
 
+#pragma mark - keychain stuff
+
++ (NSString *)passwordForUsername:(NSString *)username
+{
+    if (!username) {
+        LALog(@"no username");
+        return nil;
+    }
+
+    // construct query
+    NSDictionary *passwordQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
+                                    (__bridge NSString *)kSecAttrAccount: username,
+                                    (__bridge NSString *)kSecAttrService: serviceName,
+                                    (__bridge NSString *)kSecReturnData: (id)kCFBooleanTrue};
+
+
+	NSData *results = nil;
+    CFTypeRef resultRef = (__bridge CFTypeRef)results;
+
+    // actually request password
+    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)passwordQuery, &resultRef);
+
+    results = (__bridge NSData *)resultRef;
+
+    if (status == noErr) {
+        return [[NSString alloc] initWithData:results encoding:NSUTF8StringEncoding];
+    }
+
+    return nil;
+}
+
++ (BOOL)savePassword:(NSString *)password forUsername:(NSString *)username
+{
+    if (!password || !username) {
+        LALog(@"no password or username");
+        return NO;
+    }
+
+    OSStatus status = noErr;
+
+    if ([self passwordForUsername:username]) {
+        LALog(@"update");
+        // update keychain item
+
+        NSDictionary *updateQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
+                                      (__bridge NSString *)kSecAttrAccount: username,
+                                      (__bridge NSString *)kSecAttrService: serviceName
+                                      };
+
+        NSDictionary *updateAttribute = @{(__bridge NSString *)kSecValueData: [password dataUsingEncoding:NSUTF8StringEncoding]};
+
+        status = SecItemUpdate((__bridge CFDictionaryRef)updateQuery, (__bridge CFDictionaryRef)updateAttribute);
+    } else {
+        LALog(@"new");
+        // add a new keychain item
+
+        NSDictionary *addQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
+                                   (__bridge NSString *)kSecAttrAccount: username,
+                                   (__bridge NSString *)kSecAttrService: serviceName,
+                                   (__bridge NSString *)kSecValueData: [password dataUsingEncoding:NSUTF8StringEncoding]
+                                   };
+
+        status =  SecItemAdd((__bridge CFDictionaryRef)addQuery, nil);
+    }
+
+    if (status != noErr) {
+        return NO;
+    }
+
+    return YES;
+}
+
+#pragma mark - hashes
+
 + (NSString *)blobRef:(NSData *)data
 {
     uint8_t digest[CC_SHA1_DIGEST_LENGTH];
@@ -57,6 +133,8 @@
     
     return output;
 }
+
+#pragma mark - dates
 
 + (NSString *)rfc3339StringFromDate:(NSDate *)date
 {

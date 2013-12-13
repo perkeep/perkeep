@@ -14,4 +14,6 @@
 
 @property LACamliClient *client;
 
+- (void)dismissSettings;
+
 @end

@@ -12,6 +12,9 @@
 
 @class ALAssetsLibrary;
 
+static NSString *const CamliUsernameKey = @"org.camlistore.username";
+static NSString *const CamliServerKey = @"org.camlistore.serverurl";
+
 @interface LAAppDelegate : UIResponder <UIApplicationDelegate,CLLocationManagerDelegate>
 
 @property (strong, nonatomic) UIWindow *window;
@@ -21,5 +24,7 @@
 // kicked out of the library if we don't have a reference and still want to play with the books
 @property ALAssetsLibrary *library;
 
+- (void)loadCredentials;
+- (void)checkForUploads;
 
 @end

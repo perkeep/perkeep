@@ -11,6 +11,8 @@
 @interface LACamliUtil : NSObject
 
 + (NSString *)base64EncodedStringFromString:(NSString *)string;
++ (NSString *)passwordForUsername:(NSString *)username;
++ (BOOL)savePassword:(NSString *)password forUsername:(NSString *)username;
 + (NSString *)blobRef:(NSData *)data;
 + (NSString *)rfc3339StringFromDate:(NSDate *)date;
 

@@ -44,6 +44,23 @@
     return self;
 }
 
+#pragma mark - ready state
+
+- (BOOL)readyToUpload
+{
+    // can't upload if we don't have credentials
+    if (!self.username || !self.password || !self.serverURL) {
+        return NO;
+    }
+
+    // don't want to start a new upload if we're already going
+    if ([self.uploadQueue operationCount] > 0) {
+        return NO;
+    }
+
+    return YES;
+}
+
 #pragma mark - discovery
 
 // if we don't have blobroot with which to make these requests, we need to find it first
@@ -109,7 +126,7 @@
             [self discoveryWithUsername:self.username andPassword:self.password];
         }
     }
-    
+
     LACamliUploadOperation *op = [[LACamliUploadOperation alloc] initWithFile:file andClient:self];
     op.completionBlock = ^{
         LALog(@"finished op %@",file.blobRef);
@@ -118,7 +135,7 @@
 
         completion();
     };
-    
+
     [self.uploadQueue addOperation:op];
 }
 
