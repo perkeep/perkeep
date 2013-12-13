@@ -62,7 +62,11 @@ type KeyValue interface {
 	Close() error
 }
 
+// Wiper is an optional interface that may be implemented by storage
+// implementations.
 type Wiper interface {
+	KeyValue
+
 	// Wipe removes all key/value pairs.
 	Wipe() error
 }
