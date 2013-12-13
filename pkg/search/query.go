@@ -322,6 +322,9 @@ type PermanodeConstraint struct {
 	// This is required if any of the items below are used.
 	Attr string `json:"attr"`
 
+	// SkipHidden skips hidden or other boring files.
+	SkipHidden bool `json:"skipHidden"`
+
 	// NumValue optionally tests the number of values this
 	// permanode has for Attr.
 	NumValue *IntConstraint `json:"numValue"`
@@ -713,6 +716,16 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			return false, err
 		}
 	}
+
+	if c.SkipHidden && corpus != nil {
+		vals := corpus.AppendPermanodeAttrValuesLocked(s.ss[:0], br, "camliDefVis", time.Time{}, s.h.owner)
+		for _, v := range vals {
+			if v == "hide" {
+				return false, nil
+			}
+		}
+	}
+
 	if c.ModTime != nil {
 		if corpus != nil {
 			mt, ok := corpus.PermanodeModtimeLocked(br)

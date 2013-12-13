@@ -271,6 +271,12 @@ func (n *mutDir) Symlink(req *fuse.SymlinkRequest, intr fuse.Intr) (fuse.Node, f
 	return node, nil
 }
 
+func stupidMacExtendedAttributeName(name string) bool {
+	// TODO: if we supported extended attributes, the OS X finder wouldn't
+	// generate these files anyway.
+	return strings.HasPrefix(name, "._") || name == ".DS_Store"
+}
+
 func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 	// Create a Permanode for the file/directory.
 	pr, err := n.fs.client.UploadNewPermanode()
@@ -278,10 +284,22 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 		return nil, err
 	}
 
-	// Add a camliPath:name attribute to the directory permanode.
-	claim := schema.NewSetAttributeClaim(n.permanode, "camliPath:"+name, pr.BlobRef.String())
-	_, err = n.fs.client.UploadAndSignBlob(claim)
-	if err != nil {
+	var grp syncutil.Group
+	grp.Go(func() (err error) {
+		// Add a camliPath:name attribute to the directory permanode.
+		claim := schema.NewSetAttributeClaim(n.permanode, "camliPath:"+name, pr.BlobRef.String())
+		_, err = n.fs.client.UploadAndSignBlob(claim)
+		return
+	})
+	if stupidMacExtendedAttributeName(name) {
+		grp.Go(func() (err error) {
+			// Add a camliPath:name attribute to the directory permanode.
+			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliDefVis", "hide")
+			_, err = n.fs.client.UploadAndSignBlob(claim)
+			return
+		})
+	}
+	if err := grp.Err(); err != nil {
 		return nil, err
 	}
 

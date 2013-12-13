@@ -307,7 +307,9 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
  */
 camlistore.BlobItemContainer.prototype.showRecent = function() {
   this.search({
-    camliType: 'permanode'
+    permanode: {
+      skipHidden: true
+    }
   });
 };
 
