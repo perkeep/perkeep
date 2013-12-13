@@ -24,8 +24,8 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvfile"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test"
 )
@@ -35,13 +35,13 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	is, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
+	kv, err = kvfile.NewStorage(filepath.Join(td, "kvfile"))
 	if err != nil {
 		os.RemoveAll(td)
 		t.Fatal(err)
 	}
-	return is, func() {
-		is.Close()
+	return kv, func() {
+		kv.Close()
 		os.RemoveAll(td)
 	}
 }

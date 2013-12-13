@@ -1,18 +1,18 @@
 // mgo - MongoDB driver for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -27,12 +27,12 @@
 package mgo
 
 import (
+	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
 	"hash"
 	"io"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"os"
 	"sync"
 	"time"
@@ -72,10 +72,10 @@ type GridFile struct {
 }
 
 type gfsFile struct {
-	Id          interface{}    "_id"
-	ChunkSize   int            "chunkSize"
-	UploadDate  time.Time      "uploadDate"
-	Length      int64          ",minsize"
+	Id          interface{} "_id"
+	ChunkSize   int         "chunkSize"
+	UploadDate  time.Time   "uploadDate"
+	Length      int64       ",minsize"
 	MD5         string
 	Filename    string    ",omitempty"
 	ContentType string    "contentType,omitempty"
@@ -157,15 +157,15 @@ func (gfs *GridFS) Create(name string) (file *GridFile, err error) {
 	return
 }
 
-// OpenId returns a file with the provided id in case it exists or an error
-// instead.  If the file isn't found, err will be set to mgo.ErrNotFound.
+// OpenId returns the file with the provided id, for reading.
+// If the file isn't found, err will be set to mgo.ErrNotFound.
 //
 // It's important to Close files whether they are being written to
 // or read from, and to check the err result to ensure the operation
 // completed successfully.
 //
 // The following example will print the first 8192 bytes from the file:
-// 
+//
 //     func check(err os.Error) {
 //         if err != nil {
 //             panic(err.String())
@@ -205,15 +205,16 @@ func (gfs *GridFS) OpenId(id interface{}) (file *GridFile, err error) {
 	return
 }
 
-// Open returns the most recent uploaded file with the provided name, or an
-// error instead.  If the file isn't found, err will be set to mgo.ErrNotFound.
+// Open returns the most recently uploaded file with the provided
+// name, for reading. If the file isn't found, err will be set
+// to mgo.ErrNotFound.
 //
 // It's important to Close files whether they are being written to
 // or read from, and to check the err result to ensure the operation
 // completed successfully.
 //
 // The following example will print the first 8192 bytes from the file:
-// 
+//
 //     file, err := db.GridFS("fs").Open("myfile.txt")
 //     check(err)
 //     b := make([]byte, 8192)
@@ -248,17 +249,17 @@ func (gfs *GridFS) Open(name string) (file *GridFile, err error) {
 	return
 }
 
-// OpenNext opens the next file from iter, sets *file to it, and returns
-// true on the success case. If no more documents are available on iter or
-// an error occurred, *file is set to nil and the result is false. Errors
-// will be available on iter.Err().
+// OpenNext opens the next file from iter for reading, sets *file to it,
+// and returns true on the success case. If no more documents are available
+// on iter or an error occurred, *file is set to nil and the result is false.
+// Errors will be available via iter.Err().
 //
 // The iter parameter must be an iterator on the GridFS files collection.
 // Using the GridFS.Find method is an easy way to obtain such an iterator,
 // but any iterator on the collection will work.
 //
-// If the provided *file is non-nil, OpenNext will close it before
-// iterating to the next element. This means that in a loop one only
+// If the provided *file is non-nil, OpenNext will close it before attempting
+// to iterate to the next element. This means that in a loop one only
 // has to worry about closing files when breaking out of the loop early
 // (break, return, or panic).
 //
@@ -271,8 +272,8 @@ func (gfs *GridFS) Open(name string) (file *GridFile, err error) {
 //     for gfs.OpenNext(iter, &f) {
 //         fmt.Printf("Filename: %s\n", f.Name())
 //     }
-//     if iter.Err() != nil {
-//         panic(iter.Err())
+//     if iter.Close() != nil {
+//         panic(iter.Close())
 //     }
 //
 func (gfs *GridFS) OpenNext(iter *Iter, file **GridFile) bool {
@@ -280,7 +281,7 @@ func (gfs *GridFS) OpenNext(iter *Iter, file **GridFile) bool {
 		// Ignoring the error here shouldn't be a big deal
 		// as we're reading the file and the loop iteration
 		// for this file is finished.
-		_ = file.Close()
+		_ = (*file).Close()
 	}
 	var doc gfsFile
 	if !iter.Next(&doc) {
@@ -306,7 +307,7 @@ func (gfs *GridFS) OpenNext(iter *Iter, file **GridFile) bool {
 //
 //     files := db.C("fs" + ".files")
 //     iter := files.Find(nil).Iter()
-//    
+//
 func (gfs *GridFS) Find(query interface{}) *Query {
 	return gfs.Files.Find(query)
 }
@@ -335,7 +336,7 @@ func (gfs *GridFS) Remove(name string) (err error) {
 		}
 	}
 	if err == nil {
-		err = iter.Err()
+		err = iter.Close()
 	}
 	return err
 }
@@ -509,6 +510,8 @@ func (file *GridFile) Close() (err error) {
 //
 // The file will internally cache the data so that all but the last
 // chunk sent to the database have the size defined by SetChunkSize.
+// This also means that errors may be deferred until a future call
+// to Write or Close.
 //
 // The parameters and behavior of this function turn the file
 // into an io.Writer.

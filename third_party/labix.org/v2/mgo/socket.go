@@ -1,18 +1,18 @@
 // mgo - MongoDB driver for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -27,10 +27,11 @@
 package mgo
 
 import (
-	"errors"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"errors"
 	"net"
 	"sync"
+	"time"
 )
 
 type replyFunc func(err error, reply *replyOp, docNum int, docData []byte)
@@ -38,7 +39,8 @@ type replyFunc func(err error, reply *replyOp, docNum int, docData []byte)
 type mongoSocket struct {
 	sync.Mutex
 	server        *mongoServer // nil when cached
-	conn          *net.TCPConn
+	conn          net.Conn
+	timeout       time.Duration
 	addr          string // For debugging only.
 	nextRequestId uint32
 	replyFuncs    map[uint32]replyFunc
@@ -48,7 +50,19 @@ type mongoSocket struct {
 	cachedNonce   string
 	gotNonce      sync.Cond
 	dead          error
+	serverInfo    *mongoServerInfo
 }
+
+type queryOpFlags uint32
+
+const (
+	_ queryOpFlags = 1 << iota
+	flagTailable
+	flagSlaveOk
+	flagLogReplay
+	flagNoCursorTimeout
+	flagAwaitData
+)
 
 type queryOp struct {
 	collection string
@@ -56,8 +70,39 @@ type queryOp struct {
 	skip       int32
 	limit      int32
 	selector   interface{}
-	flags      uint32
+	flags      queryOpFlags
 	replyFunc  replyFunc
+
+	options    queryWrapper
+	hasOptions bool
+	serverTags []bson.D
+}
+
+type queryWrapper struct {
+	Query          interface{} "$query"
+	OrderBy        interface{} "$orderby,omitempty"
+	Hint           interface{} "$hint,omitempty"
+	Explain        bool        "$explain,omitempty"
+	Snapshot       bool        "$snapshot,omitempty"
+	ReadPreference bson.D      "$readPreference,omitempty"
+}
+
+func (op *queryOp) finalQuery(socket *mongoSocket) interface{} {
+	if op.flags&flagSlaveOk != 0 && len(op.serverTags) > 0 && socket.ServerInfo().Mongos {
+		op.hasOptions = true
+		op.options.ReadPreference = bson.D{{"mode", "secondaryPreferred"}, {"tags", op.serverTags}}
+	}
+	if op.hasOptions {
+		if op.query == nil {
+			var empty bson.D
+			op.options.Query = empty
+		} else {
+			op.options.Query = op.query
+		}
+		debugf("final query is %#v\n", &op.options)
+		return &op.options
+	}
+	return op.query
 }
 
 type getMoreOp struct {
@@ -92,17 +137,24 @@ type deleteOp struct {
 	flags      uint32
 }
 
+type killCursorsOp struct {
+	cursorIds []int64
+}
+
 type requestInfo struct {
 	bufferPos int
 	replyFunc replyFunc
 }
 
-func newSocket(server *mongoServer, conn *net.TCPConn) *mongoSocket {
-	socket := &mongoSocket{conn: conn, addr: server.Addr}
+func newSocket(server *mongoServer, conn net.Conn, timeout time.Duration) *mongoSocket {
+	socket := &mongoSocket{
+		conn:       conn,
+		addr:       server.Addr,
+		server:     server,
+		replyFuncs: make(map[uint32]replyFunc),
+	}
 	socket.gotNonce.L = &socket.Mutex
-	socket.replyFuncs = make(map[uint32]replyFunc)
-	socket.server = server
-	if err := socket.InitialAcquire(); err != nil {
+	if err := socket.InitialAcquire(server.Info(), timeout); err != nil {
 		panic("newSocket: InitialAcquire returned error: " + err.Error())
 	}
 	stats.socketsAlive(+1)
@@ -112,10 +164,28 @@ func newSocket(server *mongoServer, conn *net.TCPConn) *mongoSocket {
 	return socket
 }
 
+// Server returns the server that the socket is associated with.
+// It returns nil while the socket is cached in its respective server.
+func (socket *mongoSocket) Server() *mongoServer {
+	socket.Lock()
+	server := socket.server
+	socket.Unlock()
+	return server
+}
+
+// ServerInfo returns details for the server at the time the socket
+// was initially acquired.
+func (socket *mongoSocket) ServerInfo() *mongoServerInfo {
+	socket.Lock()
+	serverInfo := socket.serverInfo
+	socket.Unlock()
+	return serverInfo
+}
+
 // InitialAcquire obtains the first reference to the socket, either
 // right after the connection is made or once a recycled socket is
 // being put back in use.
-func (socket *mongoSocket) InitialAcquire() error {
+func (socket *mongoSocket) InitialAcquire(serverInfo *mongoServerInfo, timeout time.Duration) error {
 	socket.Lock()
 	if socket.references > 0 {
 		panic("Socket acquired out of cache with references")
@@ -125,6 +195,8 @@ func (socket *mongoSocket) InitialAcquire() error {
 		return socket.dead
 	}
 	socket.references++
+	socket.serverInfo = serverInfo
+	socket.timeout = timeout
 	stats.socketsInUse(+1)
 	stats.socketRefs(+1)
 	socket.Unlock()
@@ -134,20 +206,18 @@ func (socket *mongoSocket) InitialAcquire() error {
 // Acquire obtains an additional reference to the socket.
 // The socket will only be recycled when it's released as many
 // times as it's been acquired.
-func (socket *mongoSocket) Acquire() (isMaster bool) {
+func (socket *mongoSocket) Acquire() (info *mongoServerInfo) {
 	socket.Lock()
 	if socket.references == 0 {
 		panic("Socket got non-initial acquire with references == 0")
 	}
-	socket.references++
-	stats.socketRefs(+1)
 	// We'll track references to dead sockets as well.
 	// Caller is still supposed to release the socket.
-	if socket.dead == nil {
-		isMaster = socket.server.IsMaster()
-	}
+	socket.references++
+	stats.socketRefs(+1)
+	serverInfo := socket.serverInfo
 	socket.Unlock()
-	return isMaster
+	return serverInfo
 }
 
 // Release decrements a socket reference. The socket will be
@@ -171,6 +241,42 @@ func (socket *mongoSocket) Release() {
 	} else {
 		socket.Unlock()
 	}
+}
+
+// SetTimeout changes the timeout used on socket operations.
+func (socket *mongoSocket) SetTimeout(d time.Duration) {
+	socket.Lock()
+	socket.timeout = d
+	socket.Unlock()
+}
+
+type deadlineType int
+
+const (
+	readDeadline  deadlineType = 1
+	writeDeadline deadlineType = 2
+)
+
+func (socket *mongoSocket) updateDeadline(which deadlineType) {
+	var when time.Time
+	if socket.timeout > 0 {
+		when = time.Now().Add(socket.timeout)
+	}
+	whichstr := ""
+	switch which {
+	case readDeadline | writeDeadline:
+		whichstr = "read/write"
+		socket.conn.SetDeadline(when)
+	case readDeadline:
+		whichstr = "read"
+		socket.conn.SetReadDeadline(when)
+	case writeDeadline:
+		whichstr = "write"
+		socket.conn.SetWriteDeadline(when)
+	default:
+		panic("invalid parameter to updateDeadline")
+	}
+	debugf("Socket %p to %s: updated %s deadline to %s ahead (%s)", socket, socket.addr, whichstr, socket.timeout, when)
 }
 
 // Close terminates the socket use.
@@ -279,7 +385,7 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 			buf = addCString(buf, op.collection)
 			buf = addInt32(buf, op.skip)
 			buf = addInt32(buf, op.limit)
-			buf, err = addBSON(buf, op.query)
+			buf, err = addBSON(buf, op.finalQuery(socket))
 			if err != nil {
 				return err
 			}
@@ -310,6 +416,14 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 				return err
 			}
 
+		case *killCursorsOp:
+			buf = addHeader(buf, 2007)
+			buf = addInt32(buf, 0) // Reserved
+			buf = addInt32(buf, int32(len(op.cursorIds)))
+			for _, cursorId := range op.cursorIds {
+				buf = addInt64(buf, cursorId)
+			}
+
 		default:
 			panic("Internal error: unknown operation type")
 		}
@@ -329,7 +443,7 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 	socket.Lock()
 	if socket.dead != nil {
 		socket.Unlock()
-		debug("Socket %p to %s: failing query, already closed: %s", socket, socket.addr, socket.dead.Error())
+		debugf("Socket %p to %s: failing query, already closed: %s", socket, socket.addr, socket.dead.Error())
 		// XXX This seems necessary in case the session is closed concurrently
 		// with a query being performed, but it's not yet tested:
 		for i := 0; i != requestCount; i++ {
@@ -340,6 +454,8 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 		}
 		return socket.dead
 	}
+
+	wasWaiting := len(socket.replyFuncs) > 0
 
 	// Reserve id 0 for requests which should have no responses.
 	requestId := socket.nextRequestId + 1
@@ -357,12 +473,16 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 	debugf("Socket %p to %s: sending %d op(s) (%d bytes)", socket, socket.addr, len(ops), len(buf))
 	stats.sentOps(len(ops))
 
+	socket.updateDeadline(writeDeadline)
 	_, err = socket.conn.Write(buf)
+	if !wasWaiting && requestCount > 0 {
+		socket.updateDeadline(readDeadline)
+	}
 	socket.Unlock()
 	return err
 }
 
-func fill(r *net.TCPConn, b []byte) error {
+func fill(r net.Conn, b []byte) error {
 	l := len(b)
 	n, err := r.Read(b)
 	for n != l && err == nil {
@@ -459,6 +579,12 @@ func (socket *mongoSocket) readLoop() {
 		socket.Lock()
 		if replyFuncFound {
 			delete(socket.replyFuncs, uint32(responseTo))
+		}
+		if len(socket.replyFuncs) == 0 {
+			// Nothing else to read for now. Disable deadline.
+			socket.conn.SetReadDeadline(time.Time{})
+		} else {
+			socket.updateDeadline(readDeadline)
 		}
 		socket.Unlock()
 
