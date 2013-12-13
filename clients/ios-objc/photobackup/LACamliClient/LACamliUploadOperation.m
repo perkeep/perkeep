@@ -39,11 +39,18 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 // request stats for each chunk, making sure the server doesn't already have the chunk
 - (void)start
 {
+    self.taskID =[[UIApplication sharedApplication] beginBackgroundTaskWithName:@"uploadtask" expirationHandler:^{
+        LALog(@"upload task expired");
+    }];
+
+    if (self.client.backgroundID) {
+        [[UIApplication sharedApplication] endBackgroundTask:self.client.backgroundID];
+    }
+
+    
     [self willChangeValueForKey:@"isExecuting"];
     _isExecuting = YES;
     [self didChangeValueForKey:@"isExecuting"];
-    
-    LALog(@"stat");
     
     NSMutableDictionary *params = [NSMutableDictionary dictionary];
     [params setObject:[NSNumber numberWithInt:camliVersion] forKey:@"camliversion"];
@@ -134,6 +141,7 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     }];
     
     [upload resume];
+
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
@@ -167,8 +175,14 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 
 - (void)finished
 {
+    self.client.backgroundID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"queuesync" expirationHandler:^{
+        LALog(@"queue sync task expired");
+    }];
+
+    [[UIApplication sharedApplication] endBackgroundTask:self.taskID];
+
     LALog(@"finished op %@",self.file.blobRef);
-    
+
     [self willChangeValueForKey:@"isExecuting"];
     [self willChangeValueForKey:@"isFinished"];
     
@@ -215,7 +229,7 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     
     NSData *schemaData = [NSJSONSerialization dataWithJSONObject:schemaBlob options:NSJSONWritingPrettyPrinted error:nil];
     
-    LALog(@"schema: %@",[[NSString alloc] initWithData:schemaData encoding:NSUTF8StringEncoding]);
+//    LALog(@"schema: %@",[[NSString alloc] initWithData:schemaData encoding:NSUTF8StringEncoding]);
     
     [data appendData:[[NSString stringWithFormat:@"--%@\r\n", multipartBoundary] dataUsingEncoding:NSUTF8StringEncoding]];
     [data appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"json\"\r\n", [LACamliUtil blobRef:schemaData]] dataUsingEncoding:NSUTF8StringEncoding]];
