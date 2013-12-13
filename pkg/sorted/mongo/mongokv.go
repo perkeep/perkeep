@@ -122,8 +122,7 @@ func (it *iter) ValueBytes() []byte {
 }
 
 func (it *iter) Close() error {
-	// TODO(mpl): update mongo in 3rd party and return it.Iter.Close()
-	return nil
+	return it.Iter.Close()
 }
 
 // Implementation of KeyValue
