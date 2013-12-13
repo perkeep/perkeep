@@ -27,8 +27,8 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/index/mysql"
 	"camlistore.org/pkg/index/postgres"
-	"camlistore.org/pkg/index/sqlite"
 	"camlistore.org/pkg/sorted/mongo"
+	"camlistore.org/pkg/sorted/sqlite"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"

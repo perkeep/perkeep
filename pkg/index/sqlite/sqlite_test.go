@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2012 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/index/sqlite"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
+	"camlistore.org/pkg/sorted/sqlite"
 
 	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
@@ -49,13 +49,10 @@ func do(db *sql.DB, sql string) {
 	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
-func makeSorted(t *testing.T) (s sorted.KeyValue, clean func()) {
+func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	f, err := ioutil.TempFile("", "sqlite-test")
 	if err != nil {
 		t.Fatal(err)
-	}
-	clean = func() {
-		os.Remove(f.Name())
 	}
 	db, err := sql.Open("sqlite3", f.Name())
 	if err != nil {
@@ -65,22 +62,26 @@ func makeSorted(t *testing.T) (s sorted.KeyValue, clean func()) {
 		do(db, tableSql)
 	}
 	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
-	s, err = sqlite.NewStorage(f.Name())
+
+	kv, err = sqlite.NewKeyValue(f.Name())
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	return s, clean
+	return kv, func() {
+		kv.Close()
+		os.Remove(f.Name())
+	}
 }
 
 func TestSortedKV(t *testing.T) {
-	kv, clean := makeSorted(t)
+	kv, clean := newSorted(t)
 	defer clean()
 	kvtest.TestSorted(t, kv)
 }
 
-type sqliteTester struct{}
+type tester struct{}
 
-func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
+func (tester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
 	var mu sync.Mutex // guards cleanups
 	var cleanups []func()
 	defer func() {
@@ -90,7 +91,7 @@ func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)
 		}
 	}()
 	makeIndex := func() *index.Index {
-		s, cleanup := makeSorted(t)
+		s, cleanup := newSorted(t)
 		mu.Lock()
 		cleanups = append(cleanups, cleanup)
 		mu.Unlock()
@@ -100,23 +101,23 @@ func (sqliteTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)
 }
 
 func TestIndex_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.Index)
+	tester{}.test(t, indextest.Index)
 }
 
 func TestPathsOfSignerTarget_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.PathsOfSignerTarget)
+	tester{}.test(t, indextest.PathsOfSignerTarget)
 }
 
 func TestFiles_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.Files)
+	tester{}.test(t, indextest.Files)
 }
 
 func TestEdgesTo_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.EdgesTo)
+	tester{}.test(t, indextest.EdgesTo)
 }
 
 func TestDelete_SQLite(t *testing.T) {
-	sqliteTester{}.test(t, indextest.Delete)
+	tester{}.test(t, indextest.Delete)
 }
 
 func TestConcurrency(t *testing.T) {
@@ -124,7 +125,7 @@ func TestConcurrency(t *testing.T) {
 		t.Logf("skipping for short mode")
 		return
 	}
-	s, clean := makeSorted(t)
+	s, clean := newSorted(t)
 	defer clean()
 	const n = 100
 	ch := make(chan error)
@@ -163,7 +164,7 @@ func TestFDLeak(t *testing.T) {
 	fd0 := numFDs(t)
 	t.Logf("fd0 = %d", fd0)
 
-	s, clean := makeSorted(t)
+	s, clean := newSorted(t)
 	defer clean()
 
 	bm := s.BeginBatch()
