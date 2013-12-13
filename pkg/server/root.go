@@ -182,6 +182,8 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 			m["storageInitTime"] = initTime.UTC().Format(time.RFC3339)
 			m["storageGeneration"] = gen
 		}
+	} else {
+		log.Printf("Storage type %T is not a blobserver.Generationer; not sending storageGeneration", rh.Storage)
 	}
 	if rh.ui != nil {
 		rh.ui.populateDiscoveryMap(m)
