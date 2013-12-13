@@ -24,7 +24,10 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/index/mongo"
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvtest"
+	"camlistore.org/pkg/sorted/mongo"
 	"camlistore.org/pkg/test"
 )
 
@@ -34,40 +37,37 @@ var (
 )
 
 func checkMongoUp() {
-	mgw := &mongo.MongoWrapper{
-		Servers: "localhost",
-	}
-	mongoNotAvailable = !mgw.TestConnection(500 * time.Millisecond)
+	mongoNotAvailable = !mongo.Ping("localhost", 500*time.Millisecond)
 }
 
-func initMongoIndex() *index.Index {
+func newSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 	// connect without credentials and wipe the database
-	mgw := &mongo.MongoWrapper{
-		Servers:    "localhost",
-		Database:   "camlitest",
-		Collection: "keys",
+	cfg := jsonconfig.Obj{
+		"host":     "localhost",
+		"database": "camlitest",
 	}
-	idx, err := mongo.NewMongoIndex(mgw)
+	var err error
+	kv, err = mongo.NewKeyValue(cfg)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	err = idx.Storage().Delete("")
+	wiper, ok := kv.(sorted.Wiper)
+	if !ok {
+		panic("mongo KeyValue not a Wiper")
+	}
+	err = wiper.Wipe()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	// create user and connect with credentials
-	err = mongo.AddUser(mgw, "root", "root")
-	if err != nil {
-		panic(err)
+	return kv, func() {
+		kv.Close()
 	}
-	mgw = &mongo.MongoWrapper{
-		Servers:    "localhost",
-		Database:   "camlitest",
-		Collection: "keys",
-		User:       "root",
-		Password:   "root",
-	}
-	return idx
+}
+
+func TestSortedKV(t *testing.T) {
+	kv, cleanup := newSorted(t)
+	defer cleanup()
+	kvtest.TestSorted(t, kv)
 }
 
 type mongoTester struct{}
@@ -79,7 +79,19 @@ func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index))
 		test.DependencyErrorOrSkip(t)
 		t.Fatalf("Mongo not available locally for testing: %v", err)
 	}
-	tfn(t, initMongoIndex)
+	defer test.TLog(t)()
+	var cleanups []func()
+	defer func() {
+		for _, fn := range cleanups {
+			fn()
+		}
+	}()
+	initIndex := func() *index.Index {
+		kv, cleanup := newSorted(t)
+		cleanups = append(cleanups, cleanup)
+		return index.New(kv)
+	}
+	tfn(t, initIndex)
 }
 
 func TestIndex_Mongo(t *testing.T) {

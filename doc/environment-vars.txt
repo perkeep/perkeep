@@ -101,6 +101,10 @@ CAMLI_PPROF_START (string):
 CAMLI_QUIET (bool):
   Used by devcam to enable -verbose flag for camput/camget.
 
+CAMLI_FAST_DEV (bool):
+  Used by dev/demo.sh for giving presentations with devcam server/put/etc
+  for faster pre-built builds, without calling make.go.
+
 CAMLI_SECRET_RING (string):
   Path to the GPG secret keyring, which is otherwise set by identitySecretRing
   in the server config, and secretRing in the client config.

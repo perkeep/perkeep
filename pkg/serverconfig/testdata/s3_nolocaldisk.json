@@ -4,7 +4,7 @@
 	"auth": "userpass:camlistore:pass3179",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-	"memIndex": true,
+	"kvIndexFile": "/path/to/indexkv.db",
 	"s3": "key:secret:bucket",
 	"replicateTo": [],
 	"publish": {},

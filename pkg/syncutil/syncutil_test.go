@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2013 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,23 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mongo
+package syncutil
 
-import (
-	"camlistore.org/pkg/index"
-)
+import "testing"
 
-func NewMongoIndex(mgw *MongoWrapper) (*index.Index, error) {
-	return newMongoIndex(mgw)
-}
-
-// AddUser creates a new user in mgw.Database so the mongo indexer
-// tests can be run as authenticated with this user.
-func AddUser(mgw *MongoWrapper, user, password string) error {
-	ses, err := mgw.getConnection()
-	if err != nil {
-		return err
+func TestGoroutineID(t *testing.T) {
+	c := make(chan int64, 2)
+	c <- GoroutineID()
+	go func() {
+		c <- GoroutineID()
+	}()
+	if a, b := <-c, <-c; a == b {
+		t.Errorf("both goroutine IDs were %d; expected different", a)
 	}
-	defer ses.Close()
-	return ses.DB(mgw.Database).AddUser(user, password, false)
 }

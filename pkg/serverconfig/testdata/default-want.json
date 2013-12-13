@@ -56,7 +56,8 @@
 			"handler": "search",
 			"handlerArgs": {
 				"index": "/index-kv/",
-				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
+				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+				"slurpToMemory": true
 			}
 		},
 		"/setup/": {

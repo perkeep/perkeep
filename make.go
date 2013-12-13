@@ -51,6 +51,7 @@ var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed the closure library.")
 	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: yes, no, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
+	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. Empty means all. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
@@ -204,6 +205,9 @@ func main() {
 	baseArgs := []string{"install", "-v"}
 	if *all {
 		baseArgs = append(baseArgs, "-a")
+	}
+	if *race {
+		baseArgs = append(baseArgs, "-race")
 	}
 	baseArgs = append(baseArgs,
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,

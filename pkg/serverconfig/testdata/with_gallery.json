@@ -5,7 +5,7 @@
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-	"memIndex": true,
+	"kvIndexFile": "/path/to/indexkv.db",
 	"s3": "",
 	"publish": {
 		"/pics/": {

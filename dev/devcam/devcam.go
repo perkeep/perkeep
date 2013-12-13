@@ -34,6 +34,7 @@ import (
 
 var (
 	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
+	race     = flag.Bool("race", false, "build with race detector")
 	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	// Whether to build the subcommand with sqlite support. This only
 	// concerns the server subcommand, which sets it to serverCmd.sqlite.
@@ -161,6 +162,10 @@ func checkCamliSrcRoot() {
 
 // Build builds the camlistore command at the given path from the source tree root.
 func build(path string) error {
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_FAST_DEV")); v {
+		// Demo mode. See dev/demo.sh.
+		return nil
+	}
 	_, cmdName := filepath.Split(path)
 	target := filepath.Join("camlistore.org", path)
 	binPath := filepath.Join("bin", cmdName)
@@ -176,6 +181,7 @@ func build(path string) error {
 	args := []string{
 		"run", "make.go",
 		"--quiet",
+		"--race=" + strconv.FormatBool(*race),
 		"--embed_static=false",
 		"--sqlite=" + strconv.FormatBool(withSqlite),
 		fmt.Sprintf("--if_mods_since=%d", modtime),

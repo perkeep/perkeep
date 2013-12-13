@@ -1,0 +1,19 @@
+Flickr Importer
+===============
+
+This is an incomplete Camlistore importer for Flickr.com. So far it can import
+the first 100 photos from a photostream and also their set metadata.
+
+To use:
+
+1) Fill out http://www.flickr.com/services/apps/create/noncommercial/ to get a
+   Flickr API key and secret.
+2) Start the devcam server with flickrapikey flag:
+   $ devcam server -flickrapikey=<apikey>:<secret>
+3) Navigate to http://<server>/importer-flickr/login
+4) Watch import progress on the command line
+
+
+TODO:
+
+https://code.google.com/p/camlistore/issues/list?q=feature%3Aimportflickr

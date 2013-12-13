@@ -1,18 +1,18 @@
 // mgo - MongoDB driver for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -27,10 +27,10 @@
 package mgo_test
 
 import (
-	"io"
-	. "camlistore.org/third_party/launchpad.net/gocheck"
 	"camlistore.org/third_party/labix.org/v2/mgo"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	. "camlistore.org/third_party/launchpad.net/gocheck"
+	"io"
 	"os"
 	"time"
 )
@@ -161,7 +161,7 @@ func (s *S) TestGridFSFileDetails(c *C) {
 	ud := file.UploadDate()
 	now := time.Now()
 	c.Assert(ud.Before(now), Equals, true)
-	c.Assert(ud.After(now.Add(-3 * time.Second)), Equals, true)
+	c.Assert(ud.After(now.Add(-3*time.Second)), Equals, true)
 
 	result := M{}
 	err = db.C("fs.files").Find(nil).One(result)
@@ -177,7 +177,7 @@ func (s *S) TestGridFSFileDetails(c *C) {
 		"md5":         "1e50210a0202497fb79bc38b6ade6c34",
 		"filename":    "myfile2.txt",
 		"contentType": "text/plain",
-		"metadata":    bson.M{"any": "thing"},
+		"metadata":    M{"any": "thing"},
 	}
 	c.Assert(result, DeepEquals, expected)
 }
@@ -249,7 +249,7 @@ func (s *S) TestGridFSCreateWithChunking(c *C) {
 			}
 			break
 		}
-		c.Assert(iter.Err(), IsNil)
+		c.Assert(iter.Close(), IsNil)
 
 		result["_id"] = "<id>"
 
@@ -589,7 +589,7 @@ func (s *S) TestGridFSOpenNext(c *C) {
 
 	ok = gfs.OpenNext(iter, &f)
 	c.Assert(ok, Equals, false)
-	c.Assert(iter.Err(), IsNil)
+	c.Assert(iter.Close(), IsNil)
 	c.Assert(f, IsNil)
 
 	// Do it again with a more restrictive query to make sure
@@ -602,6 +602,6 @@ func (s *S) TestGridFSOpenNext(c *C) {
 
 	ok = gfs.OpenNext(iter, &f)
 	c.Assert(ok, Equals, false)
-	c.Assert(iter.Err(), IsNil)
+	c.Assert(iter.Close(), IsNil)
 	c.Assert(f, IsNil)
 }

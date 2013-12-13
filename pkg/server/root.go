@@ -168,10 +168,11 @@ func (b byFromTo) Less(i, j int) bool {
 
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	m := map[string]interface{}{
-		"blobRoot":   rh.BlobRoot,
-		"searchRoot": rh.SearchRoot,
-		"ownerName":  rh.OwnerName,
-		"statusRoot": rh.statusRoot,
+		"blobRoot":    rh.BlobRoot,
+		"searchRoot":  rh.SearchRoot,
+		"ownerName":   rh.OwnerName,
+		"statusRoot":  rh.statusRoot,
+		"wsAuthToken": auth.ProcessRandom(),
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()
@@ -181,6 +182,8 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 			m["storageInitTime"] = initTime.UTC().Format(time.RFC3339)
 			m["storageGeneration"] = gen
 		}
+	} else {
+		log.Printf("Storage type %T is not a blobserver.Generationer; not sending storageGeneration", rh.Storage)
 	}
 	if rh.ui != nil {
 		rh.ui.populateDiscoveryMap(m)

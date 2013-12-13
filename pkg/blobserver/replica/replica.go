@@ -35,18 +35,22 @@ Example config:
 package replica
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 )
+
+var _ blobserver.Generationer = (*replicaStorage)(nil)
 
 const buffered = 8
 
@@ -256,6 +260,51 @@ func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 
 func (sto *replicaStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return blobserver.MergedEnumerate(ctx, dest, sto.readReplicas, after, limit)
+}
+
+func (sto *replicaStorage) ResetStorageGeneration() error {
+	var ret error
+	n := 0
+	for _, replica := range sto.replicas {
+		if g, ok := replica.(blobserver.Generationer); ok {
+			n++
+			if err := g.ResetStorageGeneration(); err != nil && ret == nil {
+				ret = err
+			}
+		}
+	}
+	if n == 0 {
+		return errors.New("ResetStorageGeneration not supported")
+	}
+	return ret
+}
+
+func (sto *replicaStorage) StorageGeneration() (initTime time.Time, random string, err error) {
+	var buf bytes.Buffer
+	n := 0
+	for _, replica := range sto.replicas {
+		if g, ok := replica.(blobserver.Generationer); ok {
+			n++
+			rt, rrand, rerr := g.StorageGeneration()
+			if rerr != nil {
+				err = rerr
+			} else {
+				if rt.After(initTime) {
+					// Returning the max of all initialization times.
+					// TODO: not sure whether max or min makes more sense.
+					initTime = rt
+				}
+				if buf.Len() != 0 {
+					buf.WriteByte('/')
+				}
+				buf.WriteString(rrand)
+			}
+		}
+	}
+	if n == 0 {
+		err = errors.New("No replicas support StorageGeneration")
+	}
+	return initTime, buf.String(), err
 }
 
 func init() {

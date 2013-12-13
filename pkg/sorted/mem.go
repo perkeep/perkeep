@@ -33,7 +33,7 @@ func NewMemoryKeyValue() KeyValue {
 	return &memKeys{db: db}
 }
 
-// memKeys is a naive in-memory implementation of index.Storage for test & development
+// memKeys is a naive in-memory implementation of KeyValue for test & development
 // purposes only.
 type memKeys struct {
 	mu sync.Mutex // guards db
