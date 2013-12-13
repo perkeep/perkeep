@@ -37,7 +37,7 @@ import (
 // there is no way to do partial matching for key names (one can
 // only check for their existence with bson.M{$exists: true}).
 const (
-	collectionName = "keys"
+	CollectionName = "keys" // MongoDB collection, equiv. to SQL table
 	mgoKey         = "k"
 	mgoValue       = "v"
 )
@@ -62,7 +62,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		Database:   cfg.RequiredString("database"),
 		User:       cfg.OptionalString("user", ""),
 		Password:   cfg.OptionalString("password", ""),
-		Collection: collectionName,
+		Collection: CollectionName,
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err

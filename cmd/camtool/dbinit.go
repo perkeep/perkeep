@@ -28,9 +28,11 @@ import (
 	"camlistore.org/pkg/index/mysql"
 	"camlistore.org/pkg/index/postgres"
 	"camlistore.org/pkg/index/sqlite"
+	"camlistore.org/pkg/sorted/mongo"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
+	"camlistore.org/third_party/labix.org/v2/mgo"
 )
 
 type dbinitCmd struct {
@@ -53,7 +55,7 @@ func init() {
 		flags.StringVar(&cmd.password, "password", "", "Admin password.")
 		flags.StringVar(&cmd.host, "host", "localhost", "host[:port]")
 		flags.StringVar(&cmd.dbName, "dbname", "", "Database to wipe or create. For sqlite, this is the db filename.")
-		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite.")
+		flags.StringVar(&cmd.dbType, "dbtype", "mysql", "Which RDMS to use; possible values: mysql, postgres, sqlite, mongo.")
 		flags.StringVar(&cmd.sslMode, "sslmode", "require", "Configure SSL mode for postgres. Possible values: require, verify-full, disable.")
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
@@ -84,7 +86,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError("--dbname flag required")
 	}
 
-	if c.dbType != "mysql" && c.dbType != "postgres" {
+	if c.dbType != "mysql" && c.dbType != "postgres" && c.dbType != "mongo" {
 		if c.dbType == "sqlite" {
 			if !WithSQLite {
 				return ErrNoSQLite
@@ -94,7 +96,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 				fmt.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114\n")
 			}
 		} else {
-			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres", or "sqlite"`))
+			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres" or "sqlite", or "mongo"`))
 		}
 	}
 
@@ -112,7 +114,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	}
 
 	dbname := c.dbName
-	exists := dbExists(rootdb, c.dbType, dbname)
+	exists := c.dbExists(rootdb)
 	if exists {
 		if c.keep {
 			return nil
@@ -120,16 +122,22 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		if !c.wipe {
 			return cmdmain.UsageError(fmt.Sprintf("Database %q already exists, but --wipe not given. Stopping.", dbname))
 		}
+		if c.dbType == "mongo" {
+			return c.wipeMongo()
+		}
 		if c.dbType != "sqlite" {
 			do(rootdb, "DROP DATABASE "+dbname)
 		}
 	}
-	if c.dbType == "sqlite" {
+	switch c.dbType {
+	case "sqlite":
 		_, err := os.Create(dbname)
 		if err != nil {
 			exitf("Error creating file %v for sqlite db: %v", dbname, err)
 		}
-	} else {
+	case "mongo":
+		return nil
+	default:
 		do(rootdb, "CREATE DATABASE "+dbname)
 	}
 
@@ -189,9 +197,9 @@ func doQuery(db *sql.DB, sql string) {
 	exitf("Error %v running SQL: %s", err, sql)
 }
 
-func dbExists(db *sql.DB, dbtype, dbname string) bool {
+func (c *dbinitCmd) dbExists(db *sql.DB) bool {
 	query := "SHOW DATABASES"
-	switch dbtype {
+	switch c.dbType {
 	case "postgres":
 		query = "SELECT datname FROM pg_database"
 	case "mysql":
@@ -199,8 +207,19 @@ func dbExists(db *sql.DB, dbtype, dbname string) bool {
 	case "sqlite":
 		// There is no point in using sql.Open because it apparently does
 		// not return an error when the file does not exist.
-		fi, err := os.Stat(dbname)
+		fi, err := os.Stat(c.dbName)
 		return err == nil && fi.Size() > 0
+	case "mongo":
+		session, err := c.mongoSession()
+		if err != nil {
+			exitf("%v", err)
+		}
+		defer session.Close()
+		n, err := session.DB(c.dbName).C(mongo.CollectionName).Find(nil).Limit(1).Count()
+		if err != nil {
+			exitf("%v", err)
+		}
+		return n != 0
 	}
 	rows, err := db.Query(query)
 	check(err)
@@ -208,7 +227,7 @@ func dbExists(db *sql.DB, dbtype, dbname string) bool {
 	for rows.Next() {
 		var db string
 		check(rows.Scan(&db))
-		if db == dbname {
+		if db == c.dbName {
 			return true
 		}
 	}
@@ -239,4 +258,36 @@ func compileHint() string {
 		return " (Required: apt-get install libsqlite3-dev)"
 	}
 	return ""
+}
+
+// mongoSession returns an *mgo.Session or nil if c.dbtype is
+// not "mongo" or if there was an error.
+func (c *dbinitCmd) mongoSession() (*mgo.Session, error) {
+	if c.dbType != "mongo" {
+		return nil, nil
+	}
+	url := ""
+	if c.user == "" || c.password == "" {
+		url = c.host
+	} else {
+		url = c.user + ":" + c.password + "@" + c.host + "/" + c.dbName
+	}
+	return mgo.Dial(url)
+}
+
+// wipeMongo erases all documents from the mongo collection
+// if c.dbType is "mongo".
+func (c *dbinitCmd) wipeMongo() error {
+	if c.dbType != "mongo" {
+		return nil
+	}
+	session, err := c.mongoSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	if _, err := session.DB(c.dbName).C(mongo.CollectionName).RemoveAll(nil); err != nil {
+		return err
+	}
+	return nil
 }
