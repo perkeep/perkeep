@@ -28,8 +28,8 @@ import (
 	"strconv"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index/kvfile"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvfile"
 	"camlistore.org/third_party/github.com/camlistore/lock"
 )
 
