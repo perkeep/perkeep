@@ -134,6 +134,9 @@ type Constraint struct {
 	BlobSize *IntConstraint   `json:"blobSize"`
 
 	Permanode *PermanodeConstraint `json:"permanode"`
+
+	matcherOnce sync.Once
+	matcherFn   matchFn
 }
 
 func (c *Constraint) checkValid() error {
@@ -435,13 +438,9 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		errc <- q.sendAllCandidates(sendCtx, s, ch)
 	}()
 
+	blobMatches := q.Constraint.matcher()
 	for meta := range ch {
-		// TODO(bradfitz): rather than call
-		// q.Constraint.blobMatches in this loop, instead ask
-		// the q.Constraint for an optimized matcher function,
-		// to avoid all the work that it does. (appending
-		// matchFn onto cond, generating closures, etc)
-		match, err := q.Constraint.blobMatches(s, meta.Ref, meta)
+		match, err := blobMatches(s, meta.Ref, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -493,6 +492,10 @@ func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 	return true, nil
 }
 
+func neverMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
+	return false, nil
+}
+
 func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
 }
@@ -537,13 +540,43 @@ func (q *SearchQuery) candidatesAreSorted(s *search) bool {
 	return false
 }
 
-func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
+type allMustMatch []matchFn
+
+func (fns allMustMatch) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
+	for _, condFn := range fns {
+		match, err := condFn(s, br, blobMeta)
+		if !match || err != nil {
+			return match, err
+		}
+	}
+	return true, nil
+}
+
+func (c *Constraint) matcher() func(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
+	c.matcherOnce.Do(c.initMatcherFn)
+	return c.matcherFn
+}
+
+func (c *Constraint) initMatcherFn() {
+	c.matcherFn = c.genMatcher()
+}
+
+func (c *Constraint) genMatcher() matchFn {
+	var ncond int
+	var cond matchFn
 	var conds []matchFn
 	addCond := func(fn matchFn) {
+		ncond++
+		if ncond == 1 {
+			cond = fn
+			return
+		} else if ncond == 2 {
+			conds = append(conds, cond)
+		}
 		conds = append(conds, fn)
 	}
 	if c.Logical != nil {
-		addCond(c.Logical.blobMatches)
+		addCond(c.Logical.matcher())
 	}
 	if c.Anything {
 		addCond(alwaysMatch)
@@ -572,23 +605,17 @@ func (c *Constraint) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobM
 		})
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
-		addCond(func(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
+		addCond(func(s *search, br blob.Ref, meta camtypes.BlobMeta) (bool, error) {
 			return strings.HasPrefix(br.String(), pfx), nil
 		})
 	}
-	switch len(conds) {
+	switch ncond {
 	case 0:
-		return false, nil
+		return neverMatch
 	case 1:
-		return conds[0](s, br, blobMeta)
+		return cond
 	default:
-		for _, condFn := range conds {
-			match, err := condFn(s, br, blobMeta)
-			if !match || err != nil {
-				return match, err
-			}
-		}
-		return true, nil
+		return allMustMatch(conds).blobMatches
 	}
 }
 
@@ -617,44 +644,52 @@ func (c *LogicalConstraint) checkValid() error {
 	return nil
 }
 
-func (c *LogicalConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
-	// Note: not using multiple goroutines here, because
-	// so far the *search type assumes it's
-	// single-threaded. (e.g. the .ss scratch type).
-	// Also, not using multiple goroutines means we can
-	// short-circuit when Op == "and" and av is false.
-
-	av, err := c.A.blobMatches(s, br, bm)
-	if err != nil {
-		return false, err
+func (c *LogicalConstraint) matcher() matchFn {
+	amatches := c.A.matcher()
+	var bmatches matchFn
+	if c.Op != "not" {
+		bmatches = c.B.matcher()
 	}
-	switch c.Op {
-	case "not":
-		return !av, nil
-	case "and":
-		if !av {
-			// Short-circuit.
-			return false, nil
+	return func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+
+		// Note: not using multiple goroutines here, because
+		// so far the *search type assumes it's
+		// single-threaded. (e.g. the .ss scratch type).
+		// Also, not using multiple goroutines means we can
+		// short-circuit when Op == "and" and av is false.
+
+		av, err := amatches(s, br, bm)
+		if err != nil {
+			return false, err
 		}
-	case "or":
-		if av {
-			// Short-circuit.
-			return true, nil
+		switch c.Op {
+		case "not":
+			return !av, nil
+		case "and":
+			if !av {
+				// Short-circuit.
+				return false, nil
+			}
+		case "or":
+			if av {
+				// Short-circuit.
+				return true, nil
+			}
 		}
-	}
 
-	bv, err := c.B.blobMatches(s, br, bm)
-	if err != nil {
-		return false, err
-	}
+		bv, err := bmatches(s, br, bm)
+		if err != nil {
+			return false, err
+		}
 
-	switch c.Op {
-	case "and", "or":
-		return bv, nil
-	case "xor":
-		return av != bv, nil
+		switch c.Op {
+		case "and", "or":
+			return bv, nil
+		case "xor":
+			return av != bv, nil
+		}
+		panic("unreachable")
 	}
-	panic("unreachable")
 }
 
 func (c *PermanodeConstraint) checkValid() error {
@@ -771,7 +806,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bo
 		return false, nil
 	}
 	if subc := c.ValueInSet; subc != nil {
-		br, ok := blob.Parse(val)
+		br, ok := blob.Parse(val) // TODO: use corpus's parse, or keep this as blob.Ref in corpus attr
 		if !ok {
 			return false, nil
 		}
@@ -782,7 +817,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bo
 		if err != nil {
 			return false, err
 		}
-		return subc.blobMatches(s, br, meta)
+		return subc.matcher()(s, br, meta)
 	}
 	return true, nil
 }
