@@ -276,9 +276,10 @@ func (c *serverCmd) setupIndexer() error {
 			"-dbtype=sqlite",
 			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	case c.mongo:
-		// TODO(mpl): hack. add mongo support to dbinit instead.
-		c.env.Set("CAMLI_MONGO_WIPE", "true")
-		fallthrough
+		args = append(args,
+			"-dbtype=mongo",
+			"-host=localhost",
+			"-dbname="+c.env.m["CAMLI_DBNAME"])
 	default:
 		return nil
 	}

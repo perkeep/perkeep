@@ -19,13 +19,9 @@ limitations under the License.
 package mongo
 
 import (
-	"os"
-	"strconv"
-
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/mongo"
 )
 
@@ -40,24 +36,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
-	// TODO(mpl): hack. remove once dbinit supports mongo.
-	// https://camlistore-review.googlesource.com/1427
-	if wipe, _ := strconv.ParseBool(os.Getenv("CAMLI_MONGO_WIPE")); wipe {
-		wiper, ok := kv.(sorted.Wiper)
-		if !ok {
-			panic("mongo KeyValue not a Wiper")
-		}
-		err = wiper.Wipe()
-		if err != nil {
-			return nil, err
-		}
-	}
+
 	ix := index.New(kv)
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
 	}
-
 	ix.BlobSource = sto
 
 	// Good enough, for now:

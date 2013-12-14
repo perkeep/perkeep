@@ -71,8 +71,8 @@
 		D095AE4C1814B1B9008163F2 /* LACamliFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliFile.m; sourceTree = "<group>"; };
 		D095AE4D1814B1B9008163F2 /* LACamliClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliClient.h; sourceTree = "<group>"; };
 		D095AE4E1814B1B9008163F2 /* LACamliClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliClient.m; sourceTree = "<group>"; };
-		D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CamliCollectionCell.h; path = photobackup/CamliCollectionCell.h; sourceTree = "<group>"; };
-		D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CamliCollectionCell.m; path = photobackup/CamliCollectionCell.m; sourceTree = "<group>"; };
+		D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CamliCollectionCell.h; sourceTree = "<group>"; };
+		D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CamliCollectionCell.m; sourceTree = "<group>"; };
 		D0AC217218503B0D004BD4F3 /* LACamliRecentFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliRecentFile.h; sourceTree = "<group>"; };
 		D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliRecentFile.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -104,8 +104,6 @@
 		D095AE061814AF10008163F2 = {
 			isa = PBXGroup;
 			children = (
-				D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */,
-				D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */,
 				D095AE181814AF10008163F2 /* photobackup */,
 				D095AE3A1814AF10008163F2 /* photobackupTests */,
 				D095AE111814AF10008163F2 /* Frameworks */,
@@ -141,6 +139,8 @@
 				D095AE221814AF10008163F2 /* LAAppDelegate.m */,
 				D095AE2A1814AF10008163F2 /* LAViewController.h */,
 				D095AE2B1814AF10008163F2 /* LAViewController.m */,
+				D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */,
+				D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */,
 				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
 				D095AE271814AF10008163F2 /* Main_iPad.storyboard */,
 				D095AE2D1814AF10008163F2 /* Images.xcassets */,
@@ -244,6 +244,13 @@
 				LastUpgradeCheck = 0500;
 				ORGANIZATIONNAME = "Nick O'Neill";
 				TargetAttributes = {
+					D095AE0E1814AF10008163F2 = {
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+						};
+					};
 					D095AE321814AF10008163F2 = {
 						TestTargetID = D095AE0E1814AF10008163F2;
 					};

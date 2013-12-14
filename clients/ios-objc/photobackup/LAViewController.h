@@ -7,14 +7,11 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "LACamliClient.h"
 
-@class ALAssetsLibrary;
+@class  LACamliClient;
 
 @interface LAViewController : UIViewController
 
 @property LACamliClient *client;
-// kicked out of the library if we don't have a reference and still want to play with the books
-@property ALAssetsLibrary *library;
 
 @end
