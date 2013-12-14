@@ -48,7 +48,7 @@ type ImageHandler struct {
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
-	sc                  scaledImage // optional cache for scaled images
+	thumbMeta           *thumbMeta // optional cache for scaled images
 }
 
 func (ih *ImageHandler) storageSeekFetcher() blob.SeekFetcher {
@@ -97,7 +97,7 @@ func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 	if err != nil {
 		return err
 	}
-	ih.sc.Put(name, br)
+	ih.thumbMeta.Put(name, br)
 	return nil
 }
 
@@ -128,7 +128,7 @@ func cacheKey(bref string, width int, height int) string {
 // Almost all errors are not interesting. Real errors will be logged.
 func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string) {
 	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
-	br, err := ih.sc.Get(key)
+	br, err := ih.thumbMeta.Get(key)
 	if err == errCacheMiss {
 		return
 	}
@@ -242,7 +242,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	var err error
 	format := ""
 	cacheHit := false
-	if ih.sc != nil {
+	if ih.thumbMeta != nil {
 		format = ih.scaledCached(&buf, file)
 		if format != "" {
 			cacheHit = true
@@ -255,7 +255,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 			http.Error(rw, err.Error(), 500)
 			return
 		}
-		if ih.sc != nil {
+		if ih.thumbMeta != nil {
 			name := cacheKey(file.String(), mw, mh)
 			bufcopy := buf.Bytes()
 			err = ih.cacheScaled(bytes.NewBuffer(bufcopy), name)

@@ -56,7 +56,8 @@ type PublishHandler struct {
 	Search   *search.Handler
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
-	sc       scaledImage        // cache of scaled images, optional
+
+	thumbMeta *thumbMeta // optional cache of scaled images
 
 	CSSFiles []string
 	// goTemplate is the go html template used for publishing.
@@ -92,7 +93,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	blobRoot := conf.RequiredString("blobRoot")
 	searchRoot := conf.RequiredString("searchRoot")
 	cachePrefix := conf.OptionalString("cache", "")
-	scType := conf.OptionalString("scaledImage", "")
+	scaledImageConf := conf.OptionalObject("scaledImage")
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	rootNode := conf.OptionalList("rootPermanode")
 	ph.sourceRoot = conf.OptionalString("sourceRoot", "")
@@ -151,19 +152,20 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		}
 	}
 
+	scaledImageKV, err := newKVOrNil(scaledImageConf)
+	if err != nil {
+		return nil, fmt.Errorf("in publish handler's scaledImage: %v", err)
+	}
+	if scaledImageKV != nil && cachePrefix == "" {
+		return nil, fmt.Errorf("in publish handler, can't specify scaledImage without cache")
+	}
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)
 		if err != nil {
 			return nil, fmt.Errorf("publish handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ph.Cache = bs
-		switch scType {
-		case "lrucache":
-			ph.sc = newScaledImageLRU()
-		case "":
-		default:
-			return nil, fmt.Errorf("unsupported publish handler's scType: %q ", scType)
-		}
+		ph.thumbMeta = newThumbMeta(scaledImageKV)
 	}
 
 	// TODO(mpl): check that it works on appengine too.
@@ -938,7 +940,7 @@ func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, 
 		MaxWidth:  maxWidth,
 		MaxHeight: maxHeight,
 		Square:    square,
-		sc:        pr.ph.sc,
+		thumbMeta: pr.ph.thumbMeta,
 	}
 	th.ServeHTTP(pr.rw, pr.req, fileref)
 }

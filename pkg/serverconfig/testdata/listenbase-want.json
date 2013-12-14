@@ -96,7 +96,10 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
-				"scaledImage": "lrucache"
+				"scaledImage": {
+					"file": "/tmp/blobs/thumbmeta.kv",
+					"type": "kv"
+				}
 			}
 		}
 	}

@@ -93,8 +93,7 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
-				"scaledImage": "lrucache"
+				"jsonSignRoot": "/sighelper/"
 			}
 		}
 	}

@@ -4,11 +4,14 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- unexport more stuff from pkg/server. Cache, PublishRoots, etc.
+-- dev mode flag -thumbstress to stress thumbnail generation: drop all
+   thumbMeta keyvalue entries and also append a process random value
+   to thumbnails URLs to cache-bust browser. will force reload and
+   re-generation of all thumbnails
 
--- make UI handler's scaledImage cache take a jsonconfig constructor
-   of a sorted.KeyValue-registered type. Always slap a memory LRU in front
-   of it.
+-- put singleflight in front of thumbnail generation
+
+-- unexport more stuff from pkg/server. Cache, etc.
 
 -- In ImageHandler.cache, write the thumbnail out as one large blob
    instead of using schema.WriteFileFromReader if the thumbnail

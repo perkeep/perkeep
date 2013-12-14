@@ -37,6 +37,7 @@ import (
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/sorted"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
 )
@@ -76,7 +77,7 @@ type UIHandler struct {
 	// caching image thumbnails and other emphemeral data.
 	Cache blobserver.Storage // or nil
 
-	sc scaledImage // optional thumbnail key->blob.Ref cache
+	thumbMeta *thumbMeta // optional thumbnail key->blob.Ref cache
 
 	// sourceRoot optionally specifies the path to root of Camlistore's
 	// source. If empty, the UI files must be compiled in to the
@@ -94,6 +95,15 @@ func init() {
 	blobserver.RegisterHandlerConstructor("ui", uiFromConfig)
 }
 
+// newKVOrNil wraps sorted.NewKeyValue and adds the ability
+// to pass a nil conf to get a (nil, nil) response.
+func newKVOrNil(conf jsonconfig.Obj) (sorted.KeyValue, error) {
+	if len(conf) == 0 {
+		return nil, nil
+	}
+	return sorted.NewKeyValue(conf)
+}
+
 func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	ui := &UIHandler{
 		prefix:       ld.MyPrefix(),
@@ -102,7 +112,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	}
 	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")
-	scType := conf.OptionalString("scaledImage", "")
+	scaledImageConf := conf.OptionalObject("scaledImage")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -145,18 +155,20 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		return
 	}
 
+	scaledImageKV, err := newKVOrNil(scaledImageConf)
+	if err != nil {
+		return nil, fmt.Errorf("in UI handler's scaledImage: %v", err)
+	}
+	if scaledImageKV != nil && cachePrefix == "" {
+		return nil, fmt.Errorf("in UI handler, can't specify scaledImage without cache")
+	}
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)
 		if err != nil {
 			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ui.Cache = bs
-		switch scType {
-		case "lrucache":
-			ui.sc = newScaledImageLRU()
-		default:
-			return nil, fmt.Errorf("unsupported ui handler's scType: %q ", scType)
-		}
+		ui.thumbMeta = newThumbMeta(scaledImageKV)
 	}
 
 	if ui.sourceRoot == "" {
@@ -461,7 +473,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
-		sc:        ui.sc,
+		thumbMeta: ui.thumbMeta,
 	}
 	th.ServeHTTP(rw, req, blobref)
 }

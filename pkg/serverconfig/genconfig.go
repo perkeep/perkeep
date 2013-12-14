@@ -108,25 +108,32 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 	return pubPrefixes, nil
 }
 
-func addUIConfig(prefixes jsonconfig.Obj,
+func addUIConfig(params *configPrefixesParams,
+	prefixes jsonconfig.Obj,
 	uiPrefix string,
 	published []interface{},
 	sourceRoot string) {
-	ob := map[string]interface{}{}
-	ob["handler"] = "ui"
-	handlerArgs := map[string]interface{}{
+
+	args := map[string]interface{}{
 		"jsonSignRoot": "/sighelper/",
 		"cache":        "/cache/",
-		"scaledImage":  "lrucache",
 	}
 	if len(published) > 0 {
-		handlerArgs["publishRoots"] = published
+		args["publishRoots"] = published
 	}
 	if sourceRoot != "" {
-		handlerArgs["sourceRoot"] = sourceRoot
+		args["sourceRoot"] = sourceRoot
 	}
-	ob["handlerArgs"] = handlerArgs
-	prefixes[uiPrefix] = ob
+	if params.blobPath != "" {
+		args["scaledImage"] = map[string]interface{}{
+			"type": "kv",
+			"file": filepath.Join(params.blobPath, "thumbmeta.kv"),
+		}
+	}
+	prefixes[uiPrefix] = map[string]interface{}{
+		"handler":     "ui",
+		"handlerArgs": args,
+	}
 }
 
 func addMongoConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
@@ -686,7 +693,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	if runIndex {
-		addUIConfig(prefixes, "/ui/", published, sourceRoot)
+		addUIConfig(prefixesParams, prefixes, "/ui/", published, sourceRoot)
 	}
 
 	if mysql != "" {

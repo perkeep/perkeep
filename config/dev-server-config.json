@@ -36,7 +36,6 @@
               "blobRoot": "/bs/",
               "searchRoot": "/my-search/",
               "cache": "/cache/",
-              "scaledImage": "lrucache",
               "css": ["pics.css"],
               "js": ["pics.js"],
               "goTemplate": "gallery.html",
@@ -57,7 +56,10 @@
              "sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
              "jsonSignRoot": "/sighelper/",
              "cache": "/cache/",
-             "scaledImage": "lrucache",
+             "scaledImage": {
+                "type": "kv",
+                "file": ["_env", "${CAMLI_ROOT_CACHE}/thumbnails.kv", ""]
+             },
              "publishRoots": ["/blog/", "/pics/"]
          }
      },
