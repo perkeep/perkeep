@@ -79,7 +79,7 @@ func squareImage(i image.Image) image.Image {
 	return si.SubImage(newB)
 }
 
-func (ih *ImageHandler) cache(tr io.Reader, name string) (blob.Ref, error) {
+func (ih *ImageHandler) writeToCache(tr io.Reader, name string) (blob.Ref, error) {
 	br, err := schema.WriteFileFromReader(ih.Cache, name, tr)
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
@@ -93,7 +93,7 @@ func (ih *ImageHandler) cache(tr io.Reader, name string) (blob.Ref, error) {
 // cacheScaled saves in the image handler's cache the scaled image read
 // from tr, and puts its blobref in the scaledImage under the key name.
 func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
-	br, err := ih.cache(tr, name)
+	br, err := ih.writeToCache(tr, name)
 	if err != nil {
 		return err
 	}
@@ -167,18 +167,24 @@ var (
 	scaleImageGateResize = syncutil.NewGate(2)
 )
 
-func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
-	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), file)
+type formatAndImage struct {
+	format string
+	image  []byte
+}
+
+func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
+	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), fileRef)
 	if err != nil {
-		return format, err
+		return nil, err
 	}
 	defer fr.Close()
 
+	var buf bytes.Buffer
 	scaleImageGateSlurp.Start()
-	_, err = io.Copy(buf, fr)
+	_, err = io.Copy(&buf, fr)
 	scaleImageGateSlurp.Done()
 	if err != nil {
-		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
+		return nil, fmt.Errorf("image resize: error reading image %s: %v", fileRef, err)
 	}
 
 	scaleImageGateResize.Start()
@@ -187,10 +193,10 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()),
 		&images.DecodeOpts{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
 	if err != nil {
-		return format, err
+		return nil, err
 	}
 	b := i.Bounds()
-	format = imConfig.Format
+	format := imConfig.Format
 
 	useBytesUnchanged := !imConfig.Modified &&
 		format != "cr2" // always recompress CR2 files
@@ -207,19 +213,19 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 		buf.Reset()
 		switch format {
 		case "png":
-			err = png.Encode(buf, i)
+			err = png.Encode(&buf, i)
 		case "cr":
 			// Recompress CR2 files as JPEG
 			format = "jpeg"
 			fallthrough
 		default:
-			err = jpeg.Encode(buf, i, nil)
+			err = jpeg.Encode(&buf, i, nil)
 		}
 		if err != nil {
-			return format, err
+			return nil, err
 		}
 	}
-	return format, nil
+	return &formatAndImage{format: format, image: buf.Bytes()}, nil
 }
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
@@ -238,27 +244,28 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		return
 	}
 
-	var buf bytes.Buffer
-	var err error
+	var imageData []byte
 	format := ""
 	cacheHit := false
 	if ih.thumbMeta != nil {
+		var buf bytes.Buffer
 		format = ih.scaledCached(&buf, file)
 		if format != "" {
 			cacheHit = true
+			imageData = buf.Bytes()
 		}
 	}
 
 	if !cacheHit {
-		format, err = ih.scaleImage(&buf, file)
+		im, err := ih.scaleImage(file)
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			return
 		}
+		imageData = im.image
 		if ih.thumbMeta != nil {
 			name := cacheKey(file.String(), mw, mh)
-			bufcopy := buf.Bytes()
-			err = ih.cacheScaled(bytes.NewBuffer(bufcopy), name)
+			err := ih.cacheScaled(bytes.NewReader(imageData), name)
 			if err != nil {
 				log.Printf("image resize: %v", err)
 			}
@@ -269,16 +276,16 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
 	h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
-	size := buf.Len()
-	h.Set("Content-Length", fmt.Sprintf("%d", size))
+	size := len(imageData)
+	h.Set("Content-Length", fmt.Sprint(size))
 
 	if req.Method == "GET" {
-		n, err := io.Copy(rw, &buf)
+		n, err := rw.Write(imageData)
 		if err != nil {
 			log.Printf("error serving thumbnail of file schema %s: %v", file, err)
 			return
 		}
-		if n != int64(size) {
+		if n != size {
 			log.Printf("error serving thumbnail of file schema %s: sent %d, expected size of %d",
 				file, n, size)
 			return
