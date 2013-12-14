@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/syncutil"
 
 	_ "camlistore.org/third_party/github.com/nf/cr2"
@@ -228,6 +229,11 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	return &formatAndImage{format: format, image: buf.Bytes()}, nil
 }
 
+// singleResize prevents generating the same thumbnail at once from
+// two different requests.  (e.g. sending out a link to a new photo
+// gallery to a big audience)
+var singleResize singleflight.Group
+
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", 400)
@@ -257,15 +263,18 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	if !cacheHit {
-		im, err := ih.scaleImage(file)
+		key := cacheKey(file.String(), mw, mh)
+		imi, err := singleResize.Do(key, func() (interface{}, error) {
+			return ih.scaleImage(file)
+		})
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			return
 		}
+		im := imi.(*formatAndImage)
 		imageData = im.image
 		if ih.thumbMeta != nil {
-			name := cacheKey(file.String(), mw, mh)
-			err := ih.cacheScaled(bytes.NewReader(imageData), name)
+			err := ih.cacheScaled(bytes.NewReader(imageData), key)
 			if err != nil {
 				log.Printf("image resize: %v", err)
 			}
