@@ -66,7 +66,7 @@ type UIHandler struct {
 	// but don't trust to have private signing keys?
 	JSONSignRoot string
 
-	PublishRoots map[string]*PublishHandler
+	publishRoots map[string]*PublishHandler
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
@@ -114,7 +114,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		}
 	}
 
-	ui.PublishRoots = make(map[string]*PublishHandler)
+	ui.publishRoots = make(map[string]*PublishHandler)
 	for _, pubRoot := range pubRoots {
 		h, err := ld.GetHandler(pubRoot)
 		if err != nil {
@@ -124,7 +124,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		if !ok {
 			return nil, fmt.Errorf("UI handler's publishRoots references invalid %q; not a PublishHandler", pubRoot)
 		}
-		ui.PublishRoots[pubRoot] = pubh
+		ui.publishRoots[pubRoot] = pubh
 	}
 
 	checkType := func(key string, htype string) {
@@ -368,7 +368,7 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 
 func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 	pubRoots := map[string]interface{}{}
-	for key, pubh := range ui.PublishRoots {
+	for key, pubh := range ui.publishRoots {
 		m := map[string]interface{}{
 			"name":   pubh.RootName,
 			"prefix": []string{key},
