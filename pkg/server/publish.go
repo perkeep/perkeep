@@ -56,7 +56,7 @@ type PublishHandler struct {
 	Search   *search.Handler
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
-	sc       ScaledImage        // cache of scaled images, optional
+	sc       scaledImage        // cache of scaled images, optional
 
 	CSSFiles []string
 	// goTemplate is the go html template used for publishing.
@@ -159,7 +159,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 		ph.Cache = bs
 		switch scType {
 		case "lrucache":
-			ph.sc = NewScaledImageLRU()
+			ph.sc = newScaledImageLRU()
 		case "":
 		default:
 			return nil, fmt.Errorf("unsupported publish handler's scType: %q ", scType)

@@ -4,6 +4,18 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- unexport more stuff from pkg/server. Cache, PublishRoots, etc.
+
+-- make UI handler's scaledImage cache take a jsonconfig constructor
+   of a sorted.KeyValue-registered type. Always slap a memory LRU in front
+   of it.
+
+-- In ImageHandler.cache, write the thumbnail out as one large blob
+   instead of using schema.WriteFileFromReader if the thumbnail
+   is smaller than blobserver.MaxBlobSize (16MB).
+
+-- gate in front of image resizes. limit a few at a time.
+
 -- blobhub.go NotifyBlobReceived should do the sync hooks before firing off
    goroutines to notify that things were good. they might not be good yet
    if the hook fails. also, no need for the slice. can just fire off goroutines

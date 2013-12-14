@@ -72,8 +72,11 @@ type UIHandler struct {
 	root   *RootHandler
 	sigh   *signhandler.Handler // or nil
 
+	// Cache optionally specifies a cache blob server, used for
+	// caching image thumbnails and other emphemeral data.
 	Cache blobserver.Storage // or nil
-	sc    ScaledImage        // cache for scaled images, optional
+
+	sc scaledImage // optional thumbnail key->blob.Ref cache
 
 	// sourceRoot optionally specifies the path to root of Camlistore's
 	// source. If empty, the UI files must be compiled in to the
@@ -150,7 +153,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		ui.Cache = bs
 		switch scType {
 		case "lrucache":
-			ui.sc = NewScaledImageLRU()
+			ui.sc = newScaledImageLRU()
 		default:
 			return nil, fmt.Errorf("unsupported ui handler's scType: %q ", scType)
 		}

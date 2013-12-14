@@ -25,40 +25,39 @@ import (
 
 const cacheSize = 1024
 
-// ScaledImage is a mapping between the blobref of an image and
+// scaledImage is a mapping between the blobref of an image and
 // its scaling parameters, and the blobref of such a rescaled
 // version of that image.
 // Key will be some string containing the original full-sized image's blobref,
 // its target dimensions, and any possible transformations on it (e.g. cropping
 // it to square). This string packing should not be parsed by a ScaledImage
 // implementation and is not guaranteed to be stable over time.
-type ScaledImage interface {
-	Get(key string) (blob.Ref, error) // returns ErrCacheMiss when item not in cache
+type scaledImage interface {
+	Get(key string) (blob.Ref, error) // returns errCacheMiss when item not in cache
 	Put(key string, br blob.Ref) error
 }
 
-var ErrCacheMiss = errors.New("not in cache")
+var errCacheMiss = errors.New("not in cache")
 
-type ScaledImageLRU struct {
+type scaledImageLRU struct {
 	nameToBlob *lru.Cache // string (see key format) -> blob.Ref
 }
 
-func NewScaledImageLRU() *ScaledImageLRU {
-	sc := &ScaledImageLRU{
+func newScaledImageLRU() scaledImage {
+	return &scaledImageLRU{
 		nameToBlob: lru.New(cacheSize),
 	}
-	return sc
 }
 
-func (sc *ScaledImageLRU) Get(key string) (blob.Ref, error) {
+func (sc *scaledImageLRU) Get(key string) (blob.Ref, error) {
 	br, ok := sc.nameToBlob.Get(key)
 	if !ok {
-		return blob.Ref{}, ErrCacheMiss
+		return blob.Ref{}, errCacheMiss
 	}
 	return br.(blob.Ref), nil
 }
 
-func (sc *ScaledImageLRU) Put(key string, br blob.Ref) error {
+func (sc *scaledImageLRU) Put(key string, br blob.Ref) error {
 	sc.nameToBlob.Add(key, br)
 	return nil
 }

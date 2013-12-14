@@ -47,7 +47,7 @@ type ImageHandler struct {
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
-	sc                  ScaledImage // optional cache for scaled images
+	sc                  scaledImage // optional cache for scaled images
 }
 
 func (ih *ImageHandler) storageSeekFetcher() blob.SeekFetcher {
@@ -89,7 +89,7 @@ func (ih *ImageHandler) cache(tr io.Reader, name string) (blob.Ref, error) {
 	return br, nil
 }
 
-// CacheScaled saves in the image handler's cache the scaled image read
+// cacheScaled saves in the image handler's cache the scaled image read
 // from tr, and puts its blobref in the scaledImage under the key name.
 func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 	br, err := ih.cache(tr, name)
@@ -121,34 +121,35 @@ func cacheKey(bref string, width int, height int) string {
 }
 
 // ScaledCached reads the scaled version of the image in file,
-// if it is in cache. On success, the image format is returned.
-func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
-	name := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
-	br, err := ih.sc.Get(name)
+// if it is in cache and writes it to buf.
+//
+// On successful read and population of buf, the returned format is non-empty.
+// Almost all errors are not interesting. Real errors will be logged.
+func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string) {
+	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
+	br, err := ih.sc.Get(key)
+	if err == errCacheMiss {
+		return
+	}
 	if err != nil {
-		return format, fmt.Errorf("%v: %v", name, err)
+		log.Printf("Warning: thumbnail cachekey(%q)->meta lookup error: %v", key, err)
+		return
 	}
 	fr, err := ih.cached(br)
 	if err != nil {
-		return format, fmt.Errorf("No cache hit for %v: %v", br, err)
+		return
 	}
 	defer fr.Close()
 	_, err = io.Copy(buf, fr)
 	if err != nil {
-		return format, fmt.Errorf("error reading cached thumbnail %v: %v", name, err)
+		return
 	}
 	mime := magic.MIMEType(buf.Bytes())
-	if mime == "" {
-		return format, fmt.Errorf("error with cached thumbnail %v: unknown mime type", name)
+	if format = strings.TrimPrefix(mime, "image/"); format == mime {
+		log.Printf("Warning: unescaped MIME type %q of %v file for thumbnail %q", mime, br, key)
+		return
 	}
-	pieces := strings.Split(mime, "/")
-	if len(pieces) < 2 {
-		return format, fmt.Errorf("error with cached thumbnail %v: bogus mime type", name)
-	}
-	if pieces[0] != "image" {
-		return format, fmt.Errorf("error with cached thumbnail %v: not an image", name)
-	}
-	return pieces[1], nil
+	return format
 }
 
 func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
@@ -221,10 +222,8 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	format := ""
 	cacheHit := false
 	if ih.sc != nil {
-		format, err = ih.scaledCached(&buf, file)
-		if err != nil {
-			log.Printf("image resize: %v", err)
-		} else {
+		format = ih.scaledCached(&buf, file)
+		if format != "" {
 			cacheHit = true
 		}
 	}
