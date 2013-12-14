@@ -655,8 +655,7 @@ func TestQueryPermanodeTaggedViaParent(t *testing.T) {
 					B: &Constraint{
 						Permanode: &PermanodeConstraint{
 							Relation: &RelationConstraint{
-								Relation: "ancestor", // "parent", "child", "progeny"
-								// Counter-part to "Any" is "All". Only one may be set.
+								Relation: "ancestor",
 								Any: &Constraint{
 									Permanode: &PermanodeConstraint{
 										Attr:  "tag",
