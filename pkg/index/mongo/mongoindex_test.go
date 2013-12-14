@@ -40,7 +40,18 @@ func checkMongoUp() {
 	mongoNotAvailable = !mongo.Ping("localhost", 500*time.Millisecond)
 }
 
+func skipOrFailIfNoMongo(t *testing.T) {
+	once.Do(checkMongoUp)
+	if mongoNotAvailable {
+		err := errors.New("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
+		test.DependencyErrorOrSkip(t)
+		t.Fatalf("Mongo not available locally for testing: %v", err)
+	}
+}
+
 func newSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
+	skipOrFailIfNoMongo(t)
+
 	// connect without credentials and wipe the database
 	cfg := jsonconfig.Obj{
 		"host":     "localhost",
@@ -73,12 +84,7 @@ func TestSortedKV(t *testing.T) {
 type mongoTester struct{}
 
 func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
-	once.Do(checkMongoUp)
-	if mongoNotAvailable {
-		err := errors.New("Not running; start a mongoDB daemon on the standard port (27017). The \"keys\" collection in the \"camlitest\" database will be used.")
-		test.DependencyErrorOrSkip(t)
-		t.Fatalf("Mongo not available locally for testing: %v", err)
-	}
+	skipOrFailIfNoMongo(t)
 	defer test.TLog(t)()
 	var cleanups []func()
 	defer func() {
