@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/syncutil"
 
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
@@ -152,6 +153,20 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 	return format
 }
 
+// These gates control the max concurrency of slurping raw images
+// (e.g. JPEG bytes) to RAM, and then decoding and resizing them,
+// respectively.  We allow more concurrency for the former because
+// it's slower and less memory-intensive.  The actual resizing takes
+// much more CPU and RAM.
+
+// TODO: these numbers were just guesses and not based on any
+// data. measure? make these configurable? Automatically tuned
+// somehow? Based on memory usage/availability?
+var (
+	scaleImageGateSlurp  = syncutil.NewGate(5)
+	scaleImageGateResize = syncutil.NewGate(2)
+)
+
 func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format string, err error) {
 	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), file)
 	if err != nil {
@@ -159,10 +174,16 @@ func (ih *ImageHandler) scaleImage(buf *bytes.Buffer, file blob.Ref) (format str
 	}
 	defer fr.Close()
 
+	scaleImageGateSlurp.Start()
 	_, err = io.Copy(buf, fr)
+	scaleImageGateSlurp.Done()
 	if err != nil {
 		return format, fmt.Errorf("image resize: error reading image %s: %v", file, err)
 	}
+
+	scaleImageGateResize.Start()
+	defer scaleImageGateResize.Done()
+
 	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()),
 		&images.DecodeOpts{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
 	if err != nil {

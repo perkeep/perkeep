@@ -14,8 +14,6 @@ Offline list:
    instead of using schema.WriteFileFromReader if the thumbnail
    is smaller than blobserver.MaxBlobSize (16MB).
 
--- gate in front of image resizes. limit a few at a time.
-
 -- blobhub.go NotifyBlobReceived should do the sync hooks before firing off
    goroutines to notify that things were good. they might not be good yet
    if the hook fails. also, no need for the slice. can just fire off goroutines
