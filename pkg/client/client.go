@@ -93,7 +93,7 @@ type Client struct {
 	InsecureTLS bool
 
 	initIgnoredFilesOnce sync.Once
-	// list of files that camput should ignore when using -filenodes.
+	// list of files that camput should ignore.
 	// Defaults to empty, but camput init creates a config with a non
 	// empty list.
 	ignoredFiles []string
@@ -850,8 +850,7 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 }
 
 // IsIgnoredFile returns whether the file name in fullpath
-// is in the list of file names that should be ignored when
-// uploading with camput -filenodes.
+// is in the list of file names that should be ignored by camput.
 func (c *Client) IsIgnoredFile(fullpath string) bool {
 	filename := filepath.Base(fullpath)
 	for _, v := range c.getIgnoredFiles() {
