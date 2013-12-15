@@ -19,6 +19,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	"expvar"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -43,6 +44,11 @@ import (
 )
 
 const imageDebug = false
+
+var (
+	imageBytesServedVar  = expvar.NewInt("image-bytes-served")
+	imageBytesFetchedVar = expvar.NewInt("image-bytes-fetched")
+)
 
 type ImageHandler struct {
 	Fetcher             blob.StreamingFetcher
@@ -182,8 +188,10 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 
 	var buf bytes.Buffer
 	scaleImageGateSlurp.Start()
-	_, err = io.Copy(&buf, fr)
+	n, err := io.Copy(&buf, fr)
 	scaleImageGateSlurp.Done()
+	imageBytesFetchedVar.Add(n)
+
 	if err != nil {
 		return nil, fmt.Errorf("image resize: error reading image %s: %v", fileRef, err)
 	}
@@ -287,6 +295,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))
+	imageBytesServedVar.Add(int64(size))
 
 	if req.Method == "GET" {
 		n, err := rw.Write(imageData)
