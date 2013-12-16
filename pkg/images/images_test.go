@@ -21,6 +21,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,9 @@ import (
 const datadir = "testdata"
 
 func equals(im1, im2 image.Image) bool {
+	if !im1.Bounds().Eq(im2.Bounds()) {
+		return false
+	}
 	for y := 0; y < im1.Bounds().Dy(); y++ {
 		for x := 0; x < im1.Bounds().Dx(); x++ {
 			r1, g1, b1, a1 := im1.At(x, y).RGBA()
@@ -79,6 +83,7 @@ func sampleNames(t *testing.T) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sort.Strings(samples)
 	return samples
 }
 
@@ -175,8 +180,29 @@ func TestRescale(t *testing.T) {
 
 	smallIm := smallStraightFImage(t)
 
+	gotB, wantB := rescaledIm.Bounds(), smallIm.Bounds()
+	if !gotB.Eq(wantB) {
+		t.Errorf("(scale) %v bounds not equal, got %v want %v", name, gotB, wantB)
+	}
 	if !equals(rescaledIm, smallIm) {
-		t.Fatalf("%v not properly rescaled", name)
+		t.Errorf("(scale) %v pixels not equal", name)
+	}
+
+	_, err = f.Seek(0, os.SEEK_SET)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rescaledIm, _, err = Decode(f, &DecodeOpts{MaxWidth: 2000, MaxHeight: 40})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotB = rescaledIm.Bounds()
+	if !gotB.Eq(wantB) {
+		t.Errorf("(max) %v bounds not equal, got %v want %v", name, gotB, wantB)
+	}
+	if !equals(rescaledIm, smallIm) {
+		t.Errorf("(max) %v pixels not equal", name)
 	}
 }
 
@@ -203,8 +229,29 @@ func TestRescaleEXIF(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		gotB, wantB := rescaledIm.Bounds(), smallStraightF.Bounds()
+		if !gotB.Eq(wantB) {
+			t.Errorf("(scale) %v bounds not equal, got %v want %v", name, gotB, wantB)
+		}
 		if !equals(rescaledIm, smallStraightF) {
-			t.Fatalf("%v not properly rescaled", name)
+			t.Errorf("(scale) %v pixels not equal", name)
+		}
+
+		_, err = f.Seek(0, os.SEEK_SET)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rescaledIm, _, err = Decode(f, &DecodeOpts{MaxWidth: 2000, MaxHeight: 40})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		gotB = rescaledIm.Bounds()
+		if !gotB.Eq(wantB) {
+			t.Errorf("(max) %v bounds not equal, got %v want %v", name, gotB, wantB)
+		}
+		if !equals(rescaledIm, smallStraightF) {
+			t.Errorf("(max) %v pixels not equal", name)
 		}
 	}
 }

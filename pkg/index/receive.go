@@ -264,7 +264,10 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 	var copyDest io.Writer = sha1
 	var imageBuf *keepFirstN // or nil
 	if strings.HasPrefix(mime, "image/") {
-		imageBuf = &keepFirstN{N: 256 << 10}
+		// Emperically derived 1MiB assuming CR2 images require more than any
+		// other filetype we support:
+		//   https://gist.github.com/wathiede/7982372
+		imageBuf = &keepFirstN{N: 1 << 20}
 		copyDest = io.MultiWriter(copyDest, imageBuf)
 	}
 	size, err := io.Copy(copyDest, reader)

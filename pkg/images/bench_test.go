@@ -27,7 +27,7 @@ func benchRescale(b *testing.B, w, h, thumbW, thumbH int) {
 	o := &DecodeOpts{MaxWidth: thumbW, MaxHeight: thumbH}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = rescale(im, o)
+		_ = rescale(im, o, false)
 	}
 }
 

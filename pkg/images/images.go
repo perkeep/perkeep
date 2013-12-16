@@ -205,14 +205,19 @@ func ScaledDimensions(w, h, mw, mh int) (newWidth int, newHeight int) {
 	return
 }
 
-func rescale(im image.Image, opts *DecodeOpts) image.Image {
+func rescale(im image.Image, opts *DecodeOpts, swapDimensions bool) image.Image {
 	mw, mh := opts.MaxWidth, opts.MaxHeight
 	mwf, mhf := opts.ScaleWidth, opts.ScaleHeight
 	b := im.Bounds()
 	// only do downscaling, otherwise just serve the original image
-	if !opts.wantRescale(b) {
+	if !opts.wantRescale(b, swapDimensions) {
 		return im
 	}
+
+	if swapDimensions {
+		mw, mh = mh, mw
+	}
+
 	// ScaleWidth and ScaleHeight overrule MaxWidth and MaxHeight
 	if mwf > 0.0 && mwf <= 1 {
 		mw = int(mwf * float32(b.Dx()))
@@ -220,7 +225,6 @@ func rescale(im image.Image, opts *DecodeOpts) image.Image {
 	if mhf > 0.0 && mhf <= 1 {
 		mh = int(mhf * float32(b.Dy()))
 	}
-
 	// If it's gigantic, it's more efficient to downsample first
 	// and then resize; resizing will smooth out the roughness.
 	// (trusting the moustachio guys on that one).
@@ -233,12 +237,36 @@ func rescale(im image.Image, opts *DecodeOpts) image.Image {
 	return resize.Resize(im, b, mw, mh)
 }
 
-func (opts *DecodeOpts) wantRescale(b image.Rectangle) bool {
-	return opts != nil &&
-		(opts.MaxWidth > 0 && opts.MaxWidth < b.Dx() ||
-			opts.MaxHeight > 0 && opts.MaxHeight < b.Dy() ||
-			opts.ScaleWidth > 0.0 && opts.ScaleWidth < float32(b.Dx()) ||
-			opts.ScaleHeight > 0.0 && opts.ScaleHeight < float32(b.Dy()))
+func (opts *DecodeOpts) wantRescale(b image.Rectangle, swapDimensions bool) bool {
+	if opts == nil {
+		return false
+	}
+
+	// In rescale Scale* trumps Max* so we assume the same relationship here.
+
+	// Floating point compares probably only allow this to work if the values
+	// were specified as the literal 1 or 1.0, computed values will likely be
+	// off.  If Scale{Width,Height} end up being 1.0-epsilon we'll rescale
+	// when it probably wouldn't even be noticible but that's okay.
+	if opts.ScaleWidth == 1.0 && opts.ScaleHeight == 1.0 {
+		return false
+	}
+	if opts.ScaleWidth > 0 && opts.ScaleWidth < 1.0 ||
+		opts.ScaleHeight > 0 && opts.ScaleHeight < 1.0 {
+		return true
+	}
+
+	w, h := b.Dx(), b.Dy()
+	if swapDimensions {
+		w, h = h, w
+	}
+
+	// Same size, don't rescale.
+	if opts.MaxWidth == w && opts.MaxHeight == h {
+		return false
+	}
+	return opts.MaxWidth > 0 && opts.MaxWidth < w ||
+		opts.MaxHeight > 0 && opts.MaxHeight < h
 }
 
 func (opts *DecodeOpts) forcedRotate() bool {
@@ -318,8 +346,8 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 		ex, err := exif.Decode(tr)
 		maybeRescale := func() (image.Image, Config, error) {
 			im, format, err := image.Decode(io.MultiReader(&buf, r))
-			if err == nil && opts.wantRescale(im.Bounds()) {
-				im = rescale(im, opts)
+			if err == nil && opts.wantRescale(im.Bounds(), false) {
+				im = rescale(im, opts, false)
 				c.Modified = true
 			}
 			c.Format = format
@@ -379,8 +407,15 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 		return nil, c, err
 	}
 	rescaled := false
-	if opts.wantRescale(im.Bounds()) {
-		im = rescale(im, opts)
+	// Orientation changing rotations should have their dimensions swapped
+	// when scaling.
+	var swapDimensions bool
+	switch angle {
+	case 90, -90:
+		swapDimensions = true
+	}
+	if opts.wantRescale(im.Bounds(), swapDimensions) {
+		im = rescale(im, opts, swapDimensions)
 		rescaled = true
 	}
 	im = flip(rotate(im, angle), flipMode)
