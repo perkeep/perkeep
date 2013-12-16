@@ -1,5 +1,10 @@
 Tests needed
 
+-- test that server/camlistored still builds & starts even when sqlite isn't
+   available (TODO: hide it from the test by running make.go in a child
+   process with a faked-out PKG_CONFIG environment or something, to make
+   cmd/go unable to find it even if it's installed)
+
 -- search & corpus use of EnumeratePermanodesLastModified
 
 -- pkg/client --- test FetchVia against a server returning compressed content.
