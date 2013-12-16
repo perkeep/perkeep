@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/color/palette"
 	"image/draw"
 	"image/png"
 	"io"
@@ -48,13 +47,24 @@ var (
 	thumb = image.Rect(0, 0, 64, 64)
 )
 
+var somePalette = []color.Color{
+        color.RGBA{0x00, 0x00, 0x00, 0xff},
+        color.RGBA{0x00, 0x00, 0x44, 0xff},
+        color.RGBA{0x00, 0x00, 0x88, 0xff},
+        color.RGBA{0x00, 0x00, 0xcc, 0xff},
+        color.RGBA{0x00, 0x44, 0x00, 0xff},
+        color.RGBA{0x00, 0x44, 0x44, 0xff},
+        color.RGBA{0x00, 0x44, 0x88, 0xff},
+        color.RGBA{0x00, 0x44, 0xcc, 0xff},
+}
+
 func makeImages(r image.Rectangle) []image.Image {
 	return []image.Image{
 		image.NewGray(r),
 		image.NewGray16(r),
 		image.NewNRGBA(r),
 		image.NewNRGBA64(r),
-		image.NewPaletted(r, palette.Plan9),
+		image.NewPaletted(r, somePalette),
 		image.NewRGBA(r),
 		image.NewRGBA64(r),
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio444),
