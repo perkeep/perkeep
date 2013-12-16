@@ -60,12 +60,17 @@ import (
 	_ "camlistore.org/pkg/blobserver/s3"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
+	// sqlite is taken care of in option_sqlite.go
 	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
 	_ "camlistore.org/pkg/index/kvfile"
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
 	_ "camlistore.org/pkg/index/postgres"
-	"camlistore.org/pkg/index/sqlite"
+	// KeyValue implementations:
+	_ "camlistore.org/pkg/sorted"
+	_ "camlistore.org/pkg/sorted/kvfile"
+	_ "camlistore.org/pkg/sorted/mongo"
+	"camlistore.org/pkg/sorted/sqlite"
 
 	// Handlers:
 	_ "camlistore.org/pkg/search"
