@@ -53,8 +53,10 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		return nil, err
 	}
 	createOpen := kv.Open
+	verb := "opening"
 	if _, err := os.Stat(file); os.IsNotExist(err) {
 		createOpen = kv.Create
+		verb = "creating"
 	}
 	db, err := createOpen(file, &kv.Options{
 		Locker: func(dbname string) (io.Closer, error) {
@@ -67,7 +69,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error %s %s: %v", verb, file, err)
 	}
 	is := &kvis{
 		db:   db,

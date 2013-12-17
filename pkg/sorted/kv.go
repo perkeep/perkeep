@@ -186,7 +186,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	if ok {
 		s, err = ctor(cfg)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error from %q KeyValue: %v", typ, err)
 		}
 	}
 	return s, cfg.Validate()
