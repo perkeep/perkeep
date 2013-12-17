@@ -26,13 +26,16 @@ import (
 )
 
 func init() {
-	blobserver.RegisterStorageConstructor("mongodbindexer",
-		blobserver.StorageConstructor(newFromConfig))
+	blobserver.RegisterStorageConstructor("mongodbindexer", newFromConfig)
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	blobPrefix := config.RequiredString("blobSource")
-	kv, err := mongo.NewKeyValue(config)
+	mongoConf, err := mongo.ConfigFromJSON(config)
+	if err != nil {
+		return nil, err
+	}
+	kv, err := mongo.NewKeyValue(mongoConf)
 	if err != nil {
 		return nil, err
 	}
