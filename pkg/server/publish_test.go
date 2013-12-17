@@ -86,8 +86,8 @@ var publishURLTests = []publishURLTest{
 	},
 }
 
-func TestPublishURLs(t *testing.T) {
-	owner := blob.MustParse("owner-1234")
+func setupContent(owner blob.Ref, rootName string) *test.FakeIndex {
+
 	picNode := blob.MustParse("picpn-1234")
 	galRef := blob.MustParse("gal-1234")
 	rootRef := blob.MustParse("root-abcd")
@@ -96,31 +96,40 @@ func TestPublishURLs(t *testing.T) {
 	camp0f := blob.MustParse("picfile-f00ff00f00a5")
 	camp1f := blob.MustParse("picfile-f00ff00f00b6")
 
+	idx := test.NewFakeIndex()
+	idx.AddSignerAttrValue(owner, "camliRoot", rootName, rootRef)
+
+	idx.AddMeta(owner, "", 100)
+	for _, br := range []blob.Ref{picNode, galRef, rootRef, camp0, camp1} {
+		idx.AddMeta(br, "permanode", 100)
+	}
+	for _, br := range []blob.Ref{camp0f, camp1f} {
+		idx.AddMeta(br, "file", 100)
+	}
+
+	idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:singlepic", picNode.String())
+	idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:camping", galRef.String())
+	idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp0.String())
+	idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp1.String())
+	idx.AddClaim(owner, camp0, "set-attribute", "camliContent", camp0f.String())
+	idx.AddClaim(owner, camp1, "set-attribute", "camliContent", camp1f.String())
+
+	return idx
+}
+
+func TestPublishURLs(t *testing.T) {
+
+	owner := blob.MustParse("owner-1234")
 	rootName := "foo"
 
 	for ti, tt := range publishURLTests {
-		idx := test.NewFakeIndex()
-		idx.AddSignerAttrValue(owner, "camliRoot", rootName, rootRef)
+		idx := setupContent(owner, rootName)
+
 		sh := search.NewHandler(idx, owner)
 		ph := &PublishHandler{
 			RootName: rootName,
 			Search:   sh,
 		}
-
-		idx.AddMeta(owner, "", 100)
-		for _, br := range []blob.Ref{picNode, galRef, rootRef, camp0, camp1} {
-			idx.AddMeta(br, "permanode", 100)
-		}
-		for _, br := range []blob.Ref{camp0f, camp1f} {
-			idx.AddMeta(br, "file", 100)
-		}
-
-		idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:singlepic", picNode.String())
-		idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:camping", galRef.String())
-		idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp0.String())
-		idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp1.String())
-		idx.AddClaim(owner, camp0, "set-attribute", "camliContent", camp0f.String())
-		idx.AddClaim(owner, camp1, "set-attribute", "camliContent", camp1f.String())
 
 		rw := httptest.NewRecorder()
 		if !strings.HasPrefix(tt.path, "/pics/") {
@@ -150,4 +159,41 @@ func TestPublishURLs(t *testing.T) {
 		}
 		pfxh.ServeHTTP(rw, req)
 	}
+}
+
+func TestPublishMembers(t *testing.T) {
+	owner := blob.MustParse("owner-1234")
+	rootName := "foo"
+
+	idx := setupContent(owner, rootName)
+
+	sh := search.NewHandler(idx, owner)
+	ph := &PublishHandler{
+		RootName: rootName,
+		Search:   sh,
+	}
+
+	rw := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "http://foo.com/pics", nil)
+
+	pfxh := &httputil.PrefixHandler{
+		Prefix: "/pics/",
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			pr := ph.NewRequest(rw, req)
+
+			dr := pr.ph.Search.NewDescribeRequest()
+			dr.Describe(pr.subject, 3)
+			res, err := dr.Result()
+			if err != nil {
+				t.Errorf("Result: %v", err)
+				return
+			}
+
+			members, err := pr.subjectMembers(res)
+			if len(members.Members) != 2 {
+				t.Errorf("Expected two members in publish root (one camlipath, one camlimember), got %d", len(members.Members))
+			}
+		}),
+	}
+	pfxh.ServeHTTP(rw, req)
 }
