@@ -228,7 +228,9 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 			format = "jpeg"
 			fallthrough
 		default:
-			err = jpeg.Encode(&buf, i, nil)
+			err = jpeg.Encode(&buf, i, &jpeg.Options{
+				Quality: 90,
+			})
 		}
 		if err != nil {
 			return nil, err
