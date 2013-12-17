@@ -21,6 +21,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -41,10 +42,11 @@ import (
 var (
 	debug = flag.Bool("debug", false, "print debugging messages.")
 	xterm = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
+	open  = flag.Bool("open", false, "Open a GUI window")
 )
 
 func usage() {
-	fmt.Fprint(os.Stderr, "usage: cammount [opts] <mountpoint> [<root-blobref>|<share URL>]\n")
+	fmt.Fprint(os.Stderr, "usage: cammount [opts] [<mountpoint> [<root-blobref>|<share URL>]]\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -57,11 +59,21 @@ func main() {
 	flag.Parse()
 
 	narg := flag.NArg()
-	if narg < 1 || narg > 2 {
+	if narg > 2 {
 		usage()
 	}
 
-	mountPoint := flag.Arg(0)
+	var mountPoint string
+	var err error
+	if narg > 0 {
+		mountPoint = flag.Arg(0)
+	} else {
+		mountPoint, err = ioutil.TempDir("", "cammount")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(mountPoint)
+	}
 
 	errorf := func(msg string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, msg, args...)
@@ -144,6 +156,12 @@ func main() {
 				xtermDone <- true
 			}()
 			defer cmd.Process.Kill()
+		}
+	}
+	if *open {
+		if runtime.GOOS == "darwin" {
+			cmd := exec.Command("open", mountPoint)
+			go cmd.Run()
 		}
 	}
 
