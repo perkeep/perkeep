@@ -70,8 +70,7 @@ CAMLI_HTTP_PPROF (bool):
 
 CAMLI_IGNORED_FILES (string):
   Override client configuration option 'ignoredFiles'.
-  Comma-seperated list of files to be ignored by pkg/client when uploading
-  with -filenodes.
+  Comma-seperated list of files to be ignored by pkg/client when uploading.
 
 CAMLI_INCLUDE_PATH (string):
   Path to search for files.
