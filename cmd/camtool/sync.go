@@ -42,6 +42,7 @@ type syncCmd struct {
 	verbose   bool
 	all       bool
 	removeSrc bool
+	wipe      bool
 
 	logger *log.Logger
 }
@@ -55,6 +56,7 @@ func init() {
 
 		flags.BoolVar(&cmd.loop, "loop", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
+		flags.BoolVar(&cmd.wipe, "wipe", false, "If dest is an index, drop it and repopulate it from scratch. NOOP for now.")
 		flags.BoolVar(&cmd.all, "all", false, "Discover all sync destinations configured on the source server and run them.")
 		flags.BoolVar(&cmd.removeSrc, "removesrc", false, "Remove each blob from the source after syncing to the destination; for queue processing.")
 
@@ -281,6 +283,12 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		}
 		checkSourceError()
 		return
+	}
+
+	if c.wipe {
+		// TODO(mpl): dest is a client. make it send a "wipe" request?
+		// upon reception its server then wipes itself if it is a wiper.
+		log.Print("Index wiping not yet supported.")
 	}
 
 	go func() {

@@ -347,8 +347,9 @@ func (c *Client) StorageGeneration() (string, error) {
 // SyncInfo holds the data that were acquired with a discovery
 // and that are relevant to a syncHandler.
 type SyncInfo struct {
-	From string
-	To   string
+	From    string
+	To      string
+	ToIndex bool // whether this sync is from a blob storage to an index
 }
 
 // SyncHandlers returns the server's sync handlers "from" and
@@ -640,8 +641,12 @@ func (c *Client) doDiscovery() {
 				c.discoErr = fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
 				return
 			}
-			c.syncHandlers = append(c.syncHandlers,
-				&SyncInfo{From: ufrom.String(), To: uto.String()})
+			toIndex, _ := vmap["toIndex"].(bool)
+			c.syncHandlers = append(c.syncHandlers, &SyncInfo{
+				From:    ufrom.String(),
+				To:      uto.String(),
+				ToIndex: toIndex,
+			})
 		}
 	}
 }
