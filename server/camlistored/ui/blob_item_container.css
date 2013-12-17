@@ -3,7 +3,12 @@
   border: 1px solid rgba(0,0,0,0);
   position: relative;
   white-space: nowrap;
+  transition: -webkit-transform 75ms ease-out;
+  transition: -moz-transform 75ms ease-out;
+  transition: -ms-transform 75ms ease-out;
+  margin-left: 36px;
 }
+
 .cam-blobitemcontainer.cam-dropactive {
   border-color: #acf;
   background: #e5efff;
