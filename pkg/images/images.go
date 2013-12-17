@@ -29,7 +29,7 @@ import (
 	_ "image/gif"
 	_ "image/png"
 
-	"camlistore.org/pkg/misc/resize"
+	"camlistore.org/pkg/images/resize"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
 
