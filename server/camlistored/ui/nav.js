@@ -20,6 +20,7 @@ goog.provide('camlistore.Nav.Item');
 goog.require('camlistore.style');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
+goog.require('goog.events.KeyCodes');
 goog.require('goog.ui.Container');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Control');
@@ -52,6 +53,13 @@ camlistore.Nav.prototype.enterDocument = function() {
       this.handleMouseOut_);
   this.getHandler().listen(this.getElement(), goog.events.EventType.CLICK,
       this.toggle.bind(this));
+
+  this.getHandler().listen(this.getElement(), 'keyup', function(e) {
+    if (e.keyCode == goog.events.KeyCodes.ESC) {
+      this.close();
+      e.preventDefault();
+    }
+  });
 };
 
 camlistore.Nav.prototype.open = function() {
@@ -154,6 +162,10 @@ camlistore.Nav.SearchItem.prototype.setText = function(text) {
   }
 };
 
+camlistore.Nav.SearchItem.prototype.focus = function() {
+  this.input_.focus();
+};
+
 camlistore.Nav.SearchItem.prototype.blur = function() {
   this.input_.blur();
 };
@@ -184,10 +196,6 @@ camlistore.Nav.SearchItem.prototype.enterDocument = function() {
     this.onSearch(this.input_.value);
     e.preventDefault();
   });
-};
-
-camlistore.Nav.SearchItem.prototype.handleKeyEvent = function(e) {
-  return false;
 };
 
 
