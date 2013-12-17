@@ -419,7 +419,8 @@ function(callerConstraint) {
   var query = {
     sort: 1,  // LastModifiedDesc
     limit: this.constructor.NUM_ITEMS_PER_PAGE,
-    constraint : callerConstraint
+    constraint: callerConstraint,
+    describe: {} // so we see the 'description' in the response & attr changes
   };
 
   var ws = new WebSocket(uri.toString());
