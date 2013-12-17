@@ -281,7 +281,7 @@ func (opts *DecodeOpts) useEXIF() bool {
 	return !(opts.forcedRotate() || opts.forcedFlip())
 }
 
-var debug, _ = strconv.ParseBool(os.Getenv("CAM_DEBUG_IMAGES"))
+var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
 
 func imageDebug(msg string) {
 	if debug {

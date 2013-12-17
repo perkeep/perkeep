@@ -252,7 +252,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		http.Error(rw, "bogus dimensions", 400)
 		return
 	}
-	if req.Header.Get("If-Modified-Since") != "" {
+	if req.Header.Get("If-Modified-Since") != "" && !disableThumbCache {
 		// Immutable, so any copy's a good copy.
 		rw.WriteHeader(http.StatusNotModified)
 		return
@@ -261,7 +261,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	var imageData []byte
 	format := ""
 	cacheHit := false
-	if ih.thumbMeta != nil {
+	if ih.thumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
 		format = ih.scaledCached(&buf, file)
 		if format != "" {
@@ -290,8 +290,10 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	h := rw.Header()
-	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
-	h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+	if !disableThumbCache {
+		h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
+		h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+	}
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))

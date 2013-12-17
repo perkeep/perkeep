@@ -119,8 +119,12 @@ CAMLI_TRUSTED_CERT (string):
 CAMPUT_ANDROID_OUTPUT (bool):
   Enable pkg/client status messages to print to stdout. Used in android client.
 
-CAM_DEBUG_IMAGES (bool):
+CAMLI_DEBUG_IMAGES (bool):
   Enable extra debugging in pkg/images when decoding images.  Used by indexers.
+
+CAMLI_DISABLE_THUMB_CACHE (bool):
+  If true, no thumbnail caching is done, and URLs even have cache
+  buster components, to force browsers to reload a lot.
 
 DEV_THROTTLE_KBPS (integer):
 DEV_THROTTLE_LATENCY_MS (integer):
