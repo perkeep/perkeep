@@ -222,13 +222,18 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 
   this.embiggenNavItem_.onClick = function() {
     if (this.blobItemContainer_.bigger()) {
-      this.blobItemContainer_.showRecent();
+      var force = true;
+      this.blobItemContainer_.layout_(force);
     }
   }.bind(this);
 
   this.ensmallenNavItem_.onClick = function() {
     if (this.blobItemContainer_.smaller()) {
-      this.blobItemContainer_.showRecent();
+      // Don't run a query. Let the browser do the image resizing on its own.
+      var force = true;
+      this.blobItemContainer_.layout_(force);
+      // Since things got smaller, we may need to fetch more content.
+      this.blobItemContainer_.handleScroll_();
     }
   }.bind(this);
 

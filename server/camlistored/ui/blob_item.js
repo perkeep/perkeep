@@ -249,6 +249,8 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
     // cache hits.
     var fraction = Math.ceil(this.metaData_.thumbnailHeight * 0.2);
     var rh = Math.ceil(adjustedHeight / fraction) * fraction;
+    // Don't bother getting a smaller image. The browser will resize for us.
+    rh = Math.max(rh, this.metaData_.thumbnailHeight);
 
     // TODO(aa): This is kind of a hack, it would be better if the server just
     // returned the base URL and the aspect ratio, rather than specific
@@ -400,6 +402,7 @@ camlistore.BlobItem.prototype.updateDom = function() {
 
   if (this.isImage()) {
     this.addClassName('cam-blobitem-image');
+    this.thumb_.title = this.getTitle_();
     this.label_.textContent = '';
   } else {
     this.removeClassName('cam-blobitem-image');
