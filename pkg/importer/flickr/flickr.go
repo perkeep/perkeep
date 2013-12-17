@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -97,7 +98,6 @@ type photosetsGetList struct {
 		Page     int
 		Pages    int
 		Perpage  int
-		Total    int
 		Photoset []*photosetsGetListItem
 	}
 }
@@ -112,6 +112,8 @@ type photosetsGetListItem struct {
 type photosetsGetPhotos struct {
 	Photoset struct {
 		Id    string
+		Page  int `json:",string"`
+		Pages int
 		Photo []struct {
 			Id             string
 			Originalformat string
@@ -132,18 +134,21 @@ func (im *imp) importPhotosets() error {
 	log.Printf("Importing %d sets", len(resp.Photosets.Photoset))
 
 	for _, item := range resp.Photosets.Photoset {
-		if err := im.importPhotoset(setsNode, item); err != nil {
-			log.Printf("Flickr importer: error importing photoset %s: %s", item.Id, err)
-			continue
+		for page := 1; page >= 1; {
+			page, err = im.importPhotoset(setsNode, item, page)
+			if err != nil {
+				log.Printf("Flickr importer: error importing photoset %s: %s", item.Id, err)
+				continue
+			}
 		}
 	}
 	return nil
 }
 
-func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetListItem) error {
+func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetListItem, page int) (int, error) {
 	photosetNode, err := parent.ChildPathObject(photoset.Id)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := photosetNode.SetAttrs(
@@ -151,18 +156,20 @@ func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetLis
 		"title", photoset.Title.Content,
 		"description", photoset.Description.Content,
 		"primaryPhotoId", photoset.PrimaryPhotoId); err != nil {
-		return err
+		return 0, err
 	}
 
 	resp := photosetsGetPhotos{}
 	if err := im.flickrAPIRequest(&resp, "flickr.photosets.getPhotos",
-		"photoset_id", photoset.Id, "extras", "original_format"); err != nil {
-		return err
+		"page", fmt.Sprintf("%d", page), "photoset_id", photoset.Id, "extras", "original_format"); err != nil {
+		return 0, err
 	}
+
+	log.Printf("Importing page %d of %s", page, photoset.Id)
 
 	photosNode, err := im.getPhotosNode()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	for _, item := range resp.Photoset.Photo {
@@ -178,7 +185,12 @@ func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetLis
 				item.Id, photoset.Id, err)
 		}
 	}
-	return nil
+
+	if resp.Photoset.Page < resp.Photoset.Pages {
+		return page + 1, nil
+	} else {
+		return 0, nil
+	}
 }
 
 type photosSearch struct {
@@ -214,17 +226,28 @@ type photosSearchItem struct {
 }
 
 func (im *imp) importPhotos() error {
+	for page := 1; page >= 1; {
+		var err error
+		page, err = im.importPhotosPage(page)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (im *imp) importPhotosPage(page int) (int, error) {
 	resp := photosSearch{}
-	if err := im.flickrAPIRequest(&resp, "flickr.photos.search",
+	if err := im.flickrAPIRequest(&resp, "flickr.people.getPhotos", "page", fmt.Sprintf("%d", page),
 		"extras", "description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"); err != nil {
-		return err
+		return 0, err
 	}
 
 	photosNode, err := im.getPhotosNode()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	log.Printf("Importing %d photos", len(resp.Photos.Photo))
+	log.Printf("Importing %d photos on page %d of %d", len(resp.Photos.Photo), page, resp.Photos.Pages)
 
 	for _, item := range resp.Photos.Photo {
 		if err := im.importPhoto(photosNode, item); err != nil {
@@ -232,7 +255,12 @@ func (im *imp) importPhotos() error {
 			continue
 		}
 	}
-	return nil
+
+	if resp.Photos.Pages > resp.Photos.Page {
+		return page + 1, nil
+	} else {
+		return 0, nil
+	}
 }
 
 // TODO(aa):
@@ -325,6 +353,10 @@ func (im *imp) flickrAPIRequest(result interface{}, method string, keyval ...str
 		panic("Incorrect number of keyval arguments")
 	}
 
+	if im.user == nil {
+		return fmt.Errorf("No authenticated user")
+	}
+
 	form := url.Values{}
 	form.Set("method", method)
 	form.Set("format", "json")
@@ -339,7 +371,15 @@ func (im *imp) flickrAPIRequest(result interface{}, method string, keyval ...str
 		return err
 	}
 	defer res.Body.Close()
-	return json.NewDecoder(res.Body).Decode(result)
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, result)
+	if err != nil {
+		log.Println("Response data:", string(data))
+	}
+	return err
 }
 
 func (im *imp) flickrRequest(url string, form url.Values) (*http.Response, error) {
