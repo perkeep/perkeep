@@ -24,7 +24,6 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/sorted/mongo"
@@ -53,9 +52,9 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 	skipOrFailIfNoMongo(t)
 
 	// connect without credentials and wipe the database
-	cfg := jsonconfig.Obj{
-		"host":     "localhost",
-		"database": "camlitest",
+	cfg := mongo.Config{
+		Server:   "localhost",
+		Database: "camlitest",
 	}
 	var err error
 	kv, err = mongo.NewKeyValue(cfg)

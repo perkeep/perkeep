@@ -27,6 +27,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func (ih *ImageHandler) cached(fileRef blob.Ref) (*schema.FileReader, error) {
 // Key format: "scaled:" + bref + ":" + width "x" + height
 // where bref is the blobref of the unscaled image.
 func cacheKey(bref string, width int, height int) string {
-	return fmt.Sprintf("scaled:%v:%dx%d", bref, width, height)
+	return fmt.Sprintf("scaled:%v:%dx%d:tv%d", bref, width, height, images.ThumbnailVersion())
 }
 
 // ScaledCached reads the scaled version of the image in file,
@@ -228,7 +229,9 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 			format = "jpeg"
 			fallthrough
 		default:
-			err = jpeg.Encode(&buf, i, nil)
+			err = jpeg.Encode(&buf, i, &jpeg.Options{
+				Quality: 90,
+			})
 		}
 		if err != nil {
 			return nil, err
@@ -252,16 +255,26 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		http.Error(rw, "bogus dimensions", 400)
 		return
 	}
-	if req.Header.Get("If-Modified-Since") != "" {
-		// Immutable, so any copy's a good copy.
-		rw.WriteHeader(http.StatusNotModified)
-		return
+
+	key := cacheKey(file.String(), mw, mh)
+	etag := blob.SHA1FromString(key).String()[5:]
+	inm := req.Header.Get("If-None-Match")
+	if inm != "" {
+		if strings.Trim(inm, `"`) == etag {
+			rw.WriteHeader(http.StatusNotModified)
+			return
+		}
+	} else {
+		if !disableThumbCache && req.Header.Get("If-Modified-Since") != "" {
+			rw.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 
 	var imageData []byte
 	format := ""
 	cacheHit := false
-	if ih.thumbMeta != nil {
+	if ih.thumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
 		format = ih.scaledCached(&buf, file)
 		if format != "" {
@@ -271,7 +284,6 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	if !cacheHit {
-		key := cacheKey(file.String(), mw, mh)
 		imi, err := singleResize.Do(key, func() (interface{}, error) {
 			return ih.scaleImage(file)
 		})
@@ -290,8 +302,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	h := rw.Header()
-	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
-	h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+	if !disableThumbCache {
+		h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
+		h.Set("Last-Modified", time.Now().Format(http.TimeFormat))
+		h.Set("Etag", strconv.Quote(etag))
+	}
 	h.Set("Content-Type", imageContentTypeOfFormat(format))
 	size := len(imageData)
 	h.Set("Content-Length", fmt.Sprint(size))
@@ -300,6 +315,11 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	if req.Method == "GET" {
 		n, err := rw.Write(imageData)
 		if err != nil {
+			if strings.Contains(err.Error(), "broken pipe") {
+				// boring.
+				return
+			}
+			// TODO: vlog this:
 			log.Printf("error serving thumbnail of file schema %s: %v", file, err)
 			return
 		}

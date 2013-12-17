@@ -239,7 +239,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
-			if up.fileOpts.wantFilePermanode() && up.Client.IsIgnoredFile(filename) {
+			if up.Client.IsIgnoredFile(filename) {
 				continue
 			}
 			lastPut, err = up.UploadFile(filename)
@@ -256,7 +256,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 	}
 
-	if permaNode != nil {
+	if permaNode != nil  && lastPut != nil {
 		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
@@ -881,7 +881,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 			t.stattedc <- nod
 		}
 	}()
-	if t.up.fileOpts.wantFilePermanode() && t.up.Client.IsIgnoredFile(fullPath) {
+	if t.up.Client.IsIgnoredFile(fullPath) {
 		return nil, nil
 	}
 	if fi == nil {

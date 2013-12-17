@@ -115,6 +115,7 @@ function(bmap) {
 	}
 	blobmeta.innerHTML = htmlEscape(JSON.stringify(binfo, null, 2));
 	if (binfo.camliType || (binfo.type && binfo.type.indexOf("text/") == 0)) {
+		var conf = this.config_;
 		this.connection_.getBlobContents(blobref,
 			goog.bind(function(data) {
 				goog.dom.getElement("blobdata").innerHTML = linkifyBlobRefs(data);
@@ -139,7 +140,8 @@ function(bmap) {
 						binfo.file.mimeType.indexOf("image/") == 0) {
 						var thumbURL = "<img src='./thumbnail/" + blobref + "/" +
 							fileName + "?mw=" + this.thumbnailSize_ +
-							"&mh=" + this.thumbnailSize_ + "'>";
+							"&mh=" + this.thumbnailSize_ +
+							"&tv=" + (conf.thumbVersion || '') + "'>";
 						goog.dom.getElement("thumbnail").innerHTML = thumbURL;
 					} else {
 						goog.dom.getElement("thumbnail").innerHTML = "";

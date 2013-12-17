@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:i="http://ns.adobe.com/AdobeIllustrator/10.0/"
+   xmlns:ns="http://ns.adobe.com/SaveForWeb/1.0/"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Your_Icon"
+   x="0px"
+   y="0px"
+   width="100px"
+   height="100px"
+   viewBox="0 0 100 100"
+   enable-background="new 0 0 100 100"
+   xml:space="preserve"
+   inkscape:version="0.48.3.1 r9886"
+   sodipodi:docname="icon_14727.svg"><defs
+   id="defs15" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="640"
+   inkscape:window-height="480"
+   id="namedview13"
+   showgrid="false"
+   inkscape:zoom="2.36"
+   inkscape:cx="50"
+   inkscape:cy="50"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="0"
+   inkscape:current-layer="Your_Icon" />
+<metadata
+   id="metadata3">
+	<ns:sfw>
+		<ns:slices />
+		<ns:sliceSourceBounds
+   height="16383"
+   width="16383"
+   bottomLeftOrigin="true"
+   x="-8141"
+   y="-8242" />
+	</ns:sfw>
+<rdf:RDF><cc:Work
+     rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+       rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata>
+<switch
+   id="switch5"
+   style="fill:#ffffff">
+	<foreignObject
+   requiredExtensions="http://ns.adobe.com/AdobeIllustrator/10.0/"
+   x="0"
+   y="0"
+   width="1"
+   height="1"
+   id="foreignObject7">
+		</foreignObject>
+	<g
+   i:extraneous="self"
+   id="g9"
+   style="fill:#ffffff">
+		<path
+   d="M74.6,66.4c-3.842,0-7.366,1.329-10.161,3.542L41.103,54.724C41.552,53.227,41.8,51.644,41.8,50    c0-1.703-0.26-3.346-0.742-4.89l23.014-15.342C66.921,32.157,70.591,33.6,74.6,33.6C83.657,33.6,91,26.256,91,17.2    c0-9.057-7.343-16.4-16.4-16.4c-9.057,0-16.4,7.343-16.4,16.4c0,1.479,0.214,2.905,0.582,4.268L35.424,37.04    C32.65,34.892,29.18,33.6,25.4,33.6C16.342,33.6,9,40.943,9,50c0,9.057,7.342,16.4,16.4,16.4c3.841,0,7.366-1.331,10.16-3.543    l23.338,15.22c-0.451,1.496-0.699,3.079-0.699,4.724c0,9.056,7.344,16.398,16.4,16.398c9.058,0,16.4-7.343,16.4-16.398    C91,73.742,83.657,66.4,74.6,66.4z M19.933,50c0-2.448,1.621-4.496,3.839-5.192c0.517-0.162,1.057-0.274,1.628-0.274    c2.198,0,4.082,1.306,4.949,3.178c0.324,0.698,0.518,1.469,0.518,2.289c0,0.795-0.178,1.545-0.483,2.227    c-0.854,1.907-2.759,3.24-4.983,3.24c-0.546,0-1.063-0.104-1.56-0.253C21.586,54.539,19.933,52.473,19.933,50z"
+   id="path11"
+   style="fill:#ffffff" />
+	</g>
+</switch>
+</svg>

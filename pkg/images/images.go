@@ -25,13 +25,32 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	_ "image/gif"
 	_ "image/png"
 
-	"camlistore.org/pkg/misc/resize"
+	"camlistore.org/pkg/images/resize"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 )
+
+var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
+
+// thumbnailVersion should be incremented whenever we want to
+// invalidate the cache of previous thumbnails on the server's
+// cache and in browsers.
+const thumbnailVersion = "2"
+
+// ThumbnailVersion returns a string safe for URL query components
+// which is a generation number. Whenever the thumbnailing code is
+// updated, so will this string. It should be placed in some URL
+// component (typically "tv").
+func ThumbnailVersion() string {
+	if disableThumbCache {
+		return fmt.Sprintf("nocache%d", time.Now().UnixNano())
+	}
+	return thumbnailVersion
+}
 
 // Exif Orientation Tag values
 // http://sylvana.net/jpegcrop/exif_orientation.html
@@ -281,7 +300,7 @@ func (opts *DecodeOpts) useEXIF() bool {
 	return !(opts.forcedRotate() || opts.forcedFlip())
 }
 
-var debug, _ = strconv.ParseBool(os.Getenv("CAM_DEBUG_IMAGES"))
+var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
 
 func imageDebug(msg string) {
 	if debug {

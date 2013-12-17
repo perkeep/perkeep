@@ -62,8 +62,9 @@
 }
 
 .cam-blobitem .checkmark {
-  background-image: url('checkmark-black-25.png');
+  background-image: url('checkmark2.svg');
   background-repeat: no-repeat;
+  background-size: 100% 100%;
   cursor: pointer;
   height: 25px;
   left: 5px;
@@ -91,5 +92,5 @@
 }
 
 .cam-blobitem.goog-control-checked .checkmark {
-  background-image: url('checkmark-blue-25.png');
+  background-image: url('checkmark2_blue.svg');
 }

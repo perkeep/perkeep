@@ -43,35 +43,50 @@ const (
 )
 
 func init() {
-	sorted.RegisterKeyValue("mongo", NewKeyValue)
+	sorted.RegisterKeyValue("mongo", newKeyValueFromJSONConfig)
 }
 
-// TODO(mpl): automatically derive the keys doc from something else.
-// a JSON annotated struct? maybe from instance.
-// maybe something in common with pkg/serverconfig/genconfig.go
+// Config holds the parameters used to connect to MongoDB.
+type Config struct {
+	Server   string // Required. Defaults to "localhost" in ConfigFromJSON.
+	Database string // Required.
+	User     string // Optional, unless the server was configured with auth on.
+	Password string // Optional, unless the server was configured with auth on.
+}
 
-// NewKeyValue returns a KeyValue implementation on top of MongoDB.
-// cfg contains these keys:
-// "host", optional string
-// "database", string
-// "user", optional string
-// "password", optional string
-func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
-	ins := &instance{
-		Servers:    cfg.OptionalString("host", "localhost"),
-		Database:   cfg.RequiredString("database"),
-		User:       cfg.OptionalString("user", ""),
-		Password:   cfg.OptionalString("password", ""),
-		Collection: CollectionName,
+// ConfigFromJSON populates Config from cfg, and validates
+// cfg. It returns an error if cfg fails to validate.
+func ConfigFromJSON(cfg jsonconfig.Obj) (Config, error) {
+	conf := Config{
+		Server:   cfg.OptionalString("host", "localhost"),
+		Database: cfg.RequiredString("database"),
+		User:     cfg.OptionalString("user", ""),
+		Password: cfg.OptionalString("password", ""),
 	}
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
+	}
+	return conf, nil
+}
+
+// NewKeyValue returns a KeyValue implementation on top of MongoDB.
+func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
+	ins := &instance{
+		conf: cfg,
 	}
 	db, err := ins.getCollection()
 	if err != nil {
 		return nil, err
 	}
 	return &keyValue{db: db, session: ins.session}, nil
+}
+
+func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	conf, err := ConfigFromJSON(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return NewKeyValue(conf)
 }
 
 // Implementation of Iterator
@@ -218,25 +233,21 @@ func (kv *keyValue) Close() error {
 
 // Ping tests if MongoDB on host can be dialed.
 func Ping(host string, timeout time.Duration) bool {
-	return (&instance{Servers: host}).ping(timeout)
+	return (&instance{conf: Config{Server: host}}).ping(timeout)
 }
 
 // instance helps with the low level details about
 // the connection to MongoDB.
 type instance struct {
-	Servers    string
-	User       string
-	Password   string
-	Database   string
-	Collection string
-	session    *mgo.Session
+	conf    Config
+	session *mgo.Session
 }
 
 func (ins *instance) url() string {
-	if ins.User == "" || ins.Password == "" {
-		return ins.Servers
+	if ins.conf.User == "" || ins.conf.Password == "" {
+		return ins.conf.Server
 	}
-	return ins.User + ":" + ins.Password + "@" + ins.Servers + "/" + ins.Database
+	return ins.conf.User + ":" + ins.conf.Password + "@" + ins.conf.Server + "/" + ins.conf.Database
 }
 
 // ping won't work with old (1.2) mongo servers.
@@ -281,6 +292,6 @@ func (ins *instance) getCollection() (*mgo.Collection, error) {
 	}
 	session.SetSafe(&mgo.Safe{})
 	session.SetMode(mgo.Strong, true)
-	c := session.DB(ins.Database).C(ins.Collection)
+	c := session.DB(ins.conf.Database).C(CollectionName)
 	return c, nil
 }

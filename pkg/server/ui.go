@@ -55,6 +55,8 @@ var (
 	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
+
+	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 )
 
 // UIHandler handles serving the UI and discovery JSON.

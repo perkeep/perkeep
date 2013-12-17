@@ -331,7 +331,7 @@ func (c *Client) GetTrustedCerts() []string {
 }
 
 // config[ignoredFiles] is the list of files that camput should ignore
-// and not try to upload when using -filenodes.
+// and not try to upload.
 // See Client.ignoredFiles in client.go
 const ignoredFiles = "ignoredFiles"
 
