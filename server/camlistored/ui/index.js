@@ -280,6 +280,16 @@ camlistore.IndexPage.prototype.enterDocument = function() {
       camlistore.BlobItemContainer.EventType.SELECTION_CHANGED,
       this.updateNavButtonsForSelection_.bind(this));
 
+  this.eh_.listen(
+    this.getElement(), 'keypress', function(e) {
+      if (document.activeElement == document.body &&
+          String.fromCharCode(e.charCode) == '/') {
+        this.nav_.open();
+        this.searchNavItem_.focus();
+        e.preventDefault();
+      }
+    });
+
   this.handleUrl_();
 };
 
