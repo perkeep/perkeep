@@ -1,0 +1,129 @@
+/*
+Copyright 2013 The Camlistore Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-nav {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgb(51, 51, 51);
+  font-family: 'Open Sans', sans-serif;
+  width: 275px;
+  box-shadow: 0.1em 0 1em 0.3em rgba(0, 0, 0, 0.25);
+  transition: width 75ms ease-out;
+  overflow: hidden;
+}
+
+.cam-nav.cam-nav-collapsed {
+  width: 36px;
+}
+
+.cam-nav-item {
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: 8px center;
+  background-size: auto 17px;
+  border: none;
+  color: rgba(255, 255, 255, 1);
+  padding: 8px 11px 8px 36px;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 400;
+  opacity: 0.9;
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+  transition: color 300ms ease-out;
+  margin: 0;
+}
+
+.cam-nav-item:hover {
+  background-color: rgb(60, 60, 60);
+}
+
+.cam-nav-searchitem:hover,
+.cam-logo:hover {
+  background-color:inherit!important;
+}
+
+.cam-nav.cam-nav-collapsed .cam-nav-item {
+  color: rgba(255, 255, 255, 0);
+}
+
+.cam-nav-item:first-child {
+  margin-top: 2px;
+}
+
+.cam-nav-searchitem {
+  padding-left: 34px;
+}
+
+.cam-nav-searchitem input {
+  border: 1px rgba(255, 255, 255, 0);
+  border-style: solid none;
+  cursor: default;
+  background: none;
+  font: inherit;
+  color: inherit;
+  transition: border-color 200ms ease-out;
+  margin: 0;
+  padding: 0;
+  height: 26px;
+  width: 220px;
+}
+
+.cam-nav-searchitem input::-webkit-input-placeholder {
+  color:inherit;
+}
+.cam-nav-searchitem input::-moz-placeholder {
+  color:inherit;
+}
+.cam-nav-searchitem input:-ms-input-placeholder {
+  color:inherit;
+}
+
+.cam-nav-searchitem input:focus {
+  outline: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.cam-nav-searchitem input:focus::-webkit-input-placeholder {
+  transition: color 200ms ease-out;
+  color:rgba(255, 255, 255, 0.5);
+}
+.cam-nav-searchitem input:focus::-moz-placeholder {
+  transition: color 200ms ease-out;
+  color:rgba(255, 255, 255, 0.5);
+}
+.cam-nav-searchitem input:focus:-ms-input-placeholder {
+  transition: color 200ms ease-out;
+  color:rgba(255, 255, 255, 0.5);
+}
+
+.cam-logo {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  opacity: 0.8;
+  padding: 4px 9px 4px 31px;
+  font-size: 15px;
+  text-decoration: none;
+  width: auto;
+}
+
+.cam-logo:hover {
+  text-decoration: underline;
+}
