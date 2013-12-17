@@ -253,7 +253,12 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
     // TODO(aa): This is kind of a hack, it would be better if the server just
     // returned the base URL and the aspect ratio, rather than specific
     // dimensions.
-    this.thumb_.src = this.getThumbSrc_().split('?')[0] + '?mh=' + rh;
+    var tv = '';
+    if (!!CAMLISTORE_CONFIG) {
+      tv = CAMLISTORE_CONFIG.thumbVersion || '';
+    }
+    this.thumb_.src = this.getThumbSrc_().split('?')[0] + '?mh=' + rh +
+          '&tv=' + tv;
   }
 };
 
