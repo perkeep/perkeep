@@ -19,6 +19,7 @@ package httputil
 import (
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -55,11 +56,17 @@ func IsLocalhost(req *http.Request) bool {
 	if uid == -1 || runtime.GOOS == "darwin" {
 		return from.IP.IsLoopback() && to.IP.IsLoopback()
 	}
-
+	if uid == 0 {
+		log.Printf("camlistored running as root. Don't do that.")
+		return false
+	}
 	if uid > 0 {
-		owner, err := netutil.AddrPairUserid(from, to)
-		if err == nil && owner == uid {
-			return true
+		connUid, err := netutil.AddrPairUserid(from, to)
+		if err == nil {
+			if uid == connUid {
+				return true
+			}
+			log.Printf("auth: local connection uid %d doesn't match server uid %d", connUid, uid)
 		}
 	}
 	return false

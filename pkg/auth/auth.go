@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -258,10 +257,6 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 
 func (da *DevAuth) AddAuthHeader(req *http.Request) {
 	req.SetBasicAuth("", da.Password)
-}
-
-func isLocalhost(addrPort net.IP) bool {
-	return addrPort.IsLoopback()
 }
 
 func IsLocalhost(req *http.Request) bool {
