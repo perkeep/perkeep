@@ -287,8 +287,7 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 
   this.eh_.listen(
     this.getElement(), 'keypress', function(e) {
-      if (document.activeElement == document.body &&
-          String.fromCharCode(e.charCode) == '/') {
+      if (String.fromCharCode(e.charCode) == '/') {
         this.nav_.open();
         this.searchNavItem_.focus();
         e.preventDefault();
