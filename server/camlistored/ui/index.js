@@ -70,18 +70,18 @@ camlistore.IndexPage = function(config, opt_domHelper) {
   this.currentUrl_ = '';
 
   this.searchNavItem_ = new camlistore.Nav.SearchItem(this.dom_, 'magnifying_glass.svg', 'Search');
-  this.newPermanodeNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_14727.svg', 'New permanode');
+  this.newPermanodeNavItem_ = new camlistore.Nav.Item(this.dom_, 'new_permanode.svg', 'New permanode');
   this.searchRootsNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_27307.svg', 'Search roots');
-  this.selectAsCurrentSetNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_10052.svg', 'Select as current set');
+  this.selectAsCurrentSetNavItem_ = new camlistore.Nav.Item(this.dom_, 'target.svg', 'Select as current set');
   this.selectAsCurrentSetNavItem_.setVisible(false);
   this.addToSetNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_16716.svg', 'Add to set');
   this.addToSetNavItem_.setVisible(false);
-  this.createSetWithSelectionNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_13864.svg', 'Create set with 5 items');
+  this.createSetWithSelectionNavItem_ = new camlistore.Nav.Item(this.dom_, 'circled_plus.svg', 'Create set with 5 items');
   this.createSetWithSelectionNavItem_.setVisible(false);
-  this.clearSelectionNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_25337.svg', 'Clear selection');
+  this.clearSelectionNavItem_ = new camlistore.Nav.Item(this.dom_, 'clear.svg', 'Clear selection');
   this.clearSelectionNavItem_.setVisible(false);
-  this.embiggenNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_16981.svg', 'Moar bigger');
-  this.ensmallenNavItem_ = new camlistore.Nav.Item(this.dom_, 'icon_16981_down.svg', 'Less bigger');
+  this.embiggenNavItem_ = new camlistore.Nav.Item(this.dom_, 'up.svg', 'Moar bigger');
+  this.ensmallenNavItem_ = new camlistore.Nav.Item(this.dom_, 'down.svg', 'Less bigger');
   this.logoNavItem_ = new camlistore.Nav.LinkItem(this.dom_, '/favicon.ico', 'Camlistore', '/ui/');
   this.logoNavItem_.addClassName('cam-logo');
 };
