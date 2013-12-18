@@ -32,6 +32,7 @@ limitations under the License.
 }
 
 .cam-nav>.cam-nav-close {
+  cursor: pointer;
   height: 34px;
   opacity: 0.6;
   padding: 9px;
@@ -50,29 +51,33 @@ limitations under the License.
 
 .cam-nav-item {
   background-color: transparent;
-  background-repeat: no-repeat;
   background-position: 8px center;
+  background-repeat: no-repeat;
   background-size: auto 17px;
   border: none;
   color: rgba(255, 255, 255, 1);
-  padding: 8px 11px 8px 36px;
+  cursor: pointer;
   font-family: inherit;
   font-size: 19px;
   font-weight: 400;
+  margin: 0;
   opacity: 0.9;
-  white-space: nowrap;
-  width: 100%;
+  padding: 8px 11px 8px 36px;
   text-align: left;
   transition: color 300ms ease-out;
-  margin: 0;
+  white-space: nowrap;
+  width: 100%;
 }
 
-.cam-nav-item:hover {
+.cam-nav-item:hover,
+.cam-nav-item:focus {
   background-color: rgb(60, 60, 60);
 }
 
 .cam-nav-searchitem:hover,
-.cam-logo:hover {
+.cam-nav-searchitem:focus,
+.cam-logo:hover,
+.cam-logo:focus {
   background-color:inherit!important;
 }
 
@@ -85,6 +90,7 @@ limitations under the License.
 }
 
 .cam-nav-searchitem {
+  cursor: default;
   padding-left: 34px;
 }
 
