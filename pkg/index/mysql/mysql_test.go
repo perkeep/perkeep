@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2012 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,13 +20,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"testing"
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/index/mysql"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/kvtest"
+	"camlistore.org/pkg/sorted/mysql"
 	"camlistore.org/pkg/test"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
@@ -40,47 +43,19 @@ var (
 
 func checkDB() {
 	var err error
-	if rootdb, err = sql.Open("mymysql", "mysql/root/root"); err == nil {
-		var n int
-		err := rootdb.QueryRow("SELECT COUNT(*) FROM user").Scan(&n)
-		if err == nil {
-			dbAvailable = true
-		}
-	}
-}
-
-func makeIndex() *index.Index {
-	dbname := "camlitest_" + osutil.Username()
-	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
-	do(rootdb, "CREATE DATABASE "+dbname)
-
-	db, err := sql.Open("mymysql", dbname+"/root/root")
+	rootdb, err = sql.Open("mymysql", "mysql/root/root")
 	if err != nil {
-		panic("opening test database: " + err.Error())
-	}
-	for _, tableSql := range mysql.SQLCreateTables() {
-		do(db, tableSql)
-	}
-
-	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
-	s, err := mysql.NewStorage("localhost", "root", "root", dbname)
-	if err != nil {
-		panic(err)
-	}
-	return index.New(s)
-}
-
-func do(db *sql.DB, sql string) {
-	_, err := db.Exec(sql)
-	if err == nil {
+		log.Printf("Could not open rootdb: %v", err)
 		return
 	}
-	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
+	var n int
+	err = rootdb.QueryRow("SELECT COUNT(*) FROM user").Scan(&n)
+	if err == nil {
+		dbAvailable = true
+	}
 }
 
-type mysqlTester struct{}
-
-func (mysqlTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
+func skipOrFailIfNoMySQL(t *testing.T) {
 	once.Do(checkDB)
 	if !dbAvailable {
 		// TODO(bradfitz): accept somehow other passwords than
@@ -89,6 +64,68 @@ func (mysqlTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index))
 		err := errors.New("Not running; start a MySQL daemon on the standard port (3306) with root password 'root'")
 		test.DependencyErrorOrSkip(t)
 		t.Fatalf("MySQL not available locally for testing: %v", err)
+	}
+}
+
+func do(db *sql.DB, sql string) {
+	_, err := db.Exec(sql)
+	if err == nil {
+		return
+	}
+	log.Fatalf("Error %v running SQL: %s", err, sql)
+}
+
+func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
+	skipOrFailIfNoMySQL(t)
+	dbname := "camlitest_" + osutil.Username()
+	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
+	do(rootdb, "CREATE DATABASE "+dbname)
+
+	db, err := sql.Open("mymysql", dbname+"/root/root")
+	if err != nil {
+		t.Fatalf("opening test database: " + err.Error())
+	}
+	for _, tableSql := range mysql.SQLCreateTables() {
+		do(db, tableSql)
+	}
+	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
+
+	kv, err = mysql.NewKeyValue(mysql.Config{
+		Database: dbname,
+		User:     "root",
+		Password: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kv, func() {
+		kv.Close()
+	}
+}
+
+func TestSortedKV(t *testing.T) {
+	kv, clean := newSorted(t)
+	defer clean()
+	kvtest.TestSorted(t, kv)
+}
+
+type mysqlTester struct{}
+
+func (mysqlTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
+	var mu sync.Mutex // guards cleanups
+	var cleanups []func()
+	defer func() {
+		mu.Lock() // never unlocked
+		for _, fn := range cleanups {
+			fn()
+		}
+	}()
+	makeIndex := func() *index.Index {
+		s, cleanup := newSorted(t)
+		mu.Lock()
+		cleanups = append(cleanups, cleanup)
+		mu.Unlock()
+		return index.New(s)
 	}
 	tfn(t, makeIndex)
 }

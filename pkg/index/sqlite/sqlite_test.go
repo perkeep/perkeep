@@ -38,7 +38,6 @@ import (
 var (
 	once        sync.Once
 	dbAvailable bool
-	rootdb      *sql.DB
 )
 
 func do(db *sql.DB, sql string) {

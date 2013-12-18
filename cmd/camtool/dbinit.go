@@ -25,9 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/index/mysql"
 	"camlistore.org/pkg/index/postgres"
 	"camlistore.org/pkg/sorted/mongo"
+	"camlistore.org/pkg/sorted/mysql"
 	"camlistore.org/pkg/sorted/sqlite"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"

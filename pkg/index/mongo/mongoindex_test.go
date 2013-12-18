@@ -83,17 +83,20 @@ func TestSortedKV(t *testing.T) {
 type mongoTester struct{}
 
 func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
-	skipOrFailIfNoMongo(t)
 	defer test.TLog(t)()
+	var mu sync.Mutex // guards cleanups
 	var cleanups []func()
 	defer func() {
+		mu.Lock() // never unlocked
 		for _, fn := range cleanups {
 			fn()
 		}
 	}()
 	initIndex := func() *index.Index {
 		kv, cleanup := newSorted(t)
+		mu.Lock()
 		cleanups = append(cleanups, cleanup)
+		mu.Unlock()
 		return index.New(kv)
 	}
 	tfn(t, initIndex)

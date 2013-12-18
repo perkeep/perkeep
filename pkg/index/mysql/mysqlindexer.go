@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2011 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,116 +19,38 @@ limitations under the License.
 package mysql
 
 import (
-	"database/sql"
-	"fmt"
-	"os"
-
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/sqlindex"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/sorted/mysql"
 
 	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 )
 
-type myIndexStorage struct {
-	*sqlindex.Storage
-
-	host, user, password, database string
-	db                             *sql.DB
+func init() {
+	blobserver.RegisterStorageConstructor("mysqlindexer", newFromConfig)
 }
-
-var _ sorted.KeyValue = (*myIndexStorage)(nil)
-
-// NewStorage returns an sorted.KeyValue implementation of the described MySQL database.
-// This exists mostly for testing and does not initialize the schema.
-func NewStorage(host, user, password, dbname string) (sorted.KeyValue, error) {
-	// TODO(bradfitz): host is ignored; how to plumb it through with mymysql?
-	dsn := dbname + "/" + user + "/" + password
-	db, err := sql.Open("mymysql", dsn)
-	if err != nil {
-		return nil, err
-	}
-	// TODO(bradfitz): ping db, check that it's reachable.
-	return &myIndexStorage{
-		db: db,
-		Storage: &sqlindex.Storage{
-			DB: db,
-		},
-		host:     host,
-		user:     user,
-		password: password,
-		database: dbname,
-	}, nil
-}
-
-const fixSchema20to21 = `Character set in tables changed to binary, you can fix your tables with:
-ALTER TABLE rows CONVERT TO CHARACTER SET binary;
-ALTER TABLE meta CONVERT TO CHARACTER SET binary;
-UPDATE meta SET value=21 WHERE metakey='version' AND value=20;
-`
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
-	var (
-		blobPrefix = config.RequiredString("blobSource")
-		host       = config.OptionalString("host", "localhost")
-		user       = config.RequiredString("user")
-		password   = config.OptionalString("password", "")
-		database   = config.RequiredString("database")
-	)
-	if err := config.Validate(); err != nil {
+	blobPrefix := config.RequiredString("blobSource")
+	mysqlConf, err := mysql.ConfigFromJSON(config)
+	if err != nil {
 		return nil, err
 	}
+	kv, err := mysql.NewKeyValue(mysqlConf)
+	if err != nil {
+		return nil, err
+	}
+
+	ix := index.New(kv)
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
+		ix.Close()
 		return nil, err
 	}
-	isto, err := NewStorage(host, user, password, database)
-	if err != nil {
-		return nil, err
-	}
-	is := isto.(*myIndexStorage)
-	if err := is.ping(); err != nil {
-		return nil, err
-	}
-
-	version, err := is.SchemaVersion()
-	if err != nil {
-		return nil, fmt.Errorf("error getting schema version (need to init database?): %v", err)
-	}
-	if version != requiredSchemaVersion {
-		if version == 20 && requiredSchemaVersion == 21 {
-			fmt.Fprintf(os.Stderr, fixSchema20to21)
-		}
-		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
-			// Good signal that we're using the devcam server, so help out
-			// the user with a more useful tip:
-			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)
-		}
-		return nil, fmt.Errorf("database schema version is %d; expect %d (need to re-init/upgrade database?)",
-			version, requiredSchemaVersion)
-	}
-
-	ix := index.New(is)
 	ix.BlobSource = sto
 	// Good enough, for now:
 	ix.KeyFetcher = ix.BlobSource
 
 	return ix, nil
-}
-
-func init() {
-	blobserver.RegisterStorageConstructor("mysqlindexer", blobserver.StorageConstructor(newFromConfig))
-}
-
-func (mi *myIndexStorage) ping() error {
-	// TODO(bradfitz): something more efficient here?
-	_, err := mi.SchemaVersion()
-	return err
-}
-
-func (mi *myIndexStorage) SchemaVersion() (version int, err error) {
-	err = mi.db.QueryRow("SELECT value FROM meta WHERE metakey='version'").Scan(&version)
-	return
 }
