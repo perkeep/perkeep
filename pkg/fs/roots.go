@@ -63,6 +63,30 @@ func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	return ents, nil
 }
 
+func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if err := n.condRefresh(); err != nil {
+		return err
+	}
+	br := n.m[req.Name]
+	if !br.Valid() {
+		return fuse.ENOENT
+	}
+
+	claim := schema.NewDelAttributeClaim(br, "camliRoot", "")
+	_, err := n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Println("rootsDir.Remove:", err)
+		return fuse.EIO
+	}
+
+	delete(n.m, req.Name)
+
+	return nil
+}
+
 func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	log.Printf("fs.roots: Lookup(%q)", name)
 	n.mu.Lock()
