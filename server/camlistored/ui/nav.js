@@ -34,25 +34,31 @@ camlistore.Nav = function(domHelper, opt_delegate) {
 
   this.delegate_ = opt_delegate;
   this.expandTimer_ = 0;
-  this.collapseTimer_ = 0;
 };
 goog.inherits(camlistore.Nav, goog.ui.Container);
 
 camlistore.Nav.prototype.createDom = function() {
   this.setElementInternal(this.dom_.createDom('div'));
   goog.dom.classes.add(this.element_, 'cam-nav');
+
+  this.closeButton_ = this.dom_.createDom('img', 'cam-nav-close');
+  this.closeButton_.src = 'close.svg';
+  this.getElement().appendChild(this.closeButton_);
+
   this.close();
 };
 
 camlistore.Nav.prototype.enterDocument = function() {
   goog.base(this, 'enterDocument');
 
-  this.getHandler().listen(this.getElement(), goog.events.EventType.MOUSEOVER,
+  this.getHandler().listen(this.getElement(), 'mouseover',
       this.handleMouseOver_);
-  this.getHandler().listen(this.getElement(), goog.events.EventType.MOUSEOUT,
-      this.handleMouseOut_);
-  this.getHandler().listen(this.getElement(), goog.events.EventType.CLICK,
-      this.toggle.bind(this));
+  this.getHandler().listen(this.getElement(), 'mouseout', this.handleMouseOut_);
+
+  this.getHandler().listen(this.closeButton_, 'click', function(e) {
+    e.stopPropagation();
+    this.close();
+  }.bind(this));
 
   this.getHandler().listen(this.getElement(), 'keyup', function(e) {
     if (e.keyCode == goog.events.KeyCodes.ESC) {
@@ -92,28 +98,16 @@ camlistore.Nav.prototype.toggle = function() {
 };
 
 camlistore.Nav.prototype.handleMouseOver_ = function() {
-  if (this.collapseTimer_) {
-    window.clearTimeout(this.collapseTimer_);
-    this.collapseTimer_ = 0;
-  } else {
-    this.expandTimer_ = window.setTimeout(function() {
-      this.expandTimer_ = 0;
-      this.open();
-    }.bind(this), 250);
-  }
+  this.expandTimer_ = window.setTimeout(function() {
+    this.expandTimer_ = 0;
+    this.open();
+  }.bind(this), 250);
 };
 
 camlistore.Nav.prototype.handleMouseOut_ = function() {
   if (this.expandTimer_) {
     window.clearTimeout(this.expandTimer_);
     this.expandTimer_ = 0;
-  } else {
-    if (this.isOpen()) {
-      this.collapseTimer_ = window.setTimeout(function() {
-        this.collapseTimer_ = 0;
-        this.close();
-      }.bind(this), 500);
-    }
   }
 };
 
@@ -184,7 +178,7 @@ camlistore.Nav.SearchItem.prototype.createDom = function() {
 camlistore.Nav.SearchItem.prototype.enterDocument = function() {
   goog.base(this, 'enterDocument');
 
-  this.getHandler().listen(this.getElement(), 'mouseover',
+  this.getHandler().listen(this.input_, 'mouseover',
                            this.input_.focus.bind(this.input_));
 
   this.getHandler().listen(this.getElement(), 'click', function(e) {
