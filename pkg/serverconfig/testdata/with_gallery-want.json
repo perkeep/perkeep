@@ -76,7 +76,10 @@
 					"/sighelper/",
 					"sha1-xxxxx"
 				],
-				"scaledImage": "lrucache",
+				"scaledImage": {
+					"type": "kv",
+					"file": "/tmp/camli-cache/thumbnails.kv"
+             	},
 				"searchRoot": "/my-search/"
 			}
 		},

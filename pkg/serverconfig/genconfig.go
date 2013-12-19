@@ -100,7 +100,16 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 		if js != "" {
 			handlerArgs["js"] = []interface{}{js}
 		}
-		handlerArgs["scaledImage"] = "lrucache"
+		// TODO(mpl): we'll probably want to use osutil.CacheDir() if thumbnails.kv
+		// contains private info? same for some of the other "camli-cache" ones?
+		thumbsCacheDir := filepath.Join(tempDir(), "camli-cache")
+		handlerArgs["scaledImage"] = map[string]interface{}{
+			"type": "kv",
+			"file": filepath.Join(thumbsCacheDir, "thumbnails.kv"),
+		}
+		if err := os.MkdirAll(thumbsCacheDir, 0700); err != nil {
+			return nil, fmt.Errorf("Could not create cache dir %s: %v", thumbsCacheDir, err)
+		}
 		ob["handlerArgs"] = handlerArgs
 		prefixes[k] = ob
 		pubPrefixes = append(pubPrefixes, k)
