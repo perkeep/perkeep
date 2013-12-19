@@ -35,6 +35,7 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
@@ -330,8 +331,7 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 
 func (ph *PublishHandler) ViewerIsOwner(req *http.Request) bool {
 	// TODO: better check later
-	return strings.HasPrefix(req.RemoteAddr, "127.") ||
-		strings.HasPrefix(req.RemoteAddr, "localhost:")
+	return auth.Allowed(req, auth.OpAll)
 }
 
 func (pr *publishRequest) ViewerIsOwner() bool {
