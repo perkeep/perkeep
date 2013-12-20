@@ -1,2 +1,0 @@
-@interface Panel : NSPanel
-@end

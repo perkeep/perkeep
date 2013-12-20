@@ -1,0 +1,507 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DA71BCB718642A3A000A102C /* Camlicon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* Camlicon.icns */; };
+		DAABA574186435DA000D62B6 /* camlistored in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
+		DAABA575186435DA000D62B6 /* cammount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* cammount */; };
+		DAABA57718643710000D62B6 /* Credits.html in Resources */ = {isa = PBXBuildFile; fileRef = DAABA57618643710000D62B6 /* Credits.html */; };
+		DAF109491863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109481863EDAF00F6A3F9 /* Cocoa.framework */; };
+		DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DAF109511863EDAF00F6A3F9 /* InfoPlist.strings */; };
+		DAF109551863EDAF00F6A3F9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF109541863EDAF00F6A3F9 /* main.m */; };
+		DAF1095C1863EDAF00F6A3F9 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF1095B1863EDAF00F6A3F9 /* AppDelegate.m */; };
+		DAF109611863EDAF00F6A3F9 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DAF109601863EDAF00F6A3F9 /* Images.xcassets */; };
+		DAF109681863EDAF00F6A3F9 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109671863EDAF00F6A3F9 /* XCTest.framework */; };
+		DAF109691863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109481863EDAF00F6A3F9 /* Cocoa.framework */; };
+		DAF109711863EDAF00F6A3F9 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DAF1096F1863EDAF00F6A3F9 /* InfoPlist.strings */; };
+		DAF109731863EDAF00F6A3F9 /* CamlistoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */; };
+		DAF1097E1863EEFB00F6A3F9 /* LoginItemManager.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF1097D1863EEFB00F6A3F9 /* LoginItemManager.m */; };
+		DAF109831863F1F900F6A3F9 /* menuicon-selected.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */; };
+		DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */; };
+		DAF109851863F1F900F6A3F9 /* menuicon.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109811863F1F900F6A3F9 /* menuicon.png */; };
+		DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109821863F1F900F6A3F9 /* menuicon@2x.png */; };
+		DAF1098A1863FDD600F6A3F9 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = DAF1095D1863EDAF00F6A3F9 /* MainMenu.xib */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DAF1096A1863EDAF00F6A3F9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DAF1093D1863EDAF00F6A3F9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DAF109441863EDAF00F6A3F9;
+			remoteInfo = Camlistore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		DA71BCB618642A3A000A102C /* Camlicon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Camlicon.icns; sourceTree = "<group>"; };
+		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../../bin/camlistored; sourceTree = "<group>"; };
+		DAABA573186435DA000D62B6 /* cammount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = cammount; path = ../../../bin/cammount; sourceTree = "<group>"; };
+		DAABA57618643710000D62B6 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
+		DAF109451863EDAF00F6A3F9 /* Camlistore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Camlistore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAF109481863EDAF00F6A3F9 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		DAF1094B1863EDAF00F6A3F9 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		DAF1094C1863EDAF00F6A3F9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
+		DAF1094D1863EDAF00F6A3F9 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		DAF109501863EDAF00F6A3F9 /* Camlistore-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Camlistore-Info.plist"; sourceTree = "<group>"; };
+		DAF109521863EDAF00F6A3F9 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		DAF109541863EDAF00F6A3F9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		DAF109561863EDAF00F6A3F9 /* Camlistore-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Camlistore-Prefix.pch"; sourceTree = "<group>"; };
+		DAF1095A1863EDAF00F6A3F9 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		DAF1095B1863EDAF00F6A3F9 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		DAF1095E1863EDAF00F6A3F9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
+		DAF109601863EDAF00F6A3F9 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
+		DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CamlistoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAF109671863EDAF00F6A3F9 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		DAF1096E1863EDAF00F6A3F9 /* CamlistoreTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CamlistoreTests-Info.plist"; sourceTree = "<group>"; };
+		DAF109701863EDAF00F6A3F9 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CamlistoreTests.m; sourceTree = "<group>"; };
+		DAF1097C1863EEFB00F6A3F9 /* LoginItemManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LoginItemManager.h; sourceTree = "<group>"; };
+		DAF1097D1863EEFB00F6A3F9 /* LoginItemManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LoginItemManager.m; sourceTree = "<group>"; };
+		DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon-selected.png"; sourceTree = "<group>"; };
+		DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon-selected@2x.png"; sourceTree = "<group>"; };
+		DAF109811863F1F900F6A3F9 /* menuicon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = menuicon.png; sourceTree = "<group>"; };
+		DAF109821863F1F900F6A3F9 /* menuicon@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon@2x.png"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DAF109421863EDAF00F6A3F9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAF109491863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DAF109631863EDAF00F6A3F9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAF109691863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */,
+				DAF109681863EDAF00F6A3F9 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DAF1093C1863EDAF00F6A3F9 = {
+			isa = PBXGroup;
+			children = (
+				DAABA572186435DA000D62B6 /* camlistored */,
+				DAABA573186435DA000D62B6 /* cammount */,
+				DAF1094E1863EDAF00F6A3F9 /* Camlistore */,
+				DAF1096C1863EDAF00F6A3F9 /* CamlistoreTests */,
+				DAF109471863EDAF00F6A3F9 /* Frameworks */,
+				DAF109461863EDAF00F6A3F9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DAF109461863EDAF00F6A3F9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DAF109451863EDAF00F6A3F9 /* Camlistore.app */,
+				DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DAF109471863EDAF00F6A3F9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DAF109481863EDAF00F6A3F9 /* Cocoa.framework */,
+				DAF109671863EDAF00F6A3F9 /* XCTest.framework */,
+				DAF1094A1863EDAF00F6A3F9 /* Other Frameworks */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DAF1094A1863EDAF00F6A3F9 /* Other Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DAF1094B1863EDAF00F6A3F9 /* AppKit.framework */,
+				DAF1094C1863EDAF00F6A3F9 /* CoreData.framework */,
+				DAF1094D1863EDAF00F6A3F9 /* Foundation.framework */,
+			);
+			name = "Other Frameworks";
+			sourceTree = "<group>";
+		};
+		DAF1094E1863EDAF00F6A3F9 /* Camlistore */ = {
+			isa = PBXGroup;
+			children = (
+				DAF1095A1863EDAF00F6A3F9 /* AppDelegate.h */,
+				DAF1095B1863EDAF00F6A3F9 /* AppDelegate.m */,
+				DAF1097C1863EEFB00F6A3F9 /* LoginItemManager.h */,
+				DAF1097D1863EEFB00F6A3F9 /* LoginItemManager.m */,
+				DAF1095D1863EDAF00F6A3F9 /* MainMenu.xib */,
+				DAF109601863EDAF00F6A3F9 /* Images.xcassets */,
+				DAF1094F1863EDAF00F6A3F9 /* Supporting Files */,
+			);
+			path = Camlistore;
+			sourceTree = "<group>";
+		};
+		DAF1094F1863EDAF00F6A3F9 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				DAABA57618643710000D62B6 /* Credits.html */,
+				DA71BCB618642A3A000A102C /* Camlicon.icns */,
+				DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */,
+				DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */,
+				DAF109811863F1F900F6A3F9 /* menuicon.png */,
+				DAF109821863F1F900F6A3F9 /* menuicon@2x.png */,
+				DAF109501863EDAF00F6A3F9 /* Camlistore-Info.plist */,
+				DAF109511863EDAF00F6A3F9 /* InfoPlist.strings */,
+				DAF109541863EDAF00F6A3F9 /* main.m */,
+				DAF109561863EDAF00F6A3F9 /* Camlistore-Prefix.pch */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		DAF1096C1863EDAF00F6A3F9 /* CamlistoreTests */ = {
+			isa = PBXGroup;
+			children = (
+				DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */,
+				DAF1096D1863EDAF00F6A3F9 /* Supporting Files */,
+			);
+			path = CamlistoreTests;
+			sourceTree = "<group>";
+		};
+		DAF1096D1863EDAF00F6A3F9 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				DAF1096E1863EDAF00F6A3F9 /* CamlistoreTests-Info.plist */,
+				DAF1096F1863EDAF00F6A3F9 /* InfoPlist.strings */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DAF109441863EDAF00F6A3F9 /* Camlistore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Camlistore" */;
+			buildPhases = (
+				DAF109411863EDAF00F6A3F9 /* Sources */,
+				DAF109421863EDAF00F6A3F9 /* Frameworks */,
+				DAF109431863EDAF00F6A3F9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Camlistore;
+			productName = Camlistore;
+			productReference = DAF109451863EDAF00F6A3F9 /* Camlistore.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DAF109651863EDAF00F6A3F9 /* CamlistoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "CamlistoreTests" */;
+			buildPhases = (
+				DAF109621863EDAF00F6A3F9 /* Sources */,
+				DAF109631863EDAF00F6A3F9 /* Frameworks */,
+				DAF109641863EDAF00F6A3F9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DAF1096B1863EDAF00F6A3F9 /* PBXTargetDependency */,
+			);
+			name = CamlistoreTests;
+			productName = CamlistoreTests;
+			productReference = DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DAF1093D1863EDAF00F6A3F9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0500;
+				ORGANIZATIONNAME = Camlistore;
+				TargetAttributes = {
+					DAF109651863EDAF00F6A3F9 = {
+						TestTargetID = DAF109441863EDAF00F6A3F9;
+					};
+				};
+			};
+			buildConfigurationList = DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Camlistore" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DAF1093C1863EDAF00F6A3F9;
+			productRefGroup = DAF109461863EDAF00F6A3F9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DAF109441863EDAF00F6A3F9 /* Camlistore */,
+				DAF109651863EDAF00F6A3F9 /* CamlistoreTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DAF109431863EDAF00F6A3F9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAABA574186435DA000D62B6 /* camlistored in Resources */,
+				DAABA575186435DA000D62B6 /* cammount in Resources */,
+				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
+				DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */,
+				DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */,
+				DA71BCB718642A3A000A102C /* Camlicon.icns in Resources */,
+				DAABA57718643710000D62B6 /* Credits.html in Resources */,
+				DAF109611863EDAF00F6A3F9 /* Images.xcassets in Resources */,
+				DAF109851863F1F900F6A3F9 /* menuicon.png in Resources */,
+				DAF109831863F1F900F6A3F9 /* menuicon-selected.png in Resources */,
+				DAF1098A1863FDD600F6A3F9 /* MainMenu.xib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DAF109641863EDAF00F6A3F9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAF109711863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DAF109411863EDAF00F6A3F9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAF1097E1863EEFB00F6A3F9 /* LoginItemManager.m in Sources */,
+				DAF1095C1863EDAF00F6A3F9 /* AppDelegate.m in Sources */,
+				DAF109551863EDAF00F6A3F9 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DAF109621863EDAF00F6A3F9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAF109731863EDAF00F6A3F9 /* CamlistoreTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DAF1096B1863EDAF00F6A3F9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DAF109441863EDAF00F6A3F9 /* Camlistore */;
+			targetProxy = DAF1096A1863EDAF00F6A3F9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		DAF109511863EDAF00F6A3F9 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DAF109521863EDAF00F6A3F9 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		DAF1095D1863EDAF00F6A3F9 /* MainMenu.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DAF1095E1863EDAF00F6A3F9 /* Base */,
+			);
+			name = MainMenu.xib;
+			sourceTree = "<group>";
+		};
+		DAF1096F1863EDAF00F6A3F9 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				DAF109701863EDAF00F6A3F9 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		DAF109741863EDAF00F6A3F9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		DAF109751863EDAF00F6A3F9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DAF109771863EDAF00F6A3F9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
+				INFOPLIST_FILE = "Camlistore/Camlistore-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		DAF109781863EDAF00F6A3F9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
+				INFOPLIST_FILE = "Camlistore/Camlistore-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+		DAF1097A1863EDAF00F6A3F9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Camlistore.app/Contents/MacOS/Camlistore";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "CamlistoreTests/CamlistoreTests-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUNDLE_LOADER)";
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Debug;
+		};
+		DAF1097B1863EDAF00F6A3F9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Camlistore.app/Contents/MacOS/Camlistore";
+				COMBINE_HIDPI_IMAGES = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(DEVELOPER_FRAMEWORKS_DIR)",
+					"$(inherited)",
+				);
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
+				INFOPLIST_FILE = "CamlistoreTests/CamlistoreTests-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUNDLE_LOADER)";
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Camlistore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DAF109741863EDAF00F6A3F9 /* Debug */,
+				DAF109751863EDAF00F6A3F9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Camlistore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DAF109771863EDAF00F6A3F9 /* Debug */,
+				DAF109781863EDAF00F6A3F9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "CamlistoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DAF1097A1863EDAF00F6A3F9 /* Debug */,
+				DAF1097B1863EDAF00F6A3F9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DAF1093D1863EDAF00F6A3F9 /* Project object */;
+}

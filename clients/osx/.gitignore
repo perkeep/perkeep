@@ -1,0 +1,4 @@
+*.pbxuser
+*.xccheckout
+build/
+xcuserdata

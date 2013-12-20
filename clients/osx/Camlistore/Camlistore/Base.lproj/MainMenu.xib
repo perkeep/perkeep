@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="4514" systemVersion="13A603" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="4514"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="NSApplication">
+            <connections>
+                <outlet property="delegate" destination="494" id="495"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application">
+            <connections>
+                <outlet property="delegate" destination="494" id="4I3-6t-SwL"/>
+            </connections>
+        </customObject>
+        <customObject id="494" customClass="AppDelegate">
+            <connections>
+                <outlet property="launchAtStartupItem" destination="GR2-0X-4OH" id="RHD-mD-xlm"/>
+                <outlet property="launchBrowserItem" destination="hfr-oA-GCs" id="2Ce-AU-Dpp"/>
+                <outlet property="loginItems" destination="OJb-F9-PP0" id="l1h-PW-Nfa"/>
+                <outlet property="statusMenu" destination="fQJ-G9-pV9" id="mNj-Xx-GPr"/>
+            </connections>
+        </customObject>
+        <customObject id="OJb-F9-PP0" customClass="LoginItemManager"/>
+        <menu id="fQJ-G9-pV9">
+            <items>
+                <menuItem title="About Camlistore" id="2M1-Mo-00O">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="showAboutPanel:" target="494" id="Bun-Q5-GMx"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Open Web UI" id="dmg-QG-30c">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="browse:" target="494" id="D3k-m9-wla"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Show Logs" id="oOG-aM-YBG">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="showLogs:" target="494" id="m9v-1U-Wue"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Open Google Group" id="yCg-Hg-T06">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="showTechSupport:" target="494" id="bdc-sG-DWC"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="PKM-vr-wTw"/>
+                <menuItem title="Launch UI at Start" state="on" id="hfr-oA-GCs">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="setLaunchPref:" target="494" id="TtE-Uw-Eg8"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Automatically Start at Login" id="GR2-0X-4OH">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="changeLoginItems:" target="494" id="RkL-h9-dGr"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="9ga-XP-2ib"/>
+                <menuItem title="Quit Camlistore" id="Kw8-MF-pCZ">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="terminate:" target="-3" id="yNp-Vh-8zG"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <userDefaultsController id="tDr-Bx-Vks"/>
+    </objects>
+</document>
