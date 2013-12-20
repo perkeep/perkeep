@@ -26,6 +26,7 @@
 		DAF109851863F1F900F6A3F9 /* menuicon.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109811863F1F900F6A3F9 /* menuicon.png */; };
 		DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109821863F1F900F6A3F9 /* menuicon@2x.png */; };
 		DAF1098A1863FDD600F6A3F9 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = DAF1095D1863EDAF00F6A3F9 /* MainMenu.xib */; };
+		DAF63B9D1864D0AC0000EAC9 /* FUSEManager.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF63B9C1864D0AC0000EAC9 /* FUSEManager.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,8 @@
 		DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon-selected@2x.png"; sourceTree = "<group>"; };
 		DAF109811863F1F900F6A3F9 /* menuicon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = menuicon.png; sourceTree = "<group>"; };
 		DAF109821863F1F900F6A3F9 /* menuicon@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon@2x.png"; sourceTree = "<group>"; };
+		DAF63B9B1864D0AC0000EAC9 /* FUSEManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FUSEManager.h; sourceTree = "<group>"; };
+		DAF63B9C1864D0AC0000EAC9 /* FUSEManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FUSEManager.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +144,8 @@
 				DAF1095D1863EDAF00F6A3F9 /* MainMenu.xib */,
 				DAF109601863EDAF00F6A3F9 /* Images.xcassets */,
 				DAF1094F1863EDAF00F6A3F9 /* Supporting Files */,
+				DAF63B9B1864D0AC0000EAC9 /* FUSEManager.h */,
+				DAF63B9C1864D0AC0000EAC9 /* FUSEManager.m */,
 			);
 			path = Camlistore;
 			sourceTree = "<group>";
@@ -287,6 +292,7 @@
 			files = (
 				DAF1097E1863EEFB00F6A3F9 /* LoginItemManager.m in Sources */,
 				DAF1095C1863EDAF00F6A3F9 /* AppDelegate.m in Sources */,
+				DAF63B9D1864D0AC0000EAC9 /* FUSEManager.m in Sources */,
 				DAF109551863EDAF00F6A3F9 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

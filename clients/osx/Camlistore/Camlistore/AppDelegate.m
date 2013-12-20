@@ -140,17 +140,27 @@ limitations under the License.
     NSLog(@"Launched server task -- pid = %d", task.processIdentifier);
 }
 
-- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
-{
+- (void) shutdownEvent {
+    shutdownWaitEvents--;
+    NSLog(@"Received a shutdown event.  %d to go", shutdownWaitEvents);
+    if (shutdownWaitEvents == 0) {
+        NSLog(@"Received last shutdown event.  bye");
+        [NSApp replyToApplicationShouldTerminate:NSTerminateNow];
+    }
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     NSLog(@"Asking if we should terminate...");
     BOOL isRunning = [task isRunning];
     if (isRunning) {
-        [self stopTask];
         terminatingApp = YES;
-        // Ideally we should return NSTerminateLater, but if we do so then neither -taskTerminated:
-        // nor -killTask will ever be called. I think this is because the runloop ends up in a
-        // weird waiting-to-terminate mode that doesn't process those notifications.
-        return NSTerminateCancel;
+        [self stopTask];
+        shutdownWaitEvents = 1;
+        if ([fuseManager isMounted]) {
+            [fuseManager dismount];
+            shutdownWaitEvents++;
+        }
+        return NSTerminateLater;
     }
     return NSTerminateNow;
 }
@@ -193,7 +203,7 @@ limitations under the License.
 
     if (terminatingApp) {
         // I was just waiting for the task to exit before quitting
-        [NSApp stop: self];
+        [self shutdownEvent];
     } else {
         time_t now = time(NULL);
         if (now - startTime < MIN_LIFETIME) {
@@ -269,7 +279,6 @@ limitations under the License.
 }
 
 - (IBAction)setLaunchPref:(id)sender {
-
     NSCellStateValue stateVal = [sender state];
     stateVal = (stateVal == NSOnState) ? NSOffState : NSOnState;
 
@@ -318,5 +327,26 @@ limitations under the License.
         return;
     }
 }
+
+- (IBAction)toggleMount:(id)sender {
+    NSLog(@"Toggling mount");
+    if ([fuseManager isMounted]) {
+        [fuseManager dismount];
+    } else {
+        [fuseManager mount];
+    }
+}
+
+- (void) fuseDismounted {
+    NSLog(@"FUSE dismounted");
+    if (terminatingApp) {
+        [self shutdownEvent];
+    }
+}
+
+- (void) fuseMounted {
+    NSLog(@"FUSE mounted");
+}
+
 
 @end

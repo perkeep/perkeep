@@ -17,6 +17,8 @@
         </customObject>
         <customObject id="494" customClass="AppDelegate">
             <connections>
+                <outlet property="fuseManager" destination="L1b-50-UiS" id="7Ra-P2-V1a"/>
+                <outlet property="fuseMountItem" destination="rTv-R4-l8s" id="Fqj-Y2-7lv"/>
                 <outlet property="launchAtStartupItem" destination="GR2-0X-4OH" id="RHD-mD-xlm"/>
                 <outlet property="launchBrowserItem" destination="hfr-oA-GCs" id="2Ce-AU-Dpp"/>
                 <outlet property="loginItems" destination="OJb-F9-PP0" id="l1h-PW-Nfa"/>
@@ -36,6 +38,13 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="browse:" target="494" id="D3k-m9-wla"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Mount Filesystem" id="rTv-R4-l8s">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="toggleMount:" target="494" id="y5Q-xF-GYz"/>
+                        <binding destination="L1b-50-UiS" name="value" keyPath="self.mounted" id="5Vp-VU-FWI"/>
                     </connections>
                 </menuItem>
                 <menuItem title="Show Logs" id="oOG-aM-YBG">
@@ -73,5 +82,10 @@
             </items>
         </menu>
         <userDefaultsController id="tDr-Bx-Vks"/>
+        <customObject id="L1b-50-UiS" customClass="FUSEManager">
+            <connections>
+                <outlet property="delegate" destination="494" id="mWI-nd-MCr"/>
+            </connections>
+        </customObject>
     </objects>
 </document>
