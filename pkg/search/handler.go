@@ -655,6 +655,12 @@ type DescribeRequest struct {
 	// directory. If zero, a default is used.
 	MaxDirChildren int
 
+	// At specifies the time which we wish to see the state of
+	// this blob.  If zero (unspecified), all claims will be
+	// considered, otherwise, any claims after this date will not
+	// be considered.
+	At types.Time3339
+
 	ThumbnailSize int // or zero for none
 
 	// Internal details, used while loading.
@@ -670,7 +676,8 @@ type DescribeRequest struct {
 
 func (r *DescribeRequest) URLSuffix() string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d", r.depth(), r.maxDirChildren())
+	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d",
+		r.depth(), r.maxDirChildren())
 	for _, br := range r.BlobRefs {
 		buf.WriteString("&blobref=")
 		buf.WriteString(br.String())
@@ -678,6 +685,10 @@ func (r *DescribeRequest) URLSuffix() string {
 	if len(r.BlobRefs) == 0 && r.BlobRef.Valid() {
 		buf.WriteString("&blobref=")
 		buf.WriteString(r.BlobRef.String())
+	}
+	if !r.At.IsZero() {
+		buf.WriteString("&at=")
+		buf.WriteString(r.At.String())
 	}
 	return buf.String()
 }
@@ -699,6 +710,7 @@ func (r *DescribeRequest) fromHTTP(req *http.Request) {
 	r.Depth = httputil.OptionalInt(req, "depth")
 	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
 	r.ThumbnailSize = thumbnailSize(req)
+	r.At = types.ParseTime3339OrZero(req.FormValue("at"))
 }
 
 type DescribedBlob struct {
@@ -1292,6 +1304,11 @@ func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, s
 	sort.Sort(camtypes.ClaimsByDate(claims))
 claimLoop:
 	for _, cl := range claims {
+		if !dr.At.IsZero() {
+			if cl.Date.After(dr.At.Time()) {
+				continue
+			}
+		}
 		switch cl.Type {
 		default:
 			continue
