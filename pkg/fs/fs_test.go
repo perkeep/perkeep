@@ -192,7 +192,7 @@ func TestRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 		sort.Strings(names)
-		want := []string{"WELCOME.txt", "date", "recent", "roots", "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "tag"}
+		want := []string{"WELCOME.txt", "at", "date", "recent", "roots", "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "tag"}
 		if !reflect.DeepEqual(names, want) {
 			t.Errorf("root directory = %q; want %q", names, want)
 		}
