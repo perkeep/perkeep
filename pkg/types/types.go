@@ -18,18 +18,21 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
 var (
 	goVersion  = runtime.Version()
 	dotNumbers = regexp.MustCompile(`\.\d+`)
+	null_b     = []byte("null")
 )
 
 // NopCloser is an io.Closer that does nothing.
@@ -49,15 +52,31 @@ func (t Time3339) String() string {
 }
 
 func (t Time3339) MarshalJSON() ([]byte, error) {
+	if t.Time().IsZero() {
+		return null_b, nil
+	}
 	return json.Marshal(t.String())
 }
 
 func (t *Time3339) UnmarshalJSON(b []byte) error {
+	if bytes.Equal(b, null_b) {
+		*t = Time3339{}
+		return nil
+	}
 	if len(b) < 2 || b[0] != '"' || b[len(b)-1] != '"' {
 		return fmt.Errorf("types: failed to unmarshal non-string value %q as an RFC 3339 time")
 	}
-	tm, err := time.Parse(time.RFC3339Nano, string(b[1:len(b)-1]))
+	s := string(b[1 : len(b)-1])
+	if s == "" {
+		*t = Time3339{}
+		return nil
+	}
+	tm, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
+		if strings.HasPrefix(s, "0000-00-00T00:00:00") {
+			*t = Time3339{}
+			return nil
+		}
 		return err
 	}
 	*t = Time3339(tm)

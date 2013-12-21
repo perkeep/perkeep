@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,11 +48,33 @@ func TestTime3339(t *testing.T) {
 	}
 }
 
+func TestTime3339_Marshal(t *testing.T) {
+	tests := []struct {
+		in   time.Time
+		want string
+	}{
+		{time.Time{}, "null"},
+		{time.Unix(1, 0), `"1970-01-01T00:00:01Z"`},
+	}
+	for i, tt := range tests {
+		got, err := Time3339(tt.in).MarshalJSON()
+		if err != nil {
+			t.Errorf("%d. marshal(%v) got error: %v", i, tt.in, err)
+			continue
+		}
+		if string(got) != tt.want {
+			t.Errorf("%d. marshal(%v) = %q; want %q", i, tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestTime3339_empty(t *testing.T) {
 	tests := []struct {
 		enc string
 		z   bool
 	}{
+		{enc: "null", z: true},
+		{enc: `""`, z: true},
 		{enc: "0000-00-00T00:00:00Z", z: true},
 		{enc: "1970-01-01T00:00:00Z", z: true},
 		{enc: "2001-02-03T04:05:06Z", z: false},
@@ -63,7 +86,14 @@ func TestTime3339_empty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		var tm Time3339
-		err := json.Unmarshal([]byte("\""+tt.enc+"\""), &tm)
+		enc := tt.enc
+		if strings.Contains(enc, "T") {
+			enc = "\"" + enc + "\""
+		}
+		err := json.Unmarshal([]byte(enc), &tm)
+		if err != nil {
+			t.Errorf("unmarshal %q = %v", enc, err)
+		}
 		if tm.IsZero() != tt.z {
 			t.Errorf("unmarshal %q = %v (%d), %v; zero=%v; want %v", tt.enc, tm.Time(), tm.Time().Unix(), err,
 				!tt.z, tt.z)
