@@ -62,6 +62,12 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	testEnumerate(t, kv, "d", "")
 	testEnumerate(t, kv, "d", "e")
 
+	// Verify that < comparison works identically for all DBs (because it is affected by collation rules)
+	// http://postgresql.1045698.n5.nabble.com/String-comparison-and-the-SQL-standard-td5740721.html
+	set("foo|abc", "foo|abcv")
+	testEnumerate(t, kv, "foo|", "", "foo|abcv")
+	testEnumerate(t, kv, "foo|", "foo}", "foo|abcv")
+
 	// Verify that the value isn't being used instead of the key in the range comparison.
 	set("y", "x:foo")
 	testEnumerate(t, kv, "x:", "x~")
