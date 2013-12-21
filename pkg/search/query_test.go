@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"camlistore.org/pkg/index/indextest"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types"
 )
 
 // indexType is one of the three ways we test the query handler code.
@@ -501,8 +503,8 @@ func TestQueryPermanodeModtime(t *testing.T) {
 			Constraint: &Constraint{
 				Permanode: &PermanodeConstraint{
 					ModTime: &TimeConstraint{
-						After:  time.Unix(1322443957, 456789),
-						Before: time.Unix(1322443959, 0),
+						After:  types.Time3339(time.Unix(1322443957, 456789)),
+						Before: types.Time3339(time.Unix(1322443959, 0)),
 					},
 				},
 			},
@@ -567,7 +569,8 @@ func TestQueryRecentPermanodes(t *testing.T) {
 			Sort:     UnspecifiedSort,
 			Describe: &DescribeRequest{},
 		}
-		res, err := qt.Handler().Query(req)
+		handler := qt.Handler()
+		res, err := handler.Query(req)
 		if err != nil {
 			qt.t.Fatal(err)
 		}
@@ -584,6 +587,153 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		}
 		if got := len(res.Describe.Meta); got != 2 {
 			t.Errorf("got %d described blobs; want 2", got)
+		}
+
+		// And test whether continue (for infinite scroll) works:
+		{
+			if got, want := res.Continue, "pn:1322443958000123456:sha1-fbb5be10fcb4c88d32cfdddb20a7b8d13e9ba284"; got != want {
+				t.Fatalf("Continue token = %q; want %q", got, want)
+			}
+			req := &SearchQuery{
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{},
+				},
+				Limit:    2,
+				Sort:     UnspecifiedSort,
+				Continue: res.Continue,
+			}
+			res, err := handler.Query(req)
+			if err != nil {
+				qt.t.Fatal(err)
+			}
+			wantBlobs := []*SearchResultBlob{{Blob: p1}}
+			if !reflect.DeepEqual(res.Blobs, wantBlobs) {
+				gotj, wantj := prettyJSON(res.Blobs), prettyJSON(wantBlobs)
+				t.Errorf("After scroll, got blobs:\n%s\nWant:\n%s\n", gotj, wantj)
+			}
+		}
+	})
+}
+
+// Tests the continue token on recent permanodes, notably when the
+// page limit truncates in the middle of a bunch of permanodes with the
+// same modtime.
+func TestQueryRecentPermanodes_Continue(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		var blobs []blob.Ref
+		for i := 1; i <= 4; i++ {
+			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			blobs = append(blobs, pn)
+			t.Logf("permanode %d is %v", i, pn)
+			id.SetAttribute_NoTimeMove(pn, "foo", "bar")
+		}
+		sort.Sort(blob.ByRef(blobs))
+		for i, br := range blobs {
+			t.Logf("Sorted %d = %v", i, br)
+		}
+		handler := qt.Handler()
+
+		contToken := ""
+		tests := [][]blob.Ref{
+			[]blob.Ref{blobs[3], blobs[2]},
+			[]blob.Ref{blobs[1], blobs[0]},
+			[]blob.Ref{},
+		}
+
+		for i, wantBlobs := range tests {
+			req := &SearchQuery{
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{},
+				},
+				Limit:    2,
+				Sort:     UnspecifiedSort,
+				Continue: contToken,
+			}
+			res, err := handler.Query(req)
+			if err != nil {
+				qt.t.Fatalf("Error on query %d: %v", i+1, err)
+			}
+			t.Logf("Query %d/%d: continue = %q", i+1, len(tests), res.Continue)
+			for i, sb := range res.Blobs {
+				t.Logf("  res[%d]: %v", i, sb.Blob)
+			}
+
+			var want []*SearchResultBlob
+			for _, br := range wantBlobs {
+				want = append(want, &SearchResultBlob{Blob: br})
+			}
+			if !reflect.DeepEqual(res.Blobs, want) {
+				gotj, wantj := prettyJSON(res.Blobs), prettyJSON(want)
+				t.Fatalf("Query %d: Got blobs:\n%s\nWant:\n%s\n", i+1, gotj, wantj)
+			}
+			contToken = res.Continue
+			haveToken := contToken != ""
+			wantHaveToken := (i + 1) < len(tests)
+			if haveToken != wantHaveToken {
+				t.Fatalf("Query %d: token = %q; want token = %v", i+1, contToken, wantHaveToken)
+			}
+		}
+	})
+}
+
+// Tests continue token hitting the end mid-page.
+func TestQueryRecentPermanodes_ContinueEndMidPage(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		var blobs []blob.Ref
+		for i := 1; i <= 3; i++ {
+			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			blobs = append(blobs, pn)
+			t.Logf("permanode %d is %v", i, pn)
+			id.SetAttribute_NoTimeMove(pn, "foo", "bar")
+		}
+		sort.Sort(blob.ByRef(blobs))
+		for i, br := range blobs {
+			t.Logf("Sorted %d = %v", i, br)
+		}
+		handler := qt.Handler()
+
+		contToken := ""
+		tests := [][]blob.Ref{
+			[]blob.Ref{blobs[2], blobs[1]},
+			[]blob.Ref{blobs[0]},
+		}
+
+		for i, wantBlobs := range tests {
+			req := &SearchQuery{
+				Constraint: &Constraint{
+					Permanode: &PermanodeConstraint{},
+				},
+				Limit:    2,
+				Sort:     UnspecifiedSort,
+				Continue: contToken,
+			}
+			res, err := handler.Query(req)
+			if err != nil {
+				qt.t.Fatalf("Error on query %d: %v", i+1, err)
+			}
+			t.Logf("Query %d/%d: continue = %q", i+1, len(tests), res.Continue)
+			for i, sb := range res.Blobs {
+				t.Logf("  res[%d]: %v", i, sb.Blob)
+			}
+
+			var want []*SearchResultBlob
+			for _, br := range wantBlobs {
+				want = append(want, &SearchResultBlob{Blob: br})
+			}
+			if !reflect.DeepEqual(res.Blobs, want) {
+				gotj, wantj := prettyJSON(res.Blobs), prettyJSON(want)
+				t.Fatalf("Query %d: Got blobs:\n%s\nWant:\n%s\n", i+1, gotj, wantj)
+			}
+			contToken = res.Continue
+			haveToken := contToken != ""
+			wantHaveToken := (i + 1) < len(tests)
+			if haveToken != wantHaveToken {
+				t.Fatalf("Query %d: token = %q; want token = %v", i+1, contToken, wantHaveToken)
+			}
 		}
 	})
 }

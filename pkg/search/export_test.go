@@ -25,5 +25,5 @@ func ExportSetCandidateSourceHook(fn func(string)) { candSourceHook = fn }
 func ExportBufferedConst() int { return buffered }
 
 func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
-	return s.plannedQuery()
+	return s.plannedQuery(nil)
 }

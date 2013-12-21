@@ -21,14 +21,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -45,13 +49,30 @@ const (
 )
 
 type SearchQuery struct {
-	Constraint *Constraint `json:"constraint"`
-	Limit      int         `json:"limit"` // optional. default is automatic. negative means no limit.
-	Sort       SortType    `json:"sort"`  // optional. default is automatic or unsorted.
+	// Exactly one of Expression or Contraint must be set.
+	// If an Expression is set, it's compiled to an Constraint.
+
+	// Expression is a textual search query in minimal form,
+	// e.g. "hawaii before:2008" or "tag:foo" or "foo" or "location:portland"
+	// See expr.go and expr_test.go for all the operators.
+	Expression string      `json:"expression,omitempty"`
+	Constraint *Constraint `json:"constraint,omitempty"`
+
+	Limit int      `json:"limit,omitempty"` // optional. default is automatic. negative means no limit.
+	Sort  SortType `json:"sort,omitempty"`  // optional. default is automatic or unsorted.
+
+	// Continue specifies the opaque token (as returned by a
+	// SearchResult) for where to continue fetching results when
+	// the Limit on a previous query was interrupted.
+	// Continue is only valid for the same query (Expression or Constraint),
+	// Limit, and Sort values.
+	// If empty, the top-most query results are returned, as given
+	// by Limit and Sort.
+	Continue string `json:"continue,omitempty"`
 
 	// If Describe is specified, the matched blobs are also described,
 	// as if the Describe.BlobRefs field was populated.
-	Describe *DescribeRequest `json:"describe"`
+	Describe *DescribeRequest `json:"describe,omitempty"`
 }
 
 func (q *SearchQuery) fromHTTP(req *http.Request) error {
@@ -67,10 +88,20 @@ func (q *SearchQuery) fromHTTP(req *http.Request) error {
 	return nil
 }
 
-func (q *SearchQuery) plannedQuery() *SearchQuery {
+// exprQuery optionally specifies the *SearchQuery prototype that was generated
+// by parsing the search expression
+func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 	pq := new(SearchQuery)
 	*pq = *q
-
+	if expr != nil {
+		pq.Constraint = expr.Constraint
+		if expr.Sort != 0 {
+			pq.Sort = expr.Sort
+		}
+		if expr.Limit != 0 {
+			pq.Limit = expr.Limit
+		}
+	}
 	if pq.Sort == 0 {
 		if pq.Constraint.onlyMatchesPermanode() {
 			pq.Sort = LastModifiedDesc
@@ -79,29 +110,105 @@ func (q *SearchQuery) plannedQuery() *SearchQuery {
 	if pq.Limit == 0 {
 		pq.Limit = 200 // arbitrary
 	}
-	pq.Constraint = optimizePlan(q.Constraint)
+	if err := pq.addContinueConstraint(); err != nil {
+		log.Printf("Ignoring continue token: %v", err)
+	}
+	pq.Constraint = optimizePlan(pq.Constraint)
 	return pq
 }
 
-func (q *SearchQuery) checkValid() error {
-	if q.Limit < 0 {
-		return errors.New("negative limit")
+// For permanodes, the continue token is (currently!)
+// of form "pn:nnnnnnn:sha1-xxxxx" where "pn" is a
+// literal, "nnnnnn" is the UnixNano of the time
+// (modified or created) and "sha1-xxxxx" was the item
+// seen in the final result set, used as a tie breaker
+// if multiple permanodes had the same mod/created
+// time. This format is NOT an API promise or standard and
+// clients should not rely on it. It may change without notice
+func parsePermanodeContinueToken(v string) (t time.Time, br blob.Ref, ok bool) {
+	if !strings.HasPrefix(v, "pn:") {
+		return
 	}
-	if q.Sort >= maxSortType || q.Sort < 0 {
-		return errors.New("invalid sort type")
+	v = v[len("pn:"):]
+	col := strings.Index(v, ":")
+	if col < 0 {
+		return
 	}
-	if q.Constraint == nil {
-		return errors.New("no constraint")
+	nano, err := strconv.ParseUint(v[:col], 10, 64)
+	if err != nil {
+		return
 	}
-	if err := q.Constraint.checkValid(); err != nil {
-		return err
-	}
-	return nil
+	t = time.Unix(0, int64(nano))
+	br, ok = blob.Parse(v[col+1:])
+	return
 }
 
+// addContinueConstraint conditionally modifies q.Constraint to scroll
+// past the results as indicated by q.Continue.
+func (q *SearchQuery) addContinueConstraint() error {
+	cont := q.Continue
+	if cont == "" {
+		return nil
+	}
+	if q.Constraint.onlyMatchesPermanode() {
+		tokent, lastbr, ok := parsePermanodeContinueToken(cont)
+		if !ok {
+			return errors.New("Unexpected continue token")
+		}
+		if q.Sort == LastModifiedDesc {
+			baseConstraint := q.Constraint
+			q.Constraint = &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Continue: &PermanodeContinueConstraint{
+								LastMod: tokent,
+								Last:    lastbr,
+							},
+						},
+					},
+					B: baseConstraint,
+				},
+			}
+		}
+		return nil
+	}
+	return errors.New("token not valid for query type")
+}
+
+func (q *SearchQuery) checkValid() (sq *SearchQuery, err error) {
+	if q.Limit < 0 {
+		return nil, errors.New("negative limit")
+	}
+	if q.Sort >= maxSortType || q.Sort < 0 {
+		return nil, errors.New("invalid sort type")
+	}
+	if q.Constraint == nil {
+		if expr := q.Expression; expr != "" {
+			sq, err := parseExpression(expr)
+			if err != nil {
+				return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
+			}
+			if err := sq.Constraint.checkValid(); err != nil {
+				log.Fatalf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
+			}
+			return sq, nil
+		}
+		return nil, errors.New("no search constraint or expression")
+	}
+	return nil, q.Constraint.checkValid()
+}
+
+// SearchResult is the result of the Search method for a given SearchQuery.
 type SearchResult struct {
 	Blobs    []*SearchResultBlob `json:"blobs"`
 	Describe *DescribeResponse   `json:"description"`
+
+	// Continue optionally specifies the continuation token to to
+	// continue fetching results in this result set, if interrupted
+	// by a Limit.
+	Continue string `json:"continue,omitempty"`
 }
 
 type SearchResultBlob struct {
@@ -118,22 +225,22 @@ func (r *SearchResultBlob) String() string {
 // A zero constraint matches nothing.
 type Constraint struct {
 	// If Logical is non-nil, all other fields are ignored.
-	Logical *LogicalConstraint `json:"logical"`
+	Logical *LogicalConstraint `json:"logical,omitempty"`
 
 	// Anything, if true, matches all blobs.
-	Anything bool `json:"anything"`
+	Anything bool `json:"anything,omitempty"`
 
-	CamliType     string `json:"camliType"`    // camliType of the JSON blob
-	AnyCamliType  bool   `json:"anyCamliType"` // if true, any camli JSON blob matches
-	BlobRefPrefix string `json:"blobRefPrefix"`
+	CamliType     string `json:"camliType,omitempty"`    // camliType of the JSON blob
+	AnyCamliType  bool   `json:"anyCamliType,omitempty"` // if true, any camli JSON blob matches
+	BlobRefPrefix string `json:"blobRefPrefix,omitempty"`
 
-	File *FileConstraint
-	Dir  *DirConstraint
+	File *FileConstraint `json:"file,omitempty"`
+	Dir  *DirConstraint  `json:"dir,omitempty"`
 
-	Claim    *ClaimConstraint `json:"claim"`
-	BlobSize *IntConstraint   `json:"blobSize"`
+	Claim    *ClaimConstraint `json:"claim,omitempty"`
+	BlobSize *IntConstraint   `json:"blobSize,omitempty"`
 
-	Permanode *PermanodeConstraint `json:"permanode"`
+	Permanode *PermanodeConstraint `json:"permanode,omitempty"`
 
 	matcherOnce sync.Once
 	matcherFn   matchFn
@@ -180,7 +287,7 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 type FileConstraint struct {
 	// (All non-zero fields must match)
 
-	FileSize *IntConstraint `json:"fileSize"`
+	FileSize *IntConstraint `json:"fileSize,omitempty"`
 	IsImage  bool
 	FileName *StringConstraint
 	MIMEType *StringConstraint
@@ -211,10 +318,10 @@ type DirConstraint struct {
 type IntConstraint struct {
 	// Min and Max are both optional and inclusive bounds.
 	// Zero means don't check.
-	Min     int64 `json:"min"`
-	Max     int64 `json:"max"`
-	ZeroMin bool  `json:"zeroMin"` // if true, min is actually zero
-	ZeroMax bool  `json:"zeroMax"` // if true, max is actually zero
+	Min     int64 `json:"min,omitempty"`
+	Max     int64 `json:"max,omitempty"`
+	ZeroMin bool  `json:"zeroMin,omitempty"` // if true, min is actually zero
+	ZeroMax bool  `json:"zeroMax,omitempty"` // if true, max is actually zero
 }
 
 func (c *IntConstraint) checkValid() error {
@@ -289,9 +396,12 @@ func (c *StringConstraint) stringMatches(s string) bool {
 }
 
 type TimeConstraint struct {
-	Before time.Time     // <
-	After  time.Time     // >=
-	InLast time.Duration // >=
+	Before types.Time3339 `json:"before"` // <
+	After  types.Time3339 `json:"after"`  // >=
+
+	// TODO: this won't JSON-marshal/unmarshal well. Make a time.Duration marshal type?
+	// Likewise with time that supports omitempty?
+	InLast time.Duration `json:"inLast"` // >=
 }
 
 type ClaimConstraint struct {
@@ -315,51 +425,70 @@ type PermanodeConstraint struct {
 	// At specifies the time at which to pretend we're resolving attributes.
 	// Attribute claims after this point in time are ignored.
 	// If zero, the current time is used.
-	At time.Time `json:"at"`
+	At time.Time `json:"at,omitempty"`
 
 	// ModTime optionally matches on the last modtime of the permanode.
-	ModTime *TimeConstraint
+	ModTime *TimeConstraint `json:"modTime,omitempty"`
 
 	// Attr optionally specifies the attribute to match.
 	// e.g. "camliContent", "camliMember", "tag"
 	// This is required if any of the items below are used.
-	Attr string `json:"attr"`
+	Attr string `json:"attr,omitempty"`
 
 	// SkipHidden skips hidden or other boring files.
-	SkipHidden bool `json:"skipHidden"`
+	SkipHidden bool `json:"skipHidden,omitempty"`
 
 	// NumValue optionally tests the number of values this
 	// permanode has for Attr.
-	NumValue *IntConstraint `json:"numValue"`
+	NumValue *IntConstraint `json:"numValue,omitempty"`
 
 	// ValueAll modifies the matching behavior when an attribute
 	// is multi-valued.  By default, when ValueAll is false, only
 	// one value of a multi-valued attribute needs to match. If
 	// ValueAll is true, all attributes must match.
-	ValueAll bool `json:"valueAllMatch"`
+	ValueAll bool `json:"valueAllMatch,omitempty"`
 
 	// Value specifies an exact string to match.
 	// This is a convenience form for the simple case of exact
 	// equality. The same can be accomplished with ValueMatches.
-	Value string `json:"value"` // if non-zero, absolute match
+	Value string `json:"value,omitempty"` // if non-zero, absolute match
 
 	// ValueMatches optionally specifies a StringConstraint to
 	// match the value against.
-	ValueMatches *StringConstraint `json:"valueMatches"`
+	ValueMatches *StringConstraint `json:"valueMatches,omitempty"`
 
 	// ValueInSet optionally specifies a sub-query which the value
 	// (which must be a blobref) must be a part of.
-	ValueInSet *Constraint `json:"valueInSet"`
+	ValueInSet *Constraint `json:"valueInSet,omitempty"`
 
 	// Relation optionally specifies a constraint based on relations
 	// to other permanodes (e.g. camliMember or camliPath sets).
 	// You can use it to test the properties of a parent, ancestor,
 	// child, or progeny.
-	Relation *RelationConstraint
+	Relation *RelationConstraint `json:"relation,omitempty"`
+
+	// Continue is for internal use.
+	Continue *PermanodeContinueConstraint `json:"-"`
 
 	// TODO:
 	// NumClaims *IntConstraint  // by owner
 	// Owner  blob.Ref // search for permanodes by an owner
+}
+
+type PermanodeContinueConstraint struct {
+	// LastMod if non-zero is the modtime of the last item
+	// that was seen. One of this or LastCreated will be set.
+	LastMod time.Time
+
+	// TODO: LastCreated time.Time
+
+	// Last is the last blobref that was shown at the time
+	// given in ModLessEqual or CreateLessEqual.
+	// This is used as a tie-breaker.
+	// If the time is equal, permanodes <= this are not matched.
+	// If the time is past this in the scroll position, then this
+	// field is ignored.
+	Last blob.Ref
 }
 
 type RelationConstraint struct {
@@ -409,10 +538,11 @@ func optimizePlan(c *Constraint) *Constraint {
 }
 
 func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
-	if err := rawq.checkValid(); err != nil {
+	exprResult, err := rawq.checkValid()
+	if err != nil {
 		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)
 	}
-	q := rawq.plannedQuery()
+	q := rawq.plannedQuery(exprResult)
 	res := new(SearchResult)
 	s := &search{
 		h:   h,
@@ -463,8 +593,8 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			res.Blobs = res.Blobs[:q.Limit]
 		}
 	}
-
 	if corpus != nil {
+		q.setResultContinue(corpus, res)
 		unlockOnce.Do(corpus.RUnlock)
 	}
 
@@ -482,6 +612,27 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		s.res.Describe = res
 	}
 	return s.res, nil
+}
+
+// setResultContinue sets res.Continue if q is suitable for having a continue token.
+// The corpus is locked for reads.
+func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult) {
+	if !q.Constraint.onlyMatchesPermanode() {
+		return
+	}
+	if q.Sort != LastModifiedDesc {
+		// Unsupported so far.
+		return
+	}
+	if q.Limit <= 0 || len(res.Blobs) != q.Limit {
+		return
+	}
+	lastpn := res.Blobs[len(res.Blobs)-1].Blob
+	t, ok := corpus.PermanodeModtimeLocked(lastpn)
+	if !ok {
+		return
+	}
+	res.Continue = fmt.Sprintf("pn:%d:%v", t.UnixNano(), lastpn)
 }
 
 const camliTypeMIME = "application/json; camliType="
@@ -715,7 +866,7 @@ func (c *PermanodeConstraint) checkValid() error {
 	return nil
 }
 
-func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
@@ -769,6 +920,33 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			}
 		} else if !c.ModTime.timeMatches(dp.ModTime) {
 			return false, nil
+		}
+	}
+
+	if cc := c.Continue; cc != nil {
+		if corpus == nil {
+			// Requires an in-memory index for infinite
+			// scroll. At least for now.
+			return false, nil
+		}
+		if !cc.LastMod.IsZero() {
+			mt, ok := corpus.PermanodeModtimeLocked(br)
+			if !ok || mt.After(cc.LastMod) {
+				return false, nil
+			}
+			// Blobs are sorted by modtime, and then by
+			// blobref, and then reversed overall.  From
+			// top of page, imagining this scenario, where
+			// the user requested a page size Limit of 4:
+			//     mod5, sha1-25
+			//     mod4, sha1-72
+			//     mod3, sha1-cc
+			//     mod3, sha1-bb <--- last seen ite, continue = "pn:mod3:sha1-bb"
+			//     mod3, sha1-aa  <-- and we want this one next.
+			// In the case above, we'll see all of cc, bb, and cc for mod3.
+			if mt.Equal(cc.LastMod) && !br.Less(cc.Last) {
+				return false, nil
+			}
 		}
 	}
 	return true, nil
@@ -868,11 +1046,11 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 		return false
 	}
 	if !c.Before.IsZero() {
-		if !t.Before(c.Before) {
+		if !t.Before(time.Time(c.Before)) {
 			return false
 		}
 	}
-	after := c.After
+	after := time.Time(c.After)
 	if after.IsZero() && c.InLast > 0 {
 		after = time.Now().Add(-c.InLast)
 	}

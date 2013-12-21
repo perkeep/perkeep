@@ -139,6 +139,12 @@ func (id *IndexDeps) SetAttribute(permaNode blob.Ref, attr, value string) blob.R
 	return id.uploadAndSign(m)
 }
 
+func (id *IndexDeps) SetAttribute_NoTimeMove(permaNode blob.Ref, attr, value string) blob.Ref {
+	m := schema.NewSetAttributeClaim(permaNode, attr, value)
+	m.SetClaimDate(id.lastTime())
+	return id.uploadAndSign(m)
+}
+
 func (id *IndexDeps) AddAttribute(permaNode blob.Ref, attr, value string) blob.Ref {
 	m := schema.NewAddAttributeClaim(permaNode, attr, value)
 	m.SetClaimDate(id.advanceTime())

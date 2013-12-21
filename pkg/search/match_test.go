@@ -3,6 +3,8 @@ package search
 import (
 	"testing"
 	"time"
+
+	"camlistore.org/pkg/types"
 )
 
 const year = time.Hour * 24 * 365
@@ -15,35 +17,35 @@ func TestTimeConstraint(t *testing.T) {
 	}{
 		{
 			&TimeConstraint{
-				Before: time.Unix(124, 0),
+				Before: types.Time3339(time.Unix(124, 0)),
 			},
 			time.Unix(123, 0),
 			true,
 		},
 		{
 			&TimeConstraint{
-				Before: time.Unix(123, 0),
+				Before: types.Time3339(time.Unix(123, 0)),
 			},
 			time.Unix(123, 1),
 			false,
 		},
 		{
 			&TimeConstraint{
-				After: time.Unix(123, 0),
+				After: types.Time3339(time.Unix(123, 0)),
 			},
 			time.Unix(123, 0),
 			true,
 		},
 		{
 			&TimeConstraint{
-				After: time.Unix(123, 0),
+				After: types.Time3339(time.Unix(123, 0)),
 			},
 			time.Unix(123, 1),
 			true,
 		},
 		{
 			&TimeConstraint{
-				After: time.Unix(123, 0),
+				After: types.Time3339(time.Unix(123, 0)),
 			},
 			time.Unix(122, 0),
 			false,
