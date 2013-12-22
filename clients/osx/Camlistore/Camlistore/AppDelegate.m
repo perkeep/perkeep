@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #import "AppDelegate.h"
+#import "TimeTravelWindowController.h"
 
 #define FORCEKILL_INTERVAL 15.0     // How long to wait for the server task to exit, on quit
 
@@ -79,6 +80,14 @@ limitations under the License.
     [statusBar setMenu: statusMenu];
     [statusBar setEnabled:YES];
     [statusBar setHighlightMode:YES];
+
+    // Fix up the masks for all the alt items.
+    for (int i = 0; i < [statusMenu numberOfItems]; ++i) {
+        NSMenuItem *itm = [statusMenu itemAtIndex:i];
+        if ([itm isAlternate]) {
+            [itm setKeyEquivalentModifierMask:NSAlternateKeyMask];
+        }
+    }
 
     [launchBrowserItem setState:([defaults boolForKey:@"browseAtStart"] ? NSOnState : NSOffState)];
     [self updateAddItemButtonState];
@@ -346,6 +355,27 @@ limitations under the License.
 
 - (void) fuseMounted {
     NSLog(@"FUSE mounted");
+}
+
+- (IBAction)openFinder:(id)sender
+{
+    if (![[NSWorkspace sharedWorkspace] openFile:[fuseManager mountPath]]) {
+        NSRunAlertPanel(@"Cannot Open Finder Window",
+                        @"Can't find mount path or something.", nil, nil, nil);
+        return;
+    }
+}
+
+- (IBAction)openFinderAsOf:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+
+    if (timeTraveler == nil) {
+        timeTraveler = [[TimeTravelWindowController alloc]
+                        initWithWindowNibName:@"TimeTravelWindowController"];
+        [timeTraveler setMountPath:[fuseManager mountPath]];
+    }
+    [timeTraveler showWindow:self];
 }
 
 
