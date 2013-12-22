@@ -17,16 +17,19 @@ limitations under the License.
 #import <Cocoa/Cocoa.h>
 
 #import "LoginItemManager.h"
+#import "FUSEManager.h"
 
 #define MIN_LIFETIME 10
 
-@interface AppDelegate : NSObject{
+@interface AppDelegate : NSObject <FUSEManagerDelegate> {
     NSStatusItem *statusBar;
     IBOutlet NSMenu *statusMenu;
 
     IBOutlet NSMenuItem *launchBrowserItem;
     IBOutlet NSMenuItem *launchAtStartupItem;
     IBOutlet LoginItemManager *loginItems;
+    IBOutlet FUSEManager *fuseManager;
+    IBOutlet NSMenuItem *fuseMountItem;
 
     NSTask *task;
     NSPipe *in, *out;
@@ -35,6 +38,7 @@ limitations under the License.
     time_t startTime;
 
     BOOL terminatingApp;
+    int shutdownWaitEvents;
     NSTimer *taskKiller;
 
     NSString *logPath;
@@ -59,6 +63,10 @@ limitations under the License.
 - (IBAction)showTechSupport:(id)sender;
 
 - (void)applicationWillTerminate:(NSNotification *)notification;
+- (IBAction)toggleMount:(id)sender;
+
+- (void) fuseMounted;
+- (void) fuseDismounted;
 
 
 @end
