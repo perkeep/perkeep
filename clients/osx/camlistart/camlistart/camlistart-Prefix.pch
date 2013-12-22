@@ -1,7 +1,0 @@
-//
-// Prefix header for all source files of the 'camlistart' target in the 'camlistart' project
-//
-
-#ifdef __OBJC__
-    #import <Cocoa/Cocoa.h>
-#endif
