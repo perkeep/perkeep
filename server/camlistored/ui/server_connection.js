@@ -170,13 +170,39 @@ camlistore.ServerConnection.prototype.permanodeOfSignerAttrValue = function(sign
 	);
 };
 
-// @param {string} query Stringified JSON representation of query to execute
-// @param {function} callback
-camlistore.ServerConnection.prototype.search = function(query, callback) {
+// @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
+// @param {?object} opt_describe The describe property to send for the query
+camlistore.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
+	var query = {
+		sort: 1  // LastModifiedDesc
+	};
+
+	if (goog.isString(callerQuery)) {
+		query.expression = callerQuery;
+	} else {
+		query.constraint = callerQuery;
+	}
+
+	if (opt_describe) {
+		query.describe = opt_describe;
+	}
+	if (opt_limit) {
+		query.limit = opt_limit;
+	}
+	if (opt_continuationToken) {
+		query.continue = opt_continuationToken;
+	}
+
+	return query;
+}
+
+// @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
+// @param {?object} opt_describe The describe property to send for the query
+camlistore.ServerConnection.prototype.search = function(query, opt_describe, opt_limit, opt_continuationToken, callback) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
 	this.sendXhr_(path,
 		goog.bind(this.genericHandleSearch_, this, callback, this.safeFail_()),
-		"POST", query);
+		"POST", JSON.stringify(this.buildQuery(query, opt_describe, opt_limit, opt_continuationToken)));
 };
 
 // Where is the target accessed via? (paths it's at)

@@ -81,9 +81,6 @@ camlistore.IndexPage.prototype.onNavClose = function() {
 };
 
 camlistore.IndexPage.SEARCH_PREFIX_ = {
-	TAG: 'tag',
-	TITLE: 'title',
-	BLOBREF: 'bre',
 	RAW: 'raw'
 };
 
@@ -298,45 +295,16 @@ camlistore.IndexPage.prototype.handleUrl_ = function() {
 	this.currentUrl_ = location.href;
 
 	var uri = new goog.Uri(location.href);
-	var searchText = uri.getParameterValue('q');
-	if (!searchText) {
+	var query = uri.getParameterValue('q');
+	if (!query) {
 		this.blobItemContainer_.showRecent();
 		return;
 	}
 
-	var parts = searchText.split(':');
-	var attr = '';
-	var value = '';
-	var fuzzy = true;
-
-	if (parts.length > 1) {
-		switch (parts[0]) {
-			case this.constructor.SEARCH_PREFIX_.TAG:
-			case this.constructor.SEARCH_PREFIX_.TITLE:
-			case this.constructor.SEARCH_PREFIX_.BLOBREF:
-			case this.constructor.SEARCH_PREFIX_.RAW:
-				attr = parts[0];
-				value = searchText.substr(attr.length + 1);
-				fuzzy = false;
-		}
+	// TODO(aa): Remove this when the server can do something like the 'raw' operator.
+	if (goog.string.startsWith(query, this.constructor.SEARCH_PREFIX_.RAW + ':')) {
+		query = JSON.parse(query.substring(this.constructor.SEARCH_PREFIX_.RAW.length + 1));
 	}
 
-	if (attr == '') {
-		value = searchText;
-	}
-
-	if (attr == this.constructor.SEARCH_PREFIX_.BLOBREF) {
-		if (isPlausibleBlobRef(value)) {
-			this.blobItemContainer_.findByBlobref_(value);
-		}
-	} else if (attr == this.constructor.SEARCH_PREFIX_.RAW) {
-		this.blobItemContainer_.search(JSON.parse(value));
-	} else {
-		this.blobItemContainer_.search({
-			permanode: {
-				attr: attr,
-				value: value
-			}
-		});
-	}
+	this.blobItemContainer_.search(query);
 };

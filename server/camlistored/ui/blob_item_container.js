@@ -164,82 +164,54 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
 };
 
 camlistore.BlobItemContainer.prototype.showRecent = function() {
-	this.search({
-		permanode: {
-			skipHidden: true
-		}
-	});
+	// An expression containing only spaces is the current magic ticket to get the recent query.
+	this.search(' ');
 };
 
-camlistore.BlobItemContainer.prototype.search = function(callerConstraint, opt_searchMode, opt_continueBefore) {
+// @param {string|object} query If string, will be sent as the search 'expression'. Otherwise will be sent as the 'constraint'. See pkg/search/query.go for details.
+camlistore.BlobItemContainer.prototype.search = function(query, opt_searchMode, opt_continuationToken) {
 	var searchMode = opt_searchMode || this.searchMode_.NEW;
 
 	// Clear this out now in case the user scrolls while the request is outstanding.
 	this.scrollContinuation_ = null;
 
-	// TODO(aa): On big screens this will result in us never being able to get the rest of the data :(.
+	// TODO(aa): This needs to be determined dynamically, based on size of window. Otherwise, with very large windows, we can never trigger paging.
 	var limit = this.constructor.NUM_ITEMS_PER_PAGE;
 	if (searchMode == this.searchMode_.UPDATE) {
 		limit = Math.ceil(this.getChildCount() / limit) * limit;
 	}
 
-	var query = {
-		// TODO(aa): Get rid of thumbnail size from protocol -- server should just return aspect ratio for each image.
-		describe: {
-			thumbnailSize: this.thumbnailSize_
-		},
-		sort: 1,	// LastModifiedDesc
-		limit: limit
+	// TODO(aa): Get rid of thumbnail size from protocol -- server should just return aspect ratio for each image.
+	var describe = {
+		thumbnailSize: this.thumbnailSize_
 	};
 
-	if (opt_continueBefore) {
-		query.constraint = {
-			logical: {
-				op: 'and',
-				a: callerConstraint,
-				b: {
-					permanode: {
-						modTime: {
-							before: opt_continueBefore
-						}
-					}
-				}
-			}
-		};
-	} else {
-		query.constraint = callerConstraint;
-	}
-
-	this.connection_.search(JSON.stringify(query),
-			goog.bind(this.searchDone_, this, callerConstraint, searchMode));
+	this.connection_.search(query, describe, limit, opt_continuationToken,
+		goog.bind(this.searchDone_, this, query, searchMode));
 };
 
-camlistore.BlobItemContainer.prototype.searchDone_ = function(constraint, searchMode, result) {
+camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode, result) {
 	if (searchMode == this.searchMode_.NEW) {
 		this.resetChildren_();
 		this.itemCache_ = {};
-		this.startSocketQuery_(constraint);
+		this.startSocketQuery_(query);
 	}
 
 	if (!result.blobs || !result.blobs.length) {
-		console.log("Did not get any results. We must be done!");
 		return;
 	}
 
-	var startIndex = 0;
-	if (searchMode == this.searchMode_.APPEND) {
-		startIndex = this.getChildCount();
-	}
-	this.populateChildren_(result, startIndex);
+	this.populateChildren_(result, searchMode == this.searchMode_.APPEND);
 
 	var lastItem = result.description.meta[
-    result.blobs[result.blobs.length - 1].blob];
-	this.scrollContinuation_ = this.search.bind(this, constraint, this.searchMode_.APPEND, lastItem.permanode.modtime);
-
+		result.blobs[result.blobs.length - 1].blob];
+	if (result.continue) {
+		this.scrollContinuation_ = this.search.bind(this, query, this.searchMode_.APPEND, result.continue);
+	}
 };
 
 // Quick and dirty use of WebSocket to know when the current query may have changed. We don't use the response from the server directly, as it is quite hard to integrate into previous results reliably with the current protocol. Instead, we just use it as a tickle to redo the real query.
-camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerConstraint) {
+camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerQuery) {
 	if (!window.WebSocket) {
 		return;
 	}
@@ -254,12 +226,8 @@ camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerConstr
 		uri.setScheme("ws");
 	}
 
-	var query = {
-		sort: 1,	// LastModifiedDesc
-		limit: this.constructor.NUM_ITEMS_PER_PAGE,
-		constraint: callerConstraint,
-		describe: {} // so we see the 'description' in the response & attr changes
-	};
+	var describe = {}; // so we see the 'description' in the response & attr changes
+	var query = this.connection_.buildQuery(callerQuery, describe);
 
 	var ws = new WebSocket(uri.toString());
 	ws.onopen = function() {
@@ -272,7 +240,7 @@ camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerConstr
 	ws.onmessage = function() {
 		// Ignore the first response.
 		ws.onmessage = function() {
-			this.search(callerConstraint, this.searchMode_.UPDATE);
+			this.search(callerQuery, this.searchMode_.UPDATE);
 		}.bind(this);
 	}.bind(this);
 };
@@ -401,29 +369,36 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
 	this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
 };
 
-camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, startIndex) {
+camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, append) {
 	for (var i = 0, blob; blob = result.blobs[i]; i++) {
 		var blobRef = blob.blob;
 		var item = this.itemCache_[blobRef];
-		var insertIndex = startIndex + i;
+		var render = true;
 
 		// If there's already an item for this blob, reuse it so that we don't lose any of the UI state (like whether it is selected).
 		if (item) {
 			item.update(blobRef, result.description.meta);
 			item.updateDom();
-			this.addChildAt(item, insertIndex, false);
+			render = false;
 		} else {
 			item = new camlistore.BlobItem(blobRef, result.description.meta);
 			this.itemCache_[blobRef] = item;
-			this.addChildAt(item, insertIndex, true);
+		}
+
+		if (append) {
+			this.addChild(item, render);
+		} else {
+			this.addChildAt(item, i, render);
 		}
 	}
 
 	// Remove any children we don't need anymore.
-	var childCount = startIndex + result.blobs.length;
-	while (this.getChildCount() > childCount) {
-		this.itemCache_[this.getChildAt(childCount).getBlobRef()] = null;
-		this.removeChildAt(childCount, true);
+	if (!append) {
+		var numBlobs = result.blobs.length;
+		while (this.getChildCount() > numBlobs) {
+			this.itemCache_[this.getChildAt(numBlobs).getBlobRef()] = null;
+			this.removeChildAt(numBlobs, true);
+		}
 	}
 };
 

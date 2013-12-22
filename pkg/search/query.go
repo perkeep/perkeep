@@ -81,8 +81,8 @@ func (q *SearchQuery) fromHTTP(req *http.Request) error {
 		return err
 	}
 
-	if q.Constraint == nil {
-		return errors.New("query must have at least a root Constraint")
+	if q.Constraint == nil && q.Expression == "" {
+		return errors.New("query must have at least a constraint or an expression")
 	}
 
 	return nil
