@@ -84,6 +84,25 @@ func addToClockOrigin(d time.Duration) string {
 	return test.ClockOrigin.Add(d).UTC().Format(time.RFC3339Nano)
 }
 
+func handlerDescribeTestSetup(fi *test.FakeIndex) index.Interface {
+	pn := blob.MustParse("perma-123")
+	fi.AddMeta(pn, "permanode", 123)
+	fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
+	fi.AddMeta(blob.MustParse("foo-232"), "", 878)
+
+	// Test deleting all attributes
+	fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "x")
+	fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "y")
+	fi.AddClaim(owner, pn, "del-attribute", "wont-be-present", "")
+
+	// Test deleting a specific attribute.
+	fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "a")
+	fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "b")
+	fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "c")
+	fi.AddClaim(owner, pn, "del-attribute", "only-delete-b", "b")
+	return fi
+}
+
 var handlerTests = []handlerTest{
 	{
 		name:  "describe-missing",
@@ -113,25 +132,8 @@ var handlerTests = []handlerTest{
 	},
 
 	{
-		name: "describe-permanode",
-		setup: func(fi *test.FakeIndex) index.Interface {
-			pn := blob.MustParse("perma-123")
-			fi.AddMeta(pn, "permanode", 123)
-			fi.AddClaim(owner, pn, "set-attribute", "camliContent", "foo-232")
-			fi.AddMeta(blob.MustParse("foo-232"), "", 878)
-
-			// Test deleting all attributes
-			fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "x")
-			fi.AddClaim(owner, pn, "add-attribute", "wont-be-present", "y")
-			fi.AddClaim(owner, pn, "del-attribute", "wont-be-present", "")
-
-			// Test deleting a specific attribute.
-			fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "a")
-			fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "b")
-			fi.AddClaim(owner, pn, "add-attribute", "only-delete-b", "c")
-			fi.AddClaim(owner, pn, "del-attribute", "only-delete-b", "b")
-			return fi
-		},
+		name:  "describe-permanode",
+		setup: handlerDescribeTestSetup,
 		query: "describe?blobref=perma-123",
 		want: parseJSON(`{
 			"meta": {
@@ -149,6 +151,32 @@ var handlerTests = []handlerTest{
 							"only-delete-b": [ "a", "c" ]
 						},
 						"modtime": "` + addToClockOrigin(8*time.Second) + `"
+					}
+				}
+			}
+		}`),
+	},
+
+	{
+		name:  "describe-permanode-timetravel",
+		setup: handlerDescribeTestSetup,
+		query: "describe?blobref=perma-123&at=" + addToClockOrigin(3*time.Second),
+		want: parseJSON(`{
+			"meta": {
+				"foo-232": {
+					"blobRef":  "foo-232",
+					"size":     878
+				},
+				"perma-123": {
+					"blobRef":   "perma-123",
+					"camliType": "permanode",
+					"size":      123,
+					"permanode": {
+						"attr": {
+							"camliContent": [ "foo-232" ],
+							"wont-be-present": [ "x", "y" ]
+						},
+						"modtime": "` + addToClockOrigin(3*time.Second) + `"
 					}
 				}
 			}
