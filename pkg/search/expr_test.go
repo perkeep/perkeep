@@ -45,19 +45,32 @@ var parseExprTests = []struct {
 		in: "tag:funny",
 		want: &SearchQuery{
 			Constraint: &Constraint{
-				Permanode: &PermanodeConstraint{
-					Attr:       "tag",
-					Value:      "funny",
-					SkipHidden: true,
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							SkipHidden: true,
+						},
+					},
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr:       "tag",
+							Value:      "funny",
+							SkipHidden: true,
+						},
+					},
 				},
 			},
 		},
 	},
+
 	// TODO: at least 'x' will go away eventually.
-	{
-		inList:      []string{"x", "bogus:operator"},
-		errContains: "unknown expression",
-	},
+	/*
+		{
+			inList:      []string{"x", "bogus:operator"},
+			errContains: "unknown expression",
+		},
+	*/
 }
 
 func TestParseExpression(t *testing.T) {
