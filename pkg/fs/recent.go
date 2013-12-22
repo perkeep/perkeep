@@ -44,7 +44,7 @@ type recentDir struct {
 
 func (n *recentDir) Attr() fuse.Attr {
 	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
+		Mode: os.ModeDir | 0500,
 		Uid:  uint32(os.Getuid()),
 		Gid:  uint32(os.Getgid()),
 	}
