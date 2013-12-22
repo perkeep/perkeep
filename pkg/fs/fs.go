@@ -173,6 +173,9 @@ func (n *node) schema() (*schema.Blob, error) {
 
 func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
 	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
+	if req.Flags != 0 {
+		return nil, fuse.EPERM
+	}
 	ss, err := n.schema()
 	if err != nil {
 		log.Printf("open of %v: %v", n.blobref, err)
