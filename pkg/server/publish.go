@@ -801,7 +801,7 @@ func (pr *publishRequest) subjectMembers(resMap map[string]*search.DescribedBlob
 	return &publish.PageMembers{
 		SubjectPath: subjectPath,
 		ZipName:     zipName,
-		Members:     subdes.Members(),
+		Members:     members,
 		Description: func(member *search.DescribedBlob) string {
 			des := member.Description()
 			if des != "" {

@@ -810,6 +810,8 @@ func (b *DescribedBlob) Description() string {
 	return ""
 }
 
+// Members returns all of b's children, as given by b's camliMember and camliPath:*
+// attributes. Only the first entry for a given camliPath attribute is used.
 func (b *DescribedBlob) Members() []*DescribedBlob {
 	if b == nil {
 		return nil
@@ -819,6 +821,13 @@ func (b *DescribedBlob) Members() []*DescribedBlob {
 		for _, bstr := range b.Permanode.Attr["camliMember"] {
 			if br, ok := blob.Parse(bstr); ok {
 				m = append(m, b.PeerBlob(br))
+			}
+		}
+		for k, bstrs := range b.Permanode.Attr {
+			if strings.HasPrefix(k, "camliPath:") && len(bstrs) > 0 {
+				if br, ok := blob.Parse(bstrs[0]); ok {
+					m = append(m, b.PeerBlob(br))
+				}
 			}
 		}
 	}
