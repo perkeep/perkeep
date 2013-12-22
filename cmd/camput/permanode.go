@@ -29,7 +29,7 @@ import (
 )
 
 type permanodeCmd struct {
-	name    string
+	title   string
 	tag     string
 	key     string // else random
 	sigTime string
@@ -38,7 +38,7 @@ type permanodeCmd struct {
 func init() {
 	cmdmain.RegisterCommand("permanode", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(permanodeCmd)
-		flags.StringVar(&cmd.name, "name", "", "Optional name attribute to set on new permanode")
+		flags.StringVar(&cmd.title, "title", "", "Optional 'title' attribute to set on new permanode")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on new permanode; comma separated.")
 		flags.StringVar(&cmd.key, "key", "", "Optional key to create deterministic ('planned') permanodes. Must also use --sigtime.")
 		flags.StringVar(&cmd.sigTime, "sigtime", "", "Optional time to put in the OpenPGP signature packet instead of the current time. Required when producing a deterministic permanode (with --key). In format YYYY-MM-DD HH:MM:SS")
@@ -89,8 +89,8 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	if c.name != "" {
-		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.name))
+	if c.title != "" {
+		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
 		handleResult("claim-permanode-title", put, err)
 	}
 	if c.tag != "" {
