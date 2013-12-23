@@ -29,6 +29,7 @@ import (
 	"unicode"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
@@ -41,7 +42,7 @@ type FileEntityFetcher struct {
 }
 
 func FlagEntityFetcher() *FileEntityFetcher {
-	return &FileEntityFetcher{File: DefaultSecRingPath()}
+	return &FileEntityFetcher{File: osutil.IdentitySecretRing()}
 }
 
 type CachingEntityFetcher struct {
@@ -125,7 +126,7 @@ func (sr *SignRequest) secretRingPath() string {
 	if sr.SecretKeyringPath != "" {
 		return sr.SecretKeyringPath
 	}
-	return DefaultSecRingPath()
+	return osutil.IdentitySecretRing()
 }
 
 func (sr *SignRequest) Sign() (signedJSON string, err error) {

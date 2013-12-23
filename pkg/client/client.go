@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 // A Client provides access to a Camlistore server.
@@ -101,10 +102,9 @@ type Client struct {
 	pendStatMu sync.Mutex             // guards pendStat
 	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
 
-	initSelfPubKeyDirOnce sync.Once
-	// dir containing the public key(s) blob(s).
-	// Defaults to osutil.KeyblobsDir().
-	selfPubKeyDir string
+	initSignerPublicKeyBlobrefOnce sync.Once
+	signerPublicKeyRef             blob.Ref
+	publicKeyArmored               string
 
 	statsMutex sync.Mutex
 	stats      Stats
@@ -691,7 +691,7 @@ func (c *Client) insecureTLS() bool {
 // When true, we run with InsecureSkipVerify and it is our responsibility
 // to check the server's cert against our trusted certs.
 func (c *Client) selfVerifiedSSL() bool {
-	return c.useTLS() && len(c.GetTrustedCerts()) > 0
+	return c.useTLS() && len(c.getTrustedCerts()) > 0
 }
 
 // condRewriteURL changes "https://" to "http://" if we are in
@@ -712,7 +712,7 @@ func (c *Client) TLSConfig() (*tls.Config, error) {
 	if !c.useTLS() {
 		return nil, nil
 	}
-	trustedCerts := c.GetTrustedCerts()
+	trustedCerts := c.getTrustedCerts()
 	if len(trustedCerts) > 0 {
 		return &tls.Config{InsecureSkipVerify: true}, nil
 	}
@@ -729,7 +729,7 @@ func (c *Client) TLSConfig() (*tls.Config, error) {
 // certificate will be checked against those in the config after
 // the TLS handshake.
 func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
-	trustedCerts := c.GetTrustedCerts()
+	trustedCerts := c.getTrustedCerts()
 	if !c.useTLS() || (!c.InsecureTLS && len(trustedCerts) == 0) {
 		// No TLS, or TLS with normal/full verification
 		if android.OnAndroid() {
@@ -785,12 +785,11 @@ func (c *Client) signerInit() {
 }
 
 func (c *Client) buildSigner() (*schema.Signer, error) {
-	pubKeyRef, armored := signerPublicKey()
-	if !pubKeyRef.Valid() {
-		// TODO: more helpful error message
-		return nil, errors.New("No public key configured.")
+	c.initSignerPublicKeyBlobrefOnce.Do(c.initSignerPublicKeyBlobref)
+	if !c.signerPublicKeyRef.Valid() {
+		return nil, camtypes.Err("client-no-public-key")
 	}
-	return schema.NewSigner(pubKeyRef, strings.NewReader(armored), c.SecretRingFile())
+	return schema.NewSigner(c.signerPublicKeyRef, strings.NewReader(c.publicKeyArmored), c.SecretRingFile())
 }
 
 // sigTime optionally specifies the signature time.
@@ -817,7 +816,7 @@ func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
 	// missing public key.
 	sigRef := c.SignerPublicKeyBlobref()
 	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
-		if _, err := c.uploadString(publicKeyArmored); err != nil {
+		if _, err := c.uploadString(c.publicKeyArmored); err != nil {
 			return nil, err
 		}
 	}
