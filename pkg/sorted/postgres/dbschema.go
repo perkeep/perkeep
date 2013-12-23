@@ -16,13 +16,12 @@ limitations under the License.
 
 package postgres
 
-const requiredSchemaVersion = 1
+const requiredSchemaVersion = 2
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
 }
 
-// TODO(mpl): use hstore
 func SQLCreateTables() []string {
 	return []string{
 		`CREATE TABLE rows (

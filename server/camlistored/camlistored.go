@@ -71,6 +71,7 @@ import (
 	_ "camlistore.org/pkg/sorted/kvfile"
 	_ "camlistore.org/pkg/sorted/mongo"
 	_ "camlistore.org/pkg/sorted/mysql"
+	_ "camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/sorted/sqlite"
 
 	// Handlers:
