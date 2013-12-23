@@ -355,8 +355,6 @@ func Resample(m image.Image, r image.Rectangle, w, h int) image.Image {
 		for x := 0; x < w; x++ {
 			xSrc := int(float64(r.Min.X) + float64(x)*xStep)
 			ySrc := int(float64(r.Min.Y) + float64(y)*yStep)
-			//xSrc = r.Min.X + x*r.Dx()/w
-			//ySrc = r.Min.Y + y*r.Dy()/h
 			r, g, b, a := m.At(xSrc, ySrc).RGBA()
 			img.SetRGBA(x, y, color.RGBA{
 				R: uint8(r >> 8),
