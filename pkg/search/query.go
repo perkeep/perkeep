@@ -324,6 +324,9 @@ type IntConstraint struct {
 	ZeroMax bool  `json:"zeroMax,omitempty"` // if true, max is actually zero
 }
 
+func (c *IntConstraint) hasMin() bool { return c.Min != 0 || c.ZeroMin }
+func (c *IntConstraint) hasMax() bool { return c.Max != 0 || c.ZeroMax }
+
 func (c *IntConstraint) checkValid() error {
 	if c == nil {
 		return nil
@@ -334,17 +337,56 @@ func (c *IntConstraint) checkValid() error {
 	if c.ZeroMax && c.Max != 0 {
 		return errors.New("in IntConstraint, can't set both ZeroMax and Max")
 	}
-	if c.Min > c.Max {
-		return errors.New("in InConstraint, min is greater than max")
+	if c.hasMax() && c.hasMin() && c.Min > c.Max {
+		return errors.New("in IntConstraint, min is greater than max")
 	}
 	return nil
 }
 
 func (c *IntConstraint) intMatches(v int64) bool {
-	if (c.Min != 0 || c.ZeroMin) && v < c.Min {
+	if c.hasMin() && v < c.Min {
 		return false
 	}
-	if (c.Max != 0 || c.ZeroMax) && v > c.Max {
+	if c.hasMax() && v > c.Max {
+		return false
+	}
+	return true
+}
+
+// A FloatConstraint specifies constraints on an integer.
+type FloatConstraint struct {
+	// Min and Max are both optional and inclusive bounds.
+	// Zero means don't check.
+	Min     float64 `json:"min,omitempty"`
+	Max     float64 `json:"max,omitempty"`
+	ZeroMin bool    `json:"zeroMin,omitempty"` // if true, min is actually zero
+	ZeroMax bool    `json:"zeroMax,omitempty"` // if true, max is actually zero
+}
+
+func (c *FloatConstraint) hasMin() bool { return c.Min != 0 || c.ZeroMin }
+func (c *FloatConstraint) hasMax() bool { return c.Max != 0 || c.ZeroMax }
+
+func (c *FloatConstraint) checkValid() error {
+	if c == nil {
+		return nil
+	}
+	if c.ZeroMin && c.Min != 0 {
+		return errors.New("in FloatConstraint, can't set both ZeroMin and Min")
+	}
+	if c.ZeroMax && c.Max != 0 {
+		return errors.New("in FloatConstraint, can't set both ZeroMax and Max")
+	}
+	if c.hasMax() && c.hasMin() && c.Min > c.Max {
+		return errors.New("in FloatConstraint, min is greater than max")
+	}
+	return nil
+}
+
+func (c *FloatConstraint) floatMatches(v float64) bool {
+	if c.hasMin() && v < c.Min {
+		return false
+	}
+	if c.hasMax() && v > c.Max {
 		return false
 	}
 	return true
