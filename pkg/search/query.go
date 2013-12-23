@@ -288,12 +288,17 @@ type FileConstraint struct {
 	// (All non-zero fields must match)
 
 	FileSize *IntConstraint `json:"fileSize,omitempty"`
-	IsImage  bool
 	FileName *StringConstraint
 	MIMEType *StringConstraint
 	Time     *TimeConstraint
 	ModTime  *TimeConstraint
-	EXIF     *EXIFConstraint
+
+	// For images:
+	IsImage bool             `json:"isImage,omitempty"`
+	EXIF    *EXIFConstraint  `json:"exif,omitempty"`
+	Width   *IntConstraint   `json:"width,omitempty"`
+	Height  *IntConstraint   `json:"height,omitempty"`
+	WHRatio *FloatConstraint `json:"widthHeightRation,omitempty"`
 }
 
 type DirConstraint struct {
@@ -1078,6 +1083,28 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		if fi.ModTime == nil || !tc.timeMatches(fi.ModTime.Time()) {
 			return false, nil
 		}
+	}
+	var width, height int64
+	if c.Width != nil || c.Height != nil || c.WHRatio != nil {
+		corpus := s.h.corpus
+		if corpus == nil {
+			return false, nil
+		}
+		imageInfo, err := corpus.GetImageInfoLocked(br)
+		if err != nil {
+			return false, err
+		}
+		width = int64(imageInfo.Width)
+		height = int64(imageInfo.Height)
+	}
+	if c.Width != nil && !c.Width.intMatches(width) {
+		return false, nil
+	}
+	if c.Height != nil && !c.Height.intMatches(height) {
+		return false, nil
+	}
+	if c.WHRatio != nil && !c.WHRatio.floatMatches(float64(width)/float64(height)) {
+		return false, nil
 	}
 	// TOOD: EXIF timeconstraint
 	return true, nil

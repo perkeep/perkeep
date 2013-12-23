@@ -68,7 +68,7 @@ type Corpus struct {
 	keyId      map[blob.Ref]string
 	files      map[blob.Ref]camtypes.FileInfo
 	permanodes map[blob.Ref]*PermanodeMeta
-	imageInfo  map[blob.Ref]camtypes.ImageInfo
+	imageInfo  map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
 
 	// edge tracks "forward" edges. e.g. from a directory's static-set to
 	// its members. Permanodes' camliMembers aren't tracked, since they
@@ -735,6 +735,10 @@ func (c *Corpus) GetFileInfo(fileRef blob.Ref) (fi camtypes.FileInfo, err error)
 func (c *Corpus) GetImageInfo(fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	return c.GetImageInfoLocked(fileRef)
+}
+
+func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
 	ii, ok := c.imageInfo[fileRef]
 	if !ok {
 		err = os.ErrNotExist

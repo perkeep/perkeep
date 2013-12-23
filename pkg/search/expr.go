@@ -53,6 +53,19 @@ func parseExpression(exp string) (*SearchQuery, error) {
 			},
 		}
 	}
+	andWHRatio := func(fc *FloatConstraint) {
+		and(&Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						WHRatio: fc,
+					},
+				},
+			},
+		})
+	}
 
 	words := strings.Fields(exp)
 	for _, word := range words {
@@ -77,6 +90,18 @@ func parseExpression(exp string) (*SearchQuery, error) {
 					},
 				},
 			})
+			continue
+		}
+		if word == "is:landscape" {
+			andWHRatio(&FloatConstraint{Min: 1.0})
+			continue
+		}
+		if word == "is:portrait" {
+			andWHRatio(&FloatConstraint{Max: 1.0})
+			continue
+		}
+		if word == "is:pano" {
+			andWHRatio(&FloatConstraint{Min: 1.5})
 			continue
 		}
 		log.Printf("Unknown search expression word %q", word)
