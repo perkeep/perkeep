@@ -17,12 +17,21 @@ limitations under the License.
 package search
 
 import (
+	"errors"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
-var tagExpr = regexp.MustCompile(`^tag:(\w+)$`)
+var (
+	tagExpr = regexp.MustCompile(`^tag:(\w+)$`)
+
+	// used for width/height ranges. 10 is max length of 32-bit
+	// int (strconv.Atoi on 32-bit platforms), even though a max
+	// JPEG dimension is only 16-bit.
+	whRangeExpr = regexp.MustCompile(`^(\d{0,10})-(\d{0,10})$`)
+)
 
 // parseExpression parses a search expression (e.g. "tag:funny
 // near:portland") and returns a SearchQuery for that search text. The
@@ -53,17 +62,18 @@ func parseExpression(exp string) (*SearchQuery, error) {
 			},
 		}
 	}
-	andWHRatio := func(fc *FloatConstraint) {
+	andFile := func(fc *FileConstraint) {
 		and(&Constraint{
 			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						WHRatio: fc,
-					},
-				},
+				Attr:       "camliContent",
+				ValueInSet: &Constraint{File: fc},
 			},
+		})
+	}
+	andWHRatio := func(fc *FloatConstraint) {
+		andFile(&FileConstraint{
+			IsImage: true,
+			WHRatio: fc,
 		})
 	}
 
@@ -104,10 +114,51 @@ func parseExpression(exp string) (*SearchQuery, error) {
 			andWHRatio(&FloatConstraint{Min: 1.5})
 			continue
 		}
+		if strings.HasPrefix(word, "width:") {
+			m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "width:"))
+			if m == nil {
+				return nil, errors.New("bogus width range")
+			}
+			andFile(&FileConstraint{
+				IsImage: true,
+				Width:   whIntConstraint(m[1], m[2]),
+			})
+		}
+		if strings.HasPrefix(word, "height:") {
+			m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "height:"))
+			if m == nil {
+				return nil, errors.New("bogus height range")
+			}
+			andFile(&FileConstraint{
+				IsImage: true,
+				Height:  whIntConstraint(m[1], m[2]),
+			})
+		}
 		log.Printf("Unknown search expression word %q", word)
 		// TODO: finish. better tokenization. non-operator tokens
 		// are text searches, etc.
 	}
 
 	return sq, nil
+}
+
+func whIntConstraint(mins, maxs string) *IntConstraint {
+	ic := &IntConstraint{}
+	if mins != "" {
+		if mins == "0" {
+			ic.ZeroMin = true
+		} else {
+			n, _ := strconv.Atoi(mins)
+			ic.Min = int64(n)
+		}
+	}
+	if maxs != "" {
+		if maxs == "0" {
+			ic.ZeroMax = true
+		} else {
+			n, _ := strconv.Atoi(maxs)
+			ic.Max = int64(n)
+		}
+	}
+	return ic
 }

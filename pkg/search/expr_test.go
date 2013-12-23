@@ -41,6 +41,66 @@ var parseExprTests = []struct {
 			},
 		},
 	},
+
+	{
+		in: "is:pano",
+		want: &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							SkipHidden: true,
+						},
+					},
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr: "camliContent",
+							ValueInSet: &Constraint{
+								File: &FileConstraint{
+									IsImage: true,
+									WHRatio: &FloatConstraint{
+										Min: 1.5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in: "width:0-640",
+		want: &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							SkipHidden: true,
+						},
+					},
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr: "camliContent",
+							ValueInSet: &Constraint{
+								File: &FileConstraint{
+									IsImage: true,
+									Width: &IntConstraint{
+										ZeroMin: true,
+										Max:     640,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
 	{
 		in: "tag:funny",
 		want: &SearchQuery{
