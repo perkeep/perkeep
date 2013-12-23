@@ -25,9 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/index/postgres"
 	"camlistore.org/pkg/sorted/mongo"
 	"camlistore.org/pkg/sorted/mysql"
+	"camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/sorted/sqlite"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
@@ -137,6 +137,10 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		}
 	case "mongo":
 		return nil
+	case "postgres":
+		// because we want string comparison to work as on MySQL and SQLite.
+		// in particular we want: 'foo|bar' < 'foo}' (which is not the case with an utf8 collation apparently).
+		do(rootdb, "CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0")
 	default:
 		do(rootdb, "CREATE DATABASE "+dbname)
 	}
