@@ -22,8 +22,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/singleflight"
 )
 
 type LatLong struct {
@@ -36,17 +38,43 @@ type Rect struct {
 	SouthWest LatLong `json:"southwest"`
 }
 
+var (
+	mu    sync.RWMutex
+	cache = map[string][]Rect{}
+
+	sf singleflight.Group
+)
+
 // Lookup returns rectangles for the given address. Currently the only
 // implementation is the Google geocoding service.
 func Lookup(ctx *context.Context, address string) ([]Rect, error) {
-	// TODO: static data files from OpenStreetMap, Wikipedia, etc?
-	urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
-	res, err := http.Get(urlStr)
+	mu.RLock()
+	rects, ok := cache[address]
+	mu.RUnlock()
+	if ok {
+		return rects, nil
+	}
+
+	rectsi, err := sf.Do(address, func() (interface{}, error) {
+		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
+		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
+		res, err := http.Get(urlStr)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
+		rects, err := decodeGoogleResponse(res.Body)
+		if err == nil {
+			mu.Lock()
+			cache[address] = rects
+			mu.Unlock()
+		}
+		return rects, err
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
-	return decodeGoogleResponse(res.Body)
+	return rectsi.([]Rect), nil
 }
 
 type googleResTop struct {
