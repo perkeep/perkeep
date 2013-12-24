@@ -81,7 +81,7 @@ func New(s sorted.KeyValue) *Index {
 			// the user with a more useful tip:
 			tip = `(For the dev server, run "devcam server --wipe" to wipe both your blobs and index)`
 		} else {
-			tip = "See 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
+			tip = "Run 'camlistored --reindex' (it might take awhile, but shows status). Alternative: 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
 		}
 		log.Fatalf("index schema version is %d; required one is %d. You need to reindex. %s",
 			schemaVersion, requiredSchemaVersion, tip)
