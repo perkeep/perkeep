@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D0180BEA185007C000E3487F /* credentials.plist in Resources */ = {isa = PBXBuildFile; fileRef = D0180BE9185007C000E3487F /* credentials.plist */; };
+		D059B88F186944F2006BE899 /* ProgressViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D059B88E186944F2006BE899 /* ProgressViewController.m */; };
 		D075B282184944330054FED3 /* LACamliUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B281184944330054FED3 /* LACamliUtil.m */; };
 		D075B28518494DB20054FED3 /* LACamliUploadOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B28418494DB20054FED3 /* LACamliUploadOperation.m */; };
 		D095AE131814AF10008163F2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE121814AF10008163F2 /* Foundation.framework */; };
@@ -43,7 +43,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		D0180BE9185007C000E3487F /* credentials.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = credentials.plist; sourceTree = "<group>"; };
+		D059B88D186944F2006BE899 /* ProgressViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProgressViewController.h; sourceTree = "<group>"; };
+		D059B88E186944F2006BE899 /* ProgressViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ProgressViewController.m; sourceTree = "<group>"; };
 		D075B280184944330054FED3 /* LACamliUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUtil.h; sourceTree = "<group>"; };
 		D075B281184944330054FED3 /* LACamliUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUtil.m; sourceTree = "<group>"; };
 		D075B28318494DB20054FED3 /* LACamliUploadOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUploadOperation.h; sourceTree = "<group>"; };
@@ -146,11 +147,12 @@
 				D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */,
 				D0D45E9F185FE2BE00EBC0A2 /* SettingsViewController.h */,
 				D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */,
+				D059B88D186944F2006BE899 /* ProgressViewController.h */,
+				D059B88E186944F2006BE899 /* ProgressViewController.m */,
 				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
 				D095AE271814AF10008163F2 /* Main_iPad.storyboard */,
 				D095AE2D1814AF10008163F2 /* Images.xcassets */,
 				D095AE191814AF10008163F2 /* Supporting Files */,
-				D0180BE9185007C000E3487F /* credentials.plist */,
 			);
 			path = photobackup;
 			sourceTree = "<group>";
@@ -286,7 +288,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D095AE291814AF10008163F2 /* Main_iPad.storyboard in Resources */,
-				D0180BEA185007C000E3487F /* credentials.plist in Resources */,
 				D095AE2E1814AF10008163F2 /* Images.xcassets in Resources */,
 				D095AE261814AF10008163F2 /* Main_iPhone.storyboard in Resources */,
 				D095AE1D1814AF10008163F2 /* InfoPlist.strings in Resources */,
@@ -311,6 +312,7 @@
 				D095AE1F1814AF10008163F2 /* main.m in Sources */,
 				D095AE511814B1B9008163F2 /* LACamliClient.m in Sources */,
 				D0AC217118503A8E004BD4F3 /* CamliCollectionCell.m in Sources */,
+				D059B88F186944F2006BE899 /* ProgressViewController.m in Sources */,
 				D095AE501814B1B9008163F2 /* LACamliFile.m in Sources */,
 				D075B282184944330054FED3 /* LACamliUtil.m in Sources */,
 				D095AE231814AF10008163F2 /* LAAppDelegate.m in Sources */,

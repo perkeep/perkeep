@@ -23,7 +23,10 @@
     [self loadCredentials];
 
     self.library = [[ALAssetsLibrary alloc] init];
-    // TODO: request access to the library first
+
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:nil usingBlock:^(NSNotification *note) {
+        [UIApplication sharedApplication].applicationIconBadgeNumber = [note.userInfo[@"remain"] intValue];
+    }];
 
     return YES;
 }
@@ -68,9 +71,7 @@
 
                     if (![weakSelf.client fileAlreadyUploaded:file]) {
                         filesToUpload++;
-                        [weakSelf.client addFile:file withCompletion:^{
-                            [UIApplication sharedApplication].applicationIconBadgeNumber--;
-                        }];
+                        [weakSelf.client addFile:file withCompletion:nil];
                     } else {
                         LALog(@"file already uploaded: %@",file.blobRef);
                     }

@@ -8,11 +8,12 @@
 
 #import <UIKit/UIKit.h>
 
-@class  LACamliClient;
+@class LACamliClient,ProgressViewController;
 
 @interface LAViewController : UIViewController
 
 @property LACamliClient *client;
+@property ProgressViewController *progress;
 
 - (void)dismissSettings;
 
