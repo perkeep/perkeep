@@ -114,6 +114,8 @@ func (x *Index) Reindex() error {
 	}
 	log.Printf("Index wiped. Rebuilding...")
 
+	reindexStart, _ := blob.Parse(os.Getenv("CAMLI_REINDEX_START"))
+
 	err := x.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
 	if err != nil {
 		return err
@@ -135,6 +137,9 @@ func (x *Index) Reindex() error {
 			if lastTick.Before(now.Add(-1 * time.Second)) {
 				log.Printf("Reindexing at %v", sb.Ref)
 				lastTick = now
+			}
+			if reindexStart.Valid() && sb.Ref.Less(reindexStart) {
+				return nil
 			}
 			select {
 			case <-donec:
