@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"camlistore.org/pkg/context"
 )
 
 var parseExprTests = []struct {
@@ -147,7 +149,7 @@ func TestParseExpression(t *testing.T) {
 			ins = []string{tt.in}
 		}
 		for _, in := range ins {
-			got, err := parseExpression(in)
+			got, err := parseExpression(context.TODO(), in)
 			if err != nil {
 				if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
 					continue

@@ -18,10 +18,14 @@ package search
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/geocode"
 )
 
 var (
@@ -37,7 +41,7 @@ var (
 // near:portland") and returns a SearchQuery for that search text. The
 // Constraint field will always be set. The Limit and Sort may also be
 // set.
-func parseExpression(exp string) (*SearchQuery, error) {
+func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 	base := &Constraint{
 		Permanode: &PermanodeConstraint{
 			SkipHidden: true,
@@ -62,13 +66,25 @@ func parseExpression(exp string) (*SearchQuery, error) {
 			},
 		}
 	}
-	andFile := func(fc *FileConstraint) {
-		and(&Constraint{
+	permOfFile := func(fc *FileConstraint) *Constraint {
+		return &Constraint{
 			Permanode: &PermanodeConstraint{
 				Attr:       "camliContent",
 				ValueInSet: &Constraint{File: fc},
 			},
-		})
+		}
+	}
+	orConst := func(a, b *Constraint) *Constraint {
+		return &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "or",
+				A:  a,
+				B:  b,
+			},
+		}
+	}
+	andFile := func(fc *FileConstraint) {
+		and(permOfFile(fc))
 	}
 	andWHRatio := func(fc *FloatConstraint) {
 		andFile(&FileConstraint{
@@ -133,6 +149,36 @@ func parseExpression(exp string) (*SearchQuery, error) {
 				IsImage: true,
 				Height:  whIntConstraint(m[1], m[2]),
 			})
+		}
+		if strings.HasPrefix(word, "loc:") {
+			where := strings.TrimPrefix(word, "loc:")
+			rects, err := geocode.Lookup(ctx, where)
+			log.Printf("Geocode lookup for %q: %#v", where, rects)
+			if err != nil {
+				return nil, err
+			}
+			if len(rects) == 0 {
+				return nil, fmt.Errorf("No location found for %q", where)
+			}
+			var locConstraint *Constraint
+			for i, rect := range rects {
+				rectConstraint := permOfFile(&FileConstraint{
+					IsImage: true,
+					Location: &LocationConstraint{
+						Left:   rect.SouthWest.Long,
+						Right:  rect.NorthEast.Long,
+						Top:    rect.NorthEast.Lat,
+						Bottom: rect.SouthWest.Lat,
+					},
+				})
+				if i == 0 {
+					locConstraint = rectConstraint
+				} else {
+					locConstraint = orConst(locConstraint, rectConstraint)
+				}
+			}
+			and(locConstraint)
+			continue
 		}
 		log.Printf("Unknown search expression word %q", word)
 		// TODO: finish. better tokenization. non-operator tokens

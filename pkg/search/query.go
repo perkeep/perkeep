@@ -177,7 +177,7 @@ func (q *SearchQuery) addContinueConstraint() error {
 	return errors.New("token not valid for query type")
 }
 
-func (q *SearchQuery) checkValid() (sq *SearchQuery, err error) {
+func (q *SearchQuery) checkValid(ctx *context.Context) (sq *SearchQuery, err error) {
 	if q.Limit < 0 {
 		return nil, errors.New("negative limit")
 	}
@@ -186,7 +186,7 @@ func (q *SearchQuery) checkValid() (sq *SearchQuery, err error) {
 	}
 	if q.Constraint == nil {
 		if expr := q.Expression; expr != "" {
-			sq, err := parseExpression(expr)
+			sq, err := parseExpression(ctx, expr)
 			if err != nil {
 				return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
 			}
@@ -294,11 +294,12 @@ type FileConstraint struct {
 	ModTime  *TimeConstraint
 
 	// For images:
-	IsImage bool             `json:"isImage,omitempty"`
-	EXIF    *EXIFConstraint  `json:"exif,omitempty"`
-	Width   *IntConstraint   `json:"width,omitempty"`
-	Height  *IntConstraint   `json:"height,omitempty"`
-	WHRatio *FloatConstraint `json:"widthHeightRation,omitempty"`
+	IsImage  bool                `json:"isImage,omitempty"`
+	EXIF     *EXIFConstraint     `json:"exif,omitempty"` // TODO: implement
+	Width    *IntConstraint      `json:"width,omitempty"`
+	Height   *IntConstraint      `json:"height,omitempty"`
+	WHRatio  *FloatConstraint    `json:"widthHeightRation,omitempty"`
+	Location *LocationConstraint `json:"location,omitempty"`
 }
 
 type DirConstraint struct {
@@ -401,6 +402,17 @@ type EXIFConstraint struct {
 	// TODO.  need to put this in the index probably.
 	// Maybe: GPS *LocationConstraint
 	// ISO, Aperature, Camera Make/Model, etc.
+}
+
+type LocationConstraint struct {
+	Top    float64
+	Left   float64
+	Right  float64
+	Bottom float64
+}
+
+func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
+	return c.Left <= long && long <= c.Right && c.Bottom <= lat && lat <= c.Top
 }
 
 // A StringConstraint specifies constraints on a string.
@@ -585,7 +597,8 @@ func optimizePlan(c *Constraint) *Constraint {
 }
 
 func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
-	exprResult, err := rawq.checkValid()
+	ctx := context.TODO() // TODO: set from rawq
+	exprResult, err := rawq.checkValid(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)
 	}
@@ -1084,9 +1097,9 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 			return false, nil
 		}
 	}
+	corpus := s.h.corpus
 	var width, height int64
 	if c.Width != nil || c.Height != nil || c.WHRatio != nil {
-		corpus := s.h.corpus
 		if corpus == nil {
 			return false, nil
 		}
@@ -1105,6 +1118,15 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 	}
 	if c.WHRatio != nil && !c.WHRatio.floatMatches(float64(width)/float64(height)) {
 		return false, nil
+	}
+	if c.Location != nil {
+		if corpus == nil {
+			return false, nil
+		}
+		lat, long, ok := corpus.FileLatLongLocked(br)
+		if !ok || !c.Location.matchesLatLong(lat, long) {
+			return false, nil
+		}
 	}
 	// TOOD: EXIF timeconstraint
 	return true, nil
