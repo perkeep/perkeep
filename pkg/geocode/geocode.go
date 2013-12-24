@@ -20,6 +20,7 @@ package geocode
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -64,6 +65,7 @@ func Lookup(ctx *context.Context, address string) ([]Rect, error) {
 		}
 		defer res.Body.Close()
 		rects, err := decodeGoogleResponse(res.Body)
+		log.Printf("Google geocode lookup (%q) = %#v, %v", address, rects, err)
 		if err == nil {
 			mu.Lock()
 			cache[address] = rects

@@ -186,7 +186,6 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 		if strings.HasPrefix(word, "loc:") {
 			where := strings.TrimPrefix(word, "loc:")
 			rects, err := geocode.Lookup(ctx, where)
-			log.Printf("Geocode lookup for %q: %#v", where, rects)
 			if err != nil {
 				return nil, err
 			}
