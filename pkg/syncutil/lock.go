@@ -115,12 +115,12 @@ func (m *RWMutexTracker) Lock() {
 	atomic.AddInt32(&m.nhavew, 1)
 
 	m.hmu.Lock()
+	defer m.hmu.Unlock()
 	if len(m.holder) == 0 {
 		m.holder = make([]byte, stackBufSize)
 	}
 	m.holder = m.holder[:runtime.Stack(m.holder[:stackBufSize], false)]
 	log.Printf("Lock at %s", string(m.holder))
-	m.hmu.Unlock()
 }
 
 func (m *RWMutexTracker) Unlock() {
@@ -135,20 +135,34 @@ func (m *RWMutexTracker) Unlock() {
 func (m *RWMutexTracker) RLock() {
 	m.logOnce.Do(m.startLogger)
 	atomic.AddInt32(&m.nwaitr, 1)
+
+	// Catch read-write-read lock. See if somebody (us? via
+	// another goroutine?) already has a read lock, and then
+	// somebody else is waiting to write, meaning our second read
+	// will deadlock.
+	if atomic.LoadInt32(&m.nhaver) > 0 && atomic.LoadInt32(&m.nwaitw) > 0 {
+		buf := getBuf()
+		buf = buf[:runtime.Stack(buf, false)]
+		log.Printf("Potential R-W-R deadlock at: %s", buf)
+		putBuf(buf)
+	}
+
 	m.mu.RLock()
 	atomic.AddInt32(&m.nwaitr, -1)
 	atomic.AddInt32(&m.nhaver, 1)
 
 	gid := GoroutineID()
 	m.hmu.Lock()
+	defer m.hmu.Unlock()
 	if m.holdr == nil {
 		m.holdr = make(map[int64]bool)
 	}
 	if m.holdr[gid] {
-		panic("Recursive call to RLock")
+		buf := getBuf()
+		buf = buf[:runtime.Stack(buf, false)]
+		log.Fatalf("Recursive call to RLock: %s", buf)
 	}
 	m.holdr[gid] = true
-	m.hmu.Unlock()
 }
 
 func stack() []byte {
