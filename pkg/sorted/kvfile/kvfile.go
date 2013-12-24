@@ -60,7 +60,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		createOpen = kv.Create
 		verb = "creating"
 	}
-	db, err := createOpen(file, &kv.Options{
+	opts := &kv.Options{
 		Locker: func(dbname string) (io.Closer, error) {
 			lkfile := dbname + ".lock"
 			cl, err := lock.Lock(lkfile)
@@ -69,12 +69,14 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			}
 			return cl, nil
 		},
-	})
+	}
+	db, err := createOpen(file, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error %s %s: %v", verb, file, err)
 	}
 	is := &kvis{
 		db:   db,
+		opts: opts,
 		path: file,
 	}
 	return is, nil
@@ -83,6 +85,7 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 type kvis struct {
 	path string
 	db   *kv.DB
+	opts *kv.Options
 	txmu sync.Mutex
 }
 
@@ -125,36 +128,21 @@ func (is *kvis) BeginBatch() sorted.BatchMutation {
 	return sorted.NewBatchMutation()
 }
 
-func (is *kvis) Wipe() (err error) {
-	log.Println("Start wiping", is.path)
-	defer func() {
-		if err != nil {
-			log.Printf("Error wiping %s: %v", is.path, err)
-			err = is.db.Rollback()
-		} else {
-			log.Println("Done wiping", is.path)
-			err = is.db.Commit()
-		}
-	}()
-	enum, err := is.db.SeekFirst()
+func (is *kvis) Wipe() error {
+	// Unlock the already open DB.
+	if err := is.db.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(is.path); err != nil {
+		return err
+	}
+
+	db, err := kv.Create(is.path, is.opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating %s: %v", is.path, err)
 	}
-
-	if err = is.db.BeginTransaction(); err != nil {
-		return err
-	}
-
-	for k, _, err := enum.Next(); err == nil; k, _, err = enum.Next() {
-		if err = is.db.Delete(k); err != nil {
-			return err
-		}
-	}
-
-	if err == io.EOF {
-		err = nil
-	}
-	return
+	is.db = db
+	return nil
 }
 
 type batch interface {
