@@ -45,6 +45,9 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	// A lookup of blobRef->camlistore.BlobItem. This allows us to quickly find and reuse existing controls when we're updating the UI in response to a server push.
 	this.itemCache_ = {};
 
+	// We set this to true once we get our first response over the socket. We must test emperically because even if the browser supports web sockets, the server configuration can cause it to not work.
+	this.supportsWebSocket_ = false;
+
 	this.setFocusable(false);
 };
 goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
@@ -238,6 +241,7 @@ camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerQuery)
 		ws.send(JSON.stringify(message));
 	};
 	ws.onmessage = function() {
+		this.supportsWebSocket_ = true;
 		// Ignore the first response.
 		ws.onmessage = function() {
 			this.search(callerQuery, this.searchMode_.UPDATE);
@@ -565,13 +569,20 @@ camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ = function(fil
 };
 
 camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ = function(recipient, permanode, describeResult) {
+	if (recipient) {
+		this.connection_.newAddAttributeClaim(recipient, 'camliMember', permanode);
+	}
+
+	if (this.supportsWebSocket_) {
+		// We'll find this when we reload.
+		return;
+	}
+
 	var item = new camlistore.BlobItem(permanode, describeResult.meta);
 	this.addChildAt(item, 0, true);
 	if (!recipient) {
 		return;
 	}
-	this.connection_.newAddAttributeClaim(
-		recipient, 'camliMember', permanode);
 };
 
 camlistore.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
