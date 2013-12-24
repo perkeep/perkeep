@@ -180,6 +180,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"imagesize":   (*Corpus).mergeImageSizeRow,
 	"wholetofile": (*Corpus).mergeWholeToFileRow,
 	"exifgps":     (*Corpus).mergeEXIFGPSRow,
+	"exiftag":     nil, // not using any for now
 }
 
 func memstats() *runtime.MemStats {
