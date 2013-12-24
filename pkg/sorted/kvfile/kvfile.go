@@ -35,6 +35,8 @@ import (
 	"camlistore.org/third_party/github.com/cznic/kv"
 )
 
+var _ sorted.Wiper = (*kvis)(nil)
+
 func init() {
 	sorted.RegisterKeyValue("kv", NewKeyValue)
 }
@@ -127,7 +129,7 @@ func (is *kvis) Wipe() (err error) {
 	log.Println("Start wiping", is.path)
 	defer func() {
 		if err != nil {
-			log.Println("Done wiping", is.path, err)
+			log.Printf("Error wiping %s: %v", is.path, err)
 			err = is.db.Rollback()
 		} else {
 			log.Println("Done wiping", is.path)
@@ -152,6 +154,7 @@ func (is *kvis) Wipe() (err error) {
 	if err == io.EOF {
 		err = nil
 	}
+	return
 }
 
 type batch interface {
