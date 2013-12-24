@@ -123,6 +123,37 @@ func (is *kvis) BeginBatch() sorted.BatchMutation {
 	return sorted.NewBatchMutation()
 }
 
+func (is *kvis) Wipe() (err error) {
+	log.Println("Start wiping", is.path)
+	defer func() {
+		if err != nil {
+			log.Println("Done wiping", is.path, err)
+			err = is.db.Rollback()
+		} else {
+			log.Println("Done wiping", is.path)
+			err = is.db.Commit()
+		}
+	}()
+	enum, err := is.db.SeekFirst()
+	if err != nil {
+		return err
+	}
+
+	if err = is.db.BeginTransaction(); err != nil {
+		return err
+	}
+
+	for k, _, err := enum.Next(); err == nil; k, _, err = enum.Next() {
+		if err = is.db.Delete(k); err != nil {
+			return err
+		}
+	}
+
+	if err == io.EOF {
+		err = nil
+	}
+}
+
 type batch interface {
 	Mutations() []sorted.Mutation
 }
