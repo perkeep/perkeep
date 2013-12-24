@@ -28,6 +28,7 @@
 @property BOOL authorizing;
 
 - (id)initWithServer:(NSURL *)server username:(NSString *)username andPassword:(NSString *)password;
+- (BOOL)readyToUpload;
 - (void)discoveryWithUsername:(NSString *)user andPassword:(NSString *)pass;
 
 - (void)getRecentItemsWithCompletion:(void (^)(NSArray *objects))completion;

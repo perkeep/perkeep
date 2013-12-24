@@ -29,6 +29,7 @@
 		D095AE511814B1B9008163F2 /* LACamliClient.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE4E1814B1B9008163F2 /* LACamliClient.m */; };
 		D0AC217118503A8E004BD4F3 /* CamliCollectionCell.m in Sources */ = {isa = PBXBuildFile; fileRef = D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */; };
 		D0AC217418503B0D004BD4F3 /* LACamliRecentFile.m in Sources */ = {isa = PBXBuildFile; fileRef = D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */; };
+		D0D45EA1185FE2BE00EBC0A2 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +76,8 @@
 		D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CamliCollectionCell.m; sourceTree = "<group>"; };
 		D0AC217218503B0D004BD4F3 /* LACamliRecentFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliRecentFile.h; sourceTree = "<group>"; };
 		D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliRecentFile.m; sourceTree = "<group>"; };
+		D0D45E9F185FE2BE00EBC0A2 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SettingsViewController.h; sourceTree = "<group>"; };
+		D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SettingsViewController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +144,8 @@
 				D095AE2B1814AF10008163F2 /* LAViewController.m */,
 				D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */,
 				D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */,
+				D0D45E9F185FE2BE00EBC0A2 /* SettingsViewController.h */,
+				D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */,
 				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
 				D095AE271814AF10008163F2 /* Main_iPad.storyboard */,
 				D095AE2D1814AF10008163F2 /* Images.xcassets */,
@@ -310,6 +315,7 @@
 				D075B282184944330054FED3 /* LACamliUtil.m in Sources */,
 				D095AE231814AF10008163F2 /* LAAppDelegate.m in Sources */,
 				D0AC217418503B0D004BD4F3 /* LACamliRecentFile.m in Sources */,
+				D0D45EA1185FE2BE00EBC0A2 /* SettingsViewController.m in Sources */,
 				D095AE2C1814AF10008163F2 /* LAViewController.m in Sources */,
 				D075B28518494DB20054FED3 /* LACamliUploadOperation.m in Sources */,
 			);
@@ -452,6 +458,7 @@
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
 				WRAPPER_EXTENSION = app;
 			};
 			name = Debug;
@@ -465,6 +472,7 @@
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
 				WRAPPER_EXTENSION = app;
 			};
 			name = Release;

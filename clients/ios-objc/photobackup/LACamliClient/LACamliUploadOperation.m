@@ -39,7 +39,7 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 // request stats for each chunk, making sure the server doesn't already have the chunk
 - (void)start
 {
-    self.taskID =[[UIApplication sharedApplication] beginBackgroundTaskWithName:@"uploadtask" expirationHandler:^{
+    self.taskID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"uploadtask" expirationHandler:^{
         LALog(@"upload task expired");
     }];
 
@@ -47,7 +47,6 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
         [[UIApplication sharedApplication] endBackgroundTask:self.client.backgroundID];
     }
 
-    
     [self willChangeValueForKey:@"isExecuting"];
     _isExecuting = YES;
     [self didChangeValueForKey:@"isExecuting"];
@@ -60,7 +59,7 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
         [params setObject:blobRef forKey:[NSString stringWithFormat:@"blob%d",i]];
         i++;
     }
-    
+
     NSString *formValues = @"";
     for (NSString *key in params) {
         formValues = [formValues stringByAppendingString:[NSString stringWithFormat:@"%@=%@&",key,params[key]]];
@@ -141,7 +140,6 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     }];
     
     [upload resume];
-
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend

@@ -8,6 +8,9 @@
 
 #import "LAViewController.h"
 #import "LACamliClient.h"
+#import "LAAppDelegate.h"
+#import "LACamliUtil.h"
+#import "SettingsViewController.h"
 
 @interface LAViewController ()
 
@@ -19,9 +22,41 @@
 {
     [super viewDidLoad];
 
-    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {
-        LALog(@"got objects: %@",objects);
-    }];
+    UIBarButtonItem *settingsItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemEdit target:self action:@selector(showSettings)];
+
+    [self.navigationItem setRightBarButtonItem:settingsItem];
+
+    // show the
+    NSURL *serverURL = [NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey:CamliServerKey]];
+    NSString *username = [[NSUserDefaults standardUserDefaults] stringForKey:CamliUsernameKey];
+
+    NSString *password = nil;
+    if (username) {
+        password = [LACamliUtil passwordForUsername:username];
+    }
+
+    if (!serverURL || !username || !password) {
+        [self showSettings];
+    }
+
+//    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {
+//        LALog(@"got objects: %@",objects);
+//    }];
+}
+
+- (void)showSettings
+{
+    SettingsViewController *settings = [self.storyboard instantiateViewControllerWithIdentifier:@"settings"];
+    [settings setParent:self];
+
+    [self presentViewController:settings animated:YES completion:nil];
+}
+
+- (void)dismissSettings
+{
+    [self dismissViewControllerAnimated:YES completion:nil];
+
+    [(LAAppDelegate *)[[UIApplication sharedApplication] delegate] loadCredentials];
 }
 
 #pragma mark - collection methods
