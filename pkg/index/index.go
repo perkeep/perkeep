@@ -46,9 +46,9 @@ type Index struct {
 
 	KeyFetcher blob.StreamingFetcher // for verifying claims
 
-	// Used for fetching blobs to find the complete sha1s of file & bytes
-	// schema blobs.
-	BlobSource blob.StreamingFetcher
+	// BlobSource is used for fetching blobs when indexing files and other
+	// blobs types that reference other objects.
+	BlobSource blobserver.FetcherEnumerator
 
 	// deletes is a cache to keep track of the deletion status (deleted vs undeleted)
 	// of the blobs in the index. It makes for faster reads than the otherwise
@@ -99,6 +99,74 @@ func (x *Index) isEmpty() bool {
 		panic(err)
 	}
 	return !hasRows
+}
+
+func (x *Index) Reindex() error {
+	ctx := context.TODO()
+
+	wiper, ok := x.s.(sorted.Wiper)
+	if !ok {
+		return fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", x.s)
+	}
+	log.Printf("Wiping index storage type %T ...", x.s)
+	if err := wiper.Wipe(); err != nil {
+		return fmt.Errorf("error wiping index's sorted key/value type %T: %v", x.s, err)
+	}
+	log.Printf("Index wiped. Rebuilding...")
+
+	err := x.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
+	if err != nil {
+		return err
+	}
+
+	var nerrmu sync.Mutex
+	nerr := 0
+
+	blobc := make(chan blob.Ref, 32)
+	defer close(blobc)
+
+	enumCtx := ctx.New()
+	enumErr := make(chan error, 1)
+	go func() {
+		donec := enumCtx.Done()
+		var lastTick time.Time
+		enumErr <- blobserver.EnumerateAll(enumCtx, x.BlobSource, func(sb blob.SizedRef) error {
+			now := time.Now()
+			if lastTick.Before(now.Add(-1 * time.Second)) {
+				log.Printf("Reindexing at %v", sb.Ref)
+				lastTick = now
+			}
+			select {
+			case <-donec:
+				return context.ErrCanceled
+			case blobc <- sb.Ref:
+				return nil
+			}
+		})
+	}()
+	const j = 4 // arbitrary concurrency level
+	for i := 0; i < j; i++ {
+		go func() {
+			for br := range blobc {
+				if err := x.reindex(br); err != nil {
+					log.Printf("Error reindexing %v: %v", br, err)
+					nerrmu.Lock()
+					nerr++
+					nerrmu.Unlock()
+					// TODO: flag (or default?) to stop the EnumerateAll above once
+					// there's any error with reindexing?
+				}
+			}
+		}()
+	}
+	if err := <-enumErr; err != nil {
+		return err
+	}
+	nerrmu.Lock() // no need to unlock
+	if nerr != 0 {
+		return fmt.Errorf("%d blobs failed to re-index", nerr)
+	}
+	return nil
 }
 
 func queryPrefixString(s sorted.KeyValue, prefix string) sorted.Iterator {
@@ -806,16 +874,10 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	wg.Wait()
 
 	if ierr == sorted.ErrNotFound {
-		go x.reindex(fileRef) // kinda a hack. Issue 103.
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	if ierr != nil {
 		return camtypes.FileInfo{}, ierr
-	}
-	if terr == sorted.ErrNotFound {
-		// Old index; retry. TODO: index versioning system.
-		x.reindex(fileRef)
-		tv, terr = x.s.Get(tkey)
 	}
 	valPart := strings.Split(iv, "|")
 	if len(valPart) < 3 {

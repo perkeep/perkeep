@@ -39,6 +39,7 @@ import (
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 )
 
@@ -62,6 +63,7 @@ type handlerLoader struct {
 	curPrefix   string
 	closers     []io.Closer
 	prefixStack []string
+	reindex     bool
 
 	// optional context (for App Engine, the first request that
 	// started up the process).  we may need this if setting up
@@ -283,6 +285,12 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			exitFailure("error instantiating storage for prefix %q, type %q: %v",
 				h.prefix, stype, err)
 		}
+		if ix, ok := pstorage.(*index.Index); ok && hl.reindex {
+			log.Printf("Reindexing %s ...", h.prefix)
+			if err := ix.Reindex(); err != nil {
+				exitFailure("Error reindexing %s: %v", h.prefix, err)
+			}
+		}
 		hl.handler[h.prefix] = pstorage
 		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
 		if cl, ok := pstorage.(blobserver.ShutdownStorage); ok {
@@ -384,7 +392,7 @@ func (config *Config) checkValidAuth() error {
 //
 // The returned shutdown value can be used to cleanly shut down the
 // handlers.
-func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, context *http.Request) (shutdown io.Closer, err error) {
+func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reindex bool, context *http.Request) (shutdown io.Closer, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			log.Printf("Caught panic installer handlers: %v", e)
@@ -416,6 +424,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, conte
 		config:    make(map[string]*handlerConfig),
 		handler:   make(map[string]interface{}),
 		context:   context,
+		reindex:   reindex,
 	}
 
 	for prefix, vei := range prefixes {

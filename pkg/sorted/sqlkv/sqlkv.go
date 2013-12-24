@@ -156,6 +156,15 @@ func (kv *KeyValue) Delete(key string) error {
 	return err
 }
 
+func (kv *KeyValue) Wipe() error {
+	if kv.Serial {
+		kv.mu.Lock()
+		defer kv.mu.Unlock()
+	}
+	_, err := kv.DB.Exec(kv.sql("DELETE FROM rows"))
+	return err
+}
+
 func (kv *KeyValue) Close() error { return kv.DB.Close() }
 
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {

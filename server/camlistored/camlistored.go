@@ -89,6 +89,7 @@ var (
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
 	listenFlag      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
+	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
 	flagPollParent  bool
 )
 
@@ -472,7 +473,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		baseURL = ws.ListenURL()
 	}
 
-	shutdownCloser, err := config.InstallHandlers(ws, baseURL, nil)
+	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex, nil)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}

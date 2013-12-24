@@ -140,6 +140,11 @@ type Storage interface {
 	BlobRemover
 }
 
+type FetcherEnumerator interface {
+	blob.StreamingFetcher
+	BlobEnumerator
+}
+
 // StorageHandler is a storage implementation that also exports an HTTP
 // status page.
 type StorageHandler interface {

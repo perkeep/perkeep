@@ -45,32 +45,20 @@ import (
 	"camlistore.org/third_party/taglib"
 )
 
-var reindexMu sync.Mutex
-
-func (ix *Index) reindex(br blob.Ref) {
-	// TODO: cap how many of these can be going at once, probably more than 1,
-	// and be more efficient than just blocking goroutines. For now, this:
-	reindexMu.Lock()
-	defer reindexMu.Unlock()
-
+func (ix *Index) reindex(br blob.Ref) error {
 	bs := ix.BlobSource
 	if bs == nil {
-		log.Printf("index: can't re-index %v: no BlobSource", br)
-		return
+		return fmt.Errorf("index: can't re-index %v: no BlobSource", br)
 	}
-	log.Printf("index: starting re-index of %v", br)
 	rc, _, err := bs.FetchStreaming(br)
 	if err != nil {
-		log.Printf("index: failed to fetch %v for reindexing: %v", br, err)
-		return
+		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
 	}
 	defer rc.Close()
-	sb, err := blobserver.Receive(ix, br, rc)
-	if err != nil {
-		log.Printf("index: reindex of %v failed: %v", br, err)
-		return
+	if _, err := blobserver.Receive(ix, br, rc); err != nil {
+		return err
 	}
-	log.Printf("index: successfully reindexed %v", sb)
+	return nil
 }
 
 type mutationMap struct {
@@ -404,7 +392,6 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 			}
 		}
 		valStr := val.String()
-		log.Printf("EXIF tag %q: %q = %q", name, key, valStr)
 		mm.Set(key, valStr)
 		return nil
 	}))
@@ -433,7 +420,6 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 	if nsTag.StringVal() == "S" {
 		lat *= -1.0
 	}
-	log.Printf("Setting EXIF %v = %s, %s", wholeRef, fmt.Sprint(lat), fmt.Sprint(long))
 	mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
 }
 
