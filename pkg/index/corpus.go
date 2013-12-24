@@ -41,7 +41,7 @@ import (
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
 type Corpus struct {
 	mu sync.RWMutex
-	//mu syncutil.RWMutexTracker   // when debugging
+	//mu syncutil.RWMutexTracker // when debugging
 
 	// building is true at start while scanning all rows in the
 	// index.  While building, certain invariants (like things
@@ -627,6 +627,10 @@ func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch 
 func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	return c.GetBlobMetaLocked(br)
+}
+
+func (c *Corpus) GetBlobMetaLocked(br blob.Ref) (camtypes.BlobMeta, error) {
 	bm, ok := c.blobs[br]
 	if !ok {
 		return camtypes.BlobMeta{}, os.ErrNotExist
@@ -770,6 +774,10 @@ func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 func (c *Corpus) GetFileInfo(fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	return c.GetFileInfoLocked(fileRef)
+}
+
+func (c *Corpus) GetFileInfoLocked(fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
 	fi, ok := c.files[fileRef]
 	if !ok {
 		err = os.ErrNotExist

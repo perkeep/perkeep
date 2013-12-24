@@ -591,7 +591,19 @@ type search struct {
 }
 
 func (s *search) blobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
-	return s.h.index.GetBlobMeta(br)
+	if c := s.h.corpus; c != nil {
+		return c.GetBlobMetaLocked(br)
+	} else {
+		return s.h.index.GetBlobMeta(br)
+	}
+}
+
+func (s *search) fileInfo(br blob.Ref) (camtypes.FileInfo, error) {
+	if c := s.h.corpus; c != nil {
+		return c.GetFileInfoLocked(br)
+	} else {
+		return s.h.index.GetFileInfo(br)
+	}
 }
 
 // optimizePlan returns an optimized version of c which will hopefully
@@ -1073,7 +1085,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 	if bm.CamliType != "file" {
 		return false, nil
 	}
-	fi, err := s.h.index.GetFileInfo(br)
+	fi, err := s.fileInfo(br)
 	if err == os.ErrNotExist {
 		return false, nil
 	}
