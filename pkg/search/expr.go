@@ -153,6 +153,14 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 			})
 			continue
 		}
+		if strings.HasPrefix(word, "format:") {
+			andFile(&FileConstraint{
+				MIMEType: &StringConstraint{
+					Equals: mimeFromFormat(strings.TrimPrefix(word, "format:")),
+				},
+			})
+			continue
+		}
 		if strings.HasPrefix(word, "width:") {
 			m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "width:"))
 			if m == nil {
@@ -232,4 +240,21 @@ func whIntConstraint(mins, maxs string) *IntConstraint {
 		}
 	}
 	return ic
+}
+
+func mimeFromFormat(v string) string {
+	if strings.Contains(v, "/") {
+		return v
+	}
+	switch v {
+	case "jpg", "jpeg":
+		return "image/jpeg"
+	case "gif":
+		return "image/gif"
+	case "png":
+		return "image/png"
+	case "pdf":
+		return "application/pdf" // RFC 3778
+	}
+	return "???"
 }
