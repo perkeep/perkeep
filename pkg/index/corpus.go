@@ -65,10 +65,12 @@ type Corpus struct {
 	camBlobs map[string]map[blob.Ref]*camtypes.BlobMeta
 
 	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
-	keyId      map[blob.Ref]string
-	files      map[blob.Ref]camtypes.FileInfo
-	permanodes map[blob.Ref]*PermanodeMeta
-	imageInfo  map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
+	keyId        map[blob.Ref]string
+	files        map[blob.Ref]camtypes.FileInfo
+	permanodes   map[blob.Ref]*PermanodeMeta
+	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
+	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
+	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
 
 	// edge tracks "forward" edges. e.g. from a directory's static-set to
 	// its members. Permanodes' camliMembers aren't tracked, since they
@@ -98,6 +100,10 @@ type Corpus struct {
 	ss []string
 }
 
+type latLong struct {
+	lat, long float64
+}
+
 // RLock locks the Corpus for reads. It must be used for any "Locked" methods.
 func (c *Corpus) RLock() { c.mu.RLock() }
 
@@ -116,14 +122,16 @@ type PermanodeMeta struct {
 
 func newCorpus() *Corpus {
 	return &Corpus{
-		blobs:      make(map[blob.Ref]*camtypes.BlobMeta),
-		camBlobs:   make(map[string]map[blob.Ref]*camtypes.BlobMeta),
-		files:      make(map[blob.Ref]camtypes.FileInfo),
-		permanodes: make(map[blob.Ref]*PermanodeMeta),
-		imageInfo:  make(map[blob.Ref]camtypes.ImageInfo),
-		deletedBy:  make(map[blob.Ref]blob.Ref),
-		keyId:      make(map[blob.Ref]string),
-		brOfStr:    make(map[string]blob.Ref),
+		blobs:        make(map[blob.Ref]*camtypes.BlobMeta),
+		camBlobs:     make(map[string]map[blob.Ref]*camtypes.BlobMeta),
+		files:        make(map[blob.Ref]camtypes.FileInfo),
+		permanodes:   make(map[blob.Ref]*PermanodeMeta),
+		imageInfo:    make(map[blob.Ref]camtypes.ImageInfo),
+		deletedBy:    make(map[blob.Ref]blob.Ref),
+		keyId:        make(map[blob.Ref]string),
+		brOfStr:      make(map[string]blob.Ref),
+		fileWholeRef: make(map[blob.Ref]blob.Ref),
+		gps:          make(map[blob.Ref]latLong),
 	}
 }
 
@@ -170,6 +178,8 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"fileinfo":    (*Corpus).mergeFileInfoRow,
 	"filetimes":   (*Corpus).mergeFileTimesRow,
 	"imagesize":   (*Corpus).mergeImageSizeRow,
+	"wholetofile": (*Corpus).mergeWholeToFileRow,
+	"exifgps":     (*Corpus).mergeEXIFGPSRow,
 }
 
 func memstats() *runtime.MemStats {
@@ -207,6 +217,8 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		"fileinfo|",
 		"filetimes|",
 		"imagesize|",
+		"wholetofile|",
+		"exifgps|",
 	}
 	var grp syncutil.Group
 	for i, prefix := range prefixes {
@@ -445,6 +457,38 @@ func (c *Corpus) mergeImageSizeRow(k, v []byte) error {
 	}
 	br = c.br(br)
 	c.imageInfo[br] = ii
+	return nil
+}
+
+// "wholetofile|sha1-17b53c7c3e664d3613dfdce50ef1f2a09e8f04b5|sha1-fb88f3eab3acfcf3cfc8cd77ae4366f6f975d227" -> "1"
+func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
+	pair := k[len("wholetofile|"):]
+	pipe := bytes.IndexByte(pair, '|')
+	if pipe < 0 {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	wholeRef, ok1 := blob.ParseBytes(pair[:pipe])
+	fileRef, ok2 := blob.ParseBytes(pair[pipe+1:])
+	if !ok1 || !ok2 {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	c.fileWholeRef[fileRef] = wholeRef
+	return nil
+}
+
+// "exifgps|sha1-17b53c7c3e664d3613dfdce50ef1f2a09e8f04b5" -> "-122.39897155555556|37.61952208333334"
+func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
+	wholeRef, ok := blob.ParseBytes(k[len("exifgps|"):])
+	pipe := bytes.IndexByte(v, '|')
+	if pipe < 0 || !ok {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	lat, err := strconv.ParseFloat(string(v[:pipe]), 64)
+	long, err1 := strconv.ParseFloat(string(v[pipe+1:]), 64)
+	if err != nil || err1 != nil {
+		return fmt.Errorf("bogus row %q = %q", k, v)
+	}
+	c.gps[wholeRef] = latLong{lat, long}
 	return nil
 }
 
@@ -744,6 +788,18 @@ func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, er
 		err = os.ErrNotExist
 	}
 	return
+}
+
+func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool) {
+	wholeRef, ok := c.fileWholeRef[fileRef]
+	if !ok {
+		return
+	}
+	ll, ok := c.gps[wholeRef]
+	if !ok {
+		return
+	}
+	return ll.lat, ll.long, true
 }
 
 // SetVerboseCorpusLogging controls corpus setup verbosity. It's on by default

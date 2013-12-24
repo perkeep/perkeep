@@ -97,6 +97,8 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{})
 			}
 		case typeStr:
 			buf.WriteString(urle(asStr()))
+		case typeRawStr:
+			buf.WriteString(asStr())
 		case typeReverseTime:
 			s := asStr()
 			const example = "2011-01-23T05:23:12"
@@ -130,8 +132,9 @@ const (
 	typeTime
 	typeReverseTime // time prepended with "rt" + each numeric digit reversed from '9'
 	typeBlobRef
-	typeStr
+	typeStr    // URL-escaped
 	typeIntStr // integer as string
+	typeRawStr // not URL-escaped
 )
 
 var (
@@ -324,4 +327,45 @@ var (
 		},
 		nil,
 	}
+
+	// EXIF tags
+	keyEXIFTag = &keyType{
+		"exiftag",
+		[]part{
+			{"wholeRef", typeBlobRef}, // of entire file, not fileref
+			{"tag", typeStr},          // uint16 tag number as hex: xxxx
+		},
+		[]part{
+			{"type", typeStr},    // "int", "rat", "float", "string"
+			{"n", typeIntStr},    // n components of type
+			{"vals", typeRawStr}, // pipe-separated; rats are n/d. strings are URL-escaped.
+		},
+	}
+
+	// Redundant version of keyEXIFTag. TODO: maybe get rid of this.
+	// Easier to process as one row instead of 4, though.
+	keyEXIFGPS = &keyType{
+		"exifgps",
+		[]part{
+			{"wholeRef", typeBlobRef}, // of entire file, not fileref
+		},
+		[]part{
+			{"lat", typeStr},
+			{"long", typeStr},
+		},
+	}
 )
+
+func containsUnsafeRawStrByte(s string) bool {
+	for _, r := range s {
+		if r >= 'z' || r < ' ' {
+			// pipe ('|) and non-ASCII are above 'z'.
+			return true
+		}
+		if r == '%' || r == '+' {
+			// Could be interpretted as URL-encoded
+			return true
+		}
+	}
+	return false
+}

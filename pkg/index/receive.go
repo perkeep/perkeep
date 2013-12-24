@@ -40,6 +40,8 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
 
+	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
+	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 	"camlistore.org/third_party/taglib"
 )
 
@@ -283,6 +285,7 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 		log.Printf("index: error indexing file %s: %v", blobRef, err)
 		return nil
 	}
+	wholeRef := blob.RefFromHash(sha1)
 
 	if imageBuf != nil {
 		if conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes)); err == nil {
@@ -294,6 +297,8 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 		} else {
 			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 		}
+
+		indexEXIF(wholeRef, imageBuf.Bytes, mm)
 	}
 
 	var sortTimes []time.Time
@@ -312,7 +317,6 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 		time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
 	}
 
-	wholeRef := blob.RefFromHash(sha1)
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
 	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime))
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
@@ -327,6 +331,118 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 	}
 
 	return nil
+}
+
+func tagFormatString(tag *tiff.Tag) string {
+	switch tag.Format() {
+	case tiff.IntVal:
+		return "int"
+	case tiff.RatVal:
+		return "rat"
+	case tiff.FloatVal:
+		return "float"
+	case tiff.StringVal:
+		return "string"
+	}
+	return ""
+}
+
+type exifWalkFunc func(name exif.FieldName, tag *tiff.Tag) error
+
+func (f exifWalkFunc) Walk(name exif.FieldName, tag *tiff.Tag) error { return f(name, tag) }
+
+func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
+	ex, err := exif.Decode(bytes.NewReader(header))
+	if err != nil {
+		return
+	}
+	defer func() {
+		// The EXIF library panics if you access a field past
+		// what the file contains.  Be paranoid and just
+		// recover here, instead of crashing on an invalid
+		// EXIF file.
+		if e := recover(); e != nil {
+			log.Printf("Ignoring invalid EXIF file. Caught panic: %v", e)
+		}
+	}()
+
+	ex.Walk(exifWalkFunc(func(name exif.FieldName, tag *tiff.Tag) error {
+		tagFmt := tagFormatString(tag)
+		if tagFmt == "" {
+			return nil
+		}
+		key := keyEXIFTag.Key(wholeRef, fmt.Sprintf("%04x", tag.Id))
+		numComp := int(tag.Ncomp)
+		if tag.Format() == tiff.StringVal {
+			numComp = 1
+		}
+		var val bytes.Buffer
+		val.WriteString(keyEXIFTag.Val(tagFmt, numComp, ""))
+		if tag.Format() == tiff.StringVal {
+			str := tag.StringVal()
+			if containsUnsafeRawStrByte(str) {
+				val.WriteString(urle(str))
+			} else {
+				val.WriteString(str)
+			}
+		} else {
+			for i := 0; i < int(tag.Ncomp); i++ {
+				if i > 0 {
+					val.WriteByte('|')
+				}
+				switch tagFmt {
+				case "int":
+					fmt.Fprintf(&val, "%d", tag.Int(i))
+				case "rat":
+					n, d := tag.Rat2(i)
+					fmt.Fprintf(&val, "%d/%d", n, d)
+				case "float":
+					fmt.Fprintf(&val, "%v", tag.Float(i))
+				default:
+					panic("shouldn't get here")
+				}
+			}
+		}
+		valStr := val.String()
+		log.Printf("EXIF tag %q: %q = %q", name, key, valStr)
+		mm.Set(key, valStr)
+		return nil
+	}))
+
+	longTag, err := ex.Get(exif.FieldName("GPSLongitude"))
+	if err != nil {
+		return
+	}
+	ewTag, err := ex.Get(exif.FieldName("GPSLongitudeRef"))
+	if err != nil {
+		return
+	}
+	latTag, err := ex.Get(exif.FieldName("GPSLatitude"))
+	if err != nil {
+		return
+	}
+	nsTag, err := ex.Get(exif.FieldName("GPSLatitudeRef"))
+	if err != nil {
+		return
+	}
+	long := tagDegrees(longTag)
+	lat := tagDegrees(latTag)
+	if ewTag.StringVal() == "W" {
+		long *= -1.0
+	}
+	if nsTag.StringVal() == "S" {
+		lat *= -1.0
+	}
+	log.Printf("Setting EXIF %v = %s, %s", wholeRef, fmt.Sprint(lat), fmt.Sprint(long))
+	mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
+}
+
+func ratFloat(num, dem int64) float64 {
+	return float64(num) / float64(dem)
+}
+
+func tagDegrees(tag *tiff.Tag) float64 {
+	return ratFloat(tag.Rat2(0)) + ratFloat(tag.Rat2(1))/60 + ratFloat(tag.Rat2(2))/3600
 }
 
 // indexMusic adds mutations to index the wholeRef by most of the
