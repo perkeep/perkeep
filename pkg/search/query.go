@@ -405,14 +405,19 @@ type EXIFConstraint struct {
 }
 
 type LocationConstraint struct {
-	Top    float64
-	Left   float64
-	Right  float64
-	Bottom float64
+	// Any, if true, matches any photo with a known location.
+	Any bool
+
+	// North, West, East, and South define a region in which a photo
+	// must be in order to match.
+	North float64
+	West  float64
+	East  float64
+	South float64
 }
 
 func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
-	return c.Left <= long && long <= c.Right && c.Bottom <= lat && lat <= c.Top
+	return c.West <= long && long <= c.East && c.South <= lat && lat <= c.North
 }
 
 // A StringConstraint specifies constraints on a string.
@@ -1124,7 +1129,9 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 			return false, nil
 		}
 		lat, long, ok := corpus.FileLatLongLocked(br)
-		if !ok || !c.Location.matchesLatLong(lat, long) {
+		if ok && c.Location.Any {
+			// Pass.
+		} else if !ok || !c.Location.matchesLatLong(lat, long) {
 			return false, nil
 		}
 	}

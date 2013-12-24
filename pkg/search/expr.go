@@ -56,8 +56,17 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 		return sq, nil
 	}
 
+	andNot := false // whether the next and(x) is really a and(!x)
 	and := func(c *Constraint) {
 		old := sq.Constraint
+		if andNot {
+			c = &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "not",
+					A:  c,
+				},
+			}
+		}
 		sq.Constraint = &Constraint{
 			Logical: &LogicalConstraint{
 				Op: "and",
@@ -95,6 +104,11 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 
 	words := strings.Fields(exp)
 	for _, word := range words {
+		andNot = false
+		if strings.HasPrefix(word, "-") {
+			andNot = true
+			word = word[1:]
+		}
 		if m := tagExpr.FindStringSubmatch(word); m != nil {
 			and(&Constraint{
 				Permanode: &PermanodeConstraint{
@@ -130,6 +144,15 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 			andWHRatio(&FloatConstraint{Min: 1.5})
 			continue
 		}
+		if word == "has:location" {
+			andFile(&FileConstraint{
+				IsImage: true,
+				Location: &LocationConstraint{
+					Any: true,
+				},
+			})
+			continue
+		}
 		if strings.HasPrefix(word, "width:") {
 			m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "width:"))
 			if m == nil {
@@ -139,6 +162,7 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 				IsImage: true,
 				Width:   whIntConstraint(m[1], m[2]),
 			})
+			continue
 		}
 		if strings.HasPrefix(word, "height:") {
 			m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "height:"))
@@ -149,6 +173,7 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 				IsImage: true,
 				Height:  whIntConstraint(m[1], m[2]),
 			})
+			continue
 		}
 		if strings.HasPrefix(word, "loc:") {
 			where := strings.TrimPrefix(word, "loc:")
@@ -165,10 +190,10 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 				rectConstraint := permOfFile(&FileConstraint{
 					IsImage: true,
 					Location: &LocationConstraint{
-						Left:   rect.SouthWest.Long,
-						Right:  rect.NorthEast.Long,
-						Top:    rect.NorthEast.Lat,
-						Bottom: rect.SouthWest.Lat,
+						West:  rect.SouthWest.Long,
+						East:  rect.NorthEast.Long,
+						North: rect.NorthEast.Lat,
+						South: rect.SouthWest.Lat,
 					},
 				})
 				if i == 0 {
