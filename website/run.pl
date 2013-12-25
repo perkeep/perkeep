@@ -27,7 +27,6 @@ if ($in_prod) {
     push @args, "--email_dest=camlistore-commits\@googlegroups.com";
     push @args, "--http=:8080";
     push @args, "--https=:4430";
-    push @args, "--gerrithost=ec2-107-22-182-135.compute-1.amazonaws.com";
     push @args, "--tlscert=$HOME/etc/ssl.crt";
     push @args, "--tlskey=$HOME/etc/ssl.key";
     while (1) {
