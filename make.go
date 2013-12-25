@@ -601,15 +601,7 @@ func checkHaveSQLite() bool {
 	if err != nil {
 		return false
 	}
-	cmd := exec.Command("pkg-config", "--libs", "sqlite3")
-	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
-		matches, err := filepath.Glob("/usr/local/Cellar/sqlite/*/lib/pkgconfig/sqlite3.pc")
-		if err == nil && len(matches) > 0 {
-			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH="+filepath.Dir(matches[0]))
-		}
-	}
-
-	out, err := cmd.Output()
+	out, err := exec.Command("pkg-config", "--libs", "sqlite3").Output()
 	if err != nil && err.Error() == "exit status 1" {
 		// This is sloppy (comparing against a string), but
 		// doing it correctly requires using multiple *.go
