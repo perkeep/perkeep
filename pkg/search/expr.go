@@ -141,7 +141,7 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 			continue
 		}
 		if word == "is:pano" {
-			andWHRatio(&FloatConstraint{Min: 1.5})
+			andWHRatio(&FloatConstraint{Min: 1.6})
 			continue
 		}
 		if word == "has:location" {
