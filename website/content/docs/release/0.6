@@ -1,0 +1,61 @@
+<h1>Release 0.6 ("Cannon Beach")</h1>
+
+<p><b>2013-12-25</b></p>
+
+<p>Happy Holidays! Sorry, it's been over 3 months since our <a href="0.5">last release</a>, but it's worth it. This release is awesome.</p>
+
+<p>I'm giving this release the codename "<a href="https://www.google.com/search?q=cannon+beach&espv=210&es_sm=91&source=lnms&tbm=isch&sa=X">Cannon Beach</a>",
+where I've done a bunch of hacking on Camlistore over the years, and in the past few months.</p>
+
+<center><div style='font-size: 18pt; font-weight: bold'><a href="https://github.com/bradfitz/camlistore/archive/0.6.zip">camlistore-0.6.zip</a></div>
+<div style='margin-top: 0.5em'>
+Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.6">github.com/bradfitz/camlistore/tree/0.6</a>
+</div>
+</center>
+
+<h1>What is Camlistore?</h1>
+
+<p>See the <a href="/docs/">docs</a> and <a href="/docs/overview">overview</a>.</p>
+
+<h1>New in 0.6</h1>
+
+<ul>
+  <li><a href="http://imgur.com/a/NKje7">New beautiful web UI</a> with infinite scroll of photos</li>
+  <li><a href="http://imgur.com/a/NKje7">Search!</a> Search by tag, photo location (using GPS info in JPEG EXIF + geocoding lookups), photo orientation, size, format, ...</li>
+  <li>Websocket-based live updating of search results (see new photos appear on the web as they're uploaded from Android or other clients)</li>
+  <li>Notable bug fixes: corruption fix for cznic/kv (for the "kvfile" index type), fd open/close race in diskpacked, etc.</li>
+  <li><tt>camlistored --reindex</tt></li>
+  <li>Start of OS X GUI and iPhone app. (no binary releases yet)</li>
+  <li>Bunch of internal cleanups</li>
+  <li>New publishing and templating system.</li>
+  <li>Faster, prettier thumbnails</li>
+  <li>18 unique contributors since 0.5</li>
+  <li>10 new contributors: Brian Marete, Daniel Pupius, Dustin Sallings, Jakub Brzeski, Robert Obryk, Salman Aljammaz, Steve Phillips, Tamás Gulácsi, Tony Chang, and Ulf Holm Nielsen.</li>
+  <li>434 non-merge commits</li>
+</ul>
+
+<h1>Screenshots</h1>
+
+<p>See <a href="http://imgur.com/a/NKje7">http://imgur.com/a/NKje7</a>.  We hope to soon be using Camlistore itself for publishing these, instead of using imgur.</p>
+
+<p>My apologies if I forgot something in this summary.</p>
+
+<h1>Get involved!</h1>
+
+<p>We welcome feedback, feature requests, bug reports, and code
+contributions!</p>
+
+<p>Feel free to email us on our <a
+href="https://groups.google.com/forum/?fromgroups#!forum/camlistore">mailing
+list</a>, and/or <a
+href="//code.google.com/p/camlistore/issues/entry">file a bug</a> (or
+see <a href="//code.google.com/p/camlistore/issues/list">existing
+bugs</a>).  </p>
+
+<p>While we welcome user bug reports, we also welcome code
+contributions. See <a href="/docs/contributing">the Contributing
+page</a> for details. While most the codebase (the server and
+command-line tools) are written in <a href="http://golang.org">Go</a>,
+there's also a lot of JavaScript which needs love, as well as Java
+(for Android) and Objective C (for OS X and iOS). Or anything useful you'd like
+to contribute.</p>
