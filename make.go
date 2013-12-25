@@ -143,7 +143,7 @@ func main() {
 	for _, dir := range goDirs {
 		oriPath := filepath.Join(camRoot, filepath.FromSlash(dir))
 		dstPath := buildSrcPath(dir)
-		if maxMod, err := mirrorDir(oriPath, dstPath); err != nil {
+		if maxMod, err := mirrorDir(oriPath, dstPath, mirrorOpts{sqlite: sql}); err != nil {
 			log.Fatalf("Error while mirroring %s to %s: %v", oriPath, dstPath, err)
 		} else {
 			if maxMod.After(latestSrcMod) {
@@ -475,13 +475,20 @@ func verifyGoVersion() {
 	}
 }
 
-func mirrorDir(src, dst string) (maxMod time.Time, err error) {
+type mirrorOpts struct {
+	sqlite bool // want sqlite package?
+}
+
+func mirrorDir(src, dst string, opts mirrorOpts) (maxMod time.Time, err error) {
 	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		base := fi.Name()
 		if fi.IsDir() {
+			if !opts.sqlite && strings.Contains(path, "mattn") && strings.Contains(path, "go-sqlite3") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if strings.HasPrefix(base, ".#") || !rxMirrored.MatchString(base) {
