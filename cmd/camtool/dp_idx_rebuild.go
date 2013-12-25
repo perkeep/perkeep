@@ -62,10 +62,11 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		prefixes := cfg.RequiredObject("prefixes")
-		if err := cfg.Validate(); err != nil {
-			return fmt.Errorf("configuration error in root object's keys: %v", err)
+		prefixes, ok := cfg.Obj["prefixes"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
 		}
+		paths := []string{}
 		for prefix, vei := range prefixes {
 			pmap, ok := vei.(map[string]interface{})
 			if !ok {
@@ -87,10 +88,17 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 			path = aconf.RequiredString("path")
 			// no aconv.Validate, as this is a recover tool
 			if path != "" {
-				break
+				paths = append(paths, path)
 			}
 		}
-
+		if len(paths) == 0 {
+			return fmt.Errorf("Server config file %s doesn't specify a disk-packed storage handler.",
+				osutil.UserServerConfigPath())
+		}
+		if len(paths) > 1 {
+			return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
+		}
+		path = paths[0]
 	case len(args) == 1:
 		path = args[0]
 	default:
