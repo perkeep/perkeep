@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	pathpkg "path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -167,7 +168,7 @@ func build(path string) error {
 		return nil
 	}
 	_, cmdName := filepath.Split(path)
-	target := filepath.Join("camlistore.org", path)
+	target := pathpkg.Join("camlistore.org", filepath.ToSlash(path))
 	binPath := filepath.Join("bin", cmdName)
 	var modtime int64
 	fi, err := os.Stat(binPath)
