@@ -99,6 +99,22 @@ type BlobEnumerator interface {
 		limit int) error
 }
 
+type BlobStreamer interface {
+	// StreamBlobs sends blobs to dest in unspecified order. It is
+	// expected that a blobstorage implementing BlobStreamer will
+	// send blobs to dest in the most efficient order
+	// possible. StreamBlobs will stop sending blobs to dest and
+	// return an opaque continuation token (in the string return
+	// parameter) when the total size of the blobs it has sent
+	// equals or exceeds limit. A succeeding call to StreamBlobs
+	// should pass the string returned from the previous call in
+	// contToken, or an empty string if the caller wishes to
+	// receive blobs from "the start". StreamBlobs must
+	// unconditionally close dest before returning, and it must
+	// return if ctx.Done() becomes readable.
+	StreamBlobs(ctx *context.Context, dest chan<- blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error)
+}
+
 // Cache is the minimal interface expected of a blob cache.
 type Cache interface {
 	blob.SeekFetcher
