@@ -62,7 +62,7 @@ var parseExprTests = []struct {
 								File: &FileConstraint{
 									IsImage: true,
 									WHRatio: &FloatConstraint{
-										Min: 1.5,
+										Min: 1.6,
 									},
 								},
 							},
