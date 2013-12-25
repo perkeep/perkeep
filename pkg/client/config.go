@@ -342,6 +342,6 @@ func (c *Client) initIgnoredFiles() {
 }
 
 func (c *Client) getIgnoredFiles() []string {
-	c.initIgnoredFilesOnce.Do(func() { c.initIgnoredFiles() })
+	c.initIgnoredFilesOnce.Do(c.initIgnoredFiles)
 	return c.ignoredFiles
 }
