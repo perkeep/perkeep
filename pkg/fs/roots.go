@@ -87,6 +87,66 @@ func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
+func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
+	log.Printf("rootsDir.Rename %q -> %q", req.OldName, req.NewName)
+	n.mu.Lock()
+	target, exists := n.m[req.OldName]
+	_, collision := n.m[req.NewName]
+	n.mu.Unlock()
+	if !exists {
+		log.Printf("*rootsDir.Rename src name %q isn't known", req.OldName)
+		return fuse.ENOENT
+	}
+	if collision {
+		log.Printf("*rootsDir.Rename dest %q already exists", req.NewName)
+		return fuse.EIO
+	}
+
+	// Don't allow renames if the root contains content.  Rename
+	// is mostly implemented to make GUIs that create directories
+	// before asking for the directory name.
+	res, err := n.fs.client.Describe(&search.DescribeRequest{BlobRef: target})
+	if err != nil {
+		log.Println("rootsDir.Rename:", err)
+		return fuse.EIO
+	}
+	db := res.Meta[target.String()]
+	if db == nil {
+		log.Printf("Failed to pull meta for target: %v", target)
+		return fuse.EIO
+	}
+
+	for k := range db.Permanode.Attr {
+		const p = "camliPath:"
+		if strings.HasPrefix(k, p) {
+			log.Printf("Found file in %q: %q, disallowing rename", req.OldName, k[len(p):])
+			return fuse.EIO
+		}
+	}
+
+	claim := schema.NewSetAttributeClaim(target, "camliRoot", req.NewName)
+	_, err = n.fs.client.UploadAndSignBlob(claim)
+	if err != nil {
+		log.Printf("Upload rename link error: %v", err)
+		return fuse.EIO
+	}
+
+	// Comment transplanted from mutDir.Rename
+	// TODO(bradfitz): this locking would be racy, if the kernel
+	// doesn't do it properly. (It should) Let's just trust the
+	// kernel for now. Later we can verify and remove this
+	// comment.
+	n.mu.Lock()
+	if n.m[req.OldName] != target {
+		panic("Race.")
+	}
+	delete(n.m, req.OldName)
+	n.m[req.NewName] = target
+	n.mu.Unlock()
+
+	return nil
+}
+
 func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	log.Printf("fs.roots: Lookup(%q)", name)
 	n.mu.Lock()
