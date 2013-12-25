@@ -62,6 +62,7 @@ type serverCmd struct {
 
 	openBrowser  bool
 	flickrAPIKey string
+	extraArgs    string // passed to camlistored
 	// end of flag vars
 
 	listen    string // address + port to listen on
@@ -94,6 +95,8 @@ func init() {
 
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
+		flags.StringVar(&cmd.extraArgs, "extraargs", "",
+			"List of comma separated options that will be passed to camlistored")
 		return cmd
 	})
 }
@@ -376,6 +379,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 		"-configfile=" + filepath.Join(camliSrcRoot, "config", "dev-server-config.json"),
 		"-listen=" + c.listen,
 		"-openbrowser=" + strconv.FormatBool(c.openBrowser),
+	}
+	if c.extraArgs != "" {
+		cmdArgs = append(cmdArgs, strings.Split(c.extraArgs, ",")...)
 	}
 	return runExec(camliBin, cmdArgs, c.env)
 }
