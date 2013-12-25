@@ -63,9 +63,26 @@ var (
 	_ Interface          = (*Index)(nil)
 )
 
+var aboutToReindex = false
+
+// SetImpendingReindex notes that the user ran the camlistored binary with the --reindex flag.
+// Because the index is about to be wiped, schema version checks should be suppressed.
+func SetImpendingReindex() {
+	// TODO: remove this function, once we refactor how indexes are created.
+	// They'll probably not all have their own storage constructor registered.
+	aboutToReindex = true
+}
+
 // New returns a new index using the provided key/value storage implementation.
 func New(s sorted.KeyValue) *Index {
 	idx := &Index{s: s}
+	if aboutToReindex {
+		idx.deletes = &deletionCache{
+			m: make(map[blob.Ref][]deletion),
+		}
+		return idx
+	}
+
 	schemaVersion := idx.schemaVersion()
 	switch {
 	case schemaVersion == 0 && idx.isEmpty():
@@ -167,9 +184,13 @@ func (x *Index) Reindex() error {
 	if err := <-enumErr; err != nil {
 		return err
 	}
+	log.Printf("Index rebuild complete.")
 	nerrmu.Lock() // no need to unlock
 	if nerr != 0 {
 		return fmt.Errorf("%d blobs failed to re-index", nerr)
+	}
+	if err := x.initDeletesCache(); err != nil {
+		return err
 	}
 	return nil
 }

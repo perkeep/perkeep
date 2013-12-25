@@ -61,7 +61,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
 	// sqlite is taken care of in option_sqlite.go
-	_ "camlistore.org/pkg/index" // base indexer + in-memory dev index
+	"camlistore.org/pkg/index" // base indexer + in-memory dev index
 	_ "camlistore.org/pkg/index/kvfile"
 	_ "camlistore.org/pkg/index/mongo"
 	_ "camlistore.org/pkg/index/mysql"
@@ -441,6 +441,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		fmt.Fprintf(os.Stderr, "camlistored version: %s\nGo version: %s (%s/%s)\n",
 			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
+	}
+	if *flagReindex {
+		index.SetImpendingReindex()
 	}
 
 	log.Printf("Starting camlistored version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),

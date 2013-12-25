@@ -170,17 +170,18 @@ func (crashStorage) Find(start, end string) sorted.Iterator {
 // *********** Updating the corpus
 
 var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
-	"have":        nil, // redundant with "meta"
-	"recpn":       nil, // unneeded.
-	"meta":        (*Corpus).mergeMetaRow,
-	"signerkeyid": (*Corpus).mergeSignerKeyIdRow,
-	"claim":       (*Corpus).mergeClaimRow,
-	"fileinfo":    (*Corpus).mergeFileInfoRow,
-	"filetimes":   (*Corpus).mergeFileTimesRow,
-	"imagesize":   (*Corpus).mergeImageSizeRow,
-	"wholetofile": (*Corpus).mergeWholeToFileRow,
-	"exifgps":     (*Corpus).mergeEXIFGPSRow,
-	"exiftag":     nil, // not using any for now
+	"have":            nil, // redundant with "meta"
+	"recpn":           nil, // unneeded.
+	"meta":            (*Corpus).mergeMetaRow,
+	"signerkeyid":     (*Corpus).mergeSignerKeyIdRow,
+	"claim":           (*Corpus).mergeClaimRow,
+	"fileinfo":        (*Corpus).mergeFileInfoRow,
+	"filetimes":       (*Corpus).mergeFileTimesRow,
+	"imagesize":       (*Corpus).mergeImageSizeRow,
+	"wholetofile":     (*Corpus).mergeWholeToFileRow,
+	"exifgps":         (*Corpus).mergeEXIFGPSRow,
+	"exiftag":         nil, // not using any for now
+	"signerattrvalue": nil, // ignoring for now
 }
 
 func memstats() *runtime.MemStats {
