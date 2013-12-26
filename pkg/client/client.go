@@ -130,12 +130,12 @@ func New(server string) *Client {
 		httpClient: http.DefaultClient,
 		reqGate:    make(chan bool, maxParallelHTTP),
 		haveCache:  noHaveCache{},
+		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
 	}
 }
 
 func NewOrFail() *Client {
 	c := New(serverOrDie())
-	c.log = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	err := c.SetupAuth()
 	if err != nil {
 		log.Fatal(err)
