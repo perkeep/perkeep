@@ -31,6 +31,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/sorted"
@@ -59,6 +60,7 @@ type SyncHandler struct {
 	from             blobserver.Storage
 	to               blobserver.BlobReceiver
 	queue            sorted.KeyValue
+	toIndex          bool // whether this sync is from a blob storage to an index
 
 	idle bool // if true, the handler does nothing other than providing the discovery.
 
@@ -123,6 +125,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		return nil, err
 	}
 
+	isToIndex := false
 	fromBs, err := ld.GetStorage(from)
 	if err != nil {
 		return nil, err
@@ -131,8 +134,13 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 	if err != nil {
 		return nil, err
 	}
+	if _, ok := fromBs.(*index.Index); !ok {
+		if _, ok := toBs.(*index.Index); ok {
+			isToIndex = true
+		}
+	}
 
-	sh, err := createSyncHandler(from, to, fromBs, toBs, q)
+	sh, err := createSyncHandler(from, to, fromBs, toBs, q, isToIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +188,7 @@ type timestampedError struct {
 
 func createSyncHandler(fromName, toName string,
 	from blobserver.Storage, to blobserver.BlobReceiver,
-	queue sorted.KeyValue) (*SyncHandler, error) {
+	queue sorted.KeyValue, isToIndex bool) (*SyncHandler, error) {
 
 	h := &SyncHandler{
 		copierPoolSize: 3,
@@ -189,6 +197,7 @@ func createSyncHandler(fromName, toName string,
 		fromName:       fromName,
 		toName:         toName,
 		queue:          queue,
+		toIndex:        isToIndex,
 		blobc:          make(chan blob.SizedRef, 8),
 		status:         "not started",
 		blobStatus:     make(map[string]fmt.Stringer),
@@ -209,8 +218,9 @@ func createIdleSyncHandler(fromName, toName string) (*SyncHandler, error) {
 func (sh *SyncHandler) discoveryMap() map[string]interface{} {
 	// TODO(mpl): more status info
 	return map[string]interface{}{
-		"from": sh.fromName,
-		"to":   sh.toName,
+		"from":    sh.fromName,
+		"to":      sh.toName,
+		"toIndex": sh.toIndex,
 	}
 }
 
