@@ -25,6 +25,7 @@ Example low-level config:
          "handler": "storage-remote",
          "handlerArgs": {
              "url": "http://10.0.0.17/base",
+             "auth": "userpass:user:pass",
              "skipStartupCheck": false
           }
      },
@@ -60,14 +61,14 @@ func NewFromClient(c *client.Client) blobserver.Storage {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	url := config.RequiredString("url")
+	auth := config.RequiredString("auth")
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	client := client.New(url)
-	err = client.SetupAuthFromConfig(config)
-	if err != nil {
+	if err = client.SetupAuthFromString(auth); err != nil {
 		return nil, err
 	}
 	client.SetLogger(log.New(os.Stderr, "remote", log.LstdFlags))

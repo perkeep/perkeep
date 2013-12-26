@@ -210,20 +210,11 @@ func (c *Client) SetupAuth() error {
 	return err
 }
 
-// SetupAuthFromConfig sets the Client's authMode using the "auth" key in conf
-// if found, or the environment otherwise.
-func (c *Client) SetupAuthFromConfig(conf jsonconfig.Obj) error {
-	// TODO(mpl): leaving this one alone for now because it's used by remote as well.
-	// See about converting/removing it later.
+// SetupAuthFromString configures the clients authentication mode from
+// an explicit auth string.
+func (c *Client) SetupAuthFromString(a string) error {
 	var err error
-	value, ok := conf["auth"]
-	authString := ""
-	if ok {
-		authString, ok = value.(string)
-		c.authMode, err = auth.FromConfig(authString)
-	} else {
-		c.authMode, err = auth.FromEnv()
-	}
+	c.authMode, err = auth.FromConfig(a)
 	return err
 }
 
