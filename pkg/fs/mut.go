@@ -527,7 +527,7 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.
 	res.Flags &= ^fuse.OpenDirectIO
 
 	// Read-only.
-	if req.Flags == 0 {
+	if !isWriteFlags(req.Flags) {
 		mutFileOpenRO.Incr()
 		log.Printf("mutFile.Open returning read-only file")
 		n := &node{
