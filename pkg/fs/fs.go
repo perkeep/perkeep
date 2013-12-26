@@ -171,9 +171,13 @@ func (n *node) schema() (*schema.Blob, error) {
 	return blob, err
 }
 
+func isWriteFlags(flags uint32) bool {
+	return flags & uint32(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE) != 0
+}
+
 func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
 	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
-	if req.Flags != 0 {
+	if isWriteFlags(req.Flags) {
 		return nil, fuse.EPERM
 	}
 	ss, err := n.schema()
