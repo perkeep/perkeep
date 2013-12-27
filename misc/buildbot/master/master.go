@@ -866,7 +866,7 @@ func reportHandler(w http.ResponseWriter, r *http.Request) {
 
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, `<!doctype html>
-<html><meta http-equiv="refresh" content="5">
+<html>
 <body><pre>`)
 	switch r.URL.Path {
 	case stderrPrefix:
