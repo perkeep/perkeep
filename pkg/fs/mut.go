@@ -153,15 +153,31 @@ func (n *mutDir) populate() error {
 			}
 			continue
 		}
-		// This is a directory.
-		n.children[name] = &mutDir{
-			fs:        n.fs,
-			permanode: blob.ParseOrZero(childRef),
-			parent:    n,
-			name:      name,
+		if isDir(child.Permanode) {
+			// This is a directory.
+			n.children[name] = &mutDir{
+				fs:        n.fs,
+				permanode: blob.ParseOrZero(childRef),
+				parent:    n,
+				name:      name,
+			}
 		}
 	}
 	return nil
+}
+
+func isDir(d *search.DescribedPermanode) bool {
+	// Explicit
+	if d.Attr.Get("camliNodeType") == "directory" {
+		return true
+	}
+	// Implied
+	for k := range d.Attr {
+		if strings.HasPrefix(k, "camliPath:") {
+			return true
+		}
+	}
+	return false
 }
 
 func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
@@ -291,6 +307,14 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 		_, err = n.fs.client.UploadAndSignBlob(claim)
 		return
 	})
+	if typ == dirType {
+		grp.Go(func() (err error) {
+			// Set a directory type on the permanode
+			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliNodeType", "directory")
+			_, err = n.fs.client.UploadAndSignBlob(claim)
+			return
+		})
+	}
 	if stupidMacExtendedAttributeName(name) {
 		grp.Go(func() (err error) {
 			// Add a camliPath:name attribute to the directory permanode.
