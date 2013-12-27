@@ -50,7 +50,7 @@ func condSkip(t *testing.T) {
 	if lasterr != nil {
 		t.Skipf("Skipping test; some other test already failed.")
 	}
-	if runtime.GOOS != "darwin" {
+	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
 		t.Skipf("Skipping test on OS %q", runtime.GOOS)
 	}
 	if runtime.GOOS == "darwin" {
@@ -566,6 +566,10 @@ func dirToBeFUSE(dir string) func() bool {
 				return true
 			}
 			return false
+		}
+		if runtime.GOOS == "linux" {
+			return strings.Contains(string(out), "/dev/fuse") &&
+				strings.Contains(string(out), dir)
 		}
 		return false
 	}

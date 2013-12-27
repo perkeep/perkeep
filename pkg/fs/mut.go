@@ -646,25 +646,48 @@ func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, i
 	return nil
 }
 
-func (h *mutFileHandle) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.Error {
+// Flush is called to let the file system clean up any data buffers
+// and to pass any errors in the process of closing a file to the user
+// application.
+//
+// Flush *may* be called more than once in the case where a file is
+// opened more than once, but it's not possible to detect from the
+// call itself whether this is a final flush.
+//
+// This is generally the last opportunity to finalize data and the
+// return value sets the return value of the Close that led to the
+// calling of Flush.
+//
+// Note that this is distinct from Fsync -- which is a user-requested
+// flush (fsync, etc...)
+func (h *mutFileHandle) Flush(*fuse.FlushRequest, fuse.Intr) fuse.Error {
 	if h.tmp == nil {
-		log.Printf("Release called on camli mutFileHandle without a tempfile set")
+		log.Printf("Flush called on camli mutFileHandle without a tempfile set")
 		return fuse.EIO
 	}
-	log.Printf("mutFileHandle release.")
 	_, err := h.tmp.Seek(0, 0)
 	if err != nil {
-		log.Println("mutFileHandle.Release:", err)
+		log.Println("mutFileHandle.Flush:", err)
 		return fuse.EIO
 	}
 	var n int64
 	br, err := schema.WriteFileFromReader(h.f.fs.client, h.f.name, readerutil.CountingReader{Reader: h.tmp, N: &n})
 	if err != nil {
-		log.Println("mutFileHandle.Release:", err)
+		log.Println("mutFileHandle.Flush:", err)
 		return fuse.EIO
 	}
-	h.f.setContent(br, n)
+	err = h.f.setContent(br, n)
+	if err != nil {
+		log.Printf("mutFileHandle.Flush: %v", err)
+		return fuse.EIO
+	}
 
+	return nil
+}
+
+// Release is called when a file handle is no longer needed.  This is
+// called asynchronously after the last handle to a file is closed.
+func (h *mutFileHandle) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.Error {
 	h.tmp.Close()
 	os.Remove(h.tmp.Name())
 	h.tmp = nil
