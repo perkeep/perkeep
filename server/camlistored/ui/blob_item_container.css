@@ -16,3 +16,7 @@
 .cam-blobitemcontainer-hidden {
   display: none;
 }
+
+.cam-blobitemcontainer>.cam-blobitem {
+  position: absolute;
+}

@@ -243,8 +243,9 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
   this.thumb_.style.left = Math.round((w - adjustedWidth) / 2) + 'px';
 
   // Load a differently sized image from server if necessary.
-  if (!this.thumb_.src || adjustedWidth > this.thumb_.width ||
-      adjustedHeight > this.thumb_.height) {
+  if (!this.thumb_.src ||
+      adjustedWidth > parseInt(this.thumbClip_.style.width) ||
+      adjustedHeight > parseInt(this.thumbClip_.style.height)) {
     // Round the height up to the nearest 20% to increase the probability of
     // cache hits.
     var fraction = Math.ceil(this.metaData_.thumbnailHeight * 0.2);
@@ -252,15 +253,22 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
     // Don't bother getting a smaller image. The browser will resize for us.
     rh = Math.max(rh, this.metaData_.thumbnailHeight);
 
-    // TODO(aa): This is kind of a hack, it would be better if the server just
-    // returned the base URL and the aspect ratio, rather than specific
-    // dimensions.
     var tv = '';
-    if (!!CAMLISTORE_CONFIG) {
+    if (window.CAMLISTORE_CONFIG) {
       tv = CAMLISTORE_CONFIG.thumbVersion || '';
     }
-    this.thumb_.src = this.getThumbSrc_().split('?')[0] + '?mh=' + rh +
-          '&tv=' + tv;
+
+    // TODO(aa): The mh param is kind of a hack, it would be better if the
+    // server just returned the base URL and the aspect ratio, rather than
+    // specific dimensions.
+    var newThumb = this.getThumbSrc_().split('?')[0] + '?mh=' + rh +
+      '&tv=' + tv;
+
+    // It's important to only assing the new src if it has changed. Assigning
+    // a src causes layout and style recalc.
+    if (newThumb != this.thumb_.getAttribute('src')) {
+      this.thumb_.src = newThumb;
+    }
   }
 };
 

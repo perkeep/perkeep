@@ -485,7 +485,6 @@ camlistore.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endInde
 		var height = Math.round(this.thumbnailSize_ * ratio);
 
 		var elm = item.getElement();
-		elm.style.position = 'absolute';
 		elm.style.left = currentLeft + this.constructor.BLOB_ITEM_MARGIN + 'px';
 		elm.style.top = top + 'px';
 		item.setSize(width, height);
