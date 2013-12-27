@@ -80,7 +80,7 @@ starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its e
 
 <dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
   it's now a "signed schema blob" or "claim".  The terms are used pretty
-  interchangably but generally it's called a <em>claim</em> when the target of
+  interchangeably but generally it's called a <em>claim</em> when the target of
   the schema blob is an object's permanode (see below).
 
 </dd>
@@ -96,7 +96,7 @@ starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its e
 
 <!-- ---------------------------------------------------------------------- -->
 <dt id='permanode'>permanode</dt>
-        
+
 <dd>since an object is mutable and Camlistore is primarily content-addressed,
   the question arises how you could have a stable reference to something that's
   changing.  Camlistore solves this with the concept of a <em>permanode</em>.
