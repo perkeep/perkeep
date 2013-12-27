@@ -80,7 +80,7 @@ starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its e
 
 <dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
   it's now a "signed schema blob" or "claim".  The terms are used pretty
-  interchangably but generally it's called a <em>claim</em> when the target of
+  interchangeably but generally it's called a <em>claim</em> when the target of
   the schema blob is an object's permanode (see below).
 
 </dd>
