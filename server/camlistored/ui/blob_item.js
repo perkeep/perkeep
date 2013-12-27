@@ -264,7 +264,7 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
     var newThumb = this.getThumbSrc_().split('?')[0] + '?mh=' + rh +
       '&tv=' + tv;
 
-    // It's important to only assing the new src if it has changed. Assigning
+    // It's important to only assign the new src if it has changed. Assigning
     // a src causes layout and style recalc.
     if (newThumb != this.thumb_.getAttribute('src')) {
       this.thumb_.src = newThumb;
