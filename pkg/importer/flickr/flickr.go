@@ -165,7 +165,7 @@ func (im *imp) importPhotoset(parent *importer.Object, photoset *photosetsGetLis
 		return 0, err
 	}
 
-	log.Printf("Importing page %d of %s", page, photoset.Id)
+	log.Printf("Importing page %d from photoset %s", page, photoset.Id)
 
 	photosNode, err := im.getPhotosNode()
 	if err != nil {
