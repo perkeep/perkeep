@@ -66,7 +66,7 @@ type serverCmd struct {
 	// end of flag vars
 
 	listen    string // address + port to listen on
-	camliRoot string // the temp dir where blobs are stored
+	root      string // the temp dir where blobs are stored
 	env       *Env
 }
 
@@ -95,6 +95,7 @@ func init() {
 
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
+		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
 			"List of comma separated options that will be passed to camlistored")
 		return cmd
@@ -135,17 +136,21 @@ func (c *serverCmd) checkFlags(args []string) error {
 	return nil
 }
 
-func (c *serverCmd) setCamliRoot() error {
+func (c *serverCmd) setRoot() error {
+	if c.root != "" {
+		log.Printf("Using root from flag: %s\n", c.root)
+		return nil
+	}
 	user := osutil.Username()
 	if user == "" {
 		return errors.New("Could not get username from environment")
 	}
-	c.camliRoot = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
-	log.Printf("Temp dir root is %v", c.camliRoot)
+	c.root = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
+	log.Printf("Temp dir root is %v", c.root)
 	if c.wipe {
-		log.Printf("Wiping %v", c.camliRoot)
-		if err := os.RemoveAll(c.camliRoot); err != nil {
-			return fmt.Errorf("Could not wipe %v: %v", c.camliRoot, err)
+		log.Printf("Wiping %v", c.root)
+		if err := os.RemoveAll(c.root); err != nil {
+			return fmt.Errorf("Could not wipe %v: %v", c.root, err)
 		}
 	}
 	return nil
@@ -192,17 +197,17 @@ func (c *serverCmd) setEnvVars() error {
 	case c.sqlite:
 		setenv("CAMLI_SQLITE_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-sqlite/")
-		if c.camliRoot == "" {
-			panic("no camliRoot set")
+		if c.root == "" {
+			panic("no root set")
 		}
-		setenv("CAMLI_DBNAME", filepath.Join(c.camliRoot, "sqliteindex.db"))
+		setenv("CAMLI_DBNAME", filepath.Join(c.root, "sqliteindex.db"))
 	default:
 		setenv("CAMLI_KVINDEX_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-kv/")
-		if c.camliRoot == "" {
-			panic("no camliRoot set")
+		if c.root == "" {
+			panic("no root set")
 		}
-		setenv("CAMLI_DBNAME", filepath.Join(c.camliRoot, "kvindex.db"))
+		setenv("CAMLI_DBNAME", filepath.Join(c.root, "kvindex.db"))
 	}
 
 	base := "http://localhost:" + c.port
@@ -229,7 +234,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_DEV_CAMLI_ROOT", camliSrcRoot)
 	setenv("CAMLI_AUTH", "devauth:pass3179")
 	fullSuffix := func(name string) string {
-		return filepath.Join(c.camliRoot, name)
+		return filepath.Join(c.root, name)
 	}
 	suffixes := map[string]string{
 		"CAMLI_ROOT":          fullSuffix("bs"),
@@ -310,7 +315,7 @@ func (c *serverCmd) syncTemplateBlobs() error {
 			}
 			return err
 		}
-		blobsDir := filepath.Join(c.camliRoot, "sha1")
+		blobsDir := filepath.Join(c.root, "sha1")
 		if err := cpDir(templateDir, blobsDir, nil); err != nil {
 			return fmt.Errorf("Could not cp template blobs: %v", err)
 		}
@@ -320,7 +325,7 @@ func (c *serverCmd) syncTemplateBlobs() error {
 
 func (c *serverCmd) setFullClosure() error {
 	if c.fullClosure {
-		oldsvn := filepath.Join(c.camliRoot, filepath.FromSlash("tmp/closure-lib/.svn"))
+		oldsvn := filepath.Join(c.root, filepath.FromSlash("tmp/closure-lib/.svn"))
 		if err := os.RemoveAll(oldsvn); err != nil {
 			return fmt.Errorf("Could not remove svn checkout of closure-lib %v: %v",
 				oldsvn, err)
@@ -355,7 +360,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 			}
 		}
 	}
-	if err := c.setCamliRoot(); err != nil {
+	if err := c.setRoot(); err != nil {
 		return fmt.Errorf("Could not setup the camli root: %v", err)
 	}
 	if err := c.setEnvVars(); err != nil {
