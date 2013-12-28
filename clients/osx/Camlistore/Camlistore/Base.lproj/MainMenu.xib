@@ -47,6 +47,20 @@
                         <binding destination="L1b-50-UiS" name="value" keyPath="self.mounted" id="5Vp-VU-FWI"/>
                     </connections>
                 </menuItem>
+                <menuItem title="Open Finder Window" id="tUN-8f-LfE">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="openFinder:" target="494" id="vDU-3D-YNt"/>
+                        <binding destination="L1b-50-UiS" name="enabled" keyPath="self.isMounted" id="7uP-wg-PVL"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Open Finder Window As Of" alternate="YES" id="9Xc-Uv-4O9">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="openFinderAsOf:" target="494" id="uXA-yl-BGS"/>
+                        <binding destination="L1b-50-UiS" name="enabled" keyPath="mounted" id="IZj-Ig-jgF"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Show Logs" id="oOG-aM-YBG">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
@@ -87,5 +101,6 @@
                 <outlet property="delegate" destination="494" id="mWI-nd-MCr"/>
             </connections>
         </customObject>
+        <userDefaultsController representsSharedInstance="YES" id="ZuB-he-T8l"/>
     </objects>
 </document>
