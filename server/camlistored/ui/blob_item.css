@@ -12,6 +12,83 @@
   overflow: hidden;
 }
 
+.cam-blobitem-loading {
+  background-color: rgb(240, 240, 240);
+}
+
+.cam-blobitem-progress {
+  position: relative;
+}
+
+.cam-blobitem-progress .lefttop {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-bottom: 50px solid rgb(220,220,220);
+  border-left: 35px solid transparent;
+  -webkit-animation: leftcolors 1.0s infinite ease-in-out;
+  animation: leftcolors 1.0s infinite ease-in-out;
+}
+
+.cam-blobitem-progress .leftbottom {
+  position: absolute;
+  top: 50px;
+  width: 0;
+  height: 0;
+  border-top: 15px solid rgb(220,220,220);
+  border-left: 35px solid transparent;
+  -webkit-animation: leftcolors 1.0s infinite ease-in-out;
+  animation: leftcolors 1.0s infinite ease-in-out;
+}
+
+.cam-blobitem-progress .righttop {
+  position: absolute;
+  left: 35px;
+  width: 0;
+  height: 0;
+  border-bottom: 50px solid rgb(180,180,180);
+  border-right: 35px solid transparent;
+  -webkit-animation: rightcolors 1.0s infinite ease-in-out;
+  animation: rightcolors 1.0s infinite ease-in-out;
+}
+
+.cam-blobitem-progress .rightbottom {
+  position: absolute;
+  left: 35px;
+  top: 50px;
+  width: 0;
+  height: 0;
+  border-top: 15px solid rgb(180,180,180);
+  border-right: 35px solid transparent;
+  -webkit-animation: rightcolors 1.0s infinite ease-in-out;
+  animation: rightcolors 1.0s infinite ease-in-out;
+}
+
+@-webkit-keyframes leftcolors {
+  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@-webkit-keyframes rightcolors {
+  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}
+
+@keyframes leftcolors {
+  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@keyframes rightcolors {
+  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}
+
+
 .cam-blobitem-thumb {
   display: block;
   position: relative;
