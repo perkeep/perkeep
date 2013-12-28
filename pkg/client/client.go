@@ -131,6 +131,7 @@ func New(server string) *Client {
 		reqGate:    make(chan bool, maxParallelHTTP),
 		haveCache:  noHaveCache{},
 		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
+		authMode:   auth.None{},
 	}
 }
 
