@@ -33,13 +33,6 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-const (
-	// default secret ring used in tests and in devcam commands
-	defaultSecring = "pkg/jsonsign/testdata/test-secring.gpg"
-	// public ID of the GPG key in defaultSecring
-	defaultKeyID = "26F5ABDA"
-)
-
 type serverCmd struct {
 	// start of flag vars
 	all      bool
@@ -65,9 +58,9 @@ type serverCmd struct {
 	extraArgs    string // passed to camlistored
 	// end of flag vars
 
-	listen    string // address + port to listen on
-	root      string // the temp dir where blobs are stored
-	env       *Env
+	listen string // address + port to listen on
+	root   string // the temp dir where blobs are stored
+	env    *Env
 }
 
 func init() {
@@ -137,15 +130,13 @@ func (c *serverCmd) checkFlags(args []string) error {
 }
 
 func (c *serverCmd) setRoot() error {
-	if c.root != "" {
-		log.Printf("Using root from flag: %s\n", c.root)
-		return nil
+	if c.root == "" {
+		user := osutil.Username()
+		if user == "" {
+			return errors.New("Could not get username from environment")
+		}
+		c.root = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
 	}
-	user := osutil.Username()
-	if user == "" {
-		return errors.New("Could not get username from environment")
-	}
-	c.root = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
 	log.Printf("Temp dir root is %v", c.root)
 	if c.wipe {
 		log.Printf("Wiping %v", c.root)
@@ -163,6 +154,7 @@ func (c *serverCmd) makeSuffixdir(fullpath string) {
 }
 
 func (c *serverCmd) setEnvVars() error {
+	c.env.SetCamdevVars(false)
 	setenv := func(k, v string) {
 		c.env.Set(k, v)
 	}
@@ -252,9 +244,6 @@ func (c *serverCmd) setEnvVars() error {
 		setenv(k, v)
 	}
 	setenv("CAMLI_PORT", c.port)
-	setenv("CAMLI_SECRET_RING", filepath.Join(camliSrcRoot,
-		filepath.FromSlash(defaultSecring)))
-	setenv("CAMLI_KEYID", defaultKeyID)
 	if c.flickrAPIKey != "" {
 		setenv("CAMLI_FLICKR_ENABLED", "true")
 		setenv("CAMLI_FLICKR_API_KEY", c.flickrAPIKey)

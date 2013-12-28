@@ -126,7 +126,7 @@ func (c *testCmd) genKeyBlob() error {
 	args := []string{
 		"put",
 		"init",
-		"--gpgkey=" + defaultKeyID,
+		"--gpgkey=" + defaultIdentity,
 		"--noconfig",
 	}
 	cmd := exec.Command(cmdBin, args...)
