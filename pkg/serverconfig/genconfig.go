@@ -459,7 +459,10 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 
 	if params.flickr != "" {
 		m["/importer-flickr/"] = map[string]interface{}{
-			"apiKey": params.flickr,
+			"handler": "importer-flickr",
+			"handlerArgs": map[string]interface{}{
+				"apiKey": params.flickr,
+			},
 		}
 	}
 
