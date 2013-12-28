@@ -36,15 +36,27 @@ const refreshTime = 1 * time.Minute
 
 type rootsDir struct {
 	fs *CamliFileSystem
+	at time.Time
 
 	mu        sync.Mutex // guards following
 	lastQuery time.Time
 	m         map[string]blob.Ref // ent name => permanode
 }
 
+func (n *rootsDir) isRO() bool {
+	return !n.at.IsZero()
+}
+
+func (n *rootsDir) dirMode() os.FileMode {
+	if n.isRO() {
+		return 0500
+	}
+	return 0700
+}
+
 func (n *rootsDir) Attr() fuse.Attr {
 	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
+		Mode: os.ModeDir | n.dirMode(),
 		Uid:  uint32(os.Getuid()),
 		Gid:  uint32(os.Getgid()),
 	}
@@ -64,6 +76,9 @@ func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 }
 
 func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
+	if n.isRO() {
+		return fuse.EPERM
+	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -89,6 +104,10 @@ func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 
 func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
 	log.Printf("rootsDir.Rename %q -> %q", req.OldName, req.NewName)
+	if n.isRO() {
+		return fuse.EPERM
+	}
+
 	n.mu.Lock()
 	target, exists := n.m[req.OldName]
 	_, collision := n.m[req.NewName]
@@ -158,10 +177,15 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	if !br.Valid() {
 		return nil, fuse.ENOENT
 	}
-	nod := &mutDir{
-		fs:        n.fs,
-		permanode: br,
-		name:      name,
+	var nod fuse.Node
+	if n.isRO() {
+		nod = newRODir(n.fs, br, name, n.at)
+	} else {
+		nod = &mutDir{
+			fs:        n.fs,
+			permanode: br,
+			name:      name,
+		}
 	}
 	return nod, nil
 }
@@ -236,6 +260,10 @@ func (n *rootsDir) condRefresh() fuse.Error {
 }
 
 func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
+	if n.isRO() {
+		return nil, fuse.EPERM
+	}
+
 	name := req.Name
 
 	// Create a Permanode for the root.
