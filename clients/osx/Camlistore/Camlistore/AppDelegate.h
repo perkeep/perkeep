@@ -17,6 +17,7 @@ limitations under the License.
 #import <Cocoa/Cocoa.h>
 
 #import "LoginItemManager.h"
+#import "TimeTravelWindowController.h"
 #import "FUSEManager.h"
 
 #define MIN_LIFETIME 10
@@ -43,6 +44,8 @@ limitations under the License.
 
     NSString *logPath;
     FILE *logFile;
+
+    TimeTravelWindowController *timeTraveler;
 }
 
 - (IBAction)browse:(id)sender;
@@ -67,6 +70,9 @@ limitations under the License.
 
 - (void) fuseMounted;
 - (void) fuseDismounted;
+
+- (IBAction)openFinder:(id)sender;
+- (IBAction)openFinderAsOf:(id)sender;
 
 
 @end

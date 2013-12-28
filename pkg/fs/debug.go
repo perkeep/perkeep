@@ -41,6 +41,8 @@ var (
 	mutFileOpenError = newStat("mutfile-open-error")
 	mutFileOpenRO    = newStat("mutfile-open-ro")
 	mutFileOpenRW    = newStat("mutfile-open-rw")
+	roFileOpen       = newStat("rofile-open")
+	roFileOpenError  = newStat("rofile-open-error")
 )
 
 var statByName = map[string]*stat{}

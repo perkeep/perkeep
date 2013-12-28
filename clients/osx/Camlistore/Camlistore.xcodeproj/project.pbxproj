@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DA31F9381866744D002E3F33 /* TimeTravelWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */; };
+		DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */; };
 		DA71BCB718642A3A000A102C /* Camlicon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* Camlicon.icns */; };
 		DAABA574186435DA000D62B6 /* camlistored in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
 		DAABA575186435DA000D62B6 /* cammount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* cammount */; };
@@ -40,6 +42,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DA31F9351866744D002E3F33 /* TimeTravelWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TimeTravelWindowController.h; sourceTree = "<group>"; };
+		DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TimeTravelWindowController.m; sourceTree = "<group>"; };
+		DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = TimeTravelWindowController.xib; sourceTree = "<group>"; };
 		DA71BCB618642A3A000A102C /* Camlicon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Camlicon.icns; sourceTree = "<group>"; };
 		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../../bin/camlistored; sourceTree = "<group>"; };
 		DAABA573186435DA000D62B6 /* cammount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = cammount; path = ../../../bin/cammount; sourceTree = "<group>"; };
@@ -146,6 +151,9 @@
 				DAF1094F1863EDAF00F6A3F9 /* Supporting Files */,
 				DAF63B9B1864D0AC0000EAC9 /* FUSEManager.h */,
 				DAF63B9C1864D0AC0000EAC9 /* FUSEManager.m */,
+				DA31F9351866744D002E3F33 /* TimeTravelWindowController.h */,
+				DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */,
+				DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */,
 			);
 			path = Camlistore;
 			sourceTree = "<group>";
@@ -261,6 +269,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */,
 				DAABA574186435DA000D62B6 /* camlistored in Resources */,
 				DAABA575186435DA000D62B6 /* cammount in Resources */,
 				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
@@ -290,6 +299,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DA31F9381866744D002E3F33 /* TimeTravelWindowController.m in Sources */,
 				DAF1097E1863EEFB00F6A3F9 /* LoginItemManager.m in Sources */,
 				DAF1095C1863EDAF00F6A3F9 /* AppDelegate.m in Sources */,
 				DAF63B9D1864D0AC0000EAC9 /* FUSEManager.m in Sources */,
