@@ -1,0 +1,8 @@
+Aaron Boodman, react js permanode UI
+Andy Smith, discussing data model, updating HACKING, etc
+Brad Fitzpatrick, misc
+Brett Slatkin, web screenshotting client app, claim creation API/ACLs
+Daisy Stanton, her own thing
+Dan Erat, music player app
+Emil Eklund, getting up to speed, photo stuff
+Nick O'Neill, iOS
