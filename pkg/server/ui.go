@@ -377,6 +377,11 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	if fi, err := f.Stat(); err == nil {
 		modTime = fi.ModTime()
 	}
+	// TODO(wathiede): should pkg/magic be leveraged here somehow?  It has a
+	// slightly different purpose.
+	if strings.HasSuffix(file, ".svg") {
+		rw.Header().Set("Content-Type", "image/svg+xml")
+	}
 	http.ServeContent(rw, req, file, modTime, f)
 }
 
