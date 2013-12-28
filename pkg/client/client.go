@@ -433,6 +433,29 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 	return res, nil
 }
 
+func (c *Client) Search(req *search.SearchQuery) (*search.SearchResult, error) {
+	sr, err := c.SearchRoot()
+	if err != nil {
+		return nil, err
+	}
+	url := sr + req.URLSuffix()
+	body, err := json.MarshalIndent(req, "", "\t")
+	if err != nil {
+		return nil, err
+	}
+	hreq := c.newRequest("POST", url, bytes.NewReader(body))
+	hres, err := c.doReqGated(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	res := new(search.SearchResult)
+	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 // SearchExistingFileSchema does a search query looking for an
 // existing file with entire contents of wholeRef, then does a HEAD
 // request to verify the file still exists on the server.  If so,

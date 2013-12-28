@@ -75,6 +75,8 @@ type SearchQuery struct {
 	Describe *DescribeRequest `json:"describe,omitempty"`
 }
 
+func (q *SearchQuery) URLSuffix() string { return "camli/search/query" }
+
 func (q *SearchQuery) fromHTTP(req *http.Request) error {
 	dec := json.NewDecoder(io.LimitReader(req.Body, 1<<20))
 	if err := dec.Decode(q); err != nil {
