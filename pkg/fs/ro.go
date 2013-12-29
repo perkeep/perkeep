@@ -46,6 +46,7 @@ type roDir struct {
 
 	mu       sync.Mutex
 	children map[string]roFileOrDir
+	xattrs   map[string][]byte
 }
 
 func newRODir(fs *CamliFileSystem, permanode blob.Ref, name string, at time.Time) *roDir {
@@ -125,9 +126,15 @@ func (n *roDir) populate() error {
 				symLink:   true,
 				target:    target,
 			}
-			continue
-		}
-		if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
+		} else if isDir(child.Permanode) {
+			// This is a directory.
+			n.children[name] = &roDir{
+				fs:        n.fs,
+				permanode: blob.ParseOrZero(childRef),
+				parent:    n,
+				name:      name,
+			}
+		} else if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.
 			content := res.Meta[contentRef]
 			if content == nil {
@@ -146,15 +153,11 @@ func (n *roDir) populate() error {
 				content:   blob.ParseOrZero(contentRef),
 				size:      content.File.Size,
 			}
+		} else {
+			// unknown type
 			continue
 		}
-		// This is a directory.
-		n.children[name] = &roDir{
-			fs:        n.fs,
-			permanode: blob.ParseOrZero(childRef),
-			parent:    n,
-			name:      name,
-		}
+		n.children[name].xattr().load(child.Permanode)
 	}
 	return nil
 }
@@ -219,6 +222,31 @@ type roFile struct {
 	content      blob.Ref   // if a regular file
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
+	xattrs       map[string][]byte
+}
+
+func (n *roDir) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().get(req, res)
+}
+
+func (n *roDir) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().list(req, res)
+}
+
+func (n *roFile) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().get(req, res)
+}
+
+func (n *roFile) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().list(req, res)
+}
+
+func (n *roFile) Removexattr(req *fuse.RemovexattrRequest, intr fuse.Intr) fuse.Error {
+	return fuse.EPERM
+}
+
+func (n *roFile) Setxattr(req *fuse.SetxattrRequest, intr fuse.Intr) fuse.Error {
+	return fuse.EPERM
 }
 
 // for debugging
@@ -334,6 +362,7 @@ func (n *roFile) Readlink(req *fuse.ReadlinkRequest, intr fuse.Intr) (string, fu
 type roFileOrDir interface {
 	fuse.Node
 	permanodeString() string
+	xattr() *xattr
 }
 
 func (n *roFile) permanodeString() string {
@@ -342,4 +371,12 @@ func (n *roFile) permanodeString() string {
 
 func (n *roDir) permanodeString() string {
 	return n.permanode.String()
+}
+
+func (n *roFile) xattr() *xattr {
+	return &xattr{"roFile", n.fs, n.permanode, &n.mu, &n.xattrs}
+}
+
+func (n *roDir) xattr() *xattr {
+	return &xattr{"roDir", n.fs, n.permanode, &n.mu, &n.xattrs}
 }

@@ -55,3 +55,10 @@ search, FUSE, and web UI.
 "camliDefVis" (single-valued)
 
     Can be "hide". Experimental. Affects default visibility in web UI.
+
+"xattr:$attr_name" (single-valued)
+
+    when a permanode represents a file or directory visible to FUSE,
+    "xattr:$x" is used to store the value for extended attribute "x".
+    Extended attribute data may contain any arbitrary bytes, so values
+    are base64 encoded.

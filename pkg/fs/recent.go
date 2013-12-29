@@ -35,6 +35,7 @@ import (
 // permanodes' files, for permanodes with a camliContent pointing to a
 // "file".
 type recentDir struct {
+	noXattr
 	fs *CamliFileSystem
 
 	mu      sync.Mutex

@@ -60,6 +60,7 @@ type mutDir struct {
 	mu       sync.Mutex
 	lastPop  time.Time
 	children map[string]mutFileOrDir
+	xattrs   map[string][]byte
 }
 
 // for debugging
@@ -130,9 +131,15 @@ func (n *mutDir) populate() error {
 				symLink:   true,
 				target:    target,
 			}
-			continue
-		}
-		if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
+		} else if isDir(child.Permanode) {
+			// This is a directory.
+			n.children[name] = &mutDir{
+				fs:        n.fs,
+				permanode: blob.ParseOrZero(childRef),
+				parent:    n,
+				name:      name,
+			}
+		} else if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.
 			content := res.Meta[contentRef]
 			if content == nil {
@@ -151,17 +158,11 @@ func (n *mutDir) populate() error {
 				content:   blob.ParseOrZero(contentRef),
 				size:      content.File.Size,
 			}
+		} else {
+			// unhandled type...
 			continue
 		}
-		if isDir(child.Permanode) {
-			// This is a directory.
-			n.children[name] = &mutDir{
-				fs:        n.fs,
-				permanode: blob.ParseOrZero(childRef),
-				parent:    n,
-				name:      name,
-			}
-		}
+		n.children[name].xattr().load(child.Permanode)
 	}
 	return nil
 }
@@ -287,12 +288,6 @@ func (n *mutDir) Symlink(req *fuse.SymlinkRequest, intr fuse.Intr) (fuse.Node, f
 	return node, nil
 }
 
-func stupidMacExtendedAttributeName(name string) bool {
-	// TODO: if we supported extended attributes, the OS X finder wouldn't
-	// generate these files anyway.
-	return strings.HasPrefix(name, "._") || name == ".DS_Store"
-}
-
 func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 	// Create a Permanode for the file/directory.
 	pr, err := n.fs.client.UploadNewPermanode()
@@ -307,18 +302,21 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 		_, err = n.fs.client.UploadAndSignBlob(claim)
 		return
 	})
-	if typ == dirType {
+
+	// Hide OS X Finder .DS_Store junk.  This is distinct from
+	// extended attributes.
+	if name == ".DS_Store" {
 		grp.Go(func() (err error) {
-			// Set a directory type on the permanode
-			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliNodeType", "directory")
+			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliDefVis", "hide")
 			_, err = n.fs.client.UploadAndSignBlob(claim)
 			return
 		})
 	}
-	if stupidMacExtendedAttributeName(name) {
+
+	if typ == dirType {
 		grp.Go(func() (err error) {
-			// Add a camliPath:name attribute to the directory permanode.
-			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliDefVis", "hide")
+			// Set a directory type on the permanode
+			claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliNodeType", "directory")
 			_, err = n.fs.client.UploadAndSignBlob(claim)
 			return
 		})
@@ -336,6 +334,7 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 			permanode: pr.BlobRef,
 			parent:    n,
 			name:      name,
+			xattrs:    map[string][]byte{},
 		}
 	case fileType, symlinkType:
 		child = &mutFile{
@@ -343,6 +342,7 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 			permanode: pr.BlobRef,
 			parent:    n,
 			name:      name,
+			xattrs:    map[string][]byte{},
 		}
 	default:
 		panic("bogus creat type")
@@ -448,6 +448,7 @@ type mutFile struct {
 	content      blob.Ref   // if a regular file
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
+	xattrs       map[string][]byte
 }
 
 // for debugging
@@ -456,6 +457,46 @@ func (n *mutFile) fullPath() string {
 		return ""
 	}
 	return filepath.Join(n.parent.fullPath(), n.name)
+}
+
+func (n *mutFile) xattr() *xattr {
+	return &xattr{"mutFile", n.fs, n.permanode, &n.mu, &n.xattrs}
+}
+
+func (n *mutDir) xattr() *xattr {
+	return &xattr{"mutDir", n.fs, n.permanode, &n.mu, &n.xattrs}
+}
+
+func (n *mutDir) Removexattr(req *fuse.RemovexattrRequest, intr fuse.Intr) fuse.Error {
+	return n.xattr().remove(req)
+}
+
+func (n *mutDir) Setxattr(req *fuse.SetxattrRequest, intr fuse.Intr) fuse.Error {
+	return n.xattr().set(req)
+}
+
+func (n *mutDir) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().get(req, res)
+}
+
+func (n *mutDir) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().list(req, res)
+}
+
+func (n *mutFile) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().get(req, res)
+}
+
+func (n *mutFile) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+	return n.xattr().list(req, res)
+}
+
+func (n *mutFile) Removexattr(req *fuse.RemovexattrRequest, intr fuse.Intr) fuse.Error {
+	return n.xattr().remove(req)
+}
+
+func (n *mutFile) Setxattr(req *fuse.SetxattrRequest, intr fuse.Intr) fuse.Error {
+	return n.xattr().set(req)
 }
 
 func (n *mutFile) Attr() fuse.Attr {
@@ -738,6 +779,7 @@ func (h *mutFileHandle) Truncate(size uint64, intr fuse.Intr) fuse.Error {
 type mutFileOrDir interface {
 	fuse.Node
 	permanodeString() string
+	xattr() *xattr
 }
 
 func (n *mutFile) permanodeString() string {
