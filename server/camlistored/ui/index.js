@@ -55,6 +55,10 @@ camlistore.IndexPage = function(config, opt_domHelper) {
 goog.inherits(camlistore.IndexPage, goog.ui.Component);
 
 camlistore.IndexPage.prototype.onNavOpen = function() {
+	this.setTransform_();
+};
+
+camlistore.IndexPage.prototype.setTransform_ = function() {
 	var currentWidth = this.getElement().offsetWidth - 36;
 	var desiredWidth = currentWidth - (275 - 36);
 	var scale = desiredWidth / currentWidth;
@@ -63,7 +67,6 @@ camlistore.IndexPage.prototype.onNavOpen = function() {
 	var currentScroll = goog.dom.getDocumentScroll().y;
 	var potentialScroll = currentHeight - goog.dom.getViewportSize().height;
 	var originY = currentHeight * currentScroll / potentialScroll;
-	console.log('origin y is: %f', originY);
 
 	goog.style.setStyle(this.blobItemContainer_.getElement(),
 		{'transform': goog.string.subs('scale(%s)', scale),
@@ -213,6 +216,8 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 		}
 	});
 
+	this.logoNavItem_.onClick = this.navigate_.bind(this);
+
 	this.eh_.listen(this.blobItemContainer_, camlistore.BlobItemContainer.EventType.SELECTION_CHANGED, this.updateNavButtonsForSelection_.bind(this));
 
 	this.eh_.listen(this.getElement(), 'keypress', function(e) {
@@ -279,11 +284,15 @@ camlistore.IndexPage.prototype.setUrlSearch_ = function(search) {
 		goog.string.subs('%s:%s', this.constructor.SEARCH_PREFIX_.RAW, JSON.stringify(search));
 	var uri = new goog.Uri(location.href);
 	uri.setParameterValue('q', searchText);
+	this.navigate_(uri.toString());
+};
+
+camlistore.IndexPage.prototype.navigate_ = function(url) {
 	if (history.pushState) {
-		history.pushState(null, '', uri.toString());
+		history.pushState(null, '', url);
 		this.handleUrl_();
 	} else {
-		location.href = uri.toString();
+		location.href = url;
 	}
 };
 
@@ -293,6 +302,11 @@ camlistore.IndexPage.prototype.handleUrl_ = function() {
 		return;
 	}
 	this.currentUrl_ = location.href;
+
+	this.blobItemContainer_.reset();
+	if (this.nav_.isOpen()) {
+		this.setTransform_();
+	}
 
 	var uri = new goog.Uri(location.href);
 	var query = uri.getParameterValue('q');

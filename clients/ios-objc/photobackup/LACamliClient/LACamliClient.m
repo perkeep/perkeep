@@ -12,6 +12,11 @@
 
 @implementation LACamliClient
 
+NSString *const CamliNotificationUploadStart = @"camli-upload-start";
+NSString *const CamliNotificationUploadProgress = @"camli-upload-progress";
+NSString *const CamliNotificationUploadEnd = @"camli-upload-end";
+NSString *const CamliBlobRootComponent = @"bs-recv";
+
 - (id)initWithServer:(NSURL *)server username:(NSString *)username andPassword:(NSString *)password
 {
     NSParameterAssert(server);
@@ -32,6 +37,7 @@
         
         self.uploadQueue = [[NSOperationQueue alloc] init];
         self.uploadQueue.maxConcurrentOperationCount = 1;
+        self.totalUploads = 0;
 
         self.isAuthorized = false;
         self.authorizing = false;
@@ -63,7 +69,6 @@
 
 #pragma mark - discovery
 
-// if we don't have blobroot with which to make these requests, we need to find it first
 - (void)discoveryWithUsername:(NSString *)user andPassword:(NSString *)pass
 {
     self.authorizing = YES;
@@ -86,10 +91,6 @@
             if (res.statusCode != 200) {
                 LALog(@"error with discovery: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
             } else {
-                NSError *parseError;
-                NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&parseError];
-
-                self.blobRoot = json[@"blobRoot"];
                 self.isAuthorized = YES;
                 [self.uploadQueue setSuspended:NO];
 
@@ -118,6 +119,12 @@
 - (void)addFile:(LACamliFile *)file withCompletion:(void (^)())completion
 {
     NSParameterAssert(file);
+
+    if (self.totalUploads == 0) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadStart object:nil];
+    }
+
+    self.totalUploads++;
     
     if (![self isAuthorized]) {
         [self.uploadQueue setSuspended:YES];
@@ -133,7 +140,16 @@
         [self.uploadedBlobRefs addObject:file.blobRef];
         [self.uploadedBlobRefs writeToFile:[self uploadedBlobRefArchivePath] atomically:YES];
 
-        completion();
+        // let others know about upload progress
+        [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadProgress object:nil userInfo:@{@"total": @(self.totalUploads), @"remain": @([self.uploadQueue operationCount])}];
+
+        if (![self.uploadQueue operationCount]) {
+            self.totalUploads = 0;
+            [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadEnd object:nil];
+        }
+        if (completion) {
+            completion();
+        }
     };
 
     [self.uploadQueue addOperation:op];
@@ -141,7 +157,7 @@
 
 - (NSURL *)statUrl
 {
-    return [[self.serverURL URLByAppendingPathComponent:self.blobRoot] URLByAppendingPathComponent:@"camli/stat"];
+    return [[self blobRoot] URLByAppendingPathComponent:@"camli/stat"];
 }
 
 #pragma mark - getting stuff
@@ -172,6 +188,11 @@
 }
 
 #pragma mark - utility
+
+- (NSURL *)blobRoot
+{
+    return [self.serverURL URLByAppendingPathComponent:CamliBlobRootComponent];
+}
 
 - (NSString *)encodedAuth
 {

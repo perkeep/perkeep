@@ -21,6 +21,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/jsonsign"
 )
 
 const (
@@ -87,20 +90,34 @@ func (e *Env) SetCamdevVars(altkey bool) {
 	e.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
 	e.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
 	e.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
+
+	secring := defaultSecring
+	identity := defaultIdentity
+
 	if altkey {
-		e.Set("CAMLI_SECRET_RING", filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg"))
-		e.Set("CAMLI_KEYID", "C7C3E176")
+		secring = filepath.FromSlash("pkg/jsonsign/testdata/password-foo-secring.gpg")
+		identity = "C7C3E176"
 		println("**\n** Note: password is \"foo\"\n**\n")
 	} else {
 		if *flagSecretRing != "" {
-			e.Set("CAMLI_SECRET_RING", *flagSecretRing)
-		} else {
-			e.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
+			secring = *flagSecretRing
 		}
 		if *flagIdentity != "" {
-			e.Set("CAMLI_KEYID", *flagIdentity)
-		} else {
-			e.Set("CAMLI_KEYID", defaultIdentity)
+			identity = *flagIdentity
 		}
 	}
+
+	entity, err := jsonsign.EntityFromSecring(identity, secring)
+	if err != nil {
+		panic(err)
+	}
+	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
+	if err != nil {
+		panic(err)
+	}
+	pubKeyRef := blob.SHA1FromString(armoredPublicKey)
+
+	e.Set("CAMLI_SECRET_RING", secring)
+	e.Set("CAMLI_KEYID", identity)
+	e.Set("CAMLI_PUBKEY_BLOBREF", pubKeyRef.String())
 }

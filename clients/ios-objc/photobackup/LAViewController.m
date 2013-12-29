@@ -11,10 +11,7 @@
 #import "LAAppDelegate.h"
 #import "LACamliUtil.h"
 #import "SettingsViewController.h"
-
-@interface LAViewController ()
-
-@end
+#import "ProgressViewController.h"
 
 @implementation LAViewController
 
@@ -26,7 +23,6 @@
 
     [self.navigationItem setRightBarButtonItem:settingsItem];
 
-    // show the
     NSURL *serverURL = [NSURL URLWithString:[[NSUserDefaults standardUserDefaults] stringForKey:CamliServerKey]];
     NSString *username = [[NSUserDefaults standardUserDefaults] stringForKey:CamliUsernameKey];
 
@@ -38,6 +34,41 @@
     if (!serverURL || !username || !password) {
         [self showSettings];
     }
+
+    self.progress = [[self storyboard] instantiateViewControllerWithIdentifier:@"uploadBar"];
+    self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
+
+    [self.view addSubview:self.progress.view];
+
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadStart object:nil queue:nil usingBlock:^(NSNotification *note) {
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:1.0 animations:^{
+                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height-self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
+            }];
+        });
+    }];
+
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:nil usingBlock:^(NSNotification *note) {
+        LALog(@"got progress %@ %@",note.userInfo[@"total"],note.userInfo[@"remain"]);
+
+        NSUInteger total = [note.userInfo[@"total"] intValue];
+        NSUInteger remain = [note.userInfo[@"remain"] intValue];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.progress.uploadLabel.text = [NSString stringWithFormat:@"Uploading %d of %d",total-remain,total];
+            self.progress.uploadProgress.progress = (float)(total-remain)/(float)total;
+        });
+    }];
+
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadEnd object:nil queue:nil usingBlock:^(NSNotification *note) {
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:1.0 animations:^{
+                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
+            }];
+        });
+    }];
 
 //    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {
 //        LALog(@"got objects: %@",objects);
@@ -84,6 +115,11 @@
 {
     [super didReceiveMemoryWarning];
     // Dispose of any resources that can be recreated.
+}
+
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 @end

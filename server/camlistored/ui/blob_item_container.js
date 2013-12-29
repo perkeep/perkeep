@@ -139,6 +139,11 @@ camlistore.BlobItemContainer.prototype.addChildAt = function(child, index, opt_r
 	}
 };
 
+camlistore.BlobItemContainer.prototype.removeChildAt = function(index, opt_render) {
+	goog.base(this, "removeChildAt", index, opt_render);
+	this.isLayoutDirty_ = true;
+};
+
 camlistore.BlobItemContainer.prototype.enterDocument = function() {
 	camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
@@ -193,6 +198,12 @@ camlistore.BlobItemContainer.prototype.search = function(query, opt_searchMode, 
 		goog.bind(this.searchDone_, this, query, searchMode));
 };
 
+camlistore.BlobItemContainer.prototype.reset = function() {
+	this.resetChildren_();
+	this.itemCache_ = {};
+	this.layout_();
+};
+
 camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode, result) {
 	if (searchMode == this.searchMode_.NEW) {
 		this.resetChildren_();
@@ -210,6 +221,14 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode,
 		result.blobs[result.blobs.length - 1].blob];
 	if (result.continue) {
 		this.scrollContinuation_ = this.search.bind(this, query, this.searchMode_.APPEND, result.continue);
+
+		// If the window was very large, we might not have enough data yet for the user to get their scroll on. Let's fix that.
+		this.layout_();
+		var docHeight = goog.dom.getDocumentHeight();
+		var viewportHeight = goog.dom.getViewportSize().height;
+		if (docHeight < (viewportHeight * 1.5)) {
+			this.scrollContinuation_();
+		}
 	}
 };
 

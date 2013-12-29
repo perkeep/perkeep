@@ -40,6 +40,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
+	reactstatic "camlistore.org/third_party/react"
 )
 
 var (
@@ -55,6 +56,7 @@ var (
 	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
+	reactPattern     = regexp.MustCompile(`^react/(.+)$`)
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 )
@@ -89,8 +91,8 @@ type UIHandler struct {
 
 	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
 
-	// closureHandler serves the Closure JS files.
-	closureHandler http.Handler
+	closureHandler   http.Handler
+	fileReactHandler http.Handler
 }
 
 func init() {
@@ -210,6 +212,13 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		return nil, fmt.Errorf(`Invalid "sourceRoot" value of %q: %v"`, ui.sourceRoot, err)
 	}
 
+	if ui.sourceRoot != "" {
+		ui.fileReactHandler, err = ui.makeEmbeddedReactHandler(ui.sourceRoot)
+		if err != nil {
+			return nil, fmt.Errorf("Could not make react handler: %s", err)
+		}
+	}
+
 	rootPrefix, _, err := ld.FindHandlerByType("root")
 	if err != nil {
 		return nil, errors.New("No root handler configured, which is necessary for the ui handler")
@@ -226,6 +235,15 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 	return makeClosureHandler(root, "ui")
+}
+
+func (ui *UIHandler) makeEmbeddedReactHandler(root string) (http.Handler, error) {
+	path := filepath.Join("third_party", "react")
+	h, err := makeFileServer(root, path, "react.js")
+	if h != nil {
+		log.Printf("Serving React from %s", path)
+	}
+	return h, err
 }
 
 // makeClosureHandler returns a handler to serve Closure files.
@@ -257,20 +275,29 @@ func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 		log.Printf("%v: serving Closure using redirects to %v", handlerName, root)
 		return closureRedirector(root), nil
 	}
-	fi, err := os.Stat(root)
+
+	path := filepath.Join("third_party", "closure", "lib", "closure")
+	fs, err := makeFileServer(root, path, filepath.Join("goog", "base.js"))
+	if fs != nil {
+		log.Printf("%v: serving Closure from disk: %s", handlerName, filepath.Join(root, path))
+	}
+	return fs, err
+}
+
+func makeFileServer(sourceRoot string, pathToServe string, expectedContentPath string) (http.Handler, error) {
+	fi, err := os.Stat(sourceRoot)
 	if err != nil {
 		return nil, err
 	}
 	if !fi.IsDir() {
 		return nil, errors.New("not a directory")
 	}
-	closureRoot := filepath.Join(root, "third_party", "closure", "lib", "closure")
-	_, err = os.Stat(filepath.Join(closureRoot, "goog", "base.js"))
+	dirToServe := filepath.Join(sourceRoot, pathToServe)
+	_, err = os.Stat(filepath.Join(dirToServe, expectedContentPath))
 	if err != nil {
-		return nil, fmt.Errorf("directory doesn't contain closure/goog/base.js; wrong directory?")
+		return nil, fmt.Errorf("directory doesn't contain %s; wrong directory?", expectedContentPath)
 	}
-	log.Printf("%v: serving Closure from disk: %v", handlerName, closureRoot)
-	return http.FileServer(http.Dir(closureRoot)), nil
+	return http.FileServer(http.Dir(dirToServe)), nil
 }
 
 const closureBaseURL closureRedirector = "https://closure-library.googlecode.com/git"
@@ -321,6 +348,14 @@ func wantsClosure(req *http.Request) bool {
 	return false
 }
 
+func wantsReact(req *http.Request) bool {
+	if httputil.IsGet(req) {
+		suffix := httputil.PathSuffix(req)
+		return reactPattern.MatchString(suffix)
+	}
+	return false
+}
+
 func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
 
@@ -338,6 +373,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveFileTree(rw, req)
 	case wantsClosure(req):
 		ui.serveClosure(rw, req)
+	case wantsReact(req):
+		ui.serveReact(rw, req)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
@@ -369,7 +406,7 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(rw, req)
-		log.Printf("Failed to open file %q from uistatic.Files: %v", file, err)
+		log.Printf("Failed to open file %q from embedded resources: %v", file, err)
 		return
 	}
 	defer f.Close()
@@ -525,6 +562,22 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 	}
 	req.URL.Path = "/" + m[1]
 	ui.closureHandler.ServeHTTP(rw, req)
+}
+
+func (ui *UIHandler) serveReact(rw http.ResponseWriter, req *http.Request) {
+	suffix := httputil.PathSuffix(req)
+	m := reactPattern.FindStringSubmatch(suffix)
+	if m == nil {
+		httputil.ErrorRouting(rw, req)
+		return
+	}
+	file := m[1]
+	if ui.fileReactHandler != nil {
+		req.URL.Path = "/" + file
+		ui.fileReactHandler.ServeHTTP(rw, req)
+	} else {
+		serveStaticFile(rw, req, reactstatic.Files, file)
+	}
 }
 
 // serveDepsJS serves an auto-generated Closure deps.js file.

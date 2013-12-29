@@ -200,6 +200,8 @@ camlistore.Nav.LinkItem = function(domHelper, iconSrc, label, linkUrl) {
 };
 goog.inherits(camlistore.Nav.LinkItem, camlistore.Nav.Item);
 
+camlistore.Nav.LinkItem.prototype.onClick = function(url) {};
+
 camlistore.Nav.LinkItem.prototype.createDom = function() {
   this.setElementInternal(
       this.dom_.createDom('a', this.getExtraClassNames(), this.getContent()));
@@ -209,10 +211,8 @@ camlistore.Nav.LinkItem.prototype.createDom = function() {
 
 camlistore.Nav.LinkItem.prototype.enterDocument = function() {
   this.getHandler().listen(this.getElement(), 'click', function(e) {
-    if (history.pushState) {
-      history.pushState(null, '', this.getElement().href);
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    this.onClick(this.linkUrl_);
+    e.preventDefault();
+    e.stopPropagation();
   });
 };
