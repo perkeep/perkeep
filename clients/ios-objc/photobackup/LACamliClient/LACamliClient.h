@@ -11,15 +11,20 @@
 
 @interface LACamliClient : NSObject <NSURLSessionDelegate>
 
+extern NSString *const CamliNotificationUploadStart;
+extern NSString *const CamliNotificationUploadProgress;
+extern NSString *const CamliNotificationUploadEnd;
+extern NSString *const CamliBlobRootComponent;
+
 @property NSURLSession *session;
 
 @property NSURL *serverURL;
 @property NSString *username;
 @property NSString *password;
 
-@property NSString *blobRoot;
 @property NSURL *uploadUrl;
 @property NSOperationQueue *uploadQueue;
+@property NSUInteger totalUploads;
 
 @property NSMutableArray *uploadedBlobRefs;
 @property UIBackgroundTaskIdentifier backgroundID;
