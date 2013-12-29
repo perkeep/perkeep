@@ -48,7 +48,7 @@ import (
 var haveSQLite = checkHaveSQLite()
 
 var (
-	embedResources = flag.Bool("embed_static", true, "Whether to embed the closure library.")
+	embedResources = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
 	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: yes, no, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
@@ -68,7 +68,7 @@ var (
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:go|html|js|css|png|jpg|gif|ico|gpg|json|err|camli|svg))$`)
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:go|html|min.js|js|css|png|jpg|gif|ico|gpg|json|err|camli|svg))$`)
 )
 
 func main() {
@@ -344,7 +344,8 @@ func genEmbeds() error {
 	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
 	uiEmbeds := buildSrcPath("server/camlistored/ui")
 	serverEmbeds := buildSrcPath("pkg/server")
-	for _, embeds := range []string{uiEmbeds, serverEmbeds} {
+	reactEmbeds := buildSrcPath("third_party/react")
+	for _, embeds := range []string{uiEmbeds, serverEmbeds, reactEmbeds} {
 		args := []string{embeds}
 		cmd := exec.Command(cmdName, args...)
 		cmd.Env = append(cleanGoEnv(),
