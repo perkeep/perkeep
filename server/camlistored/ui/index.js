@@ -213,6 +213,8 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 		}
 	});
 
+	this.logoNavItem_.onClick = this.navigate_.bind(this);
+
 	this.eh_.listen(this.blobItemContainer_, camlistore.BlobItemContainer.EventType.SELECTION_CHANGED, this.updateNavButtonsForSelection_.bind(this));
 
 	this.eh_.listen(this.getElement(), 'keypress', function(e) {
@@ -279,11 +281,15 @@ camlistore.IndexPage.prototype.setUrlSearch_ = function(search) {
 		goog.string.subs('%s:%s', this.constructor.SEARCH_PREFIX_.RAW, JSON.stringify(search));
 	var uri = new goog.Uri(location.href);
 	uri.setParameterValue('q', searchText);
+	this.navigate_(uri.toString());
+};
+
+camlistore.IndexPage.prototype.navigate_ = function(url) {
 	if (history.pushState) {
-		history.pushState(null, '', uri.toString());
+		history.pushState(null, '', url);
 		this.handleUrl_();
 	} else {
-		location.href = uri.toString();
+		location.href = url;
 	}
 };
 
