@@ -147,10 +147,6 @@ func (c *initCmd) RunCommand(args []string) error {
 		}
 	}
 
-	if os.Getenv("GPG_AGENT_INFO") == "" {
-		log.Printf("No GPG_AGENT_INFO found in environment; you should setup gnupg-agent.  camput might be annoying otherwise, if your private key is encrypted.")
-	}
-
 	pubArmor, err := c.getPublicKeyArmored(keyId)
 	if err != nil {
 		return err
