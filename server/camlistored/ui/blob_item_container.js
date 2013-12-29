@@ -210,6 +210,14 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode,
 		result.blobs[result.blobs.length - 1].blob];
 	if (result.continue) {
 		this.scrollContinuation_ = this.search.bind(this, query, this.searchMode_.APPEND, result.continue);
+
+		// If the window was very large, we might not have enough data yet for the user to get their scroll on. Let's fix that.
+		this.layout_();
+		var docHeight = goog.dom.getDocumentHeight();
+		var viewportHeight = goog.dom.getViewportSize().height;
+		if (docHeight < (viewportHeight * 1.5)) {
+			this.scrollContinuation_();
+		}
 	}
 };
 
