@@ -139,6 +139,11 @@ camlistore.BlobItemContainer.prototype.addChildAt = function(child, index, opt_r
 	}
 };
 
+camlistore.BlobItemContainer.prototype.removeChildAt = function(index, opt_render) {
+	goog.base(this, "removeChildAt", index, opt_render);
+	this.isLayoutDirty_ = true;
+};
+
 camlistore.BlobItemContainer.prototype.enterDocument = function() {
 	camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
 
@@ -191,6 +196,12 @@ camlistore.BlobItemContainer.prototype.search = function(query, opt_searchMode, 
 
 	this.connection_.search(query, describe, limit, opt_continuationToken,
 		goog.bind(this.searchDone_, this, query, searchMode));
+};
+
+camlistore.BlobItemContainer.prototype.reset = function() {
+	this.resetChildren_();
+	this.itemCache_ = {};
+	this.layout_();
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode, result) {
