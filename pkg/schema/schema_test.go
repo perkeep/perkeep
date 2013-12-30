@@ -373,3 +373,22 @@ func TestShareExpiration(t *testing.T) {
 		t.Error("expected not expired")
 	}
 }
+
+// camlistore.org/issue/305
+func TestIssue305(t *testing.T) {
+	var in = `{
+ "camliType": "file",
+  "fileName": "2012-03-10 15.03.18.m4v",
+  "parts": [
+    {
+      "bytesRef": "sha1-c76d8b17b887c207875e61a77b7eccc60289e61c",
+      "size": 20032564
+    }
+   ]
+}`
+	var ss superset
+	if err := json.NewDecoder(strings.NewReader(in)).Decode(&ss); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Got %#v", ss)
+}
