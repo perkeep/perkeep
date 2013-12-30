@@ -660,7 +660,8 @@ func (h *mutFileHandle) Write(req *fuse.WriteRequest, res *fuse.WriteResponse, i
 	}
 
 	n, err := h.tmp.WriteAt(req.Data, req.Offset)
-	log.Printf("mutFileHandle.Write(%q, at %d, flags %v, %q) = %d, %v", h.f.fullPath(), req.Offset, req.Flags, req.Data, n, err)
+	log.Printf("mutFileHandle.Write(%q, %d bytes at %d, flags %v) = %d, %v",
+		h.f.fullPath(), len(req.Data), req.Offset, req.Flags, n, err)
 	if err != nil {
 		log.Println("mutFileHandle.Write:", err)
 		return fuse.EIO
