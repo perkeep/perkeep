@@ -193,6 +193,26 @@ func memstats() *runtime.MemStats {
 
 var logCorpusStats = true // set to false in tests
 
+var slurpPrefixes = []string{
+	"meta:", // must be first
+	"signerkeyid:",
+	"claim|",
+	"fileinfo|",
+	"filetimes|",
+	"imagesize|",
+	"wholetofile|",
+	"exifgps|",
+}
+
+// Key types (without trailing punctuation) that we slurp to memory at start.
+var slurpedKeyType = make(map[string]bool)
+
+func init() {
+	for _, prefix := range slurpPrefixes {
+		slurpedKeyType[typeOfKey(prefix)] = true
+	}
+}
+
 func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = true
 
@@ -200,7 +220,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	if logCorpusStats {
 		ms0 = memstats()
 		log.Printf("Slurping corpus to memory from index...")
-		log.Printf("Slurping corpus to memory from index... (1/6: meta rows)")
+		log.Printf("Slurping corpus to memory from index... (1/%d: meta rows)", len(slurpPrefixes))
 	}
 
 	// We do the "meta" rows first, before the prefixes below, because it
@@ -213,19 +233,10 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs["permanode"]))
 	cpu0 := osutil.CPUUsage()
 
-	prefixes := []string{
-		"signerkeyid:",
-		"claim|",
-		"fileinfo|",
-		"filetimes|",
-		"imagesize|",
-		"wholetofile|",
-		"exifgps|",
-	}
 	var grp syncutil.Group
-	for i, prefix := range prefixes {
+	for i, prefix := range slurpPrefixes[1:] {
 		if logCorpusStats {
-			log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(prefixes)+1,
+			log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(slurpPrefixes),
 				prefix[:len(prefix)-1])
 		}
 		prefix := prefix
@@ -315,14 +326,11 @@ func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 	c.gen++
 	for k, v := range mm.kv {
 		kt := typeOfKey(k)
-		if fn, ok := corpusMergeFunc[kt]; ok {
-			if fn != nil {
-				if err := fn(c, []byte(k), []byte(v)); err != nil {
-					return err
-				}
-			}
-		} else {
-			log.Printf("TODO: receiving blob %v, unsupported key type %q to merge mutation %q -> %q", br, kt, k, v)
+		if !slurpedKeyType[kt] {
+			continue
+		}
+		if err := corpusMergeFunc[kt](c, []byte(k), []byte(v)); err != nil {
+			return err
 		}
 	}
 	return nil
