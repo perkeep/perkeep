@@ -19,8 +19,6 @@ limitations under the License.
 // Go 1, GoTip, Camlistore, and runs a battery of tests for Camlistore.
 // It then sends a report to the master and terminates.
 // It can also respond to progress requests from the master.
-// If run with -ephemeral=false, it could be used as a remote long lived
-// builder bot.
 package main
 
 import (
@@ -59,31 +57,28 @@ var (
 	// TODO(mpl): use that one, same as in master.
 	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Camlistore git repo.")
 	arch           = flag.String("arch", "", "The arch we report the master(s). Defaults to runtime.GOARCH.")
-	// TODO(mpl): drop that option?
-	ephemeral    = flag.Bool("ephemeral", true, "Die after we have run the testSuites for Go1 and Go tip once.") // This will be false for remote bots which run on other archs and send us regular reports.
-	fakeTests    = flag.Bool("faketests", false, "Run fast fake tests instead of the real ones, for faster debugging.")
-	help         = flag.Bool("h", false, "show this help")
-	host         = flag.String("host", "0.0.0.0:8081", "listening hostname and port")
-	masterHosts  = flag.String("masterhosts", "localhost:8080", "listening hostname and port of the master bots, i.e where to send the test suite reports. Comma separated list.")
-	ourOS        = flag.String("os", "", "The OS we report the master(s). Defaults to runtime.GOOS.")
-	skipGo1Build = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
-	verbose      = flag.Bool("verbose", false, "print what's going on")
-	skipTLSCheck = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
+	fakeTests      = flag.Bool("faketests", false, "Run fast fake tests instead of the real ones, for faster debugging.")
+	help           = flag.Bool("h", false, "show this help")
+	host           = flag.String("host", "0.0.0.0:8081", "listening hostname and port")
+	masterHosts    = flag.String("masterhosts", "localhost:8080", "listening hostname and port of the master bots, i.e where to send the test suite reports. Comma separated list.")
+	ourOS          = flag.String("os", "", "The OS we report the master(s). Defaults to runtime.GOOS.")
+	skipGo1Build   = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
+	verbose        = flag.Bool("verbose", false, "print what's going on")
+	skipTLSCheck   = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
 )
 
 var (
-	testFile                = []string{"AUTHORS", "CONTRIBUTORS"}
-	cacheDir                string
-	camliHeadHash           string
-	camliRoot               string
-	camputCacheDir          string
-	client                  = http.DefaultClient
-	dbg                     *debugger
-	defaultPATH             string
-	doBuildGo, doBuildCamli bool
-	go1Dir                  string
-	goTipDir                string
-	goTipHash               string
+	testFile       = []string{"AUTHORS", "CONTRIBUTORS"}
+	cacheDir       string
+	camliHeadHash  string
+	camliRoot      string
+	camputCacheDir string
+	client         = http.DefaultClient
+	dbg            *debugger
+	defaultPATH    string
+	go1Dir         string
+	goTipDir       string
+	goTipHash      string
 
 	biSuitelk        sync.Mutex
 	currentTestSuite *testSuite
@@ -253,101 +248,95 @@ func main() {
 	}()
 	setup()
 
-	for {
-		biSuitelk.Lock()
-		currentBiSuite = &biTestSuite{}
-		biSuitelk.Unlock()
-		for _, isTip := range [2]bool{false, true} {
-			currentTestSuite = &testSuite{
-				Run:   make([]*task, 0, 1),
-				IsTip: isTip,
-				Start: time.Now(),
-			}
-			// We prepare the Go tip tree as soon as in the Go 1 run, so
-			// we can set GoTipHash in the test suite.
-			if err := prepGoTipTree(isTip); err != nil {
+	biSuitelk.Lock()
+	currentBiSuite = &biTestSuite{}
+	biSuitelk.Unlock()
+	for _, isTip := range [2]bool{false, true} {
+		currentTestSuite = &testSuite{
+			Run:   make([]*task, 0, 1),
+			IsTip: isTip,
+			Start: time.Now(),
+		}
+		// We prepare the Go tip tree as soon as in the Go 1 run, so
+		// we can set GoTipHash in the test suite.
+		if !isTip {
+			if err := prepGoTipTree(); err != nil {
 				endOfSuite(err)
-				continue
+				// If we failed with that in the Go 1 run, we just restart
+				// from scratch instead of trying to cope with it in the Gotip run.
+				// Same for buildGoTip and prepCamliTree.
+				break
 			}
+		}
 
-			biSuitelk.Lock()
-			currentTestSuite.GoHash = goTipHash
-			biSuitelk.Unlock()
-			if isTip && doBuildGo && !*fakeTests {
-				if err := buildGoTip(); err != nil {
-					endOfSuite(err)
-					continue
-				}
-			}
-			if err := prepCamliTree(isTip); err != nil {
+		biSuitelk.Lock()
+		currentTestSuite.GoHash = goTipHash
+		biSuitelk.Unlock()
+		if isTip && !*fakeTests {
+			if err := buildGoTip(); err != nil {
 				endOfSuite(err)
-				continue
+				break
 			}
-			biSuitelk.Lock()
-			currentTestSuite.CamliHash = camliHeadHash
-			biSuitelk.Unlock()
-			if !(doBuildGo || doBuildCamli) {
-				endOfSuite(nil)
-			}
-			restorePATH()
-			goDir := go1Dir
-			if isTip {
-				goDir = goTipDir
-			}
-			addToPATH(filepath.Join(goDir, "bin"))
-			if *fakeTests {
-				if err := fakeRun(); err != nil {
-					endOfSuite(err)
-					continue
-				}
-				endOfSuite(nil)
-				if isTip {
-					break
-				} else {
-					continue
-				}
-			}
-			if err := buildCamli(); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			if err := runTests(); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			if err := runCamli(); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			if err := hitCamliUi(); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			doVivify := false
-			if err := camputOne(doVivify); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			doVivify = true
-			if err := camputOne(doVivify); err != nil {
-				endOfSuite(err)
-				continue
-			}
-			if err := camputMany(); err != nil {
+		}
+		if err := prepCamliTree(isTip); err != nil {
+			endOfSuite(err)
+			break
+		}
+
+		biSuitelk.Lock()
+		currentTestSuite.CamliHash = camliHeadHash
+		biSuitelk.Unlock()
+		restorePATH()
+		goDir := go1Dir
+		if isTip {
+			goDir = goTipDir
+		}
+		switchGo(goDir)
+		if *fakeTests {
+			if err := fakeRun(); err != nil {
 				endOfSuite(err)
 				continue
 			}
 			endOfSuite(nil)
+			if isTip {
+				break
+			}
+			continue
 		}
-		sanitizeRevs()
-		sendReport()
-		if *ephemeral {
-			break
+		if err := buildCamli(); err != nil {
+			endOfSuite(err)
+			continue
 		}
-		tsk := newTask("time.Sleep", interval.String())
-		dbg.Println(tsk.String())
-		time.Sleep(interval)
+		if err := runTests(); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		if err := runCamli(); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		if err := hitCamliUi(); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		doVivify := false
+		if err := camputOne(doVivify); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		doVivify = true
+		if err := camputOne(doVivify); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		if err := camputMany(); err != nil {
+			endOfSuite(err)
+			continue
+		}
+		endOfSuite(nil)
 	}
+	sanitizeRevs()
+	sendReport()
 }
 
 func sanitizeRevs() {
@@ -587,14 +576,11 @@ func handleSignals() {
 	}
 }
 
-func prepGoTipTree(isTip bool) error {
-	if isTip && goTipHash != "" {
-		// go tip tree was already prepared properly in the Go 1 run
-		return nil
-	}
-	doBuildGo = false
+var plausibleHashRx = regexp.MustCompile(`^[a-f0-9]{40}$`)
+
+func prepGoTipTree() error {
 	if err := os.Chdir(goTipDir); err != nil {
-		log.Fatalf("Could not cd to %v: %v", goTipDir, err)
+		return fmt.Errorf("Could not cd to %v: %v", goTipDir, err)
 	}
 	tasks := []*task{
 		newTaskFrom(hgPullCmd),
@@ -606,27 +592,24 @@ func prepGoTipTree(isTip bool) error {
 	for _, t := range tasks {
 		out, err := t.run()
 		if err != nil {
-			log.Printf("Could not prepare the Go tip tree with %v: %v", t.String(), err)
-			return err
+			return fmt.Errorf("Could not prepare the Go tip tree with %v: %v", t.String(), err)
 		}
 		if t.String() == hgLogCmd.String() {
 			hash = strings.TrimRight(out, "\n")
 		}
 	}
-	dbg.Println("previous head in go tree: " + goTipHash)
-	dbg.Println("current head in go tree: " + hash)
-	if hash != "" && hash != goTipHash {
-		goTipHash = hash
-		doBuildGo = true
-		dbg.Println("Changes in go tree detected; Go tip will be rebuilt.")
+	if !plausibleHashRx.MatchString(hash) {
+		return fmt.Errorf("Go rev %q does not look like an hg hash.", hash)
 	}
+	goTipHash = hash
+	dbg.Println("current head in go tree: " + goTipHash)
 	return nil
 }
 
 func buildGoTip() error {
 	srcDir := filepath.Join(goTipDir, "src")
 	if err := os.Chdir(srcDir); err != nil {
-		log.Fatalf("Could not cd to %v: %v", srcDir, err)
+		return fmt.Errorf("Could not cd to %v: %v", srcDir, err)
 	}
 	if _, err := newTaskFrom(buildGoCmd).run(); err != nil {
 		return err
@@ -635,51 +618,50 @@ func buildGoTip() error {
 }
 
 func prepCamliTree(isTip bool) error {
-	doBuildCamli = false
-	// camli
 	if err := os.Chdir(camliRoot); err != nil {
-		log.Fatalf("Could not cd to %v: %v", camliRoot, err)
+		return fmt.Errorf("Could not cd to %v: %v", camliRoot, err)
 	}
 	rev := "HEAD"
 	if isTip {
-		if camliHeadHash == "" {
-			// the previous run with Go 1 somehow failed to set camliHeadHash
-			// so we pretend we're not on tip to retry all the work
-			isTip = !isTip
-		} else {
-			// we reset to the rev that was noted at the previous run with Go 1
-			rev = camliHeadHash
+		if !plausibleHashRx.MatchString(camliHeadHash) {
+			// the run with Go 1 should have taken care of setting camliHeadHash
+			return errors.New("camliHeadHash hasn't been set properly in the Go 1 run")
 		}
+		// we reset to the rev that was noted at the previous run with Go 1
+		// because we want to do both runs at the same rev
+		rev = camliHeadHash
 	}
 	resetCmd := newTask(gitResetCmd.Program, append(gitResetCmd.Args, rev)...)
 	tasks := []*task{
 		resetCmd,
 		newTaskFrom(gitCleanCmd),
 	}
-	if !isTip {
-		// we only pull at the first run, with Go 1
-		tasks = append(tasks, newTaskFrom(gitPullCmd), newTaskFrom(gitRevCmd))
+	for _, t := range tasks {
+		_, err := t.run()
+		if err != nil {
+			return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
+		}
+	}
+	if isTip {
+		// We only need to pull and get the camli head hash when in the Go 1 run
+		return nil
+	}
+	tasks = []*task{
+		newTaskFrom(gitPullCmd),
+		newTaskFrom(gitRevCmd),
 	}
 	hash := ""
 	for _, t := range tasks {
 		out, err := t.run()
 		if err != nil {
-			log.Printf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
-			return err
+			return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
 		}
 		hash = strings.TrimRight(out, "\n")
 	}
-	if isTip {
-		doBuildCamli = true
-		return nil
+	if !plausibleHashRx.MatchString(hash) {
+		return fmt.Errorf("Camlistore rev %q does not look like a git hash.", hash)
 	}
-	dbg.Println("previous head in camli tree: " + camliHeadHash)
-	dbg.Println("current head in camli tree: " + hash)
-	if hash != "" && hash != camliHeadHash {
-		camliHeadHash = hash
-		doBuildCamli = true
-		dbg.Println("Changes in camli tree detected, Camlistore will be rebuilt")
-	}
+	camliHeadHash = hash
 	return nil
 }
 
@@ -690,18 +672,20 @@ func restorePATH() {
 	}
 }
 
-func addToPATH(gobin string) {
-	splitter := ":"
-	switch runtime.GOOS {
-	case "windows":
-		splitter = ";"
-	case "plan9":
-		panic("unsupported")
+func switchGo(goDir string) {
+	if runtime.GOOS == "plan9" {
+		panic("plan 9 not unsupported")
 	}
-	p := gobin + splitter + defaultPATH
-	err := os.Setenv("PATH", p)
-	if err != nil {
+	gobin := filepath.Join(goDir, "bin", "go")
+	if _, err := os.Stat(gobin); err != nil {
+		log.Fatalf("Could not stat 'go' bin at %q: %v", gobin, err)
+	}
+	p := filepath.Join(goDir, "bin") + string(filepath.ListSeparator) + defaultPATH
+	if err := os.Setenv("PATH", p); err != nil {
 		log.Fatalf("Could not set PATH to %v: %v", p, err)
+	}
+	if err := os.Setenv("GOROOT", goDir); err != nil {
+		log.Fatalf("Could not set GOROOT to %v: %v", goDir, err)
 	}
 }
 
