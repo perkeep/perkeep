@@ -1,0 +1,32 @@
+body {
+	background: black;
+	font-family: 'Open Sans', sans-serif;
+	margin: 0;
+}
+
+.detail-view {
+	position: relative;
+	overflow: hidden;
+}
+
+.detail-view-preview {
+	position: absolute;
+	width: auto;
+	height: auto;
+}
+
+.detail-view-sidebar {
+	background: white;
+	bottom: 0;
+	overflow: auto;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+/* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
+*, *:before, *:after {
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+}

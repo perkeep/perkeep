@@ -340,6 +340,10 @@ func wantsFileTreePage(req *http.Request) bool {
 	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("d"))
 }
 
+func wantsDetailPage(req *http.Request) bool {
+	return httputil.IsGet(req) && httputil.PathSuffix(req) == "detail.html"
+}
+
 func wantsClosure(req *http.Request) bool {
 	if httputil.IsGet(req) {
 		suffix := httputil.PathSuffix(req)
@@ -387,6 +391,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				file = "blobinfo.html"
 			case wantsFileTreePage(req):
 				file = "filetree.html"
+			case wantsDetailPage(req):
+				file = "detail.html"
 			case req.URL.Path == httputil.PathBase(req):
 				file = "index.html"
 			default:
