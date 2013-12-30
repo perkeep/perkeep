@@ -293,6 +293,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		}
 		im := imi.(*formatAndImage)
 		imageData = im.image
+		format = im.format
 		if ih.thumbMeta != nil {
 			err := ih.cacheScaled(bytes.NewReader(imageData), key)
 			if err != nil {
