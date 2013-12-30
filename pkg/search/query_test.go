@@ -895,6 +895,37 @@ func TestPlannedQuery(t *testing.T) {
 	}
 }
 
+func TestSortMarshal(t *testing.T) {
+	q := &SearchQuery{
+		Sort: CreatedDesc,
+	}
+	enc, err := json.Marshal(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(enc), `{"sort":"-created"}`; got != want {
+		t.Logf("JSON: %s; want %s", got, want)
+	}
+	back := &SearchQuery{}
+	err = json.Unmarshal(enc, back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(q, back) {
+		t.Errorf("Didn't round-trip. Got %#v; want %#v", back, q)
+	}
+
+	// and the zero value
+	q = &SearchQuery{}
+	enc, err = json.Marshal(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(enc) != "{}" {
+		t.Errorf("Zero value: %s; want {}", enc)
+	}
+}
+
 func BenchmarkQueryRecentPermanodes(b *testing.B) {
 	b.ReportAllocs()
 	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {

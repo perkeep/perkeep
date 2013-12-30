@@ -174,7 +174,7 @@ camlistore.ServerConnection.prototype.permanodeOfSignerAttrValue = function(sign
 // @param {?object} opt_describe The describe property to send for the query
 camlistore.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
 	var query = {
-		sort: 1  // LastModifiedDesc
+		sort: "-mod"
 	};
 
 	if (goog.isString(callerQuery)) {
