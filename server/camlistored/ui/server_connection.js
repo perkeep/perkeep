@@ -21,13 +21,9 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
 // @param {?Function|undefined} fail Fail func to call if exists.
 // @return {Function}
 camlistore.ServerConnection.prototype.safeFail_ = function(fail) {
-	if (typeof fail === 'undefined') {
-		return alert;
-	}
-	if (fail === null) {
-		return alert;
-	}
-	return fail;
+	return fail || function(msg) {
+		throw new Error(msg);
+	};
 };
 
 // @param {Function} success Success callback.
@@ -78,28 +74,18 @@ camlistore.ServerConnection.prototype.handleXhrResponseJson_ = function(success,
 	var xhr = e.target;
 	var error = !xhr.isSuccess();
 	var result = null;
-	if (!error) {
-		try {
-			result = xhr.getResponseJson();
-		} catch(err) {
-			console.log("Response was not valid JSON: " + xhr.getResponseText());
-			if (fail) {
-				fail();
-			}
-			return;
-		}
-		error = !result;
+
+	try {
+		result = xhr.getResponseJson();
+	} catch(err) {
+		result = "Response was not valid JSON: " + xhr.getResponseText();
 	}
+
 	if (error) {
-		if (fail) {
-			fail()
-		} else {
-			// TODO(bslatkin): Add a default failure event handler to this class.
-			console.log('Failed XHR (GET) in ServerConnection');
-		}
-		return;
+		fail(result.error || result);
+	} else {
+		success(result);
 	}
-	success(result);
 };
 
 // @param {Function} success callback with data.
@@ -174,7 +160,7 @@ camlistore.ServerConnection.prototype.permanodeOfSignerAttrValue = function(sign
 // @param {?object} opt_describe The describe property to send for the query
 camlistore.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
 	var query = {
-		sort: 1  // LastModifiedDesc
+		sort: "-mod"
 	};
 
 	if (goog.isString(callerQuery)) {

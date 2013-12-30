@@ -17,6 +17,7 @@ limitations under the License.
 package search
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,7 +39,6 @@ import (
 
 type SortType int
 
-// TODO: add MarshalJSON and UnmarshalJSON to SortType
 const (
 	UnspecifiedSort SortType = iota
 	LastModifiedDesc
@@ -47,6 +47,31 @@ const (
 	CreatedAsc
 	maxSortType
 )
+
+var sortName = map[SortType][]byte{
+	LastModifiedDesc: []byte(`"-mod"`),
+	LastModifiedAsc:  []byte(`"mod"`),
+	CreatedDesc:      []byte(`"-created"`),
+	CreatedAsc:       []byte(`"created"`),
+}
+
+func (t SortType) MarshalJSON() ([]byte, error) {
+	v, ok := sortName[t]
+	if !ok {
+		panic("unnamed SortType " + strconv.Itoa(int(t)))
+	}
+	return v, nil
+}
+
+func (t *SortType) UnmarshalJSON(v []byte) error {
+	for n, nv := range sortName {
+		if bytes.Equal(v, nv) {
+			*t = n
+			return nil
+		}
+	}
+	return fmt.Errorf("Bogus search sort type %q", v)
+}
 
 type SearchQuery struct {
 	// Exactly one of Expression or Contraint must be set.
