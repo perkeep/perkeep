@@ -378,6 +378,7 @@ func TestShareExpiration(t *testing.T) {
 func TestIssue305(t *testing.T) {
 	var in = `{
  "camliType": "file",
+ "camliVersion": 1,
   "fileName": "2012-03-10 15.03.18.m4v",
   "parts": [
     {
@@ -391,4 +392,22 @@ func TestIssue305(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Got %#v", ss)
+
+	blob, err := BlobFromReader(blob.ParseOrZero("sha1-f0aa5d21bd2de0724bc7c3c66725e516fd92caff"),
+		strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bb := blob.Builder()
+	jback, err := bb.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(jback, `"json": 20032564`) {
+		t.Logf("JSON back from bb.JSON doesn't contain 20032564 integer literal. Got:\n%s", jback)
+
+	}
+
+	blob2 := bb.Blob()
+	t.Logf("Got %#v", blob2)
 }

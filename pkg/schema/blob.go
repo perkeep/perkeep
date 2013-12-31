@@ -111,7 +111,9 @@ func (b *Blob) ByteParts() []BytesPart {
 
 func (b *Blob) Builder() *Builder {
 	var m map[string]interface{}
-	err := json.Unmarshal([]byte(b.str), &m)
+	dec := json.NewDecoder(strings.NewReader(b.str))
+	dec.UseNumber()
+	err := dec.Decode(&m)
 	if err != nil {
 		panic("failed to decode previously-thought-valid Blob's JSON: " + err.Error())
 	}
@@ -468,7 +470,7 @@ func clone(i interface{}) interface{} {
 			m2[k] = clone(v)
 		}
 		return m2
-	case string, int, int64, float64:
+	case string, int, int64, float64, json.Number:
 		return t
 	case []interface{}:
 		s2 := make([]interface{}, len(t))
