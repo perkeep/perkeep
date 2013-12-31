@@ -86,6 +86,9 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	if err != nil {
 		return
 	}
+	if _, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
+		return blob.SizedRef{blobRef, written}, nil
+	}
 
 	sniffer.Parse()
 

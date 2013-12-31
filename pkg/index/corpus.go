@@ -323,6 +323,9 @@ func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if _, dup := c.blobs[br]; dup {
+		return nil
+	}
 	c.gen++
 	for k, v := range mm.kv {
 		kt := typeOfKey(k)
@@ -346,12 +349,7 @@ func (c *Corpus) mergeMetaRow(k, v []byte) error {
 
 func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	if _, dup := c.blobs[bm.Ref]; dup {
-		// Um, shouldn't happen.  TODO(bradfitz): is it
-		// guaranteed elsewhere that duplicate blobs are never
-		// re-indexed? Do we ever make assumptions that it
-		// isn't the case? Summing onto sumBlobBytes below
-		// here is one such case.
-		return nil
+		panic("dup blob seen")
 	}
 	bm.CamliType = c.str(bm.CamliType)
 
