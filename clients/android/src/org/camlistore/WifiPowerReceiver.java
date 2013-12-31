@@ -12,7 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/
+ */
 
 package org.camlistore;
 
@@ -44,22 +44,25 @@ public class WifiPowerReceiver extends BroadcastReceiver {
         }
 
         if (ConnectivityManager.CONNECTIVITY_ACTION.equals(action)) {
-            NetworkInfo ni = intent.getParcelableExtra(ConnectivityManager.EXTRA_NETWORK_INFO);
-            Log.d(TAG, "NetworkInfo: " + ni);
-
-            // Nexus one, starting with Wifi, and then turning it off, and watching it flip back
-            // to 3G:
-
-            // D/WifiPowerReceiver(25298): connectivity extras: Bundle[{networkInfo=NetworkInfo: type: WIFI[], state: DISCONNECTED/DISCONNECTED, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: false, otherNetwork=NetworkInfo: type: mobile[HSDPA], state: CONNECTING/CONNECTING, reason: apnSwitched, extra: epc.tmobile.com, roaming: false, failover: true, isAvailable: true}]
-
-            // D/WifiPowerReceiver(25298): connectivity extras: Bundle[{networkInfo=NetworkInfo: type: mobile[HSDPA], state: CONNECTED/CONNECTED, reason: apnSwitched, extra: epc.tmobile.com, roaming: false, failover: false, isAvailable: true, reason=apnSwitched, isFailover=true, extraInfo=epc.tmobile.com}]
-            
-            
-            // On Droid, Wifi turning off, switching to 3G:
-            
-            // D/WifiPowerReceiver( 2443): connectivity extras: Bundle[{networkInfo=NetworkInfo: type: WIFI[], state: DISCONNECTED/DISCONNECTED, reason: (unspecified), extra: (none), roaming: false, failover: false, isAvailable: false, otherNetwork=NetworkInfo: type: mobile[CDMA - EvDo rev. A], state: CONNECTING/CONNECTING, reason: apnSwitched, extra: (none), roaming: false, failover: true, isAvailable: true}]
-
-            // D/WifiPowerReceiver( 2443): connectivity extras: Bundle[{networkInfo=NetworkInfo: type: mobile[CDMA - EvDo rev. A], state: CONNECTED/CONNECTED, reason: apnSwitched, extra: (none), roaming: false, failover: false, isAvailable: true, isFailover=true, reason=apnSwitched}]
+            boolean wifi = onWifi(context);
+            Log.d(TAG, "onWifi = " + wifi);
+            Intent cmd = new Intent(wifi ? UploadService.INTENT_NETWORK_WIFI : UploadService.INTENT_NETWORK_NOT_WIFI);
+            cmd.setClass(context, UploadService.class);
+            context.startService(cmd);
         }
+    }
+
+    public static boolean onPower(Context context) {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+    public static boolean onWifi(Context context) {
+        NetworkInfo ni = ((ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE)).getActiveNetworkInfo();
+        if (ni != null && ni.isConnected()
+                && (ni.getType() == ConnectivityManager.TYPE_WIFI || ni.getType() == ConnectivityManager.TYPE_ETHERNET)) {
+            return true;
+        }
+        return false;
     }
 }

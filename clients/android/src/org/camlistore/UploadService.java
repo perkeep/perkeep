@@ -59,6 +59,8 @@ public class UploadService extends Service {
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
     public static final String INTENT_UPLOAD_ALL = "UPLOAD_ALL";
+    public static final String INTENT_NETWORK_WIFI = "WIFI_NOW";
+    public static final String INTENT_NETWORK_NOT_WIFI = "NOT_WIFI_NOW";
 
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
@@ -158,15 +160,37 @@ public class UploadService extends Service {
         }
 
         try {
-            if (INTENT_POWER_CONNECTED.equals(action) && mPrefs.autoUpload()) {
-                service.resume();
-                handleUploadAll();
-            }
+            if (mPrefs.autoUpload()) {
+                boolean startAuto = false;
+                boolean stopAuto = false;
 
-            if (INTENT_POWER_DISCONNECTED.equals(action) && mPrefs.autoRequiresPower()) {
-                service.pause();
-                stopBackgroundWatchers();
-                stopServiceIfEmpty();
+                if (INTENT_POWER_CONNECTED.equals(action)) {
+                    if (!mPrefs.autoRequiresWifi() || WifiPowerReceiver.onWifi(this)) {
+                        startAuto = true;
+                    }
+                } else if (INTENT_NETWORK_WIFI.equals(action)) {
+                    if (!mPrefs.autoRequiresPower() || WifiPowerReceiver.onPower(this)) {
+                        startAuto = true;
+                    }
+                } else if (INTENT_POWER_DISCONNECTED.equals(action)) {
+                    stopAuto = mPrefs.autoRequiresPower();
+                } else if (INTENT_NETWORK_NOT_WIFI.equals(action)) {
+                    stopAuto = mPrefs.autoRequiresWifi();
+                }
+
+                if (startAuto) {
+                    Log.d(TAG, "Starting automatic uploads");
+                    service.resume();
+                    handleUploadAll();
+                    return;
+                }
+                if (stopAuto) {
+                    Log.d(TAG, "Stopping automatic uploads");
+                    service.pause();
+                    stopBackgroundWatchers();
+                    stopServiceIfEmpty();
+                    return;
+                }
             }
         } catch (RemoteException e) {
             // Ignore.
@@ -215,6 +239,10 @@ public class UploadService extends Service {
                     List<Uri> filesToQueue = new ArrayList<Uri>();
                     for (String dirName : dirs) {
                         File dir = new File(dirName);
+                        if (!dir.exists()) {
+                            Log.d(TAG, "Skipping non-existent directory " + dirName);
+                            continue;
+                        }
                         File[] files = dir.listFiles();
                         Log.d(TAG, "Contents of " + dirName + ": " + files);
                         if (files != null) {
@@ -250,6 +278,7 @@ public class UploadService extends Service {
         ArrayList<String> dirs = new ArrayList<String>();
         if (mPrefs.autoDirPhotos()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
+            dirs.add(Environment.getExternalStorageDirectory() + "/Eye-Fi");
         }
         if (mPrefs.autoDirMyTracks()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/gpx");
@@ -306,8 +335,17 @@ public class UploadService extends Service {
     private void startBackgroundWatchers() {
         Log.d(TAG, "Starting background watchers...");
         synchronized (UploadService.this) {
-            mObservers.add(new CamliFileObserver(service, new File(Environment.getExternalStorageDirectory(), "DCIM/Camera")));
-            mObservers.add(new CamliFileObserver(service, new File(Environment.getExternalStorageDirectory(), "gpx")));
+            maybeAddObserver("DCIM/Camera");
+            maybeAddObserver("Eye-Fi");
+            maybeAddObserver("gpx");
+        }
+    }
+
+    // Requires that UploadService.this is locked.
+    private void maybeAddObserver(String suffix) {
+        File f = new File(Environment.getExternalStorageDirectory(), suffix);
+        if (f.exists()) {
+            mObservers.add(new CamliFileObserver(service, f));
         }
     }
 

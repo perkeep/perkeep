@@ -22,7 +22,7 @@ public final class Preferences {
     public static final String NAME = "CamliUploader";
 
     public static final String HOST = "camli.host";
-	// TODO(mpl): list instead of single string later? seems overkill for now.
+    // TODO(mpl): list instead of single string later? seems overkill for now.
     public static final String TRUSTED_CERT = "camli.trusted_cert";
     public static final String USERNAME = "camli.username";
     public static final String PASSWORD = "camli.password";
@@ -43,6 +43,10 @@ public final class Preferences {
 
     public boolean autoRequiresPower() {
         return mSP.getBoolean(AUTO_REQUIRE_POWER, false);
+    }
+
+    public boolean autoRequiresWifi() {
+        return mSP.getBoolean(AUTO_REQUIRE_WIFI, false);
     }
 
     public boolean autoUpload() {
@@ -101,4 +105,5 @@ public final class Preferences {
     public void setDevIP(String value) {
         mSP.edit().putString(DEV_IP, value).apply();
     }
+
 }
