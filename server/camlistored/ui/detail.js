@@ -59,6 +59,7 @@ var DetailView = React.createClass({
 				this.getImg_(),
 				this.getPiggy_(),
 				React.DOM.div({className:'detail-view-sidebar', key:'sidebar', style: this.getSidebarStyle_()},
+					React.DOM.a({key:'sidebar-link', href:'../ui/?p=' + this.props.blobref}, 'old and busted'),
 					React.DOM.pre({key:'sidebar-pre'}, JSON.stringify(this.state.description || '', null, 2)))));
 	},
 

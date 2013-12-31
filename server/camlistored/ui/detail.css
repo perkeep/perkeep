@@ -23,6 +23,7 @@ body {
 	background: white;
 	bottom: 0;
 	overflow: auto;
+	padding: 15px;
 	position: absolute;
 	right: 0;
 	top: 0;
