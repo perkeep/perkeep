@@ -376,38 +376,38 @@ func TestShareExpiration(t *testing.T) {
 
 // camlistore.org/issue/305
 func TestIssue305(t *testing.T) {
-	var in = `{
- "camliType": "file",
- "camliVersion": 1,
+	var in = `{"camliVersion": 1,
+  "camliType": "file",
   "fileName": "2012-03-10 15.03.18.m4v",
   "parts": [
     {
       "bytesRef": "sha1-c76d8b17b887c207875e61a77b7eccc60289e61c",
       "size": 20032564
     }
-   ]
+  ]
 }`
 	var ss superset
 	if err := json.NewDecoder(strings.NewReader(in)).Decode(&ss); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("Got %#v", ss)
-
-	blob, err := BlobFromReader(blob.ParseOrZero("sha1-f0aa5d21bd2de0724bc7c3c66725e516fd92caff"),
-		strings.NewReader(in))
+	inref := blob.SHA1FromString(in)
+	blob, err := BlobFromReader(inref, strings.NewReader(in))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if blob.BlobRef() != inref {
+		t.Error("original ref = %s; want %s", blob.BlobRef(), inref)
 	}
 	bb := blob.Builder()
 	jback, err := bb.JSON()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(jback, `"json": 20032564`) {
-		t.Logf("JSON back from bb.JSON doesn't contain 20032564 integer literal. Got:\n%s", jback)
-
+	if jback != in {
+		t.Errorf("JSON doesn't match:\n got: %q\nwant: %q\n", jback, in)
 	}
-
-	blob2 := bb.Blob()
-	t.Logf("Got %#v", blob2)
+	out := bb.Blob()
+	if got := out.BlobRef(); got != inref {
+		t.Errorf("cloned ref = %v; want %v", got, inref)
+	}
 }

@@ -262,8 +262,7 @@ func parseSuperset(r io.Reader) (*superset, error) {
 
 // BlobReader returns a new Blob from the provided Reader r,
 // which should be the body of the provided blobref.
-// Note: the hash checksum is not verified. Call (*Blob).Verify()
-// to validate that the digest matches.
+// Note: the hash checksum is not verified.
 func BlobFromReader(ref blob.Ref, r io.Reader) (*Blob, error) {
 	if !ref.Valid() {
 		return nil, errors.New("schema.BlobFromReader: invalid blobref")
