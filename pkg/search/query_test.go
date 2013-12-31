@@ -574,7 +574,7 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		if err != nil {
 			qt.t.Fatal(err)
 		}
-		if usedSource != "corpus_permanode_desc" {
+		if usedSource != "corpus_permanode_lastmod" {
 			t.Errorf("used candidate source strategy %q; want corpus_permanode_desc", usedSource)
 		}
 		wantBlobs := []*SearchResultBlob{

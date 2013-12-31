@@ -131,7 +131,7 @@ func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 	}
 	if pq.Sort == 0 {
 		if pq.Constraint.onlyMatchesPermanode() {
-			pq.Sort = LastModifiedDesc
+			pq.Sort = LastModifiedDesc // TODO: CreatedDesc
 		}
 	}
 	if pq.Limit == 0 {
@@ -182,7 +182,7 @@ func (q *SearchQuery) addContinueConstraint() error {
 		if !ok {
 			return errors.New("Unexpected continue token")
 		}
-		if q.Sort == LastModifiedDesc {
+		if q.Sort == LastModifiedDesc { // TODO: || q.Sort == CreatedDesc {
 			baseConstraint := q.Constraint
 			q.Constraint = &Constraint{
 				Logical: &LogicalConstraint{
@@ -666,11 +666,14 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
 
+	cands := q.pickCandidateSource(s)
+	if candSourceHook != nil {
+		candSourceHook(cands.name)
+	}
+
 	sendCtx := s.ctx.New()
 	defer sendCtx.Cancel()
-	go func() {
-		errc <- q.sendAllCandidates(sendCtx, s, ch)
-	}()
+	go func() { errc <- cands.send(sendCtx, s, ch) }()
 
 	blobMatches := q.Constraint.matcher()
 	for meta := range ch {
@@ -682,7 +685,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			res.Blobs = append(res.Blobs, &SearchResultBlob{
 				Blob: meta.Ref,
 			})
-			if q.Limit > 0 && len(res.Blobs) == q.Limit && q.candidatesAreSorted(s) {
+			if q.Limit > 0 && len(res.Blobs) == q.Limit && cands.sorted {
 				sendCtx.Cancel()
 				break
 			}
@@ -691,7 +694,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	if err := <-errc; err != nil && err != context.ErrCanceled {
 		return nil, err
 	}
-	if !q.candidatesAreSorted(s) {
+	if !cands.sorted {
 		// TODO(bradfitz): sort them
 		if q.Limit > 0 && len(res.Blobs) > q.Limit {
 			res.Blobs = res.Blobs[:q.Limit]
@@ -758,41 +761,43 @@ func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 // Test hook.
 var candSourceHook func(string)
 
-// sendAllCandidates sends all possible matches to dst.
-// dst must be closed, regardless of error.
-func (q *SearchQuery) sendAllCandidates(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+type candidateSource struct {
+	name   string
+	sorted bool
+
+	// sends sends to the channel and must close it, regardless of error
+	// or interruption from context.Done().
+	send func(*context.Context, *search, chan<- camtypes.BlobMeta) error
+}
+
+func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 	c := q.Constraint
 	corpus := s.h.corpus
 	if corpus != nil {
-		if c.onlyMatchesPermanode() && q.Sort == LastModifiedDesc {
-			if candSourceHook != nil {
-				candSourceHook("corpus_permanode_desc")
+		if c.onlyMatchesPermanode() {
+			if q.Sort == LastModifiedDesc {
+				src.sorted = true
+				src.name = "corpus_permanode_lastmod"
+				src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+					return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
+				}
+				return
 			}
-			return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
 		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
-			if candSourceHook != nil {
-				candSourceHook("camli_blob_meta")
+			src.name = "corpus_blob_meta"
+			src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+				return corpus.EnumerateCamliBlobsLocked(ctx, camType, dst)
 			}
-			return corpus.EnumerateCamliBlobsLocked(ctx, camType, dst)
+			return
 		}
 	}
-	if candSourceHook != nil {
-		candSourceHook("all_blob_meta")
+	src.name = "index_blob_meta"
+	src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+		return s.h.index.EnumerateBlobMeta(ctx, dst)
 	}
-	return s.h.index.EnumerateBlobMeta(ctx, dst)
-}
-
-func (q *SearchQuery) candidatesAreSorted(s *search) bool {
-	corpus := s.h.corpus
-	if corpus == nil {
-		return false
-	}
-	if q.Constraint.onlyMatchesPermanode() && q.Sort == LastModifiedDesc {
-		return true
-	}
-	return false
+	return
 }
 
 type allMustMatch []matchFn
