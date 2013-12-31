@@ -345,7 +345,8 @@ func genEmbeds() error {
 	uiEmbeds := buildSrcPath("server/camlistored/ui")
 	serverEmbeds := buildSrcPath("pkg/server")
 	reactEmbeds := buildSrcPath("third_party/react")
-	for _, embeds := range []string{uiEmbeds, serverEmbeds, reactEmbeds} {
+	glitchEmbeds := buildSrcPath("third_party/glitch")
+	for _, embeds := range []string{uiEmbeds, serverEmbeds, reactEmbeds, glitchEmbeds} {
 		args := []string{embeds}
 		cmd := exec.Command(cmdName, args...)
 		cmd.Env = append(cleanGoEnv(),
