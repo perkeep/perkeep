@@ -18,6 +18,7 @@ package org.camlistore;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -62,7 +63,6 @@ public class UploadService extends Service {
     // Everything in this block guarded by 'this':
     private boolean mUploading = false; // user's desired state (notified
                                         // quickly)
-
     private UploadThread mUploadThread = null; // last thread created; null when
                                                // thread exits
     private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
@@ -220,7 +220,16 @@ public class UploadService extends Service {
                         if (files != null) {
                             for (int i = 0; i < files.length; ++i) {
                                 Log.d(TAG, "  " + files[i]);
-                                filesToQueue.add(Uri.fromFile(files[i]));
+                                File f = files[i];
+                                if (f.isDirectory()) {
+                                    // Skip thumbnails directory.
+                                    // TODO: are any interesting enough to recurse into?
+                                    // Definitely don't need to upload thumbnails, but
+                                    // but maybe some other app in the the future creates
+                                    // sharded directories. Eye-Fi doesn't, though.
+                                    continue;
+                                }
+                                filesToQueue.add(Uri.fromFile(f));
                             }
                         }
                     }
@@ -399,6 +408,7 @@ public class UploadService extends Service {
         Log.d(TAG, "onUploadComplete of " + qf);
         synchronized (this) {
             if (!mFileBytesRemain.containsKey(qf)) {
+                Log.w(TAG, "onUploadComplete of un-queued file: " + qf);
                 return;
             }
             incrBytes(qf, qf.getSize());
@@ -411,6 +421,7 @@ public class UploadService extends Service {
                 // stats event.
                 mFilesUploaded = mFilesTotal;
                 mBytesUploaded = mBytesTotal;
+                mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
                 stopUploadThread();
             }
             mQueueList.remove(qf); // TODO: ghetto, linear scan
@@ -462,21 +473,30 @@ public class UploadService extends Service {
         broadcastFileStatus();
     }
 
+    // pathOfURI tries to return the on-disk absolute path of uri.
+    // It may return null if it fails.
     public String pathOfURI(Uri uri) {
         if (uri == null) {
             return null;
         }
-        String[] proj = { MediaStore.Images.Media.DATA };
-        Cursor cursor = getContentResolver().query(uri, proj, null, null, null);
-        if (cursor == null) {
-            return null;
+        if ("file".equals(uri.getScheme())) {
+            return uri.getPath();
         }
-        cursor.moveToFirst();
-
-        int columnIndex = cursor.getColumnIndex(proj[0]);
-        String filePath = cursor.getString(columnIndex);
-        cursor.close();
-        return filePath;
+        String[] proj = { MediaStore.Images.Media.DATA };
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, proj, null, null, null);
+            if (cursor == null) {
+                return null;
+            }
+            cursor.moveToFirst();
+            int columnIndex = cursor.getColumnIndex(proj[0]);
+            return cursor.getString(columnIndex); // might still be null
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
     }
 
     private final IUploadService.Stub service = new IUploadService.Stub() {
@@ -502,17 +522,33 @@ public class UploadService extends Service {
         }
 
         private boolean enqueueSingleUri(Uri uri) throws RemoteException {
-            ParcelFileDescriptor pfd = getFileDescriptor(uri);
-            if (pfd == null) {
-                incrementFilesToUpload(-1);
-                stopServiceIfEmpty();
-                return false;
+            long statSize = 0;
+            {
+                ParcelFileDescriptor pfd = getFileDescriptor(uri);
+                if (pfd == null) {
+                    incrementFilesToUpload(-1);
+                    stopServiceIfEmpty();
+                    return false;
+                }
+
+                try {
+                    statSize = pfd.getStatSize();
+                } finally {
+                    try {
+                        pfd.close();
+                    } catch (IOException e) {
+                    }
+                }
             }
 
             String diskPath = pathOfURI(uri);
+            if (diskPath == null) {
+                Log.e(TAG, "failed to find pathOfURI(" + uri + ")");
+                return false;
+            }
             Log.d(TAG, "diskPath of " + uri + " = " + diskPath);
 
-            QueuedFile qf = new QueuedFile(uri, pfd.getStatSize(), diskPath);
+            QueuedFile qf = new QueuedFile(uri, statSize, diskPath);
 
             boolean needResume = false;
             synchronized (UploadService.this) {

@@ -294,6 +294,7 @@ public class UploadThread extends Thread {
         private final BufferedReader mBufIn;
         private final UploadService mService;
         private final static String TAG = UploadThread.TAG + "/camput-out";
+        private final static boolean DEBUG_CAMPUT_ACTIVITY = false;
 
         public ParseCamputOutputThread(Process process, UploadService service) {
             mService = service;
@@ -309,6 +310,9 @@ public class UploadThread extends Thread {
                 } catch (IOException e) {
                     Log.d(TAG, "Exception reading camput's stdout: " + e.toString());
                     return;
+                }
+                if (DEBUG_CAMPUT_ACTIVITY) {
+                    Log.d(TAG, "camput: " + line);
                 }
                 if (line == null) {
                     // EOF
@@ -331,12 +335,15 @@ public class UploadThread extends Thread {
                 }
                 if (line.startsWith("FILE_UPLOADED ")) {
                     String filename = line.substring(14).trim();
+                    QueuedFile qf = null;
                     synchronized (mQueuedFile) {
-                        QueuedFile qf = mQueuedFile.get(filename);
+                        qf = mQueuedFile.get(filename);
                         if (qf != null) {
-                            mService.onUploadComplete(qf);
                             mQueuedFile.remove(filename);
                         }
+                    }
+                    if (qf != null) {
+                        mService.onUploadComplete(qf);
                     }
                     continue;
                 }
