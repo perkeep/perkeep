@@ -18,6 +18,10 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
 	this.sendXhr_ = opt_sendXhr || goog.net.XhrIo.send;
 };
 
+camlistore.ServerConnection.prototype.getConfig = function() {
+	return this.config_;
+};
+
 // @param {?Function|undefined} fail Fail func to call if exists.
 // @return {Function}
 camlistore.ServerConnection.prototype.safeFail_ = function(fail) {
