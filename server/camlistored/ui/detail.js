@@ -17,6 +17,7 @@ limitations under the License.
 goog.require('camlistore.AnimationLoop');
 goog.require('camlistore.ServerConnection');
 goog.require('SpritedAnimation');
+goog.require('image_utils');
 
 goog.require('goog.math.Size');
 goog.require('goog.object');
@@ -108,18 +109,7 @@ var DetailView = React.createClass({
 	},
 
 	getSrc_: function() {
-		// Only re-request the image if we're increasing in size. Otherwise, let the browser resample.
-		if (this.imgSize_.height < this.lastImageHeight_) {
-			console.log('Not re-requesting image becasue new size is smaller than existing...');
-		} else {
-			// If we re-request, ask for one that is the next biggest power of 2 to avoid lots of requests as we resize, and to increase cache hit rate across sessions.
-			var maxImageSize = 2000;  // max size server will accept
-			for (var size = 64; (size <= this.imgSize_.height && size < maxImageSize); size <<= 1) {
-			}
-			this.lastImageHeight_ = Math.min(size, maxImageSize);
-			console.log('Requesting new image with size: ' + this.lastImageHeight_);
-		}
-
+		this.lastImageHeight_ = image_utils.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_);
 		var uri = new goog.Uri(this.getPermanodeMeta_().thumbnailSrc);
 		uri.setParameterValue('mh', this.lastImageHeight_);
 		return uri.toString();
