@@ -111,8 +111,11 @@ var DetailView = React.createClass({
 		if (this.imgSize_.height < this.lastImageHeight_) {
 			console.log('Not re-requesting image becasue new size is smaller than existing...');
 		} else {
-			// If we re-request, ask for one bigger than we need right now, so that we're not constantly re-requesting as the browser resizes.
-			this.lastImageHeight_ = this.imgSize_.height * 1.25;
+			// If we re-request, ask for one that is the next biggest power of 2 to avoid lots of requests as we resize, and to increase cache hit rate across sessions.
+			var maxImageSize = 2000;  // max size server will accept
+			for (var size = 64; (size <= this.imgSize_.height && size < maxImageSize); size <<= 1) {
+			}
+			this.lastImageHeight_ = Math.min(size, maxImageSize);
 			console.log('Requesting new image with size: ' + this.lastImageHeight_);
 		}
 
