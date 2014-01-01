@@ -521,6 +521,12 @@ type PermanodeConstraint struct {
 	// ModTime optionally matches on the last modtime of the permanode.
 	ModTime *TimeConstraint `json:"modTime,omitempty"`
 
+	// Time optionally matches the permanode's time. A Permanode
+	// may not have a known time. If the permanode does not have a
+	// known time, one may be guessed if the top-level search
+	// parameters request so.
+	Time *TimeConstraint `json:"time,omitempty"`
+
 	// Attr optionally specifies the attribute to match.
 	// e.g. "camliContent", "camliMember", "tag"
 	// This is required if any of the items below are used.
@@ -1029,6 +1035,17 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			}
 		} else if !c.ModTime.timeMatches(dp.ModTime) {
 			return false, nil
+		}
+	}
+
+	if c.Time != nil {
+		if corpus != nil {
+			t, ok := corpus.PermanodeTimeLocked(br)
+			if !ok || !c.Time.timeMatches(t) {
+				return false, nil
+			}
+		} else {
+			panic("TODO: not yet supported")
 		}
 	}
 
