@@ -9,10 +9,17 @@ body {
 	overflow: hidden;
 }
 
-.detail-view-preview {
+.detail-view-img {
 	position: absolute;
-	width: auto;
-	height: auto;
+}
+
+.detail-img-enter {
+	transition: opacity 200ms linear;
+	opacity: 0;
+}
+
+.detail-img-enter.detail-img-enter-active {
+	opacity: 1;
 }
 
 .detail-view-sidebar {
@@ -22,6 +29,19 @@ body {
 	position: absolute;
 	right: 0;
 	top: 0;
+}
+
+.detail-view-piggy {
+	position: absolute;
+}
+
+.detail-piggy-leave {
+	transition: opacity 200ms linear;
+	opacity: 1;
+}
+
+.detail-piggy-leave.detail-piggy-leave-active {
+	opacity: 0;
 }
 
 /* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */

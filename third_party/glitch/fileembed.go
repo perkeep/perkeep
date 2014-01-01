@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 /*
-#fileembed pattern .*\.js$
+#fileembed pattern .*\.png
 */
-package react
+package glitch
 
 import "camlistore.org/pkg/fileembed"
 
