@@ -642,26 +642,28 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 type DescribeRequest struct {
 	// BlobRefs are the blobs to describe. If length zero, BlobRef
 	// is used.
-	BlobRefs []blob.Ref
+	BlobRefs []blob.Ref `json:"blobrefs,omitempty"`
 
 	// BlobRef is the blob to describe.
-	BlobRef blob.Ref
+	BlobRef blob.Ref `json:"blobref,omitempty"`
 
 	// Depth is the optional traversal depth to describe from the
 	// root BlobRef. If zero, a default is used.
-	Depth int
+	Depth int `json:"depth,omitempty"`
 	// MaxDirChildren is the requested optional limit to the number
 	// of children that should be fetched when describing a static
 	// directory. If zero, a default is used.
-	MaxDirChildren int
+	MaxDirChildren int `json:"maxDirChildren,omitempty"`
 
 	// At specifies the time which we wish to see the state of
 	// this blob.  If zero (unspecified), all claims will be
 	// considered, otherwise, any claims after this date will not
 	// be considered.
-	At types.Time3339
+	At types.Time3339 `json:"at"`
 
-	ThumbnailSize int // or zero for none
+	// ThumbnailSize sets the max dimension for the thumbnail ULR generated,
+	// or zero for none
+	ThumbnailSize int `json:"thumbnailSize,omitempty"`
 
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.

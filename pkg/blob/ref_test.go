@@ -126,11 +126,36 @@ func TestJSONUnmarshal(t *testing.T) {
 	if g, e := f.B.String(), "abc-def123"; g != e {
 		t.Errorf("got %q, want %q", g, e)
 	}
+
+	f = Foo{}
+	if err := json.Unmarshal([]byte(`{}`), &f); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if f.B.Valid() {
+		t.Fatal("blobref is valid and shouldn't be")
+	}
+
+	f = Foo{}
+	if err := json.Unmarshal([]byte(`{"foo":null}`), &f); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if f.B.Valid() {
+		t.Fatal("blobref is valid and shouldn't be")
+	}
 }
 
 func TestJSONMarshal(t *testing.T) {
-	f := &Foo{B: MustParse("def-1234abcd")}
+	f := &Foo{}
 	bs, err := json.Marshal(f)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if g, e := string(bs), `{"foo":null}`; g != e {
+		t.Errorf("got %q, want %q", g, e)
+	}
+
+	f = &Foo{B: MustParse("def-1234abcd")}
+	bs, err = json.Marshal(f)
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}

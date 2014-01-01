@@ -895,6 +895,60 @@ func TestPlannedQuery(t *testing.T) {
 	}
 }
 
+func TestDescribeMarshal(t *testing.T) {
+	// Empty Describe
+	q := &SearchQuery{
+		Describe: &DescribeRequest{},
+	}
+	enc, err := json.Marshal(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(enc), `{"describe":{"blobref":null,"at":null}}`; got != want {
+		t.Errorf("JSON: %s; want %s", got, want)
+	}
+	back := &SearchQuery{}
+	err = json.Unmarshal(enc, back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(q, back) {
+		t.Errorf("Didn't round-trip. Got %#v; want %#v", back, q)
+	}
+
+	// DescribeRequest with multiple blobref
+	q = &SearchQuery{
+		Describe: &DescribeRequest{
+			BlobRefs: []blob.Ref{blob.MustParse("sha-1234"), blob.MustParse("sha-abcd")},
+		},
+	}
+	enc, err = json.Marshal(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(enc), `{"describe":{"blobrefs":["sha-1234","sha-abcd"],"blobref":null,"at":null}}`; got != want {
+		t.Errorf("JSON: %s; want %s", got, want)
+	}
+	back = &SearchQuery{}
+	err = json.Unmarshal(enc, back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(q, back) {
+		t.Errorf("Didn't round-trip. Got %#v; want %#v", back, q)
+	}
+
+	// and the zero value
+	q = &SearchQuery{}
+	enc, err = json.Marshal(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(enc) != "{}" {
+		t.Errorf(`Zero value: %q; want null`, enc)
+	}
+}
+
 func TestSortMarshal(t *testing.T) {
 	q := &SearchQuery{
 		Sort: CreatedDesc,
@@ -904,7 +958,7 @@ func TestSortMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, want := string(enc), `{"sort":"-created"}`; got != want {
-		t.Logf("JSON: %s; want %s", got, want)
+		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back := &SearchQuery{}
 	err = json.Unmarshal(enc, back)
