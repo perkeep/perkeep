@@ -10,15 +10,12 @@ body {
 }
 
 .detail-view-img {
-	position: absolute;
-}
-
-.detail-img-enter {
-	transition: opacity 200ms linear;
 	opacity: 0;
+	position: absolute;
+	transition: opacity 200ms linear;
 }
 
-.detail-img-enter.detail-img-enter-active {
+.detail-view-img-loaded {
 	opacity: 1;
 }
 

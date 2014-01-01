@@ -27,8 +27,12 @@ var DetailView = React.createClass({
 	PIGGY_HEIGHT: 62,
 
 	getInitialState: function() {
+		this.imgSize_ = null;
+		this.lastImageHeight_ = 0;
+
 		return {
 			description: null,
+			imgHasLoaded: false
 		};
 	},
 
@@ -42,6 +46,12 @@ var DetailView = React.createClass({
 		}.bind(this));
 	},
 
+	componentDidUpdate: function(prevProps, prevState) {
+		if (this.refs.img) {
+			this.refs.img.getDOMNode().addEventListener('load', this.setState.bind(this, {imgHasLoaded:true}, null));
+		}
+	},
+
 	render: function() {
 		this.imgSize_ = this.getImgSize_();
 		return (
@@ -53,23 +63,24 @@ var DetailView = React.createClass({
 	},
 
 	getImg_: function() {
-		var transition = React.addons.TransitionGroup({transitionName: 'detail-img'}, []);
 		if (this.state.description) {
-			transition.props.children.push(
-				React.DOM.img({
-					className: 'detail-view-img',
-					key: 'img',
-					src: this.getSrc_(),
-					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
-				})
-			);
+			this.img_ = React.DOM.img({
+				className: React.addons.classSet({
+					'detail-view-img': true,
+					'detail-view-img-loaded': this.state.imgHasLoaded
+				}),
+				key: 'img',
+				ref: 'img',
+				src: this.getSrc_(),
+				style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
+			});
 		}
-		return transition;
+		return this.img_;
 	},
 
 	getPiggy_: function() {
 		var transition = React.addons.TransitionGroup({transitionName: 'detail-piggy'}, []);
-		if (!this.state.description) {
+		if (!this.state.imgHasLoaded) {
 			transition.props.children.push(
 				SpritedAnimation({
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
@@ -97,16 +108,16 @@ var DetailView = React.createClass({
 
 	getSrc_: function() {
 		// Only re-request the image if we're increasing in size. Otherwise, let the browser resample.
-		if (this.imgSize_.height < (this.lastImageHeight || 0)) {
+		if (this.imgSize_.height < this.lastImageHeight_) {
 			console.log('Not re-requesting image becasue new size is smaller than existing...');
 		} else {
 			// If we re-request, ask for one bigger than we need right now, so that we're not constantly re-requesting as the browser resizes.
-			this.lastImageHeight = this.imgSize_.height * 1.25;
-			console.log('Requesting new image with size: ' + this.lastImageHeight);
+			this.lastImageHeight_ = this.imgSize_.height * 1.25;
+			console.log('Requesting new image with size: ' + this.lastImageHeight_);
 		}
 
 		var uri = new goog.Uri(this.getPermanodeMeta_().thumbnailSrc);
-		uri.setParameterValue('mh', this.lastImageHeight);
+		uri.setParameterValue('mh', this.lastImageHeight_);
 		return uri.toString();
 	},
 
