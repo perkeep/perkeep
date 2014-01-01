@@ -242,6 +242,11 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
   this.thumb_.style.top = Math.round((h - adjustedHeight) / 2) + 'px';
   this.thumb_.style.left = Math.round((w - adjustedWidth) / 2) + 'px';
 
+  this.loading_.style.top = Math.round((h - 85) / 2) + 'px';
+  this.loading_.style.left = Math.round((w - 70) / 2) + 'px';
+
+  // this.loading_.style.top
+
   // Load a differently sized image from server if necessary.
   if (!this.thumb_.src ||
       adjustedWidth > parseInt(this.thumbClip_.style.width) ||
@@ -381,10 +386,21 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
   this.link_ = this.dom_.createDom('a');
 
-  this.thumbClip_ = this.dom_.createDom('div', 'cam-blobitem-thumbclip');
+  this.thumbClip_ = this.dom_.createDom('div', 'cam-blobitem-thumbclip cam-blobitem-loading');
   this.link_.appendChild(this.thumbClip_);
 
+  this.loading_ = this.dom_.createDom('div', 'cam-blobitem-progress',
+    this.dom_.createDom('div', 'lefttop'),
+    this.dom_.createDom('div', 'leftbottom'),
+    this.dom_.createDom('div', 'righttop'),
+    this.dom_.createDom('div', 'rightbottom'));
+  this.thumbClip_.appendChild(this.loading_);
+
   this.thumb_ = this.dom_.createDom('img', 'cam-blobitem-thumb');
+  this.thumb_.onload = function(e){
+    goog.dom.removeNode(this.loading_);
+    goog.dom.classes.remove(this.thumbClip_, 'cam-blobitem-loading');
+  }.bind(this);
   this.thumbClip_.appendChild(this.thumb_);
 
   el.appendChild(this.link_);
