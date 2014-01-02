@@ -323,7 +323,13 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func wantsPermanode(req *http.Request) bool {
-	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p"))
+	if httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p")) {
+		// The new UI is handled by index.html.
+		if req.FormValue("newui") != "1" {
+			return true
+		}
+	}
+	return false
 }
 
 func wantsBlobInfo(req *http.Request) bool {
@@ -332,10 +338,6 @@ func wantsBlobInfo(req *http.Request) bool {
 
 func wantsFileTreePage(req *http.Request) bool {
 	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("d"))
-}
-
-func wantsDetailPage(req *http.Request) bool {
-	return httputil.IsGet(req) && httputil.PathSuffix(req) == "detail.html"
 }
 
 func getSuffixMatches(req *http.Request, pattern *regexp.Regexp) bool {
@@ -379,8 +381,6 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				file = "blobinfo.html"
 			case wantsFileTreePage(req):
 				file = "filetree.html"
-			case wantsDetailPage(req):
-				file = "detail.html"
 			case req.URL.Path == httputil.PathBase(req):
 				file = "index.html"
 			default:

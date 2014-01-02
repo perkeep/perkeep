@@ -12,7 +12,7 @@ goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Control');
-
+goog.require('image_utils');
 
 
 /**
@@ -84,6 +84,12 @@ camlistore.BlobItem.prototype.update = function(blobRef, metaBag,
    */
   this.resolvedMetaData_ = camlistore.BlobItem.resolve(
       this.blobRef_, this.metaBag_);
+
+  /**
+   * The current intrinsic height of the image we are displaying. It is
+   * frequently bigger than the displayed height.
+   */
+  this.currentIntrinsicImageHeight_ = 0;
 };
 
 
@@ -251,12 +257,8 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
   if (!this.thumb_.src ||
       adjustedWidth > parseInt(this.thumbClip_.style.width) ||
       adjustedHeight > parseInt(this.thumbClip_.style.height)) {
-    // Round the height up to the nearest 20% to increase the probability of
-    // cache hits.
-    var fraction = Math.ceil(this.metaData_.thumbnailHeight * 0.2);
-    var rh = Math.ceil(adjustedHeight / fraction) * fraction;
-    // Don't bother getting a smaller image. The browser will resize for us.
-    rh = Math.max(rh, this.metaData_.thumbnailHeight);
+    this.currentIntrinsicImageHeight_ = image_utils.getSizeToRequest(
+        adjustedHeight, this.currentIntrinsicImageHeight_);
 
     var tv = '';
     if (window.CAMLISTORE_CONFIG) {
@@ -266,8 +268,8 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
     // TODO(aa): The mh param is kind of a hack, it would be better if the
     // server just returned the base URL and the aspect ratio, rather than
     // specific dimensions.
-    var newThumb = this.getThumbSrc_().split('?')[0] + '?mh=' + rh +
-      '&tv=' + tv;
+    var newThumb = this.getThumbSrc_().split('?')[0] + '?mh=' +
+        this.currentIntrinsicImageHeight_ + '&tv=' + tv;
 
     // It's important to only assign the new src if it has changed. Assigning
     // a src causes layout and style recalc.
@@ -306,7 +308,14 @@ camlistore.BlobItem.prototype.getLink_ = function() {
     }
     return './?b=' + b;
   }
-  return './?p=' + this.blobRef_;
+
+  // The new detail page looks ridiculous for non-images, so don't go to it for those yet.
+  var uri = new goog.Uri(location.href);
+  uri.setParameterValue('p', this.blobRef_);
+  if (this.isImage()) {
+    uri.setParameterValue('newui', '1');
+  }
+  return uri.toString();
 };
 
 

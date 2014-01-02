@@ -14,6 +14,7 @@ goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Container');
 goog.require('camlistore.BlobItem');
 goog.require('camlistore.ServerConnection');
+goog.require('SearchSession');
 
 camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	goog.base(this, opt_domHelper);
@@ -21,6 +22,8 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	this.checkedBlobItems_ = [];
 
 	this.connection_ = connection;
+
+	this.searchSession_ = null;
 
 	this.eh_ = new goog.events.EventHandler(this);
 
@@ -39,14 +42,8 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	// Whether users can drag files onto the container to upload.
 	this.isFileDragEnabled = false;
 
-	// Function to call when scrolling reaches end of page.
-	this.scrollContinuation_ = null;
-
 	// A lookup of blobRef->camlistore.BlobItem. This allows us to quickly find and reuse existing controls when we're updating the UI in response to a server push.
 	this.itemCache_ = {};
-
-	// We set this to true once we get our first response over the socket. We must test emperically because even if the browser supports web sockets, the server configuration can cause it to not work.
-	this.supportsWebSocket_ = false;
 
 	this.setFocusable(false);
 };
@@ -72,12 +69,6 @@ camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
 // Constants for events fired by BlobItemContainer
 camlistore.BlobItemContainer.EventType = {
 	SELECTION_CHANGED: 'Camlistore_BlobItemContainer_SelectionChanged',
-};
-
-camlistore.BlobItemContainer.prototype.searchMode_ = {
-	NEW: 1, // A brand new query the user has just navigated to
-	APPEND: 2, // Append results to the existing query because of scrolling
-	UPDATE: 3 // Update the existing results in response to a server push
 };
 
 camlistore.BlobItemContainer.prototype.thumbnailSize_ = 200;
@@ -171,101 +162,47 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
 	this.eh_.removeAll();
 };
 
-camlistore.BlobItemContainer.prototype.showRecent = function() {
-	// An expression containing only spaces is the current magic ticket to get the recent query.
-	this.search(' ');
-};
+camlistore.BlobItemContainer.prototype.showSearchSession = function(session) {
+	var changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND;
 
-// @param {string|object} query If string, will be sent as the search 'expression'. Otherwise will be sent as the 'constraint'. See pkg/search/query.go for details.
-camlistore.BlobItemContainer.prototype.search = function(query, opt_searchMode, opt_continuationToken) {
-	var searchMode = opt_searchMode || this.searchMode_.NEW;
-
-	// Clear this out now in case the user scrolls while the request is outstanding.
-	this.scrollContinuation_ = null;
-
-	// TODO(aa): This needs to be determined dynamically, based on size of window. Otherwise, with very large windows, we can never trigger paging.
-	var limit = this.constructor.NUM_ITEMS_PER_PAGE;
-	if (searchMode == this.searchMode_.UPDATE) {
-		limit = Math.ceil(this.getChildCount() / limit) * limit;
-	}
-
-	// TODO(aa): Get rid of thumbnail size from protocol -- server should just return aspect ratio for each image.
-	var describe = {
-		thumbnailSize: this.thumbnailSize_
-	};
-
-	this.connection_.search(query, describe, limit, opt_continuationToken,
-		goog.bind(this.searchDone_, this, query, searchMode));
-};
-
-camlistore.BlobItemContainer.prototype.reset = function() {
-	this.resetChildren_();
-	this.itemCache_ = {};
-	this.layout_();
-};
-
-camlistore.BlobItemContainer.prototype.searchDone_ = function(query, searchMode, result) {
-	if (searchMode == this.searchMode_.NEW) {
+	if (this.searchSession_ != session) {
+		if (this.searchSession_) {
+			this.eh_.unlisten(this.searchSession_, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+		}
 		this.resetChildren_();
 		this.itemCache_ = {};
-		this.startSocketQuery_(query);
-	}
-
-	if (!result.blobs || !result.blobs.length) {
-		return;
-	}
-
-	this.populateChildren_(result, searchMode == this.searchMode_.APPEND);
-
-	var lastItem = result.description.meta[
-		result.blobs[result.blobs.length - 1].blob];
-	if (result.continue) {
-		this.scrollContinuation_ = this.search.bind(this, query, this.searchMode_.APPEND, result.continue);
-
-		// If the window was very large, we might not have enough data yet for the user to get their scroll on. Let's fix that.
 		this.layout_();
-		var docHeight = goog.dom.getDocumentHeight();
-		var viewportHeight = goog.dom.getViewportSize().height;
-		if (docHeight < (viewportHeight * 1.5)) {
-			this.scrollContinuation_();
-		}
+		this.searchSession_ = session;
+		this.eh_.listen(session, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+		changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW;
 	}
+
+	this.searchDone_({changeType:changeType});
 };
 
-// Quick and dirty use of WebSocket to know when the current query may have changed. We don't use the response from the server directly, as it is quite hard to integrate into previous results reliably with the current protocol. Instead, we just use it as a tickle to redo the real query.
-camlistore.BlobItemContainer.prototype.startSocketQuery_ = function(callerQuery) {
-	if (!window.WebSocket) {
+camlistore.BlobItemContainer.prototype.getSearchSession = function() {
+	return this.searchSession_;
+};
+
+camlistore.BlobItemContainer.prototype.searchDone_ = function(e) {
+	if (e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW) {
+		this.resetChildren_();
+		this.itemCache_ = {};
+	}
+
+	this.populateChildren_(this.searchSession_.getCurrentResults(), e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND);
+
+	if (this.searchSession_.isComplete()) {
 		return;
 	}
 
-	var config = this.connection_.config_;
-	var uri = new goog.Uri(goog.uri.utils.appendPath(config.searchRoot, 'camli/search/ws?authtoken=' + (config.wsAuthToken || '')));
-	uri.setDomain(location.hostname);
-	uri.setPort(location.port);
-	if (location.protocol == "https:") {
-		uri.setScheme("wss");
-	} else {
-		uri.setScheme("ws");
+	// If we haven't filled the window with results, add some more.
+	this.layout_();
+	var docHeight = goog.dom.getDocumentHeight();
+	var viewportHeight = goog.dom.getViewportSize().height;
+	if (docHeight < (viewportHeight * 1.5)) {
+		this.searchSession_.loadMoreResults();
 	}
-
-	var describe = {}; // so we see the 'description' in the response & attr changes
-	var query = this.connection_.buildQuery(callerQuery, describe);
-
-	var ws = new WebSocket(uri.toString());
-	ws.onopen = function() {
-		var message = {
-			tag: 'q1',
-			query: query
-		};
-		ws.send(JSON.stringify(message));
-	};
-	ws.onmessage = function() {
-		this.supportsWebSocket_ = true;
-		// Ignore the first response.
-		ws.onmessage = function() {
-			this.search(callerQuery, this.searchMode_.UPDATE);
-		}.bind(this);
-	}.bind(this);
 };
 
 camlistore.BlobItemContainer.prototype.findByBlobref_ = function(blobref) {
@@ -393,7 +330,8 @@ camlistore.BlobItemContainer.prototype.unselectAll = function() {
 };
 
 camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, append) {
-	for (var i = 0, blob; blob = result.blobs[i]; i++) {
+	var i = append ? this.getChildCount() : 0;
+	for (var blob; blob = result.blobs[i]; i++) {
 		var blobRef = blob.blob;
 		var item = this.itemCache_[blobRef];
 		var render = true;
@@ -428,6 +366,10 @@ camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, appe
 camlistore.BlobItemContainer.prototype.layout_ = function(force) {
 	var el = this.getElement();
 	var availWidth = el.clientWidth;
+
+	if (!this.isVisible()) {
+		return;
+	}
 
 	if (!force && !this.isLayoutDirty_ && availWidth == this.lastClientWidth_) {
 		return;
@@ -521,6 +463,10 @@ camlistore.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endInde
 };
 
 camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
+	if (!this.isVisible()) {
+		return;
+	}
+
 	var docHeight = goog.dom.getDocumentHeight();
 	var scroll = goog.dom.getDocumentScroll();
 	var viewportSize = goog.dom.getViewportSize();
@@ -530,8 +476,8 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
 		return;
 	}
 
-	if (this.scrollContinuation_) {
-		this.scrollContinuation_();
+	if (this.searchSession_) {
+		this.searchSession_.loadMoreResults();
 	}
 };
 
@@ -591,7 +537,7 @@ camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ = function(recipie
 		this.connection_.newAddAttributeClaim(recipient, 'camliMember', permanode);
 	}
 
-	if (this.supportsWebSocket_) {
+	if (this.searchSession_ && this.searchSession_.supportsChangeNotifications()) {
 		// We'll find this when we reload.
 		return;
 	}
