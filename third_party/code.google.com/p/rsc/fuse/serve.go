@@ -92,16 +92,18 @@ type FS interface {
 // but not the open(2) system call.  If Access is not implemented, the Node behaves
 // as if it always returns nil (permission granted), relying on checks in Open instead.
 //
-//	Getxattr
+//	Getxattr(req *GetxattrRequest, res *GetxattrResponse, intr Intr) fuse.Error
 //
-// Getxattr obtains an extended attribute for the receiver.
-// XXX
+// Getxattr obtains an extended attribute for the receiver.  If the
+// attribute is not found, fuse.ENOATTR should be returned.
 //
-//	Listxattr
-// 
+//	Listxattr(req *ListxattrRequest, *ListxattrResponse) Error
+//
 // Listxattr lists the extended attributes recorded for the receiver.
+// The response method SetAttrNames(*ListxattrRequest, []string) takes
+// care of the encoding.
 //
-//	Removexattr
+//	Removexattr(req *RemotexattrRequest) fuse.Error
 //
 // Removexattr removes an extended attribute from the receiver.
 //
@@ -109,7 +111,7 @@ type FS interface {
 //
 // Setattr sets the standard metadata for the receiver.
 //
-//	Setxattr
+//	Setxattr(req *SetxattrRequest) fuse.Error
 //
 // Setxattr sets an extended attribute for the receiver.
 //
@@ -741,10 +743,80 @@ func (c *Conn) serve(fs FS, r Request) {
 		done(s)
 		r.Respond(s)
 
-	case *GetxattrRequest, *SetxattrRequest, *ListxattrRequest, *RemovexattrRequest:
-		// TODO: Use n.
-		done(ENOSYS)
-		r.RespondError(ENOSYS)
+	case *GetxattrRequest:
+		n, ok := node.(interface {
+			Getxattr(*GetxattrRequest, *GetxattrResponse, Intr) Error
+		})
+		if !ok {
+			done(ENOSYS)
+			r.RespondError(ENOSYS)
+			break
+		}
+		s := &GetxattrResponse{}
+		err := n.Getxattr(r, s, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		log.Printf("xattr response: %#v", s)
+		done(nil)
+		r.Respond(s)
+
+	case *SetxattrRequest:
+		n, ok := node.(interface {
+			Setxattr(*SetxattrRequest, Intr) Error
+		})
+		if !ok {
+			done(ENOSYS)
+			r.RespondError(ENOSYS)
+			break
+		}
+		err := n.Setxattr(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond()
+
+	case *ListxattrRequest:
+		n, ok := node.(interface {
+			Listxattr(*ListxattrRequest, *ListxattrResponse, Intr) Error
+		})
+		s := &ListxattrResponse{}
+		if !ok {
+			done(nil)
+			r.Respond(s)
+			break
+		}
+		err := n.Listxattr(r, s, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond(s)
+
+	case *RemovexattrRequest:
+		n, ok := node.(interface {
+			Removexattr(*RemovexattrRequest, Intr) Error
+		})
+		if !ok {
+			done(ENOSYS)
+			r.RespondError(ENOSYS)
+			break
+		}
+		err := n.Removexattr(r, intr)
+		if err != nil {
+			done(err)
+			r.RespondError(err)
+			break
+		}
+		done(nil)
+		r.Respond()
 
 	case *ForgetRequest:
 		n, ok := node.(interface {
