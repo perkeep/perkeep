@@ -52,3 +52,6 @@ search, FUSE, and web UI.
         * "file". this permanode will have a "camliContent" later. for
           now, it should be treated as if it's an empty, 0-byte file.
 
+"camliDefVis" (single-valued)
+
+    Can be "hide". Experimental. Affects default visibility in web UI.
