@@ -162,27 +162,26 @@ camlistore.BlobItemContainer.prototype.exitDocument = function() {
 	this.eh_.removeAll();
 };
 
-camlistore.BlobItemContainer.prototype.showRecent = function() {
-	// An expression containing only spaces is the current magic ticket to get the recent query.
-	this.search(' ');
-};
+camlistore.BlobItemContainer.prototype.showSearchSession = function(session) {
+	var changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND;
 
-// @param {string|object} query If string, will be sent as the search 'expression'. Otherwise will be sent as the 'constraint'. See pkg/search/query.go for details.
-camlistore.BlobItemContainer.prototype.search = function(query) {
-	// TODO(aa): Also need to call this when removed from the DOM.
-	if (this.searchSession_) {
-		this.searchSession_.close();
+	if (this.searchSession_ != session) {
+		if (this.searchSession_) {
+			this.eh_.unlisten(this.searchSession_, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+		}
+		this.resetChildren_();
+		this.itemCache_ = {};
+		this.layout_();
+		this.searchSession_ = session;
+		this.eh_.listen(session, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+		changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW;
 	}
 
-	this.searchSession_ = new SearchSession(this.connection_, new goog.Uri(location.href), query);
-	this.eh_.listen(this.searchSession_, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
-	this.searchSession_.loadMoreResults();
+	this.searchDone_({changeType:changeType});
 };
 
-camlistore.BlobItemContainer.prototype.reset = function() {
-	this.resetChildren_();
-	this.itemCache_ = {};
-	this.layout_();
+camlistore.BlobItemContainer.prototype.getSearchSession = function() {
+	return this.searchSession_;
 };
 
 camlistore.BlobItemContainer.prototype.searchDone_ = function(e) {
@@ -191,21 +190,18 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(e) {
 		this.itemCache_ = {};
 	}
 
-	var result = this.searchSession_.getCurrentResults();
-	if (!result.blobs || !result.blobs.length) {
+	this.populateChildren_(this.searchSession_.getCurrentResults(), e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND);
+
+	if (this.searchSession_.isComplete()) {
 		return;
 	}
 
-	this.populateChildren_(result, e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND);
-
-	if (!this.searchSession_.isComplete()) {
-		// If the window was very large, we might not have enough data yet for the user to get their scroll on. Let's fix that.
-		this.layout_();
-		var docHeight = goog.dom.getDocumentHeight();
-		var viewportHeight = goog.dom.getViewportSize().height;
-		if (docHeight < (viewportHeight * 1.5)) {
-			this.searchSession_.loadMoreResults();
-		}
+	// If we haven't filled the window with results, add some more.
+	this.layout_();
+	var docHeight = goog.dom.getDocumentHeight();
+	var viewportHeight = goog.dom.getViewportSize().height;
+	if (docHeight < (viewportHeight * 1.5)) {
+		this.searchSession_.loadMoreResults();
 	}
 };
 
@@ -371,6 +367,10 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
 	var el = this.getElement();
 	var availWidth = el.clientWidth;
 
+	if (!this.isVisible()) {
+		return;
+	}
+
 	if (!force && !this.isLayoutDirty_ && availWidth == this.lastClientWidth_) {
 		return;
 	}
@@ -463,6 +463,10 @@ camlistore.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endInde
 };
 
 camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
+	if (!this.isVisible()) {
+		return;
+	}
+
 	var docHeight = goog.dom.getDocumentHeight();
 	var scroll = goog.dom.getDocumentScroll();
 	var viewportSize = goog.dom.getViewportSize();

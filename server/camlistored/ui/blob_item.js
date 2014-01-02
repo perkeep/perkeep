@@ -308,7 +308,14 @@ camlistore.BlobItem.prototype.getLink_ = function() {
     }
     return './?b=' + b;
   }
-  return './?p=' + this.blobRef_;
+
+  // The new detail page looks ridiculous for non-images, so don't go to it for those yet.
+  var uri = new goog.Uri(location.href);
+  uri.setParameterValue('p', this.blobRef_);
+  if (this.isImage()) {
+    uri.setParameterValue('newui', '1');
+  }
+  return uri.toString();
 };
 
 

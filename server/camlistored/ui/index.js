@@ -13,10 +13,14 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Textarea');
+goog.require('camlistore.AnimationLoop');
 goog.require('camlistore.BlobItemContainer');
 goog.require('camlistore.Nav');
 goog.require('camlistore.ServerConnection');
 goog.require('camlistore.ServerType');
+goog.require('DetailView');
+goog.require('object');
+goog.require('SearchSession');
 
 camlistore.IndexPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
@@ -28,11 +32,7 @@ camlistore.IndexPage = function(config, opt_domHelper) {
 	this.eh_ = new goog.events.EventHandler(this);
 
 	// We have to store this because Firefox and Chrome disagree about whether to fire the popstate event at page load or not. Because of this we need to detect duplicate calls to handleUrl_().
-	this.currentUrl_ = '';
-
-	this.blobItemContainer_ = new camlistore.BlobItemContainer(this.connection_, opt_domHelper);
-	this.blobItemContainer_.isSelectionEnabled = true;
-	this.blobItemContainer_.isFileDragEnabled = true;
+	this.currentUri_ = null;
 
 	this.nav_ = new camlistore.Nav(opt_domHelper, this);
 
@@ -51,6 +51,20 @@ camlistore.IndexPage = function(config, opt_domHelper) {
 	this.ensmallenNavItem_ = new camlistore.Nav.Item(this.dom_, 'down.svg', 'Less bigger');
 	this.logoNavItem_ = new camlistore.Nav.LinkItem(this.dom_, '/favicon.ico', 'Camlistore', '/ui/');
 	this.logoNavItem_.addClassName('cam-logo');
+
+	this.searchSession_ = null;
+
+	this.blobItemContainer_ = new camlistore.BlobItemContainer(this.connection_, opt_domHelper);
+	this.blobItemContainer_.isSelectionEnabled = true;
+	this.blobItemContainer_.isFileDragEnabled = true;
+
+	// TODO(aa): This is a quick hack to make the scroll position restore in the case where you go to detail view, then press back to search page.
+	// To make the reload case work we need to save the scroll position in window.history. That needs more thought though, we might want to store something more abstract that the scroll position.
+	this.savedScrollPosition_ = 0;
+
+	this.detail_ = null;
+	this.detailLoop_ = null;
+	this.detailViewHost_ = null;
 };
 goog.inherits(camlistore.IndexPage, goog.ui.Component);
 
@@ -110,8 +124,11 @@ camlistore.IndexPage.prototype.decorateInternal = function(element) {
 	this.nav_.addChild(this.ensmallenNavItem_, true);
 	this.nav_.addChild(this.logoNavItem_, true);
 
+	this.detailViewHost_ = this.dom_.createElement('div');
+
 	this.addChild(this.nav_, true);
 	this.addChild(this.blobItemContainer_, true);
+	el.appendChild(this.detailViewHost_);
 };
 
 camlistore.IndexPage.prototype.updateNavButtonsForSelection_ = function() {
@@ -220,6 +237,20 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 
 	this.eh_.listen(this.blobItemContainer_, camlistore.BlobItemContainer.EventType.SELECTION_CHANGED, this.updateNavButtonsForSelection_.bind(this));
 
+	// TODO(aa): We need to implement general purpose routing and get rid of all these one-off hacks.
+	this.eh_.listen(this.getElement(), 'click', function(e) {
+		if (e.target.className == 'cam-blobitem-thumb') {
+			var uri = new goog.Uri(this.dom_.getAncestorByTagNameAndClass(e.target, 'a').href);
+			if (uri.getParameterValue('newui') == '1') {
+				try {
+					this.navigate_(uri.toString());
+				} finally {
+					e.preventDefault();
+				}
+			}
+		}
+	});
+
 	this.eh_.listen(this.getElement(), 'keypress', function(e) {
 		if (String.fromCharCode(e.charCode) == '/') {
 			this.nav_.open();
@@ -269,7 +300,7 @@ camlistore.IndexPage.prototype.addMembers_ = function(newSet, blobItems, permano
 camlistore.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
 	this.blobItemContainer_.unselectAll();
 	this.updateNavButtonsForSelection_();
-	this.blobItemContainer_.showRecent();
+	this.setUrlSearch_(' ');
 };
 
 camlistore.IndexPage.prototype.handleServerStatus_ = function(resp) {
@@ -297,22 +328,22 @@ camlistore.IndexPage.prototype.navigate_ = function(url) {
 };
 
 camlistore.IndexPage.prototype.handleUrl_ = function() {
-	if (location.href == this.currentUrl_) {
-		console.log('Dropping duplicate handleUrl_ for %s', this.currentUrl_);
+	var newUri = new goog.Uri(location.href);
+	if (this.currentUri_ != null && this.currentUri_.toString() == newUri.toString()) {
+		console.log('Dropping duplicate handleUrl_ for %s', newUri.toString());
 		return;
 	}
-	this.currentUrl_ = location.href;
+	this.currentUri_ = newUri;
 
-	this.blobItemContainer_.reset();
-	if (this.nav_.isOpen()) {
-		this.setTransform_();
-	}
+	this.updateSearchSession_();
+	this.updateSearchView_();
+	this.updateDetailView_();
+};
 
-	var uri = new goog.Uri(location.href);
-	var query = uri.getParameterValue('q');
+camlistore.IndexPage.prototype.updateSearchSession_ = function() {
+	var query = this.currentUri_.getParameterValue('q');
 	if (!query) {
-		this.blobItemContainer_.showRecent();
-		return;
+		query = ' ';
 	}
 
 	// TODO(aa): Remove this when the server can do something like the 'raw' operator.
@@ -320,5 +351,77 @@ camlistore.IndexPage.prototype.handleUrl_ = function() {
 		query = JSON.parse(query.substring(this.constructor.SEARCH_PREFIX_.RAW.length + 1));
 	}
 
-	this.blobItemContainer_.search(query);
+	if (this.searchSession_ && JSON.stringify(this.searchSession_.getQuery()) == JSON.stringify(query)) {
+		return;
+	}
+
+	if (this.searchSession_) {
+		this.searchSession_.close();
+	}
+
+	this.searchSession_ = new SearchSession(this.connection_, new goog.Uri(location.href), query);
+};
+
+camlistore.IndexPage.prototype.updateSearchView_ = function() {
+	if (this.inDetailMode_()) {
+		this.savedScrollPosition_ = goog.dom.getDocumentScroll().y;
+		this.blobItemContainer_.setVisible(false);
+		return;
+	}
+
+	if (!this.blobItemContainer_.isVisible()) {
+		this.blobItemContainer_.setVisible(true);
+		goog.dom.getDocumentScrollElement().scrollTop = this.savedScrollPosition_;
+	}
+
+	if (this.nav_.isOpen()) {
+		this.setTransform_();
+	}
+
+	this.blobItemContainer_.showSearchSession(this.searchSession_);
+};
+
+camlistore.IndexPage.prototype.updateDetailView_ = function() {
+	if (!this.inDetailMode_()) {
+		if (this.detail_) {
+			this.detailLoop_.stop();
+			React.unmountComponentAtNode(this.detailViewHost_);
+			this.detailLoop_ = null;
+			this.detail_ = null;
+		}
+		return;
+	}
+
+	var props = {
+		blobref: this.currentUri_.getParameterValue('p'),
+		searchSession: this.searchSession_,
+	}
+
+	if (this.detail_) {
+		this.detail_.setProps(props);
+		return;
+	}
+
+	var lastWidth = window.innerWidth;
+	var lastHeight = window.innerHeight;
+
+	this.detail_ = DetailView(extend(props, {
+		width: lastWidth,
+		height: lastHeight
+	}));
+	React.renderComponent(this.detail_, this.detailViewHost_);
+
+	this.detailLoop_ = new camlistore.AnimationLoop(window);
+	this.detailLoop_.addEventListener('frame', function() {
+		if (window.innerWidth != lastWidth || window.innerHeight != lastHeight) {
+			lastWidth = window.innerWidth;
+			lastHeight = window.innerHeight;
+			this.detail_.setProps({width:lastWidth, height:lastHeight});
+		}
+	}.bind(this));
+	this.detailLoop_.start();
+};
+
+camlistore.IndexPage.prototype.inDetailMode_ = function() {
+	return this.currentUri_.getParameterValue('newui') == '1';
 };

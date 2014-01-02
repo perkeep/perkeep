@@ -1,12 +1,9 @@
-body {
-	background: black;
-	font-family: 'Open Sans', sans-serif;
-	margin: 0;
-}
-
 .detail-view {
-	position: relative;
+	background: black;
+	left: 0;
+	position: absolute;
 	overflow: hidden;
+	top: 0;
 }
 
 .detail-view-img {

@@ -37,7 +37,9 @@ var SearchSession = function(connection, currentUri, query) {
 
 	this.data_ = {
 		blobs: [],
-		description: {}
+		description: {
+			meta: {}
+		}
 	};
 	this.instance_ = this.constructor.instanceCount_++;
 	this.isComplete_ = false;
@@ -64,6 +66,10 @@ SearchSession.prototype.THUMBNAIL_SIZE_ = 1000;
 SearchSession.prototype.PAGE_SIZE_ = 50;
 
 SearchSession.instanceCount_ = 0;
+
+SearchSession.prototype.getQuery = function() {
+	return this.query_;
+}
 
 // Returns all the data we currently have loaded.
 SearchSession.prototype.getCurrentResults = function() {
@@ -92,7 +98,7 @@ SearchSession.prototype.supportsChangeNotifications = function() {
 
 SearchSession.prototype.close = function() {
 	if (this.socket_) {
-		this.socket.close();
+		this.socket_.close();
 	}
 };
 
@@ -123,19 +129,19 @@ SearchSession.prototype.getContinuation_ = function(changeType, opt_continuation
 SearchSession.prototype.searchDone_ = function(changeType, result) {
 	if (changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND) {
 		this.data_.blobs = this.data_.blobs.concat(result.blobs);
-		goog.mixin(this.data_.description, result.description);
+		goog.mixin(this.data_.description.meta, result.description.meta);
 	} else {
 		this.data_.blobs = result.blobs;
 		this.data_.description = result.description;
 	}
-
-	this.dispatchEvent({type: this.constructor.SEARCH_SESSION_CHANGED, changeType: changeType});
 
 	if (result.continue) {
 		this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND, result.continue);
 	} else {
 		this.isComplete_ = true;
 	}
+
+	this.dispatchEvent({type: this.constructor.SEARCH_SESSION_CHANGED, changeType: changeType});
 
 	if (changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW ||
 		changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND) {
