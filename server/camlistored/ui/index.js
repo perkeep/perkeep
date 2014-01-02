@@ -9,6 +9,7 @@ goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
+goog.require('goog.events.KeyCodes');
 goog.require('goog.string');
 goog.require('goog.Uri');
 goog.require('goog.ui.Component');
@@ -259,6 +260,18 @@ camlistore.IndexPage.prototype.enterDocument = function() {
 		}
 	});
 
+	this.eh_.listen(this.getElement(), 'keyup', function(e) {
+		if (!this.detail_) {
+			return;
+		}
+
+		if (e.keyCode == goog.events.KeyCodes.LEFT) {
+			this.detail_.navigate(-1);
+		} else if (e.keyCode == goog.events.KeyCodes.RIGHT) {
+			this.detail_.navigate(1);
+		}
+	});
+
 	this.handleUrl_();
 };
 
@@ -395,6 +408,7 @@ camlistore.IndexPage.prototype.updateDetailView_ = function() {
 	var props = {
 		blobref: this.currentUri_.getParameterValue('p'),
 		searchSession: this.searchSession_,
+		onNavigate: this.handleDetailNaviate_.bind(this)
 	}
 
 	if (this.detail_) {
@@ -420,6 +434,12 @@ camlistore.IndexPage.prototype.updateDetailView_ = function() {
 		}
 	}.bind(this));
 	this.detailLoop_.start();
+};
+
+camlistore.IndexPage.prototype.handleDetailNaviate_ = function(blobref) {
+	var uri = new goog.Uri(this.currentUri_);
+	uri.setParameterValue('p', blobref);
+	this.navigate_(uri.toString());
 };
 
 camlistore.IndexPage.prototype.inDetailMode_ = function() {

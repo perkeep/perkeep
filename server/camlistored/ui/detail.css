@@ -16,6 +16,14 @@
 	opacity: 1;
 }
 
+.detail-img-leave {
+	transition: opacity 200ms linear;
+	opacity: 1;
+}
+.detail-img-leave.detail-img-leave-active {
+	opacity: 0;
+}
+
 .detail-view-sidebar {
 	background: white;
 	bottom: 0;
