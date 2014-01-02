@@ -594,12 +594,15 @@ func (c *Conn) ReadRequest() (Request, error) {
 		req = r
 
 	case opGetxattr:
+		var r *GetxattrRequest
+		nameOff := 8
 		if runtime.GOOS == "darwin" {
 			in := (*getxattrInOSX)(m.data())
 			if m.len() < unsafe.Sizeof(*in) {
 				goto corrupt
 			}
-			req = &GetxattrRequest{
+			nameOff += 8
+			r = &GetxattrRequest{
 				Header:   m.Header(),
 				Size:     in.Size,
 				Position: in.Position,
@@ -609,11 +612,19 @@ func (c *Conn) ReadRequest() (Request, error) {
 			if m.len() < unsafe.Sizeof(*in) {
 				goto corrupt
 			}
-			req = &GetxattrRequest{
+			r = &GetxattrRequest{
 				Header: m.Header(),
 				Size:   in.Size,
 			}
 		}
+		r.Header = m.Header()
+		name := m.bytes()[nameOff:]
+		i := bytes.IndexByte(name, 0)
+		if i < 0 {
+			goto corrupt
+		}
+		r.Name = string(name[:i])
+		req = r
 
 	case opListxattr:
 		if runtime.GOOS == "darwin" {
@@ -987,6 +998,7 @@ type GetxattrRequest struct {
 	Header
 	Size     uint32 // maximum size to return
 	Position uint32 // offset within extended attributes
+	Name     string // Name of the attribute being requested
 }
 
 func (r *GetxattrRequest) String() string {
@@ -995,11 +1007,16 @@ func (r *GetxattrRequest) String() string {
 
 // Respond replies to the request with the given response.
 func (r *GetxattrRequest) Respond(resp *GetxattrResponse) {
-	out := &getxattrOut{
-		outHeader: outHeader{Unique: uint64(r.ID)},
-		Size:      uint32(len(resp.Xattr)),
+	hdr := outHeader{Unique: uint64(r.ID)}
+	if r.Size == 0 {
+		out := &getxattrOut{
+			outHeader: hdr,
+			Size:      uint32(len(resp.Xattr)),
+		}
+		r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
+	} else {
+		r.Conn.respondData(&hdr, unsafe.Sizeof(hdr), resp.Xattr)
 	}
-	r.Conn.respondData(&out.outHeader, unsafe.Sizeof(*out), resp.Xattr)
 }
 
 // A GetxattrResponse is the response to a GetxattrRequest.
@@ -1024,16 +1041,37 @@ func (r *ListxattrRequest) String() string {
 
 // Respond replies to the request with the given response.
 func (r *ListxattrRequest) Respond(resp *ListxattrResponse) {
-	out := &getxattrOut{
-		outHeader: outHeader{Unique: uint64(r.ID)},
-		Size:      uint32(len(resp.Xattr)),
+	hdr := outHeader{Unique: uint64(r.ID)}
+	if r.Size == 0 {
+		out := &getxattrOut{
+			outHeader: hdr,
+			Size:      resp.Size,
+		}
+		r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
+	} else {
+		r.Conn.respondData(&hdr, unsafe.Sizeof(hdr), resp.Xattr)
 	}
-	r.Conn.respondData(&out.outHeader, unsafe.Sizeof(*out), resp.Xattr)
 }
 
 // A ListxattrResponse is the response to a ListxattrRequest.
 type ListxattrResponse struct {
+	Size  uint32
 	Xattr []byte
+}
+
+// SetattrNames initializes the ListxattrResponse with the list of
+// attribute names.
+func (l *ListxattrResponse) SetAttrNames(req *ListxattrRequest, to []string) {
+	var buf bytes.Buffer
+	for _, b := range to {
+		buf.WriteString(b)
+		buf.WriteByte(0)
+	}
+	l.Size = uint32(buf.Len())
+	l.Xattr = buf.Bytes()
+	if len(l.Xattr) > int(req.Size) {
+		l.Xattr = l.Xattr[:req.Size]
+	}
 }
 
 func (r *ListxattrResponse) String() string {
