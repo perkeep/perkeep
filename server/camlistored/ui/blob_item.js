@@ -251,8 +251,6 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
   this.loading_.style.top = Math.round((h - 85) / 2) + 'px';
   this.loading_.style.left = Math.round((w - 70) / 2) + 'px';
 
-  // this.loading_.style.top
-
   // Load a differently sized image from server if necessary.
   if (!this.thumb_.src ||
       adjustedWidth > parseInt(this.thumbClip_.style.width) ||
