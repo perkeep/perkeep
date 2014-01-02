@@ -20,6 +20,7 @@ goog.require('SearchSession');
 goog.require('SpritedAnimation');
 goog.require('image_utils');
 
+goog.require('goog.array');
 goog.require('goog.events.EventHandler');
 goog.require('goog.math.Size');
 goog.require('goog.object');
@@ -33,12 +34,20 @@ var DetailView = React.createClass({
 	getInitialState: function() {
 		this.imgSize_ = null;
 		this.lastImageHeight_ = 0;
+		this.pendingNavigation_ = 0;
 		this.eh_ = new goog.events.EventHandler(this);
 
 		return {
-			description: null,
 			imgHasLoaded: false
 		};
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		if (this.props.blobref != nextProps.blobref) {
+			this.imgSize_ = null;
+			this.lastImageHeight_ = 0;
+			this.setState({imgHasLoaded: false});
+		}
 	},
 
 	componentDidMount: function(root) {
@@ -47,8 +56,10 @@ var DetailView = React.createClass({
 	},
 
 	componentDidUpdate: function(prevProps, prevState) {
-		if (this.refs.img) {
-			this.refs.img.getDOMNode().addEventListener('load', this.setState.bind(this, {imgHasLoaded:true}, null));
+		var img = this.getImageRef_();
+		if (img) {
+			// This function gets called multiple times, but the DOM de-dupes listeners for us. Thanks DOM.
+			img.getDOMNode().addEventListener('load', this.onImgLoad_);
 		}
 	},
 
@@ -67,10 +78,55 @@ var DetailView = React.createClass({
 		this.eh_.unlisten(this.props.searchSession, SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
 	},
 
+	navigate: function(offset) {
+		this.pendingNavigation_ = offset;
+		this.handlePendingNavigation_();
+	},
+
+	handlePendingNavigation_: function() {
+		if (!this.handlePendingNavigation_) {
+			return;
+		}
+
+		var results = this.props.searchSession.getCurrentResults();
+		var index = goog.array.findIndex(results.blobs, function(elm) {
+			return elm.blob == this.props.blobref;
+		}.bind(this));
+
+		if (index == -1) {
+			this.props.searchSession.loadMoreResults();
+			return;
+		}
+
+		index += this.pendingNavigation_;
+		if (index < 0) {
+			this.pendingNavigation_ = 0;
+			console.log('Cannot navigate past beginning of search result.');
+			return;
+		}
+
+		if (index >= results.blobs.length) {
+			if (this.props.searchSession.isComplete()) {
+				this.pendingNavigation_ = 0;
+				console.log('Cannot navigate past end of search result.');
+			} else {
+				this.props.searchSession.loadMoreResults();
+			}
+			return;
+		}
+
+		this.props.onNavigate(results.blobs[index].blob);
+	},
+
+	onImgLoad_: function() {
+		this.setState({imgHasLoaded:true});
+	},
+
 	searchUpdated_: function() {
-		var description = this.props.searchSession.getCurrentResults().description;
-		if (description.meta[this.props.blobref]) {
-			this.setState({description:description});
+		this.handlePendingNavigation_();
+
+		if (this.getPermanodeMeta_()) {
+			this.forceUpdate();
 			return;
 		}
 
@@ -87,19 +143,23 @@ var DetailView = React.createClass({
 	},
 
 	getImg_: function() {
-		if (this.state.description) {
-			this.img_ = React.DOM.img({
-				className: React.addons.classSet({
-					'detail-view-img': true,
-					'detail-view-img-loaded': this.state.imgHasLoaded
-				}),
-				key: 'img',
-				ref: 'img',
-				src: this.getSrc_(),
-				style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
-			});
+		var transition = React.addons.TransitionGroup({transitionName: 'detail-img'}, []);
+		if (this.imgSize_) {
+			transition.props.children.push(
+				React.DOM.img({
+					className: React.addons.classSet({
+						'detail-view-img': true,
+						'detail-view-img-loaded': this.state.imgHasLoaded
+					}),
+					// We want each image to have its own node in the DOM so that during the crossfade, we don't see the image jump to the next image's size.
+					key: this.getImageId_(),
+					ref: this.getImageId_(),
+					src: this.getSrc_(),
+					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
+				})
+			);
 		}
-		return this.img_;
+		return transition;
 	},
 
 	getPiggy_: function() {
@@ -138,11 +198,10 @@ var DetailView = React.createClass({
 	},
 
 	getImgSize_: function() {
-		if (!this.state.description) {
+		var meta = this.getPermanodeMeta_();
+		if (!meta) {
 			return null;
 		}
-
-		var meta = this.getPermanodeMeta_();
 		var aspect = new goog.math.Size(meta.thumbnailWidth, meta.thumbnailHeight);
 		var available = new goog.math.Size(
 			this.props.width - this.getSidebarWidth_() - this.IMG_MARGIN * 2,
@@ -168,9 +227,14 @@ var DetailView = React.createClass({
 	},
 
 	getPermanodeMeta_: function() {
-		if (!this.state.description) {
-			return null;
-		}
-		return this.state.description.meta[this.props.blobref];
+		return this.props.searchSession.getCurrentResults().description.meta[this.props.blobref];
 	},
+
+	getImageRef_: function() {
+		return this.refs[this.getImageId_()];
+	},
+
+	getImageId_: function() {
+		return 'img' + this.props.blobref;
+	}
 });
