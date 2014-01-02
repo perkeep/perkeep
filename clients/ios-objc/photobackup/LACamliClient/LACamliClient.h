@@ -14,7 +14,6 @@
 extern NSString *const CamliNotificationUploadStart;
 extern NSString *const CamliNotificationUploadProgress;
 extern NSString *const CamliNotificationUploadEnd;
-extern NSString *const CamliBlobRootComponent;
 
 @property NSURLSession *session;
 
@@ -23,6 +22,7 @@ extern NSString *const CamliBlobRootComponent;
 @property NSString *password;
 
 @property NSURL *uploadUrl;
+@property NSString *blobRootComponent;
 @property NSOperationQueue *uploadQueue;
 @property NSUInteger totalUploads;
 

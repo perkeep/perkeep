@@ -40,34 +40,32 @@
 
     [self.view addSubview:self.progress.view];
 
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadStart object:nil queue:nil usingBlock:^(NSNotification *note) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadStart object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
 
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:1.0 animations:^{
-                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height-self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
-            }];
-        });
+        [UIView animateWithDuration:1.0 animations:^{
+            self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height-self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
+        }];
     }];
 
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:nil usingBlock:^(NSNotification *note) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         LALog(@"got progress %@ %@",note.userInfo[@"total"],note.userInfo[@"remain"]);
 
         NSUInteger total = [note.userInfo[@"total"] intValue];
         NSUInteger remain = [note.userInfo[@"remain"] intValue];
 
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.progress.uploadLabel.text = [NSString stringWithFormat:@"Uploading %d of %d",total-remain,total];
-            self.progress.uploadProgress.progress = (float)(total-remain)/(float)total;
-        });
+        self.progress.uploadLabel.text = [NSString stringWithFormat:@"Uploading %lu of %lu",total-remain,total];
+        self.progress.uploadProgress.progress = (float)(total-remain)/(float)total;
     }];
 
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadEnd object:nil queue:nil usingBlock:^(NSNotification *note) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadEnd object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
 
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:1.0 animations:^{
-                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
-            }];
-        });
+        [UIView animateWithDuration:1.0 animations:^{
+            self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
+        }];
+    }];
+
+    [[NSNotificationCenter defaultCenter] addObserverForName:@"logtext" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        self.logtext.text = [self.logtext.text stringByAppendingFormat:@"\r\n%@",note.object[@"text"]];
     }];
 
 //    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {

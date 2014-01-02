@@ -16,6 +16,7 @@
 @property LACamliFile *file;
 @property UIBackgroundTaskIdentifier taskID;
 
+@property (readonly) BOOL failedTransfer;
 @property (readonly) BOOL isExecuting;
 @property (readonly) BOOL isFinished;
 
