@@ -52,3 +52,13 @@ search, FUSE, and web UI.
         * "file". this permanode will have a "camliContent" later. for
           now, it should be treated as if it's an empty, 0-byte file.
 
+"camliDefVis" (single-valued)
+
+    Can be "hide". Experimental. Affects default visibility in web UI.
+
+"xattr:$attr_name" (single-valued)
+
+    when a permanode represents a file or directory visible to FUSE,
+    "xattr:$x" is used to store the value for extended attribute "x".
+    Extended attribute data may contain any arbitrary bytes, so values
+    are base64 encoded.

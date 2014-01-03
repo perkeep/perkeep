@@ -1,27 +1,55 @@
-body {
-	background: black;
-	font-family: 'Open Sans', sans-serif;
-	margin: 0;
-}
-
 .detail-view {
-	position: relative;
+	background: black;
+	left: 0;
+	position: absolute;
 	overflow: hidden;
+	top: 0;
 }
 
-.detail-view-preview {
+.detail-view-img {
+	opacity: 0;
 	position: absolute;
-	width: auto;
-	height: auto;
+	transition: opacity 200ms linear;
+}
+
+.detail-view-img-loaded {
+	opacity: 1;
+}
+
+.detail-img-leave {
+	transition: opacity 200ms linear;
+	opacity: 1;
+}
+.detail-img-leave.detail-img-leave-active {
+	opacity: 0;
 }
 
 .detail-view-sidebar {
 	background: white;
 	bottom: 0;
 	overflow: auto;
+	padding: 15px;
 	position: absolute;
 	right: 0;
 	top: 0;
+}
+
+.detail-view-piggy {
+	position: absolute;
+}
+
+.detail-view-piggy.detail-view-piggy-backward {
+	-webkit-transform: scaleX(-1);
+	transform: scaleX(-1);
+}
+
+.detail-piggy-leave {
+	transition: opacity 200ms linear;
+	opacity: 1;
+}
+
+.detail-piggy-leave.detail-piggy-leave-active {
+	opacity: 0;
 }
 
 /* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */

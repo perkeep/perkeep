@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2013 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package x
+/*
+#fileembed pattern .*\.png
+*/
+package glitch
 
-import (
-)
+import "camlistore.org/pkg/fileembed"
+
+var Files = &fileembed.Files{}

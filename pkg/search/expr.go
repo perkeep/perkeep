@@ -23,9 +23,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/geocode"
+	"camlistore.org/pkg/types"
 )
 
 var (
@@ -180,6 +182,36 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 			andFile(&FileConstraint{
 				IsImage: true,
 				Height:  whIntConstraint(m[1], m[2]),
+			})
+			continue
+		}
+		if strings.HasPrefix(word, "before:") || strings.HasPrefix(word, "after:") {
+			before := false
+			when := ""
+			if strings.HasPrefix(word, "before:") {
+				before = true
+				when = strings.TrimPrefix(word, "before:")
+			} else {
+				when = strings.TrimPrefix(word, "after:")
+			}
+			base := "0000-01-01T00:00:00Z"
+			if len(when) < len(base) {
+				when += base[len(when):]
+			}
+			t, err := time.Parse(time.RFC3339, when)
+			if err != nil {
+				return nil, err
+			}
+			tc := &TimeConstraint{}
+			if before {
+				tc.Before = types.Time3339(t)
+			} else {
+				tc.After = types.Time3339(t)
+			}
+			and(&Constraint{
+				Permanode: &PermanodeConstraint{
+					Time: tc,
+				},
 			})
 			continue
 		}

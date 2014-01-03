@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 /*
-#fileembed pattern .*react(\.min)?\.js$
+#fileembed pattern .*\.js$
 */
 package react
 

@@ -659,6 +659,60 @@ func (c *Corpus) isDeletedLocked(br blob.Ref) bool {
 	return false
 }
 
+// PermanodeTimeLocked returns the time of the content in permanode.
+func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
+	// TODO(bradfitz): keep this time property cached on the permanode / files
+
+	// TODO(bradfitz): finish implmenting all these
+
+	// Priorities:
+	// -- Permanode explicit "camliTime" property
+	// -- EXIF GPS time
+	// -- Exif camera time
+	// -- File time
+	// -- File modtime
+	// -- camliContent claim set time
+	ccRef, ccTime, ok := c.pnCamliContentLocked(pn)
+	if !ok {
+		return
+	}
+
+	fi, ok := c.files[ccRef]
+	if ok {
+		if fi.Time != nil {
+			return time.Time(*fi.Time), true
+		}
+		if fi.ModTime != nil {
+			return time.Time(*fi.ModTime), true
+		}
+	}
+	return ccTime, true
+}
+
+func (c *Corpus) pnCamliContentLocked(pn blob.Ref) (cc blob.Ref, t time.Time, ok bool) {
+	// TODO(bradfitz): keep this property cached
+	pm, ok := c.permanodes[pn]
+	if !ok {
+		return
+	}
+	for _, cl := range pm.Claims {
+		if cl.Attr != "camliContent" {
+			continue
+		}
+		// TODO: pass down the 'PermanodeConstraint.At' parameter, and then do: if cl.Date.After(at) { continue }
+		switch cl.Type {
+		case string(schema.DelAttributeClaim):
+			cc = blob.Ref{}
+			t = time.Time{}
+		case string(schema.SetAttributeClaim):
+			cc = blob.ParseOrZero(cl.Value)
+			t = cl.Date
+		}
+	}
+	return cc, t, cc.Valid()
+
+}
+
 // PermanodeModtime returns the latest modification time of the given
 // permanode.
 //

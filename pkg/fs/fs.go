@@ -100,6 +100,7 @@ func NewRootedCamliFileSystem(fetcher blob.SeekFetcher, root blob.Ref) (*CamliFi
 // node implements fuse.Node with a read-only Camli "file" or
 // "directory" blob.
 type node struct {
+	noXattr
 	fs      *CamliFileSystem
 	blobref blob.Ref
 
@@ -346,7 +347,7 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 	return blob, nil
 }
 
-type notImplementDirNode struct{}
+type notImplementDirNode struct{ noXattr }
 
 func (notImplementDirNode) Attr() fuse.Attr {
 	return fuse.Attr{
@@ -382,4 +383,20 @@ func (s staticFileNode) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr
 	res.Data = make([]byte, size)
 	copy(res.Data, s)
 	return nil
+}
+
+func (n staticFileNode) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, fuse.Intr) fuse.Error {
+	return fuse.ENOATTR
+}
+
+func (n staticFileNode) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, fuse.Intr) fuse.Error {
+	return nil
+}
+
+func (n staticFileNode) Setxattr(*fuse.SetxattrRequest, fuse.Intr) fuse.Error {
+	return fuse.EPERM
+}
+
+func (n staticFileNode) Removexattr(*fuse.RemovexattrRequest, fuse.Intr) fuse.Error {
+	return fuse.EPERM
 }

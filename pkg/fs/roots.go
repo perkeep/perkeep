@@ -35,6 +35,7 @@ import (
 const refreshTime = 1 * time.Minute
 
 type rootsDir struct {
+	noXattr
 	fs *CamliFileSystem
 	at time.Time
 
@@ -72,6 +73,7 @@ func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	for name := range n.m {
 		ents = append(ents, fuse.Dirent{Name: name})
 	}
+	log.Printf("rootsDir.ReadDir() -> %v", ents)
 	return ents, nil
 }
 
@@ -285,6 +287,7 @@ func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fus
 		fs:        n.fs,
 		permanode: pr.BlobRef,
 		name:      name,
+		xattrs:    map[string][]byte{},
 	}
 	n.mu.Lock()
 	n.m[name] = pr.BlobRef

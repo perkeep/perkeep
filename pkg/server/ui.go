@@ -40,6 +40,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
+	glitchstatic "camlistore.org/third_party/glitch"
 	reactstatic "camlistore.org/third_party/react"
 )
 
@@ -57,6 +58,7 @@ var (
 	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
 	reactPattern     = regexp.MustCompile(`^react/(.+)$`)
+	glitchPattern    = regexp.MustCompile(`^glitch/(.+)$`)
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 )
@@ -91,8 +93,9 @@ type UIHandler struct {
 
 	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
 
-	closureHandler   http.Handler
-	fileReactHandler http.Handler
+	closureHandler    http.Handler
+	fileReactHandler  http.Handler
+	fileGlitchHandler http.Handler
 }
 
 func init() {
@@ -213,9 +216,13 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	}
 
 	if ui.sourceRoot != "" {
-		ui.fileReactHandler, err = ui.makeEmbeddedReactHandler(ui.sourceRoot)
+		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "react"), "react.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make react handler: %s", err)
+		}
+		ui.fileGlitchHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "glitch"), "npc_piggy__x1_walk_png_1354829432.png")
+		if err != nil {
+			return nil, fmt.Errorf("Could not make glitch handler: %s", err)
 		}
 	}
 
@@ -235,15 +242,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 	return makeClosureHandler(root, "ui")
-}
-
-func (ui *UIHandler) makeEmbeddedReactHandler(root string) (http.Handler, error) {
-	path := filepath.Join("third_party", "react")
-	h, err := makeFileServer(root, path, "react.js")
-	if h != nil {
-		log.Printf("Serving React from %s", path)
-	}
-	return h, err
 }
 
 // makeClosureHandler returns a handler to serve Closure files.
@@ -277,11 +275,7 @@ func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 	}
 
 	path := filepath.Join("third_party", "closure", "lib", "closure")
-	fs, err := makeFileServer(root, path, filepath.Join("goog", "base.js"))
-	if fs != nil {
-		log.Printf("%v: serving Closure from disk: %s", handlerName, filepath.Join(root, path))
-	}
-	return fs, err
+	return makeFileServer(root, path, filepath.Join("goog", "base.js"))
 }
 
 func makeFileServer(sourceRoot string, pathToServe string, expectedContentPath string) (http.Handler, error) {
@@ -329,7 +323,13 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func wantsPermanode(req *http.Request) bool {
-	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p"))
+	if httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p")) {
+		// The new UI is handled by index.html.
+		if req.FormValue("newui") != "1" {
+			return true
+		}
+	}
+	return false
 }
 
 func wantsBlobInfo(req *http.Request) bool {
@@ -340,22 +340,10 @@ func wantsFileTreePage(req *http.Request) bool {
 	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("d"))
 }
 
-func wantsDetailPage(req *http.Request) bool {
-	return httputil.IsGet(req) && httputil.PathSuffix(req) == "detail.html"
-}
-
-func wantsClosure(req *http.Request) bool {
+func getSuffixMatches(req *http.Request, pattern *regexp.Regexp) bool {
 	if httputil.IsGet(req) {
 		suffix := httputil.PathSuffix(req)
-		return closurePattern.MatchString(suffix)
-	}
-	return false
-}
-
-func wantsReact(req *http.Request) bool {
-	if httputil.IsGet(req) {
-		suffix := httputil.PathSuffix(req)
-		return reactPattern.MatchString(suffix)
+		return pattern.MatchString(suffix)
 	}
 	return false
 }
@@ -375,10 +363,12 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveThumbnail(rw, req)
 	case strings.HasPrefix(suffix, "tree/"):
 		ui.serveFileTree(rw, req)
-	case wantsClosure(req):
+	case getSuffixMatches(req, closurePattern):
 		ui.serveClosure(rw, req)
-	case wantsReact(req):
-		ui.serveReact(rw, req)
+	case getSuffixMatches(req, reactPattern):
+		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, reactstatic.Files)
+	case getSuffixMatches(req, glitchPattern):
+		ui.serveFromDiskOrStatic(rw, req, glitchPattern, ui.fileGlitchHandler, glitchstatic.Files)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
@@ -391,8 +381,6 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				file = "blobinfo.html"
 			case wantsFileTreePage(req):
 				file = "filetree.html"
-			case wantsDetailPage(req):
-				file = "detail.html"
 			case req.URL.Path == httputil.PathBase(req):
 				file = "index.html"
 			default:
@@ -570,20 +558,21 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 	ui.closureHandler.ServeHTTP(rw, req)
 }
 
-func (ui *UIHandler) serveReact(rw http.ResponseWriter, req *http.Request) {
+// serveFromDiskOrStatic matches rx against req's path and serves the match either from disk (if non-nil) or from static (embedded in the binary).
+func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Request, rx *regexp.Regexp, disk http.Handler, static *fileembed.Files) {
 	suffix := httputil.PathSuffix(req)
-	m := reactPattern.FindStringSubmatch(suffix)
+	m := rx.FindStringSubmatch(suffix)
 	if m == nil {
-		httputil.ErrorRouting(rw, req)
-		return
+		panic("Caller should verify that rx matches")
 	}
 	file := m[1]
-	if ui.fileReactHandler != nil {
+	if disk != nil {
 		req.URL.Path = "/" + file
-		ui.fileReactHandler.ServeHTTP(rw, req)
+		disk.ServeHTTP(rw, req)
 	} else {
-		serveStaticFile(rw, req, reactstatic.Files, file)
+		serveStaticFile(rw, req, static, file)
 	}
+
 }
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
