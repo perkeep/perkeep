@@ -38,7 +38,8 @@ var DetailView = React.createClass({
 		this.eh_ = new goog.events.EventHandler(this);
 
 		return {
-			imgHasLoaded: false
+			imgHasLoaded: false,
+			backwardPiggy: false,
 		};
 	},
 
@@ -80,6 +81,7 @@ var DetailView = React.createClass({
 
 	navigate: function(offset) {
 		this.pendingNavigation_ = offset;
+		this.setState({backwardPiggy: offset < 0});
 		this.handlePendingNavigation_();
 	},
 
@@ -168,7 +170,10 @@ var DetailView = React.createClass({
 			transition.props.children.push(
 				SpritedAnimation({
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
-					className: 'detail-view-piggy',
+					className: React.addons.classSet({
+						'detail-view-piggy': true,
+						'detail-view-piggy-backward': this.state.backwardPiggy
+					}),
 					spriteWidth: this.PIGGY_WIDTH,
 					spriteHeight: this.PIGGY_HEIGHT,
 					sheetWidth: 8,

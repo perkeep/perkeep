@@ -38,6 +38,11 @@
 	position: absolute;
 }
 
+.detail-view-piggy.detail-view-piggy-backward {
+	-webkit-transform: scaleX(-1);
+	transform: scaleX(-1);
+}
+
 .detail-piggy-leave {
 	transition: opacity 200ms linear;
 	opacity: 1;
