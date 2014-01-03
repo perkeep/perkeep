@@ -25,6 +25,20 @@ limitations under the License.
     return mounted;
 }
 
+- (void)justMounted
+{
+    mounted = YES;
+    [delegate fuseMounted];
+    [mountMenu setState:NSOnState];
+}
+
+- (void)justUnmounted
+{
+    mounted = NO;
+    [delegate fuseDismounted];
+    [mountMenu setState:NSOffState];
+}
+
 - (NSString*) mountPath
 {
     NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDesktopDirectory, NSUserDomainMask, YES );
@@ -85,8 +99,7 @@ limitations under the License.
     [fh readInBackgroundAndNotify];
     NSLog(@"Launched server task -- pid = %d", task.processIdentifier);
 
-    mounted = YES;
-    [delegate fuseMounted];
+    [self justMounted];
 }
 
 - (void)dataReady:(NSNotification *)n
@@ -113,37 +126,98 @@ limitations under the License.
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+- (BOOL)hasFUSE
+{
+    return [[NSFileManager defaultManager] fileExistsAtPath:@"/Library/Filesystems/osxfusefs.fs"];
+}
+
+- (BOOL)hasClientConfig
+{
+    NSString *confFile = [NSString stringWithFormat:@"%@/.config/camlistore/client-config.json", NSHomeDirectory()];
+    return [[NSFileManager defaultManager] fileExistsAtPath:confFile];
+}
+
+- (void)createClientConfig
+{
+    NSTask *put = [[NSTask alloc] init];
+
+    NSMutableString *launchPath = [NSMutableString string];
+    [launchPath appendString:[[NSBundle mainBundle] resourcePath]];
+    [put setCurrentDirectoryPath:launchPath];
+    [launchPath appendString:@"/camput"];
+    NSDictionary *env = [NSDictionary dictionaryWithObjectsAndKeys:
+                         NSHomeDirectory(), @"HOME",
+                         NSUserName(), @"USER",
+                         @"/bin:/usr/bin:/sbin:/usr/sbin", @"PATH",
+                         nil, nil];
+    [put setEnvironment:env];
+    [put setLaunchPath:launchPath];
+    [put setArguments:[NSArray arrayWithObjects:@"init", nil]];
+    [put launch];
+    [put waitUntilExit];
+}
+
+// If YES is returned, try to remount, otherwise stop
+- (BOOL)resolveMountProblemAndRemount
+{
+    time_t now = time(NULL);
+    if (now - startTime < MIN_FUSE_LIFETIME) {
+        // See if we can guide the user to a solution
+        if (![self hasFUSE]) {
+            NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+                            @"You don't seem to have osxfuse installed. "
+                            @"Please go here, install, and try again:\n\n"
+                            @"http://osxfuse.github.io/", @"OK", nil, nil);
+            return NO;
+        } else if (![self hasClientConfig]) {
+            NSInteger b = NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+                                          @"You don't have a camlistore client config. "
+                                          @"Would you like me to make you one?",
+                                          @"Make Client Config", @"Don't Mount", nil);
+            if (b == NSAlertDefaultReturn) {
+                [self createClientConfig];
+            } else {
+                return NO;
+            }
+        } else {
+            NSInteger b = NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+                                          @"I'm having trouble mounting the FUSE filesystem. "
+                                          @"Check Console logs for more details.",
+                                          @"Retry", @"Don't Mount", nil);
+            return b == NSAlertDefaultReturn;
+        }
+
+    }
+    return YES;
+}
+
 - (void)taskTerminated:(NSNotification *)note
 {
     int status = [[note object] terminationStatus];
     NSLog(@"Task terminated with status %d", status);
     [self cleanup];
-    [delegate fuseDismounted];
+    [self justUnmounted];
     NSLog(@"Terminated with status %d\n", status);
 
     if (shouldBeMounted) {
-        time_t now = time(NULL);
-        if (now - startTime < MIN_FUSE_LIFETIME) {
-            NSInteger b = NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
-                                          @"I'm having trouble mounting the FUSE filesystem.  "
-                                          @"Check Console logs for more details.", @"Retry", @"Don't Mount", nil);
-            if (b == NSAlertAlternateReturn) {
-                shouldBeMounted = NO;
-            }
-        }
-
         // Relaunch the server task...
-        [NSTimer scheduledTimerWithTimeInterval:1.0
-                                         target:self selector:@selector(mount)
-                                       userInfo:nil
-                                        repeats:NO];
-    } else {
+        if ([self resolveMountProblemAndRemount]) {
+            NSLog(@"Remounting");
+            [NSTimer scheduledTimerWithTimeInterval:1.0
+                                             target:self selector:@selector(mount)
+                                           userInfo:nil
+                                            repeats:NO];
+        } else {
+            NSLog(@"Should no longer be mounted");
+            shouldBeMounted = NO;
+        }
+    }
+    if (!shouldBeMounted) {
         [[NSWorkspace sharedWorkspace] performFileOperation:NSWorkspaceRecycleOperation
                                                      source:[[self mountPath] stringByDeletingLastPathComponent]
                                                 destination:@""
                                                       files:[NSArray arrayWithObject:[[self mountPath] lastPathComponent]]
                                                         tag:nil];
-        mounted = NO;
     }
 }
 
