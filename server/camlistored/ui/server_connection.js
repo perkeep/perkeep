@@ -1,13 +1,14 @@
 goog.provide('camlistore.ServerConnection');
 
-goog.require('camlistore.base64');
-goog.require('camlistore.SHA1');
 goog.require('goog.string');
 goog.require('goog.net.XhrIo');
 goog.require('goog.Uri'); // because goog.net.XhrIo forgot to include it.
 goog.require('goog.debug.ErrorHandler'); // because goog.net.Xhrio forgot to include it.
 goog.require('goog.uri.utils');
+
+goog.require('camlistore.blob');
 goog.require('camlistore.ServerType');
+goog.require('camlistore.WorkerMessageRouter');
 
 // @fileoverview Connection to the blob server and API for the RPCs it provides. All blob index UI code should use this connection to contact the server.
 // @param {camlistore.ServerType.DiscoveryDocument} config Discovery document for the current server.
@@ -16,6 +17,15 @@ goog.require('camlistore.ServerType');
 camlistore.ServerConnection = function(config, opt_sendXhr) {
 	this.config_ = config;
 	this.sendXhr_ = opt_sendXhr || goog.net.XhrIo.send;
+	this.worker_ = null;
+};
+
+camlistore.ServerConnection.prototype.getWorker_ = function() {
+	if (!this.worker_) {
+		var r = new Date().getTime();  // For cachebusting the worker. Sigh. We need content stamping.
+		this.worker_ = new camlistore.WorkerMessageRouter(new Worker('hash_worker.js?r=' + r));
+	}
+	return this.worker_;
 };
 
 camlistore.ServerConnection.prototype.getConfig = function() {
@@ -286,7 +296,7 @@ camlistore.ServerConnection.prototype.handlePost_ = function(success, opt_fail, 
 // @param {Function} success Success callback.
 // @param {?Function} opt_fail Optional fail callback.
 camlistore.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
-	var blobref = "sha1-" + Crypto.SHA1(s);
+	var blobref = camlistore.blob.refFromString(s);
 	var parts = [s];
 	var bb = new Blob(parts);
 	var fd = new FormData();
@@ -443,27 +453,12 @@ camlistore.ServerConnection.prototype.newDelAttributeClaim = function(permanode,
 // @param {?Function} opt_fail Optional fail callback.
 // @param {?Function} opt_onContentsRef Optional callback to set contents during upload.
 camlistore.ServerConnection.prototype.uploadFile = function(file, success, opt_fail, opt_onContentsRef) {
-	var fr = new FileReader();
-	var onload = function() {
-		var dataurl = fr.result;
-		var comma = dataurl.indexOf(",");
-		if (comma != -1) {
-			var b64 = dataurl.substring(comma + 1);
-			var arrayBuffer = Base64.decode(b64).buffer;
-			var hash = Crypto.SHA1(new Uint8Array(arrayBuffer, 0));
-
-			var contentsRef = "sha1-" + hash;
-			if (opt_onContentsRef) {
-				opt_onContentsRef(contentsRef);
-			}
-			this.camliUploadFileHelper_(file, contentsRef, success, this.safeFail_(opt_fail));
+	this.getWorker_().sendMessage('ref', file, function(ref) {
+		if (opt_onContentsRef) {
+			opt_onContentsRef(ref);
 		}
-	};
-	fr.onload = goog.bind(onload, this);
-	fr.onerror = function() {
-		console.log("FileReader onerror: " + fr.error + " code=" + fr.error.code);
-	};
-	fr.readAsDataURL(file);
+		this.camliUploadFileHelper_(file, ref, success, this.safeFail_(opt_fail));
+	}.bind(this));
 };
 
 // camliUploadFileHelper uploads the provided file with contents blobref contentsBlobRef
