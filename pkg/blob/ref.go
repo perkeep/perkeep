@@ -464,23 +464,31 @@ func ValidRefString(s string) bool {
 	return ParseOrZero(s).Valid()
 }
 
+var null = []byte(`null`)
+
 func (r *Ref) UnmarshalJSON(d []byte) error {
 	if r.digest != nil {
 		return errors.New("Can't UnmarshalJSON into a non-zero Ref")
 	}
+	if len(d) == 0 || bytes.Equal(d, null) {
+		return nil
+	}
 	if len(d) < 2 || d[0] != '"' || d[len(d)-1] != '"' {
 		return fmt.Errorf("blob: expecting a JSON string to unmarshal, got %q", d)
 	}
-	refStr := string(d[1 : len(d)-1])
-	p, ok := Parse(refStr)
+	d = d[1 : len(d)-1]
+	p, ok := ParseBytes(d)
 	if !ok {
-		return fmt.Errorf("blobref: invalid blobref %q (%d)", refStr, len(refStr))
+		return fmt.Errorf("blobref: invalid blobref %q (%d)", d, len(d))
 	}
 	*r = p
 	return nil
 }
 
 func (r Ref) MarshalJSON() ([]byte, error) {
+	if !r.Valid() {
+		return null, nil
+	}
 	dname := r.digest.digestName()
 	bs := r.digest.bytes()
 	buf := make([]byte, 0, 3+len(dname)+len(bs)*2)
