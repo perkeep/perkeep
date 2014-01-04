@@ -161,23 +161,30 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 	return format
 }
 
-// These gates control the max concurrency of slurping raw images
-// (e.g. JPEG bytes) to RAM, and then decoding and resizing them,
-// respectively.  We allow more concurrency for the former because
-// it's slower and less memory-intensive.  The actual resizing takes
-// much more CPU and RAM.
+// Gate the number of concurrent image resizes to limit RAM & CPU use.
 
-// TODO: these numbers were just guesses and not based on any
+// TODO: this number is just a guess and not based on any
 // data. measure? make these configurable? Automatically tuned
 // somehow? Based on memory usage/availability?
 var (
-	scaleImageGateSlurp  = syncutil.NewGate(5)
 	scaleImageGateResize = syncutil.NewGate(2)
 )
 
 type formatAndImage struct {
 	format string
 	image  []byte
+}
+
+// TODO(wathiede): move to a common location if the pattern of TeeReader'ing
+// to a statWriter proves useful.
+type statWriter struct {
+	*expvar.Int
+}
+
+func (sw statWriter) Write(p []byte) (int, error) {
+	c := len(p)
+	sw.Add(int64(c))
+	return c, nil
 }
 
 func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
@@ -187,11 +194,8 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	}
 	defer fr.Close()
 
-	var buf bytes.Buffer
-	scaleImageGateSlurp.Start()
-	n, err := io.Copy(&buf, fr)
-	scaleImageGateSlurp.Done()
-	imageBytesFetchedVar.Add(n)
+	sw := statWriter{imageBytesFetchedVar}
+	tr := io.TeeReader(fr, sw)
 
 	if err != nil {
 		return nil, fmt.Errorf("image resize: error reading image %s: %v", fileRef, err)
@@ -200,8 +204,10 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	scaleImageGateResize.Start()
 	defer scaleImageGateResize.Done()
 
-	i, imConfig, err := images.Decode(bytes.NewReader(buf.Bytes()),
-		&images.DecodeOpts{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
+	i, imConfig, err := images.Decode(tr, &images.DecodeOpts{
+		MaxWidth:  ih.MaxWidth,
+		MaxHeight: ih.MaxHeight,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -218,9 +224,9 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 		b = i.Bounds()
 	}
 
+	var buf bytes.Buffer
 	if !useBytesUnchanged {
 		// Encode as a new image
-		buf.Reset()
 		switch format {
 		case "png":
 			err = png.Encode(&buf, i)
