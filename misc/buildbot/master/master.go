@@ -420,20 +420,20 @@ func main() {
 	setup()
 
 	for {
-		goHash, err := pollGoChange()
-		if err != nil {
-			log.Fatal(err)
+		if err := pollGoChange(); err != nil {
+			log.Print(err)
+			goto Sleep
 		}
-		camliHash, err := pollCamliChange()
-		if err != nil {
-			log.Fatal(err)
+		if err := pollCamliChange(); err != nil {
+			log.Print(err)
+			goto Sleep
 		}
 		if doBuildGo || doBuildCamli {
 			if err := buildBuilder(); err != nil {
 				log.Printf("Could not build builder bot: %v", err)
 				goto Sleep
 			}
-			cmd, err := startBuilder(goHash, camliHash)
+			cmd, err := startBuilder(goTipHash, camliHeadHash)
 			if err != nil {
 				log.Printf("Could not start builder bot: %v", err)
 				goto Sleep
@@ -579,7 +579,7 @@ func handleSignals() {
 	}
 }
 
-func pollGoChange() (string, error) {
+func pollGoChange() error {
 	doBuildGo = false
 	if err := os.Chdir(goTipDir); err != nil {
 		log.Fatalf("Could not cd to %v: %v", goTipDir, err)
@@ -593,22 +593,29 @@ func pollGoChange() (string, error) {
 		out, err := t.run()
 		if err != nil {
 			if t.String() == hgPullCmd.String() {
-				log.Printf("Could not pull the Go tree with %v: %v", t.String(), err)
+				log.Printf("Could not pull from Go repo with %v: %v", t.String(), err)
 				continue
 			}
-			log.Printf("Could not prepare the Go tree with %v: %v", t.String(), err)
-			return "", err
+			return fmt.Errorf("Could not prepare the Go tree with %v: %v", t.String(), err)
 		}
 		hash = strings.TrimRight(out, "\n")
 	}
 	dbg.Println("previous head in go tree: " + goTipHash)
 	dbg.Println("current head in go tree: " + hash)
-	if hash != "" && hash != goTipHash {
-		goTipHash = hash
-		doBuildGo = true
-		dbg.Println("Changes in go tree detected; a builder will be started.")
+	if hash != goTipHash {
+		if !plausibleHashRx.MatchString(hash) {
+			log.Printf("Go rev %q does not look like an hg hash.", hash)
+		} else {
+			goTipHash = hash
+			doBuildGo = true
+			dbg.Println("Changes in go tree detected; a builder will be started.")
+		}
 	}
-	return hash, nil
+	// Should never happen, but be paranoid.
+	if !plausibleHashRx.MatchString(goTipHash) {
+		return fmt.Errorf("goTipHash %q does not look like an hg hash.", goTipHash)
+	}
+	return nil
 }
 
 var plausibleHashRx = regexp.MustCompile(`^[a-f0-9]{40}$`)
@@ -630,7 +637,7 @@ func altCamliPolling() (string, error) {
 	return hash, nil
 }
 
-func pollCamliChange() (string, error) {
+func pollCamliChange() error {
 	doBuildCamli = false
 	altDone := false
 	var err error
@@ -657,23 +664,29 @@ func pollCamliChange() (string, error) {
 			out, err := t.run()
 			if err != nil {
 				if t.String() == gitPullCmd.String() {
-					log.Printf("Could not pull the Camli repo with %v: %v\n", t.String(), err)
+					log.Printf("Could not pull from Camli repo with %v: %v", t.String(), err)
 					continue
 				}
-				log.Printf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
-				return "", err
+				return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
 			}
 			rev = strings.TrimRight(out, "\n")
 		}
 	}
 	dbg.Println("previous head in camli tree: " + camliHeadHash)
 	dbg.Println("current head in camli tree: " + rev)
-	if rev != "" && rev != camliHeadHash {
-		camliHeadHash = rev
-		doBuildCamli = true
-		dbg.Println("Changes in camli tree detected; a builder will be started.")
+	if rev != camliHeadHash {
+		if !plausibleHashRx.MatchString(rev) {
+			return fmt.Errorf("Camlistore rev %q does not look like a git hash.", rev)
+		} else {
+			camliHeadHash = rev
+			doBuildCamli = true
+			dbg.Println("Changes in camli tree detected; a builder will be started.")
+		}
 	}
-	return rev, nil
+	if !plausibleHashRx.MatchString(camliHeadHash) {
+		return fmt.Errorf("camliHeadHash %q does not look like a git hash.", camliHeadHash)
+	}
+	return nil
 }
 
 const builderBotBin = "builderBot"
