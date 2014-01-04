@@ -424,6 +424,30 @@ func TestQueryPermanodeAttrNumValue(t *testing.T) {
 	})
 }
 
+// Tests that NumValue queries with ZeroMax return permanodes without any values.
+func TestQueryPermanodeAttrNumValueZeroMax(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		id.AddAttribute(p1, "x", "1")
+		p2 := id.NewPlannedPermanode("2")
+		id.AddAttribute(p2, "y", "1") // Permanodes without any attributes are ignored.
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "x",
+					NumValue: &IntConstraint{
+						ZeroMax: true,
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p2)
+	})
+}
+
 // find a permanode (p2) that has a property being a blobref pointing
 // to a sub-query
 func TestQueryPermanodeAttrValueInSet(t *testing.T) {
