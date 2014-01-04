@@ -240,14 +240,11 @@ public class UploadService extends Service {
                     for (String dirName : dirs) {
                         File dir = new File(dirName);
                         if (!dir.exists()) {
-                            Log.d(TAG, "Skipping non-existent directory " + dirName);
                             continue;
                         }
                         File[] files = dir.listFiles();
-                        Log.d(TAG, "Contents of " + dirName + ": " + files);
                         if (files != null) {
                             for (int i = 0; i < files.length; ++i) {
-                                Log.d(TAG, "  " + files[i]);
                                 File f = files[i];
                                 if (f.isDirectory()) {
                                     // Skip thumbnails directory.

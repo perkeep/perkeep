@@ -26,6 +26,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.MessageQueue;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
@@ -48,7 +50,25 @@ public class CamliActivity extends Activity {
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
 
+    // Status text update state, since it updates too quickly to do it the naive way.
+    private long mLastStatusUpdate = 0; // time in millis we lasted updated the screen
+    private String mStatusTextCurrent = null; // what the screen says
+    private String mStatusTextWant = null; // what the service wants it to say
+
     private final Handler mHandler = new Handler();
+
+    private final MessageQueue.IdleHandler mIdleHandler = new MessageQueue.IdleHandler() {
+        @Override
+        public boolean queueIdle() {
+            if (mStatusTextCurrent != mStatusTextWant) {
+                TextView textStats = (TextView) findViewById(R.id.textStats);
+                mLastStatusUpdate = System.currentTimeMillis();
+                mStatusTextCurrent = mStatusTextWant;
+                textStats.setText(mStatusTextWant);
+            }
+            return true;
+        }
+    };
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
@@ -76,6 +96,7 @@ public class CamliActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
+        Looper.myQueue().addIdleHandler(mIdleHandler);
         final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
 
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
@@ -181,10 +202,20 @@ public class CamliActivity extends Activity {
 
             @Override
             public void setUploadStatsText(final String text) throws RemoteException {
+                // We were getting these status updates so quickly that the calls to TextView.setText
+                // were consuming all CPU on the main thread and it was stalling the main thread
+                // for seconds. Ridiculous. So instead, only update this every 5 milliseconds,
+                // otherwise wait for the looper to be idle to update it.
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        textStats.setText(text);
+                        mStatusTextWant = text;
+                        long now = System.currentTimeMillis();
+                        if (mLastStatusUpdate < now - 5) {
+                            mStatusTextCurrent = mStatusTextWant;
+                            textStats.setText(mStatusTextWant);
+                            mLastStatusUpdate = System.currentTimeMillis();
+                        }
                     }
                 });
             }
@@ -286,7 +317,7 @@ public class CamliActivity extends Activity {
         } catch (NumberFormatException enf) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             builder.setMessage("Server should be of form [https://]<host[:port]>")
-                .setTitle("Invalid Setting");
+                    .setTitle("Invalid Setting");
             AlertDialog alert = builder.create();
             alert.show();
         }
