@@ -224,7 +224,7 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 		switch format {
 		case "png":
 			err = png.Encode(&buf, i)
-		case "cr":
+		case "cr2":
 			// Recompress CR2 files as JPEG
 			format = "jpeg"
 			fallthrough
