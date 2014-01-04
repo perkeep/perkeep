@@ -202,7 +202,7 @@ func (c *Client) SetupAuth() error {
 	}
 	configOnce.Do(parseConfig)
 	var err error
-	if config.auth == "" {
+	if config == nil || config.auth == "" {
 		c.authMode, err = auth.FromEnv()
 	} else {
 		c.authMode, err = auth.FromConfig(config.auth)
@@ -230,6 +230,9 @@ func (c *Client) SecretRingFile() string {
 		return e
 	}
 	configOnce.Do(parseConfig)
+	if config == nil || config.identitySecretRing == "" {
+		return osutil.IdentitySecretRing()
+	}
 	return config.identitySecretRing
 }
 
@@ -301,7 +304,7 @@ func (c *Client) initTrustedCerts() {
 	}
 	c.trustedCerts = []string{}
 	configOnce.Do(parseConfig)
-	if config.trustedCerts == nil {
+	if config == nil || config.trustedCerts == nil {
 		return
 	}
 	for _, trustedCert := range config.trustedCerts {
@@ -326,7 +329,7 @@ func (c *Client) initIgnoredFiles() {
 	}
 	c.ignoredFiles = []string{}
 	configOnce.Do(parseConfig)
-	if config.ignoredFiles == nil {
+	if config == nil || config.ignoredFiles == nil {
 		return
 	}
 	c.ignoredFiles = config.ignoredFiles
