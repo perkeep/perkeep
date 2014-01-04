@@ -1,0 +1,30 @@
+/*
+Copyright 2014 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// These two lines are required setup to make goog.require() work throughout the codebase.
+var CLOSURE_BASE_PATH = 'closure/goog/';
+importScripts('closure/goog/bootstrap/webworkers.js', 'closure/goog/base.js', 'deps.js');
+
+goog.require('camlistore.blob');
+goog.require('camlistore.WorkerMessageRouter');
+
+// This is a simple webworker that expects to receive a single message containing a file, and sends back that file's sha1 hash.
+// We do this in a worker because we observed that doing it on the main thread decreased the framerate significantly, even when chunking, and even when the chunk sizes were as small as 32k.
+
+var router = new camlistore.WorkerMessageRouter(goog.global);
+router.registerHandler('ref', function(msg, sendReply) {
+	sendReply(camlistore.blob.refFromDOMBlob(msg));
+});
