@@ -163,12 +163,11 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 
 // Gate the number of concurrent image resizes to limit RAM & CPU use.
 
-// TODO: this number is just a guess and not based on any
-// data. measure? make these configurable? Automatically tuned
-// somehow? Based on memory usage/availability?
-var (
-	scaleImageGateResize = syncutil.NewGate(2)
-)
+// This is the maximum concurrent number of bytes we allocate for uncompressed
+// pixel data while generating thumbnails.
+const maxResizeBytes = 256 << 20
+
+var resizeSem = syncutil.NewSem(maxResizeBytes)
 
 type formatAndImage struct {
 	format string
@@ -187,6 +186,19 @@ func (sw statWriter) Write(p []byte) (int, error) {
 	return c, nil
 }
 
+// imageConfigFromReader calls image.DecodeConfig on r. It returns an
+// io.Reader that is the concatentation of the bytes read and the remaining r,
+// the image configuration, and the error from image.DecodeConfig.
+func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
+	header := new(bytes.Buffer)
+	tr := io.TeeReader(r, header)
+	// We just need width & height for memory considerations, so we use the
+	// standard library's DecodeConfig, skipping the EXIF parsing and
+	// orientation correction for images.DecodeConfig.
+	conf, _, err := image.DecodeConfig(tr)
+	return io.MultiReader(header, r), conf, err
+}
+
 func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), fileRef)
 	if err != nil {
@@ -201,8 +213,27 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 		return nil, fmt.Errorf("image resize: error reading image %s: %v", fileRef, err)
 	}
 
-	scaleImageGateResize.Start()
-	defer scaleImageGateResize.Done()
+	tr, conf, err := imageConfigFromReader(tr)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO(wathiede): build a size table keyed by conf.ColorModel for
+	// common color models for a more exact size estimate.
+
+	// This value is an estimate of the memory required to decode an image,
+	// for YCbCr images, i.e. JPEGs, it will often be higher, for RGBA PNGs
+	// it is low.
+	ramSize := int64(conf.Width) * int64(conf.Height) * 3
+
+	// If a single image is larger than maxResizeBytes can hold, we'll never
+	// successfully resize it.
+	// TODO(wathiede): do we need a more graceful fallback? 256M is a max
+	// image of ~9.5kx9.5k*3.
+	if err = resizeSem.Acquire(ramSize); err != nil {
+		return nil, err
+	}
+	defer resizeSem.Release(ramSize)
 
 	i, imConfig, err := images.Decode(tr, &images.DecodeOpts{
 		MaxWidth:  ih.MaxWidth,
