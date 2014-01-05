@@ -56,3 +56,27 @@ func genSplit(dst []string, s, sep string, sepSave, n int) []string {
 func AppendSplitN(dst []string, s, sep string, n int) []string {
 	return genSplit(dst, s, sep, 0, n)
 }
+
+// HasPrefixFold is like strings.HasPrefix but uses Unicode case-folding.
+func HasPrefixFold(s, prefix string) bool {
+	// TODO: Remove assumption that both strings have the same byte length.
+	if len(s) < len(prefix) {
+		return false
+	}
+	return strings.EqualFold(s[:len(prefix)], prefix)
+}
+
+// HasSuffixFold is like strings.HasPrefix but uses Unicode case-folding.
+func HasSuffixFold(s, suffix string) bool {
+	// TODO: Remove assumption that both strings have the same byte length.
+	if len(s) < len(suffix) {
+		return false
+	}
+	return strings.EqualFold(s[len(s)-len(suffix):], suffix)
+}
+
+// ContainsFold is like strings.Contains but (ought to) use Unicode case-folding.
+func ContainsFold(s, substr string) bool {
+	// TODO: Make this not do allocations.
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}

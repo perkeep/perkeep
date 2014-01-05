@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -451,36 +452,54 @@ func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
 // A StringConstraint specifies constraints on a string.
 // All non-zero must match.
 type StringConstraint struct {
-	Empty      bool           `json:"empty"` // matches empty string
-	Equals     string         `json:"equals"`
-	Contains   string         `json:"contains"`
-	HasPrefix  string         `json:"hasPrefix"`
-	HasSuffix  string         `json:"hasSuffix"`
-	ByteLength *IntConstraint `json:"byteLength"` // length in bytes (not chars)
+	Empty           bool           `json:"empty,omitempty"` // matches empty string
+	Equals          string         `json:"equals,omitempty"`
+	Contains        string         `json:"contains,omitempty"`
+	HasPrefix       string         `json:"hasPrefix,omitempty"`
+	HasSuffix       string         `json:"hasSuffix,omitempty"`
+	ByteLength      *IntConstraint `json:"byteLength,omitempty"` // length in bytes (not chars)
+	CaseInsensitive bool           `json:"caseInsensitive,omitempty"`
 
 	// TODO: CharLength (assume UTF-8)
-	// TODO: CaseInsensitive bool?
+}
+
+// stringCompareFunc contains a function to get a value from a StringConstraint and a second function to compare it
+// against the string s that's being matched.
+type stringConstraintFunc struct {
+	v  func(*StringConstraint) string
+	fn func(s, v string) bool
+}
+
+// Functions to compare fields of a StringConstraint against strings in a case-sensitive manner.
+var stringConstraintFuncs = []stringConstraintFunc{
+	{func(c *StringConstraint) string { return c.Equals }, func(a, b string) bool { return a == b }},
+	{func(c *StringConstraint) string { return c.Contains }, strings.Contains},
+	{func(c *StringConstraint) string { return c.HasPrefix }, strings.HasPrefix},
+	{func(c *StringConstraint) string { return c.HasSuffix }, strings.HasSuffix},
+}
+
+// Functions to compare fields of a StringConstraint against strings in a case-insensitive manner.
+var stringConstraintFuncsFold = []stringConstraintFunc{
+	{func(c *StringConstraint) string { return c.Equals }, strings.EqualFold},
+	{func(c *StringConstraint) string { return c.Contains }, strutil.ContainsFold},
+	{func(c *StringConstraint) string { return c.HasPrefix }, strutil.HasPrefixFold},
+	{func(c *StringConstraint) string { return c.HasSuffix }, strutil.HasSuffixFold},
 }
 
 func (c *StringConstraint) stringMatches(s string) bool {
 	if c.Empty && len(s) > 0 {
 		return false
 	}
-	if c.Equals != "" && s != c.Equals {
-		return false
-	}
 	if c.ByteLength != nil && !c.ByteLength.intMatches(int64(len(s))) {
 		return false
 	}
-	for _, pair := range []struct {
-		v  string
-		fn func(string, string) bool
-	}{
-		{c.Contains, strings.Contains},
-		{c.HasPrefix, strings.HasPrefix},
-		{c.HasSuffix, strings.HasSuffix},
-	} {
-		if pair.v != "" && !pair.fn(s, pair.v) {
+
+	funcs := stringConstraintFuncs
+	if c.CaseInsensitive {
+		funcs = stringConstraintFuncsFold
+	}
+	for _, pair := range funcs {
+		if v := pair.v(c); v != "" && !pair.fn(s, v) {
 			return false
 		}
 	}
