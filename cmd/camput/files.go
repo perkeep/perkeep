@@ -230,6 +230,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Skip ignored files or base directories.  Failing to skip the
+		// latter results in a panic.
+		if up.Client.IsIgnoredFile(filename) {
+			log.Printf("Client configured to ignore %s; skipping.", filename)
+			continue
+		}
 		if fi.IsDir() {
 			if up.fileOpts.wantVivify() {
 				vlog.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
@@ -239,9 +245,6 @@ func (c *fileCmd) RunCommand(args []string) error {
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
-			if up.Client.IsIgnoredFile(filename) {
-				continue
-			}
 			lastPut, err = up.UploadFile(filename)
 			if err == nil && c.deleteAfterUpload {
 				if err := os.Remove(filename); err != nil {
