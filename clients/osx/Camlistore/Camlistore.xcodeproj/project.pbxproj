@@ -13,6 +13,7 @@
 		DAABA574186435DA000D62B6 /* camlistored in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
 		DAABA575186435DA000D62B6 /* cammount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* cammount */; };
 		DAABA57718643710000D62B6 /* Credits.html in Resources */ = {isa = PBXBuildFile; fileRef = DAABA57618643710000D62B6 /* Credits.html */; };
+		DAD59F8C1877CC250018193C /* camput in Resources */ = {isa = PBXBuildFile; fileRef = DAD59F8B1877CC250018193C /* camput */; };
 		DAF109491863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109481863EDAF00F6A3F9 /* Cocoa.framework */; };
 		DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DAF109511863EDAF00F6A3F9 /* InfoPlist.strings */; };
 		DAF109551863EDAF00F6A3F9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF109541863EDAF00F6A3F9 /* main.m */; };
@@ -49,6 +50,7 @@
 		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../../bin/camlistored; sourceTree = "<group>"; };
 		DAABA573186435DA000D62B6 /* cammount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = cammount; path = ../../../bin/cammount; sourceTree = "<group>"; };
 		DAABA57618643710000D62B6 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
+		DAD59F8B1877CC250018193C /* camput */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camput; path = ../../../bin/camput; sourceTree = "<group>"; };
 		DAF109451863EDAF00F6A3F9 /* Camlistore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Camlistore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DAF109481863EDAF00F6A3F9 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		DAF1094B1863EDAF00F6A3F9 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
@@ -101,6 +103,7 @@
 		DAF1093C1863EDAF00F6A3F9 = {
 			isa = PBXGroup;
 			children = (
+				DAD59F8B1877CC250018193C /* camput */,
 				DAABA572186435DA000D62B6 /* camlistored */,
 				DAABA573186435DA000D62B6 /* cammount */,
 				DAF1094E1863EDAF00F6A3F9 /* Camlistore */,
@@ -272,6 +275,7 @@
 				DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */,
 				DAABA574186435DA000D62B6 /* camlistored in Resources */,
 				DAABA575186435DA000D62B6 /* cammount in Resources */,
+				DAD59F8C1877CC250018193C /* camput in Resources */,
 				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
 				DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */,
 				DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */,

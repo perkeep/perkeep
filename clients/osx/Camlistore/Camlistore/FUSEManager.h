@@ -34,6 +34,7 @@ limitations under the License.
     NSPipe *in, *out;
 
     IBOutlet id<FUSEManagerDelegate> delegate;
+    IBOutlet NSMenuItem *mountMenu;
 }
 
 - (NSString *)mountPath;
