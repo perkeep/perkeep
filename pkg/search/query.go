@@ -25,6 +25,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -570,6 +571,8 @@ type PermanodeConstraint struct {
 	// TODO:
 	// NumClaims *IntConstraint  // by owner
 	// Owner  blob.Ref // search for permanodes by an owner
+
+	// Note: When adding a field, update hasValueConstraint.
 }
 
 type PermanodeContinueConstraint struct {
@@ -963,15 +966,15 @@ func (c *PermanodeConstraint) checkValid() error {
 		return nil
 	}
 	if c.Attr != "" {
-		if c.NumValue == nil &&
-			c.Value == "" &&
-			c.ValueMatches == nil &&
-			c.ValueInSet == nil {
-			return errors.New("PermanodeConstraint with Attr requires also setting NumValue, Value, ValueMatches, or ValueInSet")
+		if c.NumValue == nil && !c.hasValueConstraint() {
+			return errors.New("PermanodeConstraint with Attr requires also setting NumValue or a value-matching constraint")
 		}
 		if nv := c.NumValue; nv != nil {
 			if nv.ZeroMin {
 				return errors.New("NumValue with ZeroMin makes no sense; matches everything")
+			}
+			if nv.ZeroMax && c.hasValueConstraint() {
+				return errors.New("NumValue with ZeroMax makes no sense in conjunction with a value-matching constraint; matches nothing")
 			}
 			if nv.Min < 0 || nv.Max < 0 {
 				return errors.New("NumValue with negative Min or Max makes no sense")
@@ -979,6 +982,18 @@ func (c *PermanodeConstraint) checkValid() error {
 		}
 	}
 	return nil
+}
+
+var numPermanodeFields = reflect.TypeOf(PermanodeConstraint{}).NumField()
+
+// hasValueConstraint returns true if one or more constraints that check an attribute's value are set.
+func (c *PermanodeConstraint) hasValueConstraint() bool {
+	// If a field has been added or removed, update this after adding the new field to the return statement if necessary.
+	const expectedFields = 12
+	if numPermanodeFields != expectedFields {
+		panic(fmt.Sprintf("PermanodeConstraint field count changed (now %v rather than %v)", numPermanodeFields, expectedFields))
+	}
+	return c.Value != "" || c.ValueMatches != nil || c.ValueInSet != nil
 }
 
 func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
@@ -1083,21 +1098,23 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVals(s *search, vals []string)
 	if c.NumValue != nil && !c.NumValue.intMatches(int64(len(vals))) {
 		return false, nil
 	}
-	nmatch := 0
-	for _, val := range vals {
-		match, err := c.permanodeMatchesAttrVal(s, val)
-		if err != nil {
-			return false, err
+	if c.hasValueConstraint() {
+		nmatch := 0
+		for _, val := range vals {
+			match, err := c.permanodeMatchesAttrVal(s, val)
+			if err != nil {
+				return false, err
+			}
+			if match {
+				nmatch++
+			}
 		}
-		if match {
-			nmatch++
+		if nmatch == 0 {
+			return false, nil
 		}
-	}
-	if nmatch == 0 {
-		return false, nil
-	}
-	if c.ValueAll {
-		return nmatch == len(vals), nil
+		if c.ValueAll {
+			return nmatch == len(vals), nil
+		}
 	}
 	return true, nil
 }
