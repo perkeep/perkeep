@@ -19,7 +19,7 @@ If the server is not on the same host, it is highly recommended to use TLS or an
 
 <li><b><code>identitySecretRing</code></b>: Optional. If non-empty, it specifies the location of your GPG secret keyring. Defaults to <b>$HOME/.config/camlistore/identity-secring.gpg</b>. See <code>camput init</code> for help on how to generate a new keypair.</li>
 
-<li><b><code>trustedCerts</code></b>: Optional. The list of TLS server certificates fingerprints (truncated at 10 digits) that the client will trust blindly when using https. It is required when the server is using a self-signed certificate. Example: "trustedCerts": ["ffc7730f4b"].</li>
+<li><b><code>trustedCerts</code></b>: Optional. This is the list of TLS server certificate fingerprints that the client will trust when using HTTPS. It is required when the server is using a self-signed certificate (as Camlistore generates by default) instead of a Root Certificate Authority-signed cert (sometimes known as a "commercial SSL cert"). The format of each item is the first 20 hex digits of the SHA-256 digest of the cert. Example: <code>"trustedCerts": ["ffc7730f4bf00ba4bad0"]</code></li>
 
 <li><b><code>ignoredFiles</code></b>: Optional. The list of of files that camput should ignore and not try to upload when using -filenodes.</li>
 

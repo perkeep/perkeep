@@ -26,3 +26,4 @@ server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
 server/camlistored/newui/zembed_all.js.go
 server/appengine/source_root/
+config/selfgen_pem*

@@ -20,14 +20,14 @@ limitations under the License.
 package misc
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 )
 
-// SHA1Prefix computes the SHA-1 digest of data and returns
-// the first ten digits of its lowercase hex string.
-func SHA1Prefix(data []byte) string {
-	h := sha1.New()
+// SHA256Prefix computes the SHA-256 digest of data and returns
+// its first twenty lowercase hex digits.
+func SHA256Prefix(data []byte) string {
+	h := sha256.New()
 	h.Write(data)
-	return fmt.Sprintf("%x", h.Sum(nil))[:10]
+	return fmt.Sprintf("%x", h.Sum(nil))[:20]
 }

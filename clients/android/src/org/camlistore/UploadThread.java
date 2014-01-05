@@ -56,7 +56,7 @@ public class UploadThread extends Thread {
     public UploadThread(UploadService uploadService, HostPort hp, String trustedCert, String username, String password) {
         mService = uploadService;
         mHostPort = hp;
-        mTrustedCert = trustedCert;
+        mTrustedCert = trustedCert != null ? trustedCert.toLowerCase().trim() : "";
         mUsername = username;
         mPassword = password;
     }

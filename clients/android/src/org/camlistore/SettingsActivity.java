@@ -230,7 +230,7 @@ public class SettingsActivity extends PreferenceActivity {
         if (value != null && value.length() > 0) {
             trustedCertPref.setSummary(value);
         } else {
-            trustedCertPref.setSummary("<unset>");
+            trustedCertPref.setSummary("<unset; optional 20 hex SHA-256 prefix>");
         }
     }
 

@@ -794,7 +794,7 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 		if certs == nil || len(certs) < 1 {
 			return nil, errors.New("Could not get server's certificate from the TLS connection.")
 		}
-		sig := misc.SHA1Prefix(certs[0].Raw)
+		sig := misc.SHA256Prefix(certs[0].Raw)
 		for _, v := range trustedCerts {
 			if v == sig {
 				return conn, nil

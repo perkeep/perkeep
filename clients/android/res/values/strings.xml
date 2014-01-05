@@ -4,7 +4,7 @@
     <string name="app_name">Camlistore Uploader</string>
     <string name="settings_host_title">Camlistore server</string>
     <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
-    <string name="settings_trusted_cert_title">Self-signed certificate</string>
+    <string name="settings_trusted_cert_title">Self-signed cert fingerprint</string>
     <string name="settings_trusted_cert_summary">The fingerprint of your self-signed certificate. Not needed for commercial certs.</string>
     <string name="settings_username_title">Username</string>
     <string name="settings_password_title">Password</string>
