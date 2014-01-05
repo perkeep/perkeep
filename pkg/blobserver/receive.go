@@ -33,6 +33,7 @@ func ReceiveString(dst BlobReceiver, s string) (blob.SizedRef, error) {
 // Receive wraps calling a BlobReceiver's ReceiveBlob method,
 // additionally providing verification of the src digest, and also
 // notifying the blob hub on success.
+// The error will be ErrCorruptBlob if the blobref didn't match.
 func Receive(dst BlobReceiver, br blob.Ref, src io.Reader) (blob.SizedRef, error) {
 	return receive(dst, br, src, true)
 }
@@ -44,10 +45,13 @@ func ReceiveNoHash(dst BlobReceiver, br blob.Ref, src io.Reader) (blob.SizedRef,
 func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb blob.SizedRef, err error) {
 	src = io.LimitReader(src, MaxBlobSize)
 	if checkHash {
-		src = &checkHashReader{br.Hash(), br, src}
+		src = &checkHashReader{br.Hash(), br, src, false}
 	}
 	sb, err = dst.ReceiveBlob(br, src)
 	if err != nil {
+		if checkHash && src.(*checkHashReader).corrupt {
+			err = ErrCorruptBlob
+		}
 		return
 	}
 	err = GetHub(dst).NotifyBlobReceived(sb)
@@ -58,9 +62,10 @@ func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb b
 // an io.EOF into an ErrCorruptBlob if the data read doesn't match the
 // hash of br.
 type checkHashReader struct {
-	h   hash.Hash
-	br  blob.Ref
-	src io.Reader
+	h       hash.Hash
+	br      blob.Ref
+	src     io.Reader
+	corrupt bool
 }
 
 func (c *checkHashReader) Read(p []byte) (n int, err error) {
@@ -68,6 +73,7 @@ func (c *checkHashReader) Read(p []byte) (n int, err error) {
 	c.h.Write(p[:n])
 	if err == io.EOF && !c.br.HashMatches(c.h) {
 		err = ErrCorruptBlob
+		c.corrupt = true
 	}
 	return
 }

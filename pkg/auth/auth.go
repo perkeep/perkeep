@@ -321,16 +321,16 @@ func (h Handler) serveHTTPForOp(w http.ResponseWriter, r *http.Request, op Opera
 	}
 }
 
-// requireAuth wraps a function with another function that enforces
+// RequireAuth wraps a function with another function that enforces
 // HTTP Basic Auth and checks if the operations in op are all permitted.
-func RequireAuth(handler func(http.ResponseWriter, *http.Request), op Operation) func(http.ResponseWriter, *http.Request) {
-	return func(rw http.ResponseWriter, req *http.Request) {
+func RequireAuth(h http.Handler, op Operation) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if Allowed(req, op) {
-			handler(rw, req)
+			h.ServeHTTP(rw, req)
 		} else {
 			SendUnauthorized(rw, req)
 		}
-	}
+	})
 }
 
 var (

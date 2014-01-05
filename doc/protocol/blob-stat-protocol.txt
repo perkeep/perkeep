@@ -1,14 +1,18 @@
-The 'stat' method is both a stat on the server itself (server
-capability/property discovery), as well as a multi-stat() on blobs.
+This document describes the "batch stat" API end-point, for checking
+the size/existence of multiple blobs when the client and/or server do
+not support SPDY or HTTP/2.0.  See blob-upload-protocol.txt for more
+background.
 
 Notably: the HTTP method may be GET or POST.  GET is more correct but
 be aware that HTTP servers and proxies start to suck around the 2k and
 4k URL lengths.  If you're stat'ing more than ~37 blobs, using POST
 would be safest.
 
+The HTTP request path is $blobRoot/camli/stat.  See
+blob-upload-protocol.txt and discovery.txt for background.
+
 In either case, the request form values: (either in the URL for GET or
 application/x-www-form-urlencoded body for POST)
-
 
    camliversion    required   Version of camlistore and/or stat protocol;
                               reserved for future use.  Must be "1" for now.
@@ -38,12 +42,12 @@ application/x-www-form-urlencoded body for POST)
 
 Examples:
 
-GET /camli/stat?camliversion=1&blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8 HTTP/1.1
+GET /some-blob-root/camli/stat?camliversion=1&blob1=sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8 HTTP/1.1
 Host: example.com
 
  -or-
 
-POST /camli/stat HTTP/1.1
+POST /some-blob-root/camli/stat HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
 Host: example.com
 
@@ -65,9 +69,6 @@ Content-Type: text/javascript
       {"blobRef": "sha1-abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
        "size": 12312}
    ],
-   "maxUploadSize": 1048576,
-   "uploadUrl": "http://upload-server.example.com/some/server-chosen/url",
-   "uploadUrlExpirationSeconds": 7200,
    "canLongPoll": true
 }
 
@@ -76,15 +77,6 @@ Response keys:
    stat             required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
                                for blobs that the system already has. Empty
                                list if no blobs are already present.
-
-   maxUploadSize    required   Integer of max byte size for whole request
-                               payload, which may be one or more blobs.
-
-   uploadUrl        required   Next URL to use to upload any more blobs.
-
-   uploadUrlExpirationSeconds
-                    required   How long the upload URL will be valid for,
-                               in seconds.
 
    canLongPoll      optional   Set to true (type boolean) if the server supports
                                long polling.  If not true, the server ignores

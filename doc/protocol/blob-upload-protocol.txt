@@ -1,16 +1,28 @@
-Uploading a blob is done in two parts:
+Uploading a single blob is done in two parts:
 
-1) a pre-upload "stat" request to both check what blobs are necessary
-   to upload in the first place, as well as to get an "upload URL".
-   This is mostly due to a broken App Engine limitation, which we want
-   to support, but it could also theoretically used for some lame load
-   balancing.  In any case, the first reason (checking which blobs the
-   server already has) is still valid, especially because the
-   alternative (a bunch of HTTP-pipelined HEAD requests) wouldn't work
-   in practice as few HTTP servers support pipelining well enough.
+1) Optional: see if the server already has it with a HEAD request to
+   its blob URL, or do a multi-stat request with a single blob. If the
+   server has it, you're done. Blobs are content-addressable and have
+   no metadata or version, so if the server has it, it has the right
+   version.
 
-2) the actual "upload" (HTTP POST multipart/form-data) containing one
-   or more blobs to be uploaded.
+2) PUT that blob to its blob URL (or do a multipart batch put of a
+   single blob)
+
+
+When uploading multiple blobs (the common case), the fastest option
+depends on whether or not you're using a modern HTTP transport
+(e.g. SPDY).  If your client and server don't support SPDY, you want
+to use the batch stat and batch upload endpoints, which hopefully can
+die when the future finishes arriving.
+
+If you have SPDY, uploading 100 blobs is just like uploading 100
+single blobs, but all at once. Send all your 100 HEAD requests at
+once, wait 1 RTT for all 100 replies, and then send then the <= 100
+PUT requests with the blobs that the server didn't have.
+
+If you DON'T have SPDY on both sides, you want to use the batch stat
+and batch upload endpoints, described below.
 
 ============================================================================
 Preupload request:
@@ -19,10 +31,15 @@ Preupload request:
 (see blob-stat-protocol.txt)
 
 ============================================================================
-Upload request:
+Batch upload request:
 ============================================================================
 
 Things to note about the request:
+
+   * You do a POST to $BLOB_ROOT/camli/upload where $BLOB_ROOT is the
+     blobserver's root path. You can get the path from
+     performing "discovery" on the server and getting the
+     "blobRoot" value. See discovery.txt.
 
    * You MUST provide a "name" parameter in each multipart part's
      Content-Disposition value.  The part's name matters and is the
@@ -44,11 +61,17 @@ Things to note about the request:
      set this to an increasing number (e.g. "blob1", "blob2") or just
      repeat the blobref value here.
 
+   * The total size of a batch upload HTTP request, including headers
+     and body (including MIME bits) should not exceed 32 MB.  (A
+     single blob can be at most 16 MB, but will in practice be much
+     smaller: claims will be at most ~1 KB, and file chunks are
+     typically at most 64 KB or 256 KB)
+
 Some of these requirements may be relaxed in the future.
 
 Example:
 
-POST /some/server-chosen/url HTTP/1.1
+POST /$BLOB_SERVER_PATH_ROOT/camli/upload HTTP/1.1
 Host: upload-server.example.com
 Content-Type: multipart/form-data; boundary=randomboundaryXYZ
 
@@ -77,10 +100,7 @@ Content-Type: text/plain
        "size": 12312},
       {"blobRef": "sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
        "size": 29384933}
-   ],
-   "maxUploadSize": 1048576,
-   "uploadUrl": "http://example.com/TheNextUploadUrlRandomString",
-   "uploadUrlExpirationSeconds": 7200,
+   ]
 }
 
 Response keys:
@@ -88,11 +108,6 @@ Response keys:
    received         required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
                                for blobs that were successfully saved. Empty
                                list in the case nothing was received.
-   maxUploadSize    required   Integer of max byte size for whole request
-                               payload, which may be one or more blobs.
-   uploadUrl        required   Next URL to use to upload any more blobs.
-   uploadUrlExpirationSeconds
-                    required   How long the upload URL will be valid for.
    errorText        optional   String error message for protocol errors
                                not relating to a particular blob.
                                Mostly for debugging clients.  

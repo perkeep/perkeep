@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver/protocol"
 )
 
 var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
@@ -57,12 +58,11 @@ func (pr *PutResult) SizedBlobRef() blob.SizedRef {
 	return blob.SizedRef{pr.BlobRef, pr.Size}
 }
 
+// TODO: ditch this type and use protocol.StatResponse directly?
+// Or at least make HaveMap keyed by a blob.Ref instead of a string.
 type statResponse struct {
-	HaveMap                    map[string]blob.SizedRef
-	maxUploadSize              int64
-	uploadUrl                  string
-	uploadUrlExpirationSeconds int
-	canLongPoll                bool
+	HaveMap     map[string]blob.SizedRef
+	canLongPoll bool
 }
 
 type ResponseFormatError error
@@ -83,67 +83,22 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
 }
 
-func parseStatResponse(r io.Reader) (sr *statResponse, err error) {
-	var (
-		ok   bool
-		s    = &statResponse{HaveMap: make(map[string]blob.SizedRef)}
-		jmap = make(map[string]interface{})
-	)
-	if err := json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&jmap); err != nil {
+func parseStatResponse(r io.Reader) (*statResponse, error) {
+	var s = &statResponse{HaveMap: make(map[string]blob.SizedRef)}
+	var pres protocol.StatResponse
+
+	if err := json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&pres); err != nil {
 		return nil, ResponseFormatError(err)
 	}
-	defer func() {
-		if sr == nil {
-			log.Printf("parseStatResponse got map: %#v", jmap)
+
+	s.canLongPoll = pres.CanLongPoll
+	for _, statItem := range pres.Stat {
+		br := statItem.Ref
+		if !br.Valid() {
+			continue
 		}
-	}()
-
-	s.uploadUrl, ok = jmap["uploadUrl"].(string)
-	if !ok {
-		return nil, newResFormatError("no 'uploadUrl' in stat response")
+		s.HaveMap[br.String()] = blob.SizedRef{br, int64(statItem.Size)}
 	}
-
-	if n, ok := jmap["maxUploadSize"].(float64); ok {
-		s.maxUploadSize = int64(n)
-	} else {
-		return nil, newResFormatError("no 'maxUploadSize' in stat response")
-	}
-
-	if n, ok := jmap["uploadUrlExpirationSeconds"].(float64); ok {
-		s.uploadUrlExpirationSeconds = int(n)
-	} else {
-		return nil, newResFormatError("no 'uploadUrlExpirationSeconds' in stat response")
-	}
-
-	if v, ok := jmap["canLongPoll"].(bool); ok {
-		s.canLongPoll = v
-	}
-
-	alreadyHave, ok := jmap["stat"].([]interface{})
-	if !ok {
-		return nil, newResFormatError("no 'stat' key in stat response")
-	}
-
-	for _, li := range alreadyHave {
-		m, ok := li.(map[string]interface{})
-		if !ok {
-			return nil, newResFormatError("'stat' list value of unexpected type %T", li)
-		}
-		blobRefStr, ok := m["blobRef"].(string)
-		if !ok {
-			return nil, newResFormatError("'stat' list item has non-string 'blobRef' key")
-		}
-		size, ok := m["size"].(float64)
-		if !ok {
-			return nil, newResFormatError("'stat' list item has non-number 'size' key")
-		}
-		br, ok := blob.Parse(blobRefStr)
-		if !ok {
-			return nil, newResFormatError("'stat' list item has invalid 'blobRef' key")
-		}
-		s.HaveMap[br.String()] = blob.SizedRef{br, int64(size)}
-	}
-
 	return s, nil
 }
 
@@ -449,9 +404,10 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}()
 
 	// TODO(bradfitz): verbosity levels. make this VLOG(2) or something. it's noisy:
-	// c.log.Printf("Uploading %s to URL: %s", blobrefStr, stat.uploadUrl)
+	// c.log.Printf("Uploading %s", br)
 
-	req = c.newRequest("POST", stat.uploadUrl)
+	uploadURL := fmt.Sprintf("%s/camli/upload", pfx)
+	req = c.newRequest("POST", uploadURL)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 	if h.Vivify {
 		req.Header.Add("X-Camlistore-Vivify", "1")
@@ -479,12 +435,12 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		if otherLocation == "" {
 			return errorf("303 without a Location")
 		}
-		baseUrl, _ := url.Parse(stat.uploadUrl)
-		absUrl, err := baseUrl.Parse(otherLocation)
+		baseURL, _ := url.Parse(uploadURL)
+		absURL, err := baseURL.Parse(otherLocation)
 		if err != nil {
 			return errorf("303 Location URL relative resolve error: %v", err)
 		}
-		otherLocation = absUrl.String()
+		otherLocation = absURL.String()
 		resp, err = http.Get(otherLocation)
 		if err != nil {
 			return errorf("error following 303 redirect after upload: %v", err)
