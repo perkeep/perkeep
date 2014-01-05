@@ -1,0 +1,8 @@
+1. Install Go.
+2. Install xcode.
+3. From top-level directory:
+   $ go run make.go
+   (this will create bin/camlistored, bin/cammount, and bin/camput)
+4. From this directory:
+   $ xcodebuild
+   (this will create build/Release/Camlistore.app)
