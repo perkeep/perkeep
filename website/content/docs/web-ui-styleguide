@@ -1,60 +1,47 @@
-<h1>Web UI Styleguide</h1>
+<h1>Web Application Styleguide</h1>
 
-<p><em><strong>Note:</strong> The following statements represent how we think
-things should be, not how they are. The Web UI is just getting started and
-doesn't adhere to all of these goals yet. New code should, though.</em>
+<p><em><strong>Note:</strong> The following statements represent how we think things should be, not how they are. The Web UI is just getting started and doesn't adhere to all of these goals yet. New code should, though.</em>
+
 
 <h2>Architecture</h2>
 
-<p>The Camlistore Web UI is an "<a
-href="http://en.wikipedia.org/wiki/Ajax_(programming)">AJAX</a>"-style web
-application that interacts with Camlistore servers just as any other client
-would. It speaks the same HTTP APIs as the Android and iOS clients, for example.
-We avoid creating APIs that are specific to one client, instead preferring to
-generalize functionality such that all current clients and even unknown future
-clients can make use of it.
+<p>The Camlistore web application is an "<a href="http://en.wikipedia.org/wiki/Ajax_(programming)">AJAX</a>"-style web app that interacts with Camlistore servers just as any other client would. It speaks the same HTTP APIs as the Android and iOS clients, for example. We avoid creating APIs that are specific to one client, instead preferring to generalize functionality such that all current clients and even unknown future clients can make use of it.
 
-<p>The Web UI is written almost entirely in JavaScript. We make no effort to
-"<a href="http://www.w3.org/wiki/Graceful_degredation_versus_progressive_enhancement">degrade
-gracefully</a>" in the absence of JavaScript or CSS support. We try to minimize
-usage of literal HTML markup in the source, as it tends to lead to poor
-modularity. We instead prefer to construct DOM trees programmatically.
+<p>The web application is written almost entirely in JavaScript. We make no effort to "<a href="http://www.w3.org/wiki/Graceful_degredation_versus_progressive_enhancement">degrade gracefully</a>" in the absence of JavaScript or CSS support.
+
 
 <h2>Paradigm</h2>
 
-<p>Though we are architected mostly as a "<a
-href="http://en.wikipedia.org/wiki/Single-page_application">single-page
-application</a>", we make extensive use of URLs via
-<a href="https://developer.mozilla.org/en-US/docs/Web/Guide/API/DOM/Manipulating_the_browser_history">pushState()</a>.
-In general every unique view in the application has a URL that can be used to
-revisit that view.
+<p>Though we are architected mostly as a "<a href="http://en.wikipedia.org/wiki/Single-page_application">single-page application</a>", we make extensive use of URLs via <a href="https://developer.mozilla.org/en-US/docs/Web/Guide/API/DOM/Manipulating_the_browser_history">pushState()</a>. In general every unique view in the application has a URL that can be used to revisit that view.
 
-<p>In the same vein, although we are an interactive application, we make
-appropriate use of web platform primitives where they exist. We use &lt;a&gt;
-tags for clickable things that navigate, so that browser tools like "Open in new
-tab" and "Copy link" work as users would expect. Similarly, when we want to
-display text, we use HTML text rather than  &lt;canvas&gt; or &lt;img&gt; tags
-so that selection and find-in-page work.
+<p>In the same vein, although we are an interactive application, we make appropriate use of web platform primitives where they exist. We use &lt;a&gt; tags for clickable things that navigate, so that browser tools like "Open in new tab" and "Copy link" work as users would expect. Similarly, when we want to display text, we use HTML text rather than  &lt;canvas&gt; or &lt;img&gt; tags so that selection and find-in-page work.
+
 
 <h2>Stack</h2>
 
-<p>We use <a href="https://developers.google.com/closure/">Google Closure</a>,
-mainly for its excellent dead-code removal and decent standard library. We
-use some Closure UI widgets, but are also happy to bypass the Closure UI layer
-and implement our own UI directly on the DOM when that's easier.
+<p>We use <a href="https://code.google.com/p/closure-library/">Closure</a> as our "standard library". It has a really wide and deep collection of well-designed and implemented utilities. We model our own application logic (e.g., SearchSession) as Closure-style classes.
+
+<p>For the UI we are using <a href="http://facebook.github.io/react/">React</a> because it is awesome. Some older parts of the code use Closure's UI framework; those will be going away.
+
 
 <h2>Style</h2>
 
-<p>We follow the <a
-href="http://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml"
->Google JavaScript Styleguide</a> and the <a
-href="https://developers.google.com/closure/compiler/docs/js-for-compiler"
->Closure JSDoc Rules</a> for formatting and so-on. Those of us that use Emacs
-install <a href="https://code.google.com/p/js2-mode/">Js2Mode</a>.
+<h3>Tabs, not spaces</h3>
+<p>For consistency with Go, and because it makes worrying about minor formatting details like line-wrap style impossible. Some old code still uses spaces. If you are going to be doing significant work on a file that uses spaces, just convert it to tabs in a commit before starting.
+
+<h3>No max line length</h3>
+<p>It's non-sensical with tabs. Configure your editor to wrap lines nicely, and only insert physical line breaks to separate major thoughts. Sort of where you'd put a period in English text. Look at newer code like server_connection.js for examples.
+
+<h3>Continuation lines are indented with a single tab</h3>
+<p>Always. No worrying about lining things up vertically with the line above.
+
+<h3>Type annotations</h3>
+<p>We don't currently using the Closure compiler, and there's some debate about whether we ever will. However, if you're going to have a comment that describes the type of some identifier, you may as well make it rigorous. Use the Closure <a href="https://developers.google.com/closure/compiler/docs/js-for-compiler">type annotations</a> for this.
+
+<h3>Other formatting minutiae</h3>
+<p>Everything else generally follows the <a href="http://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml">Google JavaScript Styleguide</a>. Or you can just look at the surrounding code.
+
 
 <h2>Compatibility</h2>
 
-<p>We target the last two stable versions of Desktop Chrome, Firefox, Safari,
-IE. We also target the last two stable versions of Safari and Chrome on Android
-and iOS tablets. We don't currently target the phone form factor at all, though
-it probably sort of works with a lot of zooming and panning.
+<p>We target the last two stable versions of Desktop Chrome, Firefox, Safari, IE. We also target the last two stable versions of Safari and Chrome on Android and iOS tablets.
