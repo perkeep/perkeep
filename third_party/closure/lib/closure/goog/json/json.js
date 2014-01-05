@@ -19,6 +19,8 @@
 
 
 goog.provide('goog.json');
+goog.provide('goog.json.Replacer');
+goog.provide('goog.json.Reviver');
 goog.provide('goog.json.Serializer');
 
 
@@ -79,7 +81,8 @@ goog.json.isValid_ = function(s) {
  * the string then you should use unsafeParse instead.
  *
  * @param {*} s The JSON string to parse.
- * @return {Object} The object generated from the JSON string.
+ * @throws Error if s is invalid JSON.
+ * @return {Object} The object generated from the JSON string, or null.
  */
 goog.json.parse = function(s) {
   var o = String(s);
@@ -108,6 +111,7 @@ goog.json.unsafeParse = function(s) {
 
 /**
  * JSON replacer, as defined in Section 15.12.3 of the ES5 spec.
+ * @see http://ecma-international.org/ecma-262/5.1/#sec-15.12.3
  *
  * TODO(nicksantos): Array should also be a valid replacer.
  *
@@ -118,6 +122,7 @@ goog.json.Replacer;
 
 /**
  * JSON reviver, as defined in Section 15.12.2 of the ES5 spec.
+ * @see http://ecma-international.org/ecma-262/5.1/#sec-15.12.3
  *
  * @typedef {function(this:Object, string, *): *}
  */
@@ -226,7 +231,7 @@ goog.json.Serializer.prototype.serialize_ = function(object, sb) {
 /**
  * Character mappings used internally for goog.string.quote
  * @private
- * @type {Object}
+ * @type {!Object}
  */
 goog.json.Serializer.charToJsonCharCache_ = {
   '\"': '\\"',
@@ -248,7 +253,7 @@ goog.json.Serializer.charToJsonCharCache_ = {
  * regular expressions. The condition below detects such behaviour and
  * adjusts the regular expression accordingly.
  * @private
- * @type {RegExp}
+ * @type {!RegExp}
  */
 goog.json.Serializer.charsToReplace_ = /\uffff/.test('\uffff') ?
     /[\\\"\x00-\x1f\x7f-\uffff]/g : /[\\\"\x00-\x1f\x7f-\xff]/g;

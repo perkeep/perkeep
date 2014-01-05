@@ -19,9 +19,10 @@
  * @author jonp@google.com (Jon Perlow) Optimized for IE6
  *
  * This file contains an implementation of a Map structure. It implements a lot
- * of the methods used in goog.structs so those functions work on hashes.  For
- * convenience with common usage the methods accept any type for the key, though
- * internally they will be cast to strings.
+ * of the methods used in goog.structs so those functions work on hashes. This
+ * is best suited for complex key types. For simple keys such as numbers and
+ * strings, and where special names like __proto__ are not a concern, consider
+ * using the lighter-weight utilities in goog.object.
  */
 
 
@@ -30,7 +31,6 @@ goog.provide('goog.structs.Map');
 goog.require('goog.iter.Iterator');
 goog.require('goog.iter.StopIteration');
 goog.require('goog.object');
-goog.require('goog.structs');
 
 
 
@@ -40,13 +40,13 @@ goog.require('goog.structs');
  * @param {...*} var_args If 2 or more arguments are present then they
  *     will be used as key-value pairs.
  * @constructor
+ * @template K, V
  */
 goog.structs.Map = function(opt_map, var_args) {
 
   /**
    * Underlying JS object used to implement the map.
-   * @type {!Object}
-   * @private
+   * @private {!Object}
    */
   this.map_ = {};
 
@@ -61,10 +61,21 @@ goog.structs.Map = function(opt_map, var_args) {
    * This array can contain deleted keys so it's necessary to check the map
    * as well to see if the key is still in the map (this doesn't require a
    * memory allocation in IE).
-   * @type {!Array.<string>}
-   * @private
+   * @private {!Array.<string>}
    */
   this.keys_ = [];
+
+  /**
+   * The number of key value pairs in the map.
+   * @private {number}
+   */
+  this.count_ = 0;
+
+  /**
+   * Version used to detect changes while iterating.
+   * @private {number}
+   */
+  this.version_ = 0;
 
   var argLength = arguments.length;
 
@@ -82,22 +93,6 @@ goog.structs.Map = function(opt_map, var_args) {
 
 
 /**
- * The number of key value pairs in the map.
- * @private
- * @type {number}
- */
-goog.structs.Map.prototype.count_ = 0;
-
-
-/**
- * Version used to detect changes while iterating.
- * @private
- * @type {number}
- */
-goog.structs.Map.prototype.version_ = 0;
-
-
-/**
  * @return {number} The number of key-value pairs in the map.
  */
 goog.structs.Map.prototype.getCount = function() {
@@ -107,7 +102,7 @@ goog.structs.Map.prototype.getCount = function() {
 
 /**
  * Returns the values of the map.
- * @return {!Array} The values in the map.
+ * @return {!Array.<V>} The values in the map.
  */
 goog.structs.Map.prototype.getValues = function() {
   this.cleanupKeysArray_();
@@ -143,7 +138,7 @@ goog.structs.Map.prototype.containsKey = function(key) {
 
 /**
  * Whether the map contains the given value. This is O(n).
- * @param {*} val The value to check for.
+ * @param {V} val The value to check for.
  * @return {boolean} Whether the map contains the value.
  */
 goog.structs.Map.prototype.containsValue = function(val) {
@@ -160,7 +155,7 @@ goog.structs.Map.prototype.containsValue = function(val) {
 /**
  * Whether this map is equal to the argument map.
  * @param {goog.structs.Map} otherMap The map against which to test equality.
- * @param {function(?, ?) : boolean=} opt_equalityFn Optional equality function
+ * @param {function(V, V): boolean=} opt_equalityFn Optional equality function
  *     to test equality of values. If not specified, this will test whether
  *     the values contained in each map are identical objects.
  * @return {boolean} Whether the maps are equal.
@@ -287,9 +282,10 @@ goog.structs.Map.prototype.cleanupKeysArray_ = function() {
  * Returns the value for the given key.  If the key is not found and the default
  * value is not given this will return {@code undefined}.
  * @param {*} key The key to get the value for.
- * @param {*=} opt_val The value to return if no item is found for the given
- *     key, defaults to undefined.
- * @return {*} The value for the given key.
+ * @param {DEFAULT=} opt_val The value to return if no item is found for the
+ *     given key, defaults to undefined.
+ * @return {V|DEFAULT} The value for the given key.
+ * @template DEFAULT
  */
 goog.structs.Map.prototype.get = function(key, opt_val) {
   if (goog.structs.Map.hasKey_(this.map_, key)) {
@@ -302,7 +298,7 @@ goog.structs.Map.prototype.get = function(key, opt_val) {
 /**
  * Adds a key-value pair to the map.
  * @param {*} key The key.
- * @param {*} value The value to add.
+ * @param {V} value The value to add.
  * @return {*} Some subclasses return a value.
  */
 goog.structs.Map.prototype.set = function(key, value) {

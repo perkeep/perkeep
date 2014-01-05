@@ -38,7 +38,7 @@ import (
 
 const (
 	gitRepo = "https://code.google.com/p/closure-library/"
-	gitHash = "1389e13"
+	gitHash = "ab89cf45c216"
 )
 
 var (

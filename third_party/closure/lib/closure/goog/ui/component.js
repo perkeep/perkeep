@@ -26,8 +26,9 @@ goog.provide('goog.ui.Component.EventType');
 goog.provide('goog.ui.Component.State');
 
 goog.require('goog.array');
-goog.require('goog.array.ArrayLike');
+goog.require('goog.asserts');
 goog.require('goog.dom');
+goog.require('goog.dom.NodeType');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventTarget');
 goog.require('goog.object');
@@ -54,6 +55,15 @@ goog.inherits(goog.ui.Component, goog.events.EventTarget);
 
 
 /**
+ * @define {boolean} Whether to support calling decorate with an element that is
+ *     not yet in the document. If true, we check if the element is in the
+ *     document, and avoid calling enterDocument if it isn't. If false, we
+ *     maintain legacy behavior (always call enterDocument from decorate).
+ */
+goog.define('goog.ui.Component.ALLOW_DETACHED_DECORATION', false);
+
+
+/**
  * Generator for unique IDs.
  * @type {goog.ui.IdGenerator}
  * @private
@@ -61,12 +71,24 @@ goog.inherits(goog.ui.Component, goog.events.EventTarget);
 goog.ui.Component.prototype.idGenerator_ = goog.ui.IdGenerator.getInstance();
 
 
+// TODO(gboyer): See if we can remove this and just check goog.i18n.bidi.IS_RTL.
+/**
+ * @define {number} Defines the default BIDI directionality.
+ *     0: Unknown.
+ *     1: Left-to-right.
+ *     -1: Right-to-left.
+ */
+goog.define('goog.ui.Component.DEFAULT_BIDI_DIR', 0);
+
+
 /**
  * The default right to left value.
  * @type {?boolean}
  * @private
  */
-goog.ui.Component.defaultRightToLeft_ = null;
+goog.ui.Component.defaultRightToLeft_ =
+    (goog.ui.Component.DEFAULT_BIDI_DIR == 1) ? false :
+    (goog.ui.Component.DEFAULT_BIDI_DIR == -1) ? true : null;
 
 
 /**
@@ -332,7 +354,7 @@ goog.ui.Component.prototype.id_ = null;
  * created in a different window.
  * @type {!goog.dom.DomHelper}
  * @protected
- * @suppress {underscore}
+ * @suppress {underscore|visibility}
  */
 goog.ui.Component.prototype.dom_;
 
@@ -496,8 +518,9 @@ goog.ui.Component.prototype.getElementStrict = function() {
  * does not actually change which element is rendered, only the element that is
  * associated with this UI component.
  *
+ * This should only be used by subclasses and its associated renderers.
+ *
  * @param {Element} element Root element for the component.
- * @protected
  */
 goog.ui.Component.prototype.setElementInternal = function(element) {
   this.element_ = element;
@@ -529,14 +552,33 @@ goog.ui.Component.prototype.getElementByClass = function(className) {
 
 
 /**
+ * Similar to {@code getElementByClass} except that it expects the
+ * element to be present in the dom thus returning a required value. Otherwise,
+ * will assert.
+ * @param {string} className The name of the class to look for.
+ * @return {!Element} The first item with the class name provided.
+ */
+goog.ui.Component.prototype.getRequiredElementByClass = function(className) {
+  var el = this.getElementByClass(className);
+  goog.asserts.assert(el, 'Expected element in component with class: %s',
+      className);
+  return el;
+};
+
+
+/**
  * Returns the event handler for this component, lazily created the first time
  * this method is called.
- * @return {!goog.events.EventHandler} Event handler for this component.
+ * @return {!goog.events.EventHandler.<T>} Event handler for this component.
  * @protected
+ * @this T
+ * @template T
  */
 goog.ui.Component.prototype.getHandler = function() {
-  return this.googUiComponentHandler_ ||
-         (this.googUiComponentHandler_ = new goog.events.EventHandler(this));
+  if (!this.googUiComponentHandler_) {
+    this.googUiComponentHandler_ = new goog.events.EventHandler(this);
+  }
+  return this.googUiComponentHandler_;
 };
 
 
@@ -697,7 +739,12 @@ goog.ui.Component.prototype.render_ = function(opt_parentElement,
 
 
 /**
- * Decorates the element for the UI component.
+ * Decorates the element for the UI component. If the element is in the
+ * document, the enterDocument method will be called.
+ *
+ * If goog.ui.Component.ALLOW_DETACHED_DECORATION is false, the caller must
+ * pass an element that is in the document.
+ *
  * @param {Element} element Element to decorate.
  */
 goog.ui.Component.prototype.decorate = function(element) {
@@ -707,14 +754,19 @@ goog.ui.Component.prototype.decorate = function(element) {
     this.wasDecorated_ = true;
 
     // Set the DOM helper of the component to match the decorated element.
-    if (!this.dom_ ||
-        this.dom_.getDocument() != goog.dom.getOwnerDocument(element)) {
+    var doc = goog.dom.getOwnerDocument(element);
+    if (!this.dom_ || this.dom_.getDocument() != doc) {
       this.dom_ = goog.dom.getDomHelper(element);
     }
 
     // Call specific component decorate logic.
     this.decorateInternal(element);
-    this.enterDocument();
+
+    // If supporting detached decoration, check that element is in doc.
+    if (!goog.ui.Component.ALLOW_DETACHED_DECORATION ||
+        goog.dom.contains(doc, element)) {
+      this.enterDocument();
+    }
   } else {
     throw Error(goog.ui.Component.Error.DECORATE_INVALID);
   }
@@ -764,6 +816,9 @@ goog.ui.Component.prototype.enterDocument = function() {
   this.inDocument_ = true;
 
   // Propagate enterDocument to child components that have a DOM, if any.
+  // If a child was decorated before entering the document (permitted when
+  // goog.ui.Component.ALLOW_DETACHED_DECORATION is true), its enterDocument
+  // will be called here.
   this.forEachChild(function(child) {
     if (!child.isInDocument() && child.getElement()) {
       child.enterDocument();
@@ -808,8 +863,6 @@ goog.ui.Component.prototype.exitDocument = function() {
  * @protected
  */
 goog.ui.Component.prototype.disposeInternal = function() {
-  goog.ui.Component.superClass_.disposeInternal.call(this);
-
   if (this.inDocument_) {
     this.exitDocument();
   }
@@ -834,7 +887,8 @@ goog.ui.Component.prototype.disposeInternal = function() {
   this.element_ = null;
   this.model_ = null;
   this.parent_ = null;
-  // TODO(gboyer): delete this.dom_ breaks many unit tests.
+
+  goog.ui.Component.superClass_.disposeInternal.call(this);
 };
 
 
@@ -924,7 +978,7 @@ goog.ui.Component.prototype.addChild = function(child, opt_render) {
   // reposition any already-rendered child to the end.  Instead, perhaps
   // addChild(child, false) should never reposition the child; instead, clients
   // that need the repositioning will use addChildAt explicitly.  Right now,
-  // clients can get around this by calling addChild first.
+  // clients can get around this by calling addChild before calling decorate.
   this.addChildAt(child, this.getChildCount(), opt_render);
 };
 
@@ -950,14 +1004,13 @@ goog.ui.Component.prototype.addChild = function(child, opt_render) {
  * Clients of this API may call {@code addChild} and {@code addChildAt} with
  * {@code opt_render} set to true.  If {@code opt_render} is true, calling these
  * methods will automatically render the child component's element into the
- * parent component's element.  However, {@code parent.addChild(child, true)}
- * will throw an error if:
- *  <ul>
- *    <li>the parent component has no DOM (i.e. {@code parent.getElement()} is
- *        null), or
- *    <li>the child component is already in the document, regardless of the
- *        parent's DOM state.
- *  </ul>
+ * parent component's element. If the parent does not yet have an element, then
+ * {@code createDom} will automatically be invoked on the parent before
+ * rendering the child.
+ *
+ * Invoking {@code parent.addChild(child, true)} will throw an error if the
+ * child component is already in the document, regardless of the parent's DOM
+ * state.
  *
  * If {@code opt_render} is true and the parent component is not already
  * in the document, {@code enterDocument} will not be called on this component
@@ -975,6 +1028,8 @@ goog.ui.Component.prototype.addChild = function(child, opt_render) {
  * @return {void} Nada.
  */
 goog.ui.Component.prototype.addChildAt = function(child, index, opt_render) {
+  goog.asserts.assert(!!child, 'Provided element must not be null.');
+
   if (child.inDocument_ && (opt_render || !this.inDocument_)) {
     // Adding a child that's already in the document is an error, except if the
     // parent is also in the document and opt_render is false (e.g. decorate()).

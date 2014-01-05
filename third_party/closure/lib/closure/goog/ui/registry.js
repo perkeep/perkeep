@@ -19,7 +19,7 @@
 
 goog.provide('goog.ui.registry');
 
-goog.require('goog.dom.classes');
+goog.require('goog.dom.classlist');
 
 
 /**
@@ -127,7 +127,7 @@ goog.ui.registry.setDecoratorByClassName = function(className, decoratorFn) {
  */
 goog.ui.registry.getDecorator = function(element) {
   var decorator;
-  var classNames = goog.dom.classes.get(element);
+  var classNames = goog.dom.classlist.get(element);
   for (var i = 0, len = classNames.length; i < len; i++) {
     if ((decorator = goog.ui.registry.getDecoratorByClassName(classNames[i]))) {
       return decorator;

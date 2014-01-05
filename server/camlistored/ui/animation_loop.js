@@ -24,6 +24,8 @@ goog.require('goog.events.EventTarget');
  * @param {Window} win
  */
 camlistore.AnimationLoop = function(win) {
+  goog.base(this);
+
   /**
    * @type {Window}
    * @private

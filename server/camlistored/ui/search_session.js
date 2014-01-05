@@ -31,6 +31,8 @@ goog.require('camlistore.ServerConnection');
 // - Socket assumes that client already has first batch of results (slightly racey though)
 // - Prefer to use socket on client-side, test whether it works and fall back to XHR if not.
 var SearchSession = function(connection, currentUri, query) {
+	goog.base(this);
+
 	this.connection_ = connection;
 	this.initSocketUri_(currentUri);
 	this.query_ = query;
