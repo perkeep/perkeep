@@ -41,6 +41,7 @@ import (
 	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/misc"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types/camtypes"
@@ -121,10 +122,17 @@ type Client struct {
 const maxParallelHTTP = 5
 
 // New returns a new Camlistore Client.
-// The provided server is either "host:port" (assumed http, not https) or a
-// URL prefix, with or without a path.
+// The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
 func New(server string) *Client {
+	if !isHostname(server) {
+		configOnce.Do(parseConfig)
+		serverConf, ok := config.Servers[server]
+		if !ok {
+			log.Fatalf("%q looks like a server alias, but no such alias found in config at %v", server, osutil.UserClientConfigPath())
+		}
+		server = serverConf.Server
+	}
 	return &Client{
 		server:     server,
 		httpClient: http.DefaultClient,

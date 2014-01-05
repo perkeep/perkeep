@@ -1,7 +1,12 @@
 {
-  "server": ["_env", "${CAMLI_SERVER}", "http://localhost:3179/"],
-  "ignoredFiles": [".DS_Store"],
-  "auth": ["_env", "${CAMLI_AUTH}" ],
-  "identitySecretRing": ["_env", "${CAMLI_SECRET_RING}"],
-  "identity": ["_env", "${CAMLI_KEYID}"]
+	"servers": {
+		"devcam": {
+			"server": ["_env", "${CAMLI_SERVER}", "http://localhost:3179/"],
+			"auth": ["_env", "${CAMLI_AUTH}"],
+			"default": true
+		}
+	},
+	"ignoredFiles": [".DS_Store"],
+	"identity": ["_env", "${CAMLI_KEYID}"],
+	"identitySecretRing": ["_env", "${CAMLI_SECRET_RING}"]
 }

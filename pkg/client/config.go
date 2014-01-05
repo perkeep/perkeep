@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -32,6 +33,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/types/clientconfig"
 )
 
 // These, if set, override the JSON config file
@@ -56,24 +58,11 @@ func ExplicitServer() string {
 }
 
 var configOnce sync.Once
-var config *clientConfig
-
-// clientConfig holds the values found in the JSON client config file
-// once it's been parsed and validated by parseConfig.
-// Unless otherwise specified by the comments, no default values were
-// used when parsing.
-type clientConfig struct {
-	auth               string
-	server             string
-	identity           string
-	identitySecretRing string // defaults to osutil.IdentitySecretRing()
-	trustedCerts       []string
-	ignoredFiles       []string
-}
+var config *clientconfig.Config
 
 func parseConfig() {
 	if android.OnAndroid() {
-		return
+		panic("parseConfig should never have been called on Android")
 	}
 	configPath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -84,24 +73,90 @@ func parseConfig() {
 		}
 		log.Fatal(errMsg)
 	}
-
+	// TODO: instead of using jsonconfig, we could read the file, and unmarshall into the structs that we now have in pkg/types/clientconfig. But we'll have to add the old fields (before the name changes, and before the multi-servers change) to the structs as well for our gracefull conversion/error messages to work.
 	conf, err := jsonconfig.ReadFile(configPath)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 	cfg := jsonconfig.Obj(conf)
-	config = &clientConfig{
-		auth:               cfg.OptionalString("auth", ""),
-		server:             cfg.OptionalString("server", ""),
-		identity:           cfg.OptionalString("identity", ""),
-		identitySecretRing: cfg.OptionalString("identitySecretRing", osutil.IdentitySecretRing()),
-		trustedCerts:       cfg.OptionalList("trustedCerts"),
-		ignoredFiles:       cfg.OptionalList("ignoredFiles"),
+
+	if singleServerAuth := cfg.OptionalString("auth", ""); singleServerAuth != "" {
+		newConf, err := convertToMultiServers(cfg)
+		if err != nil {
+			log.Print(err)
+		} else {
+			cfg = newConf
+		}
 	}
+
+	config = &clientconfig.Config{
+		Identity:           cfg.OptionalString("identity", ""),
+		IdentitySecretRing: cfg.OptionalString("identitySecretRing", osutil.IdentitySecretRing()),
+		IgnoredFiles:       cfg.OptionalList("ignoredFiles"),
+	}
+	serversList := make(map[string]*clientconfig.Server)
+	servers := cfg.OptionalObject("servers")
+	for alias, vei := range servers {
+		// An alias should never be confused with a host name,
+		// so we forbid anything looking like one.
+		if isHostname(alias) {
+			log.Fatal("Server alias %q looks like a hostname; \".\" or \";\" are not allowed.", alias)
+		}
+		serverMap, ok := vei.(map[string]interface{})
+		if !ok {
+			log.Fatalf("entry %q in servers section is a %T, want an object", alias, vei)
+		}
+		serverConf := jsonconfig.Obj(serverMap)
+		server := &clientconfig.Server{
+			Server:       cleanServer(serverConf.OptionalString("server", "")),
+			Auth:         serverConf.OptionalString("auth", ""),
+			IsDefault:    serverConf.OptionalBool("default", false),
+			TrustedCerts: serverConf.OptionalList("trustedCerts"),
+		}
+		if err := serverConf.Validate(); err != nil {
+			log.Fatalf("Error in servers section of config file for server %q: %v", alias, err)
+		}
+		serversList[alias] = server
+	}
+	config.Servers = serversList
 	if err := cfg.Validate(); err != nil {
 		printConfigChangeHelp(cfg)
 		log.Fatalf("Error in config file: %v", err)
 	}
+}
+
+// isHostname return true if s looks like a host name, i.e it has at least a scheme or contains a period or a colon.
+func isHostname(s string) bool {
+	return strings.HasPrefix(s, "http://") ||
+		strings.HasPrefix(s, "https://") ||
+		strings.Contains(s, ".") || strings.Contains(s, ":")
+}
+
+// convertToMultiServers takes an old style single-server client configuration and maps it to new a multi-servers configuration that is returned.
+func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
+	server := conf.OptionalString("server", "")
+	if server == "" {
+		return nil, errors.New("Could not convert config to multi-servers style: no \"server\" key found.")
+	}
+	newConf := jsonconfig.Obj{
+		"servers": map[string]interface{}{
+			server: map[string]interface{}{
+				"auth":    conf.OptionalString("auth", ""),
+				"default": true,
+				"server":  server,
+			},
+		},
+		"identity":           conf.OptionalString("identity", ""),
+		"identitySecretRing": conf.OptionalString("identitySecretRing", osutil.IdentitySecretRing()),
+	}
+	if ignoredFiles := conf.OptionalList("ignoredFiles"); ignoredFiles != nil {
+		var list []interface{}
+		for _, v := range ignoredFiles {
+			list = append(list, v)
+		}
+		newConf["ignoredFiles"] = list
+	}
+	return newConf, nil
 }
 
 // printConfigChangeHelp checks if conf contains obsolete keys,
@@ -159,6 +214,9 @@ func serverKeyId() string {
 }
 
 func cleanServer(server string) string {
+	if !isHostname(server) {
+		log.Fatalf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
+	}
 	// Remove trailing slash if provided.
 	if strings.HasSuffix(server, "/") {
 		server = server[0 : len(server)-1]
@@ -170,49 +228,94 @@ func cleanServer(server string) string {
 	return server
 }
 
+// serverOrDie returns the server's URL found either as a command-line flag,
+// or as the default server in the config file.
 func serverOrDie() string {
+	if s := os.Getenv("CAMLI_SERVER"); s != "" {
+		return cleanServer(s)
+	}
 	if flagServer != "" {
-		return cleanServer(flagServer)
+		if !isHostname(flagServer) {
+			configOnce.Do(parseConfig)
+			serverConf, ok := config.Servers[flagServer]
+			if ok {
+				return serverConf.Server
+			}
+			log.Printf("%q looks like a server alias, but no such alias found in config.", flagServer)
+		} else {
+			return cleanServer(flagServer)
+		}
 	}
-	configOnce.Do(parseConfig)
-	server := cleanServer(config.server)
+	server := defaultServer()
 	if server == "" {
-		log.Fatalf("Missing or invalid \"server\" in %q", osutil.UserClientConfigPath())
+		log.Fatalf("No valid server defined with CAMLI_SERVER, or with -server, or in %q", osutil.UserClientConfigPath())
 	}
-	return server
+	return cleanServer(server)
+}
+
+func defaultServer() string {
+	configOnce.Do(parseConfig)
+	for _, serverConf := range config.Servers {
+		if serverConf.IsDefault {
+			return cleanServer(serverConf.Server)
+		}
+	}
+	return ""
+}
+
+func (c *Client) serverOrDefault() string {
+	configOnce.Do(parseConfig)
+	if c.server != "" {
+		return cleanServer(c.server)
+	}
+	return defaultServer()
 }
 
 func (c *Client) useTLS() bool {
+	// TODO(mpl): I think this might be wrong, because sometimes c.server is not the one being used?
 	return strings.HasPrefix(c.server, "https://")
 }
 
 // SetupAuth sets the client's authMode from the client
 // configuration file or from the environment.
 func (c *Client) SetupAuth() error {
-	if flagServer != "" {
-		// If using an explicit blobserver, don't use auth
-		// configured from the config file, so we don't send
-		// our password to a friend's blobserver.
-		var err error
-		c.authMode, err = auth.FromEnv()
-		if err == auth.ErrNoAuth {
-			log.Printf("Using explicit --server parameter; not using config file auth, and no auth mode set in environment")
-		}
-		return err
+	// env var always takes precendence
+	authMode, err := auth.FromEnv()
+	if err == nil {
+		c.authMode = authMode
+		return nil
 	}
-	configOnce.Do(parseConfig)
-	var err error
-	if config == nil || config.auth == "" {
-		c.authMode, err = auth.FromEnv()
-	} else {
-		c.authMode, err = auth.FromConfig(config.auth)
+	if err != auth.ErrNoAuth {
+		return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %v", err)
 	}
+	if c.server == "" {
+		return fmt.Errorf("CAMLI_AUTH not set and no server defined: can not set up auth.")
+	}
+	authConf := serverAuth(c.server)
+	if authConf == "" {
+		return fmt.Errorf("Could not find auth key for server %q in config", c.server)
+	}
+	c.authMode, err = auth.FromConfig(authConf)
 	return err
+}
+
+func serverAuth(server string) string {
+	configOnce.Do(parseConfig)
+	if config == nil {
+		return ""
+	}
+	for _, serverConf := range config.Servers {
+		if serverConf.Server == server {
+			return serverConf.Auth
+		}
+	}
+	return ""
 }
 
 // SetupAuthFromString configures the clients authentication mode from
 // an explicit auth string.
 func (c *Client) SetupAuthFromString(a string) error {
+	// TODO(mpl): review the one using that (pkg/blobserver/remote/remote.go)
 	var err error
 	c.authMode, err = auth.FromConfig(a)
 	return err
@@ -229,11 +332,14 @@ func (c *Client) SecretRingFile() string {
 	if e := os.Getenv("CAMLI_SECRET_RING"); e != "" {
 		return e
 	}
+	if android.OnAndroid() {
+		panic("CAMLI_SECRET_RING should have been defined when on android")
+	}
 	configOnce.Do(parseConfig)
-	if config == nil || config.identitySecretRing == "" {
+	if config.IdentitySecretRing == "" {
 		return osutil.IdentitySecretRing()
 	}
-	return config.identitySecretRing
+	return config.IdentitySecretRing
 }
 
 func fileExists(name string) bool {
@@ -251,7 +357,7 @@ func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 
 func (c *Client) initSignerPublicKeyBlobref() {
 	configOnce.Do(parseConfig)
-	keyId := config.identity
+	keyId := config.Identity
 	if keyId == "" {
 		log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"camput init\"?", osutil.UserClientConfigPath())
 	}
@@ -292,24 +398,36 @@ func (c *Client) initSignerPublicKeyBlobref() {
 	c.publicKeyArmored = armored
 }
 
-// config[trustedCerts] is the list of trusted certificates fingerprints.
-// Case insensitive.
-// See Client.trustedCerts in client.go
-const trustedCerts = "trustedCerts"
-
 func (c *Client) initTrustedCerts() {
 	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
 		c.trustedCerts = strings.Split(e, ",")
 		return
 	}
 	c.trustedCerts = []string{}
-	configOnce.Do(parseConfig)
-	if config == nil || config.trustedCerts == nil {
+	if android.OnAndroid() {
 		return
 	}
-	for _, trustedCert := range config.trustedCerts {
+	if c.server == "" {
+		log.Printf("No server defined: can not define trustedCerts for this client.")
+		return
+	}
+	trustedCerts := serverTrustedCerts(c.server)
+	if trustedCerts == nil {
+		return
+	}
+	for _, trustedCert := range trustedCerts {
 		c.trustedCerts = append(c.trustedCerts, strings.ToLower(trustedCert))
 	}
+}
+
+func serverTrustedCerts(server string) []string {
+	configOnce.Do(parseConfig)
+	for _, serverConf := range config.Servers {
+		if serverConf.Server == server {
+			return serverConf.TrustedCerts
+		}
+	}
+	return nil
 }
 
 func (c *Client) getTrustedCerts() []string {
@@ -317,22 +435,17 @@ func (c *Client) getTrustedCerts() []string {
 	return c.trustedCerts
 }
 
-// config[ignoredFiles] is the list of files that camput should ignore
-// and not try to upload.
-// See Client.ignoredFiles in client.go
-const ignoredFiles = "ignoredFiles"
-
 func (c *Client) initIgnoredFiles() {
 	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
 		c.ignoredFiles = strings.Split(e, ",")
 		return
 	}
 	c.ignoredFiles = []string{}
-	configOnce.Do(parseConfig)
-	if config == nil || config.ignoredFiles == nil {
+	if android.OnAndroid() {
 		return
 	}
-	c.ignoredFiles = config.ignoredFiles
+	configOnce.Do(parseConfig)
+	c.ignoredFiles = config.IgnoredFiles
 }
 
 func (c *Client) getIgnoredFiles() []string {
