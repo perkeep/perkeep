@@ -476,6 +476,64 @@ func TestQueryPermanodeAttrValueInSet(t *testing.T) {
 	})
 }
 
+// Tests PermanodeConstraint.ValueMatchesInt.
+func TestQueryPermanodeValueMatchesInt(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+		p4 := id.NewPlannedPermanode("4")
+		p5 := id.NewPlannedPermanode("5")
+		id.SetAttribute(p1, "x", "-5")
+		id.SetAttribute(p2, "x", "0")
+		id.SetAttribute(p3, "x", "2")
+		id.SetAttribute(p4, "x", "10.0")
+		id.SetAttribute(p5, "x", "abc")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "x",
+					ValueMatchesInt: &IntConstraint{
+						Min: -2,
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p2, p3)
+	})
+}
+
+// Tests PermanodeConstraint.ValueMatchesFloat.
+func TestQueryPermanodeValueMatchesFloat(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+		p4 := id.NewPlannedPermanode("4")
+		id.SetAttribute(p1, "x", "2.5")
+		id.SetAttribute(p2, "x", "5.7")
+		id.SetAttribute(p3, "x", "10")
+		id.SetAttribute(p4, "x", "abc")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "x",
+					ValueMatchesFloat: &FloatConstraint{
+						Max: 6.0,
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p2)
+	})
+}
+
 // find permanodes matching a certain file query
 func TestQueryFileConstraint(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {

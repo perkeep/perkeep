@@ -388,7 +388,7 @@ func (c *IntConstraint) intMatches(v int64) bool {
 	return true
 }
 
-// A FloatConstraint specifies constraints on an integer.
+// A FloatConstraint specifies constraints on a float.
 type FloatConstraint struct {
 	// Min and Max are both optional and inclusive bounds.
 	// Zero means don't check.
@@ -573,6 +573,14 @@ type PermanodeConstraint struct {
 	// ValueMatches optionally specifies a StringConstraint to
 	// match the value against.
 	ValueMatches *StringConstraint `json:"valueMatches,omitempty"`
+
+	// ValueMatchesInt optionally specifies an IntConstraint to match
+	// the value against. Non-integer values will not match.
+	ValueMatchesInt *IntConstraint `json:"valueMatchesInt,omitempty"`
+
+	// ValueMatchesFloat optionally specifies a FloatConstraint to match
+	// the value against. Non-float values will not match.
+	ValueMatchesFloat *FloatConstraint `json:"valueMatchesFloat,omitempty"`
 
 	// ValueInSet optionally specifies a sub-query which the value
 	// (which must be a blobref) must be a part of.
@@ -1008,11 +1016,15 @@ var numPermanodeFields = reflect.TypeOf(PermanodeConstraint{}).NumField()
 // hasValueConstraint returns true if one or more constraints that check an attribute's value are set.
 func (c *PermanodeConstraint) hasValueConstraint() bool {
 	// If a field has been added or removed, update this after adding the new field to the return statement if necessary.
-	const expectedFields = 12
+	const expectedFields = 14
 	if numPermanodeFields != expectedFields {
 		panic(fmt.Sprintf("PermanodeConstraint field count changed (now %v rather than %v)", numPermanodeFields, expectedFields))
 	}
-	return c.Value != "" || c.ValueMatches != nil || c.ValueInSet != nil
+	return c.Value != "" ||
+		c.ValueMatches != nil ||
+		c.ValueMatchesInt != nil ||
+		c.ValueMatchesFloat != nil ||
+		c.ValueInSet != nil
 }
 
 func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
@@ -1144,6 +1156,16 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bo
 	}
 	if c.ValueMatches != nil && !c.ValueMatches.stringMatches(val) {
 		return false, nil
+	}
+	if c.ValueMatchesInt != nil {
+		if i, err := strconv.ParseInt(val, 10, 64); err != nil || !c.ValueMatchesInt.intMatches(i) {
+			return false, nil
+		}
+	}
+	if c.ValueMatchesFloat != nil {
+		if f, err := strconv.ParseFloat(val, 64); err != nil || !c.ValueMatchesFloat.floatMatches(f) {
+			return false, nil
+		}
 	}
 	if subc := c.ValueInSet; subc != nil {
 		br, ok := blob.Parse(val) // TODO: use corpus's parse, or keep this as blob.Ref in corpus attr
