@@ -165,6 +165,13 @@ goog.Timer.prototype.tick_ = function() {
       return;
     }
 
+    // Prevents setInterval from registering a duplicate timeout when called
+    // in the timer event handler.
+    if (this.timer_) {
+      this.timerObject_.clearTimeout(this.timer_);
+      this.timer_ = null;
+    }
+
     this.dispatchTick();
     // The timer could be stopped in the timer event handler.
     if (this.enabled) {
@@ -245,10 +252,12 @@ goog.Timer.TICK = 'tick';
  * is a common trick to schedule a function to run after a batch of browser
  * event processing.
  *
- * @param {Function} listener Function or object that has a handleEvent method.
+ * @param {function(this:SCOPE)|{handleEvent:function()}|null} listener Function
+ *     or object that has a handleEvent method.
  * @param {number=} opt_delay Milliseconds to wait; default is 0.
- * @param {Object=} opt_handler Object in whose scope to call the listener.
+ * @param {SCOPE=} opt_handler Object in whose scope to call the listener.
  * @return {number} A handle to the timer ID.
+ * @template SCOPE
  */
 goog.Timer.callOnce = function(listener, opt_delay, opt_handler) {
   if (goog.isFunction(listener)) {

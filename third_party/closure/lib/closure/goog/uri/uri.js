@@ -21,7 +21,7 @@
  * e.g: <code>var myUri = new goog.Uri(window.location);</code>
  *
  * Implements RFC 3986 for parsing/formatting URIs.
- * http://gbiv.com/protocols/uri/rfc/rfc3986.html
+ * http://www.ietf.org/rfc/rfc3986.txt
  *
  * Some changes have been made to the interface (more like .NETs), though the
  * internal representation is now of un-encoded parts, this will change the
@@ -38,6 +38,7 @@ goog.require('goog.structs');
 goog.require('goog.structs.Map');
 goog.require('goog.uri.utils');
 goog.require('goog.uri.utils.ComponentIndex');
+goog.require('goog.uri.utils.StandardQueryParam');
 
 
 
@@ -1020,6 +1021,7 @@ goog.Uri.haveSameDomain = function(uri1String, uri2String) {
  * @param {boolean=} opt_ignoreCase If true, ignore the case of the parameter
  *     name in #get.
  * @constructor
+ * @final
  */
 goog.Uri.QueryData = function(opt_query, opt_uri, opt_ignoreCase) {
   /**
@@ -1276,7 +1278,7 @@ goog.Uri.QueryData.prototype.getKeys = function() {
 goog.Uri.QueryData.prototype.getValues = function(opt_key) {
   this.ensureKeyMapInitialized_();
   var rv = [];
-  if (opt_key) {
+  if (goog.isString(opt_key)) {
     if (this.containsKey(opt_key)) {
       rv = goog.array.concat(rv, this.keyMap_.get(this.getKeyName_(opt_key)));
     }

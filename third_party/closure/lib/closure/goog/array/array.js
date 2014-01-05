@@ -39,7 +39,7 @@ goog.require('goog.asserts');
  * Setting goog.TRUSTED_SITE to false will automatically set
  * NATIVE_ARRAY_PROTOTYPES to false.
  */
-goog.NATIVE_ARRAY_PROTOTYPES = goog.TRUSTED_SITE;
+goog.define('goog.NATIVE_ARRAY_PROTOTYPES', goog.TRUSTED_SITE);
 
 
 /**
@@ -50,8 +50,9 @@ goog.array.ArrayLike;
 
 /**
  * Returns the last element in an array without removing it.
- * @param {goog.array.ArrayLike} array The array.
- * @return {*} Last item in array.
+ * @param {Array.<T>|goog.array.ArrayLike} array The array.
+ * @return {T} Last item in array.
+ * @template T
  */
 goog.array.peek = function(array) {
   return array[array.length - 1];
@@ -73,16 +74,17 @@ goog.array.ARRAY_PROTOTYPE_ = Array.prototype;
 
 
 /**
- * Returns the index of the first element of an array with a specified
- * value, or -1 if the element is not present in the array.
+ * Returns the index of the first element of an array with a specified value, or
+ * -1 if the element is not present in the array.
  *
  * See {@link http://tinyurl.com/developer-mozilla-org-array-indexof}
  *
- * @param {goog.array.ArrayLike} arr The array to be searched.
- * @param {*} obj The object for which we are searching.
+ * @param {Array.<T>|goog.array.ArrayLike} arr The array to be searched.
+ * @param {T} obj The object for which we are searching.
  * @param {number=} opt_fromIndex The index at which to start the search. If
  *     omitted the search starts at index 0.
  * @return {number} The index of the first matching array element.
+ * @template T
  */
 goog.array.indexOf = goog.NATIVE_ARRAY_PROTOTYPES &&
                      goog.array.ARRAY_PROTOTYPE_.indexOf ?
@@ -118,11 +120,12 @@ goog.array.indexOf = goog.NATIVE_ARRAY_PROTOTYPES &&
  *
  * See {@link http://tinyurl.com/developer-mozilla-org-array-lastindexof}
  *
- * @param {goog.array.ArrayLike} arr The array to be searched.
- * @param {*} obj The object for which we are searching.
+ * @param {!Array.<T>|!goog.array.ArrayLike} arr The array to be searched.
+ * @param {T} obj The object for which we are searching.
  * @param {?number=} opt_fromIndex The index at which to start the search. If
  *     omitted the search starts at the end of the array.
  * @return {number} The index of the last matching array element.
+ * @template T
  */
 goog.array.lastIndexOf = goog.NATIVE_ARRAY_PROTOTYPES &&
                          goog.array.ARRAY_PROTOTYPE_.lastIndexOf ?
@@ -227,8 +230,8 @@ goog.array.forEachRight = function(arr, f, opt_obj) {
  *     result array. If it is false the element is not included.
  * @param {S=} opt_obj The object to be used as the value of 'this'
  *     within f.
- * @return {!Array} a new array in which only elements that passed the test are
- *     present.
+ * @return {!Array.<T>} a new array in which only elements that passed the test
+ *     are present.
  * @template T,S
  */
 goog.array.filter = goog.NATIVE_ARRAY_PROTOTYPES &&
@@ -316,20 +319,22 @@ goog.array.map = goog.NATIVE_ARRAY_PROTOTYPES &&
  * @return {R} Result of evaluating f repeatedly across the values of the array.
  * @template T,S,R
  */
-goog.array.reduce = function(arr, f, val, opt_obj) {
-  if (arr.reduce) {
-    if (opt_obj) {
-      return arr.reduce(goog.bind(f, opt_obj), val);
-    } else {
-      return arr.reduce(f, val);
-    }
-  }
-  var rval = val;
-  goog.array.forEach(arr, function(val, index) {
-    rval = f.call(opt_obj, rval, val, index, arr);
-  });
-  return rval;
-};
+goog.array.reduce = goog.NATIVE_ARRAY_PROTOTYPES &&
+                    goog.array.ARRAY_PROTOTYPE_.reduce ?
+    function(arr, f, val, opt_obj) {
+      goog.asserts.assert(arr.length != null);
+      if (opt_obj) {
+        f = goog.bind(f, opt_obj);
+      }
+      return goog.array.ARRAY_PROTOTYPE_.reduce.call(arr, f, val);
+    } :
+    function(arr, f, val, opt_obj) {
+      var rval = val;
+      goog.array.forEach(arr, function(val, index) {
+        rval = f.call(opt_obj, rval, val, index, arr);
+      });
+      return rval;
+    };
 
 
 /**
@@ -358,20 +363,22 @@ goog.array.reduce = function(arr, f, val, opt_obj) {
  *     values of the array.
  * @template T,S,R
  */
-goog.array.reduceRight = function(arr, f, val, opt_obj) {
-  if (arr.reduceRight) {
-    if (opt_obj) {
-      return arr.reduceRight(goog.bind(f, opt_obj), val);
-    } else {
-      return arr.reduceRight(f, val);
-    }
-  }
-  var rval = val;
-  goog.array.forEachRight(arr, function(val, index) {
-    rval = f.call(opt_obj, rval, val, index, arr);
-  });
-  return rval;
-};
+goog.array.reduceRight = goog.NATIVE_ARRAY_PROTOTYPES &&
+                         goog.array.ARRAY_PROTOTYPE_.reduceRight ?
+    function(arr, f, val, opt_obj) {
+      goog.asserts.assert(arr.length != null);
+      if (opt_obj) {
+        f = goog.bind(f, opt_obj);
+      }
+      return goog.array.ARRAY_PROTOTYPE_.reduceRight.call(arr, f, val);
+    } :
+    function(arr, f, val, opt_obj) {
+      var rval = val;
+      goog.array.forEachRight(arr, function(val, index) {
+        rval = f.call(opt_obj, rval, val, index, arr);
+      });
+      return rval;
+    };
 
 
 /**
@@ -655,9 +662,11 @@ goog.array.insertBefore = function(arr, obj, opt_obj2) {
 
 /**
  * Removes the first occurrence of a particular value from an array.
- * @param {goog.array.ArrayLike} arr Array from which to remove value.
- * @param {*} obj Object to remove.
+ * @param {Array.<T>|goog.array.ArrayLike} arr Array from which to remove
+ *     value.
+ * @param {T} obj Object to remove.
  * @return {boolean} True if an element was removed.
+ * @template T
  */
 goog.array.remove = function(arr, obj) {
   var i = goog.array.indexOf(arr, obj);
@@ -822,15 +831,16 @@ goog.array.extend = function(arr1, var_args) {
  * splice. This means that it might work on other objects similar to arrays,
  * such as the arguments object.
  *
- * @param {goog.array.ArrayLike} arr The array to modify.
+ * @param {Array.<T>|goog.array.ArrayLike} arr The array to modify.
  * @param {number|undefined} index The index at which to start changing the
  *     array. If not defined, treated as 0.
  * @param {number} howMany How many elements to remove (0 means no removal. A
  *     value below 0 is treated as zero and so is any other non number. Numbers
  *     are floored).
- * @param {...*} var_args Optional, additional elements to insert into the
+ * @param {...T} var_args Optional, additional elements to insert into the
  *     array.
- * @return {!Array} the removed elements.
+ * @return {!Array.<T>} the removed elements.
+ * @template T
  */
 goog.array.splice = function(arr, index, howMany, var_args) {
   goog.asserts.assert(arr.length != null);
@@ -876,27 +886,36 @@ goog.array.slice = function(arr, start, opt_end) {
  * For objects, duplicates are identified as having the same unique ID as
  * defined by {@link goog.getUid}.
  *
+ * Alternatively you can specify a custom hash function that returns a unique
+ * value for each item in the array it should consider unique.
+ *
  * Runtime: N,
  * Worstcase space: 2N (no dupes)
  *
- * @param {goog.array.ArrayLike} arr The array from which to remove duplicates.
+ * @param {Array.<T>|goog.array.ArrayLike} arr The array from which to remove
+ *     duplicates.
  * @param {Array=} opt_rv An optional array in which to return the results,
  *     instead of performing the removal inplace.  If specified, the original
  *     array will remain unchanged.
+ * @param {function(T):string=} opt_hashFn An optional function to use to
+ *     apply to every item in the array. This function should return a unique
+ *     value for each item in the array it should consider unique.
+ * @template T
  */
-goog.array.removeDuplicates = function(arr, opt_rv) {
+goog.array.removeDuplicates = function(arr, opt_rv, opt_hashFn) {
   var returnArray = opt_rv || arr;
+  var defaultHashFn = function(item) {
+    // Prefix each type with a single character representing the type to
+    // prevent conflicting keys (e.g. true and 'true').
+    return goog.isObject(current) ? 'o' + goog.getUid(current) :
+        (typeof current).charAt(0) + current;
+  };
+  var hashFn = opt_hashFn || defaultHashFn;
 
   var seen = {}, cursorInsert = 0, cursorRead = 0;
   while (cursorRead < arr.length) {
     var current = arr[cursorRead++];
-
-    // Prefix each type with a single character representing the type to
-    // prevent conflicting keys (e.g. true and 'true').
-    var key = goog.isObject(current) ?
-        'o' + goog.getUid(current) :
-        (typeof current).charAt(0) + current;
-
+    var key = hashFn(current);
     if (!Object.prototype.hasOwnProperty.call(seen, key)) {
       seen[key] = true;
       returnArray[cursorInsert++] = current;
@@ -1258,22 +1277,23 @@ goog.array.binaryRemove = function(array, value, opt_compareFn) {
 /**
  * Splits an array into disjoint buckets according to a splitting function.
  * @param {Array.<T>} array The array.
- * @param {function(T,number,Array.<T>):?} sorter Function to call for every
- *     element.  This
- *     takes 3 arguments (the element, the index and the array) and must
- *     return a valid object key (a string, number, etc), or undefined, if
- *     that object should not be placed in a bucket.
+ * @param {function(this:S, T,number,Array.<T>):?} sorter Function to call for
+ *     every element.  This takes 3 arguments (the element, the index and the
+ *     array) and must return a valid object key (a string, number, etc), or
+ *     undefined, if that object should not be placed in a bucket.
+ * @param {S=} opt_obj The object to be used as the value of 'this' within
+ *     sorter.
  * @return {!Object} An object, with keys being all of the unique return values
  *     of sorter, and values being arrays containing the items for
  *     which the splitter returned that key.
- * @template T
+ * @template T,S
  */
-goog.array.bucket = function(array, sorter) {
+goog.array.bucket = function(array, sorter, opt_obj) {
   var buckets = {};
 
   for (var i = 0; i < array.length; i++) {
     var value = array[i];
-    var key = sorter(value, i, array);
+    var key = sorter.call(opt_obj, value, i, array);
     if (goog.isDef(key)) {
       // Push the value to the right bucket, creating it if necessary.
       var bucket = buckets[key] || (buckets[key] = []);
@@ -1296,7 +1316,7 @@ goog.array.bucket = function(array, sorter) {
  *     key for the element in the new object. If the function returns the same
  *     key for more than one element, the value for that key is
  *     implementation-defined.
- * @param {S=} opt_obj  The object to be used as the value of 'this'
+ * @param {S=} opt_obj The object to be used as the value of 'this'
  *     within keyFunc.
  * @return {!Object.<T>} The new object.
  * @template T,S
@@ -1307,6 +1327,54 @@ goog.array.toObject = function(arr, keyFunc, opt_obj) {
     ret[keyFunc.call(opt_obj, element, index, arr)] = element;
   });
   return ret;
+};
+
+
+/**
+ * Creates a range of numbers in an arithmetic progression.
+ *
+ * Range takes 1, 2, or 3 arguments:
+ * <pre>
+ * range(5) is the same as range(0, 5, 1) and produces [0, 1, 2, 3, 4]
+ * range(2, 5) is the same as range(2, 5, 1) and produces [2, 3, 4]
+ * range(-2, -5, -1) produces [-2, -3, -4]
+ * range(-2, -5, 1) produces [], since stepping by 1 wouldn't ever reach -5.
+ * </pre>
+ *
+ * @param {number} startOrEnd The starting value of the range if an end argument
+ *     is provided. Otherwise, the start value is 0, and this is the end value.
+ * @param {number=} opt_end The optional end value of the range.
+ * @param {number=} opt_step The step size between range values. Defaults to 1
+ *     if opt_step is undefined or 0.
+ * @return {!Array.<number>} An array of numbers for the requested range. May be
+ *     an empty array if adding the step would not converge toward the end
+ *     value.
+ */
+goog.array.range = function(startOrEnd, opt_end, opt_step) {
+  var array = [];
+  var start = 0;
+  var end = startOrEnd;
+  var step = opt_step || 1;
+  if (opt_end !== undefined) {
+    start = startOrEnd;
+    end = opt_end;
+  }
+
+  if (step * (end - start) < 0) {
+    // Sign mismatch: start + step will never reach the end value.
+    return [];
+  }
+
+  if (step > 0) {
+    for (var i = start; i < end; i += step) {
+      array.push(i);
+    }
+  } else {
+    for (var i = start; i > end; i += step) {
+      array.push(i);
+    }
+  }
+  return array;
 };
 
 
@@ -1373,6 +1441,28 @@ goog.array.rotate = function(array, n) {
     }
   }
   return array;
+};
+
+
+/**
+ * Moves one item of an array to a new position keeping the order of the rest
+ * of the items. Example use case: keeping a list of JavaScript objects
+ * synchronized with the corresponding list of DOM elements after one of the
+ * elements has been dragged to a new position.
+ * @param {!(Array|Arguments|{length:number})} arr The array to modify.
+ * @param {number} fromIndex Index of the item to move between 0 and
+ *     {@code arr.length - 1}.
+ * @param {number} toIndex Target index between 0 and {@code arr.length - 1}.
+ */
+goog.array.moveItem = function(arr, fromIndex, toIndex) {
+  goog.asserts.assert(fromIndex >= 0 && fromIndex < arr.length);
+  goog.asserts.assert(toIndex >= 0 && toIndex < arr.length);
+  // Remove 1 item at fromIndex.
+  var removedItems = goog.array.ARRAY_PROTOTYPE_.splice.call(arr, fromIndex, 1);
+  // Insert the removed item at toIndex.
+  goog.array.ARRAY_PROTOTYPE_.splice.call(arr, toIndex, 0, removedItems[0]);
+  // We don't use goog.array.insertAt and goog.array.removeAt, because they're
+  // significantly slower than splice.
 };
 
 

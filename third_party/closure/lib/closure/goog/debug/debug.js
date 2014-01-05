@@ -26,6 +26,10 @@ goog.require('goog.structs.Set');
 goog.require('goog.userAgent');
 
 
+/** @define {boolean} Whether logging should be enabled. */
+goog.define('goog.debug.LOGGING_ENABLED', goog.DEBUG);
+
+
 /**
  * Catches onerror events fired by windows and similar objects.
  * @param {function(Object)} logFunc The function to call with the error
@@ -44,17 +48,48 @@ goog.debug.catchErrors = function(logFunc, opt_cancel, opt_target) {
   // workaround still needs to be skipped in Safari after the webkit change
   // gets pushed out in Safari.
   // See https://bugs.webkit.org/show_bug.cgi?id=67119
-  if (goog.userAgent.WEBKIT && !goog.userAgent.isVersion('535.3')) {
+  if (goog.userAgent.WEBKIT &&
+      !goog.userAgent.isVersionOrHigher('535.3')) {
     retVal = !retVal;
   }
-  target.onerror = function(message, url, line) {
+
+  /**
+   * New onerror handler for this target. This onerror handler follows the spec
+   * according to
+   * http://www.whatwg.org/specs/web-apps/current-work/#runtime-script-errors
+   * The spec was changed in August 2013 to support receiving column information
+   * and an error object for all scripts on the same origin or cross origin
+   * scripts with the proper headers. See
+   * https://mikewest.org/2013/08/debugging-runtime-errors-with-window-onerror
+   *
+   * @param {string} message The error message. For cross-origin errors, this
+   *     will be scrubbed to just "Script error.". For new browsers that have
+   *     updated to follow the latest spec, errors that come from origins that
+   *     have proper cross origin headers will not be scrubbed.
+   * @param {string} url The URL of the script that caused the error. The URL
+   *     will be scrubbed to "" for cross origin scripts unless the script has
+   *     proper cross origin headers and the browser has updated to the latest
+   *     spec.
+   * @param {number} line The line number in the script that the error
+   *     occurred on.
+   * @param {number=} opt_col The optional column number that the error
+   *     occurred on. Only browsers that have updated to the latest spec will
+   *     include this.
+   * @param {Error=} opt_error The optional actual error object for this
+   *     error that should include the stack. Only browsers that have updated
+   *     to the latest spec will inlude this parameter.
+   * @return {boolean} Whether to prevent the error from reaching the browser.
+   */
+  target.onerror = function(message, url, line, opt_col, opt_error) {
     if (oldErrorHandler) {
-      oldErrorHandler(message, url, line);
+      oldErrorHandler(message, url, line, opt_col, opt_error);
     }
     logFunc({
       message: message,
       fileName: url,
-      line: line
+      line: line,
+      col: opt_col,
+      error: opt_error
     });
     return retVal;
   };
@@ -232,7 +267,10 @@ goog.debug.normalizeErrorObject = function(err) {
   }
 
   try {
-    fileName = err.fileName || err.filename || err.sourceURL || href;
+    fileName = err.fileName || err.filename || err.sourceURL ||
+        // $googDebugFname may be set before a call to eval to set the filename
+        // that the eval is supposed to present.
+        goog.global['$googDebugFname'] || href;
   } catch (e) {
     // Firefox 2 may also throw an error when accessing 'filename'.
     fileName = 'Not available';
@@ -241,10 +279,11 @@ goog.debug.normalizeErrorObject = function(err) {
 
   // The IE Error object contains only the name and the message.
   // The Safari Error object uses the line and sourceURL fields.
-  if (threwError || !err.lineNumber || !err.fileName || !err.stack) {
+  if (threwError || !err.lineNumber || !err.fileName || !err.stack ||
+      !err.message || !err.name) {
     return {
-      'message': err.message,
-      'name': err.name,
+      'message': err.message || 'Not available',
+      'name': err.name || 'UnknownError',
       'lineNumber': lineNumber,
       'fileName': fileName,
       'stack': err.stack || 'Not available'

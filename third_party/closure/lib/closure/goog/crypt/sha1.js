@@ -40,6 +40,7 @@ goog.require('goog.crypt.Hash');
  * The properties declared here are discussed in the above algorithm document.
  * @constructor
  * @extends {goog.crypt.Hash}
+ * @final
  */
 goog.crypt.Sha1 = function() {
   goog.base(this);
@@ -113,17 +114,27 @@ goog.crypt.Sha1.prototype.compress_ = function(buf, opt_offset) {
   // get 16 big endian words
   if (goog.isString(buf)) {
     for (var i = 0; i < 16; i++) {
-      W[i] = (buf.charCodeAt(opt_offset++) << 24) |
-             (buf.charCodeAt(opt_offset++) << 16) |
-             (buf.charCodeAt(opt_offset++) << 8) |
-             (buf.charCodeAt(opt_offset++));
+      // TODO(user): [bug 8140122] Recent versions of Safari for Mac OS and iOS
+      // have a bug that turns the post-increment ++ operator into pre-increment
+      // during JIT compilation.  We have code that depends heavily on SHA-1 for
+      // correctness and which is affected by this bug, so I've removed all uses
+      // of post-increment ++ in which the result value is used.  We can revert
+      // this change once the Safari bug
+      // (https://bugs.webkit.org/show_bug.cgi?id=109036) has been fixed and
+      // most clients have been updated.
+      W[i] = (buf.charCodeAt(opt_offset) << 24) |
+             (buf.charCodeAt(opt_offset + 1) << 16) |
+             (buf.charCodeAt(opt_offset + 2) << 8) |
+             (buf.charCodeAt(opt_offset + 3));
+      opt_offset += 4;
     }
   } else {
     for (var i = 0; i < 16; i++) {
-      W[i] = (buf[opt_offset++] << 24) |
-             (buf[opt_offset++] << 16) |
-             (buf[opt_offset++] << 8) |
-             (buf[opt_offset++]);
+      W[i] = (buf[opt_offset] << 24) |
+             (buf[opt_offset + 1] << 16) |
+             (buf[opt_offset + 2] << 8) |
+             (buf[opt_offset + 3]);
+      opt_offset += 4;
     }
   }
 
@@ -203,7 +214,9 @@ goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
 
     if (goog.isString(bytes)) {
       while (n < opt_length) {
-        buf[inbuf++] = bytes.charCodeAt(n++);
+        buf[inbuf] = bytes.charCodeAt(n);
+        ++inbuf;
+        ++n;
         if (inbuf == 64) {
           this.compress_(buf);
           inbuf = 0;
@@ -213,7 +226,9 @@ goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
       }
     } else {
       while (n < opt_length) {
-        buf[inbuf++] = bytes[n++];
+        buf[inbuf] = bytes[n];
+        ++inbuf;
+        ++n;
         if (inbuf == 64) {
           this.compress_(buf);
           inbuf = 0;
@@ -252,7 +267,8 @@ goog.crypt.Sha1.prototype.digest = function() {
   var n = 0;
   for (var i = 0; i < 5; i++) {
     for (var j = 24; j >= 0; j -= 8) {
-      digest[n++] = (this.chain_[i] >> j) & 255;
+      digest[n] = (this.chain_[i] >> j) & 255;
+      ++n;
     }
   }
 
