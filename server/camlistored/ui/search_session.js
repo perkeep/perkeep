@@ -59,11 +59,19 @@ SearchSession.SEARCH_SESSION_CHANGE_TYPE = {
 	UPDATE: 3
 };
 
-// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-// TODO(aa): Change describe to just return aspect directly.
-SearchSession.prototype.THUMBNAIL_SIZE_ = 1000;
-
 SearchSession.prototype.PAGE_SIZE_ = 50;
+
+SearchSession.DESCRIBE_REQUEST = {
+	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
+	// TODO(aa): Change describe to just return aspect directly.
+	thumbnailSize: 1000,
+
+	// TODO(aa): This is not great. The describe request will still return tons of data we don't care about:
+	// - Children of folders
+	// - Properties we don't use
+	// See: https://code.google.com/p/camlistore/issues/detail?id=319
+	depth: 2
+};
 
 SearchSession.instanceCount_ = 0;
 
@@ -119,10 +127,7 @@ SearchSession.prototype.initSocketUri_ = function(currentUri) {
 };
 
 SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken) {
-	var describe = {
-		thumbnailSize: this.THUMBNAIL_SIZE_
-	};
-	return this.connection_.search.bind(this.connection_, this.query_, describe, this.PAGE_SIZE_, opt_continuationToken,
+	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, this.PAGE_SIZE_, opt_continuationToken,
 		this.searchDone_.bind(this, changeType));
 };
 
@@ -158,10 +163,7 @@ SearchSession.prototype.startSocketQuery_ = function() {
 		this.socket_.close();
 	}
 
-	var describe = {
-		thumbnailSize: this.THUMBNAIL_SIZE_
-	};
-	var query = this.connection_.buildQuery(this.query_, describe, this.data_.blobs.length);
+	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, this.data_.blobs.length);
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {
