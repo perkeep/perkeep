@@ -7,13 +7,14 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "LACamliClient.h"
 
-@class LACamliClient,ProgressViewController;
+@class ProgressViewController;
 
-@interface LAViewController : UIViewController
+@interface LAViewController : UIViewController <UITableViewDataSource,UITableViewDelegate,LACamliStatusDelegate>
 
-@property LACamliClient *client;
-@property IBOutlet UITextView *logtext;
+@property IBOutlet UITableView *table;
+@property NSMutableArray *operations;
 @property ProgressViewController *progress;
 
 - (void)dismissSettings;

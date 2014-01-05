@@ -13,6 +13,7 @@
 #import <AssetsLibrary/AssetsLibrary.h>
 #import <HockeySDK/HockeySDK.h>
 
+
 @implementation LAAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
@@ -20,6 +21,8 @@
     [[BITHockeyManager sharedHockeyManager] configureWithIdentifier:@"de94cf9f0f0ad2ea0b19b2ad18ebe11f"
                                                            delegate:self];
     [[BITHockeyManager sharedHockeyManager] startManager];
+    [[BITHockeyManager sharedHockeyManager].updateManager setDelegate:self];
+    [[BITHockeyManager sharedHockeyManager].updateManager checkForUpdate];
 
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
@@ -29,11 +32,16 @@
 
     self.library = [[ALAssetsLibrary alloc] init];
 
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:nil usingBlock:^(NSNotification *note) {
-        [UIApplication sharedApplication].applicationIconBadgeNumber = [note.userInfo[@"remain"] intValue];
-    }];
-
     return YES;
+}
+
+- (NSString *)customDeviceIdentifierForUpdateManager:(BITUpdateManager *)updateManager
+{
+    if ([[UIDevice currentDevice] respondsToSelector:@selector(uniqueIdentifier)]) {
+        return [[UIDevice currentDevice] performSelector:@selector(uniqueIdentifier)];
+    }
+
+    return nil;
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations
@@ -52,8 +60,15 @@
     }
 
     if (serverURL && username && password) {
-        [LACamliUtil logText:@"found credentials"];
+        [LACamliUtil statusText:@[@"found credentials"]];
+        [LACamliUtil logText:@[@"found credentials"]];
         self.client = [[LACamliClient alloc] initWithServer:serverURL username:username andPassword:password];
+
+        // TODO there must be a better way to get the current instance of this
+        LAViewController *mainView = (LAViewController *)[(UINavigationController *)self.window.rootViewController topViewController];
+        [self.client setDelegate:mainView];
+    } else {
+        [LACamliUtil statusText:@[@"credentials or server not found"]];
     }
 
     [self checkForUploads];
@@ -61,40 +76,42 @@
 
 - (void)checkForUploads
 {
-    UIBackgroundTaskIdentifier assetCheckID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"assetCheck" expirationHandler:^{
-        LALog(@"asset check task expired");
-    }];
-
     if (self.client && [self.client readyToUpload]) {
         NSInteger __block filesToUpload = 0;
 
-        [LACamliUtil logText:@"starting file sweep..."];
-        __block LAAppDelegate *weakSelf = self;
-        [self.library enumerateGroupsWithTypes:ALAssetsGroupSavedPhotos usingBlock:^(ALAssetsGroup *group, BOOL *stop) {
-            [group enumerateAssetsUsingBlock:^(ALAsset *result, NSUInteger index, BOOL *stop) {
+        [LACamliUtil statusText:@[@"looking for new files..."]];
 
-                if (result && [result valueForProperty:ALAssetPropertyType] != ALAssetTypeVideo) { // enumerate returns null after the last item
-                    LACamliFile *file = [[LACamliFile alloc] initWithAsset:result];
+        // checking all assets can take some time
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [self.library enumerateGroupsWithTypes:ALAssetsGroupSavedPhotos usingBlock:^(ALAssetsGroup *group, BOOL *stop) {
 
-                    if (![weakSelf.client fileAlreadyUploaded:file]) {
-                        filesToUpload++;
-                        LALog(@"found %d files",filesToUpload);
-                        [LACamliUtil logText:[NSString stringWithFormat:@"found %d files",filesToUpload]];
-                        [weakSelf.client addFile:file withCompletion:nil];
-                    } else {
-                        LALog(@"file already uploaded: %@",file.blobRef);
+                [group enumerateAssetsUsingBlock:^(ALAsset *result, NSUInteger index, BOOL *stop) {
+                    if (result && [result valueForProperty:ALAssetPropertyType] != ALAssetTypeVideo) { // enumerate returns null after the last item
+                        LACamliFile *file = [[LACamliFile alloc] initWithAsset:result];
+
+                        if (![_client fileAlreadyUploaded:file]) {
+                            filesToUpload++;
+                            LALog(@"found %ld files",(long)filesToUpload);
+                            [LACamliUtil logText:@[[NSString stringWithFormat:@"found %ld files",(long)filesToUpload]]];
+                            [_client addFile:file withCompletion:nil];
+                        } else {
+                            LALog(@"file already uploaded: %@",file.blobRef);
+                        }
                     }
+                }];
+
+                if (filesToUpload == 0) {
+                    [LACamliUtil statusText:@[@"no new files to upload"]];
                 }
+
+                [UIApplication sharedApplication].applicationIconBadgeNumber = filesToUpload;
+
+            } failureBlock:^(NSError *error) {
+                LALog(@"failed enumerate: %@",error);
+                [LACamliUtil errorText:@[@"failed enumerate: ",[error description]]];
             }];
-
-            [UIApplication sharedApplication].applicationIconBadgeNumber = filesToUpload;
-
-        } failureBlock:^(NSError *error) {
-            LALog(@"failed enumerate: %@",error);
-        }];
+        });
     }
-
-    [[UIApplication sharedApplication] endBackgroundTask:assetCheckID];
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
@@ -117,6 +134,7 @@
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
     // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    [self checkForUploads];
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application

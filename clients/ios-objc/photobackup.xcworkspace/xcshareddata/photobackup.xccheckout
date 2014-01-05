@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>79DD2B70-7262-4160-804F-F637A84D4765</string>
+	<key>IDESourceControlProjectName</key>
+	<string>photobackup</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>1AD6A32F-218B-40FF-A64E-FD2FF680305E</key>
+		<string>https://camlistore.googlesource.com/camlistore</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>clients/ios-objc/photobackup.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>1AD6A32F-218B-40FF-A64E-FD2FF680305E</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://camlistore.googlesource.com/camlistore</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>1AD6A32F-218B-40FF-A64E-FD2FF680305E</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>1AD6A32F-218B-40FF-A64E-FD2FF680305E</string>
+			<key>IDESourceControlWCCName</key>
+			<string>camlistore</string>
+		</dict>
+	</array>
+</dict>
+</plist>

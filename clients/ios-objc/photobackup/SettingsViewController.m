@@ -102,6 +102,8 @@
     [[NSUserDefaults standardUserDefaults] setObject:self.server.text forKey:CamliServerKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 
+    [LACamliUtil errorText:@[@""]];
+
     [self.parent dismissSettings];
 }
 
