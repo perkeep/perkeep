@@ -57,3 +57,41 @@ func TestStringFromBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestHasPrefixFold(t *testing.T) {
+	tests := []struct {
+		s, prefix string
+		result    bool
+	}{
+		{"camli", "CAML", true},
+		{"CAMLI", "caml", true},
+		{"cam", "Cam", true},
+		{"camli", "car", false},
+		{"caml", "camli", false},
+	}
+	for _, tt := range tests {
+		r := HasPrefixFold(tt.s, tt.prefix)
+		if r != tt.result {
+			t.Errorf("HasPrefixFold(%q, %q) returned %v", tt.s, tt.prefix, r)
+		}
+	}
+}
+
+func TestHasSuffixFold(t *testing.T) {
+	tests := []struct {
+		s, suffix string
+		result    bool
+	}{
+		{"camli", "AMLI", true},
+		{"CAMLI", "amli", true},
+		{"mli", "MLI", true},
+		{"camli", "ali", false},
+		{"amli", "camli", false},
+	}
+	for _, tt := range tests {
+		r := HasSuffixFold(tt.s, tt.suffix)
+		if r != tt.result {
+			t.Errorf("HasSuffixFold(%q, %q) returned %v", tt.s, tt.suffix, r)
+		}
+	}
+}

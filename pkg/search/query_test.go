@@ -792,6 +792,48 @@ func TestQueryPermanodeValueAll(t *testing.T) {
 	})
 }
 
+// Tests PermanodeConstraint.ValueMatches.CaseInsensitive.
+func TestQueryPermanodeValueMatchesCaseInsensitive(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+
+		id.SetAttribute(p1, "x", "Foo")
+		id.SetAttribute(p2, "x", "start")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "or",
+
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr:  "x",
+							ValueMatches: &StringConstraint{
+								Equals: "foo",
+								CaseInsensitive: true,
+							},
+						},
+					},
+
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr:  "x",
+							ValueMatches: &StringConstraint{
+								Contains: "TAR",
+								CaseInsensitive: true,
+							},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p2)
+	})
+}
+
 // permanodes tagged "foo" or those in sets where the parent
 // permanode set itself is tagged "foo".
 func TestQueryPermanodeTaggedViaParent(t *testing.T) {
