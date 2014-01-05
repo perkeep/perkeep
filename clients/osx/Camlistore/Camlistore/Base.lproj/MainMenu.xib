@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="4514" systemVersion="13A603" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="4514" systemVersion="13B42" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES">
     <dependencies>
         <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="4514"/>
     </dependencies>
@@ -44,7 +44,6 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="toggleMount:" target="494" id="y5Q-xF-GYz"/>
-                        <binding destination="L1b-50-UiS" name="value" keyPath="self.mounted" id="5Vp-VU-FWI"/>
                     </connections>
                 </menuItem>
                 <menuItem title="Open Finder Window" id="tUN-8f-LfE">
@@ -96,9 +95,10 @@
             </items>
         </menu>
         <userDefaultsController id="tDr-Bx-Vks"/>
-        <customObject id="L1b-50-UiS" customClass="FUSEManager">
+        <customObject id="L1b-50-UiS" userLabel="FUSE Manager" customClass="FUSEManager">
             <connections>
                 <outlet property="delegate" destination="494" id="mWI-nd-MCr"/>
+                <outlet property="mountMenu" destination="rTv-R4-l8s" id="OO9-DA-FBb"/>
             </connections>
         </customObject>
         <userDefaultsController representsSharedInstance="YES" id="ZuB-he-T8l"/>

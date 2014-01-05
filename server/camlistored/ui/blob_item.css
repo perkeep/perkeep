@@ -64,31 +64,6 @@
   animation: rightcolors 1.0s infinite ease-in-out;
 }
 
-@-webkit-keyframes leftcolors {
-  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-}
-
-@-webkit-keyframes rightcolors {
-  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-}
-
-@keyframes leftcolors {
-  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-}
-
-@keyframes rightcolors {
-  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
-  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
-}
-
-
 .cam-blobitem-thumb {
   display: block;
   position: relative;
@@ -170,4 +145,30 @@
 
 .cam-blobitem.goog-control-checked .checkmark {
   background-image: url('checkmark2_blue.svg');
+}
+
+/* keyframes for the loading animation, interpolates between a light and dark grey */
+/* see .cam-blobitem-progress above */
+@-webkit-keyframes leftcolors {
+  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@-webkit-keyframes rightcolors {
+  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}
+
+@keyframes leftcolors {
+  0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@keyframes rightcolors {
+  0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+  50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+  100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
 }
