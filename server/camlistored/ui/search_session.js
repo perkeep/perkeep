@@ -63,7 +63,7 @@ SearchSession.prototype.PAGE_SIZE_ = 50;
 
 SearchSession.DESCRIBE_REQUEST = {
 	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-	// TODO(aa): Change describe to just return aspect directly.
+	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
 	thumbnailSize: 1000,
 
 	// TODO(aa): This is not great. The describe request will still return tons of data we don't care about:
