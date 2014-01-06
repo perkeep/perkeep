@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -120,7 +121,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
 		sourceRoot:   conf.OptionalString("sourceRoot", ""),
 		resizeSem: syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes",
-			defaultMaxResizeBytes))),
+			constants.DefaultMaxResizeMem))),
 	}
 	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")

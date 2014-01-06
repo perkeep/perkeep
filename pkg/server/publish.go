@@ -38,7 +38,8 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
+	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/constants" // just for NewUploadHandleFromString.  move elsewhere?
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -101,7 +102,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	rootNode := conf.OptionalList("rootPermanode")
 	ph.sourceRoot = conf.OptionalString("sourceRoot", "")
-	ph.resizeSem = syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes", defaultMaxResizeBytes)))
+	ph.resizeSem = syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes", constants.DefaultMaxResizeMem)))
 	if err = conf.Validate(); err != nil {
 		return
 	}

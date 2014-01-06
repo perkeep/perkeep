@@ -44,17 +44,7 @@ import (
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
 
-const (
-	imageDebug = false
-	// This is the default maximum concurrent number of bytes we allocate for
-	// uncompressed pixel data while generating thumbnails.
-	// If a single image is larger than the configured size for an
-	// ImageHandler, we'll never successfully resize it.
-	// 256M is a max image of ~9.5kx9.5k*3.
-	// TODO(wathiede) move to pkg/constants when https://camlistore.org/r/1536
-	// lands.
-	defaultMaxResizeBytes = 256 << 20
-)
+const imageDebug = false
 
 var (
 	imageBytesServedVar  = expvar.NewInt("image-bytes-served")

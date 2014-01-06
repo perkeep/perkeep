@@ -19,9 +19,14 @@ limitations under the License.
 // This is a leaf package, without dependencies.
 package constants
 
-// MaxBlobSize is the size of a single blob in Camlistore.
-//
-// TODO: formalize this in the specs. This value of 16 MB is less than
-// App Engine's 32 MB request limit, much more than Venti's limit, and
-// much more than the ~64 KB & 256 KB chunks that the FileWriter make
+// MaxBlobSize is the max size of a single blob in Camlistore, in bytes.
 const MaxBlobSize = 16 << 20
+
+// DefaultMaxResizeMem is the default maximum number of bytes that
+// will be allocated at peak for uncompressed pixel data while
+// generating thumbnails or other resized images.
+//
+// If a single image is larger than the configured size for an
+// ImageHandler, we'll never successfully resize it.  256M is a max
+// image of ~9.5kx9.5k*3.
+const DefaultMaxResizeMem = 256 << 20
