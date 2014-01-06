@@ -100,7 +100,7 @@ func parseConfig() {
 		// An alias should never be confused with a host name,
 		// so we forbid anything looking like one.
 		if isHostname(alias) {
-			log.Fatal("Server alias %q looks like a hostname; \".\" or \";\" are not allowed.", alias)
+			log.Fatalf("Server alias %q looks like a hostname; \".\" or \";\" are not allowed.", alias)
 		}
 		serverMap, ok := vei.(map[string]interface{})
 		if !ok {
