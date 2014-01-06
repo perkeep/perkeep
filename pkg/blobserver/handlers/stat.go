@@ -25,6 +25,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/protocol"
 	"camlistore.org/pkg/httputil"
 )
 
@@ -37,6 +38,14 @@ func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {
 const maxStatBlobs = 1000
 
 func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
+	var res protocol.StatResponse
+
+	if configer, ok := storage.(blobserver.Configer); ok {
+		if conf := configer.Config(); conf != nil {
+			res.CanLongPoll = conf.CanLongPoll
+		}
+	}
+
 	needStat := map[blob.Ref]bool{}
 
 	switch req.Method {
@@ -88,7 +97,6 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		}
 	}
 
-	statRes := make([]map[string]interface{}, 0)
 	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
 
 	toStat := make([]blob.Ref, 0, len(needStat))
@@ -110,10 +118,10 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		}()
 
 		for sb := range blobch {
-			ah := make(map[string]interface{})
-			ah["blobRef"] = sb.Ref.String()
-			ah["size"] = sb.Size
-			statRes = append(statRes, ah)
+			res.Stat = append(res.Stat, &protocol.RefAndSize{
+				Ref:  sb.Ref,
+				Size: uint32(sb.Size),
+			})
 			delete(needStat, sb.Ref)
 		}
 
@@ -132,17 +140,5 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		blobserver.WaitForBlob(storage, deadline, toStat)
 	}
 
-	configer, _ := storage.(blobserver.Configer)
-	ret, err := commonUploadResponse(configer, req)
-	if err != nil {
-		httputil.ServeError(conn, req, err)
-	}
-	ret["canLongPoll"] = false
-	if configer != nil {
-		if conf := configer.Config(); conf != nil {
-			ret["canLongPoll"] = conf.CanLongPoll
-		}
-	}
-	ret["stat"] = statRes
-	httputil.ReturnJSON(conn, ret)
+	httputil.ReturnJSON(conn, &res)
 }

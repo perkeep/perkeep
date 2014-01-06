@@ -22,6 +22,9 @@ import (
 	"testing"
 )
 
+// Note: a few of the fields are here are before the protocol change
+// (camlistore.org/issue/123) but preserved to make sure we don't
+// choke on them.
 var response = `{
    "stat": [
       {"blobRef": "foo-abcd",
@@ -44,11 +47,8 @@ func TestParseStatResponse(t *testing.T) {
 	hm := res.HaveMap
 	res.HaveMap = nil
 	want := &statResponse{
-		HaveMap:                    nil,
-		maxUploadSize:              1048576,
-		uploadUrl:                  "http://upload-server.example.com/some/server-chosen/url",
-		uploadUrlExpirationSeconds: 7200,
-		canLongPoll:                true,
+		HaveMap:     nil,
+		canLongPoll: true,
 	}
 	if !reflect.DeepEqual(want, res) {
 		t.Errorf(" Got: %#v\nWant: %#v", res, want)

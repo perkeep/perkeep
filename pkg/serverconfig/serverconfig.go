@@ -84,6 +84,8 @@ type storageAndConfig struct {
 	config *blobserver.Config
 }
 
+// parseCamliPath looks for "/camli/" in the path and returns
+// what follows it (the action).
 func parseCamliPath(path string) (action string, err error) {
 	camIdx := strings.Index(path, camliPrefix)
 	if camIdx == -1 {
@@ -107,32 +109,40 @@ func (s *storageAndConfig) GetStorage() blobserver.Storage {
 	return s.Storage
 }
 
-func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger) (func(http.ResponseWriter, *http.Request), auth.Operation) {
-	handler := unsupportedHandler
+// action is the part following "/camli/" in the URL. It's either a
+// string like "enumerate-blobs", "stat", "upload", or a blobref.
+func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger) (http.Handler, auth.Operation) {
+	var handler http.Handler
 	op := auth.OpAll
 	switch req.Method {
 	case "GET", "HEAD":
 		switch action {
 		case "enumerate-blobs":
-			handler = handlers.CreateEnumerateHandler(storage).ServeHTTP
+			handler = handlers.CreateEnumerateHandler(storage)
 			op = auth.OpGet
 		case "stat":
-			handler = handlers.CreateStatHandler(storage).ServeHTTP
+			handler = handlers.CreateStatHandler(storage)
 		default:
-			handler = handlers.CreateGetHandler(storage).ServeHTTP
+			handler = handlers.CreateGetHandler(storage)
 			op = auth.OpGet
 		}
 	case "POST":
 		switch action {
 		case "stat":
-			handler = handlers.CreateStatHandler(storage).ServeHTTP
+			handler = handlers.CreateStatHandler(storage)
 			op = auth.OpStat
 		case "upload":
-			handler = handlers.CreateUploadHandler(storage).ServeHTTP
+			handler = handlers.CreateBatchUploadHandler(storage)
 			op = auth.OpUpload
 		case "remove":
-			handler = handlers.CreateRemoveHandler(storage).ServeHTTP
+			handler = handlers.CreateRemoveHandler(storage)
 		}
+	case "PUT":
+		handler = handlers.CreatePutUploadHandler(storage)
+		op = auth.OpUpload
+	}
+	if handler == nil {
+		handler = http.HandlerFunc(unsupportedHandler)
 	}
 	return handler, op
 }
@@ -167,7 +177,7 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 			return
 		}
 		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
-		handler(conn, req)
+		handler.ServeHTTP(conn, req)
 	})
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -24,28 +25,64 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/protocol"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 )
 
-// We used to require that multipart sections had a content type and
-// filename to make App Engine happy. Now that App Engine supports up
-// to 32 MB requests and programatic blob writing we can just do this
-// ourselves and stop making compromises in the spec.  Also because
-// the JavaScript FormData spec (http://www.w3.org/TR/XMLHttpRequest2/)
-// doesn't let you set those.
-const oldAppEngineHappySpec = false
+// CreateBatchUploadHandler returns the handler that receives multi-part form uploads
+// to upload many blobs at once. See doc/protocol/blob-upload-protocol.txt.
+func CreateBatchUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		handleMultiPartUpload(rw, req, storage)
+	})
+}
 
-func CreateUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
-	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(conn, req, storage)
+// CreatePutUploadHandler returns the handler that receives a single
+// blob at the blob's final URL, via the PUT method.  See
+// doc/protocol/blob-upload-protocol.txt.
+func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method != "PUT" {
+			log.Printf("Inconfigured upload handler.")
+			httputil.BadRequestError(rw, "Inconfigured handler.")
+			return
+		}
+		// For non-chunked uploads, we catch it here. For chunked uploads, it's caught
+		// by blobserver.Receive's LimitReader.
+		if req.ContentLength > blobserver.MaxBlobSize {
+			httputil.BadRequestError(rw, "blob too big")
+			return
+		}
+		blobrefStr := path.Base(req.URL.Path)
+		br, ok := blob.Parse(blobrefStr)
+		if !ok {
+			log.Printf("Invalid PUT request to %q", req.URL.Path)
+			httputil.BadRequestError(rw, "Bad path")
+			return
+		}
+		if !br.IsSupported() {
+			httputil.BadRequestError(rw, "unsupported object hash function")
+			return
+		}
+		_, err := blobserver.Receive(storage, br, req.Body)
+		if err == blobserver.ErrCorruptBlob {
+			httputil.BadRequestError(rw, "data doesn't match declared digest")
+			return
+		}
+		if err != nil {
+			httputil.ServeError(rw, req, err)
+			return
+		}
+		rw.WriteHeader(http.StatusNoContent)
 	})
 }
 
@@ -133,6 +170,8 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 }
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
+	var res protocol.UploadResponse
+
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		log.Printf("Inconfigured handler upload handler")
 		httputil.BadRequestError(conn, "Inconfigured handler.")
@@ -148,14 +187,13 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		return
 	}
 
-	var errText string
+	var errBuf bytes.Buffer
 	addError := func(s string) {
 		log.Printf("Client error: %s", s)
-		if errText == "" {
-			errText = s
-			return
+		if errBuf.Len() > 0 {
+			errBuf.WriteByte('\n')
 		}
-		errText = errText + "\n" + s
+		errBuf.WriteString(s)
 	}
 
 	for {
@@ -186,20 +224,6 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			continue
 		}
 
-		if oldAppEngineHappySpec {
-			_, hasContentType := mimePart.Header["Content-Type"]
-			if !hasContentType {
-				addError(fmt.Sprintf("Expected Content-Type header for blobref %s; see spec", ref))
-				continue
-			}
-
-			_, hasFileName := params["filename"]
-			if !hasFileName {
-				addError(fmt.Sprintf("Expected 'filename' Content-Disposition parameter for blobref %s; see spec", ref))
-				continue
-			}
-		}
-
 		var tooBig int64 = blobserver.MaxBlobSize + 1
 		var readBytes int64
 		blobGot, err := blobserver.Receive(blobReceiver, ref, &readerutil.CountingReader{
@@ -217,19 +241,12 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	ret, err := commonUploadResponse(blobReceiver, req)
-	if err != nil {
-		httputil.ServeError(conn, req, err)
-	}
-
-	received := make([]map[string]interface{}, 0)
 	for _, got := range receivedBlobs {
-		blob := make(map[string]interface{})
-		blob["blobRef"] = got.Ref.String()
-		blob["size"] = got.Size
-		received = append(received, blob)
+		res.Received = append(res.Received, &protocol.RefAndSize{
+			Ref:  got.Ref,
+			Size: uint32(got.Size),
+		})
 	}
-	ret["received"] = received
 
 	if req.Header.Get("X-Camlistore-Vivify") == "1" {
 		for _, got := range receivedBlobs {
@@ -242,37 +259,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 		}
 	}
 
-	if errText != "" {
-		ret["errorText"] = errText
-	}
+	res.ErrorText = errBuf.String()
 
-	httputil.ReturnJSON(conn, ret)
-}
-
-func commonUploadResponse(configer blobserver.Configer, req *http.Request) (map[string]interface{}, error) {
-	ret := make(map[string]interface{})
-	ret["maxUploadSize"] = blobserver.MaxBlobSize
-	ret["uploadUrlExpirationSeconds"] = 86400
-
-	if configer == nil {
-		err := errors.New("Cannot build uploadUrl: configer is nil")
-		log.Printf("%v", err)
-		return nil, err
-	} else if config := configer.Config(); config != nil {
-		// TODO: camli/upload isn't part of the spec.  we should pick
-		// something different here just to make it obvious that this
-		// isn't a well-known URL and accidentally encourage lazy clients.
-		baseURL, err := httputil.BaseURL(config.URLBase, req)
-		if err != nil {
-			errStr := fmt.Sprintf("Cannot build uploadUrl: %v", err)
-			log.Printf(errStr)
-			return ret, fmt.Errorf(errStr)
-		}
-		ret["uploadUrl"] = baseURL + "/camli/upload"
-	} else {
-		err := errors.New("Cannot build uploadUrl: configer.Config is nil")
-		log.Printf("%v", err)
-		return nil, err
-	}
-	return ret, nil
+	httputil.ReturnJSON(conn, &res)
 }
