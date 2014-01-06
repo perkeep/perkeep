@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -97,7 +96,9 @@ type Client struct {
 	// list of files that camput should ignore.
 	// Defaults to empty, but camput init creates a config with a non
 	// empty list.
-	ignoredFiles []string
+	// See IsIgnoredFile for the matching rules.
+	ignoredFiles  []string
+	ignoreChecker func(path string) bool
 
 	pendStatMu sync.Mutex             // guards pendStat
 	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
@@ -877,14 +878,13 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 	return c.uploadString(signed)
 }
 
-// IsIgnoredFile returns whether the file name in fullpath
-// is in the list of file names that should be ignored by camput.
+// IsIgnoredFile returns whether the file at fullpath should be ignored by camput.
+// The fullpath is checked against the ignoredFiles list, trying the following rules in this order:
+// 1) star-suffix style matching (.e.g *.jpg).
+// 2) Shell pattern match as done by http://golang.org/pkg/path/filepath/#Match
+// 3) If the pattern is an absolute path to a directory, fullpath matches if it is that directory or a child of it.
+// 4) If the pattern is a relative path, fullpath matches if it has pattern as a path component (i.e the pattern is a part of fullpath that fits exactly between two path separators).
 func (c *Client) IsIgnoredFile(fullpath string) bool {
-	filename := filepath.Base(fullpath)
-	for _, v := range c.getIgnoredFiles() {
-		if filename == v {
-			return true
-		}
-	}
-	return false
+	c.initIgnoredFilesOnce.Do(c.initIgnoredFiles)
+	return c.ignoreChecker(fullpath)
 }

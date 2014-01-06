@@ -323,6 +323,9 @@ func (c *Client) getTrustedCerts() []string {
 const ignoredFiles = "ignoredFiles"
 
 func (c *Client) initIgnoredFiles() {
+	defer func() {
+		c.ignoreChecker = newIgnoreChecker(c.ignoredFiles)
+	}()
 	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
 		c.ignoredFiles = strings.Split(e, ",")
 		return
@@ -335,7 +338,93 @@ func (c *Client) initIgnoredFiles() {
 	c.ignoredFiles = config.ignoredFiles
 }
 
-func (c *Client) getIgnoredFiles() []string {
-	c.initIgnoredFilesOnce.Do(c.initIgnoredFiles)
-	return c.ignoredFiles
+// newIgnoreChecker uses ignoredFiles to build and return a func that returns whether the file path argument should be ignored. See IsIgnoredFile for the ignore rules.
+func newIgnoreChecker(ignoredFiles []string) func(path string) (shouldIgnore bool) {
+	var fns []func(string) bool
+
+	home := osutil.HomeDir()
+	// copy of ignoredFiles for us to mutate
+	ignFiles := append([]string(nil), ignoredFiles...)
+	for k, v := range ignFiles {
+		if strings.HasPrefix(v, filepath.FromSlash("~/")) {
+			ignFiles[k] = filepath.Join(home, v[2:])
+		}
+	}
+	// We cache the ignoredFiles patterns in 3 categories (not necessarily exclusive):
+	// 1) shell patterns
+	// 3) absolute paths
+	// 4) paths components
+	for _, pattern := range ignFiles {
+		_, err := filepath.Match(pattern, "whatever")
+		if err == nil {
+			fns = append(fns, func(v string) bool { return isShellPatternMatch(pattern, v) })
+		}
+	}
+	for _, pattern := range ignFiles {
+		if filepath.IsAbs(pattern) {
+			fns = append(fns, func(v string) bool { return hasDirPrefix(filepath.Clean(pattern), v) })
+		} else {
+			fns = append(fns, func(v string) bool { return hasComponent(filepath.Clean(pattern), v) })
+		}
+	}
+
+	return func(path string) bool {
+		for _, fn := range fns {
+			if fn(path) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+var filepathSeparatorString = string(filepath.Separator)
+
+// isShellPatternMatch returns whether fullpath matches the shell pattern, as defined by http://golang.org/pkg/path/filepath/#Match. As an additional special case, when the pattern looks like a basename, the last path element of fullpath is also checked against it.
+func isShellPatternMatch(shellPattern, fullpath string) bool {
+	match, _ := filepath.Match(shellPattern, fullpath)
+	if match {
+		return true
+	}
+	if !strings.Contains(shellPattern, filepathSeparatorString) {
+		match, _ := filepath.Match(shellPattern, filepath.Base(fullpath))
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// hasDirPrefix reports whether the path has the provided directory prefix.
+// Both should be absolute paths.
+func hasDirPrefix(dirPrefix, fullpath string) bool {
+	if !strings.HasPrefix(fullpath, dirPrefix) {
+		return false
+	}
+	if len(fullpath) == len(dirPrefix) {
+		return true
+	}
+	if fullpath[len(dirPrefix)] == filepath.Separator {
+		return true
+	}
+	return false
+}
+
+// hasComponent returns whether the pathComponent is a path component of fullpath. i.e it is a part of fullpath that fits exactly between two path separators.
+func hasComponent(component, fullpath string) bool {
+	idx := strings.Index(fullpath, component)
+	if idx == -1 {
+		return false
+	}
+	if fullpath[idx-1] != filepath.Separator {
+		return false
+	}
+	componentEnd := idx + len(component)
+	if componentEnd == len(fullpath) {
+		return true
+	}
+	if fullpath[componentEnd] == filepath.Separator {
+		return true
+	}
+	return false
 }

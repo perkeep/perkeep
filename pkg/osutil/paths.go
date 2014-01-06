@@ -31,7 +31,7 @@ import (
 // It returns the empty string if the value isn't known.
 func HomeDir() string {
 	if runtime.GOOS == "windows" {
-		return os.Getenv("HOMEPATH")
+		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
 	}
 	return os.Getenv("HOME")
 }
