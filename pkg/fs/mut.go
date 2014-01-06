@@ -20,6 +20,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -61,6 +62,10 @@ type mutDir struct {
 	lastPop  time.Time
 	children map[string]mutFileOrDir
 	xattrs   map[string][]byte
+}
+
+func (m *mutDir) String() string {
+	return fmt.Sprintf("&mutDir{%p name=%q perm:%v}", m, m.fullPath(), m.permanode)
 }
 
 // for debugging
@@ -214,7 +219,7 @@ func (n *mutDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 
 func (n *mutDir) Lookup(name string, intr fuse.Intr) (ret fuse.Node, err fuse.Error) {
 	defer func() {
-		log.Printf("mutDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
+		log.Printf("mutDir(%q).Lookup(%q) = %v, %v", n.fullPath(), name, ret, err)
 	}()
 	if err := n.populate(); err != nil {
 		log.Println("populate:", err)
@@ -354,6 +359,8 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 	n.children[name] = child
 	n.mu.Unlock()
 
+	log.Printf("Created %v in %p", child, n)
+
 	return child, nil
 }
 
@@ -449,6 +456,10 @@ type mutFile struct {
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
 	xattrs       map[string][]byte
+}
+
+func (m *mutFile) String() string {
+	return fmt.Sprintf("&mutFile{%p name=%q perm:%v}", m, m.fullPath(), m.permanode)
 }
 
 // for debugging
