@@ -44,7 +44,17 @@ import (
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
 
-const imageDebug = false
+const (
+	imageDebug = false
+	// This is the default maximum concurrent number of bytes we allocate for
+	// uncompressed pixel data while generating thumbnails.
+	// If a single image is larger than the configured size for an
+	// ImageHandler, we'll never successfully resize it.
+	// 256M is a max image of ~9.5kx9.5k*3.
+	// TODO(wathiede) move to pkg/constants when https://camlistore.org/r/1536
+	// lands.
+	defaultMaxResizeBytes = 256 << 20
+)
 
 var (
 	imageBytesServedVar  = expvar.NewInt("image-bytes-served")
@@ -57,6 +67,7 @@ type ImageHandler struct {
 	MaxWidth, MaxHeight int
 	Square              bool
 	thumbMeta           *thumbMeta // optional cache for scaled images
+	resizeSem           *syncutil.Sem
 }
 
 func (ih *ImageHandler) storageSeekFetcher() blob.SeekFetcher {
@@ -163,12 +174,6 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 
 // Gate the number of concurrent image resizes to limit RAM & CPU use.
 
-// This is the maximum concurrent number of bytes we allocate for uncompressed
-// pixel data while generating thumbnails.
-const maxResizeBytes = 256 << 20
-
-var resizeSem = syncutil.NewSem(maxResizeBytes)
-
 type formatAndImage struct {
 	format string
 	image  []byte
@@ -221,19 +226,18 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	// TODO(wathiede): build a size table keyed by conf.ColorModel for
 	// common color models for a more exact size estimate.
 
-	// This value is an estimate of the memory required to decode an image,
-	// for YCbCr images, i.e. JPEGs, it will often be higher, for RGBA PNGs
-	// it is low.
+	// This value is an estimate of the memory required to decode an image.
+	// PNGs range from 1-64 bits per pixel (not all of which are supported by
+	// the Go standard parser). JPEGs encoded in YCbCr 4:4:4 are 3 byte/pixel.
+	// For all other JPEGs this is an overestimate.  For GIFs it is 3x larger
+	// than needed.  How accurate this estimate is depends on the mix of
+	// images being resized concurrently.
 	ramSize := int64(conf.Width) * int64(conf.Height) * 3
 
-	// If a single image is larger than maxResizeBytes can hold, we'll never
-	// successfully resize it.
-	// TODO(wathiede): do we need a more graceful fallback? 256M is a max
-	// image of ~9.5kx9.5k*3.
-	if err = resizeSem.Acquire(ramSize); err != nil {
+	if err = ih.resizeSem.Acquire(ramSize); err != nil {
 		return nil, err
 	}
-	defer resizeSem.Release(ramSize)
+	defer ih.resizeSem.Release(ramSize)
 
 	i, imConfig, err := images.Decode(tr, &images.DecodeOpts{
 		MaxWidth:  ih.MaxWidth,
