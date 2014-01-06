@@ -1,3 +1,0 @@
-This is a test text file.
-It uses Windows line endings.
-And ends in newline.
