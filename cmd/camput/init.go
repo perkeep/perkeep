@@ -31,6 +31,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/types/clientconfig"
 )
 
 type initCmd struct {
@@ -177,11 +178,17 @@ func (c *initCmd) RunCommand(args []string) error {
 
 	if f, err := os.OpenFile(configFilePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
 		defer f.Close()
-		m := make(map[string]interface{})
-		m["identity"] = keyId
-		m["server"] = "http://localhost:3179"
-		m["auth"] = "localhost"
-		m["ignoredFiles"] = []string{".DS_Store"}
+		m := &clientconfig.Config{
+			Servers: map[string]*clientconfig.Server{
+				"localhost": {
+					Server:    "http://localhost:3179",
+					IsDefault: true,
+					Auth:      "localhost",
+				},
+			},
+			Identity:     keyId,
+			IgnoredFiles: []string{".DS_Store"},
+		}
 
 		jsonBytes, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {
