@@ -33,12 +33,18 @@ import (
 	"time"
 )
 
-// GenDeps returns the namespace dependencies between the
-// closure javascript files in root. It does not descend
-// in directories.
+// GenDeps returns the namespace dependencies between the closure javascript files in root. It does not descend in directories.
+// Each of the files listed in the output is prepended with the path "../../", which is assumed to be the location where these files can be found, relative to Closure's base.js.
+//
 // The format for each relevant javascript file is:
 // goog.addDependency("filepath", ["namespace provided"], ["required namespace 1", "required namespace 2", ...]);
 func GenDeps(root http.FileSystem) ([]byte, error) {
+	// In the typical configuration, Closure is served at 'closure/goog/...''
+	return GenDepsWithPath("../../", root)
+}
+
+// GenDepsWithPath is like GenDeps, but you can specify a path where the files are to be found at runtime relative to Closure's base.js.
+func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 	d, err := root.Open("/")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open root of %v: %v", root, err)
@@ -70,7 +76,7 @@ func GenDeps(root http.FileSystem) ([]byte, error) {
 			return nil, fmt.Errorf("Could not parse deps for %v: %v", name, err)
 		}
 		if len(prov) > 0 {
-			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", "../../"+name, jsList(prov), jsList(req))
+			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", pathPrefix+name, jsList(prov), jsList(req))
 		}
 	}
 	return buf.Bytes(), nil
