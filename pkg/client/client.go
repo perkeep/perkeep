@@ -126,7 +126,7 @@ const maxParallelHTTP = 5
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
 func New(server string) *Client {
-	if !isHostname(server) {
+	if !isURLOrHostPort(server) {
 		configOnce.Do(parseConfig)
 		serverConf, ok := config.Servers[server]
 		if !ok {
@@ -560,10 +560,11 @@ func (c *Client) blobPrefix() (string, error) {
 	return pfx, nil
 }
 
+// discoRoot returns the user defined server for this client. It prepends "https://" if no scheme was specified.
 func (c *Client) discoRoot() string {
 	s := c.server
 	if !strings.HasPrefix(s, "http") {
-		s = "http://" + s
+		s = "https://" + s
 	}
 	return s
 }

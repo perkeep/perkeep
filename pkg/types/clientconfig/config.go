@@ -17,6 +17,10 @@ limitations under the License.
 // Package clientconfig provides types related to the client configuration file.
 package clientconfig
 
+import (
+	"strings"
+)
+
 // Config holds the values from the JSON client config file.
 type Config struct {
 	Servers            map[string]*Server `json:"servers"`                      // maps server alias to server config.
@@ -31,4 +35,19 @@ type Server struct {
 	Auth         string   `json:"auth"`                   // auth scheme and values (ex: userpass:foo:bar).
 	IsDefault    bool     `json:"default,omitempty"`      // whether this server is the default one.
 	TrustedCerts []string `json:"trustedCerts,omitempty"` // list of trusted certificates fingerprints.
+}
+
+// Alias returns the alias of the server from conf that matches server, or the empty string if no match. A match means the server from the config is a prefix of the input server. The longest match prevails.
+func (conf *Config) Alias(server string) string {
+	longestMatch := ""
+	serverAlias := ""
+	for alias, serverConf := range conf.Servers {
+		if strings.HasPrefix(server, serverConf.Server) {
+			if len(serverConf.Server) > len(longestMatch) {
+				longestMatch = serverConf.Server
+				serverAlias = alias
+			}
+		}
+	}
+	return serverAlias
 }
