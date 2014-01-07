@@ -37,7 +37,7 @@ import (
 //
 // It's used to run the actual Camlistore binaries (camlistored,
 // camput, camget, camtool, etc) together in large tests, including
-// building them, finding them, and wiring the up in an isolated way.
+// building them, finding them, and wiring them up in an isolated way.
 type World struct {
 	camRoot  string // typically $GOPATH[0]/src/camlistore.org
 	tempDir  string
@@ -160,6 +160,10 @@ func (w *World) Stop() {
 }
 
 func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
+	return w.CmdWithEnv(binary, os.Environ(), args...)
+}
+
+func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)
 	switch binary {
 	case "camget", "camput", "camtool", "cammount":
@@ -172,7 +176,7 @@ func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
 			"CAMLI_KEYID=26F5ABDA",
 			"CAMLI_DEV_KEYBLOBS=" + filepath.Join(clientConfigDir, "keyblobs"),
 			"CAMLI_AUTH=userpass:testuser:passTestWorld",
-		}, os.Environ()...)
+		}, env...)
 	default:
 		panic("Unknown binary " + binary)
 	}
