@@ -1,8 +1,3 @@
-/**
- * @fileoverview Contains a set of BlobItems. Knows how to fetch items from
- * the server side. Is preconfigured with common queries like "recent" blobs.
- *
- */
 goog.provide('camlistore.BlobItemContainer');
 
 goog.require('goog.dom');
@@ -16,6 +11,7 @@ goog.require('camlistore.BlobItem');
 goog.require('camlistore.ServerConnection');
 goog.require('SearchSession');
 
+// An infinite scrolling list of BlobItem. The heights of rows and clip of individual items is adjusted to get a fully justified appearance.
 camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
