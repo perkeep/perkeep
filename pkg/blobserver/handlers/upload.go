@@ -170,7 +170,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 }
 
 func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
-	var res protocol.UploadResponse
+	res := new(protocol.UploadResponse)
 
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		log.Printf("Inconfigured handler upload handler")
@@ -261,5 +261,5 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 	res.ErrorText = errBuf.String()
 
-	httputil.ReturnJSON(conn, &res)
+	httputil.ReturnJSON(conn, res)
 }
