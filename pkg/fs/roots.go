@@ -241,17 +241,29 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	}
 
 	n.m = make(map[string]blob.Ref)
-	n.children = make(map[string]fuse.Node)
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
 
 	// Roots
+	currentRoots := map[string]bool{}
 	for _, wi := range rootRes.WithAttr {
 		pn := wi.Permanode
 		db := dres.Meta[pn.String()]
 		if db != nil && db.Permanode != nil {
 			name := db.Permanode.Attr.Get("camliRoot")
 			if name != "" {
+				currentRoots[name] = true
 				n.m[name] = pn
 			}
+		}
+	}
+
+	// Remove any children objects we have mapped that are no
+	// longer relevant.
+	for name := range n.children {
+		if !currentRoots[name] {
+			delete(n.children, name)
 		}
 	}
 
