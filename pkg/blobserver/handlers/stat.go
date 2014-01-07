@@ -38,7 +38,7 @@ func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {
 const maxStatBlobs = 1000
 
 func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobStatter) {
-	var res protocol.StatResponse
+	res := new(protocol.StatResponse)
 
 	if configer, ok := storage.(blobserver.Configer); ok {
 		if conf := configer.Config(); conf != nil {
@@ -140,5 +140,5 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		blobserver.WaitForBlob(storage, deadline, toStat)
 	}
 
-	httputil.ReturnJSON(conn, &res)
+	httputil.ReturnJSON(conn, res)
 }

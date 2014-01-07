@@ -17,19 +17,47 @@ limitations under the License.
 // Package protocol contains types for Camlistore protocol types.
 package protocol
 
-import "camlistore.org/pkg/blob"
+import (
+	"encoding/json"
+
+	"camlistore.org/pkg/blob"
+)
 
 type RefAndSize struct {
 	Ref  blob.Ref `json:"blobRef"`
 	Size uint32   `json:"size"`
 }
 
+// StatResponse is the JSON document returned from the blob batch stat
+// handler.
+//
+// See doc/protocol/blob-stat-protocol.txt.
 type StatResponse struct {
 	Stat        []*RefAndSize `json:"stat"`
 	CanLongPoll bool          `json:"canLongPoll"` // TODO: move this to discovery?
 }
 
+func (p *StatResponse) MarshalJSON() ([]byte, error) {
+	v := *p
+	if v.Stat == nil {
+		v.Stat = []*RefAndSize{}
+	}
+	return json.Marshal(v)
+}
+
+// UploadResponse is the JSON document returned from the blob batch
+// upload handler.
+//
+// See doc/protocol/blob-upload-protocol.txt.
 type UploadResponse struct {
 	Received  []*RefAndSize `json:"received"`
 	ErrorText string        `json:"errortext,omitempty"`
+}
+
+func (p *UploadResponse) MarshalJSON() ([]byte, error) {
+	v := *p
+	if v.Received == nil {
+		v.Received = []*RefAndSize{}
+	}
+	return json.Marshal(v)
 }

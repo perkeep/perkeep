@@ -38,7 +38,8 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/client" // just for NewUploadHandleFromString.  move elsewhere?
+	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/constants" // just for NewUploadHandleFromString.  move elsewhere?
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -46,6 +47,7 @@ import (
 	"camlistore.org/pkg/publish"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 )
@@ -58,6 +60,8 @@ type PublishHandler struct {
 	Storage  blobserver.Storage // of blobRoot
 	Cache    blobserver.Storage // or nil
 
+	// Limit peak RAM used by concurrent image thumbnail calls.
+	resizeSem *syncutil.Sem
 	thumbMeta *thumbMeta // optional cache of scaled images
 
 	CSSFiles []string
@@ -98,6 +102,7 @@ func newPublishFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Han
 	bootstrapSignRoot := conf.OptionalString("devBootstrapPermanodeUsing", "")
 	rootNode := conf.OptionalList("rootPermanode")
 	ph.sourceRoot = conf.OptionalString("sourceRoot", "")
+	ph.resizeSem = syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes", constants.DefaultMaxResizeMem)))
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -303,6 +308,9 @@ type publishRequest struct {
 	// A describe request that we can reuse, sharing its map of
 	// blobs already described.
 	dr *search.DescribeRequest
+
+	// Limit peak RAM used by concurrent image thumbnail calls.
+	resizeSem *syncutil.Sem
 }
 
 func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) *publishRequest {
@@ -326,6 +334,7 @@ func (ph *PublishHandler) NewRequest(rw http.ResponseWriter, req *http.Request) 
 		dr:              ph.Search.NewDescribeRequest(),
 		inSubjectChain:  make(map[string]bool),
 		subjectBasePath: "",
+		resizeSem:       ph.resizeSem,
 	}
 }
 
@@ -941,6 +950,7 @@ func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, 
 		MaxHeight: maxHeight,
 		Square:    square,
 		thumbMeta: pr.ph.thumbMeta,
+		resizeSem: pr.resizeSem,
 	}
 	th.ServeHTTP(pr.rw, pr.req, fileref)
 }

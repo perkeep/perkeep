@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
@@ -38,6 +39,7 @@ import (
 	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/syncutil"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
 	glitchstatic "camlistore.org/third_party/glitch"
@@ -83,6 +85,8 @@ type UIHandler struct {
 	// caching image thumbnails and other emphemeral data.
 	Cache blobserver.Storage // or nil
 
+	// Limit peak RAM used by concurrent image thumbnail calls.
+	resizeSem *syncutil.Sem
 	thumbMeta *thumbMeta // optional thumbnail key->blob.Ref cache
 
 	// sourceRoot optionally specifies the path to root of Camlistore's
@@ -116,6 +120,8 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		prefix:       ld.MyPrefix(),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
 		sourceRoot:   conf.OptionalString("sourceRoot", ""),
+		resizeSem: syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes",
+			constants.DefaultMaxResizeMem))),
 	}
 	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")
@@ -512,6 +518,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		MaxWidth:  width,
 		MaxHeight: height,
 		thumbMeta: ui.thumbMeta,
+		resizeSem: ui.resizeSem,
 	}
 	th.ServeHTTP(rw, req, blobref)
 }
