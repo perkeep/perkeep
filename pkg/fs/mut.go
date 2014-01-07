@@ -62,6 +62,7 @@ type mutDir struct {
 	lastPop  time.Time
 	children map[string]mutFileOrDir
 	xattrs   map[string][]byte
+	deleted  bool
 }
 
 func (m *mutDir) String() string {
@@ -83,6 +84,24 @@ func (n *mutDir) Attr() fuse.Attr {
 		Uid:   uint32(os.Getuid()),
 		Gid:   uint32(os.Getgid()),
 	}
+}
+
+func (n *mutDir) Access(req *fuse.AccessRequest, intr fuse.Intr) fuse.Error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.deleted {
+		return fuse.ENOENT
+	}
+	return nil
+}
+
+func (n *mutFile) Access(req *fuse.AccessRequest, intr fuse.Intr) fuse.Error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.deleted {
+		return fuse.ENOENT
+	}
+	return nil
 }
 
 // populate hits the blobstore to populate map of child nodes.
@@ -375,7 +394,11 @@ func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	// Remove child from map.
 	n.mu.Lock()
 	if n.children != nil {
-		delete(n.children, req.Name)
+		if removed, ok := n.children[req.Name]; ok {
+			removed.invalidate()
+			delete(n.children, req.Name)
+			log.Printf("Removed %v from %p", removed, n)
+		}
 	}
 	n.mu.Unlock()
 	return nil
@@ -456,6 +479,7 @@ type mutFile struct {
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
 	xattrs       map[string][]byte
+	deleted      bool
 }
 
 func (m *mutFile) String() string {
@@ -789,6 +813,7 @@ func (h *mutFileHandle) Truncate(size uint64, intr fuse.Intr) fuse.Error {
 // mutFileOrDir is a *mutFile or *mutDir
 type mutFileOrDir interface {
 	fuse.Node
+	invalidate()
 	permanodeString() string
 	xattr() *xattr
 }
@@ -799,4 +824,16 @@ func (n *mutFile) permanodeString() string {
 
 func (n *mutDir) permanodeString() string {
 	return n.permanode.String()
+}
+
+func (n *mutFile) invalidate() {
+	n.mu.Lock()
+	n.deleted = true
+	n.mu.Unlock()
+}
+
+func (n *mutDir) invalidate() {
+	n.mu.Lock()
+	n.deleted = true
+	n.mu.Unlock()
 }
