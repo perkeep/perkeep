@@ -253,7 +253,7 @@ cam.IndexPage.prototype.enterDocument = function() {
 
 	// TODO(aa): We need to implement general purpose routing and get rid of all these one-off hacks.
 	this.eh_.listen(this.getElement(), 'click', function(e) {
-		if (e.target.className == 'cam-blobitem-thumb') {
+		if (e.button == 0 && e.target.className == 'cam-blobitem-thumb') {
 			var uri = new goog.Uri(this.dom_.getAncestorByTagNameAndClass(e.target, 'a').href);
 			if (uri.getParameterValue('newui') == '1') {
 				try {
