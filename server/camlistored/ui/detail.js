@@ -87,7 +87,7 @@ cam.DetailView = React.createClass({
 	},
 
 	handlePendingNavigation_: function() {
-		if (!this.handlePendingNavigation_) {
+		if (!this.pendingNavigation_) {
 			return;
 		}
 
