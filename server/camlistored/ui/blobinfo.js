@@ -18,6 +18,7 @@ goog.provide('cam.BlobPage');
 
 goog.require('goog.dom');
 goog.require('goog.ui.Component');
+
 goog.require('cam.ServerConnection');
 
 // @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.

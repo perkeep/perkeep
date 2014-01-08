@@ -22,6 +22,7 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Component');
+
 goog.require('cam.BlobItem');
 goog.require('cam.BlobItemContainer');
 goog.require('cam.ServerConnection');

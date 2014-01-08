@@ -19,6 +19,7 @@ goog.provide('cam.FiletreePage');
 goog.require('goog.dom');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
+
 goog.require('cam.ServerConnection');
 
 // @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.

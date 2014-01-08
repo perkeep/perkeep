@@ -21,6 +21,7 @@ goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Control');
+
 goog.require('cam.imageUtil');
 goog.require('cam.ServerType');
 

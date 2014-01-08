@@ -17,6 +17,7 @@ limitations under the License.
 goog.require('goog.crypt.Hash');
 goog.require('goog.crypt.Sha1');
 goog.require('goog.string');
+
 var assert = require('assert');
 var fs = require('fs');
 

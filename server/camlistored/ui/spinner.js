@@ -16,14 +16,15 @@ limitations under the License.
 
 goog.provide('cam.Spinner');
 
-goog.require('cam.AnimationLoop');
-goog.require('cam.style');
 goog.require('goog.dom');
 goog.require('goog.events.EventHandler');
 goog.require('goog.style');
 goog.require('goog.math.Coordinate');
 goog.require('goog.math.Size');
 goog.require('goog.ui.Control');
+
+goog.require('cam.AnimationLoop');
+goog.require('cam.style');
 
 // An indeterminite progress meter using the safe icon.
 // @param {goog.dom.DomHelper} domHelper

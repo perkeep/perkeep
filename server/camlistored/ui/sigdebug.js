@@ -19,8 +19,8 @@ goog.provide('cam.DebugPage');
 goog.require('goog.dom');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
-goog.require('cam.ServerConnection');
 
+goog.require('cam.ServerConnection');
 
 // TODO(mpl): add button on index page (toolbar?) to come here.
 // @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.

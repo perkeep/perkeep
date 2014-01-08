@@ -13,18 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-goog.provide('cam.DetailView');
 
-goog.require('cam.AnimationLoop');
-goog.require('cam.imageUtil');
-goog.require('cam.SearchSession');
-goog.require('cam.SpritedAnimation');
+goog.provide('cam.DetailView');
 
 goog.require('goog.array');
 goog.require('goog.events.EventHandler');
 goog.require('goog.math.Size');
 goog.require('goog.object');
 goog.require('goog.string');
+
+goog.require('cam.AnimationLoop');
+goog.require('cam.imageUtil');
+goog.require('cam.SearchSession');
+goog.require('cam.SpritedAnimation');
 
 cam.DetailView = React.createClass({
 	IMG_MARGIN: 20,

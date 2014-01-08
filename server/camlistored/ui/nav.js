@@ -17,7 +17,6 @@ limitations under the License.
 goog.provide('cam.Nav');
 goog.provide('cam.Nav.Item');
 
-goog.require('cam.style');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.KeyCodes');
@@ -25,6 +24,8 @@ goog.require('goog.ui.Container');
 goog.require('goog.ui.Component');
 goog.require('goog.ui.Control');
 goog.require('goog.ui.Button');
+
+goog.require('cam.style');
 
 // A vertical, fixed-position expandy collapsy navigation bar thingy.
 cam.Nav = function(domHelper, opt_delegate) {
