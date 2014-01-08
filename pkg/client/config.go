@@ -278,24 +278,28 @@ func (c *Client) useTLS() bool {
 	return strings.HasPrefix(c.server, "https://")
 }
 
-// SetupAuth sets the client's authMode from the client configuration file or from the environment.
+// SetupAuth sets the client's authMode. It tries from the environment first if we're on android or in dev mode, and then from the client configuration.
 func (c *Client) SetupAuth() error {
-	// env var always takes precendence
-	authMode, err := auth.FromEnv()
-	if err == nil {
-		c.authMode = authMode
-		return nil
-	}
-	if err != auth.ErrNoAuth {
-		return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %v", err)
+	// env var takes precedence, but only if we're in dev mode or on android.
+	// Too risky otherwise.
+	if android.OnAndroid() || os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+		authMode, err := auth.FromEnv()
+		if err == nil {
+			c.authMode = authMode
+			return nil
+		}
+		if err != auth.ErrNoAuth {
+			return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %v", err)
+		}
 	}
 	if c.server == "" {
-		return fmt.Errorf("CAMLI_AUTH not set and no server defined: can not set up auth.")
+		return fmt.Errorf("No server defined for this client: can not set up auth.")
 	}
 	authConf := serverAuth(c.server)
 	if authConf == "" {
 		return fmt.Errorf("Could not find auth key for server %q in config", c.server)
 	}
+	var err error
 	c.authMode, err = auth.FromConfig(authConf)
 	return err
 }
