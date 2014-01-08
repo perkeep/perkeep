@@ -259,7 +259,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 	}
 
-	if permaNode != nil  && lastPut != nil {
+	if permaNode != nil && lastPut != nil {
 		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
@@ -270,9 +270,8 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 		if c.tag != "" {
 			tags := strings.Split(c.tag, ",")
-			m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 			for _, tag := range tags {
-				m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				put, err := up.UploadAndSignBlob(m)
 				handleResult("claim-permanode-tag", put, err)
 			}
