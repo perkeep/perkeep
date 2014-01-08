@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/**
- * @fileoverview Discovery Debug page.
- *
- */
 goog.provide('camlistore.DebugPage');
 
 goog.require('goog.dom');
@@ -27,41 +23,18 @@ goog.require('camlistore.ServerConnection');
 
 
 // TODO(mpl): add button on index page (toolbar?) to come here.
-/**
- * @param {camlistore.ServerType.DiscoveryDocument} config Global config
- *   of the current server this page is being rendered for.
- * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
- *
- * @extends {goog.ui.Component}
- * @constructor
- */
+// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
 camlistore.DebugPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
-	/**
-	 * @type {Object}
-	 * @private
-	 */
 	this.config_ = config;
-
-	/**
-	 * @type {Object}
-	 * @private
-	 */
 	this.sigdisco_ = null;
-
-	/**
-	 * @type {camlistore.ServerConnection}
-	 * @private
-	 */
 	this.connection_ = new camlistore.ServerConnection(config);
 
 };
 goog.inherits(camlistore.DebugPage, goog.ui.Component);
 
-/**
- * Called when component's element is known to be in the document.
- */
 camlistore.DebugPage.prototype.enterDocument = function() {
 	camlistore.DebugPage.superClass_.enterDocument.call(this);
 
@@ -88,30 +61,15 @@ camlistore.DebugPage.prototype.enterDocument = function() {
 		false, this);
 };
 
-
-/**
- * Called when component's element is known to have been removed from the
- * document.
- */
 camlistore.DebugPage.prototype.exitDocument = function() {
 	camlistore.DebugPage.superClass_.exitDocument.call(this);
 };
 
-
-/**
- * Fake. We just get the info from the initial config.
- * @param {goog.events.Event} e The title form submit event.
- * @private
- */
 camlistore.DebugPage.prototype.discoRoot_ = function(e) {
 	var disco = "<pre>" + JSON.stringify(this.config_, null, 2) + "</pre>";
 	goog.dom.getElement("discores").innerHTML = disco;
 };
 
-
-/**
- * @private
- */
 camlistore.DebugPage.prototype.discoJsonSignRoot_ = function() {
 	this.connection_.discoSignRoot(
 		goog.bind(function(sigdisco) {
@@ -122,10 +80,6 @@ camlistore.DebugPage.prototype.discoJsonSignRoot_ = function() {
 	)
 };
 
-
-/**
- * @private
- */
 camlistore.DebugPage.prototype.addKeyRef_ = function() {
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");				
@@ -143,13 +97,8 @@ camlistore.DebugPage.prototype.addKeyRef_ = function() {
 	clearta.value = JSON.stringify(j, null, 2);
 }
 
-/**
- * @private
- */
 camlistore.DebugPage.prototype.doSign_ = function() {
-	// we actually do not need sigdisco since sign_ will pull
-	// all the needed info from the config_ instead. But I'm
-	// leaving the check as the debug check is also a sort of demo.
+	// We actually do not need sigdisco since sign_ will pull all the needed info from the config_ instead. But I'm leaving the check as the debug check is also a sort of demo.
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");
 		return;
@@ -163,13 +112,8 @@ camlistore.DebugPage.prototype.doSign_ = function() {
 	)
 }
 
-/**
- * @private
- */
 camlistore.DebugPage.prototype.doVerify_ = function() {
-	// we actually do not need sigdisco since sign_ will pull
-	// all the needed info from the config_ instead. But I'm
-	// leaving the check as the debug check is also a sort of demo.
+	// We actually do not need sigdisco since sign_ will pull all the needed info from the config_ instead. But I'm leaving the check as the debug check is also a sort of demo.
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");
 		return;

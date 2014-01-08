@@ -22,7 +22,7 @@ camlistore.ServerConnection = function(config, opt_sendXhr) {
 
 camlistore.ServerConnection.prototype.getWorker_ = function() {
 	if (!this.worker_) {
-		var r = new Date().getTime();  // For cachebusting the worker. Sigh. We need content stamping.
+		var r = new Date().getTime(); // For cachebusting the worker. Sigh. We need content stamping.
 		this.worker_ = new camlistore.WorkerMessageRouter(new Worker('hash_worker.js?r=' + r));
 	}
 	return this.worker_;

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,7 @@ image_utils.getSizeToRequest = function(sizeToDisplay, opt_existingSize) {
 		return opt_existingSize;
 	}
 
-	var maxImageSize = 2000;  // max size server will accept
+	var maxImageSize = 2000; // max size server will accept
 	for (var size = 64; (size <= sizeToDisplay && size < maxImageSize); size <<= 1) {
 	}
 	return Math.min(size, maxImageSize);

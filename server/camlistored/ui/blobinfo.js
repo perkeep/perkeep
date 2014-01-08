@@ -20,10 +20,8 @@ goog.require('goog.dom');
 goog.require('goog.ui.Component');
 goog.require('camlistore.ServerConnection');
 
- * @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
- * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
- * @extends {goog.ui.Component}
- * @constructor
+// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
 camlistore.BlobPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 

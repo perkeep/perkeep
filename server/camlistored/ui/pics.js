@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/**
- * @fileoverview Pictures gallery page.
- *
- */
 goog.provide('camlistore.GalleryPage');
 
 goog.require('goog.dom');
@@ -26,50 +22,24 @@ goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
 goog.require('camlistore.ServerConnection');
 
-/**
- * @param {camlistore.ServerType.DiscoveryDocument} config Global config
- *   of the current server this page is being rendered for.
- * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
- *
- * @extends {goog.ui.Component}
- * @constructor
- */
+// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
 camlistore.GalleryPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
-	/**
-	 * @type {Object}
-	 * @private
-	 */
 	this.config_ = config;
-
-	/**
-	 * @type {camlistore.ServerConnection}
-	 * @private
-	 */
 	this.connection_ = new camlistore.ServerConnection(config);
 };
 goog.inherits(camlistore.GalleryPage, goog.ui.Component);
 
-
-/**
- * Decorates an existing HTML DIV element.
- * @param {Element} element The DIV element to decorate.
- */
 camlistore.GalleryPage.prototype.decorateInternal = function(element) {
 	camlistore.GalleryPage.superClass_.decorateInternal.call(this, element);
 };
 
-
-/** @override */
 camlistore.GalleryPage.prototype.disposeInternal = function() {
 	camlistore.GalleryPage.superClass_.disposeInternal.call(this);
 };
 
-
-/**
- * Called when component's element is known to be in the document.
- */
 camlistore.GalleryPage.prototype.enterDocument = function() {
 	camlistore.GalleryPage.superClass_.enterDocument.call(this);
 
@@ -149,13 +119,9 @@ camlistore.GalleryPage.prototype.enterDocument = function() {
 	}
 }
 
-/**
- * @param {string} titleInput text field element for title
- * @param {string} titleSpan span element containing the title
- * @private
- */
-camlistore.GalleryPage.prototype.saveImgTitle_ =
-function (titleInput, titleSpan) {
+// @param {string} titleInput text field element for title
+// @param {string} titleSpan span element containing the title
+camlistore.GalleryPage.prototype.saveImgTitle_ = function (titleInput, titleSpan) {
 	var spanText = goog.dom.getTextContent(titleSpan);
 	var newVal = titleInput.value;
 	if (newVal != "" && newVal != spanText) {
@@ -178,11 +144,6 @@ function (titleInput, titleSpan) {
 	goog.dom.classes.add(titleSpan, 'visible');
 }
 
-/**
- * Called when component's element is known to have been removed from the
- * document.
- */
 camlistore.GalleryPage.prototype.exitDocument = function() {
 	camlistore.GalleryPage.superClass_.exitDocument.call(this);
 };
-
