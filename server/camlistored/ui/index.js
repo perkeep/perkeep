@@ -97,8 +97,9 @@ cam.IndexPage.prototype.setTransform_ = function() {
 	var originY = currentHeight * currentScroll / potentialScroll;
 
 	goog.style.setStyle(this.blobItemContainer_.getElement(),
-		{'transform': goog.string.subs('scale(%s)', scale),
-			'transform-origin': goog.string.subs('right %spx', originY)});
+		// The 3d transform is important. See: https://code.google.com/p/camlistore/issues/detail?id=284.
+		{'transform': goog.string.subs('scale3d(%s, %s, 1)', scale, scale),
+			'transform-origin': goog.string.subs('right %spx 0', originY)});
 };
 
 cam.IndexPage.prototype.onNavClose = function() {

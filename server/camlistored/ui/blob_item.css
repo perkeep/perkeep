@@ -141,6 +141,9 @@ limitations under the License.
 	top: 5px;
 	transition: opacity 0.2s ease;
 	width: 25px;
+
+	/* To force us into a graphics layer, otherwise we get weird effects as we transition in and out of one during animation. See: https://code.google.com/p/camlistore/issues/detail?id=284. */
+	-webkit-transform: scale3d(1, 1, 1);
 }
 
 .cam-blobitem.goog-control-disabled .checkmark {
