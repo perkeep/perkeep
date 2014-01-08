@@ -1,22 +1,38 @@
+/*
+Copyright 2013 The Camlistore Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 .cam-blobitemcontainer {
-  outline: 0;  /* Do not show an outline when container has focus. */
-  border: 1px solid rgba(0,0,0,0);
-  position: relative;
-  white-space: nowrap;
-  transition: -webkit-transform 75ms ease-out;
-  transition: -moz-transform 75ms ease-out;
-  transition: -ms-transform 75ms ease-out;
-  margin-left: 36px;
+	outline: 0; /* Do not show an outline when container has focus. */
+	border: 1px solid rgba(0,0,0,0);
+	position: relative;
+	white-space: nowrap;
+	transition: -webkit-transform 75ms ease-out;
+	transition: -moz-transform 75ms ease-out;
+	transition: -ms-transform 75ms ease-out;
+	margin-left: 36px;
 }
 
 .cam-blobitemcontainer.cam-dropactive {
-  border-color: #acf;
-  background: #e5efff;
+	border-color: #acf;
+	background: #e5efff;
 }
 .cam-blobitemcontainer-hidden {
-  display: none;
+	display: none;
 }
 
 .cam-blobitemcontainer>.cam-blobitem {
-  position: absolute;
+	position: absolute;
 }

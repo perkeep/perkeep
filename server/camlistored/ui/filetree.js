@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/**
- * @fileoverview Filetree page.
- *
- */
 goog.provide('camlistore.FiletreePage');
 
 goog.require('goog.dom');
@@ -25,47 +21,27 @@ goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
 goog.require('camlistore.ServerConnection');
 
-/**
- * @param {camlistore.ServerType.DiscoveryDocument} config Global config
- *   of the current server this page is being rendered for.
- * @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
- *
- * @extends {goog.ui.Component}
- * @constructor
- */
+// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
+// @extends {goog.ui.Component}
+// @constructor
 camlistore.FiletreePage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
-	/**
-	 * @type {Object}
-	 * @private
-	 */
 	this.config_ = config;
-
-	/**
-	 * @type {camlistore.ServerConnection}
-	 * @private
-	 */
 	this.connection_ = new camlistore.ServerConnection(config);
 
 };
 goog.inherits(camlistore.FiletreePage, goog.ui.Component);
 
-
-/**
- * @type {number}
- * @private
- */
 camlistore.FiletreePage.prototype.indentStep_ = 20;
-
 
 function getDirBlobrefParam() {
 	var blobRef = getQueryParam('d');
 	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
-// Returns the first value from the query string corresponding to |key|.
-// Returns null if the key isn't present.
+// Returns the first value from the query string corresponding to |key|. Returns null if the key isn't present.
 getQueryParam = function(key) {
 	var params = document.location.search.substring(1).split('&');
 	for (var i = 0; i < params.length; ++i) {
@@ -81,10 +57,6 @@ isPlausibleBlobRef = function(blobRef) {
 	return /^\w+-[a-f0-9]+$/.test(blobRef);
 };
 
-
-/**
- * Called when component's element is known to be in the document.
- */
 camlistore.FiletreePage.prototype.enterDocument = function() {
 	camlistore.FiletreePage.superClass_.enterDocument.call(this);
 	var blobref = getDirBlobrefParam();
@@ -101,11 +73,8 @@ camlistore.FiletreePage.prototype.enterDocument = function() {
 	}
 }
 
-/**
- * @param {string} blobref blob to describe.
- * @param {camlistore.ServerType.DescribeResponse} describeResult Object of properties for the node.
- * @private
- */
+// @param {string} blobref blob to describe.
+// @param {camlistore.ServerType.DescribeResponse} describeResult Object of properties for the node.
 camlistore.FiletreePage.prototype.handleDescribeBlob_ =
 function(blobref, describeResult) {
 	var meta = describeResult.meta;
@@ -137,9 +106,6 @@ function(blobref, describeResult) {
 	);
 }
 
-/**
- * @private
- */
 camlistore.FiletreePage.prototype.buildTree_ = function() {
 	var blobref = getDirBlobrefParam();
 	var children = goog.dom.getElement("children");
@@ -150,15 +116,11 @@ camlistore.FiletreePage.prototype.buildTree_ = function() {
 	);
 }
 
-/**
- * @param {string} div node used as root for the tree
- * @param {number} depth how deep we are in the tree, for indenting
- * @param {camlistore.ServerType.DescribeResponse} jres describe result
- * @private
- */
-camlistore.FiletreePage.prototype.onChildrenFound_ =
-function(div, depth, jres) {
-	var indent = depth * camlistore.FiletreePage.prototype.indentStep_;
+// @param {string} div node used as root for the tree
+// @param {number} depth how deep we are in the tree, for indenting
+// @param {camlistore.ServerType.DescribeResponse} jres describe result
+camlistore.FiletreePage.prototype.onChildrenFound_ = function(div, depth, jres) {
+	var indent = depth// camlistore.FiletreePage.prototype.indentStep_;
 	div.innerHTML = "";
 	for (var i = 0; i < jres.children.length; i++) {
 		var children = jres.children;
@@ -178,7 +140,7 @@ function(div, depth, jres) {
 			);
 			break;
 		case 'file':
-			goog.dom.setTextContent(alink, "  " + children[i].name);
+			goog.dom.setTextContent(alink, " " + children[i].name);
 			alink.href = "./?b=" + alink.id;
 			break;
 		default:
@@ -199,13 +161,7 @@ function(div, depth, jres) {
 	}
 }
 
-
-/**
- * @param {string} content blobref of the content
- * @private
- */
-camlistore.FiletreePage.prototype.newPermWithContent_ =
-function(content) {
+camlistore.FiletreePage.prototype.newPermWithContent_ = function(content) {
 	var fun = function(e) {
 		this.connection_.createPermanode(
 			goog.bind(function(permanode) {
@@ -228,14 +184,9 @@ function(content) {
 	return goog.bind(fun, this);
 }
 
-
-/**
- * @param {string} blobref dir to unfold.
- * @param {number} depth so we know how much to indent.
- * @private
- */
-camlistore.FiletreePage.prototype.unFold_ =
-function(blobref, depth) {
+// @param {string} blobref dir to unfold.
+// @param {number} depth so we know how much to indent.
+camlistore.FiletreePage.prototype.unFold_ = function(blobref, depth) {
 	var node = goog.dom.getElement(blobref);
 	var div = goog.dom.createElement("div");
 	this.connection_.getFileTree(blobref,
@@ -259,13 +210,9 @@ function insertAfter( referenceNode, newNode ) {
 	referenceNode.parentNode.insertBefore( newNode, referenceNode.nextSibling.nextSibling );
 }
 
-/**
- * @param {string} nodeid id of the node to fold.
- * @param {depth} depth so we know how much to indent.
- * @private
- */
-camlistore.FiletreePage.prototype.fold_ =
-function(nodeid, depth) {
+// @param {string} nodeid id of the node to fold.
+// @param {depth} depth so we know how much to indent.
+camlistore.FiletreePage.prototype.fold_ = function(nodeid, depth) {
 	var node = goog.dom.getElement(nodeid);
 	// nextSibling X2 because of the "P" span
 	node.parentNode.removeChild(node.nextSibling.nextSibling);
@@ -278,4 +225,3 @@ function(nodeid, depth) {
 		false, this
 	);
 }
-
