@@ -1,14 +1,13 @@
-goog.provide('SpritedImage');
+goog.provide('cam.SpritedImage');
 
 goog.require('goog.object');
 goog.require('goog.string');
+goog.require('cam.object');
 
-goog.require('object');
-
-var SpritedImage = React.createClass({
+cam.SpritedImage = React.createClass({
 	render: function() {
 		return (
-			React.DOM.div({className: this.props.className, style: extend(this.props.style, {overflow: 'hidden'})},
+			React.DOM.div({className: this.props.className, style: cam.object.extend(this.props.style, {overflow: 'hidden'})},
 				React.DOM.img({src: this.props.src, style: this.getImgStyle_()})));
 	},
 

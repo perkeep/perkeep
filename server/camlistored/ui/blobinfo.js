@@ -14,25 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.BlobPage');
+goog.provide('cam.BlobPage');
 
 goog.require('goog.dom');
 goog.require('goog.ui.Component');
-goog.require('camlistore.ServerConnection');
+goog.require('cam.ServerConnection');
 
-// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
 // @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
-camlistore.BlobPage = function(config, opt_domHelper) {
+cam.BlobPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
 	this.config_ = config;
-	this.connection_ = new camlistore.ServerConnection(config);
+	this.connection_ = new cam.ServerConnection(config);
 };
-goog.inherits(camlistore.BlobPage, goog.ui.Component);
+goog.inherits(cam.BlobPage, goog.ui.Component);
 
-camlistore.BlobPage.prototype.thumbnailSize_ = 200;
+cam.BlobPage.prototype.thumbnailSize_ = 200;
 
-camlistore.BlobPage.prototype.enterDocument = function() {
+cam.BlobPage.prototype.enterDocument = function() {
 	var blobref = getBlobParam();
 	if (!blobref) {
 		alert("missing blob param in url");
@@ -47,7 +47,7 @@ camlistore.BlobPage.prototype.enterDocument = function() {
 
 }
 
-camlistore.BlobPage.prototype.describeBlob_ = function(blobRef) {
+cam.BlobPage.prototype.describeBlob_ = function(blobRef) {
 	this.connection_.describeWithThumbnails(blobRef, 0, goog.bind(this.handleDescribeBlob_, this),
 		function(msg) {
 			alert("Error describing blob " + blobRef + ": " + msg);
@@ -56,7 +56,7 @@ camlistore.BlobPage.prototype.describeBlob_ = function(blobRef) {
 };
 
 // TODO(mpl): improve blob_item and redo the following based on it.
-camlistore.BlobPage.prototype.handleDescribeBlob_ = function(bmap) {
+cam.BlobPage.prototype.handleDescribeBlob_ = function(bmap) {
 	var blobmeta = goog.dom.getElement('blobmeta');
 	var bd = goog.dom.getElement("blobdownload");
 	bd.innerHTML = "";

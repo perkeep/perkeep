@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.AnimationLoop');
+goog.provide('cam.AnimationLoop');
 
 goog.require('goog.events.EventTarget');
 
 // Provides an easier-to-use interface around window.requestAnimationFrame(), and abstracts away browser differences.
 // @param {Window} win
-camlistore.AnimationLoop = function(win) {
+cam.AnimationLoop = function(win) {
 	goog.base(this);
 
 	this.win_ = win;
@@ -38,15 +38,15 @@ camlistore.AnimationLoop = function(win) {
 	}
 };
 
-goog.inherits(camlistore.AnimationLoop, goog.events.EventTarget);
+goog.inherits(cam.AnimationLoop, goog.events.EventTarget);
 
-camlistore.AnimationLoop.FRAME_EVENT_TYPE = 'frame';
+cam.AnimationLoop.FRAME_EVENT_TYPE = 'frame';
 
-camlistore.AnimationLoop.prototype.isRunning = function() {
+cam.AnimationLoop.prototype.isRunning = function() {
 	return Boolean(this.lastTimestamp_);
 };
 
-camlistore.AnimationLoop.prototype.start = function() {
+cam.AnimationLoop.prototype.start = function() {
 	if (this.isRunning()) {
 		return;
 	}
@@ -55,15 +55,15 @@ camlistore.AnimationLoop.prototype.start = function() {
 	this.schedule_();
 };
 
-camlistore.AnimationLoop.prototype.stop = function() {
+cam.AnimationLoop.prototype.stop = function() {
 	this.lastTimestamp_ = 0;
 };
 
-camlistore.AnimationLoop.prototype.schedule_ = function() {
+cam.AnimationLoop.prototype.schedule_ = function() {
 	this.requestAnimationFrame_(this.handleFrame_);
 };
 
-camlistore.AnimationLoop.prototype.handleFrame_ = function(opt_timestamp) {
+cam.AnimationLoop.prototype.handleFrame_ = function(opt_timestamp) {
 	if (this.lastTimestamp_ == 0) {
 		return;
 	}
@@ -82,7 +82,7 @@ camlistore.AnimationLoop.prototype.handleFrame_ = function(opt_timestamp) {
 	this.schedule_();
 };
 
-camlistore.AnimationLoop.prototype.simulateAnimationFrame_ = function(fn) {
+cam.AnimationLoop.prototype.simulateAnimationFrame_ = function(fn) {
 	this.win_.setTimeout(function() {
 		fn(new Date().getTime());
 	}, 0);

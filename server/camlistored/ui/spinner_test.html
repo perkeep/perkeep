@@ -21,12 +21,12 @@ limitations under the License.
 		<script src="closure/goog/base.js"></script>
 		<script src="deps.js"></script>
 		<script>
-			goog.require('camlistore.Spinner');
+			goog.require('cam.Spinner');
 		</script>
 	</head>
 	<body>
 		<script>
-			var spinner = new camlistore.Spinner(goog.dom.getDomHelper());
+			var spinner = new cam.Spinner(goog.dom.getDomHelper());
 			spinner.render(document.body);
 
 			document.onclick = function() {
@@ -35,10 +35,10 @@ limitations under the License.
 
 			// These two are to easily see how off-center the rotation is at worst.
 			spinner.getElement().onmouseover = function() {
-				camlistore.style.setRotation(spinner.getElement().firstChild, 180);
+				cam.style.setRotation(spinner.getElement().firstChild, 180);
 			};
 			spinner.getElement().onmouseout = function() {
-				camlistore.style.setRotation(spinner.getElement().firstChild, 0);
+				cam.style.setRotation(spinner.getElement().firstChild, 0);
 			};
 		</script>
 	</body>

@@ -14,34 +14,34 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.GalleryPage');
+goog.provide('cam.GalleryPage');
 
 goog.require('goog.dom');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
-goog.require('camlistore.ServerConnection');
+goog.require('cam.ServerConnection');
 
-// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
 // @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
-camlistore.GalleryPage = function(config, opt_domHelper) {
+cam.GalleryPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
 	this.config_ = config;
-	this.connection_ = new camlistore.ServerConnection(config);
+	this.connection_ = new cam.ServerConnection(config);
 };
-goog.inherits(camlistore.GalleryPage, goog.ui.Component);
+goog.inherits(cam.GalleryPage, goog.ui.Component);
 
-camlistore.GalleryPage.prototype.decorateInternal = function(element) {
-	camlistore.GalleryPage.superClass_.decorateInternal.call(this, element);
-};
-
-camlistore.GalleryPage.prototype.disposeInternal = function() {
-	camlistore.GalleryPage.superClass_.disposeInternal.call(this);
+cam.GalleryPage.prototype.decorateInternal = function(element) {
+	cam.GalleryPage.superClass_.decorateInternal.call(this, element);
 };
 
-camlistore.GalleryPage.prototype.enterDocument = function() {
-	camlistore.GalleryPage.superClass_.enterDocument.call(this);
+cam.GalleryPage.prototype.disposeInternal = function() {
+	cam.GalleryPage.superClass_.disposeInternal.call(this);
+};
+
+cam.GalleryPage.prototype.enterDocument = function() {
+	cam.GalleryPage.superClass_.enterDocument.call(this);
 
 	var members = goog.dom.getElement('members');
 	if (!members) {
@@ -121,7 +121,7 @@ camlistore.GalleryPage.prototype.enterDocument = function() {
 
 // @param {string} titleInput text field element for title
 // @param {string} titleSpan span element containing the title
-camlistore.GalleryPage.prototype.saveImgTitle_ = function (titleInput, titleSpan) {
+cam.GalleryPage.prototype.saveImgTitle_ = function (titleInput, titleSpan) {
 	var spanText = goog.dom.getTextContent(titleSpan);
 	var newVal = titleInput.value;
 	if (newVal != "" && newVal != spanText) {
@@ -144,6 +144,6 @@ camlistore.GalleryPage.prototype.saveImgTitle_ = function (titleInput, titleSpan
 	goog.dom.classes.add(titleSpan, 'visible');
 }
 
-camlistore.GalleryPage.prototype.exitDocument = function() {
-	camlistore.GalleryPage.superClass_.exitDocument.call(this);
+cam.GalleryPage.prototype.exitDocument = function() {
+	cam.GalleryPage.superClass_.exitDocument.call(this);
 };

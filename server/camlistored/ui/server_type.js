@@ -1,7 +1,7 @@
 /**
  * @fileoverview Helpers and types for JSON objects returned by the server.
  */
-goog.provide('camlistore.ServerType');
+goog.provide('cam.ServerType');
 
 
 /**
@@ -11,7 +11,7 @@ goog.provide('camlistore.ServerType');
  *   prefix: Array.<string>
  * }}
  */
-camlistore.ServerType.DiscoveryRoot;
+cam.ServerType.DiscoveryRoot;
 
 
 /**
@@ -21,16 +21,16 @@ camlistore.ServerType.DiscoveryRoot;
  *   downloadHelper: string,
  *   jsonSignRoot: string,
  *   ownerName: string,
- *   publishRoots: Array.<camlistore.ServerType.DiscoveryRoot>,
+ *   publishRoots: Array.<cam.ServerType.DiscoveryRoot>,
  *   searchRoot: string,
  *   statusRoot: string,
  *   storageGeneration: string,
  *   storageInitTime: string,
- *   signing: camlistore.ServerType.SigningDiscoveryDocument,
+ *   signing: cam.ServerType.SigningDiscoveryDocument,
  *   uploadHelper: string
  * }}
  */
-camlistore.ServerType.DiscoveryDocument;
+cam.ServerType.DiscoveryDocument;
 
 /**
  * @typedef {{
@@ -41,7 +41,7 @@ camlistore.ServerType.DiscoveryDocument;
  *   verifyHandler: string
  * }}
  */
-camlistore.ServerType.SigningDiscoveryDocument;
+cam.ServerType.SigningDiscoveryDocument;
 
 /**
  * @typedef {{
@@ -50,46 +50,46 @@ camlistore.ServerType.SigningDiscoveryDocument;
  *   size: number
  * }}
  */
-camlistore.ServerType.IndexerFileMeta;
+cam.ServerType.IndexerFileMeta;
 
 
 /**
  * @typedef {{
  *   title: string,
- *   camliContent: Array.<camlistore.ServerType.IndexerMeta>
+ *   camliContent: Array.<cam.ServerType.IndexerMeta>
  * }}
  */
-camlistore.ServerType.IndexerPermanodeAttrMeta;
+cam.ServerType.IndexerPermanodeAttrMeta;
 
 
 /**
  * @typedef {{
- *   attr: camlistore.ServerType.IndexerPermanodeAttrMeta?
+ *   attr: cam.ServerType.IndexerPermanodeAttrMeta?
  * }}
  */
-camlistore.ServerType.IndexerPermanodeMeta;
+cam.ServerType.IndexerPermanodeMeta;
 
 
 /**
  * @typedef {{
  *   blobRef: string,
  *   camliType: string,
- *   file: camlistore.ServerType.IndexerFileMeta?,
+ *   file: cam.ServerType.IndexerFileMeta?,
  *   mimeType: string,
- *   permanode: camlistore.ServerType.IndexerPermanodeMeta?,
+ *   permanode: cam.ServerType.IndexerPermanodeMeta?,
  *   size: number,
  *   thumbnailHeight: number?,
  *   thumbnailWidth: number?,
  *   thumbnailSrc: string?
  * }}
  */
-camlistore.ServerType.IndexerMeta;
+cam.ServerType.IndexerMeta;
 
 
 /**
- * @typedef {Object.<string, camlistore.ServerType.IndexerMeta>}
+ * @typedef {Object.<string, cam.ServerType.IndexerMeta>}
  */
-camlistore.ServerType.IndexerMetaBag;
+cam.ServerType.IndexerMetaBag;
 
 /**
  * @typedef {{
@@ -98,41 +98,41 @@ camlistore.ServerType.IndexerMetaBag;
  *   owner: string
  * }}
 */
-camlistore.ServerType.SearchRecentItem;
+cam.ServerType.SearchRecentItem;
 
 /**
  * @typedef {{
- *   recent: Array.<camlistore.ServerType.SearchRecentItem>,
- *   meta: camlistore.ServerType.IndexerMetaBag
+ *   recent: Array.<cam.ServerType.SearchRecentItem>,
+ *   meta: cam.ServerType.IndexerMetaBag
  * }}
 */
-camlistore.ServerType.SearchRecentResponse;
+cam.ServerType.SearchRecentResponse;
 
 /**
  * @typedef {{
  *   permanode: string
  * }}
 */
-camlistore.ServerType.SearchWithAttrItem;
+cam.ServerType.SearchWithAttrItem;
 
 /**
  * @typedef {{
- *   withAttr: Array.<camlistore.ServerType.SearchWithAttrItem>,
- *   meta: camlistore.ServerType.IndexerMetaBag
+ *   withAttr: Array.<cam.ServerType.SearchWithAttrItem>,
+ *   meta: cam.ServerType.IndexerMetaBag
  * }}
 */
-camlistore.ServerType.SearchWithAttrResponse;
+cam.ServerType.SearchWithAttrResponse;
 
 /**
  * @typedef {{
- *   meta: camlistore.ServerType.IndexerMetaBag
+ *   meta: cam.ServerType.IndexerMetaBag
  * }}
 */
-camlistore.ServerType.DescribeResponse;
+cam.ServerType.DescribeResponse;
 
 /**
  * @typedef {{
  *   version: string,
  * }}
 */
-camlistore.ServerType.StatusResponse;
+cam.ServerType.StatusResponse;

@@ -1,4 +1,4 @@
-goog.provide('camlistore.BlobItemContainer');
+goog.provide('cam.BlobItemContainer');
 
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
@@ -7,12 +7,12 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Container');
-goog.require('camlistore.BlobItem');
-goog.require('camlistore.ServerConnection');
-goog.require('SearchSession');
+goog.require('cam.BlobItem');
+goog.require('cam.SearchSession');
+goog.require('cam.ServerConnection');
 
 // An infinite scrolling list of BlobItem. The heights of rows and clip of individual items is adjusted to get a fully justified appearance.
-camlistore.BlobItemContainer = function(connection, opt_domHelper) {
+cam.BlobItemContainer = function(connection, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
 	this.checkedBlobItems_ = [];
@@ -38,68 +38,68 @@ camlistore.BlobItemContainer = function(connection, opt_domHelper) {
 	// Whether users can drag files onto the container to upload.
 	this.isFileDragEnabled = false;
 
-	// A lookup of blobRef->camlistore.BlobItem. This allows us to quickly find and reuse existing controls when we're updating the UI in response to a server push.
+	// A lookup of blobRef->cam.BlobItem. This allows us to quickly find and reuse existing controls when we're updating the UI in response to a server push.
 	this.itemCache_ = {};
 
 	this.setFocusable(false);
 };
-goog.inherits(camlistore.BlobItemContainer, goog.ui.Container);
+goog.inherits(cam.BlobItemContainer, goog.ui.Container);
 
 // Margin between items in the layout.
-camlistore.BlobItemContainer.BLOB_ITEM_MARGIN = 7;
+cam.BlobItemContainer.BLOB_ITEM_MARGIN = 7;
 
 // If the last row uses at least this much of the available width before adjustments, we'll call it "close enough" and adjust things so that it fills the entire row. Less than this, and we'll leave the last row unaligned.
-camlistore.BlobItemContainer.LAST_ROW_CLOSE_ENOUGH_TO_FULL = 0.85;
+cam.BlobItemContainer.LAST_ROW_CLOSE_ENOUGH_TO_FULL = 0.85;
 
-camlistore.BlobItemContainer.THUMBNAIL_SIZES_ = [75, 100, 150, 200, 250];
+cam.BlobItemContainer.THUMBNAIL_SIZES_ = [75, 100, 150, 200, 250];
 
 // Distance from the bottom of the page at which we will trigger loading more data.
-camlistore.BlobItemContainer.INFINITE_SCROLL_THRESHOLD_PX_ = 100;
+cam.BlobItemContainer.INFINITE_SCROLL_THRESHOLD_PX_ = 100;
 
-camlistore.BlobItemContainer.NUM_ITEMS_PER_PAGE = 50;
+cam.BlobItemContainer.NUM_ITEMS_PER_PAGE = 50;
 
-camlistore.BlobItemContainer.prototype.fileDropHandler_ = null;
+cam.BlobItemContainer.prototype.fileDropHandler_ = null;
 
-camlistore.BlobItemContainer.prototype.dragActiveElement_ = null;
+cam.BlobItemContainer.prototype.dragActiveElement_ = null;
 
 // Constants for events fired by BlobItemContainer
-camlistore.BlobItemContainer.EventType = {
+cam.BlobItemContainer.EventType = {
 	SELECTION_CHANGED: 'Camlistore_BlobItemContainer_SelectionChanged',
 };
 
-camlistore.BlobItemContainer.prototype.thumbnailSize_ = 200;
+cam.BlobItemContainer.prototype.thumbnailSize_ = 200;
 
-camlistore.BlobItemContainer.prototype.smaller = function() {
-	var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(this.thumbnailSize_);
+cam.BlobItemContainer.prototype.smaller = function() {
+	var index = cam.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(this.thumbnailSize_);
 	if (index == 0) {
 		return false;
 	}
 	var el = this.getElement();
 	goog.dom.classes.remove(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
-	this.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[index-1];
+	this.thumbnailSize_ = cam.BlobItemContainer.THUMBNAIL_SIZES_[index-1];
 	goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
 	return true;
 };
 
-camlistore.BlobItemContainer.prototype.bigger = function() {
-	var index = camlistore.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
+cam.BlobItemContainer.prototype.bigger = function() {
+	var index = cam.BlobItemContainer.THUMBNAIL_SIZES_.indexOf(
 			this.thumbnailSize_);
-	if (index == camlistore.BlobItemContainer.THUMBNAIL_SIZES_.length - 1) {
+	if (index == cam.BlobItemContainer.THUMBNAIL_SIZES_.length - 1) {
 		return false;
 	}
 	var el = this.getElement();
 	goog.dom.classes.remove(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
-	this.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[index+1];
+	this.thumbnailSize_ = cam.BlobItemContainer.THUMBNAIL_SIZES_[index+1];
 	goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
 	return true;
 };
 
-camlistore.BlobItemContainer.prototype.createDom = function() {
+cam.BlobItemContainer.prototype.createDom = function() {
 	this.decorateInternal(this.dom_.createElement('div'));
 };
 
-camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
-	camlistore.BlobItemContainer.superClass_.decorateInternal.call(this, element);
+cam.BlobItemContainer.prototype.decorateInternal = function(element) {
+	cam.BlobItemContainer.superClass_.decorateInternal.call(this, element);
 	this.layout_();
 
 	var el = this.getElement();
@@ -107,12 +107,12 @@ camlistore.BlobItemContainer.prototype.decorateInternal = function(element) {
 	goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
 };
 
-camlistore.BlobItemContainer.prototype.disposeInternal = function() {
-	camlistore.BlobItemContainer.superClass_.disposeInternal.call(this);
+cam.BlobItemContainer.prototype.disposeInternal = function() {
+	cam.BlobItemContainer.superClass_.disposeInternal.call(this);
 	this.eh_.dispose();
 };
 
-camlistore.BlobItemContainer.prototype.addChildAt = function(child, index, opt_render) {
+cam.BlobItemContainer.prototype.addChildAt = function(child, index, opt_render) {
 	goog.base(this, "addChildAt", child, index, opt_render);
 	child.setEnabled(this.isSelectionEnabled);
 	if (!this.isLayoutDirty_) {
@@ -126,13 +126,13 @@ camlistore.BlobItemContainer.prototype.addChildAt = function(child, index, opt_r
 	}
 };
 
-camlistore.BlobItemContainer.prototype.removeChildAt = function(index, opt_render) {
+cam.BlobItemContainer.prototype.removeChildAt = function(index, opt_render) {
 	goog.base(this, "removeChildAt", index, opt_render);
 	this.isLayoutDirty_ = true;
 };
 
-camlistore.BlobItemContainer.prototype.enterDocument = function() {
-	camlistore.BlobItemContainer.superClass_.enterDocument.call(this);
+cam.BlobItemContainer.prototype.enterDocument = function() {
+	cam.BlobItemContainer.superClass_.enterDocument.call(this);
 
 	this.resetChildren_();
 	this.listenToBlobItemEvents_();
@@ -153,40 +153,40 @@ camlistore.BlobItemContainer.prototype.enterDocument = function() {
 	window.setInterval(goog.bind(this.layout_, this, false), 1000);
 };
 
-camlistore.BlobItemContainer.prototype.exitDocument = function() {
-	camlistore.BlobItemContainer.superClass_.exitDocument.call(this);
+cam.BlobItemContainer.prototype.exitDocument = function() {
+	cam.BlobItemContainer.superClass_.exitDocument.call(this);
 	this.eh_.removeAll();
 };
 
-camlistore.BlobItemContainer.prototype.showSearchSession = function(session) {
-	var changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND;
+cam.BlobItemContainer.prototype.showSearchSession = function(session) {
+	var changeType = cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND;
 
 	if (this.searchSession_ != session) {
 		if (this.searchSession_) {
-			this.eh_.unlisten(this.searchSession_, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+			this.eh_.unlisten(this.searchSession_, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
 		}
 		this.resetChildren_();
 		this.itemCache_ = {};
 		this.layout_();
 		this.searchSession_ = session;
-		this.eh_.listen(session, SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
-		changeType = SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW;
+		this.eh_.listen(session, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchDone_);
+		changeType = cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW;
 	}
 
 	this.searchDone_({changeType:changeType});
 };
 
-camlistore.BlobItemContainer.prototype.getSearchSession = function() {
+cam.BlobItemContainer.prototype.getSearchSession = function() {
 	return this.searchSession_;
 };
 
-camlistore.BlobItemContainer.prototype.searchDone_ = function(e) {
-	if (e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW) {
+cam.BlobItemContainer.prototype.searchDone_ = function(e) {
+	if (e.changeType == cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.NEW) {
 		this.resetChildren_();
 		this.itemCache_ = {};
 	}
 
-	this.populateChildren_(this.searchSession_.getCurrentResults(), e.changeType == SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND);
+	this.populateChildren_(this.searchSession_.getCurrentResults(), e.changeType == cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE.APPEND);
 
 	if (this.searchSession_.isComplete()) {
 		return;
@@ -201,18 +201,18 @@ camlistore.BlobItemContainer.prototype.searchDone_ = function(e) {
 	}
 };
 
-camlistore.BlobItemContainer.prototype.findByBlobref_ = function(blobref) {
+cam.BlobItemContainer.prototype.findByBlobref_ = function(blobref) {
 	this.connection_.describeWithThumbnails(
 		blobref, this.thumbnailSize_,
 		goog.bind(this.findByBlobrefDone_, this, blobref),
 		function(msg) { alert(msg); });
 };
 
-camlistore.BlobItemContainer.prototype.getCheckedBlobItems = function() {
+cam.BlobItemContainer.prototype.getCheckedBlobItems = function() {
 	return this.checkedBlobItems_;
 };
 
-camlistore.BlobItemContainer.prototype.listenToBlobItemEvents_ = function() {
+cam.BlobItemContainer.prototype.listenToBlobItemEvents_ = function() {
 	var doc = goog.dom.getOwnerDocument(this.element_);
 	this.eh_.listen(this, goog.ui.Component.EventType.CHECK, this.handleBlobItemChecked_);
 	this.eh_.listen(this, goog.ui.Component.EventType.UNCHECK, this.handleBlobItemChecked_);
@@ -220,12 +220,12 @@ camlistore.BlobItemContainer.prototype.listenToBlobItemEvents_ = function() {
 	this.eh_.listen(doc, goog.events.EventType.KEYUP, this.handleKeyUpEvent_);
 };
 
-camlistore.BlobItemContainer.prototype.isShiftKeyDown_ = false;
+cam.BlobItemContainer.prototype.isShiftKeyDown_ = false;
 
-camlistore.BlobItemContainer.prototype.isCtrlKeyDown_ = false;
+cam.BlobItemContainer.prototype.isCtrlKeyDown_ = false;
 
 // Sets state for whether or not the shift or ctrl key is down.
-camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
+cam.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
 	if (e.keyCode == goog.events.KeyCodes.SHIFT) {
 		this.isShiftKeyDown_ = true;
 		this.isCtrlKeyDown_ = false;
@@ -239,15 +239,15 @@ camlistore.BlobItemContainer.prototype.handleKeyDownEvent_ = function(e) {
 };
 
 // Sets state for whether or not the shift or ctrl key is up.
-camlistore.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
+cam.BlobItemContainer.prototype.handleKeyUpEvent_ = function(e) {
 	this.isShiftKeyDown_ = false;
 	this.isCtrlKeyDown_ = false;
 };
 
-camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
+cam.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
 	// Because the CHECK/UNCHECK event dispatches before isChecked is set.
 	// We stop the default behaviour because want to control manually here whether
-	// the source blobitem gets checked or not. See http://camlistore.org/issue/134
+	// the source blobitem gets checked or not. See http://cam.org/issue/134
 	e.preventDefault();
 	var blobItem = e.target;
 	var isCheckingItem = !blobItem.isChecked();
@@ -314,18 +314,18 @@ camlistore.BlobItemContainer.prototype.handleBlobItemChecked_ = function(e) {
 			goog.array.remove(this.checkedBlobItems_, blobItem);
 		}
 	}
-	this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
+	this.dispatchEvent(cam.BlobItemContainer.EventType.SELECTION_CHANGED);
 };
 
-camlistore.BlobItemContainer.prototype.unselectAll = function() {
+cam.BlobItemContainer.prototype.unselectAll = function() {
 	goog.array.forEach(this.checkedBlobItems_, function(item) {
 		item.setState(goog.ui.Component.State.CHECKED, false);
 	});
 	this.checkedBlobItems_ = [];
-	this.dispatchEvent(camlistore.BlobItemContainer.EventType.SELECTION_CHANGED);
+	this.dispatchEvent(cam.BlobItemContainer.EventType.SELECTION_CHANGED);
 };
 
-camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, append) {
+cam.BlobItemContainer.prototype.populateChildren_ = function(result, append) {
 	var i = append ? this.getChildCount() : 0;
 	for (var blob; blob = result.blobs[i]; i++) {
 		var blobRef = blob.blob;
@@ -338,7 +338,7 @@ camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, appe
 			item.updateDom();
 			render = false;
 		} else {
-			item = new camlistore.BlobItem(blobRef, result.description.meta);
+			item = new cam.BlobItem(blobRef, result.description.meta);
 			this.itemCache_[blobRef] = item;
 		}
 
@@ -359,7 +359,7 @@ camlistore.BlobItemContainer.prototype.populateChildren_ = function(result, appe
 	}
 };
 
-camlistore.BlobItemContainer.prototype.layout_ = function(force) {
+cam.BlobItemContainer.prototype.layout_ = function(force) {
 	var el = this.getElement();
 	var availWidth = el.clientWidth;
 
@@ -422,7 +422,7 @@ camlistore.BlobItemContainer.prototype.layout_ = function(force) {
 // using their initial dimensions, before any scaling or clipping.
 // @param {Number} top The position of the top of the row.
 // @return {Number} The height of the row after layout.
-camlistore.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endIndex, availWidth, usedWidth, top) {
+cam.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endIndex, availWidth, usedWidth, top) {
 	var currentLeft = 0;
 	var rowHeight = Number.POSITIVE_INFINITY;
 
@@ -458,7 +458,7 @@ camlistore.BlobItemContainer.prototype.layoutRow_ = function(startIndex, endInde
 	return rowHeight;
 };
 
-camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
+cam.BlobItemContainer.prototype.handleScroll_ = function() {
 	if (!this.isVisible()) {
 		return;
 	}
@@ -477,7 +477,7 @@ camlistore.BlobItemContainer.prototype.handleScroll_ = function() {
 	}
 };
 
-camlistore.BlobItemContainer.prototype.findByBlobrefDone_ = function(permanode, result) {
+cam.BlobItemContainer.prototype.findByBlobrefDone_ = function(permanode, result) {
 	this.resetChildren_();
 	if (!result) {
 		return;
@@ -486,16 +486,16 @@ camlistore.BlobItemContainer.prototype.findByBlobrefDone_ = function(permanode, 
 	if (!meta || !meta[permanode]) {
 		return;
 	}
-	var item = new camlistore.BlobItem(permanode, meta);
+	var item = new cam.BlobItem(permanode, meta);
 	this.addChild(item, true);
 };
 
 // Clears all children from this container, reseting to the default state.
-camlistore.BlobItemContainer.prototype.resetChildren_ = function() {
+cam.BlobItemContainer.prototype.resetChildren_ = function() {
 	this.removeChildren(true);
 };
 
-camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
+cam.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
 	var recipient = this.dragActiveElement_;
 	if (!recipient) {
 		console.log("No valid target to drag and drop on.");
@@ -513,22 +513,22 @@ camlistore.BlobItemContainer.prototype.handleFileDrop_ = function(e) {
 	}
 };
 
-camlistore.BlobItemContainer.prototype.handleUploadSuccess_ = function(file, recipient, blobRef) {
+cam.BlobItemContainer.prototype.handleUploadSuccess_ = function(file, recipient, blobRef) {
 	this.connection_.createPermanode(
 		goog.bind(this.handleCreatePermanodeSuccess_, this, file, recipient, blobRef));
 };
 
-camlistore.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ = function(file, recipient, blobRef, permanode) {
+cam.BlobItemContainer.prototype.handleCreatePermanodeSuccess_ = function(file, recipient, blobRef, permanode) {
 	this.connection_.newSetAttributeClaim(permanode, 'camliContent', blobRef,
 		goog.bind(this.handleSetAttributeSuccess_, this, file, recipient, blobRef, permanode));
 };
 
-camlistore.BlobItemContainer.prototype.handleSetAttributeSuccess_ = function(file, recipient, blobRef, permanode) {
+cam.BlobItemContainer.prototype.handleSetAttributeSuccess_ = function(file, recipient, blobRef, permanode) {
 	this.connection_.describeWithThumbnails(permanode, this.thumbnailSize_,
 		goog.bind(this.handleDescribeSuccess_, this, recipient, permanode));
 };
 
-camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ = function(recipient, permanode, describeResult) {
+cam.BlobItemContainer.prototype.handleDescribeSuccess_ = function(recipient, permanode, describeResult) {
 	if (recipient) {
 		this.connection_.newAddAttributeClaim(recipient, 'camliMember', permanode);
 	}
@@ -538,14 +538,14 @@ camlistore.BlobItemContainer.prototype.handleDescribeSuccess_ = function(recipie
 		return;
 	}
 
-	var item = new camlistore.BlobItem(permanode, describeResult.meta);
+	var item = new cam.BlobItem(permanode, describeResult.meta);
 	this.addChildAt(item, 0, true);
 	if (!recipient) {
 		return;
 	}
 };
 
-camlistore.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
+cam.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
 	if (this.dragEndTimer_) {
 		this.dragEndTimer_ = window.clearTimeout(this.dragEndTimer_);
 	}
@@ -575,12 +575,12 @@ camlistore.BlobItemContainer.prototype.handleFileDrag_ = function(e) {
 	}
 };
 
-camlistore.BlobItemContainer.prototype.hide_ = function() {
+cam.BlobItemContainer.prototype.hide_ = function() {
 	goog.dom.classes.remove(this.getElement(), 'cam-blobitemcontainer-' + this.thumbnailSize_);
 	goog.dom.classes.add(this.getElement(), 'cam-blobitemcontainer-hidden');
 };
 
-camlistore.BlobItemContainer.prototype.show_ = function() {
+cam.BlobItemContainer.prototype.show_ = function() {
 	goog.dom.classes.remove(this.getElement(), 'cam-blobitemcontainer-hidden');
 	goog.dom.classes.add(this.getElement(), 'cam-blobitemcontainer-' + this.thumbnailSize_);
 	this.layout_(true);

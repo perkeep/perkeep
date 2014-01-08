@@ -1,9 +1,9 @@
-goog.provide('SpritedAnimation');
+goog.provide('cam.SpritedAnimation');
 
-goog.require('SpritedImage');
-goog.require('object');
+goog.require('cam.SpritedImage');
+goog.require('cam.object');
 
-var SpritedAnimation = React.createClass({
+cam.SpritedAnimation = React.createClass({
 	getInitialState: function() {
 		return {
 			index: 0
@@ -23,6 +23,6 @@ var SpritedAnimation = React.createClass({
 	},
 
 	render: function() {
-		return SpritedImage(extend(this.props, {index: this.state.index}));
+		return cam.SpritedImage(cam.object.extend(this.props, {index: this.state.index}));
 	}
 });

@@ -22,8 +22,8 @@ limitations under the License.
 		<script>
 			goog.require('goog.events');
 			goog.require('goog.testing.net.XhrIo');
-			goog.require('camlistore.ServerConnection');
-			goog.require('camlistore.BlobItemContainer');
+			goog.require('cam.ServerConnection');
+			goog.require('cam.BlobItemContainer');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
 		<link rel="stylesheet" href="blob_item_container.css" type="text/css">
@@ -116,14 +116,14 @@ limitations under the License.
 				}
 			};
 
-			var connection = new camlistore.ServerConnection(
+			var connection = new cam.ServerConnection(
 				{
 					'searchRoot': '/my/test/search'
 				},
 				goog.testing.net.XhrIo.send
 			);
 
-			var container = new camlistore.BlobItemContainer(connection);
+			var container = new cam.BlobItemContainer(connection);
 			container.render(document.body);
 
 			container.showRecent();

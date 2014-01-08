@@ -20,7 +20,7 @@ goog.require('goog.string');
 var assert = require('assert');
 var fs = require('fs');
 
-goog.require('camlistore.blob');
+goog.require('cam.blob');
 
 
 var MockDOMBlob = function(buffer, start, end) {
@@ -64,28 +64,28 @@ MockFileReaderSync.prototype.readAsArrayBuffer = function(blob) {
 };
 
 
-describe('camlistore.blob', function() {
+describe('cam.blob', function() {
   describe('#refFromHash', function() {
     it('should calculate the right hash', function() {
         var hash = new goog.crypt.Sha1();
-        assert.equal(camlistore.blob.refFromHash(hash), 'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709');
+        assert.equal(cam.blob.refFromHash(hash), 'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709');
 
         hash.reset();
         hash.update('The quick brown fox jumps over the lazy dog');
-        assert.equal(camlistore.blob.refFromHash(hash), 'sha1-2fd4e1c67a2d28fced849ee1bb76e7391b93eb12');
+        assert.equal(cam.blob.refFromHash(hash), 'sha1-2fd4e1c67a2d28fced849ee1bb76e7391b93eb12');
     });
 
     it('should complain about wrong hash function', function() {
         function FooHash() {};
         goog.inherits(FooHash, goog.crypt.Hash);
-        assert.throws(camlistore.blob.refFromHash.bind(null, new FooHash()), /Unsupported hash function type/);
+        assert.throws(cam.blob.refFromHash.bind(null, new FooHash()), /Unsupported hash function type/);
     });
   });
 
   describe('#refFromString', function() {
     it('should calculate the right hash', function() {
-        assert.equal(camlistore.blob.refFromString(''), 'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709');
-        assert.equal(camlistore.blob.refFromString('The quick brown fox jumps over the lazy dog'), 'sha1-2fd4e1c67a2d28fced849ee1bb76e7391b93eb12');
+        assert.equal(cam.blob.refFromString(''), 'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709');
+        assert.equal(cam.blob.refFromString('The quick brown fox jumps over the lazy dog'), 'sha1-2fd4e1c67a2d28fced849ee1bb76e7391b93eb12');
     });
   });
 
@@ -95,7 +95,7 @@ describe('camlistore.blob', function() {
         goog.global.FileReaderSync = MockFileReaderSync;
         try {
             // Verified with openssl.
-            assert.equal(camlistore.blob.refFromDOMBlob(blob), 'sha1-432e7e01de7086c5246b6ac57f5f435b58f13752');
+            assert.equal(cam.blob.refFromDOMBlob(blob), 'sha1-432e7e01de7086c5246b6ac57f5f435b58f13752');
         } finally {
             delete goog.global.FileReaderSync;
         }

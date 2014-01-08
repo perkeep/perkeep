@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.PermanodePage');
+goog.provide('cam.PermanodePage');
 
 goog.require('goog.dom');
 goog.require('goog.string');
@@ -22,43 +22,43 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Component');
-goog.require('camlistore.BlobItem');
-goog.require('camlistore.BlobItemContainer');
-goog.require('camlistore.ServerConnection');
+goog.require('cam.BlobItem');
+goog.require('cam.BlobItemContainer');
+goog.require('cam.ServerConnection');
 
-// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
 // @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
 // @extends {goog.ui.Component}
 // @constructor
-camlistore.PermanodePage = function(config, opt_domHelper) {
+cam.PermanodePage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
 	this.config_ = config;
 
-	this.connection_ = new camlistore.ServerConnection(config);
+	this.connection_ = new cam.ServerConnection(config);
 
-	this.blobItemContainer_ = new camlistore.BlobItemContainer(this.connection_, opt_domHelper);
-	this.blobItemContainer_.thumbnailSize_ = camlistore.BlobItemContainer.THUMBNAIL_SIZES_[3];
+	this.blobItemContainer_ = new cam.BlobItemContainer(this.connection_, opt_domHelper);
+	this.blobItemContainer_.thumbnailSize_ = cam.BlobItemContainer.THUMBNAIL_SIZES_[3];
 
 	this.describeResponse_ = null;
 };
-goog.inherits(camlistore.PermanodePage, goog.ui.Component);
+goog.inherits(cam.PermanodePage, goog.ui.Component);
 
-camlistore.PermanodePage.prototype.decorateInternal = function(element) {
-	camlistore.PermanodePage.superClass_.decorateInternal.call(this, element);
+cam.PermanodePage.prototype.decorateInternal = function(element) {
+	cam.PermanodePage.superClass_.decorateInternal.call(this, element);
 
 	var el = this.getElement();
 	goog.dom.classes.add(el, 'cam-permanode-page');
 
 };
 
-camlistore.PermanodePage.prototype.disposeInternal = function() {
-	camlistore.PermanodePage.superClass_.disposeInternal.call(this);
+cam.PermanodePage.prototype.disposeInternal = function() {
+	cam.PermanodePage.superClass_.disposeInternal.call(this);
 	this.eh_.dispose();
 };
 
-camlistore.PermanodePage.prototype.enterDocument = function() {
-	camlistore.PermanodePage.superClass_.enterDocument.call(this);
+cam.PermanodePage.prototype.enterDocument = function() {
+	cam.PermanodePage.superClass_.enterDocument.call(this);
 	var permanode = getPermanodeParam();
 	if (permanode) {
 		goog.dom.getElement('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
@@ -102,13 +102,13 @@ function getPermanodeParam() {
 	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 };
 
-camlistore.PermanodePage.prototype.exitDocument = function() {
-	camlistore.PermanodePage.superClass_.exitDocument.call(this);
+cam.PermanodePage.prototype.exitDocument = function() {
+	cam.PermanodePage.superClass_.exitDocument.call(this);
 };
 
 // @param {string} blobRef BlobRef for the uploaded file.
 // @param {string} permanode Permanode this blobRef is now the content of.
-camlistore.PermanodePage.prototype.describeBlob_ = function() {
+cam.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
 	this.connection_.describeWithThumbnails(permanode, this.blobItemContainer_.thumbnailSize_,
 		goog.bind(this.handleDescribeBlob_, this, permanode),
@@ -120,7 +120,7 @@ camlistore.PermanodePage.prototype.describeBlob_ = function() {
 
 // @param {string} permanode Node to describe.
 // @param {Object} describeResult Object of properties for the node.
-camlistore.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, describeResult) {
+cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, describeResult) {
 	var meta = describeResult.meta;
 	if (!meta[permanode]) {
 		alert("didn't get blob " + permanode);
@@ -174,7 +174,7 @@ camlistore.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, des
 		var content = goog.dom.getElement('content');
 		content.innerHTML = '';
 		var useFileBlobrefAsLink = "true";
-		var blobItem = new camlistore.BlobItem(permanode, meta, useFileBlobrefAsLink);
+		var blobItem = new cam.BlobItem(permanode, meta, useFileBlobrefAsLink);
 		blobItem.decorate(content);
 		blobItem.setSize(300, 300);
 		// TODO(mpl): ideally this should be done by handleType, but it's easier
@@ -199,7 +199,7 @@ camlistore.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, des
 // TODO(mpl): pass directly the permanode object
 // @param {string} permanode Node to describe.
 // @param {Object} describeResult Object of properties for the node.
-camlistore.PermanodePage.prototype.reloadTags_ = function(permanode, describeResult) {
+cam.PermanodePage.prototype.reloadTags_ = function(permanode, describeResult) {
 	var permanodeObject = describeResult.meta[permanode].permanode;
 	var spanTags = document.getElementById("spanTags");
 	while (spanTags.firstChild) {
@@ -230,7 +230,7 @@ camlistore.PermanodePage.prototype.reloadTags_ = function(permanode, describeRes
 // @param {Object} strikeEle text element to strike while we wait for the removal to take effect.
 // @param {Object} removeEle element to remove.
 // @return {Function}
-camlistore.PermanodePage.prototype.deleteTagFunc_ = function(tag, strikeEle, removeEle) {
+cam.PermanodePage.prototype.deleteTagFunc_ = function(tag, strikeEle, removeEle) {
 	var delFunc = function(e) {
 		strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
 		this.connection_.newDelAttributeClaim(getPermanodeParam(), "tag", tag,
@@ -241,11 +241,11 @@ camlistore.PermanodePage.prototype.deleteTagFunc_ = function(tag, strikeEle, rem
 	return goog.bind(delFunc, this);
 };
 
-camlistore.PermanodePage.prototype.isCamliPathAttribute_ = function(name) {
+cam.PermanodePage.prototype.isCamliPathAttribute_ = function(name) {
 	return goog.string.startsWith(name, "camliPath:");
 };
 
-camlistore.PermanodePage.prototype.reloadMembers_ = function() {
+cam.PermanodePage.prototype.reloadMembers_ = function() {
 	var membersList = goog.dom.getElement('membersList');
 	var membersThumbs = goog.dom.getElement('membersThumbs');
 	membersList.innerHTML = '';
@@ -287,8 +287,8 @@ camlistore.PermanodePage.prototype.reloadMembers_ = function() {
 // @param {string} pn child permanode.
 // @param {Object} meta meta in describe response.
 // @param {boolean} thumbnails whether to display thumbnails or a list
-camlistore.PermanodePage.prototype.addMember_ = function(pn, path, meta, thumbnails) {
-	var blobItem = new camlistore.BlobItem(pn, meta);
+cam.PermanodePage.prototype.addMember_ = function(pn, path, meta, thumbnails) {
+	var blobItem = new cam.BlobItem(pn, meta);
 	if (thumbnails) {
 		this.blobItemContainer_.addChild(blobItem, true)
 	} else {
@@ -320,7 +320,7 @@ camlistore.PermanodePage.prototype.addMember_ = function(pn, path, meta, thumbna
 // @param {Object} strikeEle text element to strike while we wait for the removal to take effect.
 // @param {Object} removeEle element to remove.
 // @return {Function}
-camlistore.PermanodePage.prototype.deleteMemberFunc_ = function(member, path, strikeEle, removeEle) {
+cam.PermanodePage.prototype.deleteMemberFunc_ = function(member, path, strikeEle, removeEle) {
 	var delFunc = function(e) {
 		strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
 		this.connection_.newDelAttributeClaim(getPermanodeParam(), path, member,
@@ -341,7 +341,7 @@ camlistore.PermanodePage.prototype.deleteMemberFunc_ = function(member, path, st
 // @param {string} path path to remove.
 // @param {Object} strikeEle element to remove.
 // @return {Function}
-camlistore.PermanodePage.prototype.deletePathFunc_ = function(sourcePermanode, path, strikeEle) {
+cam.PermanodePage.prototype.deletePathFunc_ = function(sourcePermanode, path, strikeEle) {
 	var delFunc = function(e) {
 		strikeEle.innerHTML = "<del>" + strikeEle.innerHTML + "</del>";
 		this.connection_.newDelAttributeClaim(
@@ -359,7 +359,7 @@ camlistore.PermanodePage.prototype.deletePathFunc_ = function(sourcePermanode, p
 	return goog.bind(delFunc, this);
 };
 
-camlistore.PermanodePage.prototype.handleFormTitleSubmit_ = function(e) {
+cam.PermanodePage.prototype.handleFormTitleSubmit_ = function(e) {
 	e.stopPropagation();
 	e.preventDefault();
 
@@ -387,7 +387,7 @@ camlistore.PermanodePage.prototype.handleFormTitleSubmit_ = function(e) {
 	);
 };
 
-camlistore.PermanodePage.prototype.handleFormTagsSubmit_ = function(e) {
+cam.PermanodePage.prototype.handleFormTagsSubmit_ = function(e) {
 	e.stopPropagation();
 	e.preventDefault();
 
@@ -426,7 +426,7 @@ camlistore.PermanodePage.prototype.handleFormTagsSubmit_ = function(e) {
 	}
 };
 
-camlistore.PermanodePage.prototype.handleFormAccessSubmit_ = function(e) {
+cam.PermanodePage.prototype.handleFormAccessSubmit_ = function(e) {
 	e.stopPropagation();
 	e.preventDefault();
 
@@ -463,7 +463,7 @@ camlistore.PermanodePage.prototype.handleFormAccessSubmit_ = function(e) {
 	);
 };
 
-camlistore.PermanodePage.prototype.setupRootsDropdown_ = function() {
+cam.PermanodePage.prototype.setupRootsDropdown_ = function() {
 	var selRoots = goog.dom.getElement("selectPublishRoot");
 	if (!this.config_.publishRoots) {
 		console.log("no publish roots");
@@ -478,7 +478,7 @@ camlistore.PermanodePage.prototype.setupRootsDropdown_ = function() {
 	goog.events.listen(goog.dom.getElement("btnSavePublish"), goog.events.EventType.CLICK, this.handleSavePublish_, false, this);
 };
 
-camlistore.PermanodePage.prototype.handleSavePublish_ = function(e) {
+cam.PermanodePage.prototype.handleSavePublish_ = function(e) {
 	var selRoots = goog.dom.getElement("selectPublishRoot");
 	var suffix = goog.dom.getElement("publishSuffix");
 
@@ -544,7 +544,7 @@ camlistore.PermanodePage.prototype.handleSavePublish_ = function(e) {
 	);
 };
 
-camlistore.PermanodePage.prototype.buildPathsList_ = function() {
+cam.PermanodePage.prototype.buildPathsList_ = function() {
 	var ourPermanode = getPermanodeParam();
 	if (!ourPermanode) {
 		return;
@@ -608,7 +608,7 @@ camlistore.PermanodePage.prototype.buildPathsList_ = function() {
 };
 
 // TODO(mpl): reuse blobitem code for dnd?
-camlistore.PermanodePage.prototype.setupFilesHandlers_ = function() {
+cam.PermanodePage.prototype.setupFilesHandlers_ = function() {
 	var dnd = goog.dom.getElement("dnd");
 	goog.events.listen(goog.dom.getElement("fileForm"), goog.events.EventType.SUBMIT, this.handleFilesSubmit_, false, this);
 	goog.events.listen(goog.dom.getElement("fileInput"), goog.events.EventType.CHANGE, onFileInputChange, false, this);
@@ -637,21 +637,21 @@ camlistore.PermanodePage.prototype.setupFilesHandlers_ = function() {
 	goog.events.listen(dnd, goog.events.FileDropHandler.EventType.DROP, goog.bind(drop, this), false, this);
 };
 
-camlistore.PermanodePage.prototype.handleFilesSubmit_ = function(e) {
+cam.PermanodePage.prototype.handleFilesSubmit_ = function(e) {
 	e.stopPropagation();
 	e.preventDefault();
 	this.handleFiles_(document.getElementById("fileInput").files);
 };
 
 // @param {Array<files>} files the files to upload.
-camlistore.PermanodePage.prototype.handleFiles_ = function(files) {
+cam.PermanodePage.prototype.handleFiles_ = function(files) {
 	for (var i = 0; i < files.length; i++) {
 		var file = files[i];
 		this.startFileUpload_(file);
 	}
 };
 
-camlistore.PermanodePage.prototype.startFileUpload_ = function(file) {
+cam.PermanodePage.prototype.startFileUpload_ = function(file) {
 	var dnd = goog.dom.getElement("dnd");
 	var up = goog.dom.createElement("div");
 	up.className= 'cam-permanode-dnd-item';

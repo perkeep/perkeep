@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.blob');
+goog.provide('cam.blob');
 
 goog.require('goog.crypt');
 goog.require('goog.crypt.Sha1');
@@ -22,7 +22,7 @@ goog.require('goog.crypt.Sha1');
 // Returns the Camlistore blobref for hash object. The only supported hash function is currently sha1, but more might be added later.
 // @param {!goog.crypt.Hash} hash
 // @returns {!string}
-camlistore.blob.refFromHash = function(hash) {
+cam.blob.refFromHash = function(hash) {
 	if (hash instanceof goog.crypt.Sha1) {
 		return 'sha1-' + goog.crypt.byteArrayToHex(hash.digest());
 	}
@@ -32,23 +32,23 @@ camlistore.blob.refFromHash = function(hash) {
 // Returns the Camlistore blobref for a string using the currently recommended hash function.
 // @param {!string} str
 // @returns {!string}
-camlistore.blob.refFromString = function(str) {
-	var hash = camlistore.blob.createHash();
+cam.blob.refFromString = function(str) {
+	var hash = cam.blob.createHash();
 	hash.update(str);
-	return camlistore.blob.refFromHash(hash);
+	return cam.blob.refFromHash(hash);
 };
 
 // Returns the Camlistore blobref for a DOM blob (different from Camlistore blob) using the currently recommended hash function. This function currently only works within workers.
 // @param {Blob} blob
 // @returns {!string}
-camlistore.blob.refFromDOMBlob = function(blob) {
+cam.blob.refFromDOMBlob = function(blob) {
 	if (!goog.global.FileReaderSync) {
 		// TODO(aa): If necessary, we can also implement this using FileReader for use on the main thread. But beware that should not be done for very large objects without checking the effect on framerate carefully.
 		throw new Error('FileReaderSync not available. Perhaps we are on the main thread?');
 	}
 
 	var fr = new FileReaderSync();
-	var hash = camlistore.blob.createHash();
+	var hash = cam.blob.createHash();
 	var chunkSize = 1024 * 1024;
 	for (var start = 0; start < blob.size; start += chunkSize) {
 		var end = Math.min(start + chunkSize, blob.size);
@@ -56,11 +56,11 @@ camlistore.blob.refFromDOMBlob = function(blob) {
 		hash.update(new Uint8Array(fr.readAsArrayBuffer(slice)));
 	}
 
-	return camlistore.blob.refFromHash(hash);
+	return cam.blob.refFromHash(hash);
 };
 
 // Creates an instance of the currently recommened hash function.
 // @return {!goog.crypt.Hash'}
-camlistore.blob.createHash = function() {
+cam.blob.createHash = function() {
 	return new goog.crypt.Sha1();
 };

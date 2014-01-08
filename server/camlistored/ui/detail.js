@@ -13,12 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-goog.provide('DetailView');
+goog.provide('cam.DetailView');
 
-goog.require('camlistore.AnimationLoop');
-goog.require('SearchSession');
-goog.require('SpritedAnimation');
-goog.require('image_utils');
+goog.require('cam.AnimationLoop');
+goog.require('cam.imageUtil');
+goog.require('cam.SearchSession');
+goog.require('cam.SpritedAnimation');
 
 goog.require('goog.array');
 goog.require('goog.events.EventHandler');
@@ -26,7 +26,7 @@ goog.require('goog.math.Size');
 goog.require('goog.object');
 goog.require('goog.string');
 
-var DetailView = React.createClass({
+cam.DetailView = React.createClass({
 	IMG_MARGIN: 20,
 	PIGGY_WIDTH: 88,
 	PIGGY_HEIGHT: 62,
@@ -52,7 +52,7 @@ var DetailView = React.createClass({
 	},
 
 	componentDidMount: function(root) {
-		this.eh_.listen(this.props.searchSession, SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
+		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
 		this.searchUpdated_();
 	},
 
@@ -76,7 +76,7 @@ var DetailView = React.createClass({
 	},
 
 	componentWillUnmount: function() {
-		this.eh_.unlisten(this.props.searchSession, SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
+		this.eh_.unlisten(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
 	},
 
 	navigate: function(offset) {
@@ -168,7 +168,7 @@ var DetailView = React.createClass({
 		var transition = React.addons.TransitionGroup({transitionName: 'detail-piggy'}, []);
 		if (!this.state.imgHasLoaded) {
 			transition.props.children.push(
-				SpritedAnimation({
+				cam.SpritedAnimation({
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
 					className: React.addons.classSet({
 						'detail-view-piggy': true,
@@ -196,7 +196,7 @@ var DetailView = React.createClass({
 	},
 
 	getSrc_: function() {
-		this.lastImageHeight_ = image_utils.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_);
+		this.lastImageHeight_ = cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_);
 		var uri = new goog.Uri(this.getPermanodeMeta_().thumbnailSrc);
 		uri.setParameterValue('mh', this.lastImageHeight_);
 		return uri.toString();

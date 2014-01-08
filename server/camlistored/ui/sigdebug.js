@@ -14,29 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.DebugPage');
+goog.provide('cam.DebugPage');
 
 goog.require('goog.dom');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Component');
-goog.require('camlistore.ServerConnection');
+goog.require('cam.ServerConnection');
 
 
 // TODO(mpl): add button on index page (toolbar?) to come here.
-// @param {camlistore.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
+// @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
 // @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
-camlistore.DebugPage = function(config, opt_domHelper) {
+cam.DebugPage = function(config, opt_domHelper) {
 	goog.base(this, opt_domHelper);
 
 	this.config_ = config;
 	this.sigdisco_ = null;
-	this.connection_ = new camlistore.ServerConnection(config);
+	this.connection_ = new cam.ServerConnection(config);
 
 };
-goog.inherits(camlistore.DebugPage, goog.ui.Component);
+goog.inherits(cam.DebugPage, goog.ui.Component);
 
-camlistore.DebugPage.prototype.enterDocument = function() {
-	camlistore.DebugPage.superClass_.enterDocument.call(this);
+cam.DebugPage.prototype.enterDocument = function() {
+	cam.DebugPage.superClass_.enterDocument.call(this);
 
 	// set up listeners
 	goog.events.listen(goog.dom.getElement('discobtn'),
@@ -61,16 +61,16 @@ camlistore.DebugPage.prototype.enterDocument = function() {
 		false, this);
 };
 
-camlistore.DebugPage.prototype.exitDocument = function() {
-	camlistore.DebugPage.superClass_.exitDocument.call(this);
+cam.DebugPage.prototype.exitDocument = function() {
+	cam.DebugPage.superClass_.exitDocument.call(this);
 };
 
-camlistore.DebugPage.prototype.discoRoot_ = function(e) {
+cam.DebugPage.prototype.discoRoot_ = function(e) {
 	var disco = "<pre>" + JSON.stringify(this.config_, null, 2) + "</pre>";
 	goog.dom.getElement("discores").innerHTML = disco;
 };
 
-camlistore.DebugPage.prototype.discoJsonSignRoot_ = function() {
+cam.DebugPage.prototype.discoJsonSignRoot_ = function() {
 	this.connection_.discoSignRoot(
 		goog.bind(function(sigdisco) {
 			this.sigdisco_ = sigdisco;
@@ -80,7 +80,7 @@ camlistore.DebugPage.prototype.discoJsonSignRoot_ = function() {
 	)
 };
 
-camlistore.DebugPage.prototype.addKeyRef_ = function() {
+cam.DebugPage.prototype.addKeyRef_ = function() {
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");				
 		return;
@@ -97,7 +97,7 @@ camlistore.DebugPage.prototype.addKeyRef_ = function() {
 	clearta.value = JSON.stringify(j, null, 2);
 }
 
-camlistore.DebugPage.prototype.doSign_ = function() {
+cam.DebugPage.prototype.doSign_ = function() {
 	// We actually do not need sigdisco since sign_ will pull all the needed info from the config_ instead. But I'm leaving the check as the debug check is also a sort of demo.
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");
@@ -112,7 +112,7 @@ camlistore.DebugPage.prototype.doSign_ = function() {
 	)
 }
 
-camlistore.DebugPage.prototype.doVerify_ = function() {
+cam.DebugPage.prototype.doVerify_ = function() {
 	// We actually do not need sigdisco since sign_ will pull all the needed info from the config_ instead. But I'm leaving the check as the debug check is also a sort of demo.
 	if (!this.sigdisco_) {
 		alert("must do jsonsign discovery first");

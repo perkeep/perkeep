@@ -14,25 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('camlistore.BlobItem');
+goog.provide('cam.BlobItem');
 
-goog.require('camlistore.ServerType');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Control');
-goog.require('image_utils');
+goog.require('cam.imageUtil');
+goog.require('cam.ServerType');
 
 
 // @fileoverview An item showing in a blob item container; represents a blob that has already been uploaded in the system, or acts as a placeholder for a new blob.
 // @param {string} blobRef BlobRef for the item.
-// @param {camlistore.ServerType.IndexerMetaBag} metaBag Maps blobRefs to metadata for this blob and related blobs.
+// @param {cam.ServerType.IndexerMetaBag} metaBag Maps blobRefs to metadata for this blob and related blobs.
 // @param {string} opt_contentLink if "true", use the contained file blob as link when decorating
 // @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
 // @extends {goog.ui.Control}
 // @constructor
-camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
+cam.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
 	goog.base(this, null, null, opt_domHelper);
 
 	this.update(blobRef, metaBag, opt_contentLink);
@@ -44,9 +44,9 @@ camlistore.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper)
 	// Blob items dispatch state when checked.
 	this.setDispatchTransitionEvents(goog.ui.Component.State.CHECKED, true);
 };
-goog.inherits(camlistore.BlobItem, goog.ui.Control);
+goog.inherits(cam.BlobItem, goog.ui.Control);
 
-camlistore.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
+cam.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
 	// TODO(mpl): Hack so we know when to decorate with the blobref of the contained file, instead of with the permanode, as the link. Idiomatic alternative suggestion very welcome.
 
 	this.useContentAsLink_ = "false";
@@ -57,17 +57,17 @@ camlistore.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLin
 	this.blobRef_ = blobRef;
 	this.metaBag_ = metaBag;
 	this.metaData_ = this.metaBag_[this.blobRef_];
-	this.resolvedMetaData_ = camlistore.BlobItem.resolve(this.blobRef_, this.metaBag_);
+	this.resolvedMetaData_ = cam.BlobItem.resolve(this.blobRef_, this.metaBag_);
 	this.currentIntrinsicImageHeight_ = 0;
 };
 
-camlistore.BlobItem.TITLE_HEIGHT = 21;
+cam.BlobItem.TITLE_HEIGHT = 21;
 
 // TODO(bslatkin): Handle more permanode types.
 // @param {string} blobRef string BlobRef to resolve.
-// @param {camlistore.ServerType.IndexerMetaBag} metaBag Metadata bag to use for resolving the blobref.
-// @return {camlistore.ServerType.IndexerMeta?}
-camlistore.BlobItem.resolve = function(blobRef, metaBag) {
+// @param {cam.ServerType.IndexerMetaBag} metaBag Metadata bag to use for resolving the blobref.
+// @return {cam.ServerType.IndexerMeta?}
+cam.BlobItem.resolve = function(blobRef, metaBag) {
 	var metaData = metaBag[blobRef];
 	if (metaData.camliType == 'permanode' && metaData.permanode && metaData.permanode.attr) {
 		if (metaData.permanode.attr.camliContent) {
@@ -84,7 +84,7 @@ camlistore.BlobItem.resolve = function(blobRef, metaBag) {
 	return null;
 };
 
-camlistore.BlobItem.prototype.isCollection = function() {
+cam.BlobItem.prototype.isCollection = function() {
 	// TODO(mpl): for now disallow being a collection if it
 	// has members. What else to check?
 	if (!this.resolvedMetaData_ || this.resolvedMetaData_.camliType != 'permanode' || !this.resolvedMetaData_.permanode || !this.resolvedMetaData_.permanode.attr || this.resolvedMetaData_.permanode.attr.camliContent) {
@@ -93,30 +93,30 @@ camlistore.BlobItem.prototype.isCollection = function() {
 	return true;
 };
 
-camlistore.BlobItem.prototype.getBlobRef = function() {
+cam.BlobItem.prototype.getBlobRef = function() {
 	return this.blobRef_;
 };
 
-camlistore.BlobItem.prototype.getThumbAspect = function() {
+cam.BlobItem.prototype.getThumbAspect = function() {
 	if (!this.metaData_.thumbnailWidth || !this.metaData_.thumbnailHeight) {
 		return 0;
 	}
 	return this.metaData_.thumbnailWidth / this.metaData_.thumbnailHeight;
 };
 
-camlistore.BlobItem.prototype.getWidth = function() {
+cam.BlobItem.prototype.getWidth = function() {
 	return parseInt(this.getElement().style.width);
 };
 
-camlistore.BlobItem.prototype.getHeight = function() {
+cam.BlobItem.prototype.getHeight = function() {
 	return parseInt(this.getElement().style.height);
 };
 
-camlistore.BlobItem.prototype.setWidth = function(w) {
+cam.BlobItem.prototype.setWidth = function(w) {
 	this.setSize(w, this.getHeight());
 };
 
-camlistore.BlobItem.prototype.setHeight = function(h) {
+cam.BlobItem.prototype.setHeight = function(h) {
 	this.setSize(this.getWidth(), h);
 };
 
@@ -124,7 +124,7 @@ camlistore.BlobItem.prototype.setHeight = function(h) {
 // and clipped within this size as appropriate.
 // @param {number} w
 // @param {number} h
-camlistore.BlobItem.prototype.setSize = function(w, h) {
+cam.BlobItem.prototype.setSize = function(w, h) {
 	this.getElement().style.width = w + 'px';
 	this.getElement().style.height = h + 'px';
 
@@ -139,7 +139,7 @@ camlistore.BlobItem.prototype.setSize = function(w, h) {
 // clipped within this size as appropriate.
 // @param {number} w
 // @param {number} h
-camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
+cam.BlobItem.prototype.setThumbSize = function(w, h) {
 	// In the case of images, we want a full bleed to both w and h, so we clip the bigger dimension as necessary. It's not easy to notice that a few pixels have been shaved off the edge of a photo.
 	// In the case of non-images, we have an icon with text underneath, so we cannot clip. Instead, just constrain the icon to fit the available space.
 	var adjustedHeight;
@@ -164,7 +164,7 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
 
 	// Load a differently sized image from server if necessary.
 	if (!this.thumb_.src || adjustedWidth > parseInt(this.thumbClip_.style.width) || adjustedHeight > parseInt(this.thumbClip_.style.height)) {
-		this.currentIntrinsicImageHeight_ = image_utils.getSizeToRequest(adjustedHeight, this.currentIntrinsicImageHeight_);
+		this.currentIntrinsicImageHeight_ = cam.imageUtil.getSizeToRequest(adjustedHeight, this.currentIntrinsicImageHeight_);
 
 		var tv = '';
 		if (window.CAMLISTORE_CONFIG) {
@@ -182,15 +182,15 @@ camlistore.BlobItem.prototype.setThumbSize = function(w, h) {
 	}
 };
 
-camlistore.BlobItem.prototype.isImage = function() {
+cam.BlobItem.prototype.isImage = function() {
 	return Boolean(this.resolvedMetaData_.image);
 };
 
-camlistore.BlobItem.prototype.getThumbSrc_ = function() {
+cam.BlobItem.prototype.getThumbSrc_ = function() {
 	return './' + this.metaData_.thumbnailSrc;
 };
 
-camlistore.BlobItem.prototype.getLink_ = function() {
+cam.BlobItem.prototype.getLink_ = function() {
 	if (this.useContentAsLink_ == "true") {
 		var b = this.getFileBlobref_();
 		if (b == "") {
@@ -208,21 +208,21 @@ camlistore.BlobItem.prototype.getLink_ = function() {
 	return uri.toString();
 };
 
-camlistore.BlobItem.prototype.getFileBlobref_ = function() {
+cam.BlobItem.prototype.getFileBlobref_ = function() {
 	if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'file') {
 		return this.resolvedMetaData_.blobRef;
 	}
 	return "";
 }
 
-camlistore.BlobItem.prototype.getDirBlobref_ = function() {
+cam.BlobItem.prototype.getDirBlobref_ = function() {
 	if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'directory') {
 		return this.resolvedMetaData_.blobRef;
 	}
 	return "";
 }
 
-camlistore.BlobItem.prototype.getTitle_ = function() {
+cam.BlobItem.prototype.getTitle_ = function() {
 	if (this.metaData_) {
 		if (this.metaData_.camliType == 'permanode' &&
 			!!this.metaData_.permanode &&
@@ -250,12 +250,12 @@ camlistore.BlobItem.prototype.getTitle_ = function() {
 	return 'Unknown title';
 };
 
-camlistore.BlobItem.prototype.createDom = function() {
+cam.BlobItem.prototype.createDom = function() {
 	this.decorateInternal(this.dom_.createElement('div'));
 };
 
-camlistore.BlobItem.prototype.decorateInternal = function(element) {
-	camlistore.BlobItem.superClass_.decorateInternal.call(this, element);
+cam.BlobItem.prototype.decorateInternal = function(element) {
+	cam.BlobItem.superClass_.decorateInternal.call(this, element);
 
 	var el = this.getElement();
 	goog.dom.classes.add(el, 'cam-blobitem');
@@ -295,7 +295,7 @@ camlistore.BlobItem.prototype.decorateInternal = function(element) {
 
 // The image src is not set here because that depends on layout. Instead, it
 // gets set as a side-effect of BlobItemContainer.prototype.layout().
-camlistore.BlobItem.prototype.updateDom = function() {
+cam.BlobItem.prototype.updateDom = function() {
 	this.link_.href = this.getLink_();
 
 	if (this.isImage()) {
@@ -308,7 +308,7 @@ camlistore.BlobItem.prototype.updateDom = function() {
 	}
 };
 
-camlistore.BlobItem.prototype.handleClick_ = function(e) {
+cam.BlobItem.prototype.handleClick_ = function(e) {
 	if (!this.checkmark_) {
 		return;
 	}

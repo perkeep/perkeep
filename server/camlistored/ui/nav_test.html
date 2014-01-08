@@ -22,16 +22,16 @@ limitations under the License.
 		<script src="closure/goog/base.js"></script>
 		<script src="deps.js"></script>
 		<script>
-			goog.require('camlistore.Nav');
+			goog.require('cam.Nav');
 			goog.require('goog.dom.classes');
 		</script>
 	</head>
 	<body>
 		<script>
-			var nav = new camlistore.Nav(goog.dom.getDomHelper());
+			var nav = new cam.Nav(goog.dom.getDomHelper());
 
-			nav.addChild(new camlistore.Nav.SearchItem(goog.dom.getDomHelper(), 'search-white-16.png', 'Search'), true);
-			nav.addChild(new camlistore.Nav.Item(goog.dom.getDomHelper(), 'new-white-16.png', 'New Permanode'), true);
+			nav.addChild(new cam.Nav.SearchItem(goog.dom.getDomHelper(), 'search-white-16.png', 'Search'), true);
+			nav.addChild(new cam.Nav.Item(goog.dom.getDomHelper(), 'new-white-16.png', 'New Permanode'), true);
 
 			nav.render(document.body);
 		</script>
