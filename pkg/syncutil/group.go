@@ -56,8 +56,8 @@ func (g *Group) Err() error {
 	return nil
 }
 
-// Err waits for all previous calls to Go to complete and returns the
-// first non-nil error, or nil.
+// Errs waits for all previous calls to Go to complete and returns
+// all non-nil errors.
 func (g *Group) Errs() []error {
 	g.wg.Wait()
 	return g.errs
