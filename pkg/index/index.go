@@ -142,11 +142,11 @@ func (x *Index) Reindex() error {
 	nerr := 0
 
 	blobc := make(chan blob.Ref, 32)
-	defer close(blobc)
 
 	enumCtx := ctx.New()
 	enumErr := make(chan error, 1)
 	go func() {
+		defer close(blobc)
 		donec := enumCtx.Done()
 		var lastTick time.Time
 		enumErr <- blobserver.EnumerateAll(enumCtx, x.BlobSource, func(sb blob.SizedRef) error {
@@ -167,8 +167,11 @@ func (x *Index) Reindex() error {
 		})
 	}()
 	const j = 4 // arbitrary concurrency level
+	var wg sync.WaitGroup
 	for i := 0; i < j; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for br := range blobc {
 				if err := x.reindex(br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
@@ -184,6 +187,8 @@ func (x *Index) Reindex() error {
 	if err := <-enumErr; err != nil {
 		return err
 	}
+	wg.Wait()
+
 	log.Printf("Index rebuild complete.")
 	nerrmu.Lock() // no need to unlock
 	if nerr != 0 {

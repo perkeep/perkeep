@@ -1,5 +1,10 @@
 Tests needed
 
+-- integration test of reindexing + race detector
+
+-- support for running race detector on all tests. when in race mode, also run
+   integration test children in race mode.
+
 -- test that server/camlistored still builds & starts even when sqlite isn't
    available (TODO: hide it from the test by running make.go in a child
    process with a faked-out PKG_CONFIG environment or something, to make
