@@ -99,7 +99,7 @@ func parseConfig() {
 	for alias, vei := range servers {
 		// An alias should never be confused with a host name,
 		// so we forbid anything looking like one.
-		if isHostname(alias) {
+		if isURLOrHostPort(alias) {
 			log.Fatalf("Server alias %q looks like a hostname; \".\" or \";\" are not allowed.", alias)
 		}
 		serverMap, ok := vei.(map[string]interface{})
@@ -125,8 +125,8 @@ func parseConfig() {
 	}
 }
 
-// isHostname return true if s looks like a host name, i.e it has at least a scheme or contains a period or a colon.
-func isHostname(s string) bool {
+// isURLOrHostPort returns true if s looks like a URL, or a hostname, i.e it starts with a scheme and/or it contains a period or a colon.
+func isURLOrHostPort(s string) bool {
 	return strings.HasPrefix(s, "http://") ||
 		strings.HasPrefix(s, "https://") ||
 		strings.Contains(s, ".") || strings.Contains(s, ":")
@@ -213,8 +213,10 @@ func serverKeyId() string {
 	return keyId
 }
 
+// cleanServer returns the canonical URL of the provided server, which must be a URL, IP, host (with dot), or host/ip:port.
+// The returned canonical URL will have trailing slashes removed and be prepended with "https://" if no scheme is provided.
 func cleanServer(server string) string {
-	if !isHostname(server) {
+	if !isURLOrHostPort(server) {
 		log.Fatalf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
 	}
 	// Remove trailing slash if provided.
@@ -235,7 +237,7 @@ func serverOrDie() string {
 		return cleanServer(s)
 	}
 	if flagServer != "" {
-		if !isHostname(flagServer) {
+		if !isURLOrHostPort(flagServer) {
 			configOnce.Do(parseConfig)
 			serverConf, ok := config.Servers[flagServer]
 			if ok {
@@ -276,8 +278,7 @@ func (c *Client) useTLS() bool {
 	return strings.HasPrefix(c.server, "https://")
 }
 
-// SetupAuth sets the client's authMode from the client
-// configuration file or from the environment.
+// SetupAuth sets the client's authMode from the client configuration file or from the environment.
 func (c *Client) SetupAuth() error {
 	// env var always takes precendence
 	authMode, err := auth.FromEnv()
@@ -299,17 +300,14 @@ func (c *Client) SetupAuth() error {
 	return err
 }
 
+// serverAuth returns the auth scheme for server from the config, or the empty string if the server was not found in the config.
 func serverAuth(server string) string {
 	configOnce.Do(parseConfig)
-	if config == nil {
+	alias := config.Alias(server)
+	if alias == "" {
 		return ""
 	}
-	for _, serverConf := range config.Servers {
-		if serverConf.Server == server {
-			return serverConf.Auth
-		}
-	}
-	return ""
+	return config.Servers[alias].Auth
 }
 
 // SetupAuthFromString configures the clients authentication mode from
@@ -420,14 +418,14 @@ func (c *Client) initTrustedCerts() {
 	}
 }
 
+// serverTrustedCerts returns the trusted certs for server from the config.
 func serverTrustedCerts(server string) []string {
 	configOnce.Do(parseConfig)
-	for _, serverConf := range config.Servers {
-		if serverConf.Server == server {
-			return serverConf.TrustedCerts
-		}
+	alias := config.Alias(server)
+	if alias == "" {
+		return nil
 	}
-	return nil
+	return config.Servers[alias].TrustedCerts
 }
 
 func (c *Client) getTrustedCerts() []string {

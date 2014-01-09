@@ -1,9 +1,9 @@
 /**
  * Object related utilities beyond what exist in Closure.
  */
-goog.provide('object');
+goog.provide('cam.object');
 
-function extend(o, n) {
+cam.object.extend = function(o, n) {
 	var obj = {};
 	goog.mixin(obj, o);
 	goog.mixin(obj, n);

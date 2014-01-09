@@ -1,47 +1,63 @@
+<!--
+Copyright 2013 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 <html>
 <head>
 <script type="text/javascript">
 var ws;
 function init() {
-  console.log("init.");
-  var stuff = document.getElementById("stuff");
-  var status = document.getElementById("status");
-  function onOpen() {
-     status.innerText = "connected";
-     ws.send(JSON.stringify({
-        "tag": "q1",
-        "query": {
-           "limit": 5,
-           "describe": {},
-           "constraint": {
-              "permanode": {}
-           }
-        }
-     }));
-  };
-  function onClose() {
-     status.innerHTML = "connection closed";
-  };
-  function onMessage(e) {
-     var m = JSON.parse(e.data);
-     console.log(m);
-     var d = document.createElement("div");
-     d.innerHTML = "Got: " + JSON.stringify(m)
-     stuff.insertBefore(d, stuff.firstChild)
-  };
-  function connect() {
-    if (ws != null) {
-       ws.close();
-       ws = null;
-    }
-    status.innerText = "connecting...";
-    var url = "ws://localhost:3179/my-search/camli/search/ws";
-    ws = new WebSocket(url);
-    ws.onopen = onOpen;
-    ws.onclose = onClose;
-    ws.onmessage = onMessage;
-  }
-  connect();
+	console.log("init.");
+	var stuff = document.getElementById("stuff");
+	var status = document.getElementById("status");
+	function onOpen() {
+		 status.innerText = "connected";
+		 ws.send(JSON.stringify({
+				"tag": "q1",
+				"query": {
+					 "limit": 5,
+					 "describe": {},
+					 "constraint": {
+							"permanode": {}
+					 }
+				}
+		 }));
+	};
+	function onClose() {
+		 status.innerHTML = "connection closed";
+	};
+	function onMessage(e) {
+		 var m = JSON.parse(e.data);
+		 console.log(m);
+		 var d = document.createElement("div");
+		 d.innerHTML = "Got: " + JSON.stringify(m)
+		 stuff.insertBefore(d, stuff.firstChild)
+	};
+	function connect() {
+		if (ws != null) {
+			 ws.close();
+			 ws = null;
+		}
+		status.innerText = "connecting...";
+		var url = "ws://localhost:3179/my-search/camli/search/ws";
+		ws = new WebSocket(url);
+		ws.onopen = onOpen;
+		ws.onclose = onClose;
+		ws.onmessage = onMessage;
+	}
+	connect();
 }
 </script>
 <style>

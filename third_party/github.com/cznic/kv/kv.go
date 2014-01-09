@@ -243,6 +243,13 @@ func Open(name string, opts *Options) (db *DB, err error) {
 //
 // Close is idempotent.
 func (db *DB) Close() (err error) {
+	db.closeMu.Lock()
+	defer db.closeMu.Unlock()
+	if db.closed {
+		return nil
+	}
+	db.closed = true
+
 	if err = db.enter(); err != nil {
 		return
 	}
@@ -257,14 +264,6 @@ func (db *DB) Close() (err error) {
 			db.leave(&err)
 		}
 	}()
-
-	if db.closed {
-		return
-	}
-
-	db.closed = true
-	db.closeMu.Lock()
-	defer db.closeMu.Unlock()
 
 	if db.acidTimer != nil {
 		db.acidTimer.Stop()

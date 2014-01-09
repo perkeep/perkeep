@@ -41,7 +41,8 @@ type rootsDir struct {
 
 	mu        sync.Mutex // guards following
 	lastQuery time.Time
-	m         map[string]blob.Ref // ent name => permanode
+	m         map[string]blob.Ref  // ent name => permanode
+	children  map[string]fuse.Node // ent name => child node
 }
 
 func (n *rootsDir) isRO() bool {
@@ -100,6 +101,7 @@ func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	}
 
 	delete(n.m, req.Name)
+	delete(n.children, req.Name)
 
 	return nil
 }
@@ -162,6 +164,8 @@ func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.I
 		panic("Race.")
 	}
 	delete(n.m, req.OldName)
+	delete(n.children, req.OldName)
+	delete(n.children, req.NewName)
 	n.m[req.NewName] = target
 	n.mu.Unlock()
 
@@ -179,7 +183,12 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	if !br.Valid() {
 		return nil, fuse.ENOENT
 	}
-	var nod fuse.Node
+
+	nod, ok := n.children[name]
+	if ok {
+		return nod, nil
+	}
+
 	if n.isRO() {
 		nod = newRODir(n.fs, br, name, n.at)
 	} else {
@@ -189,6 +198,8 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 			name:      name,
 		}
 	}
+	n.children[name] = nod
+
 	return nod, nil
 }
 
@@ -230,16 +241,29 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	}
 
 	n.m = make(map[string]blob.Ref)
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
 
 	// Roots
+	currentRoots := map[string]bool{}
 	for _, wi := range rootRes.WithAttr {
 		pn := wi.Permanode
 		db := dres.Meta[pn.String()]
 		if db != nil && db.Permanode != nil {
 			name := db.Permanode.Attr.Get("camliRoot")
 			if name != "" {
+				currentRoots[name] = true
 				n.m[name] = pn
 			}
+		}
+	}
+
+	// Remove any children objects we have mapped that are no
+	// longer relevant.
+	for name := range n.children {
+		if !currentRoots[name] {
+			delete(n.children, name)
 		}
 	}
 

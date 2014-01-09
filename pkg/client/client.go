@@ -126,7 +126,7 @@ const maxParallelHTTP = 5
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
 func New(server string) *Client {
-	if !isHostname(server) {
+	if !isURLOrHostPort(server) {
 		configOnce.Do(parseConfig)
 		serverConf, ok := config.Servers[server]
 		if !ok {
@@ -237,7 +237,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	c.SetHTTPClient(&http.Client{Transport: c.TransportForConfig(nil)})
 
 	req := c.newRequest("GET", shareBlobURL, nil)
-	res, err := c.doReqGated(req)
+	res, err := c.expect2XX(req)
 	if err != nil {
 		return nil, blob.Ref{}, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
 	}
@@ -387,7 +387,7 @@ func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentR
 	}
 	url := sr + req.URLSuffix()
 	hreq := c.newRequest("GET", url)
-	hres, err := c.doReqGated(hreq)
+	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +409,7 @@ func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.Wit
 	}
 	url := sr + req.URLSuffix()
 	hreq := c.newRequest("GET", url)
-	hres, err := c.doReqGated(hreq)
+	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +431,7 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 	}
 	url := sr + req.URLSuffix()
 	hreq := c.newRequest("GET", url)
-	hres, err := c.doReqGated(hreq)
+	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +454,7 @@ func (c *Client) Search(req *search.SearchQuery) (*search.SearchResult, error) {
 		return nil, err
 	}
 	hreq := c.newRequest("POST", url, bytes.NewReader(body))
-	hres, err := c.doReqGated(hreq)
+	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
 	}
@@ -524,7 +524,7 @@ func (c *Client) FileHasContents(f, wholeRef blob.Ref) bool {
 		return false
 	}
 	req := c.newRequest("HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
-	res, err := c.doReqGated(req)
+	res, err := c.expect2XX(req)
 	if err != nil {
 		log.Printf("download helper HEAD error: %v", err)
 		return false
@@ -560,10 +560,11 @@ func (c *Client) blobPrefix() (string, error) {
 	return pfx, nil
 }
 
+// discoRoot returns the user defined server for this client. It prepends "https://" if no scheme was specified.
 func (c *Client) discoRoot() string {
 	s := c.server
 	if !strings.HasPrefix(s, "http") {
-		s = "http://" + s
+		s = "https://" + s
 	}
 	return s
 }
@@ -710,6 +711,19 @@ func (c *Client) requestHTTPToken() {
 
 func (c *Client) releaseHTTPToken() {
 	<-c.reqGate
+}
+
+// expect2XX will doReqGated and promote HTTP response codes outside of
+// the 200-299 range to a non-nil error containing the response body.
+func (c *Client) expect2XX(req *http.Request) (*http.Response, error) {
+	res, err := c.doReqGated(req)
+	if err == nil && (res.StatusCode < 200 || res.StatusCode > 299) {
+		buf := new(bytes.Buffer)
+		io.CopyN(buf, res.Body, 1<<20)
+		res.Body.Close()
+		return res, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, req.URL.String(), buf.String())
+	}
+	return res, err
 }
 
 func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {

@@ -6,7 +6,7 @@
 	<script src="./deps.js"></script>
 	<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
 	<script>
-		goog.require('camlistore.FiletreePage');
+		goog.require('cam.FiletreePage');
 	</script>
 	<link rel="stylesheet" href="filetree.css">
 </head>
@@ -16,7 +16,7 @@
 
 	<div id="children"></div>
 	<script>
-		var page = new camlistore.FiletreePage(CAMLISTORE_CONFIG);
+		var page = new cam.FiletreePage(CAMLISTORE_CONFIG);
 		page.decorate(document.body);
 	</script>
 </body>

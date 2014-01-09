@@ -759,7 +759,6 @@ func (c *Conn) serve(fs FS, r Request) {
 			r.RespondError(err)
 			break
 		}
-		log.Printf("xattr response: %#v", s)
 		done(nil)
 		r.Respond(s)
 
