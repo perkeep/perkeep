@@ -45,6 +45,7 @@ var (
 	flagGraph       = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
 	flagContents    = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
 	flagShared      = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
+	flagTrustedCert = flag.String("cert", "", "If non-empty, the fingerprint (20 digits lowercase prefix of the SHA256 of the complete certificate) of the TLS certificate we trust for the share URL. Requires --shared.")
 	flagInsecureTLS = flag.Bool("insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
 )
 
@@ -72,13 +73,17 @@ func main() {
 			log.Fatal("No arguments permitted when using --shared")
 		}
 		cl1, target, err := client.NewFromShareRoot(*flagShared,
-			client.OptionInsecure(*flagInsecureTLS))
+			client.OptionInsecure(*flagInsecureTLS),
+			client.OptionTrustedCert(*flagTrustedCert))
 		if err != nil {
 			log.Fatal(err)
 		}
 		cl = cl1
 		items = append(items, target)
 	} else {
+		if *flagTrustedCert != "" {
+			log.Fatal("Can't use --cert without --shared.")
+		}
 		cl = client.NewOrFail()
 		for n := 0; n < flag.NArg(); n++ {
 			arg := flag.Arg(n)

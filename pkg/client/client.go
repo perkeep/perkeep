@@ -78,10 +78,8 @@ type Client struct {
 	haveCache  HaveCache
 
 	initTrustedCertsOnce sync.Once
-	// We define a certificate fingerprint as the 10 digits lowercase prefix
-	// of the SHA1 of the complete certificate (in ASN.1 DER encoding).
-	// It is the same as what 'openssl x509 -fingerprint' shows and what
-	// web browsers commonly use (except truncated to 10 digits).
+	// We define a certificate fingerprint as the 20 digits lowercase prefix
+	// of the SHA256 of the complete certificate (in ASN.1 DER encoding).
 	// trustedCerts contains the fingerprints of the self-signed
 	// certificates we trust.
 	// If not empty, (and if using TLS) the full x509 verification is
@@ -210,6 +208,23 @@ func (o optionInsecure) modifyClient(c *Client) {
 	c.InsecureTLS = bool(o)
 }
 
+func OptionTrustedCert(cert string) ClientOption {
+	return optionTrustedCert(cert)
+}
+
+type optionTrustedCert string
+
+func (o optionTrustedCert) modifyClient(c *Client) {
+	cert := string(o)
+	if cert != "" {
+		c.initTrustedCertsOnce.Do(noop)
+		c.trustedCerts = []string{string(o)}
+	}
+}
+
+// noop is for use with sync.Onces.
+func noop() {}
+
 var shareURLRx = regexp.MustCompile(`^(.+)/(` + blob.Pattern + ")$")
 
 // NewFromShareRoot uses shareBlobURL to set up and return a client that
@@ -221,10 +236,8 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 		return nil, blob.Ref{}, fmt.Errorf("Unkown share URL base")
 	}
 	c = New(m[1])
-	c.discoOnce.Do(func() { /* nothing */
-	})
-	c.prefixOnce.Do(func() { /* nothing */
-	})
+	c.discoOnce.Do(noop)
+	c.prefixOnce.Do(noop)
 	c.prefixv = m[1]
 	c.isSharePrefix = true
 	c.authMode = auth.None{}
