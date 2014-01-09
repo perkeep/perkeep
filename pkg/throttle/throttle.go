@@ -128,8 +128,8 @@ func (c *conn) Write(p []byte) (n int, err error) {
 
 func (c *conn) Read(p []byte) (n int, err error) {
 	const max = 1024
-	if len(p) > sz {
-		p = p[:sz]
+	if len(p) > max {
+		p = p[:max]
 	}
 	n, err = c.Conn.Read(p)
 	time.Sleep(c.Down.byteTime(n))
