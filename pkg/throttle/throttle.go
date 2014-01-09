@@ -33,7 +33,7 @@ type Rate struct {
 	Latency time.Duration
 }
 
-// byteTime returns the time required to send n bytes.
+// byteTime returns the time required for n bytes.
 func (r Rate) byteTime(n int) time.Duration {
 	if r.KBps == 0 {
 		return 0
@@ -71,7 +71,8 @@ type writeReq struct {
 
 type conn struct {
 	net.Conn
-	Down, Up Rate
+	Down Rate // for reads
+	Up   Rate // for writes
 
 	wchan     chan writeReq
 	closeOnce sync.Once
@@ -93,7 +94,7 @@ func (c *conn) writeLoop() {
 				writep = writep[:unitSize]
 			}
 			n, err := c.Conn.Write(writep)
-			time.Sleep(c.Down.byteTime(len(writep)))
+			time.Sleep(c.Up.byteTime(len(writep)))
 			res.n += n
 			res.err = err
 			req.p = req.p[n:]
@@ -120,9 +121,17 @@ func (c *conn) Write(p []byte) (n int, err error) {
 		}
 	}()
 	resc := make(chan nErr, 1)
-	c.wchan <- writeReq{time.Now().Add(c.Down.Latency), p, resc}
+	c.wchan <- writeReq{time.Now().Add(c.Up.Latency), p, resc}
 	res := <-resc
 	return res.n, res.err
 }
 
-// TODO: Read throttling
+func (c *conn) Read(p []byte) (n int, err error) {
+	const max = 1024
+	if len(p) > sz {
+		p = p[:sz]
+	}
+	n, err = c.Conn.Read(p)
+	time.Sleep(c.Down.byteTime(n))
+	return
+}
