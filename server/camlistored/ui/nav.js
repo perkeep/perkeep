@@ -16,6 +16,8 @@ limitations under the License.
 
 goog.provide('cam.Nav');
 goog.provide('cam.Nav.Item');
+goog.provide('cam.Nav.LinkItem');
+goog.provide('cam.Nav.SearchItem');
 
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
@@ -26,6 +28,7 @@ goog.require('goog.ui.Control');
 goog.require('goog.ui.Button');
 
 goog.require('cam.style');
+goog.require('cam.Navigator');
 
 // A vertical, fixed-position expandy collapsy navigation bar thingy.
 cam.Nav = function(domHelper, opt_delegate) {
@@ -201,12 +204,4 @@ cam.Nav.LinkItem.prototype.createDom = function() {
 	this.setElementInternal(this.dom_.createDom('a', this.getExtraClassNames(), this.getContent()));
 	this.getElement().href = this.linkUrl_;
 	this.setIcon(this.iconSrc_);
-};
-
-cam.Nav.LinkItem.prototype.enterDocument = function() {
-	this.getHandler().listen(this.getElement(), 'click', function(e) {
-		this.onClick(this.linkUrl_);
-		e.preventDefault();
-		e.stopPropagation();
-	});
 };

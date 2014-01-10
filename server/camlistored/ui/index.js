@@ -32,6 +32,7 @@ goog.require('cam.BlobItemContainer');
 goog.require('cam.DetailView');
 goog.require('cam.object');
 goog.require('cam.Nav');
+goog.require('cam.Navigator');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
 goog.require('cam.ServerType');
@@ -45,8 +46,11 @@ cam.IndexPage = function(config, opt_domHelper) {
 
 	this.eh_ = new goog.events.EventHandler(this);
 
-	// We have to store this because Firefox and Chrome disagree about whether to fire the popstate event at page load or not. Because of this we need to detect duplicate calls to handleUrl_().
-	this.currentUri_ = null;
+	this.baseURL_ = goog.Uri.resolve(location.href, this.config_.uiRoot);
+	this.currentURL_ = null;
+
+	this.navigator_ = new cam.Navigator(window, location, history, true);
+	this.navigator_.onNavigate = this.handleURL_.bind(this);
 
 	this.nav_ = new cam.Nav(opt_domHelper, this);
 
@@ -76,6 +80,7 @@ cam.IndexPage = function(config, opt_domHelper) {
 	// To make the reload case work we need to save the scroll position in window.history. That needs more thought though, we might want to store something more abstract that the scroll position.
 	this.savedScrollPosition_ = 0;
 
+	this.inDetailMode_ = false;
 	this.detail_ = null;
 	this.detailLoop_ = null;
 	this.detailViewHost_ = null;
@@ -108,8 +113,7 @@ cam.IndexPage.prototype.onNavClose = function() {
 	}
 	this.searchNavItem_.setText('');
 	this.searchNavItem_.blur();
-	goog.style.setStyle(this.blobItemContainer_.getElement(),
-		{'transform': ''});
+	goog.style.setStyle(this.blobItemContainer_.getElement(), {'transform': ''});
 };
 
 cam.IndexPage.SEARCH_PREFIX_ = {
@@ -186,9 +190,7 @@ cam.IndexPage.prototype.enterDocument = function() {
 		this.handleServerStatus_(resp);
 	}, this));
 
-	this.eh_.listen(window, goog.events.EventType.POPSTATE, this.handleUrl_);
-
-	this.searchNavItem_.onSearch = this.setUrlSearch_.bind(this);
+	this.searchNavItem_.onSearch = this.setURLSearch_.bind(this);
 
 	this.embiggenNavItem_.onClick = function() {
 		if (this.blobItemContainer_.bigger()) {
@@ -239,7 +241,7 @@ cam.IndexPage.prototype.enterDocument = function() {
 		this.updateNavButtonsForSelection_();
 	}.bind(this);
 
-	this.searchRootsNavItem_.onClick = this.setUrlSearch_.bind(this, {
+	this.searchRootsNavItem_.onClick = this.setURLSearch_.bind(this, {
 		permanode: {
 			attr: 'camliRoot',
 			numValue: {
@@ -248,23 +250,7 @@ cam.IndexPage.prototype.enterDocument = function() {
 		}
 	});
 
-	this.logoNavItem_.onClick = this.navigate_.bind(this);
-
 	this.eh_.listen(this.blobItemContainer_, cam.BlobItemContainer.EventType.SELECTION_CHANGED, this.updateNavButtonsForSelection_.bind(this));
-
-	// TODO(aa): We need to implement general purpose routing and get rid of all these one-off hacks.
-	this.eh_.listen(this.getElement(), 'click', function(e) {
-		if (e.button == 0 && e.target.className == 'cam-blobitem-thumb') {
-			var uri = new goog.Uri(this.dom_.getAncestorByTagNameAndClass(e.target, 'a').href);
-			if (uri.getParameterValue('newui') == '1') {
-				try {
-					this.navigate_(uri.toString());
-				} finally {
-					e.preventDefault();
-				}
-			}
-		}
-	});
 
 	this.eh_.listen(this.getElement(), 'keypress', function(e) {
 		if (String.fromCharCode(e.charCode) == '/') {
@@ -274,19 +260,7 @@ cam.IndexPage.prototype.enterDocument = function() {
 		}
 	});
 
-	this.eh_.listen(this.getElement(), 'keyup', function(e) {
-		if (!this.detail_) {
-			return;
-		}
-
-		if (e.keyCode == goog.events.KeyCodes.LEFT) {
-			this.detail_.navigate(-1);
-		} else if (e.keyCode == goog.events.KeyCodes.RIGHT) {
-			this.detail_.navigate(1);
-		}
-	});
-
-	this.handleUrl_();
+	this.handleURL_(new goog.Uri(location.href));
 };
 
 cam.IndexPage.prototype.exitDocument = function() {
@@ -327,7 +301,7 @@ cam.IndexPage.prototype.addMembers_ = function(newSet, blobItems, permanode) {
 cam.IndexPage.prototype.addItemsToSetDone_ = function(permanode) {
 	this.blobItemContainer_.unselectAll();
 	this.updateNavButtonsForSelection_();
-	this.setUrlSearch_(' ');
+	this.setURLSearch_(' ');
 };
 
 cam.IndexPage.prototype.handleServerStatus_ = function(resp) {
@@ -337,38 +311,45 @@ cam.IndexPage.prototype.handleServerStatus_ = function(resp) {
 	}
 };
 
-cam.IndexPage.prototype.setUrlSearch_ = function(search) {
+cam.IndexPage.prototype.setURLSearch_ = function(search) {
 	var searchText = goog.isString(search) ? goog.string.trim(search) :
 		goog.string.subs('%s:%s', this.constructor.SEARCH_PREFIX_.RAW, JSON.stringify(search));
-	var uri = new goog.Uri(location.href);
-	uri.setParameterValue('q', searchText);
-	this.navigate_(uri.toString());
+	var searchURL = this.baseURL_.clone();
+	searchURL.setParameterValue('q', searchText);
+	this.navigator_.navigate(searchURL);
 };
 
-cam.IndexPage.prototype.navigate_ = function(url) {
-	if (history.pushState) {
-		history.pushState(null, '', url);
-		this.handleUrl_();
-	} else {
-		location.href = url;
+// @param goog.Uri newURL The URL we have navigated to. At this point, location.href is already updated -- this is just the parsed representation.
+// @return boolean Whether the navigation was handled.
+cam.IndexPage.prototype.handleURL_ = function(newURL) {
+	if (this.currentURL_) {
+		if (newURL.getScheme() != this.currentURL_.getScheme() ||
+			newURL.getUserInfo() != this.currentURL_.getUserInfo() ||
+			newURL.getDomain() != this.currentURL_.getDomain() ||
+			newURL.getPort() != this.currentURL_.getPort() ||
+			newURL.getPath() != this.currentURL_.getPath()) {
+			return false;
+		}
 	}
-};
 
-cam.IndexPage.prototype.handleUrl_ = function() {
-	var newUri = new goog.Uri(location.href);
-	if (this.currentUri_ != null && this.currentUri_.toString() == newUri.toString()) {
-		console.log('Dropping duplicate handleUrl_ for %s', newUri.toString());
-		return;
+	// This is super finicky. We should improve the URL scheme and give things that are different different paths.
+	var query = newURL.getQueryData();
+	var inSearchMode = query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
+	this.inDetailMode_ = query.containsKey('p') && query.get('newui') == '1';
+
+	if (!inSearchMode && !this.inDetailMode_) {
+		return false;
 	}
-	this.currentUri_ = newUri;
 
+	this.currentURL_ = newURL;
 	this.updateSearchSession_();
 	this.updateSearchView_();
 	this.updateDetailView_();
+	return true;
 };
 
 cam.IndexPage.prototype.updateSearchSession_ = function() {
-	var query = this.currentUri_.getParameterValue('q');
+	var query = this.currentURL_.getParameterValue('q');
 	if (!query) {
 		query = ' ';
 	}
@@ -390,7 +371,7 @@ cam.IndexPage.prototype.updateSearchSession_ = function() {
 };
 
 cam.IndexPage.prototype.updateSearchView_ = function() {
-	if (this.inDetailMode_()) {
+	if (this.inDetailMode_) {
 		this.savedScrollPosition_ = goog.dom.getDocumentScroll().y;
 		this.blobItemContainer_.setVisible(false);
 		return;
@@ -409,7 +390,7 @@ cam.IndexPage.prototype.updateSearchView_ = function() {
 };
 
 cam.IndexPage.prototype.updateDetailView_ = function() {
-	if (!this.inDetailMode_()) {
+	if (!this.inDetailMode_) {
 		if (this.detail_) {
 			this.detailLoop_.stop();
 			React.unmountComponentAtNode(this.detailViewHost_);
@@ -419,10 +400,28 @@ cam.IndexPage.prototype.updateDetailView_ = function() {
 		return;
 	}
 
+	var searchURL = this.baseURL_.clone();
+	if (this.currentURL_.getQueryData().containsKey('q')) {
+		searchURL.setParameterValue('q', this.currentURL_.getParameterValue('q'));
+	}
+
+	var oldURL = this.baseURL_.clone();
+	oldURL.setParameterValue('p', this.currentURL_.getParameterValue('p'));
+
+	var getDetailURL = function(blobRef) {
+		var result = this.currentURL_.clone();
+		result.setParameterValue('p', blobRef);
+		return result;
+	}.bind(this);
+
 	var props = {
-		blobref: this.currentUri_.getParameterValue('p'),
+		blobref: this.currentURL_.getParameterValue('p'),
 		searchSession: this.searchSession_,
-		onNavigate: this.handleDetailNaviate_.bind(this)
+		searchURL: searchURL,
+		oldURL: oldURL,
+		getDetailURL: getDetailURL,
+		navigator: this.navigator_,
+		keyEventTarget: window,
 	}
 
 	if (this.detail_) {
@@ -448,14 +447,4 @@ cam.IndexPage.prototype.updateDetailView_ = function() {
 		}
 	}.bind(this));
 	this.detailLoop_.start();
-};
-
-cam.IndexPage.prototype.handleDetailNaviate_ = function(blobref) {
-	var uri = new goog.Uri(this.currentUri_);
-	uri.setParameterValue('p', blobref);
-	this.navigate_(uri.toString());
-};
-
-cam.IndexPage.prototype.inDetailMode_ = function() {
-	return this.currentUri_.getParameterValue('newui') == '1';
 };

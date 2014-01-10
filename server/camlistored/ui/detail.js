@@ -24,6 +24,7 @@ goog.require('goog.string');
 
 goog.require('cam.AnimationLoop');
 goog.require('cam.imageUtil');
+goog.require('cam.Navigator');
 goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
@@ -31,6 +32,18 @@ cam.DetailView = React.createClass({
 	IMG_MARGIN: 20,
 	PIGGY_WIDTH: 88,
 	PIGGY_HEIGHT: 62,
+
+	propTypes: {
+		blobref: React.PropTypes.string.isRequired,
+		searchSession: React.PropTypes.instanceOf(cam.SearchSession).isRequired,
+		searchURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		getDetailURL: React.PropTypes.func.isRequired,
+		navigator: React.PropTypes.instanceOf(cam.Navigator).isRequired,
+		keyEventTarget: React.PropTypes.object.isRequired, // An event target we will addEventListener() on to receive key events.
+		width: React.PropTypes.number.isRequired,
+		height: React.PropTypes.number.isRequired,
+	},
 
 	getInitialState: function() {
 		this.imgSize_ = null;
@@ -54,6 +67,7 @@ cam.DetailView = React.createClass({
 
 	componentDidMount: function(root) {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
+		this.eh_.listen(this.props.keyEventTarget, 'keyup', this.handleKeyUp_);
 		this.searchUpdated_();
 	},
 
@@ -72,15 +86,27 @@ cam.DetailView = React.createClass({
 				this.getImg_(),
 				this.getPiggy_(),
 				React.DOM.div({className:'detail-view-sidebar', key:'sidebar', style: this.getSidebarStyle_()},
-					React.DOM.a({key:'sidebar-link', href:'../ui/?p=' + this.props.blobref}, 'old and busted'),
+					React.DOM.a({key:'search-link', href:this.props.searchURL.toString()}, 'Back to search'),
+					' - ',
+					React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old and busted'),
 					React.DOM.pre({key:'sidebar-pre'}, JSON.stringify(this.getPermanodeMeta_(), null, 2)))));
 	},
 
 	componentWillUnmount: function() {
-		this.eh_.unlisten(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.searchUpdated_);
+		this.eh_.dispose();
 	},
 
-	navigate: function(offset) {
+	handleKeyUp_: function(e) {
+		if (e.keyCode == goog.events.KeyCodes.LEFT) {
+			this.navigate_(-1);
+		} else if (e.keyCode == goog.events.KeyCodes.RIGHT) {
+			this.navigate_(1);
+		} else if (e.keyCode == goog.events.KeyCodes.ESC) {
+			this.props.navigator.navigate(this.props.searchURL);
+		}
+	},
+
+	navigate_: function(offset) {
 		this.pendingNavigation_ = offset;
 		this.setState({backwardPiggy: offset < 0});
 		this.handlePendingNavigation_();
@@ -118,7 +144,7 @@ cam.DetailView = React.createClass({
 			return;
 		}
 
-		this.props.onNavigate(results.blobs[index].blob);
+		this.props.navigator.navigate(this.props.getDetailURL(results.blobs[index].blob));
 	},
 
 	onImgLoad_: function() {
