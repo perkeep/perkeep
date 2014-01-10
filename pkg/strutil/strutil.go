@@ -17,7 +17,11 @@ limitations under the License.
 // Package strutil contains string and byte processing functions.
 package strutil
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // Fork of Go's implementation in pkg/strings/strings.go:
 // Generic split: splits after each instance of sep,
@@ -75,8 +79,28 @@ func HasSuffixFold(s, suffix string) bool {
 	return strings.EqualFold(s[len(s)-len(suffix):], suffix)
 }
 
-// ContainsFold is like strings.Contains but (ought to) use Unicode case-folding.
+// ContainsFold is like strings.Contains but uses Unicode case-folding.
 func ContainsFold(s, substr string) bool {
-	// TODO: Make this not do allocations.
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+	if substr == "" {
+		return true
+	}
+	if s == "" {
+		return false
+	}
+	firstRune := rune(substr[0])
+	if firstRune >= utf8.RuneSelf {
+		firstRune, _ = utf8.DecodeRuneInString(substr)
+	}
+	firstLowerRune := unicode.SimpleFold(firstRune)
+	for i, rune := range s {
+		if len(s)-i < len(substr) {
+			return false
+		}
+		if rune == firstLowerRune || unicode.SimpleFold(rune) == firstLowerRune {
+			if HasPrefixFold(s[i:], substr) {
+				return true
+			}
+		}
+	}
+	return false
 }
