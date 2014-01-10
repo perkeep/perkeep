@@ -67,9 +67,9 @@ func newCamliFileSystem(fetcher blob.SeekFetcher) *CamliFileSystem {
 	}
 }
 
-// NewCamliFileSystem returns a filesystem with a generic base, from which users
-// can navigate by blobref, tag, date, etc.
-func NewCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) *CamliFileSystem {
+// NewDefaultCamliFileSystem returns a filesystem with a generic base, from which
+// users can navigate by blobref, tag, date, etc.
+func NewDefaultCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) *CamliFileSystem {
 	if client == nil || fetcher == nil {
 		panic("nil argument")
 	}
@@ -79,21 +79,20 @@ func NewCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) *CamliF
 	return fs
 }
 
-// NewRootedCamliFileSystem returns a CamliFileSystem with root as its
-// base.
-func NewRootedCamliFileSystem(fetcher blob.SeekFetcher, root blob.Ref) (*CamliFileSystem, error) {
+// NewRootedCamliFileSystem returns a CamliFileSystem with a node based on a blobref
+// as its base.
+func NewRootedCamliFileSystem(cli *client.Client, fetcher blob.SeekFetcher, root blob.Ref) (*CamliFileSystem, error) {
 	fs := newCamliFileSystem(fetcher)
+	fs.client = cli
 
-	blob, err := fs.fetchSchemaMeta(root)
+	n, err := fs.newNodeFromBlobRef(root)
+
 	if err != nil {
 		return nil, err
 	}
-	if blob.Type() != "directory" {
-		return nil, fmt.Errorf("Blobref must be of a directory, got a %v", blob.Type())
-	}
-	n := &node{fs: fs, blobref: root, meta: blob}
-	n.populateAttr()
+
 	fs.root = n
+
 	return fs, nil
 }
 
@@ -345,6 +344,27 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 	}
 	fs.blobToSchema.Add(blobStr, blob)
 	return blob, nil
+}
+
+// consolated logic for determining a node to mount based on an arbitrary blobref
+func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fuse.Node, error) {
+	blob, err := fs.fetchSchemaMeta(root)
+	if err != nil {
+		return nil, err
+	}
+
+	switch blob.Type() {
+	case "directory":
+		n := &node{fs: fs, blobref: root, meta: blob}
+		n.populateAttr()
+		return n, nil
+
+	case "permanode":
+		// other mutDirs listed in the default fileystem have names and are displayed
+		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
+	}
+
+	return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blob.Type())
 }
 
 type notImplementDirNode struct{ noXattr }
