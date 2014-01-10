@@ -42,6 +42,10 @@ import (
 // How often to refresh directory nodes by reading from the blobstore.
 const populateInterval = 30 * time.Second
 
+// How long an item that was created locally will be present
+// regardless of its presence in the indexing server.
+const deletionRefreshWindow = time.Minute
+
 type nodeType int
 
 const (
@@ -57,6 +61,8 @@ type mutDir struct {
 	permanode blob.Ref
 	parent    *mutDir // or nil, if the root within its roots.go root.
 	name      string  // ent name (base name within parent)
+
+	localCreateTime time.Time // time this node was created locally (iff it was)
 
 	mu       sync.Mutex
 	lastPop  time.Time
@@ -133,6 +139,7 @@ func (n *mutDir) populate() error {
 	if n.children == nil {
 		n.children = make(map[string]mutFileOrDir)
 	}
+	currentChildren := map[string]bool{}
 	for k, v := range db.Permanode.Attr {
 		const p = "camliPath:"
 		if !strings.HasPrefix(k, p) || len(v) < 1 {
@@ -147,22 +154,22 @@ func (n *mutDir) populate() error {
 		}
 		if target := child.Permanode.Attr.Get("camliSymlinkTarget"); target != "" {
 			// This is a symlink.
-			n.children[name] = &mutFile{
+			n.maybeAddChild(name, child.Permanode, &mutFile{
 				fs:        n.fs,
 				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
 				symLink:   true,
 				target:    target,
-			}
+			})
 		} else if isDir(child.Permanode) {
 			// This is a directory.
-			n.children[name] = &mutDir{
+			n.maybeAddChild(name, child.Permanode, &mutDir{
 				fs:        n.fs,
 				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
-			}
+			})
 		} else if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.
 			content := res.Meta[contentRef]
@@ -174,21 +181,41 @@ func (n *mutDir) populate() error {
 				log.Printf("child not a file: %v", childRef)
 				continue
 			}
-			n.children[name] = &mutFile{
+			n.maybeAddChild(name, child.Permanode, &mutFile{
 				fs:        n.fs,
 				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
 				content:   blob.ParseOrZero(contentRef),
 				size:      content.File.Size,
-			}
+			})
 		} else {
 			// unhandled type...
 			continue
 		}
-		n.children[name].xattr().load(child.Permanode)
+		currentChildren[name] = true
+	}
+	// Remove unreferenced children
+	for name, oldchild := range n.children {
+		if _, ok := currentChildren[name]; !ok {
+			if oldchild.eligibleToDelete() {
+				delete(n.children, name)
+			}
+		}
 	}
 	return nil
+}
+
+// maybeAddChild adds a child directory to this mutable directory
+// unless it already has one with this name and permanode.
+func (m *mutDir) maybeAddChild(name string, permanode *search.DescribedPermanode,
+	child mutFileOrDir) {
+	if current, ok := m.children[name]; !ok ||
+		current.permanodeString() != child.permanodeString() {
+
+		child.xattr().load(permanode)
+		m.children[name] = child
+	}
 }
 
 func isDir(d *search.DescribedPermanode) bool {
@@ -354,19 +381,21 @@ func (n *mutDir) creat(name string, typ nodeType) (fuse.Node, error) {
 	switch typ {
 	case dirType:
 		child = &mutDir{
-			fs:        n.fs,
-			permanode: pr.BlobRef,
-			parent:    n,
-			name:      name,
-			xattrs:    map[string][]byte{},
+			fs:              n.fs,
+			permanode:       pr.BlobRef,
+			parent:          n,
+			name:            name,
+			xattrs:          map[string][]byte{},
+			localCreateTime: time.Now(),
 		}
 	case fileType, symlinkType:
 		child = &mutFile{
-			fs:        n.fs,
-			permanode: pr.BlobRef,
-			parent:    n,
-			name:      name,
-			xattrs:    map[string][]byte{},
+			fs:              n.fs,
+			permanode:       pr.BlobRef,
+			parent:          n,
+			name:            name,
+			xattrs:          map[string][]byte{},
+			localCreateTime: time.Now(),
 		}
 	default:
 		panic("bogus creat type")
@@ -471,6 +500,8 @@ type mutFile struct {
 	permanode blob.Ref
 	parent    *mutDir
 	name      string // ent name (base name within parent)
+
+	localCreateTime time.Time // time this node was created locally (iff it was)
 
 	mu           sync.Mutex // protects all following fields
 	symLink      bool       // if true, is a symlink
@@ -816,6 +847,7 @@ type mutFileOrDir interface {
 	invalidate()
 	permanodeString() string
 	xattr() *xattr
+	eligibleToDelete() bool
 }
 
 func (n *mutFile) permanodeString() string {
@@ -836,4 +868,12 @@ func (n *mutDir) invalidate() {
 	n.mu.Lock()
 	n.deleted = true
 	n.mu.Unlock()
+}
+
+func (n *mutFile) eligibleToDelete() bool {
+	return n.localCreateTime.Before(time.Now().Add(-deletionRefreshWindow))
+}
+
+func (n *mutDir) eligibleToDelete() bool {
+	return n.localCreateTime.Before(time.Now().Add(-deletionRefreshWindow))
 }
