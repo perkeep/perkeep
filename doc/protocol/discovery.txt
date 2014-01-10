@@ -49,6 +49,7 @@ The response is a JSON document:
     }
   ],
   "thumbVersion": "2",
+  "uiRoot": "/ui/",
   "uploadHelper": "/ui/?camli.mode=uploadhelper",
   "wsAuthToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 }
