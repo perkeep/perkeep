@@ -123,6 +123,7 @@ func TestClose(t *testing.T) {
 		os.Remove(o._WAL)
 	}(db.Name())
 
+	go db.Close()
 	if err := db.Close(); err != nil {
 		t.Error(err)
 		return
