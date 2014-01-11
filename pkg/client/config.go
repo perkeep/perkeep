@@ -257,8 +257,9 @@ func serverOrDie() string {
 
 func defaultServer() string {
 	configOnce.Do(parseConfig)
-	for _, serverConf := range config.Servers {
-		if serverConf.IsDefault {
+	wantAlias := os.Getenv("CAMLI_DEFAULT_SERVER")
+	for alias, serverConf := range config.Servers {
+		if (wantAlias != "" && wantAlias == alias) || (wantAlias == "" && serverConf.IsDefault) {
 			return cleanServer(serverConf.Server)
 		}
 	}
