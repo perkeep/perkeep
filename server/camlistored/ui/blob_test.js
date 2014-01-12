@@ -19,7 +19,6 @@ goog.require('goog.crypt.Sha1');
 goog.require('goog.string');
 
 var assert = require('assert');
-var fs = require('fs');
 
 goog.require('cam.blob');
 

@@ -95,3 +95,44 @@ func TestHasSuffixFold(t *testing.T) {
 		}
 	}
 }
+
+func TestContainsFold(t *testing.T) {
+	// TODO: more tests, more languages.
+	// The k,K,Kelvin (for now failing) example once TODO in HasPrefixFold is fixed.
+	tests := []struct {
+		s, substr string
+		result    bool
+	}{
+		{"camli", "CAML", true},
+		{"CAMLI", "caml", true},
+		{"cam", "Cam", true},
+		{"мир", "ми", true},
+		{"МИP", "ми", true},
+		{"КАМЛИЙСТОР", "камлийс", true},
+		{"КаМлИйСтОр", "КаМлИйС", true},
+		{"camli", "car", false},
+		{"caml", "camli", false},
+
+		{"camli", "AMLI", true},
+		{"CAMLI", "amli", true},
+		{"mli", "MLI", true},
+		{"мир", "ир", true},
+		{"МИP", "ми", true},
+		{"КАМЛИЙСТОР", "лийстор", true},
+		{"КаМлИйСтОр", "лИйСтОр", true},
+		{"мир", "р", true},
+		{"camli", "ali", false},
+		{"amli", "camli", false},
+
+		{"МИP", "и", true},
+		{"мир", "и", true},
+		{"КАМЛИЙСТОР", "лийс", true},
+		{"КаМлИйСтОр", "лИйС", true},
+	}
+	for _, tt := range tests {
+		r := ContainsFold(tt.s, tt.substr)
+		if r != tt.result {
+			t.Errorf("ContainsFold(%q, %q) returned %v", tt.s, tt.substr, r)
+		}
+	}
+}

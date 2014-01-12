@@ -441,6 +441,7 @@ func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 
 	uiDisco := map[string]interface{}{
 		"jsonSignRoot":    ui.JSONSignRoot,
+		"uiRoot":          ui.prefix,
 		"uploadHelper":    ui.prefix + "?camli.mode=uploadhelper", // hack; remove with better javascript
 		"downloadHelper":  path.Join(ui.prefix, "download") + "/",
 		"directoryHelper": path.Join(ui.prefix, "tree") + "/",

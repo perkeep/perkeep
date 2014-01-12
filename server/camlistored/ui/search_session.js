@@ -44,7 +44,6 @@ cam.SearchSession = function(connection, currentUri, query) {
 		}
 	};
 	this.instance_ = this.constructor.instanceCount_++;
-	this.isComplete_ = false;
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
 	this.supportsWebSocket_ = false;
@@ -99,7 +98,7 @@ cam.SearchSession.prototype.loadMoreResults = function() {
 
 // Returns true if it is known that all data which can be loaded for this query has been.
 cam.SearchSession.prototype.isComplete = function() {
-	return this.isComplete_;
+	return !this.continuation_;
 }
 
 cam.SearchSession.prototype.supportsChangeNotifications = function() {
@@ -145,7 +144,7 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 	if (result.continue) {
 		this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND, result.continue);
 	} else {
-		this.isComplete_ = true;
+		this.continuation_ = null;
 	}
 
 	this.dispatchEvent({type: this.constructor.SEARCH_SESSION_CHANGED, changeType: changeType});
@@ -165,7 +164,7 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 		this.socket_.close();
 	}
 
-	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, this.data_.blobs.length);
+	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, Math.max(this.data_.blobs.length, this.constructor.PAGE_SIZE_));
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {
