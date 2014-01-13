@@ -15,5 +15,6 @@
 + (BOOL)savePassword:(NSString *)password forUsername:(NSString *)username;
 + (NSString *)blobRef:(NSData *)data;
 + (NSString *)rfc3339StringFromDate:(NSDate *)date;
++ (void)logText:(NSString *)text;
 
 @end

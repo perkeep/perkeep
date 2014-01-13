@@ -9,13 +9,14 @@
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
 #import "LACamliClient.h"
+#import <HockeySDK/HockeySDK.h>
 
 @class ALAssetsLibrary;
 
 static NSString *const CamliUsernameKey = @"org.camlistore.username";
 static NSString *const CamliServerKey = @"org.camlistore.serverurl";
 
-@interface LAAppDelegate : UIResponder <UIApplicationDelegate,CLLocationManagerDelegate>
+@interface LAAppDelegate : UIResponder <UIApplicationDelegate,CLLocationManagerDelegate,BITHockeyManagerDelegate>
 
 @property (strong, nonatomic) UIWindow *window;
 @property CLLocationManager *locationManager;

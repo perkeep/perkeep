@@ -13,6 +13,7 @@
 @interface LAViewController : UIViewController
 
 @property LACamliClient *client;
+@property IBOutlet UITextView *logtext;
 @property ProgressViewController *progress;
 
 - (void)dismissSettings;

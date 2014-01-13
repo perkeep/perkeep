@@ -7,9 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2051975F9A3B42668D11045C /* libPods.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C6265C93000C47B5BFE9BB61 /* libPods.a */; };
 		D059B88F186944F2006BE899 /* ProgressViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D059B88E186944F2006BE899 /* ProgressViewController.m */; };
 		D075B282184944330054FED3 /* LACamliUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B281184944330054FED3 /* LACamliUtil.m */; };
 		D075B28518494DB20054FED3 /* LACamliUploadOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B28418494DB20054FED3 /* LACamliUploadOperation.m */; };
+		D078FB0918726D1300F2ABF7 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0818726D1300F2ABF7 /* CoreText.framework */; };
+		D078FB0B18726D1C00F2ABF7 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */; };
+		D078FB0D18726D2100F2ABF7 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0C18726D2100F2ABF7 /* Security.framework */; };
+		D078FB0F18726D2900F2ABF7 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0E18726D2900F2ABF7 /* SystemConfiguration.framework */; };
 		D095AE131814AF10008163F2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE121814AF10008163F2 /* Foundation.framework */; };
 		D095AE151814AF10008163F2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE141814AF10008163F2 /* CoreGraphics.framework */; };
 		D095AE171814AF10008163F2 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE161814AF10008163F2 /* UIKit.framework */; };
@@ -17,7 +22,6 @@
 		D095AE1F1814AF10008163F2 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE1E1814AF10008163F2 /* main.m */; };
 		D095AE231814AF10008163F2 /* LAAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE221814AF10008163F2 /* LAAppDelegate.m */; };
 		D095AE261814AF10008163F2 /* Main_iPhone.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D095AE241814AF10008163F2 /* Main_iPhone.storyboard */; };
-		D095AE291814AF10008163F2 /* Main_iPad.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D095AE271814AF10008163F2 /* Main_iPad.storyboard */; };
 		D095AE2C1814AF10008163F2 /* LAViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE2B1814AF10008163F2 /* LAViewController.m */; };
 		D095AE2E1814AF10008163F2 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D095AE2D1814AF10008163F2 /* Images.xcassets */; };
 		D095AE351814AF10008163F2 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE341814AF10008163F2 /* XCTest.framework */; };
@@ -43,12 +47,21 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		208E1D70286D49129C896012 /* Pods.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.xcconfig; path = Pods/Pods.xcconfig; sourceTree = "<group>"; };
+		C6265C93000C47B5BFE9BB61 /* libPods.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPods.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		D059B88D186944F2006BE899 /* ProgressViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProgressViewController.h; sourceTree = "<group>"; };
 		D059B88E186944F2006BE899 /* ProgressViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ProgressViewController.m; sourceTree = "<group>"; };
 		D075B280184944330054FED3 /* LACamliUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUtil.h; sourceTree = "<group>"; };
 		D075B281184944330054FED3 /* LACamliUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUtil.m; sourceTree = "<group>"; };
 		D075B28318494DB20054FED3 /* LACamliUploadOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUploadOperation.h; sourceTree = "<group>"; };
 		D075B28418494DB20054FED3 /* LACamliUploadOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUploadOperation.m; sourceTree = "<group>"; };
+		D078FB0118726CD500F2ABF7 /* HockeySDK.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = HockeySDK.framework; sourceTree = "<group>"; };
+		D078FB0318726CD500F2ABF7 /* HockeySDK.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = HockeySDK.xcconfig; sourceTree = "<group>"; };
+		D078FB0418726CD500F2ABF7 /* HockeySDKResources.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = HockeySDKResources.bundle; sourceTree = "<group>"; };
+		D078FB0818726D1300F2ABF7 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
+		D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		D078FB0C18726D2100F2ABF7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		D078FB0E18726D2900F2ABF7 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		D095AE0F1814AF10008163F2 /* photobackup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photobackup.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D095AE121814AF10008163F2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D095AE141814AF10008163F2 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -60,7 +73,6 @@
 		D095AE211814AF10008163F2 /* LAAppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LAAppDelegate.h; sourceTree = "<group>"; };
 		D095AE221814AF10008163F2 /* LAAppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LAAppDelegate.m; sourceTree = "<group>"; };
 		D095AE251814AF10008163F2 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main_iPhone.storyboard; sourceTree = "<group>"; };
-		D095AE281814AF10008163F2 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main_iPad.storyboard; sourceTree = "<group>"; };
 		D095AE2A1814AF10008163F2 /* LAViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LAViewController.h; sourceTree = "<group>"; };
 		D095AE2B1814AF10008163F2 /* LAViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LAViewController.m; sourceTree = "<group>"; };
 		D095AE2D1814AF10008163F2 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
@@ -86,9 +98,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D078FB0F18726D2900F2ABF7 /* SystemConfiguration.framework in Frameworks */,
+				D078FB0D18726D2100F2ABF7 /* Security.framework in Frameworks */,
+				D078FB0B18726D1C00F2ABF7 /* QuartzCore.framework in Frameworks */,
+				D078FB0918726D1300F2ABF7 /* CoreText.framework in Frameworks */,
 				D095AE151814AF10008163F2 /* CoreGraphics.framework in Frameworks */,
 				D095AE171814AF10008163F2 /* UIKit.framework in Frameworks */,
 				D095AE131814AF10008163F2 /* Foundation.framework in Frameworks */,
+				2051975F9A3B42668D11045C /* libPods.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -105,6 +122,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D078FB0018726CD500F2ABF7 /* HockeySDK.embeddedframework */ = {
+			isa = PBXGroup;
+			children = (
+				D078FB0118726CD500F2ABF7 /* HockeySDK.framework */,
+				D078FB0218726CD500F2ABF7 /* Resources */,
+			);
+			name = HockeySDK.embeddedframework;
+			path = photobackup/HockeySDK.embeddedframework;
+			sourceTree = "<group>";
+		};
+		D078FB0218726CD500F2ABF7 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D078FB0318726CD500F2ABF7 /* HockeySDK.xcconfig */,
+				D078FB0418726CD500F2ABF7 /* HockeySDKResources.bundle */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		D095AE061814AF10008163F2 = {
 			isa = PBXGroup;
 			children = (
@@ -112,6 +148,7 @@
 				D095AE3A1814AF10008163F2 /* photobackupTests */,
 				D095AE111814AF10008163F2 /* Frameworks */,
 				D095AE101814AF10008163F2 /* Products */,
+				208E1D70286D49129C896012 /* Pods.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -127,10 +164,16 @@
 		D095AE111814AF10008163F2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				D078FB0E18726D2900F2ABF7 /* SystemConfiguration.framework */,
+				D078FB0C18726D2100F2ABF7 /* Security.framework */,
+				D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */,
+				D078FB0818726D1300F2ABF7 /* CoreText.framework */,
+				D078FB0018726CD500F2ABF7 /* HockeySDK.embeddedframework */,
 				D095AE121814AF10008163F2 /* Foundation.framework */,
 				D095AE141814AF10008163F2 /* CoreGraphics.framework */,
 				D095AE161814AF10008163F2 /* UIKit.framework */,
 				D095AE341814AF10008163F2 /* XCTest.framework */,
+				C6265C93000C47B5BFE9BB61 /* libPods.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -150,7 +193,6 @@
 				D059B88D186944F2006BE899 /* ProgressViewController.h */,
 				D059B88E186944F2006BE899 /* ProgressViewController.m */,
 				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
-				D095AE271814AF10008163F2 /* Main_iPad.storyboard */,
 				D095AE2D1814AF10008163F2 /* Images.xcassets */,
 				D095AE191814AF10008163F2 /* Supporting Files */,
 			);
@@ -210,9 +252,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D095AE441814AF10008163F2 /* Build configuration list for PBXNativeTarget "photobackup" */;
 			buildPhases = (
+				85BE1708753D47A8B10D430C /* Check Pods Manifest.lock */,
 				D095AE0B1814AF10008163F2 /* Sources */,
 				D095AE0C1814AF10008163F2 /* Frameworks */,
 				D095AE0D1814AF10008163F2 /* Resources */,
+				A368DE813E1349B0810D9274 /* Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -287,7 +331,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D095AE291814AF10008163F2 /* Main_iPad.storyboard in Resources */,
 				D095AE2E1814AF10008163F2 /* Images.xcassets in Resources */,
 				D095AE261814AF10008163F2 /* Main_iPhone.storyboard in Resources */,
 				D095AE1D1814AF10008163F2 /* InfoPlist.strings in Resources */,
@@ -303,6 +346,39 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		85BE1708753D47A8B10D430C /* Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Check Pods Manifest.lock";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [[ $? != 0 ]] ; then\n    cat << EOM\nerror: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\nEOM\n    exit 1\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+		A368DE813E1349B0810D9274 /* Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Pods Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Pods-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		D095AE0B1814AF10008163F2 /* Sources */ = {
@@ -356,14 +432,6 @@
 				D095AE251814AF10008163F2 /* Base */,
 			);
 			name = Main_iPhone.storyboard;
-			sourceTree = "<group>";
-		};
-		D095AE271814AF10008163F2 /* Main_iPad.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				D095AE281814AF10008163F2 /* Base */,
-			);
-			name = Main_iPad.storyboard;
 			sourceTree = "<group>";
 		};
 		D095AE3D1814AF10008163F2 /* InfoPlist.strings */ = {
@@ -453,9 +521,16 @@
 		};
 		D095AE451814AF10008163F2 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 208E1D70286D49129C896012 /* Pods.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: Nick O'Neill (22DVDP95PM)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/nickoneill/Projects/camlistore/clients/ios-objc/photobackup/HockeySDK.embeddedframework",
+				);
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
@@ -467,11 +542,16 @@
 		};
 		D095AE461814AF10008163F2 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 208E1D70286D49129C896012 /* Pods.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution: Launch Apps LLC (H6S4PTUWAA)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/nickoneill/Projects/camlistore/clients/ios-objc/photobackup/HockeySDK.embeddedframework",
+				);
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";

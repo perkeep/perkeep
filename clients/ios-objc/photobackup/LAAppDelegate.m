@@ -11,11 +11,16 @@
 #import "LACamliFile.h"
 #import "LAViewController.h"
 #import <AssetsLibrary/AssetsLibrary.h>
+#import <HockeySDK/HockeySDK.h>
 
 @implementation LAAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
+    [[BITHockeyManager sharedHockeyManager] configureWithIdentifier:@"de94cf9f0f0ad2ea0b19b2ad18ebe11f"
+                                                           delegate:self];
+    [[BITHockeyManager sharedHockeyManager] startManager];
+
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
     [self.locationManager startMonitoringSignificantLocationChanges];
@@ -47,6 +52,7 @@
     }
 
     if (serverURL && username && password) {
+        [LACamliUtil logText:@"found credentials"];
         self.client = [[LACamliClient alloc] initWithServer:serverURL username:username andPassword:password];
     }
 
@@ -62,6 +68,7 @@
     if (self.client && [self.client readyToUpload]) {
         NSInteger __block filesToUpload = 0;
 
+        [LACamliUtil logText:@"starting file sweep..."];
         __block LAAppDelegate *weakSelf = self;
         [self.library enumerateGroupsWithTypes:ALAssetsGroupSavedPhotos usingBlock:^(ALAssetsGroup *group, BOOL *stop) {
             [group enumerateAssetsUsingBlock:^(ALAsset *result, NSUInteger index, BOOL *stop) {
@@ -71,6 +78,8 @@
 
                     if (![weakSelf.client fileAlreadyUploaded:file]) {
                         filesToUpload++;
+                        LALog(@"found %d files",filesToUpload);
+                        [LACamliUtil logText:[NSString stringWithFormat:@"found %d files",filesToUpload]];
                         [weakSelf.client addFile:file withCompletion:nil];
                     } else {
                         LALog(@"file already uploaded: %@",file.blobRef);
