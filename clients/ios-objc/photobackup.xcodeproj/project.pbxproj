@@ -8,13 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		2051975F9A3B42668D11045C /* libPods.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C6265C93000C47B5BFE9BB61 /* libPods.a */; };
-		D059B88F186944F2006BE899 /* ProgressViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D059B88E186944F2006BE899 /* ProgressViewController.m */; };
 		D075B282184944330054FED3 /* LACamliUtil.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B281184944330054FED3 /* LACamliUtil.m */; };
 		D075B28518494DB20054FED3 /* LACamliUploadOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = D075B28418494DB20054FED3 /* LACamliUploadOperation.m */; };
 		D078FB0918726D1300F2ABF7 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0818726D1300F2ABF7 /* CoreText.framework */; };
 		D078FB0B18726D1C00F2ABF7 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */; };
 		D078FB0D18726D2100F2ABF7 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0C18726D2100F2ABF7 /* Security.framework */; };
 		D078FB0F18726D2900F2ABF7 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D078FB0E18726D2900F2ABF7 /* SystemConfiguration.framework */; };
+		D08F9118187B417E006F6B8D /* UploadStatusCell.m in Sources */ = {isa = PBXBuildFile; fileRef = D08F9117187B417E006F6B8D /* UploadStatusCell.m */; };
+		D08F911B187B4189006F6B8D /* UploadTaskCell.m in Sources */ = {isa = PBXBuildFile; fileRef = D08F911A187B4189006F6B8D /* UploadTaskCell.m */; };
 		D095AE131814AF10008163F2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE121814AF10008163F2 /* Foundation.framework */; };
 		D095AE151814AF10008163F2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE141814AF10008163F2 /* CoreGraphics.framework */; };
 		D095AE171814AF10008163F2 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D095AE161814AF10008163F2 /* UIKit.framework */; };
@@ -31,8 +32,6 @@
 		D095AE411814AF10008163F2 /* photobackupTests.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE401814AF10008163F2 /* photobackupTests.m */; };
 		D095AE501814B1B9008163F2 /* LACamliFile.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE4C1814B1B9008163F2 /* LACamliFile.m */; };
 		D095AE511814B1B9008163F2 /* LACamliClient.m in Sources */ = {isa = PBXBuildFile; fileRef = D095AE4E1814B1B9008163F2 /* LACamliClient.m */; };
-		D0AC217118503A8E004BD4F3 /* CamliCollectionCell.m in Sources */ = {isa = PBXBuildFile; fileRef = D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */; };
-		D0AC217418503B0D004BD4F3 /* LACamliRecentFile.m in Sources */ = {isa = PBXBuildFile; fileRef = D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */; };
 		D0D45EA1185FE2BE00EBC0A2 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */; };
 /* End PBXBuildFile section */
 
@@ -49,8 +48,6 @@
 /* Begin PBXFileReference section */
 		208E1D70286D49129C896012 /* Pods.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.xcconfig; path = Pods/Pods.xcconfig; sourceTree = "<group>"; };
 		C6265C93000C47B5BFE9BB61 /* libPods.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPods.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		D059B88D186944F2006BE899 /* ProgressViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProgressViewController.h; sourceTree = "<group>"; };
-		D059B88E186944F2006BE899 /* ProgressViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ProgressViewController.m; sourceTree = "<group>"; };
 		D075B280184944330054FED3 /* LACamliUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUtil.h; sourceTree = "<group>"; };
 		D075B281184944330054FED3 /* LACamliUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUtil.m; sourceTree = "<group>"; };
 		D075B28318494DB20054FED3 /* LACamliUploadOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUploadOperation.h; sourceTree = "<group>"; };
@@ -62,6 +59,10 @@
 		D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		D078FB0C18726D2100F2ABF7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		D078FB0E18726D2900F2ABF7 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		D08F9116187B417E006F6B8D /* UploadStatusCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UploadStatusCell.h; sourceTree = "<group>"; };
+		D08F9117187B417E006F6B8D /* UploadStatusCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = UploadStatusCell.m; sourceTree = "<group>"; };
+		D08F9119187B4189006F6B8D /* UploadTaskCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UploadTaskCell.h; sourceTree = "<group>"; };
+		D08F911A187B4189006F6B8D /* UploadTaskCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = UploadTaskCell.m; sourceTree = "<group>"; };
 		D095AE0F1814AF10008163F2 /* photobackup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photobackup.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D095AE121814AF10008163F2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D095AE141814AF10008163F2 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -85,10 +86,6 @@
 		D095AE4C1814B1B9008163F2 /* LACamliFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliFile.m; sourceTree = "<group>"; };
 		D095AE4D1814B1B9008163F2 /* LACamliClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliClient.h; sourceTree = "<group>"; };
 		D095AE4E1814B1B9008163F2 /* LACamliClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliClient.m; sourceTree = "<group>"; };
-		D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CamliCollectionCell.h; sourceTree = "<group>"; };
-		D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CamliCollectionCell.m; sourceTree = "<group>"; };
-		D0AC217218503B0D004BD4F3 /* LACamliRecentFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliRecentFile.h; sourceTree = "<group>"; };
-		D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliRecentFile.m; sourceTree = "<group>"; };
 		D0D45E9F185FE2BE00EBC0A2 /* SettingsViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SettingsViewController.h; sourceTree = "<group>"; };
 		D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SettingsViewController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -141,6 +138,20 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		D08F911C187B4190006F6B8D /* Main UI */ = {
+			isa = PBXGroup;
+			children = (
+				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
+				D095AE2A1814AF10008163F2 /* LAViewController.h */,
+				D095AE2B1814AF10008163F2 /* LAViewController.m */,
+				D08F9116187B417E006F6B8D /* UploadStatusCell.h */,
+				D08F9117187B417E006F6B8D /* UploadStatusCell.m */,
+				D08F9119187B4189006F6B8D /* UploadTaskCell.h */,
+				D08F911A187B4189006F6B8D /* UploadTaskCell.m */,
+			);
+			name = "Main UI";
+			sourceTree = "<group>";
+		};
 		D095AE061814AF10008163F2 = {
 			isa = PBXGroup;
 			children = (
@@ -184,15 +195,9 @@
 				D095AE4A1814B1B9008163F2 /* LACamliClient */,
 				D095AE211814AF10008163F2 /* LAAppDelegate.h */,
 				D095AE221814AF10008163F2 /* LAAppDelegate.m */,
-				D095AE2A1814AF10008163F2 /* LAViewController.h */,
-				D095AE2B1814AF10008163F2 /* LAViewController.m */,
-				D0AC216F18503A8E004BD4F3 /* CamliCollectionCell.h */,
-				D0AC217018503A8E004BD4F3 /* CamliCollectionCell.m */,
+				D08F911C187B4190006F6B8D /* Main UI */,
 				D0D45E9F185FE2BE00EBC0A2 /* SettingsViewController.h */,
 				D0D45EA0185FE2BE00EBC0A2 /* SettingsViewController.m */,
-				D059B88D186944F2006BE899 /* ProgressViewController.h */,
-				D059B88E186944F2006BE899 /* ProgressViewController.m */,
-				D095AE241814AF10008163F2 /* Main_iPhone.storyboard */,
 				D095AE2D1814AF10008163F2 /* Images.xcassets */,
 				D095AE191814AF10008163F2 /* Supporting Files */,
 			);
@@ -233,8 +238,6 @@
 			children = (
 				D095AE4B1814B1B9008163F2 /* LACamliFile.h */,
 				D095AE4C1814B1B9008163F2 /* LACamliFile.m */,
-				D0AC217218503B0D004BD4F3 /* LACamliRecentFile.h */,
-				D0AC217318503B0D004BD4F3 /* LACamliRecentFile.m */,
 				D095AE4D1814B1B9008163F2 /* LACamliClient.h */,
 				D095AE4E1814B1B9008163F2 /* LACamliClient.m */,
 				D075B280184944330054FED3 /* LACamliUtil.h */,
@@ -296,6 +299,7 @@
 				ORGANIZATIONNAME = "Nick O'Neill";
 				TargetAttributes = {
 					D095AE0E1814AF10008163F2 = {
+						DevelopmentTeam = H6S4PTUWAA;
 						SystemCapabilities = {
 							com.apple.BackgroundModes = {
 								enabled = 1;
@@ -387,15 +391,14 @@
 			files = (
 				D095AE1F1814AF10008163F2 /* main.m in Sources */,
 				D095AE511814B1B9008163F2 /* LACamliClient.m in Sources */,
-				D0AC217118503A8E004BD4F3 /* CamliCollectionCell.m in Sources */,
-				D059B88F186944F2006BE899 /* ProgressViewController.m in Sources */,
+				D08F911B187B4189006F6B8D /* UploadTaskCell.m in Sources */,
 				D095AE501814B1B9008163F2 /* LACamliFile.m in Sources */,
 				D075B282184944330054FED3 /* LACamliUtil.m in Sources */,
 				D095AE231814AF10008163F2 /* LAAppDelegate.m in Sources */,
-				D0AC217418503B0D004BD4F3 /* LACamliRecentFile.m in Sources */,
 				D0D45EA1185FE2BE00EBC0A2 /* SettingsViewController.m in Sources */,
 				D095AE2C1814AF10008163F2 /* LAViewController.m in Sources */,
 				D075B28518494DB20054FED3 /* LACamliUploadOperation.m in Sources */,
+				D08F9118187B417E006F6B8D /* UploadStatusCell.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -526,7 +529,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: Nick O'Neill (22DVDP95PM)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"/Users/nickoneill/Projects/camlistore/clients/ios-objc/photobackup/HockeySDK.embeddedframework",
@@ -535,6 +538,7 @@
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE = "";
 				TARGETED_DEVICE_FAMILY = 1;
 				WRAPPER_EXTENSION = app;
 			};
@@ -546,7 +550,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				CODE_SIGN_IDENTITY = "iPhone Distribution";
+				CODE_SIGN_IDENTITY = "iPhone Distribution: Launch Apps LLC (H6S4PTUWAA)";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution: Launch Apps LLC (H6S4PTUWAA)";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -556,6 +560,7 @@
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE = "";
 				TARGETED_DEVICE_FAMILY = 1;
 				WRAPPER_EXTENSION = app;
 			};

@@ -69,6 +69,7 @@ static NSString *const serviceName = @"org.camlistore.credentials";
     results = (__bridge NSData *)resultRef;
 
     if (status == noErr) {
+        LALog(@"returning valid password");
         return [[NSString alloc] initWithData:results encoding:NSUTF8StringEncoding];
     }
 
@@ -151,9 +152,37 @@ static NSString *const serviceName = @"org.camlistore.credentials";
 
 #pragma mark - yucky logging hack
 
-+ (void)logText:(NSString *)text
++ (void)logText:(NSArray *)logs
 {
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"logtext" object:@{@"text": text}];
+    NSMutableString *logString = [NSMutableString string];
+
+    for (NSString *log in logs) {
+        [logString appendString:log];
+    }
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"logtext" object:@{@"text": logString}];
+}
+
++ (void)statusText:(NSArray *)statuses
+{
+    NSMutableString *statusString = [NSMutableString string];
+
+    for (NSString *status in statuses) {
+        [statusString appendString:status];
+    }
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"statusText" object:@{@"text": statusString}];
+}
+
++ (void)errorText:(NSArray *)errors
+{
+    NSMutableString *errorString = [NSMutableString string];
+
+    for (NSString *error in errors) {
+        [errorString appendString:error];
+    }
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"errorText" object:@{@"text": errorString}];
 }
 
 @end
