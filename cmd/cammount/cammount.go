@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
+	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
 )
 
@@ -46,7 +47,7 @@ var (
 )
 
 func usage() {
-	fmt.Fprint(os.Stderr, "usage: cammount [opts] [<mountpoint> [<root-blobref>|<share URL>]]\n")
+	fmt.Fprint(os.Stderr, "usage: cammount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -101,12 +102,26 @@ func main() {
 			}
 		} else {
 			cl = client.NewOrFail() // automatic from flags
+			cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
+
 			var ok bool
 			root, ok = blob.Parse(rootArg)
+
 			if !ok {
-				log.Fatalf("Error parsing root blobref: %q\n", rootArg)
+				// not a blobref, check for root name instead
+				req := &search.WithAttrRequest{N: 1, Attr: "camliRoot", Value: rootArg}
+				wres, err := cl.GetPermanodesWithAttr(req)
+
+				if err != nil {
+					log.Fatal("could not query search")
+				}
+
+				if wres.WithAttr != nil {
+					root = wres.WithAttr[0].Permanode
+				} else {
+					log.Fatalf("root specified is not a blobref or name of a root: %q\n", rootArg)
+				}
 			}
-			cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 		}
 	} else {
 		cl = client.NewOrFail() // automatic from flags
@@ -120,12 +135,12 @@ func main() {
 	defer diskCacheFetcher.Clean()
 	if root.Valid() {
 		var err error
-		camfs, err = fs.NewRootedCamliFileSystem(diskCacheFetcher, root)
+		camfs, err = fs.NewRootedCamliFileSystem(cl, diskCacheFetcher, root)
 		if err != nil {
 			log.Fatalf("Error creating root with %v: %v", root, err)
 		}
 	} else {
-		camfs = fs.NewCamliFileSystem(cl, diskCacheFetcher)
+		camfs = fs.NewDefaultCamliFileSystem(cl, diskCacheFetcher)
 	}
 
 	if *debug {

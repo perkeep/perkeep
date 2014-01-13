@@ -225,6 +225,11 @@ func (n *rootsDir) condRefresh() fuse.Error {
 		return fuse.EIO
 	}
 
+	n.m = make(map[string]blob.Ref)
+	if n.children == nil {
+		n.children = make(map[string]fuse.Node)
+	}
+
 	dr := &search.DescribeRequest{
 		Depth: 1,
 	}
@@ -234,15 +239,14 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	for _, wi := range impRes.WithAttr {
 		dr.BlobRefs = append(dr.BlobRefs, wi.Permanode)
 	}
+	if len(dr.BlobRefs) == 0 {
+		return nil
+	}
+
 	dres, err := n.fs.client.Describe(dr)
 	if err != nil {
 		log.Printf("Describe failure: %v", err)
 		return fuse.EIO
-	}
-
-	n.m = make(map[string]blob.Ref)
-	if n.children == nil {
-		n.children = make(map[string]fuse.Node)
 	}
 
 	// Roots

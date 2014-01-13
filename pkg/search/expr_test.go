@@ -126,6 +126,32 @@ var parseExprTests = []struct {
 		},
 	},
 
+	{
+		in: "title:Doggies",
+		want: &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							SkipHidden: true,
+						},
+					},
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Attr: "title",
+							ValueMatches: &StringConstraint{
+								Contains:        "Doggies",
+								CaseInsensitive: true,
+							},
+							SkipHidden: true,
+						},
+					},
+				},
+			},
+		},
+	},
+
 	// TODO: at least 'x' will go away eventually.
 	/*
 		{

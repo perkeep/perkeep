@@ -45,6 +45,11 @@ CAMLI_DEBUG_CONFIG (bool):
 CAMLI_DEBUG_UPLOADS (bool):
   Used by pkg/client to enable additional logging.
 
+CAMLI_DEFAULT_SERVER (string):
+  The server alias to use by default. The string is the server's alias key
+  in the client-config.json "servers" object. If set, the CAMLI_DEFAULT_SERVER
+  takes precedence over the "default" bool in client-config.json.
+
 CAMLI_DEV_CAMLI_ROOT (string):
   If set, the base directory of Camlistore when in dev mode.
   Used by pkg/server for finding static assests (js, css, html).

@@ -9,11 +9,16 @@ Package kv implements a simple and easy to use persistent key/value (KV) store.
 The stored KV pairs are sorted in the key collation order defined by an user
 supplied 'compare' function (passed as a field in Options).
 
-Keys and Values
+Keys and Values Limits
 
 Keys, as well as the values associated with them, are opaque []bytes. Maximum
 size of a "native" key or value is 65787 bytes. Larger keys or values have to
 be composed of the "native" ones in client code.
+
+Database limits
+
+The maximum DB size kv can handle is 2^60 bytes (1 exabyte). See also [4]:
+"Block handles".
 
 ACID and transactional properties
 
@@ -71,6 +76,7 @@ Referenced from above:
   [1]: http://en.wikipedia.org/wiki/ACID
   [2]: http://en.wikipedia.org/wiki/2PC
   [3]: http://en.wikipedia.org/wiki/Write_ahead_logging
+  [4]: http://godoc.org/github.com/cznic/exp/lldb#Allocator
 
 */
 package kv

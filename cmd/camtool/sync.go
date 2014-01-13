@@ -21,7 +21,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,11 +40,12 @@ type syncCmd struct {
 	dest  string
 	third string
 
-	loop      bool
-	verbose   bool
-	all       bool
-	removeSrc bool
-	wipe      bool
+	loop        bool
+	verbose     bool
+	all         bool
+	removeSrc   bool
+	wipe        bool
+	insecureTLS bool
 
 	logger *log.Logger
 }
@@ -59,6 +62,10 @@ func init() {
 		flags.BoolVar(&cmd.wipe, "wipe", false, "If dest is an index, drop it and repopulate it from scratch. NOOP for now.")
 		flags.BoolVar(&cmd.all, "all", false, "Discover all sync destinations configured on the source server and run them.")
 		flags.BoolVar(&cmd.removeSrc, "removesrc", false, "Remove each blob from the source after syncing to the destination; for queue processing.")
+		// TODO(mpl): maybe move this flag up to the client pkg as an AddFlag, as it can be used by all commands.
+		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+			flags.BoolVar(&cmd.insecureTLS, "insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
+		}
 
 		return cmd
 	})
@@ -163,7 +170,10 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		return disk, nil
 	}
 	cl := client.New(val)
-	// TODO(mpl): probably needs the transport setup for trusted certs here.
+	cl.InsecureTLS = c.insecureTLS
+	cl.SetHTTPClient(&http.Client{
+		Transport: cl.TransportForConfig(nil),
+	})
 	cl.SetupAuth()
 	cl.SetLogger(c.logger)
 	return cl, nil
@@ -206,9 +216,17 @@ func (c *syncCmd) syncAll() error {
 	for _, sh := range syncHandlers {
 		from := client.New(sh.From)
 		from.SetLogger(c.logger)
+		from.InsecureTLS = c.insecureTLS
+		from.SetHTTPClient(&http.Client{
+			Transport: from.TransportForConfig(nil),
+		})
 		from.SetupAuth()
 		to := client.New(sh.To)
 		to.SetLogger(c.logger)
+		to.InsecureTLS = c.insecureTLS
+		to.SetHTTPClient(&http.Client{
+			Transport: to.TransportForConfig(nil),
+		})
 		to.SetupAuth()
 		if c.verbose {
 			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
@@ -235,6 +253,11 @@ func (c *syncCmd) discoClient() *client.Client {
 	} else {
 		cl = client.New(c.src)
 	}
+	cl.SetLogger(c.logger)
+	cl.InsecureTLS = c.insecureTLS
+	cl.SetHTTPClient(&http.Client{
+		Transport: cl.TransportForConfig(nil),
+	})
 	cl.SetupAuth()
 	return cl
 }

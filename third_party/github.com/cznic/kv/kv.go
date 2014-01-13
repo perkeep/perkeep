@@ -241,13 +241,14 @@ func Open(name string, opts *Options) (db *DB, err error) {
 // any. Failing to call Close before exiting a program can lose the last open
 // or being committed transaction.
 //
-// Close is idempotent.
+// Successful Close is idempotent.
 func (db *DB) Close() (err error) {
 	db.closeMu.Lock()
 	defer db.closeMu.Unlock()
 	if db.closed {
-		return nil
+		return
 	}
+
 	db.closed = true
 
 	if err = db.enter(); err != nil {
@@ -301,6 +302,15 @@ func (db *DB) Close() (err error) {
 }
 
 func (db *DB) close() (err error) {
+	// We are safe to close due to locked db.closeMu, but not safe aginst
+	// any other goroutine concurrently calling other exported db methods,
+	// causing a race[0] in the db.enter() mechanism. So we must lock
+	// db.bkl.
+	//
+	//  [0]: https://github.com/cznic/kv/issues/17#issuecomment-31960658
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
+
 	if db.f == nil { // lldb.MemFiler
 		return
 	}
@@ -424,6 +434,8 @@ func (db *DB) timeout() {
 	db.bkl.Lock()
 	defer db.bkl.Unlock()
 
+	db.closeMu.Lock()
+	defer db.closeMu.Unlock()
 	if db.closed {
 		return
 	}
@@ -581,17 +593,17 @@ func (db *DB) Delete(key []byte) (err error) {
 // Extract is a combination of Get and Delete. If the key exists in the DB, it
 // is returned (like Get) and also deleted from the DB in a more efficient way
 // which doesn't search for the key twice. The returned slice may be a
-// sub-slice of dst if dst was large enough to hold the entire content.
+// sub-slice of buf if buf was large enough to hold the entire content.
 // Otherwise, a newly allocated slice will be returned. It is valid to pass a
-// nil dst.
+// nil buf.
 //
 // Extract is atomic and it is safe for concurrent use by multiple goroutines.
-func (db *DB) Extract(dst, key []byte) (value []byte, err error) {
+func (db *DB) Extract(buf, key []byte) (value []byte, err error) {
 	if err = db.enter(); err != nil {
 		return
 	}
 
-	value, err = db.root.Extract(dst, key)
+	value, err = db.root.Extract(buf, key)
 	db.leave(&err)
 	return
 }
@@ -611,17 +623,17 @@ func (db *DB) First() (key, value []byte, err error) {
 }
 
 // Get returns the value associated with key, or nil if no such value exists.
-// The returned slice may be a sub-slice of dst if dst was large enough to hold
+// The returned slice may be a sub-slice of buf if buf was large enough to hold
 // the entire content. Otherwise, a newly allocated slice will be returned. It
-// is valid to pass a nil dst.
+// is valid to pass a nil buf.
 //
 // Get is atomic and it is safe for concurrent use by multiple goroutines.
-func (db *DB) Get(dst, key []byte) (value []byte, err error) {
+func (db *DB) Get(buf, key []byte) (value []byte, err error) {
 	if err = db.enter(); err != nil {
 		return
 	}
 
-	value, err = db.root.Get(dst, key)
+	value, err = db.root.Get(buf, key)
 	db.leave(&err)
 	return
 }
@@ -655,17 +667,17 @@ func (db *DB) Last() (key, value []byte, err error) {
 //
 // modulo the differing return values.
 //
-// The returned slice may be a sub-slice of dst if dst was large enough to hold
+// The returned slice may be a sub-slice of buf if buf was large enough to hold
 // the entire content. Otherwise, a newly allocated slice will be returned. It
-// is valid to pass a nil dst.
+// is valid to pass a nil buf.
 //
 // Put is atomic and it is safe for concurrent use by multiple goroutines.
-func (db *DB) Put(dst, key []byte, upd func(key, old []byte) (new []byte, write bool, err error)) (old []byte, written bool, err error) {
+func (db *DB) Put(buf, key []byte, upd func(key, old []byte) (new []byte, write bool, err error)) (old []byte, written bool, err error) {
 	if err = db.enter(); err != nil {
 		return
 	}
 
-	old, written, err = db.root.Put(dst, key, upd)
+	old, written, err = db.root.Put(buf, key, upd)
 	db.leave(&err)
 	return
 }
