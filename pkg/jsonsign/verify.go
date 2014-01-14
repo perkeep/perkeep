@@ -138,11 +138,11 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 	reader, _, err := vr.fetcher.FetchStreaming(vr.CamliSigner)
 	if err != nil {
-		log.Printf("error fetching public key blob: %v", err)
+		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
 		// TODO(mpl): we're losing some info here, so maybe
 		// create an error type that contains the reason,
 		// instead of logging the reason.
-		vr.Err = camerrors.MissingKeyBlob
+		vr.Err = camerrors.ErrMissingKeyBlob
 		return false
 	}
 	defer reader.Close()

@@ -22,4 +22,7 @@ import (
 	"errors"
 )
 
-var MissingKeyBlob = errors.New("key blob not found")
+// ErrMissingKeyBlob is returned by the jsonsign handler when a
+// verification fails because the public key for a signed blob is
+// missing.
+var ErrMissingKeyBlob = errors.New("key blob not found")
