@@ -16,4 +16,8 @@
 + (NSString *)blobRef:(NSData *)data;
 + (NSString *)rfc3339StringFromDate:(NSDate *)date;
 
++ (void)logText:(NSArray *)logs;
++ (void)statusText:(NSArray *)statuses;
++ (void)errorText:(NSArray *)errors;
+
 @end

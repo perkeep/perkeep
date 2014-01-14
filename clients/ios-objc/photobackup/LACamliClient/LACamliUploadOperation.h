@@ -10,16 +10,20 @@
 
 @class LACamliFile,LACamliClient;
 
-@interface LACamliUploadOperation : NSOperation
+@interface LACamliUploadOperation : NSOperation <NSURLSessionDelegate>
 
 @property LACamliClient *client;
 @property LACamliFile *file;
+@property NSURLSession *session;
 @property UIBackgroundTaskIdentifier taskID;
 
+@property (readonly) BOOL failedTransfer;
 @property (readonly) BOOL isExecuting;
 @property (readonly) BOOL isFinished;
 
-- (BOOL)isConcurrent;
 - (id)initWithFile:(LACamliFile *)file andClient:(LACamliClient *)client;
+- (BOOL)isConcurrent;
+
+- (NSString *)name;
 
 @end

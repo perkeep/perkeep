@@ -7,22 +7,31 @@
 
 #import <Foundation/Foundation.h>
 
-@class LACamliFile;
+@class LACamliFile,LACamliUploadOperation;
+
+@protocol LACamliStatusDelegate <NSObject>
+
+@optional
+- (void)updatedStatus:(NSString *)status;
+- (void)addedUploadOperation:(LACamliUploadOperation *)op;
+- (void)finishedUploadOperation:(LACamliUploadOperation *)op;
+- (void)uploadProgress:(float)pct forOperation:(LACamliUploadOperation *)op;
+@end
 
 @interface LACamliClient : NSObject <NSURLSessionDelegate>
 
 extern NSString *const CamliNotificationUploadStart;
 extern NSString *const CamliNotificationUploadProgress;
 extern NSString *const CamliNotificationUploadEnd;
-extern NSString *const CamliBlobRootComponent;
 
-@property NSURLSession *session;
+@property NSURLSessionConfiguration *sessionConfig;
+@property id delegate;
 
 @property NSURL *serverURL;
 @property NSString *username;
 @property NSString *password;
 
-@property NSURL *uploadUrl;
+@property NSString *blobRootComponent;
 @property NSOperationQueue *uploadQueue;
 @property NSUInteger totalUploads;
 
@@ -36,11 +45,10 @@ extern NSString *const CamliBlobRootComponent;
 - (BOOL)readyToUpload;
 - (void)discoveryWithUsername:(NSString *)user andPassword:(NSString *)pass;
 
-- (void)getRecentItemsWithCompletion:(void (^)(NSArray *objects))completion;
-
 - (BOOL)fileAlreadyUploaded:(LACamliFile *)file;
 - (void)addFile:(LACamliFile *)file withCompletion:(void (^)())completion;
 
 - (NSURL *)statUrl;
+- (NSURL *)uploadUrl;
 
 @end

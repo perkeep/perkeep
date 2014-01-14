@@ -11,13 +11,19 @@
 #import "LAAppDelegate.h"
 #import "LACamliUtil.h"
 #import "SettingsViewController.h"
-#import "ProgressViewController.h"
+#import "LACamliUploadOperation.h"
+#import "UploadStatusCell.h"
+#import "UploadTaskCell.h"
 
 @implementation LAViewController
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+    self.operations = [NSMutableArray array];
+
+    self.navigationItem.title = @"camlistore";
 
     UIBarButtonItem *settingsItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemEdit target:self action:@selector(showSettings)];
 
@@ -35,44 +41,21 @@
         [self showSettings];
     }
 
-    self.progress = [[self storyboard] instantiateViewControllerWithIdentifier:@"uploadBar"];
-    self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
-
-    [self.view addSubview:self.progress.view];
-
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadStart object:nil queue:nil usingBlock:^(NSNotification *note) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:@"statusText" object:nil queue:nil usingBlock:^(NSNotification *note) {
+        UploadStatusCell *cell = (UploadStatusCell *)[_table cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]];
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:1.0 animations:^{
-                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height-self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
-            }];
+            cell.status.text = note.object[@"text"];
         });
     }];
 
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadProgress object:nil queue:nil usingBlock:^(NSNotification *note) {
-        LALog(@"got progress %@ %@",note.userInfo[@"total"],note.userInfo[@"remain"]);
-
-        NSUInteger total = [note.userInfo[@"total"] intValue];
-        NSUInteger remain = [note.userInfo[@"remain"] intValue];
+    [[NSNotificationCenter defaultCenter] addObserverForName:@"errorText" object:nil queue:nil usingBlock:^(NSNotification *note) {
+        UploadStatusCell *cell = (UploadStatusCell *)[_table cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]];
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.progress.uploadLabel.text = [NSString stringWithFormat:@"Uploading %d of %d",total-remain,total];
-            self.progress.uploadProgress.progress = (float)(total-remain)/(float)total;
+            cell.error.text = note.object[@"text"];
         });
     }];
-
-    [[NSNotificationCenter defaultCenter] addObserverForName:CamliNotificationUploadEnd object:nil queue:nil usingBlock:^(NSNotification *note) {
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:1.0 animations:^{
-                self.progress.view.frame = CGRectMake(0, [UIScreen mainScreen].bounds.size.height+self.progress.view.frame.size.height, self.progress.view.frame.size.width, self.progress.view.frame.size.height);
-            }];
-        });
-    }];
-
-//    [self.client getRecentItemsWithCompletion:^(NSArray *objects) {
-//        LALog(@"got objects: %@",objects);
-//    }];
 }
 
 - (void)showSettings
@@ -90,26 +73,83 @@
     [(LAAppDelegate *)[[UIApplication sharedApplication] delegate] loadCredentials];
 }
 
-#pragma mark - collection methods
+#pragma mark - client delegate methods
 
-- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section
+- (void)addedUploadOperation:(LACamliUploadOperation *)op
 {
-    return 5;
+    NSIndexPath *path = [NSIndexPath indexPathForRow:[_operations count] inSection:1];
+
+    @synchronized(_operations){
+        [_operations addObject:op];
+        [_table insertRowsAtIndexPaths:@[path] withRowAnimation:UITableViewRowAnimationAutomatic];
+    }
 }
 
-- (NSInteger)numberOfSectionsInCollectionView:(UICollectionView *)collectionView
+- (void)finishedUploadOperation:(LACamliUploadOperation *)op
 {
-    return 1;
+    NSIndexPath *path = [NSIndexPath indexPathForRow:[_operations indexOfObject:op] inSection:1];
+
+    @synchronized(_operations){
+        [_operations removeObject:op];
+        [_table deleteRowsAtIndexPaths:@[path] withRowAnimation:UITableViewRowAnimationAutomatic];
+    }
 }
 
-- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath
+- (void)uploadProgress:(float)pct forOperation:(LACamliUploadOperation *)op
 {
-    UICollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"collectionCell" forIndexPath:indexPath];
-    
-    cell.backgroundColor = [UIColor redColor];
-    
+    NSIndexPath *path = [NSIndexPath indexPathForRow:[_operations indexOfObject:op] inSection:1];
+    UploadTaskCell *cell = (UploadTaskCell *)[_table cellForRowAtIndexPath:path];
+
+    cell.progress.progress = pct;
+}
+
+#pragma mark - table view methods
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    UITableViewCell *cell;
+
+    if (indexPath.section == 0) {
+        cell = [tableView dequeueReusableCellWithIdentifier:@"statusCell" forIndexPath:indexPath];
+    } else {
+        cell = [tableView dequeueReusableCellWithIdentifier:@"taskCell" forIndexPath:indexPath];
+
+        LACamliUploadOperation *op = [_operations objectAtIndex:indexPath.row];
+
+        [[(UploadTaskCell *)cell displayText] setText:[NSString stringWithFormat:@"%@",[op name]]];
+    }
+
     return cell;
 }
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
+{
+    NSString *title = @"";
+
+    if (section == 0) {
+        title = @"status";
+    } else {
+        title = @"uploads";
+    }
+
+    return title;
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
+{
+    return 2;
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+    if (section == 0) {
+        return 1;
+    } else {
+        return [self.operations count];
+    }
+}
+
+#pragma mark - other
 
 - (void)didReceiveMemoryWarning
 {

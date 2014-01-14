@@ -15,14 +15,13 @@
 NSString *const CamliNotificationUploadStart = @"camli-upload-start";
 NSString *const CamliNotificationUploadProgress = @"camli-upload-progress";
 NSString *const CamliNotificationUploadEnd = @"camli-upload-end";
-NSString *const CamliBlobRootComponent = @"bs-recv";
 
 - (id)initWithServer:(NSURL *)server username:(NSString *)username andPassword:(NSString *)password
 {
     NSParameterAssert(server);
     NSParameterAssert(username);
     NSParameterAssert(password);
-    
+
     if (self = [super init]) {
         self.serverURL = server;
         self.username = username;
@@ -34,6 +33,7 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
         if (!self.uploadedBlobRefs) {
             self.uploadedBlobRefs = [NSMutableArray array];
         }
+        [LACamliUtil logText:@[@"uploads in cache: ",[NSString stringWithFormat:@"%d",[_uploadedBlobRefs count]]]];
         
         self.uploadQueue = [[NSOperationQueue alloc] init];
         self.uploadQueue.maxConcurrentOperationCount = 1;
@@ -42,9 +42,8 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
         self.isAuthorized = false;
         self.authorizing = false;
         
-        NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-        config.HTTPAdditionalHeaders = @{@"Authorization": [NSString stringWithFormat:@"Basic %@",[self encodedAuth]]};
-        self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+        _sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
+        _sessionConfig.HTTPAdditionalHeaders = @{@"Authorization": [NSString stringWithFormat:@"Basic %@",[self encodedAuth]]};
     }
     
     return self;
@@ -56,14 +55,17 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
 {
     // can't upload if we don't have credentials
     if (!self.username || !self.password || !self.serverURL) {
+        [LACamliUtil logText:@[@"not ready: no u/p/s"]];
         return NO;
     }
 
     // don't want to start a new upload if we're already going
     if ([self.uploadQueue operationCount] > 0) {
+        [LACamliUtil logText:@[@"not ready: already uploading"]];
         return NO;
     }
 
+    [LACamliUtil logText:@[@"starting upload"]];
     return YES;
 }
 
@@ -71,30 +73,45 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
 
 - (void)discoveryWithUsername:(NSString *)user andPassword:(NSString *)pass
 {
+    [LACamliUtil statusText:@[@"discovering..."]];
     self.authorizing = YES;
 
     NSURLSessionConfiguration *discoverConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
     discoverConfig.HTTPAdditionalHeaders = @{@"Accept": @"text/x-camli-configuration", @"Authorization": [NSString stringWithFormat:@"Basic %@",[self encodedAuth]]};
     NSURLSession *discoverSession = [NSURLSession sessionWithConfiguration:discoverConfig delegate:self delegateQueue:nil];
 
-    NSURL *discoveryURL = [self.serverURL URLByAppendingPathComponent:@"ui/"];
-
-    NSURLSessionDataTask *data = [discoverSession dataTaskWithURL:discoveryURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        self.authorizing = NO;
+    NSURLSessionDataTask *data = [discoverSession dataTaskWithURL:self.serverURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
 
         if (error) {
             LALog(@"error discovery: %@",error);
+            [LACamliUtil errorText:@[@"discovery error: ",[error description]]];
         } else {
-
             NSHTTPURLResponse *res = (NSHTTPURLResponse *)response;
 
             if (res.statusCode != 200) {
                 LALog(@"error with discovery: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-            } else {
-                self.isAuthorized = YES;
-                [self.uploadQueue setSuspended:NO];
+                [LACamliUtil errorText:@[@"error discovery: ",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]]];
+                [LACamliUtil logText:@[[NSString stringWithFormat:@"server said: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]]]];
 
-                LALog(@"good discovery");
+                [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadEnd object:nil];
+            } else {
+                NSError *err;
+                NSDictionary *config = [NSJSONSerialization JSONObjectWithData:data options:0 error:&err];
+                if (!err) {
+                    self.blobRootComponent = config[@"blobRoot"];
+                    [LACamliUtil logText:@[[NSString stringWithFormat:@"Welcome to %@'s camlistore",config[@"ownerName"]]]];
+
+                    self.isAuthorized = YES;
+                    [self.uploadQueue setSuspended:NO];
+
+                    LALog(@"good discovery: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+                    [LACamliUtil statusText:@[@"discovery OK"]];
+                } else {
+
+                    LALog(@"couldn't deserialize discovery json");
+                    [LACamliUtil errorText:@[@"bad json from discovery", [err description]]];
+                    [LACamliUtil logText:@[@"json from discovery: ",[err description]]];
+                }
             }
         }
     }];
@@ -107,11 +124,11 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
 - (BOOL)fileAlreadyUploaded:(LACamliFile *)file
 {
     NSParameterAssert(file);
-    
+
     if ([self.uploadedBlobRefs containsObject:file.blobRef]) {
         return YES;
     }
-    
+
     return NO;
 }
 
@@ -120,39 +137,52 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
 {
     NSParameterAssert(file);
 
-    if (self.totalUploads == 0) {
-        [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadStart object:nil];
-    }
-
     self.totalUploads++;
-    
+
     if (![self isAuthorized]) {
         [self.uploadQueue setSuspended:YES];
-        
+
         if (!self.authorizing) {
             [self discoveryWithUsername:self.username andPassword:self.password];
         }
     }
 
     LACamliUploadOperation *op = [[LACamliUploadOperation alloc] initWithFile:file andClient:self];
+    __block LACamliUploadOperation *weakOp = op;
     op.completionBlock = ^{
         LALog(@"finished op %@",file.blobRef);
-        [self.uploadedBlobRefs addObject:file.blobRef];
-        [self.uploadedBlobRefs writeToFile:[self uploadedBlobRefArchivePath] atomically:YES];
+        if ([_delegate respondsToSelector:@selector(finishedUploadOperation:)]) {
+            [_delegate performSelector:@selector(finishedUploadOperation:) onThread:[NSThread mainThread] withObject:weakOp waitUntilDone:NO];
+        }
 
-        // let others know about upload progress
-        [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadProgress object:nil userInfo:@{@"total": @(self.totalUploads), @"remain": @([self.uploadQueue operationCount])}];
+        if (weakOp.failedTransfer) {
+            LALog(@"failed transfer");
+        } else {
+            [self.uploadedBlobRefs addObject:file.blobRef];
+            [self.uploadedBlobRefs writeToFile:[self uploadedBlobRefArchivePath] atomically:YES];
+        }
+        weakOp = nil;
 
         if (![self.uploadQueue operationCount]) {
             self.totalUploads = 0;
-            [[NSNotificationCenter defaultCenter] postNotificationName:CamliNotificationUploadEnd object:nil];
         }
         if (completion) {
             completion();
         }
     };
 
+    if ([_delegate respondsToSelector:@selector(addedUploadOperation:)]) {
+        [_delegate performSelector:@selector(addedUploadOperation:) onThread:[NSThread mainThread] withObject:weakOp waitUntilDone:NO];
+    }
+
     [self.uploadQueue addOperation:op];
+}
+
+#pragma mark - utility
+
+- (NSURL *)blobRoot
+{
+    return [self.serverURL URLByAppendingPathComponent:self.blobRootComponent];
 }
 
 - (NSURL *)statUrl
@@ -160,44 +190,15 @@ NSString *const CamliBlobRootComponent = @"bs-recv";
     return [[self blobRoot] URLByAppendingPathComponent:@"camli/stat"];
 }
 
-#pragma mark - getting stuff
-
-- (void)getRecentItemsWithCompletion:(void (^)(NSArray *objects))completion
+- (NSURL *)uploadUrl
 {
-    NSMutableArray *objects = [NSMutableArray array];
-
-    NSURL *recentUrl = [[[[self.serverURL URLByAppendingPathComponent:@"my-search"] URLByAppendingPathComponent:@"camli"] URLByAppendingPathComponent:@"search"] URLByAppendingPathComponent:@"query"];
-
-    LALog(@"reent url: %@",recentUrl);
-
-    NSDictionary *formData = @{@"describe": @{@"thumbnailSize": @"200"}, @"sort": @"1", @"limit": @"50", @"constraint": @{@"logical": @{@"op": @"and", @"a":@{@"camliType":@"permanode"}, @"b":@{@"permanode": @{@"modTime": @{}}}}}};
-
-    LALog(@"form data: %@",formData);
-
-    NSMutableURLRequest *recentRequest = [NSMutableURLRequest requestWithURL:recentUrl];
-    [recentRequest setHTTPMethod:@"POST"];
-    [recentRequest setHTTPBody:[NSKeyedArchiver archivedDataWithRootObject:formData]];
-
-    NSURLSessionDataTask *recentData = [self.session dataTaskWithRequest:recentRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        LALog(@"got some response: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-    }];
-
-    [recentData resume];
-
-//    completion([NSArray arrayWithArray:objects]);
-}
-
-#pragma mark - utility
-
-- (NSURL *)blobRoot
-{
-    return [self.serverURL URLByAppendingPathComponent:CamliBlobRootComponent];
+    return [[self blobRoot] URLByAppendingPathComponent:@"camli/upload"];
 }
 
 - (NSString *)encodedAuth
 {
     NSString *auth = [NSString stringWithFormat:@"%@:%@",self.username,self.password];
-    
+
     return [LACamliUtil base64EncodedStringFromString:auth];
 }
 
