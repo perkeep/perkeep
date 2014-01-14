@@ -29,7 +29,8 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/syncutil"
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	"camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 const refreshTime = 1 * time.Minute
@@ -41,8 +42,8 @@ type rootsDir struct {
 
 	mu        sync.Mutex // guards following
 	lastQuery time.Time
-	m         map[string]blob.Ref  // ent name => permanode
-	children  map[string]fuse.Node // ent name => child node
+	m         map[string]blob.Ref // ent name => permanode
+	children  map[string]fs.Node  // ent name => child node
 }
 
 func (n *rootsDir) isRO() bool {
@@ -64,7 +65,7 @@ func (n *rootsDir) Attr() fuse.Attr {
 	}
 }
 
-func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *rootsDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(); err != nil {
@@ -78,7 +79,7 @@ func (n *rootsDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	return ents, nil
 }
 
-func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
+func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
 	if n.isRO() {
 		return fuse.EPERM
 	}
@@ -106,7 +107,7 @@ func (n *rootsDir) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
-func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
+func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fs.Node, intr fs.Intr) fuse.Error {
 	log.Printf("rootsDir.Rename %q -> %q", req.OldName, req.NewName)
 	if n.isRO() {
 		return fuse.EPERM
@@ -172,7 +173,7 @@ func (n *rootsDir) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.I
 	return nil
 }
 
-func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (n *rootsDir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	log.Printf("fs.roots: Lookup(%q)", name)
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -228,7 +229,7 @@ func (n *rootsDir) condRefresh() fuse.Error {
 
 	n.m = make(map[string]blob.Ref)
 	if n.children == nil {
-		n.children = make(map[string]fuse.Node)
+		n.children = make(map[string]fs.Node)
 	}
 
 	dr := &search.DescribeRequest{
@@ -290,7 +291,7 @@ func (n *rootsDir) condRefresh() fuse.Error {
 	return nil
 }
 
-func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
 	if n.isRO() {
 		return nil, fuse.EPERM
 	}

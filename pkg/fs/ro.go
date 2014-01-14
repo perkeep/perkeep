@@ -32,7 +32,8 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
 
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	"camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 // roDir is a read-only directory.
@@ -162,7 +163,7 @@ func (n *roDir) populate() error {
 	return nil
 }
 
-func (n *roDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *roDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	if err := n.populate(); err != nil {
 		log.Println("populate:", err)
 		return nil, fuse.EIO
@@ -193,7 +194,7 @@ func (n *roDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	return ents, nil
 }
 
-func (n *roDir) Lookup(name string, intr fuse.Intr) (ret fuse.Node, err fuse.Error) {
+func (n *roDir) Lookup(name string, intr fs.Intr) (ret fs.Node, err fuse.Error) {
 	defer func() {
 		log.Printf("roDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
 	}()
@@ -225,27 +226,27 @@ type roFile struct {
 	xattrs       map[string][]byte
 }
 
-func (n *roDir) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+func (n *roDir) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fs.Intr) fuse.Error {
 	return n.xattr().get(req, res)
 }
 
-func (n *roDir) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+func (n *roDir) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fs.Intr) fuse.Error {
 	return n.xattr().list(req, res)
 }
 
-func (n *roFile) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fuse.Intr) fuse.Error {
+func (n *roFile) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fs.Intr) fuse.Error {
 	return n.xattr().get(req, res)
 }
 
-func (n *roFile) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fuse.Intr) fuse.Error {
+func (n *roFile) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fs.Intr) fuse.Error {
 	return n.xattr().list(req, res)
 }
 
-func (n *roFile) Removexattr(req *fuse.RemovexattrRequest, intr fuse.Intr) fuse.Error {
+func (n *roFile) Removexattr(req *fuse.RemovexattrRequest, intr fs.Intr) fuse.Error {
 	return fuse.EPERM
 }
 
-func (n *roFile) Setxattr(req *fuse.SetxattrRequest, intr fuse.Intr) fuse.Error {
+func (n *roFile) Setxattr(req *fuse.SetxattrRequest, intr fs.Intr) fuse.Error {
 	return fuse.EPERM
 }
 
@@ -315,14 +316,14 @@ func (n *roFile) modTime() time.Time {
 // open flags are O_WRONLY (1), O_RDONLY (0), or O_RDWR (2). and also
 // bitmaks of O_SYMLINK (0x200000) maybe. (from
 // fuse_filehandle_xlate_to_oflags in macosx/kext/fuse_file.h)
-func (n *roFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
+func (n *roFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
 	roFileOpen.Incr()
 
 	if isWriteFlags(req.Flags) {
 		return nil, fuse.EPERM
 	}
 
-	log.Printf("roFile.Open: %v: content: %v dir=%v flags=%v mode=%v", n.permanode, n.content, req.Dir, req.Flags, req.Mode)
+	log.Printf("roFile.Open: %v: content: %v dir=%v flags=%v", n.permanode, n.content, req.Dir, req.Flags)
 	r, err := schema.NewFileReader(n.fs.fetcher, n.content)
 	if err != nil {
 		roFileOpenError.Incr()
@@ -342,12 +343,12 @@ func (n *roFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.I
 	return &nodeReader{n: nod, fr: r}, nil
 }
 
-func (n *roFile) Fsync(r *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
+func (n *roFile) Fsync(r *fuse.FsyncRequest, intr fs.Intr) fuse.Error {
 	// noop
 	return nil
 }
 
-func (n *roFile) Readlink(req *fuse.ReadlinkRequest, intr fuse.Intr) (string, fuse.Error) {
+func (n *roFile) Readlink(req *fuse.ReadlinkRequest, intr fs.Intr) (string, fuse.Error) {
 	log.Printf("roFile.Readlink(%q)", n.fullPath())
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -360,7 +361,7 @@ func (n *roFile) Readlink(req *fuse.ReadlinkRequest, intr fuse.Intr) (string, fu
 
 // roFileOrDir is a *roFile or *roDir
 type roFileOrDir interface {
-	fuse.Node
+	fs.Node
 	permanodeString() string
 	xattr() *xattr
 }

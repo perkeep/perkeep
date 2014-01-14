@@ -27,7 +27,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	"camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 // xattrPrefix is the permanode attribute prefix used for record
@@ -115,7 +116,7 @@ func (x *xattr) get(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse) fuse.
 	val, found := (*x.xattrs)[req.Name]
 
 	if !found {
-		return fuse.ENOATTR
+		return fuse.ENODATA
 	}
 
 	res.Xattr = val
@@ -127,11 +128,10 @@ func (x *xattr) list(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse) fu
 	x.mu.Lock()
 	defer x.mu.Unlock()
 
-	rv := make([]string, 0, len(*x.xattrs))
 	for k := range *x.xattrs {
-		rv = append(rv, k)
+		res.Xattr = append(res.Xattr, k...)
+		res.Xattr = append(res.Xattr, '\x00')
 	}
-	res.SetAttrNames(req, rv)
 	return nil
 }
 
@@ -143,18 +143,18 @@ func (x *xattr) list(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse) fu
 // requests.
 type noXattr struct{}
 
-func (n noXattr) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, fuse.Intr) fuse.Error {
-	return fuse.ENOATTR
+func (n noXattr) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, fs.Intr) fuse.Error {
+	return fuse.ENODATA
 }
 
-func (n noXattr) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, fuse.Intr) fuse.Error {
+func (n noXattr) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, fs.Intr) fuse.Error {
 	return nil
 }
 
-func (n noXattr) Setxattr(*fuse.SetxattrRequest, fuse.Intr) fuse.Error {
+func (n noXattr) Setxattr(*fuse.SetxattrRequest, fs.Intr) fuse.Error {
 	return fuse.EPERM
 }
 
-func (n noXattr) Removexattr(*fuse.RemovexattrRequest, fuse.Intr) fuse.Error {
+func (n noXattr) Removexattr(*fuse.RemovexattrRequest, fs.Intr) fuse.Error {
 	return fuse.EPERM
 }

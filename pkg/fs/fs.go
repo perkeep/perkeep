@@ -34,7 +34,8 @@ import (
 	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/schema"
 
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 var serverStart = time.Now()
@@ -44,7 +45,7 @@ var errNotDir = fuse.Errno(syscall.ENOTDIR)
 type CamliFileSystem struct {
 	fetcher blob.SeekFetcher
 	client  *client.Client // or nil, if not doing search queries
-	root    fuse.Node
+	root    fusefs.Node
 
 	// IgnoreOwners, if true, collapses all file ownership to the
 	// uid/gid running the fuse filesystem, and sets all the
@@ -56,7 +57,7 @@ type CamliFileSystem struct {
 	nameToAttr   *lru.Cache // ~map[string]*fuse.Attr
 }
 
-var _ fuse.FS = (*CamliFileSystem)(nil)
+var _ fusefs.FS = (*CamliFileSystem)(nil)
 
 func newCamliFileSystem(fetcher blob.SeekFetcher) *CamliFileSystem {
 	return &CamliFileSystem{
@@ -132,7 +133,7 @@ func (n *node) addLookupEntry(name string, ref blob.Ref) {
 	n.lookMap[name] = ref
 }
 
-func (n *node) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (n *node) Lookup(name string, intr fusefs.Intr) (fusefs.Node, fuse.Error) {
 	if name == ".quitquitquit" {
 		// TODO: only in dev mode
 		log.Fatalf("Shutting down due to .quitquitquit lookup.")
@@ -171,11 +172,12 @@ func (n *node) schema() (*schema.Blob, error) {
 	return blob, err
 }
 
-func isWriteFlags(flags uint32) bool {
-	return flags & uint32(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE) != 0
+func isWriteFlags(flags fuse.OpenFlags) bool {
+	// TODO read/writeness are not flags, use O_ACCMODE
+	return flags&fuse.OpenFlags(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE) != 0
 }
 
-func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fuse.Intr) (fuse.Handle, fuse.Error) {
+func (n *node) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fusefs.Intr) (fusefs.Handle, fuse.Error) {
 	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
 	if isWriteFlags(req.Flags) {
 		return nil, fuse.EPERM
@@ -202,7 +204,7 @@ type nodeReader struct {
 	fr *schema.FileReader
 }
 
-func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fusefs.Intr) fuse.Error {
 	log.Printf("CAMLI nodeReader READ on %v: %#v", nr.n.blobref, req)
 	if req.Offset >= nr.fr.Size() {
 		return nil
@@ -224,13 +226,13 @@ func (nr *nodeReader) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr f
 	return nil
 }
 
-func (nr *nodeReader) Release(req *fuse.ReleaseRequest, intr fuse.Intr) fuse.Error {
+func (nr *nodeReader) Release(req *fuse.ReleaseRequest, intr fusefs.Intr) fuse.Error {
 	log.Printf("CAMLI nodeReader RELEASE on %v", nr.n.blobref)
 	nr.fr.Close()
 	return nil
 }
 
-func (n *node) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *node) ReadDir(intr fusefs.Intr) ([]fuse.Dirent, fuse.Error) {
 	log.Printf("CAMLI ReadDir on %v", n.blobref)
 	n.dmu.Lock()
 	defer n.dmu.Unlock()
@@ -303,11 +305,11 @@ func (n *node) populateAttr() error {
 	return nil
 }
 
-func (fs *CamliFileSystem) Root() (fuse.Node, fuse.Error) {
+func (fs *CamliFileSystem) Root() (fusefs.Node, fuse.Error) {
 	return fs.root, nil
 }
 
-func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsResponse, intr fuse.Intr) fuse.Error {
+func (fs *CamliFileSystem) Statfs(req *fuse.StatfsRequest, res *fuse.StatfsResponse, intr fusefs.Intr) fuse.Error {
 	// Make some stuff up, just to see if it makes "lsof" happy.
 	res.Blocks = 1 << 35
 	res.Bfree = 1 << 34
@@ -347,7 +349,7 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 }
 
 // consolated logic for determining a node to mount based on an arbitrary blobref
-func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fuse.Node, error) {
+func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error) {
 	blob, err := fs.fetchSchemaMeta(root)
 	if err != nil {
 		return nil, err
@@ -391,7 +393,7 @@ func (s staticFileNode) Attr() fuse.Attr {
 	}
 }
 
-func (s staticFileNode) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+func (s staticFileNode) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fusefs.Intr) fuse.Error {
 	if req.Offset > int64(len(s)) {
 		return nil
 	}
@@ -405,18 +407,18 @@ func (s staticFileNode) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr
 	return nil
 }
 
-func (n staticFileNode) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, fuse.Intr) fuse.Error {
-	return fuse.ENOATTR
+func (n staticFileNode) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, fusefs.Intr) fuse.Error {
+	return fuse.ENODATA
 }
 
-func (n staticFileNode) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, fuse.Intr) fuse.Error {
+func (n staticFileNode) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, fusefs.Intr) fuse.Error {
 	return nil
 }
 
-func (n staticFileNode) Setxattr(*fuse.SetxattrRequest, fuse.Intr) fuse.Error {
+func (n staticFileNode) Setxattr(*fuse.SetxattrRequest, fusefs.Intr) fuse.Error {
 	return fuse.EPERM
 }
 
-func (n staticFileNode) Removexattr(*fuse.RemovexattrRequest, fuse.Intr) fuse.Error {
+func (n staticFileNode) Removexattr(*fuse.RemovexattrRequest, fusefs.Intr) fuse.Error {
 	return fuse.EPERM
 }

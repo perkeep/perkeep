@@ -22,7 +22,8 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 type atDir struct {
@@ -38,7 +39,7 @@ func (n *atDir) Attr() fuse.Attr {
 	}
 }
 
-func (n *atDir) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *atDir) ReadDir(intr fusefs.Intr) ([]fuse.Dirent, fuse.Error) {
 	return []fuse.Dirent{
 		{Name: "README.txt"},
 	}, nil
@@ -95,7 +96,7 @@ With More Coarse Granularities
 * 2012             (This will be considered the same as 2012-01-01T00:00:00Z)
 `
 
-func (n *atDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (n *atDir) Lookup(name string, intr fusefs.Intr) (fusefs.Node, fuse.Error) {
 	log.Printf("fs.atDir: Lookup(%q)", name)
 
 	if name == "README.txt" {
