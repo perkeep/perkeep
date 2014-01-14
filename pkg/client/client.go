@@ -456,6 +456,25 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 	return res, nil
 }
 
+func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, error) {
+	sr, err := c.SearchRoot()
+	if err != nil {
+		return nil, err
+	}
+	url := sr + req.URLSuffix()
+	hreq := c.newRequest("GET", url)
+	hres, err := c.expect2XX(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	res := new(search.ClaimsResponse)
+	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (c *Client) Search(req *search.SearchQuery) (*search.SearchResult, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {

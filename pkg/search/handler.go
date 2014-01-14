@@ -324,6 +324,10 @@ type ClaimsRequest struct {
 	Permanode blob.Ref
 }
 
+func (r *ClaimsRequest) URLSuffix() string {
+	return fmt.Sprintf("camli/search/claims?permanode=%v", r.Permanode)
+}
+
 // fromHTTP panics with an httputil value on failure
 func (r *ClaimsRequest) fromHTTP(req *http.Request) {
 	r.Permanode = httputil.MustGetBlobRef(req, "permanode")
