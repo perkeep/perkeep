@@ -52,6 +52,8 @@ type serverCmd struct {
 	latency  int
 
 	fullClosure bool
+	mini        bool
+	publish     bool
 
 	openBrowser  bool
 	flickrAPIKey string
@@ -74,6 +76,8 @@ func init() {
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
+		flags.BoolVar(&cmd.publish, "publish", true, "Enable publish handlers")
+		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
 		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -sqlite.")
 		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -sqlite.")
@@ -176,6 +180,8 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_POSTGRES_ENABLED", "false")
 	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
+
+	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	switch {
 	case c.mongo:
 		setenv("CAMLI_MONGO_ENABLED", "true")
@@ -333,6 +339,9 @@ func (c *serverCmd) setFullClosure() error {
 }
 
 func (c *serverCmd) RunCommand(args []string) error {
+	if c.mini {
+		c.publish = false
+	}
 	err := c.checkFlags(args)
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))

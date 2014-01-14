@@ -137,6 +137,11 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		}
 	}
 
+	if os.Getenv("CAMLI_PUBLISH_ENABLED") == "false" {
+		// Hack for dev server, to simplify its config with devcam server --publish=false.
+		pubRoots = nil
+	}
+
 	ui.publishRoots = make(map[string]*PublishHandler)
 	for _, pubRoot := range pubRoots {
 		h, err := ld.GetHandler(pubRoot)

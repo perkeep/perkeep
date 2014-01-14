@@ -18,6 +18,7 @@
      },
 
       "/blog/": {
+          "enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
           "handler": "publish",
           "handlerArgs": {
               "rootName": "dev-blog-root",
@@ -30,6 +31,7 @@
       },
 
       "/pics/": {
+          "enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
           "handler": "publish",
           "handlerArgs": {
               "rootName": "dev-pics-root",
