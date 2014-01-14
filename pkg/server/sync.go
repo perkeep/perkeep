@@ -40,8 +40,7 @@ import (
 var queueSyncInterval = 5 * time.Second
 
 const (
-	maxErrors    = 20
-	maxCopyTries = 17 // ~36 hours with retryCopyLoop(time.Second ...)
+	maxErrors = 20
 )
 
 // The SyncHandler handles async replication in one direction between
@@ -368,11 +367,9 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef
 	for i := 0; i < toCopy; i++ {
 		sh.setStatus("Copied %d/%d of batch of queued blobs", nCopied, toCopy)
 		res := <-resch
-		// TODO(mpl): why is nCopied incremented while res.err hasn't been checked
-		// yet? Maybe it should be renamed to nTried?
-		nCopied++
 		sh.lk.Lock()
 		if res.err == nil {
+			nCopied++
 			sh.totalCopies++
 			sh.totalCopyBytes += res.sb.Size
 			sh.recentCopyTime = time.Now().UTC()
@@ -411,32 +408,6 @@ func (sh *SyncHandler) syncQueueLoop() {
 func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blob.SizedRef) {
 	for sb := range work {
 		res <- copyResult{sb, sh.copyBlob(sb, 0)}
-	}
-}
-
-func (sh *SyncHandler) retryCopyLoop(initialInterval time.Duration, sb blob.SizedRef) {
-	interval := initialInterval
-	tryCount := 1
-	for {
-		if tryCount >= maxCopyTries {
-			break
-		}
-		t1 := time.Now()
-		err := sh.copyBlob(sb, tryCount)
-		sh.lk.Lock()
-		if err == nil {
-			sh.totalCopies++
-			sh.totalCopyBytes += sb.Size
-			sh.recentCopyTime = time.Now().UTC()
-			sh.lk.Unlock()
-			break
-		} else {
-			sh.totalErrors++
-		}
-		sh.lk.Unlock()
-		time.Sleep(t1.Add(interval).Sub(time.Now()))
-		interval = interval * 2
-		tryCount++
 	}
 }
 
@@ -479,21 +450,6 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef, tryCount int) error {
 	}))
 	newsb, err := sh.to.ReceiveBlob(sb.Ref, readerutil.CountingReader{rc, &bytesCopied})
 	if err != nil {
-		// TODO(bradfitz): I don't remember what this MissingKeyBlob (sic; should be ErrMissingKey...)
-		// is about. Disable for now.
-		/*
-			if err == camerrors.MissingKeyBlob && tryCount == 0 {
-				err := sh.fromq.RemoveBlobs([]blob.Ref{sb.Ref})
-				if err != nil {
-					return errorf("source queue delete: %v", err)
-				}
-				// TODO(mpl): instead of doing one goroutine per blob, maybe transfer
-				// the "faulty" blobs in a retry queue, and do one goroutine per queue?
-				// Also we probably will want to deal with part of this problem in the
-				// index layer anyway: http://camlistore.org/issue/102
-				go sh.retryCopyLoop(time.Second, sb)
-			}
-		*/
 		return errorf("dest write: %v", err)
 	}
 	if newsb.Size != sb.Size {
