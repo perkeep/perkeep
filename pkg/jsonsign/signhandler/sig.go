@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -44,15 +45,17 @@ type Handler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
 
+	pubKey        string // armored
 	pubKeyBlobRef blob.Ref
 	pubKeyFetcher blob.StreamingFetcher
 
 	pubKeyBlobRefServeSuffix string // "camli/sha1-xxxx"
 	pubKeyHandler            http.Handler
 
-	// Where & if our public key is published
-	pubKeyDest    blobserver.Storage
-	pubKeyWritten bool
+	pubKeyDest blobserver.Storage // Where our public key is published
+
+	pubKeyUploadMu sync.RWMutex
+	pubKeyUploaded bool
 
 	entity *openpgp.Entity
 	signer *schema.Signer
@@ -90,10 +93,10 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		return nil, err
 	}
 
-	armoredPublicKey, err := jsonsign.ArmoredPublicKey(h.entity)
+	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
 
 	ms := new(blob.MemoryStore)
-	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, armoredPublicKey)
+	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, h.pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -105,19 +108,13 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 			return nil, err
 		}
 		h.pubKeyDest = sto
-		if sto != nil {
-			err := h.uploadPublicKey(sto, armoredPublicKey)
-			if err != nil {
-				return nil, fmt.Errorf("Error seeding self public key in storage: %v", err)
-			}
-		}
 	}
 	h.pubKeyBlobRefServeSuffix = "camli/" + h.pubKeyBlobRef.String()
 	h.pubKeyHandler = &gethandler.Handler{
 		Fetcher: ms,
 	}
 
-	h.signer, err = schema.NewSigner(h.pubKeyBlobRef, strings.NewReader(armoredPublicKey), h.entity)
+	h.signer, err = schema.NewSigner(h.pubKeyBlobRef, strings.NewReader(h.pubKey), h.entity)
 	if err != nil {
 		return nil, err
 	}
@@ -125,12 +122,31 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	return h, nil
 }
 
-func (h *Handler) uploadPublicKey(sto blobserver.Storage, key string) error {
-	_, err := blobserver.StatBlob(sto, h.pubKeyBlobRef)
-	if err == nil {
+func (h *Handler) uploadPublicKey() error {
+	h.pubKeyUploadMu.RLock()
+	if h.pubKeyUploaded {
+		h.pubKeyUploadMu.RUnlock()
 		return nil
 	}
-	_, err = blobserver.Receive(sto, h.pubKeyBlobRef, strings.NewReader(key))
+	h.pubKeyUploadMu.RUnlock()
+
+	sto := h.pubKeyDest
+
+	h.pubKeyUploadMu.Lock()
+	defer h.pubKeyUploadMu.Unlock()
+	if h.pubKeyUploaded {
+		return nil
+	}
+	_, err := blobserver.StatBlob(sto, h.pubKeyBlobRef)
+	if err == nil {
+		h.pubKeyUploaded = true
+		return nil
+	}
+	_, err = blobserver.Receive(sto, h.pubKeyBlobRef, strings.NewReader(h.pubKey))
+	log.Printf("uploadPublicKey(%T, %v) = %v", sto, h.pubKeyBlobRef, err)
+	if err == nil {
+		h.pubKeyUploaded = true
+	}
 	return err
 }
 
@@ -218,7 +234,6 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("bad request: %s", s)
 		return
 	}
-	// TODO: SECURITY: auth
 
 	jsonStr := req.FormValue("json")
 	if jsonStr == "" {
@@ -242,6 +257,7 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		badReq(fmt.Sprintf("%v", err))
 		return
 	}
+	h.uploadPublicKey()
 	rw.Write([]byte(signedJSON))
 }
 
@@ -265,5 +281,6 @@ func (h *Handler) Sign(bb *schema.Builder) (string, error) {
 	} else {
 		sreq.SignatureTime = claimTime
 	}
+	h.uploadPublicKey()
 	return sreq.Sign()
 }
