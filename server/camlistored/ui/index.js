@@ -128,7 +128,6 @@ cam.IndexPage.prototype.decorateInternal = function(element) {
 	cam.IndexPage.superClass_.decorateInternal.call(this, element);
 
 	var el = this.getElement();
-	goog.dom.classes.add(el, 'cam-index-page');
 
 	document.title = this.config_.ownerName + '\'s Vault';
 

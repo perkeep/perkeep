@@ -26,6 +26,8 @@ goog.require('cam.reactUtil');
 goog.require('cam.style');
 
 cam.NavReact = React.createClass({
+	displayName: 'NavReact',
+
 	propTypes: {
 		timer: cam.reactUtil.quacksLike({
 			setTimeout: React.PropTypes.func.isRequired,

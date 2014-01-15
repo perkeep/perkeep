@@ -1,0 +1,87 @@
+/*
+Copyright 2014 The Camlistore Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-pyramid-throbber {
+	position: relative;
+}
+
+.cam-pyramid-throbber .lefttop {
+	position: absolute;
+	width: 0;
+	height: 0;
+	border-bottom: 50px solid rgb(220,220,220);
+	border-left: 35px solid transparent;
+	-webkit-animation: leftcolors 1.0s infinite ease-in-out;
+	animation: leftcolors 1.0s infinite ease-in-out;
+}
+
+.cam-pyramid-throbber .leftbottom {
+	position: absolute;
+	top: 50px;
+	width: 0;
+	height: 0;
+	border-top: 15px solid rgb(220,220,220);
+	border-left: 35px solid transparent;
+	-webkit-animation: leftcolors 1.0s infinite ease-in-out;
+	animation: leftcolors 1.0s infinite ease-in-out;
+}
+
+.cam-pyramid-throbber .righttop {
+	position: absolute;
+	left: 35px;
+	width: 0;
+	height: 0;
+	border-bottom: 50px solid rgb(180,180,180);
+	border-right: 35px solid transparent;
+	-webkit-animation: rightcolors 1.0s infinite ease-in-out;
+	animation: rightcolors 1.0s infinite ease-in-out;
+}
+
+.cam-pyramid-throbber .rightbottom {
+	position: absolute;
+	left: 35px;
+	top: 50px;
+	width: 0;
+	height: 0;
+	border-top: 15px solid rgb(180,180,180);
+	border-right: 35px solid transparent;
+	-webkit-animation: rightcolors 1.0s infinite ease-in-out;
+	animation: rightcolors 1.0s infinite ease-in-out;
+}
+
+@-webkit-keyframes leftcolors {
+	0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@-webkit-keyframes rightcolors {
+	0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}
+
+@keyframes leftcolors {
+	0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@keyframes rightcolors {
+	0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}

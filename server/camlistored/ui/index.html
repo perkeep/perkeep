@@ -29,28 +29,46 @@ limitations under the License.
 
 		<script>
 			goog.require('goog.Uri');
-			goog.require('cam.IndexPageReact');
+			goog.require('cam.AnimationLoop');
 			goog.require('cam.IndexPage');
+			goog.require('cam.IndexPageReact');
+			goog.require('cam.ServerConnection');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
 		<link rel="stylesheet" href="blob_item_container.css" type="text/css">
 		<link rel="stylesheet" href="detail.css" type="text/css">
 		<link rel="stylesheet" href="index.css" type="text/css">
 		<link rel="stylesheet" href="nav.css" type="text/css">
+		<link rel="stylesheet" href="pyramid_throbber.css" type="text/css">
 		<link rel="stylesheet" href="closure/goog/css/common.css" type="text/css">
 		<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800">
 	</head>
-	<body>
+	<body class='cam-index-page'>
 		<script>
 			var isReact = new goog.Uri(location.href).getParameterValue('react') == '1';
 			if (isReact) {
-				var index = cam.IndexPageReact({
-					baseURL: goog.Uri.resolve(location.href, CAMLISTORE_CONFIG.uiRoot),
-					thumbnailVersion: Number(CAMLISTORE_CONFIG.thumbVersion),
-					timer: window,
-					keyTarget: window
-				});
-				React.renderComponent(index, document.body);
+				var lastWidth = -1;
+				var render = function() {
+					var currentWidth = document.documentElement.offsetWidth;
+					if (currentWidth == lastWidth) {
+						return;
+					}
+
+					lastWidth = currentWidth;
+					var index = cam.IndexPageReact({
+						availWidth: currentWidth - 36,
+						config: CAMLISTORE_CONFIG,
+						eventTarget: window,
+						history: window.history,
+						location: window.location,
+						serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
+						timer: window,
+					});
+					React.renderComponent(index, document.body);
+				};
+				window.addEventListener('onresize', render);
+				window.setInterval(render, 3000);
+				render();
 			} else {
 				var page = new cam.IndexPage(CAMLISTORE_CONFIG);
 				page.decorate(document.body);

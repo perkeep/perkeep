@@ -17,58 +17,72 @@ limitations under the License.
 goog.provide('cam.IndexPageReact');
 
 goog.require('goog.string');
+goog.require('goog.Uri');
 
+goog.require('cam.BlobItemContainerReact');
+goog.require('cam.Navigator');
 goog.require('cam.NavReact');
 goog.require('cam.reactUtil');
+goog.require('cam.SearchSession');
 
 cam.IndexPageReact = React.createClass({
-	propTypes: {
-		baseURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		thumbnailVersion: React.PropTypes.number.isRequired,
-		timer: cam.NavReact.originalSpec.propTypes.timer,
+	displayName: 'IndexPageReact',
 
-		// The event target to listen for key events at.
-		keyTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
+	propTypes: {
+		availWidth: React.PropTypes.number.isRequired,
+		config: React.PropTypes.object.isRequired,
+		eventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
+		history: cam.reactUtil.quacksLike({pushState:React.PropTypes.func.isRequired}).isRequired,
+		location: cam.reactUtil.quacksLike({href:React.PropTypes.string.isRequired, reload:React.PropTypes.func.isRequired}).isRequired,
+		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
+		timer: cam.NavReact.originalSpec.propTypes.timer,
 	},
 
 	componentWillMount: function() {
-		this.transformedBlobItemContainerHeight_ = 0;
+		var currentURL = new goog.Uri(this.props.location.href);
+		this.setState({
+			currentURL: currentURL,
+			baseURL: currentURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot)),
+			navigator: new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true),
+			searchSession: new cam.SearchSession(this.props.serverConnection, currentURL.clone(), ' '),
+		});
 	},
 
 	getInitialState: function() {
 		return {
-			lorem: '',
 			isNavOpen: false,
 		};
 	},
 
 	componentDidMount: function() {
-		var req = new XMLHttpRequest();
-		req.open('GET', 'lorem.html', true);
-		req.onload = function() {
-			this.setState({lorem:req.responseText});
-		}.bind(this);
-		req.send(null);
-
-		this.props.keyTarget.addEventListener('keypress', this.handleKeyPress_);
+		this.props.eventTarget.addEventListener('keypress', this.handleKeyPress_);
 	},
 
 	render: function() {
 		return React.DOM.div({}, [
 			cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-					// TODO(aa): Flip these on and off dependent on selection in BlobItemContainer.
-					cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
-					cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
-					cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
-					cam.NavReact.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set'),
-					cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set'),
-					cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, 'Create set with 5 items'),
-					cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection'),
-					cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
-					cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
-					cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.props.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
-				]),
-			React.DOM.div({key:'blobitemcontainer', ref:'blobItemContainer', className:'cam-blobitemcontainer', style:this.getBlobItemContainerStyle_()}, this.state.lorem),
+				// TODO(aa): Flip these on and off dependent on selection in BlobItemContainer.
+				cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
+				cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
+				cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
+				cam.NavReact.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set'),
+				cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set'),
+				cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, 'Create set with 5 items'),
+				cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection'),
+				cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
+				cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
+				cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.state.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
+			]),
+			cam.BlobItemContainerReact({
+				key: 'blobitemcontainer',
+				availWidth: this.props.availWidth,
+				detailURL: this.handleDetailURL_,
+				scrollEventTarget: this.props.eventTarget,
+				searchSession: this.state.searchSession,
+				style: this.getBlobItemContainerStyle_(),
+				thumbnailSize: 200,  // TODO(aa)
+				thumbnailVersion: Number(this.props.config.thumbVersion),
+			}),
 		]);
 	},
 
@@ -122,12 +136,17 @@ cam.IndexPageReact = React.createClass({
 		}
 	},
 
+	handleDetailURL_: function(item) {
+		var detailURL = this.state.currentURL.clone();
+		detailURL.setParameterValue('p', item.blobref);
+		if (item.m.camliType == 'permanode' && item.im) {
+			detailURL.setParameterValue('newui', '1');
+		}
+		return detailURL.toString();
+	},
+
 	getBlobItemContainerStyle_: function() {
-		var style = {
-			// Temporary override to make our test data look better.
-			whiteSpace:'normal',
-			padding: '1em',
-		};
+		var style = {};
 
 		// Need to be mounted to getDOMNode() below.
 		if (!this.isMounted()) {
