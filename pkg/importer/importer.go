@@ -48,7 +48,8 @@ type Host struct {
 
 	// client optionally specifies how to fetch external network
 	// resources.  If nil, http.DefaultClient is used.
-	client *http.Client
+	client    *http.Client
+	transport http.RoundTripper
 
 	mu           sync.Mutex
 	running      bool
@@ -130,6 +131,14 @@ func (h *Host) HTTPClient() *http.Client {
 		return http.DefaultClient
 	}
 	return h.client
+}
+
+// HTTPTransport returns the HTTP transport to use.
+func (h *Host) HTTPTransport() http.RoundTripper {
+	if h.transport == nil {
+		return http.DefaultTransport
+	}
+	return h.transport
 }
 
 type ProgressMessage struct {

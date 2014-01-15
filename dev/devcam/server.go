@@ -55,9 +55,10 @@ type serverCmd struct {
 	mini        bool
 	publish     bool
 
-	openBrowser  bool
-	flickrAPIKey string
-	extraArgs    string // passed to camlistored
+	openBrowser      bool
+	flickrAPIKey     string
+	foursquareAPIKey string
+	extraArgs        string // passed to camlistored
 	// end of flag vars
 
 	listen string // address + port to listen on
@@ -92,6 +93,7 @@ func init() {
 
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
+		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
 			"List of comma separated options that will be passed to camlistored")
@@ -253,6 +255,10 @@ func (c *serverCmd) setEnvVars() error {
 	if c.flickrAPIKey != "" {
 		setenv("CAMLI_FLICKR_ENABLED", "true")
 		setenv("CAMLI_FLICKR_API_KEY", c.flickrAPIKey)
+	}
+	if c.foursquareAPIKey != "" {
+		setenv("CAMLI_FOURSQUARE_ENABLED", "true")
+		setenv("CAMLI_FOURSQUARE_API_KEY", c.foursquareAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
 	return nil

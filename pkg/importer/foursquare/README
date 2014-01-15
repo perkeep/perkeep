@@ -1,0 +1,18 @@
+Foursquare Importer
+===================
+
+This is an incomplete Camlistore importer for Foursquare.com.
+
+To use:
+
+1) Visit https://foursquare.com/developers/apps and "Create a new app"
+   to get a Foursquare Client ID and secret.
+2) Start the devcam server with foursquareapikey flag:
+   $ devcam server -foursquareapikey=<apikey>:<secret>
+3) Navigate to http://<server>/importer-foursquare/login
+4) Watch import progress on the command line
+
+
+TODO:
+
+https://code.google.com/p/camlistore/issues/list?q=feature%3Aimportfoursquare
