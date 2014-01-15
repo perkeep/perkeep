@@ -4,12 +4,8 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- UI: infinite scroll: stutters, pre-load as necessary, show box
-
 -- UI: video, at least thumbnailing (use external program,
    like VLC or whatever nautilus uses?)
-
--- UI: prettier thumbnails (better resizing / JPEG compression?)
 
 -- rename server.ImageHandler to ThumbnailRequest or something? It's
    not really a Handler in the normal sense. It's not built once and
