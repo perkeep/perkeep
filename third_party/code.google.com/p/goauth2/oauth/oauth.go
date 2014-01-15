@@ -37,31 +37,101 @@
 //
 package oauth
 
-// TODO(adg): A means of automatically saving credentials when updated.
-
 import (
 	"encoding/json"
-	"errors"
+	"io/ioutil"
+	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
-// Config is the configuration of an OAuth consumer.
-type Config struct {
-	ClientId     string
-	ClientSecret string
-	Scope        string
-	AuthURL      string
-	TokenURL     string
-	RedirectURL  string // Defaults to out-of-band mode if empty.
+type OAuthError struct {
+	prefix string
+	msg    string
 }
 
-func (c *Config) redirectURL() string {
-	if c.RedirectURL != "" {
-		return c.RedirectURL
+func (oe OAuthError) Error() string {
+	return "OAuthError: " + oe.prefix + ": " + oe.msg
+}
+
+// Cache specifies the methods that implement a Token cache.
+type Cache interface {
+	Token() (*Token, error)
+	PutToken(*Token) error
+}
+
+// CacheFile implements Cache. Its value is the name of the file in which
+// the Token is stored in JSON format.
+type CacheFile string
+
+func (f CacheFile) Token() (*Token, error) {
+	file, err := os.Open(string(f))
+	if err != nil {
+		return nil, OAuthError{"CacheFile.Token", err.Error()}
 	}
-	return "oob"
+	defer file.Close()
+	tok := &Token{}
+	if err := json.NewDecoder(file).Decode(tok); err != nil {
+		return nil, OAuthError{"CacheFile.Token", err.Error()}
+	}
+	return tok, nil
+}
+
+func (f CacheFile) PutToken(tok *Token) error {
+	file, err := os.OpenFile(string(f), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return OAuthError{"CacheFile.PutToken", err.Error()}
+	}
+	if err := json.NewEncoder(file).Encode(tok); err != nil {
+		file.Close()
+		return OAuthError{"CacheFile.PutToken", err.Error()}
+	}
+	if err := file.Close(); err != nil {
+		return OAuthError{"CacheFile.PutToken", err.Error()}
+	}
+	return nil
+}
+
+// Config is the configuration of an OAuth consumer.
+type Config struct {
+	// ClientId is the OAuth client identifier used when communicating with
+	// the configured OAuth provider.
+	ClientId string
+
+	// ClientSecret is the OAuth client secret used when communicating with
+	// the configured OAuth provider.
+	ClientSecret string
+
+	// Scope identifies the level of access being requested. Multiple scope
+	// values should be provided as a space-delimited string.
+	Scope string
+
+	// AuthURL is the URL the user will be directed to in order to grant
+	// access.
+	AuthURL string
+
+	// TokenURL is the URL used to retrieve OAuth tokens.
+	TokenURL string
+
+	// RedirectURL is the URL to which the user will be returned after
+	// granting (or denying) access.
+	RedirectURL string
+
+	// TokenCache allows tokens to be cached for subsequent requests.
+	TokenCache Cache
+
+	AccessType string // Optional, "online" (default) or "offline", no refresh token if "online"
+
+	// ApprovalPrompt indicates whether the user should be
+	// re-prompted for consent. If set to "auto" (default) the
+	// user will be prompted only if they haven't previously
+	// granted consent and the code can only be exchanged for an
+	// access token.
+	// If set to "force" the user will always be prompted, and the
+	// code can be exchanged for a refresh token.
+	ApprovalPrompt string
 }
 
 // Token contains an end-user's tokens.
@@ -69,7 +139,8 @@ func (c *Config) redirectURL() string {
 type Token struct {
 	AccessToken  string
 	RefreshToken string
-	Expiry       time.Time // If zero the token has no (known) expiry time.
+	Expiry       time.Time         // If zero the token has no (known) expiry time.
+	Extra        map[string]string // May be nil.
 }
 
 func (t *Token) Expired() bool {
@@ -119,11 +190,13 @@ func (c *Config) AuthCodeURL(state string) string {
 		panic("AuthURL malformed: " + err.Error())
 	}
 	q := url.Values{
-		"response_type": {"code"},
-		"client_id":     {c.ClientId},
-		"redirect_uri":  {c.redirectURL()},
-		"scope":         {c.Scope},
-		"state":         {state},
+		"response_type":   {"code"},
+		"client_id":       {c.ClientId},
+		"redirect_uri":    {c.RedirectURL},
+		"scope":           {c.Scope},
+		"state":           {state},
+		"access_type":     {c.AccessType},
+		"approval_prompt": {c.ApprovalPrompt},
 	}.Encode()
 	if url_.RawQuery == "" {
 		url_.RawQuery = q
@@ -134,21 +207,34 @@ func (c *Config) AuthCodeURL(state string) string {
 }
 
 // Exchange takes a code and gets access Token from the remote server.
-func (t *Transport) Exchange(code string) (tok *Token, err error) {
+func (t *Transport) Exchange(code string) (*Token, error) {
 	if t.Config == nil {
-		return nil, errors.New("no Config supplied")
+		return nil, OAuthError{"Exchange", "no Config supplied"}
 	}
-	tok = new(Token)
-	err = t.updateToken(tok, url.Values{
+
+	// If the transport or the cache already has a token, it is
+	// passed to `updateToken` to preserve existing refresh token.
+	tok := t.Token
+	if tok == nil && t.TokenCache != nil {
+		tok, _ = t.TokenCache.Token()
+	}
+	if tok == nil {
+		tok = new(Token)
+	}
+	err := t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
-		"redirect_uri": {t.redirectURL()},
+		"redirect_uri": {t.RedirectURL},
 		"scope":        {t.Scope},
 		"code":         {code},
 	})
-	if err == nil {
-		t.Token = tok
+	if err != nil {
+		return nil, err
 	}
-	return
+	t.Token = tok
+	if t.TokenCache != nil {
+		return tok, t.TokenCache.PutToken(tok)
+	}
+	return tok, nil
 }
 
 // RoundTrip executes a single HTTP transaction using the Transport's
@@ -160,11 +246,18 @@ func (t *Transport) Exchange(code string) (tok *Token, err error) {
 // If the Token is invalid callers should expect HTTP-level errors,
 // as indicated by the Response's StatusCode.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.Config == nil {
-		return nil, errors.New("no Config supplied")
-	}
 	if t.Token == nil {
-		return nil, errors.New("no Token supplied")
+		if t.Config == nil {
+			return nil, OAuthError{"RoundTrip", "no Config supplied"}
+		}
+		if t.TokenCache == nil {
+			return nil, OAuthError{"RoundTrip", "no Token supplied"}
+		}
+		var err error
+		t.Token, err = t.TokenCache.Token()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Refresh the Token if it has expired.
@@ -174,23 +267,53 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
+	// To set the Authorization header, we must make a copy of the Request
+	// so that we don't modify the Request we were given.
+	// This is required by the specification of http.RoundTripper.
+	req = cloneRequest(req)
+	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
+
 	// Make the HTTP request.
-	req.Header.Set("Authorization", "OAuth "+t.AccessToken)
 	return t.transport().RoundTrip(req)
+}
+
+// cloneRequest returns a clone of the provided *http.Request.
+// The clone is a shallow copy of the struct and its Header map.
+func cloneRequest(r *http.Request) *http.Request {
+	// shallow copy of the struct
+	r2 := new(http.Request)
+	*r2 = *r
+	// deep copy of the Header
+	r2.Header = make(http.Header)
+	for k, s := range r.Header {
+		r2.Header[k] = s
+	}
+	return r2
 }
 
 // Refresh renews the Transport's AccessToken using its RefreshToken.
 func (t *Transport) Refresh() error {
+	if t.Token == nil {
+		return OAuthError{"Refresh", "no existing Token"}
+	}
+	if t.RefreshToken == "" {
+		return OAuthError{"Refresh", "Token expired; no Refresh Token"}
+	}
 	if t.Config == nil {
-		return errors.New("no Config supplied")
-	} else if t.Token == nil {
-		return errors.New("no existing Token")
+		return OAuthError{"Refresh", "no Config supplied"}
 	}
 
-	return t.updateToken(t.Token, url.Values{
+	err := t.updateToken(t.Token, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {t.RefreshToken},
 	})
+	if err != nil {
+		return err
+	}
+	if t.TokenCache != nil {
+		return t.TokenCache.PutToken(t.Token)
+	}
+	return nil
 }
 
 func (t *Transport) updateToken(tok *Token, v url.Values) error {
@@ -202,22 +325,54 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	}
 	defer r.Body.Close()
 	if r.StatusCode != 200 {
-		return errors.New("invalid response: " + r.Status)
+		return OAuthError{"updateToken", r.Status}
 	}
 	var b struct {
 		Access    string        `json:"access_token"`
 		Refresh   string        `json:"refresh_token"`
 		ExpiresIn time.Duration `json:"expires_in"`
+		Id        string        `json:"id_token"`
 	}
-	if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
-		return err
+
+	content, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	switch content {
+	case "application/x-www-form-urlencoded", "text/plain":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return err
+		}
+		vals, err := url.ParseQuery(string(body))
+		if err != nil {
+			return err
+		}
+
+		b.Access = vals.Get("access_token")
+		b.Refresh = vals.Get("refresh_token")
+		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires_in") + "s")
+		b.Id = vals.Get("id_token")
+	default:
+		if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
+			return err
+		}
+		// The JSON parser treats the unitless ExpiresIn like 'ns' instead of 's' as above,
+		// so compensate here.
+		b.ExpiresIn *= time.Second
 	}
 	tok.AccessToken = b.Access
-	tok.RefreshToken = b.Refresh
+	// Don't overwrite `RefreshToken` with an empty value
+	if len(b.Refresh) > 0 {
+		tok.RefreshToken = b.Refresh
+	}
 	if b.ExpiresIn == 0 {
 		tok.Expiry = time.Time{}
 	} else {
-		tok.Expiry = time.Now().Add(b.ExpiresIn * time.Second)
+		tok.Expiry = time.Now().Add(b.ExpiresIn)
+	}
+	if b.Id != "" {
+		if tok.Extra == nil {
+			tok.Extra = make(map[string]string)
+		}
+		tok.Extra["id_token"] = b.Id
 	}
 	return nil
 }
