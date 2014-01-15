@@ -119,40 +119,29 @@ func (h *memHub) NotifyBlobReceived(sb blob.SizedRef) error {
 
 	br := sb.Ref
 
-	// Callback channels to notify, nil until non-empty
-	var notify []chan<- blob.Ref
-
-	// Append global listeners
-	for ch := range h.listeners {
-		notify = append(notify, ch)
-	}
-
-	// Append blob-specific listeners
-	if h.blobListeners != nil {
-		if set, ok := h.blobListeners[br]; ok {
-			for ch, _ := range set {
-				notify = append(notify, ch)
-			}
-		}
-	}
-
-	if len(notify) > 0 {
-		// Run in a separate Goroutine so NotifyBlobReceived doesn't block
-		// callers if callbacks are slow.
-		go func() {
-			for _, ch := range notify {
-				ch <- br
-			}
-		}()
-	}
-
+	// Synchronous hooks. If error, prevents notifying other
+	// subscribers.
 	var grp syncutil.Group
 	for i := range h.hooks {
 		hook := h.hooks[i]
 		grp.Go(func() error { return hook(sb) })
 	}
+	if err := grp.Err(); err != nil {
+		return err
+	}
 
-	return grp.Err()
+	// Global listeners
+	for ch := range h.listeners {
+		ch := ch
+		go func() { ch <- br }()
+	}
+
+	// Blob-specific listeners
+	for ch := range h.blobListeners[br] {
+		ch := ch
+		go func() { ch <- br }()
+	}
+	return nil
 }
 
 func (h *memHub) RegisterListener(ch chan<- blob.Ref) {
