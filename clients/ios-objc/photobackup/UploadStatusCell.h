@@ -10,7 +10,7 @@
 
 @interface UploadStatusCell : UITableViewCell
 
-@property IBOutlet UILabel *status;
-@property IBOutlet UILabel *error;
+@property IBOutlet UILabel* status;
+@property IBOutlet UILabel* error;
 
 @end

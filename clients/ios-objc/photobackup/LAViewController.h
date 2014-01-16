@@ -11,11 +11,11 @@
 
 @class ProgressViewController;
 
-@interface LAViewController : UIViewController <UITableViewDataSource,UITableViewDelegate,LACamliStatusDelegate>
+@interface LAViewController : UIViewController <UITableViewDataSource, UITableViewDelegate, LACamliStatusDelegate>
 
-@property IBOutlet UITableView *table;
-@property NSMutableArray *operations;
-@property ProgressViewController *progress;
+@property IBOutlet UITableView* table;
+@property NSMutableArray* operations;
+@property ProgressViewController* progress;
 
 - (void)dismissSettings;
 
