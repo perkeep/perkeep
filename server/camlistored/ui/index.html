@@ -28,6 +28,8 @@ limitations under the License.
 		<script src="react/react-with-addons.js"></script>
 
 		<script>
+			goog.require('goog.Uri');
+			goog.require('cam.IndexPageReact');
 			goog.require('cam.IndexPage');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
@@ -40,8 +42,19 @@ limitations under the License.
 	</head>
 	<body>
 		<script>
-			var page = new cam.IndexPage(CAMLISTORE_CONFIG);
-			page.decorate(document.body);
+			var isReact = new goog.Uri(location.href).getParameterValue('react') == '1';
+			if (isReact) {
+				var index = cam.IndexPageReact({
+					baseURL: goog.Uri.resolve(location.href, CAMLISTORE_CONFIG.uiRoot),
+					thumbnailVersion: Number(CAMLISTORE_CONFIG.thumbVersion),
+					timer: window,
+					keyTarget: window
+				});
+				React.renderComponent(index, document.body);
+			} else {
+				var page = new cam.IndexPage(CAMLISTORE_CONFIG);
+				page.decorate(document.body);
+			}
 		</script>
 	</body>
 </html>
