@@ -34,7 +34,9 @@ cam.BlobItemReactData = function(blobref, metabag) {
 	this.m = metabag[blobref];
 	this.rm = this.constructor.getResolvedMeta_(this.m, metabag);
 	this.im = this.constructor.getImageMeta_(this.rm);
-	this.thumbType = this.constructor.getThumbType_(this.m, this.rm, this.im);
+	this.isStaticCollection = this.constructor.isStaticCollection_(this.rm);
+	this.isDynamicCollection = this.constructor.isDynamicCollection_(this.m);
+	this.thumbType = this.constructor.getThumbType_(this);
 	this.aspect = this.constructor.getAspect_(this.im, this.thumbType);
 	this.title = this.constructor.getTitle_(this.m, this.rm);
 };
@@ -76,24 +78,30 @@ cam.BlobItemReactData.getAspect_ = function(im, tt) {
 	throw new Error('Unexpected thumb type: ' + tt);
 };
 
-cam.BlobItemReactData.getThumbType_ = function(m, rm, im) {
-	if (im) {
+cam.BlobItemReactData.isStaticCollection_ = function(rm) {
+	return rm.camliType == 'directory' || rm.camliType == 'static-set';
+};
+
+cam.BlobItemReactData.isDynamicCollection_ = function(m) {
+	if (m.camliType == 'permanode') {
+		if (goog.object.findKey(m.permanode.attr, function(v, k) { return k == 'camliMember' || goog.string.startsWith(k, 'camliPath:') })) {
+			return true;
+		}
+	}
+	return false;
+};
+
+cam.BlobItemReactData.getThumbType_ = function(data) {
+	if (data.im) {
 		return 'image';
 	}
 
-	if (rm.camliType == 'file') {
+	if (data.rm.camliType == 'file') {
 		return 'file';
 	}
 
-	if (rm.camliType == 'folder' || rm.camliType == 'static-set') {
+	if (data.isStaticCollection || data.isDynamicCollection) {
 		return 'folder';
-	}
-
-	if (m.camliType == 'permanode') {
-		if (goog.object.findKey(m.permanode.attr, function(v, k) { return k == 'camliMember' || goog.string.startsWith(k, 'camliPath:') })) {
-			return 'folder';
-		}
-		return 'node';
 	}
 
 	return 'file';

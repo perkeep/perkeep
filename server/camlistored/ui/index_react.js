@@ -28,6 +28,8 @@ goog.require('cam.SearchSession');
 cam.IndexPageReact = React.createClass({
 	displayName: 'IndexPageReact',
 
+	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250],
+
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
 		config: React.PropTypes.object.isRequired,
@@ -51,6 +53,8 @@ cam.IndexPageReact = React.createClass({
 	getInitialState: function() {
 		return {
 			isNavOpen: false,
+			selection: {},
+			thumbnailSizeIndex: 3,
 		};
 	},
 
@@ -65,22 +69,25 @@ cam.IndexPageReact = React.createClass({
 				cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
 				cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
 				cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
-				cam.NavReact.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set'),
-				cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set'),
-				cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, 'Create set with 5 items'),
-				cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection'),
+				this.getSelectAsCurrentSetItem_(),
+				this.getAddToCurrentSetItem_(),
+				this.getCreateSetWithSelectionItem_(),
+				this.getClearSelectionItem_(),
 				cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
 				cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
 				cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.state.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
 			]),
 			cam.BlobItemContainerReact({
 				key: 'blobitemcontainer',
+				ref: 'blobItemContainer',
 				availWidth: this.props.availWidth,
 				detailURL: this.handleDetailURL_,
+				onSelectionChange: this.handleSelectionChange_,
 				scrollEventTarget: this.props.eventTarget,
 				searchSession: this.state.searchSession,
+				selection: this.state.selection,
 				style: this.getBlobItemContainerStyle_(),
-				thumbnailSize: 200,  // TODO(aa)
+				thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
 				thumbnailVersion: Number(this.props.config.thumbVersion),
 			}),
 		]);
@@ -97,35 +104,41 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	handleSearch_: function(query) {
-		console.log('search', query);
+		// TODO(aa)
 	},
 
 	handleShowSearchRoots_: function() {
-		console.log('handle search roots');
+		// TODO(aa)
 	},
 
 	handleSelectAsCurrentSet_: function() {
-		console.log('select as current set');
+		// TODO(aa)
 	},
 
 	handleAddToSet_: function() {
-		console.log('add to current set');
+		// TODO(aa)
 	},
 
 	handleCreateSetWithSelection_: function() {
-		console.log('create set with selection');
+		// TODO(aa)
 	},
 
 	handleClearSelection_: function() {
-		console.log('clear selection');
+		this.setState({selection:{}});
 	},
 
 	handleEmbiggen_: function() {
-		console.log('embiggen');
+		var newSizeIndex = this.state.thumbnailSizeIndex + 1;
+		if (newSizeIndex < this.THUMBNAIL_SIZES_.length) {
+			this.setState({thumbnailSizeIndex:newSizeIndex});
+		}
 	},
 
 	handleEnsmallen_: function() {
-		console.log('ensmallen');
+		var newSizeIndex = this.state.thumbnailSizeIndex - 1;
+		if (newSizeIndex >= 0) {
+			this.setState({thumbnailSizeIndex:newSizeIndex});
+		}
 	},
 
 	handleKeyPress_: function(e) {
@@ -143,6 +156,47 @@ cam.IndexPageReact = React.createClass({
 			detailURL.setParameterValue('newui', '1');
 		}
 		return detailURL.toString();
+	},
+
+	getSelectAsCurrentSetItem_: function() {
+		if (goog.object.getCount(this.state.selection) != 1) {
+			return null;
+		}
+
+		var blobref = goog.object.getAnyKey(this.state.selection);
+		var data = new cam.BlobItemReactData(blobref, this.state.searchSession.getCurrentResults().description.meta);
+		if (!data.isDynamicCollection) {
+			return null;
+		}
+
+		return cam.NavReact.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
+	},
+
+	getAddToCurrentSetItem_: function() {
+		if (!goog.object.getAnyKey(this.state.selection)) {
+			return null;
+		}
+		return cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set');
+	},
+
+	getCreateSetWithSelectionItem_: function() {
+		var numItems = goog.object.getCount(this.state.selection);
+		if (numItems == 0) {
+			return null;
+		}
+		var label = numItems == 1 ? 'Create set with item' : goog.string.subs('Create set with %s items', numItems);
+		return cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, label);
+	},
+
+	getClearSelectionItem_: function() {
+		if (!goog.object.getAnyKey(this.state.selection)) {
+			return null;
+		}
+		return cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection');
+	},
+
+	handleSelectionChange_: function(newSelection) {
+		this.setState({selection:newSelection});
 	},
 
 	getBlobItemContainerStyle_: function() {

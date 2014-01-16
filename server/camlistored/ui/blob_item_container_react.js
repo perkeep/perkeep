@@ -42,8 +42,10 @@ cam.BlobItemContainerReact = React.createClass({
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
+		onSelectionChange: React.PropTypes.func,
 		scrollEventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		searchSession: cam.reactUtil.quacksLike({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
+		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,
 		thumbnailVersion: React.PropTypes.number.isRequired,
@@ -63,13 +65,6 @@ cam.BlobItemContainerReact = React.createClass({
 		this.props.searchSession.addEventListener(cam.SearchSession.SEARCH_SESSION_CHANGED, this.forceUpdate.bind(this, null));
 		this.props.scrollEventTarget.addEventListener('scroll', this.handleScroll_);
 		this.props.searchSession.loadMoreResults();
-	},
-
-	getInitialState: function() {
-		return {
-			// TODO(aa): We should also store scroll position, so that navigations can remove BlobItemContainerReact from the DOM, but scroll pos changes shouldn't re-render
-			selection: {},  // blobref->true
-		}
 	},
 
 	render: function() {
@@ -116,7 +111,16 @@ cam.BlobItemContainerReact = React.createClass({
 			i = rowEnd;
 		}
 
-		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style}, children);
+		// If we haven't filled the window with results, add some more.
+		if (!this.props.searchSession.isComplete()) {
+			var docHeight = goog.dom.getDocumentHeight();
+			var viewportHeight = goog.dom.getViewportSize().height;
+			if (docHeight < (viewportHeight * 1.5)) {
+				this.props.searchSession.loadMoreResults();
+			}
+		}
+
+		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_}, children);
 	},
 
 	renderChildren_: function(data, children, startIndex, endIndex, availWidth, usedWidth, top) {
@@ -141,7 +145,7 @@ cam.BlobItemContainerReact = React.createClass({
 			rowProps.push({
 				key: item.blobref,
 				blobref: item.blobref,
-				checked: Boolean(this.state.selection[item.blobref]),
+				checked: Boolean(this.props.selection[item.blobref]),
 				href: this.props.detailURL(item),
 				data: item,
 				onCheckClick: this.handleCheckClick_,
@@ -163,34 +167,38 @@ cam.BlobItemContainerReact = React.createClass({
 		return rowHeight;
 	},
 
-	getSelection: function() {
-		return goog.object.getKeys(this.state.selection);
-	},
-
-	clearSelection: function() {
-		this.setState({selection:{}});
-	},
-
 	handleCheckClick_: function(blobref, e) {
 		var blobs = this.props.searchSession.getCurrentResults().blobs;
 		var index = goog.array.findIndex(blobs, function(b) { return b.blob == blobref });
+		var newSelection = cam.object.extend(this.props.selection, {});
 
 		if (e.shiftKey && this.lastCheckedIndex_ > -1) {
 			var low = Math.min(this.lastCheckedIndex_, index);
 			var high = Math.max(this.lastCheckedIndex_, index);
 			for (var i = low; i <= high; i++) {
-				this.state.selection[blobs[i].blob] = true;
+				newSelection[blobs[i].blob] = true;
 			}
 		} else {
-			if (this.state.selection[blobref]) {
-				delete this.state.selection[blobref];
+			if (newSelection[blobref]) {
+				delete newSelection[blobref];
 			} else {
-				this.state.selection[blobref] = true;
+				newSelection[blobref] = true;
 			}
 		}
 
 		this.lastCheckedIndex_ = index;
 		this.forceUpdate();
+
+		if (this.props.onSelectionChange) {
+			this.props.onSelectionChange(newSelection);
+		}
+	},
+
+	handleMouseDown_: function(e) {
+		// Prevent the default selection behavior.
+		if (e.shiftKey) {
+			e.preventDefault();
+		}
 	},
 
 	handleScroll_: function() {
