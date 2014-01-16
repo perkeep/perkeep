@@ -41,6 +41,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
+		availHeight: React.PropTypes.number.isRequired,
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
 		onSelectionChange: React.PropTypes.func,
 		scrollEventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
@@ -62,9 +63,13 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	componentDidMount: function() {
-		this.props.searchSession.addEventListener(cam.SearchSession.SEARCH_SESSION_CHANGED, this.forceUpdate.bind(this, null));
+		this.props.searchSession.addEventListener(cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
 		this.props.scrollEventTarget.addEventListener('scroll', this.handleScroll_);
-		this.props.searchSession.loadMoreResults();
+	},
+
+	componentWillUnmount: function() {
+		this.props.searchSession.removeEventListener(cam.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+		this.props.scrollEventTarget.removeEventListener('scroll', this.handleScroll_);
 	},
 
 	render: function() {
@@ -113,9 +118,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 		// If we haven't filled the window with results, add some more.
 		if (!this.props.searchSession.isComplete()) {
-			var docHeight = goog.dom.getDocumentHeight();
-			var viewportHeight = goog.dom.getViewportSize().height;
-			if (docHeight < (viewportHeight * 1.5)) {
+			if (currentTop < (this.props.availHeight * 1.5)) {
 				this.props.searchSession.loadMoreResults();
 			}
 		}
@@ -165,6 +168,10 @@ cam.BlobItemContainerReact = React.createClass({
 		}
 
 		return rowHeight;
+	},
+
+	handleSearchSessionChanged_: function() {
+		this.forceUpdate();
 	},
 
 	handleCheckClick_: function(blobref, e) {

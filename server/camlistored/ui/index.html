@@ -48,15 +48,19 @@ limitations under the License.
 			var isReact = new goog.Uri(location.href).getParameterValue('react') == '1';
 			if (isReact) {
 				var lastWidth = -1;
+				var lastHeight = -1;
 				var render = function() {
 					var currentWidth = document.documentElement.offsetWidth;
-					if (currentWidth == lastWidth) {
+					var currentHeight = window.innerHeight;
+					if (currentWidth == lastWidth && currentHeight == lastHeight) {
 						return;
 					}
 
 					lastWidth = currentWidth;
+					lastHeight = currentHeight;
 					var index = cam.IndexPageReact({
 						availWidth: currentWidth - 36,
+						availHeight: currentHeight,
 						config: CAMLISTORE_CONFIG,
 						eventTarget: window,
 						history: window.history,
@@ -66,7 +70,7 @@ limitations under the License.
 					});
 					React.renderComponent(index, document.body);
 				};
-				window.addEventListener('onresize', render);
+				window.addEventListener('resize', render);
 				window.setInterval(render, 3000);
 				render();
 			} else {

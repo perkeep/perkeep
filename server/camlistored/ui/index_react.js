@@ -20,10 +20,12 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 
 goog.require('cam.BlobItemContainerReact');
+goog.require('cam.DetailView');
 goog.require('cam.Navigator');
 goog.require('cam.NavReact');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
+goog.require('cam.ServerConnection');
 
 cam.IndexPageReact = React.createClass({
 	displayName: 'IndexPageReact',
@@ -32,6 +34,7 @@ cam.IndexPageReact = React.createClass({
 
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
+		availHeight: React.PropTypes.number.isRequired,
 		config: React.PropTypes.object.isRequired,
 		eventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		history: cam.reactUtil.quacksLike({pushState:React.PropTypes.func.isRequired}).isRequired,
@@ -42,12 +45,18 @@ cam.IndexPageReact = React.createClass({
 
 	componentWillMount: function() {
 		var currentURL = new goog.Uri(this.props.location.href);
+		var baseURL = currentURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
+		baseURL.setParameterValue('react', '1');
+
+		var navigator = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true);
+		navigator.onNavigate = this.handleNavigate_;
+
 		this.setState({
-			currentURL: currentURL,
-			baseURL: currentURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot)),
-			navigator: new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true),
+			baseURL: baseURL,
+			navigator: navigator,
 			searchSession: new cam.SearchSession(this.props.serverConnection, currentURL.clone(), ' '),
 		});
+		this.handleNavigate_(currentURL);
 	},
 
 	getInitialState: function() {
@@ -64,32 +73,52 @@ cam.IndexPageReact = React.createClass({
 
 	render: function() {
 		return React.DOM.div({}, [
-			cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-				// TODO(aa): Flip these on and off dependent on selection in BlobItemContainer.
-				cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
-				cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
-				cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
-				this.getSelectAsCurrentSetItem_(),
-				this.getAddToCurrentSetItem_(),
-				this.getCreateSetWithSelectionItem_(),
-				this.getClearSelectionItem_(),
-				cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
-				cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
-				cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.state.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
-			]),
-			cam.BlobItemContainerReact({
-				key: 'blobitemcontainer',
-				ref: 'blobItemContainer',
-				availWidth: this.props.availWidth,
-				detailURL: this.handleDetailURL_,
-				onSelectionChange: this.handleSelectionChange_,
-				scrollEventTarget: this.props.eventTarget,
-				searchSession: this.state.searchSession,
-				selection: this.state.selection,
-				style: this.getBlobItemContainerStyle_(),
-				thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
-				thumbnailVersion: Number(this.props.config.thumbVersion),
-			}),
+			this.getNav_(),
+			this.getBlobItemContainer_(),
+			this.getDetailView_(),
+		]);
+	},
+
+	handleNavigate_: function(newURL) {
+		if (this.state.currentURL) {
+			if (this.state.currentURL.getPath() != newURL.getPath()) {
+				return false;
+			}
+		}
+
+		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
+		var query = newURL.getQueryData();
+		var inSearchMode = (query.getCount() == 1 && query.containsKey('react')) || (query.getCount() == 2 && query.containsKey('react') && query.containsKey('q'));
+		var inDetailMode = query.containsKey('p') && query.get('newui') == '1';
+
+		if (!inSearchMode && !inDetailMode) {
+			return false;
+		}
+
+		this.setState({
+			currentURL: newURL,
+			searchMode: inSearchMode,
+			detailMode: inDetailMode,
+		});
+		return true;
+	},
+
+	getNav_: function() {
+		if (!this.state.searchMode) {
+			return null;
+		}
+		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
+			// TODO(aa): Flip these on and off dependent on selection in BlobItemContainer.
+			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
+			cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
+			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
+			this.getSelectAsCurrentSetItem_(),
+			this.getAddToCurrentSetItem_(),
+			this.getCreateSetWithSelectionItem_(),
+			this.getClearSelectionItem_(),
+			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
+			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
+			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.state.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
 		]);
 	},
 
@@ -199,6 +228,26 @@ cam.IndexPageReact = React.createClass({
 		this.setState({selection:newSelection});
 	},
 
+	getBlobItemContainer_: function() {
+		if (!this.state.searchMode) {
+			return null;
+		}
+		return cam.BlobItemContainerReact({
+			key: 'blobitemcontainer',
+			ref: 'blobItemContainer',
+			availWidth: this.props.availWidth,
+			availHeight: this.props.availHeight,
+			detailURL: this.handleDetailURL_,
+			onSelectionChange: this.handleSelectionChange_,
+			scrollEventTarget: this.props.eventTarget,
+			searchSession: this.state.searchSession,
+			selection: this.state.selection,
+			style: this.getBlobItemContainerStyle_(),
+			thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
+			thumbnailVersion: Number(this.props.config.thumbVersion),
+		});
+	},
+
 	getBlobItemContainerStyle_: function() {
 		var style = {};
 
@@ -224,5 +273,38 @@ cam.IndexPageReact = React.createClass({
 		style[cam.reactUtil.getVendorProp('transform')] = goog.string.subs('scale3d(%s, %s, 1)', scale, scale);
 
 		return style;
+	},
+
+	getDetailView_: function() {
+		if (!this.state.detailMode) {
+			return null;
+		}
+
+		var searchURL = this.state.baseURL.clone();
+		if (this.state.currentURL.getQueryData().containsKey('q')) {
+			searchURL.setParameterValue('q', this.state.currentURL.getParameterValue('q'));
+		}
+
+		var oldURL = this.state.baseURL.clone();
+		oldURL.setParameterValue('p', this.state.currentURL.getParameterValue('p'));
+
+		var getDetailURL = function(blobRef) {
+			var result = this.state.currentURL.clone();
+			result.setParameterValue('p', blobRef);
+			return result;
+		}.bind(this);
+
+		return cam.DetailView({
+			key: 'detailview',
+			blobref: this.state.currentURL.getParameterValue('p'),
+			searchSession: this.state.searchSession,
+			searchURL: searchURL,
+			oldURL: oldURL,
+			getDetailURL: getDetailURL,
+			navigator: this.state.navigator,
+			keyEventTarget: this.props.eventTarget,
+			width: this.props.availWidth,
+			height: this.props.availHeight,
+		});
 	},
 });

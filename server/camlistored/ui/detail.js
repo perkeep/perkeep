@@ -29,6 +29,8 @@ goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
 cam.DetailView = React.createClass({
+	displayName: 'DetailView',
+
 	IMG_MARGIN: 20,
 	PIGGY_WIDTH: 88,
 	PIGGY_HEIGHT: 62,
