@@ -886,36 +886,43 @@ func (c *Client) signBlob(bb schema.Buildable, sigTime time.Time) (string, error
 	return bb.Builder().SignAt(signer, sigTime)
 }
 
+// uploadPublicKey uploads the public key (if one is defined), so
+// subsequent (likely synchronous) indexing of uploaded signed blobs
+// will have access to the public key to verify it. In the normal
+// case, the stat cache prevents this from doing anything anyway.
+func (c *Client) uploadPublicKey() error {
+	sigRef := c.SignerPublicKeyBlobref()
+	if !sigRef.Valid() {
+		return nil
+	}
+	var err error
+	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
+		_, err = c.uploadString(c.publicKeyArmored, false)
+	}
+	return err
+}
+
 func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
 	signed, err := c.signBlob(b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
-
-	// sigRef is guaranteed valid at this point, because SignBlob
-	// succeeded.  If we don't know for sure that the server
-	// already has this public key, upload it.  And do it serially
-	// so by the time we do the second upload of the signed blob,
-	// any synchronous indexing on the server won't fail due to a
-	// missing public key.
-	sigRef := c.SignerPublicKeyBlobref()
-	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
-		if _, err := c.uploadString(c.publicKeyArmored); err != nil {
-			return nil, err
-		}
+	if err := c.uploadPublicKey(); err != nil {
+		return nil, err
 	}
-
-	return c.uploadString(signed)
+	return c.uploadString(signed, false)
 }
 
 func (c *Client) UploadBlob(b schema.AnyBlob) (*PutResult, error) {
 	// TODO(bradfitz): ask the blob for its own blobref, rather
 	// than changing the hash function with uploadString?
-	return c.uploadString(b.Blob().JSON())
+	return c.uploadString(b.Blob().JSON(), true)
 }
 
-func (c *Client) uploadString(s string) (*PutResult, error) {
-	return c.Upload(NewUploadHandleFromString(s))
+func (c *Client) uploadString(s string, stat bool) (*PutResult, error) {
+	uh := NewUploadHandleFromString(s)
+	uh.SkipStat = !stat
+	return c.Upload(uh)
 }
 
 func (c *Client) UploadNewPermanode() (*PutResult, error) {
@@ -929,7 +936,10 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 	if err != nil {
 		return nil, err
 	}
-	return c.uploadString(signed)
+	if err := c.uploadPublicKey(); err != nil {
+		return nil, err
+	}
+	return c.uploadString(signed, true)
 }
 
 // IsIgnoredFile returns whether the file at fullpath should be ignored by camput.

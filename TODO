@@ -30,15 +30,6 @@ Offline list:
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
 
--- camput's havecache initialization should move up a layer to
-   to be global to all commands, not specific to "camput file".
-   (the statcache can stay in file).  otherwise, we have no haveCache
-   on the pkg/client.*Client and the UploadAndSignBlob call (for
-   creating permanodes and other claims) can't efficiently upload its
-   public key if the server doesn't already have it.  currently it
-   has to try to upload it (doing a remote HTTP stat) each time
-   when using "camput permanode" or "camput attr".
-
 -- use 'uint32' instead of 'int64' for blob sizes everywhere (notably
    blob.SizedRef).  blobs have a max size of 10-32 MB anyway, and the
    index.Corpus is now using uint32 to save memory.

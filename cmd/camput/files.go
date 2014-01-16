@@ -58,7 +58,7 @@ type fileCmd struct {
 	argsFromInput     bool // Android mode: filenames piped into stdin, one at a time.
 	deleteAfterUpload bool // with fileNodes, deletes the input file once uploaded
 
-	havecache, statcache bool
+	statcache bool
 
 	// Go into in-memory stats mode only; doesn't actually upload.
 	memstats bool
@@ -85,13 +85,11 @@ func init() {
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 			flags.BoolVar(&cmd.statcache, "statcache", true, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-			flags.BoolVar(&cmd.havecache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
 			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
 			flags.BoolVar(&cmd.capCtime, "capctime", false, "For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
 			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "Use sqlite for the statcache and havecache instead of a flat cache.")
 		} else {
-			cmd.havecache = true
 			cmd.statcache = true
 		}
 		if android.IsChild() {
@@ -219,9 +217,6 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.UsageError("No files or directories given.")
 	}
-	if up.haveCache != nil {
-		defer up.haveCache.Close()
-	}
 	if up.statCache != nil {
 		defer up.statCache.Close()
 	}
@@ -282,7 +277,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 }
 
 func (c *fileCmd) initCaches(up *Uploader) {
-	if !c.statcache && !c.havecache {
+	if !c.statcache {
 		return
 	}
 	gen, err := up.StorageGeneration()
@@ -292,10 +287,6 @@ func (c *fileCmd) initCaches(up *Uploader) {
 	}
 	if c.statcache {
 		up.statCache = NewKvStatCache(gen)
-	}
-	if c.havecache {
-		up.haveCache = NewKvHaveCache(gen)
-		up.Client.SetHaveCache(up.haveCache)
 	}
 }
 

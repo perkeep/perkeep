@@ -41,11 +41,31 @@ var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
 // Writer adds around content
 var multipartOverhead = calculateMultipartOverhead()
 
+// UploadHandle contains the parameters is a request to upload a blob.
 type UploadHandle struct {
-	BlobRef  blob.Ref
-	Size     int64 // or -1 if size isn't known
+	// BlobRef is the required blobref of the blob to upload.
+	BlobRef blob.Ref
+
+	// Contents is the blob data.
 	Contents io.Reader
-	Vivify   bool
+
+	// Size optionally specifies the size of Contents.
+	// If <= 0, the Contents are slurped into memory to count the size.
+	Size int64
+
+	// Vivify optionally instructs the server to create a
+	// permanode for this blob. If used, the blob should be a
+	// "file" schema blob. This is typically used by
+	// lesser-trusted clients (such a mobile phones) which don't
+	// have rights to do signing directly.
+	Vivify bool
+
+	// SkipStat indicates whether the stat check (checking whether
+	// the server already has the blob) will be skipped and the
+	// blob should be uploaded immediately. This is useful for
+	// small blobs that the server is unlikely to already have
+	// (e.g. new claims).
+	SkipStat bool
 }
 
 type PutResult struct {
@@ -102,6 +122,7 @@ func parseStatResponse(r io.Reader) (*statResponse, error) {
 	return s, nil
 }
 
+// NewUploadHandleFromString returns an upload handle
 func NewUploadHandleFromString(data string) *UploadHandle {
 	bref := blob.SHA1FromString(data)
 	r := strings.NewReader(data)
@@ -299,9 +320,8 @@ func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.D
 
 // Figure out the size of the contents.
 // If the size was provided, trust it.
-// If the size was not provided (-1), slurp.
-func readerAndSize(h *UploadHandle) (io.Reader, int64, error) {
-	if h.Size != -1 {
+func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
+	if h.Size > 0 {
 		return h.Contents, h.Size, nil
 	}
 	var b bytes.Buffer
@@ -312,6 +332,7 @@ func readerAndSize(h *UploadHandle) (io.Reader, int64, error) {
 	return &b, n, nil
 }
 
+// Upload uploads a blob, as described by the provided UploadHandle parameters.
 func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	errorf := func(msg string, arg ...interface{}) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
@@ -319,7 +340,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return nil, err
 	}
 
-	bodyReader, bodySize, err := readerAndSize(h)
+	bodyReader, bodySize, err := h.readerAndSize()
 	if err != nil {
 		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
 	}
@@ -345,30 +366,35 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	url_ := fmt.Sprintf("%s/camli/stat", pfx)
-	req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.doReqGated(req)
-	if err != nil {
-		return errorf("stat http error: %v", err)
-	}
-	defer resp.Body.Close()
+	if !h.SkipStat {
+		url_ := fmt.Sprintf("%s/camli/stat", pfx)
+		req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
+		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	if resp.StatusCode != 200 {
-		return errorf("stat response had http status %d", resp.StatusCode)
-	}
+		resp, err := c.doReqGated(req)
+		if err != nil {
+			return errorf("stat http error: %v", err)
+		}
+		defer resp.Body.Close()
 
-	stat, err := parseStatResponse(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	for _, sbr := range stat.HaveMap {
-		c.haveCache.NoteBlobExists(sbr.Ref, sbr.Size)
-	}
-	if !h.Vivify {
-		if _, ok := stat.HaveMap[blobrefStr]; ok {
+		if resp.StatusCode != 200 {
+			return errorf("stat response had http status %d", resp.StatusCode)
+		}
+
+		stat, err := parseStatResponse(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		for _, sbr := range stat.HaveMap {
+			c.haveCache.NoteBlobExists(sbr.Ref, sbr.Size)
+		}
+		_, serverHasIt := stat.HaveMap[blobrefStr]
+		if debugUploads {
+			log.Printf("HTTP Stat(%s) = %v", blobrefStr, serverHasIt)
+		}
+		if !h.Vivify && serverHasIt {
 			pr.Skipped = true
 			if closer, ok := h.Contents.(io.Closer); ok {
 				// TODO(bradfitz): I did this
@@ -377,6 +403,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 				// fix the docs.
 				closer.Close()
 			}
+			c.haveCache.NoteBlobExists(h.BlobRef, bodySize)
 			return pr, nil
 		}
 	}
@@ -407,14 +434,14 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	// c.log.Printf("Uploading %s", br)
 
 	uploadURL := fmt.Sprintf("%s/camli/upload", pfx)
-	req = c.newRequest("POST", uploadURL)
+	req := c.newRequest("POST", uploadURL)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 	if h.Vivify {
 		req.Header.Add("X-Camlistore-Vivify", "1")
 	}
 	req.Body = ioutil.NopCloser(pipeReader)
 	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
-	resp, err = c.doReqGated(req)
+	resp, err := c.doReqGated(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)
 	}

@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
@@ -37,19 +38,27 @@ const buffered = 16 // arbitrary
 var (
 	flagProxyLocal = false
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagHaveCache  = true
 )
 
-var cachedUploader *Uploader // initialized by getUploader
+var (
+	uploaderOnce sync.Once
+	uploader     *Uploader // initialized by getUploader
+)
 
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
+		flag.BoolVar(&flagHaveCache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
 	}
 	cmdmain.ExtraFlagRegistration = func() {
 		client.AddFlags()
 	}
 	cmdmain.PreExit = func() {
 		up := getUploader()
+		if up.haveCache != nil {
+			up.haveCache.Close()
+		}
 		stats := up.Stats()
 		log.Printf("Client stats: %s", stats.String())
 		log.Printf("  #HTTP reqs: %d", up.transport.Requests())
@@ -57,10 +66,22 @@ func init() {
 }
 
 func getUploader() *Uploader {
-	if cachedUploader == nil {
-		cachedUploader = newUploader()
+	uploaderOnce.Do(initUploader)
+	return uploader
+}
+
+func initUploader() {
+	up := newUploader()
+	if flagHaveCache {
+		gen, err := up.StorageGeneration()
+		if err != nil {
+			log.Printf("WARNING: not using local server inventory cache; failed to retrieve server's storage generation: %v", err)
+		} else {
+			up.haveCache = NewKvHaveCache(gen)
+			up.Client.SetHaveCache(up.haveCache)
+		}
 	}
-	return cachedUploader
+	uploader = up
 }
 
 func handleResult(what string, pr *client.PutResult, err error) error {
