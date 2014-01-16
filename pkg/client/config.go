@@ -140,7 +140,7 @@ func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
 	}
 	newConf := jsonconfig.Obj{
 		"servers": map[string]interface{}{
-			server: map[string]interface{}{
+			"server": map[string]interface{}{
 				"auth":    conf.OptionalString("auth", ""),
 				"default": true,
 				"server":  server,
