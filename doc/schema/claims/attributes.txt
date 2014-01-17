@@ -62,3 +62,11 @@ search, FUSE, and web UI.
     "xattr:$x" is used to store the value for extended attribute "x".
     Extended attribute data may contain any arbitrary bytes, so values
     are base64 encoded.
+
+"camliRoot" (single-valued)
+
+    TODO: doc
+
+"camliImportRoot" (single-valued)
+
+    TODO: doc
