@@ -32,6 +32,10 @@ cam.IndexPageReact = React.createClass({
 
 	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250],
 
+	SEARCH_PREFIX_: {
+		RAW: 'raw'
+	},
+
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
 		availHeight: React.PropTypes.number.isRequired,
@@ -54,7 +58,6 @@ cam.IndexPageReact = React.createClass({
 		this.setState({
 			baseURL: baseURL,
 			navigator: navigator,
-			searchSession: new cam.SearchSession(this.props.serverConnection, currentURL.clone(), ' '),
 		});
 		this.handleNavigate_(currentURL);
 	},
@@ -95,6 +98,8 @@ cam.IndexPageReact = React.createClass({
 			return false;
 		}
 
+		this.updateSearchSession_();
+
 		this.setState({
 			currentURL: newURL,
 			searchMode: inSearchMode,
@@ -103,12 +108,35 @@ cam.IndexPageReact = React.createClass({
 		return true;
 	},
 
+	updateSearchSession_: function(newURL) {
+		var query = newURL.getParameterValue('q');
+		if (!query) {
+			query = ' ';
+		}
+
+		// TODO(aa): Remove this when the server can do something like the 'raw' operator.
+		if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
+			query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+		}
+
+		if (this.state.searchSession && JSON.stringify(this.state.searchSession.getQuery()) == JSON.stringify(query)) {
+			return;
+		}
+
+		if (this.state.searchSession) {
+			this.state.searchSession.close();
+		}
+
+		this.setState({
+			searchSession: new cam.SearchSession(this.props.serverConnection, newURL.clone(), query),
+		});
+	},
+
 	getNav_: function() {
 		if (!this.state.searchMode) {
 			return null;
 		}
 		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-			// TODO(aa): Flip these on and off dependent on selection in BlobItemContainer.
 			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
 			cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
 			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
@@ -133,7 +161,9 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	handleSearch_: function(query) {
-		// TODO(aa)
+		var searchURL = this.state.baseURL.clone();
+		searchURL.setParameterValue('q', query);
+		this.state.navigator.navigate(searchURL);
 	},
 
 	handleShowSearchRoots_: function() {
