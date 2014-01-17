@@ -34,10 +34,8 @@ cam.SpritedImage = React.createClass({
 		if (y >= this.props.sheetHeight) {
 			throw new Error(goog.string.subs('Index %s out of range', this.props.index));
 		}
-		return {
-			position: 'absolute',
-			left: -x * this.props.spriteWidth,
-			top: -y * this.props.spriteHeight
-		};
+		var style = {};
+		style[cam.reactUtil.getVendorProp('transform')] = goog.string.subs('translate3d(%spx, %spx, 0)', -x * this.props.spriteWidth, -y * this.props.spriteHeight);
+		return style;
 	}
 });
