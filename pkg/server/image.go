@@ -239,35 +239,30 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	b := i.Bounds()
 	format := imConfig.Format
 
-	useBytesUnchanged := !imConfig.Modified &&
-		format != "cr2" // always recompress CR2 files
-
 	isSquare := b.Dx() == b.Dy()
 	if ih.Square && !isSquare {
-		useBytesUnchanged = false
 		i = squareImage(i)
 		b = i.Bounds()
 	}
 
+	// Encode as a new image
 	var buf bytes.Buffer
-	if !useBytesUnchanged {
-		// Encode as a new image
-		switch format {
-		case "png":
-			err = png.Encode(&buf, i)
-		case "cr2":
-			// Recompress CR2 files as JPEG
-			format = "jpeg"
-			fallthrough
-		default:
-			err = jpeg.Encode(&buf, i, &jpeg.Options{
-				Quality: 90,
-			})
-		}
-		if err != nil {
-			return nil, err
-		}
+	switch format {
+	case "png":
+		err = png.Encode(&buf, i)
+	case "cr2":
+		// Recompress CR2 files as JPEG
+		format = "jpeg"
+		fallthrough
+	default:
+		err = jpeg.Encode(&buf, i, &jpeg.Options{
+			Quality: 90,
+		})
 	}
+	if err != nil {
+		return nil, err
+	}
+
 	return &formatAndImage{format: format, image: buf.Bytes()}, nil
 }
 

@@ -23,6 +23,7 @@ goog.require('goog.object');
 goog.require('goog.string');
 
 goog.require('cam.AnimationLoop');
+goog.require('cam.BlobItemReactData');
 goog.require('cam.imageUtil');
 goog.require('cam.Navigator');
 goog.require('cam.SearchSession');
@@ -61,6 +62,7 @@ cam.DetailView = React.createClass({
 
 	componentWillReceiveProps: function(nextProps) {
 		if (this.props.blobref != nextProps.blobref) {
+			this.blobItemData_ = null;
 			this.imgSize_ = null;
 			this.lastImageHeight_ = 0;
 			this.setState({imgHasLoaded: false});
@@ -78,10 +80,14 @@ cam.DetailView = React.createClass({
 		if (img) {
 			// This function gets called multiple times, but the DOM de-dupes listeners for us. Thanks DOM.
 			img.getDOMNode().addEventListener('load', this.onImgLoad_);
+			img.getDOMNode().addEventListener('error', function() {
+				console.error('Could not load image: %s', img.props.src);
+			})
 		}
 	},
 
 	render: function() {
+		this.blobItemData_ = this.getBlobItemData_();
 		this.imgSize_ = this.getImgSize_();
 		return (
 			React.DOM.div({className:'detail-view', style: this.getStyle_()},
@@ -156,7 +162,8 @@ cam.DetailView = React.createClass({
 	searchUpdated_: function() {
 		this.handlePendingNavigation_();
 
-		if (this.getPermanodeMeta_()) {
+		this.blobItemData_ = this.getBlobItemData_();
+		if (this.blobItemData_) {
 			this.forceUpdate();
 			return;
 		}
@@ -225,22 +232,24 @@ cam.DetailView = React.createClass({
 	},
 
 	getSrc_: function() {
-		this.lastImageHeight_ = cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_);
-		var uri = new goog.Uri(this.getPermanodeMeta_().thumbnailSrc);
+		this.lastImageHeight_ = Math.min(this.blobItemData_.im.height, cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_));
+		var uri = new goog.Uri(this.blobItemData_.m.thumbnailSrc);
 		uri.setParameterValue('mh', this.lastImageHeight_);
 		return uri.toString();
 	},
 
 	getImgSize_: function() {
-		var meta = this.getPermanodeMeta_();
-		if (!meta) {
+		if (!this.blobItemData_) {
 			return null;
 		}
-		var aspect = new goog.math.Size(meta.thumbnailWidth, meta.thumbnailHeight);
+		var rawSize = new goog.math.Size(this.blobItemData_.im.width, this.blobItemData_.im.height);
 		var available = new goog.math.Size(
 			this.props.width - this.getSidebarWidth_() - this.IMG_MARGIN * 2,
 			this.props.height - this.IMG_MARGIN * 2);
-		return aspect.scaleToFit(available);
+		if (rawSize.height <= available.height && rawSize.width <= available.width) {
+			return rawSize;
+		}
+		return rawSize.scaleToFit(available);
 	},
 
 	getStyle_: function() {
@@ -261,7 +270,18 @@ cam.DetailView = React.createClass({
 	},
 
 	getPermanodeMeta_: function() {
-		return this.props.searchSession.getCurrentResults().description.meta[this.props.blobref];
+		if (!this.blobItemData_) {
+			return null;
+		}
+		return this.blobItemData_.m;
+	},
+
+	getBlobItemData_: function() {
+		var metabag = this.props.searchSession.getCurrentResults().description.meta;
+		if (!metabag[this.props.blobref]) {
+			return null;
+		}
+		return new cam.BlobItemReactData(this.props.blobref, metabag);
 	},
 
 	getImageRef_: function() {
