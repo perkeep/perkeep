@@ -81,6 +81,7 @@ cam.IndexPage = function(config, opt_domHelper) {
 	this.savedScrollPosition_ = 0;
 
 	this.inDetailMode_ = false;
+	this.inSearchMode_ = false;
 	this.detail_ = null;
 	this.detailLoop_ = null;
 	this.detailViewHost_ = null;
@@ -333,15 +334,16 @@ cam.IndexPage.prototype.handleURL_ = function(newURL) {
 
 	// This is super finicky. We should improve the URL scheme and give things that are different different paths.
 	var query = newURL.getQueryData();
-	var inSearchMode = query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
+	this.inSearchMode_ = query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
 	this.inDetailMode_ = query.containsKey('p') && query.get('newui') == '1';
 
-	if (!inSearchMode && !this.inDetailMode_) {
+	if (!this.inSearchMode_ && !this.inDetailMode_) {
 		return false;
 	}
 
 	this.currentURL_ = newURL;
 	this.updateSearchSession_();
+	this.updateScrollbar_();
 	this.updateSearchView_();
 	this.updateDetailView_();
 	return true;
@@ -367,6 +369,11 @@ cam.IndexPage.prototype.updateSearchSession_ = function() {
 	}
 
 	this.searchSession_ = new cam.SearchSession(this.connection_, new goog.Uri(location.href), query);
+};
+
+cam.IndexPage.prototype.updateScrollbar_ = function() {
+	// It makes it easier to compute the layout of the aligned tiles if the scrollbar is reliably on.
+	document.body.style.overflowY = this.inSearchMode_ ? 'scroll' : '';
 };
 
 cam.IndexPage.prototype.updateSearchView_ = function() {
