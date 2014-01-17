@@ -104,6 +104,10 @@ cam.BlobItemReactData.getThumbType_ = function(data) {
 		return 'folder';
 	}
 
+	if (data.m.camliType == 'permanode') {
+		return 'node';
+	}
+
 	return 'file';
 };
 
