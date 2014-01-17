@@ -57,6 +57,7 @@ func main() {
 
 	// Scans the arg list and sets up flags
 	client.AddFlags()
+	flag.Usage = usage
 	flag.Parse()
 
 	narg := flag.NArg()
@@ -73,6 +74,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Printf("No mount point given. Using: %s", mountPoint)
 		defer os.Remove(mountPoint)
 	}
 
