@@ -27,9 +27,6 @@ body {
 
 .cam-index-page {
 	font: 16px/1.4 normal Arial, sans-serif;
-	/* It makes it easier to compute the layout of the aligned tiles if the
-	 scrollbar is reliably on */
-	overflow-y: scroll;
 }
 
 .cam-index-title {
