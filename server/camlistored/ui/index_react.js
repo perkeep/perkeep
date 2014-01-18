@@ -57,8 +57,6 @@ cam.IndexPageReact = React.createClass({
 
 		this.searchSession_ = null;
 		this.currentSet_ = null;
-		this.inSearchMode_ = false;
-		this.inDetailMode_ = false;
 
 		this.handleNavigate_(newURL);
 	},
@@ -287,12 +285,12 @@ cam.IndexPageReact = React.createClass({
 
 	inSearchMode_: function() {
 		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
-		var query = newURL.getQueryData();
+		var query = this.state.currentURL.getQueryData();
 		return (query.getCount() == 1 && query.containsKey('react')) || (query.getCount() == 2 && query.containsKey('react') && query.containsKey('q'));
 	},
 
 	inDetailMode_: function() {
-		var query = newURL.getQueryData();
+		var query = this.state.currentURL.getQueryData();
 		return query.containsKey('p') && query.get('newui') == '1';
 	},
 
