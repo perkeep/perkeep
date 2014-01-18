@@ -16,6 +16,11 @@ limitations under the License.
 
 goog.provide('cam.IndexPageReact');
 
+goog.require('goog.dom');
+goog.require('goog.dom.classlist');
+goog.require('goog.events.EventHandler');
+goog.require('goog.labs.Promise');
+goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.Uri');
 
@@ -48,6 +53,8 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	componentWillMount: function() {
+		this.eh_ = new goog.events.EventHandler(this);
+
 		var newURL = new goog.Uri(this.props.location.href);
 		this.baseURL_ = newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
 		this.baseURL_.setParameterValue('react', '1');
@@ -57,29 +64,85 @@ cam.IndexPageReact = React.createClass({
 
 		this.searchSession_ = null;
 		this.currentSet_ = null;
+		this.dragEndTimer_ = 0;
 
 		this.handleNavigate_(newURL);
+	},
+
+	componentDidMount: function() {
+		this.eh_.listen(this.props.eventTarget, 'keypress', this.handleKeyPress_);
+	},
+
+	componentWillUnmount: function() {
+		this.eh_.dispose();
+		this.clearDragTimer_();
 	},
 
 	getInitialState: function() {
 		return {
 			currentURL: null,
+			dropActive: false,
 			isNavOpen: false,
 			selection: {},
 			thumbnailSizeIndex: 3,
 		};
 	},
 
-	componentDidMount: function() {
-		this.props.eventTarget.addEventListener('keypress', this.handleKeyPress_);
-	},
-
 	render: function() {
-		return React.DOM.div({}, [
+		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_}, [
 			this.getNav_(),
 			this.getBlobItemContainer_(),
 			this.getDetailView_(),
 		]);
+	},
+
+	handleDragStart_: function(e) {
+		this.clearDragTimer_();
+		e.preventDefault();
+		this.dragEndTimer_ = window.setTimeout(this.handleDragStop_, 2000);
+		goog.dom.classlist.add(this.getDOMNode().parentElement, 'cam-dropactive');
+	},
+
+	handleDragStop_: function() {
+		this.clearDragTimer_();
+		goog.dom.classlist.remove(this.getDOMNode().parentElement, 'cam-dropactive');
+	},
+
+	clearDragTimer_: function() {
+		if (this.dragEndTimer_) {
+			window.clearTimeout(this.dragEndTimer_);
+			this.dragEndTimer_ = 0;
+		}
+	},
+
+	handleDrop_: function(e) {
+		if (!e.nativeEvent.dataTransfer.files) {
+			return;
+		}
+
+		e.preventDefault();
+
+		var files = e.nativeEvent.dataTransfer.files;
+		var numComplete = 0;
+		var sc = this.props.serverConnection;
+
+		console.log('Uploading %d files...', files.length);
+		goog.labs.Promise.all(Array.prototype.map.call(files, function(file) {
+			var upload = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
+			var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
+			return goog.labs.Promise.all([upload, createPermanode]).then(function(results) {
+				// TODO(aa): Icky manual destructuring of results. Seems like there must be a better way?
+				var fileRef = results[0];
+				var permanodeRef = results[1];
+				return new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, permanodeRef, 'camliContent', fileRef));
+			}).thenCatch(function(e) {
+				console.error('File upload fall down go boom. file: %s, error: %s', file.name, e);
+			}).then(function() {
+				console.log('%d of %d files complete.', ++numComplete, files.length);
+			});
+		})).then(function() {
+			console.log('All complete');
+		});
 	},
 
 	handleNavigate_: function(newURL) {
@@ -90,11 +153,7 @@ cam.IndexPageReact = React.createClass({
 		}
 
 		this.updateSearchSession_(newURL);
-
-		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
-		var query = newURL.getQueryData();
 		this.setState({currentURL: newURL});
-
 		return true;
 	},
 
