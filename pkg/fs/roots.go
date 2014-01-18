@@ -196,6 +196,7 @@ func (n *rootsDir) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 			fs:        n.fs,
 			permanode: br,
 			name:      name,
+			xattrs:    map[string][]byte{},
 		}
 	}
 	n.children[name] = nod
