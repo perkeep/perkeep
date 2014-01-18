@@ -60,16 +60,23 @@ cam.BlobItemContainerReact = React.createClass({
 
 	componentWillMount: function() {
 		this.lastCheckedIndex_ = -1;
+		this.eh_ = new goog.events.EventHandler(this);
 	},
 
 	componentDidMount: function() {
-		this.props.searchSession.addEventListener(cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
-		this.props.scrollEventTarget.addEventListener('scroll', this.handleScroll_);
+		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+		this.eh_.listen(this.props.scrollEventTarget, 'scroll', this.handleScroll_);
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		if (nextProps.searchSession != this.props.searchSession) {
+			this.eh_.unlisten(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+			this.eh_.listen(nextProps.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+		}
 	},
 
 	componentWillUnmount: function() {
-		this.props.searchSession.removeEventListener(cam.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
-		this.props.scrollEventTarget.removeEventListener('scroll', this.handleScroll_);
+		this.eh_.dispose();
 	},
 
 	render: function() {
@@ -149,7 +156,7 @@ cam.BlobItemContainerReact = React.createClass({
 				key: item.blobref,
 				blobref: item.blobref,
 				checked: Boolean(this.props.selection[item.blobref]),
-				href: this.props.detailURL(item),
+				href: this.props.detailURL(item).toString(),
 				data: item,
 				onCheckClick: this.handleCheckClick_,
 				position: new goog.math.Coordinate(currentLeft + this.BLOB_ITEM_MARGIN_, top),
