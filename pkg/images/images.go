@@ -353,7 +353,7 @@ func DecodeConfig(r io.Reader) (Config, error) {
 // Decode decodes an image from r using the provided decoding options.
 // The Config returned is similar to the one from the image package,
 // with the addition of the Modified field which indicates if the
-// image was actually flipped or rotated.
+// image was actually flipped, rotated, or scaled.
 // If opts is nil, the defaults are used.
 func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	var c Config
