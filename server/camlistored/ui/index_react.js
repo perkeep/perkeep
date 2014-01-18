@@ -149,7 +149,6 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	handleNewPermanode_: function() {
-		// TODO(aa): Here and below, we need SearchSession#reloadIfNecessary, which would refresh the data if socket not working.
 		this.props.serverConnection.createPermanode(function(p) {
 			this.navigator_.navigate(this.getDetailURL_(false, p));
 		}.bind(this));
@@ -189,6 +188,7 @@ cam.IndexPageReact = React.createClass({
 		var callback = function() {
 			if (++numComplete == blobrefs.length) {
 				this.setState({selection:{}});
+				this.searchSession_.refreshIfNecessary();
 			}
 		}.bind(this);
 

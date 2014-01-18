@@ -36,17 +36,12 @@ cam.SearchSession = function(connection, currentUri, query) {
 	this.connection_ = connection;
 	this.initSocketUri_(currentUri);
 	this.query_ = query;
-
-	this.data_ = {
-		blobs: [],
-		description: {
-			meta: {}
-		}
-	};
 	this.instance_ = this.constructor.instanceCount_++;
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
 	this.supportsWebSocket_ = false;
+
+	this.resetData_();
 };
 goog.inherits(cam.SearchSession, goog.events.EventTarget);
 
@@ -105,10 +100,29 @@ cam.SearchSession.prototype.supportsChangeNotifications = function() {
 	return this.supportsWebSocket_;
 };
 
+cam.SearchSession.prototype.refreshIfNecessary = function() {
+	if (this.supportsWebSocket_) {
+		return;
+	}
+
+	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.UPDATE, null, Math.max(this.data_.blobs.length, this.constructor.PAGE_SIZE_));
+	this.resetData_();
+	this.loadMoreResults();
+};
+
 cam.SearchSession.prototype.close = function() {
 	if (this.socket_) {
 		this.socket_.close();
 	}
+};
+
+cam.SearchSession.prototype.resetData_ = function() {
+	this.data_ = {
+		blobs: [],
+		description: {
+			meta: {}
+		}
+	};
 };
 
 cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
@@ -127,8 +141,8 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 	}
 };
 
-cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken) {
-	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, this.PAGE_SIZE_, opt_continuationToken,
+cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken, opt_limit) {
+	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, opt_limit || this.PAGE_SIZE_, opt_continuationToken,
 		this.searchDone_.bind(this, changeType));
 };
 
