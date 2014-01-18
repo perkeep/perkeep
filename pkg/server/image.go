@@ -25,6 +25,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/magic"
@@ -40,7 +42,6 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/syncutil"
-
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
 
@@ -49,6 +50,10 @@ const imageDebug = false
 var (
 	imageBytesServedVar  = expvar.NewInt("image-bytes-served")
 	imageBytesFetchedVar = expvar.NewInt("image-bytes-fetched")
+	thumbCacheMiss       = expvar.NewInt("thumbcache-miss")
+	thumbCacheHitFull    = expvar.NewInt("thumbcache-hit-full")
+	thumbCacheHitFile    = expvar.NewInt("thumbcache-hit-file")
+	thumbCacheHeader304  = expvar.NewInt("thumbcache-header-304")
 )
 
 type ImageHandler struct {
@@ -88,8 +93,16 @@ func squareImage(i image.Image) image.Image {
 	return si.SubImage(newB)
 }
 
-func (ih *ImageHandler) writeToCache(tr io.Reader, name string) (blob.Ref, error) {
-	br, err := schema.WriteFileFromReader(ih.Cache, name, tr)
+func writeToCache(cache blobserver.Storage, thumbBytes []byte, name string) (br blob.Ref, err error) {
+	tr := bytes.NewReader(thumbBytes)
+	if len(thumbBytes) < constants.MaxBlobSize {
+		br = blob.SHA1FromBytes(thumbBytes)
+		_, err = blobserver.Receive(cache, br, tr)
+	} else {
+		// TODO: don't use rolling checksums when writing this. Tell
+		// the filewriter to use 16 MB chunks instead.
+		br, err = schema.WriteFileFromReader(cache, name, tr)
+	}
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
 	}
@@ -99,10 +112,10 @@ func (ih *ImageHandler) writeToCache(tr io.Reader, name string) (blob.Ref, error
 	return br, nil
 }
 
-// cacheScaled saves in the image handler's cache the scaled image read
-// from tr, and puts its blobref in the scaledImage under the key name.
-func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
-	br, err := ih.writeToCache(tr, name)
+// cacheScaled saves in the image handler's cache the scaled image bytes
+// in thumbBytes, and puts its blobref in the scaledImage under the key name.
+func (ih *ImageHandler) cacheScaled(thumbBytes []byte, name string) error {
+	br, err := writeToCache(ih.Cache, thumbBytes, name)
 	if err != nil {
 		return err
 	}
@@ -110,16 +123,47 @@ func (ih *ImageHandler) cacheScaled(tr io.Reader, name string) error {
 	return nil
 }
 
-// cached returns a FileReader for the given file schema blobref.
-// The FileReader should be closed when done reading.
-func (ih *ImageHandler) cached(fileRef blob.Ref) (*schema.FileReader, error) {
-	fetchSeeker := blob.SeekerFromStreamingFetcher(ih.Cache)
-	fr, err := schema.NewFileReader(fetchSeeker, fileRef)
+// cached returns a FileReader for the given blobref, which may
+// point to either a blob representing the entire thumbnail (max
+// 16MB) or a file schema blob.
+//
+// The ReadCloser should be closed when done reading.
+func (ih *ImageHandler) cached(br blob.Ref) (io.ReadCloser, error) {
+	rsc, _, err := ih.Cache.FetchStreaming(br)
 	if err != nil {
 		return nil, err
 	}
+	slurp, err := ioutil.ReadAll(rsc)
+	rsc.Close()
+	if err != nil {
+		return nil, err
+	}
+	// In the common case, when the scaled image itself is less than 16 MB, it's
+	// all together in one blob.
+	if strings.HasPrefix(magic.MIMEType(slurp), "image/") {
+		thumbCacheHitFull.Add(1)
+		if imageDebug {
+			log.Printf("Image Cache: hit: %v\n", br)
+		}
+		return ioutil.NopCloser(bytes.NewReader(slurp)), nil
+	}
+
+	// For large scaled images, the cached blob is a file schema blob referencing
+	// the sub-chunks.
+	fileBlob, err := schema.BlobFromReader(br, bytes.NewReader(slurp))
+	if err != nil {
+		log.Printf("Failed to parse non-image thumbnail cache blob %v: %v", br, err)
+		return nil, err
+	}
+	fetchSeeker := blob.SeekerFromStreamingFetcher(ih.Cache)
+	fr, err := fileBlob.NewFileReader(fetchSeeker)
+	if err != nil {
+		log.Printf("cached(%d) NewFileReader = %v", br, err)
+		return nil, err
+	}
+	thumbCacheHitFile.Add(1)
 	if imageDebug {
-		log.Printf("Image Cache: hit: %v\n", fileRef)
+		log.Printf("Image Cache: fileref hit: %v\n", br)
 	}
 	return fr, nil
 }
@@ -203,10 +247,6 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 
 	sw := statWriter{imageBytesFetchedVar}
 	tr := io.TeeReader(fr, sw)
-
-	if err != nil {
-		return nil, fmt.Errorf("image resize: error reading image %s: %v", fileRef, err)
-	}
 
 	tr, conf, err := imageConfigFromReader(tr)
 	if err != nil {
@@ -292,11 +332,13 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	inm := req.Header.Get("If-None-Match")
 	if inm != "" {
 		if strings.Trim(inm, `"`) == etag {
+			thumbCacheHeader304.Add(1)
 			rw.WriteHeader(http.StatusNotModified)
 			return
 		}
 	} else {
 		if !disableThumbCache && req.Header.Get("If-Modified-Since") != "" {
+			thumbCacheHeader304.Add(1)
 			rw.WriteHeader(http.StatusNotModified)
 			return
 		}
@@ -315,6 +357,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	if !cacheHit {
+		thumbCacheMiss.Add(1)
 		imi, err := singleResize.Do(key, func() (interface{}, error) {
 			return ih.scaleImage(file)
 		})
@@ -326,7 +369,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		imageData = im.image
 		format = im.format
 		if ih.thumbMeta != nil {
-			err := ih.cacheScaled(bytes.NewReader(imageData), key)
+			err := ih.cacheScaled(imageData, key)
 			if err != nil {
 				log.Printf("image resize: %v", err)
 			}

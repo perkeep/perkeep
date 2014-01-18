@@ -13,10 +13,6 @@ Offline list:
 
 -- unexport more stuff from pkg/server. Cache, etc.
 
--- In ImageHandler.cache, write the thumbnail out as one large blob
-   instead of using schema.WriteFileFromReader if the thumbnail
-   is smaller than blobserver.MaxBlobSize (16MB).
-
 -- look into garbage from openpgp signing
 
 -- make leveldb memdb's iterator struct only 8 bytes, pointing to a recycled
