@@ -33,6 +33,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		DAC21F0C188B359300EEA8BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DAF1093D1863EDAF00F6A3F9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DAF109441863EDAF00F6A3F9;
+			remoteInfo = Camlistore;
+		};
 		DAF1096A1863EDAF00F6A3F9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DAF1093D1863EDAF00F6A3F9 /* Project object */;
@@ -198,6 +205,24 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXLegacyTarget section */
+		DAC21F08188B358700EEA8BB /* Camlistore.dmg */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "Camlistore/make-dmg.sh";
+			buildConfigurationList = DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Camlistore.dmg" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/sh;
+			buildWorkingDirectory = "";
+			dependencies = (
+				DAC21F0D188B359300EEA8BB /* PBXTargetDependency */,
+			);
+			name = Camlistore.dmg;
+			passBuildSettingsInEnvironment = 1;
+			productName = CamlistoreDMG;
+		};
+/* End PBXLegacyTarget section */
+
 /* Begin PBXNativeTarget section */
 		DAF109441863EDAF00F6A3F9 /* Camlistore */ = {
 			isa = PBXNativeTarget;
@@ -263,6 +288,7 @@
 			targets = (
 				DAF109441863EDAF00F6A3F9 /* Camlistore */,
 				DAF109651863EDAF00F6A3F9 /* CamlistoreTests */,
+				DAC21F08188B358700EEA8BB /* Camlistore.dmg */,
 			);
 		};
 /* End PBXProject section */
@@ -322,6 +348,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		DAC21F0D188B359300EEA8BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DAF109441863EDAF00F6A3F9 /* Camlistore */;
+			targetProxy = DAC21F0C188B359300EEA8BB /* PBXContainerItemProxy */;
+		};
 		DAF1096B1863EDAF00F6A3F9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = DAF109441863EDAF00F6A3F9 /* Camlistore */;
@@ -357,6 +388,31 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		DAC21F09188B358700EEA8BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEBUGGING_SYMBOLS = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		DAC21F0A188B358700EEA8BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		DAF109741863EDAF00F6A3F9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -494,6 +550,14 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Camlistore.dmg" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DAC21F09188B358700EEA8BB /* Debug */,
+				DAC21F0A188B358700EEA8BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+		};
 		DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Camlistore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
