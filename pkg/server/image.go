@@ -127,7 +127,7 @@ func (ih *ImageHandler) cached(fileRef blob.Ref) (*schema.FileReader, error) {
 // Key format: "scaled:" + bref + ":" + width "x" + height
 // where bref is the blobref of the unscaled image.
 func cacheKey(bref string, width int, height int) string {
-	return fmt.Sprintf("scaled:%v:%dx%d:tv%d", bref, width, height, images.ThumbnailVersion())
+	return fmt.Sprintf("scaled:%v:%dx%d:tv%v", bref, width, height, images.ThumbnailVersion())
 }
 
 // ScaledCached reads the scaled version of the image in file,
