@@ -70,7 +70,7 @@ SIGNING
 
 -- start with a JSON object (not an array) to be encoded and signed.
    we'll call this data structure 'O'. While this signing technique
-   could be used for applications Camlistore, this document is specifically
+   could be used outside Camlistore, this document is specifically
    about Camlistore, which requires that the JSON object 'O' contain
    the following two key/value pairs:
      "camliVersion": "1"
@@ -90,7 +90,7 @@ SIGNING
 
 -- serialize in-memory JSON object 'O' with whatever JSON
    serialization library you have available.  internal or trailing
-   whitespace doesn't matter.  we'll call the JSON serialization of
+   whitespace doesn't matter.  We'll call the JSON serialization of
    'O' (defined in earlier step) 'J'
    (e.g. doc/example/signing-before-J.camli)
 
