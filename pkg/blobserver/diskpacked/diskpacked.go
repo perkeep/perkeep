@@ -33,11 +33,13 @@ package diskpacked
 import (
 	"bytes"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -45,13 +47,29 @@ import (
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvfile"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
 )
+
+// TODO(wathiede): replace with glog.V(2) when we decide our logging story.
+type debugT bool
+
+var debug = debugT(false)
+
+func (d debugT) Printf(format string, args ...interface{}) {
+	if bool(d) {
+		log.Printf(format, args...)
+	}
+}
+
+func (d debugT) Println(args ...interface{}) {
+	if bool(d) {
+		log.Println(args...)
+	}
+}
 
 const defaultMaxFileSize = 512 << 20 // 512MB
 
@@ -60,16 +78,24 @@ type storage struct {
 	index       sorted.KeyValue
 	maxFileSize int64
 
-	mu       sync.Mutex
-	current  *os.File
-	currentL io.Closer // provided by lock.Lock
-	currentN int64     // current file number we're appending to (0-based)
-	currentO int64     // current offset
-	closed   bool
-	closeErr error
+	writeLock io.Closer // Provided by lock.Lock, and guards other processes from accesing the file open for writes.
+
+	mu     sync.Mutex // Guards all I/O state.
+	closed bool
+	writer *os.File
+	fds    []*os.File
+	size   int64
 
 	*local.Generationer
 }
+
+var (
+	readVar     = expvar.NewMap("diskpacked-read-bytes")
+	readTotVar  = expvar.NewMap("diskpacked-total-read-bytes")
+	openFdsVar  = expvar.NewMap("diskpacked-open-fds")
+	writeVar    = expvar.NewMap("diskpacked-write-bytes")
+	writeTotVar = expvar.NewMap("diskpacked-total-write-bytes")
+)
 
 // newStorage returns a new storage in path root with the given maxFileSize,
 // or defaultMaxFileSize (512MB) if <= 0
@@ -96,13 +122,19 @@ func newStorage(root string, maxFileSize int64) (s *storage, err error) {
 	if maxFileSize <= 0 {
 		maxFileSize = defaultMaxFileSize
 	}
+	// Be consistent with trailing slashes.  Makes expvar stats for total
+	// reads/writes consistent across diskpacked targets, regardless of what
+	// people put in their low level config.
+	root = strings.TrimRight(root, `\/`)
 	s = &storage{
 		root:         root,
 		index:        index,
 		maxFileSize:  maxFileSize,
 		Generationer: local.NewGenerationer(root),
 	}
-	if err := s.openCurrent(); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.openAllPacks(); err != nil {
 		return nil, err
 	}
 	if _, _, err := s.StorageGeneration(); err != nil {
@@ -124,93 +156,133 @@ func init() {
 	blobserver.RegisterStorageConstructor("diskpacked", blobserver.StorageConstructor(newFromConfig))
 }
 
-// openCurrent makes sure the current data file is open as s.current.
-func (s *storage) openCurrent() error {
-	if s.current == nil {
-		// First run; find the latest file data file and open it
-		// and seek to the end.
-		// If no data files exist, leave s.current as nil.
-		for {
-			_, err := os.Stat(s.filename(s.currentN))
-			if os.IsNotExist(err) {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			s.currentN++
-		}
-		if s.currentN > 0 {
-			s.currentN--
-			l, err := lock.Lock(s.filename(s.currentN) + ".lock")
-			if err != nil {
-				return err
-			}
-			f, err := os.OpenFile(s.filename(s.currentN), os.O_RDWR, 0666)
-			if err != nil {
-				l.Close()
-				return err
-			}
-			o, err := f.Seek(0, os.SEEK_END)
-			if err != nil {
-				l.Close()
-				return err
-			}
-			s.current, s.currentL, s.currentO = f, l, o
-		}
+// openForRead will open pack file n for read and keep a handle to it in
+// s.fds.  os.IsNotExist returned if n >= the number of pack files in s.root.
+// This function is not thread safe, s.mu should be locked by the caller.
+func (s *storage) openForRead(n int) error {
+	if n > len(s.fds) {
+		panic(fmt.Sprintf("openForRead called out of order got %d, expected %d", n, len(s.fds)))
 	}
 
-	// If s.current is open and it's too big,close it and advance currentN.
-	if s.current != nil && s.currentO > s.maxFileSize {
-		f, l := s.current, s.currentL
-		s.current, s.currentL, s.currentO = nil, nil, 0
-		s.currentN++
-		if err := f.Close(); err != nil {
-			l.Close()
-			return err
-		}
-		if err := l.Close(); err != nil {
-			return err
-		}
+	fn := s.filename(n)
+	f, err := os.Open(fn)
+	if err != nil {
+		return err
 	}
-
-	// If we don't have the current file open, make one.
-	if s.current == nil {
-		l, err := lock.Lock(s.filename(s.currentN) + ".lock")
-		if err != nil {
-			return err
-		}
-		f, err := os.Create(s.filename(s.currentN))
-		if err != nil {
-			l.Close()
-			return err
-		}
-		s.current, s.currentL, s.currentO = f, l, 0
-	}
+	openFdsVar.Add(s.root, 1)
+	debug.Printf("diskpacked: opened for read %q", fn)
+	s.fds = append(s.fds, f)
 	return nil
+}
+
+// openForWrite will create or open pack file n for writes, create a lock
+// visible external to the process and seek to the end of the file ready for
+// appending new data.
+// This function is not thread safe, s.mu should be locked by the caller.
+func (s *storage) openForWrite(n int) error {
+	fn := s.filename(n)
+	l, err := lock.Lock(fn + ".lock")
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(fn, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		l.Close()
+		return err
+	}
+	openFdsVar.Add(s.root, 1)
+	debug.Printf("diskpacked: opened for write %q", fn)
+
+	s.size, err = f.Seek(0, os.SEEK_END)
+	if err != nil {
+		return err
+	}
+
+	s.writer = f
+	s.writeLock = l
+	return nil
+}
+
+// nextPack will close the current writer and release its lock if open,
+// open the next pack file in sequence for writing, grab its lock, set it
+// to the currently active writer, and open another copy for read-only use.
+// This function is not thread safe, s.mu should be locked by the caller.
+func (s *storage) nextPack() error {
+	debug.Println("diskpacked: nextPack")
+	s.size = 0
+	if s.writeLock != nil {
+		err := s.writeLock.Close()
+		if err != nil {
+			return err
+		}
+		s.writeLock = nil
+	}
+	if s.writer != nil {
+		if err := s.writer.Close(); err != nil {
+			return err
+		}
+		openFdsVar.Add(s.root, -1)
+	}
+
+	n := len(s.fds)
+	if err := s.openForWrite(n); err != nil {
+		return err
+	}
+	return s.openForRead(n)
+}
+
+// openAllPacks opens read-only each pack file in s.root, populating s.fds.
+// The latest pack file will also have a writable handle opened.
+// This function is not thread safe, s.mu should be locked by the caller.
+func (s *storage) openAllPacks() error {
+	debug.Println("diskpacked: openAllPacks")
+	n := 0
+	for {
+		err := s.openForRead(n)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil {
+			s.Close()
+			return err
+		}
+		n++
+	}
+
+	if n == 0 {
+		// If no pack files are found, we create one open for read and write.
+		return s.nextPack()
+	}
+
+	// If 1 or more pack files are found, open the last one read and write.
+	return s.openForWrite(n - 1)
 }
 
 func (s *storage) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var closeErr error
 	if !s.closed {
 		s.closed = true
 		if err := s.index.Close(); err != nil {
 			log.Println("diskpacked: closing index:", err)
 		}
-		if f := s.current; f != nil {
-			s.closeErr = f.Close()
-			s.current = nil
-		}
-		if l := s.currentL; l != nil {
-			err := l.Close()
-			if s.closeErr == nil {
-				s.closeErr = err
+		for _, f := range s.fds {
+			if err := f.Close(); err != nil {
+				closeErr = err
 			}
-			s.currentL = nil
+			openFdsVar.Add(s.root, -1)
+		}
+		s.writer = nil
+		if l := s.writeLock; l != nil {
+			err := l.Close()
+			if closeErr == nil {
+				closeErr = err
+			}
+			s.writeLock = nil
 		}
 	}
-	return s.closeErr
+	return closeErr
 }
 
 func (s *storage) FetchStreaming(br blob.Ref) (io.ReadCloser, int64, error) {
@@ -222,18 +294,33 @@ func (s *storage) Fetch(br blob.Ref) (types.ReadSeekCloser, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	rac, err := readerutil.OpenSingle(s.filename(meta.file))
-	if err != nil {
-		return nil, 0, err
+
+	if meta.file >= len(s.fds) {
+		return nil, 0, fmt.Errorf("diskpacked: attempt to fetch blob from out of range pack file %d > %d", meta.file, len(s.fds))
+	}
+	rac := s.fds[meta.file]
+	var rs io.ReadSeeker = io.NewSectionReader(rac, meta.offset, meta.size)
+	fn := rac.Name()
+	// Ensure entry is in map.
+	readVar.Add(fn, 0)
+	if v, ok := readVar.Get(fn).(*expvar.Int); ok {
+		rs = types.NewStatsReadSeeker(v, rs)
+	}
+	readTotVar.Add(s.root, 0)
+	if v, ok := readTotVar.Get(s.root).(*expvar.Int); ok {
+		rs = types.NewStatsReadSeeker(v, rs)
 	}
 	rsc := struct {
 		io.ReadSeeker
 		io.Closer
-	}{io.NewSectionReader(rac, meta.offset, meta.size), rac}
+	}{
+		rs,
+		types.NopCloser,
+	}
 	return rsc, meta.size, nil
 }
 
-func (s *storage) filename(file int64) string {
+func (s *storage) filename(file int) string {
 	return filepath.Join(s.root, fmt.Sprintf("pack-%05d.blobs", file))
 }
 
@@ -302,7 +389,6 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 }
 
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {
-	// TODO(adg): write to temp file if blob exceeds some size (generalize code from s3)
 	var b bytes.Buffer
 	n, err := b.ReadFrom(source)
 	if err != nil {
@@ -320,37 +406,48 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	if s.closed {
 		return errors.New("diskpacked: write to closed storage")
 	}
-	if err := s.openCurrent(); err != nil {
-		return err
-	}
-	n, err := fmt.Fprintf(s.current, "[%v %v]", br.Ref.String(), br.Size)
-	s.currentO += int64(n)
+
+	fn := s.writer.Name()
+	n, err := fmt.Fprintf(s.writer, "[%v %v]", br.Ref.String(), br.Size)
+	s.size += int64(n)
+	writeVar.Add(fn, int64(n))
+	writeTotVar.Add(s.root, int64(n))
 	if err != nil {
 		return err
 	}
 
 	// TODO(adg): remove this seek and the offset check once confident
-	offset, err := s.current.Seek(0, os.SEEK_CUR)
+	offset, err := s.writer.Seek(0, os.SEEK_CUR)
 	if err != nil {
 		return err
 	}
-	if offset != s.currentO {
-		return fmt.Errorf("diskpacked: seek says offset = %d, we think %d", offset, s.currentO)
+	if offset != s.size {
+		return fmt.Errorf("diskpacked: seek says offset = %d, we think %d",
+			offset, s.size)
 	}
-	offset = s.currentO // make this a declaration once the above is removed
+	offset = s.size // make this a declaration once the above is removed
 
-	n2, err := io.Copy(s.current, r)
-	s.currentO += n2
+	n2, err := io.Copy(s.writer, r)
+	s.size += n2
+	writeVar.Add(fn, int64(n))
+	writeTotVar.Add(s.root, int64(n))
 	if err != nil {
 		return err
 	}
 	if n2 != br.Size {
 		return fmt.Errorf("diskpacked: written blob size %d didn't match size %d", n, br.Size)
 	}
-	if err = s.current.Sync(); err != nil {
+	if err = s.writer.Sync(); err != nil {
 		return err
 	}
-	return s.index.Set(br.Ref.String(), blobMeta{s.currentN, offset, br.Size}.String())
+
+	packIdx := len(s.fds) - 1
+	if s.size > s.maxFileSize {
+		if err := s.nextPack(); err != nil {
+			return err
+		}
+	}
+	return s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String())
 }
 
 // meta fetches the metadata for the specified blob from the index.
@@ -371,7 +468,8 @@ func (s *storage) meta(br blob.Ref) (m blobMeta, err error) {
 
 // blobMeta is the blob metadata stored in the index.
 type blobMeta struct {
-	file, offset, size int64
+	file         int
+	offset, size int64
 }
 
 func parseBlobMeta(s string) (m blobMeta, ok bool) {
