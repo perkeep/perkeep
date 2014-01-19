@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,25 +125,28 @@ func (w *World) Start() error {
 		go func() {
 			waitc <- w.server.Wait()
 		}()
-
-		reachable, tries := false, 0
-		for !reachable && tries < 100 {
-			c, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(w.port))
-			if err == nil {
-				reachable = true
-				c.Close()
-				break
+		upc := make(chan bool)
+		timeoutc := make(chan bool)
+		go func() {
+			for i := 0; i < 100; i++ {
+				res, err := http.Get("http://127.0.0.1:" + strconv.Itoa(w.port))
+				if err == nil {
+					res.Body.Close()
+					upc <- true
+					return
+				}
+				time.Sleep(50 * time.Millisecond)
 			}
+			timeoutc <- true
+		}()
 
-			tries++
-			select {
-			case <-time.After(50 * time.Millisecond):
-			case err := <-waitc:
-				return fmt.Errorf("server exited: %v: %s", err, buf.String())
-			}
-		}
-		if !reachable {
+		select {
+		case err := <-waitc:
+			return fmt.Errorf("server exited: %v: %s", err, buf.String())
+		case <-timeoutc:
 			return errors.New("server never became reachable")
+		case <-upc:
+			// Success.
 		}
 	}
 	return nil
