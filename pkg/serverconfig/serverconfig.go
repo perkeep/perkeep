@@ -48,9 +48,10 @@ const camliPrefix = "/camli/"
 var ErrCamliPath = errors.New("Invalid Camlistore request path")
 
 type handlerConfig struct {
-	prefix string         // "/foo/"
-	htype  string         // "localdisk", etc
-	conf   jsonconfig.Obj // never nil
+	prefix   string         // "/foo/"
+	htype    string         // "localdisk", etc
+	conf     jsonconfig.Obj // never nil
+	internal bool           // if true, not accessible over HTTP
 
 	settingUp, setupDone bool
 }
@@ -302,7 +303,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			}
 		}
 		hl.handler[h.prefix] = pstorage
-		hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
+		if h.internal {
+			hl.installer.Handle(prefix, unauthorizedHandler{})
+		} else {
+			hl.installer.Handle(prefix+"camli/", makeCamliHandler(prefix, hl.baseURL, pstorage, hl))
+		}
 		if cl, ok := pstorage.(blobserver.ShutdownStorage); ok {
 			hl.closers = append(hl.closers, cl)
 		}
@@ -329,11 +334,22 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	}
 
 	hl.handler[prefix] = hh
-	var wrappedHandler http.Handler = &httputil.PrefixHandler{prefix, hh}
-	if handerTypeWantsAuth(h.htype) {
-		wrappedHandler = auth.Handler{wrappedHandler}
+	var wrappedHandler http.Handler
+	if h.internal {
+		wrappedHandler = unauthorizedHandler{}
+	} else {
+		wrappedHandler = &httputil.PrefixHandler{prefix, hh}
+		if handerTypeWantsAuth(h.htype) {
+			wrappedHandler = auth.Handler{wrappedHandler}
+		}
 	}
 	hl.installer.Handle(prefix, wrappedHandler)
+}
+
+type unauthorizedHandler struct{}
+
+func (unauthorizedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
 
 func handerTypeWantsAuth(handlerType string) bool {
@@ -455,13 +471,15 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		}
 		handlerType := pconf.RequiredString("handler")
 		handlerArgs := pconf.OptionalObject("handlerArgs")
+		internal := pconf.OptionalBool("internal", false)
 		if err := pconf.Validate(); err != nil {
 			exitFailure("configuration error in prefix %s: %v", prefix, err)
 		}
 		h := &handlerConfig{
-			prefix: prefix,
-			htype:  handlerType,
-			conf:   handlerArgs,
+			prefix:   prefix,
+			htype:    handlerType,
+			conf:     handlerArgs,
+			internal: internal,
 		}
 		hl.config[prefix] = h
 

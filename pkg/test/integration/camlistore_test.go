@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +54,28 @@ func TestCamputPermanode(t *testing.T) {
 		if !strings.Contains(out, str) {
 			t.Errorf("Expected permanode response to contain %q; it didn't. Got: %s", str, out)
 		}
+	}
+}
+
+func TestInternalHandler(t *testing.T) {
+	w := test.GetWorld(t)
+	tests := map[string]int{
+		"/no-http-storage/":                                                    401,
+		"/no-http-handler/":                                                    401,
+		"/good-status/":                                                        200,
+		"/bs-and-maybe-also-index/camli":                                       400,
+		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
+		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
+	}
+	for suffix, want := range tests {
+		res, err := http.Get(w.ServerBaseURL() + suffix)
+		if err != nil {
+			t.Fatalf("On %s: %v", suffix, err)
+		}
+		if res.StatusCode != want {
+			t.Errorf("For %s: Status = %d; want %d", suffix, res.StatusCode, want)
+		}
+		res.Body.Close()
 	}
 }
 

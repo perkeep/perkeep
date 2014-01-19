@@ -22,6 +22,19 @@
           }
       },
 
+      "/no-http-storage/": {
+          "internal": true,
+          "handler": "storage-replica",
+          "handlerArgs": {
+              "backends": ["/bs/"]
+          }
+      },
+
+      "/no-http-handler/": {
+          "internal": true,
+          "handler": "status"
+      },
+
       "/bs-and-maybe-also-index/": {
           "handler": "storage-cond",
           "handlerArgs": {
