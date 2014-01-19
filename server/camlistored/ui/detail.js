@@ -26,6 +26,7 @@ goog.require('cam.AnimationLoop');
 goog.require('cam.BlobItemReactData');
 goog.require('cam.imageUtil');
 goog.require('cam.Navigator');
+goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
@@ -38,20 +39,22 @@ cam.DetailView = React.createClass({
 
 	propTypes: {
 		blobref: React.PropTypes.string.isRequired,
+		getDetailURL: React.PropTypes.func.isRequired,
+		history: cam.reactUtil.quacksLike({go:React.PropTypes.func.isRequired}).isRequired,
+		height: React.PropTypes.number.isRequired,
+		keyEventTarget: React.PropTypes.object.isRequired, // An event target we will addEventListener() on to receive key events.
+		navigator: React.PropTypes.instanceOf(cam.Navigator).isRequired,
+		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		searchSession: React.PropTypes.instanceOf(cam.SearchSession).isRequired,
 		searchURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		getDetailURL: React.PropTypes.func.isRequired,
-		navigator: React.PropTypes.instanceOf(cam.Navigator).isRequired,
-		keyEventTarget: React.PropTypes.object.isRequired, // An event target we will addEventListener() on to receive key events.
 		width: React.PropTypes.number.isRequired,
-		height: React.PropTypes.number.isRequired,
 	},
 
 	getInitialState: function() {
 		this.imgSize_ = null;
 		this.lastImageHeight_ = 0;
 		this.pendingNavigation_ = 0;
+		this.navCount_ = 1;
 		this.eh_ = new goog.events.EventHandler(this);
 
 		return {
@@ -94,7 +97,7 @@ cam.DetailView = React.createClass({
 				this.getImg_(),
 				this.getPiggy_(),
 				React.DOM.div({className:'detail-view-sidebar', key:'sidebar', style: this.getSidebarStyle_()},
-					React.DOM.a({key:'search-link', href:this.props.searchURL.toString()}, 'Back to search'),
+					React.DOM.a({key:'search-link', href:this.props.searchURL.toString(), onClick:this.handleEscape_}, 'Back to search'),
 					' - ',
 					React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old and busted'),
 					React.DOM.pre({key:'sidebar-pre'}, JSON.stringify(this.getPermanodeMeta_(), null, 2)))));
@@ -110,14 +113,21 @@ cam.DetailView = React.createClass({
 		} else if (e.keyCode == goog.events.KeyCodes.RIGHT) {
 			this.navigate_(1);
 		} else if (e.keyCode == goog.events.KeyCodes.ESC) {
-			this.props.navigator.navigate(this.props.searchURL);
+			this.handleEscape_(e);
 		}
 	},
 
 	navigate_: function(offset) {
 		this.pendingNavigation_ = offset;
+		++this.navCount_;
 		this.setState({backwardPiggy: offset < 0});
 		this.handlePendingNavigation_();
+	},
+
+	handleEscape_: function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+		history.go(-this.navCount_);
 	},
 
 	handlePendingNavigation_: function() {
