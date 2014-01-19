@@ -19,6 +19,7 @@ package replica
 import (
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
@@ -33,13 +34,9 @@ func newReplica(t *testing.T, config jsonconfig.Obj) *replicaStorage {
 	return sto.(*replicaStorage)
 }
 
-func TestReceive(t *testing.T) {
-	sto := newReplica(t, map[string]interface{}{
-		"backends": []interface{}{"/good-1/", "/good-2/"},
-	})
-	tb := &test.Blob{Contents: "stuff"}
+func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
 	tbRef := tb.BlobRef()
-	sb, err := blobserver.Receive(sto, tbRef, tb.Reader())
+	sb, err := blobserver.Receive(dst, tbRef, tb.Reader())
 	if err != nil {
 		t.Fatalf("Receive: %v", err)
 	}
@@ -49,6 +46,16 @@ func TestReceive(t *testing.T) {
 	if sb.Ref != tbRef {
 		t.Fatal("wrong blob received")
 	}
+	return sb
+}
+
+func TestReceiveGood(t *testing.T) {
+	sto := newReplica(t, map[string]interface{}{
+		"backends": []interface{}{"/good-1/", "/good-2/"},
+	})
+	tb := &test.Blob{Contents: "stuff"}
+	sb := mustReceive(t, sto, tb)
+
 	if len(sto.replicas) != 2 {
 		t.Fatalf("replicas = %d; want 2", len(sto.replicas))
 	}
@@ -57,6 +64,29 @@ func TestReceive(t *testing.T) {
 		if err != nil {
 			t.Errorf("Replica %s got stat error %v", sto.replicaPrefixes[i], err)
 		} else if got != sb {
+			t.Errorf("Replica %s got %+v; want %+v", sto.replicaPrefixes[i], got, sb)
+		}
+	}
+}
+
+func TestReceiveOneGoodOneFail(t *testing.T) {
+	sto := newReplica(t, map[string]interface{}{
+		"backends":            []interface{}{"/good-1/", "/fail-1/"},
+		"minWritesForSuccess": float64(1),
+	})
+	tb := &test.Blob{Contents: "stuff"}
+	sb := mustReceive(t, sto, tb)
+
+	if len(sto.replicas) != 2 {
+		t.Fatalf("replicas = %d; want 2", len(sto.replicas))
+	}
+	for i, rep := range sto.replicas {
+		got, err := blobserver.StatBlob(rep, sb.Ref)
+		pfx := sto.replicaPrefixes[i]
+		if (i == 0) != (err == nil) {
+			t.Errorf("For replica %s, unexpected error: %v", pfx, err)
+		}
+		if err == nil && got != sb {
 			t.Errorf("Replica %s got %+v; want %+v", sto.replicaPrefixes[i], got, sb)
 		}
 	}

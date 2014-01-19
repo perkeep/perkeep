@@ -39,6 +39,9 @@ type Fetcher struct {
 	m      map[string]*Blob // keyed by blobref string
 	sorted []string         // blobrefs sorted
 
+	// ReceiveErr optionally returns the error to return on receive.
+	ReceiveErr error
+
 	// FetchErr, if non-nil, specifies the error to return on the next fetch call.
 	// If it returns nil, fetches proceed as normal.
 	FetchErr func() error
@@ -116,6 +119,9 @@ func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 		// blobserver.Receive now does it. But for testing code,
 		// it's worth the cost.
 		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
+	}
+	if err := tf.ReceiveErr; err != nil {
+		return sb, err
 	}
 	b := &Blob{Contents: string(all)}
 	tf.AddBlob(b)
