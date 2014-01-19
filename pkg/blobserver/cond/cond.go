@@ -54,7 +54,9 @@ import (
 
 const buffered = 8
 
-type storageFunc func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error)
+// A storageFunc selects a destination for a given blob. It may consume from src but must always return
+// a newSrc that is identical to the original src passed in.
+type storageFunc func(br blob.Ref, src io.Reader) (dest blobserver.Storage, newSrc io.Reader, err error)
 
 type condStorage struct {
 	storageForReceive storageFunc
@@ -117,8 +119,8 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 		if err != nil {
 			return nil, err
 		}
-		f := func(io.Reader) (blobserver.Storage, []byte, error) {
-			return sto, nil, nil
+		f := func(br blob.Ref, src io.Reader) (blobserver.Storage, io.Reader, error) {
+			return sto, src, nil
 		}
 		return f, nil
 	}
@@ -150,30 +152,24 @@ func buildStorageForReceive(ld blobserver.Loader, confOrString interface{}) (sto
 	return nil, fmt.Errorf("cond: unsupported 'if' type of %q", ifStr)
 }
 
-// dummyRef is just a dummy reference to give to BlobFromReader.
-var dummyRef = blob.MustParse("sha1-829c3804401b0727f70f73d4415e162400cbe57b")
-
 func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
-	return func(src io.Reader) (dest blobserver.Storage, overRead []byte, err error) {
+	return func(br blob.Ref, src io.Reader) (dest blobserver.Storage, newSrc io.Reader, err error) {
 		var buf bytes.Buffer
-		tee := io.TeeReader(src, &buf)
-		blob, err := schema.BlobFromReader(dummyRef, tee)
+		blob, err := schema.BlobFromReader(br, io.TeeReader(src, &buf))
+		newSrc = io.MultiReader(bytes.NewReader(buf.Bytes()), src)
 		if err != nil || blob.Type() == "" {
-			return elseSto, buf.Bytes(), nil
+			return elseSto, newSrc, nil
 		}
-		return thenSto, buf.Bytes(), nil
+		return thenSto, newSrc, nil
 	}
 }
 
-func (sto *condStorage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	destSto, overRead, err := sto.storageForReceive(source)
+func (sto *condStorage) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+	destSto, src, err := sto.storageForReceive(br, src)
 	if err != nil {
 		return
 	}
-	if len(overRead) > 0 {
-		source = io.MultiReader(bytes.NewReader(overRead), source)
-	}
-	return blobserver.Receive(destSto, br, source)
+	return blobserver.Receive(destSto, br, src)
 }
 
 func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {

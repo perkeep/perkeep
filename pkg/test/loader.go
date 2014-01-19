@@ -31,7 +31,8 @@ func NewLoader() *Loader {
 }
 
 type Loader struct {
-	mu sync.Mutex
+	mu  sync.Mutex
+	sto map[string]blobserver.Storage
 }
 
 var _ blobserver.Loader = (*Loader)(nil)
@@ -55,6 +56,23 @@ func (ld *Loader) GetHandler(prefix string) (interface{}, error) {
 }
 
 func (ld *Loader) GetStorage(prefix string) (blobserver.Storage, error) {
+	ld.mu.Lock()
+	defer ld.mu.Unlock()
+	if bs, ok := ld.sto[prefix]; ok {
+		return bs, nil
+	}
+	if ld.sto == nil {
+		ld.sto = make(map[string]blobserver.Storage)
+	}
+	sto, err := ld.genStorage(prefix)
+	if err != nil {
+		return nil, err
+	}
+	ld.sto[prefix] = sto
+	return sto, nil
+}
+
+func (ld *Loader) genStorage(prefix string) (blobserver.Storage, error) {
 	if strings.HasPrefix(prefix, "/good") {
 		return &Fetcher{}, nil
 	}

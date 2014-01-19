@@ -1,0 +1,76 @@
+/*
+Copyright 2014 The Camlistore Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package cond
+
+import (
+	"testing"
+
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/test"
+)
+
+func newCond(t *testing.T, config jsonconfig.Obj) (*condStorage, *test.Loader) {
+	ld := test.NewLoader()
+	sto, err := newFromConfig(ld, config)
+	if err != nil {
+		t.Fatalf("Invalid config: %v", err)
+	}
+	return sto.(*condStorage), ld
+}
+
+func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
+	tbRef := tb.BlobRef()
+	sb, err := blobserver.Receive(dst, tbRef, tb.Reader())
+	if err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+	if int(sb.Size) != len(tb.Contents) {
+		t.Fatalf("size = %d; want %d", sb.Size, len(tb.Contents))
+	}
+	if sb.Ref != tbRef {
+		t.Fatal("wrong blob received")
+	}
+	return sb
+}
+
+func TestReceiveIsSchema(t *testing.T) {
+	sto, ld := newCond(t, map[string]interface{}{
+		"write": map[string]interface{}{
+			"if":   "isSchema",
+			"then": "/good-schema/",
+			"else": "/good-other/",
+		},
+		"read": "/good-other/",
+	})
+	otherBlob := &test.Blob{Contents: "stuff"}
+	schemaBlob := &test.Blob{Contents: `{"camliVersion": 1, "camliType": "foo"}`}
+
+	ssb := mustReceive(t, sto, schemaBlob)
+	osb := mustReceive(t, sto, otherBlob)
+
+	ssto, _ := ld.GetStorage("/good-schema/")
+	osto, _ := ld.GetStorage("/good-other/")
+
+	if _, err := blobserver.StatBlob(ssto, ssb.Ref); err != nil {
+		t.Errorf("schema blob didn't end up on schema storage")
+	}
+	if _, err := blobserver.StatBlob(osto, osb.Ref); err != nil {
+		t.Errorf("other blob didn't end up on other storage")
+	}
+}
