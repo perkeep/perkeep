@@ -18,6 +18,7 @@ goog.provide('cam.BlobItemContainerReact');
 
 goog.require('goog.array');
 goog.require('goog.dom');
+goog.require('goog.events.EventHandler');
 goog.require('goog.object');
 goog.require('goog.math.Coordinate');
 goog.require('goog.math.Size');
@@ -43,6 +44,7 @@ cam.BlobItemContainerReact = React.createClass({
 		availWidth: React.PropTypes.number.isRequired,
 		availHeight: React.PropTypes.number.isRequired,
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
+		history: cam.reactUtil.quacksLike({replaceState:React.PropTypes.func.isRequired}).isRequired,
 		onSelectionChange: React.PropTypes.func,
 		scrollEventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		searchSession: cam.reactUtil.quacksLike({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
@@ -66,6 +68,10 @@ cam.BlobItemContainerReact = React.createClass({
 	componentDidMount: function() {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
 		this.eh_.listen(this.props.scrollEventTarget, 'scroll', this.handleScroll_);
+		if (this.props.history.state && this.props.history.state.scroll) {
+			goog.dom.getDocumentScrollElement().scrollTop = this.props.history.state.scroll;
+			this.props.history.replaceState({scroll:0});
+		}
 	},
 
 	componentWillReceiveProps: function(nextProps) {
@@ -219,6 +225,8 @@ cam.BlobItemContainerReact = React.createClass({
 		var docHeight = goog.dom.getDocumentHeight();
 		var scroll = goog.dom.getDocumentScroll();
 		var viewportSize = goog.dom.getViewportSize();
+
+		this.props.history.replaceState({scroll:scroll.y});
 
 		if ((docHeight - scroll.y - viewportSize.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
 			return;
