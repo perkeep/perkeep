@@ -120,6 +120,7 @@ cam.BlobItemContainer.prototype.decorateInternal = function(element) {
 	this.layout_();
 
 	var el = this.getElement();
+	el.style.marginLeft = '36px';
 	goog.dom.classes.add(el, 'cam-blobitemcontainer');
 	goog.dom.classes.add(el, 'cam-blobitemcontainer-' + this.thumbnailSize_);
 };

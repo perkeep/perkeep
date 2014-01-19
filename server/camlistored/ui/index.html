@@ -50,7 +50,7 @@ limitations under the License.
 				var lastWidth = -1;
 				var lastHeight = -1;
 				var render = function() {
-					var currentWidth = document.documentElement.offsetWidth;
+					var currentWidth = window.outerWidth;
 					var currentHeight = window.innerHeight;
 					if (currentWidth == lastWidth && currentHeight == lastHeight) {
 						return;
@@ -59,7 +59,7 @@ limitations under the License.
 					lastWidth = currentWidth;
 					lastHeight = currentHeight;
 					var index = cam.IndexPageReact({
-						availWidth: currentWidth - 36,
+						availWidth: currentWidth,
 						availHeight: currentHeight,
 						config: CAMLISTORE_CONFIG,
 						eventTarget: window,
