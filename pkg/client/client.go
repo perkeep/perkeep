@@ -57,13 +57,11 @@ type Client struct {
 	// prefix is.
 	server string
 
-	prefixOnce    sync.Once // guards init of following 3 fields
-	prefixErr     error
-	prefixv       string // URL prefix before "/camli/"
-	isSharePrefix bool   // URL is a request for a share blob
+	prefixOnce    syncutil.Once // guards init of following 2 fields
+	prefixv       string        // URL prefix before "/camli/"
+	isSharePrefix bool          // URL is a request for a share blob
 
-	discoOnce      sync.Once
-	discoErr       error
+	discoOnce      syncutil.Once
 	searchRoot     string      // Handler prefix, or "" if none
 	downloadHelper string      // or "" if none
 	storageGen     string      // storage generation, or "" if not reported
@@ -224,13 +222,13 @@ type optionTrustedCert string
 func (o optionTrustedCert) modifyClient(c *Client) {
 	cert := string(o)
 	if cert != "" {
-		c.initTrustedCertsOnce.Do(noop)
+		c.initTrustedCertsOnce.Do(func() {})
 		c.trustedCerts = []string{string(o)}
 	}
 }
 
-// noop is for use with sync.Onces.
-func noop() {}
+// noop is for use with syncutil.Onces.
+func noop() error { return nil }
 
 var shareURLRx = regexp.MustCompile(`^(.+)/(` + blob.Pattern + ")$")
 
@@ -344,9 +342,8 @@ func (c *Client) BlobRoot() (string, error) {
 // If the server isn't running an index and search handler, the error
 // will be ErrNoSearchRoot.
 func (c *Client) SearchRoot() (string, error) {
-	c.condDiscovery()
-	if c.discoErr != nil {
-		return "", c.discoErr
+	if err := c.condDiscovery(); err != nil {
+		return "", err
 	}
 	if c.searchRoot == "" {
 		return "", ErrNoSearchRoot
@@ -364,9 +361,8 @@ func (c *Client) SearchRoot() (string, error) {
 // If the server doesn't return such a value, the error will be
 // ErrNoStorageGeneration.
 func (c *Client) StorageGeneration() (string, error) {
-	c.condDiscovery()
-	if c.discoErr != nil {
-		return "", c.discoErr
+	if err := c.condDiscovery(); err != nil {
+		return "", err
 	}
 	if c.storageGen == "" {
 		return "", ErrNoStorageGeneration
@@ -387,9 +383,8 @@ type SyncInfo struct {
 // If the server isn't running any sync handler, the error
 // will be ErrNoSync.
 func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
-	c.condDiscovery()
-	if c.discoErr != nil {
-		return nil, c.discoErr
+	if err := c.condDiscovery(); err != nil {
+		return nil, err
 	}
 	if c.syncHandlers == nil {
 		return nil, ErrNoSync
@@ -552,8 +547,7 @@ func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 // the server is configured with a "download helper", and the server responds
 // that all chunks of 'f' are available and match the digest of wholeRef.
 func (c *Client) FileHasContents(f, wholeRef blob.Ref) bool {
-	c.condDiscovery()
-	if c.discoErr != nil {
+	if err := c.condDiscovery(); err != nil {
 		return false
 	}
 	if c.downloadHelper == "" {
@@ -573,12 +567,8 @@ func (c *Client) FileHasContents(f, wholeRef blob.Ref) bool {
 // the blobref hash in case of a share URL.
 // Examples: http://foo.com:3179/bs or http://foo.com:3179/share
 func (c *Client) prefix() (string, error) {
-	c.prefixOnce.Do(func() { c.initPrefix() })
-	if c.prefixErr != nil {
-		return "", c.prefixErr
-	}
-	if c.discoErr != nil {
-		return "", c.discoErr
+	if err := c.prefixOnce.Do(c.initPrefix); err != nil {
+		return "", err
 	}
 	return c.prefixv, nil
 }
@@ -609,30 +599,28 @@ func (c *Client) discoRoot() string {
 // prefix to the blobserver root. If the server URL has a path
 // component then it is directly used, otherwise the blobRoot
 // from the discovery is used as the path.
-func (c *Client) initPrefix() {
+func (c *Client) initPrefix() error {
 	c.isSharePrefix = false
 	root := c.discoRoot()
 	u, err := url.Parse(root)
 	if err != nil {
-		c.prefixErr = err
-		return
+		return err
 	}
 	if len(u.Path) > 1 {
 		c.prefixv = strings.TrimRight(root, "/")
-		return
+		return nil
 	}
-	c.condDiscovery()
+	return c.condDiscovery()
 }
 
-func (c *Client) condDiscovery() {
-	c.discoOnce.Do(c.doDiscovery)
+func (c *Client) condDiscovery() error {
+	return c.discoOnce.Do(c.doDiscovery)
 }
 
-func (c *Client) doDiscovery() {
+func (c *Client) doDiscovery() error {
 	root, err := url.Parse(c.discoRoot())
 	if err != nil {
-		c.discoErr = err
-		return
+		return err
 	}
 
 	// If the path is just "" or "/", do discovery against
@@ -641,32 +629,27 @@ func (c *Client) doDiscovery() {
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	res, err := c.doReqGated(req)
 	if err != nil {
-		c.discoErr = err
-		return
+		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		c.discoErr = fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
-		return
+		return fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
 	}
 	// TODO(bradfitz): little weird in retrospect that we request
 	// text/x-camli-configuration and expect to get back
 	// text/javascript.  Make them consistent.
 	if ct := res.Header.Get("Content-Type"); ct != "text/javascript" {
-		c.discoErr = fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
-		return
+		return fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
 	}
 	m := make(map[string]interface{})
 	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
-		c.discoErr = err
-		return
+		return err
 	}
 	searchRoot, ok := m["searchRoot"].(string)
 	if ok {
 		u, err := root.Parse(searchRoot)
 		if err != nil {
-			c.discoErr = fmt.Errorf("client: invalid searchRoot %q; failed to resolve", searchRoot)
-			return
+			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", searchRoot)
 		}
 		c.searchRoot = u.String()
 	}
@@ -675,8 +658,7 @@ func (c *Client) doDiscovery() {
 	if ok {
 		u, err := root.Parse(downloadHelper)
 		if err != nil {
-			c.discoErr = fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", downloadHelper)
-			return
+			return fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", downloadHelper)
 		}
 		c.downloadHelper = u.String()
 	}
@@ -685,13 +667,11 @@ func (c *Client) doDiscovery() {
 
 	blobRoot, ok := m["blobRoot"].(string)
 	if !ok {
-		c.discoErr = fmt.Errorf("No blobRoot in config discovery response")
-		return
+		return fmt.Errorf("No blobRoot in config discovery response")
 	}
 	u, err := root.Parse(blobRoot)
 	if err != nil {
-		c.discoErr = fmt.Errorf("client: error resolving blobRoot: %v", err)
-		return
+		return fmt.Errorf("client: error resolving blobRoot: %v", err)
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
 
@@ -702,14 +682,12 @@ func (c *Client) doDiscovery() {
 			from := vmap["from"].(string)
 			ufrom, err := root.Parse(from)
 			if err != nil {
-				c.discoErr = fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", from)
-				return
+				return fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", from)
 			}
 			to := vmap["to"].(string)
 			uto, err := root.Parse(to)
 			if err != nil {
-				c.discoErr = fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
-				return
+				return fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
 			}
 			toIndex, _ := vmap["toIndex"].(bool)
 			c.syncHandlers = append(c.syncHandlers, &SyncInfo{
@@ -719,6 +697,7 @@ func (c *Client) doDiscovery() {
 			})
 		}
 	}
+	return nil
 }
 
 func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
