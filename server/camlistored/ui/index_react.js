@@ -391,11 +391,6 @@ cam.IndexPageReact = React.createClass({
 			width: this.getContentWidth_(),
 		};
 
-		// Need to be mounted to getDOMNode() below.
-		if (!this.isMounted()) {
-			return style;
-		}
-
 		var closedWidth = style.width;
 		var openWidth = closedWidth - this.NAV_WIDTH_OPEN_;
 		var openScale = openWidth / closedWidth;
