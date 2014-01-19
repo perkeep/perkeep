@@ -422,6 +422,7 @@ cam.IndexPage.prototype.updateDetailView_ = function() {
 
 	var props = {
 		blobref: this.currentURL_.getParameterValue('p'),
+		history: history,
 		searchSession: this.searchSession_,
 		searchURL: searchURL,
 		oldURL: oldURL,

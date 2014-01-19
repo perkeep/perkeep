@@ -35,6 +35,9 @@ goog.require('cam.ServerConnection');
 cam.IndexPageReact = React.createClass({
 	displayName: 'IndexPageReact',
 
+	NAV_WIDTH_CLOSED_: 36,
+	NAV_WIDTH_OPEN_: 239,
+
 	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250, 300],
 
 	SEARCH_PREFIX_: {
@@ -53,6 +56,15 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	componentWillMount: function() {
+		this.baseURL_ = null;
+		this.currentSet_ = null;
+		this.dragEndTimer_ = 0;
+		this.navigator_ = null;
+		this.searchSession_ = null;
+
+		// TODO(aa): Move this to index.css once conversion to React is complete (index.css is shared between React and non-React).
+		goog.dom.getDocumentScrollElement().style.overflow = 'hidden';
+
 		this.eh_ = new goog.events.EventHandler(this);
 
 		var newURL = new goog.Uri(this.props.location.href);
@@ -61,10 +73,6 @@ cam.IndexPageReact = React.createClass({
 
 		this.navigator_ = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true);
 		this.navigator_.onNavigate = this.handleNavigate_;
-
-		this.searchSession_ = null;
-		this.currentSet_ = null;
-		this.dragEndTimer_ = 0;
 
 		this.handleNavigate_(newURL);
 	},
@@ -357,15 +365,13 @@ cam.IndexPageReact = React.createClass({
 		if (!this.inSearchMode_()) {
 			return null;
 		}
+
 		return cam.BlobItemContainerReact({
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
-			availWidth: this.props.availWidth,
-			availHeight: this.props.availHeight,
 			detailURL: this.handleDetailURL_,
 			history: this.props.history,
 			onSelectionChange: this.handleSelectionChange_,
-			scrollEventTarget: this.props.eventTarget,
 			searchSession: this.searchSession_,
 			selection: this.state.selection,
 			style: this.getBlobItemContainerStyle_(),
@@ -375,28 +381,28 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	getBlobItemContainerStyle_: function() {
-		var style = {};
+		// TODO(aa): Constant values can go into CSS when we switch over to react.
+		var style = {
+			left: this.NAV_WIDTH_CLOSED_,
+			overflowX: 'hidden',
+			overflowY: 'scroll',
+			position: 'absolute',
+			top: 0,
+			width: this.getContentWidth_(),
+		};
 
-		// Need to be mounted to getDOMNode() below.
-		if (!this.isMounted()) {
-			return style;
-		}
-
-		var closedWidth = this.getDOMNode().offsetWidth - 36;
-		var openWidth = closedWidth - (275 - 36);  // TODO(aa): Get this from DOM somehow?
+		var closedWidth = style.width;
+		var openWidth = closedWidth - this.NAV_WIDTH_OPEN_;
 		var openScale = openWidth / closedWidth;
 
-		var currentHeight = goog.dom.getDocumentHeight();
-		var currentScroll = goog.dom.getDocumentScroll().y;
-		var potentialScroll = currentHeight - goog.dom.getViewportSize().height;
-		var scrolledRatio = currentScroll / potentialScroll;
-		var originY = currentHeight * currentScroll / potentialScroll;
-
-		style[cam.reactUtil.getVendorProp('transformOrigin')] = goog.string.subs('right %spx 0', originY);
+		// TODO(aa): This can move to CSS when the conversion to React is complete.
+		style[cam.reactUtil.getVendorProp('transformOrigin')] = 'right top 0';
 
 		// The 3d transform is important. See: https://code.google.com/p/camlistore/issues/detail?id=284.
 		var scale = this.state.isNavOpen ? openScale : 1;
 		style[cam.reactUtil.getVendorProp('transform')] = goog.string.subs('scale3d(%s, %s, 1)', scale, scale);
+
+		style.height = this.state.isNavOpen ? this.props.availHeight / scale : this.props.availHeight;
 
 		return style;
 	},
@@ -427,5 +433,9 @@ cam.IndexPageReact = React.createClass({
 			width: this.props.availWidth,
 			height: this.props.availHeight,
 		});
+	},
+
+	getContentWidth_: function() {
+		return this.props.availWidth - this.NAV_WIDTH_CLOSED_;
 	},
 });

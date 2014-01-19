@@ -22,6 +22,7 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.object');
 goog.require('goog.math.Coordinate');
 goog.require('goog.math.Size');
+goog.require('goog.style');
 
 goog.require('cam.BlobItemReact');
 goog.require('cam.BlobItemReactData');
@@ -41,12 +42,9 @@ cam.BlobItemContainerReact = React.createClass({
 	INFINITE_SCROLL_THRESHOLD_PX_: 100,
 
 	propTypes: {
-		availWidth: React.PropTypes.number.isRequired,
-		availHeight: React.PropTypes.number.isRequired,
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
 		history: cam.reactUtil.quacksLike({replaceState:React.PropTypes.func.isRequired}).isRequired,
 		onSelectionChange: React.PropTypes.func,
-		scrollEventTarget: cam.reactUtil.quacksLike({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		searchSession: cam.reactUtil.quacksLike({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
@@ -61,17 +59,27 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	componentWillMount: function() {
-		this.lastCheckedIndex_ = -1;
 		this.eh_ = new goog.events.EventHandler(this);
+		this.lastCheckedIndex_ = -1;
+		this.scrollbarWidth_ = goog.style.getScrollbarWidth();
+		this.layoutHeight_ = 0;
 	},
 
 	componentDidMount: function() {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
-		this.eh_.listen(this.props.scrollEventTarget, 'scroll', this.handleScroll_);
+		this.eh_.listen(this.getDOMNode(), 'scroll', this.handleScroll_);
 		if (this.props.history.state && this.props.history.state.scroll) {
-			goog.dom.getDocumentScrollElement().scrollTop = this.props.history.state.scroll;
+			var el = this.getDOMNode();
+			var oldScroll = el.scrollTop;
+			el.scrollTop = this.props.history.state.scroll;
 			this.props.history.replaceState({scroll:0});
+			if (oldScroll != el.scrollTop) {
+				return;
+			}
 		}
+
+		// If we weren't able to scroll to a remembered position, call handleScroll once anyway to scroll to zero. This will cause us to load our initial data.
+		this.handleScroll_();
 	},
 
 	componentWillReceiveProps: function(nextProps) {
@@ -99,7 +107,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 		for (var i = rowStart; i <= lastItem; i++) {
 			var item = data[i];
-			var availWidth = this.props.availWidth;
+			var availWidth = this.props.style.width - this.scrollbarWidth_;
 			var nextWidth = currentWidth + this.props.thumbnailSize * item.aspect + this.BLOB_ITEM_MARGIN_;
 			if (i != lastItem && nextWidth < availWidth) {
 				currentWidth = nextWidth;
@@ -130,11 +138,7 @@ cam.BlobItemContainerReact = React.createClass({
 		}
 
 		// If we haven't filled the window with results, add some more.
-		if (!this.props.searchSession.isComplete()) {
-			if (currentTop < (this.props.availHeight * 1.5)) {
-				this.props.searchSession.loadMoreResults();
-			}
-		}
+		this.layoutHeight_ = currentTop;
 
 		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_}, children);
 	},
@@ -149,7 +153,7 @@ cam.BlobItemContainerReact = React.createClass({
 		var rowProps = [];
 
 		for (var i = startIndex; i <= endIndex; i++) {
-			// We figure out the amount to adjust each item in this slightly non- intuitive way so that the adjustment is split up as fairly as possible. Figuring out a ratio up front and applying it to all items uniformly can end up with a large amount left over because of rounding.
+			// We figure out the amount to adjust each item in this slightly non-intuitive way so that the adjustment is split up as fairly as possible. Figuring out a ratio up front and applying it to all items uniformly can end up with a large amount left over because of rounding.
 			var item = data[i];
 			var numItemsLeft = (endIndex + 1) - i;
 			var delta = Math.round((availThumbWidth - usedThumbWidth) / numItemsLeft);
@@ -222,18 +226,13 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleScroll_: function() {
-		var docHeight = goog.dom.getDocumentHeight();
-		var scroll = goog.dom.getDocumentScroll();
-		var viewportSize = goog.dom.getViewportSize();
+		var scroll = this.getDOMNode().scrollTop;
+		this.props.history.replaceState({scroll:scroll});
 
-		this.props.history.replaceState({scroll:scroll.y});
-
-		if ((docHeight - scroll.y - viewportSize.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
+		if ((this.layoutHeight_ - scroll - this.props.style.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
 			return;
 		}
 
 		this.props.searchSession.loadMoreResults();
 	},
 });
-
-// TODO(aa): dnd (should live in index?)
