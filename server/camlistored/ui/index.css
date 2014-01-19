@@ -32,3 +32,8 @@ body {
 .cam-index-title {
 	display: inline-block;
 }
+
+/* TODO(aa): A better drop effect. */
+.cam-dropactive {
+	background: #e5efff;
+}
