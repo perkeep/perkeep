@@ -157,6 +157,7 @@ cam.BlobItemReact = React.createClass({
 
 	componentDidMount: function() {
 		this.refs.thumb.getDOMNode().addEventListener('load', this.onThumbLoad_);
+		this.refs.thumb.getDOMNode().addEventListener('error', this.onThumbLoad_);
 	},
 
 	componentDidUpdate: function(prevProps, prevState) {
