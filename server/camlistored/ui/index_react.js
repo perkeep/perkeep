@@ -30,7 +30,7 @@ goog.require('cam.ServerConnection');
 cam.IndexPageReact = React.createClass({
 	displayName: 'IndexPageReact',
 
-	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250],
+	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250, 300],
 
 	SEARCH_PREFIX_: {
 		RAW: 'raw'
@@ -48,22 +48,22 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	componentWillMount: function() {
-		var currentURL = new goog.Uri(this.props.location.href);
-		var baseURL = currentURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
-		baseURL.setParameterValue('react', '1');
+		var newURL = new goog.Uri(this.props.location.href);
+		this.baseURL_ = newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
+		this.baseURL_.setParameterValue('react', '1');
 
-		var navigator = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true);
-		navigator.onNavigate = this.handleNavigate_;
+		this.navigator_ = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true);
+		this.navigator_.onNavigate = this.handleNavigate_;
 
-		this.setState({
-			baseURL: baseURL,
-			navigator: navigator,
-		});
-		this.handleNavigate_(currentURL);
+		this.searchSession_ = null;
+		this.currentSet_ = null;
+
+		this.handleNavigate_(newURL);
 	},
 
 	getInitialState: function() {
 		return {
+			currentURL: null,
 			isNavOpen: false,
 			selection: {},
 			thumbnailSizeIndex: 3,
@@ -89,22 +89,12 @@ cam.IndexPageReact = React.createClass({
 			}
 		}
 
+		this.updateSearchSession_(newURL);
+
 		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
 		var query = newURL.getQueryData();
-		var inSearchMode = (query.getCount() == 1 && query.containsKey('react')) || (query.getCount() == 2 && query.containsKey('react') && query.containsKey('q'));
-		var inDetailMode = query.containsKey('p') && query.get('newui') == '1';
+		this.setState({currentURL: newURL});
 
-		if (!inSearchMode && !inDetailMode) {
-			return false;
-		}
-
-		this.updateSearchSession_();
-
-		this.setState({
-			currentURL: newURL,
-			searchMode: inSearchMode,
-			detailMode: inDetailMode,
-		});
 		return true;
 	},
 
@@ -119,25 +109,23 @@ cam.IndexPageReact = React.createClass({
 			query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
 		}
 
-		if (this.state.searchSession && JSON.stringify(this.state.searchSession.getQuery()) == JSON.stringify(query)) {
+		if (this.searchSession_ && JSON.stringify(this.searchSession_.getQuery()) == JSON.stringify(query)) {
 			return;
 		}
 
-		if (this.state.searchSession) {
-			this.state.searchSession.close();
+		if (this.searchSession_) {
+			this.searchSession_.close();
 		}
 
-		this.setState({
-			searchSession: new cam.SearchSession(this.props.serverConnection, newURL.clone(), query),
-		});
+		this.searchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
 	},
 
 	getNav_: function() {
-		if (!this.state.searchMode) {
+		if (!this.inSearchMode_()) {
 			return null;
 		}
-		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.handleSearch_}, 'Search'),
+		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
+			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
 			cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
 			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
 			this.getSelectAsCurrentSetItem_(),
@@ -146,7 +134,7 @@ cam.IndexPageReact = React.createClass({
 			this.getClearSelectionItem_(),
 			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
 			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
-			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.state.baseURL.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
+			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
 		]);
 	},
 
@@ -160,26 +148,53 @@ cam.IndexPageReact = React.createClass({
 		this.setState({isNavOpen:false});
 	},
 
-	handleSearch_: function(query) {
-		var searchURL = this.state.baseURL.clone();
-		searchURL.setParameterValue('q', query);
-		this.state.navigator.navigate(searchURL);
+	handleNewPermanode_: function() {
+		this.props.serverConnection.createPermanode(function(p) {
+			this.navigator_.navigate(this.getDetailURL_(false, p));
+		}.bind(this));
 	},
 
 	handleShowSearchRoots_: function() {
-		// TODO(aa)
+		this.setSearch_(this.SEARCH_PREFIX_.RAW + ':' + JSON.stringify({
+			permanode: {
+				attr: 'camliRoot',
+				numValue: {
+					min: 1
+				}
+			}
+		}));
 	},
 
 	handleSelectAsCurrentSet_: function() {
-		// TODO(aa)
+		this.currentSet_ = goog.object.getAnyKey(this.state.selection);
+		this.setState({selection:{}});
 	},
 
 	handleAddToSet_: function() {
-		// TODO(aa)
+		this.addMembersToSet_(this.currentSet_, goog.object.getKeys(this.state.selection));
 	},
 
 	handleCreateSetWithSelection_: function() {
-		// TODO(aa)
+		var selection = goog.object.getKeys(this.state.selection);
+		this.props.serverConnection.createPermanode(function(permanode) {
+			this.props.serverConnection.newSetAttributeClaim(permanode, 'title', 'New set', function() {
+				this.addMembersToSet_(permanode, selection);
+			}.bind(this));
+		}.bind(this));
+	},
+
+	addMembersToSet_: function(permanode, blobrefs) {
+		var numComplete = 0;
+		var callback = function() {
+			if (++numComplete == blobrefs.length) {
+				this.setState({selection:{}});
+				this.searchSession_.refreshIfNecessary();
+			}
+		}.bind(this);
+
+		blobrefs.forEach(function(br) {
+			this.props.serverConnection.newAddAttributeClaim(permanode, 'camliMember', br, callback);
+		}.bind(this));
 	},
 
 	handleClearSelection_: function() {
@@ -209,12 +224,22 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	handleDetailURL_: function(item) {
+		return this.getDetailURL_(Boolean(item.im), item.blobref);
+	},
+
+	getDetailURL_: function(newUI, blobref) {
 		var detailURL = this.state.currentURL.clone();
-		detailURL.setParameterValue('p', item.blobref);
-		if (item.m.camliType == 'permanode' && item.im) {
+		detailURL.setParameterValue('p', blobref);
+		if (newUI) {
 			detailURL.setParameterValue('newui', '1');
 		}
-		return detailURL.toString();
+		return detailURL;
+	},
+
+	setSearch_: function(query) {
+		var searchURL = this.baseURL_.clone();
+		searchURL.setParameterValue('q', query);
+		this.navigator_.navigate(searchURL);
 	},
 
 	getSelectAsCurrentSetItem_: function() {
@@ -223,7 +248,7 @@ cam.IndexPageReact = React.createClass({
 		}
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
-		var data = new cam.BlobItemReactData(blobref, this.state.searchSession.getCurrentResults().description.meta);
+		var data = new cam.BlobItemReactData(blobref, this.searchSession_.getCurrentResults().description.meta);
 		if (!data.isDynamicCollection) {
 			return null;
 		}
@@ -232,7 +257,7 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	getAddToCurrentSetItem_: function() {
-		if (!goog.object.getAnyKey(this.state.selection)) {
+		if (!this.currentSet_ || !goog.object.getAnyKey(this.state.selection)) {
 			return null;
 		}
 		return cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set');
@@ -258,8 +283,19 @@ cam.IndexPageReact = React.createClass({
 		this.setState({selection:newSelection});
 	},
 
+	inSearchMode_: function() {
+		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
+		var query = this.state.currentURL.getQueryData();
+		return (query.getCount() == 1 && query.containsKey('react')) || (query.getCount() == 2 && query.containsKey('react') && query.containsKey('q'));
+	},
+
+	inDetailMode_: function() {
+		var query = this.state.currentURL.getQueryData();
+		return query.containsKey('p') && query.get('newui') == '1';
+	},
+
 	getBlobItemContainer_: function() {
-		if (!this.state.searchMode) {
+		if (!this.inSearchMode_()) {
 			return null;
 		}
 		return cam.BlobItemContainerReact({
@@ -270,7 +306,7 @@ cam.IndexPageReact = React.createClass({
 			detailURL: this.handleDetailURL_,
 			onSelectionChange: this.handleSelectionChange_,
 			scrollEventTarget: this.props.eventTarget,
-			searchSession: this.state.searchSession,
+			searchSession: this.searchSession_,
 			selection: this.state.selection,
 			style: this.getBlobItemContainerStyle_(),
 			thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
@@ -306,32 +342,26 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	getDetailView_: function() {
-		if (!this.state.detailMode) {
+		if (!this.inDetailMode_()) {
 			return null;
 		}
 
-		var searchURL = this.state.baseURL.clone();
+		var searchURL = this.baseURL_.clone();
 		if (this.state.currentURL.getQueryData().containsKey('q')) {
 			searchURL.setParameterValue('q', this.state.currentURL.getParameterValue('q'));
 		}
 
-		var oldURL = this.state.baseURL.clone();
+		var oldURL = this.baseURL_.clone();
 		oldURL.setParameterValue('p', this.state.currentURL.getParameterValue('p'));
-
-		var getDetailURL = function(blobRef) {
-			var result = this.state.currentURL.clone();
-			result.setParameterValue('p', blobRef);
-			return result;
-		}.bind(this);
 
 		return cam.DetailView({
 			key: 'detailview',
 			blobref: this.state.currentURL.getParameterValue('p'),
-			searchSession: this.state.searchSession,
+			searchSession: this.searchSession_,
 			searchURL: searchURL,
 			oldURL: oldURL,
-			getDetailURL: getDetailURL,
-			navigator: this.state.navigator,
+			getDetailURL: this.getDetailURL_.bind(this, false),
+			navigator: this.navigator_,
 			keyEventTarget: this.props.eventTarget,
 			width: this.props.availWidth,
 			height: this.props.availHeight,

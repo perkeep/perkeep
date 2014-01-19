@@ -29,29 +29,21 @@ cam.NavReact = React.createClass({
 	displayName: 'NavReact',
 
 	propTypes: {
-		timer: cam.reactUtil.quacksLike({
-			setTimeout: React.PropTypes.func.isRequired,
-			clearTimeout: React.PropTypes.func.isRequired,
-		}).isRequired,
-		onOpen: React.PropTypes.func,
-		onClose: React.PropTypes.func,
+		onOpen: React.PropTypes.func.isRequired,
+		onClose: React.PropTypes.func.isRequired,
+		open: React.PropTypes.bool.isRequired,
+		timer: cam.reactUtil.quacksLike({setTimeout: React.PropTypes.func.isRequired, clearTimeout: React.PropTypes.func.isRequired,}).isRequired,
 	},
 
 	componentWillMount: function() {
 		this.expandTimer_ = 0;
 	},
 
-	getInitialState: function() {
-		return {
-			open: false,
-		};
-	},
-
 	render: function() {
 		return React.DOM.div({
 				className: React.addons.classSet({
 					'cam-nav': true,
-					'cam-nav-collapsed': !this.state.open,
+					'cam-nav-collapsed': !this.props.open,
 				}),
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
@@ -64,18 +56,12 @@ cam.NavReact = React.createClass({
 
 	open: function() {
 		this.clearExpandTimer_();
-		if (this.props.onOpen) {
-			this.props.onOpen();
-		}
-		this.setState({open:true});
+		this.props.onOpen();
 	},
 
 	close: function() {
 		this.clearExpandTimer_();
-		if (this.props.onClose) {
-			this.props.onClose();
-		}
-		this.setState({open:false});
+		this.props.onClose();
 	},
 
 	handleMouseEnter_: function(e) {
