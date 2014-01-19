@@ -124,7 +124,7 @@ cam.IndexPageReact = React.createClass({
 		if (!this.inSearchMode_()) {
 			return null;
 		}
-		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
+		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
 			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
 			cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
 			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
