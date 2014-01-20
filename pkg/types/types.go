@@ -20,6 +20,7 @@ package types
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -130,4 +131,45 @@ type ReadSeekCloser interface {
 type ReaderAtCloser interface {
 	io.ReaderAt
 	io.Closer
+}
+
+// TODO(wathiede): make sure all the stat readers work with code that
+// type asserts ReadFrom/WriteTo.
+
+type varStatReader struct {
+	*expvar.Int
+	r io.Reader
+}
+
+// NewReaderStats returns an io.Reader that will have the number of bytes
+// read from r added to v.
+func NewStatsReader(v *expvar.Int, r io.Reader) io.Reader {
+	return &varStatReader{v, r}
+}
+
+func (v *varStatReader) Read(p []byte) (int, error) {
+	n, err := v.r.Read(p)
+	v.Int.Add(int64(n))
+	return n, err
+}
+
+type varStatReadSeeker struct {
+	*expvar.Int
+	rs io.ReadSeeker
+}
+
+// NewReaderStats returns an io.ReadSeeker that will have the number of bytes
+// read from rs added to v.
+func NewStatsReadSeeker(v *expvar.Int, r io.ReadSeeker) io.ReadSeeker {
+	return &varStatReadSeeker{v, r}
+}
+
+func (v *varStatReadSeeker) Read(p []byte) (int, error) {
+	n, err := v.rs.Read(p)
+	v.Int.Add(int64(n))
+	return n, err
+}
+
+func (v *varStatReadSeeker) Seek(offset int64, whence int) (int64, error) {
+	return v.rs.Seek(offset, whence)
 }

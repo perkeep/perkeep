@@ -52,7 +52,7 @@ func Reindex(root string, overwrite bool) (err error) {
 	}()
 
 	verbose := false // TODO: use env var?
-	for i := int64(0); i >= 0; i++ {
+	for i := 0; i >= 0; i++ {
 		fh, err := os.Open(s.filename(i))
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -69,7 +69,7 @@ func Reindex(root string, overwrite bool) (err error) {
 	return nil
 }
 
-func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker, name string, packId int64) error {
+func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker, name string, packId int) error {
 	l, err := lock.Lock(name + ".lock")
 	defer l.Close()
 

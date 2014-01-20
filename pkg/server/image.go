@@ -42,6 +42,8 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types"
+
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 )
 
@@ -213,18 +215,6 @@ type formatAndImage struct {
 	image  []byte
 }
 
-// TODO(wathiede): move to a common location if the pattern of TeeReader'ing
-// to a statWriter proves useful.
-type statWriter struct {
-	*expvar.Int
-}
-
-func (sw statWriter) Write(p []byte) (int, error) {
-	c := len(p)
-	sw.Add(int64(c))
-	return c, nil
-}
-
 // imageConfigFromReader calls image.DecodeConfig on r. It returns an
 // io.Reader that is the concatentation of the bytes read and the remaining r,
 // the image configuration, and the error from image.DecodeConfig.
@@ -245,10 +235,8 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	}
 	defer fr.Close()
 
-	sw := statWriter{imageBytesFetchedVar}
-	tr := io.TeeReader(fr, sw)
-
-	tr, conf, err := imageConfigFromReader(tr)
+	sr := types.NewStatsReader(imageBytesFetchedVar, fr)
+	sr, conf, err := imageConfigFromReader(sr)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +257,7 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	}
 	defer ih.resizeSem.Release(ramSize)
 
-	i, imConfig, err := images.Decode(tr, &images.DecodeOpts{
+	i, imConfig, err := images.Decode(sr, &images.DecodeOpts{
 		MaxWidth:  ih.MaxWidth,
 		MaxHeight: ih.MaxHeight,
 	})
