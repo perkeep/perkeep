@@ -56,9 +56,12 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 		tf.m = make(map[string]*Blob)
 	}
 	key := b.BlobRef().String()
+	_, had := tf.m[key]
 	tf.m[key] = b
-	tf.sorted = append(tf.sorted, key)
-	sort.Strings(tf.sorted)
+	if !had {
+		tf.sorted = append(tf.sorted, key)
+		sort.Strings(tf.sorted)
+	}
 }
 
 func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size int64, err error) {
