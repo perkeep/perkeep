@@ -63,29 +63,32 @@ cam.BlobItemContainerReact = React.createClass({
 		this.lastCheckedIndex_ = -1;
 		this.scrollbarWidth_ = goog.style.getScrollbarWidth();
 		this.layoutHeight_ = 0;
+		this.childProps_ = null;
+		this.lastSize_ = new goog.math.Size(this.props.style.width, this.props.style.height);
+
+		this.updateChildProps_();
 	},
 
 	componentDidMount: function() {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
 		this.eh_.listen(this.getDOMNode(), 'scroll', this.handleScroll_);
 		if (this.props.history.state && this.props.history.state.scroll) {
-			var el = this.getDOMNode();
-			var oldScroll = el.scrollTop;
-			el.scrollTop = this.props.history.state.scroll;
-			this.props.history.replaceState({scroll:0});
-			if (oldScroll != el.scrollTop) {
-				return;
-			}
+			this.getDOMNode().scrollTop = this.props.history.state.scroll;
 		}
-
-		// If we weren't able to scroll to a remembered position, call handleScroll once anyway to scroll to zero. This will cause us to load our initial data.
-		this.handleScroll_();
+		this.fillVisibleAreaWithResults_();
 	},
 
 	componentWillReceiveProps: function(nextProps) {
 		if (nextProps.searchSession != this.props.searchSession) {
 			this.eh_.unlisten(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
 			this.eh_.listen(nextProps.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+			nextProps.searchSession.loadMoreResults();
+		}
+
+		var nextSize = new goog.math.Size(nextProps.style.width, nextProps.style.height);
+		if (nextProps.searchSession != this.props.searchSession || !goog.math.Size.equals(this.lastSize_, nextSize)) {
+			this.lastSize_ = nextSize;
+			this.updateChildProps_();
 		}
 	},
 
@@ -93,9 +96,41 @@ cam.BlobItemContainerReact = React.createClass({
 		this.eh_.dispose();
 	},
 
+	getInitialState: function() {
+		return {
+			scroll:0,
+		};
+	},
+
 	render: function() {
-		var results = this.props.searchSession.getCurrentResults();
 		var children = [];
+		this.childProps_.forEach(function(props) {
+			if (this.isVisible_(props.position.y) || this.isVisible_(props.position.y + props.size.height)) {
+				children.push(cam.BlobItemReact(props));
+			}
+		}.bind(this));
+
+		children.push(React.DOM.div({
+			key: 'marker',
+			style: {
+				position: 'absolute',
+				top: this.layoutHeight_ - 1,
+				left: 0,
+				height: 1,
+				width: 1,
+			},
+		}));
+
+		// If we haven't filled the window with results, add some more.
+		this.fillVisibleAreaWithResults_();
+
+		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_}, children);
+	},
+
+	updateChildProps_: function() {
+		this.childProps_ = [];
+
+		var results = this.props.searchSession.getCurrentResults();
 		var data = goog.array.map(results.blobs, function(blob) {
 			return new cam.BlobItemReactData(blob.blob, results.description.meta);
 		});
@@ -130,27 +165,23 @@ cam.BlobItemContainerReact = React.createClass({
 				rowWidth = nextWidth;
 			}
 
-			currentTop += this.renderChildren_(data, children, rowStart, rowEnd, availWidth, rowWidth, currentTop) + this.BLOB_ITEM_MARGIN_;
+			currentTop += this.updateChildPropsRow_(data, rowStart, rowEnd, availWidth, rowWidth, currentTop) + this.BLOB_ITEM_MARGIN_;
 
 			currentWidth = this.BLOB_ITEM_MARGIN_;
 			rowStart = rowEnd + 1;
 			i = rowEnd;
 		}
 
-		// If we haven't filled the window with results, add some more.
 		this.layoutHeight_ = currentTop;
-
-		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_}, children);
 	},
 
-	renderChildren_: function(data, children, startIndex, endIndex, availWidth, usedWidth, top) {
+	updateChildPropsRow_: function(data, startIndex, endIndex, availWidth, usedWidth, top) {
 		var currentLeft = 0;
 		var rowHeight = Number.POSITIVE_INFINITY;
 
 		var numItems = endIndex - startIndex + 1;
 		var availThumbWidth = availWidth - (this.BLOB_ITEM_MARGIN_ * (numItems + 1));
 		var usedThumbWidth = usedWidth - (this.BLOB_ITEM_MARGIN_ * (numItems + 1));
-		var rowProps = [];
 
 		for (var i = startIndex; i <= endIndex; i++) {
 			// We figure out the amount to adjust each item in this slightly non-intuitive way so that the adjustment is split up as fairly as possible. Figuring out a ratio up front and applying it to all items uniformly can end up with a large amount left over because of rounding.
@@ -162,7 +193,7 @@ cam.BlobItemContainerReact = React.createClass({
 			var ratio = width / originalWidth;
 			var height = Math.round(this.props.thumbnailSize * ratio);
 
-			rowProps.push({
+			this.childProps_.push({
 				key: item.blobref,
 				blobref: item.blobref,
 				checked: Boolean(this.props.selection[item.blobref]),
@@ -179,15 +210,19 @@ cam.BlobItemContainerReact = React.createClass({
 			rowHeight = Math.min(rowHeight, height);
 		}
 
-		for (var i = 0; i < rowProps.length; i++) {
-			rowProps[i].size.height = rowHeight;
-			children.push(cam.BlobItemReact(rowProps[i]));
+		for (var i = startIndex; i <= endIndex; i++) {
+			this.childProps_[i].size.height = rowHeight;
 		}
 
 		return rowHeight;
 	},
 
+	isVisible_: function(y) {
+		return y >= this.state.scroll && y < (this.state.scroll + this.props.style.height);
+	},
+
 	handleSearchSessionChanged_: function() {
+		this.updateChildProps_();
 		this.forceUpdate();
 	},
 
@@ -226,10 +261,22 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleScroll_: function() {
+		if (!this.isMounted()) {
+			return;
+		}
+
 		var scroll = this.getDOMNode().scrollTop;
 		this.props.history.replaceState({scroll:scroll});
+		this.setState({scroll:scroll});
+		this.fillVisibleAreaWithResults_();
+	},
 
-		if ((this.layoutHeight_ - scroll - this.props.style.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
+	fillVisibleAreaWithResults_: function() {
+		if (!this.isMounted()) {
+			return;
+		}
+
+		if ((this.layoutHeight_ - this.getDOMNode().scrollTop - this.props.style.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
 			return;
 		}
 
