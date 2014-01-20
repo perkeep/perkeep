@@ -1,3 +1,17 @@
+// Copyright 2013 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package id3
 
 import (
@@ -55,12 +69,12 @@ func (t *Id3v23Tag) Genre() string {
 }
 
 func (t *Id3v23Tag) Year() time.Time {
-	yearStr := getSimpleId3v23TextFrame(t.Frames["TDRC"])
-	if len(yearStr) < 4 {
+	yearStr := getSimpleId3v23TextFrame(t.Frames["TYER"])
+	if len(yearStr) != 4 {
 		return time.Time{}
 	}
 
-	yearInt, err := strconv.Atoi(yearStr[0:4])
+	yearInt, err := strconv.Atoi(yearStr)
 	if err != nil {
 		return time.Time{}
 	}
@@ -74,6 +88,31 @@ func (t *Id3v23Tag) Track() uint32 {
 		return 0
 	}
 	return uint32(track)
+}
+
+func (t *Id3v23Tag) Disc() uint32 {
+	disc, err := parseLeadingInt(getSimpleId3v23TextFrame(t.Frames["TPOS"]))
+	if err != nil {
+		return 0
+	}
+	return uint32(disc)
+}
+
+func (t *Id3v23Tag) CustomFrames() map[string]string {
+	info := make(map[string]string)
+	for _, frame := range t.Frames["TXXX"] {
+		// See http://id3.org/id3v2.3.0#User_defined_text_information_frame.
+		// TXXX frames contain NUL-separated descriptions and values.
+		parts, err := GetId3v23TextIdentificationFrame(frame)
+		if err == nil && len(parts) == 2 {
+			info[parts[0]] = parts[1]
+		}
+	}
+	return info
+}
+
+func (t *Id3v23Tag) TagSize() uint32 {
+	return 10 + t.Header.Size
 }
 
 type Id3v23Header struct {
