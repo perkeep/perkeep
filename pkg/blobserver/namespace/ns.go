@@ -23,18 +23,24 @@ limitations under the License.
 package namespace
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"strconv"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/strutil"
 )
 
 type nsto struct {
 	inventory sorted.KeyValue
 	master    blobserver.Storage
-
-	blobserver.NoImplStorage // TODO(bradfitz): remove this and finish implementing
 }
 
 func init() {
@@ -57,4 +63,108 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 		return nil, fmt.Errorf("Invalid 'storage' configuration: %v", err)
 	}
 	return sto, nil
+}
+
+func (ns *nsto) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+	defer close(dest)
+	done := ctx.Done()
+
+	it := ns.inventory.Find(after, "")
+	first := true
+	for limit > 0 && it.Next() {
+		if first {
+			first = false
+			if after != "" && it.Key() == after {
+				continue
+			}
+		}
+		br, ok := blob.ParseBytes(it.KeyBytes())
+		size, err := strutil.ParseUintBytes(it.ValueBytes(), 10, 32)
+		if !ok || err != nil {
+			log.Printf("Bogus namespace key %q / value %q", it.Key(), it.Value())
+			continue
+		}
+		select {
+		case dest <- blob.SizedRef{br, int64(size)}:
+		case <-done:
+			return context.ErrCanceled
+		}
+		limit--
+	}
+	if err := it.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size int64, err error) {
+	invSizeStr, err := ns.inventory.Get(br.String())
+	if err == sorted.ErrNotFound {
+		err = os.ErrNotExist
+		return
+	}
+	if err != nil {
+		return
+	}
+	invSize, err := strconv.ParseUint(invSizeStr, 10, 32)
+	if err != nil {
+		return
+	}
+	rc, size, err = ns.master.FetchStreaming(br)
+	if err != nil {
+		return
+	}
+	if size != int64(invSize) {
+		log.Printf("namespace: on blob %v, unexpected inventory size %d for master size %d", br, invSize, size)
+		return nil, 0, os.ErrNotExist
+	}
+	return rc, size, nil
+}
+
+func (ns *nsto) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+	var buf bytes.Buffer
+	size, err := io.Copy(&buf, src)
+	if err != nil {
+		return
+	}
+
+	// Check if a duplicate blob, already uploaded previously.
+	if _, ierr := ns.inventory.Get(br.String()); ierr == nil {
+		return blob.SizedRef{br, size}, nil
+	}
+
+	sb, err = ns.master.ReceiveBlob(br, &buf)
+	if err != nil {
+		return
+	}
+
+	err = ns.inventory.Set(br.String(), strconv.Itoa(int(size)))
+	return
+}
+
+func (ns *nsto) RemoveBlobs(blobs []blob.Ref) error {
+	for _, br := range blobs {
+		if err := ns.inventory.Delete(br.String()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (ns *nsto) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+	for _, br := range blobs {
+		invSizeStr, err := ns.inventory.Get(br.String())
+		if err == sorted.ErrNotFound {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		invSize, err := strconv.ParseUint(invSizeStr, 10, 32)
+		if err != nil {
+			log.Printf("Bogus namespace key %q / value %q", br.String(), invSizeStr)
+		}
+		dest <- blob.SizedRef{br, int64(invSize)}
+	}
+	return nil
 }
