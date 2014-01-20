@@ -66,6 +66,23 @@ type replicaStorage struct {
 	minWritesForSuccess int
 }
 
+// NewForTest returns a replicated storage that writes, reads, and
+// deletes from all the provided storages.
+func NewForTest(sto []blobserver.Storage) blobserver.Storage {
+	sto = append([]blobserver.Storage(nil), sto...) // clone
+	names := make([]string, len(sto))
+	for i := range names {
+		names[i] = "/unknown-prefix/"
+	}
+	return &replicaStorage{
+		replicaPrefixes:     names,
+		replicas:            sto,
+		readPrefixes:        names,
+		readReplicas:        sto,
+		minWritesForSuccess: len(sto),
+	}
+}
+
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
 	sto := &replicaStorage{
 		replicaPrefixes: config.RequiredList("backends"),

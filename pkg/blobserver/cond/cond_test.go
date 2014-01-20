@@ -21,17 +21,18 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/replica"
+	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
 )
 
-func newCond(t *testing.T, config jsonconfig.Obj) (*condStorage, *test.Loader) {
-	ld := test.NewLoader()
+func newCond(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *condStorage {
 	sto, err := newFromConfig(ld, config)
 	if err != nil {
 		t.Fatalf("Invalid config: %v", err)
 	}
-	return sto.(*condStorage), ld
+	return sto.(*condStorage)
 }
 
 func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
@@ -49,8 +50,28 @@ func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.Sized
 	return sb
 }
 
+func TestStorageTest(t *testing.T) {
+	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
+		ld := test.NewLoader()
+		s1, _ := ld.GetStorage("/good-schema/")
+		s2, _ := ld.GetStorage("/good-other/")
+		ld.SetStorage("/replica-all/", replica.NewForTest([]blobserver.Storage{s1, s2}))
+		sto := newCond(t, ld, map[string]interface{}{
+			"write": map[string]interface{}{
+				"if":   "isSchema",
+				"then": "/good-schema/",
+				"else": "/good-other/",
+			},
+			"read":   "/replica-all/",
+			"remove": "/replica-all/",
+		})
+		return sto, func() {}
+	})
+}
+
 func TestReceiveIsSchema(t *testing.T) {
-	sto, ld := newCond(t, map[string]interface{}{
+	ld := test.NewLoader()
+	sto := newCond(t, ld, map[string]interface{}{
 		"write": map[string]interface{}{
 			"if":   "isSchema",
 			"then": "/good-schema/",

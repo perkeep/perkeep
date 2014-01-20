@@ -145,7 +145,7 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 
 	t.Logf("Testing Remove")
 	if err := sto.RemoveBlobs(blobRefs); err != nil {
-		if strings.Index(err.Error(), "not implemented") >= 0 {
+		if strings.Contains(err.Error(), "not implemented") {
 			t.Logf("RemoveBlob %s: %v", b1, err)
 		} else {
 			t.Fatalf("RemoveBlob %s: %v", b1, err)

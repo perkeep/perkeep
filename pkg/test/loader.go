@@ -55,6 +55,15 @@ func (ld *Loader) GetHandler(prefix string) (interface{}, error) {
 	return nil, errors.New("doesn't exist")
 }
 
+func (ld *Loader) SetStorage(prefix string, s blobserver.Storage) {
+	ld.mu.Lock()
+	defer ld.mu.Unlock()
+	if ld.sto == nil {
+		ld.sto = make(map[string]blobserver.Storage)
+	}
+	ld.sto[prefix] = s
+}
+
 func (ld *Loader) GetStorage(prefix string) (blobserver.Storage, error) {
 	ld.mu.Lock()
 	defer ld.mu.Unlock()
