@@ -447,6 +447,8 @@ func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm *mutationMap) {
 		trackStr = fmt.Sprintf("%d", tag.Track())
 	}
 
+	// Note: if you add to this map, please update
+	// pkg/search/query.go's MediaTagConstraint Tag docs.
 	tags := map[string]string{
 		"title":  tag.Title(),
 		"artist": tag.Artist(),

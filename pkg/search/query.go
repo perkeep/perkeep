@@ -329,6 +329,18 @@ type FileConstraint struct {
 	Height   *IntConstraint      `json:"height,omitempty"`
 	WHRatio  *FloatConstraint    `json:"widthHeightRation,omitempty"`
 	Location *LocationConstraint `json:"location,omitempty"`
+
+	// MediaTag is for ID3 (and similar) embedded metadata in files.
+	MediaTag *MediaTagConstraint `json:"mediaTag,omitempty"`
+}
+
+type MediaTagConstraint struct {
+	// Tag is the tag to match.
+	// For ID3, this includes: title, artist, album, genre, year, track.
+	Tag string `json:"tag"`
+
+	String *StringConstraint `json:"string,omitempty"`
+	Int    *IntConstraint    `json:"int,omitempty"`
 }
 
 type DirConstraint struct {
@@ -1251,6 +1263,24 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		if ok && c.Location.Any {
 			// Pass.
 		} else if !ok || !c.Location.matchesLatLong(lat, long) {
+			return false, nil
+		}
+	}
+	if mt := c.MediaTag; mt != nil {
+		if corpus == nil {
+			return false, nil
+		}
+		mediaTags := corpus.MediaTagLocked(br)
+		var tagValue string
+		if mediaTags != nil && mt.Tag != "" {
+			tagValue = mediaTags[mt.Tag]
+		}
+		if mt.Int != nil {
+			if i, err := strconv.ParseInt(tagValue, 10, 64); err != nil || !mt.Int.intMatches(i) {
+				return false, nil
+			}
+		}
+		if mt.String != nil && !mt.String.stringMatches(tagValue) {
 			return false, nil
 		}
 	}
