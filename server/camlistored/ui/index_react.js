@@ -69,7 +69,6 @@ cam.IndexPageReact = React.createClass({
 
 		var newURL = new goog.Uri(this.props.location.href);
 		this.baseURL_ = newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
-		this.baseURL_.setParameterValue('react', '1');
 
 		this.navigator_ = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history, true);
 		this.navigator_.onNavigate = this.handleNavigate_;
@@ -353,7 +352,7 @@ cam.IndexPageReact = React.createClass({
 	inSearchMode_: function() {
 		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
 		var query = this.state.currentURL.getQueryData();
-		return (query.getCount() == 1 && query.containsKey('react')) || (query.getCount() == 2 && query.containsKey('react') && query.containsKey('q'));
+		return query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
 	},
 
 	inDetailMode_: function() {

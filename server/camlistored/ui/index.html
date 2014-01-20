@@ -45,7 +45,7 @@ limitations under the License.
 	</head>
 	<body class='cam-index-page'>
 		<script>
-			var isReact = new goog.Uri(location.href).getParameterValue('react') == '1';
+			var isReact = new goog.Uri(location.href).getParameterValue('react') !== '0';
 			if (isReact) {
 				var lastWidth = -1;
 				var lastHeight = -1;

@@ -333,7 +333,7 @@ cam.IndexPage.prototype.handleURL_ = function(newURL) {
 	}
 
 	// This is super finicky. We should improve the URL scheme and give things that are different different paths.
-	var query = newURL.getQueryData();
+	var query = newURL.clone().removeParameter('react').getQueryData();
 	this.inSearchMode_ = query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
 	this.inDetailMode_ = query.containsKey('p') && query.get('newui') == '1';
 
