@@ -358,10 +358,13 @@ func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 }
 
 func (c *Client) initSignerPublicKeyBlobref() {
-	configOnce.Do(parseConfig)
-	keyId := config.Identity
+	keyId := os.Getenv("CAMLI_CLIENT_IDENTITY")
 	if keyId == "" {
-		log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"camput init\"?", osutil.UserClientConfigPath())
+		configOnce.Do(parseConfig)
+		keyId = config.Identity
+		if keyId == "" {
+			log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"camput init\"?", osutil.UserClientConfigPath())
+		}
 	}
 	keyRing := c.SecretRingFile()
 	if !fileExists(keyRing) {

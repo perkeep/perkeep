@@ -176,8 +176,8 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			"CAMLI_CONFIG_DIR=" + clientConfigDir,
 			// Respected by env expansions in config/dev-client-dir/client-config.json:
 			"CAMLI_SERVER=" + w.ServerBaseURL(),
-			"CAMLI_SECRET_RING=" + filepath.Join(w.camRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg"),
-			"CAMLI_KEYID=26F5ABDA",
+			"CAMLI_SECRET_RING=" + w.SecretRingFile(),
+			"CAMLI_KEYID=" + w.ClientIdentity(),
 			"CAMLI_AUTH=userpass:testuser:passTestWorld",
 		}, env...)
 	default:
@@ -239,4 +239,16 @@ func MustRunCmd(t *testing.T, c *exec.Cmd) string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// ClientIdentity returns the GPG identity to use in World tests, suitable
+// for setting in CAMLI_CLIENT_IDENTITY.
+func (w *World) ClientIdentity() string {
+	return "26F5ABDA"
+}
+
+// SecretRingFile returns the GnuPG secret ring, suitable for setting
+// in CAMLI_SECRET_RING.
+func (w *World) SecretRingFile() string {
+	return filepath.Join(w.camRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 }
