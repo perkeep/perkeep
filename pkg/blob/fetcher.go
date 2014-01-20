@@ -28,7 +28,6 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types"
 )
 
@@ -108,10 +107,6 @@ func NewSerialStreamingFetcher(fetchers ...StreamingFetcher) StreamingFetcher {
 
 func NewSimpleDirectoryFetcher(dir string) *DirFetcher {
 	return &DirFetcher{dir, "camli"}
-}
-
-func NewConfigDirFetcher() *DirFetcher {
-	return NewSimpleDirectoryFetcher(osutil.KeyBlobsDir())
 }
 
 type serialFetcher struct {

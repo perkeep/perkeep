@@ -20,7 +20,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -377,27 +376,7 @@ func (c *Client) initSignerPublicKeyBlobref() {
 		log.Fatalf("Error serializing public key: %v", err)
 	}
 
-	// TODO(mpl): completely get rid of it if possible
-	// http://camlistore.org/issue/377
-	selfPubKeyDir := osutil.KeyBlobsDir()
-	fi, err := os.Stat(selfPubKeyDir)
-	if err != nil || !fi.IsDir() {
-		log.Fatalf("selfPubKeyDir as %q doesn't exist or not a directory", selfPubKeyDir)
-	}
-
-	br := blob.SHA1FromString(armored)
-	pubFile := filepath.Join(selfPubKeyDir, br.String()+".camli")
-	fi, err = os.Stat(pubFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatalf("Could not stat %q: %v", pubFile, err)
-		}
-		err = ioutil.WriteFile(pubFile, []byte(armored), 0644)
-		if err != nil {
-			log.Fatalf("Error writing public key to %q: %v", pubFile, err)
-		}
-	}
-	c.signerPublicKeyRef = br
+	c.signerPublicKeyRef = blob.SHA1FromString(armored)
 	c.publicKeyArmored = armored
 }
 

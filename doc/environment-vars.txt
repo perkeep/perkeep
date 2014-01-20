@@ -60,10 +60,6 @@ CAMLI_DEV_CLOSURE_DIR (string):
   Path override for pkg/server. If specified, this path will be used to serve
   the closure handler.
 
-CAMLI_DEV_KEYBLOBS (string):
-  Path to keyblobs directory.
-  Used by pkg/client to override 'selfPubKeyDir' value in configuration files.
-
 CAMLI_HTTP_DEBUG (bool):
   Enable per-request logging in pkg/webserver.
 

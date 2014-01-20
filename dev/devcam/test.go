@@ -68,9 +68,6 @@ func (c *testCmd) RunCommand(args []string) error {
 	if err := c.buildSelf(); err != nil {
 		return err
 	}
-	if err := c.genKeyBlob(); err != nil {
-		return err
-	}
 	if err := c.runTests(); err != nil {
 		return err
 	}
@@ -117,26 +114,6 @@ func (c *testCmd) buildSelf() error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Error building devcam: %v", err)
-	}
-	return nil
-}
-
-func (c *testCmd) genKeyBlob() error {
-	cmdBin := filepath.FromSlash("./bin/devcam")
-	args := []string{
-		"put",
-		"init",
-		"--gpgkey=" + defaultIdentity,
-		"--noconfig",
-	}
-	cmd := exec.Command(cmdBin, args...)
-	env := c.env()
-	env.Set("CAMLI_SECRET_RING", filepath.FromSlash(defaultSecring))
-	cmd.Env = env.Flat()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Error generating keyblobs: %v", err)
 	}
 	return nil
 }

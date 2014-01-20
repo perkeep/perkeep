@@ -21,11 +21,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"path"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
@@ -128,11 +126,6 @@ func (c *initCmd) RunCommand(args []string) error {
 		log.Fatal("--newkey and --gpgkey are mutually exclusive")
 	}
 
-	blobDir := osutil.KeyBlobsDir()
-	if err := os.MkdirAll(blobDir, 0700); err != nil {
-		return err
-	}
-
 	var keyId string
 	var err error
 	secRing := osutil.IdentitySecretRing()
@@ -154,15 +147,6 @@ func (c *initCmd) RunCommand(args []string) error {
 	}
 
 	bref := blob.SHA1FromString(string(pubArmor))
-
-	keyBlobPath := path.Join(blobDir, bref.String()+".camli")
-	if err = ioutil.WriteFile(keyBlobPath, pubArmor, 0644); err != nil {
-		log.Fatalf("Error writing public key blob to %q: %v", keyBlobPath, err)
-	}
-
-	if ok, err := jsonsign.VerifyPublicKeyFile(keyBlobPath, keyId); !ok {
-		log.Fatalf("Error verifying public key at %q: %v", keyBlobPath, err)
-	}
 
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
 

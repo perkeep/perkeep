@@ -89,7 +89,6 @@ func NewCopyEnv() *Env {
 func (e *Env) SetCamdevVars(altkey bool) {
 	e.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
 	e.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
-	e.Set("CAMLI_DEV_KEYBLOBS", filepath.FromSlash("config/dev-client-dir/keyblobs"))
 
 	secring := defaultSecring
 	identity := defaultIdentity

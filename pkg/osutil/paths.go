@@ -128,16 +128,6 @@ func IdentitySecretRing() string {
 	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
 }
 
-// KeyBlobsDir returns the path to the directory containing
-// the blob(s) for the public gpg key(s). It is overriden by
-// the CAMLI_DEV_KEYBLOBS environment variable.
-func KeyBlobsDir() string {
-	if e := os.Getenv("CAMLI_DEV_KEYBLOBS"); e != "" {
-		return e
-	}
-	return filepath.Join(CamliConfigDir(), "keyblobs")
-}
-
 // DefaultTLSCert returns the path to the default TLS certificate
 // file that is used (creating if necessary) when TLS is specified
 // without the cert file.

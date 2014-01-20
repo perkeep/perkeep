@@ -178,7 +178,6 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			"CAMLI_SERVER=" + w.ServerBaseURL(),
 			"CAMLI_SECRET_RING=" + filepath.Join(w.camRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg"),
 			"CAMLI_KEYID=26F5ABDA",
-			"CAMLI_DEV_KEYBLOBS=" + filepath.Join(clientConfigDir, "keyblobs"),
 			"CAMLI_AUTH=userpass:testuser:passTestWorld",
 		}, env...)
 	default:
