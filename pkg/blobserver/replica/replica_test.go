@@ -21,6 +21,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
 )
@@ -90,4 +91,13 @@ func TestReceiveOneGoodOneFail(t *testing.T) {
 			t.Errorf("Replica %s got %+v; want %+v", sto.replicaPrefixes[i], got, sb)
 		}
 	}
+}
+
+func TestReplica(t *testing.T) {
+	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+		sto = newReplica(t, map[string]interface{}{
+			"backends": []interface{}{"/good-1/", "/good-2/"},
+		})
+		return sto, func() {}
+	})
 }

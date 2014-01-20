@@ -231,7 +231,7 @@ func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 	}
 	var reterr error
 	nSuccess := 0
-	for _ = range errch {
+	for _ = range sto.replicas {
 		if err := <-errch; err != nil {
 			reterr = err
 		} else {
