@@ -17,6 +17,7 @@ limitations under the License.
 goog.provide('cam.BlobItemContainerReact');
 
 goog.require('goog.array');
+goog.require('goog.async.Throttle');
 goog.require('goog.dom');
 goog.require('goog.events.EventHandler');
 goog.require('goog.object');
@@ -66,6 +67,9 @@ cam.BlobItemContainerReact = React.createClass({
 		this.childProps_ = null;
 		this.lastSize_ = new goog.math.Size(this.props.style.width, this.props.style.height);
 
+		// TODO(aa): This can be removed when https://code.google.com/p/chromium/issues/detail?id=50298 is fixed and deployed.
+		this.updateHistoryThrottle_ = new goog.async.Throttle(this.updateHistory_, 2000);
+
 		this.updateChildProps_();
 	},
 
@@ -94,6 +98,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 	componentWillUnmount: function() {
 		this.eh_.dispose();
+		this.updateHistoryThrottle_.dispose();
 	},
 
 	getInitialState: function() {
@@ -265,10 +270,14 @@ cam.BlobItemContainerReact = React.createClass({
 			return;
 		}
 
-		var scroll = this.getDOMNode().scrollTop;
-		this.props.history.replaceState({scroll:scroll});
-		this.setState({scroll:scroll});
+		this.updateHistoryThrottle_.fire();
+		this.setState({scroll:this.getDOMNode().scrollTop});
 		this.fillVisibleAreaWithResults_();
+	},
+
+	// NOTE: This method causes the URL bar to throb for a split second (at least on Chrome), so it should not be called constantly.
+	updateHistory_: function() {
+		this.props.history.replaceState({scroll:this.getDOMNode().scrollTop});
 	},
 
 	fillVisibleAreaWithResults_: function() {
