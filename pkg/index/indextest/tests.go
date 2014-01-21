@@ -404,6 +404,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		{"genre", "(20)Alternative"},
 		{"year", "1992"},
 		{"track", "1"},
+		{"disc", "2"},
+		{"mediaref", "sha1-fefac74a1d5928316d7131747107c8a61b71ffe4"},
 	}
 	for _, tt := range mediaTests {
 		key = fmt.Sprintf("mediatag|%s|%s", mediaWholeRef.String(), tt.prop)
