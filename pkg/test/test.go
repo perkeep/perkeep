@@ -61,6 +61,10 @@ func TLog(t TB) func() {
 	}
 }
 
+// TODO: This is unnecessarily complicated. I previously missed that
+// the log package actually guarantees a 1:1 relationship between log
+// method calls and Write calls:
+// "Each logging operation makes a single call to the Writer's Write method"
 type twriter struct {
 	t   TB
 	buf bytes.Buffer
