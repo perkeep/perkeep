@@ -317,16 +317,17 @@ var (
 		},
 	}
 
-	// Audio attributes (e.g., ID3 tags). Uses generic terms like
+	// Media attributes (e.g. ID3 tags). Uses generic terms like
 	// "artist", "title", "album", etc.
-	keyAudioTag = &keyType{
-		"audiotag",
+	keyMediaTag = &keyType{
+		"mediatag",
 		[]part{
-			{"tag", typeStr},
-			{"value", typeStr},
 			{"wholeRef", typeBlobRef}, // wholeRef for song
+			{"tag", typeStr},
 		},
-		nil,
+		[]part{
+			{"value", typeStr},
+		},
 	}
 
 	// EXIF tags

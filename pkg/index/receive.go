@@ -460,7 +460,7 @@ func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm *mutationMap) {
 
 	for tag, value := range tags {
 		if value != "" {
-			mm.Set(keyAudioTag.Key(tag, strings.ToLower(value), wholeRef), "1")
+			mm.Set(keyMediaTag.Key(wholeRef, tag), keyMediaTag.Val(value))
 		}
 	}
 }

@@ -186,7 +186,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"exifgps":         (*Corpus).mergeEXIFGPSRow,
 	"exiftag":         nil, // not using any for now
 	"signerattrvalue": nil, // ignoring for now
-	"audiotag":        (*Corpus).mergeAudioTag,
+	"mediatag":        (*Corpus).mergeMediaTag,
 }
 
 func memstats() *runtime.MemStats {
@@ -207,7 +207,7 @@ var slurpPrefixes = []string{
 	"imagesize|",
 	"wholetofile|",
 	"exifgps|",
-	"audiotag|",
+	"mediatag|",
 }
 
 // Key types (without trailing punctuation) that we slurp to memory at start.
@@ -490,22 +490,22 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 	return nil
 }
 
-// "audiotag|album|some+album+name|sha1-2b219be9d9691b4f8090e7ee2690098097f59566" = "1"
-func (c *Corpus) mergeAudioTag(k, v []byte) error {
+// "mediatag|sha1-2b219be9d9691b4f8090e7ee2690098097f59566|album" = "Some+Album+Name"
+func (c *Corpus) mergeMediaTag(k, v []byte) error {
 	f := strings.Split(string(k), "|")
-	if len(f) != 4 {
+	if len(f) != 3 {
 		return fmt.Errorf("unexpected key %q", k)
 	}
-	wholeRef, ok := blob.Parse(f[3])
+	wholeRef, ok := blob.Parse(f[1])
 	if !ok {
-		return fmt.Errorf("unexpected key %q", k)
+		return fmt.Errorf("failed to parse wholeref from key %q", k)
 	}
 	tm, ok := c.mediaTag[wholeRef]
 	if !ok {
 		tm = make(map[string]string)
 		c.mediaTag[wholeRef] = tm
 	}
-	tm[c.str(f[1])] = c.str(urld(f[2]))
+	tm[c.str(f[2])] = c.str(urld(string(v)))
 	return nil
 }
 

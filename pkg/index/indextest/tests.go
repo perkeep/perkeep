@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -319,31 +320,31 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	// Upload a basic image.
-	var jpegFileRef blob.Ref
-	var exifFileRef blob.Ref
+	// Upload some files.
+	var jpegFileRef, exifFileRef, mediaFileRef, mediaWholeRef blob.Ref
 	{
 		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
 		if err != nil {
 			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
 		}
-		uploadFile := func(file string, modTime time.Time) blob.Ref {
+		uploadFile := func(file string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
 			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
 			contents, err := ioutil.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
 			}
-			br, _ := id.UploadFile(file, string(contents), modTime)
-			return br
+			fileRef, wholeRef = id.UploadFile(file, string(contents), modTime)
+			return
 		}
-		jpegFileRef = uploadFile("dude.jpg", noTime)
-		exifFileRef = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
+		jpegFileRef, _ = uploadFile("dude.jpg", noTime)
+		exifFileRef, _ = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
+		mediaFileRef, mediaWholeRef = uploadFile("0s.mp3", noTime)
 	}
 
-	// Upload the dir containing the two previous images
+	// Upload the dir containing the previous files.
 	imagesDirRef := id.UploadDir(
 		"testdata",
-		[]blob.Ref{jpegFileRef, exifFileRef},
+		[]blob.Ref{jpegFileRef, exifFileRef, mediaFileRef},
 		time.Now(),
 	)
 
@@ -392,6 +393,23 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = fmt.Sprintf("edgeback|%s|%s|%s", pnChild, pn, memberRef)
 	if g, e := id.Get(key), "permanode|"; g != e {
 		t.Fatalf("edgeback row %q = %q, want %q", key, g, e)
+	}
+
+	mediaTests := []struct {
+		prop, exp string
+	}{
+		{"title", "Zero Seconds"},
+		{"artist", "Test Artist"},
+		{"album", "Test Album"},
+		{"genre", "(20)Alternative"},
+		{"year", "1992"},
+		{"track", "1"},
+	}
+	for _, tt := range mediaTests {
+		key = fmt.Sprintf("mediatag|%s|%s", mediaWholeRef.String(), tt.prop)
+		if g, _ := url.QueryUnescape(id.Get(key)); g != tt.exp {
+			t.Errorf("0s.mp3 key %q = %q; want %q", key, g, tt.exp)
+		}
 	}
 
 	// PermanodeOfSignerAttrValue
@@ -554,7 +572,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		for r := range ch {
 			got = append(got, r)
 		}
-		want := []blob.Ref{jpegFileRef, exifFileRef}
+		want := []blob.Ref{jpegFileRef, exifFileRef, mediaFileRef}
 		if len(got) != len(want) {
 			t.Errorf("GetDirMembers results differ.\n got: %v\nwant: %v",
 				got, want)
