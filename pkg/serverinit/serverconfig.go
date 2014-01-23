@@ -25,10 +25,12 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime"
 	rpprof "runtime/pprof"
 	"strconv"
@@ -41,6 +43,7 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/types/serverconfig"
 )
 
 const camliPrefix = "/camli/"
@@ -371,6 +374,16 @@ type Config struct {
 	configPath string // Filesystem path
 }
 
+// detectConfigChange returns an informative error if conf contains obsolete keys.
+func detectConfigChange(conf jsonconfig.Obj) error {
+	oldHTTPSKey, oldHTTPSCert := conf.OptionalString("HTTPSKeyFile", ""), conf.OptionalString("HTTPSCertFile", "")
+	if oldHTTPSKey != "" || oldHTTPSCert != "" {
+		return fmt.Errorf("Config keys %q and %q have respectively been renamed to %q and %q, please fix your server config.",
+			"HTTPSKeyFile", "HTTPSCertFile", "httpsKey", "httpsCert")
+	}
+	return nil
+}
+
 // Load returns a low-level "handler config" from the provided filename.
 // If the config file doesn't contain a top-level JSON key of "handlerConfig"
 // with boolean value true, the configuration is assumed to be a high-level
@@ -385,18 +398,38 @@ func Load(filename string) (*Config, error) {
 		configPath: filename,
 	}
 
-	if lowLevel := obj.OptionalBool("handlerConfig", false); !lowLevel {
-		conf, err = genLowLevelConfig(conf)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"Failed to transform user config file %q into internal handler configuration: %v",
-				filename, err)
-		}
-		if v, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG_CONFIG")); v {
-			jsconf, _ := json.MarshalIndent(conf.Obj, "", "  ")
-			log.Printf("From high-level config, generated low-level config: %s", jsconf)
-		}
+	if lowLevel := obj.OptionalBool("handlerConfig", false); lowLevel {
+		return conf, nil
 	}
+
+	if err := detectConfigChange(obj); err != nil {
+		return nil, err
+	}
+
+	absConfigPath, err := filepath.Abs(filename)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to expand absolute path for %s: %v", filename, err)
+	}
+	b, err := ioutil.ReadFile(absConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("Could not read %s: %v", absConfigPath, err)
+	}
+	var hiLevelConf serverconfig.Config
+	if err := json.Unmarshal(b, &hiLevelConf); err != nil {
+		return nil, fmt.Errorf("Could not unmarshal %s into a serverconfig.Config: %v", absConfigPath, err)
+	}
+
+	conf, err = genLowLevelConfig(&hiLevelConf)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"Failed to transform user config file %q into internal handler configuration: %v",
+			filename, err)
+	}
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG_CONFIG")); v {
+		jsconf, _ := json.MarshalIndent(conf.Obj, "", "  ")
+		log.Printf("From high-level config, generated low-level config: %s", jsconf)
+	}
+	conf.configPath = absConfigPath
 
 	return conf, nil
 }

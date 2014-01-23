@@ -33,12 +33,13 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types/serverconfig"
 )
 
 var updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
 
 const (
-	// relativeRing points to a real secret ring, but serverconfig
+	// relativeRing points to a real secret ring, but serverinit
 	// rewrites it to be an absolute path.  We then canonicalize
 	// it to secringPlaceholder in the golden files.
 	relativeRing       = "../jsonsign/testdata/test-secring.gpg"
@@ -94,30 +95,33 @@ type namedReadSeeker struct {
 func (n namedReadSeeker) Name() string { return n.name }
 func (n namedReadSeeker) Close() error { return nil }
 
+// configParser returns a custom jsonconfig ConfigParser whose reader rewrites "/path/to/secring" to the absolute path of the jsonconfig test-secring.gpg file.
 func configParser() *jsonconfig.ConfigParser {
-	// Make a custom jsonconfig ConfigParser whose reader rewrites "/path/to/secring" to the absolute
-	// path of the jsonconfig test-secring.gpg file.
-	secRing, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
-	if err != nil {
-		panic(err)
-	}
 	return &jsonconfig.ConfigParser{
 		Open: func(path string) (jsonconfig.File, error) {
-			slurpBytes, err := ioutil.ReadFile(path)
+			slurp, err := replaceRingPath(path)
 			if err != nil {
 				return nil, err
 			}
-			slurp := strings.Replace(string(slurpBytes), secringPlaceholder, secRing, 1)
-			return namedReadSeeker{path, strings.NewReader(slurp)}, nil
+			return namedReadSeeker{path, bytes.NewReader(slurp)}, nil
 		},
 	}
 }
 
-func testConfig(name string, t *testing.T) {
-	obj, err := configParser().ReadFile(name)
+// replaceRingPath returns the contents of the file at path with secringPlaceholder replaced with the absolute path of relativeRing.
+func replaceRingPath(path string) ([]byte, error) {
+	secRing, err := filepath.Abs(relativeRing)
 	if err != nil {
-		t.Fatal(err)
+		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
 	}
+	slurpBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Replace(slurpBytes, []byte(secringPlaceholder), []byte(secRing), 1), nil
+}
+
+func testConfig(name string, t *testing.T) {
 	wantedError := func() error {
 		slurp, err := ioutil.ReadFile(strings.Replace(name, ".json", ".err", 1))
 		if os.IsNotExist(err) {
@@ -128,7 +132,16 @@ func testConfig(name string, t *testing.T) {
 		}
 		return errors.New(string(slurp))
 	}
-	lowLevelConf, err := serverinit.GenLowLevelConfig(&serverinit.Config{Obj: obj})
+	b, err := replaceRingPath(name)
+	if err != nil {
+		t.Fatalf("Could not read %s: %v", name, err)
+	}
+	var hiLevelConf serverconfig.Config
+	if err := json.Unmarshal(b, &hiLevelConf); err != nil {
+		t.Fatalf("Could not unmarshal %s into a serverconfig.Config: %v", name, err)
+	}
+
+	lowLevelConf, err := serverinit.GenLowLevelConfig(&hiLevelConf)
 	if g, w := strings.TrimSpace(fmt.Sprint(err)), strings.TrimSpace(fmt.Sprint(wantedError())); g != w {
 		t.Fatalf("test %s: got GenLowLevelConfig error %q; want %q", name, g, w)
 	}
@@ -161,7 +174,7 @@ func testConfig(name string, t *testing.T) {
 }
 
 func canonicalizeGolden(t *testing.T, v []byte) []byte {
-	localPath, err := filepath.Abs("../jsonsign/testdata/test-secring.gpg")
+	localPath, err := filepath.Abs(relativeRing)
 	if err != nil {
 		t.Fatal(err)
 	}

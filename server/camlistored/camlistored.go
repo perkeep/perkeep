@@ -46,6 +46,7 @@ import (
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
+	"camlistore.org/pkg/types/serverconfig"
 	"camlistore.org/pkg/webserver"
 
 	// Storage options:
@@ -223,27 +224,12 @@ func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
 	return
 }
 
-type defaultConfigFile struct {
-	Listen             string        `json:"listen"`
-	HTTPS              bool          `json:"https"`
-	Auth               string        `json:"auth"`
-	Identity           string        `json:"identity"`
-	IdentitySecretRing string        `json:"identitySecretRing"`
-	KVFile             string        `json:"kvIndexFile"`
-	BlobPath           string        `json:"blobPath"`
-	MySQL              string        `json:"mysql"`
-	Mongo              string        `json:"mongo"`
-	Postgres           string        `json:"postgres"`
-	SQLite             string        `json:"sqlite"`
-	S3                 string        `json:"s3"`
-	ReplicateTo        []interface{} `json:"replicateTo"`
-	Publish            struct{}      `json:"publish"`
-}
-
 var defaultListenAddr = ":3179"
 
+// TODO(mpl): move this func to pkg/types/serverconfig as well.
+
 func newDefaultConfigFile(path string) error {
-	conf := defaultConfigFile{
+	conf := serverconfig.Config{
 		Listen:      defaultListenAddr,
 		HTTPS:       false,
 		Auth:        "localhost",
@@ -323,12 +309,12 @@ func initSQLiteDB(path string) error {
 }
 
 func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
-	cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
+	cert, key := config.OptionalString("httpsCert", ""), config.OptionalString("httpsKey", "")
 	if !config.OptionalBool("https", true) {
 		return
 	}
 	if (cert != "") != (key != "") {
-		exitf("TLSCertFile and TLSKeyFile must both be either present or absent")
+		exitf("httpsCert and httpsKey must both be either present or absent")
 	}
 
 	defCert := osutil.DefaultTLSCert()

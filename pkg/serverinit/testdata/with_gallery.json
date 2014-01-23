@@ -9,7 +9,7 @@
 	"s3": "",
 	"publish": {
 		"/pics/": {
-			"rootPermanode": "sha1-xxxxx",
+			"rootPermanode": "sha1-2790ec1ec6fd44b9620b21155c8738aa08d4e3a0",
 			"goTemplate": "gallery.html",
 			"js": "pics.js",
 			"style": "pics.css"

@@ -27,8 +27,8 @@ web browser and restart the server.</p>
 
 <li><b><code>https</code></b>: if "true", HTTPS is used
   <ul>
-    <li><b><code>HTTPSCertFile</code></b>: if using https</li>
-    <li><b><code>HTTPSKeyFile</code></b>: if using https</li>
+    <li><b><code>httpsCert</code></b>: path to the HTTPS certificate file. This is the public file. It should include the concatenation of any required intermediate certs as well.</li>
+    <li><b><code>httpsKey</code></b>: path to the HTTPS private key file.</li>
   </ul>
 </li>
 

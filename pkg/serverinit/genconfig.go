@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/types/serverconfig"
 )
 
 // various parameters derived from the high-level user config
@@ -50,36 +51,16 @@ var (
 )
 
 func addPublishedConfig(prefixes jsonconfig.Obj,
-	published jsonconfig.Obj,
+	published map[string]*serverconfig.Publish,
 	sourceRoot string) ([]interface{}, error) {
 	pubPrefixes := []interface{}{}
 	for k, v := range published {
-		p, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Wrong type for %s; was expecting map[string]interface{}, got %T", k, v)
-		}
 		rootName := strings.Replace(k, "/", "", -1) + "Root"
-		rootPermanode, goTemplate, style, js := "", "", "", ""
-		for pk, pv := range p {
-			val, ok := pv.(string)
-			if !ok {
-				return nil, fmt.Errorf("Was expecting type string for %s, got %T", pk, pv)
-			}
-			switch pk {
-			case "rootPermanode":
-				rootPermanode = val
-			case "goTemplate":
-				goTemplate = val
-			case "style":
-				style = val
-			case "js":
-				js = val
-			default:
-				return nil, fmt.Errorf("Unexpected key %q in config for %s", pk, k)
-			}
+		if !v.Root.Valid() {
+			return nil, fmt.Errorf("Invalid or missing \"rootPermanode\" key in configuration for %s.", k)
 		}
-		if rootPermanode == "" || goTemplate == "" {
-			return nil, fmt.Errorf("Missing key in configuration for %s, need \"rootPermanode\" and \"goTemplate\"", k)
+		if v.GoTemplate == "" {
+			return nil, fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
 		}
 		ob := map[string]interface{}{}
 		ob["handler"] = "publish"
@@ -88,17 +69,17 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 			"blobRoot":      "/bs-and-maybe-also-index/",
 			"searchRoot":    "/my-search/",
 			"cache":         "/cache/",
-			"rootPermanode": []interface{}{"/sighelper/", rootPermanode},
+			"rootPermanode": []interface{}{"/sighelper/", v.Root.String()},
 		}
 		if sourceRoot != "" {
 			handlerArgs["sourceRoot"] = sourceRoot
 		}
-		handlerArgs["goTemplate"] = goTemplate
-		if style != "" {
-			handlerArgs["css"] = []interface{}{style}
+		handlerArgs["goTemplate"] = v.GoTemplate
+		if v.Style != "" {
+			handlerArgs["css"] = []interface{}{v.Style}
 		}
-		if js != "" {
-			handlerArgs["js"] = []interface{}{js}
+		if v.Javascript != "" {
+			handlerArgs["js"] = []interface{}{v.Javascript}
 		}
 		// TODO(mpl): we'll probably want to use osutil.CacheDir() if thumbnails.kv
 		// contains private info? same for some of the other "camli-cache" ones?
@@ -529,75 +510,25 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 }
 
 // genLowLevelConfig returns a low-level config from a high-level config.
-func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
-	var (
-		baseURL    = conf.OptionalString("baseURL", "")
-		listen     = conf.OptionalString("listen", "")
-		auth       = conf.RequiredString("auth")
-		keyId      = conf.RequiredString("identity")
-		secretRing = conf.RequiredString("identitySecretRing")
-		tlsOn      = conf.OptionalBool("https", false)
-		tlsCert    = conf.OptionalString("HTTPSCertFile", "")
-		tlsKey     = conf.OptionalString("HTTPSKeyFile", "")
-
-		// Blob storage options
-		blobPath           = conf.OptionalString("blobPath", "")
-		packBlobs          = conf.OptionalBool("packBlobs", false)         // use diskpacked instead of the default filestorage
-		s3                 = conf.OptionalString("s3", "")                 // "access_key_id:secret_access_key:bucket[:hostname]"
-		googlecloudstorage = conf.OptionalString("googlecloudstorage", "") // "clientId:clientSecret:refreshToken:bucket"
-		googledrive        = conf.OptionalString("googledrive", "")        // "clientId:clientSecret:refreshToken:parentId"
-		// Enable the share handler. If true, and shareHandlerPath is empty,
-		// then shareHandlerPath defaults to "/share/".
-		shareHandler = conf.OptionalBool("shareHandler", false)
-		// URL prefix for the share handler. If set, overrides shareHandler.
-		shareHandlerPath = conf.OptionalString("shareHandlerPath", "")
-
-		// Index options
-		memoryIndex = conf.OptionalBool("memoryIndex", true) // copy disk-based index to memory on start-up
-		runIndex    = conf.OptionalBool("runIndex", true)    // if false: no search, no UI, etc.
-		dbname      = conf.OptionalString("dbname", "")      // for mysql, postgres, mongo
-		mysql       = conf.OptionalString("mysql", "")
-		postgres    = conf.OptionalString("postgres", "")
-		mongo       = conf.OptionalString("mongo", "")
-		sqliteFile  = conf.OptionalString("sqlite", "")
-		kvFile      = conf.OptionalString("kvIndexFile", "")
-
-		// Importer options
-		flickr = conf.OptionalString("flickr", "")
-
-		_       = conf.OptionalList("replicateTo")
-		publish = conf.OptionalObject("publish")
-		// alternative source tree, to override the embedded ui and/or closure resources.
-		// If non empty, the ui files will be expected at
-		// sourceRoot + "/server/camlistored/ui" and the closure library at
-		// sourceRoot + "/third_party/closure/lib"
-		// Also used by the publish handler.
-		sourceRoot = conf.OptionalString("sourceRoot", "")
-
-		ownerName = conf.OptionalString("ownerName", "")
-	)
-	if err := conf.Validate(); err != nil {
-		return nil, err
-	}
-
+func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err error) {
 	obj := jsonconfig.Obj{}
-	if tlsOn {
-		if (tlsCert != "") != (tlsKey != "") {
-			return nil, errors.New("Must set both TLSCertFile and TLSKeyFile (or neither to generate a self-signed cert)")
+	if conf.HTTPS {
+		if (conf.HTTPSCert != "") != (conf.HTTPSKey != "") {
+			return nil, errors.New("Must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")
 		}
-		if tlsCert != "" {
-			obj["TLSCertFile"] = tlsCert
-			obj["TLSKeyFile"] = tlsKey
+		if conf.HTTPSCert != "" {
+			obj["httpsCert"] = conf.HTTPSCert
+			obj["httpsKey"] = conf.HTTPSKey
 		} else {
-			obj["TLSCertFile"] = osutil.DefaultTLSCert()
-			obj["TLSKeyFile"] = osutil.DefaultTLSKey()
+			obj["httpsCert"] = osutil.DefaultTLSCert()
+			obj["httpsKey"] = osutil.DefaultTLSKey()
 		}
 	}
 
-	if baseURL != "" {
-		u, err := url.Parse(baseURL)
+	if conf.BaseURL != "" {
+		u, err := url.Parse(conf.BaseURL)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", baseURL, err)
+			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", conf.BaseURL, err)
 		}
 		if u.Path != "" && u.Path != "/" {
 			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port.")
@@ -605,23 +536,24 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		u.Path = ""
 		obj["baseURL"] = u.String()
 	}
-	if listen != "" {
-		obj["listen"] = listen
+	if conf.Listen != "" {
+		obj["listen"] = conf.Listen
 	}
-	obj["https"] = tlsOn
-	obj["auth"] = auth
+	obj["https"] = conf.HTTPS
+	obj["auth"] = conf.Auth
 
 	username := ""
-	if dbname == "" {
+	if conf.DBName == "" {
 		username = osutil.Username()
 		if username == "" {
 			return nil, fmt.Errorf("USER (USERNAME on windows) env var not set; needed to define dbname")
 		}
-		dbname = "camli" + username
+		conf.DBName = "camli" + username
 	}
 
 	var indexerPath string
-	numIndexers := numSet(mongo, mysql, postgres, sqliteFile, kvFile)
+	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile)
+	runIndex := conf.RunIndex.Get()
 	switch {
 	case runIndex && numIndexers == 0:
 		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite).")
@@ -629,19 +561,19 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite).")
 	case !runIndex && numIndexers != 0:
 		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
-	case mysql != "":
+	case conf.MySQL != "":
 		indexerPath = "/index-mysql/"
-	case postgres != "":
+	case conf.PostgreSQL != "":
 		indexerPath = "/index-postgres/"
-	case mongo != "":
+	case conf.Mongo != "":
 		indexerPath = "/index-mongo/"
-	case sqliteFile != "":
+	case conf.SQLite != "":
 		indexerPath = "/index-sqlite/"
-	case kvFile != "":
+	case conf.KVFile != "":
 		indexerPath = "/index-kv/"
 	}
 
-	entity, err := jsonsign.EntityFromSecring(keyId, secretRing)
+	entity, err := jsonsign.EntityFromSecring(conf.Identity, conf.IdentitySecretRing)
 	if err != nil {
 		return nil, err
 	}
@@ -650,33 +582,33 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		return nil, err
 	}
 
-	nolocaldisk := blobPath == ""
+	nolocaldisk := conf.BlobPath == ""
 	if nolocaldisk {
-		if s3 == "" && googlecloudstorage == "" {
+		if conf.S3 == "" && conf.GoogleCloudStorage == "" {
 			return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or googlecloudstorage configured for a blobserver.")
 		}
-		if s3 != "" && googlecloudstorage != "" {
+		if conf.S3 != "" && conf.GoogleCloudStorage != "" {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
 	}
 
-	if shareHandler && shareHandlerPath == "" {
-		shareHandlerPath = "/share/"
+	if conf.ShareHandler && conf.ShareHandlerPath == "" {
+		conf.ShareHandlerPath = "/share/"
 	}
 
 	prefixesParams := &configPrefixesParams{
-		secretRing:       secretRing,
-		keyId:            keyId,
+		secretRing:       conf.IdentitySecretRing,
+		keyId:            conf.Identity,
 		indexerPath:      indexerPath,
-		blobPath:         blobPath,
-		packBlobs:        packBlobs,
+		blobPath:         conf.BlobPath,
+		packBlobs:        conf.PackBlobs,
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
-		shareHandlerPath: shareHandlerPath,
-		flickr:           flickr,
-		memoryIndex:      memoryIndex,
+		shareHandlerPath: conf.ShareHandlerPath,
+		flickr:           conf.Flickr,
+		memoryIndex:      conf.MemoryIndex.Get(),
 	}
 
-	prefixes := genLowLevelPrefixes(prefixesParams, ownerName)
+	prefixes := genLowLevelPrefixes(prefixesParams, conf.OwnerName)
 	var cacheDir string
 	if nolocaldisk {
 		// Whether camlistored is run from EC2 or not, we use
@@ -685,7 +617,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 		// See http://code.google.com/p/camlistore/issues/detail?id=85
 		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
-		cacheDir = filepath.Join(blobPath, "cache")
+		cacheDir = filepath.Join(conf.BlobPath, "cache")
 	}
 	if !noMkdir {
 		if err := os.MkdirAll(cacheDir, 0700); err != nil {
@@ -694,47 +626,47 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	}
 
 	published := []interface{}{}
-	if len(publish) > 0 {
+	if len(conf.Publish) > 0 {
 		if !runIndex {
 			return nil, fmt.Errorf("publishing requires an index")
 		}
-		published, err = addPublishedConfig(prefixes, publish, sourceRoot)
+		published, err = addPublishedConfig(prefixes, conf.Publish, conf.SourceRoot)
 		if err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
 	}
 
 	if runIndex {
-		addUIConfig(prefixesParams, prefixes, "/ui/", published, sourceRoot)
+		addUIConfig(prefixesParams, prefixes, "/ui/", published, conf.SourceRoot)
 	}
 
-	if mysql != "" {
-		addMySQLConfig(prefixes, dbname, mysql)
+	if conf.MySQL != "" {
+		addMySQLConfig(prefixes, conf.DBName, conf.MySQL)
 	}
-	if postgres != "" {
-		addPostgresConfig(prefixes, dbname, postgres)
+	if conf.PostgreSQL != "" {
+		addPostgresConfig(prefixes, conf.DBName, conf.PostgreSQL)
 	}
-	if mongo != "" {
-		addMongoConfig(prefixes, dbname, mongo)
+	if conf.Mongo != "" {
+		addMongoConfig(prefixes, conf.DBName, conf.Mongo)
 	}
-	if sqliteFile != "" {
-		addSQLiteConfig(prefixes, sqliteFile)
+	if conf.SQLite != "" {
+		addSQLiteConfig(prefixes, conf.SQLite)
 	}
-	if kvFile != "" {
-		addKVConfig(prefixes, kvFile)
+	if conf.KVFile != "" {
+		addKVConfig(prefixes, conf.KVFile)
 	}
-	if s3 != "" {
-		if err := addS3Config(prefixesParams, prefixes, s3); err != nil {
+	if conf.S3 != "" {
+		if err := addS3Config(prefixesParams, prefixes, conf.S3); err != nil {
 			return nil, err
 		}
 	}
-	if googledrive != "" {
-		if err := addGoogleDriveConfig(prefixes, googledrive); err != nil {
+	if conf.GoogleDrive != "" {
+		if err := addGoogleDriveConfig(prefixes, conf.GoogleDrive); err != nil {
 			return nil, err
 		}
 	}
-	if googlecloudstorage != "" {
-		if err := addGoogleCloudStorageConfig(prefixes, googlecloudstorage); err != nil {
+	if conf.GoogleCloudStorage != "" {
+		if err := addGoogleCloudStorageConfig(prefixes, conf.GoogleCloudStorage); err != nil {
 			return nil, err
 		}
 	}
@@ -742,8 +674,7 @@ func genLowLevelConfig(conf *Config) (lowLevelConf *Config, err error) {
 	obj["prefixes"] = (map[string]interface{})(prefixes)
 
 	lowLevelConf = &Config{
-		Obj:        obj,
-		configPath: conf.configPath,
+		Obj: obj,
 	}
 	return lowLevelConf, nil
 }
