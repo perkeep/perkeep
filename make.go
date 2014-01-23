@@ -68,7 +68,7 @@ var (
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:camli|css|err|gif|go|gpg|html|ico|jpg|js|json|min\.js|mp3|png|svg))$`)
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:camli|css|err|gif|go|gpg|html|ico|jpg|js|json|min\.js|mp3|png|svg|pdf|psd|tiff|xcf|tar\.gz|gz|tar\.xz|tbz2|zip))$`)
 )
 
 func main() {
