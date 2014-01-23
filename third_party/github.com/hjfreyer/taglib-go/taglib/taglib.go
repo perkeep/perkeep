@@ -22,7 +22,7 @@ import (
 	"io"
 	"time"
 
-	"camlistore.org/third_party/taglib/id3"
+	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib/id3"
 )
 
 var (
