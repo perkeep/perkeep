@@ -173,3 +173,24 @@ func (v *varStatReadSeeker) Read(p []byte) (int, error) {
 func (v *varStatReadSeeker) Seek(offset int64, whence int) (int64, error) {
 	return v.rs.Seek(offset, whence)
 }
+
+// InvertedBool is a bool that marshals to and from JSON with the opposite of its in-memory value.
+type InvertedBool bool
+
+func (ib InvertedBool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(!bool(ib))
+}
+
+func (ib *InvertedBool) UnmarshalJSON(b []byte) error {
+	var bo bool
+	if err := json.Unmarshal(b, &bo); err != nil {
+		return err
+	}
+	*ib = InvertedBool(!bo)
+	return nil
+}
+
+// Get returns the logical value of ib.
+func (ib InvertedBool) Get() bool {
+	return !bool(ib)
+}
