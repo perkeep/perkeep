@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package serverconfig is responsible for mapping from a Camlistore
+// Package serverinit is responsible for mapping from a Camlistore
 // configuration file and instantiating HTTP Handlers for all the
 // necessary endpoints.
-package serverconfig
+package serverinit
 
 import (
 	"encoding/json"

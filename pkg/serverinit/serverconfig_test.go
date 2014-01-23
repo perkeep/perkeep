@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package serverconfig_test
+package serverinit_test
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/serverconfig"
+	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/test"
 )
 
@@ -47,8 +47,8 @@ const (
 
 func init() {
 	// Avoid Linux vs. OS X differences in tests.
-	serverconfig.SetTempDirFunc(func() string { return "/tmp" })
-	serverconfig.SetNoMkdir(true)
+	serverinit.SetTempDirFunc(func() string { return "/tmp" })
+	serverinit.SetNoMkdir(true)
 }
 
 func sortedKeys(m map[string]interface{}) (keys []string) {
@@ -128,7 +128,7 @@ func testConfig(name string, t *testing.T) {
 		}
 		return errors.New(string(slurp))
 	}
-	lowLevelConf, err := serverconfig.GenLowLevelConfig(&serverconfig.Config{Obj: obj})
+	lowLevelConf, err := serverinit.GenLowLevelConfig(&serverinit.Config{Obj: obj})
 	if g, w := strings.TrimSpace(fmt.Sprint(err)), strings.TrimSpace(fmt.Sprint(wantedError())); g != w {
 		t.Fatalf("test %s: got GenLowLevelConfig error %q; want %q", name, g, w)
 	}

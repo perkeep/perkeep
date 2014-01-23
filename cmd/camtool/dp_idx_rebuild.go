@@ -27,7 +27,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/serverconfig"
+	"camlistore.org/pkg/serverinit"
 )
 
 type reindexdpCmd struct {
@@ -58,7 +58,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	var path string
 	switch {
 	case len(args) == 0:
-		cfg, err := serverconfig.Load(osutil.UserServerConfigPath())
+		cfg, err := serverinit.Load(osutil.UserServerConfigPath())
 		if err != nil {
 			return err
 		}
