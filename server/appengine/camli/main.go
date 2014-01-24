@@ -29,8 +29,8 @@ import (
 	_ "camlistore.org/pkg/blobserver/cond"
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/shard"
-	_ "camlistore.org/pkg/server"     // handlers: UI, publish, thumbnailing, etc
-	"camlistore.org/pkg/serverconfig" // wiring up the world from a JSON description
+	_ "camlistore.org/pkg/server"   // handlers: UI, publish, thumbnailing, etc
+	"camlistore.org/pkg/serverinit" // wiring up the world from a JSON description
 
 	// TODO(bradfitz): uncomment these config setup
 	// Both require an App Engine context to make HTTP requests too.
@@ -83,7 +83,7 @@ func realInit(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 
-	config, err := serverconfig.Load("./config.json")
+	config, err := serverinit.Load("./config.json")
 	if err != nil {
 		return errf("Could not load server config: %v", err)
 	}
