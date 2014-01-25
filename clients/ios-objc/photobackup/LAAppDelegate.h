@@ -13,17 +13,18 @@
 
 @class ALAssetsLibrary;
 
-static NSString *const CamliUsernameKey = @"org.camlistore.username";
-static NSString *const CamliServerKey = @"org.camlistore.serverurl";
+static NSString* const CamliUsernameKey = @"org.camlistore.username";
+static NSString* const CamliServerKey = @"org.camlistore.serverurl";
+static NSString* const CamliCredentialsKey = @"org.camlistore.credentials";
 
-@interface LAAppDelegate : UIResponder <UIApplicationDelegate,CLLocationManagerDelegate,BITHockeyManagerDelegate>
+@interface LAAppDelegate : UIResponder <UIApplicationDelegate, CLLocationManagerDelegate, BITHockeyManagerDelegate>
 
-@property (strong, nonatomic) UIWindow *window;
-@property CLLocationManager *locationManager;
+@property(strong, nonatomic) UIWindow* window;
+@property CLLocationManager* locationManager;
 
-@property LACamliClient *client;
+@property LACamliClient* client;
 // kicked out of the library if we don't have a reference and still want to play with the books
-@property ALAssetsLibrary *library;
+@property ALAssetsLibrary* library;
 
 - (void)loadCredentials;
 - (void)checkForUploads;

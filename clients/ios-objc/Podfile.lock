@@ -1,10 +1,13 @@
 PODS:
-  - HockeySDK (3.5.0)
+  - HockeySDK (3.5.1)
+  - SSKeychain (1.2.1)
 
 DEPENDENCIES:
   - HockeySDK (~> 3.5.0)
+  - SSKeychain (~> 1.2.1)
 
 SPEC CHECKSUMS:
-  HockeySDK: 685e6ca0b78668ef8b595fba17fe087ea6074b05
+  HockeySDK: 7dfbfa6cdbae199d66eef638e9682b93b00acb95
+  SSKeychain: d18926838c2e7cd342e2a49e9f869858e49f035a
 
 COCOAPODS: 0.29.0

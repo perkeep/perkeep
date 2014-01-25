@@ -11,17 +11,18 @@
 
 @interface LACamliFile : NSObject
 
-@property ALAsset *asset;
-@property NSMutableArray *allBlobs;
-@property NSMutableArray *uploadMarks;
-@property NSArray *allBlobRefs;
+@property ALAsset* asset;
+@property NSMutableArray* allBlobs;
+@property NSMutableArray* uploadMarks;
+@property NSArray* allBlobRefs;
 
-@property NSString *blobRef;
+@property NSString* blobRef;
 
-- (id)initWithAsset:(ALAsset *)asset;
-- (NSArray *)blobsToUpload;
+- (id)initWithAsset:(ALAsset*)asset;
+- (NSArray*)blobsToUpload;
 
 - (long long)size;
-- (NSDate *)creation;
+- (NSDate*)creation;
+- (UIImage*)thumbnail;
 
 @end

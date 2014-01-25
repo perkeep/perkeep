@@ -12,11 +12,11 @@
 #import "LACamliUtil.h"
 
 static NSUInteger const camliVersion = 1;
-static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
+static NSString* const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 
 @implementation LACamliUploadOperation
 
-- (id)initWithFile:(LACamliFile *)file andClient:(LACamliClient *)client
+- (id)initWithFile:(LACamliFile*)file andClient:(LACamliClient*)client
 {
     NSParameterAssert(file);
     NSParameterAssert(client);
@@ -27,7 +27,9 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
         _isExecuting = NO;
         _isFinished = NO;
         _failedTransfer = NO;
-        _session = [NSURLSession sessionWithConfiguration:_client.sessionConfig delegate:self delegateQueue:nil];
+        _session = [NSURLSession sessionWithConfiguration:_client.sessionConfig
+                                                 delegate:self
+                                            delegateQueue:nil];
     }
 
     return self;
@@ -38,19 +40,26 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     return YES;
 }
 
-- (NSString *)name
+#pragma mark - convenience
+
+- (NSString*)name
 {
     return _file.blobRef;
 }
 
+#pragma mark - operation flow
+
 // request stats for each chunk, making sure the server doesn't already have the chunk
 - (void)start
 {
-    [LACamliUtil statusText:@[@"performing stat..."]];
+    [LACamliUtil statusText:@[
+                                @"performing stat..."
+                            ]];
 
-    _taskID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"uploadtask" expirationHandler:^{
+    _taskID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"uploadtask"
+                                                           expirationHandler:^{
         LALog(@"upload task expired");
-    }];
+                                                           }];
 
     if (_client.backgroundID) {
         [[UIApplication sharedApplication] endBackgroundTask:_client.backgroundID];
@@ -59,68 +68,89 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     [self willChangeValueForKey:@"isExecuting"];
     _isExecuting = YES;
     [self didChangeValueForKey:@"isExecuting"];
-    
-    NSMutableDictionary *params = [NSMutableDictionary dictionary];
-    [params setObject:[NSNumber numberWithInt:camliVersion] forKey:@"camliversion"];
-    
+
+    NSMutableDictionary* params = [NSMutableDictionary dictionary];
+    [params setObject:[NSNumber numberWithInt:camliVersion]
+               forKey:@"camliversion"];
+
     int i = 1;
-    for (NSString *blobRef in _file.allBlobRefs) {
-        [params setObject:blobRef forKey:[NSString stringWithFormat:@"blob%d",i]];
+    for (NSString* blobRef in _file.allBlobRefs) {
+        [params setObject:blobRef
+                   forKey:[NSString stringWithFormat:@"blob%d", i]];
         i++;
     }
 
-    NSString *formValues = @"";
-    for (NSString *key in params) {
-        formValues = [formValues stringByAppendingString:[NSString stringWithFormat:@"%@=%@&",key,params[key]]];
+    NSString* formValues = @"";
+    for (NSString* key in params) {
+        formValues = [formValues stringByAppendingString:[NSString stringWithFormat:@"%@=%@&", key, params[key]]];
     }
 
-    LALog(@"uploading to %@",[_client statUrl]);
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[_client statUrl]];
+    LALog(@"uploading to %@", [_client statURL]);
+    NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:[_client statURL]];
     [req setHTTPMethod:@"POST"];
     [req setHTTPBody:[formValues dataUsingEncoding:NSUTF8StringEncoding]];
 
-    NSURLSessionDataTask *statTask = [_session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSURLSessionDataTask *statTask = [_session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error)
+    {
 
         if (!error) {
-//            LALog(@"data: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+            //            LALog(@"data: %@",[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
 
             // we can remove any chunks that the server claims it already has
-            NSError *err;
-            NSMutableDictionary *resObj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&err];
+            NSError* err;
+            NSMutableDictionary* resObj = [NSJSONSerialization JSONObjectWithData:data
+                                                                          options:0
+                                                                            error:&err];
             if (err) {
-                LALog(@"error getting json: %@",err);
+                LALog(@"error getting json: %@", err);
             }
 
             if (resObj[@"stat"] != [NSNull null]) {
-                for (NSDictionary *stat in resObj[@"stat"]) {
-                    for (NSString *blobRef in _file.allBlobRefs) {
+                for (NSDictionary* stat in resObj[@"stat"]) {
+                    for (NSString* blobRef in _file.allBlobRefs) {
                         if ([stat[@"blobRef"] isEqualToString:blobRef]) {
-                            [_file.uploadMarks replaceObjectAtIndex:[_file.allBlobRefs indexOfObject:blobRef] withObject:@NO];
+                            [_file.uploadMarks replaceObjectAtIndex:[_file.allBlobRefs indexOfObject:blobRef]
+                                                         withObject:@NO];
                         }
                     }
                 }
             }
 
             BOOL allUploaded = YES;
-            for (NSNumber *upload in _file.uploadMarks) {
+            for (NSNumber* upload in _file.uploadMarks) {
                 if ([upload boolValue]) {
                     allUploaded = NO;
                 }
             }
-            
+
             // TODO: there's a posibility all chunks have been uploaded but no permanode exists
             if (allUploaded) {
                 LALog(@"everything's been uploaded already for this file");
-                [LACamliUtil logText:@[@"everything already uploaded for ", _file.blobRef]];
+                [LACamliUtil logText:@[
+                                         @"everything already uploaded for ",
+                                         _file.blobRef
+                                     ]];
                 [self finished];
                 return;
             }
 
             [self uploadChunks];
         } else {
-            LALog(@"failed stat: %@",error);
-            [LACamliUtil errorText:@[@"failed to stat: ",[error description]]];
-            [LACamliUtil logText:@[[NSString stringWithFormat:@"failed to stat: %@",error]]];
+            if ([error code] == NSURLErrorNotConnectedToInternet || [error code] == NSURLErrorNetworkConnectionLost) {
+                LALog(@"connection lost or unavailable");
+                [LACamliUtil statusText:@[
+                                            @"internet connection appears offline"
+                                        ]];
+            } else {
+                LALog(@"failed stat: %@", error);
+                [LACamliUtil errorText:@[
+                                           @"failed to stat: ",
+                                           [error description]
+                                       ]];
+                [LACamliUtil logText:@[
+                                         [NSString stringWithFormat:@"failed to stat: %@", error]
+                                     ]];
+            }
 
             _failedTransfer = YES;
             [self finished];
@@ -130,25 +160,37 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     [statTask resume];
 }
 
-// post the chunks in a multipart request
-//
 - (void)uploadChunks
 {
-    [LACamliUtil statusText:@[@"uploading..."]];
+    [LACamliUtil statusText:@[
+                                @"uploading..."
+                            ]];
 
-    NSMutableURLRequest *uploadReq = [NSMutableURLRequest requestWithURL:[_client uploadUrl]];
+    NSMutableURLRequest* uploadReq = [NSMutableURLRequest requestWithURL:[_client uploadURL]];
     [uploadReq setHTTPMethod:@"POST"];
-    [uploadReq setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", multipartBoundary] forHTTPHeaderField:@"Content-Type"];
+    [uploadReq setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", multipartBoundary]
+        forHTTPHeaderField:@"Content-Type"];
 
-    NSMutableData *uploadData = [self multipartDataForChunks];
+    NSMutableData* uploadData = [self multipartDataForChunks];
 
-    NSURLSessionUploadTask *upload = [_session uploadTaskWithRequest:uploadReq fromData:uploadData completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSURLSessionUploadTask *upload = [_session uploadTaskWithRequest:uploadReq fromData:uploadData completionHandler:^(NSData *data, NSURLResponse *response, NSError *error)
+    {
 
-//        LALog(@"upload response: %@",[[NSString alloc]initWithData:data encoding:NSUTF8StringEncoding]);
+        //        LALog(@"upload response: %@",[[NSString alloc]initWithData:data encoding:NSUTF8StringEncoding]);
 
         if (error) {
-            LALog(@"upload error: %@",error);
-            [LACamliUtil errorText:@[@"error uploading: ",error]];
+            if ([error code] == NSURLErrorNotConnectedToInternet || [error code] == NSURLErrorNetworkConnectionLost) {
+                LALog(@"connection lost or unavailable");
+                [LACamliUtil statusText:@[
+                                            @"internet connection appears offline"
+                                        ]];
+            } else {
+                LALog(@"upload error: %@", error);
+                [LACamliUtil errorText:@[
+                                           @"error uploading: ",
+                                           error
+                                       ]];
+            }
             _failedTransfer = YES;
             [self finished];
         } else {
@@ -159,33 +201,30 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     [upload resume];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
-{
-    if ([_client.delegate respondsToSelector:@selector(uploadProgress:forOperation:)]) {
-        float progress = (float)totalBytesSent/(float)totalBytesExpectedToSend;
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [_client.delegate uploadProgress:progress forOperation:self];
-        });
-    }
-}
-
 // ask the server to vivify the blobrefs into a file
 - (void)vivifyChunks
 {
-    [LACamliUtil statusText:@[@"vivify"]];
+    [LACamliUtil statusText:@[
+                                @"vivify"
+                            ]];
 
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[_client uploadUrl]];
+    NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:[_client uploadURL]];
     [req setHTTPMethod:@"POST"];
-    [req setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", multipartBoundary] forHTTPHeaderField:@"Content-Type"];
-    [req addValue:@"1" forHTTPHeaderField:@"X-Camlistore-Vivify"];
+    [req setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", multipartBoundary]
+        forHTTPHeaderField:@"Content-Type"];
+    [req addValue:@"1"
+        forHTTPHeaderField:@"X-Camlistore-Vivify"];
 
-    NSMutableData *vivifyData = [self multipartVivifyDataForChunks];
+    NSMutableData* vivifyData = [self multipartVivifyDataForChunks];
 
-    NSURLSessionUploadTask *vivify = [_session uploadTaskWithRequest:req fromData:vivifyData completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSURLSessionUploadTask *vivify = [_session uploadTaskWithRequest:req fromData:vivifyData completionHandler:^(NSData *data, NSURLResponse *response, NSError *error)
+    {
         if (error) {
-            LALog(@"error vivifying: %@",error);
-            [LACamliUtil errorText:@[@"error vivify: ",error]];
+            LALog(@"error vivifying: %@", error);
+            [LACamliUtil errorText:@[
+                                       @"error vivify: ",
+                                       [error description]
+                                   ]];
             _failedTransfer = YES;
         }
 
@@ -197,15 +236,22 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 
 - (void)finished
 {
-    [LACamliUtil statusText:@[@"cleaning up..."]];
+    [LACamliUtil statusText:@[
+                                @"cleaning up..."
+                            ]];
 
-    _client.backgroundID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"queuesync" expirationHandler:^{
+    _client.backgroundID = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"queuesync"
+                                                                        expirationHandler:^{
         LALog(@"queue sync task expired");
-    }];
+                                                                        }];
 
     [[UIApplication sharedApplication] endBackgroundTask:_taskID];
 
-    LALog(@"finished op %@",_file.blobRef);
+    LALog(@"finished op %@", _file.blobRef);
+
+    // There's an extra retain on this operation that I cannot find,
+    // this mitigates the issue so the leak is tiny
+    _file.allBlobs = nil;
 
     [self willChangeValueForKey:@"isExecuting"];
     [self willChangeValueForKey:@"isFinished"];
@@ -217,15 +263,29 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     [self didChangeValueForKey:@"isFinished"];
 }
 
+#pragma mark - nsurlsession delegate
+
+- (void)URLSession:(NSURLSession*)session task:(NSURLSessionTask*)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
+{
+    if ([_client.delegate respondsToSelector:@selector(uploadProgress:
+                                                         forOperation:)]) {
+        float progress = (float)totalBytesSent / (float)totalBytesExpectedToSend;
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [_client.delegate uploadProgress:progress forOperation:self];
+        });
+    }
+}
+
 #pragma mark - multipart bits
 
-- (NSMutableData *)multipartDataForChunks
+- (NSMutableData*)multipartDataForChunks
 {
-    NSMutableData *data = [NSMutableData data];
+    NSMutableData* data = [NSMutableData data];
 
-    for (NSData *chunk in [_file blobsToUpload]) {
+    for (NSData* chunk in [_file blobsToUpload]) {
         [data appendData:[[NSString stringWithFormat:@"--%@\r\n", multipartBoundary] dataUsingEncoding:NSUTF8StringEncoding]];
-        // server ignores this filename and mimetype, so it doesn't matter what it is
+        // server ignores this filename and mimetype, it doesn't matter what it is
         [data appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"image.jpg\"\r\n", [LACamliUtil blobRef:chunk]] dataUsingEncoding:NSUTF8StringEncoding]];
         [data appendData:[@"Content-Type: image/jpeg\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
         [data appendData:chunk];
@@ -237,21 +297,26 @@ static NSString *const multipartBoundary = @"Qe43VdbVVaGtkkMd";
     return data;
 }
 
-- (NSMutableData *)multipartVivifyDataForChunks
+- (NSMutableData*)multipartVivifyDataForChunks
 {
-    NSMutableData *data = [NSMutableData data];
+    NSMutableData* data = [NSMutableData data];
 
-    NSMutableDictionary *schemaBlob = [NSMutableDictionary dictionaryWithObjectsAndKeys:@1, @"camliVersion", @"file", @"camliType", [LACamliUtil rfc3339StringFromDate:_file.creation], @"unixMTime", nil];
+    NSMutableDictionary* schemaBlob = [NSMutableDictionary dictionaryWithObjectsAndKeys:@1, @"camliVersion", @"file", @"camliType", [LACamliUtil rfc3339StringFromDate:_file.creation], @"unixMTime", nil];
 
-    NSMutableArray *parts = [NSMutableArray array];
+    NSMutableArray* parts = [NSMutableArray array];
     int i = 0;
-    for (NSString *blobRef in _file.allBlobRefs) {
-        [parts addObject:@{@"blobRef":blobRef,@"size":[NSNumber numberWithInteger:[[_file.allBlobs objectAtIndex:i] length]]}];
+    for (NSString* blobRef in _file.allBlobRefs) {
+        [parts addObject:@{
+                             @"blobRef" : blobRef, @"size" : [NSNumber numberWithInteger:[[_file.allBlobs objectAtIndex:i] length]]
+                         }];
         i++;
     }
-    [schemaBlob setObject:parts forKey:@"parts"];
+    [schemaBlob setObject:parts
+                   forKey:@"parts"];
 
-    NSData *schemaData = [NSJSONSerialization dataWithJSONObject:schemaBlob options:NSJSONWritingPrettyPrinted error:nil];
+    NSData* schemaData = [NSJSONSerialization dataWithJSONObject:schemaBlob
+                                                         options:NSJSONWritingPrettyPrinted
+                                                           error:nil];
 
     [data appendData:[[NSString stringWithFormat:@"--%@\r\n", multipartBoundary] dataUsingEncoding:NSUTF8StringEncoding]];
     [data appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"json\"\r\n", [LACamliUtil blobRef:schemaData]] dataUsingEncoding:NSUTF8StringEncoding]];
