@@ -37,7 +37,8 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
 	"camlistore.org/pkg/search"
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 var (
@@ -146,7 +147,7 @@ func main() {
 	}
 
 	if *debug {
-		fuse.Debugf = log.Printf
+		fuse.Debug = func(msg interface{}) { log.Print(msg) }
 		// TODO: set fs's logger
 	}
 
@@ -186,7 +187,7 @@ func main() {
 
 	doneServe := make(chan error, 1)
 	go func() {
-		doneServe <- conn.Serve(camfs)
+		doneServe <- fusefs.Serve(conn, camfs)
 	}()
 
 	quitKey := make(chan bool, 1)

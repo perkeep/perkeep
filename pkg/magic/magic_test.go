@@ -31,6 +31,15 @@ type magicTest struct {
 var tests = []magicTest{
 	{fileName: "smile.jpg", want: "image/jpeg"},
 	{fileName: "smile.png", want: "image/png"},
+	{fileName: "smile.psd", want: "image/vnd.adobe.photoshop"},
+	{fileName: "smile.tiff", want: "image/tiff"},
+	{fileName: "smile.xcf", want: "image/xcf"},
+	{fileName: "smile.gif", want: "image/gif"},
+	{fileName: "foo.tar.gz", want: "application/gzip"},
+	{fileName: "foo.tar.xz", want: "application/x-xz"},
+	{fileName: "foo.tbz2", want: "application/bzip2"},
+	{fileName: "foo.zip", want: "application/zip"},
+	{fileName: "magic.pdf", want: "application/pdf"},
 	{data: "<html>foo</html>", want: "text/html"},
 	{data: "\xff", want: ""},
 }

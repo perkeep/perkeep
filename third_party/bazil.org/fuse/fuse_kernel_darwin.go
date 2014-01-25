@@ -56,3 +56,31 @@ func (in *setattrIn) Chgtime() time.Time {
 func (in *setattrIn) Flags() uint32 {
 	return in.Flags_
 }
+
+func openFlags(flags uint32) OpenFlags {
+	return OpenFlags(flags)
+}
+
+type getxattrIn struct {
+	getxattrInCommon
+
+	// OS X only
+	Position uint32
+	Padding  uint32
+}
+
+func (g *getxattrIn) position() uint32 {
+	return g.Position
+}
+
+type setxattrIn struct {
+	setxattrInCommon
+
+	// OS X only
+	Position uint32
+	Padding  uint32
+}
+
+func (s *setxattrIn) position() uint32 {
+	return s.Position
+}

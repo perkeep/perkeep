@@ -25,7 +25,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	"camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 // root implements fuse.Node and is the typical root of a
@@ -49,7 +50,7 @@ func (n *root) Attr() fuse.Attr {
 	}
 }
 
-func (n *root) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *root) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	return []fuse.Dirent{
 		{Name: "WELCOME.txt"},
 		{Name: "tag"},
@@ -88,7 +89,7 @@ func (n *root) getAtDir() *atDir {
 	return n.atDir
 }
 
-func (n *root) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (n *root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	switch name {
 	case ".quitquitquit":
 		log.Fatalf("Shutting down due to root .quitquitquit lookup.")

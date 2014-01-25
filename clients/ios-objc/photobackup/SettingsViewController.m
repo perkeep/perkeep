@@ -17,9 +17,10 @@
 
 @implementation SettingsViewController
 
-- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+- (id)initWithNibName:(NSString*)nibNameOrNil bundle:(NSBundle*)nibBundleOrNil
 {
-    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    self = [super initWithNibName:nibNameOrNil
+                           bundle:nibBundleOrNil];
     if (self) {
         // Custom initialization
     }
@@ -30,16 +31,16 @@
 {
     [super viewDidLoad];
 
-    NSString *serverUrl = [[NSUserDefaults standardUserDefaults] stringForKey:CamliServerKey];
+    NSString* serverUrl = [[NSUserDefaults standardUserDefaults] stringForKey:CamliServerKey];
     if (serverUrl) {
         self.server.text = serverUrl;
     }
 
-    NSString *username = [[NSUserDefaults standardUserDefaults] stringForKey:CamliUsernameKey];
+    NSString* username = [[NSUserDefaults standardUserDefaults] stringForKey:CamliUsernameKey];
     if (username) {
         self.username.text = username;
 
-        NSString *password = [LACamliUtil passwordForUsername:username];
+        NSString* password = [LACamliUtil passwordForUsername:username];
         if (password) {
             self.password.text = password;
         }
@@ -48,7 +49,7 @@
 
 #pragma mark - uitextfield delegate
 
-- (BOOL)textFieldShouldReturn:(UITextField *)textField
+- (BOOL)textFieldShouldReturn:(UITextField*)textField
 {
     LALog(@"text field return %@", textField);
 
@@ -73,7 +74,7 @@
 
     BOOL hasErrors = NO;
 
-    NSURL *serverUrl = [NSURL URLWithString:self.server.text];
+    NSURL* serverUrl = [NSURL URLWithString:self.server.text];
 
     if (!serverUrl || !serverUrl.scheme || !serverUrl.host) {
         hasErrors = YES;
@@ -98,11 +99,16 @@
 - (void)saveValues
 {
     [LACamliUtil savePassword:self.password.text forUsername:self.username.text];
-    [[NSUserDefaults standardUserDefaults] setObject:self.username.text forKey:CamliUsernameKey];
-    [[NSUserDefaults standardUserDefaults] setObject:self.server.text forKey:CamliServerKey];
+
+    [[NSUserDefaults standardUserDefaults] setObject:self.username.text
+                                              forKey:CamliUsernameKey];
+    [[NSUserDefaults standardUserDefaults] setObject:self.server.text
+                                              forKey:CamliServerKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 
-    [LACamliUtil errorText:@[@""]];
+    [LACamliUtil errorText:@[
+                               @""
+                           ]];
 
     [self.parent dismissSettings];
 }

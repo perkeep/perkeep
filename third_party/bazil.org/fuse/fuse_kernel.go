@@ -1,8 +1,4 @@
-// +build linux darwin
-
-// Copyright 2011 The Go Authors.  All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// See the file LICENSE for copyright and licensing information.
 
 // Derived from FUSE's fuse_kernel.h
 /*
@@ -41,6 +37,8 @@ package fuse
 
 import (
 	"fmt"
+	"os"
+	"syscall"
 	"unsafe"
 )
 
@@ -84,7 +82,7 @@ const (
 	SetattrSize   SetattrValid = 1 << 3
 	SetattrAtime  SetattrValid = 1 << 4
 	SetattrMtime  SetattrValid = 1 << 5
-	SetattrHandle SetattrValid = 1 << 6 // TODO: What does this mean?
+	SetattrHandle SetattrValid = 1 << 6
 
 	// Linux only(?)
 	SetattrAtimeNow  SetattrValid = 1 << 7
@@ -98,17 +96,20 @@ const (
 	SetattrFlags    SetattrValid = 1 << 31
 )
 
-func (fl SetattrValid) Mode() bool     { return fl&SetattrMode != 0 }
-func (fl SetattrValid) Uid() bool      { return fl&SetattrUid != 0 }
-func (fl SetattrValid) Gid() bool      { return fl&SetattrGid != 0 }
-func (fl SetattrValid) Size() bool     { return fl&SetattrSize != 0 }
-func (fl SetattrValid) Atime() bool    { return fl&SetattrAtime != 0 }
-func (fl SetattrValid) Mtime() bool    { return fl&SetattrMtime != 0 }
-func (fl SetattrValid) Handle() bool   { return fl&SetattrHandle != 0 }
-func (fl SetattrValid) Crtime() bool   { return fl&SetattrCrtime != 0 }
-func (fl SetattrValid) Chgtime() bool  { return fl&SetattrChgtime != 0 }
-func (fl SetattrValid) Bkuptime() bool { return fl&SetattrBkuptime != 0 }
-func (fl SetattrValid) Flags() bool    { return fl&SetattrFlags != 0 }
+func (fl SetattrValid) Mode() bool      { return fl&SetattrMode != 0 }
+func (fl SetattrValid) Uid() bool       { return fl&SetattrUid != 0 }
+func (fl SetattrValid) Gid() bool       { return fl&SetattrGid != 0 }
+func (fl SetattrValid) Size() bool      { return fl&SetattrSize != 0 }
+func (fl SetattrValid) Atime() bool     { return fl&SetattrAtime != 0 }
+func (fl SetattrValid) Mtime() bool     { return fl&SetattrMtime != 0 }
+func (fl SetattrValid) Handle() bool    { return fl&SetattrHandle != 0 }
+func (fl SetattrValid) AtimeNow() bool  { return fl&SetattrAtimeNow != 0 }
+func (fl SetattrValid) MtimeNow() bool  { return fl&SetattrMtimeNow != 0 }
+func (fl SetattrValid) LockOwner() bool { return fl&SetattrLockOwner != 0 }
+func (fl SetattrValid) Crtime() bool    { return fl&SetattrCrtime != 0 }
+func (fl SetattrValid) Chgtime() bool   { return fl&SetattrChgtime != 0 }
+func (fl SetattrValid) Bkuptime() bool  { return fl&SetattrBkuptime != 0 }
+func (fl SetattrValid) Flags() bool     { return fl&SetattrFlags != 0 }
 
 func (fl SetattrValid) String() string {
 	return flagString(uint32(fl), setattrValidNames)
@@ -122,29 +123,67 @@ var setattrValidNames = []flagName{
 	{uint32(SetattrAtime), "SetattrAtime"},
 	{uint32(SetattrMtime), "SetattrMtime"},
 	{uint32(SetattrHandle), "SetattrHandle"},
+	{uint32(SetattrAtimeNow), "SetattrAtimeNow"},
+	{uint32(SetattrMtimeNow), "SetattrMtimeNow"},
+	{uint32(SetattrLockOwner), "SetattrLockOwner"},
 	{uint32(SetattrCrtime), "SetattrCrtime"},
 	{uint32(SetattrChgtime), "SetattrChgtime"},
 	{uint32(SetattrBkuptime), "SetattrBkuptime"},
 	{uint32(SetattrFlags), "SetattrFlags"},
 }
 
-// The OpenFlags are returned in the OpenResponse.
+// OpenFlags are the O_FOO flags passed to open/create/etc calls. For
+// example, os.O_WRONLY | os.O_APPEND.
 type OpenFlags uint32
 
-const (
-	OpenDirectIO    OpenFlags = 1 << 0 // bypass page cache for this open file
-	OpenKeepCache   OpenFlags = 1 << 1 // don't invalidate the data cache on open
-	OpenNonSeekable OpenFlags = 1 << 2 // (Linux?)
-
-	OpenPurgeAttr OpenFlags = 1 << 30 // OS X
-	OpenPurgeUBC  OpenFlags = 1 << 31 // OS X
-)
-
 func (fl OpenFlags) String() string {
-	return flagString(uint32(fl), openFlagNames)
+	// O_RDONLY, O_RWONLY, O_RDWR are not flags
+	s := accModeName(uint32(fl) & syscall.O_ACCMODE)
+	flags := uint32(fl) &^ syscall.O_ACCMODE
+	if flags != 0 {
+		s = s + "+" + flagString(flags, openFlagNames)
+	}
+	return s
+}
+
+func accModeName(flags uint32) string {
+	switch flags {
+	case uint32(os.O_RDONLY):
+		return "O_RDONLY"
+	case uint32(os.O_WRONLY):
+		return "O_WRONLY"
+	case uint32(os.O_RDWR):
+		return "O_RDWR"
+	default:
+		return ""
+	}
 }
 
 var openFlagNames = []flagName{
+	{uint32(os.O_CREATE), "O_CREATE"},
+	{uint32(os.O_EXCL), "O_EXCL"},
+	{uint32(os.O_TRUNC), "O_TRUNC"},
+	{uint32(os.O_APPEND), "O_APPEND"},
+	{uint32(os.O_SYNC), "O_SYNC"},
+}
+
+// The OpenResponseFlags are returned in the OpenResponse.
+type OpenResponseFlags uint32
+
+const (
+	OpenDirectIO    OpenResponseFlags = 1 << 0 // bypass page cache for this open file
+	OpenKeepCache   OpenResponseFlags = 1 << 1 // don't invalidate the data cache on open
+	OpenNonSeekable OpenResponseFlags = 1 << 2 // (Linux?)
+
+	OpenPurgeAttr OpenResponseFlags = 1 << 30 // OS X
+	OpenPurgeUBC  OpenResponseFlags = 1 << 31 // OS X
+)
+
+func (fl OpenResponseFlags) String() string {
+	return flagString(uint32(fl), openResponseFlagNames)
+}
+
+var openResponseFlagNames = []flagName{
 	{uint32(OpenDirectIO), "OpenDirectIO"},
 	{uint32(OpenKeepCache), "OpenKeepCache"},
 	{uint32(OpenPurgeAttr), "OpenPurgeAttr"},
@@ -313,7 +352,7 @@ type renameIn struct {
 	// "oldname\x00newname\x00" follows
 }
 
-// OS X 
+// OS X
 type exchangeIn struct {
 	Olddir  uint64
 	Newdir  uint64
@@ -344,8 +383,8 @@ type setattrInCommon struct {
 }
 
 type openIn struct {
-	Flags uint32
-	Mode  uint32
+	Flags  uint32
+	Unused uint32
 }
 
 type openOut struct {
@@ -353,6 +392,11 @@ type openOut struct {
 	Fh        uint64
 	OpenFlags uint32
 	Padding   uint32
+}
+
+type createIn struct {
+	Flags uint32
+	Mode  uint32
 }
 
 type createOut struct {
@@ -427,32 +471,22 @@ type fsyncIn struct {
 	Padding    uint32
 }
 
-type setxattrIn struct {
+type setxattrInCommon struct {
 	Size  uint32
 	Flags uint32
 }
 
-type setxattrInOSX struct {
-	Size  uint32
-	Flags uint32
-
-	// OS X only
-	Position uint32
-	Padding  uint32
+func (setxattrInCommon) position() uint32 {
+	return 0
 }
 
-type getxattrIn struct {
+type getxattrInCommon struct {
 	Size    uint32
 	Padding uint32
 }
 
-type getxattrInOSX struct {
-	Size    uint32
-	Padding uint32
-
-	// OS X only
-	Position uint32
-	Padding2 uint32
+func (getxattrInCommon) position() uint32 {
+	return 0
 }
 
 type getxattrOut struct {

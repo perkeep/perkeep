@@ -318,12 +318,12 @@ func TestDifferentWriteTypes(t *testing.T) {
 			}
 			if wr.write != nil {
 				if n, err := f.Write(wr.write); err != nil || n != len(wr.write) {
-					t.Fatalf("%s: Write = (%n, %v); want (%d, nil)", wr.name, n, err, len(wr.write))
+					t.Fatalf("%s: Write = (%v, %v); want (%d, nil)", wr.name, n, err, len(wr.write))
 				}
 			}
 			if wr.writeAt != nil {
 				if n, err := f.WriteAt(wr.writeAt, wr.writePos); err != nil || n != len(wr.writeAt) {
-					t.Fatalf("%s: WriteAt = (%n, %v); want (%d, nil)", wr.name, n, err, len(wr.writeAt))
+					t.Fatalf("%s: WriteAt = (%v, %v); want (%d, nil)", wr.name, n, err, len(wr.writeAt))
 				}
 			}
 			if err := f.Close(); err != nil {

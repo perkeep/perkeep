@@ -12,11 +12,11 @@
 
 @interface SettingsViewController : UIViewController
 
-@property (weak) LAViewController *parent;
-@property IBOutlet UILabel *errors;
-@property IBOutlet UITextField *server;
-@property IBOutlet UITextField *username;
-@property IBOutlet UITextField *password;
+@property(weak) LAViewController* parent;
+@property IBOutlet UILabel* errors;
+@property IBOutlet UITextField* server;
+@property IBOutlet UITextField* username;
+@property IBOutlet UITextField* password;
 
 - (IBAction)validate;
 

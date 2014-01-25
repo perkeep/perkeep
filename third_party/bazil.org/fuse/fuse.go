@@ -1,9 +1,4 @@
-// +build linux darwin
-
-// Copyright 2011 The Go Authors.  All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
+// See the file LICENSE for copyright and licensing information.
 // Adapted from Plan 9 from User Space's src/cmd/9pfuse/fuse.c,
 // which carries this notice:
 //
@@ -34,16 +29,16 @@
 // the actual interaction with the kernel and can be the simplest one in contexts
 // such as protocol translators.
 //
-// Servers of synthesized file systems tend to share common bookkeeping
-// abstracted away by the second approach, which is to call the Conn's
-// Serve method to serve the FUSE protocol using
-// an implementation of the service methods in the interfaces
-// FS (file system), Node (file or directory), and Handle (opened file or directory).
+// Servers of synthesized file systems tend to share common
+// bookkeeping abstracted away by the second approach, which is to
+// call fs.Serve to serve the FUSE protocol using an implementation of
+// the service methods in the interfaces FS* (file system), Node* (file
+// or directory), and Handle* (opened file or directory).
 // There are a daunting number of such methods that can be written,
 // but few are required.
 // The specific methods are described in the documentation for those interfaces.
 //
-// The hellofs subdirectory contains a simple illustration of the ServeFS approach.
+// The hellofs subdirectory contains a simple illustration of the fs.Serve approach.
 //
 // Service Methods
 //
@@ -87,12 +82,11 @@ package fuse
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -104,8 +98,6 @@ type Conn struct {
 	fd  int
 	buf []byte
 	wio sync.Mutex
-
-	serveConn
 }
 
 // Mount mounts a new FUSE connection on the named directory
@@ -131,9 +123,6 @@ type Request interface {
 	RespondError(Error)
 
 	String() string
-
-	// handle returns the HandleID for the request, or 0.
-	handle() HandleID
 }
 
 // A RequestID identifies an active FUSE request.
@@ -153,7 +142,7 @@ const RootID NodeID = rootID
 
 // A Header describes the basic information sent in every request.
 type Header struct {
-	Conn *Conn     // connection this request was received on
+	Conn *Conn     `json:"-"` // connection this request was received on
 	ID   RequestID // unique ID for request
 	Node NodeID    // file or directory the request is about
 	Uid  uint32    // user ID of process making request
@@ -167,10 +156,6 @@ func (h *Header) String() string {
 
 func (h *Header) Hdr() *Header {
 	return h
-}
-
-func (h *Header) handle() HandleID {
-	return 0
 }
 
 // An Error is a FUSE error.
@@ -188,7 +173,25 @@ const (
 	ENOENT = Errno(syscall.ENOENT)
 	EIO    = Errno(syscall.EIO)
 	EPERM  = Errno(syscall.EPERM)
+
+	// EINTR indicates request was interrupted by an InterruptRequest.
+	// See also fs.Intr.
+	EINTR = Errno(syscall.EINTR)
+
+	ENODATA = Errno(syscall.ENODATA)
+	ERANGE  = Errno(syscall.ERANGE)
+	ENOTSUP = Errno(syscall.ENOTSUP)
 )
+
+var errnoNames = map[Errno]string{
+	ENOSYS:  "ENOSYS",
+	ESTALE:  "ESTALE",
+	ENOENT:  "ENOENT",
+	EIO:     "EIO",
+	EPERM:   "EPERM",
+	EINTR:   "EINTR",
+	ENODATA: "ENODATA",
+}
 
 type errno int
 
@@ -205,6 +208,14 @@ func (e Errno) errno() int32 {
 
 func (e Errno) String() string {
 	return syscall.Errno(e).Error()
+}
+
+func (e Errno) MarshalText() ([]byte, error) {
+	s := errnoNames[e]
+	if s == "" {
+		s = fmt.Sprint(e.errno())
+	}
+	return []byte(s), nil
 }
 
 func (h *Header) RespondError(err Error) {
@@ -283,6 +294,21 @@ func fileMode(unixMode uint32) os.FileMode {
 	return mode
 }
 
+type noOpcode struct {
+	Opcode uint32
+}
+
+func (m noOpcode) String() string {
+	return fmt.Sprintf("No opcode %v", m.Opcode)
+}
+
+type malformedMessage struct {
+}
+
+func (malformedMessage) String() string {
+	return "malformed message"
+}
+
 func (c *Conn) ReadRequest() (Request, error) {
 	// TODO: Some kind of buffer reuse.
 	m := newMessage(c)
@@ -321,7 +347,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 	var req Request
 	switch m.hdr.Opcode {
 	default:
-		println("No opcode", m.hdr.Opcode)
+		Debug(noOpcode{Opcode: m.hdr.Opcode})
 		goto unrecognized
 
 	case opLookup:
@@ -441,7 +467,10 @@ func (c *Conn) ReadRequest() (Request, error) {
 		req = &MkdirRequest{
 			Header: m.Header(),
 			Name:   string(name[:i]),
-			Mode:   fileMode(in.Mode) | os.ModeDir,
+			// observed on Linux: mkdirIn.Mode & syscall.S_IFMT == 0,
+			// and this causes fileMode to go into it's "no idea"
+			// code branch; enforce type to directory
+			Mode: fileMode((in.Mode &^ syscall.S_IFMT) | syscall.S_IFDIR),
 		}
 
 	case opUnlink, opRmdir:
@@ -475,7 +504,6 @@ func (c *Conn) ReadRequest() (Request, error) {
 			goto corrupt
 		}
 		oldName, newName := string(oldNew[:i]), string(oldNew[i+1:len(oldNew)-1])
-		// log.Printf("RENAME: newDirNode = %d; old = %q, new = %q", newDirNodeID, oldName, newName)
 		req = &RenameRequest{
 			Header:  m.Header(),
 			NewDir:  newDirNodeID,
@@ -491,8 +519,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		req = &OpenRequest{
 			Header: m.Header(),
 			Dir:    m.hdr.Opcode == opOpendir,
-			Flags:  in.Flags,
-			Mode:   fileMode(in.Mode),
+			Flags:  openFlags(in.Flags),
 		}
 
 	case opRead, opReaddir:
@@ -540,112 +567,73 @@ func (c *Conn) ReadRequest() (Request, error) {
 			Header:       m.Header(),
 			Dir:          m.hdr.Opcode == opReleasedir,
 			Handle:       HandleID(in.Fh),
-			Flags:        in.Flags,
+			Flags:        openFlags(in.Flags),
 			ReleaseFlags: ReleaseFlags(in.ReleaseFlags),
 			LockOwner:    in.LockOwner,
 		}
 
-	case opFsync:
+	case opFsync, opFsyncdir:
 		in := (*fsyncIn)(m.data())
 		if m.len() < unsafe.Sizeof(*in) {
 			goto corrupt
 		}
 		req = &FsyncRequest{
+			Dir:    m.hdr.Opcode == opFsyncdir,
 			Header: m.Header(),
 			Handle: HandleID(in.Fh),
 			Flags:  in.FsyncFlags,
 		}
 
 	case opSetxattr:
-		var size uint32
-		var r *SetxattrRequest
-		if runtime.GOOS == "darwin" {
-			in := (*setxattrInOSX)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			r = &SetxattrRequest{
-				Flags:    in.Flags,
-				Position: in.Position,
-			}
-			size = in.Size
-			m.off += int(unsafe.Sizeof(*in))
-		} else {
-			in := (*setxattrIn)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			r = &SetxattrRequest{}
-			size = in.Size
-			m.off += int(unsafe.Sizeof(*in))
+		in := (*setxattrIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
 		}
-		r.Header = m.Header()
+		m.off += int(unsafe.Sizeof(*in))
 		name := m.bytes()
 		i := bytes.IndexByte(name, '\x00')
 		if i < 0 {
 			goto corrupt
 		}
-		r.Name = string(name[:i])
-		r.Xattr = name[i+1:]
-		if uint32(len(r.Xattr)) < size {
+		xattr := name[i+1:]
+		if uint32(len(xattr)) < in.Size {
 			goto corrupt
 		}
-		r.Xattr = r.Xattr[:size]
-		req = r
+		xattr = xattr[:in.Size]
+		req = &SetxattrRequest{
+			Header:   m.Header(),
+			Flags:    in.Flags,
+			Position: in.position(),
+			Name:     string(name[:i]),
+			Xattr:    xattr,
+		}
 
 	case opGetxattr:
-		var r *GetxattrRequest
-		nameOff := 8
-		if runtime.GOOS == "darwin" {
-			in := (*getxattrInOSX)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			nameOff += 8
-			r = &GetxattrRequest{
-				Header:   m.Header(),
-				Size:     in.Size,
-				Position: in.Position,
-			}
-		} else {
-			in := (*getxattrIn)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			r = &GetxattrRequest{
-				Header: m.Header(),
-				Size:   in.Size,
-			}
+		in := (*getxattrIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
 		}
-		r.Header = m.Header()
-		name := m.bytes()[nameOff:]
-		i := bytes.IndexByte(name, 0)
+		name := m.bytes()[unsafe.Sizeof(*in):]
+		i := bytes.IndexByte(name, '\x00')
 		if i < 0 {
 			goto corrupt
 		}
-		r.Name = string(name[:i])
-		req = r
+		req = &GetxattrRequest{
+			Header:   m.Header(),
+			Name:     string(name[:i]),
+			Size:     in.Size,
+			Position: in.position(),
+		}
 
 	case opListxattr:
-		if runtime.GOOS == "darwin" {
-			in := (*getxattrInOSX)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			req = &ListxattrRequest{
-				Header:   m.Header(),
-				Size:     in.Size,
-				Position: in.Position,
-			}
-		} else {
-			in := (*getxattrIn)(m.data())
-			if m.len() < unsafe.Sizeof(*in) {
-				goto corrupt
-			}
-			req = &ListxattrRequest{
-				Header: m.Header(),
-				Size:   in.Size,
-			}
+		in := (*getxattrIn)(m.data())
+		if m.len() < unsafe.Sizeof(*in) {
+			goto corrupt
+		}
+		req = &ListxattrRequest{
+			Header:   m.Header(),
+			Size:     in.Size,
+			Position: in.position(),
 		}
 
 	case opRemovexattr:
@@ -684,22 +672,6 @@ func (c *Conn) ReadRequest() (Request, error) {
 			Flags:        InitFlags(in.Flags),
 		}
 
-	case opFsyncdir:
-		// TODO(bradfitz): not really tested. I see this rarely on OS X,
-		// generally when a Finder window is open showing a directory
-		// and then the filesystem is unmounted. But I should write proper
-		// tests for it before I remove this comment.
-		in := (*fsyncIn)(m.data())
-		if m.len() < unsafe.Sizeof(*in) {
-			goto corrupt
-		}
-		req = &FsyncRequest{
-			Dir:    true,
-			Header: m.Header(),
-			Handle: HandleID(in.Fh),
-			Flags:  in.FsyncFlags,
-		}
-
 	case opGetlk:
 		panic("opGetlk")
 	case opSetlk:
@@ -718,7 +690,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 
 	case opCreate:
-		in := (*openIn)(m.data())
+		in := (*createIn)(m.data())
 		if m.len() < unsafe.Sizeof(*in) {
 			goto corrupt
 		}
@@ -729,7 +701,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 		req = &CreateRequest{
 			Header: m.Header(),
-			Flags:  in.Flags,
+			Flags:  openFlags(in.Flags),
 			Mode:   fileMode(in.Mode),
 			Name:   string(name[:i]),
 		}
@@ -741,7 +713,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 		}
 		req = &InterruptRequest{
 			Header: m.Header(),
-			Unique: in.Unique,
+			IntrID: RequestID(in.Unique),
 		}
 
 	case opBmap:
@@ -764,7 +736,7 @@ func (c *Conn) ReadRequest() (Request, error) {
 	return req, nil
 
 corrupt:
-	println("malformed message")
+	Debug(malformedMessage{})
 	return nil, fmt.Errorf("fuse: malformed message")
 
 unrecognized:
@@ -774,6 +746,12 @@ unrecognized:
 	return &h, nil
 }
 
+type bugShortKernelWrite struct {
+	Written int64
+	Error   string
+	Stack   string
+}
+
 func (c *Conn) respond(out *outHeader, n uintptr) {
 	c.wio.Lock()
 	defer c.wio.Unlock()
@@ -781,8 +759,11 @@ func (c *Conn) respond(out *outHeader, n uintptr) {
 	msg := (*[1 << 30]byte)(unsafe.Pointer(out))[:n]
 	nn, err := syscall.Write(c.fd, msg)
 	if nn != len(msg) || err != nil {
-		log.Printf("RESPOND WRITE: %d %v", nn, err)
-		log.Printf("with stack: %s", stack())
+		Debug(bugShortKernelWrite{
+			Written: int64(nn),
+			Error:   err.Error(),
+			Stack:   stack(),
+		})
 	}
 }
 
@@ -799,7 +780,7 @@ func (c *Conn) respondData(out *outHeader, n uintptr, data []byte) {
 
 // An InitRequest is the first request sent on a FUSE file system.
 type InitRequest struct {
-	Header
+	Header       `json:"-"`
 	Major        uint32
 	Minor        uint32
 	MaxReadahead uint32
@@ -836,7 +817,7 @@ func (r *InitRequest) Respond(resp *InitResponse) {
 
 // A StatfsRequest requests information about the mounted file system.
 type StatfsRequest struct {
-	Header
+	Header `json:"-"`
 }
 
 func (r *StatfsRequest) String() string {
@@ -879,8 +860,8 @@ func (r *StatfsResponse) String() string {
 // An AccessRequest asks whether the file can be accessed
 // for the purpose specified by the mask.
 type AccessRequest struct {
-	Header
-	Mask uint32
+	Header `json:"-"`
+	Mask   uint32
 }
 
 func (r *AccessRequest) String() string {
@@ -965,7 +946,7 @@ func (a *Attr) attr() (out attr) {
 
 // A GetattrRequest asks for the metadata for the file denoted by r.Node.
 type GetattrRequest struct {
-	Header
+	Header `json:"-"`
 }
 
 func (r *GetattrRequest) String() string {
@@ -995,28 +976,42 @@ func (r *GetattrResponse) String() string {
 
 // A GetxattrRequest asks for the extended attributes associated with r.Node.
 type GetxattrRequest struct {
-	Header
-	Size     uint32 // maximum size to return
-	Position uint32 // offset within extended attributes
-	Name     string // Name of the attribute being requested
+	Header `json:"-"`
+
+	// Maximum size to return.
+	Size uint32
+
+	// Name of the attribute requested.
+	Name string
+
+	// Offset within extended attributes.
+	//
+	// Only valid for OS X, and then only with the resource fork
+	// attribute.
+	Position uint32
 }
 
 func (r *GetxattrRequest) String() string {
-	return fmt.Sprintf("Getxattr [%s] %d @%d", &r.Header, r.Size, r.Position)
+	return fmt.Sprintf("Getxattr [%s] %q %d @%d", &r.Header, r.Name, r.Size, r.Position)
 }
 
 // Respond replies to the request with the given response.
 func (r *GetxattrRequest) Respond(resp *GetxattrResponse) {
-	hdr := outHeader{Unique: uint64(r.ID)}
 	if r.Size == 0 {
 		out := &getxattrOut{
-			outHeader: hdr,
+			outHeader: outHeader{Unique: uint64(r.ID)},
 			Size:      uint32(len(resp.Xattr)),
 		}
 		r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 	} else {
-		r.Conn.respondData(&hdr, unsafe.Sizeof(hdr), resp.Xattr)
+		out := &outHeader{Unique: uint64(r.ID)}
+		r.Conn.respondData(out, unsafe.Sizeof(*out), resp.Xattr)
 	}
+}
+
+func (r *GetxattrRequest) RespondError(err Error) {
+	err = translateGetxattrError(err)
+	r.Header.RespondError(err)
 }
 
 // A GetxattrResponse is the response to a GetxattrRequest.
@@ -1030,7 +1025,7 @@ func (r *GetxattrResponse) String() string {
 
 // A ListxattrRequest asks to list the extended attributes associated with r.Node.
 type ListxattrRequest struct {
-	Header
+	Header   `json:"-"`
 	Size     uint32 // maximum size to return
 	Position uint32 // offset within attribute list
 }
@@ -1041,47 +1036,39 @@ func (r *ListxattrRequest) String() string {
 
 // Respond replies to the request with the given response.
 func (r *ListxattrRequest) Respond(resp *ListxattrResponse) {
-	hdr := outHeader{Unique: uint64(r.ID)}
 	if r.Size == 0 {
 		out := &getxattrOut{
-			outHeader: hdr,
-			Size:      resp.Size,
+			outHeader: outHeader{Unique: uint64(r.ID)},
+			Size:      uint32(len(resp.Xattr)),
 		}
 		r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
 	} else {
-		r.Conn.respondData(&hdr, unsafe.Sizeof(hdr), resp.Xattr)
+		out := &outHeader{Unique: uint64(r.ID)}
+		r.Conn.respondData(out, unsafe.Sizeof(*out), resp.Xattr)
 	}
 }
 
 // A ListxattrResponse is the response to a ListxattrRequest.
 type ListxattrResponse struct {
-	Size  uint32
 	Xattr []byte
-}
-
-// SetattrNames initializes the ListxattrResponse with the list of
-// attribute names.
-func (l *ListxattrResponse) SetAttrNames(req *ListxattrRequest, to []string) {
-	var buf bytes.Buffer
-	for _, b := range to {
-		buf.WriteString(b)
-		buf.WriteByte(0)
-	}
-	l.Size = uint32(buf.Len())
-	l.Xattr = buf.Bytes()
-	if len(l.Xattr) > int(req.Size) {
-		l.Xattr = l.Xattr[:req.Size]
-	}
 }
 
 func (r *ListxattrResponse) String() string {
 	return fmt.Sprintf("Listxattr %x", r.Xattr)
 }
 
+// Append adds an extended attribute name to the response.
+func (r *ListxattrResponse) Append(names ...string) {
+	for _, name := range names {
+		r.Xattr = append(r.Xattr, name...)
+		r.Xattr = append(r.Xattr, '\x00')
+	}
+}
+
 // A RemovexattrRequest asks to remove an extended attribute associated with r.Node.
 type RemovexattrRequest struct {
-	Header
-	Name string // name of extended attribute
+	Header `json:"-"`
+	Name   string // name of extended attribute
 }
 
 func (r *RemovexattrRequest) String() string {
@@ -1094,13 +1081,34 @@ func (r *RemovexattrRequest) Respond() {
 	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
+func (r *RemovexattrRequest) RespondError(err Error) {
+	err = translateGetxattrError(err)
+	r.Header.RespondError(err)
+}
+
 // A SetxattrRequest asks to set an extended attribute associated with a file.
 type SetxattrRequest struct {
-	Header
-	Flags    uint32
-	Position uint32 // OS X only
-	Name     string
-	Xattr    []byte
+	Header `json:"-"`
+
+	// Flags can make the request fail if attribute does/not already
+	// exist. Unfortunately, the constants are platform-specific and
+	// not exposed by Go1.2. Look for XATTR_CREATE, XATTR_REPLACE.
+	//
+	// TODO improve this later
+	//
+	// TODO XATTR_CREATE and exist -> EEXIST
+	//
+	// TODO XATTR_REPLACE and not exist -> ENODATA
+	Flags uint32
+
+	// Offset within extended attributes.
+	//
+	// Only valid for OS X, and then only with the resource fork
+	// attribute.
+	Position uint32
+
+	Name  string
+	Xattr []byte
 }
 
 func (r *SetxattrRequest) String() string {
@@ -1113,10 +1121,15 @@ func (r *SetxattrRequest) Respond() {
 	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
+func (r *SetxattrRequest) RespondError(err Error) {
+	err = translateGetxattrError(err)
+	r.Header.RespondError(err)
+}
+
 // A LookupRequest asks to look up the given name in the directory named by r.Node.
 type LookupRequest struct {
-	Header
-	Name string
+	Header `json:"-"`
+	Name   string
 }
 
 func (r *LookupRequest) String() string {
@@ -1153,14 +1166,13 @@ func (r *LookupResponse) String() string {
 
 // An OpenRequest asks to open a file or directory
 type OpenRequest struct {
-	Header
-	Dir   bool // is this Opendir?
-	Flags uint32
-	Mode  os.FileMode
+	Header `json:"-"`
+	Dir    bool // is this Opendir?
+	Flags  OpenFlags
 }
 
 func (r *OpenRequest) String() string {
-	return fmt.Sprintf("Open [%s] dir=%v fl=%v mode=%v", &r.Header, r.Dir, r.Flags, r.Mode)
+	return fmt.Sprintf("Open [%s] dir=%v fl=%v", &r.Header, r.Dir, r.Flags)
 }
 
 // Respond replies to the request with the given response.
@@ -1176,7 +1188,7 @@ func (r *OpenRequest) Respond(resp *OpenResponse) {
 // A OpenResponse is the response to a OpenRequest.
 type OpenResponse struct {
 	Handle HandleID
-	Flags  OpenFlags
+	Flags  OpenResponseFlags
 }
 
 func (r *OpenResponse) String() string {
@@ -1185,10 +1197,10 @@ func (r *OpenResponse) String() string {
 
 // A CreateRequest asks to create and open a file (not a directory).
 type CreateRequest struct {
-	Header
-	Name  string
-	Flags uint32
-	Mode  os.FileMode
+	Header `json:"-"`
+	Name   string
+	Flags  OpenFlags
+	Mode   os.FileMode
 }
 
 func (r *CreateRequest) String() string {
@@ -1227,9 +1239,9 @@ func (r *CreateResponse) String() string {
 
 // A MkdirRequest asks to create (but not open) a directory.
 type MkdirRequest struct {
-	Header
-	Name string
-	Mode os.FileMode
+	Header `json:"-"`
+	Name   string
+	Mode   os.FileMode
 }
 
 func (r *MkdirRequest) String() string {
@@ -1262,15 +1274,11 @@ func (r *MkdirResponse) String() string {
 
 // A ReadRequest asks to read from an open file.
 type ReadRequest struct {
-	Header
+	Header `json:"-"`
 	Dir    bool // is this Readdir?
 	Handle HandleID
 	Offset int64
 	Size   int
-}
-
-func (r *ReadRequest) handle() HandleID {
-	return r.Handle
 }
 
 func (r *ReadRequest) String() string {
@@ -1289,21 +1297,28 @@ type ReadResponse struct {
 }
 
 func (r *ReadResponse) String() string {
-	return fmt.Sprintf("Read %x", r.Data)
+	return fmt.Sprintf("Read %d", len(r.Data))
+}
+
+type jsonReadResponse struct {
+	Len uint64
+}
+
+func (r *ReadResponse) MarshalJSON() ([]byte, error) {
+	j := jsonReadResponse{
+		Len: uint64(len(r.Data)),
+	}
+	return json.Marshal(j)
 }
 
 // A ReleaseRequest asks to release (close) an open file handle.
 type ReleaseRequest struct {
-	Header
+	Header       `json:"-"`
 	Dir          bool // is this Releasedir?
 	Handle       HandleID
-	Flags        uint32 // flags from OpenRequest
+	Flags        OpenFlags // flags from OpenRequest
 	ReleaseFlags ReleaseFlags
 	LockOwner    uint32
-}
-
-func (r *ReleaseRequest) handle() HandleID {
-	return r.Handle
 }
 
 func (r *ReleaseRequest) String() string {
@@ -1320,7 +1335,7 @@ func (r *ReleaseRequest) Respond() {
 // No more requests will be received after this one, but it should still be
 // responded to.
 type DestroyRequest struct {
-	Header
+	Header `json:"-"`
 }
 
 func (r *DestroyRequest) String() string {
@@ -1336,8 +1351,8 @@ func (r *DestroyRequest) Respond() {
 // A ForgetRequest is sent by the kernel when forgetting about r.Node
 // as returned by r.N lookup requests.
 type ForgetRequest struct {
-	Header
-	N uint64
+	Header `json:"-"`
+	N      uint64
 }
 
 func (r *ForgetRequest) String() string {
@@ -1351,9 +1366,64 @@ func (r *ForgetRequest) Respond() {
 
 // A Dirent represents a single directory entry.
 type Dirent struct {
-	Inode uint64 // inode this entry names
-	Type  uint32 // ?
-	Name  string // name of entry
+	// Inode this entry names.
+	Inode uint64
+
+	// Type of the entry, for example DT_File.
+	//
+	// Setting this is optional. The zero value (DT_Unknown) means
+	// callers will just need to do a Getattr when the type is
+	// needed. Providing a type can speed up operations
+	// significantly.
+	Type DirentType
+
+	// Name of the entry
+	Name string
+}
+
+// Type of an entry in a directory listing.
+type DirentType uint32
+
+const (
+	// These don't quite match os.FileMode; especially there's an
+	// explicit unknown, instead of zero value meaning file. They
+	// are also not quite syscall.DT_*; nothing says the FUSE
+	// protocol follows those, and even if they were, we don't
+	// want each fs to fiddle with syscall.
+
+	// The shift by 12 is hardcoded in the FUSE userspace
+	// low-level C library, so it's safe here.
+
+	DT_Unknown DirentType = 0
+	DT_Socket  DirentType = syscall.S_IFSOCK >> 12
+	DT_Link    DirentType = syscall.S_IFLNK >> 12
+	DT_File    DirentType = syscall.S_IFREG >> 12
+	DT_Block   DirentType = syscall.S_IFBLK >> 12
+	DT_Dir     DirentType = syscall.S_IFDIR >> 12
+	DT_Char    DirentType = syscall.S_IFCHR >> 12
+	DT_FIFO    DirentType = syscall.S_IFIFO >> 12
+)
+
+func (t DirentType) String() string {
+	switch t {
+	case DT_Unknown:
+		return "unknown"
+	case DT_Socket:
+		return "socket"
+	case DT_Link:
+		return "link"
+	case DT_File:
+		return "file"
+	case DT_Block:
+		return "block"
+	case DT_Dir:
+		return "dir"
+	case DT_Char:
+		return "char"
+	case DT_FIFO:
+		return "fifo"
+	}
+	return "invalid"
 }
 
 // AppendDirent appends the encoded form of a directory entry to data
@@ -1362,7 +1432,7 @@ func AppendDirent(data []byte, dir Dirent) []byte {
 	de := dirent{
 		Ino:     dir.Inode,
 		Namelen: uint32(len(dir.Name)),
-		Type:    dir.Type,
+		Type:    uint32(dir.Type),
 	}
 	de.Off = uint64(len(data) + direntSize + (len(dir.Name)+7)&^7)
 	data = append(data, (*[direntSize]byte)(unsafe.Pointer(&de))[:]...)
@@ -1388,6 +1458,23 @@ func (r *WriteRequest) String() string {
 	return fmt.Sprintf("Write [%s] %#x %d @%d fl=%v", &r.Header, r.Handle, len(r.Data), r.Offset, r.Flags)
 }
 
+type jsonWriteRequest struct {
+	Handle HandleID
+	Offset int64
+	Len    uint64
+	Flags  WriteFlags
+}
+
+func (r *WriteRequest) MarshalJSON() ([]byte, error) {
+	j := jsonWriteRequest{
+		Handle: r.Handle,
+		Offset: r.Offset,
+		Len:    uint64(len(r.Data)),
+		Flags:  r.Flags,
+	}
+	return json.Marshal(j)
+}
+
 // Respond replies to the request with the given response.
 func (r *WriteRequest) Respond(resp *WriteResponse) {
 	out := &writeOut{
@@ -1395,10 +1482,6 @@ func (r *WriteRequest) Respond(resp *WriteResponse) {
 		Size:      uint32(resp.Size),
 	}
 	r.Conn.respond(&out.outHeader, unsafe.Sizeof(*out))
-}
-
-func (r *WriteRequest) handle() HandleID {
-	return r.Handle
 }
 
 // A WriteResponse replies to a write indicating how many bytes were written.
@@ -1413,7 +1496,7 @@ func (r *WriteResponse) String() string {
 // A SetattrRequest asks to change one or more attributes associated with a file,
 // as indicated by Valid.
 type SetattrRequest struct {
-	Header
+	Header `json:"-"`
 	Valid  SetattrValid
 	Handle HandleID
 	Size   uint64
@@ -1448,13 +1531,22 @@ func (r *SetattrRequest) String() string {
 	if r.Valid.Atime() {
 		fmt.Fprintf(&buf, " atime=%v", r.Atime)
 	}
+	if r.Valid.AtimeNow() {
+		fmt.Fprintf(&buf, " atime=now")
+	}
 	if r.Valid.Mtime() {
 		fmt.Fprintf(&buf, " mtime=%v", r.Mtime)
+	}
+	if r.Valid.MtimeNow() {
+		fmt.Fprintf(&buf, " mtime=now")
 	}
 	if r.Valid.Handle() {
 		fmt.Fprintf(&buf, " handle=%#x", r.Handle)
 	} else {
 		fmt.Fprintf(&buf, " handle=INVALID-%#x", r.Handle)
+	}
+	if r.Valid.LockOwner() {
+		fmt.Fprintf(&buf, " lockowner")
 	}
 	if r.Valid.Crtime() {
 		fmt.Fprintf(&buf, " crtime=%v", r.Crtime)
@@ -1469,13 +1561,6 @@ func (r *SetattrRequest) String() string {
 		fmt.Fprintf(&buf, " flags=%#x", r.Flags)
 	}
 	return buf.String()
-}
-
-func (r *SetattrRequest) handle() HandleID {
-	if r.Valid.Handle() {
-		return r.Handle
-	}
-	return 0
 }
 
 // Respond replies to the request with the given response,
@@ -1504,7 +1589,7 @@ func (r *SetattrResponse) String() string {
 // to storage, as when a file descriptor is being closed.  A single opened Handle
 // may receive multiple FlushRequests over its lifetime.
 type FlushRequest struct {
-	Header
+	Header    `json:"-"`
 	Handle    HandleID
 	Flags     uint32
 	LockOwner uint64
@@ -1512,10 +1597,6 @@ type FlushRequest struct {
 
 func (r *FlushRequest) String() string {
 	return fmt.Sprintf("Flush [%s] %#x fl=%#x lk=%#x", &r.Header, r.Handle, r.Flags, r.LockOwner)
-}
-
-func (r *FlushRequest) handle() HandleID {
-	return r.Handle
 }
 
 // Respond replies to the request, indicating that the flush succeeded.
@@ -1526,9 +1607,9 @@ func (r *FlushRequest) Respond() {
 
 // A RemoveRequest asks to remove a file or directory.
 type RemoveRequest struct {
-	Header
-	Name string // name of extended attribute
-	Dir  bool   // is this rmdir?
+	Header `json:"-"`
+	Name   string // name of extended attribute
+	Dir    bool   // is this rmdir?
 }
 
 func (r *RemoveRequest) String() string {
@@ -1543,16 +1624,12 @@ func (r *RemoveRequest) Respond() {
 
 // A SymlinkRequest is a request to create a symlink making NewName point to Target.
 type SymlinkRequest struct {
-	Header
+	Header          `json:"-"`
 	NewName, Target string
 }
 
 func (r *SymlinkRequest) String() string {
 	return fmt.Sprintf("Symlink [%s] from %q to target %q", &r.Header, r.NewName, r.Target)
-}
-
-func (r *SymlinkRequest) handle() HandleID {
-	return 0
 }
 
 // Respond replies to the request, indicating that the symlink was created.
@@ -1577,15 +1654,11 @@ type SymlinkResponse struct {
 
 // A ReadlinkRequest is a request to read a symlink's target.
 type ReadlinkRequest struct {
-	Header
+	Header `json:"-"`
 }
 
 func (r *ReadlinkRequest) String() string {
 	return fmt.Sprintf("Readlink [%s]", &r.Header)
-}
-
-func (r *ReadlinkRequest) handle() HandleID {
-	return 0
 }
 
 func (r *ReadlinkRequest) Respond(target string) {
@@ -1595,7 +1668,7 @@ func (r *ReadlinkRequest) Respond(target string) {
 
 // A LinkRequest is a request to create a hard link.
 type LinkRequest struct {
-	Header
+	Header  `json:"-"`
 	OldNode NodeID
 	NewName string
 }
@@ -1616,13 +1689,9 @@ func (r *LinkRequest) Respond(resp *LookupResponse) {
 
 // A RenameRequest is a request to rename a file.
 type RenameRequest struct {
-	Header
+	Header           `json:"-"`
 	NewDir           NodeID
 	OldName, NewName string
-}
-
-func (r *RenameRequest) handle() HandleID {
-	return 0
 }
 
 func (r *RenameRequest) String() string {
@@ -1635,10 +1704,10 @@ func (r *RenameRequest) Respond() {
 }
 
 type MknodRequest struct {
-	Header
-	Name string
-	Mode os.FileMode
-	Rdev uint32
+	Header `json:"-"`
+	Name   string
+	Mode   os.FileMode
+	Rdev   uint32
 }
 
 func (r *MknodRequest) String() string {
@@ -1660,10 +1729,11 @@ func (r *MknodRequest) Respond(resp *LookupResponse) {
 }
 
 type FsyncRequest struct {
-	Header
+	Header `json:"-"`
 	Handle HandleID
-	Flags  uint32
-	Dir    bool // if opFsyncDir
+	// TODO bit 1 is datasync, not well documented upstream
+	Flags uint32
+	Dir   bool
 }
 
 func (r *FsyncRequest) String() string {
@@ -1675,25 +1745,31 @@ func (r *FsyncRequest) Respond() {
 	r.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
+// An InterruptRequest is a request to interrupt another pending request. The
+// response to that request should return an error status of EINTR.
 type InterruptRequest struct {
-	Header
-	Unique uint64
+	Header `json:"-"`
+	IntrID RequestID // ID of the request to be interrupt.
+}
+
+func (r *InterruptRequest) Respond() {
+	// nothing to do here
+}
+
+func (r *InterruptRequest) String() string {
+	return fmt.Sprintf("Interrupt [%s] ID %v", &r.Header, r.IntrID)
 }
 
 /*{
 
 // A XXXRequest xxx.
 type XXXRequest struct {
-	Header
+	Header `json:"-"`
 	xxx
 }
 
 func (r *XXXRequest) String() string {
 	return fmt.Sprintf("XXX [%s] xxx", &r.Header)
-}
-
-func (r *XXXRequest) handle() HandleID {
-	return r.Handle
 }
 
 // Respond replies to the request with the given response.

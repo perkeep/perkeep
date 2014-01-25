@@ -42,7 +42,7 @@ import (
 
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
-	"camlistore.org/third_party/taglib"
+	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib"
 )
 
 func (ix *Index) reindex(br blob.Ref) error {
@@ -313,12 +313,7 @@ func (ix *Index) populateFile(b *schema.Blob, mm *mutationMap) (err error) {
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
 	if strings.HasPrefix(mime, "audio/") {
-		tag, err := taglib.Decode(fr, fr.Size())
-		if err == nil {
-			indexMusic(tag, wholeRef, mm)
-		} else {
-			log.Print("index: error parsing tag: ", err)
-		}
+		indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
 	}
 
 	return nil
@@ -434,31 +429,67 @@ func tagDegrees(tag *tiff.Tag) float64 {
 	return ratFloat(tag.Rat2(0)) + ratFloat(tag.Rat2(1))/60 + ratFloat(tag.Rat2(2))/3600
 }
 
-// indexMusic adds mutations to index the wholeRef by most of the
-// fields in gotaglib.GenericTag.
-func indexMusic(tag taglib.GenericTag, wholeRef blob.Ref, mm *mutationMap) {
-	const justYearLayout = "2006"
+// indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
+func indexMusic(sr *io.SectionReader, wholeRef blob.Ref, mm *mutationMap) {
+	tag, err := taglib.Decode(sr, sr.Size())
+	if err != nil {
+		log.Print("index: error parsing tag: ", err)
+		return
+	}
 
-	var yearStr, trackStr string
+	// Determine if an ID3v1 tag is present at the end of the file.
+	const v1Length = 128
+	const v1Magic = "TAG"
+	buf := make([]byte, len(v1Magic), len(v1Magic))
+	if _, err := sr.ReadAt(buf, sr.Size()-v1Length); err != nil {
+		log.Printf("index: error reading ID3v1 tag: ", err)
+		return
+	}
+	var footerLength int64 = 0
+	if string(buf) == v1Magic {
+		footerLength = v1Length
+	}
+
+	// Generate a hash of the audio portion of the file (i.e. excluding ID3v1 and v2 tags).
+	if _, err := sr.Seek(int64(tag.TagSize()), 0); err != nil {
+		log.Printf("index: error seeking past ID3v2 tag: ", err)
+		return
+	}
+	hash := sha1.New()
+	if _, err := io.CopyN(hash, sr, sr.Size()-int64(tag.TagSize())-footerLength); err != nil {
+		log.Printf("index: error generating SHA1 from audio data: ", err)
+		return
+	}
+	mediaRef := blob.RefFromHash(hash)
+
+	var yearStr, trackStr, discStr string
 	if !tag.Year().IsZero() {
+		const justYearLayout = "2006"
 		yearStr = tag.Year().Format(justYearLayout)
 	}
 	if tag.Track() != 0 {
 		trackStr = fmt.Sprintf("%d", tag.Track())
 	}
+	if tag.Disc() != 0 {
+		discStr = fmt.Sprintf("%d", tag.Disc())
+	}
 
+	// Note: if you add to this map, please update
+	// pkg/search/query.go's MediaTagConstraint Tag docs.
 	tags := map[string]string{
-		"title":  tag.Title(),
-		"artist": tag.Artist(),
-		"album":  tag.Album(),
-		"genre":  tag.Genre(),
-		"year":   yearStr,
-		"track":  trackStr,
+		"title":    tag.Title(),
+		"artist":   tag.Artist(),
+		"album":    tag.Album(),
+		"genre":    tag.Genre(),
+		"year":     yearStr,
+		"track":    trackStr,
+		"disc":     discStr,
+		"mediaref": mediaRef.String(),
 	}
 
 	for tag, value := range tags {
 		if value != "" {
-			mm.Set(keyAudioTag.Key(tag, strings.ToLower(value), wholeRef), "1")
+			mm.Set(keyMediaTag.Key(wholeRef, tag), keyMediaTag.Val(value))
 		}
 	}
 }

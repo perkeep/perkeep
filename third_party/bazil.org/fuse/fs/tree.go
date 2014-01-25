@@ -1,12 +1,6 @@
-// +build linux darwin
-
-// Copyright 2012 The Go Authors.  All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 // FUSE directory tree, for servers that wish to use it with the service loop.
 
-package fuse
+package fs
 
 import (
 	"os"
@@ -14,18 +8,25 @@ import (
 	"strings"
 )
 
-// A Tree implements a basic directory tree for FUSE.
+import (
+	"camlistore.org/third_party/bazil.org/fuse"
+)
+
+// A Tree implements a basic read-only directory tree for FUSE.
+// The Nodes contained in it may still be writable.
 type Tree struct {
 	tree
 }
 
-func (t *Tree) Root() (Node, Error) {
+func (t *Tree) Root() (Node, fuse.Error) {
 	return &t.tree, nil
 }
 
 // Add adds the path to the tree, resolving to the given node.
 // If path or a prefix of path has already been added to the tree,
 // Add panics.
+//
+// Add is only safe to call before starting to serve requests.
 func (t *Tree) Add(path string, node Node) {
 	path = pathpkg.Clean("/" + path)[1:]
 	elems := strings.Split(path, "/")
@@ -74,22 +75,22 @@ func (t *tree) add(name string, n Node) {
 	t.dir = append(t.dir, treeDir{name, n})
 }
 
-func (t *tree) Attr() Attr {
-	return Attr{Mode: os.ModeDir | 0555}
+func (t *tree) Attr() fuse.Attr {
+	return fuse.Attr{Mode: os.ModeDir | 0555}
 }
 
-func (t *tree) Lookup(name string, intr Intr) (Node, Error) {
+func (t *tree) Lookup(name string, intr Intr) (Node, fuse.Error) {
 	n := t.lookup(name)
 	if n != nil {
 		return n, nil
 	}
-	return nil, ENOENT
+	return nil, fuse.ENOENT
 }
 
-func (t *tree) ReadDir(intr Intr) ([]Dirent, Error) {
-	var out []Dirent
+func (t *tree) ReadDir(intr Intr) ([]fuse.Dirent, fuse.Error) {
+	var out []fuse.Dirent
 	for _, d := range t.dir {
-		out = append(out, Dirent{Name: d.name})
+		out = append(out, fuse.Dirent{Name: d.name})
 	}
 	return out, nil
 }

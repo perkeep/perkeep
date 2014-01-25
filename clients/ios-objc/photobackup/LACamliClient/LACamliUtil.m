@@ -7,21 +7,24 @@
 //
 
 #import "LACamliUtil.h"
+#import "LAAppDelegate.h"
 #import <CommonCrypto/CommonDigest.h>
+#import <SSKeychain.h>
 
 @implementation LACamliUtil
 
-static NSString *const serviceName = @"org.camlistore.credentials";
+static NSString* const serviceName = @"org.camlistore.credentials";
 
 // h/t AFNetworking
-+ (NSString *)base64EncodedStringFromString:(NSString *)string
++ (NSString*)base64EncodedStringFromString:(NSString*)string
 {
-    NSData *data = [NSData dataWithBytes:[string UTF8String] length:[string lengthOfBytesUsingEncoding:NSUTF8StringEncoding]];
+    NSData* data = [NSData dataWithBytes:[string UTF8String]
+                                  length:[string lengthOfBytesUsingEncoding:NSUTF8StringEncoding]];
     NSUInteger length = [data length];
-    NSMutableData *mutableData = [NSMutableData dataWithLength:((length + 2) / 3) * 4];
+    NSMutableData* mutableData = [NSMutableData dataWithLength:((length + 2) / 3) * 4];
 
-    uint8_t *input = (uint8_t *)[data bytes];
-    uint8_t *output = (uint8_t *)[mutableData mutableBytes];
+    uint8_t* input = (uint8_t*)[data bytes];
+    uint8_t* output = (uint8_t*)[mutableData mutableBytes];
 
     for (NSUInteger i = 0; i < length; i += 3) {
         NSUInteger value = 0;
@@ -37,80 +40,48 @@ static NSString *const serviceName = @"org.camlistore.credentials";
         NSUInteger idx = (i / 3) * 4;
         output[idx + 0] = kAFBase64EncodingTable[(value >> 18) & 0x3F];
         output[idx + 1] = kAFBase64EncodingTable[(value >> 12) & 0x3F];
-        output[idx + 2] = (i + 1) < length ? kAFBase64EncodingTable[(value >> 6)  & 0x3F] : '=';
-        output[idx + 3] = (i + 2) < length ? kAFBase64EncodingTable[(value >> 0)  & 0x3F] : '=';
+        output[idx + 2] = (i + 1) < length ? kAFBase64EncodingTable[(value >> 6) & 0x3F] : '=';
+        output[idx + 3] = (i + 2) < length ? kAFBase64EncodingTable[(value >> 0) & 0x3F] : '=';
     }
 
-    return [[NSString alloc] initWithData:mutableData encoding:NSASCIIStringEncoding];
+    return [[NSString alloc] initWithData:mutableData
+                                 encoding:NSASCIIStringEncoding];
 }
 
 #pragma mark - keychain stuff
 
-+ (NSString *)passwordForUsername:(NSString *)username
++ (NSString*)passwordForUsername:(NSString*)username
 {
-    if (!username) {
-        LALog(@"no username");
+    NSError* error;
+    NSString* password = [SSKeychain passwordForService:CamliCredentialsKey
+                                                account:username
+                                                  error:&error];
+
+    if (!password || error) {
+        [LACamliUtil errorText:@[
+                                   @"error getting password: ",
+                                   [error description]
+                               ]];
         return nil;
     }
 
-    // construct query
-    NSDictionary *passwordQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
-                                    (__bridge NSString *)kSecAttrAccount: username,
-                                    (__bridge NSString *)kSecAttrService: serviceName,
-                                    (__bridge NSString *)kSecReturnData: (id)kCFBooleanTrue};
-
-
-	NSData *results = nil;
-    CFTypeRef resultRef = (__bridge CFTypeRef)results;
-
-    // actually request password
-    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)passwordQuery, &resultRef);
-
-    results = (__bridge NSData *)resultRef;
-
-    if (status == noErr) {
-        LALog(@"returning valid password");
-        return [[NSString alloc] initWithData:results encoding:NSUTF8StringEncoding];
-    }
-
-    return nil;
+    return password;
 }
 
-+ (BOOL)savePassword:(NSString *)password forUsername:(NSString *)username
++ (BOOL)savePassword:(NSString*)password forUsername:(NSString*)username
 {
-    if (!password || !username) {
-        LALog(@"no password or username");
-        return NO;
-    }
+    NSError* error;
+    BOOL setPassword = [SSKeychain setPassword:password
+                                    forService:CamliCredentialsKey
+                                       account:username
+                                         error:&error];
 
-    OSStatus status = noErr;
+    if (!setPassword || error) {
+        [LACamliUtil errorText:@[
+                                   @"error setting password: ",
+                                   [error description]
+                               ]];
 
-    if ([self passwordForUsername:username]) {
-        LALog(@"update");
-        // update keychain item
-
-        NSDictionary *updateQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
-                                      (__bridge NSString *)kSecAttrAccount: username,
-                                      (__bridge NSString *)kSecAttrService: serviceName
-                                      };
-
-        NSDictionary *updateAttribute = @{(__bridge NSString *)kSecValueData: [password dataUsingEncoding:NSUTF8StringEncoding]};
-
-        status = SecItemUpdate((__bridge CFDictionaryRef)updateQuery, (__bridge CFDictionaryRef)updateAttribute);
-    } else {
-        LALog(@"new");
-        // add a new keychain item
-
-        NSDictionary *addQuery = @{(__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
-                                   (__bridge NSString *)kSecAttrAccount: username,
-                                   (__bridge NSString *)kSecAttrService: serviceName,
-                                   (__bridge NSString *)kSecValueData: [password dataUsingEncoding:NSUTF8StringEncoding]
-                                   };
-
-        status =  SecItemAdd((__bridge CFDictionaryRef)addQuery, nil);
-    }
-
-    if (status != noErr) {
         return NO;
     }
 
@@ -119,7 +90,7 @@ static NSString *const serviceName = @"org.camlistore.credentials";
 
 #pragma mark - hashes
 
-+ (NSString *)blobRef:(NSData *)data
++ (NSString*)blobRef:(NSData*)data
 {
     uint8_t digest[CC_SHA1_DIGEST_LENGTH];
 
@@ -128,7 +99,7 @@ static NSString *const serviceName = @"org.camlistore.credentials";
     NSMutableString* output = [NSMutableString stringWithCapacity:(CC_SHA1_DIGEST_LENGTH * 2) + 5];
     [output appendString:@"sha1-"];
 
-    for(int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
         [output appendFormat:@"%02x", digest[i]];
     }
 
@@ -137,11 +108,11 @@ static NSString *const serviceName = @"org.camlistore.credentials";
 
 #pragma mark - dates
 
-+ (NSString *)rfc3339StringFromDate:(NSDate *)date
++ (NSString*)rfc3339StringFromDate:(NSDate*)date
 {
-    NSDateFormatter *rfc3339DateFormatter = [[NSDateFormatter alloc] init];
+    NSDateFormatter* rfc3339DateFormatter = [[NSDateFormatter alloc] init];
 
-    NSLocale *enUSPOSIXLocale = [[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"];
+    NSLocale* enUSPOSIXLocale = [[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"];
 
     [rfc3339DateFormatter setLocale:enUSPOSIXLocale];
     [rfc3339DateFormatter setDateFormat:@"yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'"];
@@ -152,37 +123,46 @@ static NSString *const serviceName = @"org.camlistore.credentials";
 
 #pragma mark - yucky logging hack
 
-+ (void)logText:(NSArray *)logs
++ (void)logText:(NSArray*)logs
 {
-    NSMutableString *logString = [NSMutableString string];
+    NSMutableString* logString = [NSMutableString string];
 
-    for (NSString *log in logs) {
+    for (NSString* log in logs) {
         [logString appendString:log];
     }
 
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"logtext" object:@{@"text": logString}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"logtext"
+                                                        object:@{
+                                                                   @"text" : logString
+                                                               }];
 }
 
-+ (void)statusText:(NSArray *)statuses
++ (void)statusText:(NSArray*)statuses
 {
-    NSMutableString *statusString = [NSMutableString string];
+    NSMutableString* statusString = [NSMutableString string];
 
-    for (NSString *status in statuses) {
+    for (NSString* status in statuses) {
         [statusString appendString:status];
     }
 
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"statusText" object:@{@"text": statusString}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"statusText"
+                                                        object:@{
+                                                                   @"text" : statusString
+                                                               }];
 }
 
-+ (void)errorText:(NSArray *)errors
++ (void)errorText:(NSArray*)errors
 {
-    NSMutableString *errorString = [NSMutableString string];
+    NSMutableString* errorString = [NSMutableString string];
 
-    for (NSString *error in errors) {
+    for (NSString* error in errors) {
         [errorString appendString:error];
     }
 
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"errorText" object:@{@"text": errorString}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"errorText"
+                                                        object:@{
+                                                                   @"text" : errorString
+                                                               }];
 }
 
 @end

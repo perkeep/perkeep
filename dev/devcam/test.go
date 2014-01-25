@@ -55,9 +55,6 @@ func (c *testCmd) Describe() string {
 }
 
 func (c *testCmd) RunCommand(args []string) error {
-	if len(args) != 0 {
-		c.Usage()
-	}
 	if err := c.syncSrc(); err != nil {
 		return err
 	}
@@ -68,7 +65,7 @@ func (c *testCmd) RunCommand(args []string) error {
 	if err := c.buildSelf(); err != nil {
 		return err
 	}
-	if err := c.runTests(); err != nil {
+	if err := c.runTests(args); err != nil {
 		return err
 	}
 	println("PASS")
@@ -118,21 +115,25 @@ func (c *testCmd) buildSelf() error {
 	return nil
 }
 
-func (c *testCmd) runTests() error {
-	args := []string{"test"}
+func (c *testCmd) runTests(args []string) error {
+	targs := []string{"test"}
 	if !strings.HasSuffix(c.buildGoPath, "-nosqlite") {
-		args = append(args, "--tags=with_sqlite")
+		targs = append(targs, "--tags=with_sqlite")
 	}
 	if c.short {
-		args = append(args, "-short")
+		targs = append(targs, "-short")
 	}
-	args = append(args, []string{
-		"./pkg/...",
-		"./server/camlistored",
-		"./server/appengine",
-		"./cmd/...",
-	}...)
+	if len(args) > 0 {
+		targs = append(targs, args...)
+	} else {
+		targs = append(targs, []string{
+			"./pkg/...",
+			"./server/camlistored",
+			"./server/appengine",
+			"./cmd/...",
+		}...)
+	}
 	env := c.env()
 	env.Set("SKIP_DEP_TESTS", "1")
-	return runExec("go", args, env)
+	return runExec("go", targs, env)
 }

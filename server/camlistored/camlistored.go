@@ -45,7 +45,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/serverconfig"
+	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
 
 	// Storage options:
@@ -322,7 +322,7 @@ func initSQLiteDB(path string) error {
 	return err
 }
 
-func setupTLS(ws *webserver.Server, config *serverconfig.Config, listen string) {
+func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
 	cert, key := config.OptionalString("TLSCertFile", ""), config.OptionalString("TLSKeyFile", "")
 	if !config.OptionalBool("https", true) {
 		return
@@ -415,7 +415,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 
 // listenAndBaseURL finds the configured, default, or inferred listen address
 // and base URL from the command-line flags and provided config.
-func listenAndBaseURL(config *serverconfig.Config) (listen, baseURL string) {
+func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
 	baseURL = config.OptionalString("baseURL", "")
 	listen = *listenFlag
 	listenConfig := config.OptionalString("listen", "")
@@ -458,7 +458,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		exitf("Error finding config file %q: %v", fileName, err)
 	}
 	log.Printf("Using config file %s", fileName)
-	config, err := serverconfig.Load(fileName)
+	config, err := serverinit.Load(fileName)
 	if err != nil {
 		exitf("Could not load server config: %v", err)
 	}

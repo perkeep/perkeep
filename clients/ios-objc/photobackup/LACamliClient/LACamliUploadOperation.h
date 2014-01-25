@@ -8,22 +8,22 @@
 
 #import <Foundation/Foundation.h>
 
-@class LACamliFile,LACamliClient;
+@class LACamliFile, LACamliClient;
 
 @interface LACamliUploadOperation : NSOperation <NSURLSessionDelegate>
 
-@property LACamliClient *client;
-@property LACamliFile *file;
-@property NSURLSession *session;
+@property LACamliClient* client;
+@property LACamliFile* file;
+@property NSURLSession* session;
 @property UIBackgroundTaskIdentifier taskID;
 
-@property (readonly) BOOL failedTransfer;
-@property (readonly) BOOL isExecuting;
-@property (readonly) BOOL isFinished;
+@property(readonly) BOOL failedTransfer;
+@property(readonly) BOOL isExecuting;
+@property(readonly) BOOL isFinished;
 
-- (id)initWithFile:(LACamliFile *)file andClient:(LACamliClient *)client;
+- (id)initWithFile:(LACamliFile*)file andClient:(LACamliClient*)client;
 - (BOOL)isConcurrent;
 
-- (NSString *)name;
+- (NSString*)name;
 
 @end

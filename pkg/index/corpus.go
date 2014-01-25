@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,6 +97,8 @@ type Corpus struct {
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
 
+	mediaTag map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
+
 	// scratch string slice
 	ss []string
 }
@@ -132,6 +135,7 @@ func newCorpus() *Corpus {
 		brOfStr:      make(map[string]blob.Ref),
 		fileWholeRef: make(map[blob.Ref]blob.Ref),
 		gps:          make(map[blob.Ref]latLong),
+		mediaTag:     make(map[blob.Ref]map[string]string),
 	}
 }
 
@@ -182,6 +186,7 @@ var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
 	"exifgps":         (*Corpus).mergeEXIFGPSRow,
 	"exiftag":         nil, // not using any for now
 	"signerattrvalue": nil, // ignoring for now
+	"mediatag":        (*Corpus).mergeMediaTag,
 }
 
 func memstats() *runtime.MemStats {
@@ -202,6 +207,7 @@ var slurpPrefixes = []string{
 	"imagesize|",
 	"wholetofile|",
 	"exifgps|",
+	"mediatag|",
 }
 
 // Key types (without trailing punctuation) that we slurp to memory at start.
@@ -481,6 +487,25 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
 	c.fileWholeRef[fileRef] = wholeRef
+	return nil
+}
+
+// "mediatag|sha1-2b219be9d9691b4f8090e7ee2690098097f59566|album" = "Some+Album+Name"
+func (c *Corpus) mergeMediaTag(k, v []byte) error {
+	f := strings.Split(string(k), "|")
+	if len(f) != 3 {
+		return fmt.Errorf("unexpected key %q", k)
+	}
+	wholeRef, ok := blob.Parse(f[1])
+	if !ok {
+		return fmt.Errorf("failed to parse wholeref from key %q", k)
+	}
+	tm, ok := c.mediaTag[wholeRef]
+	if !ok {
+		tm = make(map[string]string)
+		c.mediaTag[wholeRef] = tm
+	}
+	tm[c.str(f[2])] = c.str(urld(string(v)))
 	return nil
 }
 
@@ -858,6 +883,14 @@ func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, er
 		err = os.ErrNotExist
 	}
 	return
+}
+
+func (c *Corpus) MediaTagLocked(fileRef blob.Ref) map[string]string {
+	wholeRef, ok := c.fileWholeRef[fileRef]
+	if !ok {
+		return nil
+	}
+	return c.mediaTag[wholeRef]
 }
 
 func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool) {

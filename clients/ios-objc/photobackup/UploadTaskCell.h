@@ -10,8 +10,8 @@
 
 @interface UploadTaskCell : UITableViewCell
 
-@property IBOutlet UILabel *displayText;
-@property IBOutlet UIImageView *preview;
-@property IBOutlet UIProgressView *progress;
+@property IBOutlet UILabel* displayText;
+@property IBOutlet UIImageView* preview;
+@property IBOutlet UIProgressView* progress;
 
 @end

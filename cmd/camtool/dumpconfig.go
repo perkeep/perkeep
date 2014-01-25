@@ -24,7 +24,7 @@ import (
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/serverconfig"
+	"camlistore.org/pkg/serverinit"
 )
 
 type dumpconfigCmd struct{}
@@ -52,7 +52,7 @@ func (c *dumpconfigCmd) RunCommand(args []string) error {
 	default:
 		return errors.New("More than 1 argument not allowed")
 	}
-	cfg, err := serverconfig.Load(file)
+	cfg, err := serverinit.Load(file)
 	if err != nil {
 		return err
 	}

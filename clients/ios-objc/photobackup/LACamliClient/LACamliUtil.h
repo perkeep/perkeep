@@ -10,14 +10,14 @@
 
 @interface LACamliUtil : NSObject
 
-+ (NSString *)base64EncodedStringFromString:(NSString *)string;
-+ (NSString *)passwordForUsername:(NSString *)username;
-+ (BOOL)savePassword:(NSString *)password forUsername:(NSString *)username;
-+ (NSString *)blobRef:(NSData *)data;
-+ (NSString *)rfc3339StringFromDate:(NSDate *)date;
++ (NSString*)base64EncodedStringFromString:(NSString*)string;
++ (NSString*)passwordForUsername:(NSString*)username;
++ (BOOL)savePassword:(NSString*)password forUsername:(NSString*)username;
++ (NSString*)blobRef:(NSData*)data;
++ (NSString*)rfc3339StringFromDate:(NSDate*)date;
 
-+ (void)logText:(NSArray *)logs;
-+ (void)statusText:(NSArray *)statuses;
-+ (void)errorText:(NSArray *)errors;
++ (void)logText:(NSArray*)logs;
++ (void)statusText:(NSArray*)statuses;
++ (void)errorText:(NSArray*)errors;
 
 @end

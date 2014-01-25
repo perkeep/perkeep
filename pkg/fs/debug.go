@@ -26,7 +26,8 @@ import (
 
 	"camlistore.org/pkg/types"
 
-	"camlistore.org/third_party/code.google.com/p/rsc/fuse"
+	"camlistore.org/third_party/bazil.org/fuse"
+	"camlistore.org/third_party/bazil.org/fuse/fs"
 )
 
 // If TrackStats is true, statistics are kept on operations.
@@ -88,7 +89,7 @@ func (s *stat) Attr() fuse.Attr {
 	}
 }
 
-func (s *stat) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fuse.Intr) fuse.Error {
+func (s *stat) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fs.Intr) fuse.Error {
 	c := s.content()
 	if req.Offset > int64(len(c)) {
 		return nil
@@ -115,14 +116,14 @@ func (statsDir) Attr() fuse.Attr {
 	}
 }
 
-func (statsDir) ReadDir(intr fuse.Intr) (ents []fuse.Dirent, err fuse.Error) {
+func (statsDir) ReadDir(intr fs.Intr) (ents []fuse.Dirent, err fuse.Error) {
 	for k := range statByName {
 		ents = append(ents, fuse.Dirent{Name: k})
 	}
 	return
 }
 
-func (statsDir) Lookup(req *fuse.LookupRequest, res *fuse.LookupResponse, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (statsDir) Lookup(req *fuse.LookupRequest, res *fuse.LookupResponse, intr fs.Intr) (fs.Node, fuse.Error) {
 	name := req.Name
 	s, ok := statByName[name]
 	if !ok {
