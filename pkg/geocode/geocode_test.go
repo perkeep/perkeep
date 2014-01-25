@@ -24,22 +24,45 @@ import (
 )
 
 func TestDecodeGoogleResponse(t *testing.T) {
-	rects, err := decodeGoogleResponse(strings.NewReader(googleRes))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []Rect{
-		Rect{
-			NorthEast: LatLong{pf("56.009657"), pf("37.945661")},
-			SouthWest: LatLong{pf("55.48992699999999"), pf("37.319329")},
+	tests := []struct {
+		name string
+		res  string
+		want []Rect
+	}{
+		{
+			name: "moscow",
+			res:  googleMoscow,
+			want: []Rect{
+				Rect{
+					NorthEast: LatLong{pf("56.009657"), pf("37.945661")},
+					SouthWest: LatLong{pf("55.48992699999999"), pf("37.319329")},
+				},
+				Rect{
+					NorthEast: LatLong{pf("46.758882"), pf("-116.962068")},
+					SouthWest: LatLong{pf("46.710912"), pf("-117.039698")},
+				},
+			},
 		},
-		Rect{
-			NorthEast: LatLong{pf("46.758882"), pf("-116.962068")},
-			SouthWest: LatLong{pf("46.710912"), pf("-117.039698")},
+		{
+			name: "usa",
+			res:  googleUSA,
+			want: []Rect{
+				Rect{
+					NorthEast: LatLong{pf("49.38"), pf("-66.94")},
+					SouthWest: LatLong{pf("25.82"), pf("-124.39")},
+				},
+			},
 		},
 	}
-	if !reflect.DeepEqual(rects, want) {
-		t.Errorf("wrong rects\n Got %#v\nWant %#v", rects, want)
+	for _, tt := range tests {
+		rects, err := decodeGoogleResponse(strings.NewReader(tt.res))
+		if err != nil {
+			t.Errorf("Decoding %s: %v", tt.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(rects, tt.want) {
+			t.Errorf("Test %s: wrong rects\n Got %#v\nWant %#v", tt.name, rects, tt.want)
+		}
 	}
 }
 
@@ -52,7 +75,7 @@ func pf(s string) float64 {
 	return v
 }
 
-var googleRes = `
+var googleMoscow = `
 {
    "results" : [
       {
@@ -160,6 +183,54 @@ var googleRes = `
             }
          },
          "types" : [ "locality", "political" ]
+      }
+   ],
+   "status" : "OK"
+}
+`
+
+// Response for "usa".
+// Note the geometry bounds covering the whole world. In this case, use the viewport instead.
+var googleUSA = `
+{
+   "results" : [
+      {
+         "address_components" : [
+            {
+               "long_name" : "United States",
+               "short_name" : "US",
+               "types" : [ "country", "political" ]
+            }
+         ],
+         "formatted_address" : "United States",
+         "geometry" : {
+            "bounds" : {
+               "northeast" : {
+                  "lat" : 90,
+                  "lng" : 180
+               },
+               "southwest" : {
+                  "lat" : -90,
+                  "lng" : -180
+               }
+            },
+            "location" : {
+               "lat" : 37.09024,
+               "lng" : -95.712891
+            },
+            "location_type" : "APPROXIMATE",
+            "viewport" : {
+               "northeast" : {
+                  "lat" : 49.38,
+                  "lng" : -66.94
+               },
+               "southwest" : {
+                  "lat" : 25.82,
+                  "lng" : -124.39
+               }
+            }
+         },
+         "types" : [ "country", "political" ]
       }
    ],
    "status" : "OK"

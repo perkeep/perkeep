@@ -88,7 +88,8 @@ type googleResult struct {
 }
 
 type googleGeometry struct {
-	Bounds *Rect `json:"bounds"`
+	Bounds   *Rect `json:"bounds"`
+	Viewport *Rect `json:"viewport"`
 }
 
 func decodeGoogleResponse(r io.Reader) (rects []Rect, err error) {
@@ -98,7 +99,17 @@ func decodeGoogleResponse(r io.Reader) (rects []Rect, err error) {
 	}
 	for _, res := range resTop.Results {
 		if res.Geometry != nil && res.Geometry.Bounds != nil {
-			rects = append(rects, *res.Geometry.Bounds)
+			r := res.Geometry.Bounds
+			if r.NorthEast.Lat == 90 && r.NorthEast.Long == 180 &&
+				r.SouthWest.Lat == -90 && r.SouthWest.Long == -180 {
+				// Google sometimes returns a "whole world" rect for large addresses (like "USA")
+				// so instead use the viewport in that case.
+				if res.Geometry.Viewport != nil {
+					rects = append(rects, *res.Geometry.Viewport)
+				}
+			} else {
+				rects = append(rects, *r)
+			}
 		}
 	}
 	return
