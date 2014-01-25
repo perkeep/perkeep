@@ -133,6 +133,11 @@ type ReaderAtCloser interface {
 	io.Closer
 }
 
+type SizeReaderAt interface {
+	io.ReaderAt
+	Size() int64
+}
+
 // TODO(wathiede): make sure all the stat readers work with code that
 // type asserts ReadFrom/WriteTo.
 
