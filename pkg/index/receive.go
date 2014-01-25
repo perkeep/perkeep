@@ -37,6 +37,7 @@ import (
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/magic"
+	"camlistore.org/pkg/media"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
 
@@ -430,39 +431,38 @@ func tagDegrees(tag *tiff.Tag) float64 {
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
-func indexMusic(sr *io.SectionReader, wholeRef blob.Ref, mm *mutationMap) {
-	tag, err := taglib.Decode(sr, sr.Size())
+func indexMusic(r types.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
+	tag, err := taglib.Decode(r, r.Size())
 	if err != nil {
 		log.Print("index: error parsing tag: ", err)
 		return
 	}
 
-	// Determine if an ID3v1 tag is present at the end of the file.
-	const v1Length = 128
-	const v1Magic = "TAG"
-	buf := make([]byte, len(v1Magic), len(v1Magic))
-	if _, err := sr.ReadAt(buf, sr.Size()-v1Length); err != nil {
-		log.Printf("index: error reading ID3v1 tag: ", err)
-		return
-	}
 	var footerLength int64 = 0
-	if string(buf) == v1Magic {
-		footerLength = v1Length
+	if hasTag, err := media.HasID3v1Tag(r); err != nil {
+		log.Print("index: unable to check for ID3v1 tag: ", err)
+		return
+	} else if hasTag {
+		footerLength = media.ID3v1TagLength
 	}
 
 	// Generate a hash of the audio portion of the file (i.e. excluding ID3v1 and v2 tags).
-	if _, err := sr.Seek(int64(tag.TagSize()), 0); err != nil {
-		log.Printf("index: error seeking past ID3v2 tag: ", err)
-		return
-	}
+	audioStart := int64(tag.TagSize())
+	audioSize := r.Size() - audioStart - footerLength
 	hash := sha1.New()
-	if _, err := io.CopyN(hash, sr, sr.Size()-int64(tag.TagSize())-footerLength); err != nil {
-		log.Printf("index: error generating SHA1 from audio data: ", err)
+	if _, err := io.Copy(hash, io.NewSectionReader(r, audioStart, audioSize)); err != nil {
+		log.Print("index: error generating SHA1 from audio data: ", err)
 		return
 	}
 	mediaRef := blob.RefFromHash(hash)
 
-	var yearStr, trackStr, discStr string
+	duration, err := media.GetMPEGAudioDuration(io.NewSectionReader(r, audioStart, audioSize))
+	if err != nil {
+		log.Print("index: unable to calculate audio duration: ", err)
+		duration = 0
+	}
+
+	var yearStr, trackStr, discStr, durationStr string
 	if !tag.Year().IsZero() {
 		const justYearLayout = "2006"
 		yearStr = tag.Year().Format(justYearLayout)
@@ -473,18 +473,22 @@ func indexMusic(sr *io.SectionReader, wholeRef blob.Ref, mm *mutationMap) {
 	if tag.Disc() != 0 {
 		discStr = fmt.Sprintf("%d", tag.Disc())
 	}
+	if duration != 0 {
+		durationStr = fmt.Sprintf("%d", duration/time.Millisecond)
+	}
 
 	// Note: if you add to this map, please update
 	// pkg/search/query.go's MediaTagConstraint Tag docs.
 	tags := map[string]string{
-		"title":    tag.Title(),
-		"artist":   tag.Artist(),
-		"album":    tag.Album(),
-		"genre":    tag.Genre(),
-		"year":     yearStr,
-		"track":    trackStr,
-		"disc":     discStr,
-		"mediaref": mediaRef.String(),
+		"title":      tag.Title(),
+		"artist":     tag.Artist(),
+		"album":      tag.Album(),
+		"genre":      tag.Genre(),
+		"year":       yearStr,
+		"track":      trackStr,
+		"disc":       discStr,
+		"mediaref":   mediaRef.String(),
+		"durationms": durationStr,
 	}
 
 	for tag, value := range tags {
