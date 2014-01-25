@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/geocode"
@@ -105,7 +106,7 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 		})
 	}
 
-	words := strings.Fields(exp)
+	words := splitExpr(exp)
 	for _, word := range words {
 		andNot = false
 		if strings.HasPrefix(word, "-") {
@@ -302,4 +303,98 @@ func mimeFromFormat(v string) string {
 		return "application/pdf" // RFC 3778
 	}
 	return "???"
+}
+
+// Tokens are:
+//    literal
+//    foo:     (for operators)
+//    "quoted string"
+//    " "  (for any amount of space)
+//    "-" negative sign
+func tokenizeExpr(exp string) []string {
+	var tokens []string
+	for len(exp) > 0 {
+		var token string
+		token, exp = firstToken(exp)
+		tokens = append(tokens, token)
+	}
+	return tokens
+}
+
+func firstToken(s string) (token, rest string) {
+	if s[0] == '-' {
+		return "-", s[1:]
+	}
+	if isSpace(s[0]) {
+		for len(s) > 0 && isSpace(s[0]) {
+			s = s[1:]
+		}
+		return " ", s
+	}
+	if s[0] == '"' {
+		quote := false
+		for i, r := range s[1:] {
+			if quote {
+				quote = false
+				continue
+			}
+			if r == '\\' {
+				quote = true
+				continue
+			}
+			if r == '"' {
+				return s[:i+2], s[i+2:]
+			}
+		}
+	}
+	for i, r := range s {
+		if r == ':' {
+			return s[:i+1], s[i+1:]
+		}
+		if r < utf8.RuneSelf && isSpace(byte(r)) {
+			return s[:i], s[i:]
+		}
+	}
+	return s, ""
+}
+
+func isSpace(b byte) bool {
+	switch b {
+	case ' ', '\n', '\r', '\t':
+		return true
+	}
+	return false
+}
+
+// Basically just strings.Fields for now but with de-quoting of quoted
+// tokens after operators.
+func splitExpr(exp string) []string {
+	tokens := tokenizeExpr(strings.TrimSpace(exp))
+	if len(tokens) == 0 {
+		return nil
+	}
+	// Turn any pair of ("operator:", `"quoted string"`) tokens into
+	// ("operator:", "quoted string"), unquoting the second.
+	for i, token := range tokens[:len(tokens)-1] {
+		nextToken := tokens[i+1]
+		if strings.HasSuffix(token, ":") && strings.HasPrefix(nextToken, "\"") {
+			if uq, err := strconv.Unquote(nextToken); err == nil {
+				tokens[i+1] = uq
+			}
+		}
+	}
+
+	// Split on space tokens and concatenate all the other tokens.
+	// Not particularly efficient, though.
+	var f []string
+	for i, token := range tokens {
+		if i == 0 {
+			f = append(f, token)
+		} else if token == " " {
+			f = append(f, "")
+		} else {
+			f[len(f)-1] += token
+		}
+	}
+	return f
 }

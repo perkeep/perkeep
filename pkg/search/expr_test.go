@@ -193,3 +193,43 @@ func TestParseExpression(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitExpr(t *testing.T) {
+	tests := []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{"foo", []string{"foo"}},
+		{"foo bar", []string{"foo", "bar"}},
+		{" foo  bar ", []string{"foo", "bar"}},
+		{`foo:"quoted string" bar`, []string{`foo:quoted string`, "bar"}},
+	}
+	for _, tt := range tests {
+		got := splitExpr(tt.in)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("split(%s) = %q; want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestTokenizeExpr(t *testing.T) {
+	tests := []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{"foo", []string{"foo"}},
+		{"foo bar", []string{"foo", " ", "bar"}},
+		{" foo  bar ", []string{" ", "foo", " ", "bar", " "}},
+		{" -foo  bar", []string{" ", "-", "foo", " ", "bar"}},
+		{`-"quote"foo`, []string{"-", `"quote"`, "foo"}},
+		{`foo:"quoted string" bar`, []string{"foo:", `"quoted string"`, " ", "bar"}},
+	}
+	for _, tt := range tests {
+		got := tokenizeExpr(tt.in)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("tokens(%s) = %q; want %q", tt.in, got, tt.want)
+		}
+	}
+}
