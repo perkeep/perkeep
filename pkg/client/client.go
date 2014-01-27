@@ -188,7 +188,7 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 		httpStats.VerboseLog = tc.Verbose
 	}
 	transport = httpStats
-	if android.OnAndroid() {
+	if android.IsChild() {
 		transport = &android.StatsTransport{transport}
 	}
 	return transport
@@ -816,7 +816,7 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	trustedCerts := c.getTrustedCerts()
 	if !c.useTLS() || (!c.InsecureTLS && len(trustedCerts) == 0) {
 		// No TLS, or TLS with normal/full verification
-		if android.OnAndroid() {
+		if android.IsChild() {
 			return func(network, addr string) (net.Conn, error) {
 				return android.Dial(network, addr)
 			}
@@ -827,7 +827,7 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	return func(network, addr string) (net.Conn, error) {
 		var conn *tls.Conn
 		var err error
-		if android.OnAndroid() {
+		if android.IsChild() {
 			con, err := android.Dial(network, addr)
 			if err != nil {
 				return nil, err

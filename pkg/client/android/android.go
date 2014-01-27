@@ -33,11 +33,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 )
 
@@ -48,6 +52,7 @@ var androidOutput, _ = strconv.ParseBool(os.Getenv("CAMPUT_ANDROID_OUTPUT"))
 // child process and should report its output in the form that the
 // Android uploader app expects.
 func IsChild() bool {
+	memOnce.Do(startMemGoroutine)
 	return androidOutput
 }
 
@@ -93,6 +98,17 @@ func (ni *namedInt) Incr(delta int64) {
 	Printf("STAT %s %d\n", ni.name, nv)
 }
 
+func (ni *namedInt) Set(v int64) {
+	ni.Lock()
+	if v == ni.val {
+		ni.Unlock()
+		return
+	}
+	ni.val = v
+	ni.Unlock()
+	Printf("STAT %s %d\n", ni.name, v)
+}
+
 var (
 	statDNSStart       = &namedInt{name: "dns_start"}
 	statDNSDone        = &namedInt{name: "dns_done"}
@@ -109,6 +125,9 @@ var (
 	statBlobExisted    = &namedInt{name: "blob_existed"}
 	statFileUploaded   = &namedInt{name: "file_uploaded"}
 	statFileExisted    = &namedInt{name: "file_existed"}
+	statMemReleased    = &namedInt{name: "mem_heap_released"}
+	statMemAlloc       = &namedInt{name: "mem_alloc"}
+	statMemRSS         = &namedInt{name: "mem_rss"}
 )
 
 type statTrackingConn struct {
@@ -212,7 +231,13 @@ func Dial(network, addr string) (net.Conn, error) {
 		statTCPFail.Incr(1)
 		return nil, fmt.Errorf("couldn't split %q", addr)
 	}
-	c, err := net.Dial(network, net.JoinHostPort(androidLookupHost(host), port))
+	if OnAndroid() {
+		// Only do the Android DNS lookups when actually
+		// running on a device. We also run in "Android mode"
+		// (IsChild) in tests and interactive debugging.
+		host = androidLookupHost(host)
+	}
+	c, err := net.Dial(network, net.JoinHostPort(host, port))
 	if err != nil {
 		statTCPFail.Incr(1)
 		return nil, err
@@ -322,4 +347,27 @@ func (w writeUntilSliceFull) Write(p []byte) (n int, err error) {
 	copy(s[l:], p)
 	*w.s = s
 	return len(p), nil
+}
+
+var memOnce sync.Once
+
+func startMemGoroutine() {
+	if !androidOutput {
+		return
+	}
+	go func() {
+		var ms runtime.MemStats
+		n := 0
+		for {
+			runtime.ReadMemStats(&ms)
+			statMemReleased.Set(int64(ms.HeapReleased))
+			statMemAlloc.Set(int64(ms.Alloc))
+			statMemRSS.Set(osutil.MemUsage())
+			time.Sleep(1 * time.Second)
+			n++
+			if n%5 == 0 {
+				debug.FreeOSMemory()
+			}
+		}
+	}()
 }
