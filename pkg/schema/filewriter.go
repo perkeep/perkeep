@@ -191,7 +191,7 @@ func uploadString(bs blobserver.StatReceiver, br blob.Ref, s string) (blob.Ref, 
 	if hasIt {
 		return br, nil
 	}
-	_, err = bs.ReceiveBlob(br, strings.NewReader(s))
+	_, err = blobserver.ReceiveNoHash(bs, br, strings.NewReader(s))
 	if err != nil {
 		return blob.Ref{}, err
 	}
