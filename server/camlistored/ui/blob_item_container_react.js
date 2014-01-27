@@ -136,6 +136,9 @@ cam.BlobItemContainerReact = React.createClass({
 		this.childProps_ = [];
 
 		var results = this.props.searchSession.getCurrentResults();
+		if (!results || !results.blobs || results.blobs.length == 0) {
+			return;
+		}
 		var data = goog.array.map(results.blobs, function(blob) {
 			return new cam.BlobItemReactData(blob.blob, results.description.meta);
 		});

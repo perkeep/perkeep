@@ -178,7 +178,11 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 		this.socket_.close();
 	}
 
-	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, Math.max(this.data_.blobs.length, this.constructor.PAGE_SIZE_));
+	var numResults = 0;
+	if (this.data_ && this.data_.blobs) {
+		numResults = this.data_.blobs.length;
+	}
+	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_));
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {
