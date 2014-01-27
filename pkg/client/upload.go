@@ -210,8 +210,8 @@ func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 const maxStatPerReq = 1000 // TODO: detect this from client discovery? add it on server side too.
 
 func (c *Client) doSomeStats() {
-	c.requestHTTPToken()
-	defer c.releaseHTTPToken()
+	c.httpGate.Start()
+	defer c.httpGate.Done()
 
 	var batch map[blob.Ref][]statReq
 

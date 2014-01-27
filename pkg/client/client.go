@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -114,8 +115,8 @@ type Client struct {
 	// a share.
 	via map[string]string // target => via (target is referenced from via)
 
-	log     *log.Logger // not nil
-	reqGate chan bool
+	log      *log.Logger // not nil
+	httpGate *syncutil.Gate
 }
 
 const maxParallelHTTP = 5
@@ -135,7 +136,7 @@ func New(server string) *Client {
 	return &Client{
 		server:     server,
 		httpClient: http.DefaultClient,
-		reqGate:    make(chan bool, maxParallelHTTP),
+		httpGate:   syncutil.NewGate(maxParallelHTTP),
 		haveCache:  noHaveCache{},
 		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
 		authMode:   auth.None{},
@@ -737,14 +738,6 @@ func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request
 	return req
 }
 
-func (c *Client) requestHTTPToken() {
-	c.reqGate <- true
-}
-
-func (c *Client) releaseHTTPToken() {
-	<-c.reqGate
-}
-
 // expect2XX will doReqGated and promote HTTP response codes outside of
 // the 200-299 range to a non-nil error containing the response body.
 func (c *Client) expect2XX(req *http.Request) (*http.Response, error) {
@@ -759,8 +752,8 @@ func (c *Client) expect2XX(req *http.Request) (*http.Response, error) {
 }
 
 func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
-	c.requestHTTPToken()
-	defer c.releaseHTTPToken()
+	c.httpGate.Start()
+	defer c.httpGate.Done()
 	return c.httpClient.Do(req)
 }
 
