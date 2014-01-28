@@ -97,7 +97,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		s.reqs++
 		n = s.reqs
 		s.mu.Unlock()
-		log.Printf("Request #%d: %s %s ...", n, req.Method, req.RequestURI)
+		log.Printf("Request #%d: %s %s (from %s) ...", n, req.Method, req.RequestURI, req.RemoteAddr)
 		rw = &trackResponseWriter{ResponseWriter: rw}
 	}
 	s.mux.ServeHTTP(rw, req)
