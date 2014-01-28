@@ -53,6 +53,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/types"
 )
 
 // Compaction constants
@@ -261,7 +262,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 		return sb, errors.New("encrypt: error writing encrypted blob")
 	}
 
-	meta := encodeMetaValue(plainSize, iv, encBR, buf.Len())
+	meta := encodeMetaValue(uint32(plainSize), iv, encBR, buf.Len())
 	metaBlob := s.makeSingleMetaBlob(plainBR, meta)
 	_, err = blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
 	if err != nil {
@@ -274,10 +275,10 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", err)
 	}
 
-	return blob.SizedRef{plainBR, plainSize}, nil
+	return blob.SizedRef{plainBR, uint32(plainSize)}, nil
 }
 
-func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	meta, err := s.fetchMeta(plainBR)
 	if err != nil {
 		return nil, 0, err
@@ -314,6 +315,7 @@ func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int
 	if err != nil {
 		return nil, 0, err
 	}
+	size = types.U32(plainSize)
 	if !plainBR.HashMatches(plainHash) {
 		return nil, 0, blobserver.ErrCorruptBlob
 	}
@@ -322,8 +324,8 @@ func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size int
 		io.Closer
 	}{
 		bytes.NewReader(plain.Bytes()),
-		dummyCloser,
-	}, plainSize, nil
+		types.NopCloser,
+	}, uint32(plainSize), nil
 }
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
@@ -473,15 +475,15 @@ func (s *storage) readAllMetaBlobs() error {
 	return <-enumErrc
 }
 
-func encodeMetaValue(plainSize int64, iv []byte, encBR blob.Ref, encSize int) string {
+func encodeMetaValue(plainSize uint32, iv []byte, encBR blob.Ref, encSize int) string {
 	return fmt.Sprintf("%d/%x/%s/%d", plainSize, iv, encBR, encSize)
 }
 
 type metaValue struct {
 	IV         []byte
 	EncBlobRef blob.Ref
-	EncSize    int64
-	PlainSize  int64
+	EncSize    uint32
+	PlainSize  uint32
 }
 
 // returns os.ErrNotExist on cache miss
@@ -496,16 +498,16 @@ func (s *storage) fetchMeta(b blob.Ref) (*metaValue, error) {
 	return parseMetaValue(v)
 }
 
-func parseMetaValuePlainSize(v string) (plainSize int64, ok bool) {
+func parseMetaValuePlainSize(v string) (plainSize uint32, ok bool) {
 	slash := strings.Index(v, "/")
 	if slash < 0 {
 		return
 	}
-	n, err := strconv.Atoi(v[:slash])
+	n, err := strconv.ParseUint(v[:slash], 10, 32)
 	if err != nil {
 		return
 	}
-	return int64(n), true
+	return uint32(n), true
 }
 
 func parseMetaValue(v string) (mv *metaValue, err error) {
@@ -514,10 +516,11 @@ func parseMetaValue(v string) (mv *metaValue, err error) {
 		return nil, errors.New("wrong number of fields")
 	}
 	mv = &metaValue{}
-	mv.PlainSize, err = strconv.ParseInt(f[0], 10, 64)
+	plainSize, err := strconv.ParseUint(f[0], 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("bad plaintext size in meta %q", v)
 	}
+	mv.PlainSize = uint32(plainSize)
 	mv.IV, err = hex.DecodeString(f[1])
 	if err != nil {
 		return nil, fmt.Errorf("bad iv in meta %q", v)
@@ -527,14 +530,13 @@ func parseMetaValue(v string) (mv *metaValue, err error) {
 	if !ok {
 		return nil, fmt.Errorf("bad blobref in meta %q", v)
 	}
-	mv.EncSize, err = strconv.ParseInt(f[3], 10, 64)
+	encSize, err := strconv.ParseUint(f[3], 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("bad encrypted size in meta %q", v)
 	}
+	mv.EncSize = uint32(encSize)
 	return mv, nil
 }
-
-var dummyCloser io.Closer = ioutil.NopCloser(nil)
 
 func init() {
 	blobserver.RegisterStorageConstructor("encrypt", blobserver.StorageConstructor(newFromConfig))

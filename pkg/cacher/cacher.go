@@ -46,7 +46,7 @@ type CachingFetcher struct {
 	g singleflight.Group
 }
 
-func (cf *CachingFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (cf *CachingFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return
@@ -57,7 +57,7 @@ func (cf *CachingFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size 
 	return cf.c.Fetch(br)
 }
 
-func (cf *CachingFetcher) Fetch(br blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (cf *CachingFetcher) Fetch(br blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	file, size, err = cf.c.Fetch(br)
 	if err == nil {
 		return

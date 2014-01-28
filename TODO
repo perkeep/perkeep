@@ -70,10 +70,6 @@ Offline list:
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
 
--- use 'uint32' instead of 'int64' for blob sizes everywhere (notably
-   blob.SizedRef).  blobs have a max size of 10-32 MB anyway, and the
-   index.Corpus is now using uint32 to save memory.
-
 -- (Mostly done) verify all ReceiveBlob calls and see which should be
    blobserver.Receive instead, or ReceiveNoHash.  git grep -E
    "\.ReceiveBlob\(" And maybe ReceiveNoHash should go away and be

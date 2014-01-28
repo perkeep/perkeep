@@ -151,7 +151,7 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 			}
 			if blobRef, ok := blob.Parse(blobName); ok {
 				select {
-				case opts.ch <- blob.SizedRef{Ref: blobRef, Size: fi.Size()}:
+				case opts.ch <- blob.SizedRef{Ref: blobRef, Size: uint32(fi.Size())}:
 				case <-opts.done:
 					return context.ErrCanceled
 				}

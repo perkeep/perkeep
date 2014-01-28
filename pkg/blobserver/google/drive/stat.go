@@ -24,7 +24,7 @@ func (sto *driveStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) 
 	for _, br := range blobs {
 		size, err := sto.service.Stat(br.String())
 		if err == nil {
-			dest <- blob.SizedRef{Ref: br, Size: size}
+			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
 		} else {
 			return err
 		}

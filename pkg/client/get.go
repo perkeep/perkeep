@@ -21,10 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
@@ -39,7 +41,7 @@ func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
 	return schema.BlobFromReader(b, rc)
 }
 
-func (c *Client) FetchStreaming(b blob.Ref) (io.ReadCloser, int64, error) {
+func (c *Client) FetchStreaming(b blob.Ref) (io.ReadCloser, uint32, error) {
 	return c.FetchVia(b, c.viaPathTo(b))
 }
 
@@ -66,7 +68,7 @@ func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
 
 var blobsRx = regexp.MustCompile(blob.Pattern)
 
-func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size int64, err error) {
+func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size uint32, err error) {
 	if c.sto != nil {
 		if len(v) > 0 {
 			return nil, 0, errors.New("FetchVia not supported in non-HTTP mode")
@@ -109,17 +111,22 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size in
 	var buf bytes.Buffer
 	var reader io.Reader = io.MultiReader(&buf, resp.Body)
 	var closer io.Closer = resp.Body
-	size = resp.ContentLength
-	if size == -1 {
+	if resp.ContentLength > 0 {
+		if resp.ContentLength > math.MaxUint32 {
+			return nil, 0, fmt.Errorf("Blob %s over %d bytes", b, math.MaxUint32)
+		}
+		size = uint32(resp.ContentLength)
+	} else {
+		size = 0
 		// Might be compressed. Slurp it to memory.
-		n, err := io.CopyN(&buf, resp.Body, blobserver.MaxBlobSize+1)
+		n, err := io.CopyN(&buf, resp.Body, constants.MaxBlobSize+1)
 		if n > blobserver.MaxBlobSize {
-			return nil, 0, fmt.Errorf("Blob %b over %d bytes; not reading more", b, blobserver.MaxBlobSize)
+			return nil, 0, fmt.Errorf("Blob %s over %d bytes; not reading more", b, blobserver.MaxBlobSize)
 		}
 		if err == nil {
 			panic("unexpected")
 		} else if err == io.EOF {
-			size = n
+			size = uint32(n)
 			reader, closer = &buf, types.NopCloser
 		} else {
 			return nil, 0, fmt.Errorf("Error reading %s: %v", b, err)
@@ -159,11 +166,11 @@ func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, erro
 	}
 	size, ok := readerutil.ReaderSize(source)
 	if !ok {
-		size = -1
+		size = 0
 	}
 	h := &UploadHandle{
 		BlobRef:  br,
-		Size:     size, // -1 if we don't know
+		Size:     uint32(size), // 0 if we don't know
 		Contents: source,
 		SkipStat: true,
 	}

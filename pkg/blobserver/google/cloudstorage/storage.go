@@ -21,12 +21,14 @@ package cloudstorage
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
@@ -73,7 +75,7 @@ func (gs *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRe
 			continue
 		}
 		select {
-		case dest <- blob.SizedRef{Ref: br, Size: obj.Size}:
+		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
 		case <-ctx.Done():
 			return context.ErrCanceled
 		}
@@ -97,7 +99,7 @@ func (gs *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 		return blob.SizedRef{}, err
 	}
 
-	return blob.SizedRef{Ref: br, Size: size}, nil
+	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
 func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
@@ -108,7 +110,10 @@ func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error 
 		size, _, err := gs.client.StatObject(
 			&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
 		if err == nil {
-			dest <- blob.SizedRef{Ref: br, Size: size}
+			if size > constants.MaxBlobSize {
+				return errors.New("object too big")
+			}
+			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
 		} else {
 			reterr = err
 		}
@@ -116,9 +121,12 @@ func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error 
 	return reterr
 }
 
-func (gs *Storage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size int64, err error) {
-	file, size, err = gs.client.GetObject(&googlestorage.Object{Bucket: gs.bucket, Key: blob.String()})
-	return
+func (gs *Storage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	file, sz, err := gs.client.GetObject(&googlestorage.Object{Bucket: gs.bucket, Key: blob.String()})
+	if err != nil && sz > constants.MaxBlobSize {
+		err = errors.New("object too big")
+	}
+	return file, uint32(sz), err
 
 }
 

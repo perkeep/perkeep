@@ -86,5 +86,5 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 	}
 
 	success = true // used in defer above
-	return blob.SizedRef{Ref: blobRef, Size: stat.Size()}, nil
+	return blob.SizedRef{Ref: blobRef, Size: uint32(stat.Size())}, nil
 }

@@ -39,7 +39,7 @@ func TestReceive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sb.Size != int64(len(data)) {
+	if sb.Size != uint32(len(data)) {
 		t.Errorf("received blob size = %d; want %d", sb.Size, len(data))
 	}
 	if sb.Ref != br {

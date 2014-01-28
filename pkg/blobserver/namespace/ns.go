@@ -85,7 +85,7 @@ func (ns *nsto) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, 
 			continue
 		}
 		select {
-		case dest <- blob.SizedRef{br, int64(size)}:
+		case dest <- blob.SizedRef{br, uint32(size)}:
 		case <-done:
 			return context.ErrCanceled
 		}
@@ -97,7 +97,7 @@ func (ns *nsto) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, 
 	return nil
 }
 
-func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size int64, err error) {
+func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	invSizeStr, err := ns.inventory.Get(br.String())
 	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
@@ -114,7 +114,7 @@ func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size int64, err e
 	if err != nil {
 		return
 	}
-	if size != int64(invSize) {
+	if size != uint32(invSize) {
 		log.Printf("namespace: on blob %v, unexpected inventory size %d for master size %d", br, invSize, size)
 		return nil, 0, os.ErrNotExist
 	}
@@ -130,7 +130,7 @@ func (ns *nsto) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err e
 
 	// Check if a duplicate blob, already uploaded previously.
 	if _, ierr := ns.inventory.Get(br.String()); ierr == nil {
-		return blob.SizedRef{br, size}, nil
+		return blob.SizedRef{br, uint32(size)}, nil
 	}
 
 	sb, err = ns.master.ReceiveBlob(br, &buf)
@@ -164,7 +164,7 @@ func (ns *nsto) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			log.Printf("Bogus namespace key %q / value %q", br.String(), invSizeStr)
 		}
-		dest <- blob.SizedRef{br, int64(invSize)}
+		dest <- blob.SizedRef{br, uint32(invSize)}
 	}
 	return nil
 }

@@ -32,11 +32,11 @@ type NoImplStorage struct{}
 
 var _ Storage = (*NoImplStorage)(nil)
 
-func (nis *NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (nis *NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (nis *NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (nis *NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 

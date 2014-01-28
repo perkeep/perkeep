@@ -102,7 +102,7 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (bl
 			if err != nil {
 				return blob.Ref{}, err
 			}
-			if want := (blob.SizedRef{br, n}); sb != want {
+			if want := (blob.SizedRef{br, uint32(n)}); sb != want {
 				return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s, expect", sb, want)
 			}
 		}
@@ -129,7 +129,7 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (bl
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	if expect := (blob.SizedRef{br, int64(len(json))}); expect != sb {
+	if expect := (blob.SizedRef{br, uint32(len(json))}); expect != sb {
 		return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s bytes, got %s ack'd", expect, sb)
 	}
 

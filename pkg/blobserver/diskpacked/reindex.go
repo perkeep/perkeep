@@ -73,7 +73,7 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 	l, err := lock.Lock(name + ".lock")
 	defer l.Close()
 
-	var pos, size int64
+	var pos int64
 
 	errAt := func(prefix, suffix string) error {
 		if prefix != "" {
@@ -114,7 +114,8 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 		if i <= 0 {
 			return errAt("", fmt.Sprintf("bad header format (no space in %q)", chunk))
 		}
-		if size, err = strconv.ParseInt(string(chunk[i+1:]), 10, 64); err != nil {
+		size, err := strconv.ParseUint(string(chunk[i+1:]), 10, 32)
+		if err != nil {
 			return errAt(fmt.Sprintf("cannot parse size %q as int", chunk[i+1:]), err.Error())
 		}
 		ref, ok := blob.Parse(string(chunk[:i]))
@@ -125,7 +126,7 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 			log.Printf("found %s at %d", ref, pos)
 		}
 
-		meta := blobMeta{packId, pos + 1 + int64(m), size}.String()
+		meta := blobMeta{packId, pos + 1 + int64(m), uint32(size)}.String()
 		if overwrite && batch != nil {
 			batch.Set(ref.String(), meta)
 		} else {
@@ -145,8 +146,8 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 		pos += 1 + int64(m)
 		// TODO(tgulacsi78): not just seek, but check the hashes of the files
 		// maybe with a different command-line flag, only.
-		if pos, err = r.Seek(pos+size, 0); err != nil {
-			return errAt("", "cannot seek +"+strconv.FormatInt(size, 10)+" bytes")
+		if pos, err = r.Seek(pos+int64(size), 0); err != nil {
+			return errAt("", "cannot seek +"+strconv.FormatUint(size, 10)+" bytes")
 		}
 		// drain the buffer after the underlying reader Seeks
 		io.CopyN(ioutil.Discard, br, int64(br.Buffered()))

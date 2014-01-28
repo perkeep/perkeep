@@ -314,13 +314,13 @@ func (sh *SyncHandler) enumerateQueuedBlobs(dst chan<- blob.SizedRef, intr <-cha
 	it := sh.queue.Find("", "")
 	for it.Next() {
 		br, ok := blob.Parse(it.Key())
-		size, err := strconv.ParseInt(it.Value(), 10, 64)
+		size, err := strconv.ParseUint(it.Value(), 10, 32)
 		if !ok || err != nil {
 			sh.logf("ERROR: bogus sync queue entry: %q => %q", it.Key(), it.Value())
 			continue
 		}
 		select {
-		case dst <- blob.SizedRef{br, size}:
+		case dst <- blob.SizedRef{br, uint32(size)}:
 		case <-intr:
 			return it.Close()
 		}
@@ -371,7 +371,7 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef
 		if res.err == nil {
 			nCopied++
 			sh.totalCopies++
-			sh.totalCopyBytes += res.sb.Size
+			sh.totalCopyBytes += int64(res.sb.Size)
 			sh.recentCopyTime = time.Now().UTC()
 		} else {
 			sh.totalErrors++
@@ -467,7 +467,7 @@ func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, 
 	if err != nil {
 		return
 	}
-	sb = blob.SizedRef{br, n}
+	sb = blob.SizedRef{br, uint32(n)}
 	return sb, sh.enqueue(sb)
 }
 
@@ -498,5 +498,5 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 // For now, don't implement them. Wait until we need them.
 //
 // func (sh *SyncHandler) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-// func (sh *SyncHandler) FetchStreaming(br blob.Ref) (io.ReadCloser, int64, error) {
+// func (sh *SyncHandler) FetchStreaming(br blob.Ref) (io.ReadCloser, uint32, error) {
 // func (sh *SyncHandler) EnumerateBlobs(dest chan<- blob.SizedRef, after string, limit int) error {

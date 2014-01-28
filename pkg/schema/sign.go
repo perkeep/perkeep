@@ -82,8 +82,8 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 		baseSigReq: jsonsign.SignRequest{
 			ServerMode: true, // shouldn't matter, since we're supplying the rest of the fields
 			Fetcher: memoryBlobFetcher{
-				pubKeyRef: func() (int64, io.ReadCloser) {
-					return int64(len(armoredPubKeyString)), ioutil.NopCloser(strings.NewReader(armoredPubKeyString))
+				pubKeyRef: func() (uint32, io.ReadCloser) {
+					return uint32(len(armoredPubKeyString)), ioutil.NopCloser(strings.NewReader(armoredPubKeyString))
 				},
 			},
 			EntityFetcher: entityFetcherFunc(func(wantKeyId string) (*openpgp.Entity, error) {
@@ -107,9 +107,9 @@ func (s *Signer) SignJSON(json string, t time.Time) (string, error) {
 	return sr.Sign()
 }
 
-type memoryBlobFetcher map[blob.Ref]func() (size int64, rc io.ReadCloser)
+type memoryBlobFetcher map[blob.Ref]func() (size uint32, rc io.ReadCloser)
 
-func (m memoryBlobFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (m memoryBlobFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	fn, ok := m[br]
 	if !ok {
 		return nil, 0, os.ErrNotExist

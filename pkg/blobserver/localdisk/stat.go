@@ -21,6 +21,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types"
 )
 
 const maxParallelStats = 20
@@ -36,7 +37,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 		fi, err := os.Stat(ds.blobPath(ref))
 		switch {
 		case err == nil && fi.Mode().IsRegular():
-			dest <- blob.SizedRef{Ref: ref, Size: fi.Size()}
+			dest <- blob.SizedRef{Ref: ref, Size: types.U32(fi.Size())}
 			return nil
 		case err != nil && !os.IsNotExist(err):
 			return err

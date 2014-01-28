@@ -184,7 +184,7 @@ func (sto *condStorage) IsFetcherASeeker() bool {
 	return ok
 }
 
-func (sto *condStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (sto *condStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if sto.read != nil {
 		return sto.read.FetchStreaming(b)
 	}

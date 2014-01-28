@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"regexp"
 	"runtime"
 	"strings"
@@ -198,4 +199,12 @@ func (ib *InvertedBool) UnmarshalJSON(b []byte) error {
 // Get returns the logical value of ib.
 func (ib InvertedBool) Get() bool {
 	return !bool(ib)
+}
+
+// U32 converts n to an uint32, or panics if n is out of range
+func U32(n int64) uint32 {
+	if n < 0 || n > math.MaxUint32 {
+		panic("bad size " + fmt.Sprint(n))
+	}
+	return uint32(n)
 }

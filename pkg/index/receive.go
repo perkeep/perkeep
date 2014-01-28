@@ -88,7 +88,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 		return
 	}
 	if _, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
-		return blob.SizedRef{blobRef, written}, nil
+		return blob.SizedRef{blobRef, uint32(written)}, nil
 	}
 
 	sniffer.Parse()
@@ -115,7 +115,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	// mimeType := sniffer.MIMEType()
 	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
-	return blob.SizedRef{blobRef, written}, nil
+	return blob.SizedRef{blobRef, uint32(written)}, nil
 }
 
 // commit writes the contents of the mutationMap on a batch
@@ -201,7 +201,7 @@ type seekFetcherMissTracker struct {
 	missing []blob.Ref
 }
 
-func (f *seekFetcherMissTracker) Fetch(br blob.Ref) (blob types.ReadSeekCloser, size int64, err error) {
+func (f *seekFetcherMissTracker) Fetch(br blob.Ref) (blob types.ReadSeekCloser, size uint32, err error) {
 	blob, size, err = f.src.Fetch(br)
 	if err == os.ErrNotExist {
 		f.mu.Lock()

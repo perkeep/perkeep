@@ -127,7 +127,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *replicaStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (sto *replicaStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	// TODO: race these? first to respond?
 	for _, replica := range sto.readReplicas {
 		file, size, err = replica.FetchStreaming(b)
@@ -215,7 +215,7 @@ func (sto *replicaStorage) ReceiveBlob(br blob.Ref, src io.Reader) (_ blob.Sized
 	for _ = range sto.replicas {
 		res := <-resc
 		switch {
-		case res.err == nil && res.sb.Size == size:
+		case res.err == nil && int64(res.sb.Size) == size:
 			nSuccess++
 			if nSuccess == sto.minWritesForSuccess {
 				return res.sb, nil

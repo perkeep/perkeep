@@ -25,8 +25,8 @@ import (
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.
 type HaveCache interface {
-	StatBlobCache(br blob.Ref) (size int64, ok bool)
-	NoteBlobExists(br blob.Ref, size int64)
+	StatBlobCache(br blob.Ref) (size uint32, ok bool)
+	NoteBlobExists(br blob.Ref, size uint32)
 	Close() error
 }
 

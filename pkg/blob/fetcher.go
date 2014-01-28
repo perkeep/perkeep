@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -42,7 +43,7 @@ type SeekFetcher interface {
 	// error with a ErrNotExist inside)
 	//
 	// The caller should close blob.
-	Fetch(Ref) (blob types.ReadSeekCloser, size int64, err error)
+	Fetch(Ref) (blob types.ReadSeekCloser, size uint32, err error)
 }
 
 // SeekTester is the interface implemented by storage implementations that don't
@@ -59,7 +60,7 @@ type fetcherToSeekerWrapper struct {
 	StreamingFetcher
 }
 
-func (w *fetcherToSeekerWrapper) Fetch(r Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (w *fetcherToSeekerWrapper) Fetch(r Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	rc, size, err := w.StreamingFetcher.FetchStreaming(r)
 	if err != nil {
 		return
@@ -82,8 +83,8 @@ func (w *fetcherToSeekerWrapper) Fetch(r Ref) (file types.ReadSeekCloser, size i
 		io.Closer
 	}{
 		bytes.NewReader(slurp.Bytes()),
-		ioutil.NopCloser(nil),
-	}, n, err
+		types.NopCloser,
+	}, uint32(n), err
 }
 
 // StreamingFetcher is the minimal interface for retrieving a blob from storage.
@@ -94,7 +95,7 @@ type StreamingFetcher interface {
 	// error with a ErrNotExist inside)
 	//
 	// The caller should close blob.
-	FetchStreaming(Ref) (blob io.ReadCloser, size int64, err error)
+	FetchStreaming(Ref) (blob io.ReadCloser, size uint32, err error)
 }
 
 func NewSerialFetcher(fetchers ...SeekFetcher) SeekFetcher {
@@ -113,7 +114,7 @@ type serialFetcher struct {
 	fetchers []SeekFetcher
 }
 
-func (sf *serialFetcher) Fetch(r Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (sf *serialFetcher) Fetch(r Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	for _, fetcher := range sf.fetchers {
 		file, size, err = fetcher.Fetch(r)
 		if err == nil {
@@ -128,7 +129,7 @@ type serialStreamingFetcher struct {
 	fetchers []StreamingFetcher
 }
 
-func (sf *serialStreamingFetcher) FetchStreaming(r Ref) (file io.ReadCloser, size int64, err error) {
+func (sf *serialStreamingFetcher) FetchStreaming(r Ref) (file io.ReadCloser, size uint32, err error) {
 	for _, fetcher := range sf.fetchers {
 		file, size, err = fetcher.FetchStreaming(r)
 		if err == nil {
@@ -142,22 +143,26 @@ type DirFetcher struct {
 	directory, extension string
 }
 
-func (df *DirFetcher) FetchStreaming(r Ref) (file io.ReadCloser, size int64, err error) {
+func (df *DirFetcher) FetchStreaming(r Ref) (file io.ReadCloser, size uint32, err error) {
 	return df.Fetch(r)
 }
 
-func (df *DirFetcher) Fetch(r Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (df *DirFetcher) Fetch(r Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	fileName := fmt.Sprintf("%s/%s.%s", df.directory, r.String(), df.extension)
 	var stat os.FileInfo
 	stat, err = os.Stat(fileName)
 	if err != nil {
 		return
 	}
+	if stat.Size() > math.MaxUint32 {
+		err = errors.New("file size too big")
+		return
+	}
 	file, err = os.Open(fileName)
 	if err != nil {
 		return
 	}
-	size = stat.Size()
+	size = uint32(stat.Size())
 	return
 }
 
@@ -184,7 +189,7 @@ func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) (Ref, error) {
 	return MustParse(bstr), nil
 }
 
-func (s *MemoryStore) FetchStreaming(b Ref) (file io.ReadCloser, size int64, err error) {
+func (s *MemoryStore) FetchStreaming(b Ref) (file io.ReadCloser, size uint32, err error) {
 	s.lk.Lock()
 	defer s.lk.Unlock()
 	if s.m == nil {
@@ -194,7 +199,7 @@ func (s *MemoryStore) FetchStreaming(b Ref) (file io.ReadCloser, size int64, err
 	if !ok {
 		return nil, 0, os.ErrNotExist
 	}
-	return ioutil.NopCloser(strings.NewReader(str)), int64(len(str)), nil
+	return ioutil.NopCloser(strings.NewReader(str)), uint32(len(str)), nil
 }
 
 // SeekerFromStreamingFetcher returns the most efficient implementation of a seeking fetcher
@@ -218,7 +223,7 @@ type bufferingSeekFetcherWrapper struct {
 	sf StreamingFetcher
 }
 
-func (b bufferingSeekFetcherWrapper) Fetch(br Ref) (rsc types.ReadSeekCloser, size int64, err error) {
+func (b bufferingSeekFetcherWrapper) Fetch(br Ref) (rsc types.ReadSeekCloser, size uint32, err error) {
 	rc, size, err := b.sf.FetchStreaming(br)
 	if err != nil {
 		return nil, 0, err
@@ -236,14 +241,14 @@ func (b bufferingSeekFetcherWrapper) Fetch(br Ref) (rsc types.ReadSeekCloser, si
 	if err != nil {
 		return nil, 0, fmt.Errorf("Error reading blob %s: %v", br, err)
 	}
-	if n != size {
+	if n != int64(size) {
 		return nil, 0, fmt.Errorf("Read %d bytes of %s; expected %s", n, br, size)
 	}
 	return struct {
 		io.ReadSeeker
 		io.Closer
 	}{
-		ReadSeeker: io.NewSectionReader(bytes.NewReader(buf.Bytes()), 0, size),
-		Closer:     ioutil.NopCloser(nil),
+		ReadSeeker: io.NewSectionReader(bytes.NewReader(buf.Bytes()), 0, int64(size)),
+		Closer:     types.NopCloser,
 	}, size, nil
 }

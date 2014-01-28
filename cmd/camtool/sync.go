@@ -390,7 +390,7 @@ For:
 				continue
 			}
 			stats.BlobsCopied++
-			stats.BytesCopied += size
+			stats.BytesCopied += int64(size)
 
 			if c.removeSrc {
 				if err = src.RemoveBlobs([]blob.Ref{sb.Ref}); err != nil {
@@ -419,7 +419,7 @@ func loggingBlobRefChannel(ch <-chan blob.SizedRef) chan blob.SizedRef {
 		for v := range ch {
 			ch2 <- v
 			nblob++
-			nbyte += v.Size
+			nbyte += int64(v.Size)
 			now := time.Now()
 			if last.IsZero() || now.After(last.Add(1*time.Second)) {
 				last = now

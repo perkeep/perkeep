@@ -103,7 +103,7 @@ func (sto *remoteStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref)
 func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
 	h := &client.UploadHandle{
 		BlobRef:  blob,
-		Size:     -1, // size isn't known; -1 is fine, but TODO: ask source if it knows its size
+		Size:     0, // size isn't known; 0 is fine, but TODO: ask source if it knows its size
 		Contents: source,
 	}
 	pr, err := sto.client.Upload(h)
@@ -114,7 +114,7 @@ func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb bl
 	return pr.SizedBlobRef(), nil
 }
 
-func (sto *remoteStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (sto *remoteStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return sto.client.FetchStreaming(b)
 }
 

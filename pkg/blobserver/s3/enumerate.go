@@ -41,7 +41,7 @@ func (sto *s3Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.Size
 			continue
 		}
 		select {
-		case dest <- blob.SizedRef{Ref: br, Size: obj.Size}:
+		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
 		case <-ctx.Done():
 			return context.ErrCanceled
 		}

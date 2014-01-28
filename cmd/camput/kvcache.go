@@ -71,7 +71,7 @@ func (c *KvHaveCache) Close() error {
 	return c.db.Close()
 }
 
-func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size int64, ok bool) {
+func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 	if !br.Valid() {
 		return
 	}
@@ -84,15 +84,18 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size int64, ok bool) {
 		cachelog.Printf("have cache MISS on %v", br)
 		return
 	}
-	val, err := strconv.Atoi(string(binVal))
+	val, err := strconv.ParseUint(string(binVal), 10, 32)
 	if err != nil {
 		log.Fatalf("Could not decode have cache binary value for %v: %v", br, err)
 	}
+	if val < 0 {
+		log.Fatalf("Error decoding have cache binary value for %v: size=%d", br, val)
+	}
 	cachelog.Printf("have cache HIT on %v", br)
-	return int64(val), true
+	return uint32(val), true
 }
 
-func (c *KvHaveCache) NoteBlobExists(br blob.Ref, size int64) {
+func (c *KvHaveCache) NoteBlobExists(br blob.Ref, size uint32) {
 	if !br.Valid() {
 		return
 	}
@@ -294,7 +297,7 @@ func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 	scv.Fingerprint = statFingerprint(fingerprint)
 	scv.Result = client.PutResult{
 		BlobRef: *br,
-		Size:    int64(size),
+		Size:    uint32(size),
 		Skipped: true,
 	}
 	return nil

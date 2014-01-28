@@ -22,6 +22,6 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
-func (sto *driveStorage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size int64, reterr error) {
+func (sto *driveStorage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size uint32, reterr error) {
 	return sto.service.Fetch(blob.String())
 }

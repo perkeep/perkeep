@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/protocol"
+	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/httputil"
 )
 
@@ -52,7 +53,7 @@ type UploadHandle struct {
 
 	// Size optionally specifies the size of Contents.
 	// If <= 0, the Contents are slurped into memory to count the size.
-	Size int64
+	Size uint32
 
 	// Vivify optionally instructs the server to create a
 	// permanode for this blob. If used, the blob should be a
@@ -71,7 +72,7 @@ type UploadHandle struct {
 
 type PutResult struct {
 	BlobRef blob.Ref
-	Size    int64
+	Size    uint32
 	Skipped bool // already present on blobserver
 }
 
@@ -117,7 +118,7 @@ func parseStatResponse(res *http.Response) (*statResponse, error) {
 		if !br.Valid() {
 			continue
 		}
-		s.HaveMap[br.String()] = blob.SizedRef{br, int64(statItem.Size)}
+		s.HaveMap[br.String()] = blob.SizedRef{br, uint32(statItem.Size)}
 	}
 	return s, nil
 }
@@ -126,7 +127,7 @@ func parseStatResponse(res *http.Response) (*statResponse, error) {
 func NewUploadHandleFromString(data string) *UploadHandle {
 	bref := blob.SHA1FromString(data)
 	r := strings.NewReader(data)
-	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: r}
+	return &UploadHandle{BlobRef: bref, Size: uint32(len(data)), Contents: r}
 }
 
 // TODO(bradfitz): delete most of this. use new camlistore.org/pkg/blobserver/protocol types instead
@@ -323,7 +324,7 @@ func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.D
 // If the size was provided, trust it.
 func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
 	if h.Size > 0 {
-		return h.Contents, h.Size, nil
+		return h.Contents, int64(h.Size), nil
 	}
 	var b bytes.Buffer
 	n, err := io.Copy(&b, h.Contents)
@@ -345,13 +346,16 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
 	}
+	if bodySize > constants.MaxBlobSize {
+		return nil, errors.New("client: body is bigger then max blob size")
+	}
 
 	c.statsMutex.Lock()
 	c.stats.UploadRequests.Blobs++
 	c.stats.UploadRequests.Bytes += bodySize
 	c.statsMutex.Unlock()
 
-	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
+	pr := &PutResult{BlobRef: h.BlobRef, Size: uint32(bodySize)}
 
 	if c.sto != nil {
 		// TODO: stat first so we can show skipped?
@@ -398,7 +402,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 			return nil, err
 		}
 		for _, sbr := range stat.HaveMap {
-			c.haveCache.NoteBlobExists(sbr.Ref, sbr.Size)
+			c.haveCache.NoteBlobExists(sbr.Ref, uint32(sbr.Size))
 		}
 		_, serverHasIt := stat.HaveMap[blobrefStr]
 		if debugUploads {
@@ -413,7 +417,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 				// fix the docs.
 				closer.Close()
 			}
-			c.haveCache.NoteBlobExists(h.BlobRef, bodySize)
+			c.haveCache.NoteBlobExists(h.BlobRef, uint32(bodySize))
 			return pr, nil
 		}
 	}
@@ -517,10 +521,10 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 					c.stats.Uploads.Blobs++
 					c.stats.Uploads.Bytes += expectedSize
 					c.statsMutex.Unlock()
-					if pr.Size == -1 {
-						pr.Size = expectedSize
+					if pr.Size <= 0 {
+						pr.Size = uint32(expectedSize)
 					}
-					c.haveCache.NoteBlobExists(pr.BlobRef, expectedSize)
+					c.haveCache.NoteBlobExists(pr.BlobRef, uint32(expectedSize))
 					return pr, nil
 				} else {
 					return errorf("Server got blob, but reports wrong length (%v; we sent %d)",

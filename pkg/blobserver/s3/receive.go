@@ -107,5 +107,5 @@ func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRe
 	if err != nil {
 		return sr, err
 	}
-	return blob.SizedRef{Ref: b, Size: size}, nil
+	return blob.SizedRef{Ref: b, Size: uint32(size)}, nil
 }

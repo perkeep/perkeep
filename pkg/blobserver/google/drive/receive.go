@@ -27,5 +27,5 @@ func (sto *driveStorage) ReceiveBlob(b blob.Ref, source io.Reader) (blob.SizedRe
 	if err != nil {
 		return blob.SizedRef{Ref: b, Size: 0}, err
 	}
-	return blob.SizedRef{Ref: b, Size: file.FileSize}, err
+	return blob.SizedRef{Ref: b, Size: uint32(file.FileSize)}, err
 }

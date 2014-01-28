@@ -19,7 +19,6 @@ package test
 import (
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"strings"
 	"sync"
@@ -27,6 +26,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -81,14 +81,11 @@ func camliTypeFromMime(mime string) string {
 }
 
 func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size int64) {
-	if size < 0 || size > math.MaxUint32 {
-		panic("bad size")
-	}
 	fi.lk.Lock()
 	defer fi.lk.Unlock()
 	fi.meta[br] = camtypes.BlobMeta{
 		Ref:       br,
-		Size:      uint32(size),
+		Size:      types.U32(size),
 		CamliType: camliType,
 	}
 }

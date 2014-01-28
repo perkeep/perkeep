@@ -47,7 +47,7 @@ type Ref struct {
 // It should also be used as a value type and supports equality.
 type SizedRef struct {
 	Ref
-	Size int64
+	Size uint32
 }
 
 func (sr SizedRef) String() string {
@@ -589,7 +589,7 @@ func (b Blob) Size() uint32 {
 
 // SizedRef returns the SizedRef corresponding to the blob.
 func (b Blob) SizedRef() SizedRef {
-	return SizedRef{b.ref, int64(b.size)}
+	return SizedRef{b.ref, b.size}
 }
 
 // Open returns an io.ReadCloser that can be used to read the blob

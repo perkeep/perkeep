@@ -77,7 +77,7 @@ func (sr *Receiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef
 		sr.Have = make(map[blob.Ref]int64)
 	}
 	sr.Have[br] = n
-	return blob.SizedRef{br, n}, nil
+	return blob.SizedRef{br, uint32(n)}, nil
 }
 
 func (sr *Receiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
@@ -85,7 +85,7 @@ func (sr *Receiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error
 	defer sr.Unlock()
 	for _, br := range blobs {
 		if size, ok := sr.Have[br]; ok {
-			dest <- blob.SizedRef{br, size}
+			dest <- blob.SizedRef{br, uint32(size)}
 		}
 	}
 	return nil

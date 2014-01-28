@@ -112,16 +112,17 @@ func (ds *DiskStorage) tryRemoveDir(dir string) {
 	os.Remove(dir) // ignore error
 }
 
-func (ds *DiskStorage) FetchStreaming(blob blob.Ref) (io.ReadCloser, int64, error) {
+func (ds *DiskStorage) FetchStreaming(blob blob.Ref) (io.ReadCloser, uint32, error) {
 	return ds.Fetch(blob)
 }
 
-func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, int64, error) {
+func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, uint32, error) {
 	fileName := ds.blobPath(blob)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
 	}
+	size := types.U32(stat.Size())
 	file, err := os.Open(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -129,7 +130,7 @@ func (ds *DiskStorage) Fetch(blob blob.Ref) (types.ReadSeekCloser, int64, error)
 		}
 		return nil, 0, err
 	}
-	return file, stat.Size(), nil
+	return file, size, nil
 }
 
 func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {

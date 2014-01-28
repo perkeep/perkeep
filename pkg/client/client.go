@@ -309,14 +309,14 @@ func (c *Client) HTTPClient() *http.Client {
 
 // A HaveCache caches whether a remote blobserver has a blob.
 type HaveCache interface {
-	StatBlobCache(br blob.Ref) (size int64, ok bool)
-	NoteBlobExists(br blob.Ref, size int64)
+	StatBlobCache(br blob.Ref) (size uint32, ok bool)
+	NoteBlobExists(br blob.Ref, size uint32)
 }
 
 type noHaveCache struct{}
 
-func (noHaveCache) StatBlobCache(blob.Ref) (int64, bool) { return 0, false }
-func (noHaveCache) NoteBlobExists(blob.Ref, int64)       {}
+func (noHaveCache) StatBlobCache(blob.Ref) (uint32, bool) { return 0, false }
+func (noHaveCache) NoteBlobExists(blob.Ref, uint32)       {}
 
 func (c *Client) SetHaveCache(cache HaveCache) {
 	if cache == nil {

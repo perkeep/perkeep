@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
 	"time"
 
@@ -111,7 +112,7 @@ func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRe
 			if !ok {
 				return error("item in 'blobs' was missing string 'blobRef'", nil)
 			}
-			size, ok := getJSONMapInt64(itemJSON, "size")
+			size, ok := getJSONMapUint32(itemJSON, "size")
 			if !ok {
 				return error("item in 'blobs' was missing numeric 'size'", nil)
 			}
@@ -120,7 +121,7 @@ func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRe
 				return error("item in 'blobs' had invalid blobref.", nil)
 			}
 			select {
-			case ch <- blob.SizedRef{Ref: br, Size: size}:
+			case ch <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 			case <-ctx.Done():
 				return context.ErrCanceled
 			}
@@ -153,6 +154,17 @@ func getJSONMapInt64(m map[string]interface{}, key string) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func getJSONMapUint32(m map[string]interface{}, key string) (uint32, bool) {
+	u, ok := getJSONMapInt64(m, key)
+	if !ok {
+		return 0, false
+	}
+	if u < 0 || u > math.MaxUint32 {
+		return 0, false
+	}
+	return uint32(u), true
 }
 
 func getJSONMapArray(m map[string]interface{}, key string) ([]interface{}, bool) {

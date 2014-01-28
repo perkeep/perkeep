@@ -19,8 +19,10 @@ limitations under the License.
 package service
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
@@ -103,7 +105,7 @@ func (s *DriveService) Upsert(id string, data io.Reader) (file *client.File, err
 }
 
 // Fetch retrieves the metadata and contents of a file.
-func (s *DriveService) Fetch(id string) (body io.ReadCloser, size int64, err error) {
+func (s *DriveService) Fetch(id string) (body io.ReadCloser, size uint32, err error) {
 	file, err := s.Get(id)
 
 	// TODO: maybe in the case of no download link, remove the file.
@@ -118,7 +120,10 @@ func (s *DriveService) Fetch(id string) (body io.ReadCloser, size int64, err err
 	if resp, err = s.transport.RoundTrip(req); err != nil {
 		return
 	}
-	return resp.Body, file.FileSize, err
+	if file.FileSize > math.MaxUint32 || file.FileSize < 0 {
+		err = errors.New("file too big")
+	}
+	return resp.Body, uint32(file.FileSize), err
 }
 
 // Stat retrieves file metadata and returns

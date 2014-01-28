@@ -521,7 +521,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	}
 	if !uh.Vivify && uh.BlobRef == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
-		return &client.PutResult{BlobRef: dupFileRef, Size: int64(len(json)), Skipped: true}, true
+		return &client.PutResult{BlobRef: dupFileRef, Size: uint32(len(json)), Skipped: true}, true
 	}
 	pr, err = up.Upload(uh)
 	if err != nil {
@@ -599,7 +599,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		br = blob.SHA1FromString(json)
 		h := &client.UploadHandle{
 			BlobRef:  br,
-			Size:     int64(len(json)),
+			Size:     uint32(len(json)),
 			Contents: strings.NewReader(json),
 			Vivify:   true,
 		}
@@ -655,7 +655,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	// statReceiver) that can track some of this?  or make
 	// schemaWriteFileMap return it?
 	json, _ := filebb.JSON()
-	pr = &client.PutResult{BlobRef: br, Size: int64(len(json)), Skipped: false}
+	pr = &client.PutResult{BlobRef: br, Size: uint32(len(json)), Skipped: false}
 	return pr, nil
 }
 

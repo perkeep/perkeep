@@ -38,7 +38,7 @@ func (tb *Blob) BlobRef() blob.Ref {
 }
 
 func (tb *Blob) SizedRef() blob.SizedRef {
-	return blob.SizedRef{tb.BlobRef(), int64(len(tb.Contents))}
+	return blob.SizedRef{tb.BlobRef(), uint32(len(tb.Contents))}
 }
 
 func (tb *Blob) BlobRefSlice() []blob.Ref {
@@ -54,7 +54,7 @@ func (tb *Blob) Reader() io.Reader {
 }
 
 func (tb *Blob) AssertMatches(t *testing.T, sb blob.SizedRef) {
-	if sb.Size != tb.Size() {
+	if int64(sb.Size) != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}
 	if sb.Ref != tb.BlobRef() {

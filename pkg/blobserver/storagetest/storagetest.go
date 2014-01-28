@@ -92,7 +92,7 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 			t.Fatalf("error fetching %d. %s: %v", i, b2, err)
 		}
 		defer rc.Close()
-		testSizedBlob(t, rc, b2.BlobRef(), size)
+		testSizedBlob(t, rc, b2.BlobRef(), int64(size))
 	}
 
 	if fetcher, ok := sto.(fetcher); ok {

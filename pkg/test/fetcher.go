@@ -64,13 +64,11 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 	}
 }
 
-func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return tf.Fetch(ref)
 }
 
-var dummyCloser = ioutil.NopCloser(nil)
-
-func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size int64, err error) {
+func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	if tf.FetchErr != nil {
 		if err = tf.FetchErr(); err != nil {
 			return
@@ -87,13 +85,13 @@ func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size int64, e
 		err = os.ErrNotExist
 		return
 	}
-	size = int64(len(tb.Contents))
+	size = uint32(len(tb.Contents))
 	return struct {
 		*io.SectionReader
 		io.Closer
 	}{
-		io.NewSectionReader(strings.NewReader(tb.Contents), 0, size),
-		dummyCloser,
+		io.NewSectionReader(strings.NewReader(tb.Contents), 0, int64(size)),
+		types.NopCloser,
 	}, size, nil
 }
 
@@ -128,7 +126,7 @@ func (tf *Fetcher) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 	}
 	b := &Blob{Contents: string(all)}
 	tf.AddBlob(b)
-	return blob.SizedRef{br, int64(len(all))}, nil
+	return blob.SizedRef{br, uint32(len(all))}, nil
 }
 
 func (tf *Fetcher) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
@@ -137,7 +135,7 @@ func (tf *Fetcher) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error 
 		b, ok := tf.m[br.String()]
 		tf.mu.RUnlock()
 		if ok {
-			dest <- blob.SizedRef{br, int64(len(b.Contents))}
+			dest <- blob.SizedRef{br, uint32(len(b.Contents))}
 		}
 	}
 	return nil
@@ -169,7 +167,7 @@ func (tf *Fetcher) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRe
 		}
 		b := tf.m[k]
 		select {
-		case dest <- blob.SizedRef{b.BlobRef(), b.Size()}:
+		case dest <- blob.SizedRef{b.BlobRef(), uint32(b.Size())}:
 		case <-ctx.Done():
 			return context.ErrCanceled
 		}
