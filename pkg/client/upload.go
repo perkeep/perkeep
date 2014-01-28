@@ -135,10 +135,13 @@ func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[
 		io.Copy(os.Stderr, resp.Body)
 		return nil, errors.New(fmt.Sprintf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode))
 	}
+	defer resp.Body.Close()
 	// TODO: LimitReader here for paranoia
 	buf := new(bytes.Buffer)
-	io.Copy(buf, resp.Body)
-	resp.Body.Close()
+	_, err := io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	jmap := make(map[string]interface{})
 	if jerr := json.Unmarshal(buf.Bytes(), &jmap); jerr != nil {
 		return nil, jerr
@@ -308,6 +311,7 @@ func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.D
 	}
 
 	stat, err := parseStatResponse(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -474,6 +478,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		}
 	}
 
+	// TODO(bradfitz): use camlistore.org/pkg/blobserver/protocol types
 	ures, err := c.jsonFromResponse("upload", resp)
 	if err != nil {
 		return errorf("json parse from upload error: %v", err)

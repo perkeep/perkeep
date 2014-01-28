@@ -133,9 +133,14 @@ func New(server string) *Client {
 		}
 		server = serverConf.Server
 	}
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConnsPerHost: maxParallelHTTP,
+		},
+	}
 	return &Client{
 		server:     server,
-		httpClient: http.DefaultClient,
+		httpClient: httpClient,
 		httpGate:   syncutil.NewGate(maxParallelHTTP),
 		haveCache:  noHaveCache{},
 		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
@@ -178,9 +183,10 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 		proxy = tc.Proxy
 	}
 	transport = &http.Transport{
-		Dial:            c.DialFunc(),
-		TLSClientConfig: tlsConfig,
-		Proxy:           proxy,
+		Dial:                c.DialFunc(),
+		TLSClientConfig:     tlsConfig,
+		Proxy:               proxy,
+		MaxIdleConnsPerHost: maxParallelHTTP,
 	}
 	httpStats := &httputil.StatsTransport{
 		Transport: transport,
@@ -520,18 +526,15 @@ func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 	defer res.Body.Close()
 	var buf bytes.Buffer
 	body := io.TeeReader(io.LimitReader(res.Body, 1<<20), &buf)
-	type justWriter struct {
-		io.Writer
-	}
 	if res.StatusCode != 200 {
-		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
+		io.Copy(ioutil.Discard, body)
 		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
 	}
 	var ress struct {
 		Files []blob.Ref `json:"files"`
 	}
 	if err := json.NewDecoder(body).Decode(&ress); err != nil {
-		io.Copy(justWriter{ioutil.Discard}, body) // golang.org/issue/4589
+		io.Copy(ioutil.Discard, body)
 		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
 	}
 	if len(ress.Files) == 0 {
@@ -622,7 +625,7 @@ func (c *Client) initPrefix() {
 }
 
 func (c *Client) condDiscovery() {
-	c.discoOnce.Do(func() { c.doDiscovery() })
+	c.discoOnce.Do(c.doDiscovery)
 }
 
 func (c *Client) doDiscovery() {

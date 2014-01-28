@@ -424,6 +424,32 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 	return statReceiver
 }
 
+func (up *Uploader) noStatReceiver(r blobserver.BlobReceiver) blobserver.StatReceiver {
+	return noStatReceiver{r}
+}
+
+// A haveCacheStatReceiver relays Receive calls to the embedded
+// BlobReceiver and treats all Stat calls like the blob doesn't exist.
+//
+// This is used by the client once it's already asked the server that
+// it doesn't have the whole file in some chunk layout already, so we
+// know we're just writing new stuff. For resuming in the middle of
+// larger uploads, it turns out that the pkg/client.Client.Upload
+// already checks the have cache anyway, so going right to mid-chunk
+// receives is fine.
+//
+// TODO(bradfitz): this probabaly all needs an audit/rationalization/tests
+// to make sure all the players are agreeing on the responsibilities.
+// And maybe the Android stats are wrong, too. (see pkg/client/android's
+// StatReceiver)
+type noStatReceiver struct {
+	blobserver.BlobReceiver
+}
+
+func (noStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+	return nil
+}
+
 var atomicDigestOps int64 // number of files digested
 
 // wholeFileDigest returns the sha1 digest of the regular file's absolute
@@ -558,7 +584,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 
 	if up.fileOpts.wantVivify() {
 		// If vivify wasn't already done in fileMapFromDuplicate.
-		err := schema.WriteFileChunks(up.statReceiver(n), filebb, fileContents)
+		err := schema.WriteFileChunks(up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -582,13 +608,13 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	}
 
 	if !br.Valid() {
-		// br still nil means fileMapFromDuplicate did not find the file on the server,
+		// br still zero means fileMapFromDuplicate did not find the file on the server,
 		// and the file has not just been uploaded subsequently to a vivify request.
 		// So we do the full file + file schema upload here.
 		if sum == "" && up.fileOpts.wantFilePermanode() {
 			fileContents = &trackDigestReader{r: fileContents}
 		}
-		br, err = schema.WriteFileMap(up.statReceiver(n), filebb, fileContents)
+		br, err = schema.WriteFileMap(up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}

@@ -155,6 +155,7 @@ func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, erro
 		BlobRef:  br,
 		Size:     size, // -1 if we don't know
 		Contents: source,
+		SkipStat: true,
 	}
 	pr, err := c.Upload(h)
 	if err != nil {
