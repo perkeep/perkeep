@@ -318,7 +318,15 @@ func CloseBody(rc io.ReadCloser) {
 	// Content-Length.  Or maybe Go 1.3's Close itself would look
 	// to see if we're at EOF even if it hasn't been Read.
 
-	// TODO: use a bytepool package somewhere for these two bytes.
-	rc.Read(make([]byte, 2))
+	// TODO: use a bytepool package somewhere for this byte?
+	// Justification for 3 byte reads: two for up to "\r\n" after
+	// a JSON/XML document, and then 1 to see EOF if we haven't yet.
+	buf := make([]byte, 1)
+	for i := 0; i < 3; i++ {
+		_, err := rc.Read(buf)
+		if err != nil {
+			break
+		}
+	}
 	rc.Close()
 }
