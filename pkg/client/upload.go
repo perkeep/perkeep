@@ -18,7 +18,6 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +32,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver/protocol"
+	"camlistore.org/pkg/httputil"
 )
 
 var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
@@ -103,11 +103,10 @@ func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
 	return ResponseFormatError(fmt.Errorf(s, arg...))
 }
 
-func parseStatResponse(r io.Reader) (*statResponse, error) {
+func parseStatResponse(res *http.Response) (*statResponse, error) {
 	var s = &statResponse{HaveMap: make(map[string]blob.SizedRef)}
 	var pres protocol.StatResponse
-
-	if err := json.NewDecoder(io.LimitReader(r, 5<<20)).Decode(&pres); err != nil {
+	if err := httputil.DecodeJSON(res, &pres); err != nil {
 		return nil, ResponseFormatError(err)
 	}
 
@@ -129,22 +128,17 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 	return &UploadHandle{BlobRef: bref, Size: int64(len(data)), Contents: r}
 }
 
-func (c *Client) jsonFromResponse(requestName string, resp *http.Response) (map[string]interface{}, error) {
+// TODO(bradfitz): delete most of this. use new camlistore.org/pkg/blobserver/protocol types instead
+// of a map[string]interface{}.
+func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
 	if resp.StatusCode != 200 {
 		log.Printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
-		return nil, errors.New(fmt.Sprintf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode))
-	}
-	defer resp.Body.Close()
-	// TODO: LimitReader here for paranoia
-	buf := new(bytes.Buffer)
-	_, err := io.Copy(buf, resp.Body)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode)
 	}
 	jmap := make(map[string]interface{})
-	if jerr := json.Unmarshal(buf.Bytes(), &jmap); jerr != nil {
-		return nil, jerr
+	if err := httputil.DecodeJSON(resp, &jmap); err != nil {
+		return nil, err
 	}
 	return jmap, nil
 }
@@ -310,8 +304,7 @@ func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.D
 		return fmt.Errorf("stat response had http status %d", resp.StatusCode)
 	}
 
-	stat, err := parseStatResponse(resp.Body)
-	resp.Body.Close()
+	stat, err := parseStatResponse(resp)
 	if err != nil {
 		return err
 	}
@@ -386,8 +379,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 			return errorf("stat response had http status %d", resp.StatusCode)
 		}
 
-		stat, err := parseStatResponse(resp.Body)
-		resp.Body.Close()
+		stat, err := parseStatResponse(resp)
 		if err != nil {
 			return nil, err
 		}
@@ -478,8 +470,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		}
 	}
 
-	// TODO(bradfitz): use camlistore.org/pkg/blobserver/protocol types
-	ures, err := c.jsonFromResponse("upload", resp)
+	ures, err := c.responseJSONMap("upload", resp)
 	if err != nil {
 		return errorf("json parse from upload error: %v", err)
 	}

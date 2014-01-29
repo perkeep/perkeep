@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
@@ -217,9 +218,11 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObj
 
 	// Parse the XML response
 	result := &gsListResult{make([]SizedObject, 0, limit)}
+	defer httputil.CloseBody(resp.Body)
 	if err = xml.NewDecoder(resp.Body).Decode(result); err != nil {
 		return nil, err
 	}
+
 	// Fill in the Bucket on all the SizedObjects
 	for i, _ := range result.Contents {
 		result.Contents[i].Bucket = bucket

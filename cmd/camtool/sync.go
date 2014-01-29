@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -142,6 +141,8 @@ const (
 
 // which is one of "src", "dest", or "thirdleg"
 func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.Storage, error) {
+	var httpClient *http.Client
+
 	if val == "" {
 		switch which {
 		case storageThird:
@@ -154,6 +155,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 				return nil, fmt.Errorf("Failed to discover source server's blob path: %v", err)
 			}
 			val = src
+			httpClient = discl.HTTPClient()
 		}
 		if val == "" {
 			return nil, cmdmain.UsageError("No --" + string(which) + " flag value specified")
@@ -171,9 +173,12 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	}
 	cl := client.New(val)
 	cl.InsecureTLS = c.insecureTLS
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Transport: cl.TransportForConfig(nil),
+		}
+	}
+	cl.SetHTTPClient(httpClient)
 	cl.SetupAuth()
 	cl.SetLogger(c.logger)
 	return cl, nil
@@ -319,7 +324,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	}()
 	checkDestError := func() {
 		if err := <-destErr; err != nil {
-			retErr = errors.New(fmt.Sprintf("Enumerate error from destination: %v", err))
+			retErr = fmt.Errorf("Enumerate error from destination: %v", err)
 		}
 	}
 

@@ -88,7 +88,7 @@ type Client struct {
 	// when starting.
 	trustedCerts []string
 	// if set, we also skip the check against trustedCerts
-	InsecureTLS bool
+	InsecureTLS bool // TODO: hide this. add accessor?
 
 	initIgnoredFilesOnce sync.Once
 	// list of files that camput should ignore.
@@ -284,6 +284,11 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 	c.httpClient = client
 }
 
+// HTTPClient returns the Client's underlying http.Client.
+func (c *Client) HTTPClient() *http.Client {
+	return c.httpClient
+}
+
 // A HaveCache caches whether a remote blobserver has a blob.
 type HaveCache interface {
 	StatBlobCache(br blob.Ref) (size int64, ok bool)
@@ -406,9 +411,8 @@ func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentR
 	if err != nil {
 		return nil, err
 	}
-	defer hres.Body.Close()
 	res := new(search.RecentResponse)
-	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+	if err := httputil.DecodeJSON(hres, res); err != nil {
 		return nil, err
 	}
 	if err := res.Err(); err != nil {
@@ -428,9 +432,8 @@ func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.Wit
 	if err != nil {
 		return nil, err
 	}
-	defer hres.Body.Close()
 	res := new(search.WithAttrResponse)
-	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+	if err := httputil.DecodeJSON(hres, res); err != nil {
 		return nil, err
 	}
 	if err := res.Err(); err != nil {
@@ -450,9 +453,8 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 	if err != nil {
 		return nil, err
 	}
-	defer hres.Body.Close()
 	res := new(search.DescribeResponse)
-	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+	if err := httputil.DecodeJSON(hres, res); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -469,9 +471,8 @@ func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, e
 	if err != nil {
 		return nil, err
 	}
-	defer hres.Body.Close()
 	res := new(search.ClaimsResponse)
-	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+	if err := httputil.DecodeJSON(hres, res); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -492,9 +493,8 @@ func (c *Client) Search(req *search.SearchQuery) (*search.SearchResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer hres.Body.Close()
 	res := new(search.SearchResult)
-	if err := json.NewDecoder(hres.Body).Decode(res); err != nil {
+	if err := httputil.DecodeJSON(hres, res); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -518,19 +518,16 @@ func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	defer res.Body.Close()
-	var buf bytes.Buffer
-	body := io.TeeReader(io.LimitReader(res.Body, 1<<20), &buf)
 	if res.StatusCode != 200 {
-		io.Copy(ioutil.Discard, body)
-		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, buf.String())
+		body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+		res.Body.Close()
+		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, body)
 	}
 	var ress struct {
 		Files []blob.Ref `json:"files"`
 	}
-	if err := json.NewDecoder(body).Decode(&ress); err != nil {
-		io.Copy(ioutil.Discard, body)
-		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v; body=%s", url, err, buf.String())
+	if err := httputil.DecodeJSON(res, &ress); err != nil {
+		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
 	}
 	if len(ress.Files) == 0 {
 		return blob.Ref{}, nil
@@ -631,20 +628,24 @@ func (c *Client) doDiscovery() error {
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != 200 {
+		res.Body.Close()
 		return fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
 	}
 	// TODO(bradfitz): little weird in retrospect that we request
 	// text/x-camli-configuration and expect to get back
 	// text/javascript.  Make them consistent.
 	if ct := res.Header.Get("Content-Type"); ct != "text/javascript" {
+		res.Body.Close()
 		return fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
 	}
+
+	// TODO: make a proper struct type for this in another package somewhere:
 	m := make(map[string]interface{})
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := httputil.DecodeJSON(res, &m); err != nil {
 		return err
 	}
+
 	searchRoot, ok := m["searchRoot"].(string)
 	if ok {
 		u, err := root.Parse(searchRoot)

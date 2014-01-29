@@ -17,16 +17,14 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
-	"camlistore.org/pkg/blob"
 	"net/url"
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/httputil"
 )
 
 type removeResponse struct {
@@ -59,32 +57,24 @@ func (c *Client) RemoveBlobs(blobs []blob.Ref) error {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	c.authMode.AddAuthHeader(req)
 	resp, err := c.httpClient.Do(req)
-
 	if err != nil {
-		return errors.New(fmt.Sprintf("Got status code %d from blobserver for remove %s", resp.StatusCode, params.Encode()))
+		resp.Body.Close()
+		return fmt.Errorf("Got status code %d from blobserver for remove %s", resp.StatusCode, params.Encode())
 	}
-
-	// The only valid HTTP responses are 200.
 	if resp.StatusCode != 200 {
-		return errors.New(fmt.Sprintf("Invalid http response %d in remove response", resp.StatusCode))
+		resp.Body.Close()
+		return fmt.Errorf("Invalid http response %d in remove response", resp.StatusCode)
 	}
-
-	// TODO: LimitReader here for paranoia
-	buf := new(bytes.Buffer)
-	io.Copy(buf, resp.Body)
-	resp.Body.Close()
 	var remResp removeResponse
-	if jerr := json.Unmarshal(buf.Bytes(), &remResp); jerr != nil {
-		return errors.New(fmt.Sprintf("Failed to parse remove response %q: %s", buf.String(), jerr))
+	if err := httputil.DecodeJSON(resp, &remResp); err != nil {
+		return fmt.Errorf("Failed to parse remove response: %v", err)
 	}
 	for _, value := range remResp.Removed {
 		delete(needsDelete, value)
 	}
-
 	if len(needsDelete) > 0 {
-		return errors.New(fmt.Sprintf("Failed to remove blobs %s", strings.Join(stringKeys(needsDelete), ", ")))
+		return fmt.Errorf("Failed to remove blobs %s", strings.Join(stringKeys(needsDelete), ", "))
 	}
-
 	return nil
 }
 

@@ -31,6 +31,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+
+	"camlistore.org/pkg/httputil"
 )
 
 // Client is an Amazon S3 client.
@@ -67,7 +69,7 @@ func (c *Client) Buckets() ([]*Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer httputil.CloseBody(res.Body)
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("s3: Unexpected status code %d fetching bucket list", res.StatusCode)
 	}
@@ -121,7 +123,7 @@ func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body 
 
 	res, err := c.httpClient().Do(req)
 	if res != nil && res.Body != nil {
-		defer res.Body.Close()
+		defer httputil.CloseBody(res.Body)
 	}
 	if err != nil {
 		return err
@@ -186,10 +188,11 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*
 		if err != nil {
 			return nil, err
 		}
-		if err := xml.NewDecoder(res.Body).Decode(&bres); err != nil {
+		err = xml.NewDecoder(res.Body).Decode(&bres)
+		httputil.CloseBody(res.Body)
+		if err != nil {
 			return nil, err
 		}
-		res.Body.Close()
 		for _, it := range bres.Contents {
 			if it.Key <= after {
 				return nil, fmt.Errorf("Unexpected response from Amazon: item key %q but wanted greater than %q", it.Key, after)

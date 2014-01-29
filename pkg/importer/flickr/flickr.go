@@ -18,15 +18,14 @@ limitations under the License.
 package flickr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
@@ -370,14 +369,9 @@ func (im *imp) flickrAPIRequest(result interface{}, method string, keyval ...str
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
-	data, err := ioutil.ReadAll(res.Body)
+	err = httputil.DecodeJSON(res, result)
 	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(data, result)
-	if err != nil {
-		log.Println("Response data:", string(data))
+		log.Printf("Error parsing response for %s: %s", apiURL, err)
 	}
 	return err
 }

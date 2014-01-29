@@ -64,7 +64,7 @@ func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRe
 	}
 
 	error := func(msg string, e error) error {
-		err := errors.New(fmt.Sprintf("client enumerate error: %s: %v", msg, e))
+		err := fmt.Errorf("client enumerate error: %s: %v", msg, e)
 		c.log.Print(err.Error())
 		return err
 	}
@@ -90,7 +90,7 @@ func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRe
 			return error("http request", err)
 		}
 
-		json, err := c.jsonFromResponse("enumerate-blobs", resp)
+		json, err := c.responseJSONMap("enumerate-blobs", resp)
 		if err != nil {
 			return error("stat json parse error", err)
 		}
