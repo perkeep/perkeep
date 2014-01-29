@@ -175,7 +175,6 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
                                                 @"discovery OK"
                                             ]];
                 } else {
-
                     LALog(@"couldn't deserialize discovery json");
                     [LACamliUtil
                         errorText:@[
