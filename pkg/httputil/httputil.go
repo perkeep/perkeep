@@ -318,9 +318,6 @@ func CloseBody(rc io.ReadCloser) {
 	// Content-Length.  Or maybe Go 1.3's Close itself would look
 	// to see if we're at EOF even if it hasn't been Read.
 
-	// TODO: reflect to get the type name, and avoid this Read
-	// if it's seen EOF? Maybe more expensive.
-
 	// TODO: use a bytepool package somewhere for these two bytes.
 	rc.Read(make([]byte, 2))
 	rc.Close()
