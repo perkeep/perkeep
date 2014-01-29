@@ -62,8 +62,8 @@ func VerifyPublicKeyFile(file, keyid string) (bool, error) {
 	}
 	keyId := publicKeyId(key)
 	if keyId != strings.ToUpper(keyid) {
-		return false, errors.New(fmt.Sprintf("Key in file %q has id %q; expected %q",
-			file, keyId, keyid))
+		return false, fmt.Errorf("Key in file %q has id %q; expected %q",
+			file, keyId, keyid)
 	}
 	return true, nil
 }
@@ -87,12 +87,12 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	}
 	p, err := packet.Read(block.Body)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Invalid public key blob: %v", err))
+		return nil, fmt.Errorf("Invalid public key blob: %v", err)
 	}
 
 	pk, ok := p.(*packet.PublicKey)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("Invalid public key blob; not a public key packet"))
+		return nil, fmt.Errorf("Invalid public key blob; not a public key packet")
 	}
 	return pk, nil
 }
