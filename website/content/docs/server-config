@@ -38,7 +38,7 @@ web browser and restart the server.</p>
 <li><b><code>shareHandler</code></b>: if true, the server's sharing functionality is enabled, letting your friends have access to any content you've specifically shared. Its URL prefix path defaults to "<code>/share/</code>".</li>
 <li><b><code>shareHandlerPath</code></b>: Optional. If non-empty, it specifies the URL prefix path to the share handler, and the <b><code>shareHandler</code></b> value is ignored (i.e the share handler is enabled). Example: "<code>/public/</code>".</li>
 <li><b><code>runIndex</code></b>: defaults to true. If "false", no search, no UI, no indexing. (These can be controlled at a more granular level by writing a low-level config file)</li>
-<li><b><code>memoryIndex/code></b>: defaults to true. If "false", don't slurp the whole index into memory on start-up. Specifying false will result in certain queries being slow, unavailable, or unsorted (work in progress). This option may be unsupported in the future. Keeping this set to "true" is recommended. </li>
+<li><b><code>memoryIndex</code></b>: defaults to true. If "false", don't slurp the whole index into memory on start-up. Specifying false will result in certain queries being slow, unavailable, or unsorted (work in progress). This option may be unsupported in the future. Keeping this set to "true" is recommended. </li>
 <li><b><code>sourceRoot</code></b>: Optional. If non-empty, it specifies the path to an alternative Camlistore source tree, in order to override the embedded UI and/or Closure resources. The UI files will be expected in <code><b>&lt;sourceRoot&gt;</b>/server/camlistored/ui</code> and the Closure library in <code><b>&lt;sourceRoot&gt;</b>/third_party/closure/lib</code>.</li>
 </ul>
 
