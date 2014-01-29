@@ -185,7 +185,8 @@ public class CamliActivity extends Activity {
                         // reasonable upload size, so use units of 1KB instead.
                         progressBytes.setMax((int) (total / 1024L));
                         progressBytes.setProgress((int) (done / 1024L));
-                        progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
+                        // TODO: renable once camput properly sends inflight information
+                        // progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
                     }
                 });
             }

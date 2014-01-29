@@ -31,6 +31,7 @@ import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 import org.camlistore.UploadThread.CamputStatsMessage;
 
 import android.app.Notification;
+import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -67,6 +68,8 @@ public class UploadService extends Service {
                                         // quickly)
     private UploadThread mUploadThread = null; // last thread created; null when
                                                // thread exits
+    private Notification.Builder mNotificationBuilder; // null until upload is
+                                                       // started/resumed
     private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private final Map<String, Long> mStatValue = new TreeMap<String, Long>();
@@ -389,15 +392,28 @@ public class UploadService extends Service {
     }
 
     void broadcastByteStatus() {
+        Notification notification = null;
         synchronized (this) {
+            if (mNotificationBuilder != null) {
+                int kBUploaded = (int)(mBytesUploaded / 1024L);
+                int kBTotal = (int)(mBytesTotal / 1024L);
+
+                mNotificationBuilder.setProgress(kBTotal, kBUploaded, false);
+                notification = mNotificationBuilder.build();
+            }
             try {
                 mCallback.setByteStatus(mBytesUploaded, mBytesInFlight, mBytesTotal);
             } catch (RemoteException e) {
             }
         }
+
+        if (notification != null) {
+            mNotificationManager.notify(NOTIFY_ID_UPLOADING, notification);
+        }
     }
 
     void broadcastFileStatus() {
+        // TODO read mfiles/mcallback under lock and setfilestatus after lock
         synchronized (this) {
             try {
                 mCallback.setFileStatus(mFilesUploaded, mFilesInFlight, mFilesTotal);
@@ -665,11 +681,12 @@ public class UploadService extends Service {
                 wakeLock.acquire();
                 wifiLock.acquire();
 
-                Notification n = new Notification(android.R.drawable.stat_sys_upload, "Uploading", System.currentTimeMillis());
-                n.flags = Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
-                PendingIntent pIntent = PendingIntent.getActivity(UploadService.this, 0, new Intent(UploadService.this, CamliActivity.class), 0);
-                n.setLatestEventInfo(UploadService.this, "Uploading", "Camlistore uploader running", pIntent);
-                mNotificationManager.notify(NOTIFY_ID_UPLOADING, n);
+                mNotificationBuilder = new Notification.Builder(UploadService.this);
+                mNotificationBuilder.setOngoing(true)
+                    .setContentTitle("Uploading")
+                    .setContentText("Camlistore uploader running")
+                    .setSmallIcon(android.R.drawable.stat_sys_upload);
+                mNotificationManager.notify(NOTIFY_ID_UPLOADING, mNotificationBuilder.build());
 
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.trustedCert(), mPrefs.username(), mPrefs.password());
