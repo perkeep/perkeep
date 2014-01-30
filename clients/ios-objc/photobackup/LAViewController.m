@@ -15,6 +15,7 @@
 #import "UploadStatusCell.h"
 #import "UploadTaskCell.h"
 #import "LACamliFile.h"
+#import <BugshotKit.h>
 
 @implementation LAViewController
 
@@ -22,9 +23,15 @@
 {
     [super viewDidLoad];
 
-    self.operations = [NSMutableArray array];
+    _operations = [NSMutableArray array];
 
     self.navigationItem.title = @"camlistore";
+
+    UIBarButtonItem* reportItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction
+                                                                                target:self
+                                                                                action:@selector(reportBug)];
+
+    [self.navigationItem setLeftBarButtonItem:reportItem];
 
     UIBarButtonItem* settingsItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemEdit
                                                                                   target:self
@@ -66,6 +73,11 @@
     if (!serverURL || !username || !password) {
         [self showSettings];
     }
+}
+
+- (void)reportBug
+{
+    [BugshotKit show];
 }
 
 - (void)showSettings
@@ -175,7 +187,7 @@
     if (section == 0) {
         return 1;
     } else {
-        return [self.operations count];
+        return [_operations count];
     }
 }
 

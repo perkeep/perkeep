@@ -1,13 +1,20 @@
 PODS:
-  - HockeySDK (3.5.1)
+  - BugshotKit (0.1.0)
+  - HockeySDK (3.5.2)
   - SSKeychain (1.2.1)
 
 DEPENDENCIES:
+  - BugshotKit (from `https://raw.github.com/marcoarment/BugshotKit/e4031a8e5a863939f9c91f0d86352cba07d82d79/BugshotKit.podspec`)
   - HockeySDK (~> 3.5.0)
   - SSKeychain (~> 1.2.1)
 
+EXTERNAL SOURCES:
+  BugshotKit:
+    :podspec: https://raw.github.com/marcoarment/BugshotKit/e4031a8e5a863939f9c91f0d86352cba07d82d79/BugshotKit.podspec
+
 SPEC CHECKSUMS:
-  HockeySDK: 7dfbfa6cdbae199d66eef638e9682b93b00acb95
+  BugshotKit: c94c3c580d179b034791a26a8e1196e72c3c6312
+  HockeySDK: 203d3af93c2a229bfb528ff085201670ff65e1cf
   SSKeychain: d18926838c2e7cd342e2a49e9f869858e49f035a
 
 COCOAPODS: 0.29.0

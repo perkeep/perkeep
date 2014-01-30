@@ -131,6 +131,8 @@ static NSString* const serviceName = @"org.camlistore.credentials";
         [logString appendString:log];
     }
 
+    LALog(@"LOG: %@", logString);
+
     [[NSNotificationCenter defaultCenter] postNotificationName:@"logtext"
                                                         object:@{
                                                                    @"text" : logString
@@ -145,6 +147,8 @@ static NSString* const serviceName = @"org.camlistore.credentials";
         [statusString appendString:status];
     }
 
+    LALog(@"STATUS: %@", statusString);
+
     [[NSNotificationCenter defaultCenter] postNotificationName:@"statusText"
                                                         object:@{
                                                                    @"text" : statusString
@@ -158,6 +162,8 @@ static NSString* const serviceName = @"org.camlistore.credentials";
     for (NSString* error in errors) {
         [errorString appendString:error];
     }
+
+    LALog(@"ERROR: %@", errorString);
 
     [[NSNotificationCenter defaultCenter] postNotificationName:@"errorText"
                                                         object:@{
