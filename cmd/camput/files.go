@@ -206,6 +206,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 				tu.Enqueue(path)
 			}
 			if err == io.EOF {
+				android.PreExit()
 				os.Exit(0)
 			}
 			if err != nil {

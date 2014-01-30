@@ -56,6 +56,13 @@ func IsChild() bool {
 	return androidOutput
 }
 
+func PreExit() {
+	if !IsChild() {
+		return
+	}
+	Printf("STAT exit 1\n")
+}
+
 var androidOutMu sync.Mutex
 
 func Printf(format string, args ...interface{}) {
