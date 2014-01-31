@@ -237,6 +237,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 				vlog.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
 				continue
 			}
+			if !*cmdmain.FlagVerbose {
+				log.SetOutput(ioutil.Discard)
+			}
 			t := up.NewTreeUpload(filename)
 			t.Start()
 			lastPut, err = t.Wait()
