@@ -38,7 +38,6 @@ type mountCmd struct {
 	port   string
 	tls    bool
 	debug  bool
-	xterm  bool
 	// end of flag vars
 
 	env *Env
@@ -56,7 +55,6 @@ func init() {
 		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
 		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
 		flags.BoolVar(&cmd.debug, "debug", false, "print debugging messages.")
-		flags.BoolVar(&cmd.xterm, "xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
 		return cmd
 	})
 }
@@ -107,7 +105,6 @@ func (c *mountCmd) RunCommand(args []string) error {
 
 	cmdBin := filepath.Join("bin", "cammount")
 	cmdArgs := []string{
-		"-xterm=" + strconv.FormatBool(c.xterm),
 		"-debug=" + strconv.FormatBool(c.debug),
 		"-server=" + blobserver,
 	}
