@@ -26,7 +26,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
@@ -50,6 +53,7 @@ type KvHaveCache struct {
 }
 
 func NewKvHaveCache(gen string) *KvHaveCache {
+	cleanCacheDir()
 	fullPath := filepath.Join(osutil.CacheDir(), "camput.havecache."+escapeGen(gen)+".kv")
 	db, err := kvutil.Open(fullPath, nil)
 	if err != nil {
@@ -331,3 +335,61 @@ func fileInfoToFingerprint(fi os.FileInfo) statFingerprint {
 	}
 	return statFingerprint(fmt.Sprintf("%dB/%dMOD/sys-%d", fi.Size(), fi.ModTime().UnixNano(), sysHash))
 }
+
+// Delete stranded lock files and all but the oldest 5
+// havecache/statcache files, unless they're newer than 30 days.
+func cleanCacheDir() {
+	dir := osutil.CacheDir()
+	f, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fis, err := f.Readdir(-1)
+	if err != nil {
+		return
+	}
+	var haveCache, statCache []os.FileInfo
+	seen := make(map[string]bool)
+	for _, fi := range fis {
+		seen[fi.Name()] = true
+	}
+
+	for name := range seen {
+		if strings.HasSuffix(name, ".lock") && !seen[strings.TrimSuffix(name, ".lock")] {
+			os.Remove(filepath.Join(dir, name))
+		}
+	}
+
+	for _, fi := range fis {
+		if strings.HasSuffix(fi.Name(), ".lock") {
+			continue
+		}
+		if strings.HasPrefix(fi.Name(), "camput.havecache.") {
+			haveCache = append(haveCache, fi)
+			continue
+		}
+		if strings.HasPrefix(fi.Name(), "camput.statcache.") {
+			statCache = append(statCache, fi)
+			continue
+		}
+	}
+	for _, list := range [][]os.FileInfo{haveCache, statCache} {
+		if len(list) <= 5 {
+			continue
+		}
+		sort.Sort(byModtime(list))
+		list = list[:len(list)-5]
+		for _, fi := range list {
+			if fi.ModTime().Before(time.Now().Add(-30 * 24 * time.Hour)) {
+				os.Remove(filepath.Join(dir, fi.Name()))
+			}
+		}
+	}
+}
+
+type byModtime []os.FileInfo
+
+func (s byModtime) Len() int           { return len(s) }
+func (s byModtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s byModtime) Less(i, j int) bool { return s[i].ModTime().Before(s[j].ModTime()) }
