@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/bazil.org/fuse"
 	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
@@ -44,6 +45,7 @@ import (
 var (
 	debug = flag.Bool("debug", false, "print debugging messages.")
 	xterm = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
+	term  = flag.Bool("term", false, "Open a terminal window. Doesn't shut down when exited. Mostly for demos.")
 	open  = flag.Bool("open", false, "Open a GUI window")
 )
 
@@ -178,8 +180,16 @@ func main() {
 	}
 	if *open {
 		if runtime.GOOS == "darwin" {
-			cmd := exec.Command("open", mountPoint)
-			go cmd.Run()
+			go exec.Command("open", mountPoint).Run()
+		}
+	}
+	if *term {
+		if runtime.GOOS == "darwin" {
+			if osutil.DirExists("/Applications/iTerm.app/") {
+				go exec.Command("open", "-a", "iTerm", mountPoint).Run()
+			} else {
+				log.Printf("TODO: iTerm not installed. Figure out how to open with Terminal.app instead.")
+			}
 		}
 	}
 
