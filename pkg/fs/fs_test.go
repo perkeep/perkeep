@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/test"
+	"camlistore.org/third_party/bazil.org/fuse/syscallx"
 )
 
 var (
@@ -399,6 +400,99 @@ func TestRename(t *testing.T) {
 		}
 		if got, want := statStr(name3), reg; got != want {
 			t.Errorf("name3 = %q; want %q", got, want)
+		}
+	})
+}
+
+func parseXattrList(from []byte) map[string]bool {
+	attrNames := bytes.Split(from, []byte{0})
+	m := map[string]bool{}
+	for _, nm := range attrNames {
+		if len(nm) == 0 {
+			continue
+		}
+		m[string(nm)] = true
+	}
+	return m
+}
+
+func TestXattr(t *testing.T) {
+	condSkip(t)
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		name1 := filepath.Join(rootDir, "1")
+		attr1 := "attr1"
+		attr2 := "attr2"
+
+		contents := []byte("Some file contents")
+
+		if err := ioutil.WriteFile(name1, contents, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		buf := make([]byte, 8192)
+		// list empty
+		n, err := syscallx.Listxattr(name1, buf)
+		if err != nil {
+			t.Errorf("Error in initial listxattr: %v", err)
+		}
+		if n != 0 {
+			t.Errorf("Expected zero-length xattr list, got %q", buf[:n])
+		}
+
+		// get missing
+		n, err = syscallx.Getxattr(name1, attr1, buf)
+		if err == nil {
+			t.Errorf("Expected error getting non-existent xattr, got %q", buf[:n])
+		}
+
+		// Set (two different attributes)
+		err = syscallx.Setxattr(name1, attr1, []byte("hello1"), 0)
+		if err != nil {
+			t.Fatalf("Error setting xattr: %v", err)
+		}
+		err = syscallx.Setxattr(name1, attr2, []byte("hello2"), 0)
+		if err != nil {
+			t.Fatalf("Error setting xattr: %v", err)
+		}
+		// Alternate value for first attribute
+		err = syscallx.Setxattr(name1, attr1, []byte("hello1a"), 0)
+		if err != nil {
+			t.Fatalf("Error setting xattr: %v", err)
+		}
+
+		// list attrs
+		n, err = syscallx.Listxattr(name1, buf)
+		if err != nil {
+			t.Errorf("Error in initial listxattr: %v", err)
+		}
+		m := parseXattrList(buf[:n])
+		if !(len(m) == 2 && m[attr1] && m[attr2]) {
+			t.Errorf("Missing an attribute: %q", buf[:n])
+		}
+
+		// Remove attr
+		err = syscallx.Removexattr(name1, attr2)
+		if err != nil {
+			t.Errorf("Failed to remove attr: %v", err)
+		}
+
+		// List attrs
+		n, err = syscallx.Listxattr(name1, buf)
+		if err != nil {
+			t.Errorf("Error in initial listxattr: %v", err)
+		}
+		m = parseXattrList(buf[:n])
+		if !(len(m) == 1 && m[attr1]) {
+			t.Errorf("Missing an attribute: %q", buf[:n])
+		}
+
+		// Get remaining attr
+		n, err = syscallx.Getxattr(name1, attr1, buf)
+		if err != nil {
+			t.Errorf("Error getting attr1: %v", err)
+		}
+		if string(buf[:n]) != "hello1a" {
+			t.Logf("Expected hello1a, got %q", buf[:n])
 		}
 	})
 }
