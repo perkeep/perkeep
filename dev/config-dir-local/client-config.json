@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"dev": {
+			"server": "http://localhost:3179/",
+			"auth": "devauth:camli3179",
+			"default": true
+		}
+	},
+	"ignoredFiles": [".DS_Store"],
+	"identity": "26F5ABDA",
+	"identitySecretRing": ["_env", "${CAMLI_CONFENV_SECRET_RING}"]
+}
