@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package osutil provides operating system-specific path information,
-// and other utility functions.
 package osutil
 
 import (
