@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/osutil"
@@ -29,6 +30,7 @@ var envMap = map[string]func() string{
 	"configdir":    osutil.CamliConfigDir,
 	"clientconfig": osutil.UserClientConfigPath,
 	"serverconfig": osutil.UserServerConfigPath,
+	"camsrcroot":   srcRoot,
 }
 
 type envCmd struct{}
@@ -63,4 +65,13 @@ func (c *envCmd) RunCommand(args []string) error {
 	}
 	fmt.Println(fn())
 	return nil
+}
+
+func srcRoot() string {
+	for _, dir := range filepath.SplitList(os.Getenv("GOPATH")) {
+		if d := filepath.Join(dir, "src", "camlistore.org"); osutil.DirExists(d) {
+			return d
+		}
+	}
+	return ""
 }
