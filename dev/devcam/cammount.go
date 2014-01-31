@@ -110,9 +110,9 @@ func (c *mountCmd) RunCommand(args []string) error {
 		"-xterm=" + strconv.FormatBool(c.xterm),
 		"-debug=" + strconv.FormatBool(c.debug),
 		"-server=" + blobserver,
-		mountpoint,
 	}
 	cmdArgs = append(cmdArgs, args...)
+	cmdArgs = append(cmdArgs, mountpoint)
 	fmt.Printf("Cammount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
 	return runExec(cmdBin, cmdArgs, c.env)
 }
