@@ -20,11 +20,14 @@ package cacher
 import (
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/types"
 )
@@ -87,19 +90,26 @@ type DiskCache struct {
 	// Root is the temp directory being used to store files.
 	// It is available mostly for debug printing.
 	Root string
+
+	cleanAll bool // cleaning policy. TODO: something better.
 }
 
 // NewDiskCache returns a new DiskCache from a StreamingFetcher, which
 // is usually the pkg/client HTTP client (which typically has much
 // higher latency and lower bandwidth than local disk).
 func NewDiskCache(fetcher blob.StreamingFetcher) (*DiskCache, error) {
-	// TODO: max disk size, keep LRU of access, smarter cleaning,
-	// persistent directory per-user, etc.
-
-	cacheDir, err := ioutil.TempDir("", "camlicache")
-	if err != nil {
-		return nil, err
+	cacheDir := filepath.Join(osutil.CacheDir(), "blobs")
+	if !osutil.DirExists(cacheDir) {
+		if err := os.Mkdir(cacheDir, 0700); err != nil {
+			log.Printf("Warning: failed to make %s: %v; using tempdir instead", cacheDir, err)
+			cacheDir, err = ioutil.TempDir("", "camlicache")
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
+	// TODO: max disk size, keep LRU of access, smarter cleaning, etc
+	// TODO: use diskpacked instead? harder to clean, though.
 	diskcache, err := localdisk.New(cacheDir)
 	if err != nil {
 		return nil, err
@@ -113,8 +123,10 @@ func NewDiskCache(fetcher blob.StreamingFetcher) (*DiskCache, error) {
 
 // Clean cleans some or all of the DiskCache.
 func (dc *DiskCache) Clean() {
-	// TODO: something less aggressive?
-	os.RemoveAll(dc.Root)
+	// TODO: something between nothing and deleting everything.
+	if dc.cleanAll {
+		os.RemoveAll(dc.Root)
+	}
 }
 
 var (
