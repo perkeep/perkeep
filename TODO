@@ -23,11 +23,6 @@ Offline list:
 -- make leveldb memdb's iterator struct only 8 bytes, pointing to a recycled
    object, and just nil out that pointer at EOF.
 
--- genconfig needs to be updated to route incoming blobs to sync handlers;
-   or should sync handlers subscribe to their source's blobhub?
-   No, see latest email to Bill Thiede: sync handlers already subscribe
-   with a blocking hook. Related: index should too.
-
 -- bring in the google glog package to third_party and use it in
    places that want selective logging (e.g. pkg/index/receive.go)
 
@@ -35,7 +30,7 @@ Offline list:
    blob.SizedRef).  blobs have a max size of 10-32 MB anyway, and the
    index.Corpus is now using uint32 to save memory.
 
--- verify all ReceiveBlob calls and see which should be
+-- (Mostly done) verify all ReceiveBlob calls and see which should be
    blobserver.Receive instead, or ReceiveNoHash.  git grep -E
    "\.ReceiveBlob\(" And maybe ReceiveNoHash should go away and be
    replaced with a "ReceiveString" method which combines the
@@ -130,13 +125,10 @@ Offline list:
 
 OLD:
 
--- add CROS support?
+-- add CROS support? Access-Control-Allow-Origin: * + w/ OPTIONS
    http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
 
 -- brackup integration, perhaps sans GPG? (requires Perl client?)
-
--- blobserver test suite: flesh it out.  (bs-test.pl ... it's pretty good
-   so far, but not done)
 
 -- blobserver: clean up channel-closing consistency in blobserver interface
    (most close, one doesn't.  all should probably close)
