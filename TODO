@@ -4,6 +4,11 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- cacher: configurable policy on max cache size. clean oldest
+   things (consider mtime+atime) to get back under max cache size.
+   maybe prefer keeping small things (metadata blobs) too,
+   and only delete large data chunks.
+
 -- UI: video, at least thumbnailing (use external program,
    like VLC or whatever nautilus uses?)
 
