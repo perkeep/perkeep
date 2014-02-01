@@ -17,29 +17,42 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/search"
 )
 
 type listCmd struct {
 	*syncCmd
+
+	describe bool           // whether to describe each blob.
+	cl       *client.Client // client used for the describe requests.
 }
 
 func init() {
 	cmdmain.RegisterCommand("list", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &listCmd{
-			&syncCmd{
+			syncCmd: &syncCmd{
 				dest: "stdout",
 			},
+			describe: false,
 		}
-		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
 		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
+		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
 		return cmd
 	})
 }
+
+const describeBatchSize = 50
 
 func (c *listCmd) Describe() string {
 	return "List blobs on a server."
@@ -51,4 +64,98 @@ func (c *listCmd) Usage() {
 
 func (c *listCmd) Examples() []string {
 	return nil
+}
+
+func (c *listCmd) RunCommand(args []string) error {
+	if !c.describe {
+		return c.syncCmd.RunCommand(args)
+	}
+
+	stdout := os.Stdout
+	defer func() { os.Stdout = stdout }()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("Could not create pipe to read from stdout: %v", err)
+	}
+	defer pr.Close()
+	os.Stdout = pw
+
+	if err := c.setClient(); err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(pr)
+	go func() {
+		err := c.syncCmd.RunCommand(args)
+		if err != nil {
+			log.Printf("Error when enumerating source with sync: %v", err)
+		}
+		pw.Close()
+	}()
+
+	blobRefs := make([]blob.Ref, 0, describeBatchSize)
+	describe := func() error {
+		if len(blobRefs) == 0 {
+			return nil
+		}
+		// TODO(mpl): setting depth to 1, not 0, because otherwise r.depth() in pkg/search/handler.go defaults to 4. Can't remember why we disallowed 0 right now, and I do not want to change that in pkg/search/handler.go and risk breaking things.
+		described, err := c.cl.Describe(&search.DescribeRequest{
+			BlobRefs: blobRefs,
+			Depth:    1,
+		})
+		if err != nil {
+			return fmt.Errorf("Error when describing blobs %v: %v", blobRefs, err)
+		}
+		for _, v := range blobRefs {
+			blob := described.Meta[v.String()]
+			detailed := detail(blob)
+			if detailed != "" {
+				detailed = fmt.Sprintf("\t%v", detailed)
+			}
+			fmt.Fprintf(stdout, "%v %v%v\n", v, blob.Size, detailed)
+		}
+		blobRefs = make([]blob.Ref, 0, describeBatchSize)
+		return nil
+	}
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) != 2 {
+			return fmt.Errorf("Bogus output from sync: got %q, wanted \"blobref size\"", scanner.Text())
+		}
+		blobRefs = append(blobRefs, blob.MustParse(fields[0]))
+		if len(blobRefs) == describeBatchSize {
+			if err := describe(); err != nil {
+				return err
+			}
+		}
+	}
+	if err := describe(); err != nil {
+		return err
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("Error reading on pipe from stdout: %v", err)
+	}
+	return nil
+}
+
+// setClient configures a client for c, for the describe requests.
+func (c *listCmd) setClient() error {
+	ss, err := c.syncCmd.storageFromParam("src", c.syncCmd.src)
+	if err != nil {
+		fmt.Errorf("Could not set client for describe requests: %v", err)
+	}
+	var ok bool
+	c.cl, ok = ss.(*client.Client)
+	if !ok {
+		return fmt.Errorf("storageFromParam returned a %T, was expecting a *client.Client", ss)
+	}
+	return nil
+}
+
+func detail(blob *search.DescribedBlob) string {
+	// TODO(mpl): attrType, value for claim. but I don't think they're accessible just with a describe req.
+	if blob.CamliType == "file" {
+		return fmt.Sprintf("%v (%v size=%v)", blob.CamliType, blob.File.FileName, blob.File.Size)
+	}
+	return blob.CamliType
 }
