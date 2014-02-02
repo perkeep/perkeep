@@ -21,7 +21,8 @@ package fs
 import (
 	"log"
 	"os"
-	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,7 +110,11 @@ func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 			continue
 		}
 		if name == "" || n.ents[name] != nil {
-			name = ccMeta.BlobRef.String() + path.Ext(name)
+			ext := filepath.Ext(name)
+			if ext == "" && strings.HasSuffix(ccMeta.File.MIMEType, "image/jpeg") {
+				ext = ".jpg"
+			}
+			name = strings.TrimPrefix(ccMeta.BlobRef.String(), "sha1-")[:10] + ext
 			if n.ents[name] != nil {
 				continue
 			}
