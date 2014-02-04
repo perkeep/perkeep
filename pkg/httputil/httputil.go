@@ -47,7 +47,7 @@ func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
 func BadRequestError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
 	conn.WriteHeader(http.StatusBadRequest)
 	log.Printf("Bad request: %s", fmt.Sprintf(errorMessage, args...))
-	fmt.Fprintf(conn, "%s\n", errorMessage)
+	fmt.Fprintf(conn, "<h1>Bad Request</h1>")
 }
 
 func ForbiddenError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
@@ -329,4 +329,8 @@ func CloseBody(rc io.ReadCloser) {
 		}
 	}
 	rc.Close()
+}
+
+func IsWebsocketUpgrade(req *http.Request) bool {
+	return req.Method == "GET" && req.Header.Get("Upgrade") == "websocket"
 }
