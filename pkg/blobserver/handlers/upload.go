@@ -169,12 +169,12 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	return nil
 }
 
-func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
+func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
 	res := new(protocol.UploadResponse)
 
 	if !(req.Method == "POST" && strings.Contains(req.URL.Path, "/camli/upload")) {
 		log.Printf("Inconfigured handler upload handler")
-		httputil.BadRequestError(conn, "Inconfigured handler.")
+		httputil.BadRequestError(rw, "Inconfigured handler.")
 		return
 	}
 
@@ -182,7 +182,7 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 
 	multipart, err := req.MultipartReader()
 	if multipart == nil {
-		httputil.BadRequestError(conn, fmt.Sprintf(
+		httputil.BadRequestError(rw, fmt.Sprintf(
 			"Expected multipart/form-data POST request; %v", err))
 		return
 	}
@@ -254,12 +254,12 @@ func handleMultiPartUpload(conn http.ResponseWriter, req *http.Request, blobRece
 			if err != nil {
 				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.Ref.String(), err))
 			} else {
-				conn.Header().Add("X-Camlistore-Vivified", got.Ref.String())
+				rw.Header().Add("X-Camlistore-Vivified", got.Ref.String())
 			}
 		}
 	}
 
 	res.ErrorText = errBuf.String()
 
-	httputil.ReturnJSON(conn, res)
+	httputil.ReturnJSON(rw, res)
 }
