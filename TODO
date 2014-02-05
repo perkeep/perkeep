@@ -4,6 +4,47 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- also rename serverinit/serverconfig.go to serverinit.go
+
+-- websocket upload protocol. different write & read on same socket,
+   as opposed to HTTP, to have multiple chunks in flight.
+
+-- unit tests for websocket stuff. (in integration tests)
+
+-- extension to blobserver upload protocol to minimize fsyncs: maybe a
+   client can say "no rush" on a bunch of data blobs first (which
+   still don't get acked back over websocket until they've been
+   fsynced), and then when the client uploads the schema/vivivy blob,
+   that websocket message won't have the "no rush" flag, calling the
+   optional blobserver.Storage method to fsync (in the case of
+   diskpacked/localdisk) and getting all the "uploaded" messages back
+   for the data chunks that were written-but-not-synced.
+
+-- benchmark uploading a 100MB file to localdisk & diskpacked
+   from camput.
+
+-- measure FUSE operations, latency, round-trips, performance.
+   see next item:
+
+-- ... we probaby need a "describe all chunks in file" HTTP handler.
+   then FUSE (when it sees sequential access) can say "what's the
+   list of all chunks in this file?" and then fetch them all at once.
+   see next item:
+
+-- ... HTTP handler to get multiple blobs at once. multi-download
+   in multipart/mime body. we have this for stat and upload, but
+   not download.
+
+-- ... if we do blob fetching over websocket too, then we can support
+   cancellation of blob requests.  Then we can combine the previous
+   two items: FUSE client can ask the server, over websockets, for a
+   list of all chunks, and to also start streaming them all.  assume a
+   high-latency (but acceptable bandwidth) link. the chunks are
+   already in flight, but some might be redundant. once the client figures
+   out some might be redundant, it can issue "stop send" messages over
+   that websocket connection to prevent dups. this should work on
+   both "files" and "bytes" types.
+
 -- cacher: configurable policy on max cache size. clean oldest
    things (consider mtime+atime) to get back under max cache size.
    maybe prefer keeping small things (metadata blobs) too,
