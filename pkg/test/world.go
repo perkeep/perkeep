@@ -28,9 +28,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/osutil"
 )
 
@@ -161,6 +163,15 @@ func (w *World) Stop() {
 	if d := w.tempDir; d != "" {
 		os.RemoveAll(d)
 	}
+}
+
+func (w *World) NewPermanode(t *testing.T) blob.Ref {
+	out := MustRunCmd(t, w.Cmd("camput", "permanode"))
+	br, ok := blob.Parse(strings.TrimSpace(out))
+	if !ok {
+		t.Fatalf("Expected permanode in camput stdout; got %q", out)
+	}
+	return br
 }
 
 func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
