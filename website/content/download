@@ -5,26 +5,34 @@
 <p>Or, the canonical git repo is:</p>
 <pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
 
-<p>It's also on Github at <a href="http://github.com/bradfitz/camlistore">github.com/bradfitz/camlistore</a>. See <a href="/docs/contributing">the contribution docs</a>.</p>
+<p><a href="http://golang.org/doc/install">Download and install Go</a> if you don't have that installed already. Camlistore requires Go 1.1 but we recommend 1.2 or newer.</p>
+
+<p>Build Camlistore by running this command in the folder you downloaded or checked out:</p>
+
+<pre>$ go run make.go</pre>
+
+<p>Eventually we'll distribute binary releases, but for now you should build it yourself.</p>
+
+<h2>Getting started</h2>
+
+<p>Once you've successfully built the Camlistore components, you can run the server with:</p>
+<pre>$ ./bin/camlistored</pre>
+
+<p>This will create <a href="/docs/server-config">configuration</a> and public/private key information in <code>$HOME/.config/camlistore/</code> (or where <code>camtool env configdir</code> points). You can start and stop camlistored as you see fit.</p>
+
+<p>You're done setting up! Running camlistored should open a new browser window pointed at your camlistore where you can start uploading and interacting with data.</p>
+
+<p>Developers typically use the <code>./bin/devcam</code> wrapper to isolate their test environment from their production instance and to simplify common development tasks. If you have questions, you can ask the <a href="https://groups.google.com/group/camlistore">mailing list</a>.</p>
 
 <h2>Release Notes</h2>
 <p>Previous release notes:</p>
 
 <ul>
-
-<li><a href="/docs/release/0.1">0.1 ("Grenoble")</a>, 2013-06-11</li>
-
-<li><a href="/docs/release/0.2">0.2 ("Portland")</a>, 2013-06-22</li>
-
-<li><a href="/docs/release/0.3">0.3 ("Glebe")</a>, 2013-07-28</li>
-
-<li><a href="/docs/release/0.4">0.4 ("Oyens")</a>, 2013-08-26</li>
-
-<li><a href="/docs/release/0.5">0.5 ("Castletownbere")</a>, 2013-09-21</li>
-
-<li><a href="/docs/release/0.6">0.6 ("Cannon Beach")</a>, 2013-12-25</li>
-
 <li><a href="/docs/release/0.7">0.7 ("Brussels")</a>, 2014-02-27</li>
-
+<li><a href="/docs/release/0.6">0.6 ("Cannon Beach")</a>, 2013-12-25</li>
+<li><a href="/docs/release/0.5">0.5 ("Castletownbere")</a>, 2013-09-21</li>
+<li><a href="/docs/release/0.4">0.4 ("Oyens")</a>, 2013-08-26</li>
+<li><a href="/docs/release/0.3">0.3 ("Glebe")</a>, 2013-07-28</li>
+<li><a href="/docs/release/0.2">0.2 ("Portland")</a>, 2013-06-22</li>
+<li><a href="/docs/release/0.1">0.1 ("Grenoble")</a>, 2013-06-11</li>
 </ul>
-

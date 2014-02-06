@@ -1,39 +1,24 @@
-<h1 class='bustTitleRegexp'>What is Camlistore?</h1>
+<h1 class="rootHeading">Camlistore is <em>your personal storage system for life</em>.</h1>
 
-<p>Camlistore is your <b>personal storage system for life</b>. See <a href="/docs/overview">the overview</a>,
-or <a href="http://www.youtube.com/watch?v=yxSzQIwXM1k&feature=youtu.be">the video</a> below.</p>
+<p>Camlistore is a set of open source formats, protocols, and software for modeling, storing, searching, sharing and synchronizing data in the post-PC era. Data may be files or objects, tweets or 5TB videos, and you can access it via a phone, browser or FUSE filesystem.</p>
 
-<p>Note that it's a "storage system", not just a "file system".  It
-can store and be accessed like a traditional filesystem, but it
-specializes in representing higher-level objects which don't need to
-exist in purely one place in a tree. (e.g. a photo, a comment, a
-"like", a blog post) Or a tree of 5TB videos with Unix mode bits that
-you can access via a FUSE filesystem. Whatever.</p>
+<p>Camlistore (Content-Addressable Multi-Layer Indexed Storage) is under active development. If you're a programmer or fairly technical, you can probably get it up and running and get some utility out of it. Many bits and pieces are actively being developed, so be prepared for bugs and unfinished features.</p>
 
-<p>It is:</p>
+<p>Join <a href="/community">the community</a>, consider <a href="/docs/contributing">contributing</a>, or <a href="http://code.google.com/p/camlistore/issues/list">file a bug</a>.</p>
+
+<p>Things Camlistore believes:</p>
 <ul>
-  <li>a way to store, sync, share, search, publish, model and back up content</li>
-  <li>paranoid about privacy, with everything private by default</li>
-  <li>entirely under your control</li>
-  <li>Open Source (Apache licensed)</li>
-  <li>an acronym for <i>"Content-Addressable Multi-Layer Indexed Storage"</i>, saying that Camlistore is about:<ul>
-        <li>content-addressable storage, at the lowest layer ("Like git for all content in your life")</li>
-        <li>separate interoperable parts (<a href="/docs/arch">storage</a>, <a href="/docs/terms#graphsync">sync</a>, <a href="/docs/sharing">sharing</a>,
-        <a href="/docs/schema">modeling</a>), with well-defined protocols and roles</li>
-        <li>indexing and searching your content</li>
-      </ul></li>
-  <li><a href="/docs/uses">ambitious</a>, but ...</li>
-  <li>simple!</li>
-  <li>programming language-agnostic (parts and different implementations in <a href="http://golang.org/">Go</a>, Python, Java, Perl, Bash, ... the language doesn't matter.)  What matters is simple, well-defined, formats and HTTP interfaces.</li>
-  <li>neither "Cloud" nor "Local". happily both. Run it on your own machine (any OS, any architecture), your phone, EC2, App Engine, Heroku, whatever.</li>
-  <li>a "20% project" from a few Google employees (and non-Googlers),
-  but not Google-centric nor endorsed by Google (other than them
-  letting us open source our side project)</li>
+  <li>Your data is entirely under your control</li>
+  <li>Open Source</li>
+  <li>Paranoid about privacy, everything private by default</li>
+  <li>No SPOF: don't rely on any single party (including yourself)</li>
+  <li>Your data should be alive in 80 years, especially if you are</li>
 </ul>
 
 <h2>Latest Release</h2>
 
 <p>The latest release is <a href="docs/release/0.7">0.7 ("Brussels")</a>, released 2014-02-27.</p>
+<p>Follow the <a href="/download">download and getting started instructions</a> to set up Camlistore.</p>
 
 <h2>Video Demo</h2>
 
@@ -41,15 +26,11 @@ you can access via a FUSE filesystem. Whatever.</p>
 
 <center><iframe width="640" height="360" src="//www.youtube.com/embed/kBCQq5hfsug" frameborder="0" allowfullscreen></iframe></center>
 
-<h2>Old presentations</h2>
-
-<p><a href="https://www.youtube.com/watch?v=yxSzQIwXM1k">June 2013 Intro Video</a></p>
-<p>See <a href="/talks/2011-05-07-Camlistore-Sao-Paolo/">http://camlistore.org/talks/2011-05-07-Camlistore-Sao-Paolo/</a>.</p>
-<p>There's also this <a href="https://docs.google.com/present/view?id=dgks53wm_2j86hwnhs">older presentation</a>.</p>
+<p>Or see the <a href="/docs/#presentations">older presentations</a>.</p>
 
 <h2>Contribute</h2>
 
-<p>In addition to user feedback, bug reports, and <a href="/docs/contributing">code contributions</a>, we also accept Bitcoin:</p>
+<p>In addition to user feedback, bug reports, and <a href="/code#contributing">code contributions</a>, we also accept Bitcoin:</p>
 
 <center>
 <table width='200'>

@@ -1,37 +1,49 @@
 <h1>Documentation</h1>
 
-<p>The documentation is mostly in the project's <a href="/gw/doc">doc/
-directory</a> or in the source itself.  It's now being promoted to
-HTML, though:</p>
-
-<h2>Intro</h2>
-
 <ul>
-   <li><a href="/docs/overview">Overview</a>: What is Camlistore? Motivation, background.</li>
+   <li><a href="/docs/overview">Overview</a>: The original motivation and background for why Camlistore exists and what one might use it for.</li>
 </ul>
 
 <h2>For Users</h2>
 
-<ul>
-<li><a href="/docs/server-config">Server Config</a>: how to configure your Camlistore server</li>
-<li><a href="/cmd/">Commands</a>: Camlistore command-line tools</li>
-<li><a href="/docs/client-config">Client config</a>: how to configure a Camlistore client</li>
-<li><a href="https://code.google.com/p/camlistore/wiki/GettingStarted">Getting started</a></li>
+<p><strong>If you're just looking to set up a Camlistore server and use it yourself, check out our <a href="/download">getting started guide</a>.</strong> The documents below go into more detail on customizing the high level configuration for use such as alternative blob storage or synchronization to cloud storage.</p>
+
+<ul class="lispaced">
+	<li><a href="/cmd/">Command-line tools</a></li>
+	<li><a href="/docs/server-config">Server Config</a>: Details for configuring server storage and access, including synchronization to other Camlistore servers or backup to cloud storage providers</li>
+	<li><a href="/docs/client-config">Client config</a>: Clients need this configuration file to securely connect to your Camlistore server(s)</li>
 </ul>
 
 <h2>For Developers</h2>
 
-<ul>
-<li><a href="/docs/arch">Architecture</a>: the pieces, layers, and how they interact</li>
-<li><a href="/docs/principles">Principles</a>:  our base principles, goals, assumptions</li>
-<li><a href="/docs/terms">Terminology</a>:  let's agree on terms to stay sane</li>
-<li><a href="/docs/uses">Use Cases</a>: what one might do with all this (or at least our aspirations)</li>
-<li><a href="/docs/schema">Schema</a>: how we model data in Camlistore</li>
-<li><a href="/docs/json-signing">JSON Signing</a></li>
-<li><a href="/docs/sharing">Sharing</a></li>
-<li><a href="/pkg/">Packages</a>: internal API documentation</li>
-<li><a href="/docs/prior-art">Prior Art</a>: other projects doing similar stuff</li>
-<li><a href="/download">Release History</a>: previous releases and notable features of each</li>
-<li><a href="/docs/contributing">Contributing</a>: how to help</li>
-<li><a href="/docs/web-ui-styleguide">The style to use when working on the Web UI</a></li>
+<p>If you want to help the development of Camlistore or just want to know more about the how and why behind Camlistore, these docs are the going to help you get started. <strong>Something we didn't cover here that you're interested in?</strong> Ask on the <a href="https://groups.google.com/group/camlistore">mailing list</a>.</p>
+
+<h3>Concepts</h3>
+
+<ul class="lispaced">
+	<li><a href="/docs/principles">Principles</a>:  our base principles, goals, assumptions</li>
+	<li><a href="/docs/terms">Terminology</a>:  let's agree on terms to stay sane</li>
+	<li><a href="/docs/uses">Use Cases</a>: what one might do with all this (or at least our aspirations)</li>
+	<li><a href="/docs/prior-art">Prior Art</a>: other projects with similar goals or strategies</li>
+	<li><a href="/docs/contributing">Contributing</a>: how to help</li>
+	<li><a href="/docs/web-ui-styleguide">Style guide</a> for the Web UI</li>
+</ul>
+
+<h3>Technical Docs</h3>
+
+<ul class="lispaced">
+	<li><a href="/pkg/">Packages</a>: internal API documentation</li>
+	<li><a href="/docs/arch">Architecture</a>: the pieces, layers, and how they interact</li>
+	<li><a href="/docs/schema">Schema</a>: how we model data in Camlistore</li>
+	<li><a href="/docs/json-signing">JSON Signing</a></li>
+	<li><a href="/docs/sharing">Sharing</a></li>
+</ul>
+
+<h2 id="presentations">Presentations</h2>
+
+<ul class="lispaced">
+  <li><a href="https://www.youtube.com/watch?v=kBCQq5hfsug">February 2014 FOSDEM Presentation</a> (<a href="http://video.fosdem.org/2014/K4601/Sunday/Camlistore.webm">WebM version</a>)</li>
+  <li><a href="https://www.youtube.com/watch?v=yxSzQIwXM1k">June 2013 Intro Video</a></li>
+  <li><a href="/talks/2011-05-07-Camlistore-Sao-Paolo/">May 2011 São Paolo Presentation</a>
+  <li><a href="https://docs.google.com/present/view?id=dgks53wm_2j86hwnhs">February 2011 Presentation</a></li>
 </ul>

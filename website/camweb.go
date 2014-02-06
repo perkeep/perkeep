@@ -340,6 +340,8 @@ func main() {
 
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
+	mux.HandleFunc("/docs/contributing", codeRedirect)
+	mux.HandleFunc("/lists", communityRedirect)
 
 	mux.HandleFunc("/", mainHandler)
 
@@ -411,6 +413,18 @@ func gerritRedirect(w http.ResponseWriter, r *http.Request) {
 	if len(r.URL.Path) > len("/r/") {
 		dest += r.URL.Path[1:]
 	}
+	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+func communityRedirect(w http.ResponseWriter, r *http.Request) {
+	dest := "/community"
+
+	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+func codeRedirect(w http.ResponseWriter, r *http.Request) {
+	dest := "/code"
+
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 

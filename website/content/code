@@ -1,17 +1,43 @@
-<h1>Getting the code</h1>
+<h1>Get the code</h1>
 
-<tt>$ <b>git clone https://camlistore.googlesource.com/camlistore</b></tt>
-
-<h1>Browsing, contributing</h1>
+<pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
 
 <ul>
   <li><a href="https://camlistore.googlesource.com/camlistore">Latest changes</a></li>
   <li><a href="https://camlistore.googlesource.com/camlistore/+/master">Browse tree</a></li>
-  <li><a href="https://camlistore.googlesource.com/">Project root</a>; see "Generate New Password" link at top, necessary to push changes and do propose changes for code review.</li>
-  <li><a href="https://camlistore-review.googlesource.com/">Code Review</a>, our Gerrit server.</li>
-  <li><a href="/docs/contributing">Contributing docs</a> -- how to hack on Camlistore with us</a>
+  <li><a href="https://camlistore-review.googlesource.com/">Code Review</a></li>
 </ul>
 
+<h2>Making apps that work with Camlistore</h2>
 
+<p>Camlistore is built so that other apps can securely access and store data without running alongside it. Camlistore is the perfect backing store for other web apps and CMSes.</p>
 
+<p>Detailed documention on the HTTP blob retrieval protocol can be found at <a href="/docs/protocol">the protocol documentation</a>. The <a href="/pkg/client">client</a>, <a href="/pkg/search">search</a> and <a href="/pkg/schema">schema</a> packages are also a good place to start.</p>
 
+<h2 id="contributing">Contributing to Camlistore</h2>
+
+<ul class='lispaced'>
+   <li>Join the <a href="https://groups.google.com/group/camlistore">mailing list</a>.</li>
+   <li>Pick something that interests you, or look through our list of <a href="/docs/todo">potential projects</a> for inspiration. <strong>Discuss it first</strong>, especially if it's large and/or not well designed yet. You'll save yourself a headache if someone is already working on something similar or if there's a more Camlistore-like approach to the issue.</li>
+   <li>Submit your changes through the review process discussed below.</li>
+   <li>Note that you'll need to agree to the appropriate Contributor License Agreement:
+       <ul>
+          <li><a href="https://developers.google.com/open-source/cla/individual">Individual Contributor License Agreement</a> (electronic signature okay) </li>
+          <li><a href="https://developers.google.com/open-source/cla/corporate">Corporate Contributor License Agreement</a> (requires faxing or mailing)</li>
+       </ul>
+       (These make lawyers feel all warm and cozy about open source)
+   </li>
+</ul>
+
+<h3>Code Review</h3>
+<ul class='lispaced'>
+	<li>Camlistore requires changes to be reviewed before they are committed.</li>
+        <li>Update your <tt>~/.netrc</tt> file with a Gerrit username and password.  Click the <strong>"Generate a new password"</strong> link from the top of <a href="https://camlistore.googlesource.com/">https://camlistore.googlesource.com/</a>.</li>
+	<li>Usual Work Flow</li>
+	<ul>
+        <li>Create a topic branch, make some changes and commit away.</li>
+        <li>Before review, squash your changes into a single change.</li>
+        <li>Send for review with: <pre>./misc/review</pre></li>
+        <li>Modify as necessary until change is merged. Amend your commit or squash to a single commit before sending for review again (be sure to keep the same <a href="http://gerrit.googlecode.com/svn/documentation/2.2.1/user-changeid.html">the Change-Id line</a>)</li>
+	</ul>
+</ul>
