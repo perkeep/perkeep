@@ -118,6 +118,12 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
                 [LACamliUtil statusText:@[
                                             @"internet connection appears offline"
                                         ]];
+            } else if ([error code] == NSURLErrorCannotConnectToHost || [error code] == NSURLErrorCannotFindHost) {
+                LALog(@"can't connect to server");
+                [LACamliUtil statusText:@[
+                                            @"can't connect to server"
+                                        ]];
+
             } else {
                 LALog(@"error discovery: %@", error);
                 [LACamliUtil errorText:@[

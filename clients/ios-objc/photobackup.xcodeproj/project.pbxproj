@@ -52,9 +52,6 @@
 		D075B281184944330054FED3 /* LACamliUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUtil.m; sourceTree = "<group>"; };
 		D075B28318494DB20054FED3 /* LACamliUploadOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LACamliUploadOperation.h; sourceTree = "<group>"; };
 		D075B28418494DB20054FED3 /* LACamliUploadOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LACamliUploadOperation.m; sourceTree = "<group>"; };
-		D078FB0118726CD500F2ABF7 /* HockeySDK.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = HockeySDK.framework; sourceTree = "<group>"; };
-		D078FB0318726CD500F2ABF7 /* HockeySDK.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = HockeySDK.xcconfig; sourceTree = "<group>"; };
-		D078FB0418726CD500F2ABF7 /* HockeySDKResources.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = HockeySDKResources.bundle; sourceTree = "<group>"; };
 		D078FB0818726D1300F2ABF7 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		D078FB0C18726D2100F2ABF7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
@@ -119,25 +116,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		D078FB0018726CD500F2ABF7 /* HockeySDK.embeddedframework */ = {
-			isa = PBXGroup;
-			children = (
-				D078FB0118726CD500F2ABF7 /* HockeySDK.framework */,
-				D078FB0218726CD500F2ABF7 /* Resources */,
-			);
-			name = HockeySDK.embeddedframework;
-			path = photobackup/HockeySDK.embeddedframework;
-			sourceTree = "<group>";
-		};
-		D078FB0218726CD500F2ABF7 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				D078FB0318726CD500F2ABF7 /* HockeySDK.xcconfig */,
-				D078FB0418726CD500F2ABF7 /* HockeySDKResources.bundle */,
-			);
-			path = Resources;
-			sourceTree = "<group>";
-		};
 		D08F911C187B4190006F6B8D /* Main UI */ = {
 			isa = PBXGroup;
 			children = (
@@ -179,7 +157,6 @@
 				D078FB0C18726D2100F2ABF7 /* Security.framework */,
 				D078FB0A18726D1C00F2ABF7 /* QuartzCore.framework */,
 				D078FB0818726D1300F2ABF7 /* CoreText.framework */,
-				D078FB0018726CD500F2ABF7 /* HockeySDK.embeddedframework */,
 				D095AE121814AF10008163F2 /* Foundation.framework */,
 				D095AE141814AF10008163F2 /* CoreGraphics.framework */,
 				D095AE161814AF10008163F2 /* UIKit.framework */,
@@ -530,10 +507,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"/Users/nickoneill/Projects/camlistore/clients/ios-objc/photobackup/HockeySDK.embeddedframework",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";
@@ -553,10 +527,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Distribution: Launch Apps LLC (H6S4PTUWAA)";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution: Launch Apps LLC (H6S4PTUWAA)";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"/Users/nickoneill/Projects/camlistore/clients/ios-objc/photobackup/HockeySDK.embeddedframework",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "photobackup/photobackup-Prefix.pch";
 				INFOPLIST_FILE = "photobackup/photobackup-Info.plist";

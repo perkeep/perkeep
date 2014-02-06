@@ -2,3 +2,4 @@ platform :ios, '7.0'
 
 pod 'HockeySDK', '~> 3.5.0'
 pod 'SSKeychain', '~> 1.2.1'
+pod 'BugshotKit', :podspec => 'https://raw.github.com/marcoarment/BugshotKit/e4031a8e5a863939f9c91f0d86352cba07d82d79/BugshotKit.podspec'
