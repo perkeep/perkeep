@@ -20,15 +20,17 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
+	"camlistore.org/third_party/github.com/gorilla/websocket"
 )
 
 // Test that running:
@@ -36,13 +38,9 @@ import (
 // ... creates and uploads a permanode, and that we can camget it back.
 func TestCamputPermanode(t *testing.T) {
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "permanode"))
-	br, ok := blob.Parse(strings.TrimSpace(out))
-	if !ok {
-		t.Fatalf("Expected permanode in stdout; got %q", out)
-	}
+	br := w.NewPermanode(t)
 
-	out = test.MustRunCmd(t, w.Cmd("camget", br.String()))
+	out := test.MustRunCmd(t, w.Cmd("camget", br.String()))
 	mustHave := []string{
 		`{"camliVersion": 1,`,
 		`"camliSigner": "`,
@@ -54,6 +52,57 @@ func TestCamputPermanode(t *testing.T) {
 		if !strings.Contains(out, str) {
 			t.Errorf("Expected permanode response to contain %q; it didn't. Got: %s", str, out)
 		}
+	}
+}
+
+func TestWebsocketQuery(t *testing.T) {
+	w := test.GetWorld(t)
+	pn := w.NewPermanode(t)
+	test.MustRunCmd(t, w.Cmd("camput", "attr", pn.String(), "tag", "foo"))
+
+	check := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	const bufSize = 1 << 20
+
+	c, err := net.Dial("tcp", w.Addr())
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+
+	wc, _, err := websocket.NewClient(c, &url.URL{Host: w.Addr(), Path: w.SearchHandlerPath() + "ws"}, nil, bufSize, bufSize)
+	check(err)
+
+	msg, err := wc.NextWriter(websocket.TextMessage)
+	check(err)
+
+	_, err = msg.Write([]byte(`{"tag": "foo", "query": { "expression": "tag:foo" }}`))
+	check(err)
+	check(msg.Close())
+
+	errc := make(chan error, 1)
+	go func() {
+		inType, inMsg, err := wc.ReadMessage()
+		if err != nil {
+			errc <- err
+			return
+		}
+		if strings.Contains(string(inMsg), pn.String()) {
+			errc <- nil
+			return
+		}
+		errc <- fmt.Errorf("unexpected message type=%d msg=%q", inType, inMsg)
+	}()
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("timeout")
 	}
 }
 

@@ -76,6 +76,10 @@ func NewWorld() (*World, error) {
 	}, nil
 }
 
+func (w *World) Addr() string {
+	return w.listener.Addr().String()
+}
+
 // Start builds the Camlistore binaries and starts a server.
 func (w *World) Start() error {
 	var err error
@@ -263,3 +267,6 @@ func (w *World) ClientIdentity() string {
 func (w *World) SecretRingFile() string {
 	return filepath.Join(w.camRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 }
+
+// SearchHandlerPath returns the path to the search handler, with trailing slash.
+func (w *World) SearchHandlerPath() string { return "/my-search/" }

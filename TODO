@@ -14,8 +14,6 @@ Offline list:
 -- websocket upload protocol. different write & read on same socket,
    as opposed to HTTP, to have multiple chunks in flight.
 
--- unit tests for websocket stuff. (in integration tests)
-
 -- extension to blobserver upload protocol to minimize fsyncs: maybe a
    client can say "no rush" on a bunch of data blobs first (which
    still don't get acked back over websocket until they've been
