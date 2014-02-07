@@ -417,7 +417,18 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef,
 	if err != nil {
 		return
 	}
+
 	sbr = blob.SizedRef{Ref: br, Size: n}
+
+	// Check if it's a dup. Still accept it if the pack file on disk seems to be corrupt
+	// or truncated.
+	if m, err := s.meta(br); err == nil {
+		fi, err := os.Stat(s.filename(m.file))
+		if err == nil && fi.Size() >= m.offset+m.size {
+			return sbr, nil
+		}
+	}
+
 	err = s.append(sbr, &b)
 	return
 }

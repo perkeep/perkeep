@@ -19,10 +19,12 @@ package diskpacked
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/test"
 )
 
 func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
@@ -43,4 +45,50 @@ func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 
 func TestDiskpacked(t *testing.T) {
 	storagetest.Test(t, newTempDiskpacked)
+}
+
+func TestDoubleReceive(t *testing.T) {
+	sto, cleanup := newTempDiskpacked(t)
+	defer cleanup()
+
+	size := func(n int) int64 {
+		path := sto.(*storage).filename(n)
+		fi, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Size()
+	}
+
+	const blobSize = 5 << 10
+	b := &test.Blob{Contents: strings.Repeat("a", blobSize)}
+	br := b.BlobRef()
+
+	_, err := blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size(0) < blobSize {
+		t.Fatalf("size = %d; want at least %d", size(0), blobSize)
+	}
+	sto.(*storage).nextPack()
+
+	_, err = blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizePostDup := size(1)
+	if sizePostDup >= blobSize {
+		t.Fatalf("size(pack1) = %d; appeared to double-write.", sizePostDup)
+	}
+
+	os.Remove(sto.(*storage).filename(0))
+	_, err = blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizePostDelete := size(1)
+	if sizePostDelete < blobSize {
+		t.Fatalf("after packfile delete + reupload, not big enough. want size of a blob")
+	}
 }
