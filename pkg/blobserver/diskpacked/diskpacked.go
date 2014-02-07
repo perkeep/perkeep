@@ -97,6 +97,29 @@ var (
 	writeTotVar = expvar.NewMap("diskpacked-total-write-bytes")
 )
 
+const indexKV = "index.kv"
+
+// IsDir reports whether dir is a diskpacked directory.
+func IsDir(dir string) (bool, error) {
+	_, err := os.Stat(filepath.Join(dir, indexKV))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// New returns a diskpacked storage implementation, adding blobs to
+// the provided directory. It doesn't delete any existing blob pack
+// files.
+func New(dir string) (blobserver.Storage, error) {
+	var maxSize int64
+	if ok, _ := IsDir(dir); ok {
+		// TODO: detect existing max size from size of files, if obvious,
+		// and set maxSize to that?
+	}
+	return newStorage(dir, maxSize)
+}
+
 // newStorage returns a new storage in path root with the given maxFileSize,
 // or defaultMaxFileSize (512MB) if <= 0
 func newStorage(root string, maxFileSize int64) (s *storage, err error) {
@@ -110,7 +133,7 @@ func newStorage(root string, maxFileSize int64) (s *storage, err error) {
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
 	}
-	index, err := kvfile.NewStorage(filepath.Join(root, "index.kv"))
+	index, err := kvfile.NewStorage(filepath.Join(root, indexKV))
 	if err != nil {
 		return nil, err
 	}
