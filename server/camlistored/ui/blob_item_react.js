@@ -35,7 +35,6 @@ cam.BlobItemReactData = function(blobref, metabag) {
 	this.rm = this.constructor.getResolvedMeta_(this.m, metabag);
 	this.im = this.constructor.getImageMeta_(this.rm);
 	this.isStaticCollection = this.constructor.isStaticCollection_(this.rm);
-	this.isDynamicCollection = this.constructor.isDynamicCollection_(this.m);
 	this.thumbType = this.constructor.getThumbType_(this);
 	this.aspect = this.constructor.getAspect_(this.im, this.thumbType);
 	this.title = this.constructor.getTitle_(this.m, this.rm);
@@ -82,15 +81,6 @@ cam.BlobItemReactData.isStaticCollection_ = function(rm) {
 	return rm.camliType == 'directory' || rm.camliType == 'static-set';
 };
 
-cam.BlobItemReactData.isDynamicCollection_ = function(m) {
-	if (m.camliType == 'permanode') {
-		if (goog.object.findKey(m.permanode.attr, function(v, k) { return k == 'camliMember' || goog.string.startsWith(k, 'camliPath:') })) {
-			return true;
-		}
-	}
-	return false;
-};
-
 cam.BlobItemReactData.getThumbType_ = function(data) {
 	if (data.im) {
 		return 'image';
@@ -100,12 +90,8 @@ cam.BlobItemReactData.getThumbType_ = function(data) {
 		return 'file';
 	}
 
-	if (data.isStaticCollection || data.isDynamicCollection) {
+	if (data.isStaticCollection || data.m.camliType == 'permanode') {
 		return 'folder';
-	}
-
-	if (data.m.camliType == 'permanode') {
-		return 'node';
 	}
 
 	return 'file';

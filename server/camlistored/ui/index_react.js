@@ -192,11 +192,10 @@ cam.IndexPageReact = React.createClass({
 		}
 		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
 			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
-			cam.NavReact.Item({key:'newpermanode', iconSrc:'new_permanode.svg', onClick:this.handleNewPermanode_}, 'New permanode'),
+			this.getCreateSetWithSelectionItem_(),
 			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
 			this.getSelectAsCurrentSetItem_(),
 			this.getAddToCurrentSetItem_(),
-			this.getCreateSetWithSelectionItem_(),
 			this.getClearSelectionItem_(),
 			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
 			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
@@ -250,13 +249,15 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	addMembersToSet_: function(permanode, blobrefs) {
-		var numComplete = 0;
+		var numComplete = -1;
 		var callback = function() {
 			if (++numComplete == blobrefs.length) {
 				this.setState({selection:{}});
 				this.searchSession_.refreshIfNecessary();
 			}
 		}.bind(this);
+
+		callback();
 
 		blobrefs.forEach(function(br) {
 			this.props.serverConnection.newAddAttributeClaim(permanode, 'camliMember', br, callback);
@@ -315,7 +316,7 @@ cam.IndexPageReact = React.createClass({
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
 		var data = new cam.BlobItemReactData(blobref, this.searchSession_.getCurrentResults().description.meta);
-		if (!data.isDynamicCollection) {
+		if (!data.m.type != 'permanode') {
 			return null;
 		}
 
@@ -331,10 +332,12 @@ cam.IndexPageReact = React.createClass({
 
 	getCreateSetWithSelectionItem_: function() {
 		var numItems = goog.object.getCount(this.state.selection);
-		if (numItems == 0) {
-			return null;
+		var label = 'Create set';
+		if (numItems == 1) {
+			label += ' with item';
+		} else if (numItems > 1) {
+			label += goog.string.subs(' with %s items', numItems);
 		}
-		var label = numItems == 1 ? 'Create set with item' : goog.string.subs('Create set with %s items', numItems);
 		return cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, label);
 	},
 
