@@ -34,12 +34,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types"
 )
 
@@ -54,6 +56,14 @@ type DiskStorage struct {
 
 	// gen will be nil if partition != ""
 	gen *local.Generationer
+}
+
+// IsDir reports whether root is a localdisk (file-per-blob) storage directory.
+func IsDir(root string) (bool, error) {
+	if osutil.DirExists(filepath.Join(root, blob.RefFromString("").HashName())) {
+		return true, nil
+	}
+	return false, nil
 }
 
 // New returns a new local disk storage implementation at the provided
