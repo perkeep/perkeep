@@ -21,7 +21,7 @@ static NSUInteger const ChunkSize = 64000;
     if (self = [super init]) {
         _asset = asset;
 
-        [self setBlobRef:[LACamliUtil blobRef:[self fileData]]];
+        self.blobRef = [LACamliUtil blobRef:[self fileData]];
 
         float chunkCount = (float)[self size] / (float)ChunkSize;
 
@@ -67,6 +67,11 @@ static NSUInteger const ChunkSize = 64000;
 - (long long)size
 {
     return [_asset defaultRepresentation].size;
+}
+
+- (NSString *)name
+{
+    return [_asset defaultRepresentation].filename;
 }
 
 - (NSDate*)creation

@@ -301,7 +301,12 @@ static NSString* const multipartBoundary = @"Qe43VdbVVaGtkkMd";
 {
     NSMutableData* data = [NSMutableData data];
 
-    NSMutableDictionary* schemaBlob = [NSMutableDictionary dictionaryWithObjectsAndKeys:@1, @"camliVersion", @"file", @"camliType", [LACamliUtil rfc3339StringFromDate:_file.creation], @"unixMTime", nil];
+    NSMutableDictionary* schemaBlob = [@{
+                                           @"camliVersion" : @1,
+                                           @"camliType" : @"file",
+                                           @"unixMTime" : [LACamliUtil rfc3339StringFromDate:_file.creation],
+                                           @"fileName" : _file.name
+                                       } mutableCopy];
 
     NSMutableArray* parts = [NSMutableArray array];
     int i = 0;

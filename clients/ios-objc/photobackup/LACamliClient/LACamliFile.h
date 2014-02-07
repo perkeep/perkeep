@@ -22,6 +22,7 @@
 - (NSArray*)blobsToUpload;
 
 - (long long)size;
+- (NSString *)name;
 - (NSDate*)creation;
 - (UIImage*)thumbnail;
 

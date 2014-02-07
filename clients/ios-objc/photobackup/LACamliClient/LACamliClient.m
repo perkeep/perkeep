@@ -12,9 +12,7 @@
 
 @implementation LACamliClient
 
-NSString* const CamliNotificationUploadStart = @"camli-upload-start";
-NSString* const CamliNotificationUploadProgress = @"camli-upload-progress";
-NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
+NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 
 - (id)initWithServer:(NSURL*)server
             username:(NSString*)username
@@ -90,6 +88,7 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
 
 #pragma mark - discovery
 
+// discovery is done on demand when we have a new file to upload
 - (void)discoveryWithUsername:(NSString*)user andPassword:(NSString*)pass
 {
     [LACamliUtil statusText:@[
@@ -136,27 +135,27 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
             NSHTTPURLResponse* res = (NSHTTPURLResponse*)response;
 
             if (res.statusCode != 200) {
-                LALog(@"error with discovery: %@",
-                      [[NSString alloc] initWithData:data
-                                            encoding:NSUTF8StringEncoding]);
+                NSString* serverSaid = [[NSString alloc]
+                    initWithData:data
+                        encoding:NSUTF8StringEncoding];
+
                 [LACamliUtil
                     errorText:@[
                                   @"error discovery: ",
-                                  [[NSString alloc] initWithData:data
-                                                        encoding:NSUTF8StringEncoding]
+                                  serverSaid
                               ]];
                 [LACamliUtil
                     logText:@[
                                 [NSString stringWithFormat:
                                               @"server said: %@",
-                                              [[NSString alloc]
-                                                  initWithData:data
-                                                      encoding:NSUTF8StringEncoding]]
+                                              serverSaid]
                             ]];
 
-                [[NSNotificationCenter defaultCenter]
-                    postNotificationName:CamliNotificationUploadEnd
-                                  object:nil];
+                if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                    [_delegate finishedDiscovery:@{
+                                                     @"error" : serverSaid
+                                                 }];
+                }
             } else {
                 NSError* err;
                 NSDictionary* config = [NSJSONSerialization JSONObjectWithData:data
@@ -164,6 +163,19 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
                                                                          error:&err];
                 if (!err) {
                     _blobRootComponent = config[@"blobRoot"];
+                    _isAuthorized = YES;
+                    [_uploadQueue setSuspended:NO];
+
+                    // files may have already been rejected for being previously uploaded when
+                    // dicovery returns, this doesn't kick off a new check for files. The next
+                    // file check will catch anything that was missed by timing
+
+                    // if the storage generation changes, zero the saved array
+                    if (![[self storageToken] isEqualToString:config[@"storageGeneration"]]) {
+                        _uploadedBlobRefs = [NSMutableArray array];
+                        [self saveStorageToken:config[@"storageGeneration"]];
+                    }
+
                     [LACamliUtil
                         logText:
                             @[
@@ -171,17 +183,14 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
                                                            config[@"ownerName"]]
                             ]];
 
-                    _isAuthorized = YES;
-                    [_uploadQueue setSuspended:NO];
-
-                    LALog(@"good discovery: %@",
-                          [[NSString alloc] initWithData:data
-                                                encoding:NSUTF8StringEncoding]);
                     [LACamliUtil statusText:@[
                                                 @"discovery OK"
                                             ]];
+
+                    if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                        [_delegate finishedDiscovery:config];
+                    }
                 } else {
-                    LALog(@"couldn't deserialize discovery json");
                     [LACamliUtil
                         errorText:@[
                                       @"bad json from discovery",
@@ -192,6 +201,12 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
                                     @"json from discovery: ",
                                     [err description]
                                 ]];
+
+                    if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                        [_delegate finishedDiscovery:@{
+                                                         @"error" : [err description]
+                                                     }];
+                    }
                 }
             }
         }
@@ -279,6 +294,24 @@ NSString* const CamliNotificationUploadEnd = @"camli-upload-end";
 }
 
 #pragma mark - utility
+
+- (NSString*)storageToken
+{
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:CamliStorageGenerationKey]) {
+        return [defaults objectForKey:CamliStorageGenerationKey];
+    }
+
+    return nil;
+}
+
+- (void)saveStorageToken:(NSString*)token
+{
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:token
+                 forKey:CamliStorageGenerationKey];
+    [defaults synchronize];
+}
 
 - (NSURL*)blobRoot
 {
