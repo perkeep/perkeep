@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	"camlistore.org/pkg/blobserver/dir"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/httputil"
@@ -39,6 +40,7 @@ var (
 	flagProxyLocal = false
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagHaveCache  = true
+	flagBlobDir    = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network.")
 )
 
 var (
@@ -55,13 +57,12 @@ func init() {
 		client.AddFlags()
 	}
 	cmdmain.PreExit = func() {
-		up := getUploader()
-		if up.haveCache != nil {
-			up.haveCache.Close()
+		if up := uploader; up != nil {
+			up.Close()
+			stats := up.Stats()
+			log.Printf("Client stats: %s", stats.String())
+			log.Printf("  #HTTP reqs: %d", up.transport.Requests())
 		}
-		stats := up.Stats()
-		log.Printf("Client stats: %s", stats.String())
-		log.Printf("  #HTTP reqs: %d", up.transport.Requests())
 	}
 }
 
@@ -72,7 +73,7 @@ func getUploader() *Uploader {
 
 func initUploader() {
 	up := newUploader()
-	if flagHaveCache {
+	if flagHaveCache && *flagBlobDir == "" {
 		gen, err := up.StorageGeneration()
 		if err != nil {
 			log.Printf("WARNING: not using local server inventory cache; failed to retrieve server's storage generation: %v", err)
@@ -123,7 +124,16 @@ func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 }
 
 func newUploader() *Uploader {
-	cc := client.NewOrFail()
+	var cc *client.Client
+	if d := *flagBlobDir; d != "" {
+		ss, err := dir.New(d)
+		if err != nil {
+			log.Fatalf("Error using dir %s as storage: %v", d, err)
+		}
+		cc = client.NewStorageClient(ss)
+	} else {
+		cc = client.NewOrFail()
+	}
 	if !*cmdmain.FlagVerbose {
 		cc.SetLogger(nil)
 	}

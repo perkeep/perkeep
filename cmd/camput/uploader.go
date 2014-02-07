@@ -54,8 +54,8 @@ type fileOptions struct {
 	// the above permanode.
 	tag string
 	// perform for the client the actions needing gpg signing when uploading a file.
-	vivify     bool
-	exifTime   bool // use the time in exif metadata as the modtime if possible.
+	vivify   bool
+	exifTime bool // use the time in exif metadata as the modtime if possible.
 	capCtime bool // use mtime as ctime if ctime > mtime
 }
 
@@ -80,4 +80,13 @@ func (o *fileOptions) wantCapCtime() bool {
 
 func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
 	return up.Upload(client.NewUploadHandleFromString(s))
+}
+
+func (up *Uploader) Close() error {
+	var grp syncutil.Group
+	if up.haveCache != nil {
+		grp.Go(up.haveCache.Close)
+	}
+	grp.Go(up.Client.Close)
+	return grp.Err()
 }

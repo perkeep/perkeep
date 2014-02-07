@@ -281,7 +281,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 }
 
 func (c *fileCmd) initCaches(up *Uploader) {
-	if !c.statcache {
+	if !c.statcache || *flagBlobDir != "" {
 		return
 	}
 	gen, err := up.StorageGeneration()
