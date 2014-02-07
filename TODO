@@ -4,6 +4,11 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- diskpacked doesn't seem to sync its index quickly enough.
+   A new blob receieved + process exit + read in a new process
+   doesn't find that blob. kv bug? Seems to need an explicit Close.
+   This feels broken. Add tests & debug.
+
 -- also rename serverinit/serverconfig.go to serverinit.go
 
 -- websocket upload protocol. different write & read on same socket,
