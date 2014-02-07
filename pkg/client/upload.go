@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/protocol"
 	"camlistore.org/pkg/httputil"
 )
@@ -151,6 +152,9 @@ type statReq struct {
 }
 
 func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+	if c.sto != nil {
+		return c.sto.StatBlobs(dest, blobs)
+	}
 	var needStat []blob.Ref
 	for _, br := range blobs {
 		if !br.Valid() {
@@ -348,6 +352,16 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	c.statsMutex.Unlock()
 
 	pr := &PutResult{BlobRef: h.BlobRef, Size: bodySize}
+
+	if c.sto != nil {
+		// TODO: stat first so we can show skipped?
+		_, err := blobserver.Receive(c.sto, h.BlobRef, bodyReader)
+		if err != nil {
+			return nil, err
+		}
+		return pr, nil
+	}
+
 	if !h.Vivify {
 		if _, ok := c.haveCache.StatBlobCache(h.BlobRef); ok {
 			pr.Skipped = true

@@ -39,6 +39,9 @@ func (c *Client) SimpleEnumerateBlobs(ctx *context.Context, ch chan<- blob.Sized
 }
 
 func (c *Client) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+	if c.sto != nil {
+		return c.sto.EnumerateBlobs(ctx, dest, after, limit)
+	}
 	if limit == 0 {
 		log.Printf("Warning: Client.EnumerateBlobs called with a limit of zero")
 		close(dest)

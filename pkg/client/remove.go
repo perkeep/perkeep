@@ -34,6 +34,9 @@ type removeResponse struct {
 // Remove the list of blobs. An error is returned if the server failed to
 // remove a blob. Removing a non-existent blob isn't an error.
 func (c *Client) RemoveBlobs(blobs []blob.Ref) error {
+	if c.sto != nil {
+		return c.sto.RemoveBlobs(blobs)
+	}
 	pfx, err := c.prefix()
 	if err != nil {
 		return err

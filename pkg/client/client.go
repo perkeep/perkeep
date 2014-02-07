@@ -37,6 +37,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/misc"
@@ -75,6 +76,9 @@ type Client struct {
 
 	httpClient *http.Client
 	haveCache  HaveCache
+
+	// If sto is set, it's used before the httpClient or other network operations.
+	sto blobserver.Storage
 
 	initTrustedCertsOnce sync.Once
 	// We define a certificate fingerprint as the 20 digits lowercase prefix
@@ -153,6 +157,20 @@ func NewOrFail() *Client {
 		log.Fatal(err)
 	}
 	return c
+}
+
+// NewStorageClient returns a Client that doesn't use HTTP, but uses s
+// directly. This exists mainly so all the convenience methods on
+// Client (e.g. the Upload variants) are available against storage
+// directly.
+// When using NewStorageClient, callers should call Close when done,
+// in case the storage wishes to do a cleaner shutdown.
+func NewStorageClient(s blobserver.Storage) *Client {
+	return &Client{
+		sto:       s,
+		log:       log.New(os.Stderr, "", log.Ldate|log.Ltime),
+		haveCache: noHaveCache{},
+	}
 }
 
 // TransportConfig contains options for SetupTransport.
@@ -927,4 +945,14 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 func (c *Client) IsIgnoredFile(fullpath string) bool {
 	c.initIgnoredFilesOnce.Do(c.initIgnoredFiles)
 	return c.ignoreChecker(fullpath)
+}
+
+// Close closes the client. In most cases, it's not necessary to close a Client.
+// The exception is for Clients created using NewStorageClient, where the Storage
+// might implement io.Closer.
+func (c *Client) Close() error {
+	if cl, ok := c.sto.(io.Closer); ok {
+		return cl.Close()
+	}
+	return nil
 }

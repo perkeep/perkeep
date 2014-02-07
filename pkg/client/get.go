@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -66,6 +67,12 @@ func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
 var blobsRx = regexp.MustCompile(blob.Pattern)
 
 func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size int64, err error) {
+	if c.sto != nil {
+		if len(v) > 0 {
+			return nil, 0, errors.New("FetchVia not supported in non-HTTP mode")
+		}
+		return c.sto.FetchStreaming(b)
+	}
 	pfx, err := c.blobPrefix()
 	if err != nil {
 		return nil, 0, err
@@ -147,6 +154,9 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size in
 }
 
 func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	if c.sto != nil {
+		return blobserver.Receive(c.sto, br, source)
+	}
 	size, ok := readerutil.ReaderSize(source)
 	if !ok {
 		size = -1
