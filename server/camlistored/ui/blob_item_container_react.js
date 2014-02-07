@@ -65,12 +65,9 @@ cam.BlobItemContainerReact = React.createClass({
 		this.scrollbarWidth_ = goog.style.getScrollbarWidth();
 		this.layoutHeight_ = 0;
 		this.childProps_ = null;
-		this.lastSize_ = new goog.math.Size(this.props.style.width, this.props.style.height);
 
 		// TODO(aa): This can be removed when https://code.google.com/p/chromium/issues/detail?id=50298 is fixed and deployed.
 		this.updateHistoryThrottle_ = new goog.async.Throttle(this.updateHistory_, 2000);
-
-		this.updateChildProps_();
 	},
 
 	componentDidMount: function() {
@@ -89,11 +86,7 @@ cam.BlobItemContainerReact = React.createClass({
 			nextProps.searchSession.loadMoreResults();
 		}
 
-		var nextSize = new goog.math.Size(nextProps.style.width, nextProps.style.height);
-		if (nextProps.searchSession != this.props.searchSession || !goog.math.Size.equals(this.lastSize_, nextSize)) {
-			this.lastSize_ = nextSize;
-			this.updateChildProps_();
-		}
+		this.childProps_ = null;
 	},
 
 	componentWillUnmount: function() {
@@ -108,6 +101,8 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	render: function() {
+		this.updateChildProps_();
+
 		var children = [];
 		this.childProps_.forEach(function(props) {
 			if (this.isVisible_(props.position.y) || this.isVisible_(props.position.y + props.size.height)) {
@@ -133,6 +128,10 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	updateChildProps_: function() {
+		if (this.childProps_ !== null) {
+			return;
+		}
+
 		this.childProps_ = [];
 
 		var results = this.props.searchSession.getCurrentResults();
@@ -230,7 +229,7 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleSearchSessionChanged_: function() {
-		this.updateChildProps_();
+		this.childProps_ = null;
 		this.forceUpdate();
 	},
 
