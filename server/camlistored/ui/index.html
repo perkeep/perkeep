@@ -17,6 +17,8 @@ limitations under the License.
 <!doctype html>
 <html>
 	<head>
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=0.75">
+
 		<link rel="shortcut icon" sizes="16x16" href="safe1-16.png">
 		<link rel="shortcut icon" sizes="32x32" href="safe1-32.png">
 		<link rel="apple-touch-icon" sizes="16x16" href="safe1-16.png">
@@ -50,7 +52,7 @@ limitations under the License.
 				var lastWidth = -1;
 				var lastHeight = -1;
 				var render = function() {
-					var currentWidth = window.outerWidth;
+					var currentWidth = window.innerWidth;
 					var currentHeight = window.innerHeight;
 					if (currentWidth == lastWidth && currentHeight == lastHeight) {
 						return;
