@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
@@ -111,8 +110,6 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	}
 	return sto, nil
 }
-
-var dummyCloser = ioutil.NopCloser(strings.NewReader(""))
 
 func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	loan := ctxPool.Get()
