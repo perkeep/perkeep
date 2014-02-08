@@ -114,7 +114,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 
 var dummyCloser = ioutil.NopCloser(strings.NewReader(""))
 
-func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size int64, err error) {
+func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	loan := ctxPool.Get()
 	ctx := loan
 	defer func() {
@@ -145,7 +145,7 @@ func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, si
 		io.Reader
 		io.Closer
 	}
-	return readCloser{reader, c}, row.Size, nil
+	return readCloser{reader, c}, uint32(row.Size), nil
 }
 
 type onceCloser struct {
@@ -249,7 +249,7 @@ func (sto *appengineStorage) ReceiveBlob(br blob.Ref, in io.Reader) (sb blob.Siz
 		}
 		return
 	}
-	return blob.SizedRef{br, written}, nil
+	return blob.SizedRef{br, uint32(written)}, nil
 }
 
 // NOTE(bslatkin): No fucking clue if this works.
@@ -336,7 +336,7 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.R
 			continue
 		}
 		ent := out[i].(*memEnt)
-		dest <- blob.SizedRef{br, ent.Size}
+		dest <- blob.SizedRef{br, uint32(ent.Size)}
 	}
 	return err
 }
@@ -364,7 +364,7 @@ func (sto *appengineStorage) EnumerateBlobs(ctx *context.Context, dest chan<- bl
 			return err
 		}
 		select {
-		case dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), row.Size}:
+		case dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), uint32(row.Size)}:
 		case <-ctx.Done():
 			return context.ErrCanceled
 		}
