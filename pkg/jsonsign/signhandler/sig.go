@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -34,6 +32,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
@@ -67,7 +66,7 @@ func (h *Handler) secretRingPath() string {
 	if h.secretRing != "" {
 		return h.secretRing
 	}
-	return filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
+	return osutil.IdentitySecretRing()
 }
 
 func init() {
