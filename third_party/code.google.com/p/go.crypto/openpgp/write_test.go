@@ -6,7 +6,6 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto/rand"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -17,7 +16,7 @@ func TestSignDetached(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
-	err := DetachSign(out, kring[0], message)
+	err := DetachSign(out, kring[0], message, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,7 +28,7 @@ func TestSignTextDetached(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
-	err := DetachSignText(out, kring[0], message)
+	err := DetachSignText(out, kring[0], message, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,7 +40,7 @@ func TestSignDetachedDSA(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(dsaTestKeyPrivateHex))
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
-	err := DetachSign(out, kring[0], message)
+	err := DetachSign(out, kring[0], message, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -54,14 +53,14 @@ func TestNewEntity(t *testing.T) {
 		return
 	}
 
-	e, err := NewEntity(rand.Reader, time.Now(), "Test User", "test", "test@example.com")
+	e, err := NewEntity("Test User", "test", "test@example.com", nil)
 	if err != nil {
 		t.Errorf("failed to create entity: %s", err)
 		return
 	}
 
 	w := bytes.NewBuffer(nil)
-	if err := e.SerializePrivate(w); err != nil {
+	if err := e.SerializePrivate(w, nil); err != nil {
 		t.Errorf("failed to serialize entity: %s", err)
 		return
 	}
@@ -78,7 +77,7 @@ func TestNewEntity(t *testing.T) {
 	}
 
 	w = bytes.NewBuffer(nil)
-	if err := e.SerializePrivate(w); err != nil {
+	if err := e.SerializePrivate(w, nil); err != nil {
 		t.Errorf("failed to serialize entity second time: %s", err)
 		return
 	}
@@ -90,7 +89,7 @@ func TestNewEntity(t *testing.T) {
 
 func TestSymmetricEncryption(t *testing.T) {
 	buf := new(bytes.Buffer)
-	plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil)
+	plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, nil)
 	if err != nil {
 		t.Errorf("error writing headers: %s", err)
 		return
@@ -107,7 +106,7 @@ func TestSymmetricEncryption(t *testing.T) {
 
 	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
 		return []byte("testing"), nil
-	})
+	}, nil)
 	if err != nil {
 		t.Errorf("error rereading message: %s", err)
 	}
@@ -171,7 +170,7 @@ func TestEncryption(t *testing.T) {
 		}
 
 		buf := new(bytes.Buffer)
-		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */ )
+		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, nil)
 		if err != nil {
 			t.Errorf("#%d: error in Encrypt: %s", i, err)
 			continue
@@ -189,14 +188,16 @@ func TestEncryption(t *testing.T) {
 			continue
 		}
 
-		md, err := ReadMessage(buf, kring, nil /* no prompt */ )
+		md, err := ReadMessage(buf, kring, nil /* no prompt */, nil)
 		if err != nil {
 			t.Errorf("#%d: error reading message: %s", i, err)
 			continue
 		}
 
+		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
 		if test.isSigned {
-			expectedKeyId := kring[0].signingKey().PublicKey.KeyId
+			signKey, _ := kring[0].signingKey(testTime)
+			expectedKeyId := signKey.PublicKey.KeyId
 			if md.SignedByKeyId != expectedKeyId {
 				t.Errorf("#%d: message signed by wrong key id, got: %d, want: %d", i, *md.SignedBy, expectedKeyId)
 			}
@@ -211,7 +212,8 @@ func TestEncryption(t *testing.T) {
 			continue
 		}
 
-		expectedKeyId := kring[0].encryptionKey().PublicKey.KeyId
+		encryptKey, _ := kring[0].encryptionKey(testTime)
+		expectedKeyId := encryptKey.PublicKey.KeyId
 		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
 			t.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
 		}

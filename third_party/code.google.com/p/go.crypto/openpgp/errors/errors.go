@@ -14,7 +14,7 @@ import (
 type StructuralError string
 
 func (s StructuralError) Error() string {
-	return "OpenPGP data invalid: " + string(s)
+	return "openpgp: invalid data: " + string(s)
 }
 
 // UnsupportedError indicates that, although the OpenPGP data is valid, it
@@ -22,7 +22,7 @@ func (s StructuralError) Error() string {
 type UnsupportedError string
 
 func (s UnsupportedError) Error() string {
-	return "OpenPGP feature unsupported: " + string(s)
+	return "openpgp: unsupported feature: " + string(s)
 }
 
 // InvalidArgumentError indicates that the caller is in error and passed an
@@ -30,7 +30,7 @@ func (s UnsupportedError) Error() string {
 type InvalidArgumentError string
 
 func (i InvalidArgumentError) Error() string {
-	return "OpenPGP argument invalid: " + string(i)
+	return "openpgp: invalid argument: " + string(i)
 }
 
 // SignatureError indicates that a syntactically valid signature failed to
@@ -38,13 +38,13 @@ func (i InvalidArgumentError) Error() string {
 type SignatureError string
 
 func (b SignatureError) Error() string {
-	return "OpenPGP signature invalid: " + string(b)
+	return "openpgp: invalid signature: " + string(b)
 }
 
 type keyIncorrectError int
 
 func (ki keyIncorrectError) Error() string {
-	return "the given key was incorrect"
+	return "openpgp: incorrect key"
 }
 
 var ErrKeyIncorrect error = keyIncorrectError(0)
@@ -52,7 +52,7 @@ var ErrKeyIncorrect error = keyIncorrectError(0)
 type unknownIssuerError int
 
 func (unknownIssuerError) Error() string {
-	return "signature make by unknown entity"
+	return "openpgp: signature made by unknown entity"
 }
 
 var ErrUnknownIssuer error = unknownIssuerError(0)
@@ -60,5 +60,5 @@ var ErrUnknownIssuer error = unknownIssuerError(0)
 type UnknownPacketTypeError uint8
 
 func (upte UnknownPacketTypeError) Error() string {
-	return "unknown OpenPGP packet type: " + strconv.Itoa(int(upte))
+	return "openpgp: unknown packet type: " + strconv.Itoa(int(upte))
 }

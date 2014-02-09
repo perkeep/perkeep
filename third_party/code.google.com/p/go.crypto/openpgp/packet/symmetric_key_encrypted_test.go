@@ -6,7 +6,6 @@ package packet
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -65,9 +64,11 @@ const symmetricallyEncryptedContentsHex = "cb1062004d14c4df636f6e74656e74732e0a"
 func TestSerializeSymmetricKeyEncrypted(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	passphrase := []byte("testing")
-	cipherFunc := CipherAES128
+	config := &Config{
+		DefaultCipher: CipherAES128,
+	}
 
-	key, err := SerializeSymmetricKeyEncrypted(buf, rand.Reader, passphrase, cipherFunc)
+	key, err := SerializeSymmetricKeyEncrypted(buf, passphrase, config)
 	if err != nil {
 		t.Errorf("failed to serialize: %s", err)
 		return
@@ -87,8 +88,8 @@ func TestSerializeSymmetricKeyEncrypted(t *testing.T) {
 	if !ske.Encrypted {
 		t.Errorf("SKE not encrypted but should be")
 	}
-	if ske.CipherFunc != cipherFunc {
-		t.Errorf("SKE cipher function is %d (expected %d)", ske.CipherFunc, cipherFunc)
+	if ske.CipherFunc != config.DefaultCipher {
+		t.Errorf("SKE cipher function is %d (expected %d)", ske.CipherFunc, config.DefaultCipher)
 	}
 	err = ske.Decrypt(passphrase)
 	if err != nil {

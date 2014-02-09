@@ -30,8 +30,9 @@ type Signature struct {
 	HashTag      [2]byte
 	CreationTime time.Time
 
-	RSASignature     parsedMPI
-	DSASigR, DSASigS parsedMPI
+	RSASignature         parsedMPI
+	DSASigR, DSASigS     parsedMPI
+	ECDSASigR, ECDSASigS parsedMPI
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -71,7 +72,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -134,6 +135,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		sig.DSASigR.bytes, sig.DSASigR.bitLength, err = readMPI(r)
 		if err == nil {
 			sig.DSASigS.bytes, sig.DSASigS.bitLength, err = readMPI(r)
+		}
+	case PubKeyAlgoECDSA:
+		sig.ECDSASigR.bytes, sig.ECDSASigR.bitLength, err = readMPI(r)
+		if err == nil {
+			sig.ECDSASigS.bytes, sig.ECDSASigS.bitLength, err = readMPI(r)
 		}
 	default:
 		panic("unreachable")
@@ -338,13 +344,14 @@ func subpacketLengthLength(length int) int {
 
 // serializeSubpacketLength marshals the given length into to.
 func serializeSubpacketLength(to []byte, length int) int {
+	// RFC 4880, Section 4.2.2.
 	if length < 192 {
 		to[0] = byte(length)
 		return 1
 	}
 	if length < 16320 {
 		length -= 192
-		to[0] = byte(length >> 8)
+		to[0] = byte((length >> 8) + 192)
 		to[1] = byte(length)
 		return 2
 	}
@@ -381,6 +388,16 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 		}
 	}
 	return
+}
+
+// KeyExpired returns whether sig is a self-signature of a key that has
+// expired.
+func (sig *Signature) KeyExpired(currentTime time.Time) bool {
+	if sig.KeyLifetimeSecs == nil {
+		return false
+	}
+	expiry := sig.CreationTime.Add(time.Duration(*sig.KeyLifetimeSecs) * time.Second)
+	return currentTime.After(expiry)
 }
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
@@ -426,7 +443,8 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 // Sign signs a message with a private key. The hash, h, must contain
 // the hash of the message to be signed and will be mutated by this function.
 // On success, the signature is stored in sig. Call Serialize to write it out.
-func (sig *Signature) Sign(rand io.Reader, h hash.Hash, priv *PrivateKey) (err error) {
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err error) {
 	sig.outSubpackets = sig.buildSubpackets()
 	digest, err := sig.signPrepareHash(h)
 	if err != nil {
@@ -435,7 +453,7 @@ func (sig *Signature) Sign(rand io.Reader, h hash.Hash, priv *PrivateKey) (err e
 
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
-		sig.RSASignature.bytes, err = rsa.SignPKCS1v15(rand, priv.PrivateKey.(*rsa.PrivateKey), sig.Hash, digest)
+		sig.RSASignature.bytes, err = rsa.SignPKCS1v15(config.Random(), priv.PrivateKey.(*rsa.PrivateKey), sig.Hash, digest)
 		sig.RSASignature.bitLength = uint16(8 * len(sig.RSASignature.bytes))
 	case PubKeyAlgoDSA:
 		dsaPriv := priv.PrivateKey.(*dsa.PrivateKey)
@@ -445,7 +463,7 @@ func (sig *Signature) Sign(rand io.Reader, h hash.Hash, priv *PrivateKey) (err e
 		if len(digest) > subgroupSize {
 			digest = digest[:subgroupSize]
 		}
-		r, s, err := dsa.Sign(rand, dsaPriv, digest)
+		r, s, err := dsa.Sign(config.Random(), dsaPriv, digest)
 		if err == nil {
 			sig.DSASigR.bytes = r.Bytes()
 			sig.DSASigR.bitLength = uint16(8 * len(sig.DSASigR.bytes))
@@ -462,31 +480,34 @@ func (sig *Signature) Sign(rand io.Reader, h hash.Hash, priv *PrivateKey) (err e
 // SignUserId computes a signature from priv, asserting that pub is a valid
 // key for the identity id.  On success, the signature is stored in sig. Call
 // Serialize to write it out.
-func (sig *Signature) SignUserId(rand io.Reader, id string, pub *PublicKey, priv *PrivateKey) error {
-	h, err := userIdSignatureHash(id, pub, sig)
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, config *Config) error {
+	h, err := userIdSignatureHash(id, pub, sig.Hash)
 	if err != nil {
 		return nil
 	}
-	return sig.Sign(rand, h, priv)
+	return sig.Sign(h, priv, config)
 }
 
 // SignKey computes a signature from priv, asserting that pub is a subkey.  On
 // success, the signature is stored in sig. Call Serialize to write it out.
-func (sig *Signature) SignKey(rand io.Reader, pub *PublicKey, priv *PrivateKey) error {
-	h, err := keySignatureHash(&priv.PublicKey, pub, sig)
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) error {
+	h, err := keySignatureHash(&priv.PublicKey, pub, sig.Hash)
 	if err != nil {
 		return err
 	}
-	return sig.Sign(rand, h, priv)
+	return sig.Sign(h, priv, config)
 }
 
-// Serialize marshals sig to w. SignRSA or SignDSA must have been called first.
+// Serialize marshals sig to w. Sign, SignUserId or SignKey must have been
+// called first.
 func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature.bytes == nil && sig.DSASigR.bytes == nil {
-		return errors.InvalidArgumentError("Signature: need to call SignRSA or SignDSA before Serialize")
+	if sig.RSASignature.bytes == nil && sig.DSASigR.bytes == nil && sig.ECDSASigR.bytes == nil {
+		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
 	sigLength := 0
@@ -496,6 +517,9 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoDSA:
 		sigLength = 2 + len(sig.DSASigR.bytes)
 		sigLength += 2 + len(sig.DSASigS.bytes)
+	case PubKeyAlgoECDSA:
+		sigLength = 2 + len(sig.ECDSASigR.bytes)
+		sigLength += 2 + len(sig.ECDSASigS.bytes)
 	default:
 		panic("impossible")
 	}
@@ -533,6 +557,8 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		err = writeMPIs(w, sig.RSASignature)
 	case PubKeyAlgoDSA:
 		err = writeMPIs(w, sig.DSASigR, sig.DSASigS)
+	case PubKeyAlgoECDSA:
+		err = writeMPIs(w, sig.ECDSASigR, sig.ECDSASigS)
 	default:
 		panic("impossible")
 	}

@@ -66,9 +66,9 @@ var parseTests = []struct {
 	spec, in, out string
 }{
 	/* Simple with SHA1 */
-	{"0102", "hello", "aaf4c61d"},
+	{"0002", "hello", "aaf4c61d"},
 	/* Salted with SHA1 */
-	{"02020102030405060708", "hello", "f4f7d67e"},
+	{"01020102030405060708", "hello", "f4f7d67e"},
 	/* Iterated with SHA1 */
 	{"03020102030405060708f1", "hello", "f2a57b7c"},
 }

@@ -7,10 +7,12 @@
 package packet
 
 import (
+	"bufio"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/cast5"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/errors"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/des"
 	"io"
 	"math/big"
 )
@@ -292,8 +294,22 @@ const (
 	packetTypeLiteralData               packetType = 11
 	packetTypeUserId                    packetType = 13
 	packetTypePublicSubkey              packetType = 14
+	packetTypeUserAttribute             packetType = 17
 	packetTypeSymmetricallyEncryptedMDC packetType = 18
 )
+
+// peekVersion detects the version of a public key packet about to
+// be read. A bufio.Reader at the original position of the io.Reader
+// is returned.
+func peekVersion(r io.Reader) (bufr *bufio.Reader, ver byte, err error) {
+	bufr = bufio.NewReader(r)
+	var verBuf []byte
+	if verBuf, err = bufr.Peek(1); err != nil {
+		return
+	}
+	ver = verBuf[0]
+	return
+}
 
 // Read reads a single OpenPGP packet from the given io.Reader. If there is an
 // error parsing a packet, the whole packet is consumed from the input.
@@ -307,7 +323,16 @@ func Read(r io.Reader) (p Packet, err error) {
 	case packetTypeEncryptedKey:
 		p = new(EncryptedKey)
 	case packetTypeSignature:
-		p = new(Signature)
+		var version byte
+		// Detect signature version
+		if contents, version, err = peekVersion(contents); err != nil {
+			return
+		}
+		if version < 4 {
+			p = new(SignatureV3)
+		} else {
+			p = new(Signature)
+		}
 	case packetTypeSymmetricKeyEncrypted:
 		p = new(SymmetricKeyEncrypted)
 	case packetTypeOnePassSignature:
@@ -319,11 +344,16 @@ func Read(r io.Reader) (p Packet, err error) {
 		}
 		p = pk
 	case packetTypePublicKey, packetTypePublicSubkey:
-		pk := new(PublicKey)
-		if tag == packetTypePublicSubkey {
-			pk.IsSubkey = true
+		var version byte
+		if contents, version, err = peekVersion(contents); err != nil {
+			return
 		}
-		p = pk
+		isSubkey := tag == packetTypePublicSubkey
+		if version < 4 {
+			p = &PublicKeyV3{IsSubkey: isSubkey}
+		} else {
+			p = &PublicKey{IsSubkey: isSubkey}
+		}
 	case packetTypeCompressed:
 		p = new(Compressed)
 	case packetTypeSymmetricallyEncrypted:
@@ -332,6 +362,8 @@ func Read(r io.Reader) (p Packet, err error) {
 		p = new(LiteralData)
 	case packetTypeUserId:
 		p = new(UserId)
+	case packetTypeUserAttribute:
+		p = new(UserAttribute)
 	case packetTypeSymmetricallyEncryptedMDC:
 		se := new(SymmetricallyEncrypted)
 		se.MDC = true
@@ -373,6 +405,9 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 	PubKeyAlgoElGamal        PublicKeyAlgorithm = 16
 	PubKeyAlgoDSA            PublicKeyAlgorithm = 17
+	// RFC 6637, Section 5.
+	PubKeyAlgoECDH  PublicKeyAlgorithm = 18
+	PubKeyAlgoECDSA PublicKeyAlgorithm = 19
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -400,6 +435,7 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 type CipherFunction uint8
 
 const (
+	Cipher3DES   CipherFunction = 2
 	CipherCAST5  CipherFunction = 3
 	CipherAES128 CipherFunction = 7
 	CipherAES192 CipherFunction = 8
@@ -409,6 +445,8 @@ const (
 // KeySize returns the key size, in bytes, of cipher.
 func (cipher CipherFunction) KeySize() int {
 	switch cipher {
+	case Cipher3DES:
+		return 24
 	case CipherCAST5:
 		return cast5.KeySize
 	case CipherAES128:
@@ -424,6 +462,8 @@ func (cipher CipherFunction) KeySize() int {
 // blockSize returns the block size, in bytes, of cipher.
 func (cipher CipherFunction) blockSize() int {
 	switch cipher {
+	case Cipher3DES:
+		return des.BlockSize
 	case CipherCAST5:
 		return 8
 	case CipherAES128, CipherAES192, CipherAES256:
@@ -435,6 +475,8 @@ func (cipher CipherFunction) blockSize() int {
 // new returns a fresh instance of the given cipher.
 func (cipher CipherFunction) new(key []byte) (block cipher.Block) {
 	switch cipher {
+	case Cipher3DES:
+		block, _ = des.NewTripleDESCipher(key)
 	case CipherCAST5:
 		block, _ = cast5.NewCipher(key)
 	case CipherAES128, CipherAES192, CipherAES256:
@@ -480,3 +522,14 @@ func writeMPI(w io.Writer, bitLength uint16, mpiBytes []byte) (err error) {
 func writeBig(w io.Writer, i *big.Int) error {
 	return writeMPI(w, uint16(i.BitLen()), i.Bytes())
 }
+
+// CompressionAlgo Represents the different compression algorithms
+// supported by OpenPGP (except for BZIP2, which is not currently
+// supported). See Section 9.3 of RFC 4880.
+type CompressionAlgo uint8
+
+const (
+	CompressionNone CompressionAlgo = 0
+	CompressionZIP  CompressionAlgo = 1
+	CompressionZLIB CompressionAlgo = 2
+)
