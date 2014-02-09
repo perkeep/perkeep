@@ -20,10 +20,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 )
 
@@ -34,7 +32,7 @@ type discoCmd struct {
 func init() {
 	cmdmain.RegisterCommand("discovery", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(discoCmd)
-		flags.StringVar(&cmd.server, "server", "", "Server to do discovery against. Either a URL prefix (with optional path), a host[:port]), a server alias, or blank to use the Camlistore client config's default server.")
+		flags.StringVar(&cmd.server, "server", "", "Server to do discovery against. "+serverFlagHelp)
 		return cmd
 	})
 }
@@ -55,28 +53,11 @@ func (c *discoCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
 		return cmdmain.UsageError("doesn't take args")
 	}
-	cl := c.client()
+	cl := newClient(c.server)
 	disco, err := cl.DiscoveryDoc()
 	if err != nil {
 		return err
 	}
 	_, err = io.Copy(os.Stdout, disco)
 	return err
-}
-
-func (c *discoCmd) client() *client.Client {
-	// TODO: put this in a function somewhere. it's now repeated
-	// like 5 times or something. and make sure it deals with the
-	// alias case too, as documented in the flags.
-	var cl *client.Client
-	if c.server == "" {
-		cl = client.NewOrFail()
-	} else {
-		cl = client.New(c.server)
-	}
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
-	cl.SetupAuth()
-	return cl
 }

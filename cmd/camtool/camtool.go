@@ -17,9 +17,35 @@ limitations under the License.
 package main
 
 import (
+	"net/http"
+
+	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 )
 
 func main() {
 	cmdmain.Main()
+}
+
+const serverFlagHelp = "Format is is either a URL prefix (with optional path), a host[:port], a config file server alias, or blank to use the Camlistore client config's default server."
+
+// newClient returns a Camlistore client for the server.
+// The server may be:
+//   * blank, to use the default in the config file
+//   * an alias, to use that named alias in the config file
+//   * host:port
+//   * https?://host[:port][/path]
+func newClient(server string) *client.Client {
+	// TODO: verify the alias part works.
+	var cl *client.Client
+	if server == "" {
+		cl = client.NewOrFail()
+	} else {
+		cl = client.New(server)
+	}
+	cl.SetHTTPClient(&http.Client{
+		Transport: cl.TransportForConfig(nil),
+	})
+	cl.SetupAuth()
+	return cl
 }

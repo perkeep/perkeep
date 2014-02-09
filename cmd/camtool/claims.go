@@ -20,36 +20,31 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
 )
 
 type claimsCmd struct {
-	src string
-
-	logger *log.Logger
+	server string
 }
 
 func init() {
 	cmdmain.RegisterCommand("claims", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(claimsCmd)
-		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.server, "server", "", "Server to fetch claims from. "+serverFlagHelp)
 		return cmd
 	})
 }
 
 func (c *claimsCmd) Describe() string {
-	return "Ask the search system to describe one or more blobs."
+	return "Ask the search system to list the claims that modify a permanode."
 }
 
 func (c *claimsCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] describe [--depth=n] blobref [blobref, blobref...]\n")
+	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] claims [--depth=n] permanodeBlobRef\n")
 }
 
 func (c *claimsCmd) Examples() []string {
@@ -64,7 +59,7 @@ func (c *claimsCmd) RunCommand(args []string) error {
 	if !ok {
 		return cmdmain.UsageError("invalid blobref")
 	}
-	cl := c.client()
+	cl := newClient(c.server)
 	res, err := cl.GetClaims(&search.ClaimsRequest{
 		Permanode: br,
 	})
@@ -78,19 +73,4 @@ func (c *claimsCmd) RunCommand(args []string) error {
 	resj = append(resj, '\n')
 	_, err = os.Stdout.Write(resj)
 	return err
-}
-
-func (c *claimsCmd) client() *client.Client {
-	var cl *client.Client
-	if c.src == "" {
-		cl = client.NewOrFail()
-	} else {
-		cl = client.New(c.src)
-	}
-	cl.SetLogger(c.logger)
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
-	cl.SetupAuth()
-	return cl
 }

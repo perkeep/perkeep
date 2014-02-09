@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 
@@ -83,12 +82,5 @@ func (c *indexCmd) sync(from, to string) error {
 // based from the configuration file. The returned client
 // can then be used to discover the blobRoot and syncHandlers.
 func (c *indexCmd) discoClient() *client.Client {
-	var cl *client.Client
-	cl = client.NewOrFail()
-	cl.InsecureTLS = c.insecureTLS
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
-	cl.SetupAuth()
-	return cl
+	return newClient("")
 }

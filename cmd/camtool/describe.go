@@ -20,29 +20,24 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
 )
 
 type desCmd struct {
-	src   string
-	depth int
-
-	logger *log.Logger
+	server string
+	depth  int
 }
 
 func init() {
 	cmdmain.RegisterCommand("describe", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(desCmd)
-		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.server, "server", "", "Server to query. "+serverFlagHelp)
 		flags.IntVar(&cmd.depth, "depth", 1, "Depth to follow in describe request")
 		return cmd
 	})
@@ -74,7 +69,7 @@ func (c *desCmd) RunCommand(args []string) error {
 	}
 	var at time.Time // TODO: implement. from "2 days ago" "-2d", "-2h", "2013-02-05", etc
 
-	cl := c.client()
+	cl := newClient(c.server)
 	res, err := cl.Describe(&search.DescribeRequest{
 		BlobRefs: blobs,
 		Depth:    c.depth,
@@ -90,19 +85,4 @@ func (c *desCmd) RunCommand(args []string) error {
 	resj = append(resj, '\n')
 	_, err = os.Stdout.Write(resj)
 	return err
-}
-
-func (c *desCmd) client() *client.Client {
-	var cl *client.Client
-	if c.src == "" {
-		cl = client.NewOrFail()
-	} else {
-		cl = client.New(c.src)
-	}
-	cl.SetLogger(c.logger)
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
-	cl.SetupAuth()
-	return cl
 }

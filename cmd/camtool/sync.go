@@ -52,7 +52,7 @@ type syncCmd struct {
 func init() {
 	cmdmain.RegisterCommand("sync", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(syncCmd)
-		flags.StringVar(&cmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.src, "src", "", "Source blobserver. "+serverFlagHelp)
 		flags.StringVar(&cmd.dest, "dest", "", "Destination blobserver (same format as src), or 'stdout' to just enumerate the --src blobs to stdout.")
 		flags.StringVar(&cmd.third, "thirdleg", "", "Copy blobs present in source but missing from destination to this 'third leg' blob store, instead of the destination. (same format as src)")
 
@@ -252,18 +252,9 @@ func (c *syncCmd) syncAll() error {
 // is blank. The returned client can then be used to discover
 // the blobRoot and syncHandlers.
 func (c *syncCmd) discoClient() *client.Client {
-	var cl *client.Client
-	if c.src == "" {
-		cl = client.NewOrFail()
-	} else {
-		cl = client.New(c.src)
-	}
+	cl := newClient(c.src)
 	cl.SetLogger(c.logger)
 	cl.InsecureTLS = c.insecureTLS
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
-	cl.SetupAuth()
 	return cl
 }
 
