@@ -97,7 +97,7 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	return pk, nil
 }
 
-// keyFile defaults to $HOME/.gnupg/secring.gpg
+// EntityFromSecring returns the openpgp Entity from keyFile that matches keyId. If empty, keyFile defaults to osutil.IdentitySecretRing().
 func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, error) {
 	keyId = strings.ToUpper(keyId)
 	if keyFile == "" {
