@@ -1,6 +1,6 @@
 # Build environment in which to build the Camlistore Android app.
 #
-# This builds on https://index.docker.io/u/wasabeef/android/
+# This extends the Dockerfile from https://index.docker.io/u/wasabeef/android/
 
 FROM wasabeef/android
 MAINTAINER bradfitz <brad@danga.com>
