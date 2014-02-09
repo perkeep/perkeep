@@ -31,6 +31,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
+	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
 )
 
 type EntityFetcher interface {
@@ -203,7 +204,12 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	}
 
 	var buf bytes.Buffer
-	err = openpgp.ArmoredDetachSignAt(&buf, signer, sr.SignatureTime, strings.NewReader(trimmedJSON))
+	err = openpgp.ArmoredDetachSign(
+		&buf,
+		signer,
+		strings.NewReader(trimmedJSON),
+		&packet.Config{Time: func() time.Time { return sr.SignatureTime }},
+	)
 	if err != nil {
 		return "", err
 	}

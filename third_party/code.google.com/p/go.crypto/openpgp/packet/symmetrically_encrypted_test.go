@@ -7,7 +7,6 @@ package packet
 import (
 	"bytes"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/errors"
-	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
@@ -83,7 +82,7 @@ func TestSerialize(t *testing.T) {
 	c := CipherAES128
 	key := make([]byte, c.KeySize())
 
-	w, err := SerializeSymmetricallyEncrypted(buf, rand.Reader, c, key)
+	w, err := SerializeSymmetricallyEncrypted(buf, c, key, nil)
 	if err != nil {
 		t.Errorf("error from SerializeSymmetricallyEncrypted: %s", err)
 		return

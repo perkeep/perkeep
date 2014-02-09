@@ -18,7 +18,6 @@ package jsonsign
 
 import (
 	"bytes"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/osutil"
 
@@ -159,12 +157,12 @@ func NewEntity() (*openpgp.Entity, error) {
 	name := "" // intentionally empty
 	comment := "camlistore"
 	email := "" // intentionally empty
-	return openpgp.NewEntity(rand.Reader, time.Now(), name, comment, email)
+	return openpgp.NewEntity(name, comment, email, nil)
 }
 
 func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
 	for _, ent := range el {
-		if err := ent.SerializePrivate(w); err != nil {
+		if err := ent.SerializePrivate(w, nil); err != nil {
 			return err
 		}
 	}

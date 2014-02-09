@@ -80,7 +80,8 @@ type keyEnvelopePair struct {
 // ReadMessage parses an OpenPGP message that may be signed and/or encrypted.
 // The given KeyRing should contain both public keys (for signature
 // verification) and, possibly encrypted, private keys for decrypting.
-func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction) (md *MessageDetails, err error) {
+// If config is nil, sensible defaults will be used.
+func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *packet.Config) (md *MessageDetails, err error) {
 	var p packet.Packet
 
 	var symKeys []*packet.SymmetricKeyEncrypted
@@ -155,7 +156,7 @@ FindKey:
 			}
 			if !pk.key.PrivateKey.Encrypted {
 				if len(pk.encryptedKey.Key) == 0 {
-					pk.encryptedKey.Decrypt(pk.key.PrivateKey)
+					pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
 				}
 				if len(pk.encryptedKey.Key) == 0 {
 					continue
@@ -361,21 +362,32 @@ func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader) (signe
 		return
 	}
 
-	sig, ok := p.(*packet.Signature)
-	if !ok {
+	var issuerKeyId uint64
+	var hashFunc crypto.Hash
+	var sigType packet.SignatureType
+
+	switch sig := p.(type) {
+	case *packet.Signature:
+		if sig.IssuerKeyId == nil {
+			return nil, errors.StructuralError("signature doesn't have an issuer")
+		}
+		issuerKeyId = *sig.IssuerKeyId
+		hashFunc = sig.Hash
+		sigType = sig.SigType
+	case *packet.SignatureV3:
+		issuerKeyId = sig.IssuerKeyId
+		hashFunc = sig.Hash
+		sigType = sig.SigType
+	default:
 		return nil, errors.StructuralError("non signature packet found")
 	}
 
-	if sig.IssuerKeyId == nil {
-		return nil, errors.StructuralError("signature doesn't have an issuer")
-	}
-
-	keys := keyring.KeysById(*sig.IssuerKeyId)
+	keys := keyring.KeysById(issuerKeyId)
 	if len(keys) == 0 {
 		return nil, errors.ErrUnknownIssuer
 	}
 
-	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
+	h, wrappedHash, err := hashForSignature(hashFunc, sigType)
 	if err != nil {
 		return
 	}
@@ -389,7 +401,12 @@ func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader) (signe
 		if key.SelfSignature.FlagsValid && !key.SelfSignature.FlagSign {
 			continue
 		}
-		err = key.PublicKey.VerifySignature(h, sig)
+		switch sig := p.(type) {
+		case *packet.Signature:
+			err = key.PublicKey.VerifySignature(h, sig)
+		case *packet.SignatureV3:
+			err = key.PublicKey.VerifySignatureV3(h, sig)
+		}
 		if err == nil {
 			return key.Entity, nil
 		}

@@ -162,7 +162,7 @@ func TestSigning(t *testing.T) {
 	if vr.Verify() {
 		t.Fatalf("unexpected verification of faked signature")
 	}
-	AssertErrorContains(t, vr.Err, "OpenPGP signature invalid: hash tag doesn't match",
+	AssertErrorContains(t, vr.Err, "openpgp: invalid signature: hash tag doesn't match",
 		"expected signature verification error")
 
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")

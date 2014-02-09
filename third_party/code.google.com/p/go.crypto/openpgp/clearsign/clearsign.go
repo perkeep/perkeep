@@ -17,7 +17,6 @@ import (
 	"io"
 	"net/textproto"
 	"strconv"
-	"time"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/errors"
@@ -179,9 +178,8 @@ type dashEscaper struct {
 	whitespace []byte
 	byteBuf    []byte // a one byte buffer to save allocations
 
-	privateKey  *packet.PrivateKey
-	signingTime time.Time
-	rand        io.Reader
+	privateKey *packet.PrivateKey
+	config     *packet.Config
 }
 
 func (d *dashEscaper) Write(data []byte) (n int, err error) {
@@ -261,10 +259,10 @@ func (d *dashEscaper) Close() (err error) {
 	sig.SigType = packet.SigTypeText
 	sig.PubKeyAlgo = d.privateKey.PubKeyAlgo
 	sig.Hash = d.hashType
-	sig.CreationTime = d.signingTime
+	sig.CreationTime = d.config.Now()
 	sig.IssuerKeyId = &d.privateKey.KeyId
 
-	if err = sig.Sign(d.rand, d.h, d.privateKey); err != nil {
+	if err = sig.Sign(d.h, d.privateKey, d.config); err != nil {
 		return
 	}
 
@@ -334,9 +332,8 @@ func Encode(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config) (
 
 		byteBuf: make([]byte, 1),
 
-		privateKey:  privateKey,
-		signingTime: config.Now(),
-		rand:        config.Random(),
+		privateKey: privateKey,
+		config:     config,
 	}
 
 	return

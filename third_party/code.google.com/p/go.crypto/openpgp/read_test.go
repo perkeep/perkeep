@@ -104,7 +104,7 @@ func TestGetKeyById(t *testing.T) {
 func checkSignedMessage(t *testing.T, signedHex, expected string) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 
-	md, err := ReadMessage(readerFromHex(signedHex), kring, nil)
+	md, err := ReadMessage(readerFromHex(signedHex), kring, nil, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -178,7 +178,7 @@ func TestSignedEncryptedMessage(t *testing.T) {
 			return nil, nil
 		}
 
-		md, err := ReadMessage(readerFromHex(test.messageHex), kring, prompt)
+		md, err := ReadMessage(readerFromHex(test.messageHex), kring, prompt, nil)
 		if err != nil {
 			t.Errorf("#%d: error reading message: %s", i, err)
 			return
@@ -206,7 +206,7 @@ func TestUnspecifiedRecipient(t *testing.T) {
 	expected := "Recipient unspecified\n"
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
 
-	md, err := ReadMessage(readerFromHex(recipientUnspecifiedHex), kring, nil)
+	md, err := ReadMessage(readerFromHex(recipientUnspecifiedHex), kring, nil, nil)
 	if err != nil {
 		t.Errorf("error reading message: %s", err)
 		return
@@ -236,7 +236,7 @@ func TestSymmetricallyEncrypted(t *testing.T) {
 		return []byte("password"), nil
 	}
 
-	md, err := ReadMessage(readerFromHex(symmetricallyEncryptedCompressedHex), nil, prompt)
+	md, err := ReadMessage(readerFromHex(symmetricallyEncryptedCompressedHex), nil, prompt, nil)
 	if err != nil {
 		t.Errorf("ReadMessage: %s", err)
 		return
@@ -277,6 +277,7 @@ func TestDetachedSignature(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 	testDetachedSignature(t, kring, readerFromHex(detachedSignatureHex), signedInput, "binary", testKey1KeyId)
 	testDetachedSignature(t, kring, readerFromHex(detachedSignatureTextHex), signedInput, "text", testKey1KeyId)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureV3TextHex), signedInput, "v3", testKey1KeyId)
 }
 
 func TestDetachedSignatureDSA(t *testing.T) {
@@ -312,6 +313,8 @@ const recipientUnspecifiedHex = "848c0300000000000000000103ff62d4d578d03cf40c3da
 const detachedSignatureHex = "889c04000102000605024d449cd1000a0910a34d7e18c20c31bb167603ff57718d09f28a519fdc7b5a68b6a3336da04df85e38c5cd5d5bd2092fa4629848a33d85b1729402a2aab39c3ac19f9d573f773cc62c264dc924c067a79dfd8a863ae06c7c8686120760749f5fd9b1e03a64d20a7df3446ddc8f0aeadeaeba7cbaee5c1e366d65b6a0c6cc749bcb912d2f15013f812795c2e29eb7f7b77f39ce77"
 
 const detachedSignatureTextHex = "889c04010102000605024d449d21000a0910a34d7e18c20c31bbc8c60400a24fbef7342603a41cb1165767bd18985d015fb72fe05db42db36cfb2f1d455967f1e491194fbf6cf88146222b23bf6ffbd50d17598d976a0417d3192ff9cc0034fd00f287b02e90418bbefe609484b09231e4e7a5f3562e199bf39909ab5276c4d37382fe088f6b5c3426fc1052865da8b3ab158672d58b6264b10823dc4b39"
+
+const detachedSignatureV3TextHex = "8900950305005255c25ca34d7e18c20c31bb0102bb3f04009f6589ef8a028d6e54f6eaf25432e590d31c3a41f4710897585e10c31e5e332c7f9f409af8512adceaff24d0da1474ab07aa7bce4f674610b010fccc5b579ae5eb00a127f272fb799f988ab8e4574c141da6dbfecfef7e6b2c478d9a3d2551ba741f260ee22bec762812f0053e05380bfdd55ad0f22d8cdf71b233fe51ae8a24"
 
 const detachedSignatureDSAHex = "884604001102000605024d6c4eac000a0910338934250ccc0360f18d00a087d743d6405ed7b87755476629600b8b694a39e900a0abff8126f46faf1547c1743c37b21b4ea15b8f83"
 

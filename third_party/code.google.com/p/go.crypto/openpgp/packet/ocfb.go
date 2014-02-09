@@ -20,9 +20,9 @@ type ocfbEncrypter struct {
 // performed.
 type OCFBResyncOption bool
 
-var (
-	OCFBResync   = OCFBResyncOption(true)
-	OCFBNoResync = OCFBResyncOption(false)
+const (
+	OCFBResync   OCFBResyncOption = true
+	OCFBNoResync OCFBResyncOption = false
 )
 
 // NewOCFBEncrypter returns a cipher.Stream which encrypts data with OpenPGP's

@@ -10,8 +10,6 @@ import (
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/s2k"
 	"crypto"
-	"crypto/rand"
-	_ "crypto/sha256"
 	"hash"
 	"io"
 	"strconv"
@@ -20,62 +18,59 @@ import (
 
 // DetachSign signs message with the private key from signer (which must
 // already have been decrypted) and writes the signature to w.
-func DetachSign(w io.Writer, signer *Entity, message io.Reader) error {
-	return detachSign(w, signer, message, time.Time{}, packet.SigTypeBinary)
+// If config is nil, sensible defaults will be used.
+func DetachSign(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
+	return detachSign(w, signer, message, packet.SigTypeBinary, config)
 }
 
 // ArmoredDetachSign signs message with the private key from signer (which
 // must already have been decrypted) and writes an armored signature to w.
-func ArmoredDetachSign(w io.Writer, signer *Entity, message io.Reader) (err error) {
-	return armoredDetachSign(w, signer, message, time.Time{}, packet.SigTypeBinary)
-}
-
-func ArmoredDetachSignAt(w io.Writer, signer *Entity, sigTime time.Time, message io.Reader) (err error) {
-	return armoredDetachSign(w, signer, message, sigTime, packet.SigTypeBinary)
+// If config is nil, sensible defaults will be used.
+func ArmoredDetachSign(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) (err error) {
+	return armoredDetachSign(w, signer, message, packet.SigTypeBinary, config)
 }
 
 // DetachSignText signs message (after canonicalising the line endings) with
 // the private key from signer (which must already have been decrypted) and
 // writes the signature to w.
-func DetachSignText(w io.Writer, signer *Entity, message io.Reader) error {
-	return detachSign(w, signer, message, time.Time{}, packet.SigTypeText)
+// If config is nil, sensible defaults will be used.
+func DetachSignText(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
+	return detachSign(w, signer, message, packet.SigTypeText, config)
 }
 
 // ArmoredDetachSignText signs message (after canonicalising the line endings)
 // with the private key from signer (which must already have been decrypted)
 // and writes an armored signature to w.
-func ArmoredDetachSignText(w io.Writer, signer *Entity, message io.Reader) error {
-	return armoredDetachSign(w, signer, message, time.Time{}, packet.SigTypeText)
+// If config is nil, sensible defaults will be used.
+func ArmoredDetachSignText(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
+	return armoredDetachSign(w, signer, message, packet.SigTypeText, config)
 }
 
-func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigTime time.Time, sigType packet.SignatureType) (err error) {
+func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
 	out, err := armor.Encode(w, SignatureType, nil)
 	if err != nil {
 		return
 	}
-	err = detachSign(out, signer, message, sigTime, sigType)
+	err = detachSign(out, signer, message, sigType, config)
 	if err != nil {
 		return
 	}
 	return out.Close()
 }
 
-func detachSign(w io.Writer, signer *Entity, message io.Reader, sigTime time.Time, sigType packet.SignatureType) (err error) {
+func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
 	if signer.PrivateKey == nil {
 		return errors.InvalidArgumentError("signing key doesn't have a private key")
 	}
 	if signer.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
 	}
-	if sigTime.IsZero() {
-		sigTime = time.Now()
-	}
 
 	sig := new(packet.Signature)
 	sig.SigType = sigType
 	sig.PubKeyAlgo = signer.PrivateKey.PubKeyAlgo
-	sig.Hash = crypto.SHA256
-	sig.CreationTime = sigTime
+	sig.Hash = config.Hash()
+	sig.CreationTime = config.Now()
 	sig.IssuerKeyId = &signer.PrivateKey.KeyId
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
@@ -84,7 +79,7 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigTime time.Tim
 	}
 	io.Copy(wrappedHash, message)
 
-	err = sig.Sign(rand.Reader, h, signer.PrivateKey)
+	err = sig.Sign(h, signer.PrivateKey, config)
 	if err != nil {
 		return
 	}
@@ -109,24 +104,38 @@ type FileHints struct {
 // SymmetricallyEncrypt acts like gpg -c: it encrypts a file with a passphrase.
 // The resulting WriteCloser must be closed after the contents of the file have
 // been written.
-func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHints) (plaintext io.WriteCloser, err error) {
+// If config is nil, sensible defaults will be used.
+func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	if hints == nil {
 		hints = &FileHints{}
 	}
 
-	key, err := packet.SerializeSymmetricKeyEncrypted(ciphertext, rand.Reader, passphrase, packet.CipherAES128)
+	key, err := packet.SerializeSymmetricKeyEncrypted(ciphertext, passphrase, config)
 	if err != nil {
 		return
 	}
-	w, err := packet.SerializeSymmetricallyEncrypted(ciphertext, rand.Reader, packet.CipherAES128, key)
+	w, err := packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), key, config)
 	if err != nil {
 		return
 	}
+
+	literaldata := w
+	if algo := config.Compression(); algo != packet.CompressionNone {
+		var compConfig *packet.CompressionConfig
+		if config != nil {
+			compConfig = config.CompressionConfig
+		}
+		literaldata, err = packet.SerializeCompressed(w, algo, compConfig)
+		if err != nil {
+			return
+		}
+	}
+
 	var epochSeconds uint32
 	if !hints.ModTime.IsZero() {
 		epochSeconds = uint32(hints.ModTime.Unix())
 	}
-	return packet.SerializeLiteral(w, hints.IsBinary, hints.FileName, epochSeconds)
+	return packet.SerializeLiteral(literaldata, hints.IsBinary, hints.FileName, epochSeconds)
 }
 
 // intersectPreferences mutates and returns a prefix of a that contains only
@@ -158,11 +167,16 @@ func hashToHashId(h crypto.Hash) uint8 {
 // it. hints contains optional information, that is also encrypted, that aids
 // the recipients in processing the message. The resulting WriteCloser must
 // be closed after the contents of the file have been written.
-func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints) (plaintext io.WriteCloser, err error) {
+// If config is nil, sensible defaults will be used.
+func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	var signer *packet.PrivateKey
 	if signed != nil {
-		signer = signed.signingKey().PrivateKey
-		if signer == nil || signer.Encrypted {
+		signKey, ok := signed.signingKey(config.Now())
+		if !ok {
+			return nil, errors.InvalidArgumentError("no valid signing keys")
+		}
+		signer = signKey.PrivateKey
+		if signer.Encrypted {
 			return nil, errors.InvalidArgumentError("signing key must be decrypted")
 		}
 	}
@@ -188,8 +202,9 @@ func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 
 	encryptKeys := make([]Key, len(to))
 	for i := range to {
-		encryptKeys[i] = to[i].encryptionKey()
-		if encryptKeys[i].PublicKey == nil {
+		var ok bool
+		encryptKeys[i], ok = to[i].encryptionKey(config.Now())
+		if !ok {
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no encryption keys")
 		}
 
@@ -212,19 +227,55 @@ func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
-	hash, _ := s2k.HashIdToHash(candidateHashes[0])
+	// If the cipher specifed by config is a candidate, we'll use that.
+	configuredCipher := config.Cipher()
+	for _, c := range candidateCiphers {
+		cipherFunc := packet.CipherFunction(c)
+		if cipherFunc == configuredCipher {
+			cipher = cipherFunc
+			break
+		}
+	}
+
+	var hash crypto.Hash
+	for _, hashId := range candidateHashes {
+		if h, ok := s2k.HashIdToHash(hashId); ok && h.Available() {
+			hash = h
+			break
+		}
+	}
+
+	// If the hash specified by config is a candidate, we'll use that.
+	if configuredHash := config.Hash(); configuredHash.Available() {
+		for _, hashId := range candidateHashes {
+			if h, ok := s2k.HashIdToHash(hashId); ok && h == configuredHash {
+				hash = h
+				break
+			}
+		}
+	}
+
+	if hash == 0 {
+		hashId := candidateHashes[0]
+		name, ok := s2k.HashIdToString(hashId)
+		if !ok {
+			name = "#" + strconv.Itoa(int(hashId))
+		}
+		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
+	}
+
 	symKey := make([]byte, cipher.KeySize())
-	if _, err := io.ReadFull(rand.Reader, symKey); err != nil {
+	if _, err := io.ReadFull(config.Random(), symKey); err != nil {
 		return nil, err
 	}
 
 	for _, key := range encryptKeys {
-		if err := packet.SerializeEncryptedKey(ciphertext, rand.Reader, key.PublicKey, cipher, symKey); err != nil {
+		if err := packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
 			return nil, err
 		}
 	}
 
-	encryptedData, err := packet.SerializeSymmetricallyEncrypted(ciphertext, rand.Reader, cipher, symKey)
+	encryptedData, err := packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
 	if err != nil {
 		return
 	}
@@ -264,7 +315,7 @@ func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	}
 
 	if signer != nil {
-		return signatureWriter{encryptedData, literalData, hash, hash.New(), signer}, nil
+		return signatureWriter{encryptedData, literalData, hash, hash.New(), signer, config}, nil
 	}
 	return literalData, nil
 }
@@ -278,6 +329,7 @@ type signatureWriter struct {
 	hashType      crypto.Hash
 	h             hash.Hash
 	signer        *packet.PrivateKey
+	config        *packet.Config
 }
 
 func (s signatureWriter) Write(data []byte) (int, error) {
@@ -290,11 +342,11 @@ func (s signatureWriter) Close() error {
 		SigType:      packet.SigTypeBinary,
 		PubKeyAlgo:   s.signer.PubKeyAlgo,
 		Hash:         s.hashType,
-		CreationTime: time.Now(),
+		CreationTime: s.config.Now(),
 		IssuerKeyId:  &s.signer.KeyId,
 	}
 
-	if err := sig.Sign(rand.Reader, s.h, s.signer); err != nil {
+	if err := sig.Sign(s.h, s.signer, s.config); err != nil {
 		return err
 	}
 	if err := s.literalData.Close(); err != nil {

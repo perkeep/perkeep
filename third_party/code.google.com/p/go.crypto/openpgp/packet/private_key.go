@@ -121,7 +121,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	buf.WriteByte(0 /* no encryption */ )
+	buf.WriteByte(0 /* no encryption */)
 
 	privateKeyBuf := bytes.NewBuffer(nil)
 

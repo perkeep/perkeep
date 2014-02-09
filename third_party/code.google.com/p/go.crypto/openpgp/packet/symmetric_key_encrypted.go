@@ -107,7 +107,9 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) error {
 // packet contains a random session key, encrypted by a key derived from the
 // given passphrase. The session key is returned and must be passed to
 // SerializeSymmetricallyEncrypted.
-func SerializeSymmetricKeyEncrypted(w io.Writer, rand io.Reader, passphrase []byte, cipherFunc CipherFunction) (key []byte, err error) {
+// If config is nil, sensible defaults will be used.
+func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
+	cipherFunc := config.Cipher()
 	keySize := cipherFunc.KeySize()
 	if keySize == 0 {
 		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
@@ -117,7 +119,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, rand io.Reader, passphrase []by
 	keyEncryptingKey := make([]byte, keySize)
 	// s2k.Serialize salts and stretches the passphrase, and writes the
 	// resulting key to keyEncryptingKey and the s2k descriptor to s2kBuf.
-	err = s2k.Serialize(s2kBuf, keyEncryptingKey, rand, passphrase)
+	err = s2k.Serialize(s2kBuf, keyEncryptingKey, config.Random(), passphrase)
 	if err != nil {
 		return
 	}
@@ -142,7 +144,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, rand io.Reader, passphrase []by
 	}
 
 	sessionKey := make([]byte, keySize)
-	_, err = io.ReadFull(rand, sessionKey)
+	_, err = io.ReadFull(config.Random(), sessionKey)
 	if err != nil {
 		return
 	}

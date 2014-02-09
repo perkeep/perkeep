@@ -6,7 +6,6 @@ package packet
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
 	"math/big"
@@ -58,7 +57,7 @@ func TestDecryptingEncryptedKey(t *testing.T) {
 		return
 	}
 
-	err = ek.Decrypt(encryptedKeyPriv)
+	err = ek.Decrypt(encryptedKeyPriv, nil)
 	if err != nil {
 		t.Errorf("error from Decrypt: %s", err)
 		return
@@ -87,7 +86,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	err := SerializeEncryptedKey(buf, rand.Reader, pub, CipherAES128, key)
+	err := SerializeEncryptedKey(buf, pub, CipherAES128, key, nil)
 	if err != nil {
 		t.Errorf("error writing encrypted key packet: %s", err)
 	}
@@ -108,7 +107,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 		return
 	}
 
-	err = ek.Decrypt(encryptedKeyPriv)
+	err = ek.Decrypt(encryptedKeyPriv, nil)
 	if err != nil {
 		t.Errorf("error from Decrypt: %s", err)
 		return
