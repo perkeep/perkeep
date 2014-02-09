@@ -170,8 +170,11 @@ Modes:
 	Errorf("\nExamples:\n")
 	for mode, cmd := range modeCommand {
 		if ex, ok := cmd.(exampler); ok {
-			Errorf("\n")
-			for _, example := range ex.Examples() {
+			exs := ex.Examples()
+			if len(exs) > 0 {
+				Errorf("\n")
+			}
+			for _, example := range exs {
 				Errorf("  %s %s %s\n", cmdName, mode, example)
 			}
 		}
