@@ -632,30 +632,61 @@ func (c *Client) condDiscovery() error {
 	return c.discoOnce.Do(c.doDiscovery)
 }
 
-func (c *Client) doDiscovery() error {
-	root, err := url.Parse(c.discoRoot())
+// DiscoveryDoc returns the server's JSON discovery document.
+// This method exists purely for the "camtool discovery" command.
+// Clients shouldn't have to parse this themselves.
+func (c *Client) DiscoveryDoc() (io.Reader, error) {
+	res, err := c.discoveryResp()
 	if err != nil {
-		return err
+		return nil, err
 	}
+	defer res.Body.Close()
+	const maxSize = 1 << 20
+	all, err := ioutil.ReadAll(io.LimitReader(res.Body, maxSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(all) > maxSize {
+		return nil, errors.New("discovery document oddly large")
+	}
+	if len(all) > 0 && all[len(all)-1] != '\n' {
+		all = append(all, '\n')
+	}
+	return bytes.NewReader(all), err
+}
 
+func (c *Client) discoveryResp() (*http.Response, error) {
 	// If the path is just "" or "/", do discovery against
 	// the URL to see which path we should actually use.
 	req := c.newRequest("GET", c.discoRoot(), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	res, err := c.doReqGated(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if res.StatusCode != 200 {
 		res.Body.Close()
-		return fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
+		return nil, fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
 	}
 	// TODO(bradfitz): little weird in retrospect that we request
 	// text/x-camli-configuration and expect to get back
 	// text/javascript.  Make them consistent.
 	if ct := res.Header.Get("Content-Type"); ct != "text/javascript" {
 		res.Body.Close()
-		return fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
+		return nil, fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
+	}
+	return res, nil
+}
+
+func (c *Client) doDiscovery() error {
+	root, err := url.Parse(c.discoRoot())
+	if err != nil {
+		return err
+	}
+
+	res, err := c.discoveryResp()
+	if err != nil {
+		return err
 	}
 
 	// TODO: make a proper struct type for this in another package somewhere:
