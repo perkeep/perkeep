@@ -113,7 +113,7 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 	var closer io.Closer = resp.Body
 	if resp.ContentLength > 0 {
 		if resp.ContentLength > math.MaxUint32 {
-			return nil, 0, fmt.Errorf("Blob %s over %d bytes", b, math.MaxUint32)
+			return nil, 0, fmt.Errorf("Blob %s over %d bytes", b, uint32(math.MaxUint32))
 		}
 		size = uint32(resp.ContentLength)
 	} else {
