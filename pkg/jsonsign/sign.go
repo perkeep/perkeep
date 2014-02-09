@@ -117,8 +117,7 @@ type SignRequest struct {
 
 	// SecretKeyringPath is only used if EntityFetcher is nil,
 	// in which case SecretKeyringPath is used if non-empty.
-	// As a final resort, the flag value (defaulting to
-	// ~/.gnupg/secring.gpg) is used.
+	// As a final resort, we default to osutil.IdentitySecretRing().
 	SecretKeyringPath string
 }
 
@@ -189,7 +188,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	if entityFetcher == nil {
 		file := sr.secretRingPath()
 		if file == "" {
-			return "", errors.New("jsonsign: no EntityFetcher, SecretKeyringPath, or secret-keyring flag provided")
+			return "", errors.New("jsonsign: no EntityFetcher, and no secret ring file defined.")
 		}
 		secring, err := os.Open(sr.secretRingPath())
 		if err != nil {
