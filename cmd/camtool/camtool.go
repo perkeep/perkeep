@@ -36,7 +36,6 @@ const serverFlagHelp = "Format is is either a URL prefix (with optional path), a
 //   * host:port
 //   * https?://host[:port][/path]
 func newClient(server string) *client.Client {
-	// TODO: verify the alias part works.
 	var cl *client.Client
 	if server == "" {
 		cl = client.NewOrFail()
