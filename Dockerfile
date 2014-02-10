@@ -45,6 +45,8 @@ RUN go install \
     camlistore.org/cmd/camtool \
     camlistore.org/dev/devcam
 
+ENV USER camli
+ENV HOME /home/camli
 WORKDIR /home/camli
 
 EXPOSE 80 443 3179 8080
