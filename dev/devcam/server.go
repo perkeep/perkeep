@@ -51,6 +51,8 @@ type serverCmd struct {
 	throttle int
 	latency  int
 
+	fullIndexSync bool
+
 	fullClosure bool
 	mini        bool
 	publish     bool
@@ -88,6 +90,8 @@ func init() {
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
 		flags.IntVar(&cmd.latency, "latency", 90, "If -slow, this is the added latency, in ms.")
+
+		flags.BoolVar(&cmd.fullIndexSync, "fullindexsync", false, "Perform full sync to indexer on startup.")
 
 		flags.BoolVar(&cmd.fullClosure, "fullclosure", false, "Use the ondisk closure library.")
 
@@ -175,7 +179,10 @@ func (c *serverCmd) setEnvVars() error {
 	if user == "" {
 		return errors.New("Could not get username from environment")
 	}
-	setenv("CAMLI_FULL_INDEX_SYNC_ON_START", "false") // TODO: option to make this true
+	setenv("CAMLI_FULL_INDEX_SYNC_ON_START", "false")
+	if c.fullIndexSync {
+		setenv("CAMLI_FULL_INDEX_SYNC_ON_START", "true")
+	}
 	setenv("CAMLI_DBNAME", "devcamli"+user)
 	setenv("CAMLI_MYSQL_ENABLED", "false")
 	setenv("CAMLI_MONGO_ENABLED", "false")
