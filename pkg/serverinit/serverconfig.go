@@ -126,6 +126,9 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 			op = auth.OpGet
 		case "stat":
 			handler = handlers.CreateStatHandler(storage)
+		case "ws":
+			handler = nil         // TODO: handlers.CreateSocketHandler(storage)
+			op = auth.OpDiscovery // rest of operation auth checks done in handler
 		default:
 			handler = handlers.CreateGetHandler(storage)
 			op = auth.OpGet
