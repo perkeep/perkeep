@@ -42,6 +42,7 @@ import (
 	"camlistore.org/pkg/syncutil"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
+	"camlistore.org/third_party/code.google.com/p/rsc/qr"
 	glitchstatic "camlistore.org/third_party/glitch"
 	reactstatic "camlistore.org/third_party/react"
 )
@@ -374,6 +375,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveThumbnail(rw, req)
 	case strings.HasPrefix(suffix, "tree/"):
 		ui.serveFileTree(rw, req)
+	case strings.HasPrefix(suffix, "qr/"):
+		ui.serveQR(rw, req)
 	case getSuffixMatches(req, closurePattern):
 		ui.serveClosure(rw, req)
 	case getSuffixMatches(req, reactPattern):
@@ -586,6 +589,21 @@ func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Req
 		serveStaticFile(rw, req, static, file)
 	}
 
+}
+
+func (ui *UIHandler) serveQR(rw http.ResponseWriter, req *http.Request) {
+	url := req.URL.Query().Get("url")
+	if url == "" {
+		http.Error(rw, "Missing url parameter.", http.StatusBadRequest)
+		return
+	}
+	code, err := qr.Encode(url, qr.L)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.Header().Set("Content-Type", "image/png")
+	rw.Write(code.PNG())
 }
 
 // serveDepsJS serves an auto-generated Closure deps.js file.
