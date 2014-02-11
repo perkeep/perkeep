@@ -47,6 +47,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -596,11 +597,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return nil, err
 	}
 
+	start := time.Now()
 	log.Printf("Reading encryption metadata...")
 	if err := sto.readAllMetaBlobs(); err != nil {
 		return nil, fmt.Errorf("Error scanning metadata on start-up: %v", err)
 	}
-	log.Printf("Read all encryption metadata.")
+	log.Printf("Read all encryption metadata in %.3f seconds", time.Since(start).Seconds())
 
 	return sto, nil
 }
