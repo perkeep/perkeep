@@ -381,7 +381,6 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef
 
 	if err := <-errch; err != nil {
 		sh.addErrorToLog(fmt.Errorf("replication error for source %q, enumerate from source: %v", srcName, err))
-		return nCopied
 	}
 	return nCopied
 }
