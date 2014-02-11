@@ -3,8 +3,8 @@
   "baseURL": ["_env", "${CAMLI_BASEURL}"],
   "auth": ["_env", "${CAMLI_AUTH}"],
   "https": ["_env", "${CAMLI_TLS}", false],
-  "TLSCertFile": "config/selfgen_pem.crt",
-  "TLSKeyFile": "config/selfgen_pem.key",
+  "httpsCert": "config/selfgen_pem.crt",
+  "httpsKey": "config/selfgen_pem.key",
   "prefixes": {
      "/": {
          "handler": "root",
