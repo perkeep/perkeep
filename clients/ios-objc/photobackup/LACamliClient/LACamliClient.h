@@ -12,17 +12,13 @@
 @protocol LACamliStatusDelegate <NSObject>
 
 @optional
-- (void)updatedStatus:(NSString*)status;
+- (void)finishedDiscovery:(NSDictionary*)config;
 - (void)addedUploadOperation:(LACamliUploadOperation*)op;
 - (void)finishedUploadOperation:(LACamliUploadOperation*)op;
 - (void)uploadProgress:(float)pct forOperation:(LACamliUploadOperation*)op;
 @end
 
 @interface LACamliClient : NSObject <NSURLSessionDelegate>
-
-extern NSString* const CamliNotificationUploadStart;
-extern NSString* const CamliNotificationUploadProgress;
-extern NSString* const CamliNotificationUploadEnd;
 
 @property NSURLSessionConfiguration* sessionConfig;
 @property id delegate;

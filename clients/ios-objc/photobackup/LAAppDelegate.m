@@ -94,16 +94,18 @@
                     if (result && [result valueForProperty:ALAssetPropertyType] != ALAssetTypeVideo) { // enumerate returns null after the last item
                         LACamliFile *file = [[LACamliFile alloc] initWithAsset:result];
 
-                        if (![_client fileAlreadyUploaded:file]) {
-                            filesToUpload++;
+                        @synchronized(_client){
+                            if (![_client fileAlreadyUploaded:file]) {
+                                filesToUpload++;
 
-                            [LACamliUtil logText:@[[NSString stringWithFormat:@"found %ld files",(long)filesToUpload]]];
+                                [LACamliUtil logText:@[[NSString stringWithFormat:@"found %ld files",(long)filesToUpload]]];
 
-                            __block LACamliClient *weakClient = _client;
+                                __block LACamliClient *weakClient = _client;
 
-                            [_client addFile:file withCompletion:^{
-                                [UIApplication sharedApplication].applicationIconBadgeNumber = [weakClient.uploadQueue operationCount];
-                            }];
+                                [_client addFile:file withCompletion:^{
+                                    [UIApplication sharedApplication].applicationIconBadgeNumber = [weakClient.uploadQueue operationCount];
+                                }];
+                            }
                         }
                     }
                 }];
