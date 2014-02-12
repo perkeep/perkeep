@@ -159,6 +159,10 @@ cam.IndexPageReact = React.createClass({
 			}
 		}
 
+		if (!this.isSearchMode_(newURL) && !this.isDetailMode_(newURL)) {
+			return false;
+		}
+
 		this.updateSearchSession_(newURL);
 		this.setState({currentURL: newURL});
 		return true;
@@ -187,7 +191,7 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	getNav_: function() {
-		if (!this.inSearchMode_()) {
+		if (!this.isSearchMode_(this.state.currentURL)) {
 			return null;
 		}
 		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
@@ -352,19 +356,19 @@ cam.IndexPageReact = React.createClass({
 		this.setState({selection:newSelection});
 	},
 
-	inSearchMode_: function() {
+	isSearchMode_: function(url) {
 		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
-		var query = this.state.currentURL.getQueryData();
+		var query = url.getQueryData();
 		return query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
 	},
 
-	inDetailMode_: function() {
-		var query = this.state.currentURL.getQueryData();
+	isDetailMode_: function(url) {
+		var query = url.getQueryData();
 		return query.containsKey('p') && query.get('newui') == '1';
 	},
 
 	getBlobItemContainer_: function() {
-		if (!this.inSearchMode_()) {
+		if (!this.isSearchMode_(this.state.currentURL)) {
 			return null;
 		}
 
@@ -410,7 +414,7 @@ cam.IndexPageReact = React.createClass({
 	},
 
 	getDetailView_: function() {
-		if (!this.inDetailMode_()) {
+		if (!this.isDetailMode_(this.state.currentURL)) {
 			return null;
 		}
 
