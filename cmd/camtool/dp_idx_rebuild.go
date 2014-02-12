@@ -39,7 +39,7 @@ func init() {
 		func(flags *flag.FlagSet) cmdmain.CommandRunner {
 			cmd := new(reindexdpCmd)
 			flags.BoolVar(&cmd.overwrite, "overwrite", false,
-				"Overwrite the existing index.kv? If not, than only checking is made.")
+				"Whether to overwrite the existing index.kv. If false, only check.")
 			return cmd
 		})
 }
@@ -50,8 +50,8 @@ func (c *reindexdpCmd) Describe() string {
 
 func (c *reindexdpCmd) Usage() {
 	fmt.Fprintln(os.Stderr, "Usage: camtool [globalopts] reindex-diskpacked [reindex-opts]")
-	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked")
-	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked --overwrite")
+	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked [--overwrite] # dir from server config")
+	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked [--overwrite] /path/to/directory")
 }
 
 func (c *reindexdpCmd) RunCommand(args []string) error {
