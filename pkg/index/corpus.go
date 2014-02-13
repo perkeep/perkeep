@@ -96,6 +96,11 @@ type Corpus struct {
 
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
+	// deletes tracks deletions of claims and permanodes. The key is
+	// the blobref of a claim or permanode. The values, sorted newest first,
+	// contain the blobref of the claim responsible for the deletion, as well
+	// as the date when that deletion happened.
+	deletes map[blob.Ref][]deletion
 
 	mediaTag map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
 
@@ -112,6 +117,23 @@ func (c *Corpus) RLock() { c.mu.RLock() }
 
 // RUnlock unlocks the Corpus for reads.
 func (c *Corpus) RUnlock() { c.mu.RUnlock() }
+
+// IsDeleted reports whether the provided blobref (of a permanode or claim) should be considered deleted.
+func (c *Corpus) IsDeleted(br blob.Ref) bool {
+	c.RLock()
+	defer c.RUnlock()
+	return c.IsDeletedLocked(br)
+}
+
+// IsDeletedLocked is the version of IsDeleted that assumes the Corpus is already locked with RLock.
+func (c *Corpus) IsDeletedLocked(br blob.Ref) bool {
+	for _, v := range c.deletes[br] {
+		if !c.IsDeletedLocked(v.deleter) {
+			return true
+		}
+	}
+	return false
+}
 
 type edge struct {
 	edgeType string
@@ -136,6 +158,7 @@ func newCorpus() *Corpus {
 		fileWholeRef: make(map[blob.Ref]blob.Ref),
 		gps:          make(map[blob.Ref]latLong),
 		mediaTag:     make(map[blob.Ref]map[string]string),
+		deletes:      make(map[blob.Ref][]deletion),
 	}
 }
 
@@ -270,6 +293,10 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	c.building = false
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
+	if err := c.initDeletes(s); err != nil {
+		return fmt.Errorf("Could not populate the corpus deletes: %v", err)
+	}
+
 	if logCorpusStats {
 		cpu := osutil.CPUUsage() - cpu0
 		ms1 := memstats()
@@ -287,7 +314,28 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 			len(c.imageInfo))
 		log.Printf("Corpus scanning CPU usage: %v", cpu)
 	}
+
 	return nil
+}
+
+// initDeletes populates the corpus deletes from the delete entries in s.
+func (c *Corpus) initDeletes(s sorted.KeyValue) (err error) {
+	it := queryPrefix(s, keyDeleted)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		cl, ok := kvDeleted(it.Key())
+		if !ok {
+			return fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
+		}
+		targetDeletions := append(c.deletes[cl.Target],
+			deletion{
+				deleter: cl.BlobRef,
+				when:    cl.Date,
+			})
+		sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
+		c.deletes[cl.Target] = targetDeletions
+	}
+	return err
 }
 
 func (c *Corpus) numSchemaBlobsLocked() (n int64) {
@@ -342,6 +390,35 @@ func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
 			return err
 		}
 	}
+	for _, cl := range mm.deletes {
+		if err := c.updateDeletes(cl); err != nil {
+			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+		}
+	}
+	return nil
+}
+
+// updateDeletes updates the corpus deletes with the delete claim deleteClaim.
+// deleteClaim is trusted to be a valid delete Claim.
+func (c *Corpus) updateDeletes(deleteClaim schema.Claim) error {
+	target := c.br(deleteClaim.Target())
+	deleter := deleteClaim.Blob()
+	when, err := deleter.ClaimDate()
+	if err != nil {
+		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+	}
+	del := deletion{
+		deleter: c.br(deleter.BlobRef()),
+		when:    when,
+	}
+	for _, v := range c.deletes[target] {
+		if v == del {
+			return nil
+		}
+	}
+	targetDeletions := append(c.deletes[target], del)
+	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
+	c.deletes[target] = targetDeletions
 	return nil
 }
 
@@ -609,7 +686,7 @@ func (c *Corpus) EnumerateBlobMetaLocked(ctx *context.Context, ch chan<- camtype
 }
 
 // pnAndTime is a value type wrapping a permanode blobref and its modtime.
-// It's used gby EnumeratePermanodesLastModified.
+// It's used by EnumeratePermanodesLastModified.
 type pnAndTime struct {
 	pn blob.Ref
 	t  time.Time
@@ -636,6 +713,9 @@ func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch 
 	// TODO: keep these sorted in memory
 	pns := make([]pnAndTime, 0, len(c.permanodes))
 	for pn := range c.permanodes {
+		if c.IsDeletedLocked(pn) {
+			continue
+		}
 		if modt, ok := c.PermanodeModtimeLocked(pn); ok {
 			pns = append(pns, pnAndTime{pn, modt})
 		}
@@ -677,11 +757,6 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 		return v, nil
 	}
 	return "", sorted.ErrNotFound
-}
-
-func (c *Corpus) isDeletedLocked(br blob.Ref) bool {
-	// TODO: implement
-	return false
 }
 
 // PermanodeTimeLocked returns the time of the content in permanode.
@@ -764,7 +839,7 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// itself. Even though the permanode blob sometimes has the
 	// GPG signature time, we intentionally ignore it.
 	for _, cl := range pm.Claims {
-		if c.isDeletedLocked(cl.BlobRef) {
+		if c.IsDeletedLocked(cl.BlobRef) {
 			continue
 		}
 		if cl.Date.After(t) {
@@ -843,7 +918,7 @@ func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 		return nil, nil
 	}
 	for _, cl := range pm.Claims {
-		if c.isDeletedLocked(cl.BlobRef) {
+		if c.IsDeletedLocked(cl.BlobRef) {
 			continue
 		}
 		if signerFilter.Valid() && cl.Signer != signerFilter {

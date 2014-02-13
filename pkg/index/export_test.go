@@ -40,3 +40,11 @@ func (c *Corpus) Exp_mergeFileInfoRow(k, v string) error {
 func (c *Corpus) Exp_files(br blob.Ref) camtypes.FileInfo {
 	return c.files[br]
 }
+
+func ExpKvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtypes.Claim, ok bool) {
+	return kvClaim(k, v, blobParse)
+}
+
+func (c *Corpus) SetClaims(pn blob.Ref, claims *PermanodeMeta) {
+	c.permanodes[pn] = claims
+}
