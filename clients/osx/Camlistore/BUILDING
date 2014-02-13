@@ -4,5 +4,5 @@
    $ go run make.go
    (this will create bin/camlistored, bin/cammount, and bin/camput)
 4. From this directory:
-   $ xcodebuild
-   (this will create build/Release/Camlistore.app)
+   $ xcodebuild -target Camlistore.dmg
+   (this will create build/Release/Camlistore.app and Camlistore.dmg)
