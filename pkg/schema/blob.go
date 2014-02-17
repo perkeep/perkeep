@@ -241,6 +241,57 @@ func (s Share) IsExpired() bool {
 	return !t.IsZero() && clockNow().After(t)
 }
 
+// A StaticFile is a Blob representing a file or symlink (or FIFO or
+// device file, when support for these is added)
+type StaticFile struct {
+	b *Blob
+}
+
+// FileName returns the StaticFile's FileName if is not the empty string, otherwise it returns its FileNameBytes concatenated into a string.
+func (sf StaticFile) FileName() string {
+	return sf.b.ss.FileNameString()
+}
+
+// AsStaticFile returns the Blob as a StaticFile if it represents
+// one. Otherwise, it returns false in the boolean parameter and the
+// zero value of StaticFile.
+func (b *Blob) AsStaticFile() (sf StaticFile, ok bool) {
+	// TODO (marete) Add support for FIFOs and device files to
+	// Camlistore and change the implementation of StaticFile to
+	// reflect that.
+	t := b.ss.Type
+	if t == "file" || t == "symlink" {
+		return StaticFile{b}, true
+	}
+
+	return
+}
+
+// A StaticSymlink is a StaticFile that is also a symbolic link.
+type StaticSymlink struct {
+	// We name it `StaticSymlink' rather than just `Symlink' since
+	// a type called Symlink is already in schema.go.
+	StaticFile
+}
+
+// SymlinkTargetString returns the field symlinkTarget if is
+// non-empty. Otherwise it returns the contents of symlinkTargetBytes
+// concatenated as a string.
+func (sl StaticSymlink) SymlinkTargetString() string {
+	return sl.StaticFile.b.ss.SymlinkTargetString()
+}
+
+// AsStaticSymlink returns the StaticFile as a StaticSymlink if the
+// StaticFile represents a symlink. Othwerwise, it retuns the zero
+// value of StaticSymlink and false.
+func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
+	if sf.b.ss.Type == "symlink" {
+		return StaticSymlink{sf}, true
+	}
+
+	return
+}
+
 // A Builder builds a JSON blob.
 // After mutating the Builder, call Blob to get the built blob.
 type Builder struct {
