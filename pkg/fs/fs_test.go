@@ -129,6 +129,11 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := os.RemoveAll(mountPoint); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	verbose := "false"
 	var stderrDest io.Writer = ioutil.Discard
 	if v, _ := strconv.ParseBool(os.Getenv("VERBOSE_FUSE")); v {
