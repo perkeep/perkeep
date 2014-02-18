@@ -160,7 +160,8 @@ cam.BlobItemReact = React.createClass({
 				className: this.getRootClassName_(),
 				style: this.getRootStyle_(),
 				onMouseEnter: this.handleMouseEnter_,
-				onMouseLeave: this.handleMouseLeave_
+				onMouseLeave: this.handleMouseLeave_,
+				onWheel: this.handleWheel_,
 			},
 			React.DOM.div({className:'checkmark', onClick:this.handleCheckClick_}),
 			React.DOM.a({href:this.props.href},
@@ -207,6 +208,12 @@ cam.BlobItemReact = React.createClass({
 
 	handleCheckClick_: function(e) {
 		this.props.onCheckClick(this.props.blobref, e);
+	},
+
+	handleWheel_: function() {
+		if (this.props.onWheel) {
+			this.props.onWheel(this);
+		}
 	},
 
 	getThumbClipClassName_: function() {

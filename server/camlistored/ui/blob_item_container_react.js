@@ -68,11 +68,13 @@ cam.BlobItemContainerReact = React.createClass({
 
 		// TODO(aa): This can be removed when https://code.google.com/p/chromium/issues/detail?id=50298 is fixed and deployed.
 		this.updateHistoryThrottle_ = new goog.async.Throttle(this.updateHistory_, 2000);
+
+		// TODO(aa): This can be removed when https://code.google.com/p/chromium/issues/detail?id=312427 is fixed and deployed.
+		this.lastWheelItem_ = '';
 	},
 
 	componentDidMount: function() {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
-		this.eh_.listen(this.getDOMNode(), 'scroll', this.handleScroll_);
 		if (this.props.history.state && this.props.history.state.scroll) {
 			this.getDOMNode().scrollTop = this.props.history.state.scroll;
 		}
@@ -107,6 +109,8 @@ cam.BlobItemContainerReact = React.createClass({
 		this.childProps_.forEach(function(props) {
 			if (this.isVisible_(props.position.y) || this.isVisible_(props.position.y + props.size.height)) {
 				children.push(cam.BlobItemReact(props));
+			} else if (props.blobref == this.lastWheelItem_) {
+				children.push(cam.BlobItemReact(cam.object.extend(props, {visibility:'hidden'})));
 			}
 		}.bind(this));
 
@@ -124,7 +128,7 @@ cam.BlobItemContainerReact = React.createClass({
 		// If we haven't filled the window with results, add some more.
 		this.fillVisibleAreaWithResults_();
 
-		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_}, children);
+		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_, onScroll:this.handleScroll_}, children);
 	},
 
 	updateChildProps_: function() {
@@ -207,6 +211,7 @@ cam.BlobItemContainerReact = React.createClass({
 				href: this.props.detailURL(item).toString(),
 				data: item,
 				onCheckClick: this.handleCheckClick_,
+				onWheel: this.handleChildWheel_,
 				position: new goog.math.Coordinate(currentLeft + this.BLOB_ITEM_MARGIN_, top),
 				size: new goog.math.Size(width, height),
 				thumbnailVersion: this.props.thumbnailVersion,
@@ -268,13 +273,13 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleScroll_: function() {
-		if (!this.isMounted()) {
-			return;
-		}
-
 		this.updateHistoryThrottle_.fire();
 		this.setState({scroll:this.getDOMNode().scrollTop});
 		this.fillVisibleAreaWithResults_();
+	},
+
+	handleChildWheel_: function(child) {
+		this.lastWheelItem_ = child.props.blobref;
 	},
 
 	// NOTE: This method causes the URL bar to throb for a split second (at least on Chrome), so it should not be called constantly.
