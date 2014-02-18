@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"camlistore.org/pkg/buildinfo"
 )
@@ -212,10 +213,14 @@ func help(mode string) {
 	}
 }
 
+// registerFlagOnce guards ExtraFlagRegistration. Tests may invoke
+// Main multiple times, but duplicate flag registration is fatal.
+var registerFlagOnce sync.Once
+
 // Main is meant to be the core of a command that has
 // subcommands (modes), such as camput or camtool.
 func Main() {
-	ExtraFlagRegistration()
+	registerFlagOnce.Do(ExtraFlagRegistration)
 	flag.Parse()
 	args := flag.Args()
 	if *FlagVersion {
