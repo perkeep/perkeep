@@ -67,7 +67,9 @@ func init() {
 			up.Close()
 			stats := up.Stats()
 			log.Printf("Client stats: %s", stats.String())
-			log.Printf("  #HTTP reqs: %d", up.transport.Requests())
+			if up.transport != nil {
+				log.Printf("  #HTTP reqs: %d", up.transport.Requests())
+			}
 		}
 	}
 }
