@@ -24,6 +24,9 @@ import (
 	"testing"
 )
 
+// NOTE: THESE FUNCTIONS ARE DEPRECATED. PLEASE DO NOT USE THEM IN
+// NEW CODE.
+
 func Expect(t *testing.T, got bool, what string) {
 	if !got {
 		t.Errorf("%s: got %v; expected %v", what, got, true)
