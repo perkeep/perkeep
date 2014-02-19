@@ -48,10 +48,16 @@ var (
 	uploader     *Uploader // initialized by getUploader
 )
 
+var debugFlagOnce sync.Once
+
+func registerDebugFlags() {
+	flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
+	flag.BoolVar(&flagHaveCache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+}
+
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-		flag.BoolVar(&flagProxyLocal, "proxy_local", false, "If true, the HTTP_PROXY environment is also used for localhost requests. This can be helpful during debugging.")
-		flag.BoolVar(&flagHaveCache, "havecache", true, "Use the 'have cache', a cache keeping track of what blobs the remote server should already have from previous uploads.")
+		debugFlagOnce.Do(registerDebugFlags)
 	}
 	cmdmain.ExtraFlagRegistration = func() {
 		client.AddFlags()
@@ -125,6 +131,7 @@ func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 
 func newUploader() *Uploader {
 	var cc *client.Client
+	var httpStats *httputil.StatsTransport
 	if d := *flagBlobDir; d != "" {
 		ss, err := dir.New(d)
 		if err != nil {
@@ -133,22 +140,21 @@ func newUploader() *Uploader {
 		cc = client.NewStorageClient(ss)
 	} else {
 		cc = client.NewOrFail()
+		proxy := http.ProxyFromEnvironment
+		if flagProxyLocal {
+			proxy = proxyFromEnvironment
+		}
+		tr := cc.TransportForConfig(
+			&client.TransportConfig{
+				Proxy:   proxy,
+				Verbose: *flagHTTP,
+			})
+		httpStats, _ = tr.(*httputil.StatsTransport)
+		cc.SetHTTPClient(&http.Client{Transport: tr})
 	}
 	if !*cmdmain.FlagVerbose {
 		cc.SetLogger(nil)
 	}
-
-	proxy := http.ProxyFromEnvironment
-	if flagProxyLocal {
-		proxy = proxyFromEnvironment
-	}
-	tr := cc.TransportForConfig(
-		&client.TransportConfig{
-			Proxy:   proxy,
-			Verbose: *flagHTTP,
-		})
-	httpStats, _ := tr.(*httputil.StatsTransport)
-	cc.SetHTTPClient(&http.Client{Transport: tr})
 
 	pwd, err := os.Getwd()
 	if err != nil {
