@@ -19,8 +19,6 @@ package magic
 import (
 	"io/ioutil"
 	"testing"
-
-	. "camlistore.org/pkg/test/asserts"
 )
 
 type magicTest struct {
@@ -50,7 +48,10 @@ func TestMagic(t *testing.T) {
 		data := []byte(tt.data)
 		if tt.fileName != "" {
 			data, err = ioutil.ReadFile("testdata/" + tt.fileName)
-			AssertNil(t, err, "no error reading "+tt.fileName)
+			if err != nil {
+				t.Fatalf("Error reading %s: %v", tt.fileName,
+					err)
+			}
 		}
 		mime := MIMEType(data)
 		if mime != tt.want {
