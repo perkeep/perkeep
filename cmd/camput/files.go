@@ -67,6 +67,10 @@ type fileCmd struct {
 
 var flagUseSQLiteChildCache bool // Use sqlite for the statcache and havecache.
 
+var (
+	uploadWorkers = -1 // concurrent upload workers (negative means unbounded: memory hog)
+)
+
 func init() {
 	cmdmain.RegisterCommand("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(fileCmd)
@@ -1000,7 +1004,7 @@ func (t *TreeUpload) run() {
 			}
 		})
 	} else {
-		upload = NewNodeWorker(-1, func(n *node, ok bool) {
+		upload = NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
 			if !ok {
 				log.Printf("done with all uploads.")
 				uploadsdonec <- true
