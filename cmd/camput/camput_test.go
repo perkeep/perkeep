@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"io"
+	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -37,6 +38,7 @@ type env struct {
 func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	outbuf := new(bytes.Buffer)
 	errbuf := new(bytes.Buffer)
+	os.Args = append(os.Args[:1], args...)
 	cmdmain.Stdout, cmdmain.Stderr = outbuf, errbuf
 	exitc := make(chan int, 1)
 	cmdmain.Exit = func(code int) {
