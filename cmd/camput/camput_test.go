@@ -32,9 +32,19 @@ type env struct {
 	// stdin is the standard input, or /dev/null if nil
 	stdin io.Reader
 
+	// Timeout optionally specifies the timeout on the command.
+	Timeout time.Duration
+
 	// TODO(bradfitz): vfs files.
 }
 
+func (e *env) timeout() time.Duration {
+	if e.Timeout != 0 {
+		return e.Timeout
+	}
+	return 15 * time.Second
+
+}
 func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	outbuf := new(bytes.Buffer)
 	errbuf := new(bytes.Buffer)
@@ -51,7 +61,7 @@ func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	}()
 	select {
 	case exitCode = <-exitc:
-	case <-time.After(15 * time.Second):
+	case <-time.After(e.timeout()):
 		panic("timeout running command")
 	}
 	out = outbuf.Bytes()
