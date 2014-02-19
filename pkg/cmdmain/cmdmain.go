@@ -197,6 +197,7 @@ func help(mode string) {
 	// We can skip all the checks as they're done in Main
 	cmd := modeCommand[mode]
 	cmdFlags := modeFlags[mode]
+	cmdFlags.SetOutput(Stderr)
 	if des, ok := cmd.(describer); ok {
 		Errorf("%s\n", des.Describe())
 	}
@@ -217,11 +218,17 @@ func help(mode string) {
 // Main multiple times, but duplicate flag registration is fatal.
 var registerFlagOnce sync.Once
 
+var setCommandLineOutput func(io.Writer) // or nil if before Go 1.2
+
 // Main is meant to be the core of a command that has
 // subcommands (modes), such as camput or camtool.
 func Main() {
 	registerFlagOnce.Do(ExtraFlagRegistration)
+	if setCommandLineOutput != nil {
+		setCommandLineOutput(Stderr)
+	}
 	flag.Parse()
+
 	args := flag.Args()
 	if *FlagVersion {
 		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Version())
@@ -241,6 +248,7 @@ func Main() {
 	}
 
 	cmdFlags := modeFlags[mode]
+	cmdFlags.SetOutput(Stderr)
 	var cmdHelp bool
 	cmdFlags.BoolVar(&cmdHelp, "help", false, "Help for this mode.")
 	err := cmdFlags.Parse(args[1:])
