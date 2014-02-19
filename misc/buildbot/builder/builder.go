@@ -65,6 +65,7 @@ var (
 	skipGo1Build   = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
 	verbose        = flag.Bool("verbose", false, "print what's going on")
 	skipTLSCheck   = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
+	taskLifespan   = flag.Int("timeout", 600, "Lifespan (in seconds) for each task run by this builder, after which the task automatically terminates. 0 or negative means infinite.")
 )
 
 var (
@@ -164,6 +165,10 @@ func (t *task) String() string {
 	return fmt.Sprintf("%v %v", t.Program, t.Args)
 }
 
+func (t *task) Error() string {
+	return t.Err
+}
+
 func (t *task) run() (string, error) {
 	var err error
 	defer func() {
@@ -180,8 +185,7 @@ func (t *task) run() (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	t.Start = time.Now()
-	err = cmd.Run()
-	if err != nil {
+	setTaskErr := func() {
 		var sout, serr string
 		if sout = stdout.String(); sout == "" {
 			sout = "(empty)"
@@ -189,8 +193,37 @@ func (t *task) run() (string, error) {
 		if serr = stderr.String(); serr == "" {
 			serr = "(empty)"
 		}
-		t.Err = fmt.Sprintf("%v\n\nStdout:\n%s\n\nStderr:\n%s\n", err, sout, serr)
-		return "", errors.New(t.Err)
+		t.Err = fmt.Sprintf("Stdout:\n%s\n\nStderr:\n%s", sout, serr)
+		if err != nil {
+			t.Err = fmt.Sprintf("%v\n\n%v", err, t.Err)
+		}
+	}
+	// TODO(mpl, wathiede): make it learn about task durations.
+	errc := make(chan error)
+	go func() {
+		errc <- cmd.Run()
+	}()
+	if *taskLifespan > 0 {
+		select {
+		case <-time.After(time.Duration(*taskLifespan) * time.Second):
+			setTaskErr()
+			t.Err = fmt.Sprintf("%v\n\nTask %q took too long. Giving up after %v seconds.\n",
+				t.Err, t.String(), *taskLifespan)
+			if cmd.Process != nil {
+				if err := cmd.Process.Kill(); err != nil {
+					dbg.Printf("Could not kill process for task %q: %v", t.String(), err)
+				}
+			}
+			return "", t
+		case err = <-errc:
+			break
+		}
+	} else {
+		err = <-errc
+	}
+	if err != nil {
+		setTaskErr()
+		return "", t
 	}
 	return stdout.String(), nil
 }
@@ -778,7 +811,7 @@ func runCamli() error {
 		currentTestSuite.addRun(t)
 		biSuitelk.Unlock()
 		log.Println(t.Err)
-		return errors.New(t.Err)
+		return t
 	case <-time.After(warmup):
 		biSuitelk.Lock()
 		currentTestSuite.addRun(t)
