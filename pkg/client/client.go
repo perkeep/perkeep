@@ -629,6 +629,9 @@ func (c *Client) initPrefix() error {
 }
 
 func (c *Client) condDiscovery() error {
+	if c.sto != nil {
+		return "", errors.New("client not using HTTP")
+	}
 	return c.discoOnce.Do(c.doDiscovery)
 }
 
