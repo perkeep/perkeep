@@ -949,6 +949,9 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 	return n, nil
 }
 
+// testHookStatCache, if non-nil, runs first in the checkStatCache worker.
+var testHookStatCache func(n *node, ok bool)
+
 func (t *TreeUpload) run() {
 	defer close(t.donec)
 
@@ -1024,6 +1027,9 @@ func (t *TreeUpload) run() {
 	}
 
 	checkStatCache := NewNodeWorker(10, func(n *node, ok bool) {
+		if hook := testHookStatCache; hook != nil {
+			hook(n, ok)
+		}
 		if !ok {
 			if t.up.statCache != nil {
 				log.Printf("done checking stat cache")

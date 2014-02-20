@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,23 +112,36 @@ func TestUploadDirectories(t *testing.T) {
 
 	debugFlagOnce.Do(registerDebugFlags)
 
-	baseDir, err := ioutil.TempDir("", "")
+	tempDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		t.Errorf("error creating temp dir: %v", err)
 		return
 	}
-	defer os.RemoveAll(baseDir)
+	defer os.RemoveAll(tempDir)
 
-	uploadRoot := filepath.Join(baseDir, "to_upload")
+	blobDestDir := filepath.Join(tempDir, "blob_dest") // write to here
+	mustMkdir(t, blobDestDir, 0700)
+	uploadRoot := filepath.Join(tempDir, "to_upload") // read from here
 	mustMkdir(t, uploadRoot, 0700)
-	// TODO: make wider trees under uploadRoot, taking care to
-	// name dirs and files such that alphabetic statting causes a
-	// deadlock.  This isn't sufficient yet:
-	dirIter := baseDir
-	for i := 0; i < 10; i++ {
+
+	// There are 10 stat cache workers. Simulate a slow lookup in
+	// the file-based ones (similar to reality), so the
+	// directory-based nodes make it to the upload worker first
+	// (where it would currently/previously deadlock waiting on
+	// children that are starved out) See
+	// ee4550bff453526ebae460da1ad59f6e7f3efe77.
+	testHookStatCache = func(n *node, ok bool) {
+		if ok && strings.HasSuffix(n.fullPath, ".txt") {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	defer func() { testHookStatCache = nil }()
+
+	dirIter := uploadRoot
+	for i := 0; i < 2; i++ {
 		dirPath := filepath.Join(dirIter, "dir")
 		mustMkdir(t, dirPath, 0700)
-		for _, baseFile := range []string{"file", "FILE.txt"} {
+		for _, baseFile := range []string{"file.txt", "FILE.txt"} {
 			filePath := filepath.Join(dirPath, baseFile)
 			if err := ioutil.WriteFile(filePath, []byte("some file contents "+filePath), 0600); err != nil {
 				t.Fatalf("error writing to %s: %v", filePath, err)
@@ -136,8 +150,6 @@ func TestUploadDirectories(t *testing.T) {
 		}
 		dirIter = dirPath
 	}
-	firstDir := filepath.Join(baseDir, "dir")
-	t.Logf("Will upload %s", firstDir)
 
 	defer setAndRestore(&uploadWorkers, 1)()
 
@@ -145,11 +157,11 @@ func TestUploadDirectories(t *testing.T) {
 		Timeout: 5 * time.Second,
 	}
 	stdout, stderr, exit := e.Run(
-		"--blobdir="+baseDir,
+		"--blobdir="+blobDestDir,
 		"--havecache=false",
-		"--verbose",
+		"--verbose=false", // useful to set true for debugging
 		"file",
-		firstDir)
+		uploadRoot)
 	if exit != 0 {
 		t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
 	}
@@ -162,12 +174,6 @@ func mustMkdir(t *testing.T, fn string, mode int) {
 }
 
 func setAndRestore(dst *int, v int) func() {
-	old := *dst
-	*dst = v
-	return func() { *dst = old }
-}
-
-func setAndRestoreBool(dst *bool, v bool) func() {
 	old := *dst
 	*dst = v
 	return func() { *dst = old }
