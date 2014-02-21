@@ -55,6 +55,7 @@ import (
 	_ "camlistore.org/pkg/blobserver/google/cloudstorage"
 	_ "camlistore.org/pkg/blobserver/google/drive"
 	_ "camlistore.org/pkg/blobserver/localdisk"
+	_ "camlistore.org/pkg/blobserver/mongo"
 	_ "camlistore.org/pkg/blobserver/remote"
 	_ "camlistore.org/pkg/blobserver/replica"
 	_ "camlistore.org/pkg/blobserver/s3"

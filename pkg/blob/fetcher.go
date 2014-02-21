@@ -29,7 +29,7 @@ import (
 )
 
 // Fetcher is the minimal interface for retrieving a blob from storage.
-// The full storage interface is blobserver.Stoage.
+// The full storage interface is blobserver.Storage.
 type Fetcher interface {
 	// Fetch returns a blob.  If the blob is not found then
 	// os.ErrNotExist should be returned for the error (not a wrapped
