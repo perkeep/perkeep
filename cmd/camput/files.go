@@ -65,12 +65,12 @@ type fileCmd struct {
 	histo    string // optional histogram output filename
 }
 
-var (
-	flagUseSQLiteChildCache bool // Use sqlite for the statcache and havecache.
+var flagUseSQLiteChildCache bool // Use sqlite for the statcache and havecache.
 
-	uploadWorkers    = 10 // concurrent upload workers (negative means unbounded: memory hog)
-	dirUploadWorkers = 5  // concurrent directory uploading workers
-	statCacheWorkers = 10 // concurrent statcache workers
+var (
+	uploadWorkers    = 5 // concurrent upload workers (negative means unbounded: memory hog)
+	dirUploadWorkers = 3 // concurrent directory uploading workers
+	statCacheWorkers = 5 // concurrent statcache workers
 )
 
 func init() {
@@ -101,9 +101,9 @@ func init() {
 		if android.IsChild() {
 			flags.BoolVar(&cmd.argsFromInput, "stdinargs", false, "If true, filenames to upload are sent one-per-line on stdin. EOF means to quit the process with exit status 0.")
 			// limit number of goroutines to limit memory
-			uploadWorkers = 3
+			uploadWorkers = 2
 			dirUploadWorkers = 2
-			statCacheWorkers = 3
+			statCacheWorkers = 2
 		}
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 

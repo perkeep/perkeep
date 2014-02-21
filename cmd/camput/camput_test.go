@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -121,11 +120,6 @@ func TestUploadDirectories(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode.")
 	}
-	if v, _ := strconv.ParseBool(os.Getenv("RUN_UPLOAD_DEADLOCK_TEST")); !v {
-		// Temporary. For now the test isn't working (failing) reliably.
-		// Once the test fails reliably, then we fix.
-		t.Skip("skipping test without RUN_UPLOAD_DEADLOCK_TEST=1 in environment")
-	}
 
 	debugFlagOnce.Do(registerDebugFlags)
 
@@ -168,9 +162,13 @@ func TestUploadDirectories(t *testing.T) {
 		dirIter = dirPath
 	}
 
+	// Now set statCacheWorkers greater than uploadWorkers, so the
+	// sleep above can re-arrange the order that files get
+	// uploaded in, so the directory comes before the file. This
+	// was the old deadlock.
 	defer setAndRestore(&uploadWorkers, 1)()
 	defer setAndRestore(&dirUploadWorkers, 1)()
-	defer setAndRestore(&statCacheWorkers, 1)()
+	defer setAndRestore(&statCacheWorkers, 5)()
 
 	e := &env{
 		Timeout: 5 * time.Second,
