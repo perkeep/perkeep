@@ -161,7 +161,7 @@ func main() {
 		return
 	}
 
-	buildAll := true
+	buildAll := false
 	targs := []string{
 		"camlistore.org/dev/devcam",
 		"camlistore.org/cmd/camget",
@@ -173,11 +173,14 @@ func main() {
 	case "*":
 		buildAll = true
 	case "":
-		buildAll = false
+		// Add cammount to default build targets on OSes that support FUSE.
+		switch *buildOS {
+		case "linux", "darwin":
+			targs = append(targs, "camlistore.org/cmd/cammount")
+		}
 	default:
 		if t := strings.Split(*targets, ","); len(t) != 0 {
 			targs = t
-			buildAll = false
 		}
 	}
 
@@ -217,13 +220,6 @@ func main() {
 	baseArgs = append(baseArgs,
 		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
 		"--tags="+tags)
-
-	if buildAll {
-		switch *buildOS {
-		case "linux", "darwin":
-			targs = append(targs, "camlistore.org/cmd/cammount")
-		}
-	}
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
