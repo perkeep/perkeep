@@ -210,8 +210,8 @@ func (t *task) run() (string, error) {
 			t.Err = fmt.Sprintf("%v\n\nTask %q took too long. Giving up after %v seconds.\n",
 				t.Err, t.String(), *taskLifespan)
 			if cmd.Process != nil {
-				if err := cmd.Process.Kill(); err != nil {
-					dbg.Printf("Could not kill process for task %q: %v", t.String(), err)
+				if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+					dbg.Printf("Could not terminate process for task %q: %v", t.String(), err)
 				}
 			}
 			return "", t
