@@ -169,6 +169,8 @@ func TestUploadDirectories(t *testing.T) {
 	}
 
 	defer setAndRestore(&uploadWorkers, 1)()
+	defer setAndRestore(&dirUploadWorkers, 1)()
+	defer setAndRestore(&statCacheWorkers, 1)()
 
 	e := &env{
 		Timeout: 5 * time.Second,

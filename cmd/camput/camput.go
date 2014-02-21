@@ -59,9 +59,7 @@ func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 		debugFlagOnce.Do(registerDebugFlags)
 	}
-	cmdmain.ExtraFlagRegistration = func() {
-		client.AddFlags()
-	}
+	cmdmain.ExtraFlagRegistration = client.AddFlags
 	cmdmain.PreExit = func() {
 		if up := uploader; up != nil {
 			up.Close()
