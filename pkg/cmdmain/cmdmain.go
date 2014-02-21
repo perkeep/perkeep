@@ -61,6 +61,7 @@ var (
 	// mode name to actual subcommand mapping
 	modeCommand = make(map[string]CommandRunner)
 	modeFlags   = make(map[string]*flag.FlagSet)
+	wantHelp    = make(map[string]*bool)
 
 	// Indirections for replacement by tests
 	Stderr io.Writer = os.Stderr
@@ -100,6 +101,10 @@ func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunne
 	}
 	flags := flag.NewFlagSet(mode+" options", flag.ContinueOnError)
 	flags.Usage = func() {}
+
+	var cmdHelp bool
+	flags.BoolVar(&cmdHelp, "help", false, "Help for this mode.")
+	wantHelp[mode] = &cmdHelp
 	modeFlags[mode] = flags
 	modeCommand[mode] = makeCmd(flags)
 }
@@ -249,13 +254,11 @@ func Main() {
 
 	cmdFlags := modeFlags[mode]
 	cmdFlags.SetOutput(Stderr)
-	var cmdHelp bool
-	cmdFlags.BoolVar(&cmdHelp, "help", false, "Help for this mode.")
 	err := cmdFlags.Parse(args[1:])
 	if err != nil {
 		err = ErrUsage
 	} else {
-		if cmdHelp {
+		if *wantHelp[mode] {
 			help(mode)
 			return
 		}

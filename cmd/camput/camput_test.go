@@ -89,6 +89,23 @@ func TestUsageOnNoargs(t *testing.T) {
 	}
 }
 
+// TestCommandUsage tests that we output a command-specific usage message and return
+// with a non-zero exit status.
+func TestCommandUsage(t *testing.T) {
+	var e env
+	out, err, code := e.Run("attr")
+	if code != 1 {
+		t.Errorf("exit code = %d; want 1", code)
+	}
+	if len(out) != 0 {
+		t.Errorf("wanted nothing on stdout; got:\n%s", out)
+	}
+	sub := "Attr takes 3 args: <permanode> <attr> <value>"
+	if !bytes.Contains(err, []byte(sub)) {
+		t.Errorf("stderr doesn't contain substring %q. Got:\n%s", sub, err)
+	}
+}
+
 func TestUploadingChangingDirectory(t *testing.T) {
 	// TODO(bradfitz):
 	//    $ mkdir /tmp/somedir
