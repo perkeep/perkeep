@@ -43,6 +43,7 @@ RUN go install \
     camlistore.org/cmd/camput \
     camlistore.org/cmd/camget \
     camlistore.org/cmd/camtool \
+    camlistore.org/website \
     camlistore.org/dev/devcam
 
 ENV USER camli
