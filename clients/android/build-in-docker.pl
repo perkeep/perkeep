@@ -27,6 +27,14 @@ system("cp", "-p", "$GENDIR/linux_arm/camput", "$ASSETS/camput.arm")
     and die "cp failure";
 # TODO: build an x86 version too? if/when those Android devices matter.
 
+{
+    open(my $vfh, ">$ASSETS/camput-version.txt") or die "open camput-version error: $!";
+    # TODO(bradfitz): make these values automatic, and don't make the
+    # "Version" menu say "camput version" when it runs. Also maybe
+    # keep a history of these somewhere more convenient.
+    print $vfh "app 0.6.1 camput ccacf764 go 70499e5fbe5b";
+}
+
 chdir $ASSETS or  die "can't cd to assets dir";
 
 my $digest = `openssl sha1 camput.arm`;
