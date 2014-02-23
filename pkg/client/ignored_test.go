@@ -19,12 +19,16 @@ package client
 import (
 	"path/filepath"
 	"testing"
-
-	"camlistore.org/pkg/osutil"
 )
 
 func TestIsIgnoredFile(t *testing.T) {
-	home := osutil.HomeDir()
+	old := osutilHomeDir
+	defer func() { osutilHomeDir = old }()
+	osutilHomeDir = func() string {
+		return "/Fake/Home/Camli"
+	}
+
+	home := osutilHomeDir()
 	fullpath := filepath.Join(home, "Downloads", "pony.jpg")
 	var wantIgnored = map[string]bool{
 		filepath.Join(home, filepath.FromSlash("Downloads/pony.jpg")): true,

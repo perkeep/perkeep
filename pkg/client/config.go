@@ -436,11 +436,13 @@ func (c *Client) initIgnoredFiles() {
 	c.ignoredFiles = config.IgnoredFiles
 }
 
+var osutilHomeDir = osutil.HomeDir // changed by tests
+
 // newIgnoreChecker uses ignoredFiles to build and return a func that returns whether the file path argument should be ignored. See IsIgnoredFile for the ignore rules.
 func newIgnoreChecker(ignoredFiles []string) func(path string) (shouldIgnore bool) {
 	var fns []func(string) bool
 
-	home := osutil.HomeDir()
+	home := osutilHomeDir()
 	// copy of ignoredFiles for us to mutate
 	ignFiles := append([]string(nil), ignoredFiles...)
 	for k, v := range ignFiles {
