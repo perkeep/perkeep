@@ -37,11 +37,10 @@ func TestStarts(t *testing.T) {
 
 	fakeHome := filepath.Join(td, "fakeHome")
 	confDir := filepath.Join(fakeHome, "conf")
+	varDir := filepath.Join(fakeHome, "var")
 
-	defer pushEnv("HOME", fakeHome)()
-	defer pushEnv("HOMEPATH", fakeHome)()
-	defer pushEnv("APPDATA", filepath.Join(fakeHome, "appdata"))()
 	defer pushEnv("CAMLI_CONFIG_DIR", confDir)()
+	defer pushEnv("CAMLI_VAR_DIR", varDir)()
 
 	if _, err := os.Stat(osutil.CamliConfigDir()); !os.IsNotExist(err) {
 		t.Fatalf("expected conf dir %q to not exist", osutil.CamliConfigDir())
