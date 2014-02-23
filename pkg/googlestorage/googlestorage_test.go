@@ -21,15 +21,12 @@ package googlestorage
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/test"
 )
 
 const testObjectContent = "Google Storage Test\n"
@@ -43,15 +40,15 @@ func (b *BufferCloser) Close() error {
 	return nil
 }
 
+var gsConfigPath = flag.String("gs_config_path", "", "Path to Google Storage configuration JSON file, or empty to skip the test.")
+
 // Reads google storage config and creates a Client.  Exits on error.
 func doConfig(t *testing.T) (gsa *Client, bucket string) {
-	gsConfigPath := filepath.Join(osutil.CamliConfigDir(), "gstestconfig.json")
-
-	if _, err := os.Stat(gsConfigPath); os.IsNotExist(err) {
-		test.DependencyErrorOrSkip(t)
-		t.Fatalf("Missing config file: %v", err)
+	if *gsConfigPath == "" {
+		t.Skip("Skipping manual test. Set flag --gs_config_path to test Google Storage.")
 	}
-	cf, err := jsonconfig.ReadFile(gsConfigPath)
+
+	cf, err := jsonconfig.ReadFile(*gsConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read config: %v", err)
 	}
