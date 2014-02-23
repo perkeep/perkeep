@@ -87,6 +87,9 @@ func makeCacheDir() {
 }
 
 func CamliVarDir() string {
+	if d := os.Getenv("CAMLI_VAR_DIR"); d != "" {
+		return d
+	}
 	failInTests()
 	switch runtime.GOOS {
 	case "windows":
@@ -98,7 +101,6 @@ func CamliVarDir() string {
 }
 
 func CamliBlobRoot() string {
-	failInTests()
 	return filepath.Join(CamliVarDir(), "blobs")
 }
 
