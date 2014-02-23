@@ -19,6 +19,7 @@ package osutil
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -60,6 +61,10 @@ func checkOpen(t *testing.T, path string) {
 func TestOpenCamliIncludeNoFile(t *testing.T) {
 	// Test that error occurs if no such file
 	const notExist = "this_config_doesnt_exist.config"
+
+	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
+	os.Setenv("CAMLI_CONFIG_DIR", filepath.Join(os.TempDir(), "/x/y/z/not-exist"))
+
 	_, e := FindCamliInclude(notExist)
 	if e == nil {
 		t.Errorf("Successfully opened config which doesn't exist: %v", notExist)
@@ -101,6 +106,9 @@ func TestOpenCamliIncludePath(t *testing.T) {
 	}
 	defer os.Remove("/tmp/" + name)
 	defer os.Setenv("CAMLI_INCLUDE_PATH", "")
+
+	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
+	os.Setenv("CAMLI_CONFIG_DIR", filepath.Join(os.TempDir(), "/x/y/z/not-exist"))
 
 	os.Setenv("CAMLI_INCLUDE_PATH", "/tmp")
 	checkOpen(t, name)
