@@ -43,6 +43,6 @@ func testLeak(t *testing.T, close bool, want int) {
 	runtime.GC()
 	leaks := nTestLeaks - leak0
 	if leaks != want {
-		t.Errorf("got %d leaks; want %d", want)
+		t.Errorf("got %d leaks; want %d", leaks, want)
 	}
 }
