@@ -130,6 +130,14 @@ func TestUploadDirectories(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
+	confDir := filepath.Join(tempDir, "conf")
+	mustMkdir(t, confDir, 0700)
+	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
+	os.Setenv("CAMLI_CONFIG_DIR", confDir)
+	if err := ioutil.WriteFile(filepath.Join(confDir, "client-config.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	blobDestDir := filepath.Join(tempDir, "blob_dest") // write to here
 	mustMkdir(t, blobDestDir, 0700)
 	uploadRoot := filepath.Join(tempDir, "to_upload") // read from here
