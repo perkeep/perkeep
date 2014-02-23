@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -212,8 +211,7 @@ func GoPackagePath(pkg string) (path string, err error) {
 }
 
 func failInTests() {
-	strict, _ := strconv.ParseBool(os.Getenv("CAMLI_STRICT_PATHS")) // temporary; will soon be always true
-	if strict && buildinfo.TestingLinked() {
+	if buildinfo.TestingLinked() {
 		panic("Unexpected non-hermetic use of host configuration during testing. (alternatively: the 'testing' package got accidentally linked in)")
 	}
 }
