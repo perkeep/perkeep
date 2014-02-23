@@ -15,6 +15,12 @@ limitations under the License.
 */
 
 /*
+Package react provides access to the React JavaScript libraries and
+embeds them into the Go binary when compiled with the genfileembed
+tool.
+
+See http://facebook.github.io/react/
+
 #fileembed pattern .*\.js$
 */
 package react
