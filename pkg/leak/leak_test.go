@@ -30,6 +30,12 @@ func TestNoLeak(t *testing.T) {
 }
 
 func testLeak(t *testing.T, close bool, want int) {
+	if testing.Short() {
+		// Skipping not because this test is slow, but because finalizers are broken at Go tip during the 1.3 dev cycle:
+		//   https://code.google.com/p/go/issues/detail?id=7358
+		//   https://code.google.com/p/go/issues/detail?id=7375
+		t.Skip("skipping during short tests")
+	}
 	c := make(chan bool)
 	go func() {
 		ch := NewChecker()
