@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,7 +48,10 @@ type World struct {
 	listener net.Listener // randomly chosen 127.0.0.1 port for the server
 	port     int
 
-	server   *exec.Cmd
+	server    *exec.Cmd
+	isRunning int32 // state of the camlistored server. Access with sync/atomic only.
+	serverErr error
+
 	cammount *os.Process
 }
 
@@ -125,11 +129,16 @@ func (w *World) Start() error {
 		}
 		w.server.ExtraFiles = []*os.File{listenerFD}
 		if err := w.server.Start(); err != nil {
-			return fmt.Errorf("Starting camlistored: %v", err)
+			w.serverErr = fmt.Errorf("starting camlistored: %v", err)
+			return w.serverErr
 		}
+		atomic.StoreInt32(&w.isRunning, 1)
 		waitc := make(chan error, 1)
 		go func() {
-			waitc <- w.server.Wait()
+			err := w.server.Wait()
+			w.serverErr = fmt.Errorf("%v: %s", err, buf.String())
+			atomic.StoreInt32(&w.isRunning, 0)
+			waitc <- w.serverErr
 		}()
 		upc := make(chan bool)
 		timeoutc := make(chan bool)
@@ -143,17 +152,30 @@ func (w *World) Start() error {
 				}
 				time.Sleep(50 * time.Millisecond)
 			}
+			w.serverErr = errors.New(buf.String())
+			atomic.StoreInt32(&w.isRunning, 0)
 			timeoutc <- true
 		}()
 
 		select {
-		case err := <-waitc:
-			return fmt.Errorf("server exited: %v: %s", err, buf.String())
+		case <-waitc:
+			return fmt.Errorf("server exited: %v", w.serverErr)
 		case <-timeoutc:
-			return errors.New("server never became reachable")
+			return fmt.Errorf("server never became reachable: %v", w.serverErr)
 		case <-upc:
+			if err := w.Ping(); err != nil {
+				return err
+			}
 			// Success.
 		}
+	}
+	return nil
+}
+
+// Ping returns an error if the world's camlistored is not running.
+func (w *World) Ping() error {
+	if atomic.LoadInt32(&w.isRunning) != 1 {
+		return fmt.Errorf("camlistored not running: %v", w.serverErr)
 	}
 	return nil
 }

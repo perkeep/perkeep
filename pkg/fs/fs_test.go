@@ -152,6 +152,9 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := w.Ping(); err != nil {
+		t.Fatal(err)
+	}
 	if err := mount.Start(); err != nil {
 		t.Fatal(err)
 	}
