@@ -173,6 +173,9 @@ func TestAndroidCamputFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := w.Ping(); err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}

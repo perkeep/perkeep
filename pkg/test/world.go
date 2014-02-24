@@ -192,6 +192,9 @@ func (w *World) Stop() {
 }
 
 func (w *World) NewPermanode(t *testing.T) blob.Ref {
+	if err := w.Ping(); err != nil {
+		t.Fatal(err)
+	}
 	out := MustRunCmd(t, w.Cmd("camput", "permanode"))
 	br, ok := blob.Parse(strings.TrimSpace(out))
 	if !ok {
