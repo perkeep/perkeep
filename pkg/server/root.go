@@ -30,6 +30,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 )
 
@@ -39,7 +40,8 @@ type RootHandler struct {
 	// clients.
 	Stealth bool
 
-	OwnerName string // for display purposes only
+	OwnerName string // for display purposes only.
+	Username  string // default user for mobile setup.
 
 	// URL prefixes (path or full URL) to the primary blob and
 	// search root.
@@ -75,6 +77,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		BlobRoot:   conf.OptionalString("blobRoot", ""),
 		SearchRoot: conf.OptionalString("searchRoot", ""),
 		OwnerName:  conf.OptionalString("ownerName", username),
+		Username:   osutil.Username(),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
@@ -172,6 +175,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		"blobRoot":     rh.BlobRoot,
 		"searchRoot":   rh.SearchRoot,
 		"ownerName":    rh.OwnerName,
+		"username":     rh.Username,
 		"statusRoot":   rh.statusRoot,
 		"wsAuthToken":  auth.ProcessRandom(),
 		"thumbVersion": images.ThumbnailVersion(),
