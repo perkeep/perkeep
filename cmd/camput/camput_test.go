@@ -53,6 +53,11 @@ func (e *env) Run(args ...string) (out, err []byte, exitCode int) {
 	errbuf := new(bytes.Buffer)
 	os.Args = append(os.Args[:1], args...)
 	cmdmain.Stdout, cmdmain.Stderr = outbuf, errbuf
+	if e.stdin == nil {
+		cmdmain.Stdin = strings.NewReader("")
+	} else {
+		cmdmain.Stdin = e.stdin
+	}
 	exitc := make(chan int, 1)
 	cmdmain.Exit = func(code int) {
 		exitc <- code
@@ -114,15 +119,7 @@ func TestUploadingChangingDirectory(t *testing.T) {
 	t.Logf("TODO")
 }
 
-// Tests that uploads of deep directory trees don't deadlock.
-// See commit ee4550bff453526ebae460da1ad59f6e7f3efe77 for backstory
-func TestUploadDirectories(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
-
-	debugFlagOnce.Do(registerDebugFlags)
-
+func testWithTempDir(t *testing.T, fn func(tempDir string)) {
 	tempDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		t.Errorf("error creating temp dir: %v", err)
@@ -138,58 +135,100 @@ func TestUploadDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blobDestDir := filepath.Join(tempDir, "blob_dest") // write to here
-	mustMkdir(t, blobDestDir, 0700)
-	uploadRoot := filepath.Join(tempDir, "to_upload") // read from here
-	mustMkdir(t, uploadRoot, 0700)
+	debugFlagOnce.Do(registerDebugFlags)
 
-	// There are 10 stat cache workers. Simulate a slow lookup in
-	// the file-based ones (similar to reality), so the
-	// directory-based nodes make it to the upload worker first
-	// (where it would currently/previously deadlock waiting on
-	// children that are starved out) See
-	// ee4550bff453526ebae460da1ad59f6e7f3efe77.
-	testHookStatCache = func(n *node, ok bool) {
-		if ok && strings.HasSuffix(n.fullPath, ".txt") {
-			time.Sleep(50 * time.Millisecond)
-		}
+	fn(tempDir)
+}
+
+// Tests that uploads of deep directory trees don't deadlock.
+// See commit ee4550bff453526ebae460da1ad59f6e7f3efe77 for backstory
+func TestUploadDirectories(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
 	}
-	defer func() { testHookStatCache = nil }()
 
-	dirIter := uploadRoot
-	for i := 0; i < 2; i++ {
-		dirPath := filepath.Join(dirIter, "dir")
-		mustMkdir(t, dirPath, 0700)
-		for _, baseFile := range []string{"file.txt", "FILE.txt"} {
-			filePath := filepath.Join(dirPath, baseFile)
-			if err := ioutil.WriteFile(filePath, []byte("some file contents "+filePath), 0600); err != nil {
-				t.Fatalf("error writing to %s: %v", filePath, err)
+	testWithTempDir(t, func(tempDir string) {
+		uploadRoot := filepath.Join(tempDir, "to_upload") // read from here
+		mustMkdir(t, uploadRoot, 0700)
+
+		blobDestDir := filepath.Join(tempDir, "blob_dest") // write to here
+		mustMkdir(t, blobDestDir, 0700)
+
+		// There are 10 stat cache workers. Simulate a slow lookup in
+		// the file-based ones (similar to reality), so the
+		// directory-based nodes make it to the upload worker first
+		// (where it would currently/previously deadlock waiting on
+		// children that are starved out) See
+		// ee4550bff453526ebae460da1ad59f6e7f3efe77.
+		testHookStatCache = func(n *node, ok bool) {
+			if ok && strings.HasSuffix(n.fullPath, ".txt") {
+				time.Sleep(50 * time.Millisecond)
 			}
-			t.Logf("Wrote file %s", filePath)
 		}
-		dirIter = dirPath
+		defer func() { testHookStatCache = nil }()
+
+		dirIter := uploadRoot
+		for i := 0; i < 2; i++ {
+			dirPath := filepath.Join(dirIter, "dir")
+			mustMkdir(t, dirPath, 0700)
+			for _, baseFile := range []string{"file.txt", "FILE.txt"} {
+				filePath := filepath.Join(dirPath, baseFile)
+				if err := ioutil.WriteFile(filePath, []byte("some file contents "+filePath), 0600); err != nil {
+					t.Fatalf("error writing to %s: %v", filePath, err)
+				}
+				t.Logf("Wrote file %s", filePath)
+			}
+			dirIter = dirPath
+		}
+
+		// Now set statCacheWorkers greater than uploadWorkers, so the
+		// sleep above can re-arrange the order that files get
+		// uploaded in, so the directory comes before the file. This
+		// was the old deadlock.
+		defer setAndRestore(&uploadWorkers, 1)()
+		defer setAndRestore(&dirUploadWorkers, 1)()
+		defer setAndRestore(&statCacheWorkers, 5)()
+
+		e := &env{
+			Timeout: 5 * time.Second,
+		}
+		stdout, stderr, exit := e.Run(
+			"--blobdir="+blobDestDir,
+			"--havecache=false",
+			"--verbose=false", // useful to set true for debugging
+			"file",
+			uploadRoot)
+		if exit != 0 {
+			t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
+		}
+	})
+}
+
+func TestCamputBlob(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
 	}
 
-	// Now set statCacheWorkers greater than uploadWorkers, so the
-	// sleep above can re-arrange the order that files get
-	// uploaded in, so the directory comes before the file. This
-	// was the old deadlock.
-	defer setAndRestore(&uploadWorkers, 1)()
-	defer setAndRestore(&dirUploadWorkers, 1)()
-	defer setAndRestore(&statCacheWorkers, 5)()
+	testWithTempDir(t, func(tempDir string) {
+		blobDestDir := filepath.Join(tempDir, "blob_dest") // write to here
+		mustMkdir(t, blobDestDir, 0700)
 
-	e := &env{
-		Timeout: 5 * time.Second,
-	}
-	stdout, stderr, exit := e.Run(
-		"--blobdir="+blobDestDir,
-		"--havecache=false",
-		"--verbose=false", // useful to set true for debugging
-		"file",
-		uploadRoot)
-	if exit != 0 {
-		t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
-	}
+		e := &env{
+			Timeout: 5 * time.Second,
+			stdin:   strings.NewReader("foo"),
+		}
+		stdout, stderr, exit := e.Run(
+			"--blobdir="+blobDestDir,
+			"--havecache=false",
+			"--verbose=false", // useful to set true for debugging
+			"blob", "-")
+		if exit != 0 {
+			t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
+		}
+		if got, want := string(stdout), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33\n"; got != want {
+			t.Errorf("Stdout = %q; want %q", got, want)
+		}
+	})
 }
 
 func mustMkdir(t *testing.T, fn string, mode int) {

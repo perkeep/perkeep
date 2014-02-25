@@ -83,6 +83,9 @@ func (c *blobCmd) RunCommand(args []string) error {
 func stdinBlobHandle() (uh *client.UploadHandle, err error) {
 	var buf bytes.Buffer
 	size, err := io.CopyN(&buf, cmdmain.Stdin, constants.MaxBlobSize+1)
+	if err == io.EOF {
+		err = nil
+	}
 	if err != nil {
 		return
 	}

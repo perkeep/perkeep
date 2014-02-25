@@ -97,7 +97,7 @@ func handleResult(what string, pr *client.PutResult, err error) error {
 		cmdmain.ExitWithFailure = true
 		return err
 	}
-	fmt.Println(pr.BlobRef.String())
+	fmt.Fprintln(cmdmain.Stdout, pr.BlobRef.String())
 	return nil
 }
 
