@@ -43,10 +43,12 @@ func (c *Checker) Close() {
 }
 
 func (c *Checker) finalize() {
+	if testHookFinalize != nil {
+		defer testHookFinalize()
+	}
 	if c == nil || c.pc == nil {
 		return
 	}
-	nTestLeaks++ // for testing
 	var buf bytes.Buffer
 	buf.WriteString("Leak at:\n")
 	for _, pc := range c.pc {
@@ -57,7 +59,16 @@ func (c *Checker) finalize() {
 		file, line := f.FileLine(f.Entry())
 		fmt.Fprintf(&buf, "  %s:%d\n", file, line)
 	}
-	log.Println(buf.String())
+	onLeak(c, buf.String())
 }
 
-var nTestLeaks int
+// testHookFinalize optionally specifies a function to run after
+// finalization.  For tests.
+var testHookFinalize func()
+
+// onLeak is changed by tests.
+var onLeak = logLeak
+
+func logLeak(c *Checker, stack string) {
+	log.Println(stack)
+}

@@ -18,37 +18,57 @@ package leak
 
 import (
 	"runtime"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestLeak(t *testing.T) {
-	testLeak(t, false, 1)
+	testLeak(t, true, 1)
 }
 
 func TestNoLeak(t *testing.T) {
-	testLeak(t, true, 0)
+	testLeak(t, false, 0)
 }
 
-func testLeak(t *testing.T, close bool, want int) {
-	if testing.Short() {
-		// Skipping not because this test is slow, but because finalizers are broken at Go tip during the 1.3 dev cycle:
-		//   https://code.google.com/p/go/issues/detail?id=7358
-		//   https://code.google.com/p/go/issues/detail?id=7375
-		t.Skip("skipping during short tests")
+func testLeak(t *testing.T, leak bool, want int) {
+	defer func() {
+		testHookFinalize = nil
+		onLeak = logLeak
+	}()
+	var mu sync.Mutex // guards leaks
+	var leaks []string
+	onLeak = func(_ *Checker, stack string) {
+		mu.Lock()
+		defer mu.Unlock()
+		leaks = append(leaks, stack)
 	}
+	finalizec := make(chan bool)
+	testHookFinalize = func() {
+		finalizec <- true
+	}
+
 	c := make(chan bool)
 	go func() {
 		ch := NewChecker()
-		if close {
+		if !leak {
 			ch.Close()
 		}
 		c <- true
 	}()
 	<-c
-	leak0 := nTestLeaks
-	runtime.GC()
-	leaks := nTestLeaks - leak0
-	if leaks != want {
-		t.Errorf("got %d leaks; want %d", leaks, want)
+	go runtime.GC()
+	select {
+	case <-time.After(5 * time.Second):
+		t.Error("timeout waiting for finalization")
+	case <-finalizec:
+	}
+	mu.Lock() // no need to unlock
+	if len(leaks) != want {
+		t.Errorf("got %d leaks; want %d", len(leaks), want)
+	}
+	if len(leaks) == 1 && !strings.Contains(leaks[0], "leak_test.go") {
+		t.Errorf("Leak stack doesn't contain leak_test.go: %s", leaks[0])
 	}
 }
