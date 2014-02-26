@@ -301,7 +301,9 @@ func (c *Client) SetupAuth() error {
 	}
 	authConf := serverAuth(c.server)
 	if authConf == "" {
-		return fmt.Errorf("Could not find auth key for server %q in config", c.server)
+		c.authErr = fmt.Errorf("could not find auth key for server %q in config, defaulting to no auth", c.server)
+		c.authMode = auth.None{}
+		return nil
 	}
 	var err error
 	c.authMode, err = auth.FromConfig(authConf)

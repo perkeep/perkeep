@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"camlistore.org/pkg/client"
@@ -41,10 +42,12 @@ func newClient(server string) *client.Client {
 		cl = client.NewOrFail()
 	} else {
 		cl = client.New(server)
+		if err := cl.SetupAuth(); err != nil {
+			log.Fatal("Could not setup auth for connecting to %v: %v", server, err)
+		}
 	}
 	cl.SetHTTPClient(&http.Client{
 		Transport: cl.TransportForConfig(nil),
 	})
-	cl.SetupAuth()
 	return cl
 }

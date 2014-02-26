@@ -179,7 +179,9 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		}
 	}
 	cl.SetHTTPClient(httpClient)
-	cl.SetupAuth()
+	if err := cl.SetupAuth(); err != nil {
+		return nil, fmt.Errorf("could not setup auth for connecting to %v: %v", val, err)
+	}
 	cl.SetLogger(c.logger)
 	return cl, nil
 }
@@ -225,14 +227,18 @@ func (c *syncCmd) syncAll() error {
 		from.SetHTTPClient(&http.Client{
 			Transport: from.TransportForConfig(nil),
 		})
-		from.SetupAuth()
+		if err := from.SetupAuth(); err != nil {
+			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.From, err)
+		}
 		to := client.New(sh.To)
 		to.SetLogger(c.logger)
 		to.InsecureTLS = c.insecureTLS
 		to.SetHTTPClient(&http.Client{
 			Transport: to.TransportForConfig(nil),
 		})
-		to.SetupAuth()
+		if err := to.SetupAuth(); err != nil {
+			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.To, err)
+		}
 		if c.verbose {
 			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
 		}
