@@ -28,7 +28,6 @@
 	background: white;
 	bottom: 0;
 	overflow: auto;
-	padding: 15px;
 	position: absolute;
 	right: 0;
 	top: 0;
@@ -50,6 +49,15 @@
 
 .detail-piggy-leave.detail-piggy-leave-active {
 	opacity: 0;
+}
+
+.detail-title {
+	font-size: inherit;
+	margin: 0;
+}
+
+.detail-description {
+	margin-bottom: 0;
 }
 
 /* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
