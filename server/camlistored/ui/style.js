@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 goog.provide('cam.style');
+goog.provide('cam.style.ClassNameBuilder');
 
 goog.require('goog.math.Coordinate');
 goog.require('goog.string');
@@ -49,4 +50,38 @@ cam.style.setTransformOrigin = function(elm, origin, opt_unit) {
 // @param {number} degrees
 cam.style.setRotation = function(elm, degrees) {
 	goog.style.setStyle(elm, 'transform', goog.string.subs('rotate(%sdeg)', degrees));
+};
+
+
+// Utility to build a space-separated className property.
+cam.style.ClassNameBuilder = function() {
+	this.names_ = {};
+};
+
+// Maybe add the specified class.
+// @param {?string} name Class to add. If falsey, not added.
+// @param {boolean=} yes Whether to add. If unspecified or falsey, not added.
+// @return {cam.style.ClassNameBuilder}
+cam.style.ClassNameBuilder.prototype.add = function(name, yes) {
+	if (!name) {
+		return this;
+	}
+
+	if (!goog.isDef(yes)) {
+		yes = true;
+	}
+
+	if (yes) {
+		this.names_[name] = true;
+	} else {
+		delete this.names_[name];
+	}
+
+	return this;
+};
+
+// Return the space-separated className.
+// @return {string}
+cam.style.ClassNameBuilder.prototype.build = function() {
+	return goog.object.getKeys(this.names_).join(' ');
 };

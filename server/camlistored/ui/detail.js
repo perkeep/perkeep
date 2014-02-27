@@ -27,6 +27,7 @@ goog.require('cam.BlobItemReactData');
 goog.require('cam.imageUtil');
 goog.require('cam.Navigator');
 goog.require('cam.reactUtil');
+goog.require('cam.PropertySheetContainer');
 goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
@@ -92,15 +93,89 @@ cam.DetailView = React.createClass({
 	render: function() {
 		this.blobItemData_ = this.getBlobItemData_();
 		this.imgSize_ = this.getImgSize_();
-		return (
-			React.DOM.div({className:'detail-view', style: this.getStyle_()},
-				this.getImg_(),
-				this.getPiggy_(),
-				React.DOM.div({className:'detail-view-sidebar', key:'sidebar', style: this.getSidebarStyle_()},
-					React.DOM.a({key:'search-link', href:this.props.searchURL.toString(), onClick:this.handleEscape_}, 'Back to search'),
-					' - ',
-					React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old and busted'),
-					React.DOM.pre({key:'sidebar-pre'}, JSON.stringify(this.getPermanodeMeta_(), null, 2)))));
+		return React.DOM.div({className:'detail-view', style: this.getStyle_()}, [
+			this.getImg_(),
+			this.getPiggy_(),
+			this.getSidebar_(),
+		]);
+	},
+
+	getSidebar_: function() {
+		var children = !this.blobItemData_ ? [] : [
+			this.getGeneralProperties_(),
+			this.getFileishProperties_(),
+			this.getImageProperties_(),
+			this.getNavProperties_(),
+		];
+		return cam.PropertySheetContainer({className:'detail-view-sidebar', style:this.getSidebarStyle_()}, children);
+	},
+
+	getGeneralProperties_: function() {
+		if (this.blobItemData_.m.camliType != 'permanode') {
+			return null;
+		}
+		return cam.PropertySheet({key:'general', title:'Generalities'}, [
+			React.DOM.h1({className:'detail-title'}, this.getSinglePermanodeAttr_('title') || '<no title>'),
+			React.DOM.p({className:'detail-description'}, this.getSinglePermanodeAttr_('description') || '<no description>'),
+		]);
+	},
+
+	getFileishProperties_: function() {
+		var isFile = this.blobItemData_.rm.camliType == 'file';
+		var isDir = this.blobItemData_.rm.camliType == 'directory';
+		if (!isFile && !isDir) {
+			return null;
+		}
+		return cam.PropertySheet({className:'detail-fileish-properties', key:'file', title: isFile ? 'File' : 'Directory'}, [
+			React.DOM.table({}, [
+				React.DOM.tr({}, [
+					React.DOM.td({}, 'filename'),
+					React.DOM.td({}, isFile ? this.blobItemData_.rm.file.fileName : this.blobItemData_.rm.dir.fileName),
+				]),
+				React.DOM.tr({}, [
+					React.DOM.td({}, 'size'),
+					React.DOM.td({}, this.blobItemData_.rm.file.size + ' bytes'),  // TODO(aa): Humanize units
+				]),
+			]),
+		]);
+	},
+
+	getImageProperties_: function() {
+		if (!this.blobItemData_.im) {
+			return null;
+		}
+
+		return cam.PropertySheet({className:'detail-image-properties', key:'image', title: 'Image'}, [
+			React.DOM.table({}, [
+				React.DOM.tr({}, [
+					React.DOM.td({}, 'width'),
+					React.DOM.td({}, this.blobItemData_.im.width),
+				]),
+				React.DOM.tr({}, [
+					React.DOM.td({}, 'height'),
+					React.DOM.td({}, this.blobItemData_.im.height),
+				]),
+				// TODO(aa): encoding type, exif data, etc.
+			]),
+		]);
+	},
+
+	getNavProperties_: function() {
+		return cam.PropertySheet({key:'nav', title:'Elsewhere'}, [
+			React.DOM.a({key:'search-link', href:this.props.searchURL.toString(), onClick:this.handleEscape_}, 'Back to search'),
+			React.DOM.br(),
+			React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old (editable) UI'),
+		]);
+	},
+
+	// TODO(aa): We need a Permanode utility class that wraps the JSON goop.
+	getSinglePermanodeAttr_: function(name) {
+		var m = this.blobItemData_.m;
+		if (m.camliType == 'permanode' && m.permanode.attr[name]) {
+			return goog.isArray(m.permanode.attr[name]) ? m.permanode.attr[name][0] : m.permanode.attr[name];
+		} else {
+			return null;
+		}
 	},
 
 	componentWillUnmount: function() {
@@ -249,7 +324,7 @@ cam.DetailView = React.createClass({
 	},
 
 	getImgSize_: function() {
-		if (!this.blobItemData_) {
+		if (!this.blobItemData_ || !this.blobItemData_.im) {
 			return null;
 		}
 		var rawSize = new goog.math.Size(this.blobItemData_.im.width, this.blobItemData_.im.height);
@@ -295,7 +370,7 @@ cam.DetailView = React.createClass({
 	},
 
 	getImageRef_: function() {
-		return this.refs[this.getImageId_()];
+		return this.refs && this.refs[this.getImageId_()];
 	},
 
 	getImageId_: function() {
