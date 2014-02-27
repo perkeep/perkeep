@@ -73,6 +73,9 @@ type Client struct {
 	signerErr  error
 
 	authMode auth.AuthMode
+	// authErr is set when no auth config is found but we want to defer warning
+	// until discovery fails.
+	authErr error
 
 	httpClient *http.Client
 	haveCache  HaveCache
@@ -669,7 +672,11 @@ func (c *Client) discoveryResp() (*http.Response, error) {
 	}
 	if res.StatusCode != 200 {
 		res.Body.Close()
-		return nil, fmt.Errorf("Got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
+		errMsg := fmt.Sprintf("got status %q from blobserver URL %q during configuration discovery", res.Status, c.discoRoot())
+		if res.StatusCode == 401 && c.authErr != nil {
+			errMsg = fmt.Sprintf("%v. %v", c.authErr, errMsg)
+		}
+		return nil, errors.New(errMsg)
 	}
 	// TODO(bradfitz): little weird in retrospect that we request
 	// text/x-camli-configuration and expect to get back
