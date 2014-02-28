@@ -20,17 +20,18 @@ The camput tool mainly pushes blobs, files, and directories. It can also perform
 
 Usage:
 
-	camput [globalopts] <mode> [commandopts] [commandargs]
+  camput [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
-  init: Initialize the camput configuration file.
-  share: Grant access to a resource by making a "share" blob.
-  rawobj: Upload a custom JSON schema blob.
+  delete: Create and upload a delete claim.
   attr: Add, set, or delete a permanode's attribute.
   file: Upload file(s).
-  blob: Upload raw blob(s).
+  init: Initialize the camput configuration file. With no option, it tries to use the GPG key found in the default identity secret ring.
   permanode: Create and upload a permanode.
+  rawobj: Upload a custom JSON schema blob.
+  share: Grant access to a resource by making a "share" blob.
+  blob: Upload raw blob(s).
 
 Examples:
 

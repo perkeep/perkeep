@@ -15,27 +15,35 @@ limitations under the License.
 */
 
 /*
-Camtool is a collection of commands to help with the use of a camlistore server. Notably, it can initialize a database for the indexer, and it can sync blobs between blobservers.
-
+The camtool binary is a collection of commands to help with the use of
+a camlistore server. Notably, it can initialize a database for the
+indexer, and it can sync blobs between blobservers.
 
 Usage:
 
-	camtool [globalopts] <mode> [commandopts] [commandargs]
+  camtool [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
+  env: Return Camlistore environment information
+  gsinit: Init Google Storage.
+  list: List blobs on a server.
+  claims: Ask the search system to list the claims that modify a permanode.
+  dumpconfig: Dump the low-level server config from its simple config.
+  describe: Ask the search system to describe one or more blobs.
+  discovery: Perform configuration discovery against a server.
+  reindex-diskpacked: Rebuild the index of the diskpacked blob store
+  index: Synchronize blobs for all discovered blobs storage - indexer pairs.
   sync: Synchronize blobs from a source to a destination.
   dbinit: Set up the database for the indexer.
-  gsinit: Init Google Storage.
   debug: Show misc meta-info from the given file.
 
 Examples:
 
-  camtool dbinit -user root -password root -host localhost -dbname camliprod -wipe
-
   camtool sync --all
-  camtool sync --src=http://localhost:3179/bs/ --dest=http://localhost:3179/index-mem/
-  camtool sync --src=http://localhost:3179/bs/ --dest=/tmp/some/path
+  camtool sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
+
+  camtool dbinit -user root -password root -host localhost -dbname camliprod -wipe
 
 For mode-specific help:
 
