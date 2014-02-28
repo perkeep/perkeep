@@ -11,13 +11,15 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.7">g
 </center>
 
 <h2>Release stats</h2>
-<p>XX total committers over XXX commits since <a href="/docs/release/0.6">0.6</a> (just two months ago), including Aaron Boodman, Aaron Racine, Andrew Gerrand, Bill Thiede, Brad Fitzpatrick, Brian Gitonga Marete, Dan Erat, Dustin Sallings, Kristopher Cost, Mateus Braga, Mathieu Lonjaret, Nick O'Neill, Tamás Gulácsi and Tommi Virtanen.</p>
+<p>15 total committers over 350 commits since <a href="/docs/release/0.6">0.6</a> (just two months ago), including Aaron Boodman, Aaron Racine, Andrew Gerrand, Andy Smith, Bill Thiede, Brad Fitzpatrick, Brian Gitonga Marete, Dan Erat, Dustin Sallings, Kristopher Cost, Mateus Braga, Mathieu Lonjaret, Nick O'Neill, Tamás Gulácsi and Tommi Virtanen.</p>
+
+<p>Thank you!</p>
 
 <h2>New in 0.7</h2>
 <h3>Apps</h3>
 <ul>
 	<li>Alpha release of the <a href="https://play.google.com/store/apps/details?id=org.camlistore">Android uploader app</a></li>
-	<li>Better UI for iPhone uploader app (no binary yet)</li>
+	<li>Better UI for iPhone uploader app (no binary yet; <a href="https://camlistore.googlesource.com/camlistore/+/master/clients/ios-objc/">source code</a>)</li>
 </ul>
 <h3>Web UI</h3>
 <ul>
@@ -39,36 +41,47 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.7">g
 </ul>
 <h3>Storage</h3>
 <ul>
-	<li>Blob upload protocol simplicification: removed dynamic upload URL</li>
+	<li>Blob upload protocol simplicification: removed dynamic upload URL; now camput & Android do faster uploads</li>
+        <li>Start of the <tt>namespace</tt> storage handler for refcounting blob ownership in multi-tenant installations</li>
 </ul>
 <h3>Search</h3>
 <ul>
-	<li>Clearer implementation of different indexing options
-	<ul>
-		<li>Added metadata for audio file indexing</li>
-	</ul>
-	</li>
+	<li>Audio indexing (mp3 ID3 metdata)</li>
+        <li>before: and after: search constraints</li>
+        <li>Case-insensitive attribute search</li>
+        <li>added PermanodeConstraint.ValueMatches{Int,Float}</li>
 </ul>
 <h3>Tools</h3>
 <ul>
-	<li>Improvements to FUSE, time travel support and OS X GUI</li>
+	<li>FUSE improvements
+          <ul>
+                <li>time travel support (directories representing views into the past)</li>
+                <li>OS X GUI</li>
+                <li>cammount caches blobs persistently across restarts</li>
+                <li>automatic selection of mount point if none given</li>
+                <li>extended attributes support</li>
+           </ul>
+        </li>
+
 	<li>Improvements to <a href="/cmd/camtool/">camtool</a> for inspecting data
 	<ul>
-		<li>discovery: perform configuration discovery on a server</li>
-		<li>list: list blobs on a server</li>
-		<li>describe: show details for a particular blob</li>
+		<li>Subcommand <tt>discovery</tt>: perform configuration discovery on a server</li>
+		<li>Subcommand <tt>list</tt>: list blobs on a server (alias for <tt>sync --dest=stdout</tt>)</li>
+		<li>Subcommand <tt>describe</tt>: show a permanode's current status (its keys and values)</li>
+		<li>Subcommand <tt>claims</tt>: list modification claims against a permanode from the index</li>
 		<li>TLS support</li>
 	</ul>
 	</li>
+
 	<li>Increased support for and use of <a href="https://www.docker.io/">Docker</a>
 	<ul>
-		<li>Building ARM tools for the Android client</li>
-		<li>Running unit tests with external dependencies (i.e. mongodb)</li>
+		<li>Building ARM tools for the Android client (<a href="https://plus.google.com/+BradFitzpatrick/posts/CmqtqAShWZJ">background</a>)</li>
+		<li>Running unit tests with external dependencies (e.g. MongoDB)</li>
 	</ul>
 	</li>
 	<li>Enabled <a href="https://camlistore.googlesource.com/camlistore/+/master/pkg/importer/flickr/README">Flickr importer</a> for production servers</li>
 </ul>
 <h3>General</h3>
 <ul>
-	<li>Bug fixes and performance improvements</li>
+	<li>Many bug fixes and performance improvements across everything (the bulk of the changes)</li>
 </ul>
