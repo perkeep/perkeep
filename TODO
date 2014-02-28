@@ -9,8 +9,6 @@ Offline list:
    doesn't find that blob. kv bug? Seems to need an explicit Close.
    This feels broken. Add tests & debug.
 
--- also rename serverinit/serverconfig.go to serverinit.go
-
 -- websocket upload protocol. different write & read on same socket,
    as opposed to HTTP, to have multiple chunks in flight.
 
