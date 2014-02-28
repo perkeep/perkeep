@@ -41,8 +41,8 @@ var (
 	// ExtraFlagRegistration allows to add more flags from
 	// other packages (with AddFlags) when Main starts.
 	ExtraFlagRegistration = func() {}
-	// PreExit is meant to dump additional stats and other
-	// verbiage before Main terminates.
+	// PreExit runs after the subcommand, but before Main terminates
+	// with either success or the error from the subcommand.
 	PreExit = func() {}
 	// ExitWithFailure determines whether the command exits
 	// with a non-zero exit status.
@@ -278,9 +278,7 @@ func Main() {
 		}
 		Exit(1)
 	}
-	if *FlagVerbose {
-		PreExit()
-	}
+	PreExit()
 	if err != nil {
 		if !ExitWithFailure {
 			// because it was already logged if ExitWithFailure
