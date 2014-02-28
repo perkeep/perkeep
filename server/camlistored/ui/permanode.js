@@ -64,7 +64,7 @@ cam.PermanodePage.prototype.enterDocument = function() {
 	if (permanode) {
 		goog.dom.getElement('permanode').innerHTML = "<a href='./?p=" + permanode + "'>" + permanode + "</a>";
 		goog.dom.getElement('permanodeBlob').innerHTML = "<a href='./?b=" + permanode + "'>view blob</a>";
-		goog.dom.getElement('detailLink').innerHTML = "<a href='./detail.html?" + permanode + "'>new hotness</a>"
+		goog.dom.getElement('detailLink').innerHTML = "<a href='./?p=" + permanode + "&newui=1'>new hotness</a>"
 	}
 
 	// TODO(mpl): use this.eh_ instead?
