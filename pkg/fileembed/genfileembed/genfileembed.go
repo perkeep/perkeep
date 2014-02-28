@@ -169,6 +169,7 @@ func main() {
 func writeFileIfDifferent(filename string, contents []byte) error {
 	fi, err := os.Stat(filename)
 	if err == nil && fi.Size() == int64(len(contents)) && contentsEqual(filename, contents) {
+		os.Chtimes(filename, time.Now(), time.Now())
 		return nil
 	}
 	return ioutil.WriteFile(filename, contents, 0644)
