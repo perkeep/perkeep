@@ -55,7 +55,8 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 	sourceRoot string) ([]interface{}, error) {
 	pubPrefixes := []interface{}{}
 	for k, v := range published {
-		rootName := strings.Replace(k, "/", "", -1) + "Root"
+		name := strings.Replace(k, "/", "", -1)
+		rootName := name + "Root"
 		if !v.Root.Valid() {
 			return nil, fmt.Errorf("Invalid or missing \"rootPermanode\" key in configuration for %s.", k)
 		}
@@ -86,7 +87,7 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 		thumbsCacheDir := filepath.Join(tempDir(), "camli-cache")
 		handlerArgs["scaledImage"] = map[string]interface{}{
 			"type": "kv",
-			"file": filepath.Join(thumbsCacheDir, "thumbnails.kv"),
+			"file": filepath.Join(thumbsCacheDir, name+"-thumbnails.kv"),
 		}
 		if err := os.MkdirAll(thumbsCacheDir, 0700); err != nil {
 			return nil, fmt.Errorf("Could not create cache dir %s: %v", thumbsCacheDir, err)

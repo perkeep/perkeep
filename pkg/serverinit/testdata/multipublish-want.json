@@ -7,30 +7,10 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
-			}
-		},
-		"/blog/": {
-			"handler": "publish",
-			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
-				"cache": "/cache/",
-				"css": [
-					"blog-purple.css"
-				],
-				"goTemplate": "blog.html",
-				"rootName": "blogRoot",
-				"rootPermanode": [
-					"/sighelper/",
-					"sha1-2790ec1ec6fd44b9620b21155c8738aa08d4e3a0"
-				],
-				"scaledImage": {
-					"type": "kv",
-					"file": "/tmp/camli-cache/blog-thumbnails.kv"
-             	},
-				"searchRoot": "/my-search/"
 			}
 		},
 		"/bs-and-index/": {
@@ -80,6 +60,55 @@
 				"slurpToMemory": true
 			}
 		},
+
+    "/pics/": {
+      "handler": "publish",
+      "handlerArgs": {
+        "blobRoot": "/bs-and-maybe-also-index/",
+        "cache": "/cache/",
+        "css": [
+          "pics.css"
+        ],
+        "goTemplate": "gallery.html",
+        "js": [
+          "pics.js"
+        ],
+        "rootName": "picsRoot",
+        "rootPermanode": [
+          "/sighelper/",
+          "sha1-046c6aae4ec8245dfe63edc4a2abb407824a4b5a"
+        ],
+        "scaledImage": {
+          "file": "/tmp/camli-cache/pics-thumbnails.kv",
+          "type": "kv"
+        },
+        "searchRoot": "/my-search/"
+      }
+    },
+    "/music/": {
+      "handler": "publish",
+      "handlerArgs": {
+        "blobRoot": "/bs-and-maybe-also-index/",
+        "cache": "/cache/",
+        "css": [
+          "pics.css"
+        ],
+        "goTemplate": "gallery.html",
+        "js": [
+          "pics.js"
+        ],
+        "rootName": "musicRoot",
+        "rootPermanode": [
+          "/sighelper/",
+          "sha1-999c6aae4ec8245dfe63edc4a2abb407824a4b5a"
+        ],
+        "scaledImage": {
+          "file": "/tmp/camli-cache/music-thumbnails.kv",
+          "type": "kv"
+        },
+        "searchRoot": "/my-search/"
+      }
+    },
 		"/setup/": {
 			"handler": "setup"
 		},
@@ -116,9 +145,10 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
-				"publishRoots": [
-					"/blog/"
-				],
+                "publishRoots": [
+                    "/pics/",
+                    "/music/"
+                ],
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

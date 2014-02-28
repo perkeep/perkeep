@@ -78,7 +78,7 @@
 				],
 				"scaledImage": {
 					"type": "kv",
-					"file": "/tmp/camli-cache/thumbnails.kv"
+					"file": "/tmp/camli-cache/pics-thumbnails.kv"
              	},
 				"searchRoot": "/my-search/"
 			}
