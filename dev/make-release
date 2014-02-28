@@ -27,16 +27,7 @@ print $fh "$version\n";
 close($fh);
 
 system("git", "add", "VERSION") and die;
-foreach my $d (qw{
- .hackfests
- website
- clients/chrome
- lib
- old
-}) {
-    system("git", "rm", "-r", $d) and die "Failed to git rm -r $d";
-}
-system("git", "commit", "-m", "Add VERSION file and clean tree for release $version") and die "Failed to commit";
+system("git", "commit", "-m", "Add VERSION file on the $new_branch branch.") and die "Failed to commit";
 system("git", "tag", $version) and die "Failed to tag";
 
 my $commit = do { open(my $f, ".git/refs/tags/$version") or die; local $/; <$f> };
