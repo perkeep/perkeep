@@ -33,7 +33,6 @@ foreach my $d (qw{
  clients/chrome
  lib
  old
- dev-db
 }) {
     system("git", "rm", "-r", $d) and die "Failed to git rm -r $d";
 }
