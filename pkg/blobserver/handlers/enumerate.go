@@ -39,14 +39,14 @@ type blobInfo struct {
 }
 
 func CreateEnumerateHandler(storage blobserver.BlobEnumerator) http.Handler {
-	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
-		handleEnumerateBlobs(conn, req, storage)
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		handleEnumerateBlobs(rw, req, storage)
 	})
 }
 
 const errMsgMaxWaitSecWithAfter = "Can't use 'maxwaitsec' with 'after'.\n"
 
-func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator) {
+func handleEnumerateBlobs(rw http.ResponseWriter, req *http.Request, storage blobserver.BlobEnumerator) {
 	// Potential input parameters
 	formValueLimit := req.FormValue("limit")
 	formValueMaxWaitSec := req.FormValue("maxwaitsec")
@@ -71,8 +71,8 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 	if formValueMaxWaitSec != "" {
 		waitSeconds, _ = strconv.Atoi(formValueMaxWaitSec)
 		if waitSeconds != 0 && formValueAfter != "" {
-			conn.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(conn, errMsgMaxWaitSecWithAfter)
+			rw.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(rw, errMsgMaxWaitSecWithAfter)
 			return
 		}
 		switch {
@@ -86,8 +86,8 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 		}
 	}
 
-	conn.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	fmt.Fprintf(conn, "{\n  \"blobs\": [\n")
+	rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	fmt.Fprintf(rw, "{\n  \"blobs\": [\n")
 
 	loop := true
 	needsComma := false
@@ -126,16 +126,16 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 				}
 				blobName := sb.Ref.String()
 				if needsComma {
-					fmt.Fprintf(conn, ",\n")
+					fmt.Fprintf(rw, ",\n")
 				}
-				fmt.Fprintf(conn, "    {\"blobRef\": \"%s\", \"size\": %d}",
+				fmt.Fprintf(rw, "    {\"blobRef\": \"%s\", \"size\": %d}",
 					blobName, sb.Size)
 				after = blobName
 				needsComma = true
 			case err := <-resultch:
 				if err != nil {
 					log.Printf("Error during enumerate: %v", err)
-					fmt.Fprintf(conn, "{{{ SERVER ERROR }}}")
+					fmt.Fprintf(rw, "{{{ SERVER ERROR }}}")
 					return
 				}
 				endsReached++
@@ -146,13 +146,13 @@ func handleEnumerateBlobs(conn http.ResponseWriter, req *http.Request, storage b
 			blobserver.WaitForBlob(storage, deadline, nil)
 		}
 	}
-	fmt.Fprintf(conn, "\n  ]")
+	fmt.Fprintf(rw, "\n  ]")
 	if after != "" {
-		fmt.Fprintf(conn, ",\n  \"continueAfter\": \"%s\"", after)
+		fmt.Fprintf(rw, ",\n  \"continueAfter\": \"%s\"", after)
 	}
 	const longPollSupported = true
 	if longPollSupported {
-		fmt.Fprintf(conn, ",\n  \"canLongPoll\": true")
+		fmt.Fprintf(rw, ",\n  \"canLongPoll\": true")
 	}
-	fmt.Fprintf(conn, "\n}\n")
+	fmt.Fprintf(rw, "\n}\n")
 }
