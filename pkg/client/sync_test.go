@@ -17,56 +17,76 @@ limitations under the License.
 package client
 
 import (
-	"camlistore.org/pkg/blob"
 	"strings"
 	"testing"
+
+	"camlistore.org/pkg/blob"
 )
 
 type lmdbTest struct {
-	source, dest, expectedMissing string // comma-separated list of blobref strings
+	src, dst          string // comma-separated list of blobrefs for two sides
+	missing, mismatch string // comma-separated list of wanted results
+	diffSize          bool   // whether dest should report different sized blobs
 }
 
 func (lt *lmdbTest) run(t *testing.T) {
 	srcBlobs := make(chan blob.SizedRef, 100)
 	destBlobs := make(chan blob.SizedRef, 100)
-	sendTestBlobs(srcBlobs, lt.source)
-	sendTestBlobs(destBlobs, lt.dest)
-
-	missing := make(chan blob.SizedRef)
-	got := make([]string, 0)
-	go ListMissingDestinationBlobs(missing, nil, srcBlobs, destBlobs)
-	for sb := range missing {
-		got = append(got, sb.Ref.String())
+	sendTestBlobs(srcBlobs, lt.src, 123)
+	destSize := uint32(123)
+	if lt.diffSize {
+		destSize = 567
 	}
-	gotJoined := strings.Join(got, ",")
-	if gotJoined != lt.expectedMissing {
-		t.Errorf("For %q and %q expected %q, got %q",
-			lt.source, lt.dest, lt.expectedMissing, gotJoined)
+	sendTestBlobs(destBlobs, lt.dst, destSize)
+
+	missingc := make(chan blob.SizedRef)
+	var missing, mismatch []string
+	onMismatch := func(br blob.Ref) {
+		mismatch = append(mismatch, br.String())
+	}
+	go ListMissingDestinationBlobs(missingc, onMismatch, srcBlobs, destBlobs)
+	for sb := range missingc {
+		missing = append(missing, sb.Ref.String())
+	}
+	if got := strings.Join(missing, ","); got != lt.missing {
+		t.Errorf("For src %q and dest %q got missing %q; want %q",
+			lt.src, lt.dst, got, lt.missing)
+	}
+	if got := strings.Join(mismatch, ","); got != lt.mismatch {
+		t.Errorf("For src %q and dest %q got mismatched %q; want %q",
+			lt.src, lt.dst, got, lt.mismatch)
 	}
 }
 
-func sendTestBlobs(ch chan blob.SizedRef, list string) {
+func sendTestBlobs(ch chan blob.SizedRef, list string, size uint32) {
 	defer close(ch)
 	if list == "" {
 		return
 	}
-	for _, b := range strings.Split(list, ",") {
-		br := blob.MustParse(b)
-		ch <- blob.SizedRef{Ref: br, Size: 123}
+	for _, br := range strings.Split(list, ",") {
+		ch <- blob.SizedRef{blob.MustParse(br), size}
 	}
 }
 
 func TestListMissingDestinationBlobs(t *testing.T) {
 	tests := []lmdbTest{
-		{"foo-aa,foo-bb,foo-cc", "", "foo-aa,foo-bb,foo-cc"},
-		{"foo-aa,foo-bb,foo-cc", "foo-aa", "foo-bb,foo-cc"},
-		{"foo-aa,foo-bb,foo-cc", "foo-bb", "foo-aa,foo-cc"},
-		{"foo-aa,foo-bb,foo-cc", "foo-cc", "foo-aa,foo-bb"},
-		{"foo-aa,foo-bb,foo-cc", "foo-aa,foo-bb", "foo-cc"},
-		{"foo-aa,foo-bb,foo-cc", "foo-bb,foo-cc", "foo-aa"},
-		{"foo-aa,foo-bb,foo-cc", "foo-aa,foo-bb,foo-cc", ""},
-		{"", "foo-aa,foo-bb,foo-cc", ""},
-		{"foo-ff", "foo-aa,foo-bb,foo-cc", "foo-ff"},
+		{src: "foo-aa,foo-bb,foo-cc", missing: "foo-aa,foo-bb,foo-cc"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-aa", missing: "foo-bb,foo-cc"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-bb", missing: "foo-aa,foo-cc"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-cc", missing: "foo-aa,foo-bb"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-aa,foo-bb", missing: "foo-cc"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-bb,foo-cc", missing: "foo-aa"},
+		{src: "foo-aa,foo-bb,foo-cc", dst: "foo-aa,foo-bb,foo-cc", missing: ""},
+		{src: "", dst: "foo-aa,foo-bb,foo-cc", missing: ""},
+		{src: "foo-ff", dst: "foo-aa,foo-bb,foo-cc", missing: "foo-ff"},
+
+		{
+			src:      "foo-aa,foo-bb",
+			dst:      "foo-aa,foo-cc",
+			mismatch: "foo-aa",
+			missing:  "foo-bb",
+			diffSize: true,
+		},
 	}
 
 	for _, test := range tests {

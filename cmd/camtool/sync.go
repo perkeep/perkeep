@@ -326,13 +326,21 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	}
 
 	destNotHaveBlobs := make(chan blob.SizedRef)
-	sizeMismatch := make(chan blob.Ref)
+
 	readSrcBlobs := srcBlobs
 	if c.verbose {
 		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
 	}
+
 	mismatches := []blob.Ref{}
-	go client.ListMissingDestinationBlobs(destNotHaveBlobs, sizeMismatch, readSrcBlobs, destBlobs)
+	onMismatch := func(br blob.Ref) {
+		// TODO(bradfitz): check both sides and repair, carefully.  For now, fail.
+		log.Printf("WARNING: blobref %v has differing sizes on source and dest", br)
+		stats.ErrorCount++
+		mismatches = append(mismatches, br)
+	}
+
+	go client.ListMissingDestinationBlobs(destNotHaveBlobs, onMismatch, readSrcBlobs, destBlobs)
 
 	// Handle three-legged mode if tc is provided.
 	checkThirdError := func() {} // default nop
@@ -350,50 +358,39 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 			}
 		}
 		thirdNeedBlobs := make(chan blob.SizedRef)
-		go client.ListMissingDestinationBlobs(thirdNeedBlobs, sizeMismatch, destNotHaveBlobs, thirdBlobs)
+		go client.ListMissingDestinationBlobs(thirdNeedBlobs, onMismatch, destNotHaveBlobs, thirdBlobs)
 		syncBlobs = thirdNeedBlobs
 		firstHopDest = thirdLeg
 	}
-For:
-	for {
-		select {
-		case br := <-sizeMismatch:
-			// TODO(bradfitz): check both sides and repair, carefully.  For now, fail.
-			log.Printf("WARNING: blobref %v has differing sizes on source and dest", br)
+
+	for sb := range syncBlobs {
+		fmt.Printf("Destination needs blob: %s\n", sb)
+
+		blobReader, size, err := src.FetchStreaming(sb.Ref)
+		if err != nil {
 			stats.ErrorCount++
-			mismatches = append(mismatches, br)
-		case sb, ok := <-syncBlobs:
-			if !ok {
-				break For
-			}
-			fmt.Printf("Destination needs blob: %s\n", sb)
+			log.Printf("Error fetching %s: %v", sb.Ref, err)
+			continue
+		}
+		if size != sb.Size {
+			stats.ErrorCount++
+			log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
+				sb.Size, sb.Ref, size)
+			continue
+		}
 
-			blobReader, size, err := src.FetchStreaming(sb.Ref)
-			if err != nil {
-				stats.ErrorCount++
-				log.Printf("Error fetching %s: %v", sb.Ref, err)
-				continue
-			}
-			if size != sb.Size {
-				stats.ErrorCount++
-				log.Printf("Source blobserver's enumerate size of %d for blob %s doesn't match its Get size of %d",
-					sb.Size, sb.Ref, size)
-				continue
-			}
+		if _, err := blobserver.Receive(firstHopDest, sb.Ref, blobReader); err != nil {
+			stats.ErrorCount++
+			log.Printf("Upload of %s to destination blobserver failed: %v", sb.Ref, err)
+			continue
+		}
+		stats.BlobsCopied++
+		stats.BytesCopied += int64(size)
 
-			if _, err := blobserver.Receive(firstHopDest, sb.Ref, blobReader); err != nil {
+		if c.removeSrc {
+			if err = src.RemoveBlobs([]blob.Ref{sb.Ref}); err != nil {
 				stats.ErrorCount++
-				log.Printf("Upload of %s to destination blobserver failed: %v", sb.Ref, err)
-				continue
-			}
-			stats.BlobsCopied++
-			stats.BytesCopied += int64(size)
-
-			if c.removeSrc {
-				if err = src.RemoveBlobs([]blob.Ref{sb.Ref}); err != nil {
-					stats.ErrorCount++
-					log.Printf("Failed to delete %s from source: %v", sb.Ref, err)
-				}
+				log.Printf("Failed to delete %s from source: %v", sb.Ref, err)
 			}
 		}
 	}
