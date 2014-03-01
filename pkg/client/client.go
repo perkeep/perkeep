@@ -67,6 +67,7 @@ type Client struct {
 	downloadHelper string      // or "" if none
 	storageGen     string      // storage generation, or "" if not reported
 	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
+	serverKeyID    string      // Server's GPG public key ID.
 
 	signerOnce sync.Once
 	signer     *schema.Signer
@@ -345,6 +346,9 @@ func (c *Client) Stats() Stats {
 // ErrNoSearchRoot is returned by SearchRoot if the server doesn't support search.
 var ErrNoSearchRoot = errors.New("client: server doesn't support search")
 
+// ErrNoSigning is returned by ServerKeyID if the server doesn't support signing.
+var ErrNoSigning = fmt.Errorf("client: server doesn't support signing")
+
 // ErrNoStorageGeneration is returned by StorageGeneration if the
 // server doesn't report a storage generation value.
 var ErrNoStorageGeneration = errors.New("client: server doesn't report a storage generation")
@@ -362,6 +366,18 @@ func (c *Client) BlobRoot() (string, error) {
 		return "", err
 	}
 	return prefix + "/", nil
+}
+
+// ServerKeyID returns the server's GPG public key ID.
+// If the server isn't running a sign handler, the error will be ErrNoSigning.
+func (c *Client) ServerKeyID() (string, error) {
+	if err := c.condDiscovery(); err != nil {
+		return "", err
+	}
+	if c.serverKeyID == "" {
+		return "", ErrNoSigning
+	}
+	return c.serverKeyID, nil
 }
 
 // SearchRoot returns the server's search handler.
@@ -756,6 +772,10 @@ func (c *Client) doDiscovery() error {
 				ToIndex: toIndex,
 			})
 		}
+	}
+	serverSigning, ok := m["signing"].(map[string]interface{})
+	if ok {
+		c.serverKeyID = serverSigning["publicKeyId"].(string)
 	}
 	return nil
 }
