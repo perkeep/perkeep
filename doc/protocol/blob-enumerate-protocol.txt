@@ -62,9 +62,12 @@ Response keys:
                              will be an empty list if no blobs are present.
 
    continueAfter  optional   If present, the result is truncated and there are
-                             are more blobs after the provided blobref, which
-                             should be passed to the next request's "after"
-                             request parameter.
+                             are (likely) more blobs after the provided blobref,
+                             which should be passed to the next request's
+                             "after" request parameter. It's possible but rare
+                             that the final page of actual results has
+                             continueAfter set, but the subsequent page is
+                             empty. (if numBlobs % limit == 0)
 
    canLongPoll    optional   Set to true (type boolean) if the server supports
                              long polling.  If not true, the server ignores

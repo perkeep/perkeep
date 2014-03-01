@@ -18,9 +18,9 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -31,12 +31,6 @@ import (
 
 const defaultMaxEnumerate = 10000
 const defaultEnumerateSize = 100
-
-type blobInfo struct {
-	blob.Ref
-	os.FileInfo
-	error
-}
 
 func CreateEnumerateHandler(storage blobserver.BlobEnumerator) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -54,7 +48,7 @@ func handleEnumerateBlobs(rw http.ResponseWriter, req *http.Request, storage blo
 
 	maxEnumerate := defaultMaxEnumerate
 	if config, ok := storage.(blobserver.MaxEnumerateConfig); ok {
-		maxEnumerate = config.MaxEnumerate() - 1 // Since we'll add one below.
+		maxEnumerate = config.MaxEnumerate()
 	}
 
 	limit := defaultEnumerateSize
@@ -87,7 +81,7 @@ func handleEnumerateBlobs(rw http.ResponseWriter, req *http.Request, storage blo
 	}
 
 	rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	fmt.Fprintf(rw, "{\n  \"blobs\": [\n")
+	io.WriteString(rw, "{\n  \"blobs\": [\n")
 
 	loop := true
 	needsComma := false
@@ -101,58 +95,42 @@ func handleEnumerateBlobs(rw http.ResponseWriter, req *http.Request, storage blo
 		blobch := make(chan blob.SizedRef, 100)
 		resultch := make(chan error, 1)
 		go func() {
-			resultch <- storage.EnumerateBlobs(context.TODO(), blobch, formValueAfter, limit+1)
+			resultch <- storage.EnumerateBlobs(context.TODO(), blobch, formValueAfter, limit)
 		}()
 
-		endsReached := 0
 		gotBlobs := 0
-		for endsReached < 2 {
-			select {
-			case sb, ok := <-blobch:
-				if !ok {
-					endsReached++
-					if gotBlobs <= limit {
-						after = ""
-					}
-					continue
-				}
-				gotBlobs++
-				loop = false
-				if gotBlobs > limit {
-					// We requested one more from storage than the user asked for.
-					// Now we know to return a "continueAfter" response key.
-					// But we don't return this blob.
-					continue
-				}
-				blobName := sb.Ref.String()
-				if needsComma {
-					fmt.Fprintf(rw, ",\n")
-				}
-				fmt.Fprintf(rw, "    {\"blobRef\": \"%s\", \"size\": %d}",
-					blobName, sb.Size)
-				after = blobName
-				needsComma = true
-			case err := <-resultch:
-				if err != nil {
-					log.Printf("Error during enumerate: %v", err)
-					fmt.Fprintf(rw, "{{{ SERVER ERROR }}}")
-					return
-				}
-				endsReached++
+		for sb := range blobch {
+			gotBlobs++
+			loop = false
+			blobName := sb.Ref.String()
+			if needsComma {
+				io.WriteString(rw, ",\n")
 			}
+			fmt.Fprintf(rw, "    {\"blobRef\": \"%s\", \"size\": %d}",
+				blobName, sb.Size)
+			after = blobName
+			needsComma = true
+		}
+		if gotBlobs < limit {
+			after = ""
+		}
+		if err := <-resultch; err != nil {
+			log.Printf("Error during enumerate: %v", err)
+			fmt.Fprintf(rw, "{{{ SERVER ERROR }}}")
+			return
 		}
 
 		if loop {
 			blobserver.WaitForBlob(storage, deadline, nil)
 		}
 	}
-	fmt.Fprintf(rw, "\n  ]")
+	io.WriteString(rw, "\n  ]")
 	if after != "" {
 		fmt.Fprintf(rw, ",\n  \"continueAfter\": \"%s\"", after)
 	}
 	const longPollSupported = true
 	if longPollSupported {
-		fmt.Fprintf(rw, ",\n  \"canLongPoll\": true")
+		io.WriteString(rw, ",\n  \"canLongPoll\": true")
 	}
-	fmt.Fprintf(rw, "\n}\n")
+	io.WriteString(rw, "\n}\n")
 }
