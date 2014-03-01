@@ -28,13 +28,15 @@ import (
 	"camlistore.org/pkg/context"
 )
 
+// EnumerateOpts are the options to Client.EnumerateBlobsOpts.
 type EnumerateOpts struct {
-	After   string
+	After   string        // last blobref seen; start with ones greater than this
 	MaxWait time.Duration // how long to poll for (second granularity), waiting for any blob, or 0 for no limit
 	Limit   int           // if non-zero, the max blobs to return
 }
 
-// Note: closes ch.
+// SimpleEnumerateBlobs sends all blobs to the provided channel.
+// The channel will be closed, regardless of whether an error is returned.
 func (c *Client) SimpleEnumerateBlobs(ctx *context.Context, ch chan<- blob.SizedRef) error {
 	return c.EnumerateBlobsOpts(ctx, ch, EnumerateOpts{})
 }
@@ -56,7 +58,8 @@ func (c *Client) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef,
 
 const enumerateBatchSize = 1000
 
-// Note: closes ch.
+// EnumerateBlobsOpts sends blobs to the provided channel, as directed by opts.
+// The channel will be closed, regardless of whether an error is returned.
 func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRef, opts EnumerateOpts) error {
 	defer close(ch)
 	if opts.After != "" && opts.MaxWait != 0 {
