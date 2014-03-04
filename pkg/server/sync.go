@@ -70,9 +70,9 @@ type SyncHandler struct {
 	// drop blobs. The queue is the actual source of truth.
 	blobc chan blob.SizedRef
 
-	lk             sync.Mutex // protects following
+	mu             sync.Mutex // protects following
 	status         string
-	blobStatus     map[string]fmt.Stringer // stringer called with lk held
+	blobStatus     map[string]fmt.Stringer // stringer called with mu held
 	recentErrors   []timestampedError
 	recentCopyTime time.Time
 	totalCopies    int64
@@ -224,8 +224,8 @@ func (sh *SyncHandler) discoveryMap() map[string]interface{} {
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	sh.lk.Lock()
-	defer sh.lk.Unlock()
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
 
 	fmt.Fprintf(rw, "<h1>%s to %s Sync Status</h1><p><b>Current status: </b>%s</p>",
 		sh.fromName, sh.toName, html.EscapeString(sh.status))
@@ -264,14 +264,14 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (sh *SyncHandler) setStatus(s string, args ...interface{}) {
 	s = time.Now().UTC().Format(time.RFC3339) + ": " + fmt.Sprintf(s, args...)
-	sh.lk.Lock()
-	defer sh.lk.Unlock()
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
 	sh.status = s
 }
 
 func (sh *SyncHandler) setBlobStatus(blobref string, s fmt.Stringer) {
-	sh.lk.Lock()
-	defer sh.lk.Unlock()
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
 	if s != nil {
 		sh.blobStatus[blobref] = s
 	} else {
@@ -281,8 +281,8 @@ func (sh *SyncHandler) setBlobStatus(blobref string, s fmt.Stringer) {
 
 func (sh *SyncHandler) addErrorToLog(err error) {
 	sh.logf("%v", err)
-	sh.lk.Lock()
-	defer sh.lk.Unlock()
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
 	sh.recentErrors = append(sh.recentErrors, timestampedError{time.Now().UTC(), err})
 	if len(sh.recentErrors) > maxErrors {
 		// Kinda lame, but whatever. Only for errors, rare.
@@ -367,7 +367,7 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef
 	for i := 0; i < toCopy; i++ {
 		sh.setStatus("Copied %d/%d of batch of queued blobs", nCopied, toCopy)
 		res := <-resch
-		sh.lk.Lock()
+		sh.mu.Lock()
 		if res.err == nil {
 			nCopied++
 			sh.totalCopies++
@@ -376,7 +376,7 @@ func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef
 		} else {
 			sh.totalErrors++
 		}
-		sh.lk.Unlock()
+		sh.mu.Unlock()
 	}
 
 	if err := <-errch; err != nil {
