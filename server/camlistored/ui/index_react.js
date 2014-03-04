@@ -201,6 +201,7 @@ cam.IndexPageReact = React.createClass({
 			this.getSelectAsCurrentSetItem_(),
 			this.getAddToCurrentSetItem_(),
 			this.getClearSelectionItem_(),
+			// TODO(mpl): add 'this.getDeleteSelectionItem_(),' when http://camlistore.org/r/2168 is in.
 			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
 			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
 			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
@@ -270,6 +271,20 @@ cam.IndexPageReact = React.createClass({
 
 	handleClearSelection_: function() {
 		this.setState({selection:{}});
+	},
+
+	handleDeleteSelection_: function() {
+		var blobrefs = goog.object.getKeys(this.state.selection);
+		var numDeleted = 0;
+
+		blobrefs.forEach(function(br) {
+			this.props.serverConnection.newDeleteClaim(br, function() {
+				if (++numDeleted == blobrefs.length) {
+					this.setState({selection:{}});
+					this.searchSession_.refreshIfNecessary();
+				}
+			}.bind(this));
+		}.bind(this));
 	},
 
 	handleEmbiggen_: function() {
@@ -350,6 +365,21 @@ cam.IndexPageReact = React.createClass({
 			return null;
 		}
 		return cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection');
+	},
+
+	getDeleteSelectionItem_: function() {
+		if (!goog.object.getAnyKey(this.state.selection)) {
+			return null;
+		}
+		var numItems = goog.object.getCount(this.state.selection);
+		var label = 'Delete';
+		if (numItems == 1) {
+			label += ' selected item';
+		} else if (numItems > 1) {
+			label += goog.string.subs(' (%s) selected items', numItems);
+		}
+		// TODO(mpl): better icon in another CL, with Font Awesome.
+		return cam.NavReact.Item({key:'deleteselection', iconSrc:'trash.svg', onClick:this.handleDeleteSelection_}, label);
 	},
 
 	handleSelectionChange_: function(newSelection) {
