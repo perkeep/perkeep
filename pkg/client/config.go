@@ -460,12 +460,14 @@ func newIgnoreChecker(ignoredFiles []string) func(path string) (shouldIgnore boo
 	// 3) absolute paths
 	// 4) paths components
 	for _, pattern := range ignFiles {
+		pattern := pattern
 		_, err := filepath.Match(pattern, "whatever")
 		if err == nil {
 			fns = append(fns, func(v string) bool { return isShellPatternMatch(pattern, v) })
 		}
 	}
 	for _, pattern := range ignFiles {
+		pattern := pattern
 		if filepath.IsAbs(pattern) {
 			fns = append(fns, func(v string) bool { return hasDirPrefix(filepath.Clean(pattern), v) })
 		} else {
