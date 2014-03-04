@@ -28,14 +28,39 @@ var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
 func (sto *s3Storage) MaxEnumerate() int { return 1000 }
 
+// marker returns the string lexically greater than the provided s
+// with the same length as s.
+func nextStr(s string) string {
+	if s == "" {
+		return s
+	}
+	b := []byte(s)
+	i := len(b)
+	for i > 0 {
+		i--
+		b[i]++
+		if b[i] != 0 {
+			break
+		}
+	}
+	return string(b)
+}
+
 func (sto *s3Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	objs, err := sto.s3Client.ListBucket(sto.bucket, after, limit)
+	startAt := after
+	if _, ok := blob.Parse(after); ok {
+		startAt = nextStr(after)
+	}
+	objs, err := sto.s3Client.ListBucket(sto.bucket, startAt, limit)
 	if err != nil {
 		log.Printf("s3 ListBucket: %v", err)
 		return err
 	}
 	for _, obj := range objs {
+		if obj.Key == after {
+			continue
+		}
 		br, ok := blob.Parse(obj.Key)
 		if !ok {
 			continue

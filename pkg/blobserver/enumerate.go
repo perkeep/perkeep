@@ -27,9 +27,13 @@ import (
 // If fn returns an error, iteration stops and fn isn't called again.
 // EnumerateAll will not return concurrently with fn.
 func EnumerateAll(ctx *context.Context, src BlobEnumerator, fn func(blob.SizedRef) error) error {
+	return EnumerateAllFrom(ctx, src, "", fn)
+}
+
+// EnumerateAllFrom is like EnumerateAll, but takes an after parameter.
+func EnumerateAllFrom(ctx *context.Context, src BlobEnumerator, after string, fn func(blob.SizedRef) error) error {
 	const batchSize = 1000
 	var mu sync.Mutex // protects returning with an error while fn is still running
-	after := ""
 	errc := make(chan error, 1)
 	for {
 		ch := make(chan blob.SizedRef, 16)
