@@ -296,6 +296,14 @@
       }
     },
 
+    "/importer-picasa/": {
+      "handler": "importer-picasa",
+      "enabled": ["_env", "${CAMLI_PICASA_ENABLED}", false],
+      "handlerArgs": {
+        "apiKey": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
+      }
+    },
+
      "/share/": {
          "handler": "share",
          "handlerArgs": {
