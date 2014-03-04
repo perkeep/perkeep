@@ -455,6 +455,8 @@ func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 		"directoryHelper": path.Join(ui.prefix, "tree") + "/",
 		"publishRoots":    pubRoots,
 	}
+	// TODO(mpl): decouple discovery of the sig handler from the
+	// existence of a ui handler.
 	if ui.sigh != nil {
 		uiDisco["signing"] = ui.sigh.DiscoveryMap(ui.JSONSignRoot)
 	}

@@ -71,6 +71,11 @@ func init() {
 				}
 			}
 		}
+
+		// So multiple cmd/camput TestFoo funcs run, each with
+		// an fresh (and not previously closed) Uploader:
+		uploader = nil
+		uploaderOnce = sync.Once{}
 	}
 }
 

@@ -835,7 +835,10 @@ func killCamli() {
 }
 
 func hitCamliUi() error {
-	return hitURL("http://localhost:3179/ui/")
+	if err := hitURL("http://localhost:3179/ui/"); err != nil {
+		return fmt.Errorf("could not reach camlistored UI page (dead server?): %v", err)
+	}
+	return nil
 }
 
 func hitURL(url string) (err error) {

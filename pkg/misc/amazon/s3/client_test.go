@@ -44,22 +44,6 @@ func TestBuckets(t *testing.T) {
 	tc.Buckets()
 }
 
-func TestMarker(t *testing.T) {
-	tests := []struct {
-		s, want string
-	}{
-		{"", ""},
-		{"abc", "abd"},
-		{"ab\xff", "ac\x00"},
-		{"a\xff\xff", "b\x00\x00"},
-	}
-	for _, tt := range tests {
-		if got := marker(tt.s); got != tt.want {
-			t.Errorf("marker(%q) = %q; want %q", tt.s, got, tt.want)
-		}
-	}
-}
-
 func TestParseBuckets(t *testing.T) {
 	res := "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListAllMyBucketsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Owner><ID>ownerIDField</ID><DisplayName>bobDisplayName</DisplayName></Owner><Buckets><Bucket><Name>bucketOne</Name><CreationDate>2006-06-21T07:04:31.000Z</CreationDate></Bucket><Bucket><Name>bucketTwo</Name><CreationDate>2006-06-21T07:04:32.000Z</CreationDate></Bucket></Buckets></ListAllMyBucketsResult>"
 	buckets, err := parseListAllMyBuckets(strings.NewReader(res))

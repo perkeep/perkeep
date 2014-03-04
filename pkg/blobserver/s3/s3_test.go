@@ -42,3 +42,19 @@ func TestS3(t *testing.T) {
 		return sto, func() {}
 	})
 }
+
+func TestNextStr(t *testing.T) {
+	tests := []struct {
+		s, want string
+	}{
+		{"", ""},
+		{"abc", "abd"},
+		{"ab\xff", "ac\x00"},
+		{"a\xff\xff", "b\x00\x00"},
+	}
+	for _, tt := range tests {
+		if got := nextStr(tt.s); got != tt.want {
+			t.Errorf("nextStr(%q) = %q; want %q", tt.s, got, tt.want)
+		}
+	}
+}

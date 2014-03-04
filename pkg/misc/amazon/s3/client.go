@@ -35,6 +35,8 @@ import (
 	"camlistore.org/pkg/httputil"
 )
 
+const maxList = 1000
+
 // Client is an Amazon S3 client.
 type Client struct {
 	*Auth
@@ -145,43 +147,24 @@ type listBucketResults struct {
 	IsTruncated bool
 }
 
-// marker returns the string lexically greater than the provided s,
-// if s is not empty.
-func marker(s string) string {
-	if s == "" {
-		return s
-	}
-	b := []byte(s)
-	i := len(b)
-	for i > 0 {
-		i--
-		b[i]++
-		if b[i] != 0 {
-			break
-		}
-	}
-	return string(b)
-}
-
 // ListBucket returns 0 to maxKeys (inclusive) items from the provided
-// bucket.  The items will have keys greater than the provided after, which
-// may be empty.  (Note: this is not greater than or equal to, like the S3
-// API's 'marker' parameter).  If the length of the returned items is equal
-// to maxKeys, there is no indication whether or not the returned list is
+// bucket. Keys before startAt will be skipped. (This is the S3
+// 'marker' value). If the length of the returned items is equal to
+// maxKeys, there is no indication whether or not the returned list is
 // truncated.
-func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*Item, err error) {
+func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items []*Item, err error) {
 	if maxKeys < 0 {
 		return nil, errors.New("invalid negative maxKeys")
 	}
-	const s3APIMaxFetch = 1000
+	marker := startAt
 	for len(items) < maxKeys {
 		fetchN := maxKeys - len(items)
-		if fetchN > s3APIMaxFetch {
-			fetchN = s3APIMaxFetch
+		if fetchN > maxList {
+			fetchN = maxList
 		}
 		var bres listBucketResults
 		url_ := fmt.Sprintf("http://%s.%s/?marker=%s&max-keys=%d",
-			bucket, c.hostname(), url.QueryEscape(marker(after)), fetchN)
+			bucket, c.hostname(), url.QueryEscape(marker), fetchN)
 		req := newReq(url_)
 		c.Auth.SignRequest(req)
 		res, err := c.httpClient().Do(req)
@@ -194,11 +177,15 @@ func (c *Client) ListBucket(bucket string, after string, maxKeys int) (items []*
 			return nil, err
 		}
 		for _, it := range bres.Contents {
-			if it.Key <= after {
-				return nil, fmt.Errorf("Unexpected response from Amazon: item key %q but wanted greater than %q", it.Key, after)
+			if it.Key == marker && it.Key != startAt {
+				// Skip first dup on pages 2 and higher.
+				continue
+			}
+			if it.Key < startAt {
+				return nil, fmt.Errorf("Unexpected response from Amazon: item key %q but wanted greater than %q", it.Key, startAt)
 			}
 			items = append(items, it)
-			after = it.Key
+			marker = it.Key
 		}
 		if !bres.IsTruncated {
 			break

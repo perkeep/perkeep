@@ -945,16 +945,14 @@ func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int
 	if content, ok := b.ContentRef(); ok {
 		peer := b.peerBlob(content)
 		if peer.File != nil {
-			if peer.File.IsImage() {
+			ii := peer.Image
+			if peer.File.IsImage() && ii != nil && ii.Height > 0 && ii.Width > 0 {
 				image := fmt.Sprintf("thumbnail/%s/%s?mh=%d&tv=%s", peer.BlobRef,
 					url.QueryEscape(peer.File.FileName), thumbSize, images.ThumbnailVersion())
-				if peer.Image != nil {
-					mw, mh := images.ScaledDimensions(
-						int(peer.Image.Width), int(peer.Image.Height),
-						MaxImageSize, thumbSize)
-					return image, mw, mh, true
-				}
-				return image, thumbSize, thumbSize, true
+				mw, mh := images.ScaledDimensions(
+					int(ii.Width), int(ii.Height),
+					MaxImageSize, thumbSize)
+				return image, mw, mh, true
 			}
 
 			// TODO: different thumbnails based on peer.File.MIMEType.
@@ -1218,7 +1216,7 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			return
 		}
 		des.File = &fi
-		if des.File.IsImage() {
+		if des.File.IsImage() && !skipImageInfoLookup(des.File) {
 			imgInfo, err := dr.sh.index.GetImageInfo(br)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -1226,8 +1224,9 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 				} else {
 					dr.addError(br, err)
 				}
+			} else {
+				des.Image = &imgInfo
 			}
-			des.Image = &imgInfo
 		}
 	case "directory":
 		var g syncutil.Group
@@ -1604,4 +1603,11 @@ func (d *DescribedBlob) setMIMEType(mime string) {
 	if strings.HasPrefix(mime, camliTypePrefix) {
 		d.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
 	}
+}
+
+func skipImageInfoLookup(fi *camtypes.FileInfo) bool {
+	// psd photoshop files are not currently indexed (no width/height info available),
+	// so we don't even try to hit the index, which would just log an error.
+	// Instead the UI renders them as files, not images.
+	return fi.MIMEType == "image/vnd.adobe.photoshop"
 }

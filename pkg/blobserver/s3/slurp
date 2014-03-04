@@ -1,0 +1,35 @@
+func (sto *s3Storage) slurpAll() {
+	var mu sync.Mutex
+	var nblobs, nbytes int64
+
+	errc := make(chan error)
+	for i := 0; i < 16; i++ {
+		pfx := fmt.Sprintf("sha1-%x", i)
+		log.Printf("Doing prefix %q", pfx)
+		ctx := context.New()
+		go func() {
+			err := blobserver.EnumerateAllFrom(ctx, sto, pfx, func(sb blob.SizedRef) error {
+				if !strings.HasPrefix(sb.Ref.String(), pfx) {
+					log.Printf("Ref %q doesn't have prefix %q", sb.Ref.String(), pfx)
+					ctx.Cancel()
+					return context.ErrCanceled
+				}
+				mu.Lock()
+				nblobs++
+				nbytes += int64(sb.Size)
+				mu.Unlock()
+				return nil
+			})
+			log.Printf("Enum prefix %q", pfx)
+			errc <- err
+		}()
+	}
+	var lastErr error
+	for i := 0; i < 16; i++ {
+		if err := <-errc; err != nil {
+			log.Printf("enumerate error: %v", err)
+			lastErr = err
+		}
+	}
+	log.Printf("Done enumerating all: %d blobs, %d bytes; err=%v", nblobs, nbytes, lastErr)
+}
