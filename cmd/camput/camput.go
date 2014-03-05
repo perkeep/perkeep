@@ -40,7 +40,7 @@ var (
 	flagProxyLocal = false
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagHaveCache  = true
-	flagBlobDir    = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network.")
+	flagBlobDir    = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network. If the string \"discard\", no blobs are written or sent over the network anywhere.")
 )
 
 var (
@@ -141,6 +141,10 @@ func newUploader() *Uploader {
 	var httpStats *httputil.StatsTransport
 	if d := *flagBlobDir; d != "" {
 		ss, err := dir.New(d)
+		if err != nil && d == "discard" {
+			ss = discardStorage{}
+			err = nil
+		}
 		if err != nil {
 			log.Fatalf("Error using dir %s as storage: %v", d, err)
 		}
