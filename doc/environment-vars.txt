@@ -136,6 +136,10 @@ CAMLI_VAR_DIR (string):
   Path used by pkg/osutil to override operating system specific application
   storage directory. Generally unused.
 
+CAMLI_S3_FAIL_PERCENT (int):
+  Number from 0-100 of what percentage of the time to fail receiving blobs
+  for the S3 handler.
+
 DEV_THROTTLE_KBPS (integer):
 DEV_THROTTLE_LATENCY_MS (integer):
   Rate limit and/or inject latency in pkg/webserver responses. A value of 0
