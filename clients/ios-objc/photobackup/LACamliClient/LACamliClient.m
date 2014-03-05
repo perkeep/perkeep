@@ -28,30 +28,30 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
         _password = password;
 
         if ([[NSFileManager defaultManager]
-                fileExistsAtPath:[self uploadedBlobRefArchivePath]]) {
-            _uploadedBlobRefs = [NSMutableArray
-                arrayWithContentsOfFile:[self uploadedBlobRefArchivePath]];
+                fileExistsAtPath:[self uploadedFilenamesArchivePath]]) {
+            self.uploadedFileNames = [NSMutableArray
+                arrayWithContentsOfFile:[self uploadedFilenamesArchivePath]];
         }
 
-        if (!_uploadedBlobRefs) {
-            _uploadedBlobRefs = [NSMutableArray array];
+        if (!self.uploadedFileNames) {
+            self.uploadedFileNames = [NSMutableArray array];
         }
 
         [LACamliUtil logText:@[
                                  @"uploads in cache: ",
                                  [NSString stringWithFormat:@"%lu", (unsigned long)
-                                                            [_uploadedBlobRefs count]]
+                                                            [self.uploadedFileNames count]]
                              ]];
 
-        _uploadQueue = [[NSOperationQueue alloc] init];
-        _uploadQueue.maxConcurrentOperationCount = 1;
-        _totalUploads = 0;
+        self.uploadQueue = [[NSOperationQueue alloc] init];
+        self.uploadQueue.maxConcurrentOperationCount = 1;
+        self.totalUploads = 0;
 
-        _isAuthorized = false;
-        _authorizing = false;
+        self.isAuthorized = false;
+        self.authorizing = false;
 
-        _sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
-        _sessionConfig.HTTPAdditionalHeaders = @{
+        self.sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
+        self.sessionConfig.HTTPAdditionalHeaders = @{
             @"Authorization" :
             [NSString stringWithFormat:@"Basic %@", [self encodedAuth]]
         };
@@ -65,7 +65,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 - (BOOL)readyToUpload
 {
     // can't upload if we don't have credentials
-    if (!_username || !_password || !_serverURL) {
+    if (!self.username || !self.password || !self.serverURL) {
         [LACamliUtil logText:@[
                                  @"not ready: no u/p/s"
                              ]];
@@ -73,7 +73,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
     }
 
     // don't want to start a new upload if we're already going
-    if ([_uploadQueue operationCount] > 0) {
+    if ([self.uploadQueue operationCount] > 0) {
         [LACamliUtil logText:@[
                                  @"not ready: already uploading"
                              ]];
@@ -94,7 +94,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
     [LACamliUtil statusText:@[
                                 @"discovering..."
                             ]];
-    _authorizing = YES;
+    self.authorizing = YES;
 
     NSURLSessionConfiguration* discoverConfig =
         [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -108,7 +108,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                                       delegate:self
                                  delegateQueue:nil];
 
-    NSURLSessionDataTask *data = [discoverSession dataTaskWithURL:_serverURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error)
+    NSURLSessionDataTask *data = [discoverSession dataTaskWithURL:self.serverURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error)
     {
 
         if (error) {
@@ -151,8 +151,8 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                                               serverSaid]
                             ]];
 
-                if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
-                    [_delegate finishedDiscovery:@{
+                if ([self.delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                    [self.delegate finishedDiscovery:@{
                                                      @"error" : serverSaid
                                                  }];
                 }
@@ -162,9 +162,9 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                                                                        options:0
                                                                          error:&err];
                 if (!err) {
-                    _blobRootComponent = config[@"blobRoot"];
-                    _isAuthorized = YES;
-                    [_uploadQueue setSuspended:NO];
+                    self.blobRootComponent = config[@"blobRoot"];
+                    self.isAuthorized = YES;
+                    [self.uploadQueue setSuspended:NO];
 
                     // files may have already been rejected for being previously uploaded when
                     // dicovery returns, this doesn't kick off a new check for files. The next
@@ -172,7 +172,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 
                     // if the storage generation changes, zero the saved array
                     if (![[self storageToken] isEqualToString:config[@"storageGeneration"]]) {
-                        _uploadedBlobRefs = [NSMutableArray array];
+                        self.uploadedFileNames = [NSMutableArray array];
                         [self saveStorageToken:config[@"storageGeneration"]];
                     }
 
@@ -187,8 +187,8 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                                                 @"discovery OK"
                                             ]];
 
-                    if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
-                        [_delegate finishedDiscovery:config];
+                    if ([self.delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                        [self.delegate finishedDiscovery:config];
                     }
                 } else {
                     [LACamliUtil
@@ -202,8 +202,8 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                                     [err description]
                                 ]];
 
-                    if ([_delegate respondsToSelector:@selector(finishedDiscovery:)]) {
-                        [_delegate finishedDiscovery:@{
+                    if ([self.delegate respondsToSelector:@selector(finishedDiscovery:)]) {
+                        [self.delegate finishedDiscovery:@{
                                                          @"error" : [err description]
                                                      }];
                     }
@@ -217,19 +217,12 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 
 #pragma mark - upload methods
 
-- (BOOL)fileAlreadyUploaded:(LACamliFile*)file
+- (BOOL)fileAlreadyUploaded:(NSString*)filename
 {
-    NSParameterAssert(file);
+    NSParameterAssert(filename);
 
-    if ([_uploadedBlobRefs containsObject:file.blobRef]) {
+    if ([self.uploadedFileNames containsObject:filename]) {
         return YES;
-    }
-
-    // also check to make sure it's not in the queue waiting
-    for (LACamliUploadOperation* op in [_uploadQueue operations]) {
-        if ([op.file.blobRef isEqualToString:file.blobRef]) {
-            return YES;
-        }
     }
 
     return NO;
@@ -240,14 +233,14 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 {
     NSParameterAssert(file);
 
-    _totalUploads++;
+    self.totalUploads++;
 
     if (![self isAuthorized]) {
-        [_uploadQueue setSuspended:YES];
+        [self.uploadQueue setSuspended:YES];
 
-        if (!_authorizing) {
-            [self discoveryWithUsername:_username
-                            andPassword:_password];
+        if (!self.authorizing) {
+            [self discoveryWithUsername:self.username
+                            andPassword:self.password];
         }
     }
 
@@ -258,8 +251,8 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
     __block LACamliUploadOperation* weakOp = op;
     op.completionBlock = ^{
         LALog(@"finished op %@", file.blobRef);
-        if ([_delegate respondsToSelector:@selector(finishedUploadOperation:)]) {
-            [_delegate performSelector:@selector(finishedUploadOperation:)
+        if ([self.delegate respondsToSelector:@selector(finishedUploadOperation:)]) {
+            [self.delegate performSelector:@selector(finishedUploadOperation:)
                               onThread:[NSThread mainThread]
                             withObject:weakOp
                          waitUntilDone:NO];
@@ -268,13 +261,13 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
         if (weakOp.failedTransfer) {
             LALog(@"failed transfer");
         } else {
-            [_uploadedBlobRefs addObject:file.blobRef];
-            [_uploadedBlobRefs writeToFile:[self uploadedBlobRefArchivePath]
+            [self.uploadedFileNames addObject:file.name];
+            [self.uploadedFileNames writeToFile:[self uploadedFilenamesArchivePath]
                                 atomically:YES];
         }
 
-        if (![_uploadQueue operationCount]) {
-            _totalUploads = 0;
+        if (![self.uploadQueue operationCount]) {
+            self.totalUploads = 0;
             [LACamliUtil statusText:@[@"done uploading"]];
         }
 
@@ -283,14 +276,14 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
         }
     };
 
-    if ([_delegate respondsToSelector:@selector(addedUploadOperation:)]) {
-        [_delegate performSelector:@selector(addedUploadOperation:)
+    if ([self.delegate respondsToSelector:@selector(addedUploadOperation:)]) {
+        [self.delegate performSelector:@selector(addedUploadOperation:)
                           onThread:[NSThread mainThread]
                         withObject:op
                      waitUntilDone:NO];
     }
 
-    [_uploadQueue addOperation:op];
+    [self.uploadQueue addOperation:op];
 }
 
 #pragma mark - utility
@@ -315,7 +308,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 
 - (NSURL*)blobRoot
 {
-    return [_serverURL URLByAppendingPathComponent:_blobRootComponent];
+    return [self.serverURL URLByAppendingPathComponent:self.blobRootComponent];
 }
 
 - (NSURL*)statURL
@@ -330,17 +323,17 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
 
 - (NSString*)encodedAuth
 {
-    NSString* auth = [NSString stringWithFormat:@"%@:%@", _username, _password];
+    NSString* auth = [NSString stringWithFormat:@"%@:%@", self.username, self.password];
 
     return [LACamliUtil base64EncodedStringFromString:auth];
 }
 
-- (NSString*)uploadedBlobRefArchivePath
+- (NSString*)uploadedFilenamesArchivePath
 {
     NSString* documents = NSSearchPathForDirectoriesInDomains(
         NSDocumentDirectory, NSUserDomainMask, YES)[0];
 
-    return [documents stringByAppendingPathComponent:@"uploadedRefs.plist"];
+    return [documents stringByAppendingPathComponent:@"uploadedFilenames.plist"];
 }
 
 @end

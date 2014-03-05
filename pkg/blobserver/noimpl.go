@@ -30,29 +30,29 @@ import (
 // implemented error for all operations.
 type NoImplStorage struct{}
 
-var _ Storage = (*NoImplStorage)(nil)
+var _ Storage = NoImplStorage{}
 
-func (nis *NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
+func (NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (nis *NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (nis *NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
+func (NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
 	err = errors.New("ReceiveBlob not implemented")
 	return
 }
 
-func (nis *NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	return errors.New("Stat not implemented")
 }
 
-func (nis *NoImplStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (NoImplStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return errors.New("EnumerateBlobs not implemented")
 }
 
-func (nis *NoImplStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (NoImplStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("Remove not implemented")
 }

@@ -23,7 +23,6 @@ static NSString* const CamliCredentialsKey = @"org.camlistore.credentials";
 @property CLLocationManager* locationManager;
 
 @property LACamliClient* client;
-// kicked out of the library if we don't have a reference and still want to play with the books
 @property ALAssetsLibrary* library;
 
 - (void)loadCredentials;
