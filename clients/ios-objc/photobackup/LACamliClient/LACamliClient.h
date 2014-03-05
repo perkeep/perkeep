@@ -31,7 +31,7 @@
 @property NSOperationQueue* uploadQueue;
 @property NSUInteger totalUploads;
 
-@property NSMutableArray* uploadedBlobRefs;
+@property NSMutableArray* uploadedFileNames;
 @property UIBackgroundTaskIdentifier backgroundID;
 
 @property BOOL isAuthorized;
@@ -41,7 +41,7 @@
 - (BOOL)readyToUpload;
 - (void)discoveryWithUsername:(NSString*)user andPassword:(NSString*)pass;
 
-- (BOOL)fileAlreadyUploaded:(LACamliFile*)file;
+- (BOOL)fileAlreadyUploaded:(NSString*)filename;
 - (void)addFile:(LACamliFile*)file withCompletion:(void (^)())completion;
 
 - (NSURL*)statURL;
