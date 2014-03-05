@@ -45,20 +45,27 @@ import (
 type s3Storage struct {
 	s3Client *s3.Client
 	bucket   string
+	hostname string
+}
+
+func (s *s3Storage) String() string {
+	return fmt.Sprintf("\"s3\" blob storage at host %q, bucket %q", s.hostname, s.bucket)
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	hostname := config.OptionalString("hostname", "s3.amazonaws.com")
 	client := &s3.Client{
 		Auth: &s3.Auth{
 			AccessKey:       config.RequiredString("aws_access_key"),
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
-			Hostname:        config.OptionalString("hostname", ""),
+			Hostname:        hostname,
 		},
 		HTTPClient: http.DefaultClient,
 	}
 	sto := &s3Storage{
 		s3Client: client,
 		bucket:   config.RequiredString("bucket"),
+		hostname: hostname,
 	}
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {

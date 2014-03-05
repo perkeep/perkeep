@@ -19,10 +19,13 @@ package s3
 import (
 	"bytes"
 	"crypto/md5"
+	"errors"
 	"hash"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
+	"strconv"
 
 	"camlistore.org/pkg/blob"
 )
@@ -95,6 +98,8 @@ func (as *amazonSlurper) Cleanup() {
 	}
 }
 
+var failPercent, _ = strconv.Atoi(os.Getenv("CAMLI_S3_FAIL_PERCENT"))
+
 func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
 	slurper := newAmazonSlurper(b)
 	defer slurper.Cleanup()
@@ -103,6 +108,13 @@ func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRe
 	if err != nil {
 		return sr, err
 	}
+
+	if failPercent > 0 && failPercent > rand.Intn(100) {
+		// TODO(bradfitz): move this to its own package/type, for re-use in
+		// many places.
+		return sr, errors.New("fake injected error for testing")
+	}
+
 	err = sto.s3Client.PutObject(b.String(), sto.bucket, slurper.md5, size, slurper)
 	if err != nil {
 		return sr, err
