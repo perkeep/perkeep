@@ -109,6 +109,10 @@ func New(s sorted.KeyValue) *Index {
 	return idx
 }
 
+func (x *Index) String() string {
+	return fmt.Sprintf("Camlistore index, using key/value implementation %T", x.s)
+}
+
 func (x *Index) isEmpty() bool {
 	iter := x.s.Find("", "")
 	hasRows := iter.Next()

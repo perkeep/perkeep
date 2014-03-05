@@ -58,6 +58,10 @@ type DiskStorage struct {
 	gen *local.Generationer
 }
 
+func (ds *DiskStorage) String() string {
+	return fmt.Sprintf("\"filesystem\" file-per-blob at %s", ds.root)
+}
+
 // IsDir reports whether root is a localdisk (file-per-blob) storage directory.
 func IsDir(root string) (bool, error) {
 	if osutil.DirExists(filepath.Join(root, blob.RefFromString("").HashName())) {

@@ -89,6 +89,10 @@ type storage struct {
 	*local.Generationer
 }
 
+func (s *storage) String() string {
+	return fmt.Sprintf("\"diskpacked\" blob packs at %s", s.root)
+}
+
 var (
 	readVar     = expvar.NewMap("diskpacked-read-bytes")
 	readTotVar  = expvar.NewMap("diskpacked-total-read-bytes")
