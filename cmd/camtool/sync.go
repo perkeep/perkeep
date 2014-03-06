@@ -361,7 +361,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		mismatches = append(mismatches, br)
 	}
 
-	go client.ListMissingDestinationBlobs(destNotHaveBlobs, onMismatch, readSrcBlobs, destBlobs)
+	go blobserver.ListMissingDestinationBlobs(destNotHaveBlobs, onMismatch, readSrcBlobs, destBlobs)
 
 	// Handle three-legged mode if tc is provided.
 	checkThirdError := func() {} // default nop
@@ -379,7 +379,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 			}
 		}
 		thirdNeedBlobs := make(chan blob.SizedRef)
-		go client.ListMissingDestinationBlobs(thirdNeedBlobs, onMismatch, destNotHaveBlobs, thirdBlobs)
+		go blobserver.ListMissingDestinationBlobs(thirdNeedBlobs, onMismatch, destNotHaveBlobs, thirdBlobs)
 		syncBlobs = thirdNeedBlobs
 		firstHopDest = thirdLeg
 	}
