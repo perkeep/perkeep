@@ -518,6 +518,9 @@ func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, 
 func (sh *SyncHandler) addBlobToCopy(sb blob.SizedRef) bool {
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
+	if _, dup := sh.needCopy[sb.Ref]; dup {
+		return false
+	}
 
 	sh.needCopy[sb.Ref] = sb.Size
 	sh.bytesRemain += int64(sb.Size)
