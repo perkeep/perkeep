@@ -415,6 +415,25 @@ cam.ServerConnection.prototype.changeAttribute_ = function(permanode, claimType,
 	);
 };
 
+// @param {string} permanode Permanode to delete.
+// @param {Function} success Success callback.
+// @param {?Function} opt_fail Optional fail callback.
+cam.ServerConnection.prototype.newDeleteClaim = function(permanode, success, opt_fail) {
+	var json = {
+		"camliVersion": 1,
+		"camliType": "claim",
+		"target": permanode,
+		"claimType": "delete",
+		"claimDate": dateToRfc3339String(new Date())
+	};
+	this.sign_(json,
+		goog.bind(this.handleSignClaim_, this, success, this.safeFail_(opt_fail)),
+		function(msg) {
+			this.safeFail_(opt_fail)("sign delete fail: " + msg);
+		}
+	);
+};
+
 // @param {Function} success Success callback.
 // @param {?Function} opt_fail Optional fail callback.
 // @param {string} signed Signed string to upload

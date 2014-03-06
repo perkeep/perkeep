@@ -36,7 +36,7 @@ cam.Navigator = function(win, location, history, opt_beforeOnload) {
 };
 
 // Client should set this to handle navigation.
-// If this method returns true, then Navigator considers the navigation handled locally, and will add an entry to history using pushState(). If this method returns false, Navigator lets the navigation fall though to the network.
+// If this method returns true, then Navigator considers the navigation handled locally, and will add an entry to history using pushState(). If this method returns false, Navigator lets the navigation fall through to the browser.
 // @param goog.Uri newURL The URL to navigate to. At this point location.href has already been updated - this is just the parsed representation.
 // @return boolean Whether the navigation was handled locally.
 cam.Navigator.prototype.onNavigate = function(newURL) {};
