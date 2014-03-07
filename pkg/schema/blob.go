@@ -422,7 +422,7 @@ func (bb *Builder) SetFileName(name string) *Builder {
 	if utf8.ValidString(baseName) {
 		bb.m["fileName"] = baseName
 	} else {
-		bb.m["fileNameBytes"] = []uint8(baseName)
+		bb.m["fileNameBytes"] = mixedArrayFromString(baseName)
 	}
 	return bb
 }
@@ -433,9 +433,44 @@ func (bb *Builder) SetSymlinkTarget(target string) *Builder {
 	if utf8.ValidString(target) {
 		bb.m["symlinkTarget"] = target
 	} else {
-		bb.m["symlinkTargetBytes"] = []uint8(target)
+		bb.m["symlinkTargetBytes"] = mixedArrayFromString(target)
 	}
 	return bb
+}
+
+func mixedArrayFromString(s string) []interface{} {
+	buf := []byte(s)
+	var name []interface{}
+	n := 0
+	for n < len(buf) {
+		part, offset := nextStringOrByte(buf[n:])
+		name = append(name, part)
+		n += offset
+	}
+
+	return name
+}
+
+func nextStringOrByte(b []byte) (interface{}, int) {
+	n := 0
+	var s []byte
+	for n < len(b) {
+		r, size := utf8.DecodeRune(b[n:])
+		if r == utf8.RuneError {
+			// If we already have a UTF8 string segment, return it
+			if len(s) > 0 {
+				return string(s), n
+			}
+			// Return the single byte and an offset of 1
+			return b[n], 1
+		}
+		n += size // We have consumed size bytes
+		c := make([]byte, utf8.RuneLen(r))
+		_ = utf8.EncodeRune(c, r)
+		s = append(s, c...)
+	}
+
+	return string(s), n
 }
 
 // IsClaimType returns whether this blob builder is for a type

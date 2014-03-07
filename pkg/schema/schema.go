@@ -219,10 +219,10 @@ type superset struct {
 	// not be accessed directly.  Use the FileNameString accessor
 	// instead, which also sanitizes malicious values.
 	FileName      string        `json:"fileName"`
-	FileNameBytes []interface{} `json:"fileNameBytes"` // TODO: needs custom UnmarshalJSON?
+	FileNameBytes []interface{} `json:"fileNameBytes"`
 
 	SymlinkTarget      string        `json:"symlinkTarget"`
-	SymlinkTargetBytes []interface{} `json:"symlinkTargetBytes"` // TODO: needs custom UnmarshalJSON?
+	SymlinkTargetBytes []interface{} `json:"symlinkTargetBytes"`
 
 	UnixPermission string `json:"unixPermission"`
 	UnixOwnerId    int    `json:"unixOwnerId"`
