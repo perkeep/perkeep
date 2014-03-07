@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -82,10 +83,11 @@ type SyncHandler struct {
 	totalCopies    int64
 	totalCopyBytes int64
 	totalErrors    int64
-	vshards        int // validation shards. if 0, validation not running
-	vshardDone     int // shards validated
-	vblobCount     int // number of blobs validated as okay
-	vblobBytes     int // number of blob bytes validated as okay
+	vshards        int   // validation shards. if 0, validation not running
+	vshardDone     int   // shards validated
+	vmissing       int64 // missing blobs found during validat
+	vdestCount     int   // number of blobs seen on dest during validate
+	vdestBytes     int64 // number of blob bytes seen on dest during validate
 }
 
 var (
@@ -105,6 +107,10 @@ func init() {
 	blobserver.RegisterHandlerConstructor("sync", newSyncFromConfig)
 }
 
+// TODO: this is is temporary. should delete, or decide when it's on by default (probably always).
+// Then need genconfig option to disable it.
+var validateOnStartDefault, _ = strconv.ParseBool(os.Getenv("CAMLI_SYNC_VALIDATE"))
+
 func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	var (
 		from           = conf.RequiredString("from")
@@ -114,7 +120,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		idle           = conf.OptionalBool("idle", false)
 		queueConf      = conf.OptionalObject("queue")
 		copierPoolSize = conf.OptionalInt("copierPoolSize", 5)
-		validate       = conf.OptionalBool("validateOnStart", false)
+		validate       = conf.OptionalBool("validateOnStart", validateOnStartDefault)
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -290,6 +296,19 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	f("<li>Previous copy errors: %d %s</li>", sh.totalErrors, clarification)
 	f("</ul>")
 
+	f("<h2>Validation</h2>")
+	if sh.vshards == 0 {
+		f("Disabled")
+	} else {
+		f("<p>Background scan of source and destination to ensure that the destination has everything the source does, or is at least enqueued to sync.</p>")
+		f("<ul>")
+		f("<li>Shards complete: %d/%d (%.1f%%)</li>", sh.vshardDone, sh.vshards, 100*float64(sh.vshardDone)/float64(sh.vshards))
+		f("<li>Blobs found missing + fixed: %d</li>", sh.vmissing)
+		f("<li>Dest blobs seen: %d</li>", sh.vdestCount)
+		f("<li>Dest bytes seen: %d</li>", sh.vdestBytes)
+		f("</ul>")
+	}
+
 	if len(sh.copying) > 0 {
 		f("<h2>Currently Copying</h2><ul>")
 		copying := make([]blob.Ref, 0, len(sh.copying))
@@ -422,6 +441,7 @@ FeedWork:
 		case workch <- sb:
 			toCopy++
 		default:
+			// Buffer full. Enough for this batch. Will get it later.
 			break FeedWork
 		}
 	}
@@ -429,16 +449,9 @@ FeedWork:
 	for i := 0; i < toCopy; i++ {
 		sh.setStatusf("Copying blobs")
 		res := <-resch
-		sh.mu.Lock()
 		if res.err == nil {
 			nCopied++
-			sh.totalCopies++
-			sh.totalCopyBytes += int64(res.sb.Size)
-			sh.recentCopyTime = time.Now().UTC()
-		} else {
-			sh.totalErrors++
 		}
-		sh.mu.Unlock()
 	}
 
 	if err := <-errch; err != nil {
@@ -478,6 +491,11 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	sh.mu.Lock()
 	sh.copying[br] = cs
 	sh.mu.Unlock()
+
+	if strings.Contains(storageDesc(sh.to), "bradfitz-camlistore-pt") {
+		//sh.logf("LIES NOT ACTUALLY COPYING")
+		//return nil
+	}
 
 	if sb.Size > constants.MaxBlobSize {
 		return fmt.Errorf("blob size %d too large; max blob size is %d", sb.Size, constants.MaxBlobSize)
@@ -605,14 +623,16 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 	}()
 	ctx := context.New()
 	defer ctx.Cancel()
-	src, serrc := enumeratePrefix(ctx, sh.from, pfx)
-	dst, derrc := enumeratePrefix(ctx, sh.to, pfx)
+	src, serrc := sh.startValidatePrefix(ctx, pfx, false)
+	dst, derrc := sh.startValidatePrefix(ctx, pfx, true)
 
 	missing := make(chan blob.SizedRef, 8)
 	go blobserver.ListMissingDestinationBlobs(missing, func(blob.Ref) {}, src, dst)
 	for sb := range missing {
+		sh.mu.Lock()
+		sh.vmissing++
+		sh.mu.Unlock()
 		// TODO: stats for missing blobs found.
-		// TODO: stats for good blobs validated too.
 		sh.enqueue(sb)
 	}
 
@@ -627,7 +647,14 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 
 var errNotPrefix = errors.New("sentinel error: hit blob into the next shard")
 
-func enumeratePrefix(ctx *context.Context, e blobserver.BlobEnumerator, pfx string) (<-chan blob.SizedRef, <-chan error) {
+// doDest is false for source and true for dest.
+func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doDest bool) (<-chan blob.SizedRef, <-chan error) {
+	var e blobserver.BlobEnumerator
+	if doDest {
+		e = sh.to
+	} else {
+		e = sh.from
+	}
 	c := make(chan blob.SizedRef, 64)
 	errc := make(chan error, 1)
 	go func() {
@@ -639,6 +666,12 @@ func enumeratePrefix(ctx *context.Context, e blobserver.BlobEnumerator, pfx stri
 				// that doesn't involve call String().
 				if !strings.HasPrefix(sb.Ref.String(), pfx) {
 					return errNotPrefix
+				}
+				if doDest {
+					sh.mu.Lock()
+					sh.vdestCount++
+					sh.vdestBytes += int64(sb.Size)
+					sh.mu.Unlock()
 				}
 				return nil
 			case <-ctx.Done():
@@ -732,6 +765,7 @@ func (cs *copyStatus) setError(err error) {
 		return
 	}
 
+	sh.totalErrors++
 	sh.logf("error copying %v: %v", br, err)
 	sh.lastFail[br] = failDetail{
 		when: now,
