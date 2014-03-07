@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 )
 
@@ -44,6 +46,11 @@ const (
 	maxRecentErrors   = 20
 	queueSyncInterval = 5 * time.Second
 )
+
+type blobReceiverEnumerator interface {
+	blobserver.BlobReceiver
+	blobserver.BlobEnumerator
+}
 
 // The SyncHandler handles async replication in one direction between
 // a pair storage targets, a source and target.
@@ -55,7 +62,7 @@ type SyncHandler struct {
 	// TODO: rate control tunables
 	fromName, toName string
 	from             blobserver.Storage
-	to               blobserver.BlobReceiver
+	to               blobReceiverEnumerator
 	queue            sorted.KeyValue
 	toIndex          bool // whether this sync is from a blob storage to an index
 	idle             bool // if true, the handler does nothing other than providing the discovery.
@@ -75,6 +82,10 @@ type SyncHandler struct {
 	totalCopies    int64
 	totalCopyBytes int64
 	totalErrors    int64
+	vshards        int // validation shards. if 0, validation not running
+	vshardDone     int // shards validated
+	vblobCount     int // number of blobs validated as okay
+	vblobBytes     int // number of blob bytes validated as okay
 }
 
 var (
@@ -103,6 +114,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		idle           = conf.OptionalBool("idle", false)
 		queueConf      = conf.OptionalObject("queue")
 		copierPoolSize = conf.OptionalInt("copierPoolSize", 5)
+		validate       = conf.OptionalBool("validateOnStart", false)
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -166,6 +178,10 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		go sh.syncLoop()
 	}
 
+	if validate {
+		go sh.runFullValidation()
+	}
+
 	blobserver.GetHub(fromBs).AddReceiveHook(sh.enqueue)
 	return sh, nil
 }
@@ -184,7 +200,7 @@ func (sh *SyncHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 }
 
 func newSyncHandler(fromName, toName string,
-	from blobserver.Storage, to blobserver.BlobReceiver,
+	from blobserver.Storage, to blobReceiverEnumerator,
 	queue sorted.KeyValue) *SyncHandler {
 	return &SyncHandler{
 		copierPoolSize: 2,
@@ -547,6 +563,105 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 		return err
 	}
 	return nil
+}
+
+func (sh *SyncHandler) runFullValidation() {
+	sh.logf("Running full validation; determining validation shards...")
+	shards := sh.shardPrefixes()
+	sh.logf("full validation beginning with %d shards", len(shards))
+
+	var wg sync.WaitGroup
+	wg.Add(len(shards))
+
+	sh.mu.Lock()
+	sh.vshards = len(shards)
+	sh.mu.Unlock()
+
+	const maxShardWorkers = 30 // arbitrary
+	gate := syncutil.NewGate(maxShardWorkers)
+
+	for _, pfx := range shards {
+		pfx := pfx
+		gate.Start()
+		go func() {
+			wg.Done()
+			defer gate.Done()
+			sh.validateShardPrefix(pfx)
+		}()
+	}
+	wg.Wait()
+	sh.logf("Validation complete")
+}
+
+func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
+	defer func() {
+		if err != nil {
+			sh.logf("Failed to validate prefix %s: %v", pfx, err)
+			return
+		}
+		sh.mu.Lock()
+		sh.vshardDone++
+		sh.mu.Unlock()
+	}()
+	ctx := context.New()
+	defer ctx.Cancel()
+	src, serrc := enumeratePrefix(ctx, sh.from, pfx)
+	dst, derrc := enumeratePrefix(ctx, sh.to, pfx)
+
+	missing := make(chan blob.SizedRef, 8)
+	go blobserver.ListMissingDestinationBlobs(missing, func(blob.Ref) {}, src, dst)
+	for sb := range missing {
+		// TODO: stats for missing blobs found.
+		// TODO: stats for good blobs validated too.
+		sh.enqueue(sb)
+	}
+
+	if err := <-serrc; err != nil {
+		return fmt.Errorf("Error enumerating source %s for validating shard %s: %v", sh.fromName, pfx, err)
+	}
+	if err := <-derrc; err != nil {
+		return fmt.Errorf("Error enumerating target %s for validating shard %s: %v", sh.toName, pfx, err)
+	}
+	return nil
+}
+
+var errNotPrefix = errors.New("sentinel error: hit blob into the next shard")
+
+func enumeratePrefix(ctx *context.Context, e blobserver.BlobEnumerator, pfx string) (<-chan blob.SizedRef, <-chan error) {
+	c := make(chan blob.SizedRef, 64)
+	errc := make(chan error, 1)
+	go func() {
+		defer close(c)
+		err := blobserver.EnumerateAllFrom(ctx, e, pfx, func(sb blob.SizedRef) error {
+			select {
+			case c <- sb:
+				// TODO: could add a more efficient method on blob.Ref to do this,
+				// that doesn't involve call String().
+				if !strings.HasPrefix(sb.Ref.String(), pfx) {
+					return errNotPrefix
+				}
+				return nil
+			case <-ctx.Done():
+				return context.ErrCanceled
+			}
+		})
+		if err == errNotPrefix {
+			err = nil
+		}
+		errc <- err
+	}()
+	return c, errc
+}
+
+func (sh *SyncHandler) shardPrefixes() []string {
+	var pfx []string
+	// TODO(bradfitz): do limit=1 enumerates against sh.from and sh.to with varying
+	// "after" values to determine all the blobref types on both sides.
+	// For now, be lazy and assume only sha1:
+	for i := 0; i < 256; i++ {
+		pfx = append(pfx, fmt.Sprintf("sha1-%02x", i))
+	}
+	return pfx
 }
 
 func (sh *SyncHandler) newCopyStatus(sb blob.SizedRef) *copyStatus {
