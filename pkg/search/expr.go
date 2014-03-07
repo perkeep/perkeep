@@ -32,8 +32,9 @@ import (
 )
 
 var (
-	tagExpr   = regexp.MustCompile(`^tag:(\w+)$`)
-	titleExpr = regexp.MustCompile(`^title:(\S+)$`) // TODO: proper expr parser supporting quoting
+	tagExpr   = regexp.MustCompile(`^tag:(.+)$`)
+	titleExpr = regexp.MustCompile(`^title:(.+)$`) // TODO: proper expr parser supporting quoting
+	attrExpr  = regexp.MustCompile(`^attr:(\w+):(.+)$`)
 
 	// used for width/height ranges. 10 is max length of 32-bit
 	// int (strconv.Atoi on 32-bit platforms), even though a max
@@ -257,6 +258,16 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 				}
 			}
 			and(locConstraint)
+			continue
+		}
+		if m := attrExpr.FindStringSubmatch(word); m != nil {
+			and(&Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr:       m[1],
+					SkipHidden: true,
+					Value:      m[2],
+				},
+			})
 			continue
 		}
 		log.Printf("Unknown search expression word %q", word)
