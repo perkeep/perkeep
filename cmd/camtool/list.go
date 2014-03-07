@@ -71,14 +71,14 @@ func (c *listCmd) RunCommand(args []string) error {
 		return c.syncCmd.RunCommand(args)
 	}
 
-	stdout := os.Stdout
-	defer func() { os.Stdout = stdout }()
+	stdout := cmdmain.Stdout
+	defer func() { cmdmain.Stdout = stdout }()
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("Could not create pipe to read from stdout: %v", err)
 	}
 	defer pr.Close()
-	os.Stdout = pw
+	cmdmain.Stdout = pw
 
 	if err := c.setClient(); err != nil {
 		return err
@@ -107,7 +107,12 @@ func (c *listCmd) RunCommand(args []string) error {
 			return fmt.Errorf("Error when describing blobs %v: %v", blobRefs, err)
 		}
 		for _, v := range blobRefs {
-			blob := described.Meta[v.String()]
+			blob, ok := described.Meta[v.String()]
+			if !ok {
+				// This can happen if the index is out of sync with the storage we enum from.
+				fmt.Fprintf(stdout, "%v <not described>\n", v)
+				continue
+			}
 			detailed := detail(blob)
 			if detailed != "" {
 				detailed = fmt.Sprintf("\t%v", detailed)
