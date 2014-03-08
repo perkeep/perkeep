@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
@@ -41,6 +42,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
+	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 )
 
 const (
@@ -83,11 +85,11 @@ type SyncHandler struct {
 	totalCopies    int64
 	totalCopyBytes int64
 	totalErrors    int64
-	vshards        int   // validation shards. if 0, validation not running
-	vshardDone     int   // shards validated
-	vmissing       int64 // missing blobs found during validat
-	vdestCount     int   // number of blobs seen on dest during validate
-	vdestBytes     int64 // number of blob bytes seen on dest during validate
+	vshards        []string // validation shards. if 0, validation not running
+	vshardDone     int      // shards validated
+	vmissing       int64    // missing blobs found during validat
+	vdestCount     int      // number of blobs seen on dest during validate
+	vdestBytes     int64    // number of blob bytes seen on dest during validate
 }
 
 var (
@@ -185,7 +187,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 	}
 
 	if validate {
-		go sh.runFullValidation()
+		go sh.startFullValidation()
 	}
 
 	blobserver.GetHub(fromBs).AddReceiveHook(sh.enqueue)
@@ -267,6 +269,18 @@ func (sh *SyncHandler) readQueueToMemory() error {
 }
 
 func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "POST" {
+		if req.FormValue("mode") == "validate" {
+			token := req.FormValue("token")
+			if xsrftoken.Valid(token, auth.ProcessRandom(), "user", "runFullValidate") {
+				sh.startFullValidation()
+				http.Redirect(rw, req, "./", http.StatusFound)
+			}
+		}
+		http.Error(rw, "Bad POST request", http.StatusBadRequest)
+		return
+	}
+
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	f := func(p string, a ...interface{}) {
@@ -297,12 +311,17 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	f("</ul>")
 
 	f("<h2>Validation</h2>")
-	if sh.vshards == 0 {
+	if len(sh.vshards) == 0 {
 		f("Disabled")
+		token := xsrftoken.Generate(auth.ProcessRandom(), "user", "runFullValidate")
+		f("<form method='POST'><input type='hidden' name='mode' value='validate'><input type='hidden' name='token' value='%s'><input type='submit' value='Start validation'></form>", token)
 	} else {
 		f("<p>Background scan of source and destination to ensure that the destination has everything the source does, or is at least enqueued to sync.</p>")
 		f("<ul>")
-		f("<li>Shards complete: %d/%d (%.1f%%)</li>", sh.vshardDone, sh.vshards, 100*float64(sh.vshardDone)/float64(sh.vshards))
+		f("<li>Shards complete: %d/%d (%.1f%%)</li>",
+			sh.vshardDone,
+			len(sh.vshards),
+			100*float64(sh.vshardDone)/float64(len(sh.vshards)))
 		f("<li>Blobs found missing + fixed: %d</li>", sh.vmissing)
 		f("<li>Dest blobs seen: %d</li>", sh.vdestCount)
 		f("<li>Dest bytes seen: %d</li>", sh.vdestBytes)
@@ -583,17 +602,37 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 	return nil
 }
 
-func (sh *SyncHandler) runFullValidation() {
+func (sh *SyncHandler) startFullValidation() {
+	sh.mu.Lock()
+	if len(sh.vshards) != 0 {
+		sh.mu.Unlock()
+		return
+	}
+	sh.mu.Unlock()
+
 	sh.logf("Running full validation; determining validation shards...")
 	shards := sh.shardPrefixes()
-	sh.logf("full validation beginning with %d shards", len(shards))
-
-	var wg sync.WaitGroup
-	wg.Add(len(shards))
 
 	sh.mu.Lock()
-	sh.vshards = len(shards)
+	if len(sh.vshards) != 0 {
+		sh.mu.Unlock()
+		return
+	}
+	sh.vshards = shards
 	sh.mu.Unlock()
+
+	go sh.runFullValidation()
+}
+
+func (sh *SyncHandler) runFullValidation() {
+	var wg sync.WaitGroup
+
+	sh.mu.Lock()
+	shards := sh.vshards
+	wg.Add(len(shards))
+	sh.mu.Unlock()
+
+	sh.logf("full validation beginning with %d shards", len(shards))
 
 	const maxShardWorkers = 30 // arbitrary
 	gate := syncutil.NewGate(maxShardWorkers)
