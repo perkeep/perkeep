@@ -93,7 +93,7 @@ func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
 func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
-	req := newReq("http://" + bucket + "." + c.hostname() + "/" + name)
+	req := newReq("https://" + bucket + "." + c.hostname() + "/" + name)
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
@@ -110,7 +110,7 @@ func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
 }
 
 func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
-	req := newReq("http://" + bucket + "." + c.hostname() + "/" + name)
+	req := newReq("https://" + bucket + "." + c.hostname() + "/" + name)
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
@@ -163,7 +163,7 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 			fetchN = maxList
 		}
 		var bres listBucketResults
-		url_ := fmt.Sprintf("http://%s.%s/?marker=%s&max-keys=%d",
+		url_ := fmt.Sprintf("https://%s.%s/?marker=%s&max-keys=%d",
 			bucket, c.hostname(), url.QueryEscape(marker), fetchN)
 		req := newReq(url_)
 		c.Auth.SignRequest(req)
@@ -195,7 +195,7 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 }
 
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
-	url_ := fmt.Sprintf("http://%s.%s/%s", bucket, c.hostname(), key)
+	url_ := fmt.Sprintf("https://%s.%s/%s", bucket, c.hostname(), key)
 	req := newReq(url_)
 	c.Auth.SignRequest(req)
 	var res *http.Response
@@ -220,7 +220,7 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 }
 
 func (c *Client) Delete(bucket, key string) error {
-	url_ := fmt.Sprintf("http://%s.%s/%s", bucket, c.hostname(), key)
+	url_ := fmt.Sprintf("https://%s.%s/%s", bucket, c.hostname(), key)
 	req := newReq(url_)
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)
