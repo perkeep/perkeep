@@ -261,7 +261,7 @@ func addS3Config(params *configPrefixesParams, prefixes jsonconfig.Obj, s3 strin
 	return nil
 }
 
-func addGoogleDriveConfig(prefixes jsonconfig.Obj, highCfg string) error {
+func addGoogleDriveConfig(params *configPrefixesParams, prefixes jsonconfig.Obj, highCfg string) error {
 	f := strings.SplitN(highCfg, ":", 4)
 	if len(f) != 4 {
 		return errors.New(`genconfig: expected "googledrive" field to be of form "client_id:client_secret:refresh_token:parent_id"`)
@@ -304,6 +304,11 @@ func addGoogleDriveConfig(prefixes jsonconfig.Obj, highCfg string) error {
 			"handlerArgs": map[string]interface{}{
 				"from": "/bs/",
 				"to":   prefix,
+				"queue": map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(params.blobPath,
+						"sync-to-googledrive-queue.kv"),
+				},
 			},
 		}
 	}
@@ -311,7 +316,7 @@ func addGoogleDriveConfig(prefixes jsonconfig.Obj, highCfg string) error {
 	return nil
 }
 
-func addGoogleCloudStorageConfig(prefixes jsonconfig.Obj, highCfg string) error {
+func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconfig.Obj, highCfg string) error {
 	f := strings.SplitN(highCfg, ":", 4)
 	if len(f) != 4 {
 		return errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket"`)
@@ -360,6 +365,11 @@ func addGoogleCloudStorageConfig(prefixes jsonconfig.Obj, highCfg string) error 
 			"handlerArgs": map[string]interface{}{
 				"from": "/bs/",
 				"to":   gsPrefix,
+				"queue": map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(params.blobPath,
+						"sync-to-googlecloud-queue.kv"),
+				},
 			},
 		}
 	}
@@ -662,12 +672,12 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		}
 	}
 	if conf.GoogleDrive != "" {
-		if err := addGoogleDriveConfig(prefixes, conf.GoogleDrive); err != nil {
+		if err := addGoogleDriveConfig(prefixesParams, prefixes, conf.GoogleDrive); err != nil {
 			return nil, err
 		}
 	}
 	if conf.GoogleCloudStorage != "" {
-		if err := addGoogleCloudStorageConfig(prefixes, conf.GoogleCloudStorage); err != nil {
+		if err := addGoogleCloudStorageConfig(prefixesParams, prefixes, conf.GoogleCloudStorage); err != nil {
 			return nil, err
 		}
 	}
