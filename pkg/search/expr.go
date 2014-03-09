@@ -33,7 +33,7 @@ import (
 
 var (
 	tagExpr   = regexp.MustCompile(`^tag:(.+)$`)
-	titleExpr = regexp.MustCompile(`^title:(.+)$`) // TODO: proper expr parser supporting quoting
+	titleExpr = regexp.MustCompile(`^title:(.+)$`)
 	attrExpr  = regexp.MustCompile(`^attr:(\w+):(.+)$`)
 
 	// used for width/height ranges. 10 is max length of 32-bit
