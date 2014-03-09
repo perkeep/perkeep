@@ -196,7 +196,7 @@ func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.Siz
 	sawEnd := make(chan bool, 1)
 	grp.Go(func() error {
 		if err := sto.EnumerateBlobs(context.New(), sbc, after, n); err != nil {
-			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n)
+			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n, err)
 		}
 		return nil
 	})

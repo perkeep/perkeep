@@ -84,7 +84,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 			haveBucket[b.Name] = true
 		}
 		if !haveBucket[sto.bucket] {
-			return nil, fmt.Errorf("S3 bucket %q doesn't exist. Create it first at https://console.aws.amazon.com/s3/home")
+			return nil, fmt.Errorf("S3 bucket %q doesn't exist. Create it first at https://console.aws.amazon.com/s3/home", sto.bucket)
 		}
 	}
 	return sto, nil
