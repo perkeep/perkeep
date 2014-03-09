@@ -114,6 +114,10 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-googlecloud-queue.kv",
+					"type": "kv"
+				},
 				"to": "/sto-googlecloudstorage/"
 			}
 		},
@@ -121,6 +125,10 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-googledrive-queue.kv",
+					"type": "kv"
+				},
 				"to": "/sto-googledrive/"
 			}
 		},
