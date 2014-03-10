@@ -201,7 +201,7 @@ cam.IndexPageReact = React.createClass({
 			this.getSelectAsCurrentSetItem_(),
 			this.getAddToCurrentSetItem_(),
 			this.getClearSelectionItem_(),
-			// TODO(mpl): add 'this.getDeleteSelectionItem_(),' when http://camlistore.org/r/2168 is in.
+			this.getDeleteSelectionItem_(),
 			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
 			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
 			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
@@ -275,8 +275,17 @@ cam.IndexPageReact = React.createClass({
 
 	handleDeleteSelection_: function() {
 		var blobrefs = goog.object.getKeys(this.state.selection);
-		var numDeleted = 0;
+		var msg = 'Delete';
+		if (blobrefs.length > 1) {
+			msg += goog.string.subs(' %s items?', blobrefs.length);
+		} else {
+			msg += ' item?';
+		}
+		if (!confirm(msg)) {
+			return null;
+		}
 
+		var numDeleted = 0;
 		blobrefs.forEach(function(br) {
 			this.props.serverConnection.newDeleteClaim(br, function() {
 				if (++numDeleted == blobrefs.length) {
