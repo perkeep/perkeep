@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package index
+package index_test
 
 import (
 	"reflect"
@@ -22,12 +22,15 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
-	c := newCorpus()
+	c := index.ExpNewCorpus()
 	pn := blob.MustParse("abc-123")
 	tm := time.Unix(99, 0)
 	claim := func(verb, attr, val string) *camtypes.Claim {
@@ -41,7 +44,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 	}
 	s := func(s ...string) []string { return s }
 
-	c.permanodes[pn] = &PermanodeMeta{
+	c.SetClaims(pn, &index.PermanodeMeta{
 		Claims: []*camtypes.Claim{
 			claim("set", "foo", "foov"), // time 100
 
@@ -69,7 +72,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 			claim("add", "SetAfterAdd", "b"),
 			claim("set", "SetAfterAdd", "setv"),
 		},
-	}
+	})
 
 	tests := []struct {
 		attr string
@@ -99,7 +102,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 
 func TestKVClaimAllocs(t *testing.T) {
 	n := testing.AllocsPerRun(20, func() {
-		kvClaim("claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
+		index.ExpKvClaim("claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
 			"set-attribute|tag|foo1|sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007",
 			blob.Parse)
 	})
@@ -128,7 +131,7 @@ func TestKVClaim(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		got, ok := kvClaim(tt.k, tt.v, blob.Parse)
+		got, ok := index.ExpKvClaim(tt.k, tt.v, blob.Parse)
 		if ok != tt.ok {
 			t.Errorf("kvClaim(%q, %q) = ok %v; want %v", tt.k, tt.v, ok, tt.ok)
 			continue
@@ -136,6 +139,108 @@ func TestKVClaim(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("kvClaim(%q, %q) = %+v; want %+v", tt.k, tt.v, got, tt.want)
 			continue
+		}
+	}
+}
+
+func TestDeletePermanode(t *testing.T) {
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
+
+	foopn := idxd.NewPlannedPermanode("foo")
+	idxd.SetAttribute(foopn, "tag", "foo")
+	barpn := idxd.NewPlannedPermanode("bar")
+	idxd.SetAttribute(barpn, "tag", "bar")
+	bazpn := idxd.NewPlannedPermanode("baz")
+	idxd.SetAttribute(bazpn, "tag", "baz")
+	idxd.Delete(barpn)
+	c, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+
+	// check that we initially only find permanodes foo and baz,
+	// because bar is already marked as deleted.
+	want := []blob.Ref{foopn, bazpn}
+	ch := make(chan camtypes.BlobMeta, 10)
+	var got []camtypes.BlobMeta
+	errc := make(chan error, 1)
+	c.RLock()
+	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	for blobMeta := range ch {
+		got = append(got, blobMeta)
+	}
+	err = <-errc
+	c.RUnlock()
+	if err != nil {
+		t.Fatalf("Could not enumerate permanodes: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
+	}
+	for _, bm := range got {
+		found := false
+		for _, perm := range want {
+			if bm.Ref == perm {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
+		}
+	}
+
+	// now add a delete claim for permanode baz, and check that we're only left with foo permanode
+	delbaz := idxd.Delete(bazpn)
+	want = []blob.Ref{foopn}
+	got = got[:0]
+	ch = make(chan camtypes.BlobMeta, 10)
+	c.RLock()
+	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	for blobMeta := range ch {
+		got = append(got, blobMeta)
+	}
+	err = <-errc
+	c.RUnlock()
+	if err != nil {
+		t.Fatalf("Could not enumerate permanodes: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
+	}
+	if got[0].Ref != foopn {
+		t.Fatalf("Wrong permanode found in corpus. Wanted %v, got %v", foopn, got[0].Ref)
+	}
+
+	// baz undeletion. delete delbaz.
+	idxd.Delete(delbaz)
+	want = []blob.Ref{foopn, bazpn}
+	got = got[:0]
+	ch = make(chan camtypes.BlobMeta, 10)
+	c.RLock()
+	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	for blobMeta := range ch {
+		got = append(got, blobMeta)
+	}
+	err = <-errc
+	c.RUnlock()
+	if err != nil {
+		t.Fatalf("Could not enumerate permanodes: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
+	}
+	for _, bm := range got {
+		found := false
+		for _, perm := range want {
+			if bm.Ref == perm {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
 		}
 	}
 }

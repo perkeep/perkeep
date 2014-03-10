@@ -50,6 +50,8 @@ type Index struct {
 	// blobs types that reference other objects.
 	BlobSource blobserver.FetcherEnumerator
 
+	// TODO(mpl): do not init and use deletes when we have a corpus. Since corpus has its own deletes now, they are redundant.
+
 	// deletes is a cache to keep track of the deletion status (deleted vs undeleted)
 	// of the blobs in the index. It makes for faster reads than the otherwise
 	// recursive calls on the index.
@@ -77,9 +79,7 @@ func SetImpendingReindex() {
 func New(s sorted.KeyValue) *Index {
 	idx := &Index{s: s}
 	if aboutToReindex {
-		idx.deletes = &deletionCache{
-			m: make(map[blob.Ref][]deletion),
-		}
+		idx.deletes = newDeletionCache()
 		return idx
 	}
 
@@ -268,12 +268,16 @@ type deletionCache struct {
 	m map[blob.Ref][]deletion
 }
 
+func newDeletionCache() *deletionCache {
+	return &deletionCache{
+		m: make(map[blob.Ref][]deletion),
+	}
+}
+
 // initDeletesCache creates and populates the deletion status cache used by the index
 // for faster calls to IsDeleted and DeletedAt. It is called by New.
 func (x *Index) initDeletesCache() error {
-	x.deletes = &deletionCache{
-		m: make(map[blob.Ref][]deletion),
-	}
+	x.deletes = newDeletionCache()
 	var err error
 	it := x.queryPrefix(keyDeleted)
 	defer closeIterator(it, &err)
