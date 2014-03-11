@@ -207,9 +207,6 @@ func (q *SearchQuery) addContinueConstraint() error {
 }
 
 func (q *SearchQuery) checkValid(ctx *context.Context) (sq *SearchQuery, err error) {
-	if q.Limit < 0 {
-		return nil, errors.New("negative limit")
-	}
 	if q.Sort >= maxSortType || q.Sort < 0 {
 		return nil, errors.New("invalid sort type")
 	}
