@@ -103,6 +103,16 @@ func handlerDescribeTestSetup(fi *test.FakeIndex) index.Interface {
 	return fi
 }
 
+// extends handlerDescribeTestSetup but adds a camliContentImage to pn.
+func handlerDescribeTestSetupWithImage(fi *test.FakeIndex) index.Interface {
+	handlerDescribeTestSetup(fi)
+	pn := blob.MustParse("perma-123")
+	imageRef := blob.MustParse("foo-789")
+	fi.AddMeta(imageRef, "", 789)
+	fi.AddClaim(owner, pn, "set-attribute", "camliContentImage", imageRef.String())
+	return fi
+}
+
 var handlerTests = []handlerTest{
 	{
 		name:  "describe-missing",
@@ -151,6 +161,37 @@ var handlerTests = []handlerTest{
 							"only-delete-b": [ "a", "c" ]
 						},
 						"modtime": "` + addToClockOrigin(8*time.Second) + `"
+					}
+				}
+			}
+		}`),
+	},
+
+	{
+		name:  "describe-permanode-image",
+		setup: handlerDescribeTestSetupWithImage,
+		query: "describe?blobref=perma-123",
+		want: parseJSON(`{
+			"meta": {
+				"foo-232": {
+					"blobRef":  "foo-232",
+					"size":     878
+				},
+				"foo-789": {
+					"blobRef":  "foo-789",
+					"size":     789
+				},
+				"perma-123": {
+					"blobRef":   "perma-123",
+					"camliType": "permanode",
+					"size":      123,
+					"permanode": {
+						"attr": {
+							"camliContent": [ "foo-232" ],
+							"camliContentImage": [ "foo-789" ],
+							"only-delete-b": [ "a", "c" ]
+						},
+						"modtime": "` + addToClockOrigin(9*time.Second) + `"
 					}
 				}
 			}
