@@ -33,7 +33,8 @@ cam.BlobItemReactData = function(blobref, metabag) {
 	this.metabag = metabag;
 	this.m = metabag[blobref];
 	this.rm = this.constructor.getResolvedMeta_(this.m, metabag);
-	this.im = this.constructor.getImageMeta_(this.rm);
+	this.cci = this.constructor.getCamliContentImage_(this.m, metabag);
+	this.im = this.constructor.getImageMeta_(this.rm, this.cci);
 	this.isStaticCollection = this.constructor.isStaticCollection_(this.rm);
 	this.thumbType = this.constructor.getThumbType_(this);
 	this.aspect = this.constructor.getAspect_(this.im, this.thumbType);
@@ -82,7 +83,7 @@ cam.BlobItemReactData.isStaticCollection_ = function(rm) {
 };
 
 cam.BlobItemReactData.getThumbType_ = function(data) {
-	if (data.im) {
+	if (data.im || data.cci) {
 		return 'image';
 	}
 
@@ -97,9 +98,11 @@ cam.BlobItemReactData.getThumbType_ = function(data) {
 	return 'file';
 };
 
-cam.BlobItemReactData.getImageMeta_ = function(rm) {
+cam.BlobItemReactData.getImageMeta_ = function(rm, cci) {
 	if (rm && rm.image) {
 		return rm.image;
+	} else if (cci) {
+		return cci.image;
 	} else {
 		return null;
 	}
@@ -111,6 +114,25 @@ cam.BlobItemReactData.getResolvedMeta_ = function(m, metabag) {
 	} else {
 		return m;
 	}
+};
+
+cam.BlobItemReactData.getCamliContentImage_ = function(m, metabag) {
+	if (m.permanode && m.permanode.attr.camliContentImage && m.permanode.attr.camliContentImage.length) {
+		return metabag[m.permanode.attr.camliContentImage[0]];
+	} else {
+		return null;
+	}
+};
+
+cam.BlobItemReactData.prototype.getThumbSrc = function(thumbSize) {
+	var baseName = '';
+	if (this.thumbType == 'image') {
+		var blobref = this.cci ? this.cci.blobRef : this.m.permanode.attr.camliContent;
+		baseName = goog.string.subs('thumbnail/%s/%s.jpg', blobref, (this.rm.file && this.rm.file.fileName) ? this.rm.file.fileName : blobref);
+	} else {
+		baseName = this.thumbType + '.png';
+	}
+	return goog.string.subs('%s?mh=%s&tv=%s', baseName, thumbSize, goog.global.CAMLISTORE_CONFIG ? goog.global.CAMLISTORE_CONFIG.thumbVersion : '');
 };
 
 
@@ -127,7 +149,6 @@ cam.BlobItemReact = React.createClass({
 		onCheckClick: React.PropTypes.func.isRequired,  // (string,event)->void
 		position: React.PropTypes.instanceOf(goog.math.Coordinate).isRequired,
 		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
-		thumbnailVersion: React.PropTypes.number.isRequired,
 	},
 
 	getInitialState: function() {
@@ -245,17 +266,8 @@ cam.BlobItemReact = React.createClass({
 	},
 
 	getThumbSrc_: function(thumbSize) {
-		var baseName = '';
-		if (this.props.data.thumbType == 'image') {
-			var m = this.props.data.m;
-			var rm = this.props.data.rm;
-			baseName = goog.string.subs('thumbnail/%s/%s.jpg', m.permanode.attr.camliContent, rm.file && rm.file.fileName ? rm.file.fileName : m.permanode.attr.camliContent);
-		} else {
-			baseName = this.props.data.thumbType + '.png';
-		}
-
 		this.currentIntrinsicThumbHeight_ = cam.imageUtil.getSizeToRequest(thumbSize.height, this.currentIntrinsicThumbHeight_);
-		return goog.string.subs('%s?mh=%s&tv=%s', baseName, this.currentIntrinsicThumbHeight_, this.props.thumbnailVersion);
+		return this.props.data.getThumbSrc(this.currentIntrinsicThumbHeight_);
 	},
 
 	getLabel_: function() {
