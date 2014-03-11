@@ -318,9 +318,7 @@ cam.DetailView = React.createClass({
 
 	getSrc_: function() {
 		this.lastImageHeight_ = Math.min(this.blobItemData_.im.height, cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_));
-		var uri = new goog.Uri(this.blobItemData_.m.thumbnailSrc);
-		uri.setParameterValue('mh', this.lastImageHeight_);
-		return uri.toString();
+		return this.blobItemData_.getThumbSrc(this.lastImageHeight_);
 	},
 
 	getImgSize_: function() {
