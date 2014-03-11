@@ -29,7 +29,7 @@ import (
 )
 
 func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-	return newTempDiskpackedWithIndex(t, nil)
+	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{})
 }
 
 func newTempDiskpackedMemory(t *testing.T) (sto blobserver.Storage, cleanup func()) {

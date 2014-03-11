@@ -138,7 +138,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
 	}
 	var index sorted.KeyValue
-	if indexConf != nil {
+	if len(indexConf) > 0 {
 		index, err = sorted.NewKeyValue(indexConf)
 	} else {
 		index, err = kvfile.NewStorage(filepath.Join(root, indexKV))
