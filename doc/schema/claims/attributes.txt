@@ -25,6 +25,14 @@ search, FUSE, and web UI.
     when a permanode is a file, the camliContent is set to the fileref
     (the blobref of the "file" schema blob)
 
+"camliContentImage": (single-valued)
+
+    when a permanode has camliContent set, but the camliContent is of
+    a non-image, the camliContentImage points to a "file" schema's
+    blobref of an image representation of the content. For instance,
+    this might be the cover art of an MP3 file or a thumbnail of a
+    spreadsheet.
+
 "camliMember": (multi-valued)
 
     when the permanode represents a set (unordered, unkeyed), the
