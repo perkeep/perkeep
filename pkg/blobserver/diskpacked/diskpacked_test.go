@@ -24,16 +24,27 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
 )
 
 func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	return newTempDiskpackedWithIndex(t, nil)
+}
+
+func newTempDiskpackedMemory(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{
+		"type": "memory",
+	})
+}
+
+func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blobserver.Storage, cleanup func()) {
 	dir, err := ioutil.TempDir("", "diskpacked-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("diskpacked test dir is %q", dir)
-	s, err := newStorage(dir, 1<<20)
+	s, err := newStorage(dir, 1<<20, indexConf)
 	if err != nil {
 		t.Fatalf("newStorage: %v", err)
 	}
@@ -45,6 +56,10 @@ func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 
 func TestDiskpacked(t *testing.T) {
 	storagetest.Test(t, newTempDiskpacked)
+}
+
+func TestDiskpackedAltIndex(t *testing.T) {
+	storagetest.Test(t, newTempDiskpackedMemory)
 }
 
 func TestDoubleReceive(t *testing.T) {
