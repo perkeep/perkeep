@@ -1,30 +1,42 @@
-The User Interface's "Search" box understands simple (no grouping)
-boolean expressions of "operator:value" expressions stitched together with
-"and" and "or" words, separated by spaces.
+The User Interface's "Search" box accepts a space-separated list of predicates of the
+form "[-]operator:value[:value]". These predicates are combined using conjunction.
+That is to say we only have 'and' and atom negation for now.
 
-Negation is achieved by prepending a minus sign: -is:landscape will match
+Negation of a predicate is achieved by prepending a minus sign: -is:landscape will match
 with pictures of not landscape ratio.
 
 For example
 
-    after:"2010-01-01" and before:"2010-03-02T12:33:44" or loc:"Amsterdam"
+    after:"2010-01-01" before:"2010-03-02T12:33:44" -loc:"Amsterdam" 
 
-will return all images having "modtime" between before and after or having
-location in Amsterdam.
+will return all images having "modtime" between before and after and not in Amsterdam.
+
+When you need to match a value containing a space, you need to using double quotes around
+the value only. For example: tag:"Three word tagname" and not "tag:Three word tagname".
+If your value contains double quotes you can use backslash escaping.
+For example: attr:bar:"He said: \"Hi\"" 
 
 Usable operators:
     after:         date format is RFC3339, but can be shortened as required.
     before:        i.e. 2011-01-01 is Jan 1 of year 2011 and "2011" means the same.
+    attr:          match on attribute. Use attr:foo:bar to match nodes having their foo
+                   attribute set to bar.
     format:        file's format (or MIME-type) such as jpg, pdf, tiff.
     has:location   image has a location (GPSLatitude and GPSLongitude can be
                    retrieved from the image's EXIF tags).
-    loc:           loc:"new york, new york" or "loc:new york, new york" both work.
-                   If specified, only images having a location near
-                   the specified locations are matched.
-                   Locations are resolved using maps.googleapis.com.
+    loc:           uses the EXIF GPS fields to match images having a location near
+                   the specified location.  Locations are resolved using
+                   maps.googleapis.com. For example: loc:"new york, new york" 
     is:image       object is an image
     is:landscape   the image has a landscape aspect
     is:pano        the image's aspect ratio is over 2 - panorama picture.
     is:portrait    the image has a portrait aspect.
-    height:        image's height
-    width:         the image's width
+    height:        use height:min-max to match images having a height of at least min 
+                   and at most max. Use height:min- to specify only an underbound and
+                   height:-max to specify only an upperbound. 
+                   Exact matches should use height:640-640
+    tag:           match on a tag
+    width:         use width:min-max to match images having a width of at least min 
+                   and at most max. Use width:min- to specify only an underbound and
+                   width:-max to specify only an upperbound.
+                   Exact matches should use width:480-480
