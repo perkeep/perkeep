@@ -1362,10 +1362,12 @@ claimLoop:
 		pi.ModTime = cl.Date
 	}
 
-	// If the content permanode is now known, look up its type
-	if content, ok := attr["camliContent"]; ok && len(content) > 0 {
-		if cbr, ok := blob.Parse(content[len(content)-1]); ok {
-			dr.Describe(cbr, depth-1)
+	// If the permanode's content (or its image) is now known, look up its type
+	for _, attrName := range []string{"camliContent", "camliContentImage"} {
+		if content, ok := attr[attrName]; ok && len(content) > 0 {
+			if cbr, ok := blob.Parse(content[len(content)-1]); ok {
+				dr.Describe(cbr, depth-1)
+			}
 		}
 	}
 
