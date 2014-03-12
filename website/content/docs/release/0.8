@@ -21,6 +21,8 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
 </ul>
 <h3>Web UI</h3>
 <ul>
+        <li>Deletion of selected permanodes.</li>
+        <li>Image representation for any kind of content (camliContentImage is now a well-supported permanode attribute in the importers, web UI, search, etc).</li>
 </ul>
 <h3>Storage</h3>
 <ul>
@@ -29,10 +31,12 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
 <h3>Search</h3>
 <ul>
         <li>Search operator syntax for searching permanodes for arbitrary attributes: <tt>attr:&lt;attribute_name&gt;:&lt;attribute_value&gt;</tt></li>
+        <li>Permanode deletions now taken into account by index corpus, hence in search results too.</li>
 </ul>
 <h3>Tools</h3>
 <ul>
         <li>Added <tt>camtool search</tt> subcommand.</li>
+        <li><tt>camtool sync</tt>: warn about differing identities.</li>
 </ul>
 <h3>General</h3>
 <ul>
