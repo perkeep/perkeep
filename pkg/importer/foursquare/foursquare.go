@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -49,6 +50,9 @@ type imp struct {
 	oauthConfig *oauth.Config
 	tokenCache  oauth.Cache
 
+	// no locking, serial access only
+	imageFileRef map[string]blob.Ref // url to file schema blob
+
 	mu   sync.Mutex
 	user string
 }
@@ -64,8 +68,9 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 	}
 	clientID, clientSecret := parts[0], parts[1]
 	im := &imp{
-		host:       host,
-		tokenCache: &tokenCache{},
+		host:         host,
+		tokenCache:   &tokenCache{},
+		imageFileRef: make(map[string]blob.Ref),
 		oauthConfig: &oauth.Config{
 			ClientId:     clientID,
 			ClientSecret: clientSecret,
@@ -156,9 +161,27 @@ type checkinItem struct {
 }
 
 type venueItem struct {
-	Id       string // eg 42474900f964a52087201fe3 from 4sq
-	Name     string
-	Location *venueLocationItem
+	Id         string // eg 42474900f964a52087201fe3 from 4sq
+	Name       string
+	Location   *venueLocationItem
+	Categories []*venueCategory
+}
+
+func (vi *venueItem) primaryCategory() *venueCategory {
+	for _, c := range vi.Categories {
+		if c.Primary {
+			return c
+		}
+	}
+	return nil
+}
+
+func (vi *venueItem) icon() string {
+	c := vi.primaryCategory()
+	if c == nil || c.Icon == nil || c.Icon.Prefix == "" {
+		return ""
+	}
+	return c.Icon.Prefix + "bg_88" + c.Icon.Suffix
 }
 
 type venueLocationItem struct {
@@ -171,7 +194,41 @@ type venueLocationItem struct {
 	Lng        float64
 }
 
+type venueCategory struct {
+	Primary bool
+	Name    string
+	Icon    *categoryIcon
+}
+
+type categoryIcon struct {
+	Prefix string
+	Suffix string
+}
+
 // data import methods
+
+// urlFileRef slurps urlstr from the net, writes to a file and returns its
+// fileref or "" on error
+func (im *imp) urlFileRef(urlstr string) string {
+	if br, ok := im.imageFileRef[urlstr]; ok {
+		return br.String()
+	}
+	res, err := im.host.HTTPClient().Get(urlstr)
+	if err != nil {
+		log.Printf("couldn't get image: %v", err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	fileRef, err := schema.WriteFileFromReader(im.host.Target(), "category.png", res.Body)
+	if err != nil {
+		log.Printf("couldn't write file: %v", err)
+		return ""
+	}
+
+	im.imageFileRef[urlstr] = fileRef
+	return fileRef.String()
+}
 
 func (im *imp) importCheckins() error {
 	limit := 100
@@ -203,15 +260,15 @@ func (im *imp) importCheckins() error {
 		}
 
 		for _, checkin := range resp.Response.Checkins.Items {
-			err = im.importCheckin(checkinsNode, checkin)
+			placeRef, err := im.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
-				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
+				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
 				continue
 			}
 
-			err = im.importPlace(placesNode, &checkin.Venue)
+			err = im.importCheckin(checkinsNode, checkin, placeRef)
 			if err != nil {
-				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
+				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
 				continue
 			}
 		}
@@ -220,7 +277,7 @@ func (im *imp) importCheckins() error {
 	return nil
 }
 
-func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem) error {
+func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) error {
 	checkinNode, err := parent.ChildPathObject(checkin.Id)
 	if err != nil {
 		return err
@@ -230,7 +287,9 @@ func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem) erro
 
 	if err := checkinNode.SetAttrs(
 		"foursquareId", checkin.Id,
+		"foursquareVenuePermanode", placeRef.String(),
 		"camliNodeType", "foursquare.com:checkin",
+		"camliContentImage", im.urlFileRef(checkin.Venue.icon()),
 		"startDate", schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
 		"title", title); err != nil {
 		return err
@@ -239,15 +298,22 @@ func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem) erro
 	return nil
 }
 
-func (im *imp) importPlace(parent *importer.Object, place *venueItem) error {
+func (im *imp) importPlace(parent *importer.Object, place *venueItem) (placeRef blob.Ref, err error) {
 	placeNode, err := parent.ChildPathObject(place.Id)
 	if err != nil {
-		return err
+		return placeRef, err
+	}
+
+	catName := ""
+	if cat := place.primaryCategory(); cat != nil {
+		catName = cat.Name
 	}
 
 	if err := placeNode.SetAttrs(
 		"foursquareId", place.Id,
 		"camliNodeType", "foursquare.com:venue",
+		"camliContentImage", im.urlFileRef(place.icon()),
+		"foursquareCategoryName", catName,
 		"title", place.Name,
 		"streetAddress", place.Location.Address,
 		"addressLocality", place.Location.City,
@@ -256,10 +322,10 @@ func (im *imp) importPlace(parent *importer.Object, place *venueItem) error {
 		"addressCountry", place.Location.Country,
 		"latitude", fmt.Sprint(place.Location.Lat),
 		"longitude", fmt.Sprint(place.Location.Lng)); err != nil {
-		return err
+		return placeRef, err
 	}
 
-	return nil
+	return placeNode.PermanodeRef(), nil
 }
 
 func (im *imp) getTopLevelNode(path string, title string) (*importer.Object, error) {
