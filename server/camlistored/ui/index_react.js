@@ -412,7 +412,6 @@ cam.IndexPageReact = React.createClass({
 			selection: this.state.selection,
 			style: this.getBlobItemContainerStyle_(),
 			thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
-			thumbnailVersion: Number(this.props.config.thumbVersion),
 		});
 	},
 

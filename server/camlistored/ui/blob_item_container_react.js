@@ -50,7 +50,6 @@ cam.BlobItemContainerReact = React.createClass({
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,
-		thumbnailVersion: React.PropTypes.number.isRequired,
 	},
 
 	getDefaultProps: function() {
@@ -214,7 +213,6 @@ cam.BlobItemContainerReact = React.createClass({
 				onWheel: this.handleChildWheel_,
 				position: new goog.math.Coordinate(currentLeft + this.BLOB_ITEM_MARGIN_, top),
 				size: new goog.math.Size(width, height),
-				thumbnailVersion: this.props.thumbnailVersion,
 			});
 
 			currentLeft += width + this.BLOB_ITEM_MARGIN_;

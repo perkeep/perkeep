@@ -182,6 +182,10 @@ func (n *mutDir) populate() error {
 				log.Printf("child not a file: %v", childRef)
 				continue
 			}
+			if content.File == nil {
+				log.Printf("camlitype \"file\" child %v has no described File member", childRef)
+				continue
+			}
 			n.maybeAddChild(name, child.Permanode, &mutFile{
 				fs:        n.fs,
 				permanode: blob.ParseOrZero(childRef),

@@ -20,16 +20,24 @@ package foursquare
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+)
+
+const (
+	apiURL = "https://api.foursquare.com/v2/"
 )
 
 func init() {
@@ -41,6 +49,9 @@ type imp struct {
 
 	oauthConfig *oauth.Config
 	tokenCache  oauth.Cache
+
+	// no locking, serial access only
+	imageFileRef map[string]blob.Ref // url to file schema blob
 
 	mu   sync.Mutex
 	user string
@@ -57,8 +68,9 @@ func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, 
 	}
 	clientID, clientSecret := parts[0], parts[1]
 	im := &imp{
-		host:       host,
-		tokenCache: &tokenCache{},
+		host:         host,
+		tokenCache:   &tokenCache{},
+		imageFileRef: make(map[string]blob.Ref),
 		oauthConfig: &oauth.Config{
 			ClientId:     clientID,
 			ClientSecret: clientSecret,
@@ -116,20 +128,221 @@ func (im *imp) String() string {
 }
 
 func (im *imp) Run(intr importer.Interrupt) error {
-	token, err := im.tokenCache.Token()
-	if err != nil {
-		return fmt.Errorf("Foursquare importer can't run. Token error: %v", err)
-	}
 
-	res, err := im.host.HTTPClient().Get("https://api.foursquare.com/v2/users/self?oauth_token=" + token.AccessToken)
-	if err != nil {
-		log.Printf("Error fetching //api.foursquare.com/v2/users/self: %v", err)
+	if err := im.importCheckins(); err != nil {
 		return err
 	}
-	all, _ := ioutil.ReadAll(res.Body)
-	res.Body.Close()
-	log.Printf("Got: %s", all)
+
 	return nil
+}
+
+// structures from json
+
+type userInfo struct {
+	Response struct {
+		User struct {
+			Id string
+		}
+	}
+}
+
+type checkinsList struct {
+	Response struct {
+		Checkins struct {
+			Items []*checkinItem
+		}
+	}
+}
+
+type checkinItem struct {
+	Id        string
+	CreatedAt int64 // unix time in seconds from 4sq
+	Venue     venueItem
+}
+
+type venueItem struct {
+	Id         string // eg 42474900f964a52087201fe3 from 4sq
+	Name       string
+	Location   *venueLocationItem
+	Categories []*venueCategory
+}
+
+func (vi *venueItem) primaryCategory() *venueCategory {
+	for _, c := range vi.Categories {
+		if c.Primary {
+			return c
+		}
+	}
+	return nil
+}
+
+func (vi *venueItem) icon() string {
+	c := vi.primaryCategory()
+	if c == nil || c.Icon == nil || c.Icon.Prefix == "" {
+		return ""
+	}
+	return c.Icon.Prefix + "bg_88" + c.Icon.Suffix
+}
+
+type venueLocationItem struct {
+	Address    string
+	City       string
+	PostalCode string
+	State      string
+	Country    string // 4sq provides "US"
+	Lat        float64
+	Lng        float64
+}
+
+type venueCategory struct {
+	Primary bool
+	Name    string
+	Icon    *categoryIcon
+}
+
+type categoryIcon struct {
+	Prefix string
+	Suffix string
+}
+
+// data import methods
+
+// urlFileRef slurps urlstr from the net, writes to a file and returns its
+// fileref or "" on error
+func (im *imp) urlFileRef(urlstr string) string {
+	if br, ok := im.imageFileRef[urlstr]; ok {
+		return br.String()
+	}
+	res, err := im.host.HTTPClient().Get(urlstr)
+	if err != nil {
+		log.Printf("couldn't get image: %v", err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	fileRef, err := schema.WriteFileFromReader(im.host.Target(), "category.png", res.Body)
+	if err != nil {
+		log.Printf("couldn't write file: %v", err)
+		return ""
+	}
+
+	im.imageFileRef[urlstr] = fileRef
+	return fileRef.String()
+}
+
+func (im *imp) importCheckins() error {
+	limit := 100
+	offset := 0
+	continueRequests := true
+
+	for continueRequests {
+		resp := checkinsList{}
+		if err := im.doAPI(&resp, "users/self/checkins", "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+			return err
+		}
+
+		itemcount := len(resp.Response.Checkins.Items)
+		log.Printf("Importing %d checkins", itemcount)
+		if itemcount < 100 {
+			continueRequests = false
+		} else {
+			offset += itemcount
+		}
+
+		checkinsNode, err := im.getTopLevelNode("checkins", "Checkins")
+		if err != nil {
+			return err
+		}
+
+		placesNode, err := im.getTopLevelNode("places", "Places")
+		if err != nil {
+			return err
+		}
+
+		for _, checkin := range resp.Response.Checkins.Items {
+			placeRef, err := im.importPlace(placesNode, &checkin.Venue)
+			if err != nil {
+				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
+				continue
+			}
+
+			err = im.importCheckin(checkinsNode, checkin, placeRef)
+			if err != nil {
+				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
+				continue
+			}
+		}
+	}
+
+	return nil
+}
+
+func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) error {
+	checkinNode, err := parent.ChildPathObject(checkin.Id)
+	if err != nil {
+		return err
+	}
+
+	title := fmt.Sprintf("Checkin at %s", checkin.Venue.Name)
+
+	if err := checkinNode.SetAttrs(
+		"foursquareId", checkin.Id,
+		"foursquareVenuePermanode", placeRef.String(),
+		"camliNodeType", "foursquare.com:checkin",
+		"camliContentImage", im.urlFileRef(checkin.Venue.icon()),
+		"startDate", schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
+		"title", title); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (im *imp) importPlace(parent *importer.Object, place *venueItem) (placeRef blob.Ref, err error) {
+	placeNode, err := parent.ChildPathObject(place.Id)
+	if err != nil {
+		return placeRef, err
+	}
+
+	catName := ""
+	if cat := place.primaryCategory(); cat != nil {
+		catName = cat.Name
+	}
+
+	if err := placeNode.SetAttrs(
+		"foursquareId", place.Id,
+		"camliNodeType", "foursquare.com:venue",
+		"camliContentImage", im.urlFileRef(place.icon()),
+		"foursquareCategoryName", catName,
+		"title", place.Name,
+		"streetAddress", place.Location.Address,
+		"addressLocality", place.Location.City,
+		"postalCode", place.Location.PostalCode,
+		"addressRegion", place.Location.State,
+		"addressCountry", place.Location.Country,
+		"latitude", fmt.Sprint(place.Location.Lat),
+		"longitude", fmt.Sprint(place.Location.Lng)); err != nil {
+		return placeRef, err
+	}
+
+	return placeNode.PermanodeRef(), nil
+}
+
+func (im *imp) getTopLevelNode(path string, title string) (*importer.Object, error) {
+	root, err := im.getRootNode()
+	if err != nil {
+		return nil, err
+	}
+
+	childObject, err := root.ChildPathObject(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := childObject.SetAttr("title", title); err != nil {
+		return nil, err
+	}
+	return childObject, nil
 }
 
 func (im *imp) getRootNode() (*importer.Object, error) {
@@ -150,6 +363,74 @@ func (im *imp) getRootNode() (*importer.Object, error) {
 	}
 	return root, nil
 }
+
+func (im *imp) getUserId() (string, error) {
+	user := userInfo{}
+
+	if err := im.doAPI(&user, "users/self"); err != nil {
+		return "", err
+	}
+
+	if user.Response.User.Id == "" {
+		return "", fmt.Errorf("No username specified")
+	}
+
+	return user.Response.User.Id, nil
+}
+
+// foursquare api builders
+
+func (im *imp) doAPI(result interface{}, apiPath string, keyval ...string) error {
+	if len(keyval)%2 == 1 {
+		panic("Incorrect number of keyval arguments")
+	}
+
+	token, err := im.tokenCache.Token()
+	if err != nil {
+		return fmt.Errorf("Token error: %v", err)
+	}
+
+	form := url.Values{}
+	form.Set("v", "20140225") // 4sq requires this to version their API
+	form.Set("oauth_token", token.AccessToken)
+	for i := 0; i < len(keyval); i += 2 {
+		form.Set(keyval[i], keyval[i+1])
+	}
+
+	fullURL := apiURL + apiPath
+	res, err := im.doGet(fullURL, form)
+	if err != nil {
+		return err
+	}
+	err = httputil.DecodeJSON(res, result)
+	if err != nil {
+		log.Printf("Error parsing response for %s: %v", fullURL, err)
+	}
+	return err
+}
+
+func (im *imp) doGet(url string, form url.Values) (*http.Response, error) {
+	requestURL := url + "?" + form.Encode()
+
+	req, err := http.NewRequest("GET", requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := im.host.HTTPClient().Do(req)
+	if err != nil {
+		log.Printf("Error fetching %s: %v", url, err)
+		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Get request on %s failed with: %s", requestURL, res.Status)
+	}
+
+	return res, nil
+}
+
+// possibly common methods for accessing oauth2 sites
 
 func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
 	state := "no_clue_what_this_is" // TODO: ask adg to document this. or send him a CL.
@@ -176,6 +457,15 @@ func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	im.tokenCache.PutToken(token)
+
+	userid, err := im.getUserId()
+	if err != nil {
+		log.Printf("Couldn't get username: %v", err)
+		http.Error(w, "can't get username", 500)
+		return
+	}
+	im.user = userid
+
 	http.Redirect(w, r, im.host.BaseURL+"?mode=start", 302)
 }
 
