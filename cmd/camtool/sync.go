@@ -47,6 +47,7 @@ type syncCmd struct {
 	removeSrc   bool
 	wipe        bool
 	insecureTLS bool
+	oneIsDisk   bool // Whether one of src or dest is a local disk.
 
 	logger *log.Logger
 }
@@ -117,7 +118,7 @@ func (c *syncCmd) RunCommand(args []string) error {
 
 	differentKeyIDs := fmt.Sprintf("WARNING: the source server GPG key ID (%v) and the destination's (%v) differ. All blobs will be synced, but because the indexer at the other side is indexing claims by a different user, you may not see what you expect in that server's web UI, etc.", c.srcKeyID, c.destKeyID)
 
-	if c.dest != "stdout" && c.srcKeyID != c.destKeyID { // both blank is ok.
+	if c.dest != "stdout" && !c.oneIsDisk && c.srcKeyID != c.destKeyID { // both blank is ok.
 		// Warn at the top (and hope the user sees it and can abort if it was a mistake):
 		fmt.Fprintln(cmdmain.Stderr, differentKeyIDs)
 		// Warn also at the end (in case the user missed the first one)
@@ -180,6 +181,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		if err != nil {
 			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %v", which, val, err)
 		}
+		c.oneIsDisk = true
 		return disk, nil
 	}
 	cl := client.New(val)
