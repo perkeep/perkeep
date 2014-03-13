@@ -161,15 +161,21 @@ cam.BlobItemContainerReact = React.createClass({
 
 			// Decide how many items are going to be in this row. We choose the number that will result in the smallest adjustment to the image sizes having to be done.
 			var rowEnd, rowWidth;
+
+			// For the last item we always use all the rest of the items in this row.
 			if (i == lastItem) {
 				rowEnd = lastItem;
 				rowWidth = nextWidth;
 				if (nextWidth / availWidth < this.LAST_ROW_CLOSE_ENOUGH_TO_FULL_) {
 					availWidth = nextWidth;
 				}
-			} else if (availWidth - currentWidth <= nextWidth - availWidth) {
+
+			// If we have at least one item in this row, and the adjustment to the row width is less without the next item than with it, then we leave the next item for the next row.
+			} else if (i > rowStart && (availWidth - currentWidth <= nextWidth - availWidth)) {
 				rowEnd = i - 1;
 				rowWidth = currentWidth;
+
+			// Otherwise we include the next item in this row.
 			} else {
 				rowEnd = i;
 				rowWidth = nextWidth;
