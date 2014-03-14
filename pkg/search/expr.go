@@ -36,6 +36,10 @@ var (
 	titleExpr = regexp.MustCompile(`^title:(.+)$`)
 	attrExpr  = regexp.MustCompile(`^attr:(\w+):(.+)$`)
 
+	// childrenof:sha1-xxxx where xxxx is a full blobref or even
+	// just a prefix of one. only matches permanodes currently.
+	childrenOfExpr = regexp.MustCompile(`^childrenof:(\S+)$`)
+
 	// used for width/height ranges. 10 is max length of 32-bit
 	// int (strconv.Atoi on 32-bit platforms), even though a max
 	// JPEG dimension is only 16-bit.
@@ -269,6 +273,20 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 				},
 			})
 			continue
+		}
+		if m := childrenOfExpr.FindStringSubmatch(word); m != nil {
+			and(&Constraint{
+				Permanode: &PermanodeConstraint{
+					Relation: &RelationConstraint{
+						Relation: "parent",
+						Any: &Constraint{
+							BlobRefPrefix: m[1],
+						},
+					},
+				},
+			})
+			continue
+
 		}
 		log.Printf("Unknown search expression word %q", word)
 		// TODO: finish. better tokenization. non-operator tokens

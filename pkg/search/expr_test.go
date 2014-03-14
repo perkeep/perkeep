@@ -104,8 +104,8 @@ var parseExprTests = []struct {
 	},
 
 	{
-    name: "tag with spaces",
-		in: `tag:"Foo Bar"`,
+		name: "tag with spaces",
+		in:   `tag:"Foo Bar"`,
 		want: &SearchQuery{
 			Constraint: &Constraint{
 				Logical: &LogicalConstraint{
@@ -128,8 +128,8 @@ var parseExprTests = []struct {
 	},
 
 	{
-    name: "attribute search",
-		in: "attr:foo:bar",
+		name: "attribute search",
+		in:   "attr:foo:bar",
 		want: &SearchQuery{
 			Constraint: &Constraint{
 				Logical: &LogicalConstraint{
@@ -152,8 +152,8 @@ var parseExprTests = []struct {
 	},
 
 	{
-    name: "attribute search with space in value",
-		in: `attr:foo:"fun bar"`,
+		name: "attribute search with space in value",
+		in:   `attr:foo:"fun bar"`,
 		want: &SearchQuery{
 			Constraint: &Constraint{
 				Logical: &LogicalConstraint{
@@ -217,6 +217,32 @@ var parseExprTests = []struct {
 								CaseInsensitive: true,
 							},
 							SkipHidden: true,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in: "childrenof:sha1-f00ba4",
+		want: &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						Permanode: &PermanodeConstraint{
+							SkipHidden: true,
+						},
+					},
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Relation: &RelationConstraint{
+								Relation: "parent",
+								Any: &Constraint{
+									BlobRefPrefix: "sha1-f00ba4",
+								},
+							},
 						},
 					},
 				},

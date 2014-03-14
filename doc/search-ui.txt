@@ -40,3 +40,5 @@ Usable operators:
                    and at most max. Use width:min- to specify only an underbound and
                    width:-max to specify only an upperbound.
                    Exact matches should use width:480-480
+    childrenof:    Find child permanodes of a parent permanode (or prefix
+                   of a parent permanode): childrenof:sha1-527cf12
