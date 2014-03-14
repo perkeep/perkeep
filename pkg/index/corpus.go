@@ -1001,6 +1001,41 @@ func (c *Corpus) ForeachClaimBackLocked(value blob.Ref, at time.Time, fn func(*c
 	}
 }
 
+// PermanodeHasAttrValueLocked reports whether the permanode pn at
+// time at (zero means now) has the given attribute with the given
+// value. If the attribute is multi-valued, any may match.
+func (c *Corpus) PermanodeHasAttrValueLocked(pn blob.Ref, at time.Time, attr, val string) bool {
+	pm, ok := c.permanodes[pn]
+	if !ok {
+		return false
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	ret := false
+	for _, cl := range pm.Claims {
+		if cl.Attr != attr {
+			continue
+		}
+		if cl.Date.After(at) {
+			break
+		}
+		switch cl.Type {
+		case string(schema.DelAttributeClaim):
+			if cl.Value == "" || cl.Value == val {
+				ret = false
+			}
+		case string(schema.SetAttributeClaim):
+			ret = (cl.Value == val)
+		case string(schema.AddAttributeClaim):
+			if cl.Value == val {
+				return true
+			}
+		}
+	}
+	return ret
+}
+
 // SetVerboseCorpusLogging controls corpus setup verbosity. It's on by default
 // but used to disable verbose logging in tests.
 func SetVerboseCorpusLogging(v bool) {
