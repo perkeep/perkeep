@@ -868,9 +868,9 @@ func TestQueryPermanodeValueMatchesCaseInsensitive(t *testing.T) {
 
 					A: &Constraint{
 						Permanode: &PermanodeConstraint{
-							Attr:  "x",
+							Attr: "x",
 							ValueMatches: &StringConstraint{
-								Equals: "foo",
+								Equals:          "foo",
 								CaseInsensitive: true,
 							},
 						},
@@ -878,11 +878,45 @@ func TestQueryPermanodeValueMatchesCaseInsensitive(t *testing.T) {
 
 					B: &Constraint{
 						Permanode: &PermanodeConstraint{
-							Attr:  "x",
+							Attr: "x",
 							ValueMatches: &StringConstraint{
-								Contains: "TAR",
+								Contains:        "TAR",
 								CaseInsensitive: true,
 							},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p2)
+	})
+}
+
+func TestQueryChildren(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		pdir := id.NewPlannedPermanode("some_dir")
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+
+		id.AddAttribute(pdir, "camliMember", p1.String())
+		id.AddAttribute(pdir, "camliPath:foo", p2.String())
+		id.AddAttribute(pdir, "other", p3.String())
+
+		// Make p1, p2, and p3 actually exist. (permanodes without attributes are dead)
+		id.AddAttribute(p1, "x", "x")
+		id.AddAttribute(p2, "x", "x")
+		id.AddAttribute(p3, "x", "x")
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Relation: &RelationConstraint{
+						Relation: "parent",
+						Any: &Constraint{
+							BlobRefPrefix: pdir.String(),
 						},
 					},
 				},

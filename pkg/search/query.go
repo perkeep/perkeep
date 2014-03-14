@@ -629,10 +629,9 @@ type PermanodeContinueConstraint struct {
 
 type RelationConstraint struct {
 	// Relation must be one of:
-	//
 	//   * "child"
-	//   * "progeny" (any level down)
 	//   * "parent" (immediate parent only)
+	//   * "progeny" (any level down)
 	//   * "ancestor" (any level up)
 	Relation string
 
@@ -647,6 +646,97 @@ type RelationConstraint struct {
 	//
 	// It is an error to set both.
 	Any, All *Constraint
+}
+
+func (rc *RelationConstraint) checkValid() error {
+	if rc.Relation != "parent" {
+		return errors.New("only RelationConstraint.Relation of \"parent\" is currently supported")
+	}
+	if (rc.Any == nil) == (rc.All == nil) {
+		return errors.New("exactly one of RelationConstraint Any or All must be defined")
+	}
+	return nil
+}
+
+func (rc *RelationConstraint) matchesAttr(attr string) bool {
+	if rc.EdgeType != "" {
+		return attr == rc.EdgeType
+	}
+	return attr == "camliMember" || strings.HasPrefix(attr, "camliPath:")
+}
+
+// The PermanodeConstraint matching of RelationConstraint.
+func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bool, err error) {
+	corpus := s.h.corpus
+	if corpus == nil {
+		// TODO: care?
+		return false, errors.New("RelationConstraint requires an in-memory corpus")
+	}
+
+	if rc.Relation != "parent" {
+		panic("bogus")
+	}
+
+	var matcher matchFn
+	if rc.Any != nil {
+		matcher = rc.Any.matcher()
+	} else {
+		matcher = rc.All.matcher()
+	}
+
+	var anyGood bool
+	var anyBad bool
+	var lastChecked blob.Ref
+	var permanodesChecked map[blob.Ref]bool // lazily created to optimize for common case of 1 match
+	corpus.ForeachClaimBackLocked(pn, at, func(cl *camtypes.Claim) bool {
+		if !rc.matchesAttr(cl.Attr) {
+			return true // skip claim
+		}
+		if lastChecked.Valid() {
+			if permanodesChecked == nil {
+				permanodesChecked = make(map[blob.Ref]bool)
+			}
+			permanodesChecked[lastChecked] = true
+			lastChecked = blob.Ref{} // back to zero
+		}
+		if permanodesChecked[cl.Permanode] {
+			return true // skip checking
+		}
+		if !corpus.PermanodeHasAttrValueLocked(cl.Permanode, at, cl.Attr, cl.Value) {
+			return true // claim once matched permanode, but no longer
+		}
+
+		var bm camtypes.BlobMeta
+		bm, err = s.blobMeta(cl.Permanode)
+		if err != nil {
+			return false
+		}
+		var ok bool
+		ok, err = matcher(s, cl.Permanode, bm)
+		if err != nil {
+			return false
+		}
+		if ok {
+			anyGood = true
+			if rc.Any != nil {
+				return false // done. stop searching.
+			}
+		} else {
+			anyBad = true
+			if rc.All != nil {
+				return false // fail fast
+			}
+		}
+		lastChecked = cl.Permanode
+		return true
+	})
+	if err != nil {
+		return false, err
+	}
+	if rc.All != nil {
+		return anyGood && !anyBad, nil
+	}
+	return anyGood, nil
 }
 
 // search is the state of an in-progress search
@@ -1017,6 +1107,11 @@ func (c *PermanodeConstraint) checkValid() error {
 			}
 		}
 	}
+	if rc := c.Relation; rc != nil {
+		if err := rc.checkValid(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1101,6 +1196,13 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			}
 		} else {
 			panic("TODO: not yet supported")
+		}
+	}
+
+	if rc := c.Relation; rc != nil {
+		ok, err := rc.match(s, br, c.At)
+		if !ok || err != nil {
+			return ok, err
 		}
 	}
 
