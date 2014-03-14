@@ -146,8 +146,8 @@
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
                 "publishRoots": [
-                    "/pics/",
-                    "/music/"
+                    "/music/",
+                    "/pics/"
                 ],
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",

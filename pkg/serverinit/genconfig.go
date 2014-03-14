@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"camlistore.org/pkg/blob"
@@ -52,8 +53,8 @@ var (
 
 func addPublishedConfig(prefixes jsonconfig.Obj,
 	published map[string]*serverconfig.Publish,
-	sourceRoot string) ([]interface{}, error) {
-	pubPrefixes := []interface{}{}
+	sourceRoot string) ([]string, error) {
+	var pubPrefixes []string
 	for k, v := range published {
 		name := strings.Replace(k, "/", "", -1)
 		rootName := name + "Root"
@@ -96,13 +97,14 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 		prefixes[k] = ob
 		pubPrefixes = append(pubPrefixes, k)
 	}
+	sort.Strings(pubPrefixes)
 	return pubPrefixes, nil
 }
 
 func addUIConfig(params *configPrefixesParams,
 	prefixes jsonconfig.Obj,
 	uiPrefix string,
-	published []interface{},
+	published []string,
 	sourceRoot string) {
 
 	args := map[string]interface{}{
@@ -626,7 +628,7 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		}
 	}
 
-	published := []interface{}{}
+	var published []string
 	if len(conf.Publish) > 0 {
 		if !runIndex {
 			return nil, fmt.Errorf("publishing requires an index")
