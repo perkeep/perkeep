@@ -86,13 +86,13 @@ type Corpus struct {
 	// TODO: implement
 	edgeBack map[blob.Ref]map[blob.Ref]bool
 
-	// edgeBackClaim allows hopping backwards from a Claim's Value
+	// claimBack allows hopping backwards from a Claim's Value
 	// when the Value is a blobref.  It allows, for example,
 	// finding the parents of camliMember claims.  If a permanode
 	// parent set A has a camliMembers B and C, it allows finding
 	// A from either B and C.
-	// TODO: implement
-	edgeBackClaim map[blob.Ref]*camtypes.Claim
+	// The slice is not sorted.
+	claimBack map[blob.Ref][]*camtypes.Claim
 
 	// TOOD: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
@@ -159,6 +159,7 @@ func newCorpus() *Corpus {
 		gps:          make(map[blob.Ref]latLong),
 		mediaTag:     make(map[blob.Ref]map[string]string),
 		deletes:      make(map[blob.Ref][]deletion),
+		claimBack:    make(map[blob.Ref][]*camtypes.Claim),
 	}
 }
 
@@ -479,6 +480,10 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 		// Unless we're still starting up (at which we sort at
 		// the end instead), keep this sorted.
 		sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
+	}
+
+	if vbr, ok := blob.Parse(cl.Value); ok {
+		c.claimBack[vbr] = append(c.claimBack[vbr], &cl)
 	}
 	return nil
 }
@@ -978,6 +983,22 @@ func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool
 		return
 	}
 	return ll.lat, ll.long, true
+}
+
+// ForeachClaimBackLocked calls fn for each claim with a value referencing br.
+// If at is zero, all claims are yielded.
+// If at is non-zero, claims after that point are skipped.
+// If fn returns false, iteration ends.
+// Iteration is in an undefined order.
+func (c *Corpus) ForeachClaimBackLocked(value blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
+	for _, cl := range c.claimBack[value] {
+		if !at.IsZero() && cl.Date.After(at) {
+			continue
+		}
+		if !fn(cl) {
+			return
+		}
+	}
 }
 
 // SetVerboseCorpusLogging controls corpus setup verbosity. It's on by default
