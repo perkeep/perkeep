@@ -75,8 +75,8 @@ func (sto *shardStorage) shardNum(b blob.Ref) uint32 {
 	return b.Sum32() % uint32(len(sto.shards))
 }
 
-func (sto *shardStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	return sto.shard(b).FetchStreaming(b)
+func (sto *shardStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	return sto.shard(b).Fetch(b)
 }
 
 func (sto *shardStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {

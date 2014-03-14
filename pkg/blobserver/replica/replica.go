@@ -127,10 +127,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *replicaStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *replicaStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	// TODO: race these? first to respond?
 	for _, replica := range sto.readReplicas {
-		file, size, err = replica.FetchStreaming(b)
+		file, size, err = replica.Fetch(b)
 		if err == nil {
 			return
 		}

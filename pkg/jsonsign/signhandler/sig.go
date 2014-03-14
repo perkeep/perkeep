@@ -46,7 +46,7 @@ type Handler struct {
 
 	pubKey        string // armored
 	pubKeyBlobRef blob.Ref
-	pubKeyFetcher blob.StreamingFetcher
+	pubKeyFetcher blob.Fetcher
 
 	pubKeyBlobRefServeSuffix string // "camli/sha1-xxxx"
 	pubKeyHandler            http.Handler

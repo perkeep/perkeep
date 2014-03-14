@@ -111,7 +111,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *appengineStorage) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *appengineStorage) Fetch(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	loan := ctxPool.Get()
 	ctx := loan
 	defer func() {

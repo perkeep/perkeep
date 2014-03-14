@@ -104,7 +104,7 @@ func TestIsolation(t *testing.T) {
 	want("ns2", b2r, b3r)
 	want("master", b1r, b2r, b3r)
 
-	if _, _, err := ns2.FetchStreaming(b1r); err == nil {
+	if _, _, err := ns2.Fetch(b1r); err == nil {
 		t.Errorf("b1 shouldn't be accessible via ns2")
 	}
 }

@@ -389,7 +389,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	for sb := range syncBlobs {
 		fmt.Fprintf(cmdmain.Stdout, "Destination needs blob: %s\n", sb)
 
-		blobReader, size, err := src.FetchStreaming(sb.Ref)
+		blobReader, size, err := src.Fetch(sb.Ref)
 		if err != nil {
 			stats.ErrorCount++
 			log.Printf("Error fetching %s: %v", sb.Ref, err)

@@ -114,8 +114,8 @@ func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb bl
 	return pr.SizedBlobRef(), nil
 }
 
-func (sto *remoteStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	return sto.client.FetchStreaming(b)
+func (sto *remoteStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	return sto.client.Fetch(b)
 }
 
 func (sto *remoteStorage) MaxEnumerate() int { return 1000 }

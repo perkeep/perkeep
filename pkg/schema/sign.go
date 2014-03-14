@@ -109,7 +109,7 @@ func (s *Signer) SignJSON(json string, t time.Time) (string, error) {
 
 type memoryBlobFetcher map[blob.Ref]func() (size uint32, rc io.ReadCloser)
 
-func (m memoryBlobFetcher) FetchStreaming(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (m memoryBlobFetcher) Fetch(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	fn, ok := m[br]
 	if !ok {
 		return nil, 0, os.ErrNotExist

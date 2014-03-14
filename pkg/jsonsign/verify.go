@@ -59,7 +59,7 @@ func reArmor(line string) string {
 // See doc/json-signing/* for background and details
 // on these variable names.
 type VerifyRequest struct {
-	fetcher blob.StreamingFetcher // fetcher used to find public key blob
+	fetcher blob.Fetcher // fetcher used to find public key blob
 
 	ba  []byte // "bytes all"
 	bp  []byte // "bytes payload" (the part that is signed)
@@ -136,7 +136,7 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 }
 
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
-	reader, _, err := vr.fetcher.FetchStreaming(vr.CamliSigner)
+	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
 	if err != nil {
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
 		// TODO(mpl): we're losing some info here, so maybe
@@ -186,7 +186,7 @@ func (vr *VerifyRequest) VerifySignature() bool {
 	return true
 }
 
-func NewVerificationRequest(sjson string, fetcher blob.StreamingFetcher) (vr *VerifyRequest) {
+func NewVerificationRequest(sjson string, fetcher blob.Fetcher) (vr *VerifyRequest) {
 	if fetcher == nil {
 		panic("NewVerificationRequest fetcher is nil")
 	}

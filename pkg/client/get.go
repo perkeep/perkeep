@@ -33,7 +33,7 @@ import (
 )
 
 func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
-	rc, _, err := c.FetchStreaming(b)
+	rc, _, err := c.Fetch(b)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
 	return schema.BlobFromReader(b, rc)
 }
 
-func (c *Client) FetchStreaming(b blob.Ref) (io.ReadCloser, uint32, error) {
+func (c *Client) Fetch(b blob.Ref) (io.ReadCloser, uint32, error) {
 	return c.FetchVia(b, c.viaPathTo(b))
 }
 
@@ -73,7 +73,7 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 		if len(v) > 0 {
 			return nil, 0, errors.New("FetchVia not supported in non-HTTP mode")
 		}
-		return c.sto.FetchStreaming(b)
+		return c.sto.Fetch(b)
 	}
 	pfx, err := c.blobPrefix()
 	if err != nil {

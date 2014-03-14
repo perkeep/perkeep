@@ -100,7 +100,7 @@ func (n *node) addEdge(dst blob.Ref) {
 }
 
 type graph struct {
-	src  blob.StreamingFetcher
+	src  blob.Fetcher
 	root blob.Ref
 
 	mu sync.Mutex // guards n
@@ -125,7 +125,7 @@ func (g *graph) startLoadNode(br blob.Ref) {
 	go n.load()
 }
 
-func printGraph(src blob.StreamingFetcher, root blob.Ref) {
+func printGraph(src blob.Fetcher, root blob.Ref) {
 	g := &graph{
 		src:  src,
 		root: root,

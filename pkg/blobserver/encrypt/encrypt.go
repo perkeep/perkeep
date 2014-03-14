@@ -278,12 +278,12 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	return blob.SizedRef{plainBR, uint32(plainSize)}, nil
 }
 
-func (s *storage) FetchStreaming(plainBR blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (s *storage) Fetch(plainBR blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	meta, err := s.fetchMeta(plainBR)
 	if err != nil {
 		return nil, 0, err
 	}
-	encData, _, err := s.blobs.FetchStreaming(meta.EncBlobRef)
+	encData, _, err := s.blobs.Fetch(meta.EncBlobRef)
 	if err != nil {
 		log.Printf("encrypt: plaintext %s's encrypted %v blob not found", plainBR, meta.EncBlobRef)
 		return
@@ -440,7 +440,7 @@ func (s *storage) readAllMetaBlobs() error {
 			go func() {
 				defer wg.Done()
 				defer func() { <-gate }()
-				rc, _, err := s.meta.FetchStreaming(sb.Ref)
+				rc, _, err := s.meta.Fetch(sb.Ref)
 				var all []byte
 				if err == nil {
 					all, err = ioutil.ReadAll(rc)

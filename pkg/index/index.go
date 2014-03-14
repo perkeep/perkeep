@@ -44,7 +44,7 @@ type Index struct {
 
 	s sorted.KeyValue
 
-	KeyFetcher blob.StreamingFetcher // for verifying claims
+	KeyFetcher blob.Fetcher // for verifying claims
 
 	// BlobSource is used for fetching blobs when indexing files and other
 	// blobs types that reference other objects.

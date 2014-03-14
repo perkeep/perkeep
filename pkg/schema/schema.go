@@ -110,7 +110,7 @@ type DirectoryEntry interface {
 // dirEntry is the default implementation of DirectoryEntry
 type dirEntry struct {
 	ss      superset
-	fetcher blob.SeekFetcher
+	fetcher blob.Fetcher
 	fr      *FileReader // or nil if not a file
 	dr      *DirReader  // or nil if not a directory
 }
@@ -163,7 +163,7 @@ func (de *dirEntry) Symlink() (Symlink, error) {
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func newDirectoryEntry(fetcher blob.SeekFetcher, ss *superset) (DirectoryEntry, error) {
+func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, error) {
 	if ss == nil {
 		return nil, errors.New("ss was nil")
 	}
@@ -184,7 +184,7 @@ func newDirectoryEntry(fetcher blob.SeekFetcher, ss *superset) (DirectoryEntry, 
 // DirectoryEntry if the BlobRef contains a type "file", "directory"
 // or "symlink".
 // TODO: "fifo", "socket", "char", "block", probably.  later.
-func NewDirectoryEntryFromBlobRef(fetcher blob.SeekFetcher, blobRef blob.Ref) (DirectoryEntry, error) {
+func NewDirectoryEntryFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) (DirectoryEntry, error) {
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, blobRef)
 	if err != nil {

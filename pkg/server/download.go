@@ -31,13 +31,13 @@ import (
 const oneYear = 365 * 86400 * time.Second
 
 type DownloadHandler struct {
-	Fetcher   blob.StreamingFetcher
+	Fetcher   blob.Fetcher
 	Cache     blobserver.Storage
 	ForceMime string // optional
 }
 
-func (dh *DownloadHandler) storageSeekFetcher() blob.SeekFetcher {
-	return blob.SeekerFromStreamingFetcher(dh.Fetcher) // TODO: pass dh.Cache?
+func (dh *DownloadHandler) blobSource() blob.Fetcher {
+	return dh.Fetcher // TODO: use dh.Cache
 }
 
 func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
@@ -51,7 +51,7 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	fr, err := schema.NewFileReader(dh.storageSeekFetcher(), file)
+	fr, err := schema.NewFileReader(dh.blobSource(), file)
 	if err != nil {
 		http.Error(rw, "Can't serve file: "+err.Error(), 500)
 		return

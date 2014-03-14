@@ -121,7 +121,7 @@ func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error 
 	return reterr
 }
 
-func (gs *Storage) FetchStreaming(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (gs *Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	file, sz, err := gs.client.GetObject(&googlestorage.Object{Bucket: gs.bucket, Key: blob.String()})
 	if err != nil && sz > constants.MaxBlobSize {
 		err = errors.New("object too big")

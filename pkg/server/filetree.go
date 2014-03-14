@@ -26,12 +26,8 @@ import (
 )
 
 type FileTreeHandler struct {
-	Fetcher blob.StreamingFetcher
+	Fetcher blob.Fetcher
 	file    blob.Ref
-}
-
-func (fth *FileTreeHandler) storageSeekFetcher() blob.SeekFetcher {
-	return blob.SeekerFromStreamingFetcher(fth.Fetcher) // TODO: pass ih.Cache?
 }
 
 func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -42,7 +38,7 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	ret := make(map[string]interface{})
 	defer httputil.ReturnJSON(rw, ret)
 
-	de, err := schema.NewDirectoryEntryFromBlobRef(fth.storageSeekFetcher(), fth.file)
+	de, err := schema.NewDirectoryEntryFromBlobRef(fth.Fetcher, fth.file)
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)
 		log.Printf("Error reading directory from blobref %s: %v\n", fth.file, err)

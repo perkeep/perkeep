@@ -23,7 +23,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/types"
 )
 
 // NoImplStorage is an implementation of Storage that returns a not
@@ -32,11 +31,7 @@ type NoImplStorage struct{}
 
 var _ Storage = NoImplStorage{}
 
-func (NoImplStorage) Fetch(blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
-	return nil, 0, os.ErrNotExist
-}
-
-func (NoImplStorage) FetchStreaming(blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (NoImplStorage) Fetch(blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 

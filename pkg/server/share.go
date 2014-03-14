@@ -83,7 +83,7 @@ const fetchFailureDelay = 200 * time.Millisecond
 
 // ShareHandler handles the requests for "share" (and shared) blobs.
 type shareHandler struct {
-	fetcher blob.StreamingFetcher
+	fetcher blob.Fetcher
 }
 
 func init() {
@@ -104,9 +104,9 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 	if err != nil {
 		return nil, fmt.Errorf("Share handler's blobRoot of %q error: %v", blobRoot, err)
 	}
-	fetcher, ok := bs.(blob.StreamingFetcher)
+	fetcher, ok := bs.(blob.Fetcher)
 	if !ok {
-		return nil, errors.New("Share handler's storage not a StreamingFetcher.")
+		return nil, errors.New("Share handler's storage not a Fetcher.")
 	}
 	share.fetcher = fetcher
 	return share, nil
@@ -114,7 +114,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handl
 
 // Unauthenticated user.  Be paranoid.
 func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
-	blobRef blob.Ref, fetcher blob.StreamingFetcher) error {
+	blobRef blob.Ref, fetcher blob.Fetcher) error {
 	if !httputil.IsGet(req) {
 		return &shareError{code: invalidMethod, response: badRequest, message: "Invalid method"}
 	}
@@ -147,7 +147,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	for i, br := range fetchChain {
 		switch i {
 		case 0:
-			file, size, err := fetcher.FetchStreaming(br)
+			file, size, err := fetcher.Fetch(br)
 			if err != nil {
 				return unauthorized(shareFetchFailed, "Fetch chain 0 of %s failed: %v", br, err)
 			}
@@ -180,7 +180,7 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 			// not the first thing in the chain)
 			continue
 		default:
-			file, _, err := fetcher.FetchStreaming(br)
+			file, _, err := fetcher.Fetch(br)
 			if err != nil {
 				return unauthorized(viaChainFetchFailed, "Fetch chain %d of %s failed: %v", i, br, err)
 			}

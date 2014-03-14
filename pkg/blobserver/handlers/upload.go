@@ -90,12 +90,11 @@ func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
 // It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
 // on that permanode for fileblob, signs it, and uploads it to the blobserver.
 func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef) error {
-	sf, ok := blobReceiver.(blob.StreamingFetcher)
+	sf, ok := blobReceiver.(blob.Fetcher)
 	if !ok {
-		return fmt.Errorf("BlobReceiver is not a StreamingFetcher")
+		return fmt.Errorf("BlobReceiver is not a Fetcher")
 	}
-	fetcher := blob.SeekerFromStreamingFetcher(sf)
-	fr, err := schema.NewFileReader(fetcher, fileblob.Ref)
+	fr, err := schema.NewFileReader(sf, fileblob.Ref)
 	if err != nil {
 		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.Ref.String(), err)
 	}

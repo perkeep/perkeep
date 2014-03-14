@@ -121,7 +121,7 @@ type fetcher struct {
 	size int64
 }
 
-func (f fetcher) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (f fetcher) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if f.r == nil {
 		if f.size < 0 {
 			return nil, 0, errors.New("some other error type")

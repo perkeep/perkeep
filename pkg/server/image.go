@@ -59,16 +59,12 @@ var (
 )
 
 type ImageHandler struct {
-	Fetcher             blob.StreamingFetcher
+	Fetcher             blob.Fetcher
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
 	thumbMeta           *thumbMeta // optional cache for scaled images
 	resizeSem           *syncutil.Sem
-}
-
-func (ih *ImageHandler) storageSeekFetcher() blob.SeekFetcher {
-	return blob.SeekerFromStreamingFetcher(ih.Fetcher) // TODO: pass ih.Cache?
 }
 
 type subImager interface {
@@ -131,7 +127,7 @@ func (ih *ImageHandler) cacheScaled(thumbBytes []byte, name string) error {
 //
 // The ReadCloser should be closed when done reading.
 func (ih *ImageHandler) cached(br blob.Ref) (io.ReadCloser, error) {
-	rsc, _, err := ih.Cache.FetchStreaming(br)
+	rsc, _, err := ih.Cache.Fetch(br)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +153,7 @@ func (ih *ImageHandler) cached(br blob.Ref) (io.ReadCloser, error) {
 		log.Printf("Failed to parse non-image thumbnail cache blob %v: %v", br, err)
 		return nil, err
 	}
-	fetchSeeker := blob.SeekerFromStreamingFetcher(ih.Cache)
-	fr, err := fileBlob.NewFileReader(fetchSeeker)
+	fr, err := fileBlob.NewFileReader(ih.Cache)
 	if err != nil {
 		log.Printf("cached(%d) NewFileReader = %v", br, err)
 		return nil, err
@@ -229,7 +224,7 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 }
 
 func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
-	fr, err := schema.NewFileReader(ih.storageSeekFetcher(), fileRef)
+	fr, err := schema.NewFileReader(ih.Fetcher, fileRef)
 	if err != nil {
 		return nil, err
 	}

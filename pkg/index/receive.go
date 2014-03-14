@@ -51,7 +51,7 @@ func (ix *Index) reindex(br blob.Ref) error {
 	if bs == nil {
 		return fmt.Errorf("index: can't re-index %v: no BlobSource", br)
 	}
-	rc, _, err := bs.FetchStreaming(br)
+	rc, _, err := bs.Fetch(br)
 	if err != nil {
 		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
 	}
@@ -93,9 +93,8 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 
 	sniffer.Parse()
 
-	fetcher := &seekFetcherMissTracker{
+	fetcher := &missTrackFetcher{
 		fetcher: ix.BlobSource,
-		seeker:  blob.SeekerFromStreamingFetcher(ix.BlobSource),
 	}
 
 	mm, err := ix.populateMutationMap(fetcher, blobRef, sniffer)
@@ -162,7 +161,7 @@ func (ix *Index) commit(mm *mutationMap) error {
 //
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
-func (ix *Index) populateMutationMap(fetcher *seekFetcherMissTracker, br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
+func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
 	// TODO(mpl): shouldn't we remove these two from the map (so they don't get committed) when
 	// e.g in populateClaim we detect a bogus claim (which does not yield an error)?
 	mm := &mutationMap{
@@ -207,28 +206,17 @@ func (w *keepFirstN) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// seekFetcherMissTracker is a blob.SeekFetcher that records which blob(s) it failed
-// to load from src.
-type seekFetcherMissTracker struct {
-	fetcher blob.StreamingFetcher
-	seeker  blob.SeekFetcher // of fetcher. will be deleted when SeekFetcher is globally killed
+// missTrackFetcher is a blob.Fetcher that records which blob(s) it
+// failed to load from src.
+type missTrackFetcher struct {
+	fetcher blob.Fetcher
 
 	mu      sync.Mutex // guards missing
 	missing []blob.Ref
 }
 
-func (f *seekFetcherMissTracker) Fetch(br blob.Ref) (blob types.ReadSeekCloser, size uint32, err error) {
-	blob, size, err = f.seeker.Fetch(br)
-	if err == os.ErrNotExist {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.missing = append(f.missing, br)
-	}
-	return
-}
-
-func (f *seekFetcherMissTracker) FetchStreaming(br blob.Ref) (blob io.ReadCloser, size uint32, err error) {
-	blob, size, err = f.fetcher.FetchStreaming(br)
+func (f *missTrackFetcher) Fetch(br blob.Ref) (blob io.ReadCloser, size uint32, err error) {
+	blob, size, err = f.fetcher.Fetch(br)
 	if err == os.ErrNotExist {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -239,7 +227,7 @@ func (f *seekFetcherMissTracker) FetchStreaming(br blob.Ref) (blob io.ReadCloser
 
 // b: the parsed file schema blob
 // mm: keys to populate
-func (ix *Index) populateFile(fetcher blob.SeekFetcher, b *schema.Blob, mm *mutationMap) (err error) {
+func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutationMap) (err error) {
 	var times []time.Time // all creation or mod times seen; may be zero
 	times = append(times, b.ModTime())
 
@@ -507,7 +495,7 @@ func indexMusic(r types.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 
 // b: the parsed file schema blob
 // mm: keys to populate
-func (ix *Index) populateDir(fetcher blob.SeekFetcher, b *schema.Blob, mm *mutationMap) error {
+func (ix *Index) populateDir(fetcher blob.Fetcher, b *schema.Blob, mm *mutationMap) error {
 	blobRef := b.BlobRef()
 	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto
 	// StaticFile/StaticDirectory or something.

@@ -110,7 +110,7 @@ func (reader) Close() error { return nil }
 // memory. It does not validate the blob's digest.  Use the
 // Blob.ValidContents method for that.
 func FromFetcher(fetcher Fetcher, br Ref) (*Blob, error) {
-	rc, size, err := fetcher.FetchStreaming(br)
+	rc, size, err := fetcher.Fetch(br)
 	if err != nil {
 		return nil, err
 	}

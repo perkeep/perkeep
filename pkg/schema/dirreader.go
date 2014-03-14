@@ -28,7 +28,7 @@ import (
 // A DirReader reads the entries of a "directory" schema blob's
 // referenced "static-set" blob.
 type DirReader struct {
-	fetcher blob.SeekFetcher
+	fetcher blob.Fetcher
 	ss      *superset
 
 	staticSet []blob.Ref
@@ -37,7 +37,7 @@ type DirReader struct {
 
 // NewDirReader creates a new directory reader and prepares to
 // fetch the static-set entries
-func NewDirReader(fetcher blob.SeekFetcher, dirBlobRef blob.Ref) (*DirReader, error) {
+func NewDirReader(fetcher blob.Fetcher, dirBlobRef blob.Ref) (*DirReader, error) {
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, dirBlobRef)
 	if err != nil {
@@ -54,28 +54,28 @@ func NewDirReader(fetcher blob.SeekFetcher, dirBlobRef blob.Ref) (*DirReader, er
 	return dr, nil
 }
 
-func (b *Blob) NewDirReader(fetcher blob.SeekFetcher) (*DirReader, error) {
+func (b *Blob) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 	return b.ss.NewDirReader(fetcher)
 }
 
-func (ss *superset) NewDirReader(fetcher blob.SeekFetcher) (*DirReader, error) {
+func (ss *superset) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 	if ss.Type != "directory" {
 		return nil, fmt.Errorf("Superset not of type \"directory\"")
 	}
 	return &DirReader{fetcher: fetcher, ss: ss}, nil
 }
 
-func (ss *superset) setFromBlobRef(fetcher blob.SeekFetcher, blobRef blob.Ref) error {
+func (ss *superset) setFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) error {
 	if !blobRef.Valid() {
 		return errors.New("schema/filereader: blobref invalid")
 	}
 	ss.BlobRef = blobRef
-	rsc, _, err := fetcher.Fetch(blobRef)
+	rc, _, err := fetcher.Fetch(blobRef)
 	if err != nil {
 		return fmt.Errorf("schema/filereader: fetching schema blob %s: %v", blobRef, err)
 	}
-	defer rsc.Close()
-	if err = json.NewDecoder(rsc).Decode(ss); err != nil {
+	defer rc.Close()
+	if err := json.NewDecoder(rc).Decode(ss); err != nil {
 		return fmt.Errorf("schema/filereader: decoding schema blob %s: %v", blobRef, err)
 	}
 	return nil

@@ -41,7 +41,6 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
-	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 )
 
@@ -521,7 +520,7 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	}
 
 	cs.setStatus(statusFetching)
-	rc, fromSize, err := sh.from.FetchStreaming(br)
+	rc, fromSize, err := sh.from.Fetch(br)
 	if err != nil {
 		return fmt.Errorf("source fetch: %v", err)
 	}
@@ -886,12 +885,8 @@ func storageDesc(v interface{}) string {
 //
 // For now, don't implement them. Wait until we need them.
 
-func (sh *SyncHandler) Fetch(blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
+func (sh *SyncHandler) Fetch(blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	panic("Unimplemeted blobserver.Fetch called")
-}
-
-func (sh *SyncHandler) FetchStreaming(blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	panic("Unimplemeted blobserver.FetchStreaming called")
 }
 
 func (sh *SyncHandler) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {

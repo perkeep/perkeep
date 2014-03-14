@@ -43,7 +43,7 @@ var serverStart = time.Now()
 var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
 type CamliFileSystem struct {
-	fetcher blob.SeekFetcher
+	fetcher blob.Fetcher
 	client  *client.Client // or nil, if not doing search queries
 	root    fusefs.Node
 
@@ -59,7 +59,7 @@ type CamliFileSystem struct {
 
 var _ fusefs.FS = (*CamliFileSystem)(nil)
 
-func newCamliFileSystem(fetcher blob.SeekFetcher) *CamliFileSystem {
+func newCamliFileSystem(fetcher blob.Fetcher) *CamliFileSystem {
 	return &CamliFileSystem{
 		fetcher:      fetcher,
 		blobToSchema: lru.New(1024), // arbitrary; TODO: tunable/smarter?
@@ -70,7 +70,7 @@ func newCamliFileSystem(fetcher blob.SeekFetcher) *CamliFileSystem {
 
 // NewDefaultCamliFileSystem returns a filesystem with a generic base, from which
 // users can navigate by blobref, tag, date, etc.
-func NewDefaultCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) *CamliFileSystem {
+func NewDefaultCamliFileSystem(client *client.Client, fetcher blob.Fetcher) *CamliFileSystem {
 	if client == nil || fetcher == nil {
 		panic("nil argument")
 	}
@@ -82,7 +82,7 @@ func NewDefaultCamliFileSystem(client *client.Client, fetcher blob.SeekFetcher) 
 
 // NewRootedCamliFileSystem returns a CamliFileSystem with a node based on a blobref
 // as its base.
-func NewRootedCamliFileSystem(cli *client.Client, fetcher blob.SeekFetcher, root blob.Ref) (*CamliFileSystem, error) {
+func NewRootedCamliFileSystem(cli *client.Client, fetcher blob.Fetcher, root blob.Ref) (*CamliFileSystem, error) {
 	fs := newCamliFileSystem(fetcher)
 	fs.client = cli
 
@@ -330,12 +330,12 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 		return blob.(*schema.Blob), nil
 	}
 
-	rsc, _, err := fs.fetcher.Fetch(br)
+	rc, _, err := fs.fetcher.Fetch(br)
 	if err != nil {
 		return nil, err
 	}
-	defer rsc.Close()
-	blob, err := schema.BlobFromReader(br, rsc)
+	defer rc.Close()
+	blob, err := schema.BlobFromReader(br, rc)
 	if err != nil {
 		log.Printf("Error parsing %s as schema blob: %v", br, err)
 		return nil, os.ErrInvalid

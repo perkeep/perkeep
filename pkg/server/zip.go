@@ -34,17 +34,13 @@ import (
 )
 
 type zipHandler struct {
-	fetcher blob.StreamingFetcher
+	fetcher blob.Fetcher
 	search  *search.Handler
 	// the "parent" permanode of everything to zip.
 	// Either a directory permanode, or a permanode with members.
 	root blob.Ref
 	// Optional name to use in the response header
 	filename string
-}
-
-func (zh *zipHandler) storageSeekFetcher() blob.SeekFetcher {
-	return blob.SeekerFromStreamingFetcher(zh.fetcher)
 }
 
 // blobFile contains all the information we need about
@@ -131,7 +127,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 // It only traverses permanode directories.
 func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFile, error) {
 	var list []*blobFile
-	dr, err := schema.NewDirReader(zh.storageSeekFetcher(), dirBlob)
+	dr, err := schema.NewDirReader(zh.fetcher, dirBlob)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read dir blob %v: %v", dirBlob, err)
 	}
@@ -233,7 +229,7 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	h.Set("Etag", fmt.Sprintf(`"%x"`, etag.Sum(nil)))
 
 	for _, file := range blobFiles {
-		fr, err := schema.NewFileReader(zh.storageSeekFetcher(), file.blobRef)
+		fr, err := schema.NewFileReader(zh.fetcher, file.blobRef)
 		if err != nil {
 			log.Printf("Can not add %v in zip, not a file: %v", file.blobRef, err)
 			http.Error(rw, "Server error", http.StatusInternalServerError)

@@ -179,14 +179,9 @@ func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("cond: Remove not configured")
 }
 
-func (sto *condStorage) IsFetcherASeeker() bool {
-	_, ok := sto.read.(blob.SeekFetcher)
-	return ok
-}
-
-func (sto *condStorage) FetchStreaming(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *condStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if sto.read != nil {
-		return sto.read.FetchStreaming(b)
+		return sto.read.Fetch(b)
 	}
 	err = errors.New("cond: Read not configured")
 	return

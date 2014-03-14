@@ -64,11 +64,7 @@ func (tf *Fetcher) AddBlob(b *Blob) {
 	}
 }
 
-func (tf *Fetcher) FetchStreaming(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	return tf.Fetch(ref)
-}
-
-func (tf *Fetcher) Fetch(ref blob.Ref) (file types.ReadSeekCloser, size uint32, err error) {
+func (tf *Fetcher) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if tf.FetchErr != nil {
 		if err = tf.FetchErr(); err != nil {
 			return

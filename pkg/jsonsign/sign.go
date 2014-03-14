@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"sync"
@@ -106,8 +105,8 @@ func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) 
 
 type SignRequest struct {
 	UnsignedJSON string
-	Fetcher      interface{} // blobref.Fetcher or blob.StreamingFetcher
-	ServerMode   bool        // if true, can't use pinentry or gpg-agent, etc.
+	Fetcher      blob.Fetcher
+	ServerMode   bool // if true, can't use pinentry or gpg-agent, etc.
 
 	// Optional signature time. If zero, time.Now() is used.
 	SignatureTime time.Time
@@ -156,15 +155,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
 
-	var pubkeyReader io.ReadCloser
-	switch fetcher := sr.Fetcher.(type) {
-	case blob.SeekFetcher:
-		pubkeyReader, _, err = fetcher.Fetch(signerBlob)
-	case blob.StreamingFetcher:
-		pubkeyReader, _, err = fetcher.FetchStreaming(signerBlob)
-	default:
-		panic(fmt.Sprintf("jsonsign: bogus SignRequest.Fetcher of type %T", sr.Fetcher))
-	}
+	pubkeyReader, _, err := sr.Fetcher.Fetch(signerBlob)
 	if err != nil {
 		// TODO: not really either an inputfail or an execfail.. but going
 		// with exec for now.

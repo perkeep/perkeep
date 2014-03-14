@@ -24,7 +24,7 @@ import (
 )
 
 // CreateGetHandler returns an http Handler for serving blobs from fetcher.
-func CreateGetHandler(fetcher blob.StreamingFetcher) http.Handler {
+func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 	return gethandler.CreateGetHandler(fetcher)
 }
 

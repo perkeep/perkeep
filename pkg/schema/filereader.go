@@ -41,7 +41,7 @@ type FileReader struct {
 	*io.SectionReader             // provides Read, etc.
 	parent            *FileReader // or nil for sub-region readers to find the ssm map in getSuperset
 	rootOff           int64       // this FileReader's offset from the root
-	fetcher           blob.SeekFetcher
+	fetcher           blob.Fetcher
 	ss                *superset
 	size              int64 // total number of bytes
 
@@ -56,19 +56,19 @@ type FileReader struct {
 // schema blob.
 //
 // The caller should call Close on the FileReader when done reading.
-func NewFileReader(fetcher blob.SeekFetcher, fileBlobRef blob.Ref) (*FileReader, error) {
+func NewFileReader(fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, error) {
 	// TODO(bradfitz): make this take a blobref.FetcherAt instead?
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still
 	//                 named FileReader, but can also read a "bytes" schema.
 	if !fileBlobRef.Valid() {
 		return nil, errors.New("schema/filereader: NewFileReader blobref invalid")
 	}
-	rsc, _, err := fetcher.Fetch(fileBlobRef)
+	rc, _, err := fetcher.Fetch(fileBlobRef)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 	}
-	defer rsc.Close()
-	ss, err := parseSuperset(rsc)
+	defer rc.Close()
+	ss, err := parseSuperset(rc)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
 	}
@@ -82,7 +82,7 @@ func NewFileReader(fetcher blob.SeekFetcher, fileBlobRef blob.Ref) (*FileReader,
 	return fr, nil
 }
 
-func (b *Blob) NewFileReader(fetcher blob.SeekFetcher) (*FileReader, error) {
+func (b *Blob) NewFileReader(fetcher blob.Fetcher) (*FileReader, error) {
 	return b.ss.NewFileReader(fetcher)
 }
 
@@ -94,7 +94,7 @@ func (b *Blob) NewFileReader(fetcher blob.SeekFetcher) (*FileReader, error) {
 //
 // An error is only returned if the type of the superset is not either
 // "file" or "bytes".
-func (ss *superset) NewFileReader(fetcher blob.SeekFetcher) (*FileReader, error) {
+func (ss *superset) NewFileReader(fetcher blob.Fetcher) (*FileReader, error) {
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: Superset not of type \"file\" or \"bytes\"")
 	}
@@ -276,12 +276,12 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 		if ok {
 			return ss, nil
 		}
-		rsc, _, err := fr.fetcher.Fetch(br)
+		rc, _, err := fr.fetcher.Fetch(br)
 		if err != nil {
 			return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 		}
-		defer rsc.Close()
-		ss, err = parseSuperset(rsc)
+		defer rc.Close()
+		ss, err = parseSuperset(rc)
 		if err != nil {
 			return nil, err
 		}
@@ -331,7 +331,11 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	case !p0.BlobRef.Valid() && !p0.BytesRef.Valid():
 		return &nZeros{int(p0.Size - uint64(offRemain))}, nil
 	case p0.BlobRef.Valid():
-		rsc, _, err = fr.fetcher.Fetch(p0.BlobRef)
+		blob, err := blob.FromFetcher(fr.fetcher, p0.BlobRef)
+		if err != nil {
+			return nil, err
+		}
+		rsc = blob.Open()
 	case p0.BytesRef.Valid():
 		var ss *superset
 		ss, err = fr.getSuperset(p0.BytesRef)

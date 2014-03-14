@@ -170,7 +170,7 @@ func (z *potentialZip) writeZipBlob(sb blob.SizedRef) error {
 	if err != nil {
 		return err
 	}
-	blobSrc, _, err := z.a.Source.FetchStreaming(sb.Ref)
+	blobSrc, _, err := z.a.Source.Fetch(sb.Ref)
 	if err != nil {
 		return err
 	}

@@ -4,13 +4,12 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- export blobserver.checkHashReader and document it with
+   the blob.Fetcher docs.
+
 -- "filestogether" handler, putting related blobs (e.g. files)
    next to each other in bigger blobs / separate files, and recording
    offsets of small blobs into bigger ones
-
--- ditch blob.SeekFetcher vs StreamingFetcher distinction. just
-   make Fetcher (be streaming). any seekers can slurp, now that
-   blobs are defined to be bounded (16 MB).
 
 -- diskpacked doesn't seem to sync its index quickly enough.
    A new blob receieved + process exit + read in a new process

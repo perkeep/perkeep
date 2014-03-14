@@ -35,11 +35,11 @@ var kGetPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
 
 // Handler is the HTTP handler for serving GET requests of blobs.
 type Handler struct {
-	Fetcher blob.StreamingFetcher
+	Fetcher blob.Fetcher
 }
 
 // CreateGetHandler returns an http Handler for serving blobs from fetcher.
-func CreateGetHandler(fetcher blob.StreamingFetcher) http.Handler {
+func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 	return &Handler{Fetcher: fetcher}
 }
 
@@ -60,8 +60,8 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 }
 
 // ServeBlobRef serves a blob.
-func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.StreamingFetcher) {
-	rc, size, err := fetcher.FetchStreaming(blobRef)
+func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.Fetcher) {
+	rc, size, err := fetcher.Fetch(blobRef)
 	switch err {
 	case nil:
 		break

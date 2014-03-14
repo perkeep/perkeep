@@ -97,7 +97,7 @@ func (ns *nsto) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, 
 	return nil
 }
 
-func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (ns *nsto) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	invSizeStr, err := ns.inventory.Get(br.String())
 	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
@@ -110,7 +110,7 @@ func (ns *nsto) FetchStreaming(br blob.Ref) (rc io.ReadCloser, size uint32, err 
 	if err != nil {
 		return
 	}
-	rc, size, err = ns.master.FetchStreaming(br)
+	rc, size, err = ns.master.Fetch(br)
 	if err != nil {
 		return
 	}

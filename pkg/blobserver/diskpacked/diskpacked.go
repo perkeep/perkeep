@@ -320,11 +320,7 @@ func (s *storage) Close() error {
 	return closeErr
 }
 
-func (s *storage) FetchStreaming(br blob.Ref) (io.ReadCloser, uint32, error) {
-	return s.Fetch(br)
-}
-
-func (s *storage) Fetch(br blob.Ref) (types.ReadSeekCloser, uint32, error) {
+func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	meta, err := s.meta(br)
 	if err != nil {
 		return nil, 0, err
