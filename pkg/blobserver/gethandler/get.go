@@ -18,7 +18,6 @@ limitations under the License.
 package gethandler
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,10 +25,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/types"
 )
 
 var kGetPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
@@ -62,9 +61,7 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 
 // ServeBlobRef serves a blob.
 func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.StreamingFetcher) {
-	seekFetcher := blob.SeekerFromStreamingFetcher(fetcher)
-
-	file, size, err := seekFetcher.Fetch(blobRef)
+	rc, size, err := fetcher.FetchStreaming(blobRef)
 	switch err {
 	case nil:
 		break
@@ -76,29 +73,32 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 		httputil.ServeError(rw, req, err)
 		return
 	}
-	defer file.Close()
-	var content io.ReadSeeker = file
-
+	defer rc.Close()
 	rw.Header().Set("Content-Type", "application/octet-stream")
-	if req.Header.Get("Range") == "" {
+
+	var content io.ReadSeeker = types.NewFakeSeeker(rc, int64(size))
+	rangeHeader := req.Header.Get("Range") != ""
+	const small = 32 << 10
+	var b *blob.Blob
+	if rangeHeader || size < small {
+		// Slurp to memory, so we can actually seek on it (for Range support),
+		// or if we're going to be showing it in the browser (below).
+		b, err = blob.FromReader(blobRef, rc, size)
+		if err != nil {
+			httputil.ServeError(rw, req, err)
+			return
+		}
+		content = b.Open()
+	}
+	if !rangeHeader && size < small {
 		// If it's small and all UTF-8, assume it's text and
 		// just render it in the browser.  This is more for
 		// demos/debuggability than anything else.  It isn't
 		// part of the spec.
-		if size <= 32<<10 {
-			var buf bytes.Buffer
-			_, err := io.Copy(&buf, file)
-			if err != nil {
-				httputil.ServeError(rw, req, err)
-				return
-			}
-			if utf8.Valid(buf.Bytes()) {
-				rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			}
-			content = bytes.NewReader(buf.Bytes())
+		if b.IsUTF8() {
+			rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		}
 	}
-
 	http.ServeContent(rw, req, "", dummyModTime, content)
 }
 
