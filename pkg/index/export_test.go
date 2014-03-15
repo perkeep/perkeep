@@ -17,6 +17,9 @@ limitations under the License.
 package index
 
 import (
+	"testing"
+	"time"
+
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -47,4 +50,32 @@ func ExpKvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtype
 
 func (c *Corpus) SetClaims(pn blob.Ref, claims *PermanodeMeta) {
 	c.permanodes[pn] = claims
+}
+
+func (x *Index) NeededMapsForTest() (needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
+	return x.needs, x.neededBy, x.readyReindex
+}
+
+func Exp_missingKey(have, missing blob.Ref) string {
+	return keyMissing.Key(have, missing)
+}
+
+func Exp_schemaVersion() int { return requiredSchemaVersion }
+
+func (x *Index) Exp_noteBlobIndexed(br blob.Ref) {
+	x.noteBlobIndexed(br)
+}
+
+func (x *Index) Exp_AwaitReindexing(t *testing.T) {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		x.mu.Lock()
+		n := len(x.readyReindex)
+		x.mu.Unlock()
+		if n == 0 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for readyReindex to drain")
 }

@@ -58,6 +58,17 @@ type Index struct {
 	deletes *deletionCache
 
 	corpus *Corpus // or nil, if not being kept in memory
+
+	mu sync.Mutex // guards following
+	// needs maps from a blob to the missing blobs it needs to
+	// finish indexing.
+	needs map[blob.Ref][]blob.Ref
+	// neededBy is the inverse of needs. The keys are missing blobs
+	// and the value(s) are blobs waiting to be reindexed.
+	neededBy     map[blob.Ref][]blob.Ref
+	readyReindex map[blob.Ref]bool // set of things ready to be re-indexed
+
+	tickleOoo chan bool // tickle out-of-order reindex loop, whenever readyReindex is added to
 }
 
 var (
@@ -75,21 +86,38 @@ func SetImpendingReindex() {
 	aboutToReindex = true
 }
 
+// MustNew is wraps New and fails with a Fatal error on t if New
+// returns an error.
+func MustNew(t types.TB, s sorted.KeyValue) *Index {
+	ix, err := New(s)
+	if err != nil {
+		t.Fatalf("Error creating index: %v", err)
+	}
+	return ix
+}
+
 // New returns a new index using the provided key/value storage implementation.
-func New(s sorted.KeyValue) *Index {
-	idx := &Index{s: s}
+func New(s sorted.KeyValue) (*Index, error) {
+	idx := &Index{
+		s:            s,
+		needs:        make(map[blob.Ref][]blob.Ref),
+		neededBy:     make(map[blob.Ref][]blob.Ref),
+		readyReindex: make(map[blob.Ref]bool),
+		tickleOoo:    make(chan bool, 1),
+	}
 	if aboutToReindex {
 		idx.deletes = newDeletionCache()
-		return idx
+		go idx.outOfOrderIndexerLoop()
+		return idx, nil
 	}
 
 	schemaVersion := idx.schemaVersion()
 	switch {
 	case schemaVersion == 0 && idx.isEmpty():
 		// New index.
-		err := idx.s.Set(keySchemaVersion.name, fmt.Sprintf("%d", requiredSchemaVersion))
+		err := idx.s.Set(keySchemaVersion.name, fmt.Sprint(requiredSchemaVersion))
 		if err != nil {
-			panic(fmt.Sprintf("Could not write index schema version %q: %v", requiredSchemaVersion, err))
+			return nil, fmt.Errorf("Could not write index schema version %q: %v", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
@@ -100,13 +128,17 @@ func New(s sorted.KeyValue) *Index {
 		} else {
 			tip = "Run 'camlistored --reindex' (it might take awhile, but shows status). Alternative: 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
 		}
-		log.Fatalf("index schema version is %d; required one is %d. You need to reindex. %s",
+		return nil, fmt.Errorf("index schema version is %d; required one is %d. You need to reindex. %s",
 			schemaVersion, requiredSchemaVersion, tip)
 	}
 	if err := idx.initDeletesCache(); err != nil {
-		panic(fmt.Sprintf("Could not initialize index's deletes cache: %v", err))
+		return nil, fmt.Errorf("Could not initialize index's deletes cache: %v", err)
 	}
-	return idx
+	if err := idx.initNeededMaps(); err != nil {
+		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
+	}
+	go idx.outOfOrderIndexerLoop()
+	return idx, nil
 }
 
 func (x *Index) String() string {
@@ -276,9 +308,8 @@ func newDeletionCache() *deletionCache {
 
 // initDeletesCache creates and populates the deletion status cache used by the index
 // for faster calls to IsDeleted and DeletedAt. It is called by New.
-func (x *Index) initDeletesCache() error {
+func (x *Index) initDeletesCache() (err error) {
 	x.deletes = newDeletionCache()
-	var err error
 	it := x.queryPrefix(keyDeleted)
 	defer closeIterator(it, &err)
 	for it.Next() {
@@ -1174,7 +1205,45 @@ func (x *Index) Close() error {
 	if cl, ok := x.s.(io.Closer); ok {
 		return cl.Close()
 	}
+	close(x.tickleOoo)
 	return nil
+}
+
+// initNeededMaps initializes x.needs and x.neededBy on start-up.
+func (x *Index) initNeededMaps() (err error) {
+	x.deletes = newDeletionCache()
+	it := x.queryPrefix(keyMissing)
+	defer closeIterator(it, &err)
+	for it.Next() {
+		key := it.KeyBytes()
+		pair := key[len("missing|"):]
+		pipe := bytes.IndexByte(pair, '|')
+		if pipe < 0 {
+			return fmt.Errorf("Bogus missing key %q", key)
+		}
+		have, ok1 := blob.ParseBytes(pair[:pipe])
+		missing, ok2 := blob.ParseBytes(pair[pipe+1:])
+		if !ok1 || !ok2 {
+			return fmt.Errorf("Bogus missing key %q", key)
+		}
+		x.noteNeededMemory(have, missing)
+	}
+	return
+}
+
+func (x *Index) noteNeeded(have, missing blob.Ref) error {
+	if err := x.s.Set(keyMissing.Key(have, missing), "1"); err != nil {
+		return err
+	}
+	x.noteNeededMemory(have, missing)
+	return nil
+}
+
+func (x *Index) noteNeededMemory(have, missing blob.Ref) {
+	x.mu.Lock()
+	x.needs[have] = append(x.needs[have], missing)
+	x.neededBy[missing] = append(x.neededBy[missing], have)
+	x.mu.Unlock()
 }
 
 const camliTypeMIMEPrefix = "application/json; camliType="

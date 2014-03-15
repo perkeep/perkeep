@@ -217,7 +217,10 @@ func indexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobs
 		return nil, err
 	}
 
-	ix := index.New(is)
+	ix, err := index.New(is)
+	if err != nil {
+		return nil, err
+	}
 	ix.BlobSource = sto
 	ix.KeyFetcher = ix.BlobSource // TODO(bradfitz): global search? something else?
 	return ix, nil

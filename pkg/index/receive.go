@@ -46,6 +46,39 @@ import (
 	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib"
 )
 
+func (ix *Index) outOfOrderIndexerLoop() {
+	if ix.BlobSource == nil {
+		// Bail early. Nothing will work later anyway. (for tests)
+		return
+	}
+WaitTickle:
+	for _ = range ix.tickleOoo {
+		for {
+			ix.mu.Lock()
+			if len(ix.readyReindex) == 0 {
+				ix.mu.Unlock()
+				continue WaitTickle
+			}
+			var br blob.Ref
+			for br = range ix.readyReindex {
+				break
+			}
+			delete(ix.readyReindex, br)
+			ix.mu.Unlock()
+
+			err := ix.reindex(br)
+			if err != nil {
+				log.Printf("out-of-order reindex(%v) = %v", br, err)
+				ix.mu.Lock()
+				if len(ix.needs[br]) == 0 {
+					ix.readyReindex[br] = true
+				}
+				ix.mu.Unlock()
+			}
+		}
+	}
+}
+
 func (ix *Index) reindex(br blob.Ref) error {
 	bs := ix.BlobSource
 	if bs == nil {
@@ -64,10 +97,13 @@ func (ix *Index) reindex(br blob.Ref) error {
 
 type mutationMap struct {
 	kv map[string]string // the keys and values we populate
+
+	// We record if we get a delete claim, so we can update
+	// the deletes cache right after committing the mutation.
+	//
 	// TODO(mpl): we only need to keep track of one claim so far,
 	// but I chose a slice for when we need to do multi-claims?
-	deletes []schema.Claim // we record if we get a delete claim, so we can update
-	// the deletes cache right after committing the mutation.
+	deletes []schema.Claim
 }
 
 func (mm *mutationMap) Set(k, v string) {
@@ -81,7 +117,71 @@ func (mm *mutationMap) noteDelete(deleteClaim schema.Claim) {
 	mm.deletes = append(mm.deletes, deleteClaim)
 }
 
+func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		if v[0] == x {
+			return nil
+		}
+		return v
+	}
+	nl := v[:0]
+	for _, vb := range v {
+		if vb != x {
+			nl = append(nl, vb)
+		}
+	}
+	return nl
+}
+
+func (ix *Index) noteBlobIndexed(br blob.Ref) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	for _, needer := range ix.neededBy[br] {
+		newNeeds := blobsFilteringOut(ix.needs[needer], br)
+		if len(newNeeds) == 0 {
+			ix.readyReindex[needer] = true
+			delete(ix.needs, needer)
+			select {
+			case ix.tickleOoo <- true:
+			default:
+			}
+		} else {
+			ix.needs[needer] = newNeeds
+		}
+	}
+	delete(ix.neededBy, br)
+}
+
+func (ix *Index) removeAllMissingEdges(br blob.Ref) {
+	var toDelete []string
+	it := ix.queryPrefix(keyMissing, br)
+	for it.Next() {
+		toDelete = append(toDelete, it.Key())
+	}
+	if err := it.Close(); err != nil {
+		// TODO: Care? Can lazily clean up later.
+		log.Printf("Iterator close error: %v", err)
+	}
+	for _, k := range toDelete {
+		if err := ix.s.Delete(k); err != nil {
+			log.Printf("Error deleting key %s: %v", k, err)
+		}
+	}
+}
+
 func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.SizedRef, err error) {
+	missingDeps := false
+	defer func() {
+		if err == nil {
+			ix.noteBlobIndexed(blobRef)
+			if !missingDeps {
+				ix.removeAllMissingEdges(blobRef)
+			}
+		}
+	}()
 	sniffer := NewBlobSniffer(blobRef)
 	written, err := io.Copy(sniffer, source)
 	if err != nil {
@@ -104,10 +204,20 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 		if len(fetcher.missing) == 0 {
 			return
 		}
-		// TODO(bradfitz): there was an error indexing this file, and
-		// we failed to load the blobs in f.missing.  Add those as dependencies
-		// somewhere so when we get one of those missing blobs, we kick off
-		// a re-index of this file for whenever the indexer is idle.
+		missingDeps = true
+		allRecorded := true
+		for _, missing := range fetcher.missing {
+			if err := ix.noteNeeded(blobRef, missing); err != nil {
+				allRecorded = false
+			}
+		}
+		if allRecorded {
+			// Lie and say things are good. We've
+			// successfully recorded that the blob isn't
+			// indexed, but we'll reindex it later once
+			// the dependent blobs arrive.
+			return blob.SizedRef{blobRef, uint32(written)}, nil
+		}
 		return
 	}
 
@@ -187,6 +297,7 @@ func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sni
 			}
 		}
 	}
+
 	return mm, nil
 }
 
@@ -234,17 +345,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	blobRef := b.BlobRef()
 	fr, err := b.NewFileReader(fetcher)
 	if err != nil {
-		// TODO(bradfitz): propagate up a transient failure
-		// error type, so we can retry indexing files in the
-		// future if blobs are only temporarily unavailable.
-		// Basically the same as the TODO just below.
-		//
-		// We'll also want to bump the schemaVersion after this,
-		// to fix anybody's index which is only partial due to
-		// this old bug where it would return nil instead of doing
-		// the necessary work.
-		log.Printf("index: error indexing file, creating NewFileReader %s: %v", blobRef, err)
-		return nil
+		return err
 	}
 	defer fr.Close()
 	mime, reader := magic.MIMETypeFromReader(fr)
@@ -261,16 +362,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	}
 	size, err := io.Copy(copyDest, reader)
 	if err != nil {
-		// TODO: job scheduling system to retry this spaced
-		// out max n times.  Right now our options are
-		// ignoring this error (forever) or returning the
-		// error and making the indexing try again (likely
-		// forever failing).  Both options suck.  For now just
-		// log and act like all's okay.
-		//
-		// See TODOs above, and the fetcher.missing stuff.
-		log.Printf("index: error indexing file %s: %v", blobRef, err)
-		return nil
+		return err
 	}
 	wholeRef := blob.RefFromHash(sha1)
 

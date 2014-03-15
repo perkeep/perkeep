@@ -97,7 +97,7 @@ func (mongoTester) test(t *testing.T, tfn func(*testing.T, func() *index.Index))
 		mu.Lock()
 		cleanups = append(cleanups, cleanup)
 		mu.Unlock()
-		return index.New(kv)
+		return index.MustNew(t, kv)
 	}
 	tfn(t, initIndex)
 }

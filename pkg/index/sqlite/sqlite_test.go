@@ -94,7 +94,7 @@ func (tester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
 		mu.Lock()
 		cleanups = append(cleanups, cleanup)
 		mu.Unlock()
-		return index.New(s)
+		return index.MustNew(t, s)
 	}
 	tfn(t, makeIndex)
 }

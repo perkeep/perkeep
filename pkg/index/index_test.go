@@ -30,6 +30,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -175,4 +177,184 @@ func TestMergeFileInfoRow(t *testing.T) {
 	if !reflect.DeepEqual(want, fi) {
 		t.Errorf("Got %+v; want %+v", fi, want)
 	}
+}
+
+var (
+	chunk1 = &test.Blob{Contents: "foo"}
+	chunk2 = &test.Blob{Contents: "bar"}
+	chunk3 = &test.Blob{Contents: "baz"}
+
+	chunk1ref = chunk1.BlobRef()
+	chunk2ref = chunk2.BlobRef()
+	chunk3ref = chunk3.BlobRef()
+
+	fileBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "file",
+"fileName": "stuff.txt",
+"parts": [
+  {"blobRef": "%s", "size": 3},
+  {"blobRef": "%s", "size": 3},
+  {"blobRef": "%s", "size": 3}
+]}`, chunk1ref, chunk2ref, chunk3ref)}
+	fileBlobRef = fileBlob.BlobRef()
+)
+
+func TestInitNeededMaps(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+
+	// Start unknowning that the data chunks are all gone:
+	s.Set("schemaversion", fmt.Sprint(index.Exp_schemaVersion()))
+	s.Set(index.Exp_missingKey(fileBlobRef, chunk1ref), "1")
+	s.Set(index.Exp_missingKey(fileBlobRef, chunk2ref), "1")
+	s.Set(index.Exp_missingKey(fileBlobRef, chunk3ref), "1")
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	{
+		needs, neededBy, _ := ix.NeededMapsForTest()
+		needsWant := map[blob.Ref][]blob.Ref{
+			fileBlobRef: []blob.Ref{chunk1ref, chunk2ref, chunk3ref},
+		}
+		neededByWant := map[blob.Ref][]blob.Ref{
+			chunk1ref: []blob.Ref{fileBlobRef},
+			chunk2ref: []blob.Ref{fileBlobRef},
+			chunk3ref: []blob.Ref{fileBlobRef},
+		}
+		if !reflect.DeepEqual(needs, needsWant) {
+			t.Errorf("needs = %v; want %v", needs, needsWant)
+		}
+		if !reflect.DeepEqual(neededBy, neededByWant) {
+			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
+		}
+	}
+
+	ix.Exp_noteBlobIndexed(chunk2ref)
+
+	{
+		needs, neededBy, ready := ix.NeededMapsForTest()
+		needsWant := map[blob.Ref][]blob.Ref{
+			fileBlobRef: []blob.Ref{chunk1ref, chunk3ref},
+		}
+		neededByWant := map[blob.Ref][]blob.Ref{
+			chunk1ref: []blob.Ref{fileBlobRef},
+			chunk3ref: []blob.Ref{fileBlobRef},
+		}
+		if !reflect.DeepEqual(needs, needsWant) {
+			t.Errorf("needs = %v; want %v", needs, needsWant)
+		}
+		if !reflect.DeepEqual(neededBy, neededByWant) {
+			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
+		}
+		if len(ready) != 0 {
+			t.Errorf("ready = %v; want nothing", ready)
+		}
+	}
+
+	ix.Exp_noteBlobIndexed(chunk1ref)
+
+	{
+		needs, neededBy, ready := ix.NeededMapsForTest()
+		needsWant := map[blob.Ref][]blob.Ref{
+			fileBlobRef: []blob.Ref{chunk3ref},
+		}
+		neededByWant := map[blob.Ref][]blob.Ref{
+			chunk3ref: []blob.Ref{fileBlobRef},
+		}
+		if !reflect.DeepEqual(needs, needsWant) {
+			t.Errorf("needs = %v; want %v", needs, needsWant)
+		}
+		if !reflect.DeepEqual(neededBy, neededByWant) {
+			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
+		}
+		if len(ready) != 0 {
+			t.Errorf("ready = %v; want nothing", ready)
+		}
+	}
+
+	ix.Exp_noteBlobIndexed(chunk3ref)
+
+	{
+		needs, neededBy, ready := ix.NeededMapsForTest()
+		needsWant := map[blob.Ref][]blob.Ref{}
+		neededByWant := map[blob.Ref][]blob.Ref{}
+		if !reflect.DeepEqual(needs, needsWant) {
+			t.Errorf("needs = %v; want %v", needs, needsWant)
+		}
+		if !reflect.DeepEqual(neededBy, neededByWant) {
+			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
+		}
+		if !ready[fileBlobRef] {
+			t.Error("fileBlobRef not ready")
+		}
+	}
+	dumpSorted(t, s)
+}
+
+func dumpSorted(t *testing.T, s sorted.KeyValue) {
+	foreachSorted(t, s, func(k, v string) {
+		t.Logf("index %q = %q", k, v)
+	})
+}
+
+func foreachSorted(t *testing.T, s sorted.KeyValue, fn func(string, string)) {
+	it := s.Find("", "")
+	for it.Next() {
+		fn(it.Key(), it.Value())
+	}
+	if err := it.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOutOfOrderIndexing(t *testing.T) {
+	tf := new(test.Fetcher)
+	s := sorted.NewMemoryKeyValue()
+
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix.BlobSource = tf
+
+	t.Logf("file ref = %v", fileBlobRef)
+	t.Logf("missing data chunks = %v, %v, %v", chunk1ref, chunk2ref, chunk3ref)
+
+	add := func(b *test.Blob) {
+		tf.AddBlob(b)
+		if _, err := ix.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
+			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
+		}
+	}
+
+	add(fileBlob)
+
+	{
+		key := fmt.Sprintf("missing|%s|%s", fileBlobRef, chunk1ref)
+		if got, err := s.Get(key); got == "" || err != nil {
+			t.Errorf("key %q missing (err: %v); want 1", key, err)
+		}
+	}
+
+	add(chunk1)
+	add(chunk2)
+
+	ix.Exp_AwaitReindexing(t)
+
+	{
+		key := fmt.Sprintf("missing|%s|%s", fileBlobRef, chunk3ref)
+		if got, err := s.Get(key); got == "" || err != nil {
+			t.Errorf("key %q missing (err: %v); want 1", key, err)
+		}
+	}
+
+	add(chunk3)
+
+	ix.Exp_AwaitReindexing(t)
+
+	foreachSorted(t, s, func(k, v string) {
+		if strings.HasPrefix(k, "missing|") {
+			t.Errorf("Shouldn't have missing key: %q", k)
+		}
+	})
 }

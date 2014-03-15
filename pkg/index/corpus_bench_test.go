@@ -37,7 +37,10 @@ func BenchmarkCorpusFromStorage(b *testing.B) {
 	defer test.TLog(b)()
 	buildKvOnce.Do(func() {
 		kvForBenchmark = sorted.NewMemoryKeyValue()
-		idx := index.New(kvForBenchmark)
+		idx, err := index.New(kvForBenchmark)
+		if err != nil {
+			b.Fatal(err)
+		}
 		id := indextest.NewIndexDeps(idx)
 		id.Fataler = b
 		for i := 0; i < 10; i++ {

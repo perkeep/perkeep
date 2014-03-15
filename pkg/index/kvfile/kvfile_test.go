@@ -66,7 +66,7 @@ func (tester) test(t *testing.T, tfn func(*testing.T, func() *index.Index)) {
 	initIndex := func() *index.Index {
 		kv, cleanup := newSorted(t)
 		cleanups = append(cleanups, cleanup)
-		return index.New(kv)
+		return index.MustNew(t, kv)
 	}
 
 	tfn(t, initIndex)

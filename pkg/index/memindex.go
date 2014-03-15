@@ -29,7 +29,13 @@ func init() {
 
 // NewMemoryIndex returns an Index backed only by memory, for use in tests.
 func NewMemoryIndex() *Index {
-	return New(sorted.NewMemoryKeyValue())
+	ix, err := New(sorted.NewMemoryKeyValue())
+	if err != nil {
+		// Nothing to fail in memory, so worth panicing about
+		// if we ever see something.
+		panic(err)
+	}
+	return ix
 }
 
 func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {

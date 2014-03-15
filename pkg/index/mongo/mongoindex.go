@@ -40,7 +40,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		return nil, err
 	}
 
-	ix := index.New(kv)
+	ix, err := index.New(kv)
+	if err != nil {
+		return nil, err
+	}
+
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
