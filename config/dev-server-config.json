@@ -304,6 +304,14 @@
       }
     },
 
+    "/importer-twitter/": {
+      "handler": "importer-twitter",
+      "enabled": ["_env", "${CAMLI_TWITTER_ENABLED}", false],
+      "handlerArgs": {
+        "apiKey": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
+      }
+    },
+
      "/share/": {
          "handler": "share",
          "handlerArgs": {

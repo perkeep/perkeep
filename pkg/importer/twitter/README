@@ -1,0 +1,13 @@
+Twitter Importer
+===================
+
+This is a Camlistore importer for Twitter.com.
+
+To use:
+
+1) Visit https://apps.twitter.com/ and "Create a new app"
+	to get an API key and secret.
+2) Start the devcam server with twitterapikey flag:
+	$ devcam server -twitterapikey=<apikey>:<secret>
+3) Navigate to http://<server>/importer-twitter/login
+4) Watch import progress on the command line

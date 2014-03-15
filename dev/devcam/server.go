@@ -61,6 +61,7 @@ type serverCmd struct {
 	flickrAPIKey     string
 	foursquareAPIKey string
 	picasaAPIKey     string
+	twitterAPIKey    string
 	extraArgs        string // passed to camlistored
 	// end of flag vars
 
@@ -100,6 +101,7 @@ func init() {
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
 		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
+		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
 			"List of comma separated options that will be passed to camlistored")
@@ -272,6 +274,10 @@ func (c *serverCmd) setEnvVars() error {
 	if c.picasaAPIKey != "" {
 		setenv("CAMLI_PICASA_ENABLED", "true")
 		setenv("CAMLI_PICASA_API_KEY", c.picasaAPIKey)
+	}
+	if c.twitterAPIKey != "" {
+		setenv("CAMLI_TWITTER_ENABLED", "true")
+		setenv("CAMLI_TWITTER_API_KEY", c.twitterAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
 	return nil
