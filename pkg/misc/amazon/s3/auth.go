@@ -151,7 +151,7 @@ func (a *Auth) writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request
 // 	  <HTTP-Request-URI, from the protocol name up to the query string> +
 // 	  [ sub-resource, if present. For example "?acl", "?location", "?logging", or "?torrent"];
 func (a *Auth) writeCanonicalizedResource(buf *bytes.Buffer, req *http.Request) {
-	if bucket := a.bucketFromHostname(req); bucket != "" {
+	if bucket := a.bucketFromReq(req); bucket != "" {
 		buf.WriteByte('/')
 		buf.WriteString(bucket)
 	}
@@ -164,19 +164,11 @@ func hasDotSuffix(s string, suffix string) bool {
 	return len(s) >= len(suffix)+1 && strings.HasSuffix(s, suffix) && s[len(s)-len(suffix)-1] == '.'
 }
 
-func (a *Auth) bucketFromHostname(req *http.Request) string {
-	host := req.Host
-	if host == "" {
-		host = req.URL.Host
-	}
-	if host == a.hostname() {
+func (a *Auth) bucketFromReq(req *http.Request) string {
+	components := strings.Split(req.URL.Path, "/")
+	if len(components) >= 2 {
+		return components[1]
+	} else {
 		return ""
 	}
-	if hostSuffix := a.hostname(); hasDotSuffix(host, hostSuffix) {
-		return host[:len(host)-len(hostSuffix)-1]
-	}
-	if lastColon := strings.LastIndex(host, ":"); lastColon != -1 {
-		return host[:lastColon]
-	}
-	return host
 }
