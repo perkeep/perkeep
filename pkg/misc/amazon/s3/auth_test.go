@@ -95,17 +95,16 @@ Content-Length: 5913339
 	}
 }
 
-func TestBucketFromHostname(t *testing.T) {
+func TestBucketFromReq(t *testing.T) {
 	var a Auth
 	tests := []reqAndExpected{
 		{"GET / HTTP/1.0\n\n", ""},
 		{"GET / HTTP/1.0\nHost: s3.amazonaws.com\n\n", ""},
-		{"GET / HTTP/1.0\nHost: foo.s3.amazonaws.com\n\n", "foo"},
-		{"GET / HTTP/1.0\nHost: foo.com:123\n\n", "foo.com"},
-		{"GET / HTTP/1.0\nHost: bar.com\n\n", "bar.com"},
+		{"GET / HTTP/1.0\nHost: s3.amazonaws.com/foo\n\n", "foo"},
+		{"GET / HTTP/1.0\nHost: s3.amazonaws.com/foo/bar\n\n", "foo"},
 	}
 	for idx, test := range tests {
-		got := a.bucketFromHostname(req(test.req))
+		got := a.bucketFromReq(req(test.req))
 		if got != test.expected {
 			t.Errorf("test %d: expected %q; got %q", idx, test.expected, got)
 		}
