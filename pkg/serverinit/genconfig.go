@@ -44,6 +44,8 @@ type configPrefixesParams struct {
 	shareHandlerPath string
 	flickr           string
 	memoryIndex      bool
+
+	indexFileDir string // if sqlite or kvfile, its directory. else "".
 }
 
 var (
@@ -455,21 +457,27 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 			"from": "/bs/",
 			"to":   params.indexerPath,
 		}
-		// TODO(mpl): Brad says the cond should be dest == /index-*.
-		// But what about when dest is index-mem and we have a local disk;
-		// don't we want to have an active synchandler to do the fullSyncOnStart?
-		// Anyway, that condition works for now.
-		if params.blobPath == "" {
-			// When our primary blob store is remote (s3 or google cloud),
-			// i.e not an efficient replication source, we do not want the
-			// synchandler to mirror to the indexer. But we still want a
-			// synchandler to provide the discovery for e.g tools like
-			// camtool sync. See http://camlistore.org/issue/201
+
+		// TODO: currently when using s3, the index must be
+		// sqlite or kvfile, since only through one of those
+		// can we get a directory.
+		if params.blobPath == "" && params.indexFileDir == "" {
+			// We don't actually have a working sync handler, but we keep a stub registered
+			// so it can be referred to from other places.
+			// See http://camlistore.org/issue/201
 			syncArgs["idle"] = true
 		} else {
+			dir := params.blobPath
+			if dir == "" {
+				dir = params.indexFileDir
+			}
+			typ := "kv"
+			if params.indexerPath == "/index-sqlite/" {
+				typ = "sqlite"
+			}
 			syncArgs["queue"] = map[string]interface{}{
-				"type": "kv",
-				"file": filepath.Join(params.blobPath, "sync-to-index-queue.kv"),
+				"type": typ,
+				"file": filepath.Join(dir, "sync-to-index-queue."+typ),
 			}
 		}
 		m["/sync/"] = map[string]interface{}{
@@ -554,7 +562,8 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		conf.DBName = "camli" + username
 	}
 
-	var indexerPath string
+	var indexerPath string  // e.g. "/index-kv/"
+	var indexFileDir string // filesystem directory of sqlite, kv, or similar
 	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile)
 	runIndex := conf.RunIndex.Get()
 	switch {
@@ -572,8 +581,10 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		indexerPath = "/index-mongo/"
 	case conf.SQLite != "":
 		indexerPath = "/index-sqlite/"
+		indexFileDir = filepath.Dir(conf.SQLite)
 	case conf.KVFile != "":
 		indexerPath = "/index-kv/"
+		indexFileDir = filepath.Dir(conf.KVFile)
 	}
 
 	entity, err := jsonsign.EntityFromSecring(conf.Identity, conf.IdentitySecretRing)
@@ -609,6 +620,7 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		shareHandlerPath: conf.ShareHandlerPath,
 		flickr:           conf.Flickr,
 		memoryIndex:      conf.MemoryIndex.Get(),
+		indexFileDir:     indexFileDir,
 	}
 
 	prefixes := genLowLevelPrefixes(prefixesParams, conf.OwnerName)

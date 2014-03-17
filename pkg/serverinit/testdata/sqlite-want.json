@@ -84,8 +84,8 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"file": "/tmp/blobs/sync-to-index-queue.kv",
-					"type": "kv"
+					"file": "/tmp/blobs/sync-to-index-queue.sqlite",
+					"type": "sqlite"
 				},
 				"to": "/index-sqlite/"
 			}

@@ -88,7 +88,10 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"idle": true,
+				"queue": {
+					"file": "/path/to/sync-to-index-queue.kv",
+					"type": "kv"
+				},
 				"to": "/index-kv/"
 			}
 		},

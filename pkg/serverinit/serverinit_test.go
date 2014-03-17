@@ -36,7 +36,10 @@ import (
 	"camlistore.org/pkg/types/serverconfig"
 )
 
-var updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
+var (
+	updateGolden = flag.Bool("update_golden", false, "Update golden *.want files")
+	flagOnly     = flag.String("only", "", "If non-empty, substring of foo.json input file to match.")
+)
 
 const (
 	// relativeRing points to a real secret ring, but serverinit
@@ -78,6 +81,9 @@ func TestConfigs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range names {
+		if *flagOnly != "" && !strings.Contains(name, *flagOnly) {
+			continue
+		}
 		if strings.HasSuffix(name, ".json") {
 			if strings.HasSuffix(name, "-want.json") {
 				continue
@@ -168,8 +174,8 @@ func testConfig(name string, t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff (got -> want), %s:\n%s",
-			name, &got, &want, name, test.Diff(got.Bytes(), want.Bytes()))
+		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff (want -> got), %s:\n%s",
+			name, &got, &want, name, test.Diff(want.Bytes(), got.Bytes()))
 	}
 }
 
