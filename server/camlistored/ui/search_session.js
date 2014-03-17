@@ -76,6 +76,10 @@ cam.SearchSession.prototype.getQuery = function() {
 }
 
 // Returns all the data we currently have loaded.
+// It is guaranteed to return the following properties:
+// blobs // non-zero length
+// description
+// description.meta
 cam.SearchSession.prototype.getCurrentResults = function() {
 	return this.data_;
 };
@@ -153,6 +157,9 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 	} else {
 		this.data_.blobs = result.blobs;
 		this.data_.description = result.description;
+	}
+	if (!this.data_.blobs || this.data_.blobs.length == 0) {
+		this.resetData_();
 	}
 
 	if (result.continue) {
