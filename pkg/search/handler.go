@@ -366,6 +366,9 @@ func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
 	return m[br.String()]
 }
 
+// TODO(mpl): it looks like we never populate RecentResponse.Error*, shouldn't we remove them?
+// Same for WithAttrResponse. I suppose it doesn't matter much if we end up removing GetRecentPermanodes anyway...
+
 // RecentResponse is the JSON response from $searchRoot/camli/search/recent.
 type RecentResponse struct {
 	Recent []*RecentItem `json:"recent"`

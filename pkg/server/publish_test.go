@@ -21,11 +21,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/test"
 )
 
 type publishURLTest struct {
@@ -33,104 +34,100 @@ type publishURLTest struct {
 	subject, subres string // expected
 }
 
-var publishURLTests = []publishURLTest{
-	// URL to a single picture permanoe (returning its HTML wrapper page)
-	{
-		path:    "/pics/singlepic",
-		subject: "picpn-1234",
-	},
+var publishURLTests []publishURLTest
 
-	// URL to a gallery permanode (returning its HTML wrapper page)
-	{
-		path:    "/pics/camping",
-		subject: "gal-1234",
-	},
+func setupContent(rootName string) *indextest.IndexDeps {
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
 
-	// URL to a picture permanode within a gallery (following one hop, returning HTML)
-	{
-		path:    "/pics/camping/-/h9876543210",
-		subject: "picpn-9876543210",
-	},
+	picNode := idxd.NewPlannedPermanode("picpn-1234")                                             // sha1-f5e90fcc50a79caa8b22a4aa63ba92e436cab9ec
+	galRef := idxd.NewPlannedPermanode("gal-1234")                                                // sha1-2bdf2053922c3dfa70b01a4827168fce1c1df691
+	rootRef := idxd.NewPlannedPermanode("root-abcd")                                              // sha1-dbb3e5f28c7e01536d43ce194f3dd7b921b8460d
+	camp0 := idxd.NewPlannedPermanode("picpn-9876543210")                                         // sha1-2d473e07ca760231dd82edeef4019d5b7d0ccb42
+	camp1 := idxd.NewPlannedPermanode("picpn-9876543211")                                         // sha1-961b700536d5151fc1f3920955cc92767572a064
+	camp0f, _ := idxd.UploadFile("picfile-f00ff00f00a5.jpg", "picfile-f00ff00f00a5", time.Time{}) // sha1-01dbcb193fc789033fb2d08ed22abe7105b48640
+	camp1f, _ := idxd.UploadFile("picfile-f00ff00f00b6.jpg", "picfile-f00ff00f00b6", time.Time{}) // sha1-1213ec17a42cc51bdeb95ff91ac1b5fc5157740f
 
-	// URL to a gallery -> picture permanode -> its file
-	// (following two hops, returning HTML)
-	{
-		path:    "/pics/camping/-/h9876543210/hf00ff00f00a",
-		subject: "picfile-f00ff00f00a5",
-	},
+	idxd.SetAttribute(rootRef, "camliRoot", rootName)
+	idxd.SetAttribute(rootRef, "camliPath:singlepic", picNode.String())
+	idxd.SetAttribute(picNode, "title", "picnode without a pic?")
+	idxd.SetAttribute(rootRef, "camliPath:camping", galRef.String())
+	idxd.AddAttribute(galRef, "camliMember", camp0.String())
+	idxd.AddAttribute(galRef, "camliMember", camp1.String())
+	idxd.SetAttribute(camp0, "camliContent", camp0f.String())
+	idxd.SetAttribute(camp1, "camliContent", camp1f.String())
 
-	// URL to a gallery -> picture permanode -> its file
-	// (following two hops, returning the file download)
-	{
-		path:    "/pics/camping/-/h9876543210/hf00ff00f00a/=f/marshmallow.jpg",
-		subject: "picfile-f00ff00f00a5",
-		subres:  "/=f/marshmallow.jpg",
-	},
+	publishURLTests = []publishURLTest{
+		// URL to a single picture permanode (returning its HTML wrapper page)
+		{
+			path:    "/pics/singlepic",
+			subject: picNode.String(),
+		},
 
-	// URL to a gallery -> picture permanode -> its file
-	// (following two hops, returning the file, scaled as an image)
-	{
-		path:    "/pics/camping/-/h9876543210/hf00ff00f00a/=i/marshmallow.jpg?mw=200&mh=200",
-		subject: "picfile-f00ff00f00a5",
-		subres:  "/=i/marshmallow.jpg",
-	},
+		// URL to a gallery permanode (returning its HTML wrapper page)
+		{
+			path:    "/pics/camping",
+			subject: galRef.String(),
+		},
 
-	// Path to a static file in the root.
-	// TODO: ditch these and use content-addressable javascript + css, having
-	// the server digest them on start, or rather part of fileembed. This is
-	// a short-term hack to unblock Lindsey.
-	{
-		path:    "/pics/=s/pics.js",
-		subject: "",
-		subres:  "/=s/pics.js",
-	},
-}
+		// URL to a picture permanode within a gallery (following one hop, returning HTML)
+		{
+			path:    "/pics/camping/-/h2d473e07ca",
+			subject: camp0.String(),
+		},
 
-func setupContent(owner blob.Ref, rootName string) *test.FakeIndex {
+		// URL to a gallery -> picture permanode -> its file
+		// (following two hops, returning HTML)
+		{
+			path:    "/pics/camping/-/h2d473e07ca/h01dbcb193f",
+			subject: camp0f.String(),
+		},
 
-	picNode := blob.MustParse("picpn-1234")
-	galRef := blob.MustParse("gal-1234")
-	rootRef := blob.MustParse("root-abcd")
-	camp0 := blob.MustParse("picpn-9876543210")
-	camp1 := blob.MustParse("picpn-9876543211")
-	camp0f := blob.MustParse("picfile-f00ff00f00a5")
-	camp1f := blob.MustParse("picfile-f00ff00f00b6")
+		// URL to a gallery -> picture permanode -> its file
+		// (following two hops, returning the file download)
+		{
+			path:    "/pics/camping/-/h2d473e07ca/h01dbcb193f/=f/marshmallow.jpg",
+			subject: camp0f.String(),
+			subres:  "/=f/marshmallow.jpg",
+		},
 
-	idx := test.NewFakeIndex()
-	idx.AddSignerAttrValue(owner, "camliRoot", rootName, rootRef)
+		// URL to a gallery -> picture permanode -> its file
+		// (following two hops, returning the file, scaled as an image)
+		{
+			path:    "/pics/camping/-/h961b700536/h1213ec17a4/=i/marshmallow.jpg?mw=200&mh=200",
+			subject: camp1f.String(),
+			subres:  "/=i/marshmallow.jpg",
+		},
 
-	idx.AddMeta(owner, "", 100)
-	for _, br := range []blob.Ref{picNode, galRef, rootRef, camp0, camp1} {
-		idx.AddMeta(br, "permanode", 100)
+		// Path to a static file in the root.
+		// TODO: ditch these and use content-addressable javascript + css, having
+		// the server digest them on start, or rather part of fileembed. This is
+		// a short-term hack to unblock Lindsey.
+		{
+			path:    "/pics/=s/pics.js",
+			subject: "",
+			subres:  "/=s/pics.js",
+		},
 	}
-	for _, br := range []blob.Ref{camp0f, camp1f} {
-		idx.AddMeta(br, "file", 100)
-	}
 
-	idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:singlepic", picNode.String())
-	idx.AddClaim(owner, rootRef, "set-attribute", "camliPath:camping", galRef.String())
-	idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp0.String())
-	idx.AddClaim(owner, galRef, "add-attribute", "camliMember", camp1.String())
-	idx.AddClaim(owner, camp0, "set-attribute", "camliContent", camp0f.String())
-	idx.AddClaim(owner, camp1, "set-attribute", "camliContent", camp1f.String())
-
-	return idx
+	return idxd
 }
 
 func TestPublishURLs(t *testing.T) {
-
-	owner := blob.MustParse("owner-1234")
 	rootName := "foo"
+	idxd := setupContent(rootName)
+	sh := search.NewHandler(idxd.Index, idxd.SignerBlobRef)
+	corpus, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+	sh.SetCorpus(corpus)
+	ph := &PublishHandler{
+		RootName: rootName,
+		Search:   sh,
+	}
 
 	for ti, tt := range publishURLTests {
-		idx := setupContent(owner, rootName)
-
-		sh := search.NewHandler(idx, owner)
-		ph := &PublishHandler{
-			RootName: rootName,
-			Search:   sh,
-		}
-
 		rw := httptest.NewRecorder()
 		if !strings.HasPrefix(tt.path, "/pics/") {
 			panic("expected /pics/ prefix on " + tt.path)
@@ -162,12 +159,15 @@ func TestPublishURLs(t *testing.T) {
 }
 
 func TestPublishMembers(t *testing.T) {
-	owner := blob.MustParse("owner-1234")
 	rootName := "foo"
+	idxd := setupContent(rootName)
 
-	idx := setupContent(owner, rootName)
-
-	sh := search.NewHandler(idx, owner)
+	sh := search.NewHandler(idxd.Index, idxd.SignerBlobRef)
+	corpus, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+	sh.SetCorpus(corpus)
 	ph := &PublishHandler{
 		RootName: rootName,
 		Search:   sh,

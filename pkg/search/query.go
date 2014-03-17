@@ -77,7 +77,7 @@ func (t *SortType) UnmarshalJSON(v []byte) error {
 
 type SearchQuery struct {
 	// Exactly one of Expression or Contraint must be set.
-	// If an Expression is set, it's compiled to an Constraint.
+	// If an Expression is set, it's compiled to a Constraint.
 
 	// Expression is a textual search query in minimal form,
 	// e.g. "hawaii before:2008" or "tag:foo" or "foo" or "location:portland"
@@ -1235,6 +1235,8 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	return true, nil
 }
 
+// permanodeMatchesAttrVals checks that the values in vals - all of them, if c.ValueAll is set -
+// match the values for c.Attr.
 // vals are the current permanode values of c.Attr.
 func (c *PermanodeConstraint) permanodeMatchesAttrVals(s *search, vals []string) (bool, error) {
 	if c.NumValue != nil && !c.NumValue.intMatches(int64(len(vals))) {
