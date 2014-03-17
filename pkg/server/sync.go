@@ -86,9 +86,12 @@ type SyncHandler struct {
 	totalErrors    int64
 	vshards        []string // validation shards. if 0, validation not running
 	vshardDone     int      // shards validated
-	vmissing       int64    // missing blobs found during validat
-	vdestCount     int      // number of blobs seen on dest during validate
-	vdestBytes     int64    // number of blob bytes seen on dest during validate
+	vshardErrs     []string
+	vmissing       int64 // missing blobs found during validat
+	vdestCount     int   // number of blobs seen on dest during validate
+	vdestBytes     int64 // number of blob bytes seen on dest during validate
+	vsrcCount      int   // number of blobs seen on src during validate
+	vsrcBytes      int64 // number of blob bytes seen on src during validate
 }
 
 var (
@@ -234,11 +237,45 @@ func newIdleSyncHandler(fromName, toName string) *SyncHandler {
 }
 
 func (sh *SyncHandler) discoveryMap() map[string]interface{} {
-	// TODO(mpl): more status info
 	return map[string]interface{}{
 		"from":    sh.fromName,
 		"to":      sh.toName,
 		"toIndex": sh.toIndex,
+	}
+}
+
+// syncStatus is a snapshot of the current status, for display by the
+// status handler (status.go) in both JSON and HTML forms.
+type syncStatus struct {
+	sh *SyncHandler
+
+	From           string `json:"from"`
+	FromDesc       string `json:"fromDesc"`
+	To             string `json:"to"`
+	ToDesc         string `json:"toDesc"`
+	DestIsIndex    bool   `json:"destIsIndex,omitempty"`
+	BlobsToCopy    int    `json:"blobsToCopy"`
+	BytesToCopy    int64  `json:"bytesToCopy"`
+	LastCopySecAgo int    `json:"lastCopySecondsAgo,omitempty"`
+}
+
+func (sh *SyncHandler) currentStatus() syncStatus {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	ago := 0
+	if !sh.recentCopyTime.IsZero() {
+		ago = int(time.Now().Sub(sh.recentCopyTime).Seconds())
+	}
+	return syncStatus{
+		sh:             sh,
+		From:           sh.fromName,
+		FromDesc:       storageDesc(sh.from),
+		To:             sh.toName,
+		ToDesc:         storageDesc(sh.to),
+		DestIsIndex:    sh.toIndex,
+		BlobsToCopy:    len(sh.needCopy),
+		BytesToCopy:    sh.bytesRemain,
+		LastCopySecAgo: ago,
 	}
 }
 
@@ -280,6 +317,8 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO: remove this lock and instead just call currentStatus,
+	// and transition to using that here.
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	f := func(p string, a ...interface{}) {
@@ -311,7 +350,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	f("<h2>Validation</h2>")
 	if len(sh.vshards) == 0 {
-		f("Disabled")
+		f("Validation disabled")
 		token := xsrftoken.Generate(auth.ProcessRandom(), "user", "runFullValidate")
 		f("<form method='POST'><input type='hidden' name='mode' value='validate'><input type='hidden' name='token' value='%s'><input type='submit' value='Start validation'></form>", token)
 	} else {
@@ -321,9 +360,14 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			sh.vshardDone,
 			len(sh.vshards),
 			100*float64(sh.vshardDone)/float64(len(sh.vshards)))
-		f("<li>Blobs found missing + fixed: %d</li>", sh.vmissing)
+		f("<li>Source blobs seen: %d</li>", sh.vsrcCount)
+		f("<li>Source bytes seen: %d</li>", sh.vsrcBytes)
 		f("<li>Dest blobs seen: %d</li>", sh.vdestCount)
 		f("<li>Dest bytes seen: %d</li>", sh.vdestBytes)
+		f("<li>Blobs found missing + fixed: %d</li>", sh.vmissing)
+		if len(sh.vshardErrs) > 0 {
+			f("<li>Validation errors: %s</li>", sh.vshardErrs)
+		}
 		f("</ul>")
 	}
 
@@ -510,11 +554,6 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	sh.copying[br] = cs
 	sh.mu.Unlock()
 
-	if strings.Contains(storageDesc(sh.to), "bradfitz-camlistore-pt") {
-		//sh.logf("LIES NOT ACTUALLY COPYING")
-		//return nil
-	}
-
 	if sb.Size > constants.MaxBlobSize {
 		return fmt.Errorf("blob size %d too large; max blob size is %d", sb.Size, constants.MaxBlobSize)
 	}
@@ -651,12 +690,14 @@ func (sh *SyncHandler) runFullValidation() {
 
 func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 	defer func() {
-		if err != nil {
-			sh.logf("Failed to validate prefix %s: %v", pfx, err)
-			return
-		}
 		sh.mu.Lock()
-		sh.vshardDone++
+		if err != nil {
+			errs := fmt.Sprintf("Failed to validate prefix %s: %v", pfx, err)
+			sh.logf("%s", errs)
+			sh.vshardErrs = append(sh.vshardErrs, errs)
+		} else {
+			sh.vshardDone++
+		}
 		sh.mu.Unlock()
 	}()
 	ctx := context.New()
@@ -705,12 +746,15 @@ func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doD
 				if !strings.HasPrefix(sb.Ref.String(), pfx) {
 					return errNotPrefix
 				}
+				sh.mu.Lock()
 				if doDest {
-					sh.mu.Lock()
 					sh.vdestCount++
 					sh.vdestBytes += int64(sb.Size)
-					sh.mu.Unlock()
+				} else {
+					sh.vsrcCount++
+					sh.vsrcBytes += int64(sb.Size)
 				}
+				sh.mu.Unlock()
 				return nil
 			case <-ctx.Done():
 				return context.ErrCanceled

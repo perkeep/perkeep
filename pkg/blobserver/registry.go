@@ -42,6 +42,10 @@ type FindHandlerByTyper interface {
 	// construction of all handlers), then prefix and handler will
 	// both be non-nil when err is nil.
 	FindHandlerByType(handlerType string) (prefix string, handler interface{}, err error)
+
+	// AllHandlers returns a map from prefix to handler type, and
+	// a map from prefix to handler.
+	AllHandlers() (map[string]string, map[string]interface{})
 }
 
 type Loader interface {

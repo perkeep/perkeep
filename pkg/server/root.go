@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
@@ -48,6 +49,7 @@ type RootHandler struct {
 	BlobRoot   string
 	SearchRoot string
 	statusRoot string
+	Prefix     string // root handler's prefix
 
 	Storage blobserver.Storage // of BlobRoot, or nil
 
@@ -78,6 +80,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		SearchRoot: conf.OptionalString("searchRoot", ""),
 		OwnerName:  conf.OptionalString("ownerName", username),
 		Username:   osutil.Username(),
+		Prefix:     ld.MyPrefix(),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
@@ -143,16 +146,21 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		serveStaticFile(rw, req, Files, "favicon.ico")
 		return
 	}
-
-	configLink := ""
-	if auth.IsLocalhost(req) && !isDevServer() {
-		configLink = "<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>"
+	f := func(p string, a ...interface{}) {
+		fmt.Fprintf(rw, p, a...)
 	}
-	fmt.Fprintf(rw, "<html><body>This is camlistored, a "+
-		"<a href='http://camlistore.org'>Camlistore</a> server."+
-		"%s"+
-		"<p>To manage your content, access the <a href='/ui/'>/ui/</a>.</p></body></html>\n",
-		configLink)
+	f("<html><body><p>This is camlistored (%s), a "+
+		"<a href='http://camlistore.org'>Camlistore</a> server.</p>", buildinfo.Version())
+	if auth.IsLocalhost(req) && !isDevServer() {
+		f("<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>")
+	}
+	if rh.ui != nil {
+		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)
+	}
+	if rh.statusRoot != "" {
+		f("<p>To view status, see <a href='%s'>%s</a>", rh.statusRoot, rh.statusRoot)
+	}
+	fmt.Fprintf(rw, "</body></html>")
 }
 
 func isDevServer() bool {

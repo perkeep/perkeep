@@ -17,16 +17,24 @@ limitations under the License.
 package server
 
 import (
+	"encoding/json"
+	"fmt"
+	"html"
+	"log"
 	"net/http"
+	"strings"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 )
 
 // StatusHandler publishes server status information.
 type StatusHandler struct {
+	prefix        string
+	handlerFinder blobserver.FindHandlerByTyper
 }
 
 func init() {
@@ -37,30 +45,96 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
-	return &StatusHandler{}, nil
+	return &StatusHandler{
+		prefix:        ld.MyPrefix(),
+		handlerFinder: ld,
+	}, nil
 }
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
-	if req.Method != "GET" {
-		http.Error(rw, "Illegal URL.", http.StatusMethodNotAllowed)
+	if !httputil.IsGet(req) {
+		http.Error(rw, "Illegal status method.", http.StatusMethodNotAllowed)
 		return
 	}
-	if suffix == "status.json" {
-		sh.serveStatus(rw, req)
-		return
+	switch suffix {
+	case "status.json":
+		sh.serveStatusJSON(rw, req)
+	case "":
+		sh.serveStatusHTML(rw, req)
+	default:
+		http.Error(rw, "Illegal status path.", 404)
 	}
-	http.Error(rw, "Illegal URL.", 404)
 }
 
-type statusResponse struct {
-	Version string `json:"version"`
+type status struct {
+	Version    string                   `json:"version"`
+	Error      string                   `json:"error,omitempty"`
+	SyncStatus []syncStatus             `json:"sync"`
+	Storage    map[string]storageStatus `json:"storage"`
+	rootPrefix string
 }
 
-func (sh *StatusHandler) serveStatus(rw http.ResponseWriter, req *http.Request) {
-	res := &statusResponse{
+type storageStatus struct {
+	Primary     bool        `json:"primary,omitempty"`
+	IsIndex     bool        `json:"isIndex,omitempty"`
+	Type        string      `json:"type"`
+	ApproxBlobs int         `json:"approximateBlobs"`
+	ApproxBytes int         `json:"approximateBytes"`
+	ImplStatus  interface{} `json:"implStatus,omitempty"`
+}
+
+func (sh *StatusHandler) currentStatus() *status {
+	res := &status{
 		Version: buildinfo.Version(),
+		Storage: make(map[string]storageStatus),
+	}
+	_, hi, err := sh.handlerFinder.FindHandlerByType("root")
+	if err != nil {
+		res.Error = fmt.Sprintf("Error finding root handler: %v", err)
+		return res
+	}
+	rh := hi.(*RootHandler)
+	res.rootPrefix = rh.Prefix
+	for _, sh := range rh.sync {
+		res.SyncStatus = append(res.SyncStatus, sh.currentStatus())
 	}
 
-	httputil.ReturnJSON(rw, res)
+	types, handlers := sh.handlerFinder.AllHandlers()
+
+	// Storage
+	for pfx, typ := range types {
+		if !strings.HasPrefix(typ, "storage-") {
+			continue
+		}
+		h := handlers[pfx]
+		_, isIndex := h.(*index.Index)
+		res.Storage[pfx] = storageStatus{
+			Type:    strings.TrimPrefix(typ, "storage-"),
+			Primary: pfx == rh.BlobRoot,
+			IsIndex: isIndex,
+		}
+	}
+
+	return res
+}
+
+func (sh *StatusHandler) serveStatusJSON(rw http.ResponseWriter, req *http.Request) {
+	httputil.ReturnJSON(rw, sh.currentStatus())
+}
+
+func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Request) {
+	st := sh.currentStatus()
+	f := func(p string, a ...interface{}) {
+		fmt.Fprintf(rw, p, a...)
+	}
+	f("<html><head><title>Status</title></head>")
+	f("<body><h2>Status</h2>")
+	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
+	f("<p>Not yet pretty HTML UI:</p>")
+	js, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		log.Printf("JSON marshal error: %v", err)
+	}
+	f("<pre>%s</pre>", html.EscapeString(string(js)))
 }
