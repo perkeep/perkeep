@@ -344,7 +344,7 @@ cam.IndexPageReact = React.createClass({
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
 		var data = new cam.BlobItemReactData(blobref, this.searchSession_.getCurrentResults().description.meta);
-		if (!data.m.type != 'permanode') {
+		if (data.m.camliType != 'permanode') {
 			return null;
 		}
 
