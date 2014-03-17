@@ -36,6 +36,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
@@ -346,6 +347,41 @@ func stringFromMixedArray(parts []interface{}) string {
 		}
 	}
 	return buf.String()
+}
+
+func mixedArrayFromString(s string) []interface{} {
+	buf := []byte(s)
+	var name []interface{}
+	n := 0
+	for n < len(buf) {
+		part, offset := nextStringOrByte(buf[n:])
+		name = append(name, part)
+		n += offset
+	}
+
+	return name
+}
+
+func nextStringOrByte(b []byte) (interface{}, int) {
+	n := 0
+	var s []byte
+	for n < len(b) {
+		r, size := utf8.DecodeRune(b[n:])
+		if r == utf8.RuneError {
+			// If we already have a UTF8 string segment, return it
+			if len(s) > 0 {
+				return string(s), n
+			}
+			// Return the single byte and an offset of 1
+			return b[n], 1
+		}
+		n += size // We have consumed size bytes
+		c := make([]byte, utf8.RuneLen(r))
+		_ = utf8.EncodeRune(c, r)
+		s = append(s, c...)
+	}
+
+	return string(s), n
 }
 
 func (ss *superset) SumPartsSize() (size uint64) {
