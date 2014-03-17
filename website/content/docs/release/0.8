@@ -33,7 +33,8 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
         <li>Indexer now gracefully handles dependent blobs arriving out of order and reschedules indexing as dependencies are satisified. This means full syncs in arbitrary orders don't confuse the indexer.</li>
         <li>RelationConstraint implemented for Relation type "parent"</li>
         <li>Search operator syntax for searching permanodes for arbitrary attributes: <tt>attr:&lt;attribute_name&gt;:&lt;attribute_value&gt;</tt></li>
-        <li>Search operator syntax for searching permanodes by their parent permanode(s): <tt>childrenof:sha1-xxxxx</tt>
+        <li>Search operator syntax for searching permanodes by their parent permanode(s): <tt>childrenof:sha1-xxxxx</tt></li>
+        <li>Searches can contain parenthesized subexpressions and accept 'and' and 'or'. A whitespace separation still means and.</li>
         <li>Permanode deletions now taken into account by index corpus, hence in search results too.</li>
 </ul>
 <h3>Importers</h3>
