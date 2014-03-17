@@ -23,6 +23,9 @@ import (
 )
 
 func (sto *s3Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	if faultGet.FailErr(&err) {
+		return
+	}
 	file, sz, err := sto.s3Client.Get(sto.bucket, blob.String())
 	return file, uint32(sz), err
 }

@@ -26,9 +26,11 @@ import (
 
 var statGate = syncutil.NewGate(20) // arbitrary
 
-func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
+	if faultStat.FailErr(&err) {
+		return
+	}
 	var wg syncutil.Group
-
 	for _, br := range blobs {
 		br := br
 		statGate.Start()

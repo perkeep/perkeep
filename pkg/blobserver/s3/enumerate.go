@@ -46,8 +46,11 @@ func nextStr(s string) string {
 	return string(b)
 }
 
-func (sto *s3Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *s3Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
+	if faultEnumerate.FailErr(&err) {
+		return
+	}
 	startAt := after
 	if _, ok := blob.Parse(after); ok {
 		startAt = nextStr(after)

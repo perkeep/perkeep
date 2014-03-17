@@ -38,8 +38,16 @@ import (
 	"net/http"
 
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/fault"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/misc/amazon/s3"
+)
+
+var (
+	faultReceive   = fault.NewInjector("s3_receive")
+	faultEnumerate = fault.NewInjector("s3_enumerate")
+	faultStat      = fault.NewInjector("s3_stat")
+	faultGet       = fault.NewInjector("s3_get")
 )
 
 type s3Storage struct {
