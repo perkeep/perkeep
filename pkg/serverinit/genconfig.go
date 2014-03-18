@@ -43,6 +43,7 @@ type configPrefixesParams struct {
 	searchOwner      blob.Ref
 	shareHandlerPath string
 	flickr           string
+	picasa           string
 	memoryIndex      bool
 
 	indexFileDir string // if sqlite or kvfile, its directory. else "".
@@ -451,6 +452,15 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 			},
 		}
 	}
+	if params.picasa != "" {
+		m["/importer-picasa/"] = map[string]interface{}{
+			"handler": "importer-picasa",
+			"handlerArgs": map[string]interface{}{
+				"apiKey": params.picasa,
+				"path":   filepath.Join(params.blobPath, "/picasa"),
+			},
+		}
+	}
 
 	if haveIndex {
 		syncArgs := map[string]interface{}{
@@ -619,6 +629,7 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
 		shareHandlerPath: conf.ShareHandlerPath,
 		flickr:           conf.Flickr,
+		picasa:           conf.Picasa,
 		memoryIndex:      conf.MemoryIndex.Get(),
 		indexFileDir:     indexFileDir,
 	}

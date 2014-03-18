@@ -67,6 +67,7 @@ type Config struct {
 
 	// TODO(mpl): map of importers instead?
 	Flickr string `json:"flickr,omitempty"` // flicker importer.
+	Picasa string `json:"picasa,omitempty"` // picasa importer.
 }
 
 // Publish holds the server configuration values specific to publishing, i.e. to a publish handler.

@@ -60,6 +60,7 @@ type serverCmd struct {
 	openBrowser      bool
 	flickrAPIKey     string
 	foursquareAPIKey string
+	picasaAPIKey     string
 	extraArgs        string // passed to camlistored
 	// end of flag vars
 
@@ -98,6 +99,7 @@ func init() {
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
+		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
 			"List of comma separated options that will be passed to camlistored")
@@ -266,6 +268,10 @@ func (c *serverCmd) setEnvVars() error {
 	if c.foursquareAPIKey != "" {
 		setenv("CAMLI_FOURSQUARE_ENABLED", "true")
 		setenv("CAMLI_FOURSQUARE_API_KEY", c.foursquareAPIKey)
+	}
+	if c.picasaAPIKey != "" {
+		setenv("CAMLI_PICASA_ENABLED", "true")
+		setenv("CAMLI_PICASA_API_KEY", c.picasaAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
 	return nil
