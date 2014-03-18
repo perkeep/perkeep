@@ -4,6 +4,21 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- be able to put a search (expr or JSON) into camlistore as a blob,
+   and search on it. and then name it with a permanode, and then
+   use a expr search like "named:someset" which looks up someset's
+   current camliContent, fetches it, and then expands into that blob's
+   search.expr or search.Constraint.
+
+-- S3-only mode doesn't work with a local disk index (kvfile) because
+   there's no directory for us to put the kv in.
+
+-- fault injection many more places with pkg/fault. maybe even in all
+   handlers automatically somehow?
+
+-- sync handler's shard validation doesn't retry on error.
+   only reports the errors now.
+
 -- export blobserver.checkHashReader and document it with
    the blob.Fetcher docs.
 
