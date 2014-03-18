@@ -740,13 +740,13 @@ func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doD
 	go func() {
 		defer close(c)
 		err := blobserver.EnumerateAllFrom(ctx, e, pfx, func(sb blob.SizedRef) error {
+			// TODO: could add a more efficient method on blob.Ref to do this,
+			// that doesn't involve call String().
+			if !strings.HasPrefix(sb.Ref.String(), pfx) {
+				return errNotPrefix
+			}
 			select {
 			case c <- sb:
-				// TODO: could add a more efficient method on blob.Ref to do this,
-				// that doesn't involve call String().
-				if !strings.HasPrefix(sb.Ref.String(), pfx) {
-					return errNotPrefix
-				}
 				sh.mu.Lock()
 				if doDest {
 					sh.vdestCount++
