@@ -19,9 +19,13 @@ hack from a Camlistore release's zip file:
 
 $ git clone https://camlistore.googlesource.com/camlistore
 
-(We use github for distribution and collaboration with some people,
-but the Gerrit git server & code review system is the main repo. See
-http://camlistore.org/docs/contributing for how to use them.)
+(We use github for distribution but its code review system is so poor,
+we don't use its Pull Request mechanism. The Gerrit git server & code
+review system is the main repo. See
+http://camlistore.org/docs/contributing for how to use them.  We might
+support github for pull requests in the future, once it's properly
+integrated with external code review tools. We had a meeting with Github
+to discuss the ways in which their code review tools are poor.)
 
 On Debian/Ubuntu, some deps to get started:
 
