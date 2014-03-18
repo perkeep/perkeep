@@ -21,7 +21,12 @@ import "camlistore.org/pkg/blob"
 // ListMissingDestinationBlobs reads from 'srcch' and 'dstch' (sorted
 // enumerations of blobs from two blob servers) and sends to
 // 'destMissing' any blobs which appear on the source but not at the
-// destination.  destMissing is closed at the end.
+// destination.
+//
+// destMissing is closed at the end.
+//
+// If an invalid (zero) blob from srcch or dstch arrives,
+// ListMissingDestinationBlobs stops.
 func ListMissingDestinationBlobs(destMissing chan<- blob.SizedRef, sizeMismatch func(blob.Ref), srcch, dstch <-chan blob.SizedRef) {
 	defer close(destMissing)
 
@@ -29,9 +34,12 @@ func ListMissingDestinationBlobs(destMissing chan<- blob.SizedRef, sizeMismatch 
 	dst := &blob.ChanPeeker{Ch: dstch}
 
 	for {
-		_, ok := src.Peek()
+		srcSized, ok := src.Peek()
 		if !ok {
 			break
+		}
+		if !srcSized.Ref.Valid() {
+			return
 		}
 
 		// If the destination has reached its end, anything
@@ -41,20 +49,23 @@ func ListMissingDestinationBlobs(destMissing chan<- blob.SizedRef, sizeMismatch 
 			continue
 		}
 
-		srcStr := src.MustPeek().Ref
-		dstStr := dst.MustPeek().Ref
+		srcBlob := src.MustPeek().Ref
+		dstRef := dst.MustPeek().Ref
+		if !dstRef.Valid() {
+			return
+		}
 
 		switch {
-		case srcStr == dstStr:
+		case srcBlob == dstRef:
 			// Skip both
 			sb := src.MustTake()
 			db := dst.MustTake()
 			if sb.Size != db.Size {
 				sizeMismatch(sb.Ref)
 			}
-		case srcStr.Less(dstStr):
+		case srcBlob.Less(dstRef):
 			destMissing <- src.MustTake()
-		case dstStr.Less(srcStr):
+		case dstRef.Less(srcBlob):
 			dst.Take()
 		}
 	}
