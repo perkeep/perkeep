@@ -854,6 +854,8 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	return t, !t.IsZero()
 }
 
+// AppendPermanodeAttrValues appends to dst all the values for the attribute
+// attr set on permaNode.
 // signerFilter is optional.
 // dst must start with length 0 (laziness, mostly)
 func (c *Corpus) AppendPermanodeAttrValues(dst []string,

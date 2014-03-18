@@ -33,7 +33,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
@@ -239,31 +238,62 @@ func (ph *PublishHandler) makeClosureHandler(root string) (http.Handler, error) 
 	return makeClosureHandler(root, "publish")
 }
 
+func (ph *PublishHandler) camliRootQuery() (*search.SearchResult, error) {
+	// TODO(mpl): I've voluntarily omitted the owner because it's not clear to
+	// that we actually care about that. Same for signer in lookupPathTarget.
+	return ph.Search.Query(&search.SearchQuery{
+		Limit: 1,
+		Constraint: &search.Constraint{
+			Permanode: &search.PermanodeConstraint{
+				Attr:  "camliRoot",
+				Value: ph.RootName,
+			},
+		},
+	})
+}
+
 func (ph *PublishHandler) rootPermanode() (blob.Ref, error) {
 	// TODO: caching, but this can change over time (though
 	// probably rare). might be worth a 5 second cache or
 	// something in-memory? better invalidation story first would
 	// be nice.
-	br, err := ph.Search.Index().PermanodeOfSignerAttrValue(ph.Search.Owner(), "camliRoot", ph.RootName)
+	result, err := ph.camliRootQuery()
 	if err != nil {
-		log.Printf("Error: publish handler at serving root name %q has no configured permanode: %v",
-			ph.RootName, err)
+		return blob.Ref{}, fmt.Errorf("could not find permanode for root %q of publish handler: %v", ph.RootName, err)
 	}
-	return br, err
+	if len(result.Blobs) == 0 || !result.Blobs[0].Blob.Valid() {
+		return blob.Ref{}, fmt.Errorf("could not find permanode for root %q of publish handler: %v", ph.RootName, os.ErrNotExist)
+	}
+	return result.Blobs[0].Blob, nil
 }
 
 func (ph *PublishHandler) lookupPathTarget(root blob.Ref, suffix string) (blob.Ref, error) {
 	if suffix == "" {
 		return root, nil
 	}
-	path, err := ph.Search.Index().PathLookup(ph.Search.Owner(), root, suffix, time.Time{})
+	// TODO: verify it's optimized: http://camlistore.org/issue/405
+	result, err := ph.Search.Query(&search.SearchQuery{
+		Limit: 1,
+		Constraint: &search.Constraint{
+			Permanode: &search.PermanodeConstraint{
+				SkipHidden: true,
+				Relation: &search.RelationConstraint{
+					Relation: "parent",
+					EdgeType: "camliPath:" + suffix,
+					Any: &search.Constraint{
+						BlobRefPrefix: root.String(),
+					},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	if !path.Target.Valid() {
+	if len(result.Blobs) == 0 || !result.Blobs[0].Blob.Valid() {
 		return blob.Ref{}, os.ErrNotExist
 	}
-	return path.Target, nil
+	return result.Blobs[0].Blob, nil
 }
 
 func (ph *PublishHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
@@ -612,6 +642,7 @@ func (pr *publishRequest) parent() (parentPath string, parentBlobRef blob.Ref, e
 	if pr.subjectBasePath == "" {
 		return "", blob.Ref{}, errors.New("subjectBasePath not set")
 	}
+	// TODO(mpl): this fails when the parent is the root. fix it.
 	hops := publishedPath(pr.subjectBasePath).splitHops()
 	if len(hops) == 0 {
 		return "", blob.Ref{}, errors.New("No subresource digest in subjectBasePath")
@@ -1026,12 +1057,13 @@ func (ph *PublishHandler) setRootNode(jsonSign *signhandler.Handler, pn blob.Ref
 }
 
 func (ph *PublishHandler) bootstrapPermanode(jsonSign *signhandler.Handler) (err error) {
-	if pn, err := ph.Search.Index().PermanodeOfSignerAttrValue(ph.Search.Owner(), "camliRoot", ph.RootName); err == nil {
-		log.Printf("Publish root %q using existing permanode %s", ph.RootName, pn)
+	result, err := ph.camliRootQuery()
+	if err == nil && len(result.Blobs) > 0 && result.Blobs[0].Blob.Valid() {
+		log.Printf("Publish root %q using existing permanode %s", ph.RootName, result.Blobs[0].Blob)
 		return nil
 	}
-	log.Printf("Publish root %q needs a permanode + claim", ph.RootName)
 
+	log.Printf("Publish root %q needs a permanode + claim", ph.RootName)
 	pn, err := ph.signUpload(jsonSign, "permanode", schema.NewUnsignedPermanode())
 	if err != nil {
 		return err
