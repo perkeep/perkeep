@@ -311,6 +311,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			if xsrftoken.Valid(token, auth.ProcessRandom(), "user", "runFullValidate") {
 				sh.startFullValidation()
 				http.Redirect(rw, req, "./", http.StatusFound)
+				return
 			}
 		}
 		http.Error(rw, "Bad POST request", http.StatusBadRequest)
@@ -364,7 +365,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		f("<li>Source bytes seen: %d</li>", sh.vsrcBytes)
 		f("<li>Dest blobs seen: %d</li>", sh.vdestCount)
 		f("<li>Dest bytes seen: %d</li>", sh.vdestBytes)
-		f("<li>Blobs found missing + fixed: %d</li>", sh.vmissing)
+		f("<li>Blobs found missing &amp; enqueued: %d</li>", sh.vmissing)
 		if len(sh.vshardErrs) > 0 {
 			f("<li>Validation errors: %s</li>", sh.vshardErrs)
 		}
