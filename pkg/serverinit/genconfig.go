@@ -457,7 +457,6 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 			"handler": "importer-picasa",
 			"handlerArgs": map[string]interface{}{
 				"apiKey": params.picasa,
-				"path":   filepath.Join(params.blobPath, "/picasa"),
 			},
 		}
 	}
