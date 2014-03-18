@@ -22,6 +22,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"camlistore.org/pkg/blobserver"
@@ -70,9 +71,19 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 type status struct {
 	Version    string                   `json:"version"`
 	Error      string                   `json:"error,omitempty"`
-	SyncStatus []syncStatus             `json:"sync"`
+	Sync       map[string]syncStatus    `json:"sync"`
 	Storage    map[string]storageStatus `json:"storage"`
 	rootPrefix string
+}
+
+func (st *status) isHandler(pfx string) bool {
+	if _, ok := st.Sync[pfx]; ok {
+		return true
+	}
+	if _, ok := st.Storage[pfx]; ok {
+		return true
+	}
+	return false
 }
 
 type storageStatus struct {
@@ -88,6 +99,7 @@ func (sh *StatusHandler) currentStatus() *status {
 	res := &status{
 		Version: buildinfo.Version(),
 		Storage: make(map[string]storageStatus),
+		Sync:    make(map[string]syncStatus),
 	}
 	_, hi, err := sh.handlerFinder.FindHandlerByType("root")
 	if err != nil {
@@ -96,11 +108,17 @@ func (sh *StatusHandler) currentStatus() *status {
 	}
 	rh := hi.(*RootHandler)
 	res.rootPrefix = rh.Prefix
-	for _, sh := range rh.sync {
-		res.SyncStatus = append(res.SyncStatus, sh.currentStatus())
-	}
 
 	types, handlers := sh.handlerFinder.AllHandlers()
+
+	// Sync
+	for pfx, h := range handlers {
+		sh, ok := h.(*SyncHandler)
+		if !ok {
+			continue
+		}
+		res.Sync[pfx] = sh.currentStatus()
+	}
 
 	// Storage
 	for pfx, typ := range types {
@@ -123,6 +141,8 @@ func (sh *StatusHandler) serveStatusJSON(rw http.ResponseWriter, req *http.Reque
 	httputil.ReturnJSON(rw, sh.currentStatus())
 }
 
+var quotedPrefix = regexp.MustCompile(`[;"]/(\S+?/)[&"]`)
+
 func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Request) {
 	st := sh.currentStatus()
 	f := func(p string, a ...interface{}) {
@@ -136,5 +156,13 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	if err != nil {
 		log.Printf("JSON marshal error: %v", err)
 	}
-	f("<pre>%s</pre>", html.EscapeString(string(js)))
+	jsh := html.EscapeString(string(js))
+	jsh = quotedPrefix.ReplaceAllStringFunc(jsh, func(in string) string {
+		pfx := in[1 : len(in)-1]
+		if st.isHandler(pfx) {
+			return fmt.Sprintf("%s<a href='%s'>%s</a>%s", in[:1], pfx, pfx, in[len(in)-1:])
+		}
+		return in
+	})
+	f("<pre>%s</pre>", jsh)
 }
