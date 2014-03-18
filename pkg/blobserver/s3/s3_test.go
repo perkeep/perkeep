@@ -51,6 +51,7 @@ func TestNextStr(t *testing.T) {
 		{"abc", "abd"},
 		{"ab\xff", "ac\x00"},
 		{"a\xff\xff", "b\x00\x00"},
+		{"sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709", "sha1-da39a3ee5e6b4b0d3255bfef95601890afd8070:"},
 	}
 	for _, tt := range tests {
 		if got := nextStr(tt.s); got != tt.want {
