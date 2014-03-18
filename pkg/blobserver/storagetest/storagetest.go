@@ -126,6 +126,13 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 		testEnumerate(t, sto, blobSizedRefs[3:4], after, 1)
 	}
 
+	// Enumerate 'after' with prefix of a blobref + limit
+	{
+		after := "a"
+		t.Logf("Testing Enumerate 'after' + 'limit' param; after %q, limit 1", after)
+		testEnumerate(t, sto, blobSizedRefs[:1], after, 1)
+	}
+
 	t.Logf("Testing Remove")
 	if err := sto.RemoveBlobs(blobRefs); err != nil {
 		if strings.Contains(err.Error(), "not implemented") {
