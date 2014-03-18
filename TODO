@@ -4,6 +4,9 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- ditch the importer.Interrupt type and pass along a context.Context
+   instead, which has its Done channel for cancelation.
+
 -- be able to put a search (expr or JSON) into camlistore as a blob,
    and search on it. and then name it with a permanode, and then
    use a expr search like "named:someset" which looks up someset's
