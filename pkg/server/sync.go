@@ -739,10 +739,21 @@ func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doD
 	errc := make(chan error, 1)
 	go func() {
 		defer close(c)
+		var last string // last blobref seen; to double check storage's enumeration works correctly.
 		err := blobserver.EnumerateAllFrom(ctx, e, pfx, func(sb blob.SizedRef) error {
+			// Just double-check that the storage target is returning sorted results correctly.
+			brStr := sb.Ref.String()
+			if brStr < pfx {
+				log.Fatalf("Storage target %T enumerate not behaving: %q < requested prefix %q", e, brStr, pfx)
+			}
+			if last != "" && last >= brStr {
+				log.Fatalf("Storage target %T enumerate not behaving: previous %q >= current %q", e, last, brStr)
+			}
+			last = brStr
+
 			// TODO: could add a more efficient method on blob.Ref to do this,
 			// that doesn't involve call String().
-			if !strings.HasPrefix(sb.Ref.String(), pfx) {
+			if !strings.HasPrefix(brStr, pfx) {
 				return errNotPrefix
 			}
 			select {
