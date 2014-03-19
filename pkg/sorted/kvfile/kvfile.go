@@ -26,6 +26,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/jsonconfig"
@@ -69,6 +70,12 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			}
 			return cl, nil
 		},
+	}
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_KV_VERIFY")); v {
+		opts.VerifyDbBeforeOpen = true
+		opts.VerifyDbAfterOpen = true
+		opts.VerifyDbBeforeClose = true
+		opts.VerifyDbAfterClose = true
 	}
 	db, err := createOpen(file, opts)
 	if err != nil {
