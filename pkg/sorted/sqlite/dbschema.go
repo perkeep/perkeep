@@ -18,6 +18,8 @@ package sqlite
 
 import (
 	"bytes"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -77,4 +79,27 @@ func IsWALCapable() bool {
 // Requires SQLite >= 3.7.0
 func EnableWAL() string {
 	return "PRAGMA journal_mode = WAL"
+}
+
+// initDB creates a new sqlite database based on the file at path.
+func initDB(path string) error {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, tableSql := range SQLCreateTables() {
+		if _, err := db.Exec(tableSql); err != nil {
+			return err
+		}
+	}
+	if IsWALCapable() {
+		if _, err := db.Exec(EnableWAL()); err != nil {
+			return err
+		}
+	} else {
+		log.Print("WARNING: An SQLite DB without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114")
+	}
+	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion()))
+	return err
 }
