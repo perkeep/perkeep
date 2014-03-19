@@ -59,9 +59,9 @@ if things here are confusing or lacking.</p>
 
 <dd>a <a href="/docs/schema">Camlistore-recognized data structure</a>, serialized as a JSON
 object (map).  A schema blob must have top-level keys
-<tt>camliVersion</tt> and <tt>camliType</tt> and start with a open brace (<tt>{</tt>, byte 0x7B).  You may use any valid JSON
+<code>camliVersion</code> and <code>camliType</code> and start with a open brace (<code>{</code>, byte 0x7B).  You may use any valid JSON
 serialization library to generate schema blobs.  Whitespace or formatting doesn't matter, as long as the blob
-starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its entirety.
+starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in its entirety.
 
 <p>Example:</p>
 <pre class='sty'>
@@ -115,7 +115,7 @@ starts with <tt>{</tt> and is <a href="http://json.org/">valid JSON</a> in its e
      on mutating an object (by all creating new, signed mutation schema blobs),
      the owner ultimately decides the policies on how the mutations are respected.</p>
 
-  <p>Example permanode blob:  (as generated with <tt><a href="/cmd/camput">camput</a> --permanode</tt>)</p>
+  <p>Example permanode blob:  (as generated with <code><a href="/cmd/camput">camput</a> --permanode</code>)</p>
 
      <pre class='sty' style="overflow: auto;">{"camliVersion": 1,
   "camliSigner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8",

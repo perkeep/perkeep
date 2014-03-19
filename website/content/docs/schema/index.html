@@ -10,8 +10,8 @@
 
 <p>
   Schema blobs are JSON objects with at least two attributes always
-  set: <tt>camliVersion</tt>, which is always 1,
-  and <tt>camliType</tt>, which tells you the type of metadata the
+  set: <code>camliVersion</code>, which is always 1,
+  and <code>camliType</code>, which tells you the type of metadata the
   blob contains.
 </p>
 
@@ -24,8 +24,8 @@
   <li>
     <a href="http://camlistore.org/gw/doc/schema/files">Files</a>:
     traditional filesystems.  Files, directories, inodes, symlinks,
-    etc. Uses the <tt>file</tt>, <tt>directory</tt>, <tt>symlink</tt>,
-    and <tt>inode</tt> camliTypes.
+    etc. Uses the <code>file</code>, <code>directory</code>, <code>symlink</code>,
+    and <code>inode</code> camliTypes.
   </li>
 
   <li>
@@ -39,19 +39,19 @@
     Permanodes are used to model many kinds of mutable data, including
     mutable files, dynamic directories, and more.
     <br>
-    Uses the <tt>permanode</tt> and <tt>claim</tt> camliTypes.
+    Uses the <code>permanode</code> and <code>claim</code> camliTypes.
   </li>
 
   <li>
     <a href="/gw/doc/schema/objects/static-set.txt">Static Sets</a>:
     Immutable lists of other blobs by their refs. Indicated by
-    the <tt>static-set</tt> camliType.
+    the <code>static-set</code> camliType.
   </li>
 
   <li>
     <a href="/gw/doc/schema/objects/keep.txt">"Keep" claims</a>:
     Normally, any object that isn't referenced by a permanode could
     theoretically be garbage collected. Keep claims prevent that from
-    happening. Indicated by the <tt>keep</tt> camliType.
+    happening. Indicated by the <code>keep</code> camliType.
   </li>
 </ul>

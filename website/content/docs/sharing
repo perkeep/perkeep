@@ -24,8 +24,8 @@ thread</a> for some background:</p>
 
 <p>And I have a file, "Hi.txt".</p>
 
-<p>Its bytes are blob <tt>sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25</tt><br />
-Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</tt></p>
+<p>Its bytes are blob <code>sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25</code><br />
+Its metadata (inode, filename, etc) is blob <code>sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</code></p>
 
 <p>You don't have access to those, even though you know their names.  Verify the 401 errors:</p>
 
@@ -40,11 +40,11 @@ Its metadata (inode, filename, etc) is blob <tt>sha1-0e5e60f367cc8156ae48198c496
 <b><code>"shareHandler"</code></b>: true,</br>
 in your server <a href="/docs/server-config">config</a>.</p>
 
-<p>Now I want to share Hi.txt with you, so I create a share blob (e.g <tt><a href="/cmd/camput">camput</a> share --transitive sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</tt>).</p>
+<p>Now I want to share Hi.txt with you, so I create a share blob (e.g <code><a href="/cmd/camput">camput</a> share --transitive sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d</code>).</p>
 
-<p>I've created this, and its name is <tt>sha1-102758fb54521cb6540d256098e7c0f1625b33e3</tt></p>
+<p>I've created this, and its name is <code>sha1-102758fb54521cb6540d256098e7c0f1625b33e3</code></p>
 
-<p>Note that you can fetch it without authentication, because you're using the url prefix <code>/share/</code>, which delegates the task to the share handler, and because the share handler checks that it's a share blob that doesn't require auth (<tt>authType</tt> == "haveref" ... like "Share with others that have the link")</p>
+<p>Note that you can fetch it without authentication, because you're using the url prefix <code>/share/</code>, which delegates the task to the share handler, and because the share handler checks that it's a share blob that doesn't require auth (<code>authType</code> == "haveref" ... like "Share with others that have the link")</p>
 
 <p>Here's you getting the blob:</p>
 
@@ -91,7 +91,7 @@ Hello, Camli!</pre>
 
 <p>That's it.</p>
 
-<p>Now imagine different <tt>authType</tt> parameters (passwords, SSL
+<p>Now imagine different <code>authType</code> parameters (passwords, SSL
 certs, SSH, openid, oauth, facebook, membership in a group,
 whatever... )</p>
 

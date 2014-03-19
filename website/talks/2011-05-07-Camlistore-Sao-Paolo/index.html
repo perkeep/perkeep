@@ -236,7 +236,7 @@
         </h3>
         <ul>
           <li>At the core, everything is stored &amp; addressed by its digest (e.g. SHA1, MD5, etc)</li>
-          <li>e.g. <tt class='smaller'>"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"</tt> for the blob <tt class='smaller'>"foo"</tt></li>
+          <li>e.g. <code class='smaller'>"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"</code> for the blob <code class='smaller'>"foo"</code></li>
           <li>Great properties:
             <ul>
               <li>no versions of content: change it changes the new digest too</li>
@@ -305,7 +305,7 @@
             <li class='green'>enumerate(..) → [(blobref, size)...] (sorted by blobref)</li>
           </ul>
           <li>no public (non-owner) access</li>
-          <li>HTTP interface: <tt>GET /camli/sha1-xxxxxxx HTTP/1.1</tt></li>
+          <li>HTTP interface: <code>GET /camli/sha1-xxxxxxx HTTP/1.1</code></li>
           <li><span class='green'>delete(blobref)</span> is disabled by default, privileged op for GC or replication queues only</li>
         </ul>
       </article>
@@ -390,8 +390,8 @@
         <p>Whitespace doesn't matter. Just must be valid JSON in its
 entirety. Use whatever JSON libraries you've got.</p>
 
-        <p>That one is named<br/><tt class='smaller'>sha1-19e851fe3eb3d1f3d9d1cefe9f92c6f3c7d754f6</tt></p>
-        <p>or perhaps: <tt class='smaller'>sha512-2c6746aba012337aaf113fd63c24d994a0703d33eb5d6ed58859e45dc4e02dcf<br/>dae5c4d46c5c757fb85d5aff342245fe4edb780c028a6f3c994c1295236c931e</tt></p>
+        <p>That one is named<br/><code class='smaller'>sha1-19e851fe3eb3d1f3d9d1cefe9f92c6f3c7d754f6</code></p>
+        <p>or perhaps: <code class='smaller'>sha512-2c6746aba012337aaf113fd63c24d994a0703d33eb5d6ed58859e45dc4e02dcf<br/>dae5c4d46c5c757fb85d5aff342245fe4edb780c028a6f3c994c1295236c931e</code></p>
 
       </article>            
 
@@ -461,7 +461,7 @@ sha1-8659a52f726588dc44d38dfb22d84a4da2902fed</pre></section>
         <ul>
           <li>immutable data is easy to represent & reference</li>
           <ul>
-            <li><tt class='smaller'>sha1-8659a52f726588dc44d38dfb22d84a4da2902fed</tt> is an immutable snapshot</li>
+            <li><code class='smaller'>sha1-8659a52f726588dc44d38dfb22d84a4da2902fed</code> is an immutable snapshot</li>
             </ul>
           <li>how to represent mutable data in an immutable, content-addressed world?</li>
           <li>how to share a reference to a mutable object when changing an object mutates its name?</li>
@@ -609,11 +609,11 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
           Replication Implementation
         </h3>
         <ul>
-          <li>cold bootstrap: <tt class='green'>enumerate()</tt> (sorted) all blobs from <tt class='red'>src</tt> and <tt class='red'>dst</tt>, copy all blobs that <tt>dst</tt> doesn't have.</tt>
-          <li>more efficient: use multiple machines, starting at <tt class='blue'>sha1-0*</tt>, <tt class='blue'>sha1-1*</tt>, <tt class='blue'>sha1-2*</tt>, ... etc</li>
-          <li>once in-sync, for each <tt class='red'>(src, dst)</tt> replication pair, keep a <tt class='red'>src_to_dst_QUEUE</tt> namespace on <tt class='red'>src</tt>,</li>
-          <li>all new blobs to <tt class='red'>src</tt> also go into <tt class='red'>src_to_dst_QUEUE</tt> (refcount, hardlink, etc)</li>
-          <li>real-time watch <tt class='red'>src_to_dst_QUEUE</tt> & replicate & delete from the queue. or re-enumerate just the queue.
+          <li>cold bootstrap: <code class='green'>enumerate()</code> (sorted) all blobs from <code class='red'>src</code> and <code class='red'>dst</code>, copy all blobs that <code>dst</code> doesn't have.</code>
+          <li>more efficient: use multiple machines, starting at <code class='blue'>sha1-0*</code>, <code class='blue'>sha1-1*</code>, <code class='blue'>sha1-2*</code>, ... etc</li>
+          <li>once in-sync, for each <code class='red'>(src, dst)</code> replication pair, keep a <code class='red'>src_to_dst_QUEUE</code> namespace on <code class='red'>src</code>,</li>
+          <li>all new blobs to <code class='red'>src</code> also go into <code class='red'>src_to_dst_QUEUE</code> (refcount, hardlink, etc)</li>
+          <li>real-time watch <code class='red'>src_to_dst_QUEUE</code> & replicate & delete from the queue. or re-enumerate just the queue.
         </ul>
       </article>
 
@@ -651,7 +651,7 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
           Sharing & Share Blobs
         </h3>
         <p>the act of sharing involves creating a new <span class='red'>share claim</span>, just another blob, signed.</p>
-        <p>here is: <a href="http://camlistore.org:3179/camli/sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708"><tt class='smaller'>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</tt></a>:</p>
+        <p>here is: <a href="http://camlistore.org:3179/camli/sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708"><code class='smaller'>sha1-071fda36c1bd9e4595ed16ab5e2a46d44491f708</code></a>:</p>
         <section><pre>{"camliVersion": 1,
   "authType": <span style="background: #fff">"haveref"</span>,
   "camliSigner": "sha1-f019d17dd308eebbd49fd94536eb67214c2f0587",
@@ -671,8 +671,8 @@ sha1-ea799271abfbf85d8e22e4577f15f704c8349026</pre></section>
           <li>all non-owner requests must present a share blob's blobref as an access token</li>
           <li>that share blob dictates:
             <ul>
-              <li>what sort of authenticatation is required (or "<tt class="green">haveref</tt>" for none, like a secret link)</li>
-              <li>which blob(s) are granted access (the "<tt class='green'>transitive</tt>" option)</li>
+              <li>what sort of authenticatation is required (or "<code class="green">haveref</code>" for none, like a secret link)</li>
+              <li>which blob(s) are granted access (the "<code class='green'>transitive</code>" option)</li>
             </ul>
           </li>
           <li>requests for a blob must include the path to get there, from the share root</li>

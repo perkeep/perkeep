@@ -3,7 +3,7 @@
 <p>
   Permanodes are how Camlistore models mutable data on top of an
   immutable, content-addressable datastore. The data is modeled using
-  nodes with two camliTypes: <tt>permanode</tt> and <tt>claim</tt>.
+  nodes with two camliTypes: <code>permanode</code> and <code>claim</code>.
 </p>
 
 <h2 id="permanode">Permanode</h2>
@@ -50,27 +50,27 @@
 <p>
   All claims must be <a href="/gw/doc/json-signing/json-signing.txt">signed</a>.
 <p>
-  The anagrammatical property <tt>claimType</tt> defines what the
+  The anagrammatical property <code>claimType</code> defines what the
   claim does, and is one of the following:
 </p>
 <ul>
   <li>
-    <tt>add-attribute</tt>: adds a value to a multi-valued attribute
+    <code>add-attribute</code>: adds a value to a multi-valued attribute
     (e.g. "tag")
   </li>
 
   <li>
-    <tt>set-attribute</tt>: set a single-valued attribute. equivalent
+    <code>set-attribute</code>: set a single-valued attribute. equivalent
     to "del-attribute" of "attribute" and then add-attribute.
   </li>
 
   <li>
-    <tt>del-attribute</tt>: deletes all values of "attribute", if no
+    <code>del-attribute</code>: deletes all values of "attribute", if no
     "value" given, or just the provided "value" if multi-valued
   </li>
 
   <li>
-    <tt>multi</tt>: atomically do multiple add/set/del from above on
+    <code>multi</code>: atomically do multiple add/set/del from above on
     potentially different permanodes. looks like:
     <pre>
    {"camliVersion": 1,
@@ -100,29 +100,29 @@
 </p>
 <ul>
   <li>
-    <tt>tag</tt>: a set of zero or more keywords (or phrases) indexed
+    <code>tag</code>: a set of zero or more keywords (or phrases) indexed
     completely, for searching by tag. No HTML.
   </li>
   <li>
-    <tt>title</tt>: A name given to the permanode. No HTML.
+    <code>title</code>: A name given to the permanode. No HTML.
   </li>
   <li>
-    <tt>description</tt>: An account of the permanode. It may include but is
+    <code>description</code>: An account of the permanode. It may include but is
     not limited to: an abstract, a table of contents, or a free-text
     account of the resource. No HTML.
   </li>
   <li>
-    <tt>camliContent</tt>: A reference to another blob. If a permanode
+    <code>camliContent</code>: A reference to another blob. If a permanode
     has this attribute, it's considered a pointer to its camliContent
     value.
   </li>
   <li>
-    <tt>camliMember</tt>: A reference to another permanode. This
+    <code>camliMember</code>: A reference to another permanode. This
     indicates that the referenced permanode is a dynamic set, and
     we're a part of it.
   </li>
   <li>
-    <tt>camliPath:*</tt>: camliPath attributes are set on permanodes
+    <code>camliPath:*</code>: camliPath attributes are set on permanodes
     which represent dynamic directories. If a permanode has attributes:
     <pre>
     camliPath:dir2 = $blobref_dir2_permandode

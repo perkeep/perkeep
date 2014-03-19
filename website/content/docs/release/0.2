@@ -26,8 +26,8 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.2">g
 <ul>
   <li><b>Encryption support.</b> It hasn't been audited yet, metadata compaction isn't quite done, and the simple-config-to-low-level-config translator isn't enabled yet, so consider it all beta. It's there to use if you know what you're doing, but the underlying format might yet change.</li>
   <li><b>Improved build system.</b> Our build by default now embeds all the <a href="https://developers.google.com/closure/library/">Closure</a> resources into the server binary, making deployment much easier: just one file (the server binary) to put on your server.</li>
-  <li><b>Easier initial setup.</b> More helpful initial configuration of <a href="/cmd/camput"><tt>camput</tt></a>, etc.</li>
-  <li><b>Config files moved.</b> We now respect the <a href="http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a> on Unix systems. If you had your config files in <tt>~/.camlistore/</tt> before, move them to <tt>~/.config/camlistore/</tt>.</li>
+  <li><b>Easier initial setup.</b> More helpful initial configuration of <a href="/cmd/camput"><code>camput</code></a>, etc.</li>
+  <li><b>Config files moved.</b> We now respect the <a href="http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html">XDG Base Directory Specification</a> on Unix systems. If you had your config files in <code>~/.camlistore/</code> before, move them to <code>~/.config/camlistore/</code>.</li>
   <li><b>Fixes</b>: <ul>
       <li>The SQLite backend now uses <a href="http://www.sqlite.org/draft/wal.html">WAL</a> when available, for improved throughput with high concurrency. A bug in our build system's detection of SQLite was also fixed.</li>
       <li>The sharing handler was partially broken in 0.1, now fixed.</li>
