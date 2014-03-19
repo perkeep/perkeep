@@ -329,7 +329,8 @@ type ClaimsRequest struct {
 }
 
 func (r *ClaimsRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/claims?permanode=%v&attrFilter=%s", r.Permanode, r.AttrFilter)
+	return fmt.Sprintf("camli/search/claims?permanode=%v&attrFilter=%s",
+		r.Permanode, url.QueryEscape(r.AttrFilter))
 }
 
 // fromHTTP panics with an httputil value on failure
