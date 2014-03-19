@@ -213,6 +213,7 @@ func (c *serverCmd) setEnvVars() error {
 	default:
 		setenv("CAMLI_KVINDEX_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-kv/")
+		setenv("CAMLI_KV_VERIFY", "true")
 		if c.root == "" {
 			panic("no root set")
 		}
