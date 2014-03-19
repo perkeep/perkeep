@@ -50,7 +50,9 @@ func NewKeyValue(file string) (sorted.KeyValue, error) {
 
 	fi, err := os.Stat(file)
 	if os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
-		return nil, fmt.Errorf(`You need to initialize your SQLite database with: camtool dbinit --dbname=%s --dbtype=sqlite`, file)
+		if err := initDB(file); err != nil {
+			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %v", file, err)
+		}
 	}
 	db, err := sql.Open("sqlite3", file)
 	if err != nil {

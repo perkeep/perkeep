@@ -22,7 +22,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/json"
 	"encoding/pem"
 	"flag"
@@ -243,11 +242,6 @@ func newDefaultConfigFile(path string) error {
 	conf.BlobPath = blobDir
 	if sqlite.CompiledIn() {
 		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
-		if fi, err := os.Stat(conf.SQLite); os.IsNotExist(err) || (fi != nil && fi.Size() == 0) {
-			if err := initSQLiteDB(conf.SQLite); err != nil {
-				log.Printf("Error initializing DB %s: %v", conf.SQLite, err)
-			}
-		}
 	} else {
 		conf.KVFile = filepath.Join(osutil.CamliVarDir(), "camli-index.kvdb")
 	}
@@ -285,28 +279,6 @@ func newDefaultConfigFile(path string) error {
 	}
 
 	return nil
-}
-
-func initSQLiteDB(path string) error {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	for _, tableSql := range sqlite.SQLCreateTables() {
-		if _, err := db.Exec(tableSql); err != nil {
-			return err
-		}
-	}
-	if sqlite.IsWALCapable() {
-		if _, err := db.Exec(sqlite.EnableWAL()); err != nil {
-			return err
-		}
-	} else {
-		log.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114\n")
-	}
-	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
-	return err
 }
 
 func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
