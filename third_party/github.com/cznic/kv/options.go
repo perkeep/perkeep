@@ -107,6 +107,32 @@ type Options struct {
 	lock         io.Closer
 
 	noClone bool // test hook
+
+	// VerifyDbBeforeOpen turns on structural verification of the DB before
+	// it is opened. This verification may legitimately fail if the DB
+	// crashed and a yet-to-be-processed non empty WAL file exists.
+	VerifyDbBeforeOpen bool
+
+	// VerifyDbAfterOpen turns on structural verification of the DB after
+	// it is opened and possibly recovered from WAL.
+	VerifyDbAfterOpen bool
+
+	// VerifyDbBeforeClose turns on structural verification of the DB
+	// before it is closed.
+	VerifyDbBeforeClose bool
+
+	// VerifyDbAfterClose turns on structural verification of the DB after
+	// it is closed.
+	VerifyDbAfterClose bool
+
+	// Turns on verification of every single mutation of the DB. Before any
+	// such mutation a snapshot of the DB is created and the specific
+	// mutation operation and parameters are recorded. After the mutation
+	// the whole DB is verified. If the verification fails the last known
+	// good state (the snapshot discussed above) and the corrupted state
+	// are "core" dumped to a well known location (TBD).
+	//
+	//MAYBE ParanoidUpdates bool
 }
 
 func (o *Options) locker(dbname string) (io.Closer, error) {
@@ -121,12 +147,20 @@ func (o *Options) clone() *Options {
 		return o
 	}
 
-	return &Options{Compare: o.Compare, Locker: o.Locker}
+	r := &Options{}
+	*r = *o
+	return r
 }
 
 func (o *Options) check(dbname string, new, lock bool) (err error) {
 	if lock {
 		if o.lock, err = o.locker(dbname); err != nil {
+			return
+		}
+	}
+
+	if o.VerifyDbBeforeOpen && !new {
+		if err = verifyDbFile(dbname); err != nil {
 			return
 		}
 	}
