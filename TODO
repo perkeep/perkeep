@@ -4,6 +4,20 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- stop using the "cond" blob router storage type in genconfig, as
+   well as the /bs-and-index/ "replica" storage type, and just let the
+   index register its own AddReceiveHook like the sync handler
+   (pkg/server/sync.go). But whereas the sync handler only synchronously
+   _enqueues_ the blob to replicate, the indexer should synchronously
+   do the ReceiveBlob (ooo-reindex) on it too before returning.
+   But the sync handler, despite technically only synchronously-enqueueing
+   and being therefore async, is still very fast. It's likely the
+   sync handler will therefore send a ReceiveBlob to the indexer
+   at the ~same time the indexer is already indexing it.  So the indexer
+   should have some dup/merge suppression, and not do double work.
+   singleflight should work. The loser should still consume the
+   source io.Reader body and reply with the same error value.
+
 -- ditch the importer.Interrupt type and pass along a context.Context
    instead, which has its Done channel for cancelation.
 
