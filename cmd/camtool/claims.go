@@ -29,12 +29,14 @@ import (
 
 type claimsCmd struct {
 	server string
+	attr   string
 }
 
 func init() {
 	cmdmain.RegisterCommand("claims", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(claimsCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to fetch claims from. "+serverFlagHelp)
+		flags.StringVar(&cmd.attr, "attr", "", "Filter claims about a specific attribute. If empty, all claims are returned.")
 		return cmd
 	})
 }
@@ -44,7 +46,7 @@ func (c *claimsCmd) Describe() string {
 }
 
 func (c *claimsCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] claims [--depth=n] permanodeBlobRef\n")
+	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] claims [--depth=n] [--attr=s] permanodeBlobRef\n")
 }
 
 func (c *claimsCmd) Examples() []string {
@@ -61,7 +63,8 @@ func (c *claimsCmd) RunCommand(args []string) error {
 	}
 	cl := newClient(c.server)
 	res, err := cl.GetClaims(&search.ClaimsRequest{
-		Permanode: br,
+		Permanode:  br,
+		AttrFilter: c.attr,
 	})
 	if err != nil {
 		return err
