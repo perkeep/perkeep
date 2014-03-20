@@ -17,5 +17,5 @@ func open00(name string, in *DB) (db *DB, err error) {
 	}
 
 	db.alloc.Compress = true
-	return db, db.boot()
+	return
 }

@@ -86,6 +86,10 @@ CAMLI_KEYID (string):
   config/dev-client-dir/client-config.json: public ID of the GPG key
   to use for signing.
 
+CAMLI_KV_VERIFY (bool):
+  Enable all the VerifyDb* options in cznic/kv, to e.g. track down
+  corruptions.
+
 CAMLI_MONGO_WIPE (bool):
   Wipe out mongo based index on startup.
 

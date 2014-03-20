@@ -322,15 +322,21 @@ func (r *WithAttrRequest) thumbnailSize() int {
 // ClaimsRequest is a request to get a ClaimsResponse.
 type ClaimsRequest struct {
 	Permanode blob.Ref
+
+	// AttrFilter optionally filters claims about the given attribute.
+	// If empty, all claims for the given Permanode are returned.
+	AttrFilter string
 }
 
 func (r *ClaimsRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/claims?permanode=%v", r.Permanode)
+	return fmt.Sprintf("camli/search/claims?permanode=%v&attrFilter=%s",
+		r.Permanode, url.QueryEscape(r.AttrFilter))
 }
 
 // fromHTTP panics with an httputil value on failure
 func (r *ClaimsRequest) fromHTTP(req *http.Request) {
 	r.Permanode = httputil.MustGetBlobRef(req, "permanode")
+	r.AttrFilter = req.FormValue("attrFilter")
 }
 
 // SignerPathsRequest is a request to get a SignerPathsResponse.
@@ -609,7 +615,7 @@ func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 		return nil, errors.New("Error getting claims: nil permanode.")
 	}
 	var claims []camtypes.Claim
-	claims, err := sh.index.AppendClaims(claims, req.Permanode, sh.owner, "")
+	claims, err := sh.index.AppendClaims(claims, req.Permanode, sh.owner, req.AttrFilter)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}
