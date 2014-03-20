@@ -16,7 +16,7 @@ full:
 forcefull:
 	go install -a --tags=with_sqlite ./pkg/... ./server/... ./cmd/... ./third_party/... ./dev/...
 
-presubmit:
+presubmit: fmt
 	SKIP_DEP_TESTS=1 go test `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` -short ./pkg/... ./server/camlistored/... ./server/appengine ./cmd/... ./dev/... && echo PASS
 
 embeds:
@@ -28,6 +28,9 @@ NEWUIDIR = server/camlistored/newui
 
 clean:
 	rm -f $(NEWUIDIR)/all.js $(NEWUIDIR)/all.js.map
+
+fmt:
+	go fmt camlistore.org/cmd... camlistore.org/dev... camlistore.org/misc... camlistore.org/pkg... camlistore.org/server...
 
 genclosuredeps: $(UIDIR)/deps.js
 
