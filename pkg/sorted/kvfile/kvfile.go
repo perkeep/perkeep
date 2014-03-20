@@ -26,13 +26,12 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/kvutil"
 	"camlistore.org/pkg/sorted"
 
-	"camlistore.org/third_party/github.com/camlistore/lock"
 	"camlistore.org/third_party/github.com/cznic/kv"
 )
 
@@ -55,31 +54,10 @@ func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	createOpen := kv.Open
-	verb := "opening"
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		createOpen = kv.Create
-		verb = "creating"
-	}
-	opts := &kv.Options{
-		Locker: func(dbname string) (io.Closer, error) {
-			lkfile := dbname + ".lock"
-			cl, err := lock.Lock(lkfile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to acquire lock on %s: %v", lkfile, err)
-			}
-			return cl, nil
-		},
-	}
-	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_KV_VERIFY")); v {
-		opts.VerifyDbBeforeOpen = true
-		opts.VerifyDbAfterOpen = true
-		opts.VerifyDbBeforeClose = true
-		opts.VerifyDbAfterClose = true
-	}
-	db, err := createOpen(file, opts)
+	opts := &kv.Options{}
+	db, err := kvutil.Open(file, opts)
 	if err != nil {
-		return nil, fmt.Errorf("error %s %s: %v", verb, file, err)
+		return nil, err
 	}
 	is := &kvis{
 		db:   db,
