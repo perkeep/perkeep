@@ -19,8 +19,10 @@ limitations under the License.
 package kvutil
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"camlistore.org/third_party/github.com/camlistore/lock"
 	"camlistore.org/third_party/github.com/cznic/kv"
@@ -28,19 +30,35 @@ import (
 
 // Open opens the named kv DB file for reading/writing. It
 // creates the file if it does not exist yet.
-func Open(filePath string, opts *kv.Options) (*kv.DB, error) {
-	// TODO(mpl): use it in index pkg and such
+func Open(dbFile string, opts *kv.Options) (*kv.DB, error) {
 	createOpen := kv.Open
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	verb := "opening"
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
 		createOpen = kv.Create
+		verb = "creating"
 	}
 	if opts == nil {
 		opts = &kv.Options{}
 	}
 	if opts.Locker == nil {
-		opts.Locker = func(fullPath string) (io.Closer, error) {
-			return lock.Lock(filePath + ".lock")
+		opts.Locker = func(dbFile string) (io.Closer, error) {
+			lkfile := dbFile + ".lock"
+			cl, err := lock.Lock(lkfile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to acquire lock on %s: %v", lkfile, err)
+			}
+			return cl, nil
 		}
 	}
-	return createOpen(filePath, opts)
+	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_KV_VERIFY")); v {
+		opts.VerifyDbBeforeOpen = true
+		opts.VerifyDbAfterOpen = true
+		opts.VerifyDbBeforeClose = true
+		opts.VerifyDbAfterClose = true
+	}
+	db, err := createOpen(dbFile, opts)
+	if err != nil {
+		return nil, fmt.Errorf("error %s %s: %v", verb, dbFile, err)
+	}
+	return db, nil
 }

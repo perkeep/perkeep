@@ -119,4 +119,5 @@ func (e *Env) SetCamdevVars(altkey bool) {
 	e.Set("CAMLI_SECRET_RING", secring)
 	e.Set("CAMLI_KEYID", identity)
 	e.Set("CAMLI_PUBKEY_BLOBREF", pubKeyRef.String())
+	e.Set("CAMLI_KV_VERIFY", "true")
 }
