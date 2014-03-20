@@ -27,4 +27,3 @@ import (
 func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 	return gethandler.CreateGetHandler(fetcher)
 }
-

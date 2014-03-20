@@ -32,4 +32,3 @@ func DependencyErrorOrSkip(t *testing.T) {
 	}
 	t.Error("External test dependencies not found, and environment SKIP_DEP_TESTS not set.")
 }
-

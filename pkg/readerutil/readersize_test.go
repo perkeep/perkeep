@@ -29,7 +29,7 @@ const text = "HelloWorld"
 type testSrc struct {
 	name string
 	src  io.Reader
-	want    int64
+	want int64
 }
 
 func (tsrc *testSrc) run(t *testing.T) {

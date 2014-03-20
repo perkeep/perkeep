@@ -69,5 +69,5 @@ func BenchmarkRollsum(b *testing.B) {
 		}
 	}
 	b.SetBytes(bytesSize)
-	b.Logf("num splits = %d; every %d bytes", splits, int(float64(bytesSize) / float64(splits)))
+	b.Logf("num splits = %d; every %d bytes", splits, int(float64(bytesSize)/float64(splits)))
 }

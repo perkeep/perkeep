@@ -31,8 +31,8 @@ type uploadHelperResponse struct {
 }
 
 type uploadHelperGotItem struct {
-	FileName string           `json:"filename"`
-	FormName string           `json:"formname"`
+	FileName string   `json:"filename"`
+	FormName string   `json:"formname"`
 	FileRef  blob.Ref `json:"fileref"`
 }
 
@@ -44,7 +44,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 
 	mr, err := req.MultipartReader()
 	if err != nil {
-		httputil.ServeJSONError(rw, httputil.ServerError("reading body: " + err.Error()))
+		httputil.ServeJSONError(rw, httputil.ServerError("reading body: "+err.Error()))
 		return
 	}
 
@@ -55,7 +55,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			break
 		}
 		if err != nil {
-			httputil.ServeJSONError(rw, httputil.ServerError("reading body: " + err.Error()))
+			httputil.ServeJSONError(rw, httputil.ServerError("reading body: "+err.Error()))
 			break
 		}
 		fileName := part.FileName()
@@ -64,7 +64,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		}
 		br, err := schema.WriteFileFromReader(ui.root.Storage, fileName, part)
 		if err != nil {
-			httputil.ServeJSONError(rw, httputil.ServerError("writing to blobserver: " + err.Error()))
+			httputil.ServeJSONError(rw, httputil.ServerError("writing to blobserver: "+err.Error()))
 			return
 		}
 		got = append(got, &uploadHelperGotItem{

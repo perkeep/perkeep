@@ -63,7 +63,7 @@ func (rs *RollSum) OnSplit() bool {
 // of the current checksum are set the same way.
 func (rs *RollSum) OnSplitWithBits(n uint32) bool {
 	mask := (uint32(1) << n) - 1
-	return rs.s2 & mask == (^uint32(0)) & mask
+	return rs.s2&mask == (^uint32(0))&mask
 }
 
 func (rs *RollSum) Bits() int {
