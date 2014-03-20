@@ -12,15 +12,27 @@ import (
 	"camlistore.org/third_party/github.com/cznic/exp/lldb"
 )
 
-func verify(a *lldb.Allocator, log func(error) bool) (err error) {
+func verifyAllocator(a *lldb.Allocator) error {
 	bits, err := ioutil.TempFile("", "kv-verify-")
 	if err != nil {
 		return err
 	}
 
 	defer bits.Close()
-	if err = a.Verify(lldb.NewSimpleFileFiler(bits), log, nil); err != nil {
-		return
+	var lerr error
+	if err = a.Verify(
+		lldb.NewSimpleFileFiler(bits),
+		func(err error) bool {
+			lerr = err
+			return false
+		},
+		nil,
+	); err != nil {
+		return err
+	}
+
+	if lerr != nil {
+		return lerr
 	}
 
 	t, err := lldb.OpenBTree(a, nil, 1)
@@ -45,10 +57,10 @@ func verify(a *lldb.Allocator, log func(error) bool) (err error) {
 			return err
 		}
 	}
-	return
+	return nil
 }
 
-func verifyDbFile(fn string) (err error) {
+func verifyDbFile(fn string) error {
 	f, err := os.Open(fn) // O_RDONLY
 	if err != nil {
 		return err
@@ -61,15 +73,5 @@ func verifyDbFile(fn string) (err error) {
 		return err
 	}
 
-	return verify(a, func(e error) bool {
-		err = e
-		return false
-	})
-}
-
-func verifyAllocator(a *lldb.Allocator) (err error) {
-	return verify(a, func(e error) bool {
-		err = e
-		return false
-	})
+	return verifyAllocator(a)
 }
