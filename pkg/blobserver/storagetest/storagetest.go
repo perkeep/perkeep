@@ -158,7 +158,7 @@ func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
 	}
 }
 
-func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) {
+func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) error {
 	var after string
 	var n = 1000
 	for _, opt := range opts {
@@ -207,15 +207,21 @@ func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.Siz
 
 	})
 	if err := grp.Err(); err != nil {
-		t.Fatalf("Enumerate error: %v", err)
-		return
+		return fmt.Errorf("Enumerate error: %v", err)
 	}
 	if len(got) == 0 && len(want) == 0 {
-		return
+		return nil
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("Enumerate mismatch. Got %d; want %d.\n Got: %v\nWant: %v\n",
+		return fmt.Errorf("Enumerate mismatch. Got %d; want %d.\n Got: %v\nWant: %v\n",
 			len(got), len(want), got, want)
+	}
+	return nil
+}
+
+func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) {
+	if err := CheckEnumerate(sto, wantUnsorted, opts...); err != nil {
+		t.Fatalf("%v", err)
 	}
 }
 
