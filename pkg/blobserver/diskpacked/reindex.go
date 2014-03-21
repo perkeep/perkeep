@@ -28,10 +28,12 @@ import (
 	"strconv"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvfile"
-	"camlistore.org/third_party/github.com/camlistore/lock"
 )
+
+var camliDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 
 // Reindex rewrites the index files of the diskpacked .pack files
 func Reindex(root string, overwrite bool) (err error) {
@@ -51,7 +53,7 @@ func Reindex(root string, overwrite bool) (err error) {
 		}
 	}()
 
-	verbose := false // TODO: use env var?
+	ctx := context.TODO() // TODO(tgulacsi): get the verbosity from context
 	for i := 0; i >= 0; i++ {
 		fh, err := os.Open(s.filename(i))
 		if err != nil {
@@ -60,7 +62,7 @@ func Reindex(root string, overwrite bool) (err error) {
 			}
 			return err
 		}
-		err = reindexOne(index, overwrite, verbose, fh, fh.Name(), i)
+		err = s.reindexOne(ctx, index, overwrite, i)
 		fh.Close()
 		if err != nil {
 			return err
@@ -69,11 +71,98 @@ func Reindex(root string, overwrite bool) (err error) {
 	return nil
 }
 
-func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker, name string, packId int) error {
-	l, err := lock.Lock(name + ".lock")
-	defer l.Close()
+func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwrite bool, packID int) error {
 
-	var pos int64
+	var batch sorted.BatchMutation
+	if overwrite {
+		batch = index.BeginBatch()
+	}
+	allOk := true
+
+	// TODO(tgulacsi): proper verbose from context
+	verbose := camliDebug
+	err := s.walkPack(verbose, packID,
+		func(packID int, ref blob.Ref, offset int64, size uint32) error {
+			if !ref.Valid() {
+				if camliDebug {
+					log.Printf("found deleted blob in %d at %d with size %d", packID, offset, size)
+				}
+				return nil
+			}
+			meta := blobMeta{packID, offset, size}.String()
+			if overwrite && batch != nil {
+				batch.Set(ref.String(), meta)
+			} else {
+				if old, err := index.Get(ref.String()); err != nil {
+					allOk = false
+					if err == sorted.ErrNotFound {
+						log.Println(ref.String() + ": cannot find in index!")
+					} else {
+						log.Println(ref.String()+": error getting from index: ", err.Error())
+					}
+				} else if old != meta {
+					allOk = false
+					log.Printf("%s: index mismatch - index=%s data=%s", ref.String(), old, meta)
+				}
+			}
+			return nil
+		})
+	if err != nil {
+		return err
+	}
+
+	if overwrite && batch != nil {
+		log.Printf("overwriting %s from %d", index, packID)
+		if err = index.CommitBatch(batch); err != nil {
+			return err
+		}
+	} else if !allOk {
+		return fmt.Errorf("index does not match data in %d", packID)
+	}
+	return nil
+}
+
+// Walk walks the storage and calls the walker callback with each blobref
+// stops if walker returns non-nil error, and returns that
+func (s *storage) Walk(ctx *context.Context,
+	walker func(packID int, ref blob.Ref, offset int64, size uint32) error) error {
+
+	// TODO(tgulacsi): proper verbose flag from context
+	verbose := camliDebug
+
+	for i := 0; i >= 0; i++ {
+		fh, err := os.Open(s.filename(i))
+		if err != nil {
+			if os.IsNotExist(err) {
+				break
+			}
+			return err
+		}
+		fh.Close()
+		if err = s.walkPack(verbose, i, walker); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// walkPack walks the given pack and calls the walker callback with each blobref.
+// Stops if walker returns non-nil error and returns that.
+func (s *storage) walkPack(verbose bool, packID int,
+	walker func(packID int, ref blob.Ref, offset int64, size uint32) error) error {
+
+	fh, err := os.Open(s.filename(packID))
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+	name := fh.Name()
+
+	var (
+		pos  int64
+		size uint32
+		ref  blob.Ref
+	)
 
 	errAt := func(prefix, suffix string) error {
 		if prefix != "" {
@@ -85,13 +174,7 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 		return fmt.Errorf(prefix+"at %d (0x%x) in %q:"+suffix, pos, pos, name)
 	}
 
-	var batch sorted.BatchMutation
-	if overwrite {
-		batch = index.BeginBatch()
-	}
-
-	allOk := true
-	br := bufio.NewReaderSize(r, 512)
+	br := bufio.NewReaderSize(fh, 512)
 	for {
 		if b, err := br.ReadByte(); err != nil {
 			if err == io.EOF {
@@ -114,52 +197,61 @@ func reindexOne(index sorted.KeyValue, overwrite, verbose bool, r io.ReadSeeker,
 		if i <= 0 {
 			return errAt("", fmt.Sprintf("bad header format (no space in %q)", chunk))
 		}
-		size, err := strconv.ParseUint(string(chunk[i+1:]), 10, 32)
+		size64, err := strconv.ParseUint(string(chunk[i+1:]), 10, 32)
 		if err != nil {
 			return errAt(fmt.Sprintf("cannot parse size %q as int", chunk[i+1:]), err.Error())
 		}
-		ref, ok := blob.Parse(string(chunk[:i]))
-		if !ok {
-			return errAt("", fmt.Sprintf("cannot parse %q as blobref", chunk[:i]))
-		}
-		if verbose {
-			log.Printf("found %s at %d", ref, pos)
-		}
+		size = uint32(size64)
 
-		meta := blobMeta{packId, pos + 1 + int64(m), uint32(size)}.String()
-		if overwrite && batch != nil {
-			batch.Set(ref.String(), meta)
-		} else {
-			if old, err := index.Get(ref.String()); err != nil {
-				allOk = false
-				if err == sorted.ErrNotFound {
-					log.Println(ref.String() + ": cannot find in index!")
-				} else {
-					log.Println(ref.String()+": error getting from index: ", err.Error())
+		// maybe deleted?
+		state, deleted := 0, true
+		if chunk[0] == 'x' {
+		Loop:
+			for _, c := range chunk[:i] {
+				switch state {
+				case 0:
+					if c != 'x' {
+						if c == '-' {
+							state++
+						} else {
+							deleted = false
+							break Loop
+						}
+					}
+				case 1:
+					if c != '0' {
+						deleted = false
+						break Loop
+					}
 				}
-			} else if old != meta {
-				allOk = false
-				log.Printf("%s: index mismatch - index=%s data=%s", ref.String(), old, meta)
 			}
+		}
+		if deleted {
+			ref = blob.Ref{}
+			if verbose {
+				log.Printf("found deleted at %d", pos)
+			}
+		} else {
+			ref, ok := blob.Parse(string(chunk[:i]))
+			if !ok {
+				return errAt("", fmt.Sprintf("cannot parse %q as blobref", chunk[:i]))
+			}
+			if verbose {
+				log.Printf("found %s at %d", ref, pos)
+			}
+		}
+		if err = walker(packID, ref, pos+1+int64(m), size); err != nil {
+			return err
 		}
 
 		pos += 1 + int64(m)
-		// TODO(tgulacsi78): not just seek, but check the hashes of the files
+		// TODO(tgulacsi): not just seek, but check the hashes of the files
 		// maybe with a different command-line flag, only.
-		if pos, err = r.Seek(pos+int64(size), 0); err != nil {
-			return errAt("", "cannot seek +"+strconv.FormatUint(size, 10)+" bytes")
+		if pos, err = fh.Seek(pos+int64(size), 0); err != nil {
+			return errAt("", "cannot seek +"+strconv.FormatUint(size64, 10)+" bytes")
 		}
 		// drain the buffer after the underlying reader Seeks
 		io.CopyN(ioutil.Discard, br, int64(br.Buffered()))
-	}
-
-	if overwrite && batch != nil {
-		log.Printf("overwriting %s from %s", index, name)
-		if err = index.CommitBatch(batch); err != nil {
-			return err
-		}
-	} else if !allOk {
-		return fmt.Errorf("index does not match data in %q", name)
 	}
 	return nil
 }
