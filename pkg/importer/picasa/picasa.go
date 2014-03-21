@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
@@ -83,7 +84,7 @@ func (im *imp) Prefix() string {
 	return fmt.Sprintf("picasa:%s", cid)
 }
 
-func (im *imp) Run(intr importer.Interrupt) (err error) {
+func (im *imp) Run(ctx *context.Context) (err error) {
 	log.Printf("Running picasa importer.")
 	defer func() {
 		log.Printf("picasa importer returned: %v", err)
@@ -175,10 +176,8 @@ func (im *imp) Run(intr importer.Interrupt) (err error) {
 			if e != nil {
 				return e
 			}
-			select {
-			case <-intr:
-				return importer.ErrInterrupted
-			default:
+			if ctx.IsCanceled() {
+				return context.ErrCanceled
 			}
 			return nil
 		}
@@ -209,17 +208,17 @@ func (im *imp) Run(intr importer.Interrupt) (err error) {
 		select {
 		case err = <-errch:
 			close(tbd)
-			if err == importer.ErrInterrupted {
+			if err == context.ErrCanceled {
 				log.Printf("Picasa importer has been interrupted.")
 			} else {
 				log.Printf("Picasa importer error: %v", err)
 				workers.Wait()
 			}
 			return err
-		case <-intr:
+		case <-ctx.Done():
 			log.Printf("Picasa importer has been interrupted.")
 			close(tbd)
-			return importer.ErrInterrupted
+			return context.ErrCanceled
 		case img := <-itemch:
 			tbd <- img
 		}

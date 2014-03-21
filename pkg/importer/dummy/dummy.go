@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -60,7 +61,7 @@ func (im *imp) Prefix() string {
 	return fmt.Sprintf("dummy:%s", im.username)
 }
 
-func (im *imp) Run(intr importer.Interrupt) (err error) {
+func (im *imp) Run(ctx *context.Context) (err error) {
 	log.Printf("Running dummy importer.")
 	defer func() {
 		log.Printf("Dummy importer returned: %v", err)

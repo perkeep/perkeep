@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
@@ -52,8 +53,8 @@ type Host struct {
 	transport http.RoundTripper
 
 	mu           sync.Mutex
+	ctx          *context.Context
 	running      bool
-	stopreq      chan struct{} // closed to signal importer to stop and return an error
 	lastProgress *ProgressMessage
 	lastRunErr   error
 }
@@ -97,12 +98,12 @@ func (h *Host) start() {
 	if h.running {
 		return
 	}
+	ctx := context.New()
+	h.ctx = ctx
 	h.running = true
-	stopCh := make(chan struct{})
-	h.stopreq = stopCh
 	go func() {
 		log.Printf("Starting importer %s", h)
-		err := h.imp.Run(stopCh)
+		err := h.imp.Run(ctx)
 		if err != nil {
 			log.Printf("Importer %s error: %v", h, err)
 		} else {
@@ -122,7 +123,7 @@ func (h *Host) stop() {
 		return
 	}
 	h.running = false
-	close(h.stopreq)
+	h.ctx.Cancel()
 }
 
 // HTTPClient returns the HTTP client to use.
@@ -318,30 +319,15 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 	}, nil
 }
 
-// ErrInterrupted should be returned by importers
-// when an Interrupt fires.
-var ErrInterrupted = errors.New("import interrupted by request")
-
-// An Interrupt is passed to importers for them to monitor
-// requests to stop importing.  The channel is closed as
-// a signal to stop.
-type Interrupt <-chan struct{}
-
-// ShouldStop returns whether the interrupt has fired.
-// If so, importers should return ErrInterrupted.
-func (i Interrupt) ShouldStop() bool {
-	select {
-	case <-i:
-		return true
-	default:
-		return false
-	}
-}
-
 // An Importer imports from a third-party site.
 type Importer interface {
 	// Run runs a full or increment import.
-	Run(Interrupt) error
+	//
+	// The importer should continually or periodically monitor the
+	// context's Done channel to exit early if requested. The
+	// return value should be context.ErrCanceled if the importer
+	// exits for that reason.
+	Run(*context.Context) error
 
 	// Prefix returns the unique prefix for this importer.
 	// It should be of the form "serviceType:username".

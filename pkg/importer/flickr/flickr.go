@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strings"
 
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -82,7 +83,8 @@ func (im *imp) String() string {
 	return fmt.Sprintf("flickr:%s", userId)
 }
 
-func (im *imp) Run(intr importer.Interrupt) error {
+func (im *imp) Run(ctx *context.Context) error {
+	// TODO: plumb context through to following two calls and monitor it.
 	if err := im.importPhotosets(); err != nil {
 		return err
 	}

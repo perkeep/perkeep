@@ -39,6 +39,7 @@ type Context struct {
 	done       chan struct{}
 }
 
+// New returns a new Context.
 func New() *Context {
 	return &Context{
 		done: make(chan struct{}),
@@ -69,6 +70,17 @@ func (c *Context) Done() <-chan struct{} {
 	return c.done
 }
 
+// IsCanceled reports whether this context has been canceled.
+func (c *Context) IsCanceled() bool {
+	select {
+	case <-c.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// Cancel cancels the context. It is idempotent.
 func (c *Context) Cancel() {
 	if c == nil {
 		return

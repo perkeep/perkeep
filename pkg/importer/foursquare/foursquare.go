@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -127,8 +128,8 @@ func (im *imp) String() string {
 	return fmt.Sprintf("foursquare:%s", userId)
 }
 
-func (im *imp) Run(intr importer.Interrupt) error {
-
+func (im *imp) Run(ctx *context.Context) error {
+	// TODO: plumb context and monitor it for cancelation.
 	if err := im.importCheckins(); err != nil {
 		return err
 	}

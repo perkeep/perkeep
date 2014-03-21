@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
@@ -97,10 +98,10 @@ func (im *imp) String() string {
 	return fmt.Sprintf("twitter:%s", userId)
 }
 
-func (im *imp) Run(intr importer.Interrupt) error {
+func (im *imp) Run(ctx *context.Context) error {
 	log.Print("Twitter running...")
 
-	if err := im.importTweets(intr); err != nil {
+	if err := im.importTweets(ctx); err != nil {
 		return err
 	}
 
@@ -113,16 +114,14 @@ type tweetItem struct {
 	CreatedAt string `json:"created_at"`
 }
 
-func (im *imp) importTweets(intr importer.Interrupt) error {
+func (im *imp) importTweets(ctx *context.Context) error {
 	maxId := ""
 	continueRequests := true
 
 	for continueRequests {
-		select {
-		case <-intr:
+		if ctx.IsCanceled() {
 			log.Printf("Twitter importer: interrupted")
-			return importer.ErrInterrupted
-		default:
+			return context.ErrCanceled
 		}
 
 		var resp []*tweetItem
@@ -145,11 +144,9 @@ func (im *imp) importTweets(intr importer.Interrupt) error {
 		}
 
 		for _, tweet := range resp {
-			select {
-			case <-intr:
+			if ctx.IsCanceled() {
 				log.Printf("Twitter importer: interrupted")
-				return importer.ErrInterrupted
-			default:
+				return context.ErrCanceled
 			}
 			err = im.importTweet(tweetsNode, tweet)
 			if err != nil {
