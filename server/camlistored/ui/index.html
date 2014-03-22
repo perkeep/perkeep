@@ -33,7 +33,6 @@ limitations under the License.
 			goog.DEBUG = false;
 			goog.require('goog.Uri');
 			goog.require('cam.AnimationLoop');
-			goog.require('cam.IndexPage');
 			goog.require('cam.IndexPageReact');
 			goog.require('cam.ServerConnection');
 		</script>
@@ -50,38 +49,32 @@ limitations under the License.
 	</head>
 	<body class='cam-index-page'>
 		<script>
-			var isReact = new goog.Uri(location.href).getParameterValue('react') !== '0';
-			if (isReact) {
-				var lastWidth = -1;
-				var lastHeight = -1;
-				var render = function() {
-					var currentWidth = window.innerWidth;
-					var currentHeight = window.innerHeight;
-					if (currentWidth == lastWidth && currentHeight == lastHeight) {
-						return;
-					}
+			var lastWidth = -1;
+			var lastHeight = -1;
+			var render = function() {
+				var currentWidth = window.innerWidth;
+				var currentHeight = window.innerHeight;
+				if (currentWidth == lastWidth && currentHeight == lastHeight) {
+					return;
+				}
 
-					lastWidth = currentWidth;
-					lastHeight = currentHeight;
-					var index = cam.IndexPageReact({
-						availWidth: currentWidth,
-						availHeight: currentHeight,
-						config: CAMLISTORE_CONFIG,
-						eventTarget: window,
-						history: window.history,
-						location: window.location,
-						serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
-						timer: window,
-					});
-					React.renderComponent(index, document.body);
-				};
-				window.addEventListener('resize', render);
-				window.setInterval(render, 3000);
-				render();
-			} else {
-				var page = new cam.IndexPage(CAMLISTORE_CONFIG);
-				page.decorate(document.body);
-			}
+				lastWidth = currentWidth;
+				lastHeight = currentHeight;
+				var index = cam.IndexPageReact({
+					availWidth: currentWidth,
+					availHeight: currentHeight,
+					config: CAMLISTORE_CONFIG,
+					eventTarget: window,
+					history: window.history,
+					location: window.location,
+					serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
+					timer: window,
+				});
+				React.renderComponent(index, document.body);
+			};
+			window.addEventListener('resize', render);
+			window.setInterval(render, 3000);
+			render();
 		</script>
 	</body>
 </html>
