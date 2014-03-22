@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('cam.IndexPageReact');
+goog.provide('cam.IndexPage');
 
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
@@ -32,8 +32,8 @@ goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
 
-cam.IndexPageReact = React.createClass({
-	displayName: 'IndexPageReact',
+cam.IndexPage = React.createClass({
+	displayName: 'IndexPage',
 
 	NAV_WIDTH_CLOSED_: 36,
 	NAV_WIDTH_OPEN_: 239,

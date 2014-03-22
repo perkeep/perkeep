@@ -33,7 +33,7 @@ limitations under the License.
 			goog.DEBUG = false;
 			goog.require('goog.Uri');
 			goog.require('cam.AnimationLoop');
-			goog.require('cam.IndexPageReact');
+			goog.require('cam.IndexPage');
 			goog.require('cam.ServerConnection');
 		</script>
 		<link rel="stylesheet" href="blob_item.css" type="text/css">
@@ -60,7 +60,7 @@ limitations under the License.
 
 				lastWidth = currentWidth;
 				lastHeight = currentHeight;
-				var index = cam.IndexPageReact({
+				var index = cam.IndexPage({
 					availWidth: currentWidth,
 					availHeight: currentHeight,
 					config: CAMLISTORE_CONFIG,
