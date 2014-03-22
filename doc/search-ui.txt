@@ -1,17 +1,24 @@
-The User Interface's "Search" box accepts a space-separated list of predicates of the
-form "[-]operator:value[:value]". These predicates are combined using conjunction.
-That is to say we only have 'and' and atom negation for now.
+The User Interface's "Search" box accepts predicates of the form "[-]operator:value[:value]".
+These predicates may be separated by 'and' or 'or' keywords, or spaces which mean the same
+as 'and'. Expressions like this may be grouped with parenthesis. Grouped expressions are 
+evaluated first. Grouped expressions may be negated.
+An 'and' besides an 'or' is evaluated first. This means for example that
+
+tag:foo or is:pano tag:bar 
+
+will return all images having tag foo together with the panorama images having tag bar.
 
 Negation of a predicate is achieved by prepending a minus sign: -is:landscape will match
 with pictures of not landscape ratio.
 
 For example
 
-    after:"2010-01-01" before:"2010-03-02T12:33:44" -loc:"Amsterdam" 
+    -(after:"2010-01-01" before:"2010-03-02T12:33:44") or loc:"Amsterdam" 
 
-will return all images having "modtime" between before and after and not in Amsterdam.
+will return all images having "modtime" outside the specified period, joined with
+all images taken in Amsterdam.
 
-When you need to match a value containing a space, you need to using double quotes around
+When you need to match a value containing a space, you need to use double quotes around
 the value only. For example: tag:"Three word tagname" and not "tag:Three word tagname".
 If your value contains double quotes you can use backslash escaping.
 For example: attr:bar:"He said: \"Hi\"" 
@@ -34,11 +41,11 @@ Usable operators:
     height:        use height:min-max to match images having a height of at least min 
                    and at most max. Use height:min- to specify only an underbound and
                    height:-max to specify only an upperbound. 
-                   Exact matches should use height:640-640
+                   Exact matches should use height:480-480
     tag:           match on a tag
     width:         use width:min-max to match images having a width of at least min 
                    and at most max. Use width:min- to specify only an underbound and
                    width:-max to specify only an upperbound.
-                   Exact matches should use width:480-480
+                   Exact matches should use width:640-640
     childrenof:    Find child permanodes of a parent permanode (or prefix
                    of a parent permanode): childrenof:sha1-527cf12
