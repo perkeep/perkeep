@@ -30,7 +30,7 @@ func TestMongoStorage(t *testing.T) {
 	// SetupMongoContainer may skip or fatal the test if docker isn't found or something goes wrong when setting up the container.
 	// Thus, no error is returned
 	containerID, ip := dockertest.SetupMongoContainer(t)
-	defer dockertest.KillContainer(containerID)
+	defer containerID.Kill()
 
 	sto, err := newMongoStorage(config{
 		server:     ip,
