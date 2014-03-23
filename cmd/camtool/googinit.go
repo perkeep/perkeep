@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2014 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,41 +21,56 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
 	"strings"
 
+	"camlistore.org/pkg/blobserver/google/drive"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
-type gsinitCmd struct{}
+type googinitCmd struct {
+	storageType string
+}
 
 func init() {
-	cmdmain.RegisterCommand("gsinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		return new(gsinitCmd)
+	cmdmain.RegisterCommand("googinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		cmd := new(googinitCmd)
+		flags.StringVar(&cmd.storageType, "type", "drive", "Storage type: drive or cloud")
+		return cmd
 	})
 }
 
-func (c *gsinitCmd) Describe() string {
-	return "Init Google Storage."
+func (c *googinitCmd) Describe() string {
+	return "Init Google Drive or Google Cloud Storage."
 }
 
-func (c *gsinitCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] gsinit \n")
+func (c *googinitCmd) Usage() {
+	fmt.Fprintf(cmdmain.Stderr, "Usage: camtool [globalopts] googinit [commandopts] \n")
 }
 
-func (c *gsinitCmd) RunCommand(args []string) error {
+func (c *googinitCmd) RunCommand(args []string) error {
 	var (
 		err          error
 		clientId     string
 		clientSecret string
+		transport    *oauth.Transport
 	)
+
+	if c.storageType != "drive" && c.storageType != "cloud" {
+		return cmdmain.UsageError("Invalid storage type.")
+	}
 
 	if clientId, clientSecret, err = getClientInfo(); err != nil {
 		return err
 	}
-	transport := googlestorage.MakeOauthTransport(clientId, clientSecret, "")
+
+	switch c.storageType {
+	case "drive":
+		transport = drive.MakeOauthTransport(clientId, clientSecret, "")
+	case "cloud":
+		transport = googlestorage.MakeOauthTransport(clientId, clientSecret, "")
+	}
 
 	var accessCode string
 	if accessCode, err = getAccessCode(transport.Config); err != nil {
@@ -65,22 +80,22 @@ func (c *gsinitCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	fmt.Printf("\nYour Google Storage auth object:\n\n")
-	enc := json.NewEncoder(os.Stdout)
+	fmt.Fprintf(cmdmain.Stdout, "\nYour Google auth object:\n\n")
+	enc := json.NewEncoder(cmdmain.Stdout)
 	authObj := map[string]string{
 		"client_id":     transport.ClientId,
 		"client_secret": transport.ClientSecret,
 		"refresh_token": transport.RefreshToken,
 	}
 	enc.Encode(authObj)
-	fmt.Print("\n")
+	fmt.Fprint(cmdmain.Stdout, "\n")
 	return nil
 }
 
 // Prompt the user for an input line.  Return the given input.
 func prompt(promptText string) (string, error) {
-	fmt.Print(promptText)
-	input := bufio.NewReader(os.Stdin)
+	fmt.Fprint(cmdmain.Stdout, promptText)
+	input := bufio.NewReader(cmdmain.Stdin)
 	line, _, err := input.ReadLine()
 	if err != nil {
 		return "", fmt.Errorf("Failed to read line: %v", err)
@@ -90,16 +105,16 @@ func prompt(promptText string) (string, error) {
 
 // Provide the authorization link, then prompt for the resulting access code
 func getAccessCode(config *oauth.Config) (string, error) {
-	fmt.Printf("In order to obtain a storage access code, you will need to navigate to the following URL:\n\n")
-	fmt.Printf("https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=%s&response_type=code\n\n",
+	fmt.Fprintf(cmdmain.Stdout, "In order to obtain an access code, you will need to navigate to the following URL:\n\n")
+	fmt.Fprintf(cmdmain.Stdout, "https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=%s&response_type=code\n\n",
 		config.ClientId, config.Scope)
 	return prompt("Please enter the access code provided by that page:")
 }
 
 // Prompt for client id / secret
 func getClientInfo() (string, string, error) {
-	fmt.Printf("Please provide the client id and client secret for your google storage account\n")
-	fmt.Printf("(You can find these at http://code.google.com/apis/console > your project > API Access)\n")
+	fmt.Fprintf(cmdmain.Stdout, "Please provide the client id and client secret \n")
+	fmt.Fprintf(cmdmain.Stdout, "(You can find these at http://code.google.com/apis/console > your project > API Access)\n")
 	var (
 		err          error
 		clientId     string
