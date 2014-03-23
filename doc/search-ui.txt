@@ -41,11 +41,11 @@ Usable operators:
     height:        use height:min-max to match images having a height of at least min 
                    and at most max. Use height:min- to specify only an underbound and
                    height:-max to specify only an upperbound. 
-                   Exact matches should use height:480-480
+                   Exact matches should use height:480
     tag:           match on a tag
     width:         use width:min-max to match images having a width of at least min 
                    and at most max. Use width:min- to specify only an underbound and
                    width:-max to specify only an upperbound.
-                   Exact matches should use width:640-640
+                   Exact matches should use width:640
     childrenof:    Find child permanodes of a parent permanode (or prefix
                    of a parent permanode): childrenof:sha1-527cf12

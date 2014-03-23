@@ -44,6 +44,7 @@ var (
 	// int (strconv.Atoi on 32-bit platforms), even though a max
 	// JPEG dimension is only 16-bit.
 	whRangeExpr = regexp.MustCompile(`^(\d{0,10})-(\d{0,10})$`)
+	whValueExpr = regexp.MustCompile(`^(\d{0,10})$`)
 )
 
 var (
@@ -267,6 +268,16 @@ func whRatio(fc *FloatConstraint) *Constraint {
 	})
 }
 
+func parseWHExpression(expr string) (min, max string, err error) {
+	if m := whRangeExpr.FindStringSubmatch(expr); m != nil {
+		return m[1], m[2], nil
+	}
+	if m := whValueExpr.FindStringSubmatch(expr); m != nil {
+		return m[1], m[1], nil
+	}
+	return "", "", errors.New("bogus range or value")
+}
+
 func parseImageAtom(ctx *context.Context, word string) (*Constraint, error) {
 	if word == "is:image" {
 		c := &Constraint{
@@ -291,24 +302,24 @@ func parseImageAtom(ctx *context.Context, word string) (*Constraint, error) {
 		return whRatio(&FloatConstraint{Min: 2.0}), nil
 	}
 	if strings.HasPrefix(word, "width:") {
-		m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "width:"))
-		if m == nil {
-			return nil, errors.New("bogus width range")
+		mins, maxs, err := parseWHExpression(strings.TrimPrefix(word, "width:"))
+		if err != nil {
+			return nil, err
 		}
 		c := permOfFile(&FileConstraint{
 			IsImage: true,
-			Width:   whIntConstraint(m[1], m[2]),
+			Width:   whIntConstraint(mins, maxs),
 		})
 		return c, nil
 	}
 	if strings.HasPrefix(word, "height:") {
-		m := whRangeExpr.FindStringSubmatch(strings.TrimPrefix(word, "height:"))
-		if m == nil {
-			return nil, errors.New("bogus height range")
+		mins, maxs, err := parseWHExpression(strings.TrimPrefix(word, "height:"))
+		if err != nil {
+			return nil, err
 		}
 		c := permOfFile(&FileConstraint{
 			IsImage: true,
-			Height:  whIntConstraint(m[1], m[2]),
+			Height:  whIntConstraint(mins, maxs),
 		})
 		return c, nil
 	}

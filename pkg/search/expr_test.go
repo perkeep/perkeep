@@ -107,6 +107,52 @@ var parseImageAtomTests = []struct {
 			},
 		},
 	},
+
+	{
+		in:          "height:++0",
+		errContains: "bogus range or value",
+	},
+
+	{
+		in: "height:480",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Height: &IntConstraint{
+							Min: 480,
+							Max: 480,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in:          "width:++0",
+		errContains: "bogus range or value",
+	},
+
+	{
+		in: "width:640",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Width: &IntConstraint{
+							Min: 640,
+							Max: 640,
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestParseImageAtom(t *testing.T) {
@@ -119,7 +165,7 @@ func TestParseImageAtom(t *testing.T) {
 	}
 	for _, tt := range parseImageAtomTests {
 		in := tt.in
-		got, err := parseAtom(context.TODO(), in)
+		got, err := parseImageAtom(context.TODO(), in)
 		if err != nil {
 			if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
 				continue
@@ -133,6 +179,40 @@ func TestParseImageAtom(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%v: parseImageAtom(%q) got:\n%s\n\nwant:%s\n", tt.name, in, cj(got), cj(tt.want))
+		}
+	}
+}
+
+func TestParseWHExpression(t *testing.T) {
+	tests := []struct {
+		in          string
+		wantMin     string
+		wantMax     string
+		errContains string
+	}{
+		{in: "450-470", wantMin: "450", wantMax: "470"},
+		{in: "450-470+", errContains: "bogus"},
+		{in: "450", wantMin: "450", wantMax: "450"},
+	}
+
+	for _, tt := range tests {
+		gotMin, gotMax, err := parseWHExpression(tt.in)
+		if err != nil {
+			if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
+				continue
+			}
+			t.Errorf("parseWHExpression(%v) error: %v", tt.in, err)
+			continue
+		}
+		if tt.errContains != "" {
+			t.Errorf("parseWHExpression(%v) succeeded; want error containing %v got: %s,%s ", tt.in, tt.errContains, gotMin, gotMax)
+			continue
+		}
+		if !reflect.DeepEqual(gotMin, tt.wantMin) {
+			t.Errorf("parseWHExpression(%s) min  = %v; want %v", tt.in, gotMin, tt.wantMin)
+		}
+		if !reflect.DeepEqual(gotMax, tt.wantMax) {
+			t.Errorf("parseWHExpression(%s) max  = %v; want %v", tt.in, gotMax, tt.wantMax)
 		}
 	}
 }
@@ -172,7 +252,7 @@ func TestParseLocationAtom(t *testing.T) {
 	}
 	for _, tt := range parseLocationAtomTests {
 		in := tt.in
-		got, err := parseAtom(context.TODO(), in)
+		got, err := parseLocationAtom(context.TODO(), in)
 		if err != nil {
 			if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
 				continue
@@ -282,7 +362,7 @@ func TestParseCoreAtom(t *testing.T) {
 	}
 	for _, tt := range parseCoreAtomTests {
 		in := tt.in
-		got, err := parseAtom(context.TODO(), in)
+		got, err := parseCoreAtom(context.TODO(), in)
 		if err != nil {
 			if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
 				continue
