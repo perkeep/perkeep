@@ -240,6 +240,10 @@ func (hl *handlerLoader) MyPrefix() string {
 	return hl.curPrefix
 }
 
+func (hl *handlerLoader) BaseURL() string {
+	return hl.baseURL
+}
+
 func (hl *handlerLoader) GetStorage(prefix string) (blobserver.Storage, error) {
 	hl.setupHandler(prefix)
 	if s, ok := hl.handler[prefix].(blobserver.Storage); ok {

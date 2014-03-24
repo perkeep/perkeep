@@ -49,6 +49,10 @@ func (ld *Loader) MyPrefix() string {
 	return "/lies/"
 }
 
+func (ld *Loader) BaseURL() string {
+	return "http://localhost:1234"
+}
+
 func (ld *Loader) GetHandlerType(prefix string) string {
 	log.Printf("test.Loader: GetHandlerType called but not implemented.")
 	return ""

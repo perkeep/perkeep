@@ -54,6 +54,10 @@ type Loader interface {
 	// MyPrefix returns the prefix of the handler currently being constructed.
 	MyPrefix() string
 
+	// BaseURL returns the server's base URL, without trailing slash, and not including
+	// the prefix (as returned by MyPrefix).
+	BaseURL() string
+
 	// GetHandlerType returns the handler's configured type, but does
 	// not force it to start being loaded yet.
 	GetHandlerType(prefix string) string // returns "" if unknown
