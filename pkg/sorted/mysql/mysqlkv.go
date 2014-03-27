@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
@@ -36,7 +37,11 @@ func init() {
 
 // Config holds the parameters used to connect to the MySQL db.
 type Config struct {
-	Host     string // Optional. Defaults to "localhost" in ConfigFromJSON.
+	// Host optionally specifies the address on which mysqld listens. It should
+	// be of the form hostname:port, or addr:port. If empty, a local connection
+	// will be used. If the address does not have a colon, it is assumed the
+	// port is missing and the default MySQL (3306) one will be set in ConfigFromJSON.
+	Host     string
 	Database string // Required.
 	User     string // Required.
 	Password string // Optional.
@@ -45,8 +50,14 @@ type Config struct {
 // ConfigFromJSON populates Config from config, and validates
 // config. It returns an error if config fails to validate.
 func ConfigFromJSON(config jsonconfig.Obj) (Config, error) {
+	host := config.OptionalString("host", "")
+	if host != "" {
+		if !strings.Contains(host, ":") {
+			host = host + ":3306"
+		}
+	}
 	conf := Config{
-		Host:     config.OptionalString("host", "localhost"),
+		Host:     host,
 		User:     config.RequiredString("user"),
 		Password: config.OptionalString("password", ""),
 		Database: config.RequiredString("database"),
@@ -67,14 +78,23 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 // NewKeyValue returns a sorted.KeyValue implementation of the described MySQL database.
 func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
-	// TODO(bradfitz,mpl): host is ignored for now. I think we can connect to host with:
-	// tcp:ADDR*DBNAME/USER/PASSWD (http://godoc.org/github.com/ziutek/mymysql/godrv#Driver.Open)
-	// I suppose we'll have to do a lookup first.
 	dsn := cfg.Database + "/" + cfg.User + "/" + cfg.Password
+	if cfg.Host != "" {
+		dsn = "tcp:" + cfg.Host + "*" + dsn
+	}
 	db, err := sql.Open("mymysql", dsn)
 	if err != nil {
 		return nil, err
 	}
+	for _, tableSql := range SQLCreateTables() {
+		if _, err := db.Exec(tableSql); err != nil {
+			return nil, fmt.Errorf("error creating table with %q: %v", tableSql, err)
+		}
+	}
+	if _, err := db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion())); err != nil {
+		return nil, fmt.Errorf("error setting schema version: %v", err)
+	}
+
 	kv := &keyValue{
 		db: db,
 		KeyValue: &sqlkv.KeyValue{

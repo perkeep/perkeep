@@ -24,11 +24,42 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
+	"testing"
+	"time"
+
+	"camlistore.org/pkg/netutil"
 )
 
-func HaveImage(name string) (ok bool, err error) {
+/// runLongTest checks all the conditions for running a docker container
+// based on image.
+func runLongTest(t *testing.T, image string) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	if !haveDocker() {
+		t.Skip("skipping test; 'docker' command not found")
+	}
+	if ok, err := haveImage(image); !ok || err != nil {
+		if err != nil {
+			t.Skipf("Error running docker to check for %s: %v", image, err)
+		}
+		log.Printf("Pulling docker image %s ...", image)
+		if err := Pull(image); err != nil {
+			t.Skipf("Error pulling %s: %v", image, err)
+		}
+	}
+}
+
+// haveDocker returns whether the "docker" command was found.
+func haveDocker() bool {
+	_, err := exec.LookPath("docker")
+	return err == nil
+}
+
+func haveImage(name string) (ok bool, err error) {
 	out, err := exec.Command("docker", "images", "--no-trunc").Output()
 	if err != nil {
 		return
@@ -36,12 +67,15 @@ func HaveImage(name string) (ok bool, err error) {
 	return bytes.Contains(out, []byte(name)), nil
 }
 
-func Run(args ...string) (containerID string, err error) {
-	runOut, err := exec.Command("docker", append([]string{"run"}, args...)...).Output()
-	if err != nil {
+func run(args ...string) (containerID string, err error) {
+	cmd := exec.Command("docker", append([]string{"run"}, args...)...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err = cmd.Run(); err != nil {
+		err = fmt.Errorf("%v%v", stderr.String(), err)
 		return
 	}
-	containerID = strings.TrimSpace(string(runOut))
+	containerID = strings.TrimSpace(stdout.String())
 	if containerID == "" {
 		return "", errors.New("unexpected empty output from `docker run`")
 	}
@@ -52,14 +86,16 @@ func KillContainer(container string) error {
 	return exec.Command("docker", "kill", container).Run()
 }
 
-func Pull(name string) error {
-	out, err := exec.Command("docker", "pull", name).CombinedOutput()
+// Pull retrieves the docker image with 'docker pull'.
+func Pull(image string) error {
+	out, err := exec.Command("docker", "pull", image).CombinedOutput()
 	if err != nil {
 		err = fmt.Errorf("%v: %s", err, out)
 	}
 	return err
 }
 
+// IP returns the IP address of the container.
 func IP(containerID string) (string, error) {
 	out, err := exec.Command("docker", "inspect", containerID).Output()
 	if err != nil {
@@ -81,5 +117,75 @@ func IP(containerID string) (string, error) {
 	if ip := c[0].NetworkSettings.IPAddress; ip != "" {
 		return ip, nil
 	}
-	return "", errors.New("no IP. Not running?")
+	return "", fmt.Errorf("could not find an IP for %v. Not running?", containerID)
+}
+
+type ContainerID string
+
+func (c ContainerID) IP() (string, error) {
+	return IP(string(c))
+}
+
+func (c ContainerID) Kill() error {
+	return KillContainer(string(c))
+}
+
+// lookup retrieves the ip address of the container, and tries to reach
+// before timeout the tcp address at this ip and given port.
+func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err error) {
+	ip, err = c.IP()
+	if err != nil {
+		err = fmt.Errorf("Error getting container IP: %v", err)
+		return
+	}
+	addr := fmt.Sprintf("%s:%d", ip, port)
+	if err = netutil.AwaitReachable(addr, timeout); err != nil {
+		err = fmt.Errorf("timeout trying to reach %s for container %v: %v", addr, c, err)
+	}
+	return
+}
+
+const (
+	mongoImage = "robinvdvleuten/mongo"
+	mysqlImage = "orchardup/mysql"
+)
+
+// SetupMongoContainer sets up a real MongoDB instance for testing purposes,
+// using a Docker container. It returns the container ID and its IP address,
+// or makes the test fail on error.
+// Currently using https://index.docker.io/u/robinvdvleuten/mongo/
+func SetupMongoContainer(t *testing.T) (c ContainerID, ip string) {
+	runLongTest(t, mongoImage)
+
+	containerID, err := run("-d", mongoImage, "--smallfiles")
+	if err != nil {
+		t.Fatalf("docker run: %v", err)
+	}
+	c = ContainerID(containerID)
+	ip, err = c.lookup(27017, 20*time.Second)
+	if err != nil {
+		c.Kill()
+		t.Fatalf("container lookup: %v", err)
+	}
+	return
+}
+
+// SetupMySQLContainer sets up a real MySQL instance for testing purposes,
+// using a Docker container. It returns the container ID and its IP address,
+// or makes the test fail on error.
+// Currently using https://index.docker.io/u/orchardup/mysql/
+func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
+	runLongTest(t, mongoImage)
+
+	containerID, err := run("-d", "-e", "MYSQL_ROOT_PASSWORD=root", "-e", "MYSQL_DATABASE="+dbname, mysqlImage)
+	if err != nil {
+		t.Fatalf("docker run: %v", err)
+	}
+	c = ContainerID(containerID)
+	ip, err = c.lookup(3306, 10*time.Second)
+	if err != nil {
+		c.Kill()
+		t.Fatalf("container lookup: %v", err)
+	}
+	return
 }
