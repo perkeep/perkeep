@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mysql
+package postgres
 
 import (
 	"testing"
@@ -24,20 +24,21 @@ import (
 	"camlistore.org/pkg/test/dockertest"
 )
 
-// TestMySQLKV tests against a real MySQL instance, using a Docker container.
-func TestMySQLKV(t *testing.T) {
+// TestPostgreSQLKV tests against a real PostgreSQL instance, using a Docker container.
+func TestPostgreSQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
+	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
 	defer containerID.Kill()
 
 	kv, err := NewKeyValue(Config{
-		Host:     ip + ":3306",
+		Host:     ip,
 		Database: dbname,
-		User:     dockertest.MySQLUsername,
-		Password: dockertest.MySQLPassword,
+		User:     dockertest.PostgresUsername,
+		Password: dockertest.PostgresPassword,
+		SSLMode:  "disable",
 	})
 	if err != nil {
-		t.Fatalf("mysql.NewKeyValue = %v", err)
+		t.Fatalf("postgres.NewKeyValue = %v", err)
 	}
 	kvtest.TestSorted(t, kv)
 }

@@ -41,7 +41,10 @@ type Config struct {
 	Database string // Required.
 	User     string // Required.
 	Password string // Optional.
-	SSLMode  string // Optional. Defaults to "require" in ConfigFromJSON.
+
+	// SSLMode optionally specifies the the SSL mode.
+	// It may be "disable", "verify-full", or "require" (the default in ConfigFromJSON).
+	SSLMode string
 }
 
 // ConfigFromJSON populates Config from config, and validates
@@ -76,6 +79,21 @@ func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, tableSql := range SQLCreateTables() {
+		if _, err := db.Exec(tableSql); err != nil {
+			return nil, fmt.Errorf("error creating table with %q: %v", tableSql, err)
+		}
+	}
+	for _, statement := range SQLDefineReplace() {
+		if _, err := db.Exec(statement); err != nil {
+			return nil, fmt.Errorf("error setting up replace statement with %q: %v", statement, err)
+		}
+	}
+	r, err := db.Query(fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, SchemaVersion()))
+	if err != nil {
+		return nil, fmt.Errorf("error setting schema version: %v", err)
+	}
+	r.Close()
 
 	kv := &keyValue{
 		db: db,

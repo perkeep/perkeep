@@ -140,19 +140,7 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
 	do(rootdb, "CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0")
 
-	testdb, err := sql.Open("postgres", "user=postgres password=postgres host=localhost sslmode=require dbname="+dbname)
-	if err != nil {
-		t.Fatalf("opening test database: " + err.Error())
-	}
-	for _, tableSql := range postgres.SQLCreateTables() {
-		do(testdb, tableSql)
-	}
-	for _, statement := range postgres.SQLDefineReplace() {
-		do(testdb, statement)
-	}
-	doQuery(testdb, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
-
-	kv, err = postgres.NewKeyValue(postgres.Config{
+	kv, err := postgres.NewKeyValue(postgres.Config{
 		Host:     "localhost",
 		Database: dbname,
 		User:     "postgres",

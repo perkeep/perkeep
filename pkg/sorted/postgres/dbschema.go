@@ -24,11 +24,11 @@ func SchemaVersion() int {
 
 func SQLCreateTables() []string {
 	return []string{
-		`CREATE TABLE rows (
+		`CREATE TABLE IF NOT EXISTS rows (
  k VARCHAR(255) NOT NULL PRIMARY KEY,
  v VARCHAR(255))`,
 
-		`CREATE TABLE meta (
+		`CREATE TABLE IF NOT EXISTS meta (
  metakey VARCHAR(255) NOT NULL PRIMARY KEY,
  value VARCHAR(255) NOT NULL)`,
 	}
