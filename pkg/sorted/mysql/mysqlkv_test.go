@@ -14,28 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mongo
+package mysql
 
 import (
 	"testing"
 
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
 )
 
-// TestMongoKV tests against a real MongoDB instance, using a Docker container.
-func TestMongoKV(t *testing.T) {
-	// SetupMongoContainer may skip or fatal the test if docker isn't found or something goes wrong when setting up the container.
-	// Thus, no error is returned
-	containerID, ip := dockertest.SetupMongoContainer(t)
+// TestMySQLKV tests against a real MySQL instance, using a Docker container.
+func TestMySQLKV(t *testing.T) {
+	dbname := "camlitest_" + osutil.Username()
+	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
 	defer containerID.Kill()
 
 	kv, err := NewKeyValue(Config{
-		Server:   ip,
-		Database: "camlitest",
+		Host:     ip + ":3306",
+		Database: dbname,
+		User:     "root",
+		Password: "root",
 	})
 	if err != nil {
-		t.Fatalf("mongo.NewKeyValue = %v", err)
+		t.Fatalf("mysql.NewKeyValue = %v", err)
 	}
 	kvtest.TestSorted(t, kv)
 }

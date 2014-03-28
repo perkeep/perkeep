@@ -19,7 +19,6 @@ package mysql_test
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 	"testing"
@@ -81,16 +80,8 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	do(rootdb, "DROP DATABASE IF EXISTS "+dbname)
 	do(rootdb, "CREATE DATABASE "+dbname)
 
-	db, err := sql.Open("mymysql", dbname+"/root/root")
-	if err != nil {
-		t.Fatalf("opening test database: " + err.Error())
-	}
-	for _, tableSql := range mysql.SQLCreateTables() {
-		do(db, tableSql)
-	}
-	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
-
-	kv, err = mysql.NewKeyValue(mysql.Config{
+	kv, err := mysql.NewKeyValue(mysql.Config{
+		Host:     "localhost:3306",
 		Database: dbname,
 		User:     "root",
 		Password: "root",

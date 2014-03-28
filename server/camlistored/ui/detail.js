@@ -24,6 +24,7 @@ goog.require('goog.string');
 
 goog.require('cam.AnimationLoop');
 goog.require('cam.BlobItemReactData');
+goog.require('cam.ImageDetail');
 goog.require('cam.imageUtil');
 goog.require('cam.Navigator');
 goog.require('cam.reactUtil');
@@ -33,10 +34,6 @@ goog.require('cam.SpritedAnimation');
 
 cam.DetailView = React.createClass({
 	displayName: 'DetailView',
-
-	IMG_MARGIN: 20,
-	PIGGY_WIDTH: 88,
-	PIGGY_HEIGHT: 62,
 
 	propTypes: {
 		blobref: React.PropTypes.string.isRequired,
@@ -52,25 +49,15 @@ cam.DetailView = React.createClass({
 	},
 
 	getInitialState: function() {
-		this.imgSize_ = null;
-		this.lastImageHeight_ = 0;
-		this.pendingNavigation_ = 0;
-		this.navCount_ = 1;
-		this.eh_ = new goog.events.EventHandler(this);
-
 		return {
-			imgHasLoaded: false,
-			backwardPiggy: false,
+			lastNavigateWasBackward: false,
 		};
 	},
 
-	componentWillReceiveProps: function(nextProps) {
-		if (this.props.blobref != nextProps.blobref) {
-			this.blobItemData_ = null;
-			this.imgSize_ = null;
-			this.lastImageHeight_ = 0;
-			this.setState({imgHasLoaded: false});
-		}
+	componentWillMount: function() {
+		this.pendingNavigation_ = 0;
+		this.navCount_ = 1;
+		this.eh_ = new goog.events.EventHandler(this);
 	},
 
 	componentDidMount: function(root) {
@@ -79,103 +66,21 @@ cam.DetailView = React.createClass({
 		this.searchUpdated_();
 	},
 
-	componentDidUpdate: function(prevProps, prevState) {
-		var img = this.getImageRef_();
-		if (img) {
-			// This function gets called multiple times, but the DOM de-dupes listeners for us. Thanks DOM.
-			img.getDOMNode().addEventListener('load', this.onImgLoad_);
-			img.getDOMNode().addEventListener('error', function() {
-				console.error('Could not load image: %s', img.props.src);
-			})
-		}
-	},
-
 	render: function() {
-		this.blobItemData_ = this.getBlobItemData_();
-		this.imgSize_ = this.getImgSize_();
-		return React.DOM.div({className:'detail-view', style: this.getStyle_()}, [
-			this.getImg_(),
-			this.getPiggy_(),
-			this.getSidebar_(),
-		]);
-	},
-
-	getSidebar_: function() {
-		var children = !this.blobItemData_ ? [] : [
-			this.getGeneralProperties_(),
-			this.getFileishProperties_(),
-			this.getImageProperties_(),
-			this.getNavProperties_(),
-		];
-		return cam.PropertySheetContainer({className:'detail-view-sidebar', style:this.getSidebarStyle_()}, children);
-	},
-
-	getGeneralProperties_: function() {
-		if (this.blobItemData_.m.camliType != 'permanode') {
-			return null;
-		}
-		return cam.PropertySheet({key:'general', title:'Generalities'}, [
-			React.DOM.h1({className:'detail-title'}, this.getSinglePermanodeAttr_('title') || '<no title>'),
-			React.DOM.p({className:'detail-description'}, this.getSinglePermanodeAttr_('description') || '<no description>'),
-		]);
-	},
-
-	getFileishProperties_: function() {
-		var isFile = this.blobItemData_.rm.camliType == 'file';
-		var isDir = this.blobItemData_.rm.camliType == 'directory';
-		if (!isFile && !isDir) {
-			return null;
-		}
-		return cam.PropertySheet({className:'detail-fileish-properties', key:'file', title: isFile ? 'File' : 'Directory'}, [
-			React.DOM.table({}, [
-				React.DOM.tr({}, [
-					React.DOM.td({}, 'filename'),
-					React.DOM.td({}, isFile ? this.blobItemData_.rm.file.fileName : this.blobItemData_.rm.dir.fileName),
-				]),
-				React.DOM.tr({}, [
-					React.DOM.td({}, 'size'),
-					React.DOM.td({}, this.blobItemData_.rm.file.size + ' bytes'),  // TODO(aa): Humanize units
-				]),
-			]),
-		]);
-	},
-
-	getImageProperties_: function() {
-		if (!this.blobItemData_.im) {
-			return null;
+		if (!this.dataIsLoaded_()) {
+			return React.DOM.div();
 		}
 
-		return cam.PropertySheet({className:'detail-image-properties', key:'image', title: 'Image'}, [
-			React.DOM.table({}, [
-				React.DOM.tr({}, [
-					React.DOM.td({}, 'width'),
-					React.DOM.td({}, this.blobItemData_.im.width),
-				]),
-				React.DOM.tr({}, [
-					React.DOM.td({}, 'height'),
-					React.DOM.td({}, this.blobItemData_.im.height),
-				]),
-				// TODO(aa): encoding type, exif data, etc.
-			]),
-		]);
-	},
-
-	getNavProperties_: function() {
-		return cam.PropertySheet({key:'nav', title:'Elsewhere'}, [
-			React.DOM.a({key:'search-link', href:this.props.searchURL.toString(), onClick:this.handleEscape_}, 'Back to search'),
-			React.DOM.br(),
-			React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old (editable) UI'),
-		]);
-	},
-
-	// TODO(aa): We need a Permanode utility class that wraps the JSON goop.
-	getSinglePermanodeAttr_: function(name) {
-		var m = this.blobItemData_.m;
-		if (m.camliType == 'permanode' && m.permanode.attr[name]) {
-			return goog.isArray(m.permanode.attr[name]) ? m.permanode.attr[name][0] : m.permanode.attr[name];
-		} else {
-			return null;
-		}
+		// TODO(aa): Different types of detail views can go here based on what's in blobItemData.
+		return cam.ImageDetail({
+			backwardPiggy: this.state.lastNavigateWasBackward,
+			blobItemData: new cam.BlobItemReactData(this.props.blobref, this.props.searchSession.getCurrentResults().description.meta),
+			height: this.props.height,
+			oldURL: this.props.oldURL,
+			onEscape: this.handleEscape_,
+			searchURL: this.props.searchURL,
+			width: this.props.width,
+		});
 	},
 
 	componentWillUnmount: function() {
@@ -195,7 +100,7 @@ cam.DetailView = React.createClass({
 	navigate_: function(offset) {
 		this.pendingNavigation_ = offset;
 		++this.navCount_;
-		this.setState({backwardPiggy: offset < 0});
+		this.setState({lastNavigateWasBackward: offset < 0});
 		this.handlePendingNavigation_();
 	},
 
@@ -240,15 +145,10 @@ cam.DetailView = React.createClass({
 		this.props.navigator.navigate(this.props.getDetailURL(results.blobs[index].blob));
 	},
 
-	onImgLoad_: function() {
-		this.setState({imgHasLoaded:true});
-	},
-
 	searchUpdated_: function() {
 		this.handlePendingNavigation_();
 
-		this.blobItemData_ = this.getBlobItemData_();
-		if (this.blobItemData_) {
+		if (this.dataIsLoaded_()) {
 			this.forceUpdate();
 			return;
 		}
@@ -265,113 +165,7 @@ cam.DetailView = React.createClass({
 		this.props.searchSession.loadMoreResults();
 	},
 
-	getImg_: function() {
-		var transition = React.addons.TransitionGroup({transitionName: 'detail-img'}, []);
-		if (this.imgSize_) {
-			transition.props.children.push(
-				React.DOM.img({
-					className: React.addons.classSet({
-						'detail-view-img': true,
-						'detail-view-img-loaded': this.state.imgHasLoaded
-					}),
-					// We want each image to have its own node in the DOM so that during the crossfade, we don't see the image jump to the next image's size.
-					key: this.getImageId_(),
-					ref: this.getImageId_(),
-					src: this.getSrc_(),
-					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
-				})
-			);
-		}
-		return transition;
+	dataIsLoaded_: function() {
+		return Boolean(this.props.searchSession.getCurrentResults().description.meta[this.props.blobref]);
 	},
-
-	getPiggy_: function() {
-		var transition = React.addons.TransitionGroup({transitionName: 'detail-piggy'}, []);
-		if (!this.state.imgHasLoaded) {
-			transition.props.children.push(
-				cam.SpritedAnimation({
-					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
-					className: React.addons.classSet({
-						'detail-view-piggy': true,
-						'detail-view-piggy-backward': this.state.backwardPiggy
-					}),
-					spriteWidth: this.PIGGY_WIDTH,
-					spriteHeight: this.PIGGY_HEIGHT,
-					sheetWidth: 8,
-					sheetHeight: 3,
-					interval: 30,
-					style: this.getCenteredProps_(this.PIGGY_WIDTH, this.PIGGY_HEIGHT)
-				}));
-		}
-		return transition;
-	},
-
-	getCenteredProps_: function(w, h) {
-		var avail = new goog.math.Size(this.props.width - this.getSidebarWidth_(), this.props.height);
-		return {
-			top: (avail.height - h) / 2,
-			left: (avail.width - w) / 2,
-			width: w,
-			height: h
-		}
-	},
-
-	getSrc_: function() {
-		this.lastImageHeight_ = Math.min(this.blobItemData_.im.height, cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_));
-		return this.blobItemData_.getThumbSrc(this.lastImageHeight_);
-	},
-
-	getImgSize_: function() {
-		if (!this.blobItemData_ || !this.blobItemData_.im) {
-			return null;
-		}
-		var rawSize = new goog.math.Size(this.blobItemData_.im.width, this.blobItemData_.im.height);
-		var available = new goog.math.Size(
-			this.props.width - this.getSidebarWidth_() - this.IMG_MARGIN * 2,
-			this.props.height - this.IMG_MARGIN * 2);
-		if (rawSize.height <= available.height && rawSize.width <= available.width) {
-			return rawSize;
-		}
-		return rawSize.scaleToFit(available);
-	},
-
-	getStyle_: function() {
-		return {
-			width: this.props.width,
-			height: this.props.height
-		}
-	},
-
-	getSidebarStyle_: function() {
-		return {
-			width: this.getSidebarWidth_()
-		}
-	},
-
-	getSidebarWidth_: function() {
-		return Math.max(this.props.width * 0.2, 300);
-	},
-
-	getPermanodeMeta_: function() {
-		if (!this.blobItemData_) {
-			return null;
-		}
-		return this.blobItemData_.m;
-	},
-
-	getBlobItemData_: function() {
-		var metabag = this.props.searchSession.getCurrentResults().description.meta;
-		if (!metabag[this.props.blobref]) {
-			return null;
-		}
-		return new cam.BlobItemReactData(this.props.blobref, metabag);
-	},
-
-	getImageRef_: function() {
-		return this.refs && this.refs[this.getImageId_()];
-	},
-
-	getImageId_: function() {
-		return 'img' + this.props.blobref;
-	}
 });
