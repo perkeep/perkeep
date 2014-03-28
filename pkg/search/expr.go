@@ -24,12 +24,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/geocode"
 	"camlistore.org/pkg/types"
 )
+
+const seeDocs = "\nSee: https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt"
 
 var (
 	tagExpr   = regexp.MustCompile(`^tag:(.+)$`)
@@ -48,11 +49,27 @@ var (
 )
 
 var (
-	errNoMatchingOpening   = errors.New("No matching opening parenthesis")
-	errNoMatchingClosing   = errors.New("No matching closing parenthesis")
-	errCannotStartBinaryOp = errors.New("Expression cannot start with a binary operator")
-	errExpectedAtom        = errors.New("Expected an atom")
+	noMatchingOpening      = "No matching opening parenthesis"
+	noMatchingClosing      = "No matching closing parenthesis"
+	noLiteralSupport       = "No support for literals yet"
+	noQuotedLiteralSupport = "No support for quoted literals yet"
+	expectedAtom           = "Expected an atom"
+	predicateError         = "Predicates do not start with a colon"
+	trailingTokens         = "After parsing finished there is still input left"
 )
+
+type parseExpError struct {
+	mesg string
+	t    token
+}
+
+func (e parseExpError) Error() string {
+	return fmt.Sprintf("%s at position %d, token: %q %s", e.mesg, e.t.start, e.t.val, seeDocs)
+}
+
+func newParseExpError(mesg string, t token) error {
+	return parseExpError{mesg: mesg, t: t}
+}
 
 func andConst(a, b *Constraint) *Constraint {
 	return &Constraint{
@@ -83,173 +100,236 @@ func notConst(a *Constraint) *Constraint {
 	}
 }
 
-func stripNot(tokens []string) (negated bool, rest []string) {
-	rest = tokens
-	for len(rest) > 0 {
-		if rest[0] != "-" {
-			return negated, rest
-		} else {
-			negated = !negated
-			rest = rest[1:]
-		}
-	}
-	return
+type parser struct {
+	tokens chan token
+	peeked *token
 }
 
-func parseExp(ctx *context.Context, tokens []string) (c *Constraint, rest []string, err error) {
-	if len(tokens) == 0 {
+func newParser(exp string) parser {
+	_, tokens := lex(exp)
+	return parser{tokens: tokens}
+}
+
+func (p *parser) next() *token {
+	if p.peeked != nil {
+		t := p.peeked
+		p.peeked = nil
+		return t
+	}
+	return p.readInternal()
+}
+
+func (p *parser) peek() *token {
+	if p.peeked == nil {
+		p.peeked = p.readInternal()
+	}
+	return p.peeked
+}
+
+// ReadInternal should not be called directly, use 'next' or 'peek'
+func (p *parser) readInternal() *token {
+	for t := range p.tokens {
+		return &t
+	}
+	return &token{tokenEOF, "", -1}
+}
+
+func (p *parser) stripNot() (negated bool) {
+	for {
+		switch p.peek().typ {
+		case tokenNot:
+			p.next()
+			negated = !negated
+			continue
+		}
+		return negated
+	}
+}
+
+func (p *parser) parseExp(ctx *context.Context) (c *Constraint, err error) {
+	if p.peek().typ == tokenEOF {
 		return
 	}
-	rest = tokens
-	c, rest, err = parseOperand(ctx, rest)
+	c, err = p.parseOperand(ctx)
 	if err != nil {
 		return
 	}
-	for len(rest) > 0 {
-		switch rest[0] {
-		case "and":
-			c, rest, err = parseConjunction(ctx, c, rest[1:])
-			if err != nil {
-				return
-			}
-			continue
-		case "or":
-			return parseDisjunction(ctx, c, rest[1:])
-		case ")":
+	for {
+		switch p.peek().typ {
+		case tokenAnd:
+			p.next()
+		case tokenOr:
+			p.next()
+			return p.parseOrRHS(ctx, c)
+		case tokenClose, tokenEOF:
 			return
 		}
-		c, rest, err = parseConjunction(ctx, c, rest)
+		c, err = p.parseAndRHS(ctx, c)
 		if err != nil {
 			return
 		}
 	}
-	return
 }
 
-func parseGroup(ctx *context.Context, tokens []string) (c *Constraint, rest []string, err error) {
-	rest = tokens
-	if rest[0] == "(" {
-		c, rest, err = parseExp(ctx, rest[1:])
+func (p *parser) parseGroup(ctx *context.Context) (c *Constraint, err error) {
+	i := p.next()
+	switch i.typ {
+	case tokenOpen:
+		c, err = p.parseExp(ctx)
 		if err != nil {
 			return
 		}
-		if len(rest) > 0 && rest[0] == ")" {
-			rest = rest[1:]
+		if p.peek().typ == tokenClose {
+			p.next()
+			return
 		} else {
-			err = errNoMatchingClosing
+			err = newParseExpError(noMatchingClosing, *i)
 			return
 		}
-	} else {
-		err = errNoMatchingOpening
-		return
 	}
+	err = newParseExpError("internal: do not call parseGroup when not on a '('", *i)
 	return
 }
 
-func parseDisjunction(ctx *context.Context, lhs *Constraint, tokens []string) (c *Constraint, rest []string, err error) {
+func (p *parser) parseOrRHS(ctx *context.Context, lhs *Constraint) (c *Constraint, err error) {
 	var rhs *Constraint
 	c = lhs
-	rest = tokens
 	for {
-		rhs, rest, err = parseEntireConjunction(ctx, rest)
+		rhs, err = p.parseAnd(ctx)
 		if err != nil {
 			return
 		}
 		c = orConst(c, rhs)
-		if len(rest) > 0 {
-			switch rest[0] {
-			case "or":
-				rest = rest[1:]
-				continue
-			case "and", ")":
-				return
-			}
-			return
-		} else {
+		switch p.peek().typ {
+		case tokenOr:
+			p.next()
+		case tokenAnd, tokenClose, tokenEOF:
 			return
 		}
 	}
-	return
 }
 
-func parseEntireConjunction(ctx *context.Context, tokens []string) (c *Constraint, rest []string, err error) {
-	rest = tokens
+func (p *parser) parseAnd(ctx *context.Context) (c *Constraint, err error) {
 	for {
-		c, rest, err = parseOperand(ctx, rest)
+		c, err = p.parseOperand(ctx)
 		if err != nil {
 			return
 		}
-		if len(rest) > 0 {
-			switch rest[0] {
-			case "and":
-				return parseConjunction(ctx, c, rest[1:])
-			case ")", "or":
-				return
-			}
-			return parseConjunction(ctx, c, rest)
-		} else {
+		switch p.peek().typ {
+		case tokenAnd:
+			p.next()
+		case tokenOr, tokenClose, tokenEOF:
 			return
 		}
+		return p.parseAndRHS(ctx, c)
 	}
-	return
 }
 
-func parseConjunction(ctx *context.Context, lhs *Constraint, tokens []string) (c *Constraint, rest []string, err error) {
+func (p *parser) parseAndRHS(ctx *context.Context, lhs *Constraint) (c *Constraint, err error) {
 	var rhs *Constraint
 	c = lhs
-	rest = tokens
 	for {
-		rhs, rest, err = parseOperand(ctx, rest)
+		rhs, err = p.parseOperand(ctx)
 		if err != nil {
 			return
 		}
 		c = andConst(c, rhs)
-		if len(rest) > 0 {
-			switch rest[0] {
-			case "or", ")":
-				return
-			case "and":
-				rest = rest[1:]
-				continue
-			}
-		} else {
+		switch p.peek().typ {
+		case tokenOr, tokenClose, tokenEOF:
 			return
+		case tokenAnd:
+			p.next()
+			continue
 		}
+		return
 	}
-	return
 }
 
-func parseOperand(ctx *context.Context, tokens []string) (c *Constraint, rest []string, err error) {
-	var negated bool
-	negated, rest = stripNot(tokens)
-	if len(rest) > 0 {
-		if rest[0] == "(" {
-			c, rest, err = parseGroup(ctx, rest)
-			if err != nil {
-				return
-			}
-		} else {
-			switch rest[0] {
-			case "and", "or":
-				err = errCannotStartBinaryOp
-				return
-			case ")":
-				err = errNoMatchingOpening
-				return
-			}
-			c, err = parseAtom(ctx, rest[0])
-			if err != nil {
-				return
-			}
-			rest = rest[1:]
-		}
-	} else {
-		return nil, nil, errExpectedAtom
+func (p *parser) parseOperand(ctx *context.Context) (c *Constraint, err error) {
+	negated := p.stripNot()
+	i := p.peek()
+	switch i.typ {
+	case tokenError:
+		err = newParseExpError(i.val, *i)
+		return
+	case tokenEOF:
+		err = newParseExpError(expectedAtom, *i)
+		return
+	case tokenClose:
+		err = newParseExpError(noMatchingOpening, *i)
+		return
+	case tokenLiteral, tokenQuotedLiteral, tokenPredicate, tokenColon, tokenArg:
+		c, err = p.parseAtom(ctx)
+	case tokenOpen:
+		c, err = p.parseGroup(ctx)
+	}
+	if err != nil {
+		return
 	}
 	if negated {
 		c = notConst(c)
 	}
 	return
+}
+
+func (p *parser) atomWord() (word string, err error) {
+	i := p.peek()
+	switch i.typ {
+	case tokenLiteral:
+		err = newParseExpError(noLiteralSupport, *i)
+		return
+	case tokenQuotedLiteral:
+		err = newParseExpError(noQuotedLiteralSupport, *i)
+		return
+	case tokenColon:
+		err = newParseExpError(predicateError, *i)
+		return
+	case tokenPredicate:
+		i := p.next()
+		word += i.val
+	}
+	for {
+		switch p.peek().typ {
+		case tokenColon:
+			p.next()
+			word += ":"
+			continue
+		case tokenArg:
+			i := p.next()
+			word += i.val
+			continue
+		case tokenQuotedArg:
+			i := p.next()
+			uq, err := strconv.Unquote(i.val)
+			if err != nil {
+				return "", err
+			}
+			word += uq
+			continue
+		}
+		return
+	}
+}
+
+func (p *parser) parseAtom(ctx *context.Context) (c *Constraint, err error) {
+	word, err := p.atomWord()
+	if err != nil {
+		return
+	}
+	c, err = parseCoreAtom(ctx, word)
+	if err == nil {
+		return c, nil
+	}
+	c, err = parseImageAtom(ctx, word)
+	if err == nil {
+		return c, nil
+	}
+	c, err = parseLocationAtom(ctx, word)
+	if err == nil {
+		return c, nil
+	}
+	log.Printf("Unknown search predicate %q", word)
+	return nil, errors.New(fmt.Sprintf("Unknown search predicate: %q", word))
 }
 
 func permOfFile(fc *FileConstraint) *Constraint {
@@ -456,23 +536,6 @@ func parseLocationAtom(ctx *context.Context, word string) (*Constraint, error) {
 	return nil, errors.New(fmt.Sprintf("Not an location-atom: %v", word))
 }
 
-func parseAtom(ctx *context.Context, word string) (*Constraint, error) {
-	c, err := parseCoreAtom(ctx, word)
-	if err == nil {
-		return c, nil
-	}
-	c, err = parseImageAtom(ctx, word)
-	if err == nil {
-		return c, nil
-	}
-	c, err = parseLocationAtom(ctx, word)
-	if err == nil {
-		return c, nil
-	}
-	log.Printf("Unknown search expression word %q", word)
-	return nil, errors.New(fmt.Sprintf("Unknown search atom: %s", word))
-}
-
 func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 	base := &Constraint{
 		Permanode: &PermanodeConstraint{
@@ -487,17 +550,23 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 	if exp == "" {
 		return sq, nil
 	}
+	_, tokens := lex(exp)
+	p := parser{tokens: tokens}
 
-	words := splitExpr(exp)
-	c, rem, err := parseExp(ctx, words)
+	c, err := p.parseExp(ctx)
 	if err != nil {
 		return nil, err
 	}
+	lastToken := p.next()
+	if lastToken.typ != tokenEOF {
+		switch lastToken.typ {
+		case tokenClose:
+			return nil, newParseExpError(noMatchingOpening, *lastToken)
+		}
+		return nil, newParseExpError(trailingTokens, *lastToken)
+	}
 	if c != nil {
 		sq.Constraint = andConst(base, c)
-	}
-	if len(rem) > 0 {
-		return nil, errors.New("Trailing terms")
 	}
 	return sq, nil
 }
@@ -538,133 +607,4 @@ func mimeFromFormat(v string) string {
 		return "application/pdf" // RFC 3778
 	}
 	return "???"
-}
-
-// Tokens are:
-//    literal
-//    foo:     (for operators)
-//    "quoted string"
-//    "("
-//    ")"
-//    " "  (for any amount of space)
-//    "-" negative sign
-func tokenizeExpr(exp string) []string {
-	var tokens []string
-	for len(exp) > 0 {
-		var token string
-		token, exp = firstToken(exp)
-		tokens = append(tokens, token)
-	}
-	return tokens
-}
-
-func firstToken(s string) (token, rest string) {
-	isWordBound := func(r byte) bool {
-		if isSpace(r) {
-			return true
-		}
-		switch r {
-		case '(', ')', '-':
-			return true
-		}
-		return false
-	}
-	if s[0] == '-' {
-		return "-", s[1:]
-	}
-	if s[0] == '(' {
-		return "(", s[1:]
-	}
-	if s[0] == ')' {
-		return ")", s[1:]
-	}
-	if strings.HasPrefix(s, "and") && len(s) > 3 && isWordBound(s[3]) {
-		return "and", s[3:]
-	}
-	if strings.HasPrefix(s, "or") && len(s) > 2 && isWordBound(s[2]) {
-		return "or", s[2:]
-	}
-	if isSpace(s[0]) {
-		for len(s) > 0 && isSpace(s[0]) {
-			s = s[1:]
-		}
-		return " ", s
-	}
-	if s[0] == '"' {
-		quote := false
-		for i, r := range s[1:] {
-			if quote {
-				quote = false
-				continue
-			}
-			if r == '\\' {
-				quote = true
-				continue
-			}
-			if r == '"' {
-				return s[:i+2], s[i+2:]
-			}
-		}
-	}
-	for i, r := range s {
-		if r == ':' {
-			return s[:i+1], s[i+1:]
-		}
-		if r == '(' {
-			return s[:i], s[i:]
-		}
-		if r == ')' {
-			return s[:i], s[i:]
-		}
-		if r < utf8.RuneSelf && isSpace(byte(r)) {
-			return s[:i], s[i:]
-		}
-	}
-	return s, ""
-}
-
-func isSpace(b byte) bool {
-	switch b {
-	case ' ', '\n', '\r', '\t':
-		return true
-	}
-	return false
-}
-
-// Basically just strings.Fields for now but with de-quoting of quoted
-// tokens after operators.
-func splitExpr(exp string) []string {
-	tokens := tokenizeExpr(strings.TrimSpace(exp))
-	if len(tokens) == 0 {
-		return nil
-	}
-	// Turn any pair of ("operator:", `"quoted string"`) tokens into
-	// ("operator:", "quoted string"), unquoting the second.
-	for i, token := range tokens[:len(tokens)-1] {
-		nextToken := tokens[i+1]
-		if strings.HasSuffix(token, ":") && strings.HasPrefix(nextToken, "\"") {
-			if uq, err := strconv.Unquote(nextToken); err == nil {
-				tokens[i+1] = uq
-			}
-		}
-	}
-
-	// Split on space, ), ( tokens and concatenate tokens ending with :
-	// Not particularly efficient, though.
-	var f []string
-	var nextPasted bool
-	for _, token := range tokens {
-		if token == " " {
-			continue
-		} else if nextPasted {
-			f[len(f)-1] += token
-			nextPasted = false
-		} else {
-			f = append(f, token)
-		}
-		if strings.HasSuffix(token, ":") {
-			nextPasted = true
-		}
-	}
-	return f
 }
