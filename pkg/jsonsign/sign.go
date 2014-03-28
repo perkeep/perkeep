@@ -42,7 +42,7 @@ type FileEntityFetcher struct {
 }
 
 func FlagEntityFetcher() *FileEntityFetcher {
-	return &FileEntityFetcher{File: osutil.IdentitySecretRing()}
+	return &FileEntityFetcher{File: osutil.SecretRingFile()}
 }
 
 type CachingEntityFetcher struct {
@@ -117,7 +117,7 @@ type SignRequest struct {
 
 	// SecretKeyringPath is only used if EntityFetcher is nil,
 	// in which case SecretKeyringPath is used if non-empty.
-	// As a final resort, we default to osutil.IdentitySecretRing().
+	// As a final resort, we default to osutil.SecretRingFile().
 	SecretKeyringPath string
 }
 
@@ -125,7 +125,7 @@ func (sr *SignRequest) secretRingPath() string {
 	if sr.SecretKeyringPath != "" {
 		return sr.SecretKeyringPath
 	}
-	return osutil.IdentitySecretRing()
+	return osutil.SecretRingFile()
 }
 
 func (sr *SignRequest) Sign() (signedJSON string, err error) {

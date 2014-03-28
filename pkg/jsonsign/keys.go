@@ -95,11 +95,12 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	return pk, nil
 }
 
-// EntityFromSecring returns the openpgp Entity from keyFile that matches keyId. If empty, keyFile defaults to osutil.IdentitySecretRing().
+// EntityFromSecring returns the openpgp Entity from keyFile that matches keyId.
+// If empty, keyFile defaults to osutil.SecretRingFile().
 func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, error) {
 	keyId = strings.ToUpper(keyId)
 	if keyFile == "" {
-		keyFile = osutil.IdentitySecretRing()
+		keyFile = osutil.SecretRingFile()
 	}
 	secring, err := os.Open(keyFile)
 	if err != nil {

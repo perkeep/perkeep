@@ -249,7 +249,7 @@ func newDefaultConfigFile(path string) error {
 	}
 
 	var keyId string
-	secRing := osutil.IdentitySecretRing()
+	secRing := osutil.SecretRingFile()
 	_, err := os.Stat(secRing)
 	switch {
 	case err == nil:
