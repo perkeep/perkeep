@@ -20,6 +20,7 @@ package context
 
 import (
 	"errors"
+	"net/http"
 	"sync"
 )
 
@@ -44,6 +45,12 @@ func New() *Context {
 	return &Context{
 		done: make(chan struct{}),
 	}
+}
+
+// HTTPClient returns the HTTP Client to use for this context.
+func (c *Context) HTTPClient() *http.Client {
+	// TODO: add hook for appengine to register to supply an alternate one.
+	return http.DefaultClient
 }
 
 // New returns a child context attached to the receiver parent context c.
